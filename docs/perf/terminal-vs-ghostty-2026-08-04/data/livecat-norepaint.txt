@@ -1,0 +1,4 @@
+# norepaint term=1113086/TerminalApp grid=56x244
+wall 0.594  cpu 0.59  100.4 MB/s
+wall 0.588  cpu 0.59  101.4 MB/s
+wall 0.598  cpu 0.60  99.7 MB/s

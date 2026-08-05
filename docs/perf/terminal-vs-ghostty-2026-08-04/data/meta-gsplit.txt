@@ -1,0 +1,4 @@
+label gsplit
+terminal_pid 1260408
+terminal_comm TerminalApp
+grid 47x201

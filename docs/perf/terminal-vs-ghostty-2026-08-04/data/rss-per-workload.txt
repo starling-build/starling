@@ -1,0 +1,12 @@
+start 128588
+01_light_cells 140124
+02_dense_cells 142520
+03_sgr_fg 186216
+04_sgr_truecolor 213380
+05_unicode 213704
+06_cursor_motion 214260
+07_alt_screen 214740
+08_scroll_region 215712
+09_long_lines 217828
+10_binary 221996
+after_idle_5s 221996

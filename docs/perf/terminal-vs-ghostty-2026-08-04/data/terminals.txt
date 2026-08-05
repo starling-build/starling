@@ -1,0 +1,8 @@
+terminals measured 2026-08-04, all at grid 47x201 on GNOME Shell 50.1 (Wayland):
+  ghostty nightly  1.3.2-dev+48d85ea, built from tip tarball, Zig 0.16.0, ReleaseFast
+  ghostty 1.3.0    1.3.0~us1-0ubuntu1 (Ubuntu resolute/universe, binary dated 2025-12-16)
+  alacritty        0.16.1-2ubuntu1
+  kitty            0.45.0-1build1
+  TerminalApp      starling main@e185737, GTK embedder build (STARLING_APP_GTK=1)
+not run: iTerm2/Terminal.app (macOS only); Warp (not packaged for Ubuntu, requires sign-in)
+note: there is no v1.3.2 tag upstream; newest release tag is v1.3.1

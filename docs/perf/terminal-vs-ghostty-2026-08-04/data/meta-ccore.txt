@@ -1,0 +1,4 @@
+label ccore
+terminal_pid 1133673
+terminal_comm TerminalApp
+grid 47x201

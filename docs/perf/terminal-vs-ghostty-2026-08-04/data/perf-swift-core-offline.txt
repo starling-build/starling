@@ -1,0 +1,23 @@
+    29.03%  bench_swift  bench_swift           [.] $s11bench_swift16TerminalEmulatorC12_processByte33_68521D9A5C578713ACBF205272E35AD6LLyys5UInt8VF
+    11.33%  bench_swift  libswiftCore.so       [.] swift_beginAccess
+    10.19%  bench_swift  bench_swift           [.] $s11bench_swift16TerminalEmulatorC4feedyySays5UInt8VGF
+     6.26%  bench_swift  libswiftCore.so       [.] swift::runtime::AccessSet::insert(swift::runtime::Access*, void*, void*, swift::ExclusivityFlags)
+     5.63%  bench_swift  ld-linux-x86-64.so.2  [.] __tls_get_addr
+     4.02%  bench_swift  libswiftCore.so       [.] swift_isUniquelyReferenced_nonNull_native
+     3.56%  bench_swift  libswiftCore.so       [.] swift_retain
+     3.42%  bench_swift  libswiftCore.so       [.] swift_endAccess
+     3.42%  bench_swift  libswiftCore.so       [.] swift::runtime::SwiftTLSContext::get()
+     3.40%  bench_swift  libswiftCore.so       [.] swift_release
+     3.01%  bench_swift  libc.so.6             [.] __memmove_avx512_unaligned_erms
+     3.00%  bench_swift  bench_swift           [.] $s11bench_swift16TerminalEmulatorC10_putScalar33_68521D9A5C578713ACBF205272E35AD6LLyys6UInt32VF
+     2.36%  bench_swift  bench_swift           [.] $sSa15replaceSubrange_4withySnySiG_qd__nt7ElementQyd__RszSlRd__lFSi_s15EmptyCollectionVySiGTg5Tf4ndn_n
+     2.11%  bench_swift  bench_swift           [.] swift_isUniquelyReferenced_nonNull_native@plt
+     1.57%  bench_swift  bench_swift           [.] swift_beginAccess@plt
+     1.32%  bench_swift  libswiftCore.so       [.] __tls_get_addr@plt
+     1.20%  bench_swift  bench_swift           [.] $s11bench_swift11TermPaletteO8color256ys6UInt32VSiFZTf4nd_n
+     0.97%  bench_swift  bench_swift           [.] $s11bench_swift16TerminalEmulatorC10ParseState33_68521D9A5C578713ACBF205272E35AD6LLOWOe
+     0.42%  bench_swift  bench_swift           [.] swift_retain@plt
+     0.36%  bench_swift  bench_swift           [.] memmove@plt
+     0.34%  bench_swift  [kernel.kallsyms]     [k] _copy_to_iter
+     0.34%  bench_swift  bench_swift           [.] swift_endAccess@plt
+     0.32%  bench_swift  [kernel.kallsyms]     [k] kernel_init_pages

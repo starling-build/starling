@@ -1,0 +1,4 @@
+# ghn term=1113485/ghostty grid=45x201
+wall 0.404  cpu 0.84  147.5 MB/s
+wall 0.384  cpu 0.81  155.5 MB/s
+wall 0.372  cpu 0.80  160.2 MB/s

@@ -1,0 +1,4 @@
+label drmnorep
+terminal_pid 1278465
+terminal_comm TerminalApp
+grid 60x244

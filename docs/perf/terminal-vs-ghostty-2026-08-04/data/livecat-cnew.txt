@@ -1,0 +1,4 @@
+# cnew term=1125182/TerminalApp grid=56x244
+wall 0.248  cpu 0.50  240.6 MB/s
+wall 0.239  cpu 0.48  249.7 MB/s
+wall 0.237  cpu 0.46  251.9 MB/s

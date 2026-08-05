@@ -1,0 +1,7 @@
+# file rep wall_s cpu_s   (terminal 984185 / alacritty, grid 47x201)
+ascii_150mb 1 1.325 1.39
+ascii_150mb 2 1.395 1.46
+ascii_150mb 3 1.354 1.42
+unicode_150mb 1 1.122 1.17
+unicode_150mb 2 1.124 1.16
+unicode_150mb 3 1.127 1.18

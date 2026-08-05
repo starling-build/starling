@@ -1,0 +1,19 @@
+# ghn term=1038082/ghostty grid=45x201 frames=600
+utf8sgr BENCHFPS frames=600 seconds=0.604 fps=993.38
+  cpu_s 1.37
+utf8sgr BENCHFPS frames=600 seconds=0.567 fps=1058.20
+  cpu_s 1.30
+utf8sgr BENCHFPS frames=600 seconds=0.578 fps=1038.06
+  cpu_s 1.32
+asciisgr BENCHFPS frames=600 seconds=0.498 fps=1204.82
+  cpu_s 1.14
+asciisgr BENCHFPS frames=600 seconds=0.489 fps=1226.99
+  cpu_s 1.12
+asciisgr BENCHFPS frames=600 seconds=0.492 fps=1219.51
+  cpu_s 1.12
+nosgr BENCHFPS frames=600 seconds=0.103 fps=5825.24
+  cpu_s 0.24
+nosgr BENCHFPS frames=600 seconds=0.107 fps=5607.48
+  cpu_s 0.27
+nosgr BENCHFPS frames=600 seconds=0.106 fps=5660.38
+  cpu_s 0.25

@@ -1,0 +1,7 @@
+# kitty  terminal=990850/kitty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.693 fps=354.40
+  cpu_s 1.79
+BENCHFPS frames=600 seconds=1.691 fps=354.82
+  cpu_s 1.78
+BENCHFPS frames=600 seconds=1.697 fps=353.57
+  cpu_s 1.78

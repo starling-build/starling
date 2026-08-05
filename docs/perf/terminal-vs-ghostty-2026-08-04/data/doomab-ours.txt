@@ -1,0 +1,13 @@
+# ours terminal=1032175/TerminalApp grid=56x244 frames=600
+utf8 BENCHFPS frames=600 seconds=1.320 fps=454.55
+  cpu_s 3.15
+utf8 BENCHFPS frames=600 seconds=1.275 fps=470.59
+  cpu_s 3.00
+utf8 BENCHFPS frames=600 seconds=1.280 fps=468.75
+  cpu_s 2.98
+ascii BENCHFPS frames=600 seconds=1.211 fps=495.46
+  cpu_s 3.13
+ascii BENCHFPS frames=600 seconds=1.204 fps=498.34
+  cpu_s 3.12
+ascii BENCHFPS frames=600 seconds=1.217 fps=493.02
+  cpu_s 3.17
