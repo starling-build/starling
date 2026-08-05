@@ -22,6 +22,15 @@ func env(_ key: String, default fallback: String) -> String {
 // back to their own RUNPATH.
 let appPackageDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 
+// Opt-in windowed build: `STARLING_APP_GTK=1 swift build -c release` adds the
+// engine's GTK embedder, so the same sources run in an ordinary window on a
+// normal desktop session (GNOME/KDE, Wayland or X11) instead of compositing
+// through the shell. Off by default, because the shipped app must not drag GTK
+// into its link set — the same split TaskManagerApp's manifest describes.
+// The source side is guarded by `#if STARLING_GTK`; `runStarlingApp` picks the
+// host at runtime, so the default binary behaves exactly as before.
+let gtkHost = !env("STARLING_APP_GTK", default: "").isEmpty
+
 #if os(Linux) || os(Windows)
 let engineOutDir = env("STARLING_ENGINE_OUT",
                        default: appPackageDir + "/../../engine/src/out/host_debug")
@@ -46,6 +55,11 @@ let platformConstraints: [SupportedPlatform] = []
 #endif
 
 var targets: [Target] = [
+        // The emulator core: parser + grid + scrollback in C. It is here rather
+        // than in Swift because the Swift version spent ~47% of its time in
+        // exclusivity/ARC/COW bookkeeping instead of the emulator's own work.
+        // See test/bench/core/ for the measurement and the differential test.
+        .target(name: "CStarlingTerm"),
         {
             #if os(macOS)
             return .executableTarget(
@@ -90,6 +104,7 @@ var targets: [Target] = [
                     .product(name: "CupertinoIcons", package: "FlutterSwift"),
                     .product(name: "FlutterWin32", package: "FlutterSwift"),
                     "CStarlingConPTY",
+                    "CStarlingTerm",
                 ],
                 resources: [
                     .copy("Resources/RobotoMono-Regular.ttf"),
@@ -111,9 +126,16 @@ var targets: [Target] = [
             #else
             return .executableTarget(
                 name: "TerminalApp",
-                dependencies: [
-                    .product(name: "FlutterShared", package: "FlutterSwift"),
-                ],
+                dependencies: gtkHost
+                    ? [
+                        .product(name: "FlutterShared", package: "FlutterSwift"),
+                        .product(name: "FlutterGTK", package: "FlutterSwift"),
+                        "CStarlingTerm",
+                    ]
+                    : [
+                        .product(name: "FlutterShared", package: "FlutterSwift"),
+                        "CStarlingTerm",
+                    ],
                 resources: [
                     .copy("Resources/RobotoMono-Regular.ttf"),
                     .copy("Resources/RobotoMono-Bold.ttf"),
@@ -121,10 +143,16 @@ var targets: [Target] = [
                     .copy("Resources/DejaVuSansMono-Bold.ttf"),
                     .copy("Resources/DejaVuSansMono-LICENSE.txt"),
                 ],
-                swiftSettings: [
-                    .interoperabilityMode(.Cxx),
-                    .unsafeFlags(glibcMathCompat),
-                ],
+                swiftSettings: gtkHost
+                    ? [
+                        .interoperabilityMode(.Cxx),
+                        .unsafeFlags(glibcMathCompat),
+                        .define("STARLING_GTK"),
+                    ]
+                    : [
+                        .interoperabilityMode(.Cxx),
+                        .unsafeFlags(glibcMathCompat),
+                    ],
                 linkerSettings: [
                     .unsafeFlags([
                         "-L\(engineOutDir)",

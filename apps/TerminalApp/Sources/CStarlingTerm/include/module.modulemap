@@ -1,0 +1,4 @@
+module CStarlingTerm {
+    header "starling_term.h"
+    export *
+}
