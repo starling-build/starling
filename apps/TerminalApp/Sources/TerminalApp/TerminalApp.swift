@@ -144,10 +144,10 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         emulator.onResponse = { [weak self] text in
             self?.pty?.write(text)
         }
-        pty.onData = { [weak self] bytes in
+        pty.onData = { [weak self] bytes, count in
             guard let self = self else { return }
             self._lock.lock()
-            self.emulator.feed(bytes)
+            self.emulator.feed(bytes, count: count)
             self._lock.unlock()
             self._scheduleRepaint()
         }

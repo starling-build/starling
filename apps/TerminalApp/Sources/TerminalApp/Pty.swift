@@ -7,6 +7,103 @@ import Foundation
 import Glibc
 #endif
 
+/// A bounded ring of fixed-size buffers handed from the PTY reader thread to
+/// the parser thread.
+///
+/// Blocking in both directions: the reader waits for a free slot and the parser
+/// waits for a filled one, so a flood still applies backpressure to the shell
+/// exactly as the old single-threaded read loop did — it just stops making the
+/// shell wait for the *parser* as well as for the read.
+///
+/// Slots are allocated once. The reader owns a slot until it publishes it and
+/// the parser owns it until it releases it, so no slot is ever aliased and the
+/// bytes need no copy on either side.
+final class ChunkRing: @unchecked Sendable {
+
+    /// A read never returns more than the PTY line discipline has buffered
+    /// (4 KB in practice), but bursts do occasionally fill this.
+    static let slotCapacity = 65536
+    private static let slotCount = 8
+
+    struct Slot {
+        let index: Int
+        let base: UnsafeMutablePointer<UInt8>
+        let count: Int
+    }
+
+    private let storage: UnsafeMutablePointer<UInt8>
+    private var lengths = [Int](repeating: 0, count: ChunkRing.slotCount)
+    private var head = 0          // parser reads here
+    private var tail = 0          // reader writes here
+    private var filled = 0
+    private var closed = false
+    private let cond = NSCondition()
+
+    init() {
+        storage = UnsafeMutablePointer<UInt8>.allocate(
+            capacity: ChunkRing.slotCapacity * ChunkRing.slotCount)
+    }
+
+    deinit { storage.deallocate() }
+
+    private func base(_ index: Int) -> UnsafeMutablePointer<UInt8> {
+        storage + index * ChunkRing.slotCapacity
+    }
+
+    /// Reader side: claim the next free slot, blocking while the ring is full.
+    /// `nil` once the ring is closed.
+    func acquireForWrite() -> Slot? {
+        cond.lock()
+        while filled == ChunkRing.slotCount && !closed { cond.wait() }
+        if closed { cond.unlock(); return nil }
+        let index = tail
+        cond.unlock()
+        return Slot(index: index, base: base(index), count: 0)
+    }
+
+    /// Reader side: hand a filled slot to the parser.
+    func publish(_ slot: Slot, count: Int) {
+        cond.lock()
+        lengths[slot.index] = count
+        tail = (tail + 1) % ChunkRing.slotCount
+        filled += 1
+        cond.broadcast()
+        cond.unlock()
+    }
+
+    /// Reader side: give a claimed slot back unfilled (EINTR, or shutting down).
+    /// Nothing was published, so this only has to not advance `tail`.
+    func abandon(_ slot: Slot) {}
+
+    func close() {
+        cond.lock()
+        closed = true
+        cond.broadcast()
+        cond.unlock()
+    }
+
+    /// Parser side: the next filled slot, blocking. `nil` once the ring is both
+    /// drained and closed — never before, so no output is dropped on exit.
+    func nextForRead() -> Slot? {
+        cond.lock()
+        while filled == 0 && !closed { cond.wait() }
+        if filled == 0 { cond.unlock(); return nil }
+        let index = head
+        let count = lengths[index]
+        cond.unlock()
+        return Slot(index: index, base: base(index), count: count)
+    }
+
+    /// Parser side: done with a slot; the reader may fill it again.
+    func release(_ slot: Slot) {
+        cond.lock()
+        head = (head + 1) % ChunkRing.slotCount
+        filled -= 1
+        cond.broadcast()
+        cond.unlock()
+    }
+}
+
 // The POSIX implementation. PtyWindows.swift provides the same type, with the
 // same surface, over ConPTY — Windows has no forkpty and no SIGWINCH.
 #if !os(Windows)
@@ -27,13 +124,18 @@ final class Pty: @unchecked Sendable {
     let masterFd: Int32
     let childPid: pid_t
 
-    /// Called on the reader thread with each chunk read from the master.
-    var onData: (([UInt8]) -> Void)?
+    /// Called on the PARSER thread with each chunk read from the master. The
+    /// buffer is owned by the PTY and is valid only for the duration of the
+    /// call — copy anything that has to outlive it.
+    var onData: ((UnsafePointer<UInt8>, Int) -> Void)?
 
-    /// Called on the reader thread when the child exits / the PTY closes.
+    /// Called on the parser thread once every queued chunk has been delivered
+    /// and the child has exited / the PTY has closed.
     var onExit: (() -> Void)?
 
     private var readerThread: Thread?
+    private var parserThread: Thread?
+    private let ring = ChunkRing()
 
     init?(cols: Int, rows: Int) {
         // ── Master side ─────────────────────────────────────────────────
@@ -131,29 +233,56 @@ final class Pty: @unchecked Sendable {
     /// account instead.
     private static func _homeDir() -> String { realUserHomeDirectory() }
 
-    /// Starts the reader loop on a background thread.
+    /// Starts the reader and parser threads.
+    ///
+    /// They are separate on purpose. A single thread that reads then parses
+    /// stops draining the PTY while it parses, so the shell blocks on a full
+    /// buffer and the wall time becomes transport PLUS parse. Splitting them
+    /// makes it max(transport, parse): measured against a real PTY and the real
+    /// core, `alt_screen` 0.101 -> 0.078 s, `sgr_truecolor` 0.463 -> 0.317,
+    /// `sgr_fg` 0.336 -> 0.241, and no workload got slower (test/bench/core,
+    /// `ptyread.c` modes 0 and 3). Ghostty sits exactly on the transport floor
+    /// on the workloads where we did not; this is why.
     func startReader() {
-        let thread = Thread { [weak self] in
-            // 64K rather than 8K: every read is an allocation for the chunk
-            // and a trip through feed + a repaint request, and a terminal
-            // being flooded gets a full buffer every time. Eight times fewer
-            // of each, for 56 KB.
-            var buf = [UInt8](repeating: 0, count: 65536)
+        let reader = Thread { [weak self] in
             while true {
                 guard let self = self else { return }
-                let n = read(self.masterFd, &buf, buf.count)
+                // The slot is ours until we publish it, so the read lands
+                // straight in the ring — no chunk allocation, no copy.
+                guard let slot = self.ring.acquireForWrite() else { return }
+                let n = read(self.masterFd, slot.base, ChunkRing.slotCapacity)
                 if n > 0 {
-                    self.onData?(Array(buf[0..<n]))
+                    self.ring.publish(slot, count: n)
+                } else if n < 0 && errno == EINTR {
+                    self.ring.abandon(slot)
                 } else {
-                    if n < 0 && (errno == EINTR || errno == EAGAIN) { continue }
-                    self.onExit?()
+                    self.ring.abandon(slot)
+                    self.ring.close()
                     return
                 }
             }
         }
-        thread.name = "pty-reader"
-        thread.start()
-        readerThread = thread
+        reader.name = "pty-reader"
+
+        let parser = Thread { [weak self] in
+            while true {
+                guard let self = self else { return }
+                guard let chunk = self.ring.nextForRead() else {
+                    // Drained and closed: every byte the shell wrote has been
+                    // parsed before anyone is told it exited.
+                    self.onExit?()
+                    return
+                }
+                self.onData?(UnsafePointer(chunk.base), chunk.count)
+                self.ring.release(chunk)
+            }
+        }
+        parser.name = "pty-parser"
+
+        readerThread = reader
+        parserThread = parser
+        reader.start()
+        parser.start()
     }
 
     /// Writes bytes to the shell's input.
