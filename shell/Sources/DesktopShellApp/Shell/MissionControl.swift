@@ -32,10 +32,11 @@ extension _DesktopShellState {
 
     // MARK: Geometry
 
-    /// Number of spaces shown in the strip. The AI Space (always the last
-    /// slot, when it exists) is not a desktop and never appears here.
+    /// Number of spaces shown in the strip. The special spaces (AI Space,
+    /// workspace mode — always past the user spaces) are not desktops and
+    /// never appear here.
     private var _mcStripCount: Int {
-        windowManager.spaces.count - (windowManager.agentSpaceIndex != nil ? 1 : 0)
+        windowManager.spaces.count - windowManager.spaces.filter({ $0.isSpecial }).count
     }
 
     /// Frame of the space thumbnail at `index`; index == stripCount is

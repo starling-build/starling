@@ -146,6 +146,11 @@ enum SpaceKind: Equatable {
     case user
     case fullscreen(windowId: String)
     case agent
+    /// Workspace mode: a driver app with whatever it opens beside it. Like
+    /// the agent space it is persistent, pinned past the user spaces, and
+    /// excluded from cycling — but it has nothing to do with agents, and the
+    /// two are independent.
+    case workspace
 }
 
 /// One virtual desktop (macOS "Space"). Windows reference it by `id`;
@@ -165,6 +170,30 @@ final class SpaceInfo {
     }
 
     var isAgent: Bool { kind == .agent }
+
+    var isWorkspace: Bool { kind == .workspace }
+
+    /// A space the user never lands on by cycling: it is entered only by its
+    /// own affordance and is pinned after the user spaces.
+    var isSpecial: Bool { isAgent || isWorkspace }
+}
+
+/// One workspace: a driver app, and the windows opened beside it.
+///
+/// The driver is a window, not an app id, because it is whatever is running in
+/// the middle column right now — and it can be absent. When the driver quits
+/// the workspace survives with its other windows intact and the middle column
+/// returns to its empty state, so this is deliberately nil-able rather than
+/// something the workspace is constructed around.
+final class WorkspaceInfo {
+    let id: String
+    var name: String
+    var driverWindowId: String? = nil
+
+    init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
 }
 
 // MARK: - Agents (Murmuration)
@@ -232,6 +261,39 @@ class WindowManagerState {
     /// Registered agents (Murmuration), in creation order.
     var agents: [AgentInfo] = []
 
+    /// Workspaces, in creation order — the rows of the workspace rail.
+    var workspaces: [WorkspaceInfo] = []
+    /// The workspace the rail has selected; nil = the first one.
+    var selectedWorkspaceId: String? = nil
+    private var nextWorkspaceNumber: Int = 1
+
+    /// The selected workspace, creating nothing. nil when there are none.
+    var selectedWorkspace: WorkspaceInfo? {
+        workspaces.first(where: { $0.id == selectedWorkspaceId }) ?? workspaces.first
+    }
+
+    @discardableResult
+    func addWorkspace() -> WorkspaceInfo {
+        let ws = WorkspaceInfo(id: "ws-\(nextWorkspaceNumber)",
+                               name: "Workspace \(nextWorkspaceNumber)")
+        nextWorkspaceNumber += 1
+        workspaces.append(ws)
+        selectedWorkspaceId = ws.id
+        return ws
+    }
+
+    /// Windows belonging to a workspace, newest last.
+    ///
+    /// Ownership rides on `WindowInfo.ownerAgentId`, which is not the misnomer
+    /// it looks like: the field is an opaque owner id, and every desktop query
+    /// already filters on "has an owner" rather than on what the owner is. So a
+    /// workspace window is hidden from the dock, tiling, Mission Control and
+    /// focus with no new filter sites — and renaming the field is left for
+    /// whenever the agent space itself is revisited.
+    func windows(inWorkspace workspaceId: String) -> [WindowInfo] {
+        windows.filter { $0.ownerAgentId == workspaceId }
+    }
+
     var activeSpace: SpaceInfo { spaces[activeSpaceIndex] }
 
     func spaceIndex(ofSpaceId id: Int) -> Int? {
@@ -244,6 +306,28 @@ class WindowManagerState {
     /// Index of the AI Space, if it has been created (always the last slot).
     var agentSpaceIndex: Int? {
         spaces.indices.last(where: { spaces[$0].isAgent })
+    }
+
+    /// Index of the workspace space, if it has been created.
+    var workspaceSpaceIndex: Int? {
+        spaces.indices.last(where: { spaces[$0].isWorkspace })
+    }
+
+    /// Where user spaces stop and the special ones begin. New user spaces
+    /// append here so the special spaces stay past the end of the strip.
+    var firstSpecialIndex: Int {
+        spaces.firstIndex(where: { $0.isSpecial }) ?? spaces.count
+    }
+
+    /// Create the workspace space on first use and return its index — the
+    /// same lazy, never-removed treatment the AI Space gets.
+    @discardableResult
+    func ensureWorkspaceSpace() -> Int {
+        if let idx = workspaceSpaceIndex { return idx }
+        let space = SpaceInfo(id: nextSpaceId, kind: .workspace)
+        nextSpaceId += 1
+        spaces.append(space)
+        return spaces.count - 1
     }
 
     /// Create the persistent AI Space on first use (lazily, so a desktop
@@ -273,7 +357,7 @@ class WindowManagerState {
     func addSpace(at index: Int? = nil) -> Int {
         let space = SpaceInfo(id: nextSpaceId)
         nextSpaceId += 1
-        let appendAt = agentSpaceIndex ?? spaces.count
+        let appendAt = firstSpecialIndex
         let insertAt = min(max(index ?? appendAt, 0), appendAt)
         spaces.insert(space, at: insertAt)
         if insertAt <= activeSpaceIndex { activeSpaceIndex += 1 }
@@ -285,7 +369,7 @@ class WindowManagerState {
     /// The last user space can never be removed; the agent space never is.
     func removeSpace(at index: Int) {
         guard spaces.indices.contains(index), spaces.count > 1 else { return }
-        guard !spaces[index].isAgent else { return }
+        guard !spaces[index].isSpecial else { return }
         guard !(spaces[index].isUser && spaces.filter({ $0.isUser }).count == 1) else { return }
         let removedId = spaces[index].id
         // Stranded windows migrate to the nearest USER space (never into a
