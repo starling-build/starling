@@ -200,6 +200,12 @@ extension _DesktopShellState {
                     "Apps opened here will appear in this panel",
                     style: TextStyle(color: shellTheme.overlayTextDim,
                                      fontSize: 12.5, fontWeight: .w400))))))
+            out.append(Positioned(
+                left: left + WS.paneGap, top: top + WS.tabTop,
+                width: 30, height: WS.tabH,
+                child: _workspaceButton("+", fontSize: 14) { [self] in
+                    setState { _launcherOpen = true; _launcherQuery = "" }
+                }))
             return out
         }
 
@@ -239,6 +245,13 @@ extension _DesktopShellState {
                                 fontSize: 11, fontWeight: isActive ? .w600 : .w400)))))))
             x += tabW + WS.tabGap
         }
+        // The dock is faded out in this mode, so without this there is no way
+        // to open a second app from inside a workspace.
+        out.append(Positioned(
+            left: x, top: top + WS.tabTop, width: 30, height: WS.tabH,
+            child: _workspaceButton("+", fontSize: 14) { [self] in
+                setState { _launcherOpen = true; _launcherQuery = "" }
+            }))
 
         let paneTop = top + WS.tabTop + WS.tabH + WS.paneGap
         out.append(Positioned(
@@ -381,7 +394,13 @@ extension _DesktopShellState {
             _launcherDriverTarget = nil
         }
         if let wsId = driverTarget {
-            _launchWorkspaceDriver(workspaceId: wsId, appId: appId)
+            _launchIntoWorkspace(workspaceId: wsId, appId: appId, asDriver: true)
+        } else if windowManager.activeSpace.isWorkspace,
+                  let ws = windowManager.selectedWorkspace {
+            // Already have a driver and launched something else from in here:
+            // it belongs beside it, not on the desktop we cannot see.
+            _launchIntoWorkspace(workspaceId: ws.id, appId: appId,
+                                 asDriver: ws.driverWindowId == nil)
         } else {
             _launchOrFocusApp(appId)
         }
@@ -395,7 +414,8 @@ extension _DesktopShellState {
     /// Chrome) arrive asynchronously as Wayland clients and need the
     /// launch-chain claim the AI Space uses — worth doing, not needed to make
     /// the layout work.
-    func _launchWorkspaceDriver(workspaceId: String, appId: String) {
+    func _launchIntoWorkspace(workspaceId: String, appId: String,
+                              asDriver: Bool) {
         #if os(Linux)
         guard let ws = windowManager.workspaces.first(where: { $0.id == workspaceId })
         else { return }
@@ -446,7 +466,13 @@ extension _DesktopShellState {
                             },
                             ownerAgentId: workspaceId,
                             appBuilder: { _ in SizedBox(expand: ()) })
-                        ws.driverWindowId = winId
+                        if asDriver {
+                            ws.driverWindowId = winId
+                        } else {
+                            // Show it straight away: opening something and
+                            // having to hunt for its tab is not the point.
+                            _workspaceActiveTab[workspaceId] = winId
+                        }
                         windowManager.focusedWindowId = winId
                     }
                 }
@@ -457,13 +483,21 @@ extension _DesktopShellState {
                 // everything else in this workspace untouched.
                 setState {
                     processTextureIds.removeValue(forKey: paneAppId)
-                    if let winId = ws.driverWindowId {
-                        windowManager.windows.removeAll { $0.id == winId }
-                        if windowManager.focusedWindowId == winId {
+                    // Find the window by its own app id rather than assuming
+                    // it is still the driver — by now it may be a tab, or the
+                    // driver slot may hold something else entirely.
+                    if let win = windowManager.windows.first(where: {
+                        $0.appId == paneAppId && $0.ownerAgentId == workspaceId
+                    }) {
+                        windowManager.windows.removeAll { $0.id == win.id }
+                        if windowManager.focusedWindowId == win.id {
                             windowManager.focusedWindowId = nil
                         }
+                        if ws.driverWindowId == win.id { ws.driverWindowId = nil }
+                        if _workspaceActiveTab[workspaceId] == win.id {
+                            _workspaceActiveTab.removeValue(forKey: workspaceId)
+                        }
                     }
-                    ws.driverWindowId = nil
                 }
             })
         #endif

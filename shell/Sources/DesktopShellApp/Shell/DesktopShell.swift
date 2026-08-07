@@ -1020,6 +1020,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 // windows never open inside the AI Space); if this turns out
                 // to be an agent-claimed window, the hop is undone below.
                 let spaceBefore = self.windowManager.activeSpaceIndex
+                // Whether a workspace was on screen must be sampled HERE:
+                // addWindow hops the active space to a user one, so asking
+                // afterwards always says no, and the window lands on the
+                // desktop the user cannot even see.
+                let workspaceOnEntry: String? =
+                    self.windowManager.spaces[spaceBefore].isWorkspace
+                        ? self.windowManager.selectedWorkspace?.id : nil
                 windowId = self.windowManager.addWindow(
                     title: Self._displayTitle(title),
                     appId: appId,
@@ -1078,6 +1085,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     ownerId = pending.agentId
                     launchReply = pending.onWindow
                 }
+                // Workspace mode: a window that opens while a workspace is on
+                // screen belongs to it. This is the path a GUI app started
+                // from the driver takes — the driver spawns it, it connects to
+                // the compositor, and its first toplevel arrives here.
+                var isWorkspaceWindow = false
+                if ownerId == nil, let wsId = workspaceOnEntry {
+                    ownerId = wsId
+                    isWorkspaceWindow = true
+                }
                 if let ownerId,
                    let win = self.windowManager.windows.first(where: { $0.id == windowId }) {
                     win.ownerAgentId = ownerId
@@ -1094,8 +1110,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // surfaceId in hand (the windowId→surface map is filled
                     // only after this callback returns; the fleet build
                     // re-evaluates the full policy from then on).
-                    wayland.setSurfaceThrottle(surfaceId: surfaceId, intervalMs: 200)
-                    self._agentThrottleApplied[windowId] = 200
+                    // The AI Space throttles its windows to tile framerate and
+                    // re-evaluates per build. Workspace tabs have no such pass,
+                    // so throttling here would leave the visible tab stuck at
+                    // 5fps forever.
+                    if !isWorkspaceWindow {
+                        wayland.setSurfaceThrottle(surfaceId: surfaceId, intervalMs: 200)
+                        self._agentThrottleApplied[windowId] = 200
+                    }
                     launchReply?(windowId)
                 }
             }

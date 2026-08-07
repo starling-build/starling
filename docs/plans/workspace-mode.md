@@ -183,9 +183,25 @@ Two things this shook out, both found by driving it rather than reading it:
   keyboard. Workspace children use a `"<workspaceId>:<appId>"` composite key,
   like the AI Space does, which also keeps them from lighting the dock.
 
-Not built: the right panel has no way to receive windows yet, and only
-first-party apps can drive (VS Code and Chrome arrive as Wayland clients and
-need the launch-chain claim).
+The right panel receives windows two ways, both working:
+
+- **Wayland clients spawned by the driver.** Typing `weston-flower &` into the
+  Terminal driver puts the flower in the right panel as a live tab. This is the
+  case the whole idea is about.
+- **The launcher**, via a `+` at the end of the tab strip — needed because the
+  dock is faded out in this mode, so otherwise there is no way to open a second
+  app from inside a workspace.
+
+Tabs switch by clicking; the newest opens selected.
+
+A third trap, found the same way as the other two: **`addWindow` hops the active
+space to a user space**, so asking "is a workspace on screen?" *after* creating
+the window always answers no, and the window lands on the desktop the user
+cannot see. It has to be sampled before. The agent path already compensated for
+that hop, which is why its own capture worked.
+
+Not built: only first-party apps can drive the middle column — VS Code and
+Chrome arrive as Wayland clients and need the launch-chain claim.
 
 ## Staging
 
