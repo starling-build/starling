@@ -286,12 +286,27 @@ would be the only honest version and nobody wants it.
 2. **The rest of the secondary's desktop chrome**: right-click context menu on
    the wallpaper, and the animated wallpaper preset rather than the `.slate`
    fallback. Small, independent, removes the "it's just a picture" feel.
-3. **`activeSpaceByOutput`**, with the primary entry as the compatibility
-   default and every existing caller reading through it. Behaviour identical at
-   N=1; at N>1 the secondary starts rendering its own space.
-4. **Per-output `_switchToSpace` and slide**, including a `dx` term in
-   `SecondaryOutputScreen`. Confirm the snap-vs-slide asymmetry first so there
-   is a before to compare against.
+3. ~~**`activeSpaceByOutput`**~~ **Done** — as `activeSpaceIdByOutput`
+   (by space ID, not index: indexes shift on insert/remove). The compat
+   anchor is the HOST's `activeSpaceIndex`, and an ABSENT map entry means
+   "follow the host", so an output decouples only when a space is first
+   switched ON it — N=1 and never-switched N>1 behave exactly as before.
+   Visibility rule: a window shows iff its space is active on its OWNING
+   output; `visibleWindows` is the per-output union and straddlers then
+   render on every screen they touch. Windows dragged across the seam join
+   the destination output's active space (user spaces only, both ways).
+   Fullscreen's private-space dance, restore-follows-window, new-window
+   placement, dock-icon activation and the workspace toggle are all
+   output-scoped; the workspace on monitor B now leaves monitor A's desktop
+   intact — verified live. `hostChanged(from:to:)` keeps each PANEL on its
+   space across a primary-display switch. Focus follows the output that
+   switched.
+4. **Per-output `_switchToSpace` slide on secondaries** — switching a
+   secondary's space currently SNAPS (its tree has no slide machinery);
+   the host keeps the 380ms slide. Still open, along with the edge-carry
+   dwell from a secondary (carry is host-only; its arming now correctly
+   ignores seam edges and fires only at the virtual desktop's outer
+   boundary).
 5. **Mission Control per display**, invoked-output-scoped.
 6. **A workspace per output**, if (1) proves it earns the depth.
 

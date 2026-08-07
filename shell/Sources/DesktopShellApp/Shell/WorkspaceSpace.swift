@@ -417,7 +417,7 @@ extension _DesktopShellState {
         }
         if let wsId = driverTarget {
             _launchIntoWorkspace(workspaceId: wsId, appId: appId, asDriver: true)
-        } else if windowManager.activeSpace.isWorkspace,
+        } else if windowManager.activeSpace(onOutput: _workspaceOutputId).isWorkspace,
                   let ws = windowManager.selectedWorkspace {
             // Already have a driver and launched something else from in here:
             // it belongs beside it, not on the desktop we cannot see.

@@ -254,6 +254,81 @@ class WindowManagerState {
     /// creation clamp around it.
     private(set) var spaces: [SpaceInfo] = [SpaceInfo(id: 1)]
     private(set) var activeSpaceIndex: Int = 0
+
+    // ── Per-output active space ─────────────────────────────────────────
+    // macOS's "Displays have separate Spaces", ON. The space SET is shared
+    // (one strip, global numbering); which member is active is per-output.
+    // `activeSpaceIndex` remains the HOST output's active space — the shell
+    // tree renders the host, and at N=1 the host is the whole desktop, so
+    // every existing caller keeps its exact meaning. Other outputs live in
+    // this map, BY SPACE ID (indexes shift on insert/remove; ids don't).
+    //
+    // An ABSENT entry means "follow the host" — the old global behavior.
+    // An output decouples the first time a space is switched ON it, which
+    // is what makes this stageable: nothing changes until the user asks
+    // for it, per monitor.
+    private var activeSpaceIdByOutput: [Int: Int] = [:]
+
+    private var hostOutputId: Int { displayLayout?.host.id ?? 0 }
+
+    /// The active space id on `outputId` — the host's unless this output
+    /// has decoupled (and its chosen space still exists).
+    func activeSpaceId(onOutput outputId: Int) -> Int {
+        if outputId != hostOutputId,
+           let id = activeSpaceIdByOutput[outputId],
+           spaces.contains(where: { $0.id == id }) {
+            return id
+        }
+        return activeSpace.id
+    }
+
+    func activeSpace(onOutput outputId: Int) -> SpaceInfo {
+        let id = activeSpaceId(onOutput: outputId)
+        return spaces.first(where: { $0.id == id }) ?? activeSpace
+    }
+
+    /// Switch the active space on ONE output. The host goes through
+    /// `activeSpaceIndex` (and drops any stale map entry); a secondary
+    /// decouples into the map. Focus follows the output that changed —
+    /// macOS's answer to "whose topmost wins".
+    func switchToSpace(_ index: Int, onOutput outputId: Int) {
+        guard spaces.indices.contains(index),
+              spaces[index].id != activeSpaceId(onOutput: outputId) else { return }
+        if outputId == hostOutputId {
+            activeSpaceIndex = index
+            activeSpaceIdByOutput.removeValue(forKey: outputId)
+        } else {
+            activeSpaceIdByOutput[outputId] = spaces[index].id
+        }
+        focusTopmost(onOutput: outputId)
+        onWindowsChanged?()
+    }
+
+    /// Focus the topmost visible window ON `outputId` (or clear focus if
+    /// its active space is empty there).
+    func focusTopmost(onOutput outputId: Int) {
+        guard let dl = displayLayout, dl.outputs.count > 1 else {
+            focusTopmostInActiveSpace()
+            return
+        }
+        focusedWindowId = visibleWindows
+            .last(where: { dl.owningOutput(ofRect: $0.rect).id == outputId })?
+            .id
+    }
+
+    /// The host output changed identity (Settings made another monitor
+    /// primary and the engine rebound the shell's view). Each PANEL keeps
+    /// showing the space it was showing: the old host's space moves into
+    /// the map under its output id, and the new host's entry (if it had
+    /// decoupled) is consumed into `activeSpaceIndex`.
+    func hostChanged(from oldOutputId: Int, to newOutputId: Int) {
+        let oldActiveId = activeSpace.id
+        if let adopted = activeSpaceIdByOutput.removeValue(forKey: newOutputId),
+           let idx = spaces.firstIndex(where: { $0.id == adopted }) {
+            activeSpaceIndex = idx
+        }
+        activeSpaceIdByOutput[oldOutputId] = oldActiveId
+    }
     private var nextSpaceId: Int = 2
 
     /// Registered agents (Murmuration), in creation order.
@@ -360,6 +435,11 @@ class WindowManagerState {
             ?? (index > 0 ? index - 1 : 1)
         let fallbackId = spaces[fallbackIndex].id
         for w in windows where w.spaceId == removedId { w.spaceId = fallbackId }
+        // Outputs that were showing the removed space fall back with their
+        // windows (stored by id, so the index shuffle below is irrelevant).
+        for (out, id) in activeSpaceIdByOutput where id == removedId {
+            activeSpaceIdByOutput[out] = fallbackId
+        }
         let wasActive = index == activeSpaceIndex
         spaces.remove(at: index)
         if index < activeSpaceIndex {
@@ -416,7 +496,11 @@ class WindowManagerState {
         let homeIndex = homeId.flatMap { spaceIndex(ofSpaceId: $0) }
             ?? spaces.indices.first(where: { spaces[$0].isUser }) ?? 0
         win.spaceId = spaces[homeIndex].id
-        activeSpaceIndex = homeIndex
+        // Home is a per-output notion now: only the window's own monitor
+        // follows it back.
+        let owner = displayLayout.map { $0.owningOutput(ofRect: win.rect).id }
+            ?? hostOutputId
+        switchToSpace(homeIndex, onOutput: owner)
     }
 
     /// The set of app IDs that currently have open (non-minimized) windows.
@@ -492,15 +576,22 @@ class WindowManagerState {
             windows.append(info)
             return id
         }
+        // A new window joins the active space of the output it OPENS on —
+        // with per-output spaces "the" active space is a question of where.
+        let openOutput = displayLayout.map { $0.owningOutput(ofRect: info.rect).id }
+            ?? hostOutputId
         // New windows never open inside another window's fullscreen space
-        // (macOS): land on the nearest user desktop and go there.
-        if !activeSpace.isUser {
+        // (macOS): land on the nearest user desktop and take that output
+        // there.
+        if !activeSpace(onOutput: openOutput).isUser {
+            let current = spaceIndex(ofSpaceId: activeSpaceId(onOutput: openOutput))
+                ?? activeSpaceIndex
             let idx = spaces.indices
                 .filter { spaces[$0].isUser }
-                .min { abs($0 - activeSpaceIndex) < abs($1 - activeSpaceIndex) } ?? 0
-            activeSpaceIndex = idx
+                .min { abs($0 - current) < abs($1 - current) } ?? 0
+            switchToSpace(idx, onOutput: openOutput)
         }
-        info.spaceId = activeSpace.id
+        info.spaceId = activeSpaceId(onOutput: openOutput)
         windows.append(info)
         focusedWindowId = id
         onWindowsChanged?()
@@ -547,6 +638,21 @@ class WindowManagerState {
             win.rect.width,
             win.rect.height
         )
+        // Crossing a seam moves the window to the destination output's
+        // active space (macOS: a dragged window joins the space of the
+        // display it lands on). Continuous rather than on-drop, so the
+        // window stays visible for the whole drag — its space always
+        // matches the panel under it. USER spaces only, both ways: a drag
+        // must never yank a window into a workspace or out of a fullscreen
+        // space's private world.
+        if let dl = displayLayout, dl.outputs.count > 1, win.ownerAgentId == nil {
+            let target = activeSpaceId(onOutput: dl.owningOutput(ofRect: win.rect).id)
+            if win.spaceId != target,
+               spaces.first(where: { $0.id == win.spaceId })?.isUser == true,
+               spaces.first(where: { $0.id == target })?.isUser == true {
+                win.spaceId = target
+            }
+        }
     }
 
     func resizeWindow(_ id: String, edge: ResizeEdge, delta: Offset) {
@@ -700,8 +806,17 @@ class WindowManagerState {
             let space = SpaceInfo(id: nextSpaceId, kind: .fullscreen(windowId: id))
             nextSpaceId += 1
             spaces.insert(space, at: currentIndex + 1)
+            // The raw insert bypasses insertSpace's index bookkeeping — keep
+            // the host pointing at ITS space before anything switches.
+            if currentIndex + 1 <= activeSpaceIndex { activeSpaceIndex += 1 }
             win.spaceId = space.id
-            activeSpaceIndex = currentIndex + 1
+            // Only the window's OWN monitor lands in the private space —
+            // fullscreening a window on the second screen must not blank
+            // the first (its geometry was already per-output; its space
+            // dance was not).
+            let owner = displayLayout.map { $0.owningOutput(ofRect: win.rect).id }
+                ?? hostOutputId
+            switchToSpace(currentIndex + 1, onOutput: owner)
             focusedWindowId = id
         }
     }
@@ -710,9 +825,13 @@ class WindowManagerState {
         guard let win = windows.first(where: { $0.id == id }) else { return }
         win.isMinimized = false
         win.pendingOpenAnimation = true
-        // Restoring a window on another space follows it there (macOS dock).
-        if win.spaceId != activeSpace.id, let idx = spaceIndex(ofSpaceId: win.spaceId) {
-            activeSpaceIndex = idx
+        // Restoring a window on another space follows it there (macOS dock)
+        // — on the window's OWN monitor only.
+        let owner = displayLayout.map { $0.owningOutput(ofRect: win.rect).id }
+            ?? hostOutputId
+        if win.spaceId != activeSpaceId(onOutput: owner),
+           let idx = spaceIndex(ofSpaceId: win.spaceId) {
+            switchToSpace(idx, onOutput: owner)
         }
         bringToFront(id)
         onWindowsChanged?()
@@ -843,17 +962,49 @@ class WindowManagerState {
         }
     }
 
-    /// Visible (non-minimized) windows of the ACTIVE space, sorted by z-index.
+    /// Every window the desktop is currently showing, across all outputs,
+    /// sorted by z-index. The rule: a window is visible iff its space is the
+    /// active space of the output that OWNS it (contains its centre) — each
+    /// panel shows its own space's windows, and a straddler then renders its
+    /// portion on every screen it touches, whatever those screens show.
+    /// At N=1 (or with no layout) this is exactly the old "active space's
+    /// windows". Renderers filter by intersection, so both trees consume
+    /// this list unchanged.
     var visibleWindows: [WindowInfo] {
-        return visibleWindows(inSpaceId: activeSpace.id)
+        guard let dl = displayLayout, dl.outputs.count > 1 else {
+            return visibleWindows(inSpaceId: activeSpace.id)
+        }
+        return windows
+            .filter { w in
+                guard !w.isMinimized, w.ownerAgentId == nil else { return false }
+                return w.spaceId ==
+                    activeSpaceId(onOutput: dl.owningOutput(ofRect: w.rect).id)
+            }
+            .sorted { $0.zIndex < $1.zIndex }
     }
 
-    /// Visible (non-minimized) windows of one space, sorted by z-index.
-    /// Agent-owned windows never appear here — they have no desktop
-    /// presence (composited only inside their agent's tile).
+    /// Visible (non-minimized) windows of one space, sorted by z-index —
+    /// the PURE space filter, blind to which outputs show what. Mission
+    /// Control's thumbnails need exactly this (they preview inactive
+    /// spaces); rendering paths should go through `visibleWindows`.
     func visibleWindows(inSpaceId spaceId: Int) -> [WindowInfo] {
         return windows
             .filter { !$0.isMinimized && $0.spaceId == spaceId && $0.ownerAgentId == nil }
             .sorted { $0.zIndex < $1.zIndex }
+    }
+
+    /// What the HOST tree draws for one layer of a space-switch slide:
+    /// that space's windows, minus any owned by an output that is showing a
+    /// DIFFERENT space — those are the other monitor's business and must
+    /// not ride the host's animation.
+    func hostSlideWindows(inSpaceId spaceId: Int) -> [WindowInfo] {
+        guard let dl = displayLayout, dl.outputs.count > 1 else {
+            return visibleWindows(inSpaceId: spaceId)
+        }
+        return visibleWindows(inSpaceId: spaceId).filter { w in
+            let owner = dl.owningOutput(ofRect: w.rect).id
+            return owner == hostOutputId
+                || activeSpaceId(onOutput: owner) == spaceId
+        }
     }
 }

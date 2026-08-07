@@ -65,13 +65,13 @@ final class SecondaryViewOutputsMap: @unchecked Sendable {
 
 let secondaryViewOutputs = SecondaryViewOutputsMap()
 
-/// Whether the workspace UI belongs on `output` right now: the active space is
-/// a workspace AND this is the output it was invoked from. Spaces are global,
-/// so the other outputs are in the workspace space too — they just have nothing
-/// of it to draw, its windows being owned.
+/// Whether the workspace UI belongs on `output` right now: THIS output's
+/// active space is a workspace AND this is the output it was invoked from.
+/// Spaces are per-output now, so the other monitors are in their own spaces
+/// and keep their desktops while the workspace runs here.
 func workspaceIsOn(output: DisplayOutput) -> Bool {
     guard let shell = _shellState else { return false }
-    return shell.windowManager.activeSpace.isWorkspace
+    return shell.windowManager.activeSpace(onOutput: output.id).isWorkspace
         && shell._workspaceOutputId == output.id
 }
 

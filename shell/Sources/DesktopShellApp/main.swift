@@ -464,6 +464,10 @@ func performHostOutputSwitch(to outputId: Int) {
     syncEngineViewsAndLayout(view, newLayout)
 
     DispatchQueue.main.async {
+        // Before the layout publish: each PANEL keeps the space it was
+        // showing across the host identity change (the compat index means
+        // "the host's space", and the host just became a different monitor).
+        _shellState?.windowManager.hostChanged(from: oldHost.id, to: target.id)
         displayLayout = newLayout
         FileHandle.standardError.write(Data(
             "[DisplayLayout] host switch: \(newLayout.describe())\n".utf8))

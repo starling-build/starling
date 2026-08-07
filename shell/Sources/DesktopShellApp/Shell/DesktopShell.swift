@@ -1984,14 +1984,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             if self._ctrlPressed, keyData.type == .down || keyData.type == .repeat {
                 if phys == 0x50 || phys == 0x4F {  // Left / Right arrow
                     // Arrows never lead INTO a workspace (dedicated entry
-                    // only) — but they do lead out of it.
-                    let target = self.windowManager.activeSpaceIndex + (phys == 0x4F ? 1 : -1)
-                    if self.windowManager.spaces.indices.contains(target),
-                       !self.windowManager.spaces[target].isSpecial {
+                    // only) — but they do lead out of it. They act on the
+                    // monitor the pointer is on (macOS: the pointer decides
+                    // which display you're addressing); each output steps
+                    // from ITS active space.
+                    let wm = self.windowManager
+                    let out = self._pointerOutputId ?? displayLayout?.host.id ?? 0
+                    let current = wm.spaceIndex(ofSpaceId: wm.activeSpaceId(onOutput: out))
+                        ?? wm.activeSpaceIndex
+                    let target = current + (phys == 0x4F ? 1 : -1)
+                    if wm.spaces.indices.contains(target),
+                       !wm.spaces[target].isSpecial {
                         if self._shiftPressed {
                             self._moveFocusedWindowToSpace(target)
                         } else {
-                            self._switchToSpace(target)
+                            self._switchToSpace(target, onOutput: out)
                         }
                     }
                     return true
@@ -1999,10 +2006,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 if phys == 0x2B && keyData.type == .down {  // Tab
                     // Cycle through the ordinary spaces; a workspace (always
                     // last) is skipped — from inside it, Tab exits to space 0.
+                    // Pointer-scoped like the arrows.
                     let wm = self.windowManager
+                    let out = self._pointerOutputId ?? displayLayout?.host.id ?? 0
                     let count = wm.spaces.count - wm.spaces.filter({ $0.isSpecial }).count
-                    if count > 1 || wm.activeSpace.isSpecial {
-                        self._switchToSpace((wm.activeSpaceIndex + 1) % max(count, 1))
+                    let current = wm.spaceIndex(ofSpaceId: wm.activeSpaceId(onOutput: out))
+                        ?? wm.activeSpaceIndex
+                    if count > 1 || wm.activeSpace(onOutput: out).isSpecial {
+                        self._switchToSpace((current + 1) % max(count, 1), onOutput: out)
                     }
                     return true
                 }
@@ -2140,9 +2151,23 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Switch the active space, macOS-style: the model flips immediately,
     /// then a 380ms eased slide carries the old space out and the new one in.
     /// A switch requested mid-slide retargets from the current destination.
-    func _switchToSpace(_ index: Int, animated: Bool = true, carrying carriedId: String? = nil) {
+    /// Switch the active space on ONE output — the host's switch is the
+    /// animated slide the shell tree renders; a secondary snaps (its tree
+    /// has no slide machinery yet; see multi-output.md staging). `onOutput`
+    /// nil means the host, which is every pre-per-output call site's exact
+    /// old meaning.
+    func _switchToSpace(_ index: Int, animated: Bool = true,
+                        carrying carriedId: String? = nil,
+                        onOutput: Int? = nil) {
         let wm = windowManager
-        guard wm.spaces.indices.contains(index), index != wm.activeSpaceIndex else { return }
+        let hostId = displayLayout?.host.id ?? 0
+        let out = onOutput ?? hostId
+        guard wm.spaces.indices.contains(index),
+              wm.spaces[index].id != wm.activeSpaceId(onOutput: out) else { return }
+        if out != hostId {
+            setState { wm.switchToSpace(index, onOutput: out) }
+            return
+        }
         let from = wm.activeSpaceIndex
         setState {
             let fromId = wm.spaces[from].id
@@ -2275,7 +2300,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// (every window there belongs to an agent), and none under a fullscreen
     /// window until the bottom sensor reveals it.
     func dockWidget(forOutput output: DisplayOutput) -> Widget? {
-        guard output.isPrimary, !windowManager.activeSpace.isSpecial else { return nil }
+        guard output.isPrimary,
+              !windowManager.activeSpace(onOutput: output.id).isSpecial
+        else { return nil }
         if fullscreenWindow(onOutput: output) != nil && !_dockRevealed { return nil }
         let metrics = _dockMetrics(outputWidth: output.logicalWidth)
         let dockTop = output.logicalHeight - DesktopTheme.kDockBottomMargin
@@ -2376,10 +2403,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// that side.
     func _checkEdgeCarry(_ winId: String) {
         guard !_missionControlOpen, let pos = _dragPointerPos else { return }
+        // The carry edges are the VIRTUAL desktop's outer boundary. An
+        // inner edge is a seam — the pointer crosses it onto the next
+        // monitor, and arming a space carry there would hijack every
+        // cross-screen drag. The host sits at the origin, so its left edge
+        // is outer iff nothing extends further left, ditto right.
+        let dl = displayLayout
+        let hostIsLeftmost = dl.map { $0.host.logicalLeft <= $0.virtualBounds.left } ?? true
+        let hostIsRightmost = dl.map { $0.host.logicalRight >= $0.virtualBounds.right } ?? true
         let dir: Int
-        if pos.dx <= _edgeCarryZonePx {
+        if pos.dx <= _edgeCarryZonePx && hostIsLeftmost {
             dir = -1
-        } else if pos.dx >= screenWidth - _edgeCarryZonePx {
+        } else if pos.dx >= screenWidth - _edgeCarryZonePx && hostIsRightmost {
             dir = 1
         } else {
             dir = 0
@@ -2433,18 +2468,24 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// them on it if that index has since gone away.
     func _toggleWorkspaceSpace() {
         let wm = windowManager
-        if wm.activeSpace.isWorkspace {
+        // The toggle is scoped to the workspace's own monitor: entering
+        // switches only the invoked output's space, so the OTHER monitor
+        // keeps its desktop and its windows — the per-output space model's
+        // whole point. Leaving restores that same output.
+        if wm.activeSpace(onOutput: _workspaceOutputId).isWorkspace {
             var back = _workspaceReturnSpaceIndex
             if !wm.spaces.indices.contains(back) || wm.spaces[back].isSpecial {
                 back = wm.spaces.indices.first(where: { wm.spaces[$0].isUser }) ?? 0
             }
-            _switchToSpace(back)
+            _switchToSpace(back, onOutput: _workspaceOutputId)
             return
         }
-        _workspaceReturnSpaceIndex = wm.activeSpaceIndex
         // Open it on the monitor the user is actually looking at. Falls back to
         // the primary before the pointer has been seen anywhere.
         _workspaceOutputId = _pointerOutputId ?? displayLayout?.primary.id ?? 0
+        _workspaceReturnSpaceIndex = wm.spaceIndex(
+            ofSpaceId: wm.activeSpaceId(onOutput: _workspaceOutputId))
+            ?? wm.activeSpaceIndex
         var idx: Int = 0
         setState {
             idx = wm.ensureWorkspaceSpace()
@@ -2452,7 +2493,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // first entry gets one so the rail is never empty.
             if wm.workspaces.isEmpty { wm.addWorkspace() }
         }
-        _switchToSpace(idx)
+        _switchToSpace(idx, onOutput: _workspaceOutputId)
     }
 
     private func _startSpaceSlide() {
@@ -2919,11 +2960,25 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // [1..N] Visible windows — both spaces' windows during a slide,
         // each offset by its layer's dx. None while Mission Control is up:
         // every window renders exactly once, inside the exposé.
+        //
+        // Steady state draws `visibleWindows` — the per-output union — so a
+        // straddler owned by the other monitor renders its host-side portion
+        // whatever space the host is in (windows entirely elsewhere clip
+        // away; that was already true when spaces were global). During a
+        // slide, each layer carries only windows the HOST answers for
+        // (hostSlideWindows), and the other outputs' visible windows ride a
+        // static dx=0 layer — the neighbor's straddler must not animate
+        // with a space switch that isn't its monitor's.
+        let slideSpaceIds = Set(slideLayers.map { $0.spaceId })
         let layerWindows: [(win: WindowInfo, layerDx: Double)] = _missionControlOpen
             ? []
-            : slideLayers.flatMap { layer in
-                windowManager.visibleWindows(inSpaceId: layer.spaceId).map { ($0, layer.dx) }
-            }
+            : !isSliding
+                ? windowManager.visibleWindows.map { ($0, 0.0) }
+                : slideLayers.flatMap { layer in
+                    windowManager.hostSlideWindows(inSpaceId: layer.spaceId).map { ($0, layer.dx) }
+                } + windowManager.visibleWindows
+                    .filter { !slideSpaceIds.contains($0.spaceId) }
+                    .map { ($0, 0.0) }
         var liveWindowIds = Set<String>()
         for (win, layerDx) in layerWindows {
             let winId = win.id
@@ -6832,9 +6887,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             windowManager.restoreWindow(win.id)
         } else {
             windowManager.bringToFront(win.id)
-            if win.spaceId != windowManager.activeSpace.id,
+            // Bring the window's OWN monitor to its space — activating a
+            // window on the second screen must not switch the first.
+            let owner = displayLayout?.owningOutput(ofRect: win.rect).id
+            if win.spaceId != windowManager.activeSpaceId(
+                   onOutput: owner ?? displayLayout?.host.id ?? 0),
                let idx = windowManager.spaceIndex(ofSpaceId: win.spaceId) {
-                _switchToSpace(idx)
+                _switchToSpace(idx, onOutput: owner)
             }
         }
     }
