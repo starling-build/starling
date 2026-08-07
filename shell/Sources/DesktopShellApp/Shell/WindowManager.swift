@@ -75,12 +75,13 @@ class WindowInfo {
     /// consumed by the shell's build so that a mount caused by a space
     /// switch does NOT replay the zoom.
     var pendingOpenAnimation: Bool = true
-    /// Agent ownership (Murmuration). Set at launch time when a window is
-    /// created on behalf of an agent — never inferred afterwards. Agent-owned
-    /// windows have NO desktop presence: they live outside every space and
-    /// are excluded from visibleWindows, the dock, Ctrl+Tab and Mission
-    /// Control; they render only as textures inside their owner's tile in
-    /// the AI Space.
+    /// Owner of a window that is not the desktop's: a workspace id, or a
+    /// broker client's id. Set at launch time, never inferred afterwards.
+    /// Owned windows have NO desktop presence — they live outside every space
+    /// and are excluded from visibleWindows, the dock, Ctrl+Tab and Mission
+    /// Control. A workspace draws its own in its panes; a broker client's are
+    /// drawn nowhere at all and exist to be driven through the semantics
+    /// endpoint (see AgentWindows.swift).
     var ownerAgentId: String? = nil
     /// The child app's semantics endpoint socket (Murmuration P3), when the
     /// launcher configured one — the broker proxies semantic_tree /
@@ -139,13 +140,12 @@ enum ResizeEdge {
 /// What a space is for. User spaces are the ordinary desktops the user
 /// creates and removes; a fullscreen space is the transient space a window
 /// gets when it goes fullscreen (macOS model) — it lives exactly as long as
-/// the window stays fullscreen. The agent space (Murmuration's AI Space) is
-/// a single persistent special space holding the fleet UI: it is excluded
-/// from Ctrl+arrow/Tab cycling and entered only by dedicated affordances.
+/// the window stays fullscreen. A workspace is a persistent special space
+/// holding a driver app and what it opens: excluded from Ctrl+arrow/Tab
+/// cycling and entered only by its own affordance.
 enum SpaceKind: Equatable {
     case user
     case fullscreen(windowId: String)
-    case agent
     /// Workspace mode: a driver app with whatever it opens beside it. Like
     /// the agent space it is persistent, pinned past the user spaces, and
     /// excluded from cycling — but it has nothing to do with agents, and the
@@ -169,13 +169,11 @@ final class SpaceInfo {
         return false
     }
 
-    var isAgent: Bool { kind == .agent }
-
     var isWorkspace: Bool { kind == .workspace }
 
     /// A space the user never lands on by cycling: it is entered only by its
     /// own affordance and is pinned after the user spaces.
-    var isSpecial: Bool { isAgent || isWorkspace }
+    var isSpecial: Bool { isWorkspace }
 }
 
 /// One workspace: a driver app, and the windows opened beside it.
@@ -252,7 +250,7 @@ class WindowManagerState {
     /// Ordered spaces (virtual desktops), left to right. Always contains at
     /// least one user space; index 0 exists from startup so every legacy
     /// single-desktop path behaves identically at N=1. Invariant: the agent
-    /// space (AI Space), once created, is always LAST — cycling and space
+    /// workspace space, once created, is always LAST — cycling and space
     /// creation clamp around it.
     private(set) var spaces: [SpaceInfo] = [SpaceInfo(id: 1)]
     private(set) var activeSpaceIndex: Int = 0
@@ -303,11 +301,6 @@ class WindowManagerState {
     /// The sentinel spaceId of agent-owned windows: they belong to no space.
     static let kNoSpaceId = -1
 
-    /// Index of the AI Space, if it has been created (always the last slot).
-    var agentSpaceIndex: Int? {
-        spaces.indices.last(where: { spaces[$0].isAgent })
-    }
-
     /// Index of the workspace space, if it has been created.
     var workspaceSpaceIndex: Int? {
         spaces.indices.last(where: { spaces[$0].isWorkspace })
@@ -320,24 +313,11 @@ class WindowManagerState {
     }
 
     /// Create the workspace space on first use and return its index — the
-    /// same lazy, never-removed treatment the AI Space gets.
+    /// lazily, and never removed once it exists.
     @discardableResult
     func ensureWorkspaceSpace() -> Int {
         if let idx = workspaceSpaceIndex { return idx }
         let space = SpaceInfo(id: nextSpaceId, kind: .workspace)
-        nextSpaceId += 1
-        spaces.append(space)
-        return spaces.count - 1
-    }
-
-    /// Create the persistent AI Space on first use (lazily, so a desktop
-    /// that never touches agent mode keeps today's exact spaces array) and
-    /// return its index. It lives at the end of the strip and is never
-    /// removed once it exists.
-    @discardableResult
-    func ensureAgentSpace() -> Int {
-        if let idx = agentSpaceIndex { return idx }
-        let space = SpaceInfo(id: nextSpaceId, kind: .agent)
         nextSpaceId += 1
         spaces.append(space)
         return spaces.count - 1
@@ -408,12 +388,6 @@ class WindowManagerState {
     }
 
     func focusTopmostInActiveSpace() {
-        // The AI Space has no desktop windows; keyboard focus goes to the
-        // first agent's terminal so keys reach the agent's REPL.
-        if activeSpace.isAgent {
-            focusedWindowId = agents.first?.terminalWindowId
-            return
-        }
         focusedWindowId = windows
             .filter { !$0.isMinimized && $0.spaceId == activeSpace.id && $0.ownerAgentId == nil }
             .sorted { $0.zIndex < $1.zIndex }

@@ -14,9 +14,9 @@
 // which is what keeps them out of the dock, tiling, Mission Control and focus
 // on the ordinary desktop. See WindowManager.windows(inWorkspace:).
 //
-// Deliberately independent of AgentSpace.swift. The two share the "special
-// space" mechanism in WindowManager and nothing else, so the AI Space can be
-// reworked or removed without touching this file.
+// This replaced the AI Space, whose workbench UI is gone. What remains of that
+// is AgentWindows.swift: headless windows for broker clients, which the
+// functional tier drives through the semantics endpoint.
 //
 
 import Flutter
@@ -279,7 +279,7 @@ extension _DesktopShellState {
                     }
                 },
                 // Clients are reconfigured once, on release: resizing a live
-                // app every frame of a drag is how the AI Space stuttered.
+                // app every frame of a drag is what made this stutter.
                 onPointerUp: { [self] _ in
                     _workspaceDividerDragging = false
                     setState { _applyWorkspaceWindowGeometry() }
@@ -310,7 +310,7 @@ extension _DesktopShellState {
         let winId = win.id
         // Panes are laid out at the window's own size (see
         // _applyWorkspaceWindowGeometry), so there is no scale factor to undo
-        // on the way in — unlike the AI Space, which scales to fit.
+        // on the way in: no scale factor to undo.
         let forwarded: Widget = Listener(
             onPointerDown: { [self] event in
                 if windowManager.focusedWindowId != winId {
@@ -412,8 +412,8 @@ extension _DesktopShellState {
     /// starts and composites directly, so the window comes back with a
     /// texture we can put straight into the pane. Third-party apps (VS Code,
     /// Chrome) arrive asynchronously as Wayland clients and need the
-    /// launch-chain claim the AI Space uses — worth doing, not needed to make
-    /// the layout work.
+    /// launch-chain claim in AgentWindows.swift — worth doing, not needed to
+    /// make the layout work.
     func _launchIntoWorkspace(workspaceId: String, appId: String,
                               asDriver: Bool) {
         #if os(Linux)
@@ -431,7 +431,7 @@ extension _DesktopShellState {
         let paneW = _workspaceDriverW - 20
         let paneH = screenHeight - DesktopTheme.kStatusBarHeight - 20
         let title = rec.name
-        // Namespaced per workspace, like the AI Space does for its children.
+        // Namespaced per workspace.
         // Two things depend on it: keystrokes are routed by looking the
         // window's appId up in processTextureIds, so a workspace copy must
         // not share a key with the desktop copy of the same app; and a

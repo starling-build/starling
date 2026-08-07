@@ -387,22 +387,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // is entered by Ctrl+Down / context menu only (never by Ctrl+arrow/Tab
     // cycling). Stored here because extensions can't add stored properties;
     // the UI lives in AgentSpace.swift.
-    /// Where Ctrl+Down returns to when toggling out of the AI Space.
-    var _agentReturnSpaceIndex: Int = 0
-    /// Generation token for the scripted P0 demo task (asyncAfter chains —
-    /// Foundation.Timer never fires on the DRM embedder).
-    var _agentDemoToken: Int = 0
-    /// Demo task progress line shown in the tile, nil when idle.
-    var _agentDemoStatus: String? = nil
-    /// Windows the human has taken over (P2): pointer-down into an app pane
-    /// arms it; Esc hands back. While a window is here, broker injections
-    /// for it are refused ("human has the controls").
-    var _humanControlledWindows: Set<String> = []
-    /// The selected session in the workbench (rail row); nil = first agent.
-    var _agentFeaturedId: String? = nil
-    /// Explicitly selected app tab per agent (agentId → windowId). Absent
-    /// or stale = follow the agent: the newest owned window is shown.
-    var _agentActiveTab: [String: String] = [:]
     /// Wayland ownership hand-off (P4): set right before spawning a
     /// Wayland client (Chrome via app-run) for an agent. The first toplevel
     /// that arrives consumes it AND records the client connection in
@@ -420,15 +404,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Last content size configured per agent window (diff guard for
     /// _applyAgentWindowGeometry, which runs on every workbench build).
     var _agentSizeApplied: [String: Size] = [:]
-    /// Width of the workbench conversation column, draggable by the divider
-    /// between it and the stage.
-    var _agentChatW: Double = 688
     /// True while the divider is being dragged: window re-configures are
     /// deferred to the drop, so clients reflow once instead of per frame.
     var _agentDividerDragging: Bool = false
     /// 1s tick that refreshes tile status text (working/idle) while the
     /// AI Space is visible — texture updates alone don't rebuild widgets.
-    var _agentStatusTimer: DispatchSourceTimer? = nil
+    var _spaceRepaintTimer: DispatchSourceTimer? = nil
     #if os(Linux)
     /// The P1 agent broker: JSON-lines socket at
     /// $XDG_RUNTIME_DIR/starling-agent.sock. Every agent action crosses it.
@@ -639,7 +620,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             self.setState {}
         }
         statusTimer.resume()
-        _agentStatusTimer = statusTimer
+        _spaceRepaintTimer = statusTimer
 
         // Frame tick (see _frameTickRequested): SIGRTMIN+2 = 36 on glibc.
         // Also pumps presents while an X11 GetImage client (Zoom screen share)
@@ -1573,14 +1554,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     return true
                 }
                 if phys == 0x51 && keyData.type == .down {  // Down
-                    // Shift picks workspace mode; plain Ctrl+Down stays the
-                    // AI Space. Ctrl+Up is Mission Control and Ctrl+←/→ are
-                    // space cycling, so Down is the only arrow left to share.
-                    if self._shiftPressed {
-                        self._toggleWorkspaceSpace()
-                    } else {
-                        self._toggleAgentSpace()
-                    }
+                    // Ctrl+Up is Mission Control and Ctrl+←/→ cycle spaces,
+                    // so Down is the arrow left for workspace mode.
+                    self._toggleWorkspaceSpace()
                     return true
                 }
                 if phys == 0x2C && keyData.type == .down {  // Space — IME toggle
@@ -1606,19 +1582,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 return FocusManager.instance.dispatchKeyData(keyData)
             }
 
-            // Take-over release (Murmuration P2): Esc hands a taken-over
-            // agent window back to its agent instead of reaching the app.
-            if keyData.type == .down, phys == 0x29,
-               let ownerId = win.ownerAgentId,
-               self._humanControlledWindows.contains(win.id) {
-                self.setState {
-                    self._humanControlledWindows.remove(win.id)
-                    // Focus returns to the agent's terminal (supervision).
-                    self.windowManager.focusedWindowId = self.windowManager
-                        .agents.first(where: { $0.id == ownerId })?.terminalWindowId
-                }
-                return true
-            }
 
             // IME: while enabled, offer the key to fcitx first — consumed
             // keys are composition input (pinyin letters, candidate digits,
@@ -1838,9 +1801,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Ctrl+Down / context menu: toggle between the AI Space and the
     /// desktop. The space is created lazily on first entry and persists;
     /// leaving returns to the space the user came from.
-    /// Enter or leave workspace mode. Mirrors _toggleAgentSpace: remember
-    /// where we came from, create the space lazily, and refuse to strand the
-    /// user on it if the remembered index has since gone away.
+    /// Enter or leave workspace mode: remember where we came from, create
+    /// the space lazily, and refuse to strand the user on it if the
+    /// remembered index has since gone away.
     func _toggleWorkspaceSpace() {
         let wm = windowManager
         if wm.activeSpace.isWorkspace {
@@ -1859,22 +1822,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // first entry gets one so the rail is never empty.
             if wm.workspaces.isEmpty { wm.addWorkspace() }
         }
-        _switchToSpace(idx)
-    }
-
-    func _toggleAgentSpace() {
-        let wm = windowManager
-        if wm.activeSpace.isAgent {
-            var back = _agentReturnSpaceIndex
-            if !wm.spaces.indices.contains(back) || wm.spaces[back].isAgent {
-                back = wm.spaces.indices.first(where: { wm.spaces[$0].isUser }) ?? 0
-            }
-            _switchToSpace(back)
-            return
-        }
-        _agentReturnSpaceIndex = wm.activeSpaceIndex
-        var idx: Int = 0
-        setState { idx = wm.ensureAgentSpace() }
         _switchToSpace(idx)
     }
 
@@ -1903,8 +1850,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // Mission Control shows desktops; from inside a special space, exit
         // to the return space first (neither has a strip thumbnail).
         if windowManager.activeSpace.isSpecial {
-            var back = windowManager.activeSpace.isWorkspace
-                ? _workspaceReturnSpaceIndex : _agentReturnSpaceIndex
+            var back = _workspaceReturnSpaceIndex
             if !windowManager.spaces.indices.contains(back)
                 || windowManager.spaces[back].isSpecial {
                 back = windowManager.spaces.indices.first(where: { windowManager.spaces[$0].isUser }) ?? 0
@@ -2262,15 +2208,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // element (and its terminal focus state) alive across slide/steady
         // transitions.
         if !_missionControlOpen {
-            for layer in slideLayers {
-                guard let space = windowManager.spaces.first(where: { $0.id == layer.spaceId }),
-                      space.isAgent else { continue }
-                children.append(Positioned(
-                    key: ValueKey("agent-space"),
-                    left: layer.dx, top: 0,
-                    width: screenWidth, height: screenHeight,
-                    child: _buildAgentSpace(context)))
-            }
             for layer in slideLayers {
                 guard let space = windowManager.spaces.first(where: { $0.id == layer.spaceId }),
                       space.isWorkspace else { continue }
@@ -4715,7 +4652,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// newer restart has bumped the token, so no close path has to remember to
     /// cancel it (and there are five of them). `Foundation.Timer` never fires
     /// on the DRM embedder, so this is `asyncAfter` + a generation token — the
-    /// codebase idiom, see `AgentSpace._agentDemoToken`.
+    /// codebase idiom for cancelling an asyncAfter chain.
     func _restartLauncherCaret() {
         _launcherCaretToken &+= 1
         let token = _launcherCaretToken
@@ -5646,13 +5583,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     setState { contextMenuPosition = nil }
                     let idx = windowManager.addSpace()
                     _switchToSpace(idx)
-                }
-            ),
-            MacosMenuItem(
-                text: "AI Space",
-                onPressed: { [self] in
-                    setState { contextMenuPosition = nil }
-                    if !windowManager.activeSpace.isAgent { _toggleAgentSpace() }
                 }
             ),
             MacosMenuItem(

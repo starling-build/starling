@@ -4,8 +4,12 @@ Goal: a mode built around **one app you are working in** — Claude Code in a
 terminal, or VS Code — with **whatever opens while you are there appearing
 beside it as tabs**. Nothing about AI.
 
-This replaces the AI Space (codename Murmuration), which is very nearly this
-layout already, carrying far more machinery than the idea needs.
+This replaced the AI Space (codename Murmuration), which was very nearly this
+layout already, carrying far more machinery than the idea needs. That UI is now
+removed — 781 lines of `AgentSpace.swift` plus its space, entry points and
+workbench state. What survives is `AgentWindows.swift`: the ability to launch a
+window owned by a broker client, which is headless now that nothing draws it,
+and which the functional tier depends on.
 
 ## The shape
 
@@ -166,9 +170,8 @@ is unaffected.
   excluded from Ctrl+←/→, Ctrl+Tab, Mission Control and `removeSpace`
 - `WorkspaceSpace.swift` — rail, driver column with its `+` empty state,
   divider, tab column (empty for now), pane renderer, geometry
-- Entered with **Ctrl+Shift+Down** or the desktop context menu → "Workspace".
-  Ctrl+Up was already Mission Control and Ctrl+Down the AI Space, so Down with
-  Shift is the only arrow left
+- Entered with **Ctrl+Down** or the desktop context menu → "Workspace"
+  (Ctrl+Down freed up when the AI Space was removed)
 - `+` opens the launcher into the driver slot; the app lands in the middle
 - The driver quitting empties the middle and leaves the workspace intact
 

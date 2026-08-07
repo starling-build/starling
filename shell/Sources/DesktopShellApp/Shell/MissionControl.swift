@@ -32,9 +32,8 @@ extension _DesktopShellState {
 
     // MARK: Geometry
 
-    /// Number of spaces shown in the strip. The special spaces (AI Space,
-    /// workspace mode — always past the user spaces) are not desktops and
-    /// never appear here.
+    /// Number of spaces shown in the strip. A workspace (always past the
+    /// user spaces) is not a desktop and never appears here.
     private var _mcStripCount: Int {
         windowManager.spaces.count - windowManager.spaces.filter({ $0.isSpecial }).count
     }
@@ -425,7 +424,7 @@ extension _DesktopShellState {
             return Stack(children: layers)
         }
 
-        // Spaces strip: thumbnails, labels, and the "+" tile. The AI Space
+        // Spaces strip: thumbnails, labels, and the "+" tile. A workspace
         // is not part of the strip.
         for i in 0..<_mcStripCount {
             let r = _mcThumbRect(i)
