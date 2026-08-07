@@ -194,6 +194,13 @@ The right panel receives windows two ways, both working:
 
 Tabs switch by clicking; the newest opens selected.
 
+**Multiple workspaces verified.** `+ New` adds a row and selects it, with both
+columns resetting to their empty states; each workspace keeps its own driver and
+its own tabs; switching between rows restores each side exactly, terminal
+scrollback and selected tab included; and none of it appears on the desktop —
+leaving the mode with four apps running showed a clean desktop and no dock
+indicators, with all four processes still alive.
+
 A third trap, found the same way as the other two: **`addWindow` hops the active
 space to a user space**, so asking "is a workspace on screen?" *after* creating
 the window always answers no, and the window lands on the desktop the user
