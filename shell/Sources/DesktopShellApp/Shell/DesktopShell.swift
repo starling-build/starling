@@ -382,7 +382,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// True between pointer-down and pointer-up on the divider.
     var _workspaceDividerDragging: Bool = false
 
-    // ── AI Space (Murmuration agent mode) ────────────────────────────────
+    // ── Broker-owned windows ─────────────────────────────────────────────
     // The persistent agent space holds the fleet UI instead of windows; it
     // is entered by Ctrl+Down / context menu only (never by Ctrl+arrow/Tab
     // cycling). Stored here because extensions can't add stored properties;
@@ -408,7 +408,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// deferred to the drop, so clients reflow once instead of per frame.
     var _agentDividerDragging: Bool = false
     /// 1s tick that refreshes tile status text (working/idle) while the
-    /// AI Space is visible — texture updates alone don't rebuild widgets.
+    /// a workspace is visible — texture updates alone don't rebuild widgets.
     var _spaceRepaintTimer: DispatchSourceTimer? = nil
     #if os(Linux)
     /// The P1 agent broker: JSON-lines socket at
@@ -612,7 +612,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
         // Murmuration P2: tile status (working/idle) derives from broker op
         // and frame recency, which don't mark widgets dirty — poke a rebuild
-        // once a second while the AI Space is on screen.
+        // once a second while a workspace is on screen.
         let statusTimer = DispatchSource.makeTimerSource(queue: .main)
         statusTimer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
         statusTimer.setEventHandler { [weak self] in
@@ -998,7 +998,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             var windowId = ""
             self.setState {
                 // addWindow may hop the active space to a user desktop (new
-                // windows never open inside the AI Space); if this turns out
+                // windows never open inside a workspace); if this turns out
                 // to be an agent-claimed window, the hop is undone below.
                 let spaceBefore = self.windowManager.activeSpaceIndex
                 // Whether a workspace was on screen must be sampled HERE:
@@ -1082,7 +1082,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     win.pendingOpenAnimation = false
                     // Agent windows never move the human's view: undo the
                     // user-space hop addWindow performed (e.g. Ctrl+N in a
-                    // taken-over Chrome while watching the AI Space).
+                    // a broker client's Chrome opening a second window).
                     if self.windowManager.activeSpaceIndex != spaceBefore {
                         self.windowManager.switchToSpace(spaceBefore)
                     }
@@ -1091,10 +1091,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // surfaceId in hand (the windowId→surface map is filled
                     // only after this callback returns; the fleet build
                     // re-evaluates the full policy from then on).
-                    // The AI Space throttles its windows to tile framerate and
-                    // re-evaluates per build. Workspace tabs have no such pass,
-                    // so throttling here would leave the visible tab stuck at
-                    // 5fps forever.
+                    // Broker-owned windows are never drawn, so they are
+                    // throttled hard. A workspace tab IS drawn and has no
+                    // re-evaluation pass, so throttling it would leave the
+                    // visible tab stuck at 5fps forever.
                     if !isWorkspaceWindow {
                         wayland.setSurfaceThrottle(surfaceId: surfaceId, intervalMs: 200)
                         self._agentThrottleApplied[windowId] = 200
@@ -1526,7 +1526,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // see them (macOS behaviour).
             if self._ctrlPressed, keyData.type == .down || keyData.type == .repeat {
                 if phys == 0x50 || phys == 0x4F {  // Left / Right arrow
-                    // Arrows never lead INTO the AI Space (dedicated entry
+                    // Arrows never lead INTO a workspace (dedicated entry
                     // only) — but they do lead out of it.
                     let target = self.windowManager.activeSpaceIndex + (phys == 0x4F ? 1 : -1)
                     if self.windowManager.spaces.indices.contains(target),
@@ -1540,7 +1540,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     return true
                 }
                 if phys == 0x2B && keyData.type == .down {  // Tab
-                    // Cycle through the ordinary spaces; the AI Space (always
+                    // Cycle through the ordinary spaces; a workspace (always
                     // last) is skipped — from inside it, Tab exits to space 0.
                     let wm = self.windowManager
                     let count = wm.spaces.count - wm.spaces.filter({ $0.isSpecial }).count
@@ -1796,14 +1796,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         _switchToSpace(target, carrying: winId)
     }
 
-    // MARK: - AI Space entry/exit (Murmuration)
+    // MARK: - Workspace entry/exit
 
-    /// Ctrl+Down / context menu: toggle between the AI Space and the
+    /// Ctrl+Down / context menu: toggle between workspace mode and the
     /// desktop. The space is created lazily on first entry and persists;
-    /// leaving returns to the space the user came from.
-    /// Enter or leave workspace mode: remember where we came from, create
-    /// the space lazily, and refuse to strand the user on it if the
-    /// remembered index has since gone away.
+    /// leaving returns to the space the user came from, and refuses to strand
+    /// them on it if that index has since gone away.
     func _toggleWorkspaceSpace() {
         let wm = windowManager
         if wm.activeSpace.isWorkspace {
@@ -1973,7 +1971,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if let fid = windowManager.focusedWindowId,
            let win = windowManager.windows.first(where: { $0.id == fid }),
            // Agent-owned windows (e.g. the focused agent terminal in the
-           // AI Space) never move onto a desktop via carry.
+           // a workspace) never move onto a desktop via carry.
            win.ownerAgentId == nil,
            !win.isFullscreen, !win.isMinimized {
             setState {
@@ -2202,7 +2200,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             children.append(makeWallpaper())
         }
 
-        // [0.5] AI Space fleet UI (Murmuration) — rendered per slide layer,
+        // [0.5] Workspace mode — rendered per slide layer,
         // like the wallpaper, so entering/leaving slides it with the space.
         // Ordinary spaces contribute nothing; the ValueKey keeps the fleet's
         // element (and its terminal focus state) alive across slide/steady
@@ -2637,7 +2635,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         } else {
             children.append(statusBarWidget)
         }
-        // The dock launches desktop apps — meaningless in the AI Space, where
+        // The dock launches desktop apps — meaningless in a workspace, where
         // every window belongs to an agent. Hide it there, cross-fading with
         // the space slide (the model flips at slide start, so the fade tracks
         // the incoming space's progress rather than snapping).
@@ -2646,7 +2644,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if let s = _spaceSlide, let curve = _spaceSlideCurve,
            let from = windowManager.spaces.first(where: { $0.id == s.fromId }),
            from.isSpecial != agentTarget {
-            // Leaving the AI Space fades the dock in; entering fades it out.
+            // Leaving a workspace fades the dock in; entering fades it out.
             dockOpacity = agentTarget ? 1.0 - curve.value : curve.value
         }
         // Fullscreen hides the dock like it hides the status bar — it only

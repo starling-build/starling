@@ -115,7 +115,7 @@ final class AgentBroker: @unchecked Sendable {
     /// Apps an agent may launch (design: scope.launch). Rects follow the
     /// dock launch table; position is irrelevant for agent windows.
     /// Apps an agent may launch. No sizes here on purpose: the window is
-    /// given the AI Space's pane size at launch, so a nominal size in this
+    /// given a nominal size at launch, so the size in this
     /// table could only ever disagree with the one that gets applied.
     private static let launchable: [String: (exec: String, title: String)] = [
         "files": ("FileExplorerApp", "Files"),
@@ -631,7 +631,7 @@ final class AgentBroker: @unchecked Sendable {
             let appId = "\(agentId):\(app)#\(launchSeq)"
             let replied = ReplyOnce()
             // Launch at the pane size this window will be given, not the
-            // table's nominal size: the panes are what the AI Space actually
+            // table's nominal size: _agentStageContentSize is what actually
             // lays out, and a child launched larger draws an overflow marker
             // on its first frame. It also means the `content` size we report
             // back is the one the agent will really get.
