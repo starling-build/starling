@@ -154,6 +154,10 @@ final class ExternalScreenShell: @unchecked Sendable {
         guard fd >= 0 else { return }
         let lx = x / scale
         let ly = y / scale
+        if ProcessInfo.processInfo.environment["STARLING_SWAPCHAIN_DEBUG"] == "1",
+           phase == 1 || phase == 2 {
+            log("fwd phase=\(phase) phys=(\(x),\(y)) /\(scale) -> (\(lx),\(ly))")
+        }
         var event: DmaBufInputEvent
         if scrollDx != 0 || scrollDy != 0 {
             let bits = UInt64(Float(scrollDx).bitPattern)

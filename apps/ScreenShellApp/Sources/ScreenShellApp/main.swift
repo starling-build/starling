@@ -61,8 +61,10 @@ class _ScreenShellRootState: State<StatefulWidget> {
             home: GestureDetector(
                 onTap: { [weak self] in
                     guard let self else { return }
+                    FileHandle.standardError.write(Data("[ScreenShellApp] TAP\n".utf8))
                     self.setState { self._taps += 1 }
                 },
+                behavior: .opaque,
                 child: ColoredBox(
                 color: Color(0xFF10141C),
                 child: Center {
