@@ -51,6 +51,12 @@
 #ifndef DRM_FORMAT_XBGR8888
 #define DRM_FORMAT_XBGR8888 0x34324258  // 'XB24'
 #endif
+#ifndef DRM_FORMAT_ARGB8888
+#define DRM_FORMAT_ARGB8888 0x34325241  // 'AR24' — B at byte 0 in memory
+#endif
+#ifndef DRM_FORMAT_XRGB8888
+#define DRM_FORMAT_XRGB8888 0x34325258  // 'XR24'
+#endif
 #ifndef DRM_FORMAT_MOD_LINEAR
 #define DRM_FORMAT_MOD_LINEAR 0ULL
 #endif
@@ -85,6 +91,9 @@ typedef CUresult (*ne_cuGraphicsEGLRegisterImage)(ne_CUgraphicsResource*,
 typedef CUresult (*ne_cuGraphicsResourceGetMappedEglFrame)(
     ne_CUeglFrame*, ne_CUgraphicsResource, unsigned int, unsigned int);
 typedef CUresult (*ne_cuGraphicsUnregisterResource)(ne_CUgraphicsResource);
+typedef CUresult (*ne_cuMemAlloc)(CUdeviceptr*, size_t);
+typedef CUresult (*ne_cuMemFree)(CUdeviceptr);
+typedef CUresult (*ne_cuMemcpyDtoD)(CUdeviceptr, CUdeviceptr, size_t);
 typedef NVENCSTATUS(NVENCAPI* ne_createInstance)(NV_ENCODE_API_FUNCTION_LIST*);
 
 static struct {
@@ -100,6 +109,9 @@ static struct {
     ne_cuGraphicsEGLRegisterImage cuGraphicsEGLRegisterImage;
     ne_cuGraphicsResourceGetMappedEglFrame cuGraphicsResourceGetMappedEglFrame;
     ne_cuGraphicsUnregisterResource cuGraphicsUnregisterResource;
+    ne_cuMemAlloc cuMemAlloc;
+    ne_cuMemFree cuMemFree;
+    ne_cuMemcpyDtoD cuMemcpyDtoD;
 
     // EGL, dlopen'd like CUDA (the display is the NVIDIA device's — see
     // ne_egl_display). Core entry points via dlsym, extensions via
@@ -139,6 +151,9 @@ static int ne_load(void) {
             g.cuda, "cuGraphicsResourceGetMappedEglFrame");
     g.cuGraphicsUnregisterResource = (ne_cuGraphicsUnregisterResource)dlsym(
         g.cuda, "cuGraphicsUnregisterResource");
+    g.cuMemAlloc = (ne_cuMemAlloc)dlsym(g.cuda, "cuMemAlloc_v2");
+    g.cuMemFree = (ne_cuMemFree)dlsym(g.cuda, "cuMemFree_v2");
+    g.cuMemcpyDtoD = (ne_cuMemcpyDtoD)dlsym(g.cuda, "cuMemcpyDtoD_v2");
     g.libegl = dlopen("libEGL.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!g.libegl) return 0;
     g.eglInitialize = dlsym(g.libegl, "eglInitialize");
@@ -149,7 +164,8 @@ static int ne_load(void) {
         !g.cuCtxCreate || !g.cuCtxDestroy || !g.cuCtxPush || !g.cuCtxPop ||
         !g.cuGraphicsEGLRegisterImage ||
         !g.cuGraphicsResourceGetMappedEglFrame ||
-        !g.cuGraphicsUnregisterResource ||
+        !g.cuGraphicsUnregisterResource || !g.cuMemAlloc || !g.cuMemFree ||
+        !g.cuMemcpyDtoD ||
         !g.eglInitialize || !g.eglGetProcAddress || !ci) {
         return 0;
     }
@@ -190,13 +206,19 @@ typedef struct {
     void* img;                 // EGLImageKHR
     ne_CUgraphicsResource res;
     uint32_t pitch;            // CUDA's word on the mapped layout
-    void* reg;                 // NV_ENC_REGISTERED_PTR
+    void* dptr;                // mapped CUdeviceptr of the source frame
 } NeImport;
 
 struct NvencEncoder {
     CUcontext cu;
     void* session;
     NV_ENC_OUTPUT_PTR bitstream;
+    // The swapchain contract stores frames bottom-up; NVENC reads rows
+    // top-down, so each frame is row-reversed on the GPU into this scratch
+    // buffer, which is what NVENC registers.
+    CUdeviceptr flip_buf;
+    uint32_t flip_pitch;
+    void* flip_reg;            // NV_ENC_REGISTERED_PTR, lazy (needs fourcc)
     Mp4Mux* mux;
     char path[512];
     char err[256];
@@ -214,7 +236,6 @@ static void ne_set_err(NvencEncoder* e, const char* what, int code) {
 // Session and context must still be alive: unregister goes through NVENC,
 // destroy through CUDA.
 static void ne_release_import(NvencEncoder* e, NeImport* im) {
-    if (im->reg) g.fl.nvEncUnregisterResource(e->session, im->reg);
     if (im->res) g.cuGraphicsUnregisterResource(im->res);
     if (im->img) g.eglDestroyImageKHR(g.dpy, im->img);
     memset(im, 0, sizeof *im);
@@ -225,6 +246,8 @@ static void ne_free(NvencEncoder* e) {
         g.cuCtxPush(e->cu);
         for (int i = 0; i < NE_IMPORT_CACHE; i++)
             ne_release_import(e, &e->imports[i]);
+        if (e->flip_reg) g.fl.nvEncUnregisterResource(e->session, e->flip_reg);
+        if (e->flip_buf) g.cuMemFree(e->flip_buf);
         if (e->bitstream)
             g.fl.nvEncDestroyBitstreamBuffer(e->session, e->bitstream);
         g.fl.nvEncDestroyEncoder(e->session);
@@ -416,6 +439,12 @@ NvencEncoder* nvenc_encoder_open(int in_w, int in_h, int out_w, int out_h,
         goto fail;
     e->bitstream = cbb.bitstreamBuffer;
 
+    e->flip_pitch = (uint32_t)out_w * 4;
+    if (g.cuMemAlloc(&e->flip_buf, (size_t)e->flip_pitch * (size_t)out_h) !=
+        CUDA_SUCCESS) {
+        goto fail;
+    }
+
     uint8_t hdr[512];
     uint32_t hdr_len = 0;
     NV_ENC_SEQUENCE_PARAM_PAYLOAD spp;
@@ -461,6 +490,12 @@ fail:
 // underlying buffer. Context must be current. NULL on failure, e->err set.
 static NeImport* ne_import(NvencEncoder* e, int fd, uint32_t stride,
                            uint32_t offset, uint32_t fourcc) {
+    // The ring contract is RGBA byte order (AB24/XB24); the screen-shell
+    // swapchain negotiates BGRA (AR24/XR24) — NVENC eats both natively.
+    NV_ENC_BUFFER_FORMAT fmt =
+        (fourcc == DRM_FORMAT_ARGB8888 || fourcc == DRM_FORMAT_XRGB8888)
+            ? NV_ENC_BUFFER_FORMAT_ARGB
+            : NV_ENC_BUFFER_FORMAT_ABGR;
     struct stat sb;
     if (fstat(fd, &sb) != 0) {
         ne_set_err(e, "fstat(dma-buf)", errno);
@@ -509,24 +544,6 @@ static NeImport* ne_import(NvencEncoder* e, int fd, uint32_t stride,
         return NULL;
     }
 
-    NV_ENC_REGISTER_RESOURCE rr;
-    memset(&rr, 0, sizeof rr);
-    rr.version = NV_ENC_REGISTER_RESOURCE_VER;
-    rr.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR;
-    rr.resourceToRegister = fr.frame.pPitch[0];
-    rr.width = (uint32_t)e->out_w;
-    rr.height = (uint32_t)e->out_h;
-    rr.pitch = fr.pitch;
-    rr.bufferFormat = NV_ENC_BUFFER_FORMAT_ABGR;  // R at byte 0, like AB24
-    rr.bufferUsage = NV_ENC_INPUT_IMAGE;
-    NVENCSTATUS st = g.fl.nvEncRegisterResource(e->session, &rr);
-    if (st != NV_ENC_SUCCESS) {
-        g.cuGraphicsUnregisterResource(res);
-        g.eglDestroyImageKHR(g.dpy, img);
-        ne_set_err(e, "nvEncRegisterResource", (int)st);
-        return NULL;
-    }
-
     NeImport* slot = &e->imports[e->import_next];
     e->import_next = (e->import_next + 1) % NE_IMPORT_CACHE;
     if (slot->img) ne_release_import(e, slot);
@@ -537,7 +554,7 @@ static NeImport* ne_import(NvencEncoder* e, int fd, uint32_t stride,
     slot->img = img;
     slot->res = res;
     slot->pitch = fr.pitch;
-    slot->reg = rr.registeredResource;
+    slot->dptr = fr.frame.pPitch[0];
     return slot;
 }
 
@@ -545,7 +562,8 @@ int nvenc_encoder_encode(NvencEncoder* e, int fd, uint32_t stride,
                          uint32_t offset, uint32_t fourcc, uint64_t modifier,
                          uint64_t pts_us) {
     if (!e) return -1;
-    if (fourcc != DRM_FORMAT_ABGR8888 && fourcc != DRM_FORMAT_XBGR8888) {
+    if (fourcc != DRM_FORMAT_ABGR8888 && fourcc != DRM_FORMAT_XBGR8888 &&
+        fourcc != DRM_FORMAT_ARGB8888 && fourcc != DRM_FORMAT_XRGB8888) {
         ne_set_err(e, "unsupported fourcc", (int)fourcc);
         return -1;
     }
@@ -562,13 +580,49 @@ int nvenc_encoder_encode(NvencEncoder* e, int fd, uint32_t stride,
     NeImport* im = ne_import(e, fd, stride, offset, fourcc);
     if (!im) goto fail_pop;  // err already set
 
+    // Row-reverse on the GPU: swapchain frames are bottom-up in memory.
+    {
+        CUdeviceptr src = (CUdeviceptr)(uintptr_t)im->dptr;
+        for (int y = 0; y < e->out_h; y++) {
+            CUresult cr = g.cuMemcpyDtoD(
+                e->flip_buf + (size_t)y * e->flip_pitch,
+                src + (size_t)(e->out_h - 1 - y) * im->pitch,
+                (size_t)e->out_w * 4);
+            if (cr != CUDA_SUCCESS) {
+                ne_set_err(e, "cuMemcpyDtoD(flip)", (int)cr);
+                goto fail_pop;
+            }
+        }
+    }
+    if (!e->flip_reg) {
+        NV_ENC_REGISTER_RESOURCE rr;
+        memset(&rr, 0, sizeof rr);
+        rr.version = NV_ENC_REGISTER_RESOURCE_VER;
+        rr.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR;
+        rr.resourceToRegister = (void*)(uintptr_t)e->flip_buf;
+        rr.width = (uint32_t)e->out_w;
+        rr.height = (uint32_t)e->out_h;
+        rr.pitch = e->flip_pitch;
+        rr.bufferFormat =
+            (fourcc == DRM_FORMAT_ARGB8888 || fourcc == DRM_FORMAT_XRGB8888)
+                ? NV_ENC_BUFFER_FORMAT_ARGB
+                : NV_ENC_BUFFER_FORMAT_ABGR;
+        rr.bufferUsage = NV_ENC_INPUT_IMAGE;
+        NVENCSTATUS rst = g.fl.nvEncRegisterResource(e->session, &rr);
+        if (rst != NV_ENC_SUCCESS) {
+            ne_set_err(e, "nvEncRegisterResource(flip)", (int)rst);
+            goto fail_pop;
+        }
+        e->flip_reg = rr.registeredResource;
+    }
+
     // GPU-side handoff on one device: the producer's writes are ordered
     // ahead of the encode by the driver (same GPU, same channel domain) —
     // the same implicit contract the VAAPI path leans on.
     NV_ENC_MAP_INPUT_RESOURCE mir;
     memset(&mir, 0, sizeof mir);
     mir.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-    mir.registeredResource = im->reg;
+    mir.registeredResource = e->flip_reg;
     st = g.fl.nvEncMapInputResource(e->session, &mir);
     if (st != NV_ENC_SUCCESS) {
         ne_set_err(e, "nvEncMapInputResource", (int)st);

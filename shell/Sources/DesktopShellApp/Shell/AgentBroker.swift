@@ -542,6 +542,21 @@ final class AgentBroker: @unchecked Sendable {
         // shell-drive.py used to default to 3840x2160, which was right on the
         // machine it was written on and wrong in the 5120x2160 test VM — every
         // click landed at roughly two thirds of the intended position.
+        // Recording of the external (per-screen-shell) output: encoded by
+        // that screen's own GPU through NVENC. Dev/test interface until the
+        // control center grows per-screen selection.
+        if op == "screen_shell_record" {
+            guard let sh = externalScreenShell else {
+                conn.send(["id": id, "ok": false, "error": "no screen shell"])
+                return
+            }
+            let action = req["action"] as? String ?? "start"
+            let path = action == "stop" ? sh.stopRecording()
+                                        : sh.startRecording()
+            conn.send(["id": id, "ok": path != nil, "path": path ?? ""])
+            return
+        }
+
         if op == "screen" {
             let dpi = currentShellDpi
             conn.send(["id": id, "ok": true,

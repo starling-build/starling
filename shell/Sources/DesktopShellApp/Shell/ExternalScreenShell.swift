@@ -5,6 +5,7 @@ import DmaBufBridge
 import FlutterDRMBridge
 import Foundation
 import Glibc
+import StarlingRecord
 
 /// Stage B of the NVIDIA-view plan (docs/plans/nv-view.md): runs one
 /// per-screen shell as a child process — rendering on its own GPU through
@@ -24,6 +25,11 @@ final class ExternalScreenShell: @unchecked Sendable {
     private var process: Process?
     private let fdLock = NSLock()
     private var clientFd: Int32 = -1
+    /// NVENC session recording THIS screen: frames are the child's own
+    /// NVIDIA-resident buffers, encoded on the same GPU — recording never
+    /// crosses GPUs. Guarded by recLock; encode runs on the reader thread.
+    private let recLock = NSLock()
+    private var recorder: NvencEncoder?
 
     init(view: OpaquePointer, outputId: Int, logicalWidth: Int,
          logicalHeight: Int, scale: Double, device: String) {
@@ -133,6 +139,21 @@ final class ExternalScreenShell: @unchecked Sendable {
                 _ = fl_drm_view_push_external_frame(
                     view, outputId, fd, UInt32(meta.stride), 0,
                     meta.fourcc, 0)
+                recLock.lock()
+                if let enc = recorder {
+                    var ts = timespec()
+                    clock_gettime(CLOCK_MONOTONIC, &ts)
+                    let us = UInt64(ts.tv_sec) * 1_000_000
+                        + UInt64(ts.tv_nsec) / 1_000
+                    if !enc.encode(fd: fd, stride: UInt32(meta.stride),
+                                   offset: 0, fourcc: meta.fourcc,
+                                   modifier: 0, timestampUs: us) {
+                        log("nvenc encode failed: \(enc.errorOutput)")
+                        enc.abort()
+                        recorder = nil
+                    }
+                }
+                recLock.unlock()
                 Glibc.close(fd)
                 frames += 1
                 if frames == 1 {
@@ -145,6 +166,44 @@ final class ExternalScreenShell: @unchecked Sendable {
         self.clientFd = -1
         fdLock.unlock()
         Glibc.close(clientFd)
+    }
+
+    /// Start an NVENC recording of this screen; returns the file path.
+    func startRecording() -> String? {
+        recLock.lock()
+        defer { recLock.unlock() }
+        if let live = recorder { return live.outputURL.path }
+        let physW = Int((Double(logicalWidth) * scale).rounded())
+        let physH = Int((Double(logicalHeight) * scale).rounded())
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
+        let dir = RecordingPaths.videosDir(home: home)
+        let url = RecordingPaths.outputURL(in: dir, now: Date(),
+                                           label: "NVIDIA Screen")
+        guard let enc = NvencEncoder(inWidth: physW, inHeight: physH,
+                                     width: max(2, physW & ~1),
+                                     height: max(2, physH & ~1),
+                                     fps: 30, outputURL: url) else {
+            log("NvencEncoder open failed")
+            return nil
+        }
+        recorder = enc
+        log("recording -> \(url.path)")
+        return url.path
+    }
+
+    /// Finish the recording; returns the completed file path.
+    func stopRecording() -> String? {
+        recLock.lock()
+        defer { recLock.unlock() }
+        guard let enc = recorder else { return nil }
+        recorder = nil
+        if enc.finish() {
+            log("recording finished")
+            return enc.outputURL.path
+        }
+        log("recording finish failed: \(enc.errorOutput)")
+        enc.abort()
+        return nil
     }
 
     /// Engine input thread: pointer/scroll landing on this output.
