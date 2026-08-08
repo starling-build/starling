@@ -57,6 +57,14 @@ class _ScreenShellRootState: State<StatefulWidget> {
             return true
         }
         _focus.requestFocus()
+        // Desktop windows overlapping this screen arrive over the window
+        // stream as external textures; placement changes land here (the
+        // callback runs on the drained GCD main queue, i.e. this thread —
+        // same unsafeBitCast shape as scheduleTick). Texture CONTENT
+        // repaints through the engine without this firing.
+        let poke: () -> Void = { [weak self] in self?.setState {} }
+        gpuDmaBufRendererState?.onExternalWindowsChanged =
+            unsafeBitCast(poke, to: (@Sendable () -> Void).self)
     }
 
     override func dispose() {
@@ -81,7 +89,7 @@ class _ScreenShellRootState: State<StatefulWidget> {
     override func build(_ context: any BuildContext) -> Widget {
         let device = ProcessInfo.processInfo
             .environment["STARLING_APP_DRM_DEVICE"] ?? "?"
-        return GestureDetector(
+        let desk = GestureDetector(
                 onTap: { [weak self] in
                     guard let self else { return }
                     FileHandle.standardError.write(Data("[ScreenShellApp] TAP\n".utf8))
@@ -119,6 +127,20 @@ class _ScreenShellRootState: State<StatefulWidget> {
                 }
                 )
         )
+        // Desktop windows relayed from the shell, unchromed for now —
+        // placement is already in this screen's logical coordinates.
+        let windows = gpuDmaBufRendererState?.externalWindows ?? []
+        return Stack(fit: .expand) {
+            Positioned(fill: (), child: desk)
+            for win in windows {
+                Positioned(
+                    key: ValueKey("ext-\(win.window)"),
+                    left: win.x, top: win.y,
+                    width: win.width, height: win.height,
+                    child: TextureWidget(textureId: Int(win.textureId),
+                                         filterQuality: .low))
+            }
+        }
     }
 }
 

@@ -146,6 +146,34 @@ struct DmaBufConfigure {
     int32_t _reserved;
 };
 
+// ─── Window stream (shell → per-screen shell) ───────────────────────────────
+// A second socket (FLUTTER_WINDOW_STREAM_SOCKET) carrying the windows that
+// overlap an externally sourced output: fixed-size messages, FRAME ones with
+// the buffer fd attached via SCM_RIGHTS (docs/plans/nv-view.md Stage B).
+
+/* New buffer for the window — fd attached. Sent on first sight, on every
+ * swapchain frame (each frame is a fresh dma-buf), and on resize. */
+#define DMABUF_WINSTREAM_FRAME  1
+/* Placement/stacking update, no fd; buffer fields are ignored. */
+#define DMABUF_WINSTREAM_PLACE  2
+/* Content changed in place, no fd: single-bo apps repaint their one buffer
+ * and only signal — the importer re-samples the buffer it already holds. */
+#define DMABUF_WINSTREAM_DAMAGE 3
+/* The window no longer overlaps this output; drop its texture. No fd. */
+#define DMABUF_WINSTREAM_REMOVE 4
+
+struct DmaBufWindowStreamMsg {
+    int32_t kind;         // DMABUF_WINSTREAM_*
+    int32_t window;       // shell window key, stable for the window's life
+    float x, y, w, h;     // placement, output-local LOGICAL px
+    int32_t z;            // stacking order, bottom = 0
+    int32_t buf_w, buf_h; // buffer size in pixels        (FRAME)
+    int32_t stride;       // bytes per row                (FRAME)
+    uint32_t fourcc;      // DRM format                   (FRAME)
+    uint32_t _pad;
+    uint64_t modifier;    // DRM modifier, or DRM_FORMAT_MOD_INVALID (FRAME)
+};
+
 struct DmaBufInputEvent {
     double x;           // x coord (POINTER) / new width (RESIZE) / physical HID key (KEY)
     double y;           // y coord (POINTER) / new height (RESIZE) / logical keysym (KEY)

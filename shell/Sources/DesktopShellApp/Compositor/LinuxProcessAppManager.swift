@@ -287,6 +287,9 @@ class LinuxProcessAppManager {
                 )
 
                 launch.onReady(texId)
+                storeRelayBuffer(texId, fd: launch.dmaFd, w: launch.width,
+                                 h: launch.height, stride: launch.stride,
+                                 fourcc: launch.fourcc)
 
                 // The child signaled its first frame before the texture was
                 // registered — deliver it now or the window never appears.
@@ -328,6 +331,9 @@ class LinuxProcessAppManager {
                     stride: resize.stride,
                     fourcc: resize.fourcc
                 )
+                storeRelayBuffer(resize.textureId, fd: resize.dmaFd,
+                                 w: resize.width, h: resize.height,
+                                 stride: resize.stride, fourcc: resize.fourcc)
             }
         }
 
@@ -649,6 +655,13 @@ class LinuxProcessAppManager {
                     memcpy(&meta, &buf, MemoryLayout<DmaBufMeta>.size)
 
                     if texId != 0 {
+                        // A window on the external screen sees the same
+                        // buffer the shell is about to import (fd borrowed;
+                        // SCM_RIGHTS does not consume it).
+                        externalScreenShell?.relayFrame(
+                            texId: texId, fd: receivedFd,
+                            w: meta.width, h: meta.height,
+                            stride: meta.stride, fourcc: meta.fourcc)
                         pendingDmaBufResizes.withLock { $0.append(PendingDmaBufResize(
                             textureId: texId,
                             dmaFd: receivedFd,
@@ -702,9 +715,11 @@ class LinuxProcessAppManager {
                         // A first-party child renders into ONE gbm_bo for
                         // its whole life — the buffer is imported once and
                         // never again, so this signal is the only evidence
-                        // its pixels changed. An app recording needs it.
+                        // its pixels changed. An app recording needs it,
+                        // and so does a window on the external screen.
                         RecordingService.noteSourceContentChanged(
                             textureId: frameTexId)
+                        externalScreenShell?.relayDamage(texId: frameTexId)
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     }
                 }
@@ -933,6 +948,43 @@ class LinuxProcessAppManager {
         }
         entry.sock.shutdown()
         textureRegistry.unregisterTexture(engine: engine, id: textureId)
+        relayBufLock.lock()
+        if let old = relayBuffers.removeValue(forKey: textureId) {
+            Glibc.close(old.fd)
+        }
+        relayBufLock.unlock()
+    }
+
+    // MARK: - External-screen window relay support
+
+    /// texId → the app's newest buffer, so the external-screen relay can
+    /// show a window the moment it ENTERS that output — an idle app sends
+    /// no frames, and entry.dmaFd lives on the platform thread. fds here
+    /// are this map's own dups, replaced in tick, closed in destroyApp.
+    private let relayBufLock = NSLock()
+    private var relayBuffers:
+        [Int64: (fd: Int32, w: Int32, h: Int32, stride: Int32, fourcc: UInt32)] = [:]
+
+    /// A fresh dup of the app's newest buffer, or nil. Any thread; the
+    /// caller owns (and closes) the returned fd.
+    func dupLatestBuffer(_ texId: Int64)
+        -> (fd: Int32, w: Int32, h: Int32, stride: Int32, fourcc: UInt32)? {
+        relayBufLock.lock()
+        defer { relayBufLock.unlock() }
+        guard let b = relayBuffers[texId] else { return nil }
+        let d = Glibc.dup(b.fd)
+        guard d >= 0 else { return nil }
+        return (d, b.w, b.h, b.stride, b.fourcc)
+    }
+
+    private func storeRelayBuffer(_ texId: Int64, fd: Int32, w: Int, h: Int,
+                                  stride: Int, fourcc: UInt32) {
+        let d = Glibc.dup(fd)
+        guard d >= 0 else { return }
+        relayBufLock.lock()
+        if let old = relayBuffers[texId] { Glibc.close(old.fd) }
+        relayBuffers[texId] = (d, Int32(w), Int32(h), Int32(stride), fourcc)
+        relayBufLock.unlock()
     }
 }
 

@@ -31,6 +31,29 @@ final class ExternalScreenShell: @unchecked Sendable {
     private let recLock = NSLock()
     private var recorder: NvencEncoder?
 
+    /// Window relay (nv-view.md Stage B "windows on the NV screen"): desktop
+    /// windows overlapping this output stream to the child over a second
+    /// socket as DmaBufWindowStreamMsg. winLock guards the registry AND
+    /// serializes socket writes — callers are the UI thread (placement sync)
+    /// and every process app's reader thread (frames).
+    private let winLock = NSLock()
+    private var winStreamFd: Int32 = -1
+    private var relayed: [Int64: RelayedWindow] = [:]   // texId → window
+    private var windowKeys: [String: Int32] = [:]       // shell win id → key
+    private var nextWindowKey: Int32 = 1
+
+    private struct RelayedWindow {
+        var key: Int32
+        var x: Float, y: Float, w: Float, h: Float
+        var z: Int32
+    }
+
+    /// DRM_FORMAT_MOD_LINEAR — every relayable buffer is linear by protocol
+    /// (single-bo apps allocate GBM_BO_USE_LINEAR, swapchain front buffers
+    /// detile to modifier 0), and the child's zink EGL wants the explicit
+    /// modifier rather than an implicit-layout guess.
+    private static let modLinear: UInt64 = 0
+
     init(view: OpaquePointer, outputId: Int, logicalWidth: Int,
          logicalHeight: Int, scale: Double, device: String) {
         self.view = view
@@ -76,10 +99,38 @@ final class ExternalScreenShell: @unchecked Sendable {
             return
         }
 
+        // Window stream: a second socket for relaying desktop windows.
+        let winSockPath = "/tmp/starling-screen-shell-\(getpid())-\(outputId)-win.sock"
+        unlink(winSockPath)
+        var winListenFd: Int32 = -1
+        let wfd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+        if wfd >= 0 {
+            var waddr = sockaddr_un()
+            waddr.sun_family = sa_family_t(AF_UNIX)
+            withUnsafeMutablePointer(to: &waddr.sun_path) { p in
+                p.withMemoryRebound(to: CChar.self, capacity: 108) { buf in
+                    winSockPath.withCString { _ = strncpy(buf, $0, 107) }
+                }
+            }
+            let wbound = withUnsafePointer(to: &waddr) { ap in
+                ap.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Glibc.bind(wfd, $0, UInt32(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            if wbound == 0, listen(wfd, 1) == 0 {
+                winListenFd = wfd
+            } else {
+                Glibc.close(wfd)
+            }
+        }
+
         let env0 = ProcessInfo.processInfo.environment
         let exe = (env0["FLUTTER_APPS_DIR"] ?? ".") + "/ScreenShellApp"
         var env = env0
         env["FLUTTER_DMABUF_SOCKET"] = sockPath
+        if winListenFd >= 0 {
+            env["FLUTTER_WINDOW_STREAM_SOCKET"] = winSockPath
+        }
         if env["STARLING_TEXT_DEBUG"] != nil {
             env["STARLING_TEXT_DEBUG"] = "2"  // verbose in the child only
         }
@@ -104,6 +155,21 @@ final class ExternalScreenShell: @unchecked Sendable {
         }
         process = p
         log("spawned \(exe) (pid \(p.processIdentifier)) on \(device)")
+
+        // The child connects the window stream only after its engine runs —
+        // accept it off this thread, which the frame loop below needs.
+        if winListenFd >= 0 {
+            Thread.detachNewThread { [self, winListenFd] in
+                let fd = accept(winListenFd, nil, nil)
+                Glibc.close(winListenFd)
+                unlink(winSockPath)
+                guard fd >= 0 else { return }
+                winLock.lock()
+                winStreamFd = fd
+                winLock.unlock()
+                log("window stream connected")
+            }
+        }
 
         let clientFd = accept(listenFd, nil, nil)
         Glibc.close(listenFd)
@@ -235,6 +301,122 @@ final class ExternalScreenShell: @unchecked Sendable {
         }
         _ = withUnsafePointer(to: &event) {
             send(fd, $0, MemoryLayout<DmaBufInputEvent>.size, Int32(MSG_NOSIGNAL))
+        }
+    }
+
+    // MARK: - Window relay
+
+    /// Reconcile the set of process-app windows overlapping this output.
+    /// UI thread, on every shell state change (the SecondaryOutputScreen
+    /// cadence). Placement is output-local logical; z is bottom-most first.
+    /// A window ENTERING the output gets its app's latest buffer as an
+    /// immediate FRAME — an idle app sends no frames, and a window that
+    /// only appears on its next repaint reads as "drag lost it".
+    func syncWindows(
+        _ entries: [(id: String, texId: Int64, x: Double, y: Double,
+                     w: Double, h: Double, z: Int)]) {
+        winLock.lock()
+        guard winStreamFd >= 0 else {
+            winLock.unlock()
+            return
+        }
+        var seen = Set<Int64>()
+        var frames: [(texId: Int64, msg: DmaBufWindowStreamMsg)] = []
+        for e in entries {
+            seen.insert(e.texId)
+            let key: Int32
+            if let k = windowKeys[e.id] {
+                key = k
+            } else {
+                key = nextWindowKey
+                nextWindowKey += 1
+                windowKeys[e.id] = key
+            }
+            let win = RelayedWindow(
+                key: key, x: Float(e.x), y: Float(e.y),
+                w: Float(e.w), h: Float(e.h), z: Int32(e.z))
+            if let old = relayed[e.texId] {
+                if old.x != win.x || old.y != win.y || old.w != win.w
+                    || old.h != win.h || old.z != win.z {
+                    relayed[e.texId] = win
+                    sendLocked(makeMsg(kind: DMABUF_WINSTREAM_PLACE, win), fd: -1)
+                }
+            } else {
+                relayed[e.texId] = win
+                frames.append((e.texId, makeMsg(kind: DMABUF_WINSTREAM_FRAME, win)))
+            }
+        }
+        for (texId, win) in relayed where !seen.contains(texId) {
+            sendLocked(makeMsg(kind: DMABUF_WINSTREAM_REMOVE, win), fd: -1)
+            relayed.removeValue(forKey: texId)
+        }
+        winLock.unlock()
+        // The buffer dup takes the process manager's lock — outside ours.
+        for (texId, var msg) in frames {
+            guard let buf = linuxProcessAppManager?.dupLatestBuffer(texId)
+            else { continue }
+            msg.buf_w = buf.w
+            msg.buf_h = buf.h
+            msg.stride = buf.stride
+            msg.fourcc = buf.fourcc
+            msg.modifier = Self.modLinear
+            winLock.lock()
+            sendLocked(msg, fd: buf.fd)
+            winLock.unlock()
+            Glibc.close(buf.fd)
+        }
+    }
+
+    /// A new buffer for an app's window (its reader thread; fd is borrowed —
+    /// sent inline, never kept). No-op unless the window is on this output.
+    func relayFrame(texId: Int64, fd: Int32, w: Int32, h: Int32,
+                    stride: Int32, fourcc: UInt32) {
+        winLock.lock()
+        defer { winLock.unlock() }
+        guard winStreamFd >= 0, let win = relayed[texId] else { return }
+        var msg = makeMsg(kind: DMABUF_WINSTREAM_FRAME, win)
+        msg.buf_w = w
+        msg.buf_h = h
+        msg.stride = stride
+        msg.fourcc = fourcc
+        msg.modifier = Self.modLinear
+        sendLocked(msg, fd: fd)
+    }
+
+    /// An app repainted its single buffer in place (frame signal).
+    func relayDamage(texId: Int64) {
+        winLock.lock()
+        defer { winLock.unlock() }
+        guard winStreamFd >= 0, let win = relayed[texId] else { return }
+        sendLocked(makeMsg(kind: DMABUF_WINSTREAM_DAMAGE, win), fd: -1)
+    }
+
+    private func makeMsg(kind: Int32, _ win: RelayedWindow) -> DmaBufWindowStreamMsg {
+        var msg = DmaBufWindowStreamMsg()
+        msg.kind = kind
+        msg.window = win.key
+        msg.x = win.x
+        msg.y = win.y
+        msg.w = win.w
+        msg.h = win.h
+        msg.z = win.z
+        msg.modifier = Self.modLinear
+        return msg
+    }
+
+    /// winLock must be held. fd >= 0 rides along via SCM_RIGHTS.
+    private func sendLocked(_ msg: DmaBufWindowStreamMsg, fd: Int32) {
+        var m = msg
+        if fd >= 0 {
+            _ = withUnsafePointer(to: &m) {
+                dmabuf_send_fd(winStreamFd, fd, $0,
+                               MemoryLayout<DmaBufWindowStreamMsg>.size)
+            }
+        } else {
+            _ = withUnsafePointer(to: &m) {
+                send(winStreamFd, $0, MemoryLayout<DmaBufWindowStreamMsg>.size,
+                     Int32(MSG_NOSIGNAL))
+            }
         }
     }
 

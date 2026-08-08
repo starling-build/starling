@@ -50,6 +50,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             invalidateSecondaryScreens()
             updateWaylandSurfaceOutputs()
         }
+        syncExternalScreenWindows()
     }
 
     func createTicker(_ onTick: @escaping TickerCallback) -> Ticker {

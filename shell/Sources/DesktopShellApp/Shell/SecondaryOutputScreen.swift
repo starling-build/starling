@@ -123,6 +123,34 @@ func invalidateSecondaryScreens() {
     }
 }
 
+/// Reconcile which process-app windows overlap the externally sourced
+/// output with its screen-shell child (nv-view.md Stage B). Called on every
+/// shell state change, the same cadence as invalidateSecondaryScreens —
+/// ExternalScreenShell diffs, so unchanged placements send nothing.
+/// Process apps only for now: their buffers are already retained in a
+/// relayable form; Wayland/X11 windows need a compositor-side tap.
+func syncExternalScreenWindows() {
+    guard let ext = externalScreenShell,
+          let extId = externallySourcedOutput,
+          let dl = displayLayout,
+          let out = dl.outputs.first(where: { $0.id == extId }),
+          let shell = _shellState else { return }
+    var entries: [(id: String, texId: Int64, x: Double, y: Double,
+                   w: Double, h: Double, z: Int)] = []
+    for (z, win) in shell.windowManager.visibleWindows.enumerated() {
+        guard let texId = shell.processTextureIds[win.appId] else { continue }
+        let r = win.rect
+        guard r.right > out.logicalLeft, r.left < out.logicalRight,
+              r.bottom > out.logicalTop, r.top < out.logicalBottom
+        else { continue }
+        entries.append((id: win.id, texId: texId,
+                        x: r.left - out.logicalLeft,
+                        y: r.top - out.logicalTop,
+                        w: r.width, h: r.height, z: z))
+    }
+    ext.syncWindows(entries)
+}
+
 /// Keep Wayland clients' wl_surface enter/leave in step with where their
 /// windows sit in the virtual desktop. Diffing happens in WaylandIntegration
 /// (per-surface mask cache), so calling this on every shell state change is

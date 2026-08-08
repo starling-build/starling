@@ -196,6 +196,147 @@ public final class GpuRendererState: @unchecked Sendable {
         return r
     }
 
+    // ─── Window stream (per-screen shell) ───────────────────────────────────
+    // The shell relays the desktop windows overlapping an externally sourced
+    // output over a second socket (FLUTTER_WINDOW_STREAM_SOCKET): fixed-size
+    // DmaBufWindowStreamMsg, FRAME ones carrying the buffer fd. Each window
+    // becomes an external texture; the app composites them from the snapshot.
+
+    /// One relayed desktop window, ready to composite.
+    public struct ExternalWindowState: Sendable {
+        public let window: Int32
+        public let textureId: Int64
+        /// Placement in this screen's LOGICAL coordinates.
+        public let x: Double, y: Double, width: Double, height: Double
+        public let z: Int
+    }
+
+    private let _winLock = NSLock()
+    private var _externalWindows: [Int32: ExternalWindowState] = [:]
+    /// Fired on the main queue when windows appear, move, or leave — texture
+    /// CONTENT updates repaint through the engine without a rebuild, so they
+    /// do not fire this.
+    public nonisolated(unsafe) var onExternalWindowsChanged: (@Sendable () -> Void)? = nil
+
+    /// Snapshot for compositing, bottom-most first.
+    public var externalWindows: [ExternalWindowState] {
+        _winLock.lock(); defer { _winLock.unlock() }
+        return _externalWindows.values.sorted { $0.z < $1.z }
+    }
+
+    func startWindowStream(path: String) {
+        let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+        guard fd >= 0 else { return }
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutablePointer(to: &addr.sun_path) { p in
+            p.withMemoryRebound(to: CChar.self, capacity: 108) { buf in
+                path.withCString { _ = strncpy(buf, $0, 107) }
+            }
+        }
+        let ok = withUnsafePointer(to: &addr) { ap in
+            ap.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Glibc.connect(fd, $0, UInt32(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard ok == 0 else {
+            FileHandle.standardError.write(Data(
+                "[WindowStream] connect(\(path)) failed: \(String(cString: strerror(errno)))\n".utf8))
+            Glibc.close(fd)
+            return
+        }
+        Thread.detachNewThread { [self] in windowStreamLoop(fd) }
+    }
+
+    private func windowStreamLoop(_ fd: Int32) {
+        let size = MemoryLayout<DmaBufWindowStreamMsg>.size
+        while true {
+            var msg = DmaBufWindowStreamMsg()
+            var rfd: Int32 = -1
+            let n = withUnsafeMutableBytes(of: &msg) { p in
+                dmabuf_recv_with_fd(fd, p.baseAddress, p.count, &rfd)
+            }
+            if n <= 0 {
+                FileHandle.standardError.write(Data(
+                    "[WindowStream] reader exiting: recv=\(n) errno=\(errno)\n".utf8))
+                break
+            }
+            guard n >= size else {
+                if rfd >= 0 { Glibc.close(rfd) }
+                continue
+            }
+            switch msg.kind {
+            case Int32(DMABUF_WINSTREAM_FRAME):
+                guard rfd >= 0 else { break }
+                _winLock.lock()
+                let existing = _externalWindows[msg.window]
+                _winLock.unlock()
+                let texId = existing?.textureId ?? registerExternalTexture()
+                // updateExternalTexture takes ownership of the fd. External
+                // target: window buffers come from OTHER GPU contexts (a
+                // foreign GPU's, or another zink process's linear bo), which
+                // this display can only sample through EXTERNAL_OES.
+                updateExternalTexture(
+                    texId, fd: rfd, width: msg.buf_w, height: msg.buf_h,
+                    stride: msg.stride, fourcc: msg.fourcc,
+                    modifier: msg.modifier, external: true)
+                let state = ExternalWindowState(
+                    window: msg.window, textureId: texId,
+                    x: Double(msg.x), y: Double(msg.y),
+                    width: Double(msg.w), height: Double(msg.h),
+                    z: Int(msg.z))
+                let topologyChanged = existing == nil
+                    || existing!.x != state.x || existing!.y != state.y
+                    || existing!.width != state.width
+                    || existing!.height != state.height
+                    || existing!.z != state.z
+                _winLock.lock()
+                _externalWindows[msg.window] = state
+                _winLock.unlock()
+                if topologyChanged { _notifyWindowsChanged() }
+            case Int32(DMABUF_WINSTREAM_PLACE):
+                if rfd >= 0 { Glibc.close(rfd) }
+                _winLock.lock()
+                guard let existing = _externalWindows[msg.window] else {
+                    _winLock.unlock()
+                    break
+                }
+                _externalWindows[msg.window] = ExternalWindowState(
+                    window: msg.window, textureId: existing.textureId,
+                    x: Double(msg.x), y: Double(msg.y),
+                    width: Double(msg.w), height: Double(msg.h),
+                    z: Int(msg.z))
+                _winLock.unlock()
+                _notifyWindowsChanged()
+            case Int32(DMABUF_WINSTREAM_DAMAGE):
+                if rfd >= 0 { Glibc.close(rfd) }
+                _winLock.lock()
+                let texId = _externalWindows[msg.window]?.textureId
+                _winLock.unlock()
+                if let texId, let eng = engine {
+                    FlutterEngineMarkExternalTextureFrameAvailable(eng, texId)
+                }
+            case Int32(DMABUF_WINSTREAM_REMOVE):
+                if rfd >= 0 { Glibc.close(rfd) }
+                _winLock.lock()
+                let removed = _externalWindows.removeValue(forKey: msg.window)
+                _winLock.unlock()
+                if let removed {
+                    unregisterExternalTexture(removed.textureId)
+                    _notifyWindowsChanged()
+                }
+            default:
+                if rfd >= 0 { Glibc.close(rfd) }
+            }
+        }
+        Glibc.close(fd)
+    }
+
+    private func _notifyWindowsChanged() {
+        guard let cb = onExternalWindowsChanged else { return }
+        DispatchQueue.main.async { cb() }
+    }
+
     // ─── External Texture Registry ──────────────────────────────────────────
 
     /// A hardware-decoded NV12 surface waiting to be imported: both planes in
@@ -237,6 +378,9 @@ public final class GpuRendererState: @unchecked Sendable {
         var stride: Int32 = 0
         var fourcc: UInt32 = 0
         var modifier: UInt64 = 0
+        /// Bind pending fds on GL_TEXTURE_EXTERNAL_OES instead of TEXTURE_2D
+        /// (window-stream textures — see updateExternalTexture).
+        var wantExternalTarget: Bool = false
         var glTexName: UInt32 = 0       // GL texture (raster thread)
         var eglImage: UnsafeMutableRawPointer? = nil  // Current EGLImage
         var dirty: Bool = false
@@ -285,8 +429,14 @@ public final class GpuRendererState: @unchecked Sendable {
     }
 
     /// Called from main thread: store new DMA-BUF fd for the raster thread.
+    /// `external: true` binds through GL_TEXTURE_EXTERNAL_OES instead of
+    /// TEXTURE_2D — the only target a FOREIGN GPU's buffer can bind to on
+    /// this display (nv-view.md fact 4), and the route around zink's
+    /// refusal to sample a re-imported linear dma-buf of its own on
+    /// TEXTURE_2D. Window-stream textures use it unconditionally.
     public func updateExternalTexture(_ id: Int64, fd: Int32, width: Int32, height: Int32,
-                                       stride: Int32, fourcc: UInt32, modifier: UInt64) {
+                                       stride: Int32, fourcc: UInt32, modifier: UInt64,
+                                       external: Bool = false) {
         _texLock.lock()
         guard var entry = _texEntries[id] else {
             _texLock.unlock()
@@ -302,6 +452,7 @@ public final class GpuRendererState: @unchecked Sendable {
         entry.stride = stride
         entry.fourcc = fourcc
         entry.modifier = modifier
+        entry.wantExternalTarget = external
         entry.dirty = true
         _texEntries[id] = entry
         _texLock.unlock()
@@ -593,8 +744,24 @@ public final class GpuRendererState: @unchecked Sendable {
                 dmabuf_destroy_egl_image(eglDisplay, oldImg)
             }
 
+            let externalTarget: UInt32 = 0x8D65  // GL_TEXTURE_EXTERNAL_OES
             var newImg: UnsafeMutableRawPointer? = nil
-            if entry.glTexName == 0 {
+            var newTarget: UInt32 = 0x0DE1
+            if entry.wantExternalTarget {
+                // A texture name binds to ONE target for its lifetime —
+                // coming from the 2D path it must be recreated on OES.
+                if entry.glTexName != 0 && entry.glTarget != externalTarget {
+                    dmabuf_delete_gl_texture(entry.glTexName)
+                    entry.glTexName = 0
+                }
+                newImg = dmabuf_import_egl_image_with_modifier(
+                    eglDisplay, fd, w, h, st, fourcc, mod)
+                if newImg != nil {
+                    entry.glTexName = dmabuf_bind_external_texture(
+                        entry.glTexName, newImg)
+                }
+                newTarget = externalTarget
+            } else if entry.glTexName == 0 {
                 let tex = dmabuf_import_as_gl_texture(
                     eglDisplay, fd, w, h, st, fourcc, mod, &newImg)
                 entry.glTexName = tex
@@ -615,6 +782,7 @@ public final class GpuRendererState: @unchecked Sendable {
             _texLock.lock()
             _texEntries[id]?.glTexName = entry.glTexName
             _texEntries[id]?.eglImage = entry.eglImage
+            _texEntries[id]?.glTarget = newTarget
             // The texture's storage is the image's now, not its own.
             _texEntries[id]?.texWidth = 0
             _texEntries[id]?.texHeight = 0
@@ -1836,6 +2004,14 @@ public class GpuDmaBufRenderer {
             return
         }
         print("[GpuDmaBufRenderer] Engine running")
+
+        // 6.5 Window stream: the shell relays desktop windows overlapping an
+        // externally sourced output (per-screen shell only). Started after
+        // the engine runs so texture registrations reach it.
+        if let winSock = ProcessInfo.processInfo
+            .environment["FLUTTER_WINDOW_STREAM_SOCKET"], !winSock.isEmpty {
+            state.startWindowStream(path: winSock)
+        }
 
         // 7. Send initial window metrics
         var metrics = FlutterWindowMetricsEvent()
