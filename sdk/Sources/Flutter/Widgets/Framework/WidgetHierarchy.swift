@@ -1,3 +1,4 @@
+import Glibc
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
@@ -29,8 +30,15 @@ open class Widget {
     ///
     /// **Dart Source:** `packages/flutter/lib/src/widgets/framework.dart:488`
     public static func canUpdate(_ oldWidget: Widget, _ newWidget: Widget) -> Bool {
-        return type(of: oldWidget) == type(of: newWidget)
+        let verdict = type(of: oldWidget) == type(of: newWidget)
             && _equalKeys(oldWidget.key, newWidget.key)
+        if oldWidget is RichText, let e = getenv("STARLING_TEXT_DEBUG"),
+           (e.pointee == 49 || e.pointee == 50) {
+            let msg = verdict ? "[canUpdate RichText] true\n"
+                              : "[canUpdate RichText] FALSE\n"
+            _ = msg.withCString { write(2, $0, strlen($0)) }
+        }
+        return verdict
     }
 
     /// Returns a one-line detailed description of the widget.

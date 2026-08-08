@@ -54,13 +54,9 @@ class _ScreenShellRootState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        FileHandle.standardError.write(Data(
-            "[ScreenShellApp] build taps=\(_taps) now=\(_now)\n".utf8))
         let device = ProcessInfo.processInfo
             .environment["STARLING_APP_DRM_DEVICE"] ?? "?"
-        return MacosApp(
-            theme: MacosThemeData.dark(),
-            home: GestureDetector(
+        return GestureDetector(
                 onTap: { [weak self] in
                     guard let self else { return }
                     FileHandle.standardError.write(Data("[ScreenShellApp] TAP\n".utf8))
@@ -87,9 +83,14 @@ class _ScreenShellRootState: State<StatefulWidget> {
                     }
                 }
                 )
-            )
         )
     }
 }
 
-runApp(ScreenShellRoot())
+class ScreenShellOuter: StatelessWidget {
+    override func build(_ context: any BuildContext) -> Widget {
+        return MacosApp(theme: MacosThemeData.dark(), home: ScreenShellRoot())
+    }
+}
+
+runApp(ScreenShellOuter())

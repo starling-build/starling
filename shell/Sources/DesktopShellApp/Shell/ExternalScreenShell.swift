@@ -74,6 +74,9 @@ final class ExternalScreenShell: @unchecked Sendable {
         let exe = (env0["FLUTTER_APPS_DIR"] ?? ".") + "/ScreenShellApp"
         var env = env0
         env["FLUTTER_DMABUF_SOCKET"] = sockPath
+        if env["STARLING_TEXT_DEBUG"] != nil {
+            env["STARLING_TEXT_DEBUG"] = "2"  // verbose in the child only
+        }
         env["STARLING_APP_DRM_DEVICE"] = device
         env["FLUTTER_DRM_DPI"] = String(scale)
         // Same scrub as LinuxProcessAppManager's children: the shell's own

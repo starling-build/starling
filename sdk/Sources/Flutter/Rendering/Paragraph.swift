@@ -7,6 +7,7 @@
 /// **Dart Source:** `packages/flutter/lib/src/rendering/paragraph.dart`
 
 import FlutterSwiftBridge
+import Glibc
 
 // MARK: - Constants
 
@@ -353,6 +354,10 @@ open class RenderParagraph: RenderBox {
         _softWrap = softWrap
         _overflow = overflow
         _selectionColor = selectionColor
+        if let e = getenv("STARLING_TEXT_DEBUG"), (e.pointee == 49 || e.pointee == 50) {
+            let msg = "[RP-init]\n"
+            _ = msg.withCString { write(2, $0, strlen($0)) }
+        }
         _textPainter = TextPainter(
             text: text,
             textAlign: textAlign,
@@ -524,7 +529,18 @@ open class RenderParagraph: RenderBox {
     public var text: InlineSpan {
         get { _textPainter.text! }
         set {
-            switch _textPainter.text!.compareTo(newValue) {
+            let _cmp = _textPainter.text!.compareTo(newValue)
+            if let e = getenv("STARLING_TEXT_DEBUG"), e.pointee == 50 {
+                let old = (_textPainter.text as? TextSpan)?.text ?? "<span>"
+                let new = (newValue as? TextSpan)?.text ?? "<span>"
+                let msg = "[RenderParagraph] set cmp=\(_cmp) " +
+                    "old='\(old.prefix(26))' new='\(new.prefix(26))'\n"
+                _ = msg.withCString { write(2, $0, strlen($0)) }
+            } else if let e = getenv("STARLING_TEXT_DEBUG"), (e.pointee == 49 || e.pointee == 50) {
+                let msg = "[RenderParagraph] set cmp=\(_cmp)\n"
+                _ = msg.withCString { write(2, $0, strlen($0)) }
+            }
+            switch _cmp {
             case .identical:
                 return
             case .metadata:
