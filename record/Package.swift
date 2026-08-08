@@ -26,7 +26,17 @@ let package = Package(
             name: "CVaapiEncoder",
             linkerSettings: [.linkedLibrary("va"), .linkedLibrary("va-drm")]
         ),
-        .target(name: "StarlingRecord", dependencies: ["CVaapiEncoder"]),
+        // NVENC sibling. libcuda/libnvidia-encode are dlopen'd, never
+        // linked: they exist only under the NVIDIA driver, and a -l here
+        // would make the shell unloadable on every other machine. Depends
+        // on CVaapiEncoder for the shared MP4 muxer. Building needs
+        // libffmpeg-nvenc-dev (the MIT ffnvcodec headers) only.
+        .target(
+            name: "CNvencEncoder",
+            dependencies: ["CVaapiEncoder"]
+        ),
+        .target(name: "StarlingRecord",
+                dependencies: ["CVaapiEncoder", "CNvencEncoder"]),
         .testTarget(name: "StarlingRecordTests",
                     dependencies: ["StarlingRecord"]),
     ]

@@ -55,7 +55,7 @@ final class RecordingService {
     /// binary for the pipe path AND no in-process zero-copy encoder).
     /// Checked once — packages don't come and go under a live session.
     lazy var available: Bool =
-        FfmpegEncoder.findFfmpeg() != nil || resolveZeroCopyDevice() != nil
+        FfmpegEncoder.findFfmpeg() != nil || resolveZeroCopyKind() != nil
 
     // Probe results — real test opens, run once. Warmed in the background
     // at init so the first Record tap doesn't pay for them; the lock makes
@@ -64,11 +64,26 @@ final class RecordingService {
     private var hwProbed = false
     private var hwEncoder: HardwareEncoder?
     private var zcProbed = false
-    private var zcDevice: String?
+    private var zcKind: ZeroCopyKind?
+
+    /// Which in-process encoder a zero-copy session opens: whichever API
+    /// belongs to the GPU that renders the recorded frames.
+    private enum ZeroCopyKind {
+        case vaapi(device: String)
+        case nvenc
+    }
+
+    /// Driver behind a DRM node ("amdgpu", "nvidia", …), from sysfs.
+    private static func drmDriverName(forNode node: String) -> String? {
+        let name = (node as NSString).lastPathComponent
+        guard let link = try? FileManager.default.destinationOfSymbolicLink(
+            atPath: "/sys/class/drm/\(name)/device/driver") else { return nil }
+        return (link as NSString).lastPathComponent
+    }
 
     init() {
         let warm: () -> Void = { [weak self] in
-            _ = self?.resolveZeroCopyDevice()
+            _ = self?.resolveZeroCopyKind()
             _ = self?.resolveHardwareEncoder()
         }
         queue.async(execute: unsafeBitCast(warm, to: (@Sendable () -> Void).self))
@@ -91,21 +106,39 @@ final class RecordingService {
         return hwEncoder
     }
 
-    /// Render node with a working in-process VAAPI path, or nil. When this
-    /// resolves, sessions record zero-copy: dmabuf frames, GPU encode, no
+    /// The in-process encode path sessions will use, or nil. When this
+    /// resolves, sessions record in-process: dmabuf frames, GPU encode, no
     /// ffmpeg child, no pacer.
-    private func resolveZeroCopyDevice() -> String? {
+    ///
+    /// Recording never crosses GPUs: a screen is encoded by the GPU that
+    /// renders it, so the encoder follows the compositor's device — NVENC
+    /// when the frames the ring will hand us are NVIDIA-resident, VAAPI
+    /// otherwise. Today the one engine device renders every view; when
+    /// views get per-device rendering, this resolves per recorded view.
+    private func resolveZeroCopyKind() -> ZeroCopyKind? {
         hwLock.lock()
         defer { hwLock.unlock() }
         if !zcProbed {
-            zcDevice = VaapiEncoder.detectDevice()
+            if Self.drmDriverName(forNode:
+                ProcessInfo.processInfo.environment["FLUTTER_DRM_DEVICE"]
+                    ?? "/dev/dri/card0") == "nvidia",
+               NvencEncoder.available() {
+                zcKind = .nvenc
+            } else if let device = VaapiEncoder.detectDevice() {
+                zcKind = .vaapi(device: device)
+            } else {
+                zcKind = nil
+            }
             zcProbed = true
-            let msg = zcDevice != nil
-                ? "[Recording] zero-copy VAAPI encoder ready\n"
-                : "[Recording] no zero-copy encoder — pipe path\n"
+            let msg: String
+            switch zcKind {
+            case .nvenc: msg = "[Recording] zero-copy NVENC encoder ready\n"
+            case .vaapi: msg = "[Recording] zero-copy VAAPI encoder ready\n"
+            case nil: msg = "[Recording] no zero-copy encoder — pipe path\n"
+            }
             _ = msg.withCString { write(2, $0, strlen($0)) }
         }
-        return zcDevice
+        return zcKind
     }
 
     /// What the last (or current) session captures at, and through which
@@ -115,6 +148,9 @@ final class RecordingService {
     private(set) var captureHeight = 0
     private(set) var usingHardware = false
     private(set) var zeroCopy = false
+    /// Which encoder the session opened: "nvenc", "vaapi", "vaapi-pipe" or
+    /// "x264" — the broker reports it so tests can assert the path taken.
+    private(set) var encoderName = ""
     /// Timestamp of the last frame actually encoded, in the engine's
     /// microseconds — the zero-copy path's rate limiter. Touched only on
     /// `queue`, which is serial.
@@ -156,7 +192,7 @@ final class RecordingService {
     // Zero-copy path: dmabuf frames queued by the engine's presenting
     // thread, drained on `queue`. Slots are the engine's finite ring —
     // every queued frame either encodes or gets its slot released.
-    private var vaapiEncoder: VaapiEncoder?
+    private var zcEncoder: (any InProcessEncoder)?
     private let dmabufLock = NSLock()
     private var dmabufPending: [FlDrmRecordDmabufFrame] = []
 
@@ -219,7 +255,7 @@ final class RecordingService {
             let frame = dmabufPending.isEmpty ? nil : dmabufPending.removeFirst()
             dmabufLock.unlock()
             guard let frame else { return }
-            guard let enc = vaapiEncoder else {
+            guard let enc = zcEncoder else {
                 fl_drm_view_recording_release_dmabuf_slot(frame.slot)
                 continue
             }
@@ -266,8 +302,8 @@ final class RecordingService {
     private func swapToPipeEncoder() {
         guard state == .starting || state == .recording, zeroCopy else { return }
         zeroCopy = false
-        vaapiEncoder?.abort()
-        vaapiEncoder = nil
+        zcEncoder?.abort()
+        zcEncoder = nil
         guard let ffmpeg = FfmpegEncoder.findFfmpeg(), let url = sessionURL else {
             endSession(reason: "ffmpeg is not installed")
             return
@@ -325,8 +361,7 @@ final class RecordingService {
             return
         }
         let ffmpeg = FfmpegEncoder.findFfmpeg()
-        let zcDevice = resolveZeroCopyDevice()
-        guard ffmpeg != nil || zcDevice != nil else {
+        guard ffmpeg != nil || resolveZeroCopyKind() != nil else {
             onFinished?(nil, "ffmpeg is not installed")
             return
         }
@@ -339,19 +374,31 @@ final class RecordingService {
         let url = RecordingPaths.outputURL(in: dir, now: Date(), label: label)
 
         var shift = 0
-        if let device = zcDevice,
-           let zc = VaapiEncoder(device: device, inWidth: w, inHeight: h,
-                                 width: max(2, w & ~1),
-                                 height: max(2, h & ~1),
-                                 fps: Self.fps, outputURL: url) {
-            // Zero-copy: full resolution always (the GPU encodes it for
+        var zc: (any InProcessEncoder)? = nil
+        switch resolveZeroCopyKind() {
+        case .vaapi(let device):
+            zc = VaapiEncoder(device: device, inWidth: w, inHeight: h,
+                              width: max(2, w & ~1),
+                              height: max(2, h & ~1),
+                              fps: Self.fps, outputURL: url)
+        case .nvenc:
+            zc = NvencEncoder(inWidth: w, inHeight: h,
+                              width: max(2, w & ~1),
+                              height: max(2, h & ~1),
+                              fps: Self.fps, outputURL: url)
+        case nil:
+            break
+        }
+        if let zc {
+            // In-process: full resolution always (the GPU encodes it for
             // free, and the transport is free too — that is the point).
-            vaapiEncoder = zc
+            zcEncoder = zc
             encoder = nil
             zeroCopy = true
             usingHardware = true
             captureWidth = zc.width
             captureHeight = zc.height
+            encoderName = zc is NvencEncoder ? "nvenc" : "vaapi"
             fl_drm_view_recording_set_dmabuf(1)
         } else {
             guard let ffmpeg else {
@@ -375,11 +422,12 @@ final class RecordingService {
                 return
             }
             encoder = enc
-            vaapiEncoder = nil
+            zcEncoder = nil
             zeroCopy = false
             usingHardware = hw != nil
             captureWidth = cw
             captureHeight = ch
+            encoderName = hw != nil ? "vaapi-pipe" : "x264"
             fl_drm_view_recording_set_dmabuf(0)
         }
 
@@ -481,8 +529,8 @@ final class RecordingService {
 
         let enc = encoder
         encoder = nil
-        let zenc = vaapiEncoder
-        vaapiEncoder = nil
+        let zenc = zcEncoder
+        zcEncoder = nil
         let failure = reason
         let work: () -> Void = { [weak self] in
             // The engine joins its writer thread when it consumes the stop

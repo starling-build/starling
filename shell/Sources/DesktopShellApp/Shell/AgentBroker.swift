@@ -496,6 +496,7 @@ final class AgentBroker: @unchecked Sendable {
                        "capture_h": rec?.captureHeight ?? 0,
                        "hardware": rec?.usingHardware ?? false,
                        "zero_copy": rec?.zeroCopy ?? false,
+                       "encoder": rec?.encoderName ?? "",
                        "window": rec?.windowLabel ?? "",
                        // Record-App picker cards, when the picker is open —
                        // a test clicks one of these to choose the window.
