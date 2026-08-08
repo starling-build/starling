@@ -305,12 +305,18 @@ would be the only honest version and nobody wants it.
    intact — verified live. `hostChanged(from:to:)` keeps each PANEL on its
    space across a primary-display switch. Focus follows the output that
    switched.
-4. **Per-output `_switchToSpace` slide on secondaries** — switching a
-   secondary's space currently SNAPS (its tree has no slide machinery);
-   the host keeps the 380ms slide. Still open, along with the edge-carry
-   dwell from a secondary (carry is host-only; its arming now correctly
-   ignores seam edges and fires only at the virtual desktop's outer
-   boundary).
+4. ~~**Per-output `_switchToSpace` slide on secondaries**~~ **Built** —
+   `_secondarySlides` (shell state, keyed by output) carries fromId/toId/
+   dir/curve; each tick pokes that output's force-redraw hook (the gated
+   invalidator drops animation-only frames), and `SecondaryOutputScreen`
+   renders two wallpaper+windows layers sliding past each other from
+   `slideWindows(inSpaceId:onOutput:)`, with other outputs' windows static
+   above. The context menu's New Desktop is scoped to the monitor it was
+   invoked on. Exercised live without faults; a mid-slide frame capture is
+   still owed (SIGUSR1 latency lost the race — worth one shell-drive
+   record-start run). Still open: edge-carry dwell from a secondary (carry
+   is host-only; its arming correctly ignores seam edges and fires only at
+   the virtual desktop's outer boundary).
 5. **Mission Control per display**, invoked-output-scoped.
 6. **A workspace per output**, if (1) proves it earns the depth.
 

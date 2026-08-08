@@ -347,11 +347,18 @@ struct SecondaryOutputScreen {
     /// nil is a button that draws normally and does nothing once the window is
     /// on this monitor.
     private func _windows() -> [Widget] {
+        _windowWidgets(_shellState?.windowManager.visibleWindows ?? [])
+    }
+
+    /// The DesktopWindow widgets for `wins` that intersect this output, in
+    /// output-local coordinates — factored from `_windows()` so a space
+    /// slide can render one list per moving layer.
+    private func _windowWidgets(_ wins: [WindowInfo]) -> [Widget] {
         guard let shell = _shellState else { return [] }
         let wm = shell.windowManager
         let fullscreenId = fullscreenWindow(onOutput: output)?.id
         var widgets: [Widget] = []
-        for win in wm.visibleWindows {
+        for win in wins {
             let r = win.rect
             guard r.right > output.logicalLeft, r.left < output.logicalRight,
                   r.bottom > output.logicalTop, r.top < output.logicalBottom
@@ -392,8 +399,34 @@ struct SecondaryOutputScreen {
     }
 
     func build() -> Widget {
-        var layers: [Widget] = [Positioned(fill: (), child: _wallpaper())]
-        layers.append(contentsOf: _windows())
+        var layers: [Widget] = []
+        if let shell = _shellState, let slide = shell._secondarySlides[output.id] {
+            // Mid space-switch: two full-screen layers (wallpaper + that
+            // space's windows) sliding past each other — the host's
+            // animation, rendered by this tree from the shared slide state.
+            // Windows owned by OTHER outputs stay put above the slide.
+            let p = slide.curve.value
+            let w = output.logicalWidth
+            let pairs = [(slide.fromId, -slide.dir * p * w),
+                         (slide.toId, slide.dir * (1.0 - p) * w)]
+            for (sid, dx) in pairs {
+                let wins = shell.windowManager.slideWindows(
+                    inSpaceId: sid, onOutput: output.id)
+                layers.append(Positioned(
+                    left: dx, top: 0,
+                    width: w, height: output.logicalHeight,
+                    child: Stack(fit: .expand, children:
+                        [Positioned(fill: (), child: _wallpaper())]
+                        + _windowWidgets(wins))))
+            }
+            let sliding = Set(pairs.map { $0.0 })
+            layers.append(contentsOf: _windowWidgets(
+                shell.windowManager.visibleWindows
+                    .filter { !sliding.contains($0.spaceId) }))
+        } else {
+            layers.append(Positioned(fill: (), child: _wallpaper()))
+            layers.append(contentsOf: _windows())
+        }
         layers.append(Positioned(
             left: 0, top: 0,
             width: output.logicalWidth,

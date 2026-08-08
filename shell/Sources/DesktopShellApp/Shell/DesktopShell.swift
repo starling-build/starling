@@ -2168,7 +2168,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         guard wm.spaces.indices.contains(index),
               wm.spaces[index].id != wm.activeSpaceId(onOutput: out) else { return }
         if out != hostId {
+            let fromId = wm.activeSpaceId(onOutput: out)
+            let fromIndex = wm.spaceIndex(ofSpaceId: fromId) ?? 0
             setState { wm.switchToSpace(index, onOutput: out) }
+            if animated {
+                _startSecondarySlide(onOutput: out, fromId: fromId,
+                                     toId: wm.spaces[index].id,
+                                     dir: index > fromIndex ? 1.0 : -1.0)
+            }
             return
         }
         let from = wm.activeSpaceIndex
@@ -2523,6 +2530,30 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             if wm.workspaces.isEmpty { wm.addWorkspace() }
         }
         _switchToSpace(idx, onOutput: _workspaceOutputId)
+    }
+
+    /// In-flight space slides on SECONDARY outputs, keyed by output id —
+    /// the host's slide is `_spaceSlide` in this tree; each secondary's is
+    /// rendered by its own `SecondaryOutputScreen` from this table. Ticks
+    /// drive the output's force-redraw hook (the gated invalidator would
+    /// drop animation-only frames).
+    var _secondarySlides:
+        [Int: (fromId: Int, toId: Int, dir: Double,
+               curve: CurvedAnimation, controller: AnimationController)] = [:]
+
+    private func _startSecondarySlide(onOutput out: Int, fromId: Int,
+                                      toId: Int, dir: Double) {
+        _secondarySlides[out]?.controller.stop()
+        let c = AnimationController(duration: .milliseconds(380), vsync: self)
+        let curve = CurvedAnimation(parent: c, curve: Curves.easeInOutCubic)
+        _secondarySlides[out] = (fromId, toId, dir, curve, c)
+        c.addListener { secondaryScreenForceRedraws[out]?() }
+        c.addStatusListener { [weak self] status in
+            guard status == .completed else { return }
+            self?._secondarySlides.removeValue(forKey: out)
+            secondaryScreenForceRedraws[out]?()
+        }
+        _ = c.forward(from: 0)
     }
 
     private func _startSpaceSlide() {
@@ -6391,7 +6422,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 onPressed: { [self] in
                     setState { contextMenuPosition = nil }
                     let idx = windowManager.addSpace()
-                    _switchToSpace(idx)
+                    // The menu can be on any monitor now — the new desktop
+                    // opens on the one it was invoked from.
+                    _switchToSpace(idx, onOutput: contextMenuOutputId)
                 }
             ),
             MacosMenuItem(

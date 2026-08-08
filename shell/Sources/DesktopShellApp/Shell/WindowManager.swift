@@ -998,12 +998,18 @@ class WindowManagerState {
     /// DIFFERENT space — those are the other monitor's business and must
     /// not ride the host's animation.
     func hostSlideWindows(inSpaceId spaceId: Int) -> [WindowInfo] {
+        slideWindows(inSpaceId: spaceId, onOutput: hostOutputId)
+    }
+
+    /// The general form for ANY output's slide: `spaceId`'s windows, minus
+    /// those owned by a different output showing a different space.
+    func slideWindows(inSpaceId spaceId: Int, onOutput outputId: Int) -> [WindowInfo] {
         guard let dl = displayLayout, dl.outputs.count > 1 else {
             return visibleWindows(inSpaceId: spaceId)
         }
         return visibleWindows(inSpaceId: spaceId).filter { w in
             let owner = dl.owningOutput(ofRect: w.rect).id
-            return owner == hostOutputId
+            return owner == outputId
                 || activeSpaceId(onOutput: owner) == spaceId
         }
     }
