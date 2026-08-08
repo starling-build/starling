@@ -92,6 +92,21 @@ FL_DRM_EXPORT int fl_drm_view_post_task(FlDrmView* view,
                                         void* user_data);
 
 // Re-send window metrics with a new pixel ratio (for runtime DPI changes).
+// ── External outputs (see the engine header for the full contract) ──────
+// An output fed by pushed linear dma-buf frames from an outside producer
+// (typically another GPU); a presenter thread imports and flips them.
+FL_DRM_EXPORT int fl_drm_view_set_output_external(FlDrmView* view,
+                                                  uint32_t output_id,
+                                                  int external);
+// Push one frame (any thread; the fd is borrowed for the call).
+FL_DRM_EXPORT int fl_drm_view_push_external_frame(FlDrmView* view,
+                                                  uint32_t output_id,
+                                                  int fd,
+                                                  uint32_t stride,
+                                                  uint32_t offset,
+                                                  uint32_t fourcc,
+                                                  uint64_t timestamp_us);
+
 FL_DRM_EXPORT void fl_drm_view_send_metrics(FlDrmView* view,
                                              double pixel_ratio);
 

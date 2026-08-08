@@ -303,6 +303,9 @@ nonisolated(unsafe) var drmTextureRegistry: LinuxTextureRegistry? = nil
 /// The engine view handle — hotplug callbacks and the multi-view content
 /// builder's fallback path query outputs through it.
 nonisolated(unsafe) var drmViewHandle: OpaquePointer? = nil
+/// The per-screen shell child feeding an externally sourced output
+/// (STARLING_SCREEN_SHELL; Stage B of docs/plans/nv-view.md).
+nonisolated(unsafe) var externalScreenShell: ExternalScreenShell? = nil
 
 /// The real-output virtual desktop, derived deterministically from the
 /// engine's enumeration: the HOST output at (0,0) at the shell DPI, the others
@@ -369,6 +372,8 @@ func syncEngineViewsAndLayout(_ view: OpaquePointer?, _ dl: DisplayLayout) {
     // the id allocation clean.
     let externalTest = ProcessInfo.processInfo
         .environment["FLUTTER_DRM_EXTERNAL_TEST"].flatMap { Int($0) }
+        ?? ProcessInfo.processInfo
+        .environment["STARLING_SCREEN_SHELL"].flatMap { Int($0) }
     for output in dl.outputs where !output.isHost && !mapped.contains(output.id) {
         if let ext = externalTest, ext == output.id { continue }
         let viewId = secondaryViewOutputs.allocateViewId()
@@ -683,6 +688,32 @@ func runDRM() -> Never {
         fl_drm_view_set_outputs_changed_callback(view, { _ in
             drmOutputsChanged()
         }, nil)
+    }
+
+    // STARLING_SCREEN_SHELL=<output index>: that output's content is a
+    // per-screen shell child rendering on its own GPU (Stage B of
+    // docs/plans/nv-view.md). The output was skipped by
+    // syncEngineViewsAndLayout above, so the engine accepts it as external.
+    if simSpec.isEmpty,
+       let extIdStr = ProcessInfo.processInfo.environment["STARLING_SCREEN_SHELL"],
+       let extId = Int(extIdStr),
+       let dl = displayLayout,
+       let out = dl.outputs.first(where: { $0.id == extId && !$0.isHost }) {
+        if fl_drm_view_set_output_external(view, UInt32(extId), 1) == 1 {
+            let dev = ProcessInfo.processInfo
+                .environment["STARLING_SCREEN_SHELL_DEVICE"]
+                ?? "/dev/dri/renderD128"
+            let shell = ExternalScreenShell(
+                view: view, outputId: extId,
+                logicalWidth: Int(out.logicalWidth.rounded()),
+                logicalHeight: Int(out.logicalHeight.rounded()),
+                scale: out.scale, device: dev)
+            externalScreenShell = shell
+            shell.start()
+        } else {
+            FileHandle.standardError.write(Data(
+                "[ScreenShell] engine refused external mode for output \(extId)\n".utf8))
+        }
     }
 
     // Wire the global cursor-shape setter so widgets (resize handles, title
