@@ -54,6 +54,8 @@ class _ScreenShellRootState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        FileHandle.standardError.write(Data(
+            "[ScreenShellApp] build taps=\(_taps) now=\(_now)\n".utf8))
         let device = ProcessInfo.processInfo
             .environment["STARLING_APP_DRM_DEVICE"] ?? "?"
         return MacosApp(
@@ -69,15 +71,19 @@ class _ScreenShellRootState: State<StatefulWidget> {
                 color: Color(0xFF10141C),
                 child: Center {
                     Column(mainAxisAlignment: .center) {
+                        SizedBox(
+                            width: 900, height: 30,
+                            child: Center {
+                                Text("per-screen shell — rendering on \(device)" +
+                                     (_taps > 0 ? " — taps: \(_taps)" : ""),
+                                     style: TextStyle(color: Color(0xFF7A8494),
+                                                      fontSize: 22))
+                            })
+                        SizedBox(height: 24)
                         Text(_now,
                              style: TextStyle(color: Color(0xFFF0F2F6),
                                               fontSize: 120,
                                               fontWeight: .w200))
-                        SizedBox(height: 24)
-                        Text("per-screen shell — rendering on \(device)" +
-                             (_taps > 0 ? " — taps: \(_taps)" : ""),
-                             style: TextStyle(color: Color(0xFF7A8494),
-                                              fontSize: 22))
                     }
                 }
                 )
