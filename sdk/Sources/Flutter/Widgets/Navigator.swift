@@ -116,10 +116,27 @@ public class NavigatorState: State<StatefulWidget> {
     public override func initState() {
         super.initState()
 
-        // Create the initial route from `home` if provided.
-        if let home = navigatorWidget.home {
-            let initialRoute = _SimpleRoute(child: home)
+        // Create the initial route from `home` if provided. The route reads
+        // `home` through the state at build time rather than capturing the
+        // widget instance: a captured instance is reference-identical on
+        // every rebuild, which `updateChild` short-circuits — an ancestor
+        // setState would then never propagate below the Navigator.
+        if navigatorWidget.home != nil {
+            let initialRoute = _SimpleRoute(childBuilder: { [weak self] in
+                self?.navigatorWidget.home ?? SizedBox(width: 0, height: 0)
+            })
             _pushRouteInternal(initialRoute)
+        }
+    }
+
+    public override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        // The Navigator's configuration changed (e.g. a new `home` from an
+        // ancestor rebuild); let every route rebuild its overlay entries.
+        //
+        // **Dart Source:** `navigator.dart:3931` (NavigatorState.didUpdateWidget)
+        for route in _routes {
+            route.changedExternalState()
         }
     }
 
@@ -297,13 +314,16 @@ private class _NavigatorScope: InheritedWidget {
 
 /// A trivial Route that wraps a single widget as the navigator's initial route.
 ///
-/// Used when `Navigator.home` is provided instead of `onGenerateRoute`.
+/// Used when `Navigator.home` is provided instead of `onGenerateRoute`. The
+/// child comes from `childBuilder` at build time so each rebuild sees the
+/// Navigator's current `home` — storing the widget itself would pin the
+/// subtree to the instance captured at install (see `initState`).
 private class _SimpleRoute: Route {
-    let child: Widget
+    let childBuilder: () -> Widget
     private var _entries: [OverlayEntry] = []
 
-    init(child: Widget) {
-        self.child = child
+    init(childBuilder: @escaping () -> Widget) {
+        self.childBuilder = childBuilder
         super.init()
     }
 
@@ -315,10 +335,17 @@ private class _SimpleRoute: Route {
                 guard let self = self else {
                     return SizedBox(width: 0, height: 0)
                 }
-                return self.child
+                return self.childBuilder()
             })
         ]
         super.install()
+    }
+
+    override func changedExternalState() {
+        super.changedExternalState()
+        for entry in _entries {
+            entry.markNeedsBuild()
+        }
     }
 
     override func dispose() {

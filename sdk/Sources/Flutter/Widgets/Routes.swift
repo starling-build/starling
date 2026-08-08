@@ -89,6 +89,18 @@ open class Route {
     /// This should be called whenever `isCurrent`, `isActive`, etc. change.
     open func changedInternalState() {}
 
+    /// Called whenever the Navigator has updated in some manner that might
+    /// affect routes, to indicate that the route may wish to rebuild as well.
+    ///
+    /// The Navigator calls this on every route when its own widget updates —
+    /// e.g. a setState above rebuilt it with a new `home`. Routes that cache
+    /// overlay entries must mark them needing build here: an entry that
+    /// rebuilds to a reference-identical widget short-circuits
+    /// reconciliation in `updateChild`, so a stale cache freezes the subtree.
+    ///
+    /// **Dart Source:** `navigator.dart:498`
+    open func changedExternalState() {}
+
     /// Discards any resources used by the object.
     ///
     /// **Dart Source:** `navigator.dart:490`
@@ -223,6 +235,13 @@ open class ModalRoute: OverlayRoute {
 
     open override func changedInternalState() {
         super.changedInternalState()
+        _modalBarrierEntry?.markNeedsBuild()
+        _modalScopeEntry?.markNeedsBuild()
+    }
+
+    /// **Dart Source:** `routes.dart:1594` (`ModalRoute.changedExternalState`)
+    open override func changedExternalState() {
+        super.changedExternalState()
         _modalBarrierEntry?.markNeedsBuild()
         _modalScopeEntry?.markNeedsBuild()
     }
