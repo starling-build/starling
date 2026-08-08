@@ -91,6 +91,39 @@ FL_DRM_EXPORT int fl_drm_view_post_task(FlDrmView* view,
                                         void (*fn)(void* user_data),
                                         void* user_data);
 
+// ── External outputs ─────────────────────────────────────────────────────
+// An external output's content arrives as linear dma-buf frames from an
+// outside producer (typically rendered on another GPU) instead of being
+// rastered by the engine. Each frame is imported as an EGLImage on the
+// compositor's display and drawn fullscreen into the output's window
+// surface by a dedicated presenter thread, then page-flipped as usual —
+// the scanout device cannot flip foreign buffers directly (amdgpu AddFB2
+// refuses them), so this one blit is the floor, same as PRIME offload.
+//
+// Frame contract (identical to the child-app swapchain protocol): linear,
+// exactly output-sized, memory row 0 = top scanline, single plane,
+// XR24/AR24/XB24/AB24. The producer holds its two newest buffers and may
+// reuse older ones (the presenter samples promptly; implicit-sync
+// tolerance as everywhere else). Enable refuses the primary output and
+// outputs that already carry a Flutter view; call from the main thread
+// before fl_drm_view_run or from the platform thread. Returns 1 on
+// success. Disabling stops the presenter but keeps the output reserved.
+FL_DRM_EXPORT int fl_drm_view_set_output_external(FlDrmView* view,
+                                                  uint32_t output_id,
+                                                  int external);
+
+// Push one frame to an external output (any thread). The fd is borrowed
+// for the call. Newest-wins: an unconsumed previous frame is dropped.
+// timestamp_us is CLOCK_MONOTONIC microseconds (reserved for the
+// per-output recording tap). Returns 1 if accepted.
+FL_DRM_EXPORT int fl_drm_view_push_external_frame(FlDrmView* view,
+                                                  uint32_t output_id,
+                                                  int fd,
+                                                  uint32_t stride,
+                                                  uint32_t offset,
+                                                  uint32_t fourcc,
+                                                  uint64_t timestamp_us);
+
 
 // Pointer input landing on an external output (phase is the
 // FlutterPointerPhase raw value; x/y output-local PHYSICAL pixels; scroll
@@ -105,21 +138,6 @@ FL_DRM_EXPORT void fl_drm_view_set_external_input_callback(
     FlDrmView* view, FlDrmExternalInputCallback callback, void* user_data);
 
 // Re-send window metrics with a new pixel ratio (for runtime DPI changes).
-// ── External outputs (see the engine header for the full contract) ──────
-// An output fed by pushed linear dma-buf frames from an outside producer
-// (typically another GPU); a presenter thread imports and flips them.
-FL_DRM_EXPORT int fl_drm_view_set_output_external(FlDrmView* view,
-                                                  uint32_t output_id,
-                                                  int external);
-// Push one frame (any thread; the fd is borrowed for the call).
-FL_DRM_EXPORT int fl_drm_view_push_external_frame(FlDrmView* view,
-                                                  uint32_t output_id,
-                                                  int fd,
-                                                  uint32_t stride,
-                                                  uint32_t offset,
-                                                  uint32_t fourcc,
-                                                  uint64_t timestamp_us);
-
 FL_DRM_EXPORT void fl_drm_view_send_metrics(FlDrmView* view,
                                              double pixel_ratio);
 
