@@ -327,7 +327,19 @@ would be the only honest version and nobody wants it.
    open/close and relayout animation ticks past the signature gate.
    Verified live: Ctrl+Up on eDP shows the exposé there with no cards for
    HDMI's windows while HDMI's desktop is untouched.
-6. **A workspace per output**, if (1) proves it earns the depth.
+6. ~~**A workspace per output**~~ **Done** — the rail selection is
+   per-output (`selectedWorkspaceIdByOutput`); each monitor in workspace
+   mode shows its own workspace, the default never offers one another
+   monitor is DISPLAYING (an exited output's selection stays fair game),
+   selecting a displayed one steals it, and entering with none free mints a
+   fresh workspace. Toggle, return-space, launcher target and driver
+   sizing are all scoped to the acting output. Two traps: the legacy
+   `switchToSpace(_:)` bypassed the per-output form, so the pin-on-special
+   step silently never ran (un-decoupled monitors followed the host into
+   its workspace and the next toggle there EXITED instead of entering) —
+   it delegates now; and the un-decoupled follow-the-host default must
+   never follow into a special space at all. Verified live: simultaneous
+   workspaces on both panels, each with its own selection.
 
 ## Decisions still open
 

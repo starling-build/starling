@@ -378,8 +378,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // Space below — it shares the "special space" mechanism and nothing else.
     // UI lives in WorkspaceSpace.swift; stored state has to be here because
     // extensions cannot add stored properties.
-    /// Where Ctrl+Up returns to when toggling out of workspace mode.
-    var _workspaceReturnSpaceIndex: Int = 0
     /// Explicitly selected tab per workspace (workspaceId → windowId).
     /// Absent or stale = follow the workspace: newest window wins.
     var _workspaceActiveTab: [String: String] = [:]
@@ -387,31 +385,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// app it launches lands in the middle column instead of on the desktop.
     var _launcherDriverTarget: String? = nil
     /// Live width of the driver column; the divider drags it.
-    /// Which output the workspace UI is drawn on — the one the pointer was
-    /// over when it was toggled on. Spaces are still global (see
-    /// `docs/plans/multi-output.md`), so the other outputs show this space's
-    /// desktop, which for a workspace means wallpaper: its windows are owned
-    /// and have no desktop presence anywhere.
-    var _workspaceOutputId: Int = 0
+    /// The output the workspace-UI build currently underway is for — inner
+    /// builders (the rail) read the per-output selection through it. Pinned
+    /// by `_buildWorkspaceSpace(output:)`; builds are single-threaded.
+    var _wsBuildOutputId: Int = 0
+
+    /// Where each output returns when its workspace toggles off, keyed by
+    /// output id (each monitor runs its own workspace now).
+    var _workspaceReturnByOutput: [Int: Int] = [:]
 
     /// The output the pointer is currently over, as reported by each output's
     /// screen. Not `setState`-tracked: nothing renders from it directly, it
     /// only decides where the next workspace toggle lands.
     var _pointerOutputId: Int? = nil
-
-    /// `_workspaceOutputId` resolved against the live layout, falling back to
-    /// the primary — the chosen output may have been unplugged since.
-    var workspaceOutput: DisplayOutput {
-        guard let dl = displayLayout else {
-            return DisplayOutput(
-                id: 0, name: "primary",
-                physicalWidth: Int(screenWidth * currentShellDpi),
-                physicalHeight: Int(screenHeight * currentShellDpi),
-                scale: currentShellDpi, originX: 0, originY: 0,
-                isHost: true, isPrimary: true, refreshMhz: 60000)
-        }
-        return dl.outputs.first(where: { $0.id == _workspaceOutputId }) ?? dl.primary
-    }
 
     /// Called by every output's screen as the pointer moves over it.
     func notePointerOutput(_ outputId: Int) {
@@ -2526,32 +2512,32 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// them on it if that index has since gone away.
     func _toggleWorkspaceSpace() {
         let wm = windowManager
-        // The toggle is scoped to the workspace's own monitor: entering
-        // switches only the invoked output's space, so the OTHER monitor
-        // keeps its desktop and its windows — the per-output space model's
-        // whole point. Leaving restores that same output.
-        if wm.activeSpace(onOutput: _workspaceOutputId).isWorkspace {
-            var back = _workspaceReturnSpaceIndex
+        // Per-output: the toggle acts on the monitor the pointer is on —
+        // entering there leaves every other monitor's desktop (or its own
+        // workspace) alone, and each output remembers its own way back.
+        let out = _pointerOutputId ?? displayLayout?.primary.id ?? 0
+        if wm.activeSpace(onOutput: out).isWorkspace {
+            var back = _workspaceReturnByOutput[out]
+                ?? wm.spaces.indices.first(where: { wm.spaces[$0].isUser }) ?? 0
             if !wm.spaces.indices.contains(back) || wm.spaces[back].isSpecial {
                 back = wm.spaces.indices.first(where: { wm.spaces[$0].isUser }) ?? 0
             }
-            _switchToSpace(back, onOutput: _workspaceOutputId)
+            _switchToSpace(back, onOutput: out)
             return
         }
-        // Open it on the monitor the user is actually looking at. Falls back to
-        // the primary before the pointer has been seen anywhere.
-        _workspaceOutputId = _pointerOutputId ?? displayLayout?.primary.id ?? 0
-        _workspaceReturnSpaceIndex = wm.spaceIndex(
-            ofSpaceId: wm.activeSpaceId(onOutput: _workspaceOutputId))
-            ?? wm.activeSpaceIndex
+        _workspaceReturnByOutput[out] = wm.spaceIndex(
+            ofSpaceId: wm.activeSpaceId(onOutput: out)) ?? wm.activeSpaceIndex
         var idx: Int = 0
         setState {
             idx = wm.ensureWorkspaceSpace()
-            // A workspace mode with no workspaces has nothing to show; the
-            // first entry gets one so the rail is never empty.
-            if wm.workspaces.isEmpty { wm.addWorkspace() }
+            // Entering with nothing to show — no workspaces at all, or every
+            // one already displayed on another monitor — mints a fresh one,
+            // so each output's workspace mode always has its own.
+            if wm.selectedWorkspace(onOutput: out) == nil {
+                wm.addWorkspace(onOutput: out)
+            }
         }
-        _switchToSpace(idx, onOutput: _workspaceOutputId)
+        _switchToSpace(idx, onOutput: out)
     }
 
     /// In-flight space slides on SECONDARY outputs, keyed by output id —
@@ -2607,7 +2593,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // Mission Control shows desktops; from inside a special space, exit
         // to the return space first (neither has a strip thumbnail).
         if windowManager.activeSpace(onOutput: _missionControlOutputId).isSpecial {
-            var back = _workspaceReturnSpaceIndex
+            var back = _workspaceReturnByOutput[_missionControlOutputId]
+                ?? windowManager.spaces.indices.first(where: {
+                    windowManager.spaces[$0].isUser }) ?? 0
             if !windowManager.spaces.indices.contains(back)
                 || windowManager.spaces[back].isSpecial {
                 back = windowManager.spaces.indices.first(where: { windowManager.spaces[$0].isUser }) ?? 0
@@ -2970,12 +2958,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // Ordinary spaces contribute nothing; the ValueKey keeps the fleet's
         // element (and its terminal focus state) alive across slide/steady
         // transitions.
-        // Only when this output owns it: a workspace toggled on from a second
-        // monitor draws there instead, and this one keeps its desktop. "This
-        // output" is the host — the panel this tree renders on.
+        // The per-layer isWorkspace guard scopes this: with per-output
+        // spaces, a workspace active on another monitor never appears in the
+        // HOST's slide layers, so no output-ownership check is needed.
         let hostOutput = displayLayout?.host
-        let workspaceIsHere = _workspaceOutputId == (hostOutput?.id ?? 0)
-        if !(_missionControlOpen && mcIsOnHost) && workspaceIsHere {
+        if !(_missionControlOpen && mcIsOnHost) {
             for layer in slideLayers {
                 guard let space = windowManager.spaces.first(where: { $0.id == layer.spaceId }),
                       space.isWorkspace else { continue }
@@ -2983,7 +2970,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     key: ValueKey("workspace-space"),
                     left: layer.dx, top: 0,
                     width: screenWidth, height: screenHeight,
-                    child: _buildWorkspaceSpace(output: workspaceOutput)))
+                    child: _buildWorkspaceSpace(output: hostOutput
+                        ?? missionControlOutput)))
             }
         }
 

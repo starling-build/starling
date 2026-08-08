@@ -295,6 +295,20 @@ class WindowManagerState {
         guard spaces.indices.contains(index),
               spaces[index].id != activeSpaceId(onOutput: outputId) else { return }
         if outputId == hostOutputId {
+            // Un-decoupled outputs follow the host — but never into a
+            // SPECIAL space. Entering a workspace on the host pins them to
+            // the space they were showing, so the other monitors keep
+            // their desktops (found the hard way: an un-decoupled second
+            // monitor followed the host's workspace, and the next toggle
+            // there read "already in a workspace" and exited instead of
+            // entering).
+            if spaces[index].isSpecial, let dl = displayLayout {
+                let current = activeSpace.id
+                for o in dl.outputs
+                where o.id != outputId && activeSpaceIdByOutput[o.id] == nil {
+                    activeSpaceIdByOutput[o.id] = current
+                }
+            }
             activeSpaceIndex = index
             activeSpaceIdByOutput.removeValue(forKey: outputId)
         } else {
@@ -336,22 +350,60 @@ class WindowManagerState {
 
     /// Workspaces, in creation order — the rows of the workspace rail.
     var workspaces: [WorkspaceInfo] = []
-    /// The workspace the rail has selected; nil = the first one.
-    var selectedWorkspaceId: String? = nil
+    /// Per-output rail selection (workspace per output): each monitor in
+    /// workspace mode shows its own workspace. A workspace displayed on one
+    /// output is not offered as another's default, and selecting it on a
+    /// second output STEALS it (the first falls back) — a client has one
+    /// buffer size, so one workspace cannot render on two panels.
+    var selectedWorkspaceIdByOutput: [Int: String] = [:]
     private var nextWorkspaceNumber: Int = 1
 
-    /// The selected workspace, creating nothing. nil when there are none.
+    /// Workspace ids currently ON SCREEN somewhere else — an output that
+    /// exited workspace mode keeps its selection, but that workspace is not
+    /// displayed and stays fair game.
+    func displayedWorkspaceIds(excluding outputId: Int) -> Set<String> {
+        var ids = Set<String>()
+        for (out, wid) in selectedWorkspaceIdByOutput
+        where out != outputId && activeSpace(onOutput: out).isWorkspace {
+            ids.insert(wid)
+        }
+        return ids
+    }
+
+    func selectedWorkspace(onOutput outputId: Int) -> WorkspaceInfo? {
+        if let wid = selectedWorkspaceIdByOutput[outputId],
+           let ws = workspaces.first(where: { $0.id == wid }) {
+            return ws
+        }
+        // Default: the first workspace no other monitor is displaying. NIL
+        // when they are all on screen elsewhere — never the taken one; a
+        // client has one buffer size, so one workspace on two panels is the
+        // thing this whole model exists to prevent.
+        let taken = displayedWorkspaceIds(excluding: outputId)
+        return workspaces.first(where: { !taken.contains($0.id) })
+    }
+
+    func selectWorkspace(_ workspaceId: String, onOutput outputId: Int) {
+        for (out, wid) in selectedWorkspaceIdByOutput
+        where wid == workspaceId && out != outputId {
+            selectedWorkspaceIdByOutput.removeValue(forKey: out)
+        }
+        selectedWorkspaceIdByOutput[outputId] = workspaceId
+    }
+
+    /// Host-scoped compatibility: callers off the workspace-UI path (launch
+    /// bookkeeping) read the HOST's selection, which at N=1 is the only one.
     var selectedWorkspace: WorkspaceInfo? {
-        workspaces.first(where: { $0.id == selectedWorkspaceId }) ?? workspaces.first
+        selectedWorkspace(onOutput: hostOutputId)
     }
 
     @discardableResult
-    func addWorkspace() -> WorkspaceInfo {
+    func addWorkspace(onOutput outputId: Int? = nil) -> WorkspaceInfo {
         let ws = WorkspaceInfo(id: "ws-\(nextWorkspaceNumber)",
                                name: "Workspace \(nextWorkspaceNumber)")
         nextWorkspaceNumber += 1
         workspaces.append(ws)
-        selectedWorkspaceId = ws.id
+        selectWorkspace(ws.id, onOutput: outputId ?? hostOutputId)
         return ws
     }
 
@@ -451,12 +503,12 @@ class WindowManagerState {
         onWindowsChanged?()
     }
 
-    /// Make `index` the active space and focus its topmost window.
+    /// Make `index` the HOST's active space and focus its topmost window.
+    /// Delegates to the per-output form — bypassing it once silently skipped
+    /// the pin-on-special step, and un-decoupled monitors followed the host
+    /// into a workspace again.
     func switchToSpace(_ index: Int) {
-        guard spaces.indices.contains(index), index != activeSpaceIndex else { return }
-        activeSpaceIndex = index
-        focusTopmostInActiveSpace()
-        onWindowsChanged?()
+        switchToSpace(index, onOutput: hostOutputId)
     }
 
     /// Reassign a window to the space at `index` (no focus change).

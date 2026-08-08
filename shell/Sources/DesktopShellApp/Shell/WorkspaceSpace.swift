@@ -42,8 +42,8 @@ private enum WS {
 
 extension _DesktopShellState {
 
-    /// The workspace UI, laid out for ONE output — the one it was invoked from
-    /// (`_workspaceOutputId`). Everything here is in that output's local
+    /// The workspace UI, laid out for ONE output — each monitor in workspace
+    /// mode runs its OWN workspace now. Everything here is in that output's local
     /// coordinates, so the caller positions it at the output's origin and the
     /// same code serves the primary tree and any secondary screen.
     ///
@@ -52,6 +52,10 @@ extension _DesktopShellState {
     /// to the pane, and one client has one buffer size. See
     /// `docs/plans/multi-output.md`.
     func _buildWorkspaceSpace(output: DisplayOutput) -> Widget {
+        // Inner builders (the rail) read the selection through this — an
+        // extension cannot add stored state per call, and builds are
+        // single-threaded, so the entry point pins its output here.
+        _wsBuildOutputId = output.id
         let w = output.logicalWidth
         let h = output.logicalHeight
         _applyWorkspaceWindowGeometry(output: output)
@@ -65,7 +69,7 @@ extension _DesktopShellState {
 
         layers.append(contentsOf: _workspaceRail(top: top, h: h))
 
-        guard let ws = windowManager.selectedWorkspace else {
+        guard let ws = windowManager.selectedWorkspace(onOutput: output.id) else {
             return Stack(children: layers)
         }
 
@@ -110,10 +114,10 @@ extension _DesktopShellState {
         out.append(Positioned(
             left: WS.railW - WS.pad - 78, top: top + 9, width: 78, height: 26,
             child: _workspaceButton("+ New", fontSize: 11) { [self] in
-                setState { windowManager.addWorkspace() }
+                setState { windowManager.addWorkspace(onOutput: _wsBuildOutputId) }
             }))
 
-        let selectedId = windowManager.selectedWorkspace?.id
+        let selectedId = windowManager.selectedWorkspace(onOutput: _wsBuildOutputId)?.id
         var rowY = top + 50
         for ws in windowManager.workspaces {
             let isSel = ws.id == selectedId
@@ -124,7 +128,9 @@ extension _DesktopShellState {
             let row: [Widget] = [
                 Positioned(fill: (), child: GestureDetector(
                     onTap: { [self] in
-                        setState { windowManager.selectedWorkspaceId = wsId }
+                        setState {
+                            windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
+                        }
                     },
                     behavior: .opaque,
                     child: DecoratedBox(
@@ -379,8 +385,13 @@ extension _DesktopShellState {
     /// `onContentResize` is a Wayland configure or a DMA-BUF child resize),
     /// which is why the workspace can only live on one output at a time.
     func _applyWorkspaceWindowGeometry(output: DisplayOutput? = nil) {
-        guard let ws = windowManager.selectedWorkspace else { return }
-        let out = output ?? workspaceOutput
+        let out = output ?? displayLayout?.host
+            ?? DisplayOutput(id: 0, name: "primary",
+                             physicalWidth: Int(screenWidth * currentShellDpi),
+                             physicalHeight: Int(screenHeight * currentShellDpi),
+                             scale: currentShellDpi, originX: 0, originY: 0,
+                             isHost: true, isPrimary: true, refreshMhz: 60000)
+        guard let ws = windowManager.selectedWorkspace(onOutput: out.id) else { return }
         let top = DesktopTheme.kStatusBarHeight
         let driverW = _workspaceDriverWidth(forOutputWidth: out.logicalWidth)
         let rightLeft = WS.railW + driverW + WS.dividerW
@@ -417,8 +428,8 @@ extension _DesktopShellState {
         }
         if let wsId = driverTarget {
             _launchIntoWorkspace(workspaceId: wsId, appId: appId, asDriver: true)
-        } else if windowManager.activeSpace(onOutput: _workspaceOutputId).isWorkspace,
-                  let ws = windowManager.selectedWorkspace {
+        } else if windowManager.activeSpace(onOutput: _launcherOutputId).isWorkspace,
+                  let ws = windowManager.selectedWorkspace(onOutput: _launcherOutputId) {
             // Already have a driver and launched something else from in here:
             // it belongs beside it, not on the desktop we cannot see.
             _launchIntoWorkspace(workspaceId: ws.id, appId: appId,
@@ -450,10 +461,19 @@ extension _DesktopShellState {
         }
         guard let mgr = linuxProcessAppManager else { return }
 
-        // Sized for the output the workspace is on, not the primary: a driver
-        // launched into a workspace living on a 2560x1600 panel must not come
-        // up sized for a 1920x1080 one.
-        let wsOut = workspaceOutput
+        // Sized for the output DISPLAYING this workspace (per-output rail
+        // selection), not the primary: a driver launched into a workspace
+        // living on a 2560x1600 panel must not come up sized for a 1920x1080
+        // one. A workspace nothing displays sizes for the launcher's output.
+        let wsOutId = windowManager.selectedWorkspaceIdByOutput
+            .first(where: { $0.value == workspaceId })?.key ?? _launcherOutputId
+        let wsOut = displayLayout?.outputs.first(where: { $0.id == wsOutId })
+            ?? displayLayout?.host
+            ?? DisplayOutput(id: 0, name: "primary",
+                             physicalWidth: Int(screenWidth * currentShellDpi),
+                             physicalHeight: Int(screenHeight * currentShellDpi),
+                             scale: currentShellDpi, originX: 0, originY: 0,
+                             isHost: true, isPrimary: true, refreshMhz: 60000)
         let paneW = _workspaceDriverWidth(forOutputWidth: wsOut.logicalWidth) - 20
         let paneH = wsOut.logicalHeight - DesktopTheme.kStatusBarHeight - 20
         let title = rec.name
