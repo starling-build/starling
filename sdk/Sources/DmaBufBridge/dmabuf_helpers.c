@@ -544,6 +544,172 @@ void* dmabuf_egl_get_proc_address(const char* name) {
     return (void*)eglGetProcAddress(name);
 }
 
+// ─── EGL window surface on a gbm_surface (swapchain mode) ───────────────────
+//
+// NVIDIA's driver cannot render into a linear dma-buf through an
+// EGLImage-backed FBO (the bind fails with GL_INVALID_OPERATION), and its GBM
+// refuses LINEAR|RENDERING allocations outright. The only way it renders into
+// linear memory is an EGL window surface on a gbm_surface created with the
+// LINEAR use flag: eglSwapBuffers detiles into the linear buffer internally.
+
+void* dmabuf_egl_choose_window_config(void* egl_display, uint32_t fourcc) {
+    EGLDisplay dpy = (EGLDisplay)egl_display;
+
+    EGLint attribs[] = {
+        EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RED_SIZE,        8,
+        EGL_GREEN_SIZE,      8,
+        EGL_BLUE_SIZE,       8,
+        EGL_STENCIL_SIZE,    8,
+        EGL_NONE,
+    };
+
+    EGLConfig configs[64];
+    EGLint num_configs = 0;
+    if (!eglChooseConfig(dpy, attribs, configs, 64, &num_configs) ||
+        num_configs == 0) {
+        fprintf(stderr,
+                "[DmaBufBridge] no window-bit EGL configs: 0x%x\n",
+                eglGetError());
+        return NULL;
+    }
+
+    // GBM requires the config's native visual to be the surface's format,
+    // or eglCreateWindowSurface fails with EGL_BAD_MATCH.
+    for (EGLint i = 0; i < num_configs; i++) {
+        EGLint visual = 0;
+        if (eglGetConfigAttrib(dpy, configs[i], EGL_NATIVE_VISUAL_ID,
+                               &visual) && (uint32_t)visual == fourcc) {
+            return (void*)configs[i];
+        }
+    }
+    return NULL;
+}
+
+void* dmabuf_egl_create_window_surface(void* egl_display, void* config,
+                                       struct gbm_surface* gbm_surface) {
+    EGLSurface surf = eglCreateWindowSurface(
+        (EGLDisplay)egl_display, (EGLConfig)config,
+        (EGLNativeWindowType)gbm_surface, NULL);
+    if (surf == EGL_NO_SURFACE) {
+        fprintf(stderr,
+                "[DmaBufBridge] eglCreateWindowSurface failed: 0x%x\n",
+                eglGetError());
+        return NULL;
+    }
+    return (void*)surf;
+}
+
+int dmabuf_egl_make_current_surface(void* egl_display, void* context,
+                                    void* egl_surface) {
+    if (!eglMakeCurrent((EGLDisplay)egl_display,
+                        (EGLSurface)egl_surface, (EGLSurface)egl_surface,
+                        (EGLContext)context)) {
+        fprintf(stderr,
+                "[DmaBufBridge] eglMakeCurrent(surface) failed: 0x%x\n",
+                eglGetError());
+        return 0;
+    }
+    return 1;
+}
+
+int dmabuf_egl_swap_buffers(void* egl_display, void* egl_surface) {
+    if (!eglSwapBuffers((EGLDisplay)egl_display, (EGLSurface)egl_surface)) {
+        fprintf(stderr, "[DmaBufBridge] eglSwapBuffers failed: 0x%x\n",
+                eglGetError());
+        return 0;
+    }
+    return 1;
+}
+
+void dmabuf_egl_destroy_surface(void* egl_display, void* egl_surface) {
+    if (egl_surface) {
+        eglDestroySurface((EGLDisplay)egl_display, (EGLSurface)egl_surface);
+    }
+}
+
+// A window surface's memory comes out of eglSwapBuffers vertically flipped
+// relative to what the parent's sampler expects (the driver stores GL's
+// bottom-up window framebuffer top-down for scanout). So the engine keeps
+// rendering into an ordinary FBO — identical semantics to the bo path — and
+// present() blits it onto the window surface with Y inverted.
+
+#ifndef GL_READ_FRAMEBUFFER
+#define GL_READ_FRAMEBUFFER 0x8CA8
+#endif
+#ifndef GL_DRAW_FRAMEBUFFER
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
+#endif
+#ifndef GL_RGBA8_OES
+#define GL_RGBA8_OES 0x8058
+#endif
+
+typedef void (*PFNGLBLITFRAMEBUFFERPROC_)(GLint, GLint, GLint, GLint,
+                                          GLint, GLint, GLint, GLint,
+                                          GLbitfield, GLenum);
+static PFNGLBLITFRAMEBUFFERPROC_ s_glBlitFramebuffer = NULL;
+
+uint32_t dmabuf_create_plain_fbo(int width, int height,
+                                 uint32_t* out_color_rb,
+                                 uint32_t* out_stencil_rb) {
+    GLuint color = 0, stencil = 0, fbo = 0;
+    glGenRenderbuffers(1, &color);
+    glBindRenderbuffer(GL_RENDERBUFFER, color);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8_OES, width, height);
+    glGenRenderbuffers(1, &stencil);
+    glBindRenderbuffer(GL_RENDERBUFFER, stencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, width, height);
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                              GL_RENDERBUFFER, color);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT,
+                              GL_RENDERBUFFER, stencil);
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        fprintf(stderr, "[DmaBufBridge] plain FBO incomplete: 0x%x\n", status);
+        glDeleteFramebuffers(1, &fbo);
+        glDeleteRenderbuffers(1, &color);
+        glDeleteRenderbuffers(1, &stencil);
+        return 0;
+    }
+    if (out_color_rb)   *out_color_rb = color;
+    if (out_stencil_rb) *out_stencil_rb = stencil;
+    return fbo;
+}
+
+void dmabuf_destroy_plain_fbo(uint32_t fbo, uint32_t color_rb,
+                              uint32_t stencil_rb) {
+    if (fbo)        glDeleteFramebuffers(1, &fbo);
+    if (color_rb)   glDeleteRenderbuffers(1, &color_rb);
+    if (stencil_rb) glDeleteRenderbuffers(1, &stencil_rb);
+}
+
+int dmabuf_blit_flip_to_window(uint32_t src_fbo, int width, int height) {
+    if (!s_glBlitFramebuffer) {
+        s_glBlitFramebuffer = (PFNGLBLITFRAMEBUFFERPROC_)eglGetProcAddress(
+            "glBlitFramebuffer");
+        if (!s_glBlitFramebuffer) {
+            fprintf(stderr, "[DmaBufBridge] glBlitFramebuffer unavailable\n");
+            return 0;
+        }
+    }
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    s_glBlitFramebuffer(0, 0, width, height,
+                        0, height, width, 0,
+                        GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    // The engine runs with fbo_reset_after_present=false: it assumes its FBO
+    // stays bound between frames. Leaving DRAW at 0 here sent every frame
+    // after the first into the window surface, where this blit then
+    // overwrote it with the stale first-frame content of src_fbo — a frozen
+    // window with a perfectly healthy UI underneath.
+    glBindFramebuffer(GL_FRAMEBUFFER, src_fbo);
+    return 1;
+}
+
 void dmabuf_gl_finish(void) {
     glFinish();
 }

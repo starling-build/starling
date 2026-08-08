@@ -864,6 +864,11 @@ class LinuxProcessAppManager {
         var event = DmaBufInputEvent(x: x, y: y, buttons: buttons,
                                      type: Int32(DMABUF_INPUT_POINTER),
                                      phase: phase)
+        if ProcessInfo.processInfo.environment["STARLING_SWAPCHAIN_DEBUG"] == "1",
+           phase != 6, phase != 3 {
+            FileHandle.standardError.write(Data(
+                "[ProcessApp] fwd ptr tex=\(textureId) phase=\(phase) x=\(x) y=\(y)\n".utf8))
+        }
         entry.sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
     }
 
