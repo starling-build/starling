@@ -363,7 +363,14 @@ func computeRealLayoutFromEngine(_ view: OpaquePointer?) -> DisplayLayout? {
 func syncEngineViewsAndLayout(_ view: OpaquePointer?, _ dl: DisplayLayout) {
     guard let view else { return }
     let mapped = Set(secondaryViewOutputs.outputIds)
+    // FLUTTER_DRM_EXTERNAL_TEST hands this output to the engine's external
+    // producer (docs/plans/nv-view.md Stage A); it must not get a Flutter
+    // view — the engine would refuse the AddView anyway, this just keeps
+    // the id allocation clean.
+    let externalTest = ProcessInfo.processInfo
+        .environment["FLUTTER_DRM_EXTERNAL_TEST"].flatMap { Int($0) }
     for output in dl.outputs where !output.isHost && !mapped.contains(output.id) {
+        if let ext = externalTest, ext == output.id { continue }
         let viewId = secondaryViewOutputs.allocateViewId()
         // Mapped BEFORE AddView: the content builder reads it on the view's
         // first frame.
