@@ -2060,6 +2060,28 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 }
             }
 
+            // The external screen shell holds the keyboard when the last
+            // click landed on its output (output-level click-to-focus; the
+            // flag flips back at the shell trees' root listeners). After the
+            // shell's modal layers and global hotkeys above — the screen
+            // shell is a desktop, not a modal — but before the focused
+            // window, which lives on a shell output the user clicked away
+            // from. No IME either: composition needs the caret protocol,
+            // which the screen shell doesn't speak yet.
+            if externalScreenKeyFocus, let ext = externalScreenShell {
+                let scalar = keyData.character?.unicodeScalars.first?.value ?? 0
+                let phase: Int32
+                switch keyData.type {
+                case .down: phase = 0
+                case .up: phase = 1
+                case .repeat: phase = 2
+                }
+                ext.sendKey(physical: keyData.physical,
+                            logical: keyData.logical,
+                            character: scalar, phase: phase)
+                return true
+            }
+
             guard let focusedId = self.windowManager.focusedWindowId,
                   let win = self.windowManager.windows.first(where: { $0.id == focusedId }) else {
                 // No focused window — offer the key to the shell's own UI
@@ -2884,9 +2906,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // multi-output instead gives each secondary its own Flutter view
         // (SecondaryOutputScreen) and the primary renders the normal desktop
         // below — the primary's slice of the virtual desktop is exactly its
-        // own logical rect at (0,0).
+        // own logical rect at (0,0). An externally sourced output leaves
+        // secondaryViewOutputs empty WITHOUT being simulated — its screen
+        // is real, driven by the screen-shell child — so it must not put
+        // the host into the overview (which has no root input listeners:
+        // the host tree would go deaf, discovered as keys that never
+        // released back from the external screen).
         if let dl = displayLayout, dl.outputs.count > 1,
-           secondaryViewOutputs.isEmpty {
+           secondaryViewOutputs.isEmpty, externallySourcedOutput == nil {
             return _buildVirtualDesktopOverview(dl)
         }
 
@@ -3706,7 +3733,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // observation only; `.translucent` keeps it out of the way of the
         // wallpaper's own right-click handling.
         return Listener(
-            onPointerDown: { [self] _ in notePointerOutput(displayLayout?.host.id ?? 0) },
+            onPointerDown: { [self] _ in
+                if externalScreenKeyFocus,
+                   ProcessInfo.processInfo.environment["STARLING_SWAPCHAIN_DEBUG"] == "1" {
+                    FileHandle.standardError.write(Data(
+                        "[KeyFocus] host click reclaims keyboard\n".utf8))
+                }
+                externalScreenKeyFocus = false  // a click here reclaims the keyboard
+                notePointerOutput(displayLayout?.host.id ?? 0)
+            },
             onPointerHover: { [self] _ in notePointerOutput(displayLayout?.host.id ?? 0) },
             behavior: .translucent,
             child: Stack(

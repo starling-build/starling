@@ -306,6 +306,22 @@ nonisolated(unsafe) var drmViewHandle: OpaquePointer? = nil
 /// The per-screen shell child feeding an externally sourced output
 /// (STARLING_SCREEN_SHELL; Stage B of docs/plans/nv-view.md).
 nonisolated(unsafe) var externalScreenShell: ExternalScreenShell? = nil
+/// Output-level click-to-focus for the keyboard: a pointer down on the
+/// external screen claims it (set in the external input callback), a pointer
+/// down on any shell output takes it back (cleared in the trees' root
+/// listeners). While set, routeKey forwards keys to the screen-shell child.
+nonisolated(unsafe) var externalScreenKeyFocus = false
+/// The output externally sourced this session (STARLING_SCREEN_SHELL, or
+/// FLUTTER_DRM_EXTERNAL_TEST for the engine-side Stage A test producer);
+/// nil when every output is engine-rendered. An external output gets no
+/// Flutter view, which must NOT read as "simulated layout": DesktopShell
+/// keeps the real-multi-output path (normal desktop on the host) instead of
+/// the scale-to-fit overview harness — the overview has no root input
+/// listeners, so landing in it by accident makes the host tree deaf.
+let externallySourcedOutput: Int? = ProcessInfo.processInfo
+    .environment["FLUTTER_DRM_EXTERNAL_TEST"].flatMap { Int($0) }
+    ?? ProcessInfo.processInfo
+    .environment["STARLING_SCREEN_SHELL"].flatMap { Int($0) }
 
 /// The real-output virtual desktop, derived deterministically from the
 /// engine's enumeration: the HOST output at (0,0) at the shell DPI, the others
@@ -366,16 +382,11 @@ func computeRealLayoutFromEngine(_ view: OpaquePointer?) -> DisplayLayout? {
 func syncEngineViewsAndLayout(_ view: OpaquePointer?, _ dl: DisplayLayout) {
     guard let view else { return }
     let mapped = Set(secondaryViewOutputs.outputIds)
-    // FLUTTER_DRM_EXTERNAL_TEST hands this output to the engine's external
-    // producer (docs/plans/nv-view.md Stage A); it must not get a Flutter
-    // view — the engine would refuse the AddView anyway, this just keeps
-    // the id allocation clean.
-    let externalTest = ProcessInfo.processInfo
-        .environment["FLUTTER_DRM_EXTERNAL_TEST"].flatMap { Int($0) }
-        ?? ProcessInfo.processInfo
-        .environment["STARLING_SCREEN_SHELL"].flatMap { Int($0) }
+    // An externally sourced output (docs/plans/nv-view.md) must not get a
+    // Flutter view — the engine would refuse the AddView anyway, this just
+    // keeps the id allocation clean.
     for output in dl.outputs where !output.isHost && !mapped.contains(output.id) {
-        if let ext = externalTest, ext == output.id { continue }
+        if let ext = externallySourcedOutput, ext == output.id { continue }
         let viewId = secondaryViewOutputs.allocateViewId()
         // Mapped BEFORE AddView: the content builder reads it on the view's
         // first frame.
@@ -712,6 +723,14 @@ func runDRM() -> Never {
             shell.start()
             fl_drm_view_set_external_input_callback(view, {
                 _, phase, x, y, buttons, sdx, sdy, _ in
+                if phase == 2 {  // kDown — a click here claims the keyboard
+                    if !externalScreenKeyFocus,
+                       ProcessInfo.processInfo.environment["STARLING_SWAPCHAIN_DEBUG"] == "1" {
+                        FileHandle.standardError.write(Data(
+                            "[KeyFocus] external click claims keyboard\n".utf8))
+                    }
+                    externalScreenKeyFocus = true
+                }
                 externalScreenShell?.sendInput(phase: Int32(phase), x: x, y: y,
                                                buttons: buttons,
                                                scrollDx: sdx, scrollDy: sdy)

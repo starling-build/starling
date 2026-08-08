@@ -237,4 +237,25 @@ final class ExternalScreenShell: @unchecked Sendable {
             send(fd, $0, MemoryLayout<DmaBufInputEvent>.size, Int32(MSG_NOSIGNAL))
         }
     }
+
+    /// Keyboard input while this screen holds output-level key focus (see
+    /// externalScreenKeyFocus). Same encoding as LinuxProcessAppManager's
+    /// key forwarding: x/y carry KeyData's physical HID code and logical
+    /// keysym, buttons the Unicode scalar (0 = none), phase 0/1/2 for
+    /// down/up/repeat. The child routes it through FlutterEngineSendKeyEvent,
+    /// so it takes the same keydata path as native input.
+    func sendKey(physical: Int64, logical: Int64, character: UInt32,
+                 phase: Int32) {
+        fdLock.lock()
+        let fd = clientFd
+        fdLock.unlock()
+        guard fd >= 0 else { return }
+        var event = DmaBufInputEvent(x: Double(physical), y: Double(logical),
+                                     buttons: Int64(character),
+                                     type: Int32(DMABUF_INPUT_KEY),
+                                     phase: phase)
+        _ = withUnsafePointer(to: &event) {
+            send(fd, $0, MemoryLayout<DmaBufInputEvent>.size, Int32(MSG_NOSIGNAL))
+        }
+    }
 }

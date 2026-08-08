@@ -577,7 +577,10 @@ struct SecondaryOutputScreen {
         return Directionality(
             textDirection: .ltr,
             child: Listener(
-                onPointerDown: { _ in _shellState?.notePointerOutput(output.id) },
+                onPointerDown: { _ in
+                    externalScreenKeyFocus = false  // a click here reclaims the keyboard
+                    _shellState?.notePointerOutput(output.id)
+                },
                 onPointerHover: { event in
                     _shellState?.notePointerOutput(output.id)
                     _shellState?._updateDockHover(

@@ -476,8 +476,16 @@ func _setupWidgetBinding(_ app: Widget) {
     // --- Pointer event handling ---
     // Mirrors GestureBinding: converts PointerData to PointerEvents,
     // performs hit testing against the RenderView, and dispatches to targets.
+    let inputDebug = ProcessInfo.processInfo
+        .environment["STARLING_INPUT_DEBUG"] == "1"
     pd.onPointerDataPacket = { packet in
-        guard let rv = renderView else { return }
+        guard let rv = renderView else {
+            if inputDebug {
+                FileHandle.standardError.write(Data(
+                    "[PtrDispatch] packet before renderView exists — dropped\n".utf8))
+            }
+            return
+        }
 
         let events = PointerEventConverter.expand(
             packet.data,
@@ -485,6 +493,12 @@ func _setupWidgetBinding(_ app: Widget) {
                 pd.view(id: viewId)?.devicePixelRatio
             }
         )
+        if inputDebug, events.count != packet.data.count {
+            let msg = "[PtrDispatch] converter dropped " +
+                "\(packet.data.count - events.count) of " +
+                "\(packet.data.count) datum(s)\n"
+            FileHandle.standardError.write(Data(msg.utf8))
+        }
 
         for event in events {
             // Route to the render view the event targets (multi-monitor:
@@ -495,7 +509,20 @@ func _setupWidgetBinding(_ app: Widget) {
             } else {
                 targetView = secondaryPipelines[event.viewId]?.renderView
             }
-            guard let eventView = targetView else { continue }
+            guard let eventView = targetView else {
+                if inputDebug {
+                    let msg = "[PtrDispatch] \(type(of: event)) " +
+                        "view=\(event.viewId) — no target view, dropped\n"
+                    FileHandle.standardError.write(Data(msg.utf8))
+                }
+                continue
+            }
+            if inputDebug, event is PointerDownEvent || event is PointerUpEvent {
+                let msg = "[PtrDispatch] \(type(of: event)) " +
+                    "view=\(event.viewId) pos=\(event.position) " +
+                    "ptr=\(event.pointer)\n"
+                FileHandle.standardError.write(Data(msg.utf8))
+            }
 
             var hitTestResult: HitTestResult? = nil
 
@@ -506,6 +533,14 @@ func _setupWidgetBinding(_ app: Widget) {
             {
                 hitTestResult = HitTestResult()
                 _ = eventView.hitTest(hitTestResult!, position: event.position)
+                if inputDebug, event is PointerDownEvent {
+                    let types = hitTestResult!.path
+                        .map { String(describing: $0.target) }
+                        .joined(separator: " > ")
+                    let msg = "[PtrDispatch] down hit path " +
+                        "(\(hitTestResult!.path.count)): \(types)\n"
+                    FileHandle.standardError.write(Data(msg.utf8))
+                }
                 if event is PointerDownEvent {
                     hitTests[event.pointer] = hitTestResult
                 }

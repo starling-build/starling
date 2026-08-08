@@ -20,7 +20,9 @@ class ScreenShellRoot: StatefulWidget {
 class _ScreenShellRootState: State<StatefulWidget> {
     private var _now = ""
     private var _taps = 0
+    private var _typed = ""
     private var _alive = true
+    private let _focus = FocusNode(debugLabel: "ScreenShell")
     private let _fmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -33,10 +35,33 @@ class _ScreenShellRootState: State<StatefulWidget> {
         // Foundation.Timer never fires on the DRM embedder — the documented
         // asyncAfter pattern instead.
         scheduleTick()
+        // Keyboard proof: echo what the shell relays while this screen holds
+        // output-level key focus (a click here claims it).
+        _focus.onKeyData = { [weak self] keyData in
+            guard let self, keyData.type == .down || keyData.type == .repeat
+            else { return false }
+            FileHandle.standardError.write(Data(
+                "[ScreenShellApp] KEY phys=0x\(String(keyData.physical, radix: 16))\n".utf8))
+            self.setState {
+                if keyData.physical == 0x2A {  // Backspace
+                    if !self._typed.isEmpty { self._typed.removeLast() }
+                } else if let ch = keyData.character,
+                          let s = ch.unicodeScalars.first,
+                          s.value >= 0x20, s.value != 0x7F {
+                    self._typed += ch
+                    if self._typed.count > 40 {
+                        self._typed.removeFirst(self._typed.count - 40)
+                    }
+                }
+            }
+            return true
+        }
+        _focus.requestFocus()
     }
 
     override func dispose() {
         _alive = false
+        _focus.dispose()
         super.dispose()
     }
 
@@ -80,6 +105,16 @@ class _ScreenShellRootState: State<StatefulWidget> {
                              style: TextStyle(color: Color(0xFFF0F2F6),
                                               fontSize: 120,
                                               fontWeight: .w200))
+                        SizedBox(height: 24)
+                        SizedBox(
+                            width: 900, height: 30,
+                            child: Center {
+                                Text(_typed.isEmpty
+                                     ? "click, then type — keys land here"
+                                     : "typed: \(_typed)",
+                                     style: TextStyle(color: Color(0xFF7A8494),
+                                                      fontSize: 22))
+                            })
                     }
                 }
                 )
