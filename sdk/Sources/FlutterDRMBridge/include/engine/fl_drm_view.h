@@ -91,6 +91,19 @@ FL_DRM_EXPORT int fl_drm_view_post_task(FlDrmView* view,
                                         void (*fn)(void* user_data),
                                         void* user_data);
 
+
+// Pointer input landing on an external output (phase is the
+// FlutterPointerPhase raw value; x/y output-local PHYSICAL pixels; scroll
+// deltas in logical units). Fired on the input thread.
+typedef void (*FlDrmExternalInputCallback)(uint32_t output_id, int phase,
+                                           double x, double y,
+                                           int64_t buttons,
+                                           double scroll_dx,
+                                           double scroll_dy,
+                                           void* user_data);
+FL_DRM_EXPORT void fl_drm_view_set_external_input_callback(
+    FlDrmView* view, FlDrmExternalInputCallback callback, void* user_data);
+
 // Re-send window metrics with a new pixel ratio (for runtime DPI changes).
 // ── External outputs (see the engine header for the full contract) ──────
 // An output fed by pushed linear dma-buf frames from an outside producer

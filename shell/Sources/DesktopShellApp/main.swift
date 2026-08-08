@@ -710,6 +710,12 @@ func runDRM() -> Never {
                 scale: out.scale, device: dev)
             externalScreenShell = shell
             shell.start()
+            fl_drm_view_set_external_input_callback(view, {
+                _, phase, x, y, buttons, sdx, sdy, _ in
+                externalScreenShell?.sendInput(phase: Int32(phase), x: x, y: y,
+                                               buttons: buttons,
+                                               scrollDx: sdx, scrollDy: sdy)
+            }, nil)
         } else {
             FileHandle.standardError.write(Data(
                 "[ScreenShell] engine refused external mode for output \(extId)\n".utf8))

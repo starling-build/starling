@@ -22,6 +22,8 @@ final class ExternalScreenShell: @unchecked Sendable {
     private let scale: Double
     private let device: String
     private var process: Process?
+    private let fdLock = NSLock()
+    private var clientFd: Int32 = -1
 
     init(view: OpaquePointer, outputId: Int, logicalWidth: Int,
          logicalHeight: Int, scale: Double, device: String) {
@@ -100,6 +102,9 @@ final class ExternalScreenShell: @unchecked Sendable {
             log("accept failed: \(String(cString: strerror(errno)))")
             return
         }
+        fdLock.lock()
+        self.clientFd = clientFd
+        fdLock.unlock()
 
         var cfg = DmaBufConfigure(width: logicalWidth, height: logicalHeight,
                                   type: DMABUF_CONFIGURE, _reserved: 0)
@@ -133,6 +138,37 @@ final class ExternalScreenShell: @unchecked Sendable {
                 }
             }
         }
+        fdLock.lock()
+        self.clientFd = -1
+        fdLock.unlock()
         Glibc.close(clientFd)
+    }
+
+    /// Engine input thread: pointer/scroll landing on this output.
+    /// Coordinates arrive output-local physical; the child expects logical.
+    func sendInput(phase: Int32, x: Double, y: Double, buttons: Int64,
+                   scrollDx: Double, scrollDy: Double) {
+        fdLock.lock()
+        let fd = clientFd
+        fdLock.unlock()
+        guard fd >= 0 else { return }
+        let lx = x / scale
+        let ly = y / scale
+        var event: DmaBufInputEvent
+        if scrollDx != 0 || scrollDy != 0 {
+            let bits = UInt64(Float(scrollDx).bitPattern)
+                | (UInt64(Float(scrollDy).bitPattern) << 32)
+            event = DmaBufInputEvent(x: lx, y: ly,
+                                     buttons: Int64(bitPattern: bits),
+                                     type: Int32(DMABUF_INPUT_SCROLL),
+                                     phase: 0)
+        } else {
+            event = DmaBufInputEvent(x: lx, y: ly, buttons: buttons,
+                                     type: Int32(DMABUF_INPUT_POINTER),
+                                     phase: phase)
+        }
+        _ = withUnsafePointer(to: &event) {
+            send(fd, $0, MemoryLayout<DmaBufInputEvent>.size, Int32(MSG_NOSIGNAL))
+        }
     }
 }

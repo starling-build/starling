@@ -19,6 +19,7 @@ class ScreenShellRoot: StatefulWidget {
 
 class _ScreenShellRootState: State<StatefulWidget> {
     private var _now = ""
+    private var _taps = 0
     private var _alive = true
     private let _fmt: DateFormatter = {
         let f = DateFormatter()
@@ -57,7 +58,12 @@ class _ScreenShellRootState: State<StatefulWidget> {
             .environment["STARLING_APP_DRM_DEVICE"] ?? "?"
         return MacosApp(
             theme: MacosThemeData.dark(),
-            home: ColoredBox(
+            home: GestureDetector(
+                onTap: { [weak self] in
+                    guard let self else { return }
+                    self.setState { self._taps += 1 }
+                },
+                child: ColoredBox(
                 color: Color(0xFF10141C),
                 child: Center {
                     Column(mainAxisAlignment: .center) {
@@ -66,11 +72,13 @@ class _ScreenShellRootState: State<StatefulWidget> {
                                               fontSize: 120,
                                               fontWeight: .w200))
                         SizedBox(height: 24)
-                        Text("per-screen shell — rendering on \(device)",
+                        Text("per-screen shell — rendering on \(device)" +
+                             (_taps > 0 ? " — taps: \(_taps)" : ""),
                              style: TextStyle(color: Color(0xFF7A8494),
                                               fontSize: 22))
                     }
                 }
+                )
             )
         )
     }
