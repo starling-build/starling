@@ -317,7 +317,16 @@ would be the only honest version and nobody wants it.
    record-start run). Still open: edge-carry dwell from a secondary (carry
    is host-only; its arming correctly ignores seam edges and fires only at
    the virtual desktop's outer boundary).
-5. **Mission Control per display**, invoked-output-scoped.
+5. ~~**Mission Control per display**~~ **Done** — invoked-output-scoped:
+   `_missionControlOutputId` from the pointer at open, geometry/cards/strip
+   all read that output (`_mcW/_mcH/_mcLocalRect` translate the card
+   animation's start rects into its local space; the exposé lists only its
+   OWNED windows), strip clicks and the MC keyboard retarget switch that
+   output's space, the host gates its copy on `mcIsOnHost`, and the
+   secondary draws it via `Builder` with the force-redraw hook carrying the
+   open/close and relayout animation ticks past the signature gate.
+   Verified live: Ctrl+Up on eDP shows the exposé there with no cards for
+   HDMI's windows while HDMI's desktop is untouched.
 6. **A workspace per output**, if (1) proves it earns the depth.
 
 ## Decisions still open

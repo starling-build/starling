@@ -75,6 +75,14 @@ func workspaceIsOn(output: DisplayOutput) -> Bool {
         && shell._workspaceOutputId == output.id
 }
 
+/// Whether Mission Control belongs on `output` — invoked-output-scoped, like
+/// the workspace and launcher.
+func missionControlIsOn(output: DisplayOutput) -> Bool {
+    guard let shell = _shellState else { return false }
+    return shell._missionControlOpen
+        && shell._missionControlOutputId == output.id
+}
+
 /// Whether the app launcher belongs on `output` — it opens on whichever output
 /// asked for it (the dock, or a workspace's `+`).
 func launcherIsOn(output: DisplayOutput) -> Bool {
@@ -216,6 +224,7 @@ class _SecondaryScreenHostState: State<StatefulWidget> {
         // longer applies.
         sig += "|ovl:\(workspaceIsOn(output: output) ? 1 : 0)"
             + ":\(launcherIsOn(output: output) ? 1 : 0)"
+            + ":\(missionControlIsOn(output: output) ? 1 : 0)"
             + ":\(output.isPrimary ? 1 : 0)"
             + ":\(_shellState?.contextMenuWidget(forOutput: output) != nil ? 1 : 0)"
         return sig
@@ -239,7 +248,7 @@ class _SecondaryScreenHostState: State<StatefulWidget> {
         // is this output's own, and dropping it freezes magnification, the
         // running-app dots, and drag reordering mid-gesture.
         if workspaceIsOn(output: output) || launcherIsOn(output: output)
-            || output.isPrimary {
+            || missionControlIsOn(output: output) || output.isPrimary {
             setState {}
             return
         }
@@ -427,11 +436,23 @@ struct SecondaryOutputScreen {
             layers.append(Positioned(fill: (), child: _wallpaper()))
             layers.append(contentsOf: _windows())
         }
-        layers.append(Positioned(
-            left: 0, top: 0,
-            width: output.logicalWidth,
-            height: DesktopTheme.kStatusBarHeight,
-            child: _statusBar()))
+        if missionControlIsOn(output: output), let shell = _shellState {
+            // Mission Control replaces this output's desktop layers — its
+            // exposé re-renders the windows as cards, and the spaces strip
+            // sits in the status bar's zone. The host's copy is gated off
+            // by mcIsOnHost, so exactly one tree draws it.
+            layers.removeAll(where: { _ in true })
+            layers.append(Positioned(fill: (), child: _wallpaper()))
+            layers.append(Positioned(
+                fill: (),
+                child: Builder { ctx in shell._buildMissionControl(ctx) }))
+        } else {
+            layers.append(Positioned(
+                left: 0, top: 0,
+                width: output.logicalWidth,
+                height: DesktopTheme.kStatusBarHeight,
+                child: _statusBar()))
+        }
 
         // The dock, when this output is the primary display. There is one dock
         // and it lives on the primary (macOS); the shell's own tree drops it

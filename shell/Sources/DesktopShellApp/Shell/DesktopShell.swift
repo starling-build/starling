@@ -506,6 +506,24 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     static let kPumpFloorTicks = 8
 
     var _missionControlOpen = false
+    /// The monitor Mission Control was invoked on — its windows, its space
+    /// strip actions, its geometry. The overview draws in that output's tree.
+    var _missionControlOutputId: Int = 0
+    /// Whether Mission Control belongs to the host tree right now.
+    var mcIsOnHost: Bool {
+        _missionControlOutputId == (displayLayout?.host.id ?? 0)
+    }
+
+    /// The MC output resolved against the live layout (host fallback).
+    var missionControlOutput: DisplayOutput {
+        displayLayout?.outputs.first(where: { $0.id == _missionControlOutputId })
+            ?? displayLayout?.host
+            ?? DisplayOutput(id: 0, name: "primary",
+                             physicalWidth: Int(screenWidth * currentShellDpi),
+                             physicalHeight: Int(screenHeight * currentShellDpi),
+                             scale: currentShellDpi, originX: 0, originY: 0,
+                             isHost: true, isPrimary: true, refreshMhz: 60000)
+    }
     var _mcOpenController: AnimationController?
     var _mcOpenCurve: CurvedAnimation?
     /// Record-App picker: Mission Control opened to CHOOSE a recording
@@ -1969,10 +1987,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                        phys == 0x29 || (phys == 0x52 && self._ctrlPressed) {
                         self._closeMissionControlAnimated()
                     } else if self._ctrlPressed, phys == 0x50 || phys == 0x4F {
-                        let target = self.windowManager.activeSpaceIndex + (phys == 0x4F ? 1 : -1)
-                        if self.windowManager.spaces.indices.contains(target),
-                           !self.windowManager.spaces[target].isSpecial {
-                            self._switchToSpace(target, animated: false)
+                        let wm = self.windowManager
+                        let out = self._missionControlOutputId
+                        let cur = wm.spaceIndex(ofSpaceId: wm.activeSpaceId(onOutput: out))
+                            ?? wm.activeSpaceIndex
+                        let target = cur + (phys == 0x4F ? 1 : -1)
+                        if wm.spaces.indices.contains(target),
+                           !wm.spaces[target].isSpecial {
+                            self._switchToSpace(target, animated: false, onOutput: out)
                         }
                     }
                 }
@@ -2578,15 +2600,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// window picker instead (see _mcPickRecordTarget).
     func _openMissionControl(pickRecordTarget: Bool = false) {
         guard !_missionControlOpen else { return }
+        // Invoked-output-scoped (macOS: the display you're addressing is the
+        // pointer's): the overview shows THIS monitor's windows and drives
+        // THIS monitor's space.
+        _missionControlOutputId = _pointerOutputId ?? displayLayout?.host.id ?? 0
         // Mission Control shows desktops; from inside a special space, exit
         // to the return space first (neither has a strip thumbnail).
-        if windowManager.activeSpace.isSpecial {
+        if windowManager.activeSpace(onOutput: _missionControlOutputId).isSpecial {
             var back = _workspaceReturnSpaceIndex
             if !windowManager.spaces.indices.contains(back)
                 || windowManager.spaces[back].isSpecial {
                 back = windowManager.spaces.indices.first(where: { windowManager.spaces[$0].isUser }) ?? 0
             }
-            _switchToSpace(back, animated: false)
+            _switchToSpace(back, animated: false, onOutput: _missionControlOutputId)
         }
         setState {
             _missionControlOpen = true
@@ -2599,6 +2625,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             let c = AnimationController(duration: .milliseconds(300), vsync: self)
             c.addListener { [weak self] in
                 self?.setState {}
+                // On a secondary, animation-only ticks change no signature —
+                // the gated invalidator drops them; the force hook doesn't.
+                if let self, !self.mcIsOnHost {
+                    secondaryScreenForceRedraws[self._missionControlOutputId]?()
+                }
             }
             c.addStatusListener { [weak self] status in
                 // Reverse run reached the desktop layout — finish the close.
@@ -2944,7 +2975,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // output" is the host — the panel this tree renders on.
         let hostOutput = displayLayout?.host
         let workspaceIsHere = _workspaceOutputId == (hostOutput?.id ?? 0)
-        if !_missionControlOpen && workspaceIsHere {
+        if !(_missionControlOpen && mcIsOnHost) && workspaceIsHere {
             for layer in slideLayers {
                 guard let space = windowManager.spaces.first(where: { $0.id == layer.spaceId }),
                       space.isWorkspace else { continue }
@@ -3031,7 +3062,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // static dx=0 layer — the neighbor's straddler must not animate
         // with a space switch that isn't its monitor's.
         let slideSpaceIds = Set(slideLayers.map { $0.spaceId })
-        let layerWindows: [(win: WindowInfo, layerDx: Double)] = _missionControlOpen
+        let layerWindows: [(win: WindowInfo, layerDx: Double)] = (_missionControlOpen && mcIsOnHost)
             ? []
             : !isSliding
                 ? windowManager.visibleWindows.map { ($0, 0.0) }
@@ -3135,7 +3166,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // [N+1..] Popups (rendered on top of windows, no decorations)
         // Sort by nesting depth so children render on top of parents.
         #if os(Linux)
-        let sortedPopups = _missionControlOpen ? [] : popups.sorted { a, b in
+        let sortedPopups = (_missionControlOpen && mcIsOnHost) ? [] : popups.sorted { a, b in
             // Count nesting depth by walking parent chain
             func depth(_ p: (key: String, value: (textureId: Int, parentSurfaceId: UInt32, x: Double, y: Double, width: Double, height: Double, mapped: Bool))) -> Int {
                 var d = 0
@@ -3301,9 +3332,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // background, hiding the wallpaper underneath) and the status-bar
         // items only appear while revealed. In non-fullscreen, the status
         // bar is transparent over the wallpaper as usual.
-        if _missionControlOpen {
+        if _missionControlOpen && mcIsOnHost {
             // Mission Control replaces the desktop layers: no status bar
             // (the spaces strip sits in that zone); the dock stays, above.
+            // Only when it was invoked on THIS monitor — a secondary draws
+            // its own copy and the host keeps its desktop.
             children.append(
                 Positioned(fill: (), child: _buildMissionControl(context))
             )
@@ -3364,7 +3397,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         //   - Bottom region: hovering inside reveals the dock.
         // Using `.translucent` lets the events also reach the window content
         // below so the focused Wayland/X11 client still gets hover events.
-        if isFullscreenMode && !_missionControlOpen {
+        if isFullscreenMode && !(_missionControlOpen && mcIsOnHost) {
             // Collapsed: a 4-px sliver at the very top. Expanded: covers the
             // status bar + the title-bar overlay so the user can hover into
             // the title bar (and its traffic-light buttons) without the

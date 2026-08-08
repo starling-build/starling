@@ -40,10 +40,26 @@ extension _DesktopShellState {
 
     /// Frame of the space thumbnail at `index`; index == stripCount is
     /// the trailing "+" tile. The whole strip is centered horizontally.
+    // Invoked-output scoping: the overview draws in ITS monitor's local
+    // coordinates and sizes. On the host these equal _mcW/Height and
+    // origin (0,0), so the single-monitor path is unchanged.
+    private var _mcW: Double { missionControlOutput.logicalWidth }
+    private var _mcH: Double { missionControlOutput.logicalHeight }
+    private var _mcOriginX: Double { missionControlOutput.originX }
+    private var _mcOriginY: Double { missionControlOutput.originY }
+
+    /// A window's desktop rect in the MC output's LOCAL space — the card
+    /// animation starts from where the window is on THIS panel. Windows on
+    /// other monitors translate off-range and clip away in thumbnails.
+    private func _mcLocalRect(_ r: Rect) -> Rect {
+        Rect.fromLTWH(r.left - _mcOriginX, r.top - _mcOriginY,
+                      r.width, r.height)
+    }
+
     private func _mcThumbRect(_ index: Int) -> Rect {
         let count = _mcStripCount
         let totalW = Double(count + 1) * MC.thumbW + Double(count) * MC.gap
-        let left = (screenWidth - totalW) / 2
+        let left = (_mcW - totalW) / 2
         return Rect.fromLTWH(left + Double(index) * (MC.thumbW + MC.gap),
                              MC.stripTop, MC.thumbW, MC.thumbH)
     }
@@ -61,16 +77,20 @@ extension _DesktopShellState {
 
     private func _mcExposeArea() -> Rect {
         let top = MC.stripTop + MC.thumbH + MC.labelH + 26
-        let bottom = screenHeight - DesktopTheme.kDockContainerHeight
+        let bottom = _mcH - DesktopTheme.kDockContainerHeight
             - DesktopTheme.kDockBottomMargin - 16
-        return Rect.fromLTRB(MC.exposeInsetX, top, screenWidth - MC.exposeInsetX, bottom)
+        return Rect.fromLTRB(MC.exposeInsetX, top, _mcW - MC.exposeInsetX, bottom)
     }
 
     /// Exposé target rects for the active space's windows: a centered grid,
     /// each window scaled to fit its cell (never upscaled), stable order by
     /// window id so cards don't shuffle between rebuilds.
     private func _mcExposeRects() -> [(win: WindowInfo, rect: Rect)] {
-        let ordered = windowManager.visibleWindows.sorted { $0.id < $1.id }
+        // Only THIS monitor's windows: the exposé is per-display (macOS).
+        let mcId = _missionControlOutputId
+        let ordered = windowManager.visibleWindows
+            .filter { (displayLayout?.owningOutput(ofRect: $0.rect).id ?? mcId) == mcId }
+            .sorted { $0.id < $1.id }
         guard !ordered.isEmpty else { return [] }
         let area = _mcExposeArea()
         let n = ordered.count
@@ -146,14 +166,14 @@ extension _DesktopShellState {
     private func _mcThumb(_ index: Int, _ context: any BuildContext) -> Widget {
         let wm = windowManager
         let space = wm.spaces[index]
-        let isActive = index == wm.activeSpaceIndex
+        let isActive = wm.spaces[index].id == wm.activeSpaceId(onOutput: _missionControlOutputId)
         let isDropTarget = _mcDragMoved && _mcDragPos.map { p in
             _mcThumbIndex(at: p) == index && space.isUser
         } ?? false
         let accent = shellTheme.accent
 
-        let sx = MC.thumbW / screenWidth
-        let sy = MC.thumbH / screenHeight
+        let sx = MC.thumbW / _mcW
+        let sy = MC.thumbH / _mcH
 
         var inner: [Widget] = []
         #if os(Linux)
@@ -170,9 +190,10 @@ extension _DesktopShellState {
             // A card mid-flight into this thumbnail renders as the flying
             // departing card, not as a settled mini yet.
             if win.id == _mcDeparting?.id { continue }
+            let lr = _mcLocalRect(win.rect)
             inner.append(Positioned(
-                left: win.rect.left * sx, top: win.rect.top * sy,
-                width: win.rect.width * sx, height: win.rect.height * sy,
+                left: lr.left * sx, top: lr.top * sy,
+                width: lr.width * sx, height: lr.height * sy,
                 child: ClipRRect(
                     borderRadius: BorderRadius.all(Radius(circular: 2)),
                     child: _mcWindowContent(win, context)
@@ -198,8 +219,10 @@ extension _DesktopShellState {
                 onTap: { [self] in
                     // Retarget the exposé instantly, then the animated close
                     // lands the new space's cards on their desktop rects.
-                    if index != windowManager.activeSpaceIndex {
-                        _switchToSpace(index, animated: false)
+                    if windowManager.spaces[index].id
+                        != windowManager.activeSpaceId(onOutput: _missionControlOutputId) {
+                        _switchToSpace(index, animated: false,
+                                       onOutput: _missionControlOutputId)
                     }
                     _closeMissionControlAnimated()
                 },
@@ -290,7 +313,7 @@ extension _DesktopShellState {
         for (win, target) in _mcExposeRects() {
             let winId = win.id
             let gridRect = _mcLerpRect(_mcRelayoutFrom[winId] ?? target, target, rv)
-            let r = _mcLerpRect(win.rect, gridRect, t)
+            let r = _mcLerpRect(_mcLocalRect(win.rect), gridRect, t)
             let dragging = _mcDragMoved && _mcDragWindowId == winId
             // Picker: a card is a plain tap target that starts recording
             // its window — no drags, no focus change. Windows without a
@@ -372,12 +395,13 @@ extension _DesktopShellState {
                         let departFrom = Rect.fromLTWH(
                             event.position.dx - w / 2, event.position.dy - h / 2, w, h)
                         let thumb = _mcThumbRect(idx)
-                        let sx = MC.thumbW / screenWidth
-                        let sy = MC.thumbH / screenHeight
+                        let sx = MC.thumbW / _mcW
+                        let sy = MC.thumbH / _mcH
+                        let lr = _mcLocalRect(win.rect)
                         let departTo = Rect.fromLTWH(
-                            thumb.left + win.rect.left * sx,
-                            thumb.top + win.rect.top * sy,
-                            win.rect.width * sx, win.rect.height * sy)
+                            thumb.left + lr.left * sx,
+                            thumb.top + lr.top * sy,
+                            lr.width * sx, lr.height * sy)
                         setState {
                             windowManager.moveWindow(winId, toSpaceIndex: idx)
                         }
@@ -410,7 +434,7 @@ extension _DesktopShellState {
         // space management has no business in a "choose a window" moment.
         if picking {
             layers.append(Positioned(
-                left: 0, top: MC.stripTop + 18, width: screenWidth, height: 70,
+                left: 0, top: MC.stripTop + 18, width: _mcW, height: 70,
                 child: IgnorePointer(child: Column(children: [
                     Text("Choose a window to record",
                          style: TextStyle(color: shellTheme.overlayText,
@@ -438,7 +462,7 @@ extension _DesktopShellState {
                 child: IgnorePointer(child: Center(child: Text(
                     _mcThumbLabel(i),
                     style: TextStyle(
-                        color: i == wm.activeSpaceIndex ? Color(0xFFFFFFFF) : shellTheme.overlayTextDim,
+                        color: wm.spaces[i].id == wm.activeSpaceId(onOutput: _missionControlOutputId) ? Color(0xFFFFFFFF) : shellTheme.overlayTextDim,
                         fontSize: 12, fontWeight: .w500))))
             ))
         }
@@ -511,6 +535,9 @@ extension _DesktopShellState {
             let c = AnimationController(duration: .milliseconds(260), vsync: self)
             c.addListener { [weak self] in
                 self?.setState {}
+                if let self, !self.mcIsOnHost {
+                    secondaryScreenForceRedraws[self._missionControlOutputId]?()
+                }
             }
             c.addStatusListener { [weak self] status in
                 guard let self, status == .completed else { return }
