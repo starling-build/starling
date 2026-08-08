@@ -217,6 +217,7 @@ class _SecondaryScreenHostState: State<StatefulWidget> {
         sig += "|ovl:\(workspaceIsOn(output: output) ? 1 : 0)"
             + ":\(launcherIsOn(output: output) ? 1 : 0)"
             + ":\(output.isPrimary ? 1 : 0)"
+            + ":\(_shellState?.contextMenuWidget(forOutput: output) != nil ? 1 : 0)"
         return sig
     }
 
@@ -305,13 +306,35 @@ struct SecondaryOutputScreen {
     }
 
     private func _wallpaper() -> Widget {
+        // The same wallpaper as the primary: the still image comes through
+        // the shared GL texture; an animated preset self-animates here too
+        // (its ticker drives this tree's own frames, independent of the
+        // rebuild gate). `.slate` is only the nothing-to-show fallback now.
+        let base: Widget
         #if os(Linux)
-        if sharedWallpaperTextureId >= 0 {
-            return TextureWidget(
+        if _shellState?.wallpaperPreset == .still, sharedWallpaperTextureId >= 0 {
+            base = TextureWidget(
                 textureId: Int(sharedWallpaperTextureId), filterQuality: .low)
+        } else {
+            base = DesktopBackground(preset: _shellState?.wallpaperPreset ?? .slate)
         }
+        #else
+        base = DesktopBackground(preset: _shellState?.wallpaperPreset ?? .slate)
         #endif
-        return DesktopBackground(preset: .slate)
+        // Right-click opens the desktop context menu HERE — the primary's
+        // listener lives in another tree and never sees this monitor's
+        // pointer. Same catch-all cursor reset as the primary's wallpaper.
+        let outputId = output.id
+        return Listener(
+            onPointerDown: { event in
+                if event.buttons & kSecondaryButton != 0 {
+                    _shellState?.openContextMenu(
+                        at: event.position, onOutput: outputId)
+                }
+            },
+            onPointerHover: { _ in DesktopCursor.setShape(.default) },
+            behavior: .opaque,
+            child: base)
     }
 
     /// Windows intersecting this output, in output-local coordinates.
@@ -382,6 +405,20 @@ struct SecondaryOutputScreen {
         // the moment that is not the host output, so exactly one tree draws it.
         if let dock = _shellState?.dockWidget(forOutput: output) {
             layers.append(dock)
+        }
+
+        // The desktop context menu, when it was opened on this output —
+        // barrier first, so a click elsewhere dismisses.
+        if let menu = _shellState?.contextMenuWidget(forOutput: output) {
+            layers.append(Positioned(
+                fill: (),
+                child: Listener(
+                    onPointerDown: { _ in _shellState?.dismissContextMenu() },
+                    behavior: .opaque,
+                    child: ColoredBox(
+                        color: Color(0x00000000),
+                        child: SizedBox(expand: ())))))
+            layers.append(menu)
         }
 
         // A dock icon's context menu belongs on the same screen as the icon,

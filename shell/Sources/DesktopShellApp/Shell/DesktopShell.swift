@@ -67,8 +67,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // Dock icon textures (loaded from PNG-converted RGBA files)
     var iconTextures: [String: Int64] = [:]  // appId → textureId
 
-    // Context menu state
+    // Context menu state. The position is LOCAL to the output it opened on —
+    // each tree renders its own copy (the dock/launcher pattern), so a
+    // right-click on the second monitor gets its menu there, not on the host.
     var contextMenuPosition: Offset?
+    var contextMenuOutputId: Int = 0
 
     // Status bar popup state (nil = no popup open)
     enum StatusBarPopup { case wifi, battery, notifications, controlCenter, clock, power }
@@ -2273,6 +2276,32 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         setState { _dockMenuAppId = nil }
     }
 
+    /// The desktop context menu positioned for `output`, or nil when it is
+    /// closed or belongs to another screen. Same sharing shape as the dock:
+    /// one state, drawn by exactly one tree.
+    func contextMenuWidget(forOutput output: DisplayOutput) -> Widget? {
+        guard let pos = contextMenuPosition,
+              contextMenuOutputId == output.id else { return nil }
+        return Positioned(
+            left: pos.dx, top: pos.dy,
+            child: SizedBox(width: 200, child: _buildContextMenu()))
+    }
+
+    /// Open the desktop context menu at `position` (output-local) on `output`
+    /// — the secondary wallpaper's right-click.
+    func openContextMenu(at position: Offset, onOutput outputId: Int) {
+        setState {
+            contextMenuPosition = position
+            contextMenuOutputId = outputId
+            activeStatusBarPopup = nil
+        }
+    }
+
+    func dismissContextMenu() {
+        guard contextMenuPosition != nil else { return }
+        setState { contextMenuPosition = nil }
+    }
+
     /// The open dock-icon context menu, laid out in `output`'s coordinates, or
     /// nil when nothing is open or the dock is elsewhere. Anchored above its
     /// icon and clamped to the output it is on — not to `screenWidth`, which is
@@ -2848,6 +2877,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     if event.buttons & kSecondaryButton != 0 {
                         setState {
                             contextMenuPosition = event.position
+                            contextMenuOutputId = displayLayout?.host.id ?? 0
                             activeStatusBarPopup = nil
                         }
                     }
@@ -3366,8 +3396,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             )
         }
 
-        // Context menu (shown at right-click position)
-        if let pos = contextMenuPosition {
+        // Context menu (shown at right-click position) — only when it was
+        // opened on THIS output; a secondary draws its own copy.
+        if let pos = contextMenuPosition,
+           contextMenuOutputId == (displayLayout?.host.id ?? 0) {
             _appendDismissBarrier(&children) { [self] in
                 self.contextMenuPosition = nil
             }

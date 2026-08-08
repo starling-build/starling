@@ -283,9 +283,13 @@ would be the only honest version and nobody wants it.
    than a signature can summarise — but the bypass is edge-blind on the way
    out, so `ovl:` is in the signature too. Without it a closed launcher stayed
    painted on the secondary, which is exactly how it was found.
-2. **The rest of the secondary's desktop chrome**: right-click context menu on
-   the wallpaper, and the animated wallpaper preset rather than the `.slate`
-   fallback. Small, independent, removes the "it's just a picture" feel.
+2. ~~**The rest of the secondary's desktop chrome**~~ **Done** — the desktop
+   context menu opens on the monitor it was right-clicked on (one state +
+   `contextMenuOutputId`, drawn by exactly one tree — the dock/launcher
+   sharing shape), and the secondary renders the real wallpaper preset:
+   still through the shared texture, animated presets self-animating in its
+   own tree (their tickers drive that view's frames past the rebuild gate).
+   `.slate` is only the nothing-to-show fallback now.
 3. ~~**`activeSpaceByOutput`**~~ **Done** — as `activeSpaceIdByOutput`
    (by space ID, not index: indexes shift on insert/remove). The compat
    anchor is the HOST's `activeSpaceIndex`, and an ABSENT map entry means
