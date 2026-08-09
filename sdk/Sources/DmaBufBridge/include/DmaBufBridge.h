@@ -167,7 +167,9 @@ struct DmaBufConfigure {
 #define DMABUF_WINSTREAM_TITLE  5
 
 /* Window flag bits (FRAME / PLACE). */
-#define DMABUF_WINFLAG_FOCUSED  0x1
+#define DMABUF_WINFLAG_FOCUSED    0x1
+/* Content covers the whole rect; no title bar exists to draw or hit. */
+#define DMABUF_WINFLAG_FULLSCREEN 0x2
 
 struct DmaBufWindowStreamMsg {
     int32_t kind;         // DMABUF_WINSTREAM_*

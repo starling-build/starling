@@ -211,6 +211,7 @@ public final class GpuRendererState: @unchecked Sendable {
         public let x: Double, y: Double, width: Double, height: Double
         public let z: Int
         public let focused: Bool
+        public let fullscreen: Bool
         public let title: String
     }
 
@@ -294,6 +295,7 @@ public final class GpuRendererState: @unchecked Sendable {
                     width: Double(msg.w), height: Double(msg.h),
                     z: Int(msg.z),
                     focused: msg.flags & UInt32(DMABUF_WINFLAG_FOCUSED) != 0,
+                    fullscreen: msg.flags & UInt32(DMABUF_WINFLAG_FULLSCREEN) != 0,
                     title: title)
                 let topologyChanged = existing == nil
                     || existing!.x != state.x || existing!.y != state.y
@@ -301,6 +303,7 @@ public final class GpuRendererState: @unchecked Sendable {
                     || existing!.height != state.height
                     || existing!.z != state.z
                     || existing!.focused != state.focused
+                    || existing!.fullscreen != state.fullscreen
                 _winLock.lock()
                 _externalWindows[msg.window] = state
                 _winLock.unlock()
@@ -318,6 +321,7 @@ public final class GpuRendererState: @unchecked Sendable {
                     width: Double(msg.w), height: Double(msg.h),
                     z: Int(msg.z),
                     focused: msg.flags & UInt32(DMABUF_WINFLAG_FOCUSED) != 0,
+                    fullscreen: msg.flags & UInt32(DMABUF_WINFLAG_FULLSCREEN) != 0,
                     title: existing.title)
                 _winLock.unlock()
                 _notifyWindowsChanged()
@@ -349,6 +353,7 @@ public final class GpuRendererState: @unchecked Sendable {
                             x: existing.x, y: existing.y,
                             width: existing.width, height: existing.height,
                             z: existing.z, focused: existing.focused,
+                            fullscreen: existing.fullscreen,
                             title: title)
                         _winLock.unlock()
                         _notifyWindowsChanged()

@@ -50,6 +50,7 @@ final class ExternalScreenShell: @unchecked Sendable {
         var x: Float, y: Float, w: Float, h: Float   // CONTENT rect
         var z: Int32
         var focused: Bool
+        var fullscreen: Bool  // content covers the rect; no bar to hit
         var title: String
     }
 
@@ -62,8 +63,15 @@ final class ExternalScreenShell: @unchecked Sendable {
     private enum HitZone {
         case content    // inside the app's buffer — forward input
         case bar        // the drawn title bar — drag to move
-        case close      // the red traffic light
+        case close      // red
+        case minimize   // yellow
+        case maximize   // green
     }
+
+    /// Double-click detection on the drawn title bar (input thread,
+    /// winLock): time and window of the last bar down.
+    private var barLastDownTime: Double = 0
+    private var barLastDownWinId: String = ""
 
     /// Input targeting for relayed windows (engine input thread, winLock):
     /// the app whose window the current drag started in (pointer capture,
@@ -92,16 +100,23 @@ final class ExternalScreenShell: @unchecked Sendable {
             guard inX else { continue }
             let barTop = Double(win.y) - DesktopTheme.kTitleBarHeight
             let inContent = ly >= Double(win.y) && ly < Double(win.y + win.h)
-            let inBar = ly >= barTop && ly < Double(win.y)
+            let inBar = !win.fullscreen && ly >= barTop && ly < Double(win.y)
             guard inContent || inBar else { continue }
             if best == nil || win.z > best!.win.z {
                 var zone: HitZone = inContent ? .content : .bar
                 if inBar {
-                    let cx = Double(win.x) + 20.0
+                    // Circle centers 20/40/60 from the window's left edge
+                    // (WindowTitleBar's 14px inset, 12px lights, 8px gaps).
                     let cy = barTop + DesktopTheme.kTitleBarHeight / 2
-                    let dx = lx - cx, dy = ly - cy
-                    if dx * dx + dy * dy <= 81 {  // 9px grab radius
-                        zone = .close
+                    let lights: [(Double, HitZone)] = [
+                        (20, .close), (40, .minimize), (60, .maximize),
+                    ]
+                    for (off, lightZone) in lights {
+                        let dx = lx - (Double(win.x) + off), dy = ly - cy
+                        if dx * dx + dy * dy <= 81 {  // 9px grab radius
+                            zone = lightZone
+                            break
+                        }
                     }
                 }
                 best = (texId, win, zone)
@@ -403,8 +418,24 @@ final class ExternalScreenShell: @unchecked Sendable {
             // included; a desktop click clears it.
             keyTargetTexId = target?.texId ?? chrome?.texId ?? -1
             if let c = chrome, c.zone == .bar {
-                barDragWinId = c.win.id
-                barDragLast = (lx, ly)
+                // Second bar down on the same window within the threshold is
+                // a double-click: maximize-toggle, no drag (the widget's
+                // kDoubleTapThreshold and behavior).
+                var ts = timespec()
+                clock_gettime(CLOCK_MONOTONIC, &ts)
+                let now = Double(ts.tv_sec) + Double(ts.tv_nsec) / 1e9
+                if now - barLastDownTime < 0.4, barLastDownWinId == c.win.id {
+                    barLastDownTime = 0
+                    let winId = c.win.id
+                    DispatchQueue.main.async {
+                        _shellState?.requestWindowTitleBarDoubleTap(winId)
+                    }
+                } else {
+                    barLastDownTime = now
+                    barLastDownWinId = c.win.id
+                    barDragWinId = c.win.id
+                    barDragLast = (lx, ly)
+                }
             }
         }
         if phase == 1, buttons == 0 {  // last button up releases capture
@@ -423,10 +454,17 @@ final class ExternalScreenShell: @unchecked Sendable {
                 }
             }
         }
-        if phase == 2, let c = chrome, c.zone == .close {
+        if phase == 2, let c = chrome,
+           c.zone == .close || c.zone == .minimize || c.zone == .maximize {
             let winId = c.win.id
+            let zone = c.zone
             DispatchQueue.main.async {
-                _shellState?.requestWindowClose(winId)
+                switch zone {
+                case .close: _shellState?.requestWindowClose(winId)
+                case .minimize: _shellState?.requestWindowMinimize(winId)
+                case .maximize: _shellState?.requestWindowMaximize(winId)
+                default: break
+                }
             }
             return
         }
@@ -473,7 +511,7 @@ final class ExternalScreenShell: @unchecked Sendable {
     func syncWindows(
         _ entries: [(id: String, texId: Int64, x: Double, y: Double,
                      w: Double, h: Double, z: Int, title: String,
-                     focused: Bool)]) {
+                     focused: Bool, fullscreen: Bool)]) {
         winLock.lock()
         guard winStreamFd >= 0 else {
             winLock.unlock()
@@ -494,11 +532,12 @@ final class ExternalScreenShell: @unchecked Sendable {
             let win = RelayedWindow(
                 key: key, id: e.id, x: Float(e.x), y: Float(e.y),
                 w: Float(e.w), h: Float(e.h), z: Int32(e.z),
-                focused: e.focused, title: e.title)
+                focused: e.focused, fullscreen: e.fullscreen, title: e.title)
             if let old = relayed[e.texId] {
                 if old.x != win.x || old.y != win.y || old.w != win.w
                     || old.h != win.h || old.z != win.z
-                    || old.focused != win.focused {
+                    || old.focused != win.focused
+                    || old.fullscreen != win.fullscreen {
                     relayed[e.texId] = win
                     sendLocked(makeMsg(kind: DMABUF_WINSTREAM_PLACE, win), fd: -1)
                 }
@@ -566,7 +605,8 @@ final class ExternalScreenShell: @unchecked Sendable {
         msg.w = win.w
         msg.h = win.h
         msg.z = win.z
-        msg.flags = win.focused ? UInt32(DMABUF_WINFLAG_FOCUSED) : 0
+        msg.flags = (win.focused ? UInt32(DMABUF_WINFLAG_FOCUSED) : 0)
+            | (win.fullscreen ? UInt32(DMABUF_WINFLAG_FULLSCREEN) : 0)
         msg.modifier = Self.modLinear
         return msg
     }

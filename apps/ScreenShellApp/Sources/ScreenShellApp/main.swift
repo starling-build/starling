@@ -22,6 +22,14 @@ class _ScreenShellRootState: State<StatefulWidget> {
     private var _taps = 0
     private var _typed = ""
     private var _alive = true
+    /// Debug pointer echo (STARLING_SWAPCHAIN_DEBUG=1): the hardware cursor
+    /// rides a plane the recording never sees, so harness runs aiming at
+    /// on-screen targets are blind — this draws the last hover position the
+    /// desktop received. Windows and chrome swallow their own events, so
+    /// park the pointer on the desktop to read it.
+    private var _ptr: (Double, Double)? = nil
+    private let _echoOn = ProcessInfo.processInfo
+        .environment["STARLING_SWAPCHAIN_DEBUG"] == "1"
     private let _focus = FocusNode(debugLabel: "ScreenShell")
     private let _fmt: DateFormatter = {
         let f = DateFormatter()
@@ -132,14 +140,41 @@ class _ScreenShellRootState: State<StatefulWidget> {
         // 12px lights from x=14). Interaction lives shell-side; this is
         // paint only.
         let windows = gpuDmaBufRendererState?.externalWindows ?? []
+        let echoDesk: Widget = _echoOn
+            ? Listener(
+                onPointerMove: { [weak self] event in
+                    self?.setState {
+                        self?._ptr = (event.position.dx, event.position.dy)
+                    }
+                },
+                onPointerHover: { [weak self] event in
+                    self?.setState {
+                        self?._ptr = (event.position.dx, event.position.dy)
+                    }
+                },
+                behavior: .translucent,
+                child: desk)
+            : desk
         return Stack(fit: .expand) {
-            Positioned(fill: (), child: desk)
-            for win in windows {
+            Positioned(fill: (), child: echoDesk)
+            if _echoOn, let p = _ptr {
                 Positioned(
-                    key: ValueKey("ext-bar-\(win.window)"),
-                    left: win.x, top: win.y - Self.kBarH,
-                    width: win.width, height: Self.kBarH,
-                    child: _titleBar(win))
+                    left: p.0 - 6, top: p.1 - 6,
+                    width: 12, height: 12,
+                    child: IgnorePointer(child: DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: Color(0xC0FF3B30),
+                            borderRadius: BorderRadius.circular(6)),
+                        child: SizedBox(width: 12, height: 12))))
+            }
+            for win in windows {
+                if !win.fullscreen {
+                    Positioned(
+                        key: ValueKey("ext-bar-\(win.window)"),
+                        left: win.x, top: win.y - Self.kBarH,
+                        width: win.width, height: Self.kBarH,
+                        child: _titleBar(win))
+                }
                 Positioned(
                     key: ValueKey("ext-\(win.window)"),
                     left: win.x, top: win.y,
