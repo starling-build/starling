@@ -609,6 +609,9 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                             child: MacosSlider(
                                 value: min(s.dpiValue, maxDpi),
                                 onChanged: { [self] (val: Double) in
+                                    bloc.add(.previewDpi(val))
+                                },
+                                onChangeEnd: { [self] (val: Double) in
                                     bloc.add(.changeDpi(val))
                                 },
                                 min: 1.0, max: maxDpi,

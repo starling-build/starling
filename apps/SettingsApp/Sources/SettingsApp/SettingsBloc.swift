@@ -142,6 +142,8 @@ enum SettingsEvent {
     /// Display list pushed by the shell (no echo back).
     case displaysApplied([GpuDmaBufRenderer.DisplayInfo])
     #endif
+    /// Move the thumb without touching the desktop — see `_applyDpi`.
+    case previewDpi(Double)
 
     // Personalization
     case toggleDarkMode(Bool)
@@ -235,6 +237,8 @@ final class SettingsBloc: @unchecked Sendable {
         case .displaysApplied(let displays):
             state.displays = displays
         #endif
+        case .previewDpi(let value):
+            state.dpiValue = value
         case .toggleDarkMode(let value):
             state.darkMode = value
             _applyTheme(value)
@@ -422,6 +426,17 @@ final class SettingsBloc: @unchecked Sendable {
         }
     }
 
+    /// Apply a scale to the whole desktop. Called ONCE per gesture, from the
+    /// slider's `onChangeEnd` — never from `onChanged`.
+    ///
+    /// A DPI change rescales every surface on screen, this window among them,
+    /// so applying one mid-drag moves the slider out from under the finger:
+    /// the next drag update measures against the new geometry, picks a value
+    /// far from the intended one, and rescales again. Dragging toward 1.75
+    /// went 1.75 → 1.25 → 2.0 → 1.25 → 2.0 and settled on 1.25 — the value
+    /// the feedback loop stopped on, not the one aimed at. That thrash is
+    /// what made fractional scales look unreachable; the scales themselves
+    /// always rendered fine. `previewDpi` moves the thumb during the drag.
     private func _applyDpi(_ dpi: Double) {
         #if os(Linux)
         GpuDmaBufRenderer.current?.sendDpiChange(dpi)
