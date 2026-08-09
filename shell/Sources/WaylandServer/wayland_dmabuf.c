@@ -324,6 +324,29 @@ void wayland_server_set_dmabuf_formats(struct WaylandServer* server,
     }
 }
 
+/* Is (fourcc, modifier) one the compositor advertised as importable? The
+ * import path asks BEFORE handing a buffer to eglCreateImageKHR: a modifier
+ * we never advertised (a foreign GPU's tiled layout — a PRIME-offloaded
+ * client that allocated on the wrong device, or a hostile client) can make
+ * the AMD driver allocate to interpret the layout and only then fail, which
+ * under GPU-memory pressure aborts the shell with an amdgpu CS rejection
+ * (-12). LINEAR and the implicit modifier are always importable — they are
+ * the universal fallbacks and the child-app path's only layouts. */
+int wayland_server_dmabuf_modifier_importable(uint32_t fourcc,
+                                              uint64_t modifier) {
+    if (modifier == DRM_FORMAT_MOD_LINEAR ||
+        modifier == DRM_FORMAT_MOD_INVALID) {
+        return 1;
+    }
+    ensure_default_formats();
+    for (int i = 0; i < adv_count; i++) {
+        if (adv_formats[i] == fourcc && adv_modifiers[i] == modifier) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void send_feedback(struct wl_resource* feedback);
 
 /* The import path found out the hard way that this modifier doesn't
