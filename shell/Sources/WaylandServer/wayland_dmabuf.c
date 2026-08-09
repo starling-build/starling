@@ -283,6 +283,13 @@ static dev_t feedback_main_device = 0;
 struct FeedbackResource {
     struct wl_resource* resource;
     struct wl_list link;
+    /* Per-surface feedback (get_surface_feedback) records its surface, so
+     * external-output steering can narrow just that surface's tranche.
+     * 0 = default feedback (get_default_feedback), never narrowed. The id is
+     * resolved through the server at send time — the surface may die while
+     * the feedback object lives. */
+    struct WaylandServer* server;
+    uint32_t surface_id;
 };
 static struct wl_list feedback_resources;
 
@@ -446,6 +453,16 @@ static const struct zwp_linux_dmabuf_feedback_v1_interface feedback_impl = {
     .destroy = feedback_destroy,
 };
 
+/* A feedback object narrows to LINEAR-only when its surface sits on an
+ * externally sourced output (the external GPU samples tiled layouts as
+ * black). Default feedback objects (surface_id 0) never narrow. */
+static int feedback_linear_only(struct FeedbackResource* fr) {
+    if (!fr || !fr->server || fr->surface_id == 0) return 0;
+    struct WaylandSurface* surface =
+        wayland_server_find_surface(fr->server, fr->surface_id);
+    return surface && surface->external_linear_only;
+}
+
 static void send_feedback(struct wl_resource* feedback) {
     ensure_feedback_table();
     if (feedback_table_fd < 0 || feedback_main_device == 0) {
@@ -463,16 +480,30 @@ static void send_feedback(struct wl_resource* feedback) {
     *dev = feedback_main_device;
     zwp_linux_dmabuf_feedback_v1_send_main_device(feedback, &device);
 
-    /* Single tranche: every table entry, targeting the main device. */
+    /* Single tranche targeting the main device: every table entry — or only
+     * the LINEAR ones for a surface on an external output. The table itself
+     * is shared; steering picks indices. */
     zwp_linux_dmabuf_feedback_v1_send_tranche_target_device(feedback, &device);
     zwp_linux_dmabuf_feedback_v1_send_tranche_flags(feedback, 0);
 
+    const int linear_only =
+        feedback_linear_only(wl_resource_get_user_data(feedback));
     struct wl_array indices;
     wl_array_init(&indices);
     const size_t nentries = feedback_table_size / sizeof(struct FeedbackTableEntry);
     for (uint16_t i = 0; i < nentries; i++) {
+        if (linear_only && adv_modifiers[i] != DRM_FORMAT_MOD_LINEAR)
+            continue;
         uint16_t* idx = wl_array_add(&indices, sizeof(uint16_t));
         *idx = i;
+    }
+    /* A table with no LINEAR rows would leave the client formatless and
+     * kill its EGL — fall back to the full set (black beats broken). */
+    if (linear_only && indices.size == 0) {
+        for (uint16_t i = 0; i < nentries; i++) {
+            uint16_t* idx = wl_array_add(&indices, sizeof(uint16_t));
+            *idx = i;
+        }
     }
     zwp_linux_dmabuf_feedback_v1_send_tranche_formats(feedback, &indices);
     zwp_linux_dmabuf_feedback_v1_send_tranche_done(feedback);
@@ -480,6 +511,29 @@ static void send_feedback(struct wl_resource* feedback) {
 
     wl_array_release(&indices);
     wl_array_release(&device);
+}
+
+/* Loop-thread only (via the deferred queue, WL_SURFACE_EXTERNAL). */
+void wayland_dmabuf_surface_external_on_loop_thread(struct WaylandServer* server,
+                                                    struct WaylandSurface* surface,
+                                                    int external) {
+    (void)server;
+    if (surface->external_linear_only == (external ? 1 : 0)) return;
+    surface->external_linear_only = external ? 1 : 0;
+
+    ensure_feedback_list();
+    int resent = 0;
+    struct FeedbackResource* fr;
+    wl_list_for_each(fr, &feedback_resources, link) {
+        if (fr->surface_id == surface->id) {
+            send_feedback(fr->resource);
+            resent++;
+        }
+    }
+    fprintf(stderr,
+            "[wayland_dmabuf] surface %u external=%d — re-sent %d feedback "
+            "object(s)\n",
+            surface->id, surface->external_linear_only, resent);
 }
 
 static void feedback_resource_destroy(struct wl_resource* resource) {
@@ -492,7 +546,8 @@ static void feedback_resource_destroy(struct wl_resource* resource) {
 
 static void dmabuf_get_feedback_common(struct wl_client* client,
                                        struct wl_resource* resource,
-                                       uint32_t id) {
+                                       uint32_t id,
+                                       struct WaylandSurface* surface) {
     struct wl_resource* feedback = wl_resource_create(client,
         &zwp_linux_dmabuf_feedback_v1_interface,
         wl_resource_get_version(resource), id);
@@ -500,11 +555,14 @@ static void dmabuf_get_feedback_common(struct wl_client* client,
         wl_resource_post_no_memory(resource);
         return;
     }
-    /* Track it so a runtime modifier demotion can re-send feedback. */
+    /* Track it so a runtime modifier demotion (or an external-output flag
+     * flip on its surface) can re-send feedback. */
     ensure_feedback_list();
     struct FeedbackResource* fr = calloc(1, sizeof(*fr));
     if (fr) {
         fr->resource = feedback;
+        fr->server = wl_resource_get_user_data(resource);
+        fr->surface_id = surface ? surface->id : 0;
         wl_list_insert(&feedback_resources, &fr->link);
     }
     wl_resource_set_implementation(feedback, &feedback_impl, fr,
@@ -515,15 +573,15 @@ static void dmabuf_get_feedback_common(struct wl_client* client,
 static void dmabuf_get_default_feedback(struct wl_client* client,
                                         struct wl_resource* resource,
                                         uint32_t id) {
-    dmabuf_get_feedback_common(client, resource, id);
+    dmabuf_get_feedback_common(client, resource, id, NULL);
 }
 
 static void dmabuf_get_surface_feedback(struct wl_client* client,
                                         struct wl_resource* resource,
                                         uint32_t id,
                                         struct wl_resource* surface) {
-    (void)surface;  /* same feedback for every surface */
-    dmabuf_get_feedback_common(client, resource, id);
+    dmabuf_get_feedback_common(client, resource, id,
+                               wl_resource_get_user_data(surface));
 }
 
 static const struct zwp_linux_dmabuf_v1_interface dmabuf_impl = {

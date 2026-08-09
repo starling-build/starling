@@ -416,6 +416,14 @@ static void deferred_input_send_one(WaylandServer* server,
     struct WaylandSurface* surface = wayland_server_find_surface(server, ev->surface_id);
     if (!surface) return;
 
+    /* Also not input: external-output flag flip queued from the shell's UI
+     * thread. Needs the surface, so it sits after the lookup. */
+    if (ev->type == WL_SURFACE_EXTERNAL) {
+        wayland_dmabuf_surface_external_on_loop_thread(server, surface,
+                                                       ev->state != 0);
+        return;
+    }
+
     struct wl_client* target = wl_resource_get_client(surface->resource);
     struct WaylandInputResource* ir;
 
@@ -516,7 +524,8 @@ static void deferred_input_send_one(WaylandServer* server,
     }
 
     case WL_DMABUF_DEMOTE:
-        break;  /* handled before the surface lookup above */
+    case WL_SURFACE_EXTERNAL:
+        break;  /* handled before the switch above */
     }
 }
 
@@ -726,6 +735,16 @@ void wayland_server_pointer_axis(WaylandServer* server,
     struct WaylandPointerEvent ev = {
         .type = WL_PTR_AXIS, .surface_id = surface_id,
         .time_ms = time_ms, .x = axis_x, .y = axis_y
+    };
+    deferred_input_enqueue(server, &ev);
+}
+
+void wayland_server_set_surface_external(WaylandServer* server,
+                                         uint32_t surface_id,
+                                         int external) {
+    struct WaylandPointerEvent ev = {
+        .type = WL_SURFACE_EXTERNAL, .surface_id = surface_id,
+        .state = external ? 1u : 0u
     };
     deferred_input_enqueue(server, &ev);
 }

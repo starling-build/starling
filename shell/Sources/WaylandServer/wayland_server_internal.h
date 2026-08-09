@@ -41,6 +41,12 @@ struct WaylandSurface {
     struct wl_list link;                  // in WaylandServer.surfaces
     struct WaylandServer* server;
 
+    // The surface's window sits (at least partly) on an externally sourced
+    // output (nv-view.md Stage B): its v4 dmabuf feedback advertises only
+    // LINEAR modifiers, so the client re-allocates buffers both GPUs can
+    // sample. Toggled from the shell via wayland_server_set_surface_external.
+    int external_linear_only;
+
     // Popup state
     uint32_t parent_surface_id;           // parent surface id (for popups)
     int32_t popup_x, popup_y;            // position relative to parent
@@ -371,6 +377,10 @@ enum WaylandInputEventType {
      * WARN_IF_OFF_LOOP_THREAD note below). fourcc in `button`,
      * modifier in `modifier`. */
     WL_DMABUF_DEMOTE = 10,
+    /* Not input: per-surface external-output flag flip marshalled from the
+     * shell's UI thread. on/off in `state`; re-sends that surface's dmabuf
+     * feedback (linear-only when external). */
+    WL_SURFACE_EXTERNAL = 11,
 };
 
 struct WaylandPointerEvent {
@@ -403,6 +413,12 @@ void wayland_dmabuf_init(struct WaylandServer* server);
  * feedback to every live feedback object so clients re-allocate. */
 void wayland_dmabuf_demote_on_loop_thread(struct WaylandServer* server,
                                           uint32_t fourcc, uint64_t modifier);
+/* Loop-thread only (reached via the deferred queue, WL_SURFACE_EXTERNAL):
+ * flip a surface's external flag and re-send its v4 feedback objects so the
+ * client re-allocates with modifiers the external GPU can import. */
+void wayland_dmabuf_surface_external_on_loop_thread(struct WaylandServer* server,
+                                                    struct WaylandSurface* surface,
+                                                    int external);
 void wayland_xdg_shell_init(struct WaylandServer* server);
 void wayland_seat_init(struct WaylandServer* server);
 void wayland_output_init(struct WaylandServer* server);

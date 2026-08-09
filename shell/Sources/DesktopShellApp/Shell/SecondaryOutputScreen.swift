@@ -171,6 +171,11 @@ func syncExternalScreenWindows() {
                         fullscreen: win.isFullscreen))
     }
     ext.syncWindows(entries)
+    // Steer Wayland clients overlapping this output to LINEAR buffers via
+    // per-surface dmabuf feedback (tiled layouts import black on the external
+    // GPU). Straddling windows count: they must render on both outputs, and
+    // linear samples fine on both.
+    waylandIntegration?.setExternalSurfaces(Set(entries.compactMap { $0.surfaceId }))
 }
 
 /// Keep Wayland clients' wl_surface enter/leave in step with where their

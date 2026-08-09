@@ -1569,6 +1569,24 @@ class WaylandIntegration {
         enqueueCommand(.setSurfaceThrottle(surfaceId: surfaceId, intervalMs: intervalMs))
     }
 
+    /// Surfaces whose windows sit on the externally sourced output (nv-view.md
+    /// Stage B). While marked, a surface's v4 dmabuf feedback narrows to
+    /// LINEAR modifiers and is re-sent, steering the client to re-allocate
+    /// buffers the external GPU can import — tiled layouts sample as black
+    /// there. Takes the full current set and diffs; UI thread (the
+    /// syncExternalScreenWindows cadence), marshalled loop-side by the C API.
+    private var externalSurfaces = Set<UInt32>()
+    func setExternalSurfaces(_ ids: Set<UInt32>) {
+        guard let server = server, ids != externalSurfaces else { return }
+        for id in ids.subtracting(externalSurfaces) {
+            wayland_server_set_surface_external(server, id, 1)
+        }
+        for id in externalSurfaces.subtracting(ids) {
+            wayland_server_set_surface_external(server, id, 0)
+        }
+        externalSurfaces = ids
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // MARK: - Agent Input (Murmuration)
     //

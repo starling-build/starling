@@ -305,6 +305,15 @@ void wayland_server_set_dmabuf_formats(WaylandServer* server,
                                        const uint64_t* modifiers,
                                        int count);
 
+/* Mark a surface as sitting on an externally sourced output (nv-view.md
+ * Stage B) or clear the mark. While set, the surface's v4 dmabuf feedback
+ * advertises only LINEAR modifiers and is re-sent, steering the client to
+ * re-allocate buffers the external GPU can import (tiled layouts sample as
+ * black there). Any thread — marshalled onto the loop thread. */
+void wayland_server_set_surface_external(WaylandServer* server,
+                                         uint32_t surface_id,
+                                         int external);
+
 /* Demote a modifier the EGL import path REJECTED at runtime (zink's
  * eglQueryDmaBufModifiersEXT over-reports AMD tiled support — the query
  * lies, the import is ground truth). Drops every advertised pair with
