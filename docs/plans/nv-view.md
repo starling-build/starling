@@ -7,7 +7,7 @@ presented through the AMD card. Explored 2026-08-08; nothing here is built
 yet except the encoder ([nvenc], commit 54b4c64) and the app-level prior art
 ([swapchain], commit 7c47ded).
 
-## Status 2026-08-08 (end of day)
+## Status 2026-08-08 (end of day, second session)
 
 Stages A and B are BUILT and live-verified: external output (1cf6d3f),
 per-screen shell child (fa85fbe), pointer+keyboard input with output-level
@@ -18,12 +18,24 @@ and windows on the NV screen — composited (2e720f1), interactive
 GL_TEXTURE_EXTERNAL_OES + explicit LINEAR (TEXTURE_2D binds black on
 zink-on-NVIDIA — and fact 4 already ruled it out for AMD buffers); both
 GPU domains composite, so no app affinity is required. The Wayland
-compositor tap landed (5ba40d4) — client buffers stream into the child
-with real modifiers — but the Wayland window's visuals/input on the eDP
-are NOT yet eyeballed. SHM/X11 windows need a pixel path; tiled clients
-need dmabuf-feedback. Stage C is untouched. Operational notes (output
-index trap, capture-via-recording, pointer echo, input churn wedge) live
-in the assistant memory file driving-the-screen-shell.md.
+compositor tap (5ba40d4) is now EYEBALLED both ways: dma-buf clients
+render on the eDP (simple-dmabuf-egl, simple-egl) and their input works
+end to end — motion/button/keys arrive with correct surface-local
+coordinates (traced via WAYLAND_DEBUG). Found and fixed on the way:
+wl_pointer.frame was sent to clients that bound wl_seat < v5, aborting
+them on first pointer contact (71bbe28). Tiled-client steering landed as
+per-surface dmabuf feedback (172844e): surfaces overlapping the external
+output re-send their v4 feedback narrowed to LINEAR rows — latent on
+this box, where the global table is LINEAR-only anyway (tiled is opt-in
+behind STARLING_DMABUF_TILED). wl_shm windows relay through a memfd
+pixel path (deee654, verified with weston-simple-shm animating on the
+eDP): the shell's already-swizzled RGBA stages into a per-texture memfd,
+SHMFRAME carries it once, DAMAGE signals re-upload in place. Remaining
+in Stage B: X11 windows (never enter syncExternalScreenWindows; their
+shadow pixels have no relay tap). Stage C is untouched. Operational
+notes (output index trap, capture-via-recording, pointer echo, input
+churn wedge) live in the assistant memory file
+driving-the-screen-shell.md.
 
 ## Hard facts (probed on the dev box, RTX 3050 / driver 595.84)
 
