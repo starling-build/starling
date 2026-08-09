@@ -87,6 +87,40 @@ render/allocation devices; (c) accept AMD rendering for browsers — the
 workload benefiting from the dGPU (WebGL/video) is also the workload the
 Xwayland box hurts least.
 
+## Measured (2026-08-08, dev box: RTX 3050 6GB + Radeon 680M)
+
+glmark2-es2-wayland through the live compositor, discrete via the verified
+env (`MESA_LOADER_DRIVER_OVERRIDE=zink DRI_PRIME=1`). GPU busy% sampled
+from `nvidia-smi` and `/sys/class/drm/card2/device/gpu_busy_percent`.
+
+| workload | AMD (integrated) | NVIDIA (offload) | verdict |
+|---|---|---|---|
+| off-screen `build` (pure GPU) | score 7500 | score 8220 | dGPU ~10% faster |
+| on-screen `terrain` (heavy) | 110 fps / 9.1ms | **127 fps / 7.9ms** | offload WINS |
+| on-screen `build` (light) | **1585 fps** | 323 fps | offload LOSES 5× |
+
+The `terrain` run is the case offload is for. Rendering it integrated pins
+the AMD GPU at **100%** (0% NVIDIA); offloaded, NVIDIA sits at **79%** and
+AMD drops to **13%** — that 13% is the mandatory presentation blit
+(importing the NVIDIA linear buffer and compositing it; nv-view fact 3).
+So a heavy app both runs ~15% faster AND vacates the GPU that drives the
+desktop, for a cheap ~13% iGPU presentation cost.
+
+The `build` run is the counter-case, and the whole argument for per-app
+opt-in over a global switch: a light workload at 1500+ fps is dominated by
+per-frame overhead, and the cross-GPU copy (NVIDIA render → dma-buf → AMD
+present) dwarfs the tiny render, so offload is a 5× LOSS. Only apps heavy
+enough to saturate the iGPU and amortize the copy should carry
+`Gpu=discrete` — which is exactly why blender (heavy 3D) has it and nothing
+else does.
+
+Power: the 3050 idles at ~6.3W / 0 MiB once a workload ends (it does not
+return to D3cold while the desktop holds it awake only if an offloaded app
+is running — a marked app that has exited leaves it free to sleep). On a
+laptop, `Gpu=discrete` is a per-app battery cost paid only while that app
+runs, not a permanent one — strictly better than the parked per-screen
+shell, which kept the dGPU awake for the whole session.
+
 ## Traps to carry over
 
 - Test third-party behaviour unprivileged (`LIBSEAT_BACKEND=seatd
