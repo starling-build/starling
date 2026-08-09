@@ -49,6 +49,44 @@ architecture is a much bigger change and stays parked on branch
    GPU. Power: the 3050 wakes only while a marked app runs — a better
    battery story than a permanent NV screen.
 
+## Chrome (and Chromium apps): why Wayland offload is blocked (2026-08-08)
+
+Investigated to the bottom; three distinct failure modes, all reproduced:
+
+1. **Env-side device selection cannot reach Chromium.** Ozone/wayland takes
+   its render node from dmabuf-feedback `main_device` and hands ANGLE a
+   device directly (surfaceless); Mesa's window-surface path — where
+   DRI_PRIME and the client-side PRIME blit live — never runs. Chrome with
+   the full working env (zink + DRI_PRIME) stays on the AMD device
+   (chrome://gpu: zink RADV), sandbox on or off.
+2. **Serving Chromium a discrete `main_device` (compositor-side steering,
+   tried and reverted) founders on allocation.** Chromium then allocates
+   its shared buffers itself via gbm on the NVIDIA node — and NVIDIA's gbm
+   refuses LINEAR render targets (nv-view fact 1), so the explicit-LINEAR
+   attempt fails and the implicit fallback yields NVIDIA-tiled
+   (0x300000000606014), which the AMD compositor cannot import. Chromium
+   has no cross-device blit; render device must equal allocation device.
+   (This run also exposed a shell robustness bug: the failed import
+   cascaded into an amdgpu CS rejection and a shell abort — filed.)
+3. **ANGLE-on-Vulkan pinned to the NVIDIA ICD** initializes but dies in
+   shared-image SkSurface creation — same device split, one layer down.
+   A GLX detour is also closed: any GL env override makes Chromium's GPU
+   probe touch GLX against the in-tree X server, which dies on an xcb
+   assert (hence the discrete env empties DISPLAY).
+
+What DOES work: **Mesa-EGL window-surface clients** (weston-simple-egl
+verified live; Blender is the same stack). With `MESA_LOADER_DRIVER_
+OVERRIDE=zink DRI_PRIME=1` the context lands on the NVIDIA Vulkan device
+and Mesa's kopper blits to compositor-compatible LINEAR internally — the
+compositor needs no changes and receives modifier=0x0.
+
+Chrome avenues if it becomes a requirement: (a) run it under rootful
+Xwayland (the WeChat machinery) with DRI3 PRIME, at the cost of
+single-window integration; (b) revisit when Chromium/ANGLE learn split
+render/allocation devices; (c) accept AMD rendering for browsers — the
+workload benefiting from the dGPU (WebGL/video) is also the workload the
+Xwayland box hurts least.
+
 ## Traps to carry over
 
 - Test third-party behaviour unprivileged (`LIBSEAT_BACKEND=seatd

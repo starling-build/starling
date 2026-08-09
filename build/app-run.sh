@@ -345,18 +345,38 @@ DBUS_ADDR="unix:path=$XDG_DIR/bus"
 
 # PRIME render offload: the shell sets STARLING_APP_GPU=discrete for apps
 # whose registry record carries Gpu=discrete (and only when a discrete GPU
-# exists). Translate it into the standard vendor envs here — mesa reads
-# DRI_PRIME, the NVIDIA proprietary stack reads the __NV/__GLX pair and
-# ignores DRI_PRIME. Same value-or-noop shape as PULSE_ENV, because the
-# root branch execs through `env -i` where exported vars do not survive.
+# exists). Three things must reach the app's FINAL env (same value-or-noop
+# shape as PULSE_ENV, because the root branch execs through `env -i` where
+# exported vars do not survive):
+#
+# - STARLING_APP_GPU itself: the compositor reads the CONNECTING client's
+#   /proc/<pid>/environ and serves it dmabuf feedback naming the discrete
+#   node as main_device. That is what steers Chromium — ozone takes its
+#   render node from feedback and ignores every env-side device knob.
+# - MESA_LOADER_DRIVER_OVERRIDE=zink + DRI_PRIME=1: Mesa's GL for the
+#   discrete node. On the NVIDIA proprietary driver Mesa has no native
+#   GL driver, and without the zink override the loader silently falls
+#   back to llvmpipe (verified with eglinfo); DRI_PRIME=1 makes zink pick
+#   the other GPU's Vulkan device for env-driven clients.
+#
+# GPU_ENV4 empties DISPLAY for discrete apps (it is assigned AFTER the
+# branches' own DISPLAY=:1, and env's later assignment wins): any GL env
+# override makes Chromium's GPU probe take a GLX path against the in-tree
+# X server, which dies on an xcb assert ("Extra reply data still left in
+# queue") and takes the whole browser with it — with or without
+# __GLX_VENDOR_LIBRARY_NAME=nvidia, which is why that var is not here.
+# Discrete-marked apps are Wayland-native by doctrine; an empty DISPLAY
+# just makes XOpenDisplay fail cleanly and the probe skip.
 if [ "${STARLING_APP_GPU:-}" = "discrete" ]; then
-    GPU_ENV1="DRI_PRIME=1"
-    GPU_ENV2="__NV_PRIME_RENDER_OFFLOAD=1"
-    GPU_ENV3="__GLX_VENDOR_LIBRARY_NAME=nvidia"
+    GPU_ENV1="STARLING_APP_GPU=discrete"
+    GPU_ENV2="MESA_LOADER_DRIVER_OVERRIDE=zink"
+    GPU_ENV3="DRI_PRIME=1"
+    GPU_ENV4="DISPLAY="
 else
     GPU_ENV1="GPU_UNSET1="
     GPU_ENV2="GPU_UNSET2="
     GPU_ENV3="GPU_UNSET3="
+    GPU_ENV4="GPU_UNSET4="
 fi
 
 if ! is_starling_os; then
@@ -394,6 +414,7 @@ if ! is_starling_os; then
             WAYLAND_DISPLAY="$SOCKET" \
             DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" \
             DISPLAY="${DISPLAY:-:1}" \
+            "$GPU_ENV4" \
             STARLING_APP_RUN="$SELF" \
             "$@"
     else
@@ -436,6 +457,7 @@ if ! is_starling_os; then
             WAYLAND_DISPLAY="$SOCKET" \
             DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" \
             DISPLAY="${DISPLAY:-:1}" \
+            "$GPU_ENV4" \
             STARLING_APP_RUN="$SELF" \
             "$@"
     fi
@@ -483,9 +505,9 @@ fi
 # branches, as --setenv prepended to "$@" (options-before-command, the same
 # shape as the --ro-bind loops above).
 if [ "${STARLING_APP_GPU:-}" = "discrete" ]; then
-    set -- --setenv DRI_PRIME 1 \
-           --setenv __NV_PRIME_RENDER_OFFLOAD 1 \
-           --setenv __GLX_VENDOR_LIBRARY_NAME nvidia \
+    set -- --setenv STARLING_APP_GPU discrete \
+           --setenv MESA_LOADER_DRIVER_OVERRIDE zink \
+           --setenv DRI_PRIME 1 \
            "$@"
 fi
 
