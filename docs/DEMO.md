@@ -160,81 +160,108 @@ After you record:
 
 ---
 
-## Demo A — landing page (workspace 1)
+## The shape of the demo
 
-1. **Enter workspace mode**: `key ctrl+down` (or desktop context menu).
-2. **Driver**: click the middle column's `+`, type `Terminal`, Enter.
-3. In the terminal:
+Start on the **normal desktop** — wallpaper, dock, menu bar — so there is a
+before. Then `Ctrl+Down` into workspace mode and build two workspaces:
+
+1. **Web** — Claude Code writes a landing page, opens Chrome and VS Code, then
+   *edits the page while both are open* and both update on their own.
+2. **Blender** — Claude Code models a bird, opens Blender, then restyles the
+   model and Blender reloads it.
+
+The payoff in both is the same: the driver column and the tab column are on
+screen **at the same time**, so the agent's diff and the result are in one
+frame. Nothing is cut away to a different window.
+
+### The three live-update mechanisms are NOT the same
+
+This is the part to get right, because only one is automatic for free:
+
+| Target | How it updates | Automatic? |
+| --- | --- | --- |
+| **Chrome** | a dev-only poll-and-reload script inside the page | **yes**, ~500ms |
+| **VS Code** | reloads an unmodified buffer when the file changes | **yes** |
+| **Blender** | `File > Revert` — it does not watch the .blend | **no**, 3 clicks |
+
+Ask for the reload script explicitly when the page is written; retrofitting it
+means an edit that itself needs a reload to take effect.
+
+---
+
+## Demo A — the Web workspace
+
+1. **Start on the desktop.** Let it sit for a beat before `Ctrl+Down`.
+2. **Name the workspace**: right-click the rail row > Rename > `Web` > Enter.
+   The first keystroke replaces the old name.
+3. **Driver**: the middle column's `+` > `Terminal`. Then:
 
        mkdir -p ~/landing && cd ~/landing
        export PATH=$HOME/.local/bin:$PATH
        claude --dangerously-skip-permissions
 
-   **Trap.** A shell opened before `~/.local/bin` existed will not have it on
-   PATH — hence the explicit `export`, or use the absolute path.
+4. **One prompt builds and opens everything.** Note the two specific asks — the
+   live-reload script, and *background* launches so the agent's session stays
+   free (a foreground `app-run` blocks it until you close the app):
 
-   **Trap.** `--dangerously-skip-permissions` is what lets it run the server and
-   launch a browser unattended. Only reasonable on a disposable box. Answer the
-   trust prompt (Enter) and the bypass warning (`down`, Enter) one at a time.
-
-4. **One prompt does all three steps** — the point is that the agent works, not
-   that you do:
-
-   > Do three things. 1) Write index.html here: a self-contained dark-theme
-   > landing page for Starling, a macOS-style Linux desktop environment written
-   > in Swift on the Flutter engine. Hero with the name and a one-line pitch,
-   > three feature cards (Wayland compositor, first-party apps, workspace mode),
-   > and a download call to action. Inline CSS, no external assets or fonts.
-   > 2) Serve this directory on port 8321 in the background with
-   > `python3 -m http.server`, and curl it to confirm it returns the page.
-   > 3) Open it for review by running: `app-run chrome http://localhost:8321/`
-
-   **Trap — port 8080 is taken** on this box by qBittorrent's WebUI. The server
-   fails to bind and `curl` cheerfully returns qBittorrent's login page. Use
-   8321.
-
-5. **Chrome appears as a tab.** This is the load-bearing bit: workspace mode
-   *refuses* to launch non-first-party apps from its own launcher, but a Wayland
-   client **spawned by the driver** is captured automatically.
-
-6. Optional — open the file in an editor from the same session:
-
-   > Also open the page in VS Code by running:
+   > Build a landing page for Starling, a macOS-style Linux desktop environment
+   > written in Swift on the Flutter engine. 1) Write index.html here: dark
+   > theme, hero with the name and a one-line pitch, three feature cards
+   > (Wayland compositor, first-party apps, workspace mode), download call to
+   > action, inline CSS, no external assets. At the end of the body add a small
+   > dev-only live-reload script that polls this page with fetch HEAD every
+   > 500ms and reloads when the Last-Modified header changes. 2) Serve this
+   > directory on port 8321 in the background with `python3 -m http.server` and
+   > curl it to confirm. 3) Launch both of these in the background so your
+   > session stays free: `app-run chrome http://localhost:8321/` and
    > `app-run vscode /home/starling/landing/index.html`
 
-   VS Code's first run shows a Copilot sign-in modal and a theme wizard. Dismiss
-   both before recording; they do not come back.
+   Both arrive as tabs. Chrome is the one to leave selected.
 
-## Demo B — Blender model (workspace 2)
+5. **The live edit.** Click into the driver — Chrome stays rendered in the tab
+   column beside it — and ask for something unmistakable:
 
-1. **`+ New`** in the rail. The new workspace starts empty; the first keeps its
-   windows and its driver.
-2. **Driver**: Terminal again, then `~/model`, then `claude`.
-3. Prompt:
+   > Change the accent colour throughout the page from blue to warm amber, and
+   > change the hero headline gradient to match. Keep everything else the same.
+
+   By the time the diff finishes printing, Chrome has already reloaded itself.
+   Claude says so too: *"the server picked up the new mtime, so the open Chrome
+   tab reloaded itself."*
+
+6. **Then flip to the VS Code tab** — the buffer already shows the new
+   `--accent`, with the colour swatch in the gutter. Nothing was reloaded by
+   hand.
+
+## Demo B — the Blender workspace
+
+1. **`+ New`** in the rail, rename it `Blender`. Note that "Remove Workspace"
+   goes from disabled to enabled once a second workspace exists.
+2. **Driver**: Terminal > `~/model` > `claude`, same as before.
+3. Build it:
 
    > Create a 3D model for Blender. Write model.py using bpy that builds a
-   > low-poly bird from primitives - body, head, beak, tail and two wings -
-   > gives each a coloured material, and adds a camera plus a three-point light
-   > setup aimed at it. Then run it headless with
-   > `blender --background --python model.py` to save starling.blend in this
-   > directory, and confirm the file exists and its size.
+   > low-poly bird from primitives - body, head, beak, tail and two wings - each
+   > with a coloured material, plus a camera and a three-point light setup aimed
+   > at it. Run it headless with `blender --background --python model.py` to save
+   > starling.blend here. Then launch this in the background so your session
+   > stays free: `app-run blender /home/starling/model/starling.blend`
 
-   It writes the script, runs Blender headless, then test-renders with EEVEE to
-   check the result actually reads as a bird — the first pass put the camera
-   behind it with the beak hidden, and it repositioned the camera and lights and
-   trimmed the tail on its own. That self-correction is the good part of the
-   demo; give it time rather than cutting away.
+   **Budget 4-6 minutes.** It renders preview stills and iterates — on one run
+   it found the wings were sitting inside the body's half-width and therefore
+   invisible, and moved them outboard. That self-correction is the best part of
+   the demo, so let it run rather than cutting away; but do not expect it to be
+   quick, and say so if you are narrating live.
 
-4. Open it:
+4. **The live edit**, with Blender already open:
 
-   > Now open it for review by running:
-   > `app-run blender /home/starling/model/starling.blend`
+   > Make the body bright crimson red and the wings gold, and make the wings
+   > noticeably larger. Re-run model.py headless to regenerate starling.blend in
+   > place. Do not relaunch Blender - it is already open.
 
-5. Blender's first run shows a Quick Setup dialog, then a splash. Dismiss both,
-   then **press `home`** in the viewport to frame the model — it is small and
-   off-centre from the default view, and looks like an empty scene until you do.
-
----
+5. **Reload it by hand**: `File > Revert`, then confirm "Revert to the Saved
+   File" in the dialog. The new model appears. Blender has no file watcher, so
+   there is no way around this — plan the narration for it ("Blender does not
+   watch the file, so we reload it") rather than being surprised on camera.
 
 ## Reset between runs
 
