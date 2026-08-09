@@ -290,6 +290,9 @@ class LinuxProcessAppManager {
                 storeRelayBuffer(texId, fd: launch.dmaFd, w: launch.width,
                                  h: launch.height, stride: launch.stride,
                                  fourcc: launch.fourcc)
+                relayBufLock.lock()
+                relaySocks[texId] = entry.sock
+                relayBufLock.unlock()
 
                 // The child signaled its first frame before the texture was
                 // registered — deliver it now or the window never appears.
@@ -952,6 +955,7 @@ class LinuxProcessAppManager {
         if let old = relayBuffers.removeValue(forKey: textureId) {
             Glibc.close(old.fd)
         }
+        relaySocks.removeValue(forKey: textureId)
         relayBufLock.unlock()
     }
 
@@ -964,6 +968,42 @@ class LinuxProcessAppManager {
     private let relayBufLock = NSLock()
     private var relayBuffers:
         [Int64: (fd: Int32, w: Int32, h: Int32, stride: Int32, fourcc: UInt32)] = [:]
+    /// texId → the app's socket, for input relayed from the external
+    /// screen's engine input thread — `apps` itself is platform-thread
+    /// state, but ChildSocket.write is internally locked.
+    private var relaySocks: [Int64: ChildSocket] = [:]
+
+    /// Any thread. Pointer input for a window composited on the external
+    /// screen; x/y are content-local LOGICAL, same as the window widget's
+    /// forwarding, phase is FlutterPointerPhase numbering.
+    func sendPointerEventRelay(texId: Int64, phase: Int32, x: Double,
+                               y: Double, buttons: Int64) {
+        relayBufLock.lock()
+        let sock = relaySocks[texId]
+        relayBufLock.unlock()
+        guard let sock else { return }
+        var event = DmaBufInputEvent(x: x, y: y, buttons: buttons,
+                                     type: Int32(DMABUF_INPUT_POINTER),
+                                     phase: phase)
+        sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
+
+    /// Any thread. Wheel scroll for a relayed window (same Float32 packing
+    /// as sendScrollEvent).
+    func sendScrollEventRelay(texId: Int64, x: Double, y: Double,
+                              dx: Double, dy: Double) {
+        relayBufLock.lock()
+        let sock = relaySocks[texId]
+        relayBufLock.unlock()
+        guard let sock else { return }
+        let packed = UInt64(Float(dx).bitPattern)
+            | (UInt64(Float(dy).bitPattern) << 32)
+        var event = DmaBufInputEvent(x: x, y: y,
+                                     buttons: Int64(bitPattern: packed),
+                                     type: Int32(DMABUF_INPUT_SCROLL),
+                                     phase: 0)
+        sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
 
     /// A fresh dup of the app's newest buffer, or nil. Any thread; the
     /// caller owns (and closes) the returned fd.

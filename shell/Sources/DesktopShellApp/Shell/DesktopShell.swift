@@ -2077,6 +2077,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 case .up: phase = 1
                 case .repeat: phase = 2
                 }
+                // The last click on that screen decides: inside a relayed
+                // window, keys go to that app (same encoding as the
+                // focused-window branch below); on the desktop, to the
+                // screen shell itself.
+                if let texId = ext.keyboardTargetTexId,
+                   let mgr = linuxProcessAppManager {
+                    mgr.sendKeyEvent(
+                        textureId: texId,
+                        physical: keyData.physical,
+                        logical: keyData.logical,
+                        character: scalar,
+                        phase: phase
+                    )
+                    return true
+                }
                 ext.sendKey(physical: keyData.physical,
                             logical: keyData.logical,
                             character: scalar, phase: phase)

@@ -48,6 +48,36 @@ final class ExternalScreenShell: @unchecked Sendable {
         var z: Int32
     }
 
+    /// Input targeting for relayed windows (engine input thread, winLock):
+    /// the app whose window the current drag started in (pointer capture,
+    /// window-widget semantics), and the one that took the last click —
+    /// routeKey sends keys there while this screen holds keyboard focus.
+    private var pointerTargetTexId: Int64 = -1
+    private var keyTargetTexId: Int64 = -1
+
+    /// The app that should receive keys typed at this screen, or nil for
+    /// the screen shell's own desktop. UI thread (routeKey).
+    var keyboardTargetTexId: Int64? {
+        winLock.lock()
+        defer { winLock.unlock() }
+        return keyTargetTexId >= 0 ? keyTargetTexId : nil
+    }
+
+    /// Topmost relayed window containing the point, or nil. winLock held.
+    private func hitTestLocked(_ lx: Double, _ ly: Double)
+        -> (texId: Int64, win: RelayedWindow)? {
+        var best: (texId: Int64, win: RelayedWindow)? = nil
+        for (texId, win) in relayed {
+            guard lx >= Double(win.x), lx < Double(win.x + win.w),
+                  ly >= Double(win.y), ly < Double(win.y + win.h)
+            else { continue }
+            if best == nil || win.z > best!.win.z {
+                best = (texId, win)
+            }
+        }
+        return best
+    }
+
     /// DRM_FORMAT_MOD_LINEAR — every relayable buffer is linear by protocol
     /// (single-bo apps allocate GBM_BO_USE_LINEAR, swapchain front buffers
     /// detile to modifier 0), and the child's zink EGL wants the explicit
@@ -286,6 +316,42 @@ final class ExternalScreenShell: @unchecked Sendable {
            phase == 1 || phase == 2 {
             log("fwd phase=\(phase) phys=(\(x),\(y)) /\(scale) -> (\(lx),\(ly))")
         }
+
+        // Windows composited on this screen get their input back — the
+        // shell stays the window manager; the child only draws them. A
+        // drag belongs to the window it started in (pointer capture, the
+        // window widget's semantics), and the last click decides where
+        // routeKey sends keys while this screen holds the keyboard.
+        winLock.lock()
+        var target: (texId: Int64, win: RelayedWindow)? = nil
+        if pointerTargetTexId >= 0 {
+            if let win = relayed[pointerTargetTexId] {
+                target = (pointerTargetTexId, win)
+            }
+        } else {
+            target = hitTestLocked(lx, ly)
+        }
+        if phase == 2 {  // kDown claims capture and the key target
+            pointerTargetTexId = target?.texId ?? -1
+            keyTargetTexId = target?.texId ?? -1
+        }
+        if phase == 1, buttons == 0 {  // last button up releases capture
+            pointerTargetTexId = -1
+        }
+        winLock.unlock()
+        if let (texId, win) = target {
+            let wx = lx - Double(win.x)
+            let wy = ly - Double(win.y)
+            if scrollDx != 0 || scrollDy != 0 {
+                linuxProcessAppManager?.sendScrollEventRelay(
+                    texId: texId, x: wx, y: wy, dx: scrollDx, dy: scrollDy)
+            } else {
+                linuxProcessAppManager?.sendPointerEventRelay(
+                    texId: texId, phase: phase, x: wx, y: wy, buttons: buttons)
+            }
+            return
+        }
+
         var event: DmaBufInputEvent
         if scrollDx != 0 || scrollDy != 0 {
             let bits = UInt64(Float(scrollDx).bitPattern)

@@ -143,10 +143,14 @@ func syncExternalScreenWindows() {
         guard r.right > out.logicalLeft, r.left < out.logicalRight,
               r.bottom > out.logicalTop, r.top < out.logicalBottom
         else { continue }
+        // The CONTENT area: the app's buffer covers the window rect minus
+        // the title bar (which the child does not draw yet), and the app
+        // expects content-local input coordinates — one geometry for both.
         entries.append((id: win.id, texId: texId,
                         x: r.left - out.logicalLeft,
-                        y: r.top - out.logicalTop,
-                        w: r.width, h: r.height, z: z))
+                        y: r.top + DesktopTheme.kTitleBarHeight - out.logicalTop,
+                        w: r.width,
+                        h: r.height - DesktopTheme.kTitleBarHeight, z: z))
     }
     ext.syncWindows(entries)
 }
