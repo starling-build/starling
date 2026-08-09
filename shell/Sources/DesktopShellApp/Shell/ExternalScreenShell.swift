@@ -60,13 +60,20 @@ final class ExternalScreenShell: @unchecked Sendable {
     private var barDragWinId: String? = nil
     private var barDragLast: (x: Double, y: Double) = (0, 0)
 
-    private enum HitZone {
+    private enum HitZone: Equatable {
         case content    // inside the app's buffer — forward input
         case bar        // the drawn title bar — drag to move
         case close      // red
         case minimize   // yellow
         case maximize   // green
+        case resize(ResizeEdge)  // 6px inside the window bounds
     }
+
+    /// Resize drag in flight (input thread, winLock) — the widget's handle
+    /// lifecycle: targetRect snapshot at start, per-event deltas through
+    /// resizeWindow, final client configure on release.
+    private var resizeDragWinId: String? = nil
+    private var resizeDragEdge: ResizeEdge = .bottom
 
     /// Double-click detection on the drawn title bar (input thread,
     /// winLock): time and window of the last bar down.
@@ -104,6 +111,35 @@ final class ExternalScreenShell: @unchecked Sendable {
             guard inContent || inBar else { continue }
             if best == nil || win.z > best!.win.z {
                 var zone: HitZone = inContent ? .content : .bar
+                // Resize bands first — the widget's handles layer over the
+                // chrome too. 6px inside the full bounds, 16px corners.
+                if !win.fullscreen {
+                    let top = barTop, bottom = Double(win.y + win.h)
+                    let left = Double(win.x), right = Double(win.x + win.w)
+                    let nearL = lx < left + 6, nearR = lx >= right - 6
+                    let nearT = ly < top + 6, nearB = ly >= bottom - 6
+                    let cornL = lx < left + 16, cornR = lx >= right - 16
+                    let cornT = ly < top + 16, cornB = ly >= bottom - 16
+                    if (nearT || nearB) && (cornL || cornR) {
+                        zone = .resize(nearT ? (cornL ? .topLeft : .topRight)
+                                             : (cornL ? .bottomLeft : .bottomRight))
+                    } else if (nearL || nearR) && (cornT || cornB) {
+                        zone = .resize(cornT ? (nearL ? .topLeft : .topRight)
+                                             : (nearL ? .bottomLeft : .bottomRight))
+                    } else if nearT {
+                        zone = .resize(.top)
+                    } else if nearB {
+                        zone = .resize(.bottom)
+                    } else if nearL {
+                        zone = .resize(.left)
+                    } else if nearR {
+                        zone = .resize(.right)
+                    }
+                }
+                if case .resize = zone {
+                    best = (texId, win, zone)
+                    continue
+                }
                 if inBar {
                     // Circle centers 20/40/60 from the window's left edge
                     // (WindowTitleBar's 14px inset, 12px lights, 8px gaps).
@@ -399,6 +435,39 @@ final class ExternalScreenShell: @unchecked Sendable {
             }
             return
         }
+        if let dragId = resizeDragWinId {
+            let edge = resizeDragEdge
+            if phase == 1, buttons == 0 {
+                resizeDragWinId = nil
+                winLock.unlock()
+                // Release: reconfigure the client from the rect the drag
+                // landed on — the widget handles' onResizeDragEnd contract.
+                DispatchQueue.main.async {
+                    guard let wm = _shellState?.windowManager,
+                          let win = wm.windows.first(where: { $0.id == dragId }),
+                          let target = win.targetRect else { return }
+                    let contentW = target.width
+                    let contentH = target.height - DesktopTheme.kTitleBarHeight
+                    if contentW > 0 && contentH > 0 {
+                        win.onResizeComplete?(contentW, contentH)
+                    }
+                }
+                return
+            }
+            let dx = lx - barDragLast.x
+            let dy = ly - barDragLast.y
+            barDragLast = (lx, ly)
+            winLock.unlock()
+            if dx != 0 || dy != 0 {
+                DispatchQueue.main.async {
+                    _shellState?.setState {
+                        _shellState?.windowManager.resizeWindow(
+                            dragId, edge: edge, delta: Offset(dx, dy))
+                    }
+                }
+            }
+            return
+        }
         var target: (texId: Int64, win: RelayedWindow)? = nil
         var chrome: (texId: Int64, win: RelayedWindow, zone: HitZone)? = nil
         if pointerTargetTexId >= 0 {
@@ -417,6 +486,20 @@ final class ExternalScreenShell: @unchecked Sendable {
             // The key target follows any click on the window, chrome
             // included; a desktop click clears it.
             keyTargetTexId = target?.texId ?? chrome?.texId ?? -1
+            if let c = chrome, case .resize(let edge) = c.zone {
+                resizeDragWinId = c.win.id
+                resizeDragEdge = edge
+                barDragLast = (lx, ly)
+                let winId = c.win.id
+                DispatchQueue.main.async {
+                    // Snapshot for delta accumulation, the handles'
+                    // onResizeDragStart contract.
+                    guard let wm = _shellState?.windowManager,
+                          let win = wm.windows.first(where: { $0.id == winId })
+                    else { return }
+                    win.targetRect = win.rect
+                }
+            }
             if let c = chrome, c.zone == .bar {
                 // Second bar down on the same window within the threshold is
                 // a double-click: maximize-toggle, no drag (the widget's
