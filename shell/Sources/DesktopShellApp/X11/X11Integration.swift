@@ -24,12 +24,20 @@ class X11Integration {
     // Surface tracking
     private var windowTextures: [UInt32: Int64] = [:]   // x11_window_id → textureId
     private var windowIds: [UInt32: String] = [:]        // x11_window_id → shell windowId
+    private var popupIds: [UInt32: String] = [:]         // x11_window_id → shell popupId
     private var lastPointerWindowId: UInt32 = 0          // track enter/leave
 
     // Callbacks set by DesktopShell
     var onNewWindow: ((_ windowId: UInt32, _ textureId: Int, _ title: String,
                         _ x: Int, _ y: Int, _ width: Int, _ height: Int) -> String)?
     var onWindowDestroyed: ((_ windowId: String) -> Void)?
+    /// An override-redirect toplevel (menu / dropdown / tooltip) was mapped.
+    /// x/y are root-relative physical px; the shell anchors it to parentWindowId.
+    var onNewPopup: ((_ windowId: UInt32, _ textureId: Int, _ parentWindowId: UInt32,
+                       _ x: Int, _ y: Int, _ width: Int, _ height: Int) -> String)?
+    var onPopupDestroyed: ((_ popupId: String) -> Void)?
+    /// A popup's presented buffer changed size (menus map small, then grow).
+    var onPopupBufferResized: ((_ popupId: String, _ physWidth: Int, _ physHeight: Int) -> Void)?
     var onTitleChanged: ((_ windowId: String, _ title: String) -> Void)?
     var onBufferPresented: ((_ windowId: String) -> Void)?
     /// Called when a client's buffer size changes (physical width/height).
@@ -79,6 +87,17 @@ class X11Integration {
             let this = Unmanaged<X11Integration>.fromOpaque(userdata!).takeUnretainedValue()
             this.handleWindowMapped(windowId, x: Int(x), y: Int(y),
                                      width: Int(w), height: Int(h))
+        }
+
+        config.on_popup_mapped = { (userdata, windowId, parentId, x, y, w, h) in
+            let this = Unmanaged<X11Integration>.fromOpaque(userdata!).takeUnretainedValue()
+            this.handlePopupMapped(windowId, parentId: parentId,
+                                    x: Int(x), y: Int(y), width: Int(w), height: Int(h))
+        }
+
+        config.on_popup_unmapped = { (userdata, windowId) in
+            let this = Unmanaged<X11Integration>.fromOpaque(userdata!).takeUnretainedValue()
+            this.handlePopupUnmapped(windowId)
         }
 
         config.on_window_destroyed = { (userdata, windowId) in
@@ -258,6 +277,36 @@ class X11Integration {
         }
     }
 
+    /// Override-redirect toplevel: a menu, dropdown or tooltip. It gets a
+    /// texture like any other window (the present paths key off windowTextures,
+    /// so PutImage/DRI3 content lands without any extra plumbing) but the shell
+    /// draws it undecorated, anchored to its parent toplevel.
+    private func handlePopupMapped(_ windowId: UInt32, parentId: UInt32,
+                                    x: Int, y: Int, width: Int, height: Int) {
+        guard windowTextures[windowId] == nil else { return }
+        let textureId = textureRegistry.registerTexture(engine: engine)
+        windowTextures[windowId] = textureId
+        if let popupId = onNewPopup?(windowId, Int(textureId), parentId,
+                                      x, y, width, height) {
+            popupIds[windowId] = popupId
+        }
+    }
+
+    private func handlePopupUnmapped(_ windowId: UInt32) {
+        if let popupId = popupIds.removeValue(forKey: windowId) {
+            onPopupDestroyed?(popupId)
+        }
+        if let textureId = windowTextures.removeValue(forKey: windowId) {
+            textureRegistry.unregisterTexture(engine: engine, id: textureId)
+        }
+    }
+
+    /// Shell window id for an X11 window — lets the popup renderer resolve the
+    /// toplevel a menu is anchored to, the same way it does for Wayland.
+    func shellWindowId(forX11Window windowId: UInt32) -> String? {
+        return windowIds[windowId]
+    }
+
     private func handleWindowDestroyed(_ windowId: UInt32) {
         windowPids.removeValue(forKey: windowId)
         // print("[X11Integration] Window destroyed: 0x\(String(windowId, radix: 16))")
@@ -296,6 +345,8 @@ class X11Integration {
             lastImportedSize[textureId] = (width, height)
             if let shellWindowId = windowIds[windowId] {
                 onWindowBufferResized?(shellWindowId, width, height)
+            } else if let popupId = popupIds[windowId] {
+                onPopupBufferResized?(popupId, width, height)
             }
         }
         if let shellWindowId = windowIds[windowId] {
@@ -352,6 +403,12 @@ class X11Integration {
                 onWindowBufferResized?(shellWindowId, width, height)
             }
             onBufferPresented?(shellWindowId)
+        } else if let popupId = popupIds[windowId],
+                  lastSize == nil || lastSize?.width != width || lastSize?.height != height {
+            // Menus are routinely mapped at a placeholder size and resized
+            // before their first frame — Zoom's maps 496x32 and then presents
+            // 496x400. Without this the popup is drawn as a sliver of itself.
+            onPopupBufferResized?(popupId, width, height)
         }
     }
 

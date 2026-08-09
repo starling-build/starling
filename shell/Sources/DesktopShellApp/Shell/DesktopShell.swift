@@ -2818,6 +2818,46 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             }
         }
 
+        // Menus, dropdowns and tooltips from X11 clients. They reuse the popup
+        // model the Wayland path already has, so the id carries an "x11popup-"
+        // prefix and the renderer keys off that for input routing and Y flip.
+        // X11 gives root-absolute physical coords; the renderer adds the parent
+        // window's position, so store them parent-relative and logical.
+        x11.onNewPopup = { [weak self] (windowId: UInt32, textureId: Int, parentWindowId: UInt32,
+                                         x: Int, y: Int, width: Int, height: Int) -> String in
+            guard let self = self else { return "" }
+            let popupId = "x11popup-\(windowId)"
+            let dpi = currentShellDpi
+            // Already parent-relative (the server differenced it), so this is
+            // just a device-px → logical conversion; the renderer adds the
+            // parent window's position and title bar.
+            self.setState {
+                self.popups[popupId] = (textureId: textureId,
+                                         parentSurfaceId: parentWindowId,
+                                         x: Double(x) / dpi, y: Double(y) / dpi,
+                                         width: Double(width) / dpi,
+                                         height: Double(height) / dpi,
+                                         mapped: true)
+            }
+            return popupId
+        }
+
+        x11.onPopupDestroyed = { [weak self] (popupId: String) in
+            guard let self = self else { return }
+            self.setState {
+                self.popups.removeValue(forKey: popupId)
+            }
+        }
+
+        x11.onPopupBufferResized = { [weak self] (popupId: String, physWidth: Int, physHeight: Int) in
+            guard let self = self, var p = self.popups[popupId] else { return }
+            let dpi = currentShellDpi
+            let w = Double(physWidth) / dpi, h = Double(physHeight) / dpi
+            if p.width == w && p.height == h { return }
+            p.width = w; p.height = h
+            self.setState { self.popups[popupId] = p }
+        }
+
         x11.onWindowBufferResized = { [weak self] (windowId: String, physWidth: Int, physHeight: Int) in
             guard let self = self else { return }
             if let win = self.windowManager.windows.first(where: { $0.id == windowId }) {
@@ -3159,7 +3199,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             func depth(_ p: (key: String, value: (textureId: Int, parentSurfaceId: UInt32, x: Double, y: Double, width: Double, height: Double, mapped: Bool))) -> Int {
                 var d = 0
                 var sid = p.value.parentSurfaceId
-                while let parent = popups["popup-\(sid)"] {
+                while let parent = popups["popup-\(sid)"] ?? popups["x11popup-\(sid)"] {
                     d += 1
                     sid = parent.parentSurfaceId
                 }
@@ -3180,9 +3220,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             var isFirstParent = true
             var popupSpaceId: Int? = nil
             while true {
-                // Check if parent is another popup
-                let parentPopupId = "popup-\(parentSurfaceId)"
-                if let parentPopup = popups[parentPopupId] {
+                // Check if parent is another popup (a submenu's menu)
+                if let parentPopup = popups["popup-\(parentSurfaceId)"]
+                                  ?? popups["x11popup-\(parentSurfaceId)"] {
                     if isFirstParent {
                         // Compute the immediate parent's absolute position (recursively)
                         // by noting we'll add its x to absX next.
@@ -3194,9 +3234,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     parentSurfaceId = parentPopup.parentSurfaceId
                     continue
                 }
-                // Parent is a toplevel window — add window position
-                if let wl = waylandIntegration,
-                   let parentWinId = wl.windowId(forSurfaceId: parentSurfaceId),
+                // Parent is a toplevel window — add window position. The id is a
+                // Wayland surface id or, for an X11 menu, an X11 window id.
+                var parentWinIdOpt: String? = waylandIntegration?.windowId(forSurfaceId: parentSurfaceId)
+                if parentWinIdOpt == nil {
+                    parentWinIdOpt = x11Integration?.shellWindowId(forX11Window: parentSurfaceId)
+                }
+                if let parentWinId = parentWinIdOpt,
                    let parentWin = windowManager.windows.first(where: { $0.id == parentWinId }) {
                     absX += parentWin.rect.left
                     absY += parentWin.rect.top + DesktopTheme.kTitleBarHeight
@@ -3235,8 +3279,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             }
             if absY < 0 { absY = 0 }
 
+            let isX11Popup = popupId.hasPrefix("x11popup-")
             let texture: Widget = TextureWidget(textureId: popup.textureId, filterQuality: .none)
-            // Flip Y for Wayland surfaces
+            // Both need the flip: Wayland surfaces arrive bottom-up, and an X11
+            // menu is a DMA-BUF from Vulkan/GL exactly like its toplevels, which
+            // pass flipTextureY: true. A solid-colour test popup looks identical
+            // either way — only real content (mirrored menu labels) shows it.
             let flipped: Widget = Transform(
                 transform: Matrix4.diagonal3Values(1.0, -1.0, 1.0),
                 alignment: Alignment.center,
@@ -3245,7 +3293,40 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
             // Wrap in Listener to forward pointer events to popup surface.
             let popupChild: Widget
-            if let wl = waylandIntegration,
+            if isX11Popup,
+               let x11 = x11Integration,
+               let x11WinId = UInt32(popupId.dropFirst("x11popup-".count)) {
+                // Menus are only useful if you can click them. Same physical-px
+                // conversion the X11 toplevel path does.
+                let toPhys = currentShellDpi
+                popupChild = Listener(
+                    onPointerDown: { event in
+                        x11.sendPointerEvent(windowId: x11WinId, phase: 2,
+                                             x: event.localPosition.dx * toPhys,
+                                             y: event.localPosition.dy * toPhys,
+                                             buttons: Int64(event.buttons))
+                    },
+                    onPointerMove: { event in
+                        x11.sendPointerEvent(windowId: x11WinId, phase: 3,
+                                             x: event.localPosition.dx * toPhys,
+                                             y: event.localPosition.dy * toPhys,
+                                             buttons: Int64(event.buttons))
+                    },
+                    onPointerUp: { event in
+                        x11.sendPointerEvent(windowId: x11WinId, phase: 1,
+                                             x: event.localPosition.dx * toPhys,
+                                             y: event.localPosition.dy * toPhys,
+                                             buttons: 0)
+                    },
+                    onPointerHover: { event in
+                        x11.sendPointerEvent(windowId: x11WinId, phase: 6,
+                                             x: event.localPosition.dx * toPhys,
+                                             y: event.localPosition.dy * toPhys,
+                                             buttons: 0)
+                    },
+                    child: flipped
+                )
+            } else if let wl = waylandIntegration,
                let surfaceId = wl.surfaceId(forWindowId: popupId) {
                 popupChild = Listener(
                     onPointerDown: { event in

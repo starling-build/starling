@@ -27,6 +27,22 @@ typedef struct X11ServerConfig {
     void (*on_window_mapped)(void* userdata, uint32_t window_id,
                               int x, int y, int width, int height);
 
+    /* An override-redirect top-level was mapped: a menu, dropdown or tooltip.
+     * These bypass the window manager by definition, so they get no title bar,
+     * no dock entry and no placement of our own — they are drawn exactly where
+     * the client asked, anchored to `parent_window_id` (the client's active
+     * ordinary toplevel). Without this the window exists in the X server and is
+     * never composited, so every menu in every X11 app is invisible.
+     * x/y are device pixels RELATIVE TO parent_window_id's origin — the client
+     * places menus in root space against where it thinks its toplevel is, which
+     * is not where the shell composites it, so the difference is taken here. */
+    void (*on_popup_mapped)(void* userdata, uint32_t window_id,
+                             uint32_t parent_window_id,
+                             int x, int y, int width, int height);
+
+    /* An override-redirect top-level was unmapped or destroyed. */
+    void (*on_popup_unmapped)(void* userdata, uint32_t window_id);
+
     /* A window was unmapped (hidden). */
     void (*on_window_unmapped)(void* userdata, uint32_t window_id);
 

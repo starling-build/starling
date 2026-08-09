@@ -564,6 +564,30 @@ static X11Window* find_window(X11Server* server, uint32_t window_id) {
     return nullptr;
 }
 
+/* Which ordinary toplevel a menu/tooltip belongs to. X11 gives us no parent for
+ * an override-redirect window — its `parent` is the root — so we infer it: the
+ * focused window when that belongs to the same client, else that client's most
+ * recently mapped ordinary toplevel. The shell anchors the popup to this window,
+ * so it follows the right window across spaces and disappears with it. */
+static uint32_t popup_parent_for(X11Server* server, const X11Window* popup) {
+    X11Window* focus = find_window(server, server->focus_window_id);
+    if (focus && !focus->override_redirect && focus->mapped &&
+        focus->owner_client == popup->owner_client &&
+        focus->parent_id == server->root_window_id) {
+        return focus->id;
+    }
+    uint32_t best = 0;
+    for (auto& w : server->windows) {
+        if (w.id == popup->id) continue;
+        if (w.owner_client != popup->owner_client) continue;
+        if (w.override_redirect || !w.mapped) continue;
+        if (w.parent_id != server->root_window_id) continue;
+        if (w.width <= 1 || w.height <= 1) continue;
+        best = w.id;   /* later entries are more recently created */
+    }
+    return best;
+}
+
 /* --------------------------------------------------------------------------
  * Software present path
  *
@@ -1944,6 +1968,32 @@ static void handle_request(X11Server* server, int client_idx,
                     ap.data.assign(reinterpret_cast<uint8_t*>(&wid),
                                    reinterpret_cast<uint8_t*>(&wid) + 4);
                 }
+            } else if (is_toplevel && is_override &&
+                       win->width > 1 && win->height > 1) {
+                /* A menu, dropdown or tooltip. It bypasses the WM, so we place
+                 * it exactly where the client asked and give it no decoration —
+                 * but it still has to be composited, or every menu in every X11
+                 * app is invisible while sitting perfectly alive in the window
+                 * tree. Deliberately no set_focus(): a menu must not steal the
+                 * keyboard from the toplevel it belongs to. */
+                if (server->config.on_popup_mapped) {
+                    uint32_t parent = popup_parent_for(server, win);
+                    /* Hand the shell a PARENT-RELATIVE offset, not the root
+                     * coordinate. The client positioned this menu in root space
+                     * using where *it* believes its toplevel sits (win->x/y as
+                     * this server reported them), which is not where the shell
+                     * actually composites that window. Differencing the two here
+                     * makes the anchor correct no matter how the shell places
+                     * or scales the parent. */
+                    X11Window* pw = find_window(server, parent);
+                    int rel_x = win->x - (pw ? pw->x : 0);
+                    int rel_y = win->y - (pw ? pw->y : 0);
+                    fprintf(stderr, "[X11Server] popup mapped 0x%x parent=0x%x %dx%d rel=%+d%+d\n",
+                            wid, parent, win->width, win->height, rel_x, rel_y);
+                    server->config.on_popup_mapped(
+                        server->config.userdata, wid, parent,
+                        rel_x, rel_y, win->width, win->height);
+                }
             }
 
             /* MapNotify */
@@ -1997,6 +2047,10 @@ static void handle_request(X11Server* server, int client_idx,
                 server->config.on_window_unmapped) {
                 server->config.on_window_unmapped(server->config.userdata, wid);
             }
+            if (was_mapped && is_toplevel && is_override &&
+                server->config.on_popup_unmapped) {
+                server->config.on_popup_unmapped(server->config.userdata, wid);
+            }
             if (server->focus_window_id == wid) {
                 server->focus_window_id = 0;
                 server->focus_client_idx = -1;
@@ -2013,6 +2067,9 @@ static void handle_request(X11Server* server, int client_idx,
                 int is_override = it->override_redirect;
                 if (is_toplevel && !is_override && server->config.on_window_destroyed) {
                     server->config.on_window_destroyed(server->config.userdata, wid);
+                }
+                if (is_toplevel && is_override && server->config.on_popup_unmapped) {
+                    server->config.on_popup_unmapped(server->config.userdata, wid);
                 }
                 if (server->focus_window_id == wid) {
                     server->focus_window_id = 0;
@@ -2284,6 +2341,10 @@ static void handle_request(X11Server* server, int client_idx,
     case X11_NO_OPERATION:
     case X11_BELL:
     case X11_SET_CLIP_RECTANGLES:
+    /* Measured against Zoom and Qt menus: these are never sent — the toolkits
+     * we care about paint through PutImage/CopyArea or DRI3, so leaving them
+     * unimplemented costs nothing. Do not assume a blank window means these
+     * are the gap; check the log before implementing them. */
     case X11_CLEAR_AREA:
     case X11_POLY_FILL_RECT:
     case X11_IMAGE_TEXT8:
@@ -4798,27 +4859,44 @@ static void fill_and_send_xi2_device_event(X11Server* server, int ci,
     send_to_client(server, ci, ev, 84);
 }
 
+/* Our pointer device is ID 2 (virtual core pointer, a master device).
+ * XI2 deviceid matching: 0=XIAllDevices, 1=XIAllMasterDevices, 2=exact match */
+static bool xi2_matches_device(uint16_t sub_devid) {
+    return sub_devid == 0 || sub_devid == 1 || sub_devid == 2;
+}
+
+/* True when `client` selected `evtype` via XISelectEvents on this very window.
+ *
+ * XI2 selection takes PRECEDENCE over core delivery: a client that asked for an
+ * event through XI2 must not also be sent the core event for it. Sending both
+ * makes a toolkit see every click twice, and Qt's QPushButton never completes
+ * its press/release pairing — dialog buttons look dead while press-only widgets
+ * (links, labels) still work, which is exactly how this presented. Keyboard is
+ * unaffected because Qt selects XI2 for pointer/touch only, which is why Enter
+ * activated a button that a click could not. */
+static bool client_selected_xi2(const X11Window* win, int client, uint16_t evtype) {
+    if (client < 0) return false;
+    for (const auto& s : win->xi2_subs) {
+        if (s.client != client) continue;
+        if (!xi2_matches_device(s.deviceid)) continue;
+        if (s.event_mask & (1u << evtype)) return true;
+    }
+    return false;
+}
+
 static void send_xi2_device_event(X11Server* server, X11Window* win,
                                    uint16_t evtype, uint32_t detail,
                                    int x, int y, uint32_t button_state) {
     int root_x = win->x + x;
     int root_y = win->y + y;
     uint16_t bs = static_cast<uint16_t>(button_state);
-    int delivered = 0;
-
-    /* Our pointer device is ID 2 (virtual core pointer, a master device).
-     * XI2 deviceid matching: 0=XIAllDevices, 1=XIAllMasterDevices, 2=exact match */
-    auto matches_device = [](uint16_t sub_devid) -> bool {
-        return sub_devid == 0 || sub_devid == 1 || sub_devid == 2;
-    };
 
     /* 1) Check subscriptions on the focused window */
     for (auto& s : win->xi2_subs) {
         int ci = s.client;
         if (ci < 0 || ci >= server->client_count || server->clients[ci].fd < 0) continue;
-        if (!matches_device(s.deviceid)) continue;
+        if (!xi2_matches_device(s.deviceid)) continue;
         if (!(s.event_mask & (1u << evtype))) continue;
-        delivered = 1;
         fill_and_send_xi2_device_event(server, ci, evtype, detail,
             win->id, 0, x, y, root_x, root_y, bs);
     }
@@ -4829,23 +4907,18 @@ static void send_xi2_device_event(X11Server* server, X11Window* win,
         for (auto& s : root->xi2_subs) {
             int ci = s.client;
             if (ci < 0 || ci >= server->client_count || server->clients[ci].fd < 0) continue;
-            if (!matches_device(s.deviceid)) continue;
+            if (!xi2_matches_device(s.deviceid)) continue;
             if (!(s.event_mask & (1u << evtype))) continue;
             /* For root subscriptions: event=root, child=focused window */
             fill_and_send_xi2_device_event(server, ci, evtype, detail,
                 server->root_window_id, win->id, root_x, root_y, root_x, root_y, bs);
-            delivered = 1;
         }
     }
 
-    /* 3) Fallback: send to window owner if no subscriber matched */
-    if (!delivered) {
-        int ci = static_cast<int>(win->owner_client);
-        if (ci >= 0 && ci < server->client_count && server->clients[ci].fd >= 0) {
-            fill_and_send_xi2_device_event(server, ci, evtype, detail,
-                win->id, 0, x, y, root_x, root_y, bs);
-        }
-    }
+    /* There is deliberately NO "send it anyway to the window owner" fallback.
+     * A client that never called XISelectEvents is a core-input client and is
+     * already getting the core event from the caller; synthesising an XI2 event
+     * it never asked for is the same duplicate-delivery bug from the other side. */
 }
 
 static int motion_log_count = 0;
@@ -4907,7 +4980,10 @@ void x11_server_pointer_motion(X11Server* server, int x, int y) {
     *reinterpret_cast<int16_t*>(event + 26) = static_cast<int16_t>(y);
     *reinterpret_cast<uint16_t*>(event + 28) = server->button_state | server->key_mod_state;
     event[30] = 1; /* same_screen */
-    send_to_client(server, server->focus_client_idx, event, 32);
+    /* Core only when the client did not select XI2 motion here — see
+     * client_selected_xi2(). */
+    if (!client_selected_xi2(win, server->focus_client_idx, 6))
+        send_to_client(server, server->focus_client_idx, event, 32);
     send_xi2_device_event(server, win, 6, 0, x, y, server->button_state);
 }
 
@@ -4989,8 +5065,11 @@ void x11_server_pointer_button(X11Server* server, uint32_t button,
     *reinterpret_cast<int16_t*>(event + 26) = static_cast<int16_t>(y);
     *reinterpret_cast<uint16_t*>(event + 28) = server->button_state | server->key_mod_state;
     event[30] = 1; /* same_screen */
-    send_to_client(server, server->focus_client_idx, event, 32);
     uint16_t xi2_evtype = pressed ? 4 : 5;
+    /* Core only when the client did not select XI2 for this button event on this
+     * window. Delivering both is what made Qt dialog buttons ignore clicks. */
+    if (!client_selected_xi2(win, server->focus_client_idx, xi2_evtype))
+        send_to_client(server, server->focus_client_idx, event, 32);
     send_xi2_device_event(server, win, xi2_evtype, button, x, y, server->button_state);
 }
 
