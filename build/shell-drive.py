@@ -122,7 +122,15 @@ def broker_socket():
     caller's, not the session's, so fall back to the dev session dir
     (per-user: /tmp/xdg-starling-<uid>), the invoking user's runtime dir,
     and finally any user's session dir — driving another user's session is
-    how the packaged session gets tested."""
+    how the packaged session gets tested.
+
+    Candidates are probed with a real connect(), not os.path.exists: an
+    unclean shell death leaves a dead socket file behind, and under sudo
+    the user's dir is searched before the root dev session's — a stale
+    user-dir socket then shadows the live root one. Twice now that has
+    presented as something else entirely (silently warped clicks via the
+    3840x2160 screen fallback; dock actions dying with ECONNREFUSED)."""
+    import socket as _socket
     candidates = []
     if os.environ.get("XDG_RUNTIME_DIR"):
         candidates.append(os.environ["XDG_RUNTIME_DIR"])
@@ -132,11 +140,20 @@ def broker_socket():
     candidates += sorted(glob.glob("/tmp/xdg-starling-*"))
     for d in candidates:
         path = os.path.join(d, "starling-agent.sock")
-        if os.path.exists(path):
+        if not os.path.exists(path):
+            continue
+        probe = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        probe.settimeout(2)
+        try:
+            probe.connect(path)
             return path
+        except OSError:
+            continue
+        finally:
+            probe.close()
     raise SystemExit(
-        "shell-drive: no starling-agent.sock found (is the shell running?) — "
-        f"looked in {', '.join(candidates)}")
+        "shell-drive: no live starling-agent.sock found (is the shell "
+        f"running?) — looked in {', '.join(candidates)}")
 
 
 def dock_slots():

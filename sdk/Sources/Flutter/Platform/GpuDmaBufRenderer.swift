@@ -97,6 +97,91 @@ public final class GpuRendererState: @unchecked Sendable {
     nonisolated(unsafe) var bufferWidth: Int = 0
     nonisolated(unsafe) var bufferHeight: Int = 0
 
+    // Swapchain mode (NVIDIA): the render target is an EGL window surface on
+    // a gbm_surface instead of an EGLImage-backed FBO, because that driver
+    // can neither allocate a LINEAR|RENDERING bo nor attach a linear dma-buf
+    // image to an FBO — eglSwapBuffers is its only route into linear memory.
+    // The parent is sent the locked front buffer's fd whenever it changes;
+    // its reimport path (built for resizes) makes that a cheap buffer flip.
+    nonisolated(unsafe) var swapchain: Bool = false
+    nonisolated(unsafe) var gbmSurface: OpaquePointer? = nil
+    nonisolated(unsafe) var eglWindowSurface: UnsafeMutableRawPointer? = nil
+    nonisolated(unsafe) var eglWindowConfig: UnsafeMutableRawPointer? = nil
+    nonisolated(unsafe) var swapFourcc: UInt32 = 0
+    /// The engine renders into this ordinary FBO (bo-path semantics);
+    /// present() blits it Y-flipped onto the window surface, because
+    /// eglSwapBuffers stores GL's bottom-up framebuffer top-down.
+    nonisolated(unsafe) var swapFbo: UInt32 = 0
+    nonisolated(unsafe) var swapFboColorRb: UInt32 = 0
+    nonisolated(unsafe) var swapFboStencilRb: UInt32 = 0
+    /// Front buffers still locked: the newest (being sent/sampled) and the
+    /// previous (the parent may sample it until it processes the newest).
+    nonisolated(unsafe) var lockedBos: [OpaquePointer] = []
+    /// dma-buf fd per swapchain bo — gbm_bo_get_fd dups a fresh fd each call,
+    /// so cache one per bo for the surface's lifetime.
+    nonisolated(unsafe) var boFds: [OpaquePointer: Int32] = [:]
+    nonisolated(unsafe) var lastSentBo: OpaquePointer? = nil
+
+    /// Raster thread only. Replace the gbm_surface + EGL window surface at a
+    /// new size. The parent keeps sampling the old front buffer — its dma-buf
+    /// import keeps the memory alive after the surface is destroyed — until
+    /// the first present at the new size sends it a new fd.
+    func rebuildSwapchain(width: Int, height: Int) {
+        guard let dev = gbmDevice, let cfg = eglWindowConfig else { return }
+        guard let newSurf = gbm_surface_create(
+            dev, UInt32(width), UInt32(height), swapFourcc,
+            GBM_BO_USE_RENDERING.rawValue | GBM_BO_USE_LINEAR.rawValue) else {
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: gbm_surface_create failed\n".utf8))
+            return
+        }
+        guard let newEglSurf = dmabuf_egl_create_window_surface(eglDisplay, cfg,
+                                                                newSurf) else {
+            gbm_surface_destroy(newSurf)
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: eglCreateWindowSurface failed\n".utf8))
+            return
+        }
+        // Switch the context over before tearing down the old surface —
+        // it is current on this thread right now.
+        guard dmabuf_egl_make_current_surface(eglDisplay, mainContext,
+                                              newEglSurf) != 0 else {
+            dmabuf_egl_destroy_surface(eglDisplay, newEglSurf)
+            gbm_surface_destroy(newSurf)
+            return
+        }
+        if let old = eglWindowSurface {
+            dmabuf_egl_destroy_surface(eglDisplay, old)
+        }
+        if let oldSurf = gbmSurface {
+            for bo in lockedBos { gbm_surface_release_buffer(oldSurf, bo) }
+            gbm_surface_destroy(oldSurf)
+        }
+        for boFd in boFds.values where boFd >= 0 { Glibc.close(boFd) }
+        boFds = [:]
+        lockedBos = []
+        lastSentBo = nil
+        gbmSurface = newSurf
+        eglWindowSurface = newEglSurf
+        bufferWidth = width
+        bufferHeight = height
+
+        // The engine's render target FBO, at the new size (context is
+        // current on this thread — we just made the new surface current).
+        dmabuf_destroy_plain_fbo(swapFbo, swapFboColorRb, swapFboStencilRb)
+        var colorRb: UInt32 = 0
+        var stencilRb: UInt32 = 0
+        let newFbo = dmabuf_create_plain_fbo(Int32(width), Int32(height),
+                                             &colorRb, &stencilRb)
+        if newFbo == 0 {
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: dmabuf_create_plain_fbo failed\n".utf8))
+        }
+        swapFbo = newFbo
+        swapFboColorRb = colorRb
+        swapFboStencilRb = stencilRb
+    }
+
     // Thread-safe pending resize (written: platform thread, read: raster thread)
     private let _resizeLock = NSLock()
     private var _pendingResize: (width: Int, height: Int)? = nil
@@ -568,8 +653,8 @@ public class GpuDmaBufRenderer {
     // GBM state
     private let renderFd: Int32
     private let gbmDevice: OpaquePointer         // gbm_device*
-    private let gbmBo: OpaquePointer             // gbm_bo*
-    private let dmaFd: Int32                     // DMA-BUF fd from gbm_bo_get_fd
+    private let gbmBo: OpaquePointer?            // gbm_bo* (nil in swapchain mode)
+    private let dmaFd: Int32                     // DMA-BUF fd (-1 in swapchain mode)
     private let stride: Int32                    // Row stride in bytes
 
     // EGL state
@@ -596,18 +681,27 @@ public class GpuDmaBufRenderer {
     // Event loop control
     private var running: Bool = false
 
+    /// STARLING_SWAPCHAIN_DEBUG=1: per-event stderr tracing for the
+    /// swapchain path (pointer reads, fbo callback, present).
+    static let swapchainDebug =
+        (ProcessInfo.processInfo.environment["STARLING_SWAPCHAIN_DEBUG"] ?? "") == "1"
+
     // MARK: - DRM device selection
 
     /// GBM_FORMAT_ABGR8888 — matches Skia's RGBA byte order.
     static let bufferFormat: UInt32 = 0x34324241
 
     /// A DRM device we can both allocate on and export a DMA-BUF from.
+    /// `swapchain` marks a device that allocates and exports LINEAR buffers
+    /// but cannot render into one directly (NVIDIA): `bo` is nil and the
+    /// buffers come from a gbm_surface created during EGL setup instead.
     struct DrmTarget {
         let path: String
         let fd: Int32
         let device: OpaquePointer      // gbm_device*
-        let bo: OpaquePointer          // gbm_bo*
-        let dmaBufFd: Int32
+        let bo: OpaquePointer?         // gbm_bo* (nil in swapchain mode)
+        let dmaBufFd: Int32            // -1 in swapchain mode
+        let swapchain: Bool
     }
 
     /// The symlink target of a DRM node's sysfs `device`, which is the same
@@ -674,6 +768,23 @@ public class GpuDmaBufRenderer {
             }
             guard let bo = gbm_bo_create(dev, UInt32(width), UInt32(height),
                                          bufferFormat, useFlags) else {
+                // NVIDIA refuses LINEAR|RENDERING outright but allocates
+                // LINEAR alone — rendering then has to go through a
+                // gbm_surface swapchain (built during EGL setup in init).
+                // Prove allocation + export here the same way as the bo path.
+                if let probe = gbm_bo_create(dev, UInt32(width), UInt32(height),
+                                             bufferFormat,
+                                             GBM_BO_USE_LINEAR.rawValue) {
+                    let probeFd = gbm_bo_get_fd(probe)
+                    gbm_bo_destroy(probe)
+                    if probeFd >= 0 {
+                        Glibc.close(probeFd)
+                        FileHandle.standardError.write(Data(
+                            "[GpuDmaBufRenderer] rendering on \(path) (swapchain mode)\n".utf8))
+                        return DrmTarget(path: path, fd: fd, device: dev,
+                                         bo: nil, dmaBufFd: -1, swapchain: true)
+                    }
+                }
                 reject(path, "gbm_bo_create failed")
                 gbm_device_destroy(dev)
                 Glibc.close(fd)
@@ -689,7 +800,8 @@ public class GpuDmaBufRenderer {
             }
             FileHandle.standardError.write(Data(
                 "[GpuDmaBufRenderer] rendering on \(path)\n".utf8))
-            return DrmTarget(path: path, fd: fd, device: dev, bo: bo, dmaBufFd: dmaBufFd)
+            return DrmTarget(path: path, fd: fd, device: dev, bo: bo,
+                             dmaBufFd: dmaBufFd, swapchain: false)
         }
         return nil
     }
@@ -797,110 +909,185 @@ public class GpuDmaBufRenderer {
         // Steps 8–14 below share the failure cleanup, so keep the locals.
         let fd = picked.fd
         let dev = picked.device
-        let bo = picked.bo
-        let dmaBufFd = picked.dmaBufFd
         let formatABGR8888 = Self.bufferFormat
         renderFd = fd
         gbmDevice = dev
-        gbmBo = bo
-        dmaFd = dmaBufFd
-        stride = Int32(gbm_bo_get_stride(bo))
 
-        // 8. Create EGL display from GBM device
-        guard let display = dmabuf_egl_create_display(dev) else {
-            print("[GpuDmaBufRenderer] dmabuf_egl_create_display failed")
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
+        // Swapchain-path locals, populated as setup progresses so `fail`
+        // can unwind exactly what exists.
+        var gbmSurf: OpaquePointer? = nil
+        var lockedFront: OpaquePointer? = nil
+        var swapDmaFd: Int32 = -1
+        func fail(_ msg: String) {
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] \(msg)\n".utf8))
+            if let front = lockedFront, let surf = gbmSurf {
+                gbm_surface_release_buffer(surf, front)
+            }
+            if swapDmaFd >= 0 { Glibc.close(swapDmaFd) }
+            if let surf = gbmSurf { gbm_surface_destroy(surf) }
+            if picked.dmaBufFd >= 0 { Glibc.close(picked.dmaBufFd) }
+            if let bo = picked.bo { gbm_bo_destroy(bo) }
             gbm_device_destroy(dev)
             Glibc.close(fd)
             Glibc.close(sock)
+        }
+
+        // 8. Create EGL display from GBM device
+        guard let display = dmabuf_egl_create_display(dev) else {
+            fail("dmabuf_egl_create_display failed")
             return nil
         }
         eglDisplay = display
 
         // 9. Initialize EGL
         guard dmabuf_egl_initialize(display) != 0 else {
-            print("[GpuDmaBufRenderer] dmabuf_egl_initialize failed")
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
-            Glibc.close(sock)
+            fail("dmabuf_egl_initialize failed")
             return nil
         }
 
-        // 10. Choose EGL config
-        guard let config = dmabuf_egl_choose_config(display) else {
-            print("[GpuDmaBufRenderer] dmabuf_egl_choose_config failed")
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
-            Glibc.close(sock)
-            return nil
+        // 10. Choose EGL config. The swapchain path needs a window config
+        // whose native visual GBM accepts, plus the gbm_surface itself —
+        // negotiated as a pair, since a driver may expose a format as a
+        // config yet refuse it as a surface. Skia's RGBA order first.
+        var chosenFourcc: UInt32 = 0
+        let config: UnsafeMutableRawPointer
+        if picked.swapchain {
+            var found: UnsafeMutableRawPointer? = nil
+            let candidates: [UInt32] = [
+                formatABGR8888,
+                0x3432_5241,  // GBM_FORMAT_ARGB8888 'AR24'
+                0x3432_5258,  // GBM_FORMAT_XRGB8888 'XR24'
+            ]
+            for fourcc in candidates {
+                guard let cfg = dmabuf_egl_choose_window_config(display, fourcc)
+                else { continue }
+                guard let surf = gbm_surface_create(
+                    dev, UInt32(self.width), UInt32(self.height), fourcc,
+                    GBM_BO_USE_RENDERING.rawValue | GBM_BO_USE_LINEAR.rawValue)
+                else { continue }
+                found = cfg
+                chosenFourcc = fourcc
+                gbmSurf = surf
+                break
+            }
+            guard let windowConfig = found else {
+                fail("no EGL window config + gbm_surface for any format")
+                return nil
+            }
+            config = windowConfig
+        } else {
+            guard let offscreen = dmabuf_egl_choose_config(display) else {
+                fail("dmabuf_egl_choose_config failed")
+                return nil
+            }
+            config = offscreen
         }
         eglConfig = config
 
         // 11. Create main context
         guard let mainCtx = dmabuf_egl_create_context(display, config, nil) else {
-            print("[GpuDmaBufRenderer] Failed to create main EGL context")
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
-            Glibc.close(sock)
+            fail("Failed to create main EGL context")
             return nil
         }
         mainContext = mainCtx
 
         // 12. Create resource context (shared with main)
         guard let resCtx = dmabuf_egl_create_context(display, config, mainCtx) else {
-            print("[GpuDmaBufRenderer] Failed to create resource EGL context")
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
-            Glibc.close(sock)
+            fail("Failed to create resource EGL context")
             return nil
         }
         resourceContext = resCtx
 
-        // 13. Make main context current to create FBO
-        guard dmabuf_egl_make_current(display, mainCtx) != 0 else {
-            print("[GpuDmaBufRenderer] dmabuf_egl_make_current failed")
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
-            Glibc.close(sock)
-            return nil
-        }
-
-        // 14. Create FBO backed by the GBM BO's DMA-BUF
+        // 13/14. Bind the render target: an EGLImage FBO over the shared bo,
+        // or the window surface whose front buffer we lock and export.
         var eglImage: UnsafeMutableRawPointer? = nil
         var colorTex: UInt32 = 0
         var stencilRb: UInt32 = 0
-        let fbo = dmabuf_create_fbo(display, dmaBufFd,
-                                    Int32(self.width), Int32(self.height), stride,
-                                    formatABGR8888,
-                                    &eglImage, &colorTex, &stencilRb)
-        guard fbo != 0 else {
-            print("[GpuDmaBufRenderer] dmabuf_create_fbo failed")
-            dmabuf_egl_clear_current(display)
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
-            Glibc.close(sock)
-            return nil
+        var windowSurface: UnsafeMutableRawPointer? = nil
+        var swapchainFbo: UInt32 = 0
+        var swapchainColorRb: UInt32 = 0
+        var swapchainStencilRb: UInt32 = 0
+        let sendFd: Int32
+        let sendStride: Int32
+        let sendFourcc: UInt32
+
+        if picked.swapchain {
+            guard let esurf = dmabuf_egl_create_window_surface(display, config,
+                                                               gbmSurf) else {
+                fail("eglCreateWindowSurface failed")
+                return nil
+            }
+            windowSurface = esurf
+            guard dmabuf_egl_make_current_surface(display, mainCtx, esurf) != 0 else {
+                fail("make_current(window surface) failed")
+                return nil
+            }
+            // The FBO the engine actually renders into (see state.swapFbo).
+            var colorRb: UInt32 = 0
+            var stencilRb2: UInt32 = 0
+            let plainFbo = dmabuf_create_plain_fbo(Int32(self.width),
+                                                   Int32(self.height),
+                                                   &colorRb, &stencilRb2)
+            guard plainFbo != 0 else {
+                fail("dmabuf_create_plain_fbo failed")
+                return nil
+            }
+            swapchainFbo = plainFbo
+            swapchainColorRb = colorRb
+            swapchainStencilRb = stencilRb2
+            // First buffer: clear, swap, lock — the parent samples this until
+            // the engine presents its first real frame.
+            dmabuf_gl_clear_black()
+            guard dmabuf_egl_swap_buffers(display, esurf) != 0,
+                  let front = gbm_surface_lock_front_buffer(gbmSurf) else {
+                fail("first swap/lock on gbm_surface failed")
+                return nil
+            }
+            lockedFront = front
+            swapDmaFd = gbm_bo_get_fd(front)
+            guard swapDmaFd >= 0 else {
+                fail("gbm_bo_get_fd(front buffer) failed")
+                return nil
+            }
+            fboName = 0
+            gbmBo = nil
+            dmaFd = -1
+            stride = Int32(gbm_bo_get_stride(front))
+            sendFd = swapDmaFd
+            sendStride = stride
+            sendFourcc = chosenFourcc
+        } else {
+            let bo = picked.bo!
+            let dmaBufFd = picked.dmaBufFd
+            gbmBo = bo
+            dmaFd = dmaBufFd
+            stride = Int32(gbm_bo_get_stride(bo))
+
+            // Make main context current to create the FBO
+            guard dmabuf_egl_make_current(display, mainCtx) != 0 else {
+                fail("dmabuf_egl_make_current failed")
+                return nil
+            }
+            let fbo = dmabuf_create_fbo(display, dmaBufFd,
+                                        Int32(self.width), Int32(self.height), stride,
+                                        formatABGR8888,
+                                        &eglImage, &colorTex, &stencilRb)
+            guard fbo != 0 else {
+                dmabuf_egl_clear_current(display)
+                fail("dmabuf_create_fbo failed")
+                return nil
+            }
+            fboName = fbo
+            // 15. Clear FBO to black so parent doesn't see uninitialized GPU memory
+            dmabuf_gl_clear_black()
+            sendFd = dmaBufFd
+            sendStride = stride
+            sendFourcc = formatABGR8888
         }
-        fboName = fbo
         fboEglImage = eglImage
         fboColorTex = colorTex
         fboStencilRb = stencilRb
-
-        // 15. Clear FBO to black so parent doesn't see uninitialized GPU memory
-        dmabuf_gl_clear_black()
 
         // 16. Clear current context
         dmabuf_egl_clear_current(display)
@@ -909,45 +1096,55 @@ public class GpuDmaBufRenderer {
         let sockFlags = fcntl(sock, F_GETFL)
         _ = fcntl(sock, F_SETFL, sockFlags | O_NONBLOCK)
 
-        // 14. Send DMA-BUF fd + metadata to parent
+        // 17. Send DMA-BUF fd + metadata to parent
         var meta = DmaBufMeta(
             width: Int32(self.width),
             height: Int32(self.height),
-            stride: stride,
-            fourcc: formatABGR8888
+            stride: sendStride,
+            fourcc: sendFourcc
         )
-        let sendResult = dmabuf_send_fd(sock, dmaBufFd, &meta,
+        let sendResult = dmabuf_send_fd(sock, sendFd, &meta,
                                         MemoryLayout<DmaBufMeta>.size)
         guard sendResult == 0 else {
-            print("[GpuDmaBufRenderer] Failed to send DMA-BUF fd to parent")
-            Glibc.close(sock)
-            Glibc.close(dmaBufFd)
-            gbm_bo_destroy(bo)
-            gbm_device_destroy(dev)
-            Glibc.close(fd)
+            fail("Failed to send DMA-BUF fd to parent")
             return nil
         }
 
-        print("[GpuDmaBufRenderer] Connected to parent, sent DMA-BUF fd (stride=\(stride), fbo=\(fbo))")
+        print("[GpuDmaBufRenderer] Connected to parent, sent DMA-BUF fd (stride=\(sendStride), fbo=\(fboName), swapchain=\(picked.swapchain))")
 
         // Initialize renderer state for callbacks
         state = GpuRendererState()
         state.eglDisplay = display
         state.mainContext = mainCtx
         state.resourceContext = resCtx
-        state.fboName = fbo
+        state.fboName = fboName
         state.socketFd = sock
 
         // Store GBM/FBO state for resize support
         state.gbmDevice = dev
-        state.gbmBo = bo
-        state.dmaFd = dmaBufFd
+        state.gbmBo = gbmBo
+        state.dmaFd = dmaFd
         state.stride = stride
         state.fboEglImage = eglImage
         state.fboColorTex = colorTex
         state.fboStencilRb = stencilRb
         state.bufferWidth = self.width
         state.bufferHeight = self.height
+
+        // Swapchain state (see GpuRendererState.swapchain)
+        state.swapchain = picked.swapchain
+        state.gbmSurface = gbmSurf
+        state.eglWindowSurface = windowSurface
+        state.eglWindowConfig = picked.swapchain ? config : nil
+        state.swapFourcc = chosenFourcc
+        state.swapFbo = swapchainFbo
+        state.swapFboColorRb = swapchainColorRb
+        state.swapFboStencilRb = swapchainStencilRb
+        if picked.swapchain, let front = lockedFront {
+            state.lockedBos = [front]
+            state.boFds = [front: swapDmaFd]
+            state.lastSentBo = front
+        }
     }
 
     deinit {
@@ -960,6 +1157,18 @@ public class GpuDmaBufRenderer {
             dmabuf_destroy_fbo(state.eglDisplay, state.fboName,
                                state.fboEglImage,
                                state.fboColorTex, state.fboStencilRb)
+        }
+        if state.swapchain {
+            dmabuf_destroy_plain_fbo(state.swapFbo, state.swapFboColorRb,
+                                     state.swapFboStencilRb)
+            if let display = state.eglDisplay {
+                dmabuf_egl_destroy_surface(display, state.eglWindowSurface)
+            }
+            for boFd in state.boFds.values where boFd >= 0 { Glibc.close(boFd) }
+            if let surf = state.gbmSurface {
+                for bo in state.lockedBos { gbm_surface_release_buffer(surf, bo) }
+                gbm_surface_destroy(surf)
+            }
         }
         Glibc.close(socketFd)
         if state.dmaFd >= 0 { Glibc.close(state.dmaFd) }
@@ -1303,8 +1512,15 @@ public class GpuDmaBufRenderer {
         rendererConfig.open_gl.make_current = { userData -> Bool in
             guard let userData = userData else { return false }
             let s = Unmanaged<GpuRendererState>.fromOpaque(userData).takeUnretainedValue()
-            guard dmabuf_egl_make_current(s.eglDisplay, s.mainContext) != 0 else {
-                return false
+            if s.swapchain {
+                guard dmabuf_egl_make_current_surface(s.eglDisplay, s.mainContext,
+                                                      s.eglWindowSurface) != 0 else {
+                    return false
+                }
+            } else {
+                guard dmabuf_egl_make_current(s.eglDisplay, s.mainContext) != 0 else {
+                    return false
+                }
             }
             // Before the rasterizer touches the shared buffer, never during
             // the paint — see uploadPendingPixels for why that flickers.
@@ -1321,9 +1537,73 @@ public class GpuDmaBufRenderer {
         rendererConfig.open_gl.present = { userData -> Bool in
             guard let userData = userData else { return false }
             let s = Unmanaged<GpuRendererState>.fromOpaque(userData).takeUnretainedValue()
-            // Submit GPU commands (non-blocking). DMA-BUF implicit sync
-            // ensures the parent's texture read waits for our write to complete.
-            dmabuf_gl_flush()
+            if s.swapchain {
+                // Release older fronts BEFORE the swap: the gbm_surface has a
+                // small fixed pool (3 on NVIDIA), and holding two locked
+                // buffers through eglSwapBuffers starves it — the swap blocks
+                // forever waiting for a free buffer, freezing the raster
+                // thread after the first frames (the app kept compositing its
+                // startup frame but never rendered again). By swap time the
+                // parent processed the fd sent last frame, so only the newest
+                // front still needs its lock.
+                guard let surf = s.gbmSurface else { return false }
+                if GpuDmaBufRenderer.swapchainDebug {
+                    FileHandle.standardError.write(Data(
+                        "[GpuDmaBufRenderer] present locked=\(s.lockedBos.count)\n".utf8))
+                }
+                while s.lockedBos.count > 1 {
+                    gbm_surface_release_buffer(surf, s.lockedBos.removeFirst())
+                }
+                // Flip the engine's FBO onto the window surface, then swap —
+                // the swap detiles into a linear front buffer; lock it and
+                // tell the parent which buffer this frame landed in. The
+                // parent's reimport path treats an fd message as a buffer
+                // replacement, so only a changed front bo needs one.
+                guard dmabuf_blit_flip_to_window(s.swapFbo,
+                                                 Int32(s.bufferWidth),
+                                                 Int32(s.bufferHeight)) != 0 else {
+                    FileHandle.standardError.write(Data(
+                        "[GpuDmaBufRenderer] present: flip blit failed\n".utf8))
+                    return false
+                }
+                guard dmabuf_egl_swap_buffers(s.eglDisplay, s.eglWindowSurface) != 0 else {
+                    FileHandle.standardError.write(Data(
+                        "[GpuDmaBufRenderer] present: eglSwapBuffers failed\n".utf8))
+                    return false
+                }
+                guard let front = gbm_surface_lock_front_buffer(surf) else {
+                    FileHandle.standardError.write(Data(
+                        "[GpuDmaBufRenderer] present: lock_front_buffer returned NULL (locked=\(s.lockedBos.count))\n".utf8))
+                    return false
+                }
+                s.lockedBos.append(front)
+                if front != s.lastSentBo {
+                    let boFd: Int32
+                    if let cached = s.boFds[front] {
+                        boFd = cached
+                    } else {
+                        boFd = gbm_bo_get_fd(front)
+                        s.boFds[front] = boFd
+                    }
+                    if boFd >= 0 {
+                        var meta = DmaBufMeta(width: Int32(s.bufferWidth),
+                                              height: Int32(s.bufferHeight),
+                                              stride: Int32(gbm_bo_get_stride(front)),
+                                              fourcc: s.swapFourcc)
+                        // On EAGAIN lastSentBo stays put, so the next present
+                        // retries rather than stranding the parent on a stale
+                        // buffer.
+                        if dmabuf_send_fd(s.socketFd, boFd, &meta,
+                                          MemoryLayout<DmaBufMeta>.size) == 0 {
+                            s.lastSentBo = front
+                        }
+                    }
+                }
+            } else {
+                // Submit GPU commands (non-blocking). DMA-BUF implicit sync
+                // ensures the parent's texture read waits for our write to complete.
+                dmabuf_gl_flush()
+            }
             // Signal parent that a new frame is ready (single byte 'F')
             var signal: UInt8 = 0x46
             _ = Glibc.write(s.socketFd, &signal, 1)
@@ -1342,6 +1622,22 @@ public class GpuDmaBufRenderer {
             // wrapping the new larger FBO, producing blurry upscaled rendering.
             let reqW = frameInfo?.pointee.size.width ?? 0
             let reqH = frameInfo?.pointee.size.height ?? 0
+
+            // Swapchain mode renders into the plain FBO that present() blits
+            // to the window surface; a resize rebuilds surface + FBO together.
+            if s.swapchain {
+                if GpuDmaBufRenderer.swapchainDebug {
+                    FileHandle.standardError.write(Data(
+                        "[GpuDmaBufRenderer] fbo cb req=\(Int(reqW))x\(Int(reqH)) buf=\(s.bufferWidth)x\(s.bufferHeight)\n".utf8))
+                }
+                guard let newSize = s.takePendingResize() else { return s.swapFbo }
+                if Int(reqW) != newSize.width || Int(reqH) != newSize.height {
+                    s.setPendingResize(newSize)
+                    return s.swapFbo
+                }
+                s.rebuildSwapchain(width: newSize.width, height: newSize.height)
+                return s.swapFbo
+            }
 
             guard let newSize = s.takePendingResize() else {
                 return s.fboName
@@ -1854,6 +2150,10 @@ public class GpuDmaBufRenderer {
                         ptrEvent.device_kind = kFlutterPointerDeviceKindMouse
                         ptrEvent.buttons = inputEvent.buttons
                         ptrEvent.view_id = 0
+                        if GpuDmaBufRenderer.swapchainDebug && phase != 6 && phase != 3 {
+                            FileHandle.standardError.write(Data(
+                                "[GpuDmaBufRenderer] ptr phase=\(phase) x=\(physX) y=\(physY) buttons=\(inputEvent.buttons)\n".utf8))
+                        }
                         FlutterEngineSendPointerEvent(eng, &ptrEvent, 1)
                     }
                 }

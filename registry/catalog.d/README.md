@@ -25,6 +25,7 @@ Staged to `<share>/catalog.d`, installed to `/usr/share/starling/catalog.d`.
 | `WmClass` | `;`-separated app_id fallbacks, for apps that ship no `.desktop` |
 | `TitleMatch` | `;`-separated title substrings — **only** for windows that carry no usable app_id |
 | `RenameWindows` | `1` to display `Name` instead of the window's own title |
+| `Gpu` | `discrete` to render on the discrete GPU when there is one (PRIME offload, docs/plans/prime.md); no-op on single-GPU machines |
 | `Category` `Publisher` `Subtitle` `Size` `Description` | App Store copy |
 | `DebUrl` `DebMarker` | sealed-image install (Starling OS), where there is no apt |
 

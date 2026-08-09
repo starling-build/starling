@@ -247,6 +247,7 @@ public final class AppRegistry: @unchecked Sendable {
             wmClasses: wmClasses,
             titleMatches: kf.list("TitleMatch"),
             renameWindows: kf.string("RenameWindows") == "1",
+            discreteGpu: kf.string("Gpu") == "discrete",
             debURL: kf.string("DebUrl"),
             debMarker: kf.string("DebMarker"),
             desktopFile: desktopFile,

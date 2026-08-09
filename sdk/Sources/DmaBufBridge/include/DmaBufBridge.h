@@ -181,6 +181,47 @@ int dmabuf_egl_clear_current(void* egl_display);
 /// Call eglGetProcAddress. Returns function pointer.
 void* dmabuf_egl_get_proc_address(const char* name);
 
+// ─── EGL window surface on a gbm_surface (swapchain mode) ──────────────
+//
+// The path for GPUs whose driver cannot render into a linear dma-buf via an
+// EGLImage FBO (NVIDIA): render to an EGL window surface on a gbm_surface
+// created with GBM_BO_USE_LINEAR, and eglSwapBuffers produces a linear
+// front buffer to lock and export.
+
+/// Choose a window-bit GLES2 config whose EGL_NATIVE_VISUAL_ID equals
+/// |fourcc| (a GBM_FORMAT_* value) — GBM refuses mismatched visuals.
+/// Returns config, or NULL if the driver exposes none for this format.
+void* dmabuf_egl_choose_window_config(void* egl_display, uint32_t fourcc);
+
+/// Create an EGL window surface on a gbm_surface. Returns EGLSurface or NULL.
+void* dmabuf_egl_create_window_surface(void* egl_display, void* config,
+                                       struct gbm_surface* gbm_surface);
+
+/// Make context current with |egl_surface| as draw+read surface.
+int dmabuf_egl_make_current_surface(void* egl_display, void* context,
+                                    void* egl_surface);
+
+/// eglSwapBuffers on the surface. Returns 1 on success.
+int dmabuf_egl_swap_buffers(void* egl_display, void* egl_surface);
+
+/// Destroy an EGL surface (NULL is a no-op).
+void dmabuf_egl_destroy_surface(void* egl_display, void* egl_surface);
+
+/// Ordinary FBO (RGBA8 + stencil renderbuffers, no dma-buf) the engine
+/// renders into in swapchain mode; present() blits it Y-flipped onto the
+/// window surface. Returns FBO name, 0 on failure. Needs a current context.
+uint32_t dmabuf_create_plain_fbo(int width, int height,
+                                 uint32_t* out_color_rb,
+                                 uint32_t* out_stencil_rb);
+
+/// Delete a plain FBO and its renderbuffers (0s are no-ops).
+void dmabuf_destroy_plain_fbo(uint32_t fbo, uint32_t color_rb,
+                              uint32_t stencil_rb);
+
+/// Blit src_fbo onto the current window surface (fbo 0) with Y inverted.
+/// Returns 1 on success, 0 if glBlitFramebuffer is unavailable.
+int dmabuf_blit_flip_to_window(uint32_t src_fbo, int width, int height);
+
 /// Call glFinish (ensure GPU commands complete — blocks CPU).
 void dmabuf_gl_finish(void);
 

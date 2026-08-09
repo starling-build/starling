@@ -6,6 +6,7 @@ import FlutterEmbedderBridge
 import DmaBufBridge
 import Foundation
 import Glibc
+import WaylandServerBridge  // wayland_server_dmabuf_modifier_importable
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MARK: - GL Constants
@@ -91,6 +92,12 @@ private class TextureEntry {
     /// When true, populateTexture must re-resolve the EGLImage for the current
     /// buffer (cache hit rebinds; miss imports).
     var needsReimport: Bool = false
+    /// The texture was given 1x1 black storage because its FIRST import
+    /// failed (hostile or unimportable modifier). Without any storage the
+    /// engine would sample an incomplete texture — driver-defined behaviour
+    /// on a foreign-buffer path that is already in an error state. Reset by
+    /// the first successful import (which replaces the storage wholesale).
+    var hasFallbackTexel: Bool = false
 
     /// EGLImages already imported for this texture, keyed by the underlying
     /// dma-buf's identity. A client cycles a small buffer pool (Chrome triple
@@ -107,6 +114,17 @@ private class TextureEntry {
     /// Insertion order for `imageCache`, oldest first — evicted beyond
     /// `kImageCacheLimit`.
     var imageCacheOrder: [BufferKey] = []
+
+    /// Buffer identities whose import was REJECTED (foreign/unimportable
+    /// modifier). A failed import never spontaneously succeeds, so retrying
+    /// it on every commit is pure waste — and worse than waste: a client
+    /// cycling full-screen unimportable buffers at 60fps drove the AMD GL
+    /// stack to an ENOMEM CS rejection and took the shell down (the PRIME
+    /// incident, 2026-08-08). Recording the failure bounds the attempts to
+    /// one per unique buffer. Same inode identity as imageCache; bounded the
+    /// same way so a hostile client cannot grow it without bound.
+    var importFailures: Set<BufferKey> = []
+    var importFailureOrder: [BufferKey] = []
 
     /// When true, the registry owns dmaFd (a dup made at the Wayland commit
     /// boundary) and is responsible for closing it. Child-app fds stay owned
@@ -583,10 +601,25 @@ class LinuxTextureRegistry: @unchecked Sendable {
 
                 lock.lock()
                 let cached = key.flatMap { entries[id]?.imageCache[$0] }
+                // A buffer known to be unimportable: skip the doomed retry
+                // (and the resource churn behind it — see importFailures).
+                let knownBad = key.map { entries[id]?.importFailures.contains($0) ?? false }
+                    ?? false
                 lock.unlock()
 
+                // A modifier we never advertised must not reach the AMD
+                // driver: eglCreateImageKHR on a foreign tiled layout can
+                // allocate-then-fail and, under GPU-memory pressure, abort
+                // the shell with an amdgpu CS rejection (the PRIME incident).
+                // Treat it exactly like a failed import — the buffer is
+                // unimportable, so this is the truthful outcome anyway.
+                // Wayland surfaces only; child-app buffers are always LINEAR
+                // and skip this (they pass importable trivially regardless).
+                let importable = wayland_server_dmabuf_modifier_importable(
+                    importFourcc, dmaModifier) != 0
+
                 var resolved = cached
-                if resolved == nil {
+                if resolved == nil && !knownBad && importable {
                     let eglDisplay = _eglGetCurrentDisplay()
                     resolved = dmabuf_import_egl_image_with_modifier(
                         eglDisplay, dmaFd, Int32(dmaW), Int32(dmaH),
@@ -640,11 +673,60 @@ class LinuxTextureRegistry: @unchecked Sendable {
                     lock.lock()
                     entries[id]?.eglImage = image
                     lock.unlock()
-                } else {
-                    // Import rejected — tell the compositor so the modifier
-                    // is demoted and the client re-allocates importable
-                    // buffers (otherwise the window stays invisible).
-                    Self.onDmaBufImportFailure?(dmaFourcc, dmaModifier)
+                } else if !knownBad {
+                    // No image: either the import was rejected, or we skipped
+                    // it because the modifier was never advertised
+                    // (`!importable`). Both are permanent for this buffer.
+                    if importable {
+                        // A buffer we DID try and EGL refused: demote its
+                        // modifier so a compliant client re-allocates one that
+                        // imports (the window would otherwise stay invisible).
+                        // A never-advertised modifier gets no demote — it was
+                        // never in the list to remove.
+                        Self.onDmaBufImportFailure?(dmaFourcc, dmaModifier)
+                    }
+                    // Remember this buffer is unimportable so we never touch it
+                    // again — the retry, not just the first attempt, is what
+                    // drove the AMD driver to an ENOMEM CS rejection. Bounded
+                    // like imageCache so a client cycling fresh buffers cannot
+                    // grow the set without limit.
+                    if let key = key {
+                        lock.lock()
+                        if let e = entries[id], e.importFailures.insert(key).inserted {
+                            e.importFailureOrder.append(key)
+                            while e.importFailureOrder.count > kImageCacheLimit {
+                                let old = e.importFailureOrder.removeFirst()
+                                e.importFailures.remove(old)
+                            }
+                        }
+                        lock.unlock()
+                    }
+                    // The texture name has no storage and we still return it
+                    // below. Give it one black texel so the engine samples
+                    // something defined (a black window) instead of an
+                    // incomplete texture. Established once; a later successful
+                    // import replaces it wholesale.
+                    if existingImage == nil {
+                        var establish = false
+                        lock.lock()
+                        if let e = entries[id], !e.hasFallbackTexel {
+                            e.hasFallbackTexel = true
+                            establish = true
+                        }
+                        lock.unlock()
+                        if establish {
+                            var black: [UInt8] = [0, 0, 0, 0xFF]
+                            _glBindTexture(GL_TEXTURE_2D, texName)
+                            _glTexImage2D(GL_TEXTURE_2D, 0, Int32(GL_RGBA),
+                                          1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                                          &black)
+                            _glTexParameteri(GL_TEXTURE_2D,
+                                             GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+                            _glTexParameteri(GL_TEXTURE_2D,
+                                             GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+                            _glBindTexture(GL_TEXTURE_2D, 0)
+                        }
+                    }
                 }
             }
             // For subsequent frames: re-bind only when content changed.

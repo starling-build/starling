@@ -305,6 +305,14 @@ void wayland_server_set_dmabuf_formats(WaylandServer* server,
                                        const uint64_t* modifiers,
                                        int count);
 
+/* Whether (fourcc, modifier) is one the compositor advertised as importable
+ * (LINEAR and the implicit modifier always are). The import path checks this
+ * BEFORE calling eglCreateImageKHR: handing the AMD driver a foreign tiled
+ * layout can make it allocate-then-fail and, under memory pressure, abort
+ * the shell with a CS rejection. Returns 1 = safe to import, 0 = skip. */
+int wayland_server_dmabuf_modifier_importable(uint32_t fourcc,
+                                              uint64_t modifier);
+
 /* Demote a modifier the EGL import path REJECTED at runtime (zink's
  * eglQueryDmaBufModifiersEXT over-reports AMD tiled support — the query
  * lies, the import is ground truth). Drops every advertised pair with

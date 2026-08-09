@@ -1080,6 +1080,84 @@ def check_screensaver_idle() -> None:
     log("second cycle armed and fired")
 
 
+def _build_bad_dmabuf_client(into: str) -> str:
+    """Compile the fixture hostile-buffer client, or Skip if we can't.
+    Same build-on-the-fly reasoning as _build_idle_inhibit_client below."""
+    dmabuf_xml = ("/usr/share/wayland-protocols/unstable/linux-dmabuf/"
+                  "linux-dmabuf-unstable-v1.xml")
+    xdg_xml = "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+    src = _first(REPO / "test/fixtures/bad-dmabuf-client.c",
+                 Path(__file__).resolve().parent / "bad-dmabuf-client.c")
+    if not shutil.which("wayland-scanner") or not shutil.which("cc"):
+        raise Skip("needs wayland-scanner and a C compiler")
+    if not os.path.exists(dmabuf_xml) or not os.path.exists(xdg_xml) \
+            or src is None:
+        raise Skip("protocol XMLs or fixture source missing")
+    pieces = []
+    for xml, stem in ((dmabuf_xml, "linux-dmabuf-unstable-v1"),
+                      (xdg_xml, "xdg-shell")):
+        hdr = os.path.join(into, f"{stem}-client-protocol.h")
+        code = os.path.join(into, f"{stem}-protocol.c")
+        for args in (["wayland-scanner", "client-header", xml, hdr],
+                     ["wayland-scanner", "private-code", xml, code]):
+            r = subprocess.run(args, capture_output=True, text=True)
+            if r.returncode != 0:
+                raise Skip(f"wayland-scanner failed: {r.stderr.strip()[:200]}")
+        pieces.append(code)
+    out = os.path.join(into, "bad-dmabuf")
+    r = subprocess.run(
+        ["cc", "-o", out, str(src)] + pieces
+        + ["-I", into, "-lwayland-client", "-lgbm"],
+        capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Skip(f"could not build the bad-dmabuf client: "
+                   f"{r.stderr.strip()[:200]}")
+    return out
+
+
+@check("compositor: a hostile dma-buf commit costs the client, not the shell")
+def check_bad_dmabuf_survival() -> None:
+    """A client committing buffers the compositor cannot import must lose
+    only its own window content.
+
+    From a real incident (2026-08-08, the PRIME work): Chromium steered to
+    the NVIDIA main_device committed NVIDIA-tiled buffers; the compositor's
+    eglCreateImageKHR refused each one — correctly — and the shell then died
+    of an amdgpu CS rejection. The steering experiment was reverted, but the
+    exposure is generic: ANY client may commit a dma-buf with a modifier the
+    compositor never advertised (a lying client needs no GPU at all), so a
+    failed import has to be a self-contained event. The client here cycles
+    four full-screen-sized buffers wearing the incident's exact modifier at
+    ~60fps; the shell must stay alive and responsive throughout.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        client_bin = _build_bad_dmabuf_client(tmp)
+        env = dict(os.environ)
+        env["XDG_RUNTIME_DIR"] = os.path.dirname(broker_path())
+        env["WAYLAND_DISPLAY"] = wayland_display()
+        proc = subprocess.Popen([client_bin], env=env,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
+        try:
+            line = proc.stdout.readline().strip()
+            if "bad buffer committed" not in line:
+                raise Skip(f"hostile client could not set up: {line!r}")
+            log("hostile client committing at ~60fps")
+            deadline = time.time() + 8
+            while time.time() < deadline:
+                assert ask("screen")["ok"], "broker went unresponsive"
+                assert proc.poll() is None, \
+                    "hostile client died — the compositor may have " \
+                    "disconnected it instead of surviving it"
+                time.sleep(1)
+        finally:
+            proc.kill()
+            proc.wait()
+    # The shell outlives the client's death too.
+    assert ask("screen")["ok"], "broker unresponsive after client death"
+    log("shell alive and responsive through 8s of unimportable commits")
+
+
 def _build_idle_inhibit_client(into: str) -> str:
     """Compile the fixture idle-inhibit client, or Skip if we can't.
 

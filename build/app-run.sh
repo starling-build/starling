@@ -342,6 +342,43 @@ fi
 # which deadlocks GTK4 apps during init — point them at the shell's bus
 # ($XDG_DIR/bus, started by run-shell-gpu.sh) whose portal answers.
 DBUS_ADDR="unix:path=$XDG_DIR/bus"
+
+# PRIME render offload: the shell sets STARLING_APP_GPU=discrete for apps
+# whose registry record carries Gpu=discrete (and only when a discrete GPU
+# exists). Three things must reach the app's FINAL env (same value-or-noop
+# shape as PULSE_ENV, because the root branch execs through `env -i` where
+# exported vars do not survive):
+#
+# - STARLING_APP_GPU itself: the compositor reads the CONNECTING client's
+#   /proc/<pid>/environ and serves it dmabuf feedback naming the discrete
+#   node as main_device. That is what steers Chromium — ozone takes its
+#   render node from feedback and ignores every env-side device knob.
+# - MESA_LOADER_DRIVER_OVERRIDE=zink + DRI_PRIME=1: Mesa's GL for the
+#   discrete node. On the NVIDIA proprietary driver Mesa has no native
+#   GL driver, and without the zink override the loader silently falls
+#   back to llvmpipe (verified with eglinfo); DRI_PRIME=1 makes zink pick
+#   the other GPU's Vulkan device for env-driven clients.
+#
+# GPU_ENV4 empties DISPLAY for discrete apps (it is assigned AFTER the
+# branches' own DISPLAY=:1, and env's later assignment wins): any GL env
+# override makes Chromium's GPU probe take a GLX path against the in-tree
+# X server, which dies on an xcb assert ("Extra reply data still left in
+# queue") and takes the whole browser with it — with or without
+# __GLX_VENDOR_LIBRARY_NAME=nvidia, which is why that var is not here.
+# Discrete-marked apps are Wayland-native by doctrine; an empty DISPLAY
+# just makes XOpenDisplay fail cleanly and the probe skip.
+if [ "${STARLING_APP_GPU:-}" = "discrete" ]; then
+    GPU_ENV1="STARLING_APP_GPU=discrete"
+    GPU_ENV2="MESA_LOADER_DRIVER_OVERRIDE=zink"
+    GPU_ENV3="DRI_PRIME=1"
+    GPU_ENV4="DISPLAY="
+else
+    GPU_ENV1="GPU_UNSET1="
+    GPU_ENV2="GPU_UNSET2="
+    GPU_ENV3="GPU_UNSET3="
+    GPU_ENV4="GPU_UNSET4="
+fi
+
 if ! is_starling_os; then
     if [ "$(id -u)" -eq 0 ]; then
         LOGIN_USER="${SUDO_USER:-$(stat -c %U "$XDG_DIR" 2>/dev/null || true)}"
@@ -373,9 +410,11 @@ if ! is_starling_os; then
             LANG="${LANG:-en_US.UTF-8}" \
             XDG_RUNTIME_DIR="$XDG_DIR" \
             "$PULSE_ENV" \
+            "$GPU_ENV1" "$GPU_ENV2" "$GPU_ENV3" \
             WAYLAND_DISPLAY="$SOCKET" \
             DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" \
             DISPLAY="${DISPLAY:-:1}" \
+            "$GPU_ENV4" \
             STARLING_APP_RUN="$SELF" \
             "$@"
     else
@@ -414,9 +453,11 @@ if ! is_starling_os; then
             PATH="$APPBIN:$PATH" \
             XDG_RUNTIME_DIR="$XDG_DIR" \
             "$PULSE_ENV" \
+            "$GPU_ENV1" "$GPU_ENV2" "$GPU_ENV3" \
             WAYLAND_DISPLAY="$SOCKET" \
             DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" \
             DISPLAY="${DISPLAY:-:1}" \
+            "$GPU_ENV4" \
             STARLING_APP_RUN="$SELF" \
             "$@"
     fi
@@ -458,6 +499,16 @@ if grep -q '^bwrap ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
     mkdir -p /var/lib/starling-apps/bin
     cmp -s /usr/bin/bwrap "$SB" 2>/dev/null || cp /usr/bin/bwrap "$SB" 2>/dev/null || true
     [ -x "$SB" ] && BWRAP="$SB"
+fi
+
+# PRIME offload inside the sandbox: same translation as the host-direct
+# branches, as --setenv prepended to "$@" (options-before-command, the same
+# shape as the --ro-bind loops above).
+if [ "${STARLING_APP_GPU:-}" = "discrete" ]; then
+    set -- --setenv STARLING_APP_GPU discrete \
+           --setenv MESA_LOADER_DRIVER_OVERRIDE zink \
+           --setenv DRI_PRIME 1 \
+           "$@"
 fi
 
 exec "$BWRAP" \
