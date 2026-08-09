@@ -465,6 +465,15 @@ struct X11Server {
     /* Focus tracking */
     uint32_t focus_window_id;
     int      focus_client_idx;
+
+    /* Active pointer grab (XGrabPointer). A menu grabs the pointer so that the
+     * click which dismisses it is CONSUMED rather than also landing on whatever
+     * sits underneath — without this, dismissing Zoom's app grid also activates
+     * the link behind it. Zero window means no grab. */
+    uint32_t grab_window;
+    int      grab_client;
+    int      grab_owner_events;
+
     uint64_t sync_counter;
     int sync_waiting;
 
@@ -562,6 +571,48 @@ static X11Window* find_window(X11Server* server, uint32_t window_id) {
             return &w;
     }
     return nullptr;
+}
+
+/* Redirect a pointer event to the grabbing window, per XGrabPointer semantics.
+ *
+ * With owner_events false the grab window takes the event; with owner_events
+ * true, events over a window belonging to the grabbing client are reported
+ * normally and only the rest are redirected. The point is that the click which
+ * dismisses a menu gets consumed by the menu instead of also reaching the
+ * widget underneath.
+ *
+ * Applied to button press/release only, deliberately. That is the case with a
+ * confirmed repro (dismissing Zoom's app grid also activated the link behind
+ * it); redirecting motion as well would risk hover regressions across every
+ * other X11 app for no demonstrated gain.
+ *
+ * `*x`/`*y` come in local to `win` and are rewritten local to the grab window,
+ * going via root coordinates. Both windows' positions live in the same X
+ * coordinate space, so this stays correct even though that space does not match
+ * where the shell actually composites them.
+ *
+ * Returns the window the event should be delivered to. */
+static X11Window* apply_pointer_grab(X11Server* server, X11Window* win,
+                                      int* x, int* y) {
+    if (!server->grab_window) return win;
+    X11Window* grab = find_window(server, server->grab_window);
+    if (!grab || !grab->mapped) {
+        /* Grab window went away without an UngrabPointer — drop the grab
+         * rather than swallowing every event from here on. */
+        server->grab_window = 0;
+        server->grab_client = -1;
+        return win;
+    }
+    if (grab == win) return win;
+    if (server->grab_owner_events &&
+        win->owner_client == grab->owner_client) {
+        return win;
+    }
+    int root_x = win->x + *x;
+    int root_y = win->y + *y;
+    *x = root_x - grab->x;
+    *y = root_y - grab->y;
+    return grab;
 }
 
 /* Which ordinary toplevel a menu/tooltip belongs to. X11 gives us no parent for
@@ -787,6 +838,9 @@ X11Server* x11_server_create(int display_num, const X11ServerConfig* config) {
     server->root_window_id = 0x00000001;
     server->focus_window_id = 0;
     server->focus_client_idx = -1;
+    server->grab_window = 0;
+    server->grab_client = -1;
+    server->grab_owner_events = 0;
     server->client_count = 0;
     server->epoll_fd = -1;
     server->listen_fd = -1;
@@ -2293,12 +2347,26 @@ static void handle_request(X11Server* server, int client_idx,
     }
 
     case X11_GRAB_POINTER: {
+        /* owner-events(1)@1 grab-window(4)@4 event-mask(2)@8 */
+        server->grab_owner_events = data[1] ? 1 : 0;
+        server->grab_window = *reinterpret_cast<const uint32_t*>(data + 4);
+        server->grab_client = client_idx;
+        fprintf(stderr, "[X11Server] GrabPointer win=0x%x owner_events=%d client=%d\n",
+                server->grab_window, server->grab_owner_events, client_idx);
         uint8_t reply[32] = {};
-        reply[0] = 1; reply[1] = 0;
+        reply[0] = 1; reply[1] = 0;  /* status = GrabSuccess */
         *reinterpret_cast<uint16_t*>(reply + 2) = seq;
         send_to_client(server, client_idx, reply, 32);
         break;
     }
+
+    case X11_UNGRAB_POINTER:
+        if (server->grab_window) {
+            fprintf(stderr, "[X11Server] UngrabPointer (was 0x%x)\n", server->grab_window);
+            server->grab_window = 0;
+            server->grab_client = -1;
+        }
+        break;
 
     case X11_CHANGE_WINDOW_ATTRS: {
         uint32_t wid = *reinterpret_cast<const uint32_t*>(data + 4);
@@ -2328,7 +2396,6 @@ static void handle_request(X11Server* server, int client_idx,
     case X11_CREATE_COLORMAP:
     case X11_FREE_COLORMAP:
     case X11_SET_SELECTION_OWNER:
-    case X11_UNGRAB_POINTER:
     case X11_GRAB_BUTTON:
     case X11_UNGRAB_BUTTON:
     case X11_GRAB_KEY:
@@ -5034,9 +5101,15 @@ void x11_server_pointer_button(X11Server* server, uint32_t button,
     if (!server || server->focus_window_id == 0 || server->focus_client_idx < 0) return;
     X11Window* win = find_window(server, server->focus_window_id);
     if (!win || !win->mapped) return;
-    fprintf(stderr, "[X11Server] pointer_button: btn=%d pressed=%d x=%d y=%d -> fd=%d\n",
-            button, pressed, x, y, server->clients[server->focus_client_idx].fd);
     if (pressed) x11_server_pointer_motion(server, x, y);
+
+    /* An active grab (an open menu) takes the event, coordinates and all. */
+    win = apply_pointer_grab(server, win, &x, &y);
+    int target_client = static_cast<int>(win->owner_client);
+    if (target_client < 0 || target_client >= server->client_count) return;
+    fprintf(stderr, "[X11Server] pointer_button: btn=%d pressed=%d x=%d y=%d -> fd=%d%s\n",
+            button, pressed, x, y, server->clients[target_client].fd,
+            server->grab_window ? " (grabbed)" : "");
 
     /* Update button state mask — X11 uses bits 8+ for buttons (bit 8 = btn1, bit 9 = btn2, ...) */
     if (button >= 1 && button <= 5) {
@@ -5045,7 +5118,7 @@ void x11_server_pointer_button(X11Server* server, uint32_t button,
         else         server->button_state &= ~bit;
     }
 
-    uint16_t seq = server->clients[server->focus_client_idx].sequence;
+    uint16_t seq = server->clients[target_client].sequence;
     int16_t root_x = static_cast<int16_t>(win->x + x);
     int16_t root_y = static_cast<int16_t>(win->y + y);
     server->pointer_x = root_x;
@@ -5068,8 +5141,8 @@ void x11_server_pointer_button(X11Server* server, uint32_t button,
     uint16_t xi2_evtype = pressed ? 4 : 5;
     /* Core only when the client did not select XI2 for this button event on this
      * window. Delivering both is what made Qt dialog buttons ignore clicks. */
-    if (!client_selected_xi2(win, server->focus_client_idx, xi2_evtype))
-        send_to_client(server, server->focus_client_idx, event, 32);
+    if (!client_selected_xi2(win, target_client, xi2_evtype))
+        send_to_client(server, target_client, event, 32);
     send_xi2_device_event(server, win, xi2_evtype, button, x, y, server->button_state);
 }
 
