@@ -158,6 +158,40 @@ After you record:
 
       ffmpeg -i "Screen Recording ....mp4" -vsync cfr -r 30 demo.mp4
 
+## 6. Zooming in
+
+A 4K desktop delivered at 1080p is unreadable — a terminal prompt is ~7px tall
+after the downscale. **Record at 4K and zoom in the edit.** The capture has 2x
+of zoom in hand: a 1:1 crop is pixel-native, so a zoomed shot is *sharper* than
+the unzoomed frame, not softer. Nothing is upscaled and nothing is lost.
+
+    build/tools/zoom-edit.sh IN.mp4 OUT.mp4 driver 2 1.5   # ease to the driver
+    build/tools/zoom-edit.sh IN.mp4 OUT.mp4 tabs   1 1     # ease to Chrome/Blender
+
+Presets are `driver` (rail + middle column), `tabs` (the right-hand pane) and
+`full`. Cut between per-shot renders in your editor.
+
+**The `fps` filter before `zoompan` is load-bearing.** The recorder writes VFR
+and `zoompan` counts frames, not seconds, so without normalising first an 8s
+span of a mostly-idle desktop collapsed to 1.8s of output — 54 frames instead
+of 240. Same trap as the VFR note in §5, in a place where it silently produces
+a plausible-looking file.
+
+### A live zoom is possible but not wired up
+
+The engine already exports what it needs:
+
+    fl_drm_view_recording_start_cropped(view, shift, x, y, w, h)
+    fl_drm_view_recording_set_crop(x, y, w, h)   // per frame, any thread
+
+`set_crop` moves the recorded region *while recording*, and output dimensions
+freeze at start, so a shrinking crop scales up into them — an animated zoom, by
+construction. **Nothing in the shell calls it**, so it is unreachable today; it
+is the same shape as the traps in CLAUDE.md where a C entry point exists and no
+Swift caller registers it. Wiring a keybinding or broker op that eases the crop
+between the pane rects — which `WorkspaceSpace` already computes — would give a
+real in-recording zoom and remove the edit step.
+
 ---
 
 ## The shape of the demo
