@@ -390,6 +390,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// by `_buildWorkspaceSpace(output:)`; builds are single-threaded.
     var _wsBuildOutputId: Int = 0
 
+    /// Open workspace context menu: a tab's (window id) or a rail row's
+    /// (workspace id). At most one is non-nil; both nil means no menu.
+    var _wsTabMenuWinId: String? = nil
+    var _wsRailMenuWsId: String? = nil
+    var _wsMenuAt: Offset = Offset(0, 0)
+    /// The rail row being renamed, and its live edit buffer. While this is
+    /// set the workspace space owns the keyboard, launcher-style.
+    var _wsRenamingId: String? = nil
+    var _wsRenameBuffer: String = ""
+    /// The buffer opens pre-filled with the current name, so Enter alone keeps
+    /// it — but the first character typed REPLACES it, the way a rename field
+    /// that opens with its text selected behaves. Without this, typing into a
+    /// rename appends and you get "Workspace 1starling".
+    var _wsRenameFresh: Bool = true
+
     /// Where each output returns when its workspace toggles off, keyed by
     /// output id (each monitor runs its own workspace now).
     var _workspaceReturnByOutput: [Int: Int] = [:]
@@ -1876,6 +1891,50 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     self._screensaverInputWake()
                 }
                 return true
+            }
+
+            // Renaming a workspace owns the keyboard the same way the
+            // launcher does — otherwise every character typed into the rail
+            // would also reach the workspace's driver app.
+            if let renameId = self._wsRenamingId {
+                if keyData.type == .down || keyData.type == .repeat {
+                    switch keyData.physical {
+                    case 0x29:  // Escape — abandon, keep the old name
+                        self.setState { self._wsRenamingId = nil }
+                    case 0x2A:  // Backspace — edits the existing name
+                        self.setState {
+                            self._wsRenameFresh = false
+                            if !self._wsRenameBuffer.isEmpty {
+                                self._wsRenameBuffer.removeLast()
+                            }
+                        }
+                    case 0x28, 0x58:  // Enter — commit, blank name reverts
+                        self.setState {
+                            let name = self._wsRenameBuffer.trimmingCharacters(
+                                in: .whitespaces)
+                            if !name.isEmpty,
+                               let ws = self.windowManager.workspaces
+                                   .first(where: { $0.id == renameId }) {
+                                ws.name = name
+                            }
+                            self._wsRenamingId = nil
+                        }
+                    default:
+                        if let ch = keyData.character,
+                           let s = ch.unicodeScalars.first,
+                           s.value >= 0x20, s.value != 0x7F,
+                           self._wsRenameBuffer.count < 32 {
+                            self.setState {
+                                if self._wsRenameFresh {
+                                    self._wsRenameBuffer = ""
+                                    self._wsRenameFresh = false
+                                }
+                                self._wsRenameBuffer += ch
+                            }
+                        }
+                    }
+                }
+                return true  // swallow everything while renaming
             }
 
             // The app launcher (Launchpad) is modal: while it's open it owns
@@ -5413,7 +5472,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     }
 
     /// The painted glyph an app falls back to when no host icon resolves.
-    private func _iconType(for appId: String) -> IconType {
+    // Internal, not private: the workspace tab strip draws the same glyphs.
+    func _iconType(for appId: String) -> IconType {
         Self.iconType(named: _record(appId)?.glyph ?? "externalApp")
     }
 

@@ -35,6 +35,10 @@ private enum WS {
     static let tabGap: Double = 6
     static let tabTop: Double = 11
     static let paneGap: Double = 10
+    /// Tab width bounds. The floor is icon-plus-padding: below it a tab says
+    /// nothing, so the strip spills into a "+N" chip instead of shrinking on.
+    static let tabWMin: Double = 34
+    static let tabWMax: Double = 190
     /// Floor for the right-hand column, so the shared divider position cannot
     /// collapse it when the workspace is shown on a narrow output.
     static let minTabColumnW: Double = 280
@@ -63,9 +67,12 @@ extension _DesktopShellState {
         let top = DesktopTheme.kStatusBarHeight
 
         // Dim scrim, so the space reads as its own mode rather than a desktop
-        // that happens to have windows arranged on it.
+        // that happens to have windows arranged on it. Near-opaque on purpose:
+        // at half alpha the wallpaper read straight through the columns and
+        // the mode looked like two empty outlines floating on the desktop.
+        // The wallpaper survives as a tint, not as a picture.
         layers.append(Positioned(fill: (), child: ColoredBox(
-            color: Color(0x8A0E0F15), child: SizedBox(expand: ()))))
+            color: Color(0xF20E0F15), child: SizedBox(expand: ()))))
 
         layers.append(contentsOf: _workspaceRail(top: top, h: h))
 
@@ -83,6 +90,7 @@ extension _DesktopShellState {
             left: driverLeft + driverW, top: top, h: h))
         layers.append(contentsOf: _workspaceTabColumn(
             ws, left: rightLeft, width: w - rightLeft, top: top, h: h))
+        layers.append(contentsOf: _workspaceMenuLayer(w, h))
 
         return Stack(children: layers)
     }
@@ -125,6 +133,8 @@ extension _DesktopShellState {
             let count = windowManager.windows(inWorkspace: wsId).count
             let subtitle = count == 0 ? "empty"
                 : (count == 1 ? "1 window" : "\(count) windows")
+            let renaming = _wsRenamingId == wsId
+            let anchor = Offset(20, rowY + WS.rowH + 2)
             let row: [Widget] = [
                 Positioned(fill: (), child: GestureDetector(
                     onTap: { [self] in
@@ -132,22 +142,36 @@ extension _DesktopShellState {
                             windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
                         }
                     },
+                    onSecondaryTap: { [self] in
+                        setState {
+                            windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
+                            _wsTabMenuWinId = nil
+                            _wsRailMenuWsId = wsId
+                            _wsMenuAt = anchor
+                        }
+                    },
                     behavior: .opaque,
                     child: DecoratedBox(
                         decoration: BoxDecoration(
                             color: isSel ? Color(0x26FFFFFF) : Color(0x0DFFFFFF),
                             border: Border.all(
-                                color: isSel ? shellTheme.accent : Color(0x1FFFFFFF),
-                                width: 1),
+                                color: (renaming || isSel) ? shellTheme.accent
+                                                           : Color(0x1FFFFFFF),
+                                width: renaming ? 2 : 1),
                             borderRadius: BorderRadius.all(Radius(circular: 8))),
                         child: SizedBox(expand: ())))),
                 Positioned(left: 12, top: 6,
-                    child: IgnorePointer(child: Text(ws.name, style: TextStyle(
-                        color: shellTheme.overlayText, fontSize: 12, fontWeight: .w600)))),
+                    child: IgnorePointer(child: Text(
+                        renaming ? _wsRenameBuffer + "|" : ws.name,
+                        style: TextStyle(
+                            color: shellTheme.overlayText, fontSize: 12,
+                            fontWeight: .w600)))),
                 Positioned(left: 12, top: 24,
-                    child: IgnorePointer(child: Text(subtitle, style: TextStyle(
-                        color: shellTheme.overlayTextDim,
-                        fontSize: 10.5, fontWeight: .w400)))),
+                    child: IgnorePointer(child: Text(
+                        renaming ? "Enter to save · Esc to cancel" : subtitle,
+                        style: TextStyle(
+                            color: shellTheme.overlayTextDim,
+                            fontSize: 10.5, fontWeight: .w400)))),
             ]
             out.append(Positioned(
                 key: ValueKey("ws-row-\(ws.id)"),
@@ -215,14 +239,24 @@ extension _DesktopShellState {
         let tabs = windowManager.windows(inWorkspace: ws.id)
             .filter { $0.id != ws.driverWindowId }
 
+        let paneTop0 = top + WS.tabTop + WS.tabH + WS.paneGap
         guard !tabs.isEmpty else {
+            // A bordered surface, matching the driver column's empty state:
+            // bare text on the scrim read as a stray label rather than as a
+            // panel waiting for content.
             out.append(Positioned(
-                left: left, top: top + h * 0.34,
-                width: width, height: 24,
-                child: IgnorePointer(child: Center(child: Text(
-                    "Apps opened here will appear in this panel",
-                    style: TextStyle(color: shellTheme.overlayTextDim,
-                                     fontSize: 12.5, fontWeight: .w400))))))
+                left: left + WS.paneGap, top: paneTop0,
+                width: width - WS.paneGap * 2,
+                height: h - paneTop0 - WS.paneGap,
+                child: IgnorePointer(child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: Color(0x14FFFFFF),
+                        border: Border.all(color: Color(0x2EFFFFFF), width: 1),
+                        borderRadius: BorderRadius.all(Radius(circular: 10))),
+                    child: Center(child: Text(
+                        "Apps opened here will appear in this panel",
+                        style: TextStyle(color: shellTheme.overlayTextDim,
+                                         fontSize: 12.5, fontWeight: .w400)))))))
             out.append(Positioned(
                 left: left + WS.paneGap, top: top + WS.tabTop,
                 width: 30, height: WS.tabH,
@@ -237,20 +271,73 @@ extension _DesktopShellState {
         let explicit = _workspaceActiveTab[ws.id]
         let active = tabs.first(where: { $0.id == explicit }) ?? tabs[tabs.count - 1]
 
+        // Budget the strip so the trailing `+` is always reachable: it is the
+        // only way to open an app from in here, and the old sizing floored the
+        // tab width while `x` kept advancing, so past ~6 windows both the last
+        // tabs and the `+` ran off the panel edge.
+        let plusW = 30.0
+        let stripW = width - WS.paneGap * 2
+        let avail = stripW - plusW - WS.tabGap
+        var shown = tabs
+        var hidden = 0
+        var tabW = min(WS.tabWMax,
+                       (avail - WS.tabGap * Double(tabs.count - 1))
+                           / Double(tabs.count))
+        let chipW = 30.0
+        if tabW < WS.tabWMin {
+            // Still too many at the floor: show what fits beside a "+N"
+            // chip, and count the rest into it.
+            tabW = WS.tabWMin
+            let forTabs = avail - chipW - WS.tabGap
+            let fit = max(1, Int((forTabs + WS.tabGap) / (tabW + WS.tabGap)))
+            if fit < tabs.count {
+                hidden = tabs.count - fit
+                shown = Array(tabs.prefix(fit))
+                // The selected tab must never be one of the hidden ones —
+                // its pane is what fills the panel below.
+                if !shown.contains(where: { $0.id == active.id }) {
+                    shown[fit - 1] = active
+                }
+            }
+        }
+
         var x = left + WS.paneGap
-        let tabW = min(190.0, max(96.0,
-            (width - WS.paneGap * 2 - WS.tabGap * Double(tabs.count - 1))
-                / Double(tabs.count)))
-        for tab in tabs {
+        for tab in shown {
             let isActive = tab.id == active.id
             let tabId = tab.id
             let wsId = ws.id
+            let labelled = tabW >= 84
+            var row: [Widget] = [
+                SizedBox(width: 13, height: 13, child: CustomPaint(
+                    painter: IconPainter(
+                        _iconType(for: _wsBaseAppId(tab.appId)),
+                        color: isActive ? shellTheme.overlayText
+                                        : shellTheme.overlayTextDim))),
+            ]
+            if labelled {
+                row.append(SizedBox(width: 6))
+                row.append(Text(
+                    String(tab.title.prefix(Int((tabW - 34) / 6.2))),
+                    style: TextStyle(
+                        color: isActive ? shellTheme.overlayText
+                                        : shellTheme.overlayTextDim,
+                        fontSize: 11, fontWeight: isActive ? .w600 : .w400)))
+            }
+            let anchor = Offset(x, top + WS.tabTop + WS.tabH + 4)
             out.append(Positioned(
                 key: ValueKey("ws-tab-\(tab.id)"),
                 left: x, top: top + WS.tabTop, width: tabW, height: WS.tabH,
                 child: GestureDetector(
                     onTap: { [self] in
                         setState { _workspaceActiveTab[wsId] = tabId }
+                    },
+                    onSecondaryTap: { [self] in
+                        setState {
+                            _workspaceActiveTab[wsId] = tabId
+                            _wsRailMenuWsId = nil
+                            _wsTabMenuWinId = tabId
+                            _wsMenuAt = anchor
+                        }
                     },
                     behavior: .opaque,
                     child: DecoratedBox(
@@ -260,18 +347,32 @@ extension _DesktopShellState {
                                 color: isActive ? shellTheme.accent : Color(0x1FFFFFFF),
                                 width: 1),
                             borderRadius: BorderRadius.all(Radius(circular: 6))),
-                        child: Center(child: Text(
-                            String(tab.title.prefix(22)),
-                            style: TextStyle(
-                                color: isActive ? shellTheme.overlayText
-                                                : shellTheme.overlayTextDim,
-                                fontSize: 11, fontWeight: isActive ? .w600 : .w400)))))))
+                        child: Center(child: Row(
+                            mainAxisAlignment: .center, children: row))))))
             x += tabW + WS.tabGap
         }
+        if hidden > 0 {
+            out.append(Positioned(
+                left: x, top: top + WS.tabTop, width: chipW, height: WS.tabH,
+                child: IgnorePointer(child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: Color(0x14FFFFFF),
+                        borderRadius: BorderRadius.all(Radius(circular: 6))),
+                    child: Center(child: Text(
+                        "+\(hidden)",
+                        style: TextStyle(color: shellTheme.overlayTextDim,
+                                         fontSize: 10, fontWeight: .w600)))))))
+        }
+        // Immediately after the last tab (or the overflow chip), never parked
+        // at the panel edge: it has to sit in the same place relative to the
+        // strip whether or not there are tabs yet, or it jumps across the
+        // panel the moment the first app opens. The width budget above
+        // reserves its slot, so "after the last tab" is always on screen.
         // The dock is faded out in this mode, so without this there is no way
         // to open a second app from inside a workspace.
         out.append(Positioned(
-            left: x, top: top + WS.tabTop, width: 30, height: WS.tabH,
+            left: hidden > 0 ? x + chipW + WS.tabGap : x,
+            top: top + WS.tabTop, width: plusW, height: WS.tabH,
             child: _workspaceButton("+", fontSize: 14) { [self] in
                 openLauncher()
             }))
@@ -411,6 +512,150 @@ extension _DesktopShellState {
             win.rect = r
             win.onContentResize?(size.w, size.h)
         }
+    }
+
+    // MARK: Escape hatch
+
+    /// The real app id inside a workspace-namespaced one ("ws-3:terminal").
+    /// Registry lookups (icon, name) need the base; routing needs the whole.
+    func _wsBaseAppId(_ appId: String) -> String {
+        guard appId.hasPrefix("ws-"), let c = appId.firstIndex(of: ":")
+        else { return appId }
+        return String(appId[appId.index(after: c)...])
+    }
+
+    /// Move a workspace window out to the desktop. Without this anything
+    /// opened in a workspace is trapped there for as long as it runs.
+    ///
+    /// The window keeps its process and its texture; what changes is
+    /// ownership (so the desktop's queries stop filtering it out), its space,
+    /// and its size — a pane-sized client dropped on the desktop with the
+    /// pane's rect would arrive as a full-height sliver.
+    func _wsMoveWindowToDesktop(_ winId: String) {
+        guard let win = windowManager.windows.first(where: { $0.id == winId }),
+              let wsId = win.ownerAgentId else { return }
+
+        // Give the window back its plain app id when the desktop has no other
+        // instance of that app, which restores its dock icon and registry
+        // name. When one IS running, the composite key stays: the map is
+        // appId -> textureId and keystrokes route through it, so overwriting
+        // the entry would steal the desktop copy's keyboard. The window still
+        // works either way; it just goes without a dock indicator.
+        let base = _wsBaseAppId(win.appId)
+        if base != win.appId, processTextureIds[base] == nil {
+            if let tex = processTextureIds[win.appId] {
+                processTextureIds.removeValue(forKey: win.appId)
+                processTextureIds[base] = tex
+            }
+            win.appId = base
+        }
+
+        if let ws = windowManager.workspaces.first(where: { $0.id == wsId }),
+           ws.driverWindowId == winId {
+            ws.driverWindowId = nil
+        }
+        if _workspaceActiveTab[wsId] == winId {
+            _workspaceActiveTab.removeValue(forKey: wsId)
+        }
+
+        win.ownerAgentId = nil
+        // The space this output returns to when the workspace toggles off —
+        // the desktop the user will actually be looking at. Clamped below the
+        // special spaces so the window can never land back on a workspace.
+        let lastUser = max(0, windowManager.firstSpecialIndex - 1)
+        let idx = min(_workspaceReturnByOutput[_wsBuildOutputId] ?? lastUser,
+                      lastUser)
+        win.spaceId = windowManager.spaces[max(0, idx)].id
+
+        let rec = AppRegistry.shared.app(id: base)
+        let w = min(max(rec?.windowRect?.width ?? 900, 480), screenWidth - 80)
+        let h = min(max(rec?.windowRect?.height ?? 620, 360), screenHeight - 120)
+        win.rect = Rect.fromLTWH(max(40, (screenWidth - w) / 2),
+                                 max(DesktopTheme.kStatusBarHeight + 20,
+                                     (screenHeight - h) / 2),
+                                 w, h)
+        win.onContentResize?(w, h)
+        windowManager.onWindowsChanged?()
+    }
+
+    // MARK: Context menus
+
+    /// The open tab / rail menu, plus the click-away catcher under it.
+    private func _workspaceMenuLayer(_ w: Double, _ h: Double) -> [Widget] {
+        guard _wsTabMenuWinId != nil || _wsRailMenuWsId != nil else { return [] }
+        var items: [MacosMenuEntry] = []
+
+        if let winId = _wsTabMenuWinId {
+            let isDriver = windowManager.workspaces
+                .contains { $0.driverWindowId == winId }
+            items = [
+                MacosMenuItem(text: "Move to Desktop", onPressed: { [self] in
+                    setState {
+                        _wsTabMenuWinId = nil
+                        _wsMoveWindowToDesktop(winId)
+                    }
+                }),
+                MacosMenuSeparator(),
+                MacosMenuItem(
+                    text: isDriver ? "Close Driver" : "Close",
+                    onPressed: { [self] in
+                        setState {
+                            _wsTabMenuWinId = nil
+                            windowManager.closeWindow(winId)
+                        }
+                    },
+                    isDestructive: true),
+            ]
+        } else if let wsId = _wsRailMenuWsId {
+            let count = windowManager.windows(inWorkspace: wsId).count
+            let last = windowManager.workspaces.count <= 1
+            items = [
+                MacosMenuItem(text: "Rename", onPressed: { [self] in
+                    setState {
+                        _wsRailMenuWsId = nil
+                        _wsRenamingId = wsId
+                        _wsRenameBuffer = windowManager.workspaces
+                            .first(where: { $0.id == wsId })?.name ?? ""
+                        _wsRenameFresh = true
+                    }
+                }),
+                MacosMenuSeparator(),
+                // Removing the last workspace would leave the space with
+                // nothing to show, so it is refused rather than hidden.
+                MacosMenuItem(
+                    text: count == 0 ? "Remove Workspace"
+                                     : "Remove (keeps \(count) open)",
+                    onPressed: last ? nil : { [self] in
+                        setState {
+                            _wsRailMenuWsId = nil
+                            // Windows outlive the workspace: they move to the
+                            // desktop rather than being destroyed on a click.
+                            for win in windowManager.windows(inWorkspace: wsId) {
+                                _wsMoveWindowToDesktop(win.id)
+                            }
+                            windowManager.removeWorkspace(wsId)
+                        }
+                    },
+                    isDestructive: true),
+            ]
+        }
+
+        let menuW = 210.0
+        return [
+            Positioned(fill: (), child: GestureDetector(
+                onTap: { [self] in
+                    setState { _wsTabMenuWinId = nil; _wsRailMenuWsId = nil }
+                },
+                onSecondaryTap: { [self] in
+                    setState { _wsTabMenuWinId = nil; _wsRailMenuWsId = nil }
+                },
+                behavior: .opaque,
+                child: SizedBox(expand: ()))),
+            Positioned(
+                left: min(_wsMenuAt.dx, max(0, w - menuW - 8)),
+                top: min(_wsMenuAt.dy, max(0, h - 90)),
+                child: SizedBox(width: menuW, child: MacosMenu(items: items))),
+        ]
     }
 
     // MARK: Launching

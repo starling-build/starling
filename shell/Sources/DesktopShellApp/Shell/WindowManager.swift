@@ -407,6 +407,29 @@ class WindowManagerState {
         return ws
     }
 
+    /// Drop a workspace from the rail and hand back the outputs that were
+    /// showing it, so the caller can re-point them.
+    ///
+    /// Deliberately does NOT touch the workspace's windows: destroying user
+    /// windows on a rail click is the kind of thing discovered the hard way,
+    /// so the caller rehomes them to the desktop first. Removing the last
+    /// workspace is refused — the space would have nothing to show.
+    @discardableResult
+    func removeWorkspace(_ workspaceId: String) -> [Int] {
+        guard workspaces.count > 1,
+              let idx = workspaces.firstIndex(where: { $0.id == workspaceId })
+        else { return [] }
+        workspaces.remove(at: idx)
+        let orphaned = selectedWorkspaceIdByOutput
+            .filter { $0.value == workspaceId }.map { $0.key }
+        // Dropping the mapping is the whole re-point: with no entry,
+        // `selectedWorkspace(onOutput:)` already falls back to the first
+        // workspace no other monitor is showing, which is exactly the rule
+        // that keeps two panels off one workspace.
+        for out in orphaned { selectedWorkspaceIdByOutput.removeValue(forKey: out) }
+        return orphaned
+    }
+
     /// Windows belonging to a workspace, newest last.
     ///
     /// Ownership rides on `WindowInfo.ownerAgentId`, which is not the misnomer
