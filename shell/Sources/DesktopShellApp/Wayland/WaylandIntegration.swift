@@ -775,6 +775,13 @@ class WaylandIntegration {
                             bufferScale: bufferScale,
                             viewportWidth: vpW, viewportHeight: vpH)
 
+        // A window on the external screen sees the same pixels: staged into
+        // a memfd the screen-shell child maps and uploads (dma-buf clients
+        // relay their fd instead — see relayFrame above). The pixels are
+        // already swizzled+alpha-forced here, so the child uploads verbatim.
+        externalScreenShell?.relayShmFrame(texId: textureId, rgba: pixels,
+                                           w: Int32(width), h: Int32(height))
+
         textureRegistry.updatePixelData(engine: engine, id: textureId,
                                         data: pixels, width: width, height: height)
 

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#define _GNU_SOURCE  /* memfd_create */
 #include "include/DmaBufBridge.h"
 
 #include <EGL/egl.h>
@@ -12,10 +13,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 
 // ─── SCM_RIGHTS helpers ─────────────────────────────────────────────────────
+
+int dmabuf_create_memfd(size_t size) {
+    int fd = memfd_create("starling-shm-relay", MFD_CLOEXEC);
+    if (fd < 0) return -1;
+    if (ftruncate(fd, (off_t)size) != 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
 
 int dmabuf_send_fd(int socket, int fd, const void* meta, size_t meta_len) {
     // Use a small inline buffer if no metadata provided

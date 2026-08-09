@@ -25,6 +25,9 @@ extern "C" {
 /// Returns 0 on success, -1 on error (errno set).
 int dmabuf_send_fd(int socket, int fd, const void* meta, size_t meta_len);
 
+/// Create a memfd of |size| bytes (SHMFRAME staging). Returns the fd, or -1.
+int dmabuf_create_memfd(size_t size);
+
 /// Receive a file descriptor from a Unix domain socket via SCM_RIGHTS.
 /// |meta| and |meta_len| receive the metadata payload.
 /// Returns the received fd on success, -1 on error (errno set).
@@ -165,6 +168,13 @@ struct DmaBufConfigure {
  * sent as a run: z = chunk index (0 starts a fresh title), buf_w = total
  * byte length, modifier carries the bytes. Re-sent whole when it changes. */
 #define DMABUF_WINSTREAM_TITLE  5
+/* CPU pixel frame for a wl_shm client: the fd is a memfd holding
+ * buf_h * stride bytes of tightly-packed RGBA, already swizzled and
+ * alpha-forced by the shell. The receiver maps it once and re-uploads
+ * from the same mapping on every later DAMAGE for this window; a size
+ * change arrives as a fresh SHMFRAME with a new memfd. fourcc/modifier
+ * are unused (0). */
+#define DMABUF_WINSTREAM_SHMFRAME 6
 
 /* Window flag bits (FRAME / PLACE). */
 #define DMABUF_WINFLAG_FOCUSED    0x1

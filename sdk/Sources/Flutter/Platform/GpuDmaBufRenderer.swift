@@ -221,6 +221,12 @@ public final class GpuRendererState: @unchecked Sendable {
     /// (8 bytes per DMABUF_WINSTREAM_TITLE chunk).
     private var _winTitles: [Int32: String] = [:]
     private var _winTitlePartial: [Int32: (total: Int, bytes: [UInt8])] = [:]
+    /// wl_shm windows: the SHMFRAME memfd stays mapped for the window's
+    /// life; DAMAGE re-uploads from the same mapping (the shell rewrites it
+    /// in place and only signals).
+    private var _shmWindows:
+        [Int32: (map: UnsafeMutableRawPointer, size: Int,
+                 w: Int32, h: Int32)] = [:]
     /// Fired on the main queue when windows appear, move, or leave — texture
     /// CONTENT updates repaint through the engine without a rebuild, so they
     /// do not fire this.
@@ -308,6 +314,46 @@ public final class GpuRendererState: @unchecked Sendable {
                 _externalWindows[msg.window] = state
                 _winLock.unlock()
                 if topologyChanged { _notifyWindowsChanged() }
+            case Int32(DMABUF_WINSTREAM_SHMFRAME):
+                guard rfd >= 0 else { break }
+                let bytes = Int(msg.buf_h) * Int(msg.stride)
+                guard bytes > 0,
+                      let map = mmap(nil, bytes, PROT_READ, MAP_SHARED, rfd, 0),
+                      map != UnsafeMutableRawPointer(bitPattern: -1) else {
+                    Glibc.close(rfd)
+                    break
+                }
+                Glibc.close(rfd)  // the mapping keeps the memfd alive
+                _winLock.lock()
+                if let old = _shmWindows[msg.window] {
+                    munmap(old.map, old.size)
+                }
+                _shmWindows[msg.window] = (map, bytes, msg.buf_w, msg.buf_h)
+                let shmExisting = _externalWindows[msg.window]
+                let shmTitle = _winTitles[msg.window] ?? ""
+                _winLock.unlock()
+                let shmTexId = shmExisting?.textureId ?? registerExternalTexture()
+                _uploadShmWindow(shmTexId, map: map, size: bytes,
+                                 w: msg.buf_w, h: msg.buf_h)
+                let shmState = ExternalWindowState(
+                    window: msg.window, textureId: shmTexId,
+                    x: Double(msg.x), y: Double(msg.y),
+                    width: Double(msg.w), height: Double(msg.h),
+                    z: Int(msg.z),
+                    focused: msg.flags & UInt32(DMABUF_WINFLAG_FOCUSED) != 0,
+                    fullscreen: msg.flags & UInt32(DMABUF_WINFLAG_FULLSCREEN) != 0,
+                    title: shmTitle)
+                let shmTopologyChanged = shmExisting == nil
+                    || shmExisting!.x != shmState.x || shmExisting!.y != shmState.y
+                    || shmExisting!.width != shmState.width
+                    || shmExisting!.height != shmState.height
+                    || shmExisting!.z != shmState.z
+                    || shmExisting!.focused != shmState.focused
+                    || shmExisting!.fullscreen != shmState.fullscreen
+                _winLock.lock()
+                _externalWindows[msg.window] = shmState
+                _winLock.unlock()
+                if shmTopologyChanged { _notifyWindowsChanged() }
             case Int32(DMABUF_WINSTREAM_PLACE):
                 if rfd >= 0 { Glibc.close(rfd) }
                 _winLock.lock()
@@ -367,8 +413,15 @@ public final class GpuRendererState: @unchecked Sendable {
                 if rfd >= 0 { Glibc.close(rfd) }
                 _winLock.lock()
                 let texId = _externalWindows[msg.window]?.textureId
+                let shm = _shmWindows[msg.window]
                 _winLock.unlock()
-                if let texId, let eng = engine {
+                guard let texId else { break }
+                if let shm {
+                    // The shell rewrote the mapping in place; re-upload it
+                    // (which also marks the frame available).
+                    _uploadShmWindow(texId, map: shm.map, size: shm.size,
+                                     w: shm.w, h: shm.h)
+                } else if let eng = engine {
                     FlutterEngineMarkExternalTextureFrameAvailable(eng, texId)
                 }
             case Int32(DMABUF_WINSTREAM_REMOVE):
@@ -377,6 +430,9 @@ public final class GpuRendererState: @unchecked Sendable {
                 let removed = _externalWindows.removeValue(forKey: msg.window)
                 _winTitles.removeValue(forKey: msg.window)
                 _winTitlePartial.removeValue(forKey: msg.window)
+                if let shm = _shmWindows.removeValue(forKey: msg.window) {
+                    munmap(shm.map, shm.size)
+                }
                 _winLock.unlock()
                 if let removed {
                     unregisterExternalTexture(removed.textureId)
@@ -387,6 +443,17 @@ public final class GpuRendererState: @unchecked Sendable {
             }
         }
         Glibc.close(fd)
+    }
+
+    /// Upload one SHM window's staging mapping (tightly-packed RGBA, already
+    /// swizzled shell-side). Reader thread; the copy into the pixel array is
+    /// unsynchronised with the shell's in-place rewrites — a torn frame is
+    /// overwritten by the DAMAGE that follows the next commit.
+    private func _uploadShmWindow(_ texId: Int64, map: UnsafeMutableRawPointer,
+                                  size: Int, w: Int32, h: Int32) {
+        guard size == Int(w) * Int(h) * 4 else { return }
+        let pixels = [UInt8](UnsafeRawBufferPointer(start: map, count: size))
+        updateExternalTexturePixels(texId, pixels: pixels, width: w, height: h)
     }
 
     private func _notifyWindowsChanged() {

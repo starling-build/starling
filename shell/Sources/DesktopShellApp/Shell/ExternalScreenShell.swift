@@ -78,11 +78,27 @@ final class ExternalScreenShell: @unchecked Sendable {
         bufStoreLock.unlock()
     }
 
+    /// texId → CPU staging for a wl_shm client's window: a memfd the child
+    /// maps once and re-reads on DAMAGE signals. The generation bumps when
+    /// the memfd is recreated (buffer size changed), telling the relay the
+    /// fd must travel again. Guarded by bufStoreLock.
+    private var shmStagings:
+        [Int64: (fd: Int32, map: UnsafeMutableRawPointer, size: Int,
+                 w: Int32, h: Int32, generation: Int32)] = [:]
+    /// texId → staging generation the child holds for the currently relayed
+    /// window. Guarded by winLock; entries die with the relayed window (and
+    /// on stream connect), so a re-entering window gets its fd again.
+    private var shmSent: [Int64: Int32] = [:]
+
     /// The texture is gone (surface destroyed, app exited). Any thread.
     func dropBuffer(texId: Int64) {
         bufStoreLock.lock()
         if let old = latestBuffers.removeValue(forKey: texId) {
             Glibc.close(old.fd)
+        }
+        if let st = shmStagings.removeValue(forKey: texId) {
+            munmap(st.map, st.size)
+            Glibc.close(st.fd)
         }
         bufStoreLock.unlock()
     }
@@ -322,6 +338,7 @@ final class ExternalScreenShell: @unchecked Sendable {
                 guard fd >= 0 else { return }
                 winLock.lock()
                 winStreamFd = fd
+                shmSent.removeAll()  // a fresh child holds no mappings
                 winLock.unlock()
                 log("window stream connected")
                 // Deliver the windows already on this output: sync runs on
@@ -713,27 +730,54 @@ final class ExternalScreenShell: @unchecked Sendable {
         for (texId, win) in relayed where !seen.contains(texId) {
             sendLocked(makeMsg(kind: DMABUF_WINSTREAM_REMOVE, win), fd: -1)
             relayed.removeValue(forKey: texId)
+            shmSent.removeValue(forKey: texId)
         }
         winLock.unlock()
         // Entry frames from this relay's own buffer store — bufStoreLock
         // outside winLock (relayFrame takes them in the same order).
         for (texId, var msg) in frames {
             bufStoreLock.lock()
-            guard let buf = latestBuffers[texId],
-                  case let d = Glibc.dup(buf.fd), d >= 0 else {
+            if let buf = latestBuffers[texId] {
+                let d = Glibc.dup(buf.fd)
+                guard d >= 0 else {
+                    bufStoreLock.unlock()
+                    continue
+                }
+                msg.buf_w = buf.w
+                msg.buf_h = buf.h
+                msg.stride = buf.stride
+                msg.fourcc = buf.fourcc
+                msg.modifier = buf.modifier
                 bufStoreLock.unlock()
-                continue
+                winLock.lock()
+                sendLocked(msg, fd: d)
+                winLock.unlock()
+                Glibc.close(d)
+            } else if let st = shmStagings[texId] {
+                // SHM window entering the output: its staging memfd is the
+                // whole content — send it as SHMFRAME and record the
+                // delivered generation.
+                let d = Glibc.dup(st.fd)
+                guard d >= 0 else {
+                    bufStoreLock.unlock()
+                    continue
+                }
+                msg.kind = Int32(DMABUF_WINSTREAM_SHMFRAME)
+                msg.buf_w = st.w
+                msg.buf_h = st.h
+                msg.stride = st.w * 4
+                msg.fourcc = 0
+                msg.modifier = 0
+                let gen = st.generation
+                bufStoreLock.unlock()
+                winLock.lock()
+                sendLocked(msg, fd: d)
+                shmSent[texId] = gen
+                winLock.unlock()
+                Glibc.close(d)
+            } else {
+                bufStoreLock.unlock()
             }
-            msg.buf_w = buf.w
-            msg.buf_h = buf.h
-            msg.stride = buf.stride
-            msg.fourcc = buf.fourcc
-            msg.modifier = buf.modifier
-            bufStoreLock.unlock()
-            winLock.lock()
-            sendLocked(msg, fd: d)
-            winLock.unlock()
-            Glibc.close(d)
         }
     }
 
@@ -767,6 +811,60 @@ final class ExternalScreenShell: @unchecked Sendable {
         defer { winLock.unlock() }
         guard winStreamFd >= 0, let win = relayed[texId] else { return }
         sendLocked(makeMsg(kind: DMABUF_WINSTREAM_DAMAGE, win), fd: -1)
+    }
+
+    /// A wl_shm client committed: `rgba` is the commit's tightly-packed
+    /// RGBA copy (already swizzled and alpha-forced by the caller), staged
+    /// into a per-texture memfd the child maps. Same-size commits rewrite
+    /// the mapping in place and send only a DAMAGE signal; a size change
+    /// recreates the memfd and re-sends it as SHMFRAME. UI thread (the
+    /// wl_shm commit path), synchronous — the caller frees `rgba` after.
+    func relayShmFrame(texId: Int64, rgba: UnsafeRawPointer,
+                       w: Int32, h: Int32) {
+        let needed = Int(w) * Int(h) * 4
+        guard needed > 0 else { return }
+        bufStoreLock.lock()
+        var st = shmStagings[texId]
+        if st == nil || st!.size != needed {
+            let gen = (st?.generation ?? 0) &+ 1
+            if let old = st {
+                munmap(old.map, old.size)
+                Glibc.close(old.fd)
+                shmStagings.removeValue(forKey: texId)
+            }
+            let fd = dmabuf_create_memfd(needed)
+            guard fd >= 0,
+                  let map = mmap(nil, needed, PROT_READ | PROT_WRITE,
+                                 MAP_SHARED, fd, 0),
+                  map != UnsafeMutableRawPointer(bitPattern: -1) else {
+                if fd >= 0 { Glibc.close(fd) }
+                bufStoreLock.unlock()
+                return
+            }
+            st = (fd, map, needed, w, h, gen)
+        }
+        memcpy(st!.map, rgba, needed)
+        st!.w = w
+        st!.h = h
+        shmStagings[texId] = st
+        let (sfd, gen) = (st!.fd, st!.generation)
+        bufStoreLock.unlock()
+
+        winLock.lock()
+        defer { winLock.unlock() }
+        guard winStreamFd >= 0, let win = relayed[texId] else { return }
+        if shmSent[texId] == gen {
+            sendLocked(makeMsg(kind: DMABUF_WINSTREAM_DAMAGE, win), fd: -1)
+        } else {
+            var msg = makeMsg(kind: Int32(DMABUF_WINSTREAM_SHMFRAME), win)
+            msg.buf_w = w
+            msg.buf_h = h
+            msg.stride = w * 4
+            msg.fourcc = 0
+            msg.modifier = 0
+            sendLocked(msg, fd: sfd)
+            shmSent[texId] = gen
+        }
     }
 
     private func makeMsg(kind: Int32, _ win: RelayedWindow) -> DmaBufWindowStreamMsg {
