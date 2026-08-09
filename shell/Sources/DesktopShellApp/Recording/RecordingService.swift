@@ -130,6 +130,96 @@ final class RecordingService {
     // Bumped per start; stale deadline checks compare against it.
     private var sessionGen = 0
 
+    // MARK: - Recording zoom
+    //
+    // The recorded region, not the screen. A 4K capture delivered at 1080p
+    // has 2x of zoom in hand — a 1:1 crop is pixel-native — so zooming the
+    // CROP costs nothing and nobody watching the desk sees anything move.
+    //
+    // The engine freezes the output dimensions at start and scales whatever
+    // crop it is given into them, so shrinking the crop IS the zoom. Only
+    // the full-screen sink supports it: a window capture is already
+    // crop-as-window (`set_crop` is how it tracks the window), and a second
+    // meaning for the same call would fight it.
+
+    /// Zoom steps. 1.0 is the whole output; 2.0 on a 4K panel is the 1:1
+    /// crop, which is the sharpest a 1080p deliverable can be.
+    static let zoomSteps: [Double] = [1.0, 1.5, 2.0, 3.0]
+
+    /// Where the crop is heading, and where it is now — the gap between them
+    /// is what `tickZoom` eases away. Fractions of the full framebuffer, so
+    /// they survive a resolution change.
+    private var zoomTarget: Double = 1.0
+    private(set) var zoomLevel: Double = 1.0
+    private var centerTarget = (x: 0.5, y: 0.5)
+    private var center = (x: 0.5, y: 0.5)
+    /// Full-resolution framebuffer size of the live session, for crop math.
+    private var zoomFbWidth = 0
+    private var zoomFbHeight = 0
+    /// Window captures place the crop themselves; leave them alone.
+    private var zoomSupported = false
+
+    var isZoomed: Bool { zoomLevel > 1.001 || zoomTarget > 1.001 }
+    /// "2.0" — for the menu-bar indicator, so the operator can see the state
+    /// of a thing that is deliberately invisible on screen.
+    var zoomLabel: String { String(format: "%.1f", zoomLevel) }
+
+    /// Step in or out, keeping `at` (fractions of the screen) in frame. The
+    /// centre is re-taken on every step so the zoom follows the pointer
+    /// rather than committing to wherever it started.
+    func stepZoom(_ delta: Int, at: (x: Double, y: Double)) {
+        guard zoomSupported, isRecording else { return }
+        let steps = Self.zoomSteps
+        let i = steps.firstIndex(where: { $0 >= zoomTarget - 0.001 }) ?? 0
+        let next = min(max(i + delta, 0), steps.count - 1)
+        zoomTarget = steps[next]
+        centerTarget = zoomTarget <= 1.001 ? (0.5, 0.5)
+                                           : (min(max(at.x, 0), 1),
+                                              min(max(at.y, 0), 1))
+        onChange?()
+    }
+
+    func resetZoom() {
+        zoomTarget = 1.0
+        centerTarget = (0.5, 0.5)
+    }
+
+    /// Ease the live crop toward the target and push it to the engine.
+    /// Driven by the shell's frame pump, which already runs while recording.
+    func tickZoom() {
+        guard zoomSupported, isRecording, zoomFbWidth > 0 else { return }
+        // Exponential ease: framerate-independent enough for a pump that is
+        // not promised a fixed rate, and it never overshoots.
+        let k = 0.18
+        let done = abs(zoomTarget - zoomLevel) < 0.002
+            && abs(centerTarget.x - center.x) < 0.001
+            && abs(centerTarget.y - center.y) < 0.001
+        if done {
+            guard zoomLevel != zoomTarget else { return }
+            zoomLevel = zoomTarget
+            center = centerTarget
+        } else {
+            zoomLevel += (zoomTarget - zoomLevel) * k
+            center.x += (centerTarget.x - center.x) * k
+            center.y += (centerTarget.y - center.y) * k
+        }
+        pushCrop()
+        onChange?()
+    }
+
+    private func pushCrop() {
+        let fw = Double(zoomFbWidth), fh = Double(zoomFbHeight)
+        let z = max(1.0, zoomLevel)
+        let cw = (fw / z).rounded(), ch = (fh / z).rounded()
+        // Clamp so the crop never leaves the framebuffer — the engine would
+        // sample outside it, and the edge of a demo is exactly where the
+        // pointer tends to be.
+        let cx = min(max(center.x * fw - cw / 2, 0), fw - cw).rounded()
+        let cy = min(max(center.y * fh - ch / 2, 0), fh - ch).rounded()
+        fl_drm_view_recording_set_crop(Int32(cx), Int32(cy),
+                                       Int32(cw), Int32(ch))
+    }
+
     var isRecording: Bool { state == .starting || state == .recording }
     /// The frame-tick pump must run while this holds (see class comment).
     var needsFramePump: Bool { state != .idle }
@@ -412,6 +502,12 @@ final class RecordingService {
         // after they had already cost their bandwidth; it stays as the
         // safety net.
         fl_drm_view_recording_set_max_fps(Int32(Self.fps))
+        // Zoom starts off and is only offered to the full-screen sink; a
+        // window capture drives `set_crop` itself to track its window.
+        zoomLevel = 1.0; zoomTarget = 1.0
+        center = (0.5, 0.5); centerTarget = (0.5, 0.5)
+        zoomFbWidth = w; zoomFbHeight = h
+        zoomSupported = (texture == nil)
         if let texture {
             fl_drm_view_recording_start_texture(view, Int32(shift), texture,
                                                 Int32(w), Int32(h),
@@ -474,6 +570,11 @@ final class RecordingService {
     private func endSession(reason: String?) {
         guard state == .starting || state == .recording else { return }
         state = .stopping
+        // Drop the zoom before the engine tears the session down, so the
+        // next recording never inherits the last one's crop.
+        zoomSupported = false
+        zoomLevel = 1.0; zoomTarget = 1.0
+        center = (0.5, 0.5); centerTarget = (0.5, 0.5)
         onChange?()
         fl_drm_view_recording_stop(drmViewHandle)
         pacer?.cancel()

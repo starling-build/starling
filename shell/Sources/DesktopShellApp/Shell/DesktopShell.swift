@@ -390,6 +390,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// by `_buildWorkspaceSpace(output:)`; builds are single-threaded.
     var _wsBuildOutputId: Int = 0
 
+    /// Last pointer position seen anywhere in the shell tree, in host-output
+    /// logical px. Recorded by a translucent Listener at the root, so it
+    /// sees motion over windows and panes too rather than only the parts of
+    /// the wallpaper nothing claimed. Recording zoom centres on it.
+    var _lastPointer: Offset = Offset(0, 0)
+
     /// Open workspace context menu: a tab's (window id) or a rail row's
     /// (workspace id). At most one is non-nil; both nil means no menu.
     var _wsTabMenuWinId: String? = nil
@@ -1121,6 +1127,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 tick = true
                 recordingService?.checkWindowAlive()
                 recordingService?.refreshWindowRect()
+                // Eases the recorded crop toward its target. Cheap and a
+                // no-op unless a zoom is in flight.
+                recordingService?.tickZoom()
             }
             // ScreenCast rides it the same way: presents feed the PipeWire
             // stream, and the tick observes the stop draining. Until the
@@ -2111,6 +2120,24 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     #endif
                     return true
                 }
+                // Ctrl+Shift+= / Ctrl+Shift+- — zoom the RECORDING in and
+                // out around the pointer. Nothing on screen moves; this
+                // crops what the encoder sees, which is why a 4K capture can
+                // zoom to 1:1 and come out sharper than the wide shot.
+                // Shift-gated like the others so apps keep plain Ctrl+±.
+                if (phys == 0x2E || phys == 0x2D) && self._shiftPressed
+                    && (keyData.type == .down || keyData.type == .repeat) {
+                    #if os(Linux)
+                    if let rec = recordingService, rec.isRecording {
+                        let w = self.screenWidth
+                        let h = self.screenHeight
+                        rec.stepZoom(phys == 0x2E ? 1 : -1,
+                                     at: (x: self._lastPointer.dx / max(w, 1),
+                                          y: self._lastPointer.dy / max(h, 1)))
+                    }
+                    #endif
+                    return true
+                }
                 // Ctrl+Shift+S — screensaver (dev trigger until the idle
                 // timer lands). Shift-gated so apps keep plain Ctrl+S (save).
                 if phys == 0x16 && self._shiftPressed && keyData.type == .down {
@@ -2978,6 +3005,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        // Pointer tap for the recording zoom. Translucent so it only
+        // observes: it sits in the hit path of everything below and consumes
+        // nothing, which is the pattern the overlay note in CLAUDE.md
+        // settles on (a ColoredBox here would swallow the desktop).
+        // Deliberately NOT setState — this feeds a crop, and rebuilding the
+        // whole shell on every mouse move would be absurd.
+        return Listener(
+            onPointerDown: { [self] e in _lastPointer = e.position },
+            onPointerMove: { [self] e in _lastPointer = e.position },
+            onPointerHover: { [self] e in _lastPointer = e.position },
+            behavior: .translucent,
+            child: _buildShellRoot(context))
+    }
+
+    private func _buildShellRoot(_ context: any BuildContext) -> Widget {
         // SIMULATED multi-output (STARLING_SIM_OUTPUTS): render the whole
         // virtual desktop scaled to fit the one physical panel. REAL
         // multi-output instead gives each secondary its own Flutter view
@@ -4066,7 +4108,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// to end, a menu between them and "stop" is only footage of a menu.
     private func _recordingIndicator() -> Widget {
         let secs = recordingService?.elapsedSeconds ?? 0
-        let label = String(format: "%d:%02d", secs / 60, secs % 60)
+        var label = String(format: "%d:%02d", secs / 60, secs % 60)
+        // The zoom is invisible on screen by design — the desktop does not
+        // move, only the crop does — so the indicator is the only way to
+        // know the take is zoomed. Without it you narrate blind.
+        if let rec = recordingService, rec.isZoomed {
+            label += "  \(rec.zoomLabel)×"
+        }
         return GestureDetector(
             onTap: { recordingService?.stop() },
             behavior: .opaque,

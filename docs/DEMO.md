@@ -177,20 +177,26 @@ span of a mostly-idle desktop collapsed to 1.8s of output — 54 frames instead
 of 240. Same trap as the VFR note in §5, in a place where it silently produces
 a plausible-looking file.
 
-### A live zoom is possible but not wired up
+### Or zoom live, while recording
 
-The engine already exports what it needs:
+**Ctrl+Shift+=** zooms the recording in, **Ctrl+Shift+-** zooms out — 1x, 1.5x,
+2x, 3x, eased over ~0.3s, centred on the pointer. Only while recording; it is a
+no-op otherwise.
 
-    fl_drm_view_recording_start_cropped(view, shift, x, y, w, h)
-    fl_drm_view_recording_set_crop(x, y, w, h)   // per frame, any thread
+**Nothing on screen moves.** This crops what the encoder sees, not the desktop,
+so the audience in the room sees nothing and the take comes out zoomed. On a 4K
+panel the 2x step is the 1:1 crop, so a zoomed shot is *sharper* than the wide
+one, exactly as in the edit-time route above — and there is no edit step.
 
-`set_crop` moves the recorded region *while recording*, and output dimensions
-freeze at start, so a shrinking crop scales up into them — an animated zoom, by
-construction. **Nothing in the shell calls it**, so it is unreachable today; it
-is the same shape as the traps in CLAUDE.md where a C entry point exists and no
-Swift caller registers it. Wiring a keybinding or broker op that eases the crop
-between the pane rects — which `WorkspaceSpace` already computes — would give a
-real in-recording zoom and remove the edit step.
+Because the screen does not move, the **menu-bar indicator is the only feedback**:
+it reads `0:07  2.0×` while zoomed. Watch it, or you are narrating blind.
+
+Re-taking the centre on every press means the zoom follows the pointer — point
+at the driver, press twice, point at Chrome, press again, and it travels. Zoom
+resets to 1x when a recording stops, so a take never inherits the last one's
+crop. Window recordings do not offer it: they already drive `set_crop`
+themselves to track the window, and a second meaning for the same call would
+fight it.
 
 ---
 
