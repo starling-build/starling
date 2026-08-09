@@ -405,6 +405,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// set the workspace space owns the keyboard, launcher-style.
     var _wsRenamingId: String? = nil
     var _wsRenameBuffer: String = ""
+    /// The rail row the pointer is over, so that row alone can show its
+    /// rename affordance. Set from MouseRegion enter/exit, and only when it
+    /// changes — a rail rebuild per mouse move would be absurd.
+    var _wsHoverRailId: String? = nil
     /// The buffer opens pre-filled with the current name, so Enter alone keeps
     /// it — but the first character typed REPLACES it, the way a rename field
     /// that opens with its text selected behaves. Without this, typing into a
@@ -1905,7 +1909,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // Renaming a workspace owns the keyboard the same way the
             // launcher does — otherwise every character typed into the rail
             // would also reach the workspace's driver app.
-            if let renameId = self._wsRenamingId {
+            if self._wsRenamingId != nil {
                 if keyData.type == .down || keyData.type == .repeat {
                     switch keyData.physical {
                     case 0x29:  // Escape — abandon, keep the old name
@@ -1918,16 +1922,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                             }
                         }
                     case 0x28, 0x58:  // Enter — commit, blank name reverts
-                        self.setState {
-                            let name = self._wsRenameBuffer.trimmingCharacters(
-                                in: .whitespaces)
-                            if !name.isEmpty,
-                               let ws = self.windowManager.workspaces
-                                   .first(where: { $0.id == renameId }) {
-                                ws.name = name
-                            }
-                            self._wsRenamingId = nil
-                        }
+                        self.setState { self._wsCommitRename() }
                     default:
                         if let ch = keyData.character,
                            let s = ch.unicodeScalars.first,

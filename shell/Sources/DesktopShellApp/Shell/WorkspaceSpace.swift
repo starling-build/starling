@@ -19,6 +19,7 @@
 // functional tier drives through the semantics endpoint.
 //
 
+import CupertinoIcons
 import Flutter
 import FlutterSwiftBridge
 import Foundation
@@ -90,7 +91,11 @@ extension _DesktopShellState {
             left: driverLeft + driverW, top: top, h: h))
         layers.append(contentsOf: _workspaceTabColumn(
             ws, left: rightLeft, width: w - rightLeft, top: top, h: h))
+        layers.append(contentsOf: _workspaceRenameLayer())
         layers.append(contentsOf: _workspaceMenuLayer(w, h))
+        // Topmost, so nothing opaque below can swallow the hover; translucent,
+        // so every click still lands on whatever is under it.
+        layers.append(_workspaceHoverProbe(top: top))
 
         return Stack(children: layers)
     }
@@ -135,7 +140,7 @@ extension _DesktopShellState {
                 : (count == 1 ? "1 window" : "\(count) windows")
             let renaming = _wsRenamingId == wsId
             let anchor = Offset(20, rowY + WS.rowH + 2)
-            let row: [Widget] = [
+            var row: [Widget] = [
                 Positioned(fill: (), child: GestureDetector(
                     onTap: { [self] in
                         setState {
@@ -173,6 +178,13 @@ extension _DesktopShellState {
                             color: shellTheme.overlayTextDim,
                             fontSize: 10.5, fontWeight: .w400)))),
             ]
+            // Only the row under the pointer offers it, so the rail reads as
+            // a plain list until you reach for something.
+            if _wsHoverRailId == wsId && !renaming {
+                row.append(Positioned(
+                    left: WS.railW - 20 - 34, top: 10, width: 24, height: 24,
+                    child: _wsRenameAffordance(wsId)))
+            }
             out.append(Positioned(
                 key: ValueKey("ws-row-\(ws.id)"),
                 left: 10, top: rowY, width: WS.railW - 20, height: WS.rowH,
@@ -578,6 +590,103 @@ extension _DesktopShellState {
         windowManager.onWindowsChanged?()
     }
 
+    // MARK: Hover
+
+    /// Which rail row the pointer is over, tracked as ONE translucent probe
+    /// over the whole space rather than a region per row.
+    ///
+    /// `MouseRegion`'s enter/exit are not the tool here — this shell reads
+    /// hover from `Listener.onPointerHover` everywhere it already does it
+    /// (the dock's magnification, the divider's cursor), and a per-row region
+    /// also gets *leaving* wrong: nothing fires when the pointer exits the
+    /// rail sideways into the driver, so the last row stays lit. Deriving the
+    /// row from the position makes "no row" fall out for free.
+    ///
+    /// It only calls setState when the row actually changes, so this is a
+    /// rebuild per boundary crossed, not per mouse move.
+    private func _workspaceHoverProbe(top: Double) -> Widget {
+        return Positioned(fill: (), child: Listener(
+            onPointerHover: { [self] e in
+                let id = _wsRailRowAt(e.position, top: top)
+                guard id != _wsHoverRailId else { return }
+                setState { _wsHoverRailId = id }
+            },
+            behavior: .translucent,
+            child: SizedBox(expand: ())))
+    }
+
+    private func _wsRailRowAt(_ p: Offset, top: Double) -> String? {
+        guard p.dx >= 10, p.dx <= WS.railW - 10 else { return nil }
+        var rowY = top + 50
+        for ws in windowManager.workspaces {
+            if p.dy >= rowY, p.dy < rowY + WS.rowH { return ws.id }
+            rowY += WS.rowH + 8
+        }
+        return nil
+    }
+
+    // MARK: Inline rename
+
+    /// Open the rail's inline editor on one row. Shared by the hover pencil
+    /// and the context menu's Rename, so the two cannot drift apart.
+    func _wsBeginRename(_ wsId: String) {
+        _wsRailMenuWsId = nil
+        _wsRenamingId = wsId
+        _wsRenameBuffer = windowManager.workspaces
+            .first(where: { $0.id == wsId })?.name ?? ""
+        _wsRenameFresh = true
+    }
+
+    /// The pencil that appears on the hovered row. Renaming a workspace was
+    /// previously only reachable through right-click > Rename, which is not a
+    /// thing anyone finds; this puts it where the pointer already is, and
+    /// only on the row being pointed at so the rail stays a plain list.
+    private func _wsRenameAffordance(_ wsId: String) -> Widget {
+        let fg = shellTheme.overlayText
+        return HoverButton(
+            builder: { _, states in
+                DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: states.isHovered ? Color(0x33FFFFFF)
+                                                : Color(0x14FFFFFF),
+                        borderRadius: BorderRadius.all(Radius(circular: 6))),
+                    child: Center(child: MacosIcon(
+                        icon: CupertinoIcons.pencil,
+                        color: fg, size: 12)))
+            },
+            onPressed: { [self] in setState { _wsBeginRename(wsId) } })
+    }
+
+    /// Commit the rail's inline rename: a non-blank name sticks, a blank one
+    /// leaves the old one alone. Shared by Enter and by the click-away
+    /// catcher below, which have to agree — a name that saves on Enter but
+    /// evaporates on a click elsewhere is the kind of thing nobody reports
+    /// and everybody notices.
+    func _wsCommitRename() {
+        guard let renameId = _wsRenamingId else { return }
+        let name = _wsRenameBuffer.trimmingCharacters(in: .whitespaces)
+        if !name.isEmpty,
+           let ws = windowManager.workspaces.first(where: { $0.id == renameId }) {
+            ws.name = name
+        }
+        _wsRenamingId = nil
+    }
+
+    /// Click-away catcher for the inline rename. Opening the editor
+    /// automatically on `+ New` means the user can now walk away from one
+    /// without pressing Enter, and an armed editor swallows every keystroke
+    /// (see the key handler) — so the next click anywhere has to end it.
+    /// It commits rather than cancels, the way a rename field that loses
+    /// focus does.
+    private func _workspaceRenameLayer() -> [Widget] {
+        guard _wsRenamingId != nil else { return [] }
+        return [Positioned(fill: (), child: GestureDetector(
+            onTap: { [self] in setState { _wsCommitRename() } },
+            onSecondaryTap: { [self] in setState { _wsCommitRename() } },
+            behavior: .opaque,
+            child: SizedBox(expand: ())))]
+    }
+
     // MARK: Context menus
 
     /// The open tab / rail menu, plus the click-away catcher under it.
@@ -611,13 +720,7 @@ extension _DesktopShellState {
             let last = windowManager.workspaces.count <= 1
             items = [
                 MacosMenuItem(text: "Rename", onPressed: { [self] in
-                    setState {
-                        _wsRailMenuWsId = nil
-                        _wsRenamingId = wsId
-                        _wsRenameBuffer = windowManager.workspaces
-                            .first(where: { $0.id == wsId })?.name ?? ""
-                        _wsRenameFresh = true
-                    }
+                    setState { _wsBeginRename(wsId) }
                 }),
                 MacosMenuSeparator(),
                 // Removing the last workspace would leave the space with
