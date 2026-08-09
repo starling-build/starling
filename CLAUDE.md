@@ -72,7 +72,35 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
   host_debug missing it fails the *link*, host_release missing it fails at
   *runtime*.
 - Run: `build/run-desktop.sh` — stages into `.stage/` then runs from there.
-  Drive/screenshot with `sudo build/shell-drive.py …`.
+  Drive/screenshot with `sudo build/shell-drive.py …` (each action is **one**
+  argv element: `"shot /tmp/x.png"`, not `shot /tmp/x.png`).
+- **Running headless — no monitor attached.** The dev box often has no display,
+  and then every connector reads `disconnected` with zero modes, so the shell
+  dies at `fl_drm_view_create`. Force a connector on and hand it an EDID; the
+  real GPU then programs a real CRTC and scans out into memory, so this is the
+  ordinary path (real EGL/GBM, real page flips), not an emulation — and
+  `shell-drive.py` screenshots work unchanged.
+
+      python3 build/tools/mkedid.py > /tmp/edid.bin
+      C=/sys/kernel/debug/dri/0000:c6:00.0/HDMI-A-1   # the GPU's PCI debugfs dir
+      sudo dd if=/tmp/edid.bin of=$C/edid_override bs=128 count=1
+      echo on | sudo tee /sys/class/drm/card1-HDMI-A-1/status
+
+  **Order matters**: writing `detect` to the sysfs `status` file *clears* the
+  force, so set the EDID first and force second — doing it the other way round
+  reports `disconnected` with no hint why. The EDID is what produces the mode
+  list: forced on without one, the connector goes `connected` with **zero
+  modes** and fails exactly like no display at all. Both settings live in
+  debugfs/sysfs and are gone after a reboot; revert with
+  `echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status`.
+  `vkms` looks like the obvious answer and is not — it has no render node, and
+  the shell opens **one** device for both GBM/EGL and KMS.
+  Beware the fallback while headless: `build/session/starling-session` scans for
+  the first *connected* connector and otherwise falls back to `/dev/dri/card0`,
+  which on this machine does not exist (the GPU is card1; card0 was the
+  simple-framebuffer) and on a hybrid laptop is the **displayless** dGPU — card
+  numbering follows probe order and is never a safe default. Either way the
+  error reads `Failed to open /dev/dri/card0` rather than "no display".
 - Package: `build/package-desktop.sh` → .deb. It consumes `build/stage.sh`, which
   is the **single definition of the layout** — change assembly there, never in
   the packager alone. The session launcher, its `.desktop`, the polkit policy
