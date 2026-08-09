@@ -44,6 +44,7 @@ final class ExternalScreenShell: @unchecked Sendable {
 
     private struct RelayedWindow {
         var key: Int32
+        var id: String        // the shell's window id, for focus/raise
         var x: Float, y: Float, w: Float, h: Float
         var z: Int32
     }
@@ -198,6 +199,10 @@ final class ExternalScreenShell: @unchecked Sendable {
                 winStreamFd = fd
                 winLock.unlock()
                 log("window stream connected")
+                // Deliver the windows already on this output: sync runs on
+                // every shell state change, but a freshly idle shell may not
+                // change for a while — poke one through the main queue.
+                DispatchQueue.main.async { _shellState?.setState {} }
             }
         }
 
@@ -339,6 +344,19 @@ final class ExternalScreenShell: @unchecked Sendable {
             pointerTargetTexId = -1
         }
         winLock.unlock()
+        if phase == 2, let (_, win) = target {
+            // Focus and raise, as any click on a window does. Hopped to the
+            // main queue: this is the engine input thread, and the GCD main
+            // queue drains on the shell's own loop (the hotplug path makes
+            // the same cross-thread setState). The z bump flows back to the
+            // child as a PLACE on the next sync.
+            let winId = win.id
+            DispatchQueue.main.async {
+                _shellState?.setState {
+                    _shellState?.windowManager.bringToFront(winId)
+                }
+            }
+        }
         if let (texId, win) = target {
             let wx = lx - Double(win.x)
             let wy = ly - Double(win.y)
@@ -399,7 +417,7 @@ final class ExternalScreenShell: @unchecked Sendable {
                 windowKeys[e.id] = key
             }
             let win = RelayedWindow(
-                key: key, x: Float(e.x), y: Float(e.y),
+                key: key, id: e.id, x: Float(e.x), y: Float(e.y),
                 w: Float(e.w), h: Float(e.h), z: Int32(e.z))
             if let old = relayed[e.texId] {
                 if old.x != win.x || old.y != win.y || old.w != win.w
