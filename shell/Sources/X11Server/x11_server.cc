@@ -3433,7 +3433,12 @@ static void handle_glx(X11Server* server, int client_idx, uint8_t minor,
             "GLX_MESA_swap_control GLX_MESA_query_renderer";
         int sl18 = static_cast<int>(strlen(exts18)) + 1;
         int pd18 = (4 - (sl18 & 3)) & 3;
-        int ex18 = 4 + sl18 + pd18;
+        /* GLX single-string reply length is the padded string only; the string
+         * count lives in the header at offset 12, NOT as a word before the
+         * string. An extra word here overshoots `length`, and a client that
+         * reads by the count leaves those bytes unread — xcb then aborts with
+         * "Extra reply data still left in queue" (Chromium's GLX probe). */
+        int ex18 = sl18 + pd18;
         int rl18 = 32 + ex18;
         std::vector<uint8_t> reply(static_cast<size_t>(rl18), 0);
         reply[0] = 1; *reinterpret_cast<uint16_t*>(&reply[2]) = seq;
@@ -3453,7 +3458,8 @@ static void handle_glx(X11Server* server, int client_idx, uint8_t minor,
             "GLX_MESA_swap_control GLX_MESA_query_renderer";
         int slen = static_cast<int>(strlen(str)) + 1;
         int pad = (4 - (slen & 3)) & 3;
-        int extra = 4 + slen + pad;
+        /* padded string only — see the note in the QueryExtensionsString branch */
+        int extra = slen + pad;
         int reply_len = 32 + extra;
         std::vector<uint8_t> reply(static_cast<size_t>(reply_len), 0);
         reply[0] = 1; *reinterpret_cast<uint16_t*>(&reply[2]) = seq;
@@ -5018,6 +5024,8 @@ void x11_server_key_event(X11Server* server, uint32_t keycode, int pressed) {
     uint8_t event[32] = {};
     event[0] = pressed ? X11_KEY_PRESS_EVENT : X11_KEY_RELEASE_EVENT;
     event[1] = x11_keycode;
+    *reinterpret_cast<uint16_t*>(event + 2) =
+        server->clients[server->focus_client_idx].sequence;
     *reinterpret_cast<uint32_t*>(event + 4) = x11_timestamp();
     *reinterpret_cast<uint32_t*>(event + 8) = server->root_window_id;
     *reinterpret_cast<uint32_t*>(event + 12) = win->id;
@@ -5030,8 +5038,11 @@ void x11_server_enter_notify(X11Server* server, uint32_t window_id, int x, int y
     if (!server) return;
     X11Window* win = find_window(server, window_id);
     if (!win || !win->mapped) return;
+    int oc = static_cast<int>(win->owner_client);
     uint8_t event[32] = {};
     event[0] = X11_ENTER_NOTIFY_EVENT; event[1] = 0;
+    if (oc >= 0 && oc < server->client_count)
+        *reinterpret_cast<uint16_t*>(event + 2) = server->clients[oc].sequence;
     *reinterpret_cast<uint32_t*>(event + 4) = x11_timestamp();
     *reinterpret_cast<uint32_t*>(event + 8) = server->root_window_id;
     *reinterpret_cast<uint32_t*>(event + 12) = win->id;
@@ -5047,8 +5058,11 @@ void x11_server_leave_notify(X11Server* server, uint32_t window_id, int x, int y
     if (!server) return;
     X11Window* win = find_window(server, window_id);
     if (!win || !win->mapped) return;
+    int oc = static_cast<int>(win->owner_client);
     uint8_t event[32] = {};
     event[0] = X11_LEAVE_NOTIFY_EVENT; event[1] = 0;
+    if (oc >= 0 && oc < server->client_count)
+        *reinterpret_cast<uint16_t*>(event + 2) = server->clients[oc].sequence;
     *reinterpret_cast<uint32_t*>(event + 4) = x11_timestamp();
     *reinterpret_cast<uint32_t*>(event + 8) = server->root_window_id;
     *reinterpret_cast<uint32_t*>(event + 12) = win->id;
@@ -5178,6 +5192,9 @@ void x11_server_release_buffer(X11Server* server, uint32_t window_id) {
                 if (r.mask != 0 && !(r.mask & 0x4)) continue;
                 uint8_t ge2[32] = {};
                 ge2[0] = X11_GENERIC_EVENT; ge2[1] = 148;
+                if (r.client >= 0 && r.client < server->client_count)
+                    *reinterpret_cast<uint16_t*>(ge2 + 2) =
+                        server->clients[r.client].sequence;
                 *reinterpret_cast<uint16_t*>(ge2 + 8) = PRESENT_IDLE_NOTIFY;
                 *reinterpret_cast<uint32_t*>(ge2 + 12) = r.eid;
                 *reinterpret_cast<uint32_t*>(ge2 + 16) = window_id;
