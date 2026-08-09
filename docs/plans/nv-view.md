@@ -7,6 +7,24 @@ presented through the AMD card. Explored 2026-08-08; nothing here is built
 yet except the encoder ([nvenc], commit 54b4c64) and the app-level prior art
 ([swapchain], commit 7c47ded).
 
+## Status 2026-08-08 (end of day)
+
+Stages A and B are BUILT and live-verified: external output (1cf6d3f),
+per-screen shell child (fa85fbe), pointer+keyboard input with output-level
+click-to-focus (7c78d8a…978bcc1), per-screen NVENC recording (c08b3c7),
+and windows on the NV screen — composited (2e720f1), interactive
+(fb14ff3, db16fa5), chromed with working lights/move/resize
+(4012e00, 6bc6e59, d40337c). Window buffers import as
+GL_TEXTURE_EXTERNAL_OES + explicit LINEAR (TEXTURE_2D binds black on
+zink-on-NVIDIA — and fact 4 already ruled it out for AMD buffers); both
+GPU domains composite, so no app affinity is required. The Wayland
+compositor tap landed (5ba40d4) — client buffers stream into the child
+with real modifiers — but the Wayland window's visuals/input on the eDP
+are NOT yet eyeballed. SHM/X11 windows need a pixel path; tiled clients
+need dmabuf-feedback. Stage C is untouched. Operational notes (output
+index trap, capture-via-recording, pointer echo, input churn wedge) live
+in the assistant memory file driving-the-screen-shell.md.
+
 ## Hard facts (probed on the dev box, RTX 3050 / driver 595.84)
 
 1. **NVIDIA renders into linear dma-bufs** only via a gbm_surface
