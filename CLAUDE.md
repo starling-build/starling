@@ -81,18 +81,25 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
   ordinary path (real EGL/GBM, real page flips), not an emulation — and
   `shell-drive.py` screenshots work unchanged.
 
-      python3 build/tools/mkedid.py > /tmp/edid.bin
+      python3 build/tools/mkedid.py 4k > /tmp/edid.bin   # or 1080p
       C=/sys/kernel/debug/dri/0000:c6:00.0/HDMI-A-1   # the GPU's PCI debugfs dir
+      echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status   # re-probe
       sudo dd if=/tmp/edid.bin of=$C/edid_override bs=128 count=1
       echo on | sudo tee /sys/class/drm/card1-HDMI-A-1/status
 
-  **Order matters**: writing `detect` to the sysfs `status` file *clears* the
-  force, so set the EDID first and force second — doing it the other way round
-  reports `disconnected` with no hint why. The EDID is what produces the mode
-  list: forced on without one, the connector goes `connected` with **zero
-  modes** and fails exactly like no display at all. Both settings live in
-  debugfs/sysfs and are gone after a reboot; revert with
-  `echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status`.
+  **Order matters, twice over.** Writing `detect` to the sysfs `status` file
+  *clears* the force, so the EDID goes first and the force second — the other
+  way round reports `disconnected` with no hint why. And a connector that is
+  *already* forced on caches its mode list: writing a new EDID over it changes
+  nothing until you cycle through `detect`, which is why the leading line is
+  there and why swapping 1080p for 4K appears to silently fail without it.
+  The EDID is what produces the mode list at all: forced on without one, the
+  connector goes `connected` with **zero modes** and fails exactly like no
+  display. Both settings live in debugfs/sysfs and are gone after a reboot;
+  revert with `echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status`.
+  The declared physical size drives `DeriveScale`, so `4k` (a 27" panel,
+  ~163 dpi) comes up at **1.5x — 2560x1440 logical**, which is also the
+  cheapest way to exercise the fractional-scale path.
   `vkms` looks like the obvious answer and is not — it has no render node, and
   the shell opens **one** device for both GBM/EGL and KMS.
   Beware the fallback while headless: `build/session/starling-session` scans for
