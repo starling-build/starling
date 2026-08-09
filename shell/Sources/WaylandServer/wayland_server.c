@@ -395,6 +395,15 @@ static void deferred_input_enqueue(WaylandServer* server,
         if (wl_resource_get_client(ir->resource) == (target) &&        \
             ir->seat == ev->seat)
 
+/* frame is a v5 event; a client that bound the seat at a lower version has
+ * no listener slot for it and libwayland-client aborts the whole client
+ * ("listener function for opcode 5 of wl_pointer is NULL").
+ * weston-simple-egl binds wl_seat at version 1. */
+static void pointer_send_frame_versioned(struct wl_resource* resource) {
+    if (wl_resource_get_version(resource) >= WL_POINTER_FRAME_SINCE_VERSION)
+        wl_pointer_send_frame(resource);
+}
+
 static void deferred_input_send_one(WaylandServer* server,
                                     const struct WaylandPointerEvent* ev) {
     /* Not input: dma-buf modifier demotion queued from the raster thread
@@ -418,7 +427,7 @@ static void deferred_input_send_one(WaylandServer* server,
                                   surface->resource,
                                   wl_fixed_from_double(ev->x),
                                   wl_fixed_from_double(ev->y));
-            wl_pointer_send_frame(ir->resource);
+            pointer_send_frame_versioned(ir->resource);
         }
         /* Keyboard focus is lazy (first keystroke), so this is the earliest
          * point a mouse-only client can be handed a selection it missed. */
@@ -429,7 +438,7 @@ static void deferred_input_send_one(WaylandServer* server,
         uint32_t serial = wl_display_next_serial(server->display);
         FOR_EACH_INPUT_OF_CLIENT(ir, &server->pointer_resources, target) {
             wl_pointer_send_leave(ir->resource, serial, surface->resource);
-            wl_pointer_send_frame(ir->resource);
+            pointer_send_frame_versioned(ir->resource);
         }
         break;
     }
@@ -438,7 +447,7 @@ static void deferred_input_send_one(WaylandServer* server,
             wl_pointer_send_motion(ir->resource, ev->time_ms,
                                    wl_fixed_from_double(ev->x),
                                    wl_fixed_from_double(ev->y));
-            wl_pointer_send_frame(ir->resource);
+            pointer_send_frame_versioned(ir->resource);
         }
         break;
     case WL_PTR_BUTTON: {
@@ -446,7 +455,7 @@ static void deferred_input_send_one(WaylandServer* server,
         FOR_EACH_INPUT_OF_CLIENT(ir, &server->pointer_resources, target) {
             wl_pointer_send_button(ir->resource, serial,
                                    ev->time_ms, ev->button, ev->state);
-            wl_pointer_send_frame(ir->resource);
+            pointer_send_frame_versioned(ir->resource);
         }
         break;
     }
@@ -501,7 +510,7 @@ static void deferred_input_send_one(WaylandServer* server,
                                      1 /* WL_POINTER_AXIS_HORIZONTAL_SCROLL */,
                                      wl_fixed_from_double(ev->x));
             }
-            wl_pointer_send_frame(ir->resource);
+            pointer_send_frame_versioned(ir->resource);
         }
         break;
     }
