@@ -7,6 +7,18 @@ presented through the AMD card. Explored 2026-08-08; nothing here is built
 yet except the encoder ([nvenc], commit 54b4c64) and the app-level prior art
 ([swapchain], commit 7c47ded).
 
+## PAUSED 2026-08-08 in favor of PRIME-style app offload
+
+Decision: the per-screen-shell architecture is a big change (child shell
+process, window relay protocol, and Stage C would de-globalize half the
+embedder). Before growing it further, ship what other desktops ship first:
+classic PRIME render offload — ONE shell/compositor on the AMD GPU,
+individual apps rendering on the NVIDIA GPU, their buffers imported for
+compositing (hard facts 1+2 below are exactly this pattern, and the
+[swapchain] work proved it at app scale). That lands on its own branch;
+everything below stays valid — Stages A+B remain built and verified on
+this branch (see status), X11 relay and Stage C stay parked here.
+
 ## Status 2026-08-08 (end of day, second session)
 
 Stages A and B are BUILT and live-verified: external output (1cf6d3f),
