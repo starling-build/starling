@@ -135,11 +135,23 @@ func syncExternalScreenWindows() {
           let dl = displayLayout,
           let out = dl.outputs.first(where: { $0.id == extId }),
           let shell = _shellState else { return }
-    var entries: [(id: String, texId: Int64, x: Double, y: Double,
-                   w: Double, h: Double, z: Int, title: String,
-                   focused: Bool, fullscreen: Bool)] = []
+    var entries: [(id: String, texId: Int64, surfaceId: UInt32?,
+                   x: Double, y: Double, w: Double, h: Double, z: Int,
+                   title: String, focused: Bool, fullscreen: Bool)] = []
     for (z, win) in shell.windowManager.visibleWindows.enumerated() {
-        guard let texId = shell.processTextureIds[win.appId] else { continue }
+        // Process apps and Wayland dma-buf clients relay; SHM clients and
+        // X11 windows still need a pixel path.
+        let texId: Int64
+        let surfaceId: UInt32?
+        if let pid = shell.processTextureIds[win.appId] {
+            texId = pid
+            surfaceId = nil
+        } else if win.appId.hasPrefix("wayland-"), let t = win.textureId {
+            texId = Int64(t)
+            surfaceId = UInt32(win.appId.dropFirst("wayland-".count))
+        } else {
+            continue
+        }
         let r = win.rect
         guard r.right > out.logicalLeft, r.left < out.logicalRight,
               r.bottom > out.logicalTop, r.top < out.logicalBottom
@@ -149,7 +161,7 @@ func syncExternalScreenWindows() {
         // app expects content-local input — one geometry for both.
         // Fullscreen content is edge-to-edge, chrome-free.
         let barH = win.isFullscreen ? 0 : DesktopTheme.kTitleBarHeight
-        entries.append((id: win.id, texId: texId,
+        entries.append((id: win.id, texId: texId, surfaceId: surfaceId,
                         x: r.left - out.logicalLeft,
                         y: r.top + barH - out.logicalTop,
                         w: r.width,

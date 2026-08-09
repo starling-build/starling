@@ -709,6 +709,15 @@ class WaylandIntegration {
                                                      bufferScale: bufferScale,
                                                      viewportWidth: vpW, viewportHeight: vpH)
 
+        // A window on the external screen sees this same buffer (fd
+        // borrowed; SCM_RIGHTS does not consume it). The client's real
+        // modifier travels along — the child can only decode layouts its
+        // GPU understands, so tiled clients show black there for now.
+        externalScreenShell?.relayFrame(
+            texId: textureId, fd: fd,
+            w: Int32(importW), h: Int32(importH),
+            stride: Int32(stride), fourcc: fourcc, modifier: modifier)
+
         // Import DMA-BUF. ownsFd: the fd is our dup (made at commit time on
         // the platform thread) — the registry closes it when it's replaced
         // or the texture is dropped.
@@ -782,6 +791,7 @@ class WaylandIntegration {
         }
         if let textureId = surfaceTextures.removeValue(forKey: surfaceId) {
             textureRegistry.unregisterTexture(engine: engine, id: textureId)
+            externalScreenShell?.dropBuffer(texId: textureId)
         }
 
         surfaceSizes.removeValue(forKey: surfaceId)
@@ -837,6 +847,7 @@ class WaylandIntegration {
         }
         if let textureId = surfaceTextures.removeValue(forKey: surfaceId) {
             textureRegistry.unregisterTexture(engine: engine, id: textureId)
+            externalScreenShell?.dropBuffer(texId: textureId)
         }
 
         surfaceSizes.removeValue(forKey: surfaceId)

@@ -47,11 +47,44 @@ final class ExternalScreenShell: @unchecked Sendable {
     private struct RelayedWindow {
         var key: Int32
         var id: String        // the shell's window id, for focus/raise
+        /// Wayland surface behind this window, nil for a process app —
+        /// decides where relayed input goes back to.
+        var surfaceId: UInt32?
         var x: Float, y: Float, w: Float, h: Float   // CONTENT rect
         var z: Int32
         var focused: Bool
         var fullscreen: Bool  // content covers the rect; no bar to hit
         var title: String
+    }
+
+    /// texId → the client's newest buffer, this relay's own dups: a window
+    /// ENTERING the output shows immediately instead of waiting for its
+    /// next commit (an idle client sends none). Fed by every relayFrame and
+    /// by the process manager's launch path; dropped with the texture.
+    private let bufStoreLock = NSLock()
+    private var latestBuffers:
+        [Int64: (fd: Int32, w: Int32, h: Int32, stride: Int32,
+                 fourcc: UInt32, modifier: UInt64)] = [:]
+
+    /// Remember a client's newest buffer (the fd is dup'd here; the caller
+    /// keeps ownership of its own). Any thread.
+    func noteBuffer(texId: Int64, fd: Int32, w: Int32, h: Int32,
+                    stride: Int32, fourcc: UInt32, modifier: UInt64) {
+        let d = Glibc.dup(fd)
+        guard d >= 0 else { return }
+        bufStoreLock.lock()
+        if let old = latestBuffers[texId] { Glibc.close(old.fd) }
+        latestBuffers[texId] = (d, w, h, stride, fourcc, modifier)
+        bufStoreLock.unlock()
+    }
+
+    /// The texture is gone (surface destroyed, app exited). Any thread.
+    func dropBuffer(texId: Int64) {
+        bufStoreLock.lock()
+        if let old = latestBuffers.removeValue(forKey: texId) {
+            Glibc.close(old.fd)
+        }
+        bufStoreLock.unlock()
     }
 
     /// Title-bar drag in flight on the external screen (input thread,
@@ -87,12 +120,22 @@ final class ExternalScreenShell: @unchecked Sendable {
     private var pointerTargetTexId: Int64 = -1
     private var keyTargetTexId: Int64 = -1
 
-    /// The app that should receive keys typed at this screen, or nil for
-    /// the screen shell's own desktop. UI thread (routeKey).
-    var keyboardTargetTexId: Int64? {
+    /// Who receives keys typed at this screen — a process app's socket or
+    /// a Wayland surface — or nil for the screen shell's own desktop.
+    enum KeyTarget {
+        case app(Int64)
+        case wayland(UInt32)
+    }
+
+    /// UI thread (routeKey).
+    var keyboardTarget: KeyTarget? {
         winLock.lock()
         defer { winLock.unlock() }
-        return keyTargetTexId >= 0 ? keyTargetTexId : nil
+        guard keyTargetTexId >= 0 else { return nil }
+        if let sid = relayed[keyTargetTexId]?.surfaceId {
+            return .wayland(sid)
+        }
+        return .app(keyTargetTexId)
     }
 
     /// Topmost relayed window containing the point — content area or the
@@ -165,7 +208,7 @@ final class ExternalScreenShell: @unchecked Sendable {
     /// (single-bo apps allocate GBM_BO_USE_LINEAR, swapchain front buffers
     /// detile to modifier 0), and the child's zink EGL wants the explicit
     /// modifier rather than an implicit-layout guess.
-    private static let modLinear: UInt64 = 0
+    static let modLinear: UInt64 = 0
 
     init(view: OpaquePointer, outputId: Int, logicalWidth: Int,
          logicalHeight: Int, scale: Double, device: String) {
@@ -317,8 +360,28 @@ final class ExternalScreenShell: @unchecked Sendable {
                 break
             }
             if fd >= 0 && n >= MemoryLayout<DmaBufMeta>.size {
+                // One-byte 'F' signals ride the same stream and can
+                // coalesce around the fd-carrying meta in a single recv,
+                // on either side — skip leading signal bytes and read the
+                // meta after them (caught live twice: a head parse saw
+                // "AR24 << 8", a tail parse saw fourcc 0).
+                var off = 0
+                while off < Int(n) - MemoryLayout<DmaBufMeta>.size,
+                      buf[off] == 0x46 {
+                    off += 1
+                }
+                guard Int(n) - off >= MemoryLayout<DmaBufMeta>.size else {
+                    Glibc.close(fd)
+                    continue
+                }
                 var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0)
-                memcpy(&meta, &buf, MemoryLayout<DmaBufMeta>.size)
+                // NOT &buf[off]: that passes a pointer to a temporary copy
+                // of ONE element, and the memcpy beyond it reads garbage
+                // (caught live as fourcc 0 beside a pristine buffer).
+                buf.withUnsafeBytes {
+                    memcpy(&meta, $0.baseAddress!.advanced(by: off),
+                           MemoryLayout<DmaBufMeta>.size)
+                }
                 _ = fl_drm_view_push_external_frame(
                     view, outputId, fd, UInt32(meta.stride), 0,
                     meta.fourcc, 0)
@@ -555,7 +618,19 @@ final class ExternalScreenShell: @unchecked Sendable {
         if let (texId, win) = target {
             let wx = lx - Double(win.x)
             let wy = ly - Double(win.y)
-            if scrollDx != 0 || scrollDy != 0 {
+            if let sid = win.surfaceId {
+                // Wayland client — same direct calls the broker makes from
+                // its own thread (AgentBroker's inject path precedent).
+                if scrollDx != 0 || scrollDy != 0 {
+                    waylandIntegration?.sendScrollEvent(
+                        surfaceId: sid, x: wx, y: wy,
+                        scrollDeltaX: scrollDx, scrollDeltaY: scrollDy)
+                } else {
+                    waylandIntegration?.sendPointerEvent(
+                        surfaceId: sid, phase: phase, x: wx, y: wy,
+                        buttons: buttons)
+                }
+            } else if scrollDx != 0 || scrollDy != 0 {
                 linuxProcessAppManager?.sendScrollEventRelay(
                     texId: texId, x: wx, y: wy, dx: scrollDx, dy: scrollDy)
             } else {
@@ -592,9 +667,9 @@ final class ExternalScreenShell: @unchecked Sendable {
     /// immediate FRAME — an idle app sends no frames, and a window that
     /// only appears on its next repaint reads as "drag lost it".
     func syncWindows(
-        _ entries: [(id: String, texId: Int64, x: Double, y: Double,
-                     w: Double, h: Double, z: Int, title: String,
-                     focused: Bool, fullscreen: Bool)]) {
+        _ entries: [(id: String, texId: Int64, surfaceId: UInt32?,
+                     x: Double, y: Double, w: Double, h: Double, z: Int,
+                     title: String, focused: Bool, fullscreen: Bool)]) {
         winLock.lock()
         guard winStreamFd >= 0 else {
             winLock.unlock()
@@ -613,7 +688,8 @@ final class ExternalScreenShell: @unchecked Sendable {
                 windowKeys[e.id] = key
             }
             let win = RelayedWindow(
-                key: key, id: e.id, x: Float(e.x), y: Float(e.y),
+                key: key, id: e.id, surfaceId: e.surfaceId,
+                x: Float(e.x), y: Float(e.y),
                 w: Float(e.w), h: Float(e.h), z: Int32(e.z),
                 focused: e.focused, fullscreen: e.fullscreen, title: e.title)
             if let old = relayed[e.texId] {
@@ -639,26 +715,40 @@ final class ExternalScreenShell: @unchecked Sendable {
             relayed.removeValue(forKey: texId)
         }
         winLock.unlock()
-        // The buffer dup takes the process manager's lock — outside ours.
+        // Entry frames from this relay's own buffer store — bufStoreLock
+        // outside winLock (relayFrame takes them in the same order).
         for (texId, var msg) in frames {
-            guard let buf = linuxProcessAppManager?.dupLatestBuffer(texId)
-            else { continue }
+            bufStoreLock.lock()
+            guard let buf = latestBuffers[texId],
+                  case let d = Glibc.dup(buf.fd), d >= 0 else {
+                bufStoreLock.unlock()
+                continue
+            }
             msg.buf_w = buf.w
             msg.buf_h = buf.h
             msg.stride = buf.stride
             msg.fourcc = buf.fourcc
-            msg.modifier = Self.modLinear
+            msg.modifier = buf.modifier
+            bufStoreLock.unlock()
             winLock.lock()
-            sendLocked(msg, fd: buf.fd)
+            sendLocked(msg, fd: d)
             winLock.unlock()
-            Glibc.close(buf.fd)
+            Glibc.close(d)
         }
     }
 
-    /// A new buffer for an app's window (its reader thread; fd is borrowed —
-    /// sent inline, never kept). No-op unless the window is on this output.
+    /// A new buffer for a client's window (any thread; fd is borrowed —
+    /// sent inline, never kept beyond the note's own dup). Remembers the
+    /// buffer for entry-frames, sends only when the window is on this
+    /// output. Process apps relay LINEAR by construction; Wayland commits
+    /// carry the client's real modifier — the child's import fails on
+    /// layouts the NVIDIA display cannot decode, so non-linear clients
+    /// show black until dmabuf-feedback steers them to linear.
     func relayFrame(texId: Int64, fd: Int32, w: Int32, h: Int32,
-                    stride: Int32, fourcc: UInt32) {
+                    stride: Int32, fourcc: UInt32,
+                    modifier: UInt64 = ExternalScreenShell.modLinear) {
+        noteBuffer(texId: texId, fd: fd, w: w, h: h, stride: stride,
+                   fourcc: fourcc, modifier: modifier)
         winLock.lock()
         defer { winLock.unlock() }
         guard winStreamFd >= 0, let win = relayed[texId] else { return }
@@ -667,7 +757,7 @@ final class ExternalScreenShell: @unchecked Sendable {
         msg.buf_h = h
         msg.stride = stride
         msg.fourcc = fourcc
-        msg.modifier = Self.modLinear
+        msg.modifier = modifier
         sendLocked(msg, fd: fd)
     }
 

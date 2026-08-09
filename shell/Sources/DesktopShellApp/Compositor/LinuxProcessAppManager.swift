@@ -287,12 +287,14 @@ class LinuxProcessAppManager {
                 )
 
                 launch.onReady(texId)
-                storeRelayBuffer(texId, fd: launch.dmaFd, w: launch.width,
-                                 h: launch.height, stride: launch.stride,
-                                 fourcc: launch.fourcc)
-                relayBufLock.lock()
+                externalScreenShell?.noteBuffer(
+                    texId: texId, fd: launch.dmaFd,
+                    w: Int32(launch.width), h: Int32(launch.height),
+                    stride: Int32(launch.stride), fourcc: launch.fourcc,
+                    modifier: ExternalScreenShell.modLinear)
+                relaySockLock.lock()
                 relaySocks[texId] = entry.sock
-                relayBufLock.unlock()
+                relaySockLock.unlock()
 
                 // The child signaled its first frame before the texture was
                 // registered — deliver it now or the window never appears.
@@ -334,9 +336,11 @@ class LinuxProcessAppManager {
                     stride: resize.stride,
                     fourcc: resize.fourcc
                 )
-                storeRelayBuffer(resize.textureId, fd: resize.dmaFd,
-                                 w: resize.width, h: resize.height,
-                                 stride: resize.stride, fourcc: resize.fourcc)
+                externalScreenShell?.noteBuffer(
+                    texId: resize.textureId, fd: resize.dmaFd,
+                    w: Int32(resize.width), h: Int32(resize.height),
+                    stride: Int32(resize.stride), fourcc: resize.fourcc,
+                    modifier: ExternalScreenShell.modLinear)
             }
         }
 
@@ -653,9 +657,27 @@ class LinuxProcessAppManager {
                 let texId = launchState.value.texId
 
                 if receivedFd >= 0 && n >= MemoryLayout<DmaBufMeta>.size {
-                    // Resize response: data contains DmaBufMeta, fd is the new DMA-BUF
+                    // Resize response: DmaBufMeta rides with the fd. The
+                    // child's one-byte frame signals share this stream and
+                    // can coalesce around the meta in one recv — skip
+                    // leading signal bytes first (same race as the
+                    // screen-shell reader; bit live as a corrupt fourcc).
+                    var off = 0
+                    while off < Int(n) - MemoryLayout<DmaBufMeta>.size,
+                          buf[off] == 0x46 {
+                        off += 1
+                    }
+                    guard Int(n) - off >= MemoryLayout<DmaBufMeta>.size else {
+                        Glibc.close(receivedFd)
+                        continue
+                    }
                     var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0)
-                    memcpy(&meta, &buf, MemoryLayout<DmaBufMeta>.size)
+                    // NOT &buf[off] — pointer-to-temporary, see the
+                    // screen-shell reader.
+                    buf.withUnsafeBytes {
+                        memcpy(&meta, $0.baseAddress!.advanced(by: off),
+                               MemoryLayout<DmaBufMeta>.size)
+                    }
 
                     if texId != 0 {
                         // A window on the external screen sees the same
@@ -951,26 +973,18 @@ class LinuxProcessAppManager {
         }
         entry.sock.shutdown()
         textureRegistry.unregisterTexture(engine: engine, id: textureId)
-        relayBufLock.lock()
-        if let old = relayBuffers.removeValue(forKey: textureId) {
-            Glibc.close(old.fd)
-        }
+        externalScreenShell?.dropBuffer(texId: textureId)
+        relaySockLock.lock()
         relaySocks.removeValue(forKey: textureId)
-        relayBufLock.unlock()
+        relaySockLock.unlock()
     }
 
     // MARK: - External-screen window relay support
 
-    /// texId → the app's newest buffer, so the external-screen relay can
-    /// show a window the moment it ENTERS that output — an idle app sends
-    /// no frames, and entry.dmaFd lives on the platform thread. fds here
-    /// are this map's own dups, replaced in tick, closed in destroyApp.
-    private let relayBufLock = NSLock()
-    private var relayBuffers:
-        [Int64: (fd: Int32, w: Int32, h: Int32, stride: Int32, fourcc: UInt32)] = [:]
     /// texId → the app's socket, for input relayed from the external
     /// screen's engine input thread — `apps` itself is platform-thread
     /// state, but ChildSocket.write is internally locked.
+    private let relaySockLock = NSLock()
     private var relaySocks: [Int64: ChildSocket] = [:]
 
     /// Any thread. Pointer input for a window composited on the external
@@ -978,9 +992,9 @@ class LinuxProcessAppManager {
     /// forwarding, phase is FlutterPointerPhase numbering.
     func sendPointerEventRelay(texId: Int64, phase: Int32, x: Double,
                                y: Double, buttons: Int64) {
-        relayBufLock.lock()
+        relaySockLock.lock()
         let sock = relaySocks[texId]
-        relayBufLock.unlock()
+        relaySockLock.unlock()
         guard let sock else { return }
         var event = DmaBufInputEvent(x: x, y: y, buttons: buttons,
                                      type: Int32(DMABUF_INPUT_POINTER),
@@ -992,9 +1006,9 @@ class LinuxProcessAppManager {
     /// as sendScrollEvent).
     func sendScrollEventRelay(texId: Int64, x: Double, y: Double,
                               dx: Double, dy: Double) {
-        relayBufLock.lock()
+        relaySockLock.lock()
         let sock = relaySocks[texId]
-        relayBufLock.unlock()
+        relaySockLock.unlock()
         guard let sock else { return }
         let packed = UInt64(Float(dx).bitPattern)
             | (UInt64(Float(dy).bitPattern) << 32)
@@ -1003,28 +1017,6 @@ class LinuxProcessAppManager {
                                      type: Int32(DMABUF_INPUT_SCROLL),
                                      phase: 0)
         sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
-    }
-
-    /// A fresh dup of the app's newest buffer, or nil. Any thread; the
-    /// caller owns (and closes) the returned fd.
-    func dupLatestBuffer(_ texId: Int64)
-        -> (fd: Int32, w: Int32, h: Int32, stride: Int32, fourcc: UInt32)? {
-        relayBufLock.lock()
-        defer { relayBufLock.unlock() }
-        guard let b = relayBuffers[texId] else { return nil }
-        let d = Glibc.dup(b.fd)
-        guard d >= 0 else { return nil }
-        return (d, b.w, b.h, b.stride, b.fourcc)
-    }
-
-    private func storeRelayBuffer(_ texId: Int64, fd: Int32, w: Int, h: Int,
-                                  stride: Int, fourcc: UInt32) {
-        let d = Glibc.dup(fd)
-        guard d >= 0 else { return }
-        relayBufLock.lock()
-        if let old = relayBuffers[texId] { Glibc.close(old.fd) }
-        relayBuffers[texId] = (d, Int32(w), Int32(h), Int32(stride), fourcc)
-        relayBufLock.unlock()
     }
 }
 

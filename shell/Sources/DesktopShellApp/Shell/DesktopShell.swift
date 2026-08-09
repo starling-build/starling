@@ -2078,12 +2078,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 case .repeat: phase = 2
                 }
                 // The last click on that screen decides: inside a relayed
-                // window, keys go to that app (same encoding as the
-                // focused-window branch below); on the desktop, to the
+                // window, keys go to that client (same encodings as the
+                // focused-window branches below); on the desktop, to the
                 // screen shell itself.
-                if let texId = ext.keyboardTargetTexId,
-                   let mgr = linuxProcessAppManager {
-                    mgr.sendKeyEvent(
+                switch ext.keyboardTarget {
+                case .app(let texId):
+                    linuxProcessAppManager?.sendKeyEvent(
                         textureId: texId,
                         physical: keyData.physical,
                         logical: keyData.logical,
@@ -2091,6 +2091,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         phase: phase
                     )
                     return true
+                case .wayland(let sid):
+                    if keyData.type == .down || keyData.type == .up {
+                        wayland.sendKeyEvent(
+                            physical: keyData.physical,
+                            logical: keyData.logical,
+                            isDown: keyData.type == .down,
+                            targetSurface: sid
+                        )
+                    }
+                    return true
+                case nil:
+                    break
                 }
                 ext.sendKey(physical: keyData.physical,
                             logical: keyData.logical,
