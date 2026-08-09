@@ -342,6 +342,23 @@ fi
 # which deadlocks GTK4 apps during init — point them at the shell's bus
 # ($XDG_DIR/bus, started by run-shell-gpu.sh) whose portal answers.
 DBUS_ADDR="unix:path=$XDG_DIR/bus"
+
+# PRIME render offload: the shell sets STARLING_APP_GPU=discrete for apps
+# whose registry record carries Gpu=discrete (and only when a discrete GPU
+# exists). Translate it into the standard vendor envs here — mesa reads
+# DRI_PRIME, the NVIDIA proprietary stack reads the __NV/__GLX pair and
+# ignores DRI_PRIME. Same value-or-noop shape as PULSE_ENV, because the
+# root branch execs through `env -i` where exported vars do not survive.
+if [ "${STARLING_APP_GPU:-}" = "discrete" ]; then
+    GPU_ENV1="DRI_PRIME=1"
+    GPU_ENV2="__NV_PRIME_RENDER_OFFLOAD=1"
+    GPU_ENV3="__GLX_VENDOR_LIBRARY_NAME=nvidia"
+else
+    GPU_ENV1="GPU_UNSET1="
+    GPU_ENV2="GPU_UNSET2="
+    GPU_ENV3="GPU_UNSET3="
+fi
+
 if ! is_starling_os; then
     if [ "$(id -u)" -eq 0 ]; then
         LOGIN_USER="${SUDO_USER:-$(stat -c %U "$XDG_DIR" 2>/dev/null || true)}"
@@ -373,6 +390,7 @@ if ! is_starling_os; then
             LANG="${LANG:-en_US.UTF-8}" \
             XDG_RUNTIME_DIR="$XDG_DIR" \
             "$PULSE_ENV" \
+            "$GPU_ENV1" "$GPU_ENV2" "$GPU_ENV3" \
             WAYLAND_DISPLAY="$SOCKET" \
             DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" \
             DISPLAY="${DISPLAY:-:1}" \
@@ -414,6 +432,7 @@ if ! is_starling_os; then
             PATH="$APPBIN:$PATH" \
             XDG_RUNTIME_DIR="$XDG_DIR" \
             "$PULSE_ENV" \
+            "$GPU_ENV1" "$GPU_ENV2" "$GPU_ENV3" \
             WAYLAND_DISPLAY="$SOCKET" \
             DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR" \
             DISPLAY="${DISPLAY:-:1}" \
@@ -458,6 +477,16 @@ if grep -q '^bwrap ' /sys/kernel/security/apparmor/profiles 2>/dev/null; then
     mkdir -p /var/lib/starling-apps/bin
     cmp -s /usr/bin/bwrap "$SB" 2>/dev/null || cp /usr/bin/bwrap "$SB" 2>/dev/null || true
     [ -x "$SB" ] && BWRAP="$SB"
+fi
+
+# PRIME offload inside the sandbox: same translation as the host-direct
+# branches, as --setenv prepended to "$@" (options-before-command, the same
+# shape as the --ro-bind loops above).
+if [ "${STARLING_APP_GPU:-}" = "discrete" ]; then
+    set -- --setenv DRI_PRIME 1 \
+           --setenv __NV_PRIME_RENDER_OFFLOAD 1 \
+           --setenv __GLX_VENDOR_LIBRARY_NAME nvidia \
+           "$@"
 fi
 
 exec "$BWRAP" \

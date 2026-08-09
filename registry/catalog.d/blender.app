@@ -10,6 +10,7 @@ Install=blender
 Bins=/opt/blender/blender;/usr/bin/blender
 DesktopEntry=blender
 WmClass=Blender;blender
+Gpu=discrete
 Category=Create
 Publisher=Blender Foundation
 Subtitle=3D creation suite

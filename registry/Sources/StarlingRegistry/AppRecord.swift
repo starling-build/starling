@@ -85,6 +85,12 @@ public struct AppRecord: Sendable {
     /// the title is an implementation detail: WeChat's window is the whole
     /// rootful Xwayland screen, titled `Xwayland on :1`.
     public let renameWindows: Bool
+    /// `Gpu=discrete`: render on the discrete GPU when the machine has one
+    /// (PRIME offload — docs/plans/prime.md). The launch paths translate this
+    /// per spawn (first-party: STARLING_APP_DRM_DEVICE; host: the standard
+    /// DRI_PRIME/__NV_PRIME_RENDER_OFFLOAD envs via app-run). On a single-GPU
+    /// machine it is a no-op.
+    public let discreteGpu: Bool
     /// Sealed-image install (Starling OS): the official .deb and the path
     /// inside it that proves the extraction worked.
     public let debURL: String?
@@ -122,6 +128,7 @@ public struct AppRecord: Sendable {
         windowRect: WindowGeometry?,
         installRecipe: String?, bins: [String], desktopEntries: [String],
         wmClasses: [String], titleMatches: [String], renameWindows: Bool,
+        discreteGpu: Bool = false,
         debURL: String?,
         debMarker: String?, desktopFile: String?, iconPath: String?,
         version: String?, installedAt: Int?, installed: Bool, appIds: [String],
@@ -147,6 +154,7 @@ public struct AppRecord: Sendable {
         self.wmClasses = wmClasses
         self.titleMatches = titleMatches
         self.renameWindows = renameWindows
+        self.discreteGpu = discreteGpu
         self.debURL = debURL
         self.debMarker = debMarker
         self.desktopFile = desktopFile

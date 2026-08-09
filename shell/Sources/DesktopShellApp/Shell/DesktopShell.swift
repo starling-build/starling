@@ -6990,7 +6990,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// app-run's wayland-0 default — which is wrong whenever the shell came up
     /// on wayland-1 after an unclean exit. The scripts take everything else
     /// from the environment, so the same three variables serve all of them.
-    private func _spawnLauncher(_ path: String, args: [String] = []) {
+    private func _spawnLauncher(_ path: String, args: [String] = [],
+                                extraEnv: [String: String] = [:]) {
         guard let socketName = waylandIntegration?.socketName else { return }
         let process = Process()
         // Launch through setsid so the app becomes its own session leader
@@ -7019,6 +7020,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         env["STARLING_WAYLAND"] = socketName
         env["STARLING_XDG_DIR"] = LoginUser.runtimeDir
         env["STARLING_APP_SCALE"] = String(currentShellDpi)
+        for (k, v) in extraEnv { env[k] = v }
         process.environment = env
         try? process.run()
     }
@@ -7138,10 +7140,20 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // resolved from STARLING_APP_RUN (set by run-desktop.sh in dev) or
             // /usr/bin/app-run in the shipped image; the record's Exec names
             // the recipe.
+            // PRIME offload (Gpu=discrete + a discrete GPU present): app-run
+            // translates the preference into the vendor envs (DRI_PRIME /
+            // __NV_PRIME_RENDER_OFFLOAD) — the mechanism lives there with the
+            // rest of the launch recipe knowledge, the policy lives in the
+            // record.
+            var hostEnv: [String: String] = [:]
+            if _record(appId)?.discreteGpu == true, DiscreteGpu.renderNode != nil {
+                hostEnv["STARLING_APP_GPU"] = "discrete"
+            }
             _spawnLauncher(
                 ProcessInfo.processInfo.environment["STARLING_APP_RUN"]
                     ?? "/usr/bin/app-run",
-                args: [_record(appId)?.exec ?? appId])
+                args: [_record(appId)?.exec ?? appId],
+                extraEnv: hostEnv)
             return
         case _ where _record(appId)?.kind == .x11:
             // An X11-only app in its own rootful Xwayland, which is what
@@ -7214,6 +7226,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     childEnv["STARLING_WAYLAND"] = sock
                     childEnv["STARLING_XDG_DIR"] = LoginUser.runtimeDir
                     childEnv["STARLING_APP_SCALE"] = String(currentShellDpi)
+                }
+                // PRIME offload: a Gpu=discrete record renders on the
+                // discrete GPU (GpuDmaBufRenderer picks the device up from
+                // this env and its swapchain mode does the rest). A
+                // session-global STARLING_APP_DRM_DEVICE (dev override) is
+                // inherited by every child anyway; this only adds the
+                // per-app case.
+                if rec?.discreteGpu == true, let node = DiscreteGpu.renderNode {
+                    childEnv["STARLING_APP_DRM_DEVICE"] = node
                 }
                 // Shared between onReady/onTerminated: the texture this
                 // launch received, so late termination tears down only its
