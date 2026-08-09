@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import DmaBufBridge
+import Flutter
 import FlutterDRMBridge
+import FlutterSwiftBridge
 import Foundation
 import Glibc
 import StarlingRecord
@@ -45,8 +47,22 @@ final class ExternalScreenShell: @unchecked Sendable {
     private struct RelayedWindow {
         var key: Int32
         var id: String        // the shell's window id, for focus/raise
-        var x: Float, y: Float, w: Float, h: Float
+        var x: Float, y: Float, w: Float, h: Float   // CONTENT rect
         var z: Int32
+        var focused: Bool
+        var title: String
+    }
+
+    /// Title-bar drag in flight on the external screen (input thread,
+    /// winLock): the shell moves the window; the child just repaints it
+    /// at each PLACE.
+    private var barDragWinId: String? = nil
+    private var barDragLast: (x: Double, y: Double) = (0, 0)
+
+    private enum HitZone {
+        case content    // inside the app's buffer — forward input
+        case bar        // the drawn title bar — drag to move
+        case close      // the red traffic light
     }
 
     /// Input targeting for relayed windows (engine input thread, winLock):
@@ -64,16 +80,31 @@ final class ExternalScreenShell: @unchecked Sendable {
         return keyTargetTexId >= 0 ? keyTargetTexId : nil
     }
 
-    /// Topmost relayed window containing the point, or nil. winLock held.
+    /// Topmost relayed window containing the point — content area or the
+    /// child-drawn chrome above it — with the zone hit. winLock held.
+    /// Traffic-light geometry mirrors WindowTitleBar: 12px circles from
+    /// x=14, vertically centered in the 38px bar; only close is live here.
     private func hitTestLocked(_ lx: Double, _ ly: Double)
-        -> (texId: Int64, win: RelayedWindow)? {
-        var best: (texId: Int64, win: RelayedWindow)? = nil
+        -> (texId: Int64, win: RelayedWindow, zone: HitZone)? {
+        var best: (texId: Int64, win: RelayedWindow, zone: HitZone)? = nil
         for (texId, win) in relayed {
-            guard lx >= Double(win.x), lx < Double(win.x + win.w),
-                  ly >= Double(win.y), ly < Double(win.y + win.h)
-            else { continue }
+            let inX = lx >= Double(win.x) && lx < Double(win.x + win.w)
+            guard inX else { continue }
+            let barTop = Double(win.y) - DesktopTheme.kTitleBarHeight
+            let inContent = ly >= Double(win.y) && ly < Double(win.y + win.h)
+            let inBar = ly >= barTop && ly < Double(win.y)
+            guard inContent || inBar else { continue }
             if best == nil || win.z > best!.win.z {
-                best = (texId, win)
+                var zone: HitZone = inContent ? .content : .bar
+                if inBar {
+                    let cx = Double(win.x) + 20.0
+                    let cy = barTop + DesktopTheme.kTitleBarHeight / 2
+                    let dx = lx - cx, dy = ly - cy
+                    if dx * dx + dy * dy <= 81 {  // 9px grab radius
+                        zone = .close
+                    }
+                }
+                best = (texId, win, zone)
             }
         }
         return best
@@ -327,36 +358,79 @@ final class ExternalScreenShell: @unchecked Sendable {
         // drag belongs to the window it started in (pointer capture, the
         // window widget's semantics), and the last click decides where
         // routeKey sends keys while this screen holds the keyboard.
+        //
+        // A title-bar drag in flight consumes everything: the shell moves
+        // the window (main-queue hop, the hotplug path's cross-thread
+        // setState precedent) and the new rect returns to the child as a
+        // PLACE on the next sync.
         winLock.lock()
+        if let dragId = barDragWinId {
+            if phase == 1, buttons == 0 {
+                barDragWinId = nil
+                winLock.unlock()
+                return
+            }
+            let dx = lx - barDragLast.x
+            let dy = ly - barDragLast.y
+            barDragLast = (lx, ly)
+            winLock.unlock()
+            if dx != 0 || dy != 0 {
+                DispatchQueue.main.async {
+                    _shellState?.setState {
+                        _shellState?.windowManager.moveWindowByDelta(
+                            dragId, delta: Offset(dx, dy))
+                    }
+                }
+            }
+            return
+        }
         var target: (texId: Int64, win: RelayedWindow)? = nil
+        var chrome: (texId: Int64, win: RelayedWindow, zone: HitZone)? = nil
         if pointerTargetTexId >= 0 {
             if let win = relayed[pointerTargetTexId] {
                 target = (pointerTargetTexId, win)
             }
-        } else {
-            target = hitTestLocked(lx, ly)
+        } else if let hit = hitTestLocked(lx, ly) {
+            if hit.zone == .content {
+                target = (hit.texId, hit.win)
+            } else {
+                chrome = hit
+            }
         }
         if phase == 2 {  // kDown claims capture and the key target
             pointerTargetTexId = target?.texId ?? -1
-            keyTargetTexId = target?.texId ?? -1
+            // The key target follows any click on the window, chrome
+            // included; a desktop click clears it.
+            keyTargetTexId = target?.texId ?? chrome?.texId ?? -1
+            if let c = chrome, c.zone == .bar {
+                barDragWinId = c.win.id
+                barDragLast = (lx, ly)
+            }
         }
         if phase == 1, buttons == 0 {  // last button up releases capture
             pointerTargetTexId = -1
         }
         winLock.unlock()
-        if phase == 2, let (_, win) = target {
+        if phase == 2, let winId = (target?.win ?? chrome?.win)?.id {
             // Focus and raise, as any click on a window does. Hopped to the
             // main queue: this is the engine input thread, and the GCD main
             // queue drains on the shell's own loop (the hotplug path makes
             // the same cross-thread setState). The z bump flows back to the
             // child as a PLACE on the next sync.
-            let winId = win.id
             DispatchQueue.main.async {
                 _shellState?.setState {
                     _shellState?.windowManager.bringToFront(winId)
                 }
             }
         }
+        if phase == 2, let c = chrome, c.zone == .close {
+            let winId = c.win.id
+            DispatchQueue.main.async {
+                _shellState?.requestWindowClose(winId)
+            }
+            return
+        }
+        if chrome != nil { return }  // chrome swallows what it doesn't use
         if let (texId, win) = target {
             let wx = lx - Double(win.x)
             let wy = ly - Double(win.y)
@@ -398,7 +472,8 @@ final class ExternalScreenShell: @unchecked Sendable {
     /// only appears on its next repaint reads as "drag lost it".
     func syncWindows(
         _ entries: [(id: String, texId: Int64, x: Double, y: Double,
-                     w: Double, h: Double, z: Int)]) {
+                     w: Double, h: Double, z: Int, title: String,
+                     focused: Bool)]) {
         winLock.lock()
         guard winStreamFd >= 0 else {
             winLock.unlock()
@@ -418,15 +493,22 @@ final class ExternalScreenShell: @unchecked Sendable {
             }
             let win = RelayedWindow(
                 key: key, id: e.id, x: Float(e.x), y: Float(e.y),
-                w: Float(e.w), h: Float(e.h), z: Int32(e.z))
+                w: Float(e.w), h: Float(e.h), z: Int32(e.z),
+                focused: e.focused, title: e.title)
             if let old = relayed[e.texId] {
                 if old.x != win.x || old.y != win.y || old.w != win.w
-                    || old.h != win.h || old.z != win.z {
+                    || old.h != win.h || old.z != win.z
+                    || old.focused != win.focused {
                     relayed[e.texId] = win
                     sendLocked(makeMsg(kind: DMABUF_WINSTREAM_PLACE, win), fd: -1)
                 }
+                if old.title != win.title {
+                    relayed[e.texId] = win
+                    sendTitleLocked(key, win.title)
+                }
             } else {
                 relayed[e.texId] = win
+                sendTitleLocked(key, win.title)
                 frames.append((e.texId, makeMsg(kind: DMABUF_WINSTREAM_FRAME, win)))
             }
         }
@@ -484,8 +566,35 @@ final class ExternalScreenShell: @unchecked Sendable {
         msg.w = win.w
         msg.h = win.h
         msg.z = win.z
+        msg.flags = win.focused ? UInt32(DMABUF_WINFLAG_FOCUSED) : 0
         msg.modifier = Self.modLinear
         return msg
+    }
+
+    /// winLock must be held. The title travels 8 UTF-8 bytes per message
+    /// (the DMABUF_DISPLAY_NAME pattern); chunk 0 starts a fresh title, so
+    /// an empty title is one zero-length chunk.
+    private func sendTitleLocked(_ key: Int32, _ title: String) {
+        let bytes = Array(title.utf8.prefix(256))
+        var idx: Int32 = 0
+        var off = 0
+        repeat {
+            var chunk: UInt64 = 0
+            var i = 0
+            while i < 8 && off + i < bytes.count {
+                chunk |= UInt64(bytes[off + i]) << (8 * i)
+                i += 1
+            }
+            var msg = DmaBufWindowStreamMsg()
+            msg.kind = Int32(DMABUF_WINSTREAM_TITLE)
+            msg.window = key
+            msg.z = idx
+            msg.buf_w = Int32(bytes.count)
+            msg.modifier = chunk
+            sendLocked(msg, fd: -1)
+            idx += 1
+            off += 8
+        } while off < bytes.count
     }
 
     /// winLock must be held. fd >= 0 rides along via SCM_RIGHTS.

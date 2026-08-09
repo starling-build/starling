@@ -161,17 +161,24 @@ struct DmaBufConfigure {
 #define DMABUF_WINSTREAM_DAMAGE 3
 /* The window no longer overlaps this output; drop its texture. No fd. */
 #define DMABUF_WINSTREAM_REMOVE 4
+/* Eight bytes of the window's TITLE (UTF-8, low byte first, NUL-padded),
+ * sent as a run: z = chunk index (0 starts a fresh title), buf_w = total
+ * byte length, modifier carries the bytes. Re-sent whole when it changes. */
+#define DMABUF_WINSTREAM_TITLE  5
+
+/* Window flag bits (FRAME / PLACE). */
+#define DMABUF_WINFLAG_FOCUSED  0x1
 
 struct DmaBufWindowStreamMsg {
     int32_t kind;         // DMABUF_WINSTREAM_*
     int32_t window;       // shell window key, stable for the window's life
-    float x, y, w, h;     // placement, output-local LOGICAL px
-    int32_t z;            // stacking order, bottom = 0
-    int32_t buf_w, buf_h; // buffer size in pixels        (FRAME)
+    float x, y, w, h;     // CONTENT placement, output-local LOGICAL px
+    int32_t z;            // stacking order, bottom = 0 (TITLE: chunk index)
+    uint32_t flags;       // DMABUF_WINFLAG_*             (FRAME, PLACE)
+    int32_t buf_w, buf_h; // buffer size in pixels (FRAME; TITLE: total len)
     int32_t stride;       // bytes per row                (FRAME)
     uint32_t fourcc;      // DRM format                   (FRAME)
-    uint32_t _pad;
-    uint64_t modifier;    // DRM modifier, or DRM_FORMAT_MOD_INVALID (FRAME)
+    uint64_t modifier;    // DRM modifier (FRAME); title bytes (TITLE)
 };
 
 struct DmaBufInputEvent {

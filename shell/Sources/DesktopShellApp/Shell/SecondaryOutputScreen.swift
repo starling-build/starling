@@ -136,7 +136,8 @@ func syncExternalScreenWindows() {
           let out = dl.outputs.first(where: { $0.id == extId }),
           let shell = _shellState else { return }
     var entries: [(id: String, texId: Int64, x: Double, y: Double,
-                   w: Double, h: Double, z: Int)] = []
+                   w: Double, h: Double, z: Int, title: String,
+                   focused: Bool)] = []
     for (z, win) in shell.windowManager.visibleWindows.enumerated() {
         guard let texId = shell.processTextureIds[win.appId] else { continue }
         let r = win.rect
@@ -144,13 +145,15 @@ func syncExternalScreenWindows() {
               r.bottom > out.logicalTop, r.top < out.logicalBottom
         else { continue }
         // The CONTENT area: the app's buffer covers the window rect minus
-        // the title bar (which the child does not draw yet), and the app
-        // expects content-local input coordinates — one geometry for both.
+        // the title bar (the child draws its own bar above this), and the
+        // app expects content-local input — one geometry for both.
         entries.append((id: win.id, texId: texId,
                         x: r.left - out.logicalLeft,
                         y: r.top + DesktopTheme.kTitleBarHeight - out.logicalTop,
                         w: r.width,
-                        h: r.height - DesktopTheme.kTitleBarHeight, z: z))
+                        h: r.height - DesktopTheme.kTitleBarHeight, z: z,
+                        title: win.title,
+                        focused: win.id == shell.windowManager.focusedWindowId))
     }
     ext.syncWindows(entries)
 }

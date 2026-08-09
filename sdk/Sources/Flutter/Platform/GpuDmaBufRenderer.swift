@@ -206,13 +206,20 @@ public final class GpuRendererState: @unchecked Sendable {
     public struct ExternalWindowState: Sendable {
         public let window: Int32
         public let textureId: Int64
-        /// Placement in this screen's LOGICAL coordinates.
+        /// CONTENT placement in this screen's LOGICAL coordinates — the
+        /// screen shell draws its own title bar above this rect.
         public let x: Double, y: Double, width: Double, height: Double
         public let z: Int
+        public let focused: Bool
+        public let title: String
     }
 
     private let _winLock = NSLock()
     private var _externalWindows: [Int32: ExternalWindowState] = [:]
+    /// Completed titles by window key, and runs still accumulating
+    /// (8 bytes per DMABUF_WINSTREAM_TITLE chunk).
+    private var _winTitles: [Int32: String] = [:]
+    private var _winTitlePartial: [Int32: (total: Int, bytes: [UInt8])] = [:]
     /// Fired on the main queue when windows appear, move, or leave — texture
     /// CONTENT updates repaint through the engine without a rebuild, so they
     /// do not fire this.
@@ -270,6 +277,7 @@ public final class GpuRendererState: @unchecked Sendable {
                 guard rfd >= 0 else { break }
                 _winLock.lock()
                 let existing = _externalWindows[msg.window]
+                let title = _winTitles[msg.window] ?? ""
                 _winLock.unlock()
                 let texId = existing?.textureId ?? registerExternalTexture()
                 // updateExternalTexture takes ownership of the fd. External
@@ -284,12 +292,15 @@ public final class GpuRendererState: @unchecked Sendable {
                     window: msg.window, textureId: texId,
                     x: Double(msg.x), y: Double(msg.y),
                     width: Double(msg.w), height: Double(msg.h),
-                    z: Int(msg.z))
+                    z: Int(msg.z),
+                    focused: msg.flags & UInt32(DMABUF_WINFLAG_FOCUSED) != 0,
+                    title: title)
                 let topologyChanged = existing == nil
                     || existing!.x != state.x || existing!.y != state.y
                     || existing!.width != state.width
                     || existing!.height != state.height
                     || existing!.z != state.z
+                    || existing!.focused != state.focused
                 _winLock.lock()
                 _externalWindows[msg.window] = state
                 _winLock.unlock()
@@ -305,9 +316,48 @@ public final class GpuRendererState: @unchecked Sendable {
                     window: msg.window, textureId: existing.textureId,
                     x: Double(msg.x), y: Double(msg.y),
                     width: Double(msg.w), height: Double(msg.h),
-                    z: Int(msg.z))
+                    z: Int(msg.z),
+                    focused: msg.flags & UInt32(DMABUF_WINFLAG_FOCUSED) != 0,
+                    title: existing.title)
                 _winLock.unlock()
                 _notifyWindowsChanged()
+            case Int32(DMABUF_WINSTREAM_TITLE):
+                if rfd >= 0 { Glibc.close(rfd) }
+                _winLock.lock()
+                let total = Int(msg.buf_w)
+                var partial = msg.z == 0
+                    ? (total: total, bytes: [UInt8]())
+                    : (_winTitlePartial[msg.window]
+                        ?? (total: total, bytes: []))
+                var chunk = msg.modifier
+                var i = 0
+                while i < 8 && partial.bytes.count < partial.total {
+                    partial.bytes.append(UInt8(truncatingIfNeeded: chunk))
+                    chunk >>= 8
+                    i += 1
+                }
+                if partial.bytes.count >= partial.total {
+                    let title = String(decoding: partial.bytes,
+                                       as: UTF8.self)
+                    _winTitles[msg.window] = title
+                    _winTitlePartial.removeValue(forKey: msg.window)
+                    let existing = _externalWindows[msg.window]
+                    if let existing, existing.title != title {
+                        _externalWindows[msg.window] = ExternalWindowState(
+                            window: existing.window,
+                            textureId: existing.textureId,
+                            x: existing.x, y: existing.y,
+                            width: existing.width, height: existing.height,
+                            z: existing.z, focused: existing.focused,
+                            title: title)
+                        _winLock.unlock()
+                        _notifyWindowsChanged()
+                        break
+                    }
+                } else {
+                    _winTitlePartial[msg.window] = partial
+                }
+                _winLock.unlock()
             case Int32(DMABUF_WINSTREAM_DAMAGE):
                 if rfd >= 0 { Glibc.close(rfd) }
                 _winLock.lock()
@@ -320,6 +370,8 @@ public final class GpuRendererState: @unchecked Sendable {
                 if rfd >= 0 { Glibc.close(rfd) }
                 _winLock.lock()
                 let removed = _externalWindows.removeValue(forKey: msg.window)
+                _winTitles.removeValue(forKey: msg.window)
+                _winTitlePartial.removeValue(forKey: msg.window)
                 _winLock.unlock()
                 if let removed {
                     unregisterExternalTexture(removed.textureId)

@@ -127,12 +127,19 @@ class _ScreenShellRootState: State<StatefulWidget> {
                 }
                 )
         )
-        // Desktop windows relayed from the shell, unchromed for now —
-        // placement is already in this screen's logical coordinates.
+        // Desktop windows relayed from the shell — content plus a drawn
+        // title bar above it (the shell's chrome geometry: a 38px bar,
+        // 12px lights from x=14). Interaction lives shell-side; this is
+        // paint only.
         let windows = gpuDmaBufRendererState?.externalWindows ?? []
         return Stack(fit: .expand) {
             Positioned(fill: (), child: desk)
             for win in windows {
+                Positioned(
+                    key: ValueKey("ext-bar-\(win.window)"),
+                    left: win.x, top: win.y - Self.kBarH,
+                    width: win.width, height: Self.kBarH,
+                    child: _titleBar(win))
                 Positioned(
                     key: ValueKey("ext-\(win.window)"),
                     left: win.x, top: win.y,
@@ -141,6 +148,38 @@ class _ScreenShellRootState: State<StatefulWidget> {
                                          filterQuality: .low))
             }
         }
+    }
+
+    private static let kBarH = 38.0
+
+    private func _titleBar(
+        _ win: GpuRendererState.ExternalWindowState) -> Widget {
+        func light(_ color: Color) -> Widget {
+            DecoratedBox(
+                decoration: BoxDecoration(
+                    color: win.focused ? color : Color(0x40FFFFFF),
+                    borderRadius: BorderRadius.circular(6)),
+                child: SizedBox(width: 12, height: 12))
+        }
+        return DecoratedBox(
+            decoration: BoxDecoration(
+                color: win.focused ? Color(0xFF32363E) : Color(0xFF262A31)),
+            child: Stack(fit: .expand) {
+                Positioned(fill: (), child: Center {
+                    Text(win.title,
+                         style: TextStyle(
+                             color: win.focused ? Color(0xFFE8EAEE)
+                                                : Color(0xFF7A8494),
+                             fontSize: 14, fontWeight: .w500))
+                })
+                Positioned(left: 14, top: 13, child: Row {
+                    light(Color(0xFFFF5F57))
+                    SizedBox(width: 8)
+                    light(Color(0xFFFFBD2E))
+                    SizedBox(width: 8)
+                    light(Color(0xFF28C840))
+                })
+            })
     }
 }
 
