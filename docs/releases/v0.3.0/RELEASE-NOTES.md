@@ -1,7 +1,8 @@
 # Starling 0.3.0 — apps can render on the NVIDIA GPU
 
 The first release since 0.2.3 that changes what the desktop can do rather than
-what it gets wrong. Ninety-two commits. The headline is that a laptop with two
+what it gets wrong. Ninety-two commits of work since 0.2.3-2, plus the version
+bump and these notes. The headline is that a laptop with two
 GPUs now behaves like one: the shell keeps the display, and an app that wants
 the discrete card gets it.
 
