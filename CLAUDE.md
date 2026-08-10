@@ -12,6 +12,16 @@ Everything needed to build, run, drive, and package the desktop is in this repo
 (`build/`). The older `starling-os` repo still holds the Bazel-built Starling OS
 image and its QEMU boot gates; the desktop dev loop no longer depends on it.
 
+**Branches: work on mainline, in both repos.** This repo's mainline is `main`.
+The engine's is **`starling`** — *not* `main`. starling-engine is a fork of
+`flutter/flutter` carrying upstream's full history, so it has hundreds of
+branches including upstream ones; `starling` is the repo default
+(`origin/HEAD -> origin/starling`) and the only one we ship from. Commit
+straight to mainline in both; do not open a feature branch, and do not offer
+one, unless asked. `prime-render-offload` is **retired** in both repos — do
+not work on it or check it out (it holds nothing `starling` lacks). A change
+that spans both repos is committed in both, mainline to mainline.
+
 ## Layout
 
 ```
