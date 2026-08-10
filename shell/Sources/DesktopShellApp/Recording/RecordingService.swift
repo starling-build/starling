@@ -152,6 +152,15 @@ final class RecordingService {
     /// crop, which is the sharpest a 1080p deliverable can be.
     static let zoomSteps: [Double] = [1.0, 1.5, 2.0, 3.0]
 
+    /// While zoomed the crop follows the pointer — but only once it leaves
+    /// the middle of the frame. The pointer may wander this fraction of the
+    /// crop's half-extent from centre before the crop gives chase, and the
+    /// chase moves just enough to hold it at that boundary. Without the
+    /// dead zone every wiggle of narration drags the whole frame with it;
+    /// without the chase the narrator walks the pointer out of their own
+    /// shot and keeps talking about something the viewer cannot see.
+    static let followSlack = 0.6
+
     /// Where the crop is heading, and where it is now — the gap between them
     /// is what `tickZoom` eases away. Fractions of the full framebuffer, so
     /// they survive a resolution change.
@@ -171,8 +180,8 @@ final class RecordingService {
     var zoomLabel: String { String(format: "%.1f", zoomLevel) }
 
     /// Step in or out, keeping `at` (fractions of the screen) in frame. The
-    /// centre is re-taken on every step so the zoom follows the pointer
-    /// rather than committing to wherever it started.
+    /// centre is re-taken on every step, and between steps `tickZoom` pans
+    /// after the pointer, so the zoom never commits to wherever it started.
     func stepZoom(_ delta: Int, at: (x: Double, y: Double)) {
         guard zoomSupported, isRecording else { return }
         let steps = Self.zoomSteps
@@ -192,16 +201,22 @@ final class RecordingService {
 
     /// Ease the live crop toward the target and push it to the engine.
     /// Driven by the shell's frame pump, which already runs while recording.
-    func tickZoom() {
+    /// `pointer` is the live cursor in fractions of the screen; while zoomed
+    /// the crop pans to keep it in frame (see `followSlack`).
+    func tickZoom(pointer: (x: Double, y: Double)? = nil) {
         guard zoomSupported, isRecording, zoomFbWidth > 0 else { return }
+        if let p = pointer, zoomTarget > 1.001 { followPointer(p) }
         // Exponential ease: framerate-independent enough for a pump that is
         // not promised a fixed rate, and it never overshoots.
         let k = 0.18
         let done = abs(zoomTarget - zoomLevel) < 0.002
             && abs(centerTarget.x - center.x) < 0.001
             && abs(centerTarget.y - center.y) < 0.001
+        // What the indicator shows, sampled before the tick moves it.
+        let shownLabel = zoomLabel
+        let shownZoomed = isZoomed
         if done {
-            guard zoomLevel != zoomTarget else { return }
+            guard zoomLevel != zoomTarget || center != centerTarget else { return }
             zoomLevel = zoomTarget
             center = centerTarget
         } else {
@@ -210,7 +225,33 @@ final class RecordingService {
             center.y += (centerTarget.y - center.y) * k
         }
         pushCrop()
-        onChange?()
+        // The indicator shows one decimal of zoom and nothing of the pan.
+        // Rebuild the shell only when what it shows changed — a follow pan
+        // ticks every frame the pointer moves, and setState per frame for
+        // an invisible change is the rebuild storm the pump comment warns
+        // about.
+        if zoomLabel != shownLabel || isZoomed != shownZoomed { onChange?() }
+    }
+
+    /// Pan the crop after the pointer. Target-space on purpose: the dead
+    /// zone is measured against `centerTarget` with the crop size at
+    /// `zoomTarget`, so a mid-ease frame chases where it is going, not
+    /// where it happens to be this tick.
+    private func followPointer(_ p: (x: Double, y: Double)) {
+        let half = 0.5 / zoomTarget
+        let slack = half * Self.followSlack
+        let px = min(max(p.x, 0), 1), py = min(max(p.y, 0), 1)
+        if abs(px - centerTarget.x) > slack {
+            centerTarget.x = px > centerTarget.x ? px - slack : px + slack
+        }
+        if abs(py - centerTarget.y) > slack {
+            centerTarget.y = py > centerTarget.y ? py - slack : py + slack
+        }
+        // Keep the target where `pushCrop` can actually centre it, so at a
+        // screen edge the dead zone is measured from the frame the viewer
+        // really gets, not from an unreachable centre past the clamp.
+        centerTarget.x = min(max(centerTarget.x, half), 1 - half)
+        centerTarget.y = min(max(centerTarget.y, half), 1 - half)
     }
 
     private func pushCrop() {

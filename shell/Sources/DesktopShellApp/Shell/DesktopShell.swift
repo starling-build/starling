@@ -396,6 +396,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// the wallpaper nothing claimed. Recording zoom centres on it.
     var _lastPointer: Offset = Offset(0, 0)
 
+    /// `_lastPointer` as fractions of the screen — the coordinates the
+    /// recording zoom consumes (`stepZoom` at the key, follow in the pump).
+    var _pointerFraction: (x: Double, y: Double) {
+        (x: _lastPointer.dx / max(screenWidth, 1),
+         y: _lastPointer.dy / max(screenHeight, 1))
+    }
+
     /// Open workspace context menu: a tab's (window id) or a rail row's
     /// (workspace id). At most one is non-nil; both nil means no menu.
     var _wsTabMenuWinId: String? = nil
@@ -1131,9 +1138,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 tick = true
                 recordingService?.checkWindowAlive()
                 recordingService?.refreshWindowRect()
-                // Eases the recorded crop toward its target. Cheap and a
+                // Eases the recorded crop toward its target, and while
+                // zoomed pans it to keep the pointer in frame. Cheap and a
                 // no-op unless a zoom is in flight.
-                recordingService?.tickZoom()
+                recordingService?.tickZoom(pointer: self?._pointerFraction)
             }
             // ScreenCast rides it the same way: presents feed the PipeWire
             // stream, and the tick observes the stop draining. Until the
@@ -2124,11 +2132,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     && (keyData.type == .down || keyData.type == .repeat) {
                     #if os(Linux)
                     if let rec = recordingService, rec.isRecording {
-                        let w = self.screenWidth
-                        let h = self.screenHeight
                         rec.stepZoom(phys == 0x2E ? 1 : -1,
-                                     at: (x: self._lastPointer.dx / max(w, 1),
-                                          y: self._lastPointer.dy / max(h, 1)))
+                                     at: self._pointerFraction)
                     }
                     #endif
                     return true
