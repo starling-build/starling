@@ -923,13 +923,28 @@ extension _DesktopShellState {
         let paneW = _workspaceDriverWidth(forOutputWidth: wsOut.logicalWidth) - 20
         let paneH = wsOut.logicalHeight - DesktopTheme.kStatusBarHeight - 20
         let title = rec.name
-        // Namespaced per workspace.
-        // Two things depend on it: keystrokes are routed by looking the
-        // window's appId up in processTextureIds, so a workspace copy must
+        // Namespaced per workspace AND per launch.
+        // Two things depend on the composite: keystrokes are routed by looking
+        // the window's appId up in processTextureIds, so a workspace copy must
         // not share a key with the desktop copy of the same app; and a
         // composite id deliberately fails to resolve in the registry, which
         // is what keeps this window from lighting the dock.
-        let paneAppId = "\(workspaceId):\(appId)"
+        //
+        // The serial is the part that took a driver terminal with it. Keyed on
+        // the workspace alone, a SECOND copy of the same app in one workspace
+        // is indistinguishable from the first: `processTextureIds[paneAppId] =
+        // texId` below overwrites the first copy's entry, so its keystrokes
+        // start going to the newcomer, and `onTerminated` — which finds its
+        // window with `windows.first(where: appId == paneAppId)` — matches the
+        // OLDEST copy instead. Closing a second terminal in a workspace whose
+        // driver was also a terminal therefore deleted the DRIVER's window
+        // while leaving its process running with a dead texture: an empty
+        // driver pane and an unreachable shell. The serial goes in the prefix,
+        // before the ':', because `_wsBaseAppId` takes everything after the
+        // first colon as the real app id — a suffix would break the icon and
+        // registry lookups instead.
+        _wsPaneSerial += 1
+        let paneAppId = "\(workspaceId)/\(_wsPaneSerial):\(appId)"
         _ = mgr.launchDmaBufApp(
             executableName: rec.exec,
             contentWidth: Int(paneW),

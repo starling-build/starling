@@ -381,6 +381,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Explicitly selected tab per workspace (workspaceId → windowId).
     /// Absent or stale = follow the workspace: newest window wins.
     var _workspaceActiveTab: [String: String] = [:]
+    /// Serial for pane app ids, so a SECOND copy of the same app in one
+    /// workspace gets its own identity. See `_launchIntoWorkspace`.
+    var _wsPaneSerial: Int = 0
     /// Set while the launcher is filling a workspace's driver slot, so the
     /// app it launches lands in the middle column instead of on the desktop.
     var _launcherDriverTarget: String? = nil
