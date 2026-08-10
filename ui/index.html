@@ -352,6 +352,7 @@
     <nav class="nav-links">
       <a href="#idea">The idea</a>
       <a href="#falls-out">What it buys</a>
+      <a href="#agents">Agents</a>
       <a href="#built-in">The desktop</a>
       <a href="why.html">Why &amp; how</a>
       <a href="sdk.html">SDK</a>
@@ -486,11 +487,20 @@
 
       <div class="feature">
         <div class="feature-text">
-          <h3>Workspace mode — 916 lines</h3>
+          <h3>Workspace mode — a desktop something else can drive</h3>
           <p>
-            A named workspace with an agent driving on the left and whatever it
-            opened captured as tabs on the right. Live apps, resized into panes,
+            A named workspace holds one app driving down the middle and
+            everything it opens captured as tabs on the right, with the
+            workspace list on the left. Live apps, resized into panes,
             switching with the workspace.
+          </p>
+          <p>
+            The layout is not the interesting part. To put a running app in a
+            pane, the shell has to hold that window as an ordinary value it can
+            move, resize, read and hand elsewhere — and once it does, whether
+            the thing steering is a person or a program stops being an
+            architectural question and becomes a permissions one.
+            <a href="#agents">That is the next section</a>.
           </p>
           <p>
             Elsewhere this is a window-manager feature: reparenting foreign
@@ -558,6 +568,95 @@
                alt="The Starling dock over a web page, with the text behind it bending through the glass.">
           <figcaption>The dock over a web page — text bending through the glass.</figcaption>
         </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="agents">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">Where it leads</div>
+        <h2>An app is a widget — so a program can hold one</h2>
+        <p>
+          Automating a desktop normally means driving it from outside: find the
+          window, guess where the button is, synthesise a click, hope nothing
+          moved. That is screen-scraping with extra steps, and it breaks on a
+          theme change. Starling does not need it, because the shell is already
+          holding every window as a value.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <h3>Agents get their own desktop, not yours</h3>
+          <p>
+            A program connects to the shell, says hello and is given an
+            identity and a token. It launches apps. The windows it launches
+            belong to it: another agent cannot list them, read them, capture
+            them or click them, and neither can it touch the human's. Ask for
+            one you do not own and the answer is <code>no such owned
+            window</code>.
+          </p>
+          <p>
+            Its windows are real apps — the same Files, the same terminal, the
+            same Chrome — drawn in a space of their own with no presence on the
+            desktop. Nothing appears on your screen, nothing steals your focus,
+            and your windows are not in its world at all.
+          </p>
+          <span class="tag">Per-agent scope · token re-attach</span>
+        </div>
+        <figure>
+<pre><span class="c"># an agent opens an app and reads what is on it</span>
+&gt; {<span class="p">"op"</span>:"hello", <span class="p">"name"</span>:"my-agent"}
+&lt; {<span class="p">"agent"</span>:"a-7f3c", <span class="p">"token"</span>:"…"}
+
+&gt; {<span class="p">"op"</span>:"launch", <span class="p">"app"</span>:"files"}
+&lt; {<span class="p">"win"</span>:"w-12", <span class="p">"content"</span>:[960,600]}
+
+&gt; {<span class="p">"op"</span>:"semantic_tree", <span class="p">"win"</span>:"w-12"}
+&lt; {<span class="p">"nodes"</span>:[{<span class="p">"node"</span>:3, <span class="p">"label"</span>:"Documents",
+              <span class="p">"actions"</span>:["tap"]}, …]}
+
+&gt; {<span class="p">"op"</span>:"perform_action", <span class="p">"win"</span>:"w-12",
+   <span class="p">"node"</span>:3, <span class="p">"action"</span>:"tap"}</pre>
+          <figcaption>Named controls and the actions they accept — not pixel coordinates.</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature reverse">
+        <div class="feature-text">
+          <h3>It acts on controls, not coordinates</h3>
+          <p>
+            An agent reads a <strong>semantic tree</strong>: labelled nodes and
+            the actions each one accepts. It taps the node called
+            <code>Documents</code>. Restyle the app, move the button, change the
+            font, and that still works — there was never a coordinate to
+            invalidate.
+          </p>
+          <p>
+            Each command of a command-line tool is its own process, so an agent
+            re-attaches with its token and finds the windows it left running. A
+            wrong token is refused, which is what stops one agent rejoining as
+            another by guessing.
+          </p>
+          <span class="tag">Shell/AgentBroker.swift</span>
+        </div>
+        <figure>
+          <img src="img/workspace.jpg" width="2000" height="1125" loading="lazy"
+               alt="Starling in workspace mode: a workspace list on the left, Claude Code running in a terminal down the middle, and VS Code captured as a tab on the right.">
+          <figcaption>The human-facing half of the same machinery: an agent driving, and the editor it opened.</figcaption>
+        </figure>
+      </div>
+
+      <div class="wrap narrow">
+        <div class="note">
+          <strong>Honest about the state of it.</strong> The mechanism above
+          ships today and every claim on this page is covered by the functional
+          suite — scoping, denial, re-attach and token refusal are assertions,
+          not intentions. What is <em>built</em> on it is early: this is the
+          floor for agents that use a desktop the way a person does, not a
+          finished product on top of it.
+        </div>
       </div>
     </div>
   </section>
