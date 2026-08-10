@@ -77,11 +77,22 @@ puts the cursor 24 cells adrift.
 
 **`fl_drm_view.h` drift.** The engine grew an external-outputs API
 (`fl_drm_view_set_output_external` and an input callback) that the shell does
-not use, and the SDK's copy of the header has not been updated to match. The
-fast tier has been red on this since the API landed. It cannot affect this
-release: the shell never enables an external output, so the callback can never
-fire. Closing it properly means wiring the input path, which is feature work and
-did not belong in a release branch.
+not call, and the SDK's copy of the header has not been updated to match, so
+`test/run.sh` has been red since the API landed.
+
+It cannot affect this release. The only caller is inside the engine, behind
+`FLUTTER_DRM_EXTERNAL_TEST` — a development harness that proves the
+imported-view path (cross-GPU render, EGLImage import, fullscreen draw,
+per-CRTC flip) without a per-screen shell, the same shape as the older
+`FLUTTER_DRM_SECONDARY_TEST`. With that variable unset no output is ever marked
+external, so the unregistered callback has nothing to fire it.
+
+Syncing the header does not clear the check, it changes what it says: the lint
+then reports the callback as declared-but-never-registered, which is the
+silent-NULL-callback pattern that has bitten this codebase twice. Both readings
+describe the same fact — the API is staged groundwork with no shell side yet.
+Closing it means either wiring the input path or teaching the lint that this
+setter is opt-in; neither belongs on a release branch.
 
 ## Built from
 
