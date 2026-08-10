@@ -106,8 +106,23 @@ final class TerminalEmulator {
     /// TUIs (Claude Code, vim) treat it as one atomic insert.
     private(set) var bracketedPaste = false
 
-    // Alternate screen support
-    private var altActive = false
+    /// DEC private modes 1000/1002/1003 — the app wants mouse events. Only
+    /// the wheel is actually reported (see the UI): that is what a scroll
+    /// gesture needs, and forwarding presses too would take click-drag text
+    /// selection away from the user inside every full-screen app.
+    private(set) var mouseTracking = false
+    /// DEC private mode 1006 — SGR encoding (`ESC [ < b ; x ; y M`). The
+    /// legacy X10 encoding stuffs coordinates into single bytes and breaks
+    /// past column 223, so reporting is gated on this being on rather than
+    /// emitting something that misreports a wide window.
+    private(set) var mouseSgr = false
+
+    // Alternate screen support.
+    /// Readable because the scrollback belongs to the PRIMARY buffer: while a
+    /// full-screen app owns the screen there is nothing of its own to scroll
+    /// back through, and walking the primary's history would replace the app
+    /// on screen with whatever the shell printed before it started.
+    private(set) var altActive = false
     private var savedPrimaryGrid: [[TermCell]]?
     private var savedPrimaryCursor: (Int, Int) = (0, 0)
 
@@ -745,8 +760,16 @@ final class TerminalEmulator {
                 on ? _saveCursor() : _restoreCursor()
             case 2004:
                 bracketedPaste = on
+            // Mouse tracking. We report the WHEEL only (see the UI's
+            // onPointerSignal), which is what makes scrolling work inside a
+            // full-screen app; the exact tracking flavour does not change how
+            // a wheel event is encoded, so all three set the same flag.
+            case 1000, 1002, 1003:
+                mouseTracking = on
+            case 1006:
+                mouseSgr = on
             default:
-                break  // mouse modes, blinking… ignored
+                break  // blinking, focus reporting… ignored
             }
         }
     }

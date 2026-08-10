@@ -537,11 +537,61 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
                 guard let scroll = event as? PointerScrollEvent else { return }
                 _lock.lock()
                 let limit = emulator.scrollbackCount
+                let alt = emulator.altActive
+                let appCursor = emulator.applicationCursorKeys
+                let reportMouse = emulator.mouseTracking && emulator.mouseSgr
                 _lock.unlock()
                 let dl = -scroll.scrollDelta.dy / cellH
                 var lines = Int(dl.rounded(.towardZero))
                 if lines == 0 { lines = dl > 0 ? 1 : (dl < 0 ? -1 : 0) }
                 guard lines != 0 else { return }
+
+                // The app asked for mouse events, so give it the wheel and let
+                // it decide what scrolling means. This is the only thing that
+                // scrolls Claude Code: fed arrow keys it answers "scroll wheel
+                // is sending arrow keys", because it is waiting for button 64
+                // and 65 here.
+                if reportMouse {
+                    let cell = _cellAt(scroll.localPosition)
+                    _lock.lock()
+                    let base = emulator.scrollbackCount
+                        - min(_viewOffset, emulator.scrollbackCount)
+                    _lock.unlock()
+                    // SGR is 1-based and screen-relative, so undo _cellAt's
+                    // scrollback base — a wheel report is about where the
+                    // pointer is on screen, not which history line that is.
+                    let col = cell.col + 1
+                    let row = (cell.line - base) + 1
+                    // Positive `lines` walks BACK through history (the
+                    // scrollback branch below adds it to _viewOffset), which
+                    // is a wheel-up — SGR button 64. Getting this backwards
+                    // sends "down" to an app already pinned at the bottom,
+                    // which looks exactly like the wheel being ignored.
+                    let button = lines > 0 ? 64 : 65
+                    let ticks = min(abs(lines), 10)
+                    var out = ""
+                    for _ in 0..<ticks { out += "\u{1B}[<\(button);\(col);\(row)M" }
+                    pty?.write(out)
+                    return
+                }
+
+                // A full-screen app owns the screen, and the scrollback under
+                // it belongs to the PRIMARY buffer — the shell's output from
+                // before the app started. Scrolling into that replaces the app
+                // on screen with stale text, which reads as "scrolling is
+                // broken" rather than "you are looking at the wrong buffer".
+                //
+                // So do what xterm's alternateScroll does: turn the wheel into
+                // cursor keys and let the application scroll itself. Three
+                // lines a tick is the convention every TUI is tuned for.
+                if alt {
+                    let up = lines > 0
+                    let key = appCursor ? (up ? "\u{1B}OA" : "\u{1B}OB")
+                                        : (up ? "\u{1B}[A" : "\u{1B}[B")
+                    pty?.write(String(repeating: key, count: min(abs(lines), 10) * 3))
+                    return
+                }
+
                 let target = max(0, min(_viewOffset + lines, limit))
                 if target != _viewOffset {
                     setState { _viewOffset = target }
