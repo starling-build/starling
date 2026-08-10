@@ -1712,6 +1712,236 @@ def check_recording_motion() -> None:
             os.unlink(path)
 
 
+def _yavg(*ffmpeg_args: str) -> list[float]:
+    """Run an ffmpeg graph ending in signalstats and return the YAVG series.
+
+    Same tooling `_motion` settled on and for the same reason: no numpy, no
+    PIL, nothing to install in a VM whose whole point is being a clean machine.
+    """
+    out = subprocess.run(["ffmpeg", "-v", "error", *ffmpeg_args,
+                          "-f", "null", "-"], capture_output=True, text=True)
+    return [float(line.rsplit("=", 1)[1])
+            for line in out.stdout.splitlines() if "YAVG" in line]
+
+
+_PRINT = "metadata=print:key=lavfi.signalstats.YAVG:file=-"
+
+
+def _png_diff(a: str, b: str) -> float:
+    """Mean absolute difference between two stills, 0 = identical."""
+    vals = _yavg("-i", a, "-i", b, "-filter_complex",
+                 f"blend=all_mode=difference,signalstats,{_PRINT}")
+    assert vals, f"could not compare {a} and {b}"
+    return vals[0]
+
+
+def _detail(path: str, sample_fps: int = 2) -> float:
+    """Mean edge energy across a recording — a scale-sensitive summary.
+
+    Magnifying content puts the same features across more pixels, so edges per
+    unit area drop: a 2x take of one screen scores markedly lower than the wide
+    take of the same screen. That is a property of the CONTENT, which is what
+    makes it usable here — it needs no baseline image, so it does not rot the
+    way a screenshot suite does, and it compares a recording only against
+    another recording made seconds earlier of the same still desktop.
+    """
+    vals = _yavg("-i", path, "-vf",
+                 f"fps={sample_fps},edgedetect=low=0.1:high=0.3,signalstats,{_PRINT}")
+    assert len(vals) >= 2, f"only {len(vals)} frames sampled from {path}"
+    return sum(vals) / len(vals)
+
+
+@check("recording: Ctrl+Shift+= zooms the take and not the screen")
+def check_recording_zoom() -> None:
+    """The zoom is deliberately invisible: it crops what the encoder sees, so
+    the room watching the presenter's screen sees nothing happen while the
+    take comes out magnified. Both halves of that are assertions, and they
+    fail in opposite directions — a zoom that moved the screen would be the
+    feature not working, and a zoom that changed nothing in the file would be
+    it not working either. Neither is visible from the shell's own state:
+    `recording_state` publishes elapsed time and capture size but no zoom
+    level, and the capture size is the framebuffer rather than the crop.
+
+    So this records the same still desktop twice, wide and at 2x, and compares
+    the two files' edge density. Nothing is compared against a stored
+    baseline; the reference is a recording made seconds earlier of the same
+    screen.
+    """
+    rec = lambda: ask("recording_state")
+    if not rec()["available"]:
+        raise Skip("no ffmpeg on this machine")
+    assert rec()["state"] == "idle", f"a recording is already {rec()['state']}"
+
+    # Still, dense, high-contrast content: edge density is the measure, so the
+    # screen needs detail to have any, and it must not move or the two takes
+    # differ for reasons that have nothing to do with the crop.
+    drive("dock terminal", "click")
+    wait_for(lambda: proc_running("TerminalApp"), "the terminal process")
+    time.sleep(4)
+    drive("type seq 1 400 | paste - - - - - -")
+    drive("key enter")
+    time.sleep(3)
+
+    shots: list[str] = []
+
+    def take(seconds: float, zoom_steps: int) -> str:
+        """Record the desktop, optionally zooming in `zoom_steps` first."""
+        drive("key ctrl+shift+r")
+        wait_for(lambda: rec()["state"] == "recording", "the first frame")
+        try:
+            for _ in range(zoom_steps):
+                # Only honoured while recording, which is why it is in here.
+                drive("key ctrl+shift+=")
+                time.sleep(0.4)
+            # The crop eases toward its target rather than snapping, so give
+            # it time to arrive before the frames that will be measured.
+            time.sleep(1.5)
+            shot = tempfile.mktemp(suffix=".png")
+            drive(f"shot {shot}")
+            shots.append(shot)
+            time.sleep(seconds)
+        finally:
+            drive("key ctrl+shift+r")
+            wait_for(lambda: rec()["state"] == "idle", "the encode to finalize")
+        path = rec()["last_file"]
+        assert path, "the shell reports no saved file"
+        return path
+
+    wide = zoomed = None
+    try:
+        wide = take(5, zoom_steps=0)
+        # Two steps: 1.0 -> 1.5 -> 2.0. The 2x step is the one worth pinning,
+        # because on a 4K panel it is the 1:1 crop the feature exists for.
+        zoomed = take(5, zoom_steps=2)
+
+        # 1. The screen did not move. Both stills are of the same still
+        #    desktop, one taken while zoomed 2x — if the zoom leaked onto the
+        #    screen this is where it shows.
+        moved = _png_diff(shots[0], shots[1])
+        assert moved < 2.0, (
+            f"the desktop changed by {moved:.1f} between the wide and zoomed "
+            "takes — the recording zoom is supposed to be invisible on screen")
+        log(f"screen unchanged while zoomed (diff {moved:.2f})")
+
+        # 2. The take is magnified. Same screen, so a lower edge density can
+        #    only come from the crop.
+        d_wide, d_zoom = _detail(wide), _detail(zoomed)
+        assert d_wide > 0, "the wide take has no detail to compare against"
+        ratio = d_zoom / d_wide
+        assert ratio < 0.8, (
+            f"edge density barely moved ({d_zoom:.2f} zoomed vs {d_wide:.2f} "
+            f"wide, ratio {ratio:.2f}) — the take does not look magnified, so "
+            "Ctrl+Shift+= did not crop what the encoder sees")
+        log(f"zoomed take is magnified (edge density ratio {ratio:.2f})")
+    finally:
+        if rec()["state"] not in ("idle", "stopping"):
+            drive("key ctrl+shift+r")
+        drive("key ctrl+c")
+        quit_app("TerminalApp")
+        for p in shots + [wide, zoomed]:
+            if p:
+                with contextlib.suppress(OSError):
+                    os.unlink(p)
+
+
+def _child_environ(pid: str) -> dict[str, str]:
+    try:
+        raw = open(f"/proc/{pid}/environ", "rb").read()
+    except OSError:
+        return {}
+    out = {}
+    for item in raw.split(b"\0"):
+        if b"=" in item:
+            k, v = item.split(b"=", 1)
+            out[k.decode(errors="replace")] = v.decode(errors="replace")
+    return out
+
+
+@check("gpu: an app whose record says Gpu=discrete is launched onto it")
+def check_prime_offload() -> None:
+    """Per-app PRIME offload, end to end through the shell.
+
+    The policy is one key in a registry record and the mechanism is entirely
+    in app-run.sh, with the shell doing nothing but putting STARLING_APP_GPU
+    in the child's environment when the record asks and a discrete GPU is
+    actually present. Every link in that is an exact string match that fails
+    silently — the app launches, renders on the integrated GPU, and nothing
+    anywhere says why (test/lint.py compares the literals for that reason).
+    This asserts the runtime half the lint cannot see: that the variable
+    really reaches the process.
+
+    The fixture is chrome.app with one key added, so the control is exact —
+    launch both records and the only thing that can explain a difference in
+    the child's environment is `Gpu=discrete` itself.
+    """
+    if len(glob.glob("/dev/dri/renderD*")) < 2:
+        raise Skip("one render node — no discrete GPU to offload onto")
+    if not (CATALOG / "starlingprime.app").exists():
+        raise Skip("fixture catalog not in use (run via test/functional.sh)")
+    installed = apps().get("starlingprime")
+    if not installed or not installed.get("installed"):
+        raise Skip("Chrome is not installed — the fixture borrows its binary")
+
+    def launch_and_read(app_id: str) -> dict[str, str]:
+        """Launch through the shell and read the child's environment.
+
+        Through the SHELL on purpose: the broker's launch op only serves a
+        fixed table of first-party apps, and calling app-run directly would
+        skip the very decision under test — it is the shell that reads the
+        record and decides whether to set the variable at all.
+        """
+        before = set(subprocess.run(["pgrep", "-f", "/opt/google/chrome"],
+                                    capture_output=True, text=True).stdout.split())
+        drive("move 300 300", "dock launcher", "click")
+        wait_for(lambda: ask("launcher_state")["open"], "Launchpad to open")
+        try:
+            drive(f"type {installed['name'] if app_id == 'starlingprime' else 'Chrome'}")
+            wait_for(lambda: ask("launcher_state")["filtered"] == [app_id],
+                     f"the Launchpad to filter to {app_id}")
+            drive("key enter")
+        finally:
+            with contextlib.suppress(Exception):
+                if ask("launcher_state")["open"]:
+                    drive("key esc")
+
+        def fresh() -> str | None:
+            now = set(subprocess.run(["pgrep", "-f", "/opt/google/chrome"],
+                                     capture_output=True, text=True).stdout.split())
+            new = now - before
+            return next(iter(new)) if new else None
+
+        wait_for(fresh, f"{app_id} to start a process")
+        return _child_environ(fresh())
+
+    try:
+        env = launch_and_read("starlingprime")
+        assert env.get("STARLING_APP_GPU") == "discrete", (
+            "the shell did not put STARLING_APP_GPU=discrete in the child's "
+            f"environment for a record carrying Gpu=discrete (got "
+            f"{env.get('STARLING_APP_GPU')!r}) — the app is on the integrated GPU")
+        # app-run's half: the preference translated into the vendor knobs.
+        # Asserted separately because the two fail independently, and a shell
+        # that sets the variable into a launcher that ignores it looks exactly
+        # like a machine with no discrete GPU.
+        assert env.get("DRI_PRIME") == "1", (
+            f"STARLING_APP_GPU arrived but DRI_PRIME did not (got "
+            f"{env.get('DRI_PRIME')!r}) — app-run did not translate the preference")
+        log("Gpu=discrete reaches the child as STARLING_APP_GPU + DRI_PRIME")
+        quit_app("chrome")
+        time.sleep(2)
+
+        # The control: the same binary, the same recipe, no Gpu= key. Without
+        # this the check above would also pass if the shell handed every app
+        # the discrete GPU, which is a different bug with the same green tick.
+        plain = launch_and_read("chrome")
+        assert "STARLING_APP_GPU" not in plain, (
+            "a record with no Gpu= key was still launched onto the discrete "
+            "GPU — the offload is not per-app at all")
+        log("a record without Gpu= is left on the integrated GPU")
+    finally:
+        quit_app("chrome")
+
+
 @check("screencast: the portal serves a live PipeWire stream")
 def check_screencast() -> None:
     """org.freedesktop.portal.ScreenCast end to end minus the browser: the
