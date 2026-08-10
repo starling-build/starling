@@ -83,10 +83,27 @@ release: the shell never enables an external output, so the callback can never
 fire. Closing it properly means wiring the input path, which is feature work and
 did not belong in a release branch.
 
+## Built from
+
+    desktop  starling-build/starling        release-0.3.0
+    engine   starling-build/starling-engine starling @ 6a132579a0d
+
+The engine carries only upstream Flutter's tags; it is not tagged per Starling
+release, so the commit is the record. Everything ships against `host_release`.
+
 ## Verified
 
 T3 release gate on a clean Ubuntu 26.04 VM: `.deb` installed the way the docs
 tell a user to, rebooted into GDM, logged in, session confirmed seat-active and
 started by the display manager (not by hand), polkit authorising `app-install`
-through the pkexec hop — then the functional suite twice, once with 3D
-acceleration and once on llvmpipe with none.
+through the pkexec hop — then the functional suite twice, and Shut Down from
+the desktop's own power menu actually powering the machine off.
+
+    with 3D acceleration (virtio-gpu)   31 passed, 4 skipped
+    with none (virtio-vga, llvmpipe)    25 passed, 10 skipped
+
+Both runs skip the ScreenCast portal check (no gstreamer in the guest) and the
+hostile-dma-buf fixture (protocol XMLs absent). The no-3D run's remaining skips
+are not identified here: the gate prints that pass through `tail -24`, so their
+lines scroll past. Worth widening if the skip count is ever meant to be read as
+coverage.
