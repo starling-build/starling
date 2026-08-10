@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Starling — the first real desktop written by AI</title>
-<meta name="description" content="Others have pointed AI at a desktop before — they ran in a browser tab, or stopped at a mock-up. Starling drives the GPU directly and runs Chrome, Slack and Zoom. A complete Linux desktop environment, written by AI and directed by one person in six months.">
-<meta property="og:title" content="The first real desktop written by AI">
-<meta property="og:description" content="Not a browser tab and not a mock-up. A complete Linux desktop — compositor, window manager, Wayland and X11 servers, apps — written by AI, directed by one person, in six months.">
+<title>Starling — a desktop where every app is a widget</title>
+<meta name="description" content="A Linux desktop environment built as a single GUI application: the dock, the menu bar and every window — including Chrome and Zoom — are widgets in one tree. Window management becomes layout, and the whole desktop fits in 60,000 lines.">
+<meta property="og:title" content="A desktop where every app is a widget">
+<meta property="og:description" content="One GUI framework, one widget tree. A foreign Chrome window is a texture composited by a widget next to the dock — so window management is layout, and the desktop, its Wayland compositor and its X server come to 60,000 lines.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
 <style>
@@ -142,6 +142,13 @@
               color: var(--ink-dim); }
   .thesis p + p { margin-top: 22px; }
   .thesis strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em; color: var(--ink);
+    background: var(--bg-sunk); border: 1px solid var(--line-soft);
+    border-radius: 5px; padding: 1px 6px;
+  }
 
   .pull {
     border-left: 2px solid var(--amber); padding: 4px 0 4px 24px;
@@ -343,8 +350,8 @@
       Starling
     </a>
     <nav class="nav-links">
-      <a href="#real">What "real" means</a>
-      <a href="#velocity">Why it matters</a>
+      <a href="#idea">The idea</a>
+      <a href="#falls-out">What it buys</a>
       <a href="#built-in">The desktop</a>
       <a href="why.html">Why &amp; how</a>
       <a href="sdk.html">SDK</a>
@@ -376,16 +383,17 @@
   <div class="hero">
     <div class="wrap hero-inner">
       <span class="eyebrow"><span class="dot"></span> Early preview · v0.2.3 · Ubuntu</span>
-      <h1>The first real desktop<br>written by <span class="accent">AI</span></h1>
+      <h1>A desktop where every app<br>is <span class="accent">a widget</span></h1>
       <p class="lede">
-        Others have pointed AI at a desktop before. They ran in a browser tab, or
-        stopped at a mock-up. <strong>Starling drives the GPU directly and runs
-        Chrome, Slack and Zoom.</strong> It was written by AI, directed by one
-        person, over six months.
+        A desktop environment is normally four programs in three languages,
+        talking over IPC. <strong>Starling is one GUI application.</strong> The
+        dock, the menu bar and every window on screen — including Chrome and
+        Zoom — are widgets in a single tree. That one decision is why the whole
+        desktop fits in 60,000 lines.
       </p>
       <div class="cta">
-        <a class="btn btn-primary" href="#install">Install Starling</a>
-        <a class="btn btn-ghost" href="#real">See what's real about it</a>
+        <a class="btn btn-primary" href="#idea">See the idea</a>
+        <a class="btn btn-ghost" href="#install">Install Starling</a>
       </div>
     </div>
     <div class="wrap">
@@ -406,98 +414,194 @@
     </div>
   </div>
 
-  <section id="scale" style="padding-top:72px">
-    <div class="wrap">
-      <div class="specs">
-        <div class="spec">
-          <div class="n">335K</div>
-          <div class="l">Lines of first-party Swift, C and C++</div>
-        </div>
-        <div class="spec">
-          <div class="n">6 months</div>
-          <div class="l">First commit to a desktop you can log into</div>
-        </div>
-        <div class="spec">
-          <div class="n">1</div>
-          <div class="l">Person directing the work</div>
-        </div>
-        <div class="spec">
-          <div class="n">~2,000</div>
-          <div class="l">Commits, and still moving</div>
-        </div>
-      </div>
-      <p class="specs-note">
-        Line count excludes vendored dependencies. Most of it — about 273K — is the
-        Flutter→Swift framework port that the whole system rests on; the desktop
-        itself, its Wayland and X11 servers and the bundled apps come to roughly
-        62K. Both repositories are public —
-        <a href="https://github.com/starling-build/starling">desktop</a> and
-        <a href="https://github.com/starling-build/starling-engine">engine</a> — so
-        every number here is yours to check.
-      </p>
-    </div>
-  </section>
-
-  <section id="real">
+  <section id="idea">
     <div class="wrap narrow thesis">
-      <div class="kicker">What "real" means</div>
-      <h2 style="margin-bottom:28px">Not a browser tab.<br>Not a mock-up.</h2>
+      <div class="kicker">The idea</div>
+      <h2 style="margin-bottom:28px">One tree, all the way down</h2>
       <p>
-        "AI built a desktop" has been claimed before, and it has usually meant one
-        of three things: a desktop metaphor drawn inside a web page; a convincing
-        screenshot of something that was never logged into; or a from-scratch
-        system that does boot, but only ever runs the handful of programs written
-        for it.
+        Build a desktop the usual way and you build four things. A compositor
+        that owns the screen. A window manager that decides where things go. A
+        panel and a launcher, usually in a different toolkit. And the toolkit
+        your own apps are written in. Four programs, three languages, and a
+        protocol between every pair — each boundary a place where an idea has to
+        be re-implemented on both sides, or abandoned.
       </p>
       <p>
-        <strong>One test separates them: does it run software it didn't
-        write?</strong> That is a desktop's actual job — to host programs made by
-        strangers, years apart, in toolkits it doesn't control, and keep them all
-        on one screen without any of them knowing about each other. A system that
-        only runs its own apps has skipped the hard part.
+        <strong>Starling deletes the boundaries.</strong> There is one GUI
+        framework and one widget tree, and everything on screen lives in it. The
+        dock is a widget. The menu bar is a widget. A workspace pane is a widget.
+        And a Chrome window — a foreign program that has never heard of Starling
+        — arrives as a dma-buf, becomes a texture, and is composited by a widget
+        sitting in that same tree, next to the dock.
       </p>
+
+      <div class="pull">
+        Window management becomes layout. Compositing becomes painting.
+        Animation is just animation.
+      </div>
+
       <p>
-        <strong>Starling is the session.</strong> It talks to DRM/KMS and owns the
-        display. It reads the raw input devices. It is a Wayland compositor, and it
-        hosts an X server for the apps that still need one. You pick it at the login
-        screen, sign in, and it's your desktop until you log out — running Chrome,
-        Slack and Zoom, none of which have ever heard of it.
+        That is the whole thesis, and it is worth being concrete about what it
+        buys. Tiling a window is not a window-manager feature, it is a
+        <code>Row</code>. Moving a live app into a pane is moving a widget.
+        Fading a window as it closes is the same code that fades anything else.
+        Effects that need a compositor plugin elsewhere are ordinary framework
+        animation here, because there is no elsewhere — no second process, no
+        protocol, no other language.
       </p>
 
       <div class="compare">
         <div class="col them">
-          <div class="col-label">The usual AI desktop</div>
+          <div class="col-label">The usual stack</div>
           <ul>
-            <li>Runs inside a browser tab</li>
-            <li>Windows are <code>&lt;div&gt;</code>s that can't hold a real program</li>
-            <li>Or it boots — but runs only the apps written for it</li>
-            <li>Screenshots of a design that was never logged into</li>
+            <li>Compositor, window manager, panel, toolkit — separate programs</li>
+            <li>Windows are protocol objects, owned by another process</li>
+            <li>New window behaviour means a compositor patch or an extension</li>
+            <li>Effects live in the compositor; your UI cannot reach them</li>
           </ul>
         </div>
         <div class="col us">
           <div class="col-label">Starling</div>
           <ul>
-            <li>Drives the GPU through DRM/KMS, as the session</li>
-            <li>Runs software it didn't write — Chrome, Slack, Zoom</li>
-            <li>Speaks Wayland and X11 natively, at once</li>
-            <li>Every screenshot here is a running session</li>
+            <li>One application, one language, one widget tree</li>
+            <li>Windows are widgets — a client's buffer is a texture in the tree</li>
+            <li>New window behaviour is a layout change</li>
+            <li>Effects are framework animation, on the same tree as the dock</li>
           </ul>
         </div>
       </div>
-
-      <p style="margin-top:44px">
-        The screenshot below is the test that settles it. Zoom is an X11 client;
-        Chrome is a Wayland one. Two programs written by strangers, composited into
-        one scene, on one GPU path, by a desktop that didn't exist six months ago.
-      </p>
     </div>
+  </section>
 
-    <div class="wrap" style="margin-top:44px">
-      <figure class="wide">
-        <img src="img/wayland-x11.jpg" width="2000" height="1125" loading="lazy"
-             alt="The Starling desktop with Zoom Workplace open as an X11 client and Google Chrome open as a Wayland client, both composited into the same desktop over the wallpaper.">
-        <figcaption>Zoom on X11 and Chrome on Wayland — one desktop, one GPU path, no session picker.</figcaption>
-      </figure>
+  <section id="falls-out">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">What falls out of it</div>
+        <h2>Features that would be projects</h2>
+        <p>
+          None of these are clever. They are what you get for free once a window
+          is a widget — which is the point.
+        </p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <h3>Workspace mode — 916 lines</h3>
+          <p>
+            A named workspace with an agent driving on the left and whatever it
+            opened captured as tabs on the right. Live apps, resized into panes,
+            switching with the workspace.
+          </p>
+          <p>
+            Elsewhere this is a window-manager feature: reparenting foreign
+            clients, tracking them, re-laying them out. Here the pane is a
+            widget and the app inside it is a widget, so the whole mode — rail,
+            panes, tab strip, drag-and-drop — is one <strong>916-line
+            file</strong>.
+          </p>
+          <span class="tag">Shell/WorkspaceSpace.swift</span>
+        </div>
+        <figure>
+          <img src="img/workspace.jpg" width="2000" height="1125" loading="lazy"
+               alt="Starling in workspace mode: a workspace list on the left, Claude Code running in a terminal down the middle, and VS Code captured as a tab on the right.">
+          <figcaption>One workspace: the agent on the left, the editor it opened on the right.</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature reverse">
+        <div class="feature-text">
+          <h3>X11 and Wayland, in the same scene</h3>
+          <p>
+            Starling is a Wayland compositor and hosts its own X server. Zoom is
+            an X11 client; Chrome is a Wayland one. They composite into one
+            desktop, on one GPU path, with no session picker and no XWayland
+            shim between them.
+          </p>
+          <p>
+            Both servers terminate in the same place — a texture. The shell has
+            no X11 path and no Wayland path; it has a widget that draws a
+            texture, and two servers that produce one. The Wayland compositor is
+            <strong>6,900 lines of C</strong>, the X server
+            <strong>5,700</strong>.
+          </p>
+          <span class="tag">Sources/WaylandServer · Sources/X11Server</span>
+        </div>
+        <figure>
+          <img src="img/wayland-x11.jpg" width="2000" height="1125" loading="lazy"
+               alt="The Starling desktop with Zoom Workplace open as an X11 client and Google Chrome open as a Wayland client, both composited into the same desktop.">
+          <figcaption>Zoom on X11, Chrome on Wayland — one desktop, one GPU path.</figcaption>
+        </figure>
+      </div>
+
+      <div class="feature">
+        <div class="feature-text">
+          <h3>Glass that is actually computed</h3>
+          <p>
+            The dock doesn't fake depth with a blur. A fragment shader gives the
+            panel real thickness, derives a surface normal from it, and bends the
+            view ray through that normal with Snell's law — then adds a Fresnel
+            rim and a specular highlight riding the same surface. Look at the
+            text passing behind it: it doesn't just blur, it <em>bends</em> and
+            compresses toward the rounded ends.
+          </p>
+          <p>
+            And there is no compositor extension to ask for it. The dock is a
+            widget sitting above the window widgets in one tree, so it can
+            simply read what is under it. Elsewhere that is a protocol
+            negotiation between two processes; here it is a shader over a scene
+            you already have.
+          </p>
+          <span class="tag">Physically-based · GPU fragment shader</span>
+        </div>
+        <figure>
+          <img src="img/glass.jpg" width="1760" height="370" loading="lazy"
+               alt="The Starling dock over a web page, with the text behind it bending through the glass.">
+          <figcaption>The dock over a web page — text bending through the glass.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="scale">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">The size of it</div>
+        <h2>A desktop you could read in a weekend</h2>
+        <p>
+          Every number below is a file count in a public repository, so none of
+          it has to be taken on trust.
+        </p>
+      </div>
+      <div class="specs">
+        <div class="spec">
+          <div class="n">24,431</div>
+          <div class="l">Lines of Swift — the entire shell UI, compositing and window management</div>
+        </div>
+        <div class="spec">
+          <div class="n">6,935</div>
+          <div class="l">Lines of C — the Wayland compositor</div>
+        </div>
+        <div class="spec">
+          <div class="n">5,712</div>
+          <div class="l">Lines of C — the X server</div>
+        </div>
+        <div class="spec">
+          <div class="n">13,407</div>
+          <div class="l">Lines of Swift — nine apps that ship with it</div>
+        </div>
+      </div>
+      <p class="specs-note">
+        Plus a 7,500-line DRM/KMS embedder in the engine fork: about
+        <strong>60,000 lines</strong> for the desktop, its two display servers
+        and its apps. Counts exclude build output and the Wayland protocol code
+        generated by <code>wayland-scanner</code>. What makes them possible is
+        the part that is <em>not</em> small — a 211,000-line port of Flutter's
+        framework to Swift, with no Dart VM under your session, which every app
+        and the shell itself are written against.
+        <a href="https://github.com/starling-build/starling">Desktop</a> and
+        <a href="https://github.com/starling-build/starling-engine">engine</a>
+        are both public.
+      </p>
     </div>
   </section>
 
@@ -505,6 +609,13 @@
     <div class="wrap narrow thesis">
       <div class="kicker">Why it matters</div>
       <h2 style="margin-bottom:28px">The cost of building a desktop just collapsed</h2>
+      <p>
+        Sixty thousand lines is the architecture's doing. That it exists at all
+        — six months, one person directing, the code written by AI — is the
+        other half, and the two multiply. A desktop this small is one a model
+        can hold in its head, and a change lands in one language instead of
+        being negotiated across four programs.
+      </p>
       <p>
         For three decades, building a Linux desktop has been the work of
         institutions. GNOME and KDE are extraordinary pieces of engineering,
@@ -547,7 +658,7 @@
     <div class="wrap">
       <div class="section-head">
         <div class="kicker">The desktop</div>
-        <h2>And it's a complete one</h2>
+        <h2>Everything else a desktop has to do</h2>
         <p>
           Not a proof of concept with the interesting parts missing. Every
           screenshot below is the real thing, captured from a running session.
@@ -620,59 +731,25 @@
         </figure>
       </div>
 
-      <div class="feature reverse">
-        <div class="feature-text">
-          <h3>Real glass, computed per pixel</h3>
-          <p>
-            The dock and panels don't fake depth with a blur. A fragment shader
-            gives each panel real thickness, derives a surface normal from it, and
-            bends the view ray through that normal with Snell's law — then adds a
-            Fresnel rim and a specular highlight riding the same surface.
-          </p>
-          <p>
-            Look at the text passing behind the dock: it doesn't just blur, it
-            <em>bends</em> and compresses toward the rounded ends, the way it would
-            through a real piece of glass. There is no HTML, CSS or JavaScript
-            anywhere in the desktop — effects are shaders, not filters.
-          </p>
-          <span class="tag">Physically-based · GPU fragment shader</span>
-        </div>
-        <figure>
-          <img src="img/glass.jpg" width="1760" height="370" loading="lazy"
-               alt="Close-up of the Starling dock sitting over a web page. The text behind it is blurred and visibly bent and displaced where it passes through the dock's curved ends, with a bright rim along the edge.">
-          <figcaption>The dock over a web page — text bending through the glass.</figcaption>
-        </figure>
-      </div>
-
-      <div class="grid">
-        <div class="card">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <rect x="3" y="4" width="18" height="15" rx="2"/>
-            <path d="M3 9h18"/><circle cx="6.5" cy="6.5" r=".8" fill="currentColor"/>
-          </svg>
-          <h3>A full set of apps, in the same framework</h3>
-          <p>
-            Files, Terminal, Settings, Calculator, Text Editor, Image Viewer and an
-            App Store that installs from the Ubuntu archive — each written in the
-            same framework as the shell that hosts it. One theme change reaches all
-            of them at once, because there's no toolkit boundary for it to stop at.
-          </p>
-          <span class="tag">First-party apps · one theme, everything</span>
-        </div>
-        <div class="card">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-            <path d="M12 3.4l8.4 4.8v9.6L12 22.6 3.6 17.8V8.2z"/>
-            <path d="M3.6 8.2L12 13l8.4-4.8"/><path d="M12 13v9.6"/>
-          </svg>
-          <h3>No interpreter under your session</h3>
-          <p>
-            The UI framework is compiled ahead of time to machine code and binds
-            only a stable C rendering core — no virtual machine in the loop. Client
-            buffers are shared straight off the GPU, never copied, and every app is
-            its own process, so a crash takes one window and nothing else.
-          </p>
-          <span class="tag">Swift, compiled · dmabuf zero-copy</span>
-        </div>
+      <div class="card wide">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <rect x="3" y="4" width="18" height="15" rx="2"/>
+          <path d="M3 9h18"/><circle cx="6.5" cy="6.5" r=".8" fill="currentColor"/>
+        </svg>
+        <h3>Nine apps, the same framework, no interpreter</h3>
+        <p>
+          Files, Terminal, Settings, Calculator, Text Editor, Image Viewer and an
+          App Store that installs from the Ubuntu archive — each written in the
+          same framework as the shell that hosts it. One theme change reaches all
+          of them at once, because there is no toolkit boundary for it to stop at.
+        </p>
+        <p>
+          And all of it compiled ahead of time to machine code, binding only a
+          stable C rendering core: no virtual machine under your session. Client
+          buffers are shared straight off the GPU, never copied, and every app is
+          its own process, so a crash takes one window and nothing else.
+        </p>
+        <span class="tag">First-party apps · Swift, compiled · dmabuf zero-copy</span>
       </div>
 
       <div class="bridge">
