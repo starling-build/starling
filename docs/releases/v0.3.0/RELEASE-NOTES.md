@@ -1,8 +1,8 @@
 # Starling 0.3.0 — apps can render on the NVIDIA GPU
 
 The first release since 0.2.3 that changes what the desktop can do rather than
-what it gets wrong. Ninety-two commits of work since 0.2.3-2, plus the version
-bump and these notes. The headline is that a laptop with two GPUs now behaves
+what it gets wrong. A hundred and two commits of work since 0.2.3-2, plus the
+version bump and these notes. The headline is that a laptop with two GPUs now behaves
 like one: the shell keeps the display, and an app that wants the discrete card
 gets it.
 
@@ -45,6 +45,11 @@ tabs on the right, with the workspace list on the left. Rename from the pencil
 on the row you are pointing at; delete from the trash beside it, which stops the
 apps rather than rehoming them. Tabs you can read, and a way out.
 
+Each pane gets its own identity, so a second copy of an app in one workspace is
+no longer indistinguishable from the first. It was: closing a second terminal
+in a workspace whose driver was also a terminal deleted the *driver's* window
+and left its process running behind a dead texture.
+
 ## Recording, with a camera
 
 **Ctrl+Shift+=** and **Ctrl+Shift+-** zoom the recording — 1x, 1.5x, 2x, 3x —
@@ -71,7 +76,12 @@ it. The alternate screen no longer touches scrollback; mouse reporting
 `less` and `htop` scroll themselves; anything that asks for no mouse gets
 xterm's alternateScroll fallback. Terminal cell metrics are measured with the
 same font the rows are painted in, so a font that fails to resolve no longer
-puts the cursor 24 cells adrift.
+puts the cursor 24 cells adrift — and the engine now keeps every font a process
+registers instead of only the last, which is what made a family fail to resolve
+in the first place. A row with a background-coloured tail also keeps its last
+word: those rows are pinned to an exact cell multiple, and a glyph shaped
+through the fallback family made the line a fraction of a pixel too wide, so
+soft wrap silently dropped everything after the last break that fit.
 
 ## Known issues
 
@@ -97,7 +107,7 @@ laptop.
 ## Built from
 
     desktop  starling-build/starling        release-0.3.0
-    engine   starling-build/starling-engine starling @ dc7cc390ab7
+    engine   starling-build/starling-engine starling @ 02bfc90279c
 
 The engine carries only upstream Flutter's tags; it is not tagged per Starling
 release, so the commit is the record. Everything ships against `host_release`.
