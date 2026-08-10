@@ -15,7 +15,7 @@
 #   tools/package-desktop.sh [outdir]   ->  <outdir>/starling-desktop_*.deb
 set -euo pipefail
 
-VER=0.2.3-2
+VER=0.3.0
 # The binary package name, and therefore the .deb filename, the doc dir
 # (Debian policy: /usr/share/doc/<pkg>/copyright) and what `apt`/`dpkg -s`
 # call it. Stated once; everything below derives from it.
