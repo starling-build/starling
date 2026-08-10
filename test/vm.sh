@@ -67,10 +67,22 @@ dump_guest() {
             echo "--- session unit journal ---"
             sudo journalctl -b --no-pager -n 80 \
                  -u gdm _COMM=DesktopShellApp 2>/dev/null | tail -80
-            echo "--- coredumps ---"
+            # Ubuntu, not systemd: core_pattern pipes to apport and
+            # systemd-coredump is not installed, so coredumpctl does not exist
+            # and a crash lands in /var/crash/*.crash. Looking only for
+            # coredumpctl would report "none" over an unread stack trace.
+            echo "--- apport crash reports ---"
+            sudo ls -la /var/crash/ 2>/dev/null | tail -6
+            for c in /var/crash/*.crash; do
+                [ -e "$c" ] || continue
+                echo "--- $c ---"
+                sudo grep -aE "^(ExecutablePath|Signal|ProcCmdline):" "$c" 2>/dev/null
+                sudo sed -n "/^Stacktrace:/,/^[A-Z]/p" "$c" 2>/dev/null | head -25
+            done
+            echo "--- coredumpctl (if this guest has it) ---"
             command -v coredumpctl >/dev/null \
                 && sudo coredumpctl list --no-pager 2>/dev/null | tail -5 \
-                || echo "(no coredumpctl)"' 2>&1 | sed 's/^/  /'
+                || echo "(absent — apport is the handler here)"' 2>&1 | sed 's/^/  /'
     echo "── end guest diagnostics ───────────────────────────────────────"
 }
 
