@@ -358,12 +358,21 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: - Geometry
 
     private func _measureCell() {
+        // Measure with the SAME style the rows are painted with — the fallback
+        // list included. Measuring `family` alone means that if the primary
+        // family ever fails to resolve, the painter answers with the platform's
+        // default *proportional* font (an 'M' there is ~0.87em against a
+        // monospace 0.60em) while the rows, which carry the fallback, still
+        // render monospace. Nothing errors: the grid silently gets a cell 45%
+        // too wide, so the block cursor is drawn oversized and walks further
+        // right with every column.
         let painter = TextPainter(
             text: TextSpan(
                 text: "MMMMMMMMMM",
                 style: TextStyle(
                     fontSize: TermTheme.fontSize,
-                    fontFamily: TerminalFont.family
+                    fontFamily: TerminalFont.family,
+                    fontFamilyFallback: TerminalFont.fallback
                 )
             ),
             textDirection: .ltr
