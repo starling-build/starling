@@ -29,24 +29,68 @@ public final class VaapiEncoder {
 
     private var handle: OpaquePointer?
 
+    /// The render node on the card the compositor scans out from, matched
+    /// through the sysfs device links — the same walk
+    /// `find_render_node_devid()` does in wayland_dmabuf.c. Nil when there is
+    /// no confident match (no FLUTTER_DRM_DEVICE, or nothing pairs with it).
+    ///
+    /// Node NUMBER means nothing: on this two-GPU laptop renderD128 is the
+    /// discrete NVIDIA and renderD129 is the AMD the panels hang off.
+    public static func compositorRenderNode(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String? {
+        let fm = FileManager.default
+        guard let card = environment["FLUTTER_DRM_DEVICE"],
+              let name = card.split(separator: "/").last,
+              let cardLink = try? fm.destinationOfSymbolicLink(
+                  atPath: "/sys/class/drm/\(name)/device")
+        else { return nil }
+        for i in 128 ..< 136 {
+            let dev = "/dev/dri/renderD\(i)"
+            guard fm.fileExists(atPath: dev) else { continue }
+            let link = try? fm.destinationOfSymbolicLink(
+                atPath: "/sys/class/drm/renderD\(i)/device")
+            if link == cardLink { return dev }
+        }
+        return nil
+    }
+
     /// The render node with a working in-process encode path, or nil.
     /// A real driver probe (~tens of ms) — run off the main thread and
     /// cache. Honors the pipe path's STARLING_NO_VAAPI kill switch, plus
     /// STARLING_NO_ZEROCOPY to force the pipe path while keeping VAAPI.
+    ///
+    /// The node must be the COMPOSITOR'S, not merely one that can encode.
+    /// Zero-copy hands the encoder the scanout dma-buf, and that buffer
+    /// lives on the card driving the displays; a second GPU cannot import
+    /// it, so encoding "somewhere that supports H.264" is answering the
+    /// wrong question. This used to scan /dev/dri in name order and take the
+    /// first node that probed, which is only correct by luck: it works here
+    /// because the discrete NVIDIA sorts first AND offers no VA-API encode,
+    /// so it self-rejects. Put two encode-capable GPUs in one machine — an
+    /// AMD dGPU beside an AMD iGPU, an Intel iGPU beside anything — and the
+    /// scan happily selects the card with none of the frames on it.
+    ///
+    /// So: an explicit device wins, then the compositor's own node, and a
+    /// probe failure there returns nil rather than shopping for another GPU
+    /// — the pipe encoder is the correct fallback, not the wrong card.
+    /// Only when the compositor's node cannot be identified at all (no
+    /// FLUTTER_DRM_DEVICE, as under the unit tests) does the old scan run.
     public static func detectDevice(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> String? {
         if environment["STARLING_NO_VAAPI"] == "1" { return nil }
         if environment["STARLING_NO_ZEROCOPY"] == "1" { return nil }
-        let devices: [String]
         if let dev = environment["STARLING_VAAPI_DEVICE"], !dev.isEmpty {
-            devices = [dev]
-        } else {
-            devices = ((try? FileManager.default
-                .contentsOfDirectory(atPath: "/dev/dri")) ?? [])
-                .filter { $0.hasPrefix("renderD") }.sorted()
-                .map { "/dev/dri/" + $0 }
+            return vaapi_encoder_probe(dev) == 1 ? dev : nil
         }
+        if let node = compositorRenderNode(environment: environment) {
+            return vaapi_encoder_probe(node) == 1 ? node : nil
+        }
+        let devices = ((try? FileManager.default
+            .contentsOfDirectory(atPath: "/dev/dri")) ?? [])
+            .filter { $0.hasPrefix("renderD") }.sorted()
+            .map { "/dev/dri/" + $0 }
         return devices.first { vaapi_encoder_probe($0) == 1 }
     }
 

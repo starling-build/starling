@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Foundation
+import StarlingRecord
 
 #if os(Linux)
 import Glibc
@@ -111,22 +112,12 @@ final class AerialPlayer: @unchecked Sendable {
     /// Nil means "no confident match" — the caller decodes on the CPU rather
     /// than guessing a node, because a wrong node is a failed spawn.
     private static func compositorRenderNode() -> String? {
-        let fm = FileManager.default
-        var cardLink: String?
-        if let card = ProcessInfo.processInfo.environment["FLUTTER_DRM_DEVICE"],
-           let name = card.split(separator: "/").last {
-            cardLink = try? fm.destinationOfSymbolicLink(
-                atPath: "/sys/class/drm/\(name)/device")
-        }
-        guard let cardLink else { return nil }
-        for i in 128..<136 {
-            let dev = "/dev/dri/renderD\(i)"
-            guard fm.fileExists(atPath: dev) else { continue }
-            let link = try? fm.destinationOfSymbolicLink(
-                atPath: "/sys/class/drm/renderD\(i)/device")
-            if link == cardLink { return dev }
-        }
-        return nil
+        // One implementation, in StarlingRecord — the recorder needs the same
+        // answer for the same reason, and the two drifted: this one matched
+        // through sysfs while the encoder picked whatever node sorted first
+        // and could encode, which is a different card the moment both GPUs
+        // can. Keep it shared so there is nothing left to disagree about.
+        VaapiEncoder.compositorRenderNode()
     }
 
     /// The clip's coded size, so a cropdetect result can be told apart from
