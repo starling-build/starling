@@ -9,6 +9,7 @@
 /// (e.g. in DRM mode where `RunLoop.main` never spins).
 
 import FlutterSwiftBridge
+import Foundation
 
 // MARK: - FrameCallbackScheduler
 
@@ -22,6 +23,32 @@ public class FrameCallbackScheduler: @unchecked Sendable {
     /// SHM upload, GL renderer mark dirty, etc.).  Read and reset by
     /// `Adapter.onBeginFrame` to decide whether `compositeFrame()` is needed.
     public var textureDidUpdate = false
+
+    /// The ids behind `textureDidUpdate`. Texture content updates carry no
+    /// widget change, so pipeline dirty flags cannot see them; a view that
+    /// shows one of these textures must re-composite anyway. Content arrives
+    /// on compositor/reader threads while the drain runs on the UI thread,
+    /// hence the lock.
+    private let _updatedTexturesLock = NSLock()
+    private var _updatedTextures: Set<Int64> = []
+
+    /// Record that texture `id` has new content. Also sets
+    /// `textureDidUpdate`, so a call site needs exactly one call.
+    public func noteTextureUpdate(_ id: Int64) {
+        _updatedTexturesLock.lock()
+        _updatedTextures.insert(id)
+        _updatedTexturesLock.unlock()
+        textureDidUpdate = true
+    }
+
+    /// Drain the updated-texture ids — once per frame, from `onBeginFrame`.
+    public func takeUpdatedTextures() -> Set<Int64> {
+        _updatedTexturesLock.lock()
+        defer { _updatedTexturesLock.unlock() }
+        let ids = _updatedTextures
+        _updatedTextures = []
+        return ids
+    }
 
     /// Register a callback to be called each frame.
     /// The key is used to identify the callback for later removal.

@@ -506,6 +506,13 @@ public class RenderView: RenderObject {
 
     // MARK: - Compositing
 
+    /// Texture ids present in this view's most recently composited scene.
+    /// External texture content (a client buffer commit, a child app frame)
+    /// updates with no widget change, so the pipeline's dirty flags cannot
+    /// see it; the frame driver uses this set to re-composite exactly the
+    /// views whose scenes contain a texture that just updated.
+    public private(set) var sceneTextureIds: Set<Int64> = []
+
     /// Uploads the composited layer tree to the engine.
     ///
     /// Actually causes the output of the rendering pipeline to appear on screen.
@@ -530,6 +537,7 @@ public class RenderView: RenderObject {
         assert(layer != nil, "call prepareInitialFrame before calling compositeFrame")
         let builder = NativeSceneBuilder()
         let scene = layer!.buildScene(builder)
+        sceneTextureIds = builder.addedTextureIds
         // Note: automaticSystemUiAdjustment / _updateSystemChrome omitted.
         // That functionality depends on SystemChrome, AnnotatedRegionLayer.find,
         // defaultTargetPlatform, and other types not yet fully available.

@@ -296,7 +296,7 @@ class LinuxProcessAppManager {
                         cb()
                     }
                     onChildFrame?(texId)
-                    FrameCallbackScheduler.shared.textureDidUpdate = true
+                    FrameCallbackScheduler.shared.noteTextureUpdate(texId)
                 }
             }
         }
@@ -340,8 +340,8 @@ class LinuxProcessAppManager {
                     cb()
                 }
                 onChildFrame?(texId)
+                FrameCallbackScheduler.shared.noteTextureUpdate(texId)
             }
-            FrameCallbackScheduler.shared.textureDidUpdate = true
         }
 
         // Process pending DPI changes from child processes

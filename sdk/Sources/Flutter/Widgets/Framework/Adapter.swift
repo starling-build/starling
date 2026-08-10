@@ -382,6 +382,11 @@ func _setupWidgetBinding(_ app: Widget) {
         // composite when there's actually new content to rasterize.
         let hasNewTextureContent = FrameCallbackScheduler.shared.textureDidUpdate
         FrameCallbackScheduler.shared.textureDidUpdate = false
+        // The ids behind that flag, for the secondary views below: each one
+        // re-composites iff its OWN last scene contains an updated texture.
+        // Without this, an app on a secondary output that repaints with no
+        // widget change — a terminal echoing keystrokes — never re-presents.
+        let updatedTextures = FrameCallbackScheduler.shared.takeUpdatedTextures()
 
         // Flush dirty elements before layout
         buildOwner.buildScopeWithCallback(rootElement!) {}
@@ -406,8 +411,9 @@ func _setupWidgetBinding(_ app: Widget) {
 
         // Multi-monitor: run the frame pipeline for each secondary view.
         // Composite only when that view's own pipeline has work (or its
-        // first frame, or a forced capture) so a static output doesn't
-        // re-present on every primary animation frame.
+        // first frame, a forced capture, or new content in an external
+        // texture its scene shows) so a static output doesn't re-present
+        // on every primary animation frame.
         for sp in secondaryPipelines.values {
             let fv = sp.renderView.flutterView
             let newViewConfig = RenderViewConfiguration.fromView(fv)
@@ -421,6 +427,7 @@ func _setupWidgetBinding(_ app: Widget) {
                 || !sp.pipelineOwner._nodesNeedingLayout.isEmpty
                 || !sp.pipelineOwner._nodesNeedingPaint.isEmpty
                 || forceComposite
+                || !updatedTextures.isDisjoint(with: sp.renderView.sceneTextureIds)
             sp.pipelineOwner.flushLayout()
             sp.pipelineOwner.flushPaint()
             if viewDirty {

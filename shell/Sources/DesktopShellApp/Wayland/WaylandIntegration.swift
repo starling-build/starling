@@ -729,7 +729,7 @@ class WaylandIntegration {
         }
 
         flushPendingResize(surfaceId)
-        FrameCallbackScheduler.shared.textureDidUpdate = true
+        FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
     }
 
     /// wl_shm commit. `pixels` is this event's tightly-packed copy and is
@@ -770,7 +770,7 @@ class WaylandIntegration {
                                         data: pixels, width: width, height: height)
 
         flushPendingResize(surfaceId)
-        FrameCallbackScheduler.shared.textureDidUpdate = true
+        FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
     }
 
     private func processToplevelDestroy(_ surfaceId: UInt32) {

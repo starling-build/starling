@@ -338,7 +338,7 @@ class X11Integration {
         // Same bookkeeping the dma-buf path does, minus the EGLImage import:
         // keep frames scheduled and let the shell size the window to content.
         pendingTextureMarks.append(textureId)
-        FrameCallbackScheduler.shared.textureDidUpdate = true
+        FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
 
         let lastSize = lastImportedSize[textureId]
         if lastSize == nil || lastSize!.width != width || lastSize!.height != height {
@@ -395,7 +395,7 @@ class X11Integration {
 
         // Tell FrameCallbackScheduler to keep scheduling frames
         // (same mechanism Wayland uses for continuous rendering)
-        FrameCallbackScheduler.shared.textureDidUpdate = true
+        FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
 
         if let shellWindowId = windowIds[windowId] {
             // Notify shell of buffer dimensions so window rect matches texture

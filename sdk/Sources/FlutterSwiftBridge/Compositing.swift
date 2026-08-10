@@ -760,6 +760,13 @@ public class NativeSceneBuilder: SceneBuilder {
   /// ObjectIdentifier for identity-based lookups.
   private var _usedLayers: [ObjectIdentifier: String] = [:]
 
+  /// Texture ids added to this scene. `RenderView.compositeFrame` reads this
+  /// so each view knows which external textures its last scene contains —
+  /// the basis for per-view composite gating when texture content updates
+  /// with no widget change. Complete every build: texture layers are
+  /// `alwaysNeedsAddToScene`, so no ancestor of one is ever retained.
+  public private(set) var addedTextureIds: Set<Int64> = []
+
   /// The stack of layers being built.
   ///
   /// **Dart Source:** `compositing.dart:639`
@@ -1115,6 +1122,7 @@ public class NativeSceneBuilder: SceneBuilder {
   ///
   /// The texture is scaled to the given size and rasterized at the given offset.
   public func addTexture(_ textureId: Int, offset: Offset = Offset.zero, width: Double = 0.0, height: Double = 0.0, freeze: Bool = false, filterQuality: FilterQuality = .low) {
+    addedTextureIds.insert(Int64(textureId))
     bridge.AddTexture(
       offset.dx, offset.dy, width, height,
       Int64(textureId), freeze, Int32(filterQuality.rawValue)

@@ -182,7 +182,7 @@ class LinuxExternalAppManager {
         for (textureId, entry) in glExternalApps {
             entry.renderer.advanceAnimation()
             textureRegistry.markGLTextureDirty(engine: engine, id: textureId)
-            FrameCallbackScheduler.shared.textureDidUpdate = true
+            FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
         }
         // CPU-rendered external apps (fallback).
         for (_, entry) in externalApps {
