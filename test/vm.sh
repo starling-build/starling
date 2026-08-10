@@ -67,6 +67,15 @@ dump_guest() {
             echo "--- session unit journal ---"
             sudo journalctl -b --no-pager -n 80 \
                  -u gdm _COMM=DesktopShellApp 2>/dev/null | tail -80
+            # The kernel says why a process vanished, and it says it here
+            # rather than under any unit — so the filter above cannot see it.
+            # "segfault at .. ip .. sp .." for a crash, "Out of memory: Killed
+            # process" for the OOM killer. Either one answers the question the
+            # rest of this dump can only circle around.
+            echo "--- kernel: crashes, kills, oom ---"
+            sudo dmesg -T 2>/dev/null | grep -iE \
+                "segfault|general protection|traps:|killed process|out of memory|oom-kill" \
+                | tail -20 || echo "(none)"
             # Ubuntu, not systemd: core_pattern pipes to apport and
             # systemd-coredump is not installed, so coredumpctl does not exist
             # and a crash lands in /var/crash/*.crash. Looking only for
