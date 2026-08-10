@@ -2,9 +2,9 @@
 
 The first release since 0.2.3 that changes what the desktop can do rather than
 what it gets wrong. Ninety-two commits of work since 0.2.3-2, plus the version
-bump and these notes. The headline is that a laptop with two
-GPUs now behaves like one: the shell keeps the display, and an app that wants
-the discrete card gets it.
+bump and these notes. The headline is that a laptop with two GPUs now behaves
+like one: the shell keeps the display, and an app that wants the discrete card
+gets it.
 
 ## Per-app PRIME render offload
 
@@ -25,8 +25,7 @@ Blender ships with the key set. Anything else is one line in its `.app` record.
 
 Two things this shook out along the way: a client whose dma-buf we cannot
 import can no longer take the shell down with it, and the in-tree X server now
-hands DRI3 clients the GPU the compositor is actually on rather than assuming
-card0.
+hands DRI3 clients the GPU the compositor is actually on.
 
 The screen recorder learned the same lesson — it encodes on whichever GPU has
 the frames, and says which one it picked instead of only that it is ready.
