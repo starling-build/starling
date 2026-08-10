@@ -100,9 +100,15 @@ final class RecordingService {
         if !zcProbed {
             zcDevice = VaapiEncoder.detectDevice()
             zcProbed = true
-            let msg = zcDevice != nil
-                ? "[Recording] zero-copy VAAPI encoder ready\n"
-                : "[Recording] no zero-copy encoder — pipe path\n"
+            // Name the node. Which GPU encodes is a policy decision now (the
+            // compositor's card, not whichever one probes first), and "ready"
+            // alone cannot tell a right answer from a lucky one — on a
+            // two-GPU box the wrong card fails later, at dma-buf import,
+            // nowhere near the line that chose it.
+            let msg = zcDevice.map {
+                "[Recording] zero-copy VAAPI encoder ready on \($0)"
+                + " (compositor's card)\n"
+            } ?? "[Recording] no zero-copy encoder — pipe path\n"
             _ = msg.withCString { write(2, $0, strlen($0)) }
         }
         return zcDevice
