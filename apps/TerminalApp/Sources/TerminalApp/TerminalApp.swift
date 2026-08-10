@@ -685,10 +685,28 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         }
         flush()
 
+        // `softWrap: false` is load bearing, not a tidy-up. With soft wrap on,
+        // the row is laid out against the width it is given — and the coloured
+        // tail below pins that to exactly `headEnd * cellW`. A shaped run is
+        // not bit-for-bit `n * cellW`: cellW is one tenth of a measured
+        // "MMMMMMMMMM", and any character that resolves through the fallback
+        // family (DejaVu's advance is 0.6021 em against Roboto Mono's 0.6001 —
+        // Claude Code's ❯ prompt is one) makes the line a fraction of a pixel
+        // wider than its box. `maxLines: 1` then breaks at the last soft break
+        // that fits and drops everything after it, so a sub-pixel overflow eats
+        // the row's LAST WORD — silently, with no overflow stripe, and only on
+        // rows that have a background-coloured tail, because those are the only
+        // ones pinned to cell width. That is exactly Claude Code's own
+        // full-width prompt echo, which lost a word per line.
+        //
+        // With soft wrap off the paragraph lays out against infinite width, so
+        // it never breaks, and RenderParagraph clips it to the box — which is
+        // what a terminal does with a cell that does not fit.
         let head = SizedBox(
             height: cellH,
             child: Text(
                 rich: TextSpan(children: spans),
+                softWrap: false,
                 maxLines: 1
             )
         )
