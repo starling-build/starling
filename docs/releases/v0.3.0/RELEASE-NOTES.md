@@ -75,29 +75,29 @@ puts the cursor 24 cells adrift.
 
 ## Known issues
 
-**`fl_drm_view.h` drift.** The engine grew an external-outputs API
-(`fl_drm_view_set_output_external` and an input callback) that the shell does
-not call, and the SDK's copy of the header has not been updated to match, so
-`test/run.sh` has been red since the API landed.
+**Touchpad scrolling is scaled as though it were a wheel.** The DRM input
+handler multiplies every scroll delta by a single factor:
 
-It cannot affect this release. The only caller is inside the engine, behind
-`FLUTTER_DRM_EXTERNAL_TEST` — a development harness that proves the
-imported-view path (cross-GPU render, EGLImage import, fullscreen draw,
-per-CRTC flip) without a per-screen shell, the same shape as the older
-`FLUTTER_DRM_SECONDARY_TEST`. With that variable unset no output is ever marked
-external, so the unregistered callback has nothing to fire it.
+    dx *= 20.0;
+    dy *= 20.0;
 
-Syncing the header does not clear the check, it changes what it says: the lint
-then reports the callback as declared-but-never-registered, which is the
-silent-NULL-callback pattern that has bitten this codebase twice. Both readings
-describe the same fact — the API is staged groundwork with no shell side yet.
-Closing it means either wiring the input path or teaching the lint that this
-setter is opt-in; neither belongs on a release branch.
+but libinput's units differ by source. For a wheel the value is the angle
+turned *in degrees* (15° per click by default), so ×20 is about right. For a
+touchpad it is already *pixels* — "a scroll value of 1 represents the
+equivalent relative motion of 1" — so two-finger scrolling is amplified by
+roughly twenty. The handler also reads only the deprecated
+`LIBINPUT_EVENT_POINTER_AXIS` rather than the per-source events libinput has
+emitted since 1.19, and ignores the terminating zero-value event that ends a
+finger gesture.
+
+Not measured on hardware for this release: the dev box has no touchpad. The
+scaling is stated from the code and libinput's documented units, not from a
+laptop.
 
 ## Built from
 
     desktop  starling-build/starling        release-0.3.0
-    engine   starling-build/starling-engine starling @ 6a132579a0d
+    engine   starling-build/starling-engine starling @ dc7cc390ab7
 
 The engine carries only upstream Flutter's tags; it is not tagged per Starling
 release, so the commit is the record. Everything ships against `host_release`.
