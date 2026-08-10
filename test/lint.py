@@ -703,6 +703,80 @@ def check_window_chrome() -> None:
     print(f"  window chrome: {len(required)} callback(s) × {sites} call site(s)")
 
 
+# ── check: PRIME render offload agrees end to end ────────────────────────────
+
+def check_gpu_offload() -> None:
+    """`Gpu=discrete` is a bare string compared in five independent places.
+
+    A record says `Gpu=discrete`; the registry turns that into a bool with
+    `kf.string("Gpu") == "discrete"`; the shell puts `STARLING_APP_GPU=discrete`
+    in the child's environment; app-run.sh tests that variable and forwards it
+    through bwrap. Every one of those is an exact match against a literal, and
+    every one of them fails SILENTLY and identically: the app launches, renders
+    on the integrated GPU, and nothing anywhere says why. `Gpu=Discrete` or a
+    shell that grew a `dedicated` spelling the launcher never learned would look
+    exactly like a machine with no discrete GPU.
+
+    So compare the literals rather than trusting them, and read each out of the
+    file that defines it — growing the vocabulary in all four places keeps this
+    lint correct, changing it in three does not.
+    """
+    check = "gpu-offload"
+
+    def literals(path: Path, pattern: str) -> set[str]:
+        try:
+            return set(re.findall(pattern, path.read_text()))
+        except OSError:
+            return set()
+
+    # The value the registry accepts, out of the comparison itself.
+    parsed = literals(REPO / "registry/Sources/StarlingRegistry/AppRegistry.swift",
+                      r'kf\.string\("Gpu"\)\s*==\s*"([^"]+)"')
+    # What the shell puts in the child environment.
+    shell_env = literals(REPO / "shell/Sources/DesktopShellApp/Shell/DesktopShell.swift",
+                         r'hostEnv\["STARLING_APP_GPU"\]\s*=\s*"([^"]+)"')
+    # What app-run.sh acts on, and what it forwards through bwrap.
+    run = REPO / "build/app-run.sh"
+    run_tested = literals(run, r'"\$\{STARLING_APP_GPU:-\}"\s*=\s*"([^"]+)"')
+    run_forwarded = literals(run, r'--setenv STARLING_APP_GPU (\S+)')
+
+    sources = {
+        "registry parses": parsed,
+        "shell sets": shell_env,
+        "app-run.sh tests": run_tested,
+        "app-run.sh forwards": run_forwarded,
+    }
+    for label, values in sources.items():
+        if not values:
+            fail(check, f"could not read the offload value out of what {label} — "
+                        "the code moved and this check is now blind")
+            return
+
+    if len({frozenset(v) for v in sources.values()}) != 1:
+        detail = "; ".join(f"{label} {sorted(v)}" for label, v in sources.items())
+        fail(check, f"the offload value disagrees across the chain: {detail}")
+        return
+
+    accepted = parsed
+    ok(f"offload vocabulary agrees across {len(sources)} sites: {sorted(accepted)}")
+
+    # And every record that asks for a GPU must ask for one that exists.
+    asked = 0
+    for path in sorted(CATALOG.glob("*.app")):
+        kf = parse_keyfile(path, group="Starling App")
+        if not kf or "Gpu" not in kf:
+            continue
+        asked += 1
+        value = kf["Gpu"]
+        if value not in accepted:
+            fail(check, f"{path.name}: Gpu={value!r} is not a value anything "
+                        f"acts on (known: {', '.join(sorted(accepted))}) — the "
+                        "app would silently render on the integrated GPU")
+        else:
+            ok(f"{path.name}: Gpu={value}")
+    print(f"  gpu offload: {len(sources)} sites agree, {asked} record(s) ask for a GPU")
+
+
 # ── check: the scripts parse ─────────────────────────────────────────────────
 
 def check_script_syntax() -> None:
@@ -747,6 +821,7 @@ def main() -> int:
     check_engine_header_mirror()
     check_result_builders()
     check_window_chrome()
+    check_gpu_offload()
     check_script_syntax()
 
     for check, msg in notes:

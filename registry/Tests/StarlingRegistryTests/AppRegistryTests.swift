@@ -197,4 +197,52 @@ final class AppRegistryTests: XCTestCase {
         XCTAssertTrue(
             AppRegistry.shared.runningAppIds(given: ["/usr/bin/something"]).isEmpty)
     }
+
+    // MARK: PRIME render offload (Gpu=)
+
+    /// `Gpu=discrete` is the whole of the per-app offload policy: the record
+    /// says where the app renders, and the launcher reads nothing else.
+    func testDiscreteGpuIsReadFromTheRecord() {
+        writeCatalog("dis", "[Starling App]\nId=dis\nName=Dis\nGpu=discrete\n")
+        writeCatalog("int", "[Starling App]\nId=int\nName=Int\n")
+        let apps = reloaded()
+        XCTAssertEqual(apps.first { $0.id == "dis" }?.discreteGpu, true)
+        XCTAssertEqual(apps.first { $0.id == "int" }?.discreteGpu, false,
+                       "a record with no Gpu= key must not opt into the discrete GPU")
+    }
+
+    /// Everything that is not exactly `discrete` means the integrated GPU, and
+    /// means it silently — the app launches and renders, just on the other
+    /// card. That is precisely why the value cannot be validated here and is
+    /// checked statically instead: `test/lint.py` compares the literal across
+    /// the registry, the shell and app-run.sh, so a typo fails the build rather
+    /// than shipping as a performance mystery. These cases pin the parse that
+    /// lint is protecting.
+    func testAnythingButDiscreteMeansIntegrated() {
+        for value in ["Discrete", "DISCRETE", "dedicated", "nvidia", "true", "1", ""] {
+            writeCatalog("app", "[Starling App]\nId=app\nName=App\nGpu=\(value)\n")
+            XCTAssertEqual(reloaded().first { $0.id == "app" }?.discreteGpu, false,
+                           "Gpu=\(value.isEmpty ? "<empty>" : value) must not read as discrete")
+        }
+    }
+
+    /// Where the app renders is *catalog policy*, not an installed fact, so
+    /// unlike WmClass/Icon/DesktopFile/Version an install record does not
+    /// override it. The split is deliberate: a record carries what only exists
+    /// once the app is on disk and app-install resolved it, and nothing about
+    /// installing Blender discovers which GPU it ought to prefer. Pinned
+    /// because the asymmetry is invisible at the call site — `discreteGpu`
+    /// reads from the catalog keyfile beside a dozen fields that consult the
+    /// record, and "make it overridable" is a one-word edit someone will
+    /// reach for without noticing it changes where policy lives.
+    func testGpuIsCatalogPolicyAndNotOverriddenByARecord() {
+        writeCatalog("app", "[Starling App]\nId=app\nName=App\nBins=/bin/sh\n")
+        writeRecord("app", "[Starling App]\nId=app\nWmClass=host-truth\nGpu=discrete\n")
+        let record = reloaded().first { $0.id == "app" }
+        XCTAssertEqual(record?.discreteGpu, false,
+                       "Gpu= in an install record must not turn on offload")
+        // The record still wins where it is supposed to, so this is a
+        // deliberate exclusion rather than the merge being skipped entirely.
+        XCTAssertEqual(record?.wmClasses.first, "host-truth")
+    }
 }
