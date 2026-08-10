@@ -22,6 +22,14 @@ one, unless asked. `prime-render-offload` is **retired** in both repos — do
 not work on it or check it out (it holds nothing `starling` lacks). A change
 that spans both repos is committed in both, mainline to mainline.
 
+**Release branches pair by name, in both repos.** A release cuts the same
+branch in each — `release-0.3.0` in this repo and `release-0.3.0` in the
+engine — so checking out one name in both gets a buildable pair. Do not pin
+the engine by writing a commit into the release notes: that was the old
+convention and it went stale inside one release, because the notes named an
+engine commit while the fix the notes described sat unpushed on top of it.
+The branch is the record; the notes name the branch.
+
 ## Layout
 
 ```

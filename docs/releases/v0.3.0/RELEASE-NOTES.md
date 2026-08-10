@@ -107,10 +107,15 @@ laptop.
 ## Built from
 
     desktop  starling-build/starling        release-0.3.0
-    engine   starling-build/starling-engine starling @ 02bfc90279c
+    engine   starling-build/starling-engine release-0.3.0
 
-The engine carries only upstream Flutter's tags; it is not tagged per Starling
-release, so the commit is the record. Everything ships against `host_release`.
+Both repos carry the branch, so checking out the same name in each gets the
+pair — the engine no longer has to be pinned by a commit written down here.
+That indirection is what this line used to be: the engine carries only upstream
+Flutter's tags and is never tagged per Starling release, so a sha in a document
+was the only record, and it went stale the moment anything landed on the
+engine's mainline after the notes were written. It had already gone stale once.
+Everything ships against `host_release`.
 
 ## Verified
 
