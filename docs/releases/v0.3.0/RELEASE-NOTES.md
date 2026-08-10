@@ -1,7 +1,7 @@
 # Starling 0.3.0 — apps can render on the NVIDIA GPU
 
 The first release since 0.2.3 that changes what the desktop can do rather than
-what it gets wrong. A hundred and two commits of work since 0.2.3-2, plus the
+what it gets wrong. Over a hundred commits of work since 0.2.3-2, plus the
 version bump and these notes. The headline is that a laptop with two GPUs now behaves
 like one: the shell keeps the display, and an app that wants the discrete card
 gets it.
@@ -40,6 +40,8 @@ needing a nudge.
 
 ## Workspace mode
 
+![A workspace: the list on the left, a driver app down the middle, everything it opened as tabs on the right](workspace-mode.png)
+
 A named workspace holds a driver app down the middle and everything it opens as
 tabs on the right, with the workspace list on the left. Rename from the pencil
 on the row you are pointing at; delete from the trash beside it, which stops the
@@ -59,6 +61,28 @@ crop, which makes a zoomed shot sharper than the wide one rather than softer.
 While zoomed the crop follows the pointer, so a narrator cannot walk out of
 their own shot. The menu-bar indicator reads `0:07  2.0×`, because the feature
 is deliberately invisible on screen and that is the only feedback there is.
+
+![The recording easing from wide to 2x, then the crop chasing the pointer across the screen](recording-zoom.gif)
+
+That animation is not a screen capture — it *is* the recording, which is the
+only place the zoom exists. Nothing moved on the desktop while it was made.
+
+## A screensaver
+
+![The screensaver: the clock over the desktop, blurred past reading](screensaver.png)
+
+Leave the machine alone and it fades to a clock over your own desktop, blurred
+past reading — a breathing blur and a liquid warp, or aerial footage where it
+is installed. It arrives on its own rather than waiting to be asked, and any
+key or click takes it away.
+
+Two things about it are less obvious than the picture. Aerials decode on the
+GPU, so a screensaver playing video does not spend a core doing it, and the
+decode no longer blocks the fade in. And a client holding an idle inhibitor
+holds the screensaver off — which sounds obvious and was not: counting playback
+as activity is not the same as suppressing the timer, and the first version
+fired thirteen seconds after a video ended. A released inhibitor now starts a
+fresh idle period rather than resuming a nearly-expired one.
 
 ## X server
 
