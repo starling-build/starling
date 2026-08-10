@@ -43,6 +43,37 @@ done
 fail() { echo; echo "FAIL — $*"; exit 1; }
 step() { echo; echo "══ $* ═══════════════════════════════════════════"; }
 
+# Everything worth reading after a functional failure lives in the guest, and
+# `fail` kills the VM on the way out — so pull it BEFORE failing, not after.
+#
+# This is not hypothetical tidiness. A functional run once lost the shell
+# between the seat-active check and the first test; all that survived was
+# "Connection refused" against a dead broker socket, because the guest was
+# destroyed with the journal, the session log and any core still in it. The
+# next run passed on the same artifact and the cause was never found.
+#
+# `--keep` is not the answer either: the last step has the desktop power
+# ITSELF off, so on a full run there is no guest left to keep.
+dump_guest() {
+    echo
+    echo "── guest diagnostics ($1) ──────────────────────────────────────"
+    # Bounded: ssh-vm.sh sets ConnectTimeout, which covers a guest that is
+    # gone, but not one that accepts the connection and then wedges — and a
+    # diagnostic that hangs the gate is worse than no diagnostic.
+    timeout 60 "$HARNESS/ssh-vm.sh" \
+           'echo "--- shell alive? ---"; pgrep -ax DesktopShellApp || echo "NOT RUNNING"
+            echo "--- session log (tail) ---"
+            sudo tail -60 /tmp/starling-session-*.log 2>/dev/null
+            echo "--- session unit journal ---"
+            sudo journalctl -b --no-pager -n 80 \
+                 -u gdm _COMM=DesktopShellApp 2>/dev/null | tail -80
+            echo "--- coredumps ---"
+            command -v coredumpctl >/dev/null \
+                && sudo coredumpctl list --no-pager 2>/dev/null | tail -5 \
+                || echo "(no coredumpctl)"' 2>&1 | sed 's/^/  /'
+    echo "── end guest diagnostics ───────────────────────────────────────"
+}
+
 for f in launch-vm-2604.sh launch-vm-2604-nogl.sh ssh-vm.sh scp-vm.sh \
          g1-install.sh g2-setup-login.sh g3-check.sh qmp-abs-click.py; do
     [ -e "$HARNESS/$f" ] || fail "$HARNESS/$f is missing — harness incomplete"
@@ -225,12 +256,25 @@ done
 # instead — the running shell picks them up over inotify, which exercises the
 # live-update path in the packaged layout rather than around it.
 ssh_vm 'sudo cp ~/fixtures/*.app /usr/share/starling/catalog.d/'
+# Keep the whole run, show the tail. `tail -24` on its own is what made a
+# real failure undiagnosable: the checks scroll past, so "3 passed" was all
+# that survived to say WHERE it died — and the order of the suite was the
+# only way to work out which check that was.
+FUNC_LOG=$(mktemp)
 ssh_vm 'sudo XDG_RUNTIME_DIR=/run/user/1000 STARLING_TEST_INSTALL=1 \
-        python3 ~/functional.py' 2>&1 | tail -24
-# ${PIPESTATUS[0]}, not $? — after a pipeline $? is tail's status, which is
-# always 0, and the gate would report PASS for a failed run.
-functional=${PIPESTATUS[0]}
-[ "$functional" -eq 0 ] || fail "functional checks failed against the .deb"
+        python3 ~/functional.py' >"$FUNC_LOG" 2>&1
+# No pipeline any more, so this is $? and NOT ${PIPESTATUS[0]} — the old form
+# read tail's status, which is why the capture had to be commented at all.
+functional=$?
+tail -24 "$FUNC_LOG"
+if [ "$functional" -ne 0 ]; then
+    echo
+    echo "── full functional output ───────────────────────────────────────"
+    cat "$FUNC_LOG"
+    dump_guest "3D pass"
+    fail "functional checks failed against the .deb"
+fi
+rm -f "$FUNC_LOG"
 
 # ── 7. the same desktop, with 3D acceleration switched OFF ───────────────────
 # Everything above runs on virgl, and a GPU hides a whole class of bug: the
@@ -286,12 +330,22 @@ ssh_vm 'pgrep -x DesktopShellApp >/dev/null' \
     || fail "the shell is not running after a login with no 3D acceleration"
 
 step "functional checks with no GPU"
-ssh_vm 'sudo XDG_RUNTIME_DIR=/run/user/1000 python3 ~/functional.py' 2>&1 | tail -24
-nogl=${PIPESTATUS[0]}
+NOGL_LOG=$(mktemp)
+ssh_vm 'sudo XDG_RUNTIME_DIR=/run/user/1000 python3 ~/functional.py' \
+    >"$NOGL_LOG" 2>&1
+nogl=$?
+tail -24 "$NOGL_LOG"
 ssh_vm 'sudo rm -f /usr/share/starling/catalog.d/starling*.app'
-[ "$nogl" -eq 0 ] || fail "the desktop fails on a machine with no GPU
+if [ "$nogl" -ne 0 ]; then
+    echo
+    echo "── full functional output ───────────────────────────────────────"
+    cat "$NOGL_LOG"
+    dump_guest "no-GPU pass"
+    fail "the desktop fails on a machine with no GPU
       (the session came up, so look for apps that start and die: the child
       renderer's device choice is logged to /tmp/starling-session-*.log)"
+fi
+rm -f "$NOGL_LOG"
 
 step "power menu: Shut Down from the UI actually powers the machine off"
 # The teardown IS the test: instead of pkilling QEMU, shut the desktop down
