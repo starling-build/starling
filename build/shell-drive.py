@@ -412,7 +412,12 @@ def frame_tick(pid):
 
 def shot(mouse, path):
     """SIGUSR1 screenshot -> PNG, flushed with frame ticks."""
-    before = set(glob.glob("/tmp/drm_screenshot_*.ppm"))
+    # By mtime, not by name: the shell numbers screenshots from 0 each run,
+    # so a leftover from an earlier session has exactly the name the new
+    # one will get, and a name-only diff waits on a file that already
+    # "exists" — then reports the shell dead while the shot sits on disk.
+    before = {p: os.path.getmtime(p)
+              for p in glob.glob("/tmp/drm_screenshot_*.ppm")}
     pid = shell_pid()
     os.kill(pid, signal.SIGUSR1)
     deadline = time.time() + 6
@@ -420,7 +425,8 @@ def shot(mouse, path):
     while time.time() < deadline and not new:
         frame_tick(pid)
         time.sleep(0.25)
-        new = next(iter(set(glob.glob("/tmp/drm_screenshot_*.ppm")) - before), None)
+        new = next((p for p in glob.glob("/tmp/drm_screenshot_*.ppm")
+                    if os.path.getmtime(p) > before.get(p, 0)), None)
     if not new:
         raise SystemExit("screenshot never appeared — is the shell running?")
     time.sleep(0.3)  # let the 25MB write finish

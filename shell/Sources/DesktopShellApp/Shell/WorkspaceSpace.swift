@@ -131,6 +131,7 @@ extension _DesktopShellState {
             }))
 
         let selectedId = windowManager.selectedWorkspace(onOutput: _wsBuildOutputId)?.id
+        let lastWs = windowManager.workspaces.count <= 1
         var rowY = top + 50
         for ws in windowManager.workspaces {
             let isSel = ws.id == selectedId
@@ -178,12 +179,21 @@ extension _DesktopShellState {
                             color: shellTheme.overlayTextDim,
                             fontSize: 10.5, fontWeight: .w400)))),
             ]
-            // Only the row under the pointer offers it, so the rail reads as
-            // a plain list until you reach for something.
+            // Only the row under the pointer offers them, so the rail reads
+            // as a plain list until you reach for something.
             if _wsHoverRailId == wsId && !renaming {
                 row.append(Positioned(
                     left: WS.railW - 20 - 34, top: 10, width: 24, height: 24,
                     child: _wsRenameAffordance(wsId)))
+                // A single empty workspace is the one row the trash can do
+                // nothing for — Delete has nothing to stop and Remove
+                // refuses the last row — so offering it there would open a
+                // menu that is entirely grey.
+                if !(lastWs && count == 0) {
+                    row.append(Positioned(
+                        left: WS.railW - 20 - 34 - 28, top: 10, width: 24, height: 24,
+                        child: _wsDeleteAffordance(wsId, anchor: anchor)))
+                }
             }
             out.append(Positioned(
                 key: ValueKey("ws-row-\(ws.id)"),
@@ -590,6 +600,40 @@ extension _DesktopShellState {
         windowManager.onWindowsChanged?()
     }
 
+    /// Delete a workspace outright: stop everything in it, then drop the row.
+    ///
+    /// The driver goes first — stopping it is the point, and apps it spawned
+    /// are supposed to die with it — but nothing here trusts that cascade:
+    /// a driver's descendants can outlive it (see the workspace-mode notes),
+    /// so every remaining window is closed explicitly too. They are all
+    /// owned by the workspace, so the sweep catches what the driver opened
+    /// and what the + button did alike. `closeWindow` already speaks each
+    /// kind's language: destroyApp for a first-party child process, the xdg
+    /// close for a Wayland client.
+    func _wsDeleteWorkspace(_ wsId: String) {
+        var ids = windowManager.windows(inWorkspace: wsId).map(\.id)
+        if let driverId = windowManager.workspaces
+            .first(where: { $0.id == wsId })?.driverWindowId,
+           let at = ids.firstIndex(of: driverId) {
+            ids.remove(at: at)
+            ids.insert(driverId, at: 0)
+        }
+        for id in ids { windowManager.closeWindow(id) }
+        _workspaceActiveTab.removeValue(forKey: wsId)
+        // An inline rename pointing at the dead row would keep swallowing
+        // keystrokes until the next click; let it die with the workspace.
+        if _wsRenamingId == wsId { _wsRenamingId = nil }
+        // Deleting the ONLY workspace: removeWorkspace refuses to leave the
+        // rail empty, and "you cannot delete this" is the wrong answer to
+        // "stop all of this" — so the dead row is replaced by a fresh empty
+        // one first. Order matters: add, then remove, so the count guard
+        // in removeWorkspace is satisfied.
+        if windowManager.workspaces.count <= 1 {
+            windowManager.addWorkspace(onOutput: _wsBuildOutputId)
+        }
+        windowManager.removeWorkspace(wsId)
+    }
+
     // MARK: Hover
 
     /// Which rail row the pointer is over, tracked as ONE translucent probe
@@ -607,6 +651,14 @@ extension _DesktopShellState {
     private func _workspaceHoverProbe(top: Double) -> Widget {
         return Positioned(fill: (), child: Listener(
             onPointerHover: { [self] e in
+                // Cursor catch-all. The desktop's lives on the wallpaper,
+                // which the scrim buries — so without this, crossing the
+                // divider once leaves its resize arrows stuck to the whole
+                // mode. Order keeps the divider working: the probe is
+                // topmost, so its entry runs FIRST in the hit-test path
+                // and anything below (divider, panes) overwrites the
+                // shape within the same event.
+                DesktopCursor.setShape(.default)
                 let id = _wsRailRowAt(e.position, top: top)
                 guard id != _wsHoverRailId else { return }
                 setState { _wsHoverRailId = id }
@@ -655,6 +707,35 @@ extension _DesktopShellState {
                         color: fg, size: 12)))
             },
             onPressed: { [self] in setState { _wsBeginRename(wsId) } })
+    }
+
+    /// The trash beside the pencil on the hovered row: the pointer-first
+    /// door to Remove/Delete, since the menu's other door is a right click
+    /// and a laptop trackpad does not offer one readily. It opens the row's
+    /// menu (anchored where the right-click would put it) rather than
+    /// deleting outright — Delete stops every app in the workspace, and a
+    /// stray click on a hover affordance must not be able to do that.
+    private func _wsDeleteAffordance(_ wsId: String, anchor: Offset) -> Widget {
+        let fg = shellTheme.overlayText
+        return HoverButton(
+            builder: { _, states in
+                DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: states.isHovered ? Color(0x40FF6159)
+                                                : Color(0x14FFFFFF),
+                        borderRadius: BorderRadius.all(Radius(circular: 6))),
+                    child: Center(child: MacosIcon(
+                        icon: CupertinoIcons.trash,
+                        color: fg, size: 12)))
+            },
+            onPressed: { [self] in
+                setState {
+                    windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
+                    _wsTabMenuWinId = nil
+                    _wsRailMenuWsId = wsId
+                    _wsMenuAt = anchor
+                }
+            })
     }
 
     /// Commit the rail's inline rename: a non-blank name sticks, a blank one
@@ -741,6 +822,23 @@ extension _DesktopShellState {
                     },
                     isDestructive: true),
             ]
+            // Delete is Remove's destructive sibling: stop the apps rather
+            // than rehome them. Only offered when there is something to stop
+            // — on an empty workspace Remove already is the whole delete.
+            // No last-row guard, unlike Remove: deleting the only workspace
+            // stops everything and leaves a fresh empty row in its place
+            // (see _wsDeleteWorkspace), so it is never a dead end.
+            if count > 0 {
+                items.append(MacosMenuItem(
+                    text: "Delete (closes \(count))",
+                    onPressed: { [self] in
+                        setState {
+                            _wsRailMenuWsId = nil
+                            _wsDeleteWorkspace(wsId)
+                        }
+                    },
+                    isDestructive: true))
+            }
         }
 
         let menuW = 210.0
