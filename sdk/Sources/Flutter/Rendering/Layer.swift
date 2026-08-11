@@ -625,8 +625,14 @@ open class Layer: DiagnosticableTreeMixin {
 
     /// Internal storage for the previous sibling pointer.
     ///
+    /// `weak`: back-pointer only, same reasoning as
+    /// ContainerBoxParentData.previousSibling — with both sibling pointers
+    /// strong, adjacent children of a dropped ContainerLayer keep each other
+    /// (and their engine layers and pictures) alive forever under ARC.
+    /// Ownership flows parent → _firstChild → _nextSibling → …
+    ///
     /// **Dart Source:** `layer.dart:570`
-    internal var _previousSibling: Layer?
+    internal weak var _previousSibling: Layer?
 
     // MARK: - Remove
 

@@ -78,7 +78,21 @@ open class Element: BuildContext {
     // MARK: - Tree Structure
 
     /// The parent of this element in the tree.
-    internal var _parent: Element?
+    ///
+    /// `weak`, deliberately diverging from Dart, and load bearing. Parents
+    /// hold their children strongly (`_child`/`_children`), so a strong
+    /// back-pointer here made every parent↔child pair a retain cycle — under
+    /// ARC the whole element tree was one cycle cluster, and any subtree that
+    /// was replaced or deactivated leaked wholesale: its elements, their
+    /// render objects, and everything those own (TextPainters, engine-side
+    /// paragraphs). `deactivateChild` nils `_parent` only on the subtree
+    /// root; every interior edge stayed cyclic. This is what grew the
+    /// terminal ~20 MB per styled dump, one dropped row-set at a time
+    /// (docs/perf/terminal-vs-ghostty-2026-08-04/). Dart's GC collects such
+    /// cycles, so upstream can use a plain field; ARC cannot. Ownership of
+    /// elements flows strictly downward, exactly as `RenderObject.parent`
+    /// (also weak) already models on the render side.
+    internal weak var _parent: Element?
 
     /// The slot in which this element is placed by its parent.
     internal var _slot: Any?

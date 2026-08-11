@@ -224,10 +224,26 @@ internal final class _InactiveElements {
         // Sort by depth (deepest first) to unmount children before parents
         let sorted = _elementMap.values.sorted { $0.depth > $1.depth }
         for element in sorted {
-            element.unmount()
+            _unmount(element)
         }
         _elements.removeAll()
         _elementMap.removeAll()
+    }
+
+    /// Recursively unmount `element` and everything below it, children first.
+    ///
+    /// The recursion is upstream behaviour (`_InactiveElements._unmount` in
+    /// framework.dart) and it was missing here: only the deactivated subtree
+    /// ROOT was unmounted, so no descendant ever saw `unmount()` — which
+    /// meant `RenderObjectElement.unmount`'s `renderObject.dispose()` never
+    /// ran for anything inside a dropped subtree, and a `RenderParagraph`'s
+    /// engine-side paragraph outlived its row. Measured on the terminal's
+    /// styled-dump probe: ~90 RenderParagraphs created, ZERO disposed.
+    private func _unmount(_ element: Element) {
+        element.visitChildElements { child in
+            _unmount(child)
+        }
+        element.unmount()
     }
 }
 

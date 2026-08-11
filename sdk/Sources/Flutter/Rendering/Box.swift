@@ -1039,8 +1039,21 @@ open class ContainerBoxParentData<ChildType: RenderObject>: BoxParentData,
 {
     /// The previous sibling in the parent's child list.
     ///
+    /// `weak`, deliberately diverging from Dart, and load bearing. With both
+    /// sibling pointers strong, every adjacent pair of children is a retain
+    /// cycle through their parentData (A→pd_A.next→B, B→pd_B.previous→A).
+    /// Removing children one at a time unlinks cleanly — but when a whole
+    /// container render object is dropped (its element deactivated), nothing
+    /// walks its child list, and the children then keep each other alive
+    /// forever with everything they own. Dart's GC collects such cycles;
+    /// under ARC this leaked one full row-set of RenderParagraphs per styled
+    /// dump in the terminal (~20 MB/pass, unbounded). Ownership flows forward
+    /// only: parent → firstChild → nextSibling → … keeps every child alive
+    /// while the list is intact, so the weak back-pointer never dangles for
+    /// a live list.
+    ///
     /// **Dart Source:** `object.dart:4202`
-    public var previousSibling: ChildType?
+    public weak var previousSibling: ChildType?
 
     /// The next sibling in the parent's child list.
     ///

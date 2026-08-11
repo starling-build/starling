@@ -264,6 +264,9 @@ func _setupWidgetBinding(_ app: Widget) {
                 }
                 pipelineOwner!.flushPaint()
                 rv.compositeFrame()
+                // Same end-of-frame unmount as the onBeginFrame path; without
+                // it this fallback leaks a paragraph per remount too.
+                buildOwner.finalizeTree()
             })
         }
         #endif
@@ -435,6 +438,28 @@ func _setupWidgetBinding(_ app: Widget) {
                 sp.renderView.compositeFrame()
             }
         }
+
+        // End of frame: unmount everything deactivated during this build.
+        //
+        // This is the last line of WidgetsBinding.drawFrame upstream, and it
+        // was missing here — `finalizeTree()` had no caller anywhere in the
+        // SDK. Deactivated elements were added to `_inactiveElements` and
+        // never removed, so `unmount()` never ran, and with it neither did
+        // `RenderObjectElement.unmount`'s `renderObject.dispose()`. Every
+        // deactivated element and its whole subtree was retained for the life
+        // of the process. Measured before/after on a terminal repaint storm:
+        // deactivated 50 / unmounted 0 becomes deactivated 50 / unmounted 49.
+        //
+        // NOT the cause of the terminal's ~20 MB-per-styled-dump growth — that
+        // was measured separately and is unchanged by this. The leaked objects
+        // there are RenderParagraph/TextPainter instances that are disposed and
+        // unmounted correctly and still never deallocate, i.e. something else
+        // holds a strong reference. See
+        // docs/perf/terminal-vs-ghostty-2026-08-04/.
+        //
+        // AFTER compositing, not before: an element deactivated during build
+        // may still own a render object that layout and paint walk this frame.
+        buildOwner.finalizeTree()
     }
     pd.onDrawFrame = { }
 

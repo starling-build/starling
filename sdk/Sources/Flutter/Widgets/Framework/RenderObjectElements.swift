@@ -71,8 +71,15 @@ open class RenderObjectElement: Element {
     /// Used by `attachRenderObject` and `detachRenderObject` to insert/remove
     /// the render object from the render tree.
     ///
+    /// `weak`: this is an up-pointer to an ancestor, and ancestors already own
+    /// their descendants through `_child`/`_children`. Upstream only clears it
+    /// on the element whose render object is detached — interior elements of a
+    /// dropped subtree keep theirs set, which Dart's GC tolerates and ARC does
+    /// not: with a strong reference every dropped subtree containing a
+    /// RenderObjectElement cycled through its render ancestor and leaked.
+    ///
     /// **Dart Source:** `packages/flutter/lib/src/widgets/framework.dart:6614`
-    internal var _ancestorRenderObjectElement: RenderObjectElement?
+    internal weak var _ancestorRenderObjectElement: RenderObjectElement?
 
     /// Whether this element is in the process of building.
     ///
