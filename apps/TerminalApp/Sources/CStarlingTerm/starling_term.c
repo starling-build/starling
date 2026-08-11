@@ -31,10 +31,32 @@
 
 typedef StarlingTermCell Cell;
 
+/* Extent-based blanking. Filling a freshly recycled row used to memset the
+   full width on every line feed; at 478 columns the light_cells workload
+   (1.5 M line feeds) moved 11.5 GB of blanking for rows that carry ~7
+   characters, and the emulator alone pushed `cat` 40% past the pty's read
+   floor. Each row instead tracks how far it has been written:
+
+     INVARIANT: cells[used..cols) all equal the blank cell
+                {scalar 32, fg 0, attrs 0, bg = tail_bg}.
+
+   Writers maintain it (extending `used` costs one compare); recycling
+   exploits it (fill [0, used) and, when the pooled buffer's tail already
+   matches the requested background, skip the rest). Every cell in memory is
+   at all times byte-identical to what the full-width code produced — readers
+   and the differential harness see no difference. */
 typedef struct {
     Cell *cells;
     int   cols;      /* scrollback rows may predate a resize */
+    int   used;
+    uint32_t tail_bg;
 } Row;
+
+typedef struct {                /* a pooled buffer keeps its extent */
+    Cell *cells;
+    int   used;
+    uint32_t tail_bg;
+} PoolRow;
 
 typedef enum {
     ST_GROUND, ST_ESCAPE, ST_ESC_INTERMEDIATE, ST_CSI, ST_OSC, ST_OSC_ESCAPE
@@ -89,9 +111,9 @@ struct StarlingTerm {
     uint32_t blank_bg;
     int      blank_cols;
 
-    Cell **pool;               /* recycled row buffers, all `pool_cols` wide */
-    int    pool_len;
-    int    pool_cols;
+    PoolRow *pool;             /* recycled row buffers, all `pool_cols` wide */
+    int      pool_len;
+    int      pool_cols;
 
     void (*response_cb)(void *ctx, const char *s);
     void *response_ctx;
@@ -155,7 +177,7 @@ static const Cell *blank_template(StarlingTerm *t) {
    itself. Measured on the light_cells workload (1.5 M line feeds): 226 k minor
    faults, ~62% of the run in the kernel. Pooling pairs them directly. */
 static void pool_drain(StarlingTerm *t) {
-    for (int i = 0; i < t->pool_len; i++) free(t->pool[i]);
+    for (int i = 0; i < t->pool_len; i++) free(t->pool[i].cells);
     t->pool_len = 0;
 }
 
@@ -169,8 +191,9 @@ static void row_release(StarlingTerm *t, Row *r) {
     if (r->cols == t->cols) {
         if (t->pool_cols != t->cols) { pool_drain(t); t->pool_cols = t->cols; }
         if (t->pool_len < ROW_POOL_MAX) {
-            if (!t->pool) t->pool = malloc(sizeof(Cell *) * ROW_POOL_MAX);
-            t->pool[t->pool_len++] = r->cells;
+            if (!t->pool) t->pool = malloc(sizeof(PoolRow) * ROW_POOL_MAX);
+            t->pool[t->pool_len++] =
+                (PoolRow){ r->cells, r->used, r->tail_bg };
             r->cells = NULL;
             return;
         }
@@ -179,28 +202,37 @@ static void row_release(StarlingTerm *t, Row *r) {
     r->cells = NULL;
 }
 
-static Cell *row_take(StarlingTerm *t) {
-    if (t->pool_len > 0 && t->pool_cols == t->cols) return t->pool[--t->pool_len];
-    return malloc(sizeof(Cell) * (size_t)t->cols);
-}
-
-static Row row_blank(StarlingTerm *t) {
+/* A row of blank cells at background `bg`. From the pool, only the previous
+   life's written prefix needs refilling — the tail beyond it is already the
+   blank pattern, provided its background matches. */
+static Row row_filled(StarlingTerm *t, uint32_t bg) {
     Row r;
     r.cols = t->cols;
-    r.cells = row_take(t);
-    memcpy(r.cells, blank_template(t), sizeof(Cell) * (size_t)t->cols);
+    r.used = 0;
+    r.tail_bg = bg;
+    int fill = t->cols;
+    if (t->pool_len > 0 && t->pool_cols == t->cols) {
+        PoolRow p = t->pool[--t->pool_len];
+        r.cells = p.cells;
+        if (p.tail_bg == bg) fill = p.used;
+    } else {
+        r.cells = malloc(sizeof(Cell) * (size_t)t->cols);
+    }
+    if (fill > 0) {
+        if (bg == t->cur_bg) {
+            memcpy(r.cells, blank_template(t), sizeof(Cell) * (size_t)fill);
+        } else {
+            Cell b; b.scalar = 32; b.fg = 0; b.bg = bg; b.attrs = 0;
+            for (int i = 0; i < fill; i++) r.cells[i] = b;
+        }
+    }
     return r;
 }
+
+static Row row_blank(StarlingTerm *t)   { return row_filled(t, t->cur_bg); }
 
 /* A row of default-blank cells (bg 0) — what a fresh grid and RIS produce. */
-static Row row_default(StarlingTerm *t) {
-    Row r;
-    r.cols = t->cols;
-    r.cells = row_take(t);
-    Cell b; b.scalar = 32; b.fg = 0; b.bg = 0; b.attrs = 0;
-    for (int i = 0; i < t->cols; i++) r.cells[i] = b;
-    return r;
-}
+static Row row_default(StarlingTerm *t) { return row_filled(t, 0); }
 
 static void row_fit(Row *r, int cols) {
     if (r->cols == cols) return;
@@ -212,6 +244,10 @@ static void row_fit(Row *r, int cols) {
     free(r->cells);
     r->cells = n;
     r->cols = cols;
+    /* The copied prefix may end in the old row's tail (old tail_bg); only
+       past `keep` is the new default-blank tail guaranteed. */
+    if (r->used > keep || r->tail_bg != 0) r->used = keep;
+    r->tail_bg = 0;
 }
 
 /* ---------------------------------------------------------- scrollback ring */
@@ -321,8 +357,10 @@ static void put_scalar(StarlingTerm *t, uint32_t v) {
     }
     if (t->cursor_row < 0 || t->cursor_row >= t->rows ||
         t->cursor_col < 0 || t->cursor_col >= t->cols) return;
-    Cell *c = &t->grid[t->cursor_row].cells[t->cursor_col];
+    Row *rw = &t->grid[t->cursor_row];
+    Cell *c = &rw->cells[t->cursor_col];
     c->scalar = v; c->fg = t->cur_fg; c->bg = t->cur_bg; c->attrs = t->cur_attrs;
+    if (t->cursor_col >= rw->used) rw->used = t->cursor_col + 1;
     if (t->cursor_col == t->cols - 1) t->wrap_pending = 1;
     else t->cursor_col++;
 }
@@ -369,10 +407,25 @@ static void erase_line(StarlingTerm *t, int mode) {
     Row *r = &t->grid[t->cursor_row];
     Cell b = blank_cell(t);
     if (mode == 0) {
-        for (int c = t->cursor_col; c < t->cols; c++) r->cells[c] = b;
+        /* Erase-to-end grows the tail. Backgrounds match: cells past the
+           old extent are already these blanks, store only the prefix and
+           let the tail reach down to the cursor. Backgrounds differ: the
+           full span is written, and the tail can start no earlier than the
+           cursor — below it may sit old-background blanks that are content
+           now. Memory is byte-identical to the full-width loop either way. */
+        if (b.bg == r->tail_bg) {
+            int end = r->used > t->cursor_col ? r->used : t->cursor_col;
+            for (int c = t->cursor_col; c < end; c++) r->cells[c] = b;
+            if (r->used > t->cursor_col) r->used = t->cursor_col;
+        } else {
+            for (int c = t->cursor_col; c < t->cols; c++) r->cells[c] = b;
+            r->used = t->cursor_col;
+            r->tail_bg = b.bg;
+        }
     } else if (mode == 1) {
         int last = t->cursor_col < t->cols - 1 ? t->cursor_col : t->cols - 1;
         for (int c = 0; c <= last; c++) r->cells[c] = b;
+        if (last + 1 > r->used) r->used = last + 1;
     } else if (mode == 2) {
         row_release(t, r); *r = row_blank(t);
     }
@@ -399,31 +452,38 @@ static void erase_display(StarlingTerm *t, int mode) {
 
 static void erase_chars(StarlingTerm *t, int n) {
     if (t->cursor_row < 0 || t->cursor_row >= t->rows) return;
+    Row *rw = &t->grid[t->cursor_row];
     Cell b = blank_cell(t);
     int end = t->cursor_col + n; if (end > t->cols) end = t->cols;
-    for (int c = t->cursor_col; c < end; c++) t->grid[t->cursor_row].cells[c] = b;
+    for (int c = t->cursor_col; c < end; c++) rw->cells[c] = b;
+    if (end > rw->used) rw->used = end;
 }
 
 static void delete_chars(StarlingTerm *t, int n) {
     if (t->cursor_row < 0 || t->cursor_row >= t->rows) return;
-    Cell *line = t->grid[t->cursor_row].cells;
+    Row *rw = &t->grid[t->cursor_row];
+    Cell *line = rw->cells;
     int count = n < t->cols - t->cursor_col ? n : t->cols - t->cursor_col;
     if (count <= 0) return;
     memmove(line + t->cursor_col, line + t->cursor_col + count,
             sizeof(Cell) * (size_t)(t->cols - t->cursor_col - count));
     Cell b = blank_cell(t);
     for (int c = t->cols - count; c < t->cols; c++) line[c] = b;
+    rw->used = t->cols - count;
+    rw->tail_bg = b.bg;
 }
 
 static void insert_chars(StarlingTerm *t, int n) {
     if (t->cursor_row < 0 || t->cursor_row >= t->rows) return;
-    Cell *line = t->grid[t->cursor_row].cells;
+    Row *rw = &t->grid[t->cursor_row];
+    Cell *line = rw->cells;
     int count = n < t->cols - t->cursor_col ? n : t->cols - t->cursor_col;
     if (count <= 0) return;
     memmove(line + t->cursor_col + count, line + t->cursor_col,
             sizeof(Cell) * (size_t)(t->cols - t->cursor_col - count));
     Cell b = blank_cell(t);
     for (int c = t->cursor_col; c < t->cursor_col + count; c++) line[c] = b;
+    rw->used = t->cols;
 }
 
 /* Remove grid row `at`, shifting up, and put `r` in at `to` (to >= at). */
@@ -847,13 +907,15 @@ void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
             }
             size_t run = end - i;
             if (run > 0) {
-                Cell *row = t->grid[t->cursor_row].cells;
+                Row *rw = &t->grid[t->cursor_row];
+                Cell *row = rw->cells;
                 int start = t->cursor_col;
                 uint32_t fg = t->cur_fg, bg = t->cur_bg; uint8_t at = t->cur_attrs;
                 for (size_t k = 0; k < run; k++) {
                     Cell *c = &row[start + (int)k];
                     c->scalar = input[i + k]; c->fg = fg; c->bg = bg; c->attrs = at;
                 }
+                if (start + (int)run > rw->used) rw->used = start + (int)run;
                 if (start + (int)run >= t->cols) { t->cursor_col = t->cols - 1; t->wrap_pending = 1; }
                 else t->cursor_col = start + (int)run;
                 i = end;
