@@ -1876,10 +1876,19 @@ def check_prime_offload() -> None:
     """
     if len(glob.glob("/dev/dri/renderD*")) < 2:
         raise Skip("one render node — no discrete GPU to offload onto")
-    if not (CATALOG / "starlingprime.app").exists():
-        raise Skip("fixture catalog not in use (run via test/functional.sh)")
+    # Ask the SHELL whether it loaded the fixture, not the disk. `CATALOG`
+    # resolves the repo's real catalog.d first and only falls back to
+    # STARLING_CATALOG_DIR when that is absent (it exists for the VM, where
+    # there is no repo) — so in a dev-tree run it never names the fixture
+    # directory the shell was actually given, and a path check here skips
+    # with a reason that is the exact opposite of the truth. That is how the
+    # first run of this check reported "fixture catalog not in use" while
+    # running under test/functional.sh, which is the only thing that puts it
+    # in use. `apps()` is the shell's own view and cannot disagree with it.
     installed = apps().get("starlingprime")
-    if not installed or not installed.get("installed"):
+    if installed is None:
+        raise Skip("fixture catalog not in use (run via test/functional.sh)")
+    if not installed.get("installed"):
         raise Skip("Chrome is not installed — the fixture borrows its binary")
 
     def launch_and_read(app_id: str) -> dict[str, str]:
