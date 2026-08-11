@@ -345,6 +345,29 @@ a 0.38-0.39 read floor with no compositor in the room — the emulator's
 per-line work alone. The candidate: `row_blank` memsets the full row width
 on every recycled line — 1.5M line feeds x 478 cells x 16 B = 11.5 GB of
 blanking for rows that carry ~7 characters.
+
+### Extent-based row blanking: the 4K cluster closed, same day
+
+Confirmed and fixed (`terminal: blank only what was written`): rows track
+their written extent and the background of the blank tail beyond it;
+recycling fills only the prefix, erase-to-end shrinks the extent instead of
+writing. Memory stays byte-identical (differential + fuzz + sanitizers —
+the full battery is in `test/bench/core/README.md`). Live, same protocol,
+same ghostty control (`data/*-fs4k3ours-*`, `data/*-fs3ours-*`):
+
+| 4K 478x126 | before | after | nightly | ratio |
+|---|---|---|---|---|
+| 01_light_cells | 0.544 | **0.406** | 0.406 | **1.00x** (was 1.34x) |
+| 10_binary | 0.526 | **0.328** | 0.857 | **0.38x** (was 0.61x) |
+| **total** | 3.663 | **3.360** | 5.328 | **0.63x** (was 0.69x) |
+
+`ptyread` mode 4 at 478x126 lands on the read floor (0.52-0.54 ->
+0.38-0.39): light_cells is transport-bound again at any width, which is
+where it should be. At 1080p the wall is inside session noise (2.173 vs
+2.122, against ghostty's own 17% run-to-run swings) and CPU drops 3.42 ->
+3.22. Remaining 4K losses: alt_screen 1.18x, long_lines 1.20x,
+scroll_region 1.14x, dense_cells 1.13x — row-movement and cell-write bound,
+no longer blanking bound.
 Note the realistic 4K desktop runs 1.5-2x scale, where the LOGICAL grid is
 near the 1080p one — the 478x126 shape is a stress variant, not a user
 setting.

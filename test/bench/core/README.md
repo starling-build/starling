@@ -193,6 +193,34 @@ Differential-clean against the Swift original on all 12 streams, the torture
 stream at 30 grid/chunk combinations, and 200 fuzz streams; ASan/UBSan/LSan
 clean over 60 k ops with 618 resizes that change the width under a full pool.
 
+## The scroll cost, part two: blanking scales with WIDTH — extent tracking
+
+The pool fixed the allocator; the memset it left behind scales with row
+width. At 478 columns (native-4K fullscreen protocol), light_cells' 1.5 M
+line feeds moved 11.5 GB of blanking for rows carrying ~7 characters, and
+ptyread mode 4 put the emulator alone 40% past the pty read floor — the
+live 1.34x loss reproduced with no compositor in the room.
+
+Each row now carries `used` (its written extent) and `tail_bg`, with the
+invariant that `cells[used..cols)` are exactly the blank cell at `tail_bg`.
+Pool entries keep both; recycling fills only `[0, used)` and skips even
+that when the pooled tail's background matches the requested one.
+Erase-to-end SHRINKS the extent instead of writing (two branches — the
+matching-background one stores only up to the old extent; the differing one
+must store the full span and can only pull the tail down to the cursor,
+because below it may sit old-background blanks that are content now).
+Memory stays byte-identical to the full-width code: 10 workloads x 3
+grids, the 478-col corpus, torture at 30 grid/chunk combos and 400 fuzz
+streams hash identical; ASan/UBSan/LSan clean through the pool-resize
+stress.
+
+`ab.sh` (same flags, best of 5): light_cells 1.29x at 201 cols, **1.62x at
+478**; binary 1.74x / **5.7x** (it was blank-fill bound at width); scroll
+region 1.06/1.16x, alt_screen 1.08/1.13x, dense 1.08/1.01x; sgr/unicode
+inside the layout lottery below. Live: 4K-native suite 3.663 -> 3.360 s
+(0.63x of the nightly), light_cells a dead tie at the pty floor (0.406 vs
+0.406, was 1.34x); 1080p wall unchanged, CPU 3.42 -> 3.22.
+
 ### Beware: ±10-16% of this benchmark is code LAYOUT, not code
 
 The first measurement of the pool showed `doomstream` at 0.87x and
