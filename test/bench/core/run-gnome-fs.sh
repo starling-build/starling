@@ -44,6 +44,7 @@ chmod 755 "$B/bench-in-terminal.sh" "$B/run-bench.sh"
 # Both terminals exec their command BEFORE the fullscreen configure lands,
 # so the runner first waits for the grid to hold still (the same race made
 # an early grid probe read the pre-fullscreen size).
+RUNS=${BENCH_RUNS:-3}
 cat > $B/wait-grid-then-bench.sh <<EOF
 #!/usr/bin/env bash
 prev=""; stable=0
@@ -53,7 +54,7 @@ for i in \$(seq 1 20); do
   [ \$stable -ge 3 ] && break
   prev="\$cur"; sleep 1
 done
-exec $B/bench-in-terminal.sh "\$1" 3
+exec $B/bench-in-terminal.sh "\$1" $RUNS
 EOF
 cat > $B/shell-gnome-fs.sh <<EOF
 #!/usr/bin/env bash
@@ -79,7 +80,7 @@ else
 fi
 
 for i in $(seq 1 240); do
-    [ -f "/var/tmp/bench/res-$LABEL-3.txt" ] && grep -q rss_kb "/var/tmp/bench/res-$LABEL-3.txt" 2>/dev/null && break
+    [ -f "/var/tmp/bench/res-$LABEL-$RUNS.txt" ] && grep -q rss_kb "/var/tmp/bench/res-$LABEL-$RUNS.txt" 2>/dev/null && break
     sleep 5
 done
 cat /var/tmp/bench/meta-$LABEL.txt 2>/dev/null || { echo "$LABEL: NO RESULT"; tail -8 /var/tmp/bench/log-$LABEL.txt; }

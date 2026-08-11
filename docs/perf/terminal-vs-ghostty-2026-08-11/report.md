@@ -369,6 +369,43 @@ where it should be. At 1080p the wall is inside session noise (2.173 vs
 scroll_region 1.14x, dense_cells 1.13x — row-movement and cell-write bound,
 no longer blanking bound.
 
+### Are the tests long enough? The 6x corpus says the short ones were honest
+
+Fair objection: the corpus was sized when "a couple of seconds per workload"
+was true, and the terminals have gotten ~4x faster since — most workloads
+finished in 0.1-0.4 s, where timer quantization, scheduler luck and settle
+effects are a visible fraction of the number. `gen-bench.py` now takes a
+SCALE argument (default 1 keeps the standard corpus byte-identical);
+`gen-bench.py /var/tmp/benchlong 238 62 6` rebuilds every workload at 6x
+(23 MB-800 MB, 0.6-8.8 s per measurement), and `BENCH_RUNS=5` runs five
+passes. Median-of-5 at the same 238x62 fullscreen protocol
+(`data/*-longours-*`, `data/*-longghn-*`):
+
+| workload | ours med (spread) | nightly med (spread) | ratio | short |
+|---|---|---|---|---|
+| 10_binary | 1.880 (1.848-1.924) | 8.766 (8.747-8.780) | **0.21x** | 0.24x |
+| 03_sgr_fg | 1.334 (1.225-1.394) | 5.121 (5.092-5.222) | **0.26x** | 0.27x |
+| 04_sgr_truecolor | 1.885 (1.797-1.991) | 3.738 (3.699-3.871) | **0.50x** | 0.53x |
+| 06_cursor_motion | 0.062 | 0.101 | **0.61x** | 0.75x |
+| 05_unicode | 1.437 (1.414-1.444) | 1.597 (1.594-1.707) | **0.90x** | 0.87x |
+| 01_light_cells | 2.362 (2.346-2.390) | 2.395 (2.381-2.461) | **0.99x** | 1.00x |
+| 02_dense_cells | 1.007 (0.997-1.014) | 0.969 (0.951-0.998) | 1.04x | 1.09x |
+| 07_alt_screen | 0.741 (0.699-0.778) | 0.701 (0.674-0.781) | 1.06x | 1.13x |
+| 08_scroll_region | 1.787 (1.710-1.808) | 1.647 (1.631-1.734) | 1.09x | 1.19x |
+| 09_long_lines | 0.645 (0.621-0.649) | 0.592 (0.585-0.623) | 1.09x | 1.08x |
+| **total** | **13.140** | **25.627** | **0.51x** | 0.55x |
+
+Median per-workload spread is ~5% for BOTH terminals — on multi-second
+measurements that is real machine variance, not timing artifact — and every
+short-corpus conclusion reproduces. The drift that does appear runs one
+way: the remaining losses SHRINK when the tests get longer (scroll_region
+1.19x -> 1.09x, alt_screen 1.13x -> 1.06x, dense_cells 1.09x -> 1.04x),
+because startup and settle effects were charged against a 0.1-0.3 s
+denominator; the wins deepen for the same reason (binary 0.24x -> 0.21x,
+total 0.55x -> **0.51x**). The short suite was, if anything, biased against
+us. cursor_motion stays sub-100 ms even at 6x (it is escape-parsing
+already covered by sgr_fg) — treat its ratio as indicative only.
+
 ### The last four, decomposed — and where the levers stop
 
 Writer-clock floors at 478x126 for the four remaining losses (`ptyread`
