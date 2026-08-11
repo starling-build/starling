@@ -29,7 +29,17 @@ enum TerminalFont {
     static let fallbackFamily = "DejaVuSansMono"
     /// Every text style in the terminal carries this, so a glyph missing from
     /// the primary family is looked up here instead of dropping out.
-    static let fallback = [fallbackFamily]
+    private(set) nonisolated(unsafe) static var fallback = [fallbackFamily]
+    /// The engine has NO system font fallback: a glyph missing from every
+    /// loaded family paints NOTHING — `cat` of CJK or emoji text rendered as
+    /// blank gaps while the cursor advanced correctly over the cells (the
+    /// emulator was right; there was simply no glyph to draw). Load the
+    /// system Noto CJK and Color Emoji faces as additional fallbacks when
+    /// present; mappedIfSafe keeps the 20 MB TTC out of our copy of RSS.
+    private static let systemFallbacks: [(path: String, family: String)] = [
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "NotoSansCJK"),
+        ("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "NotoColorEmoji"),
+    ]
     private nonisolated(unsafe) static var _registered = false
 
     @discardableResult
@@ -48,6 +58,16 @@ enum TerminalFont {
                 return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
             }
             ok = ok || success
+        }
+        for (path, family) in systemFallbacks {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
+                                       options: .mappedIfSafe) else { continue }
+            let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
+                guard let base = buffer.baseAddress else { return false }
+                let ptr = base.assumingMemoryBound(to: UInt8.self)
+                return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
+            }
+            if success { fallback.append(family) }
         }
         _registered = ok
         return ok
