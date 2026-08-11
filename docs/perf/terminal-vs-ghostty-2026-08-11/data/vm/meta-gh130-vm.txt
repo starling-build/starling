@@ -1,0 +1,4 @@
+label gh130-vm
+terminal_pid 6526
+terminal_comm ghostty
+grid 47x201

@@ -120,3 +120,36 @@ input, so each terminal *executes* the runner itself — ours via
    `BENCH_USER=<session user>` if it is not `starling`.
 
 Raw data from this machine is under `data/`.
+
+## Addendum: the same suite inside the release-gate VM, GPU tier (virgl)
+
+Same three terminals, same 47x201, inside the `test/vm-harness` VM
+(`launch-vm-2604.sh` with an explicit 1920x1080 scanout: 4 vCPUs, 8 GB,
+virtio-vga-gl + egl-headless on the host's 780M — guest renderer reports
+`virgl (AMD Radeon 780M)`). ghostty runs `--font-size=10` here: at guest DPI
+its default cells are ~10.4 px wide and 201 columns do not fit a 1920 px
+screen — it pinned at 184 columns whatever was requested. Absolute numbers
+are a different machine (4 vCPUs, GL through virgl); only the within-VM
+comparison is meaningful. Raw data: `data/vm/`, driver: `vmbench.sh`.
+
+Best-of-3 wall, suite total: **ours 2.75 s, nightly 6.88, 1.3.0 7.07** —
+ours at **0.40x of the nightly** (bare metal: 0.58x), winning 8 of 10.
+DOOM-Fire: ours 1212 fps, nightly 1220 — a dead heat (bare metal: 1960 vs
+1224).
+
+The interesting part is the slowdown each terminal takes moving host -> VM:
+
+|            | suite host | suite VM | slowdown |
+|------------|-----------:|---------:|---------:|
+| ours       | 2.05       | 2.75     | 1.34x    |
+| nightly    | 3.53       | 6.88     | 1.95x    |
+| gh 1.3.0   | 5.81       | 7.07     | 1.22x    |
+
+The nightly degrades most — the io_uring transport and render path that beat
+us on bare-metal ascii do not survive 4 vCPUs + virgl, and inside the VM the
+nightly is barely distinguishable from the 8-months-older 1.3.0. Our repaint
+throttle decouples parse throughput from render cost, which is exactly the
+property a paravirtualized GPU rewards. DOOM tells the same story from the
+other side: our bare-metal 1960 fps is virgl-capped to ~1210 in the VM,
+landing exactly on the nightly's ~1220, which was already at that ceiling on
+the host.

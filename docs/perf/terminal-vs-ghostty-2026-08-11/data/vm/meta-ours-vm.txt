@@ -1,0 +1,4 @@
+label ours-vm
+terminal_pid 5590
+terminal_comm TerminalApp
+grid 47x201
