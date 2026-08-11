@@ -178,7 +178,13 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
     }
 
+    /// Diagnostic only (see test/bench/core/README.md): suppress all repaints
+    /// to split parse cost from render cost in live runs. Not a shipping knob.
+    private static let _benchNoRepaint =
+        ProcessInfo.processInfo.environment["STARLING_BENCH_NOREPAINT"] != nil
+
     private func _scheduleRepaint() {
+        if Self._benchNoRepaint { return }
         _lock.lock()
         let alreadyPending = _updatePending
         _updatePending = true

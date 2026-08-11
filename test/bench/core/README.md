@@ -322,6 +322,60 @@ remaining leads are that last few percent plus the repaint, not a faster parser.
 **There is no large lever left in the read path** — the terminal is transport
 bound, which is where it should be.
 
+## The "below the floor" ghostty number was a clock artifact — and the real
+## live gap was a futex convoy in the ring (2026-08-11, round 10)
+
+Round 9 read ghostty's dense_cells/ascii walls as *below* the read(2) floor
+and concluded its io_uring transport buys what no read(2) pattern can. Both
+halves of that were wrong, and the error was the CLOCK:
+
+- The harness's wall starts before `cat` execs and ends when the READER sees
+  EOF. The bench metric — `time cat` inside the terminal — is the WRITER's
+  wall: it stops at the last accepted write, before the final drain, and
+  contains no exec. The two differ by ~5-10 ms on a 30 MB stream.
+- Re-measured on the writer's clock (`PTYREAD_TIME=1`, or `PTYREAD_CMD=` a
+  wrapper that stamps `$EPOCHREALTIME` — 2 dp from `/usr/bin/time` is not
+  enough), modes 2, 4 and 8 are all 0.14-0.16 on dense_cells: identical to
+  ghostty live. **No consumption pattern beats another on the writer's
+  clock, and nothing is below the floor.**
+- strace of the live nightly during the cat: its pty data path is plain
+  `read(2)` on its termio thread — the 3.1k `io_uring_enter` calls are its
+  event loop, not the transport. Its 6.3 KB mean reads come from parsing
+  *between* reads (natural pacing); replicating the batching artificially
+  (modes 6, 8, 9) reproduces the batch sizes and moves the wall nowhere.
+- Modes that are dead ends, measured: single-shot io_uring reads (0.164 vs
+  the 0.143 read(2) floor — the io-wq punt path costs more than it saves,
+  `IOSQE_ASYNC` doubles batch size and stays slow), multishot
+  `IORING_OP_READ_MULTISHOT` (never posts a CQE on a pty — no
+  `FMODE_NOWAIT`; the harness now kills `cat` on abnormal exit so this
+  fails visibly instead of wedging `waitpid`), fixed pacing ≥50us (batches
+  pin at the 4 KB ldisc buffer and throughput becomes 4096/pace — there is
+  no big kernel buffer to exploit, only ~68 K of flip-buffer runway).
+
+What WAS real: the live app measured ~10 ms/cat over its own harness pattern
+on the writer's clock. A per-thread futex census (`strace -f -e trace=futex`)
+put the surplus in the reader+parser pair — ~7 futex ops per ring handoff
+against the ~2 a handoff needs. That is the glibc "hurry up and wait" convoy:
+`ChunkRing` signalled with the mutex HELD, so the woken thread immediately
+blocked on the mutex (glibc dropped wait morphing years ago). Fix: track
+whether the other side is actually waiting, signal only then, and signal
+AFTER unlock. dense_cells live went 0.163 -> 0.157 (same-session 5-sample
+medians); with repaints suppressed the app now measures 0.153 — exactly the
+mode-4 harness number, i.e. the app adds nothing over its own architecture.
+
+What remains vs ghostty (~0.143-0.151 fresh-launch) is the split design
+itself: they parse inline on the read thread, so no second thread perturbs
+the writer->kworker->reader chain during floods. Mode 9 (256 K slots + a
+~300us linger, 4x fewer handoffs) proves handoff COUNT is not the cost —
+batches grew to 261 KB and the wall did not move. Mode 10 (adaptive inline:
+parse on the reader thread when the drain went dry and the ring is empty,
+publish when the slot fills first) engages correctly — dense runs mixed,
+sgr_fg goes 100% through the ring — but its gain is inside run-to-run noise,
+so it is NOT wired into the app. The shipping change from this round is the
+wake discipline alone; `STARLING_BENCH_NOREPAINT=1` is now a permanent
+diagnostic gate in TerminalApp so the parse/render split stays measurable
+without a patched build.
+
 The repaint was measured by gating `_scheduleRepaint` on an env var, building
 both ways and running the suite on each — **on the shipping DRM host**, not
 through the GTK harness, because GTK presents through a software pixman blit

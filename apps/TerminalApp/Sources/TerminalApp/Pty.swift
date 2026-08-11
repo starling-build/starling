@@ -38,6 +38,18 @@ final class ChunkRing: @unchecked Sendable {
     private var filled = 0
     private var closed = false
     private let cond = NSCondition()
+    // Wake discipline: strace during `cat 02_dense_cells` put us at 2.5x
+    // ghostty's futex traffic (11.4k vs 4.5k calls per five cats), and the
+    // surplus was this ring — a broadcast on every publish AND every release,
+    // waking a thread that then re-checks a predicate it usually already
+    // knew. Each needless futex round trip is a scheduler pass that competes
+    // with the writer->kworker->reader pipeline the pty's throughput hangs
+    // on. So: wake only a side that is actually waiting (signal, not
+    // broadcast — one reader, one parser), and note there is no lost-wakeup
+    // race because the flags are read and the signal sent under the same
+    // lock the waiter holds around its predicate check.
+    private var parserWaiting = false
+    private var readerWaiting = false
 
     init() {
         storage = UnsafeMutablePointer<UInt8>.allocate(
@@ -54,7 +66,11 @@ final class ChunkRing: @unchecked Sendable {
     /// `nil` once the ring is closed.
     func acquireForWrite() -> Slot? {
         cond.lock()
-        while filled == ChunkRing.slotCount && !closed { cond.wait() }
+        while filled == ChunkRing.slotCount && !closed {
+            readerWaiting = true
+            cond.wait()
+            readerWaiting = false
+        }
         if closed { cond.unlock(); return nil }
         let index = tail
         cond.unlock()
@@ -67,8 +83,14 @@ final class ChunkRing: @unchecked Sendable {
         lengths[slot.index] = count
         tail = (tail + 1) % ChunkRing.slotCount
         filled += 1
-        cond.broadcast()
+        let wake = parserWaiting
         cond.unlock()
+        // Signal AFTER unlock: glibc has no wait morphing, so signalling with
+        // the mutex held wakes the parser straight into a mutex it cannot
+        // take — two extra futex round trips per handoff ("hurry up and
+        // wait"). Signalling outside is safe: the predicate (`filled`) was
+        // updated under the lock, and a signal to a non-waiter is a no-op.
+        if wake { cond.signal() }
     }
 
     /// Reader side: give a claimed slot back unfilled (EINTR, or shutting down).
@@ -85,8 +107,16 @@ final class ChunkRing: @unchecked Sendable {
     /// Parser side: the next filled slot, blocking. `nil` once the ring is both
     /// drained and closed — never before, so no output is dropped on exit.
     func nextForRead() -> Slot? {
+        // (A bounded nap-poll before the wait was tried here and measured
+        // WORSE on `cat 02_dense_cells` — a 50us nanosleep is the same
+        // scheduler round trip as the futex wake it replaces, fired on a
+        // timer instead of on data. Wake on publish, once, is right.)
         cond.lock()
-        while filled == 0 && !closed { cond.wait() }
+        while filled == 0 && !closed {
+            parserWaiting = true
+            cond.wait()
+            parserWaiting = false
+        }
         if filled == 0 { cond.unlock(); return nil }
         let index = head
         let count = lengths[index]
@@ -99,8 +129,9 @@ final class ChunkRing: @unchecked Sendable {
         cond.lock()
         head = (head + 1) % ChunkRing.slotCount
         filled -= 1
-        cond.broadcast()
+        let wake = readerWaiting
         cond.unlock()
+        if wake { cond.signal() }
     }
 }
 

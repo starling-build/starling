@@ -1,0 +1,4 @@
+label ghncontrol
+terminal_pid 3690943
+terminal_comm ghostty
+grid 47x201

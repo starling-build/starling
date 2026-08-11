@@ -211,3 +211,46 @@ the nightly (NucBox: 1.6x). The nightly here is tip+046b8fc rebuilt from
 source, so "same binary as 08-04" no longer applies — the movement it shows
 vs its own 1.3.0 (ascii 2.46→0.93) is seven months of their work plus a
 newer commit than round 9 measured.
+
+## Round 10, same day, back on the NucBox: the futex convoy, and §3 retracted
+
+Chasing the two cell-fill losses found that §3's premise was a measurement
+artifact, and the real culprit was a lock convoy in our ring. The full
+methodology and dead ends (io_uring single-shot and multishot, fixed pacing,
+a 256 K linger, adaptive inline parse) are in `test/bench/core/README.md`;
+the short version:
+
+- **§3's "below the floor" compared two clocks.** The harness wall is the
+  reader's (exec through EOF drain); the bench metric — `time cat` in the
+  terminal — is the writer's, which stops at the last accepted write. On the
+  writer's clock every read(2) pattern lands within noise of ghostty, whose
+  pty data path is itself plain `read(2)` — the io_uring_enter calls in its
+  strace are its event loop. Its big reads come from parsing between reads;
+  reproducing the batching (pace, linger, 256 K slots) reproduces the batch
+  sizes and moves nothing. **There is no transport rewrite to do.**
+- **The real gap was ours to fix**: `strace -f -e trace=futex` per-thread
+  put the live app at 2.5x ghostty's futex traffic, concentrated in the
+  reader+parser pair — ~7 futex ops per ring handoff. `ChunkRing` signalled
+  a shared condvar with the mutex held (glibc has no wait morphing: "hurry
+  up and wait"), and broadcast where one waiter existed. Wake-flags + signal
+  only when the other side waits + signal after unlock cut it to ~2.
+
+Best-of-3, fresh launches, both at 47x201 (`data/*-convoyfix-*`,
+`data/*-ghncontrol-*` — the control is the same nightly binary re-run):
+
+| workload | ours r9 | ours r10 | nightly | ratio r10 (r9) |
+|---|---|---|---|---|
+| 02_dense_cells | 0.165 | 0.153 | 0.138 | **1.11x** (1.21x) |
+| 01_light_cells | 0.406 | 0.397 | 0.402 | **0.99x** (1.00x) |
+| 07_alt_screen | 0.082 | 0.077 | 0.071 | 1.08x (1.21x) |
+| 08_scroll_region | 0.307 | 0.306 | 0.277 | 1.10x (1.15x) |
+| **total** | 2.05 | **2.016** | 3.509 | **0.57x** (0.58x) |
+
+Suite CPU 3.34 vs the nightly's 4.44. Escape-heavy workloads unchanged
+(sgr_fg 0.173, binary 0.321 — within the ±10-16% layout lottery the core
+README documents). What remains of dense_cells (0.153 vs 0.138, with
+repaints suppressed we measure exactly our harness's mode-4 number) is the
+split design itself — ghostty parses inline on its read thread, so no
+second thread perturbs the writer→kworker→reader chain during floods. An
+adaptive inline parse (harness mode 10) engages correctly and measures
+inside noise; it stays unshipped until a workload justifies it.
