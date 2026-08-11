@@ -15,7 +15,8 @@ keeps the display, and an app that wants the discrete card gets it.
 coding agent hired into a terminal builds and serves a live page, opens Chrome
 beside itself, and the desktop outside the room never moves; when you want the
 wheel, you take it. One unedited take, recorded — and zoomed — by the
-desktop's own recorder.
+desktop's own recorder. Also playing on the front page of
+[starling.build](https://starling.build/#agents).
 
 A named workspace holds a driver app down the middle — the terminal the agent
 lives in — and everything it opens as tabs on the right, with the workspace
