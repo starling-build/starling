@@ -214,7 +214,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// action updates. After calling Build(), this builder should not be used.
   ///
   /// @return New SemanticsUpdateBridge containing the accumulated updates
-  SemanticsUpdateBridge* Build();
+  SemanticsUpdateBridge* Build() SWIFT_RETURNS_RETAINED;
 
  private:
   SemanticsUpdateBuilderBridge(const SemanticsUpdateBuilderBridge&) = delete;

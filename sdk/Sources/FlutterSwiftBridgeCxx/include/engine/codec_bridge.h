@@ -95,7 +95,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// Only valid after DecodeNextFrame() returns true.
   /// The returned ImageBridge is owned by this CodecBridge and remains
   /// valid until the next call to DecodeNextFrame() or Dispose().
-  ImageBridge* GetLastFrameImage() const;
+  ImageBridge* GetLastFrameImage() const SWIFT_RETURNS_RETAINED;
 
   /// Returns the duration in milliseconds of the last decoded frame.
   /// Only valid after DecodeNextFrame() returns true.

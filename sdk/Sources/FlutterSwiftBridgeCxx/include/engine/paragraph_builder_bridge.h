@@ -213,8 +213,18 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT SWIFT_SHARED_REFERENCE(
   /// After calling Build(), this ParagraphBuilderBridge should not be used
   /// further.
   ///
+  /// SWIFT_RETURNS_RETAINED is load bearing: the ParagraphBridge is born with
+  /// refcount 1 (IntrusiveReferenceCounted), and this annotation hands that
+  /// reference to Swift. Without it, Swift assumes an unretained (+0) return
+  /// and adds its own retain — refcount 2, released once by deinit, and the
+  /// C++ object (with its txt::Paragraph) never destructs. Constructors do
+  /// not need this (interop already treats init as an ownership transfer),
+  /// which is why ParagraphBuilderBridge itself was freed correctly while
+  /// every built paragraph leaked: [cxx-para] made 200 freed 0 against a
+  /// Swift wrapper count of live 47.
+  ///
   /// @return New ParagraphBridge wrapping the built txt::Paragraph
-  ParagraphBridge* Build();
+  ParagraphBridge* Build() SWIFT_RETURNS_RETAINED;
 
  private:
   ParagraphBuilderBridge(const ParagraphBuilderBridge&) = delete;

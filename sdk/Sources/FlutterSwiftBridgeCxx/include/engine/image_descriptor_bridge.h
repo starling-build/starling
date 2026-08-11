@@ -120,7 +120,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// @param target_width Target width for resizing (use 0 for original)
   /// @param target_height Target height for resizing (use 0 for original)
   /// @return A new CodecBridge, or nullptr on failure
-  CodecBridge* InstantiateCodec(int target_width, int target_height) const;
+  CodecBridge* InstantiateCodec(int target_width, int target_height) const SWIFT_RETURNS_RETAINED;
 
   /// Release the resources used by this descriptor.
   ///
