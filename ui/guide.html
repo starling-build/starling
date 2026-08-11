@@ -308,6 +308,7 @@
         <a href="#recording">Recording</a>
         <a href="#windows">Windows</a>
         <a href="#spaces">Spaces &amp; Mission Control</a>
+        <a href="#workspace">Workspaces</a>
         <a href="#shortcuts">Shortcuts</a>
         <a href="#apps">The apps</a>
         <a href="#more-apps">Installing more</a>
@@ -462,6 +463,7 @@
         <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>→</kbd> / <kbd>←</kbd></td><td>Carry the focused window to that space</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Tab</kbd></td><td>Cycle through your spaces</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>↑</kbd></td><td>Open Mission Control</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>↓</kbd></td><td>Open your workspace (see below)</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Close Mission Control</td></tr>
       </table>
       <p class="note">To add a space, right-click the wallpaper and choose
@@ -471,6 +473,39 @@
       <figure>
         <img src="img/guide/mission-control.jpg" alt="Mission Control: a strip of space thumbnails at the top labelled 'Desktop 1' with a '+' tile to add another, and the current desktop's windows shown below.">
         <figcaption>Mission Control — your spaces across the top, windows below.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="workspace">
+    <div class="wrap">
+      <div class="kicker">Workspaces</div>
+      <div class="sec-head">
+        <h2>A desktop for your agent</h2>
+        <p><kbd>Ctrl</kbd> + <kbd>↓</kbd> opens workspace mode — a room where
+        one app drives and everything it opens stays beside it. The workspace
+        list is on the left, the <strong>driver</strong> runs down the middle,
+        and every window the driver opens lands as a <strong>tab</strong> on
+        the right — never on your desktop. <kbd>Ctrl</kbd> + <kbd>↓</kbd>
+        again (or <strong>Workspace</strong> in the desktop menu) steps back
+        out; the workspace and its apps keep running, and the same key leads
+        back in.</p>
+        <p>It's built for handing a project to an AI coding agent: start a
+        terminal as the driver, run the agent in it, and the browsers and
+        editors it opens stack up as tabs in its room while your own windows
+        never move. You can watch, and you can step in — click into any pane
+        and use it like any other window.</p>
+      </div>
+      <ul class="feats">
+        <li><strong>+ New</strong> creates a workspace and opens its name for editing in place — <kbd>Enter</kbd> saves, <kbd>Esc</kbd> keeps the old name. Rename later from the pencil on the row you're pointing at.</li>
+        <li>An empty workspace shows <strong>Choose an app to work in</strong> — pick the driver. Drag the divider to change the split.</li>
+        <li>Right-click a tab to <strong>Move to Desktop</strong> or <strong>Close</strong> it.</li>
+        <li>The trash on a hovered row opens the row's menu: <strong>Remove</strong> moves the windows to your desktop, <strong>Delete</strong> stops every app in the room. Both sit behind the menu so a stray click can't stop your agent's apps.</li>
+        <li>Each monitor has its own workspace mode — the toggle acts on the monitor the pointer is on.</li>
+      </ul>
+      <figure>
+        <a href="video/agent-workspace.mp4"><img src="img/agent-workspace-poster.jpg" alt="A workspace driving itself: a coding agent in the terminal down the middle, the page it built open in Chrome as a tab beside it."></a>
+        <figcaption>An agent driving its own workspace — click to watch the take (3:49, one cut, recorded by the desktop's own recorder).</figcaption>
       </figure>
     </div>
   </section>
@@ -486,7 +521,7 @@
         <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>→</kbd> / <kbd>←</kbd></td><td>Move focused window to adjacent space</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Tab</kbd></td><td>Cycle spaces</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>↑</kbd></td><td>Mission Control</td></tr>
-        <tr><td><kbd>Ctrl</kbd> + <kbd>↓</kbd></td><td>AI Space</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>↓</kbd></td><td>Workspace mode</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd></td><td>Start / stop screen recording</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Space</kbd></td><td>Toggle the input method (fcitx5, for CJK and other IME input)</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Close Mission Control</td></tr>
