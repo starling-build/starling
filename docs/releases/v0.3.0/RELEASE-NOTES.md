@@ -9,14 +9,15 @@ keeps the display, and an app that wants the discrete card gets it.
 
 ## The agent workspace
 
-[![A workspace driving itself: a coding agent in the terminal, the page it built open in Chrome beside it — click to watch](../../../ui/img/agent-workspace-poster.jpg)](../../../ui/video/agent-workspace.mp4)
+[![A workspace driving itself: a coding agent in the terminal, the page it built open in Chrome beside it — click to watch](../../../ui/img/agent-workspace-poster.jpg)](https://starling.build/video/agent-workspace.mp4)
 
-**[▶ Watch the take (3:49)](../../../ui/video/agent-workspace.mp4)** — a
-coding agent hired into a terminal builds and serves a live page, opens Chrome
-beside itself, and the desktop outside the room never moves; when you want the
-wheel, you take it. One unedited take, recorded — and zoomed — by the
-desktop's own recorder. Also playing on the front page of
-[starling.build](https://starling.build/#agents).
+**[▶ Watch the take (3:49)](https://starling.build/video/agent-workspace.mp4)**
+— a coding agent hired into a terminal builds and serves a live page, opens
+Chrome beside itself, and the desktop outside the room never moves; when you
+want the wheel, you take it. One unedited take, recorded — and zoomed — by the
+desktop's own recorder. It is the proof video in the agents section of
+[starling.build](https://starling.build/#agents); the same file is pinned in
+this repo at `ui/video/agent-workspace.mp4`.
 
 A named workspace holds a driver app down the middle — the terminal the agent
 lives in — and everything it opens as tabs on the right, with the workspace
