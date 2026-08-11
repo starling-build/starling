@@ -1,0 +1,7 @@
+# ala-doom-r9  terminal=1125027/alacritty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.071 fps=560.22
+  cpu_s 1.18
+BENCHFPS frames=600 seconds=1.103 fps=543.97
+  cpu_s 1.22
+BENCHFPS frames=600 seconds=1.094 fps=548.45
+  cpu_s 1.21

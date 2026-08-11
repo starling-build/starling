@@ -1,0 +1,7 @@
+# file rep wall_s cpu_s   (terminal 1125460 / kitty, grid 47x201)
+ascii_150mb 1 1.435 1.97
+ascii_150mb 2 1.379 1.83
+ascii_150mb 3 1.380 1.83
+unicode_150mb 1 1.463 1.77
+unicode_150mb 2 1.469 1.77
+unicode_150mb 3 1.460 1.77

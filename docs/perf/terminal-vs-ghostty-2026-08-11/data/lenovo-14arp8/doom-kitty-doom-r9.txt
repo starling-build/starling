@@ -1,0 +1,7 @@
+# kitty-doom-r9  terminal=1125620/kitty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.143 fps=524.93
+  cpu_s 1.33
+BENCHFPS frames=600 seconds=1.118 fps=536.67
+  cpu_s 1.30
+BENCHFPS frames=600 seconds=1.139 fps=526.78
+  cpu_s 1.34

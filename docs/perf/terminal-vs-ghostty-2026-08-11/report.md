@@ -153,3 +153,61 @@ property a paravirtualized GPU rewards. DOOM tells the same story from the
 other side: our bare-metal 1960 fps is virgl-capped to ~1210 in the VM,
 landing exactly on the nightly's ~1220, which was already at that ceiling on
 the host.
+
+## Addendum: the suite on the Lenovo dev box (same day)
+
+Lenovo Slim Pro 7 14ARP8 (Ryzen 7 7735HS), kernel 7.0.0-29, GNOME Shell
+(Wayland, ubuntu mode) on a forced 4K HDMI scanout — the headless-EDID setup
+from CLAUDE.md, GDM autologin. Same branch build (GTK embedder, release
+engine), same 10-workload suite, both terminals verified at exactly 201x47
+(ghostty 1.3.0-dev needed a 201x49 request here; the calibrated 202x50
+answer from probe time drifted a row+column in the real run — verify the
+grid in `meta-*`, not the calibration).
+
+The nightly here is **1.3.2-dev+046b8fc**, built from the tip source tarball
+published this day (Zig 0.16.0, ReleaseFast) — a newer commit than round 9's
+48d85ea. Best-of-3 wall, `data/lenovo-14arp8/`:
+
+| workload | ours | nightly | 1.3.0-dev | vs nightly |
+|---|---|---|---|---|
+| 10_binary | 0.466 | 1.818 | 1.574 | **0.26x** |
+| 03_sgr_fg | 0.327 | 1.254 | 1.710 | **0.26x** |
+| 04_sgr_truecolor | 0.449 | 0.927 | 1.747 | **0.48x** |
+| 06_cursor_motion | 0.018 | 0.032 | 0.047 | **0.56x** |
+| 07_alt_screen | 0.119 | 0.146 | 0.649 | **0.82x** |
+| 09_long_lines | 0.143 | 0.168 | 0.618 | **0.85x** |
+| 05_unicode | 0.339 | 0.385 | 0.797 | **0.88x** |
+| 08_scroll_region | 0.452 | 0.452 | 0.726 | 1.00x |
+| 01_light_cells | 0.587 | 0.488 | 0.558 | 1.20x |
+| 02_dense_cells | 0.241 | 0.180 | 0.449 | 1.34x |
+| **total** | **3.14** | **5.85** | **8.88** | **0.54x** |
+
+**Round 9's headline reproduces on a second machine: 0.54x of the nightly
+here, 0.58x there** — against a newer nightly commit. The shape matches too:
+we take the escape/parser workloads (sgr, binary, truecolor), the nightly
+keeps raw cell-fill (dense_cells 1.34x, light_cells 1.20x — same two it held
+on the NucBox). RSS after the run: ours 265 MB, nightly 214 MB, 1.3.0
+200 MB. Absolute walls are not comparable to the NucBox tables (different
+display pipeline — 4K at 200% vs the NucBox panel); the within-machine
+ratios are the result.
+
+### Lenovo: ghostty's own three tests, five terminals
+
+Medians of 3, every terminal verified at 201x47 (ghostty builds via a
+201x49 request, kitty via 194c x 46c — the same corrections as the NucBox;
+kitty's 201c request overshot to 48x208 here too). alacritty 0.16.1, kitty
+0.45.0, both from the Ubuntu archive. Raw: `data/lenovo-14arp8/`.
+
+| test | ours | nightly | 1.3.0-dev | alacritty | kitty |
+|---|---|---|---|---|---|
+| `time cat 150mb_ascii.txt` | 0.942 (2nd) | **0.927** | 2.455 | 1.648 | 1.380 |
+| `time cat 150mb_unicode.txt` | **0.656** | 1.071 | 2.265 | 1.347 | 1.463 |
+| DOOM-Fire-Zig (fps, 600 frames) | **1179** | 547 | 347 | 548 | 527 |
+
+The round-9 outcome holds on this box: two of three to us, ascii to the
+nightly by 1.6% — consistent with the read(2)-floor analysis (§3); the
+nightly's io_uring transport buys it the ascii cat everywhere. DOOM at 2.2x
+the nightly (NucBox: 1.6x). The nightly here is tip+046b8fc rebuilt from
+source, so "same binary as 08-04" no longer applies — the movement it shows
+vs its own 1.3.0 (ascii 2.46→0.93) is seven months of their work plus a
+newer commit than round 9 measured.

@@ -1,0 +1,7 @@
+# gh130-doom-r9  terminal=1124854/ghostty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.664 fps=360.58
+  cpu_s 3.10
+BENCHFPS frames=600 seconds=1.750 fps=342.86
+  cpu_s 3.22
+BENCHFPS frames=600 seconds=1.731 fps=346.62
+  cpu_s 3.18
