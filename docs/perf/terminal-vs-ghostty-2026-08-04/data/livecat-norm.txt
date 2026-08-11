@@ -1,0 +1,4 @@
+# norm term=1112815/TerminalApp grid=56x244
+wall 0.646  cpu 1.34  92.3 MB/s
+wall 0.639  cpu 1.29  93.3 MB/s
+wall 0.650  cpu 1.32  91.7 MB/s

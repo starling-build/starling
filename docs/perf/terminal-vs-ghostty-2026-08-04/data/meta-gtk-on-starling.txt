@@ -1,0 +1,4 @@
+label gtk-on-starling
+terminal_pid 917467
+terminal_comm TerminalApp
+grid 56x244

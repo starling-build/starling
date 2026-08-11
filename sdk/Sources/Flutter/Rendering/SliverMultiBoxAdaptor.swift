@@ -176,8 +176,11 @@ public class SliverMultiBoxAdaptorParentData: SliverLogicalParentData,
 
     /// The previous sibling in the parent's child list.
     ///
+    /// `weak`: see ContainerBoxParentData.previousSibling — a strong
+    /// back-pointer makes adjacent children a retain cycle under ARC.
+    ///
     /// **Dart Source:** via `ContainerParentDataMixin<RenderBox>`
-    public var previousSibling: RenderBox?
+    public weak var previousSibling: RenderBox?
 
     /// The next sibling in the parent's child list.
     ///

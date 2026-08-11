@@ -140,6 +140,32 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
 - Building on a machine with **nothing installed** (both repos, toolchains,
   apt packages, `gclient`) → `docs/BUILDING.md`.
 
+**"Deploy" means: build, install, and run it — end to end, without asking.**
+The dev box is the assistant's machine to drive; there is no user session on it
+to protect and no separate operator to confirm with. Deploy is four steps:
+
+1. Build (shell + apps release, engine host_release if the engine moved).
+2. **Stop** whatever is running — `gdm` if active, and any live
+   `DesktopShellApp` (`pkill -x DesktopShellApp`; `pkill -f` matches its own
+   `bash -c` line).
+3. Install the .deb — `dpkg -i`, adding `--force-all` if it balks. A rebuild at
+   the same `VER` is the normal case, not an error: `dpkg -i` reinstalls over
+   an identical version, so **do not** stop to ask about the version string.
+4. Start it again — `systemctl start gdm` (equivalently `restart`, which folds
+   in step 2). This only works because GDM is set to autologin: with a bare
+   greeter it parks there and the shell never starts, so a deploy that ends at
+   `start gdm` would look done while nothing ran. On this box that is
+   `AutomaticLogin = starling` in `/etc/gdm3/custom.conf`, plus
+   `Session=starling` in `/var/lib/AccountsService/users/starling`. Both are
+   machine-local, not repo state — on a fresh box, set them or start
+   `LIBSEAT_BACKEND=seatd /usr/libexec/starling-session` directly. GDM is
+   deliberately left `disabled` at boot; it is started on demand.
+
+Do not stop after installing to report that "the running session is still the
+old code" and offer to restart it. Restarting *is* the deploy. Likewise, do not
+hold a deploy for `test/vm.sh` — that gate is for releases (and for session or
+privilege-path changes), never for putting a build on the dev box.
+
 **Ubuntu 26.04 LTS is the base platform**, for dev, test, and the shipped .deb.
 The 6.2.4 toolchain is an ubuntu24.04 build, so 26.04 needs two fixes — both
 already in-tree, so `swift build` takes no special flags: `bootstrap.sh` adds

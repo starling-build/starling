@@ -1,0 +1,7 @@
+# ours-vm-doom  terminal=6945/TerminalApp  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=0.524 fps=1145.04
+  cpu_s 1.21
+BENCHFPS frames=600 seconds=0.503 fps=1192.84
+  cpu_s 1.18
+BENCHFPS frames=600 seconds=0.495 fps=1212.12
+  cpu_s 1.15

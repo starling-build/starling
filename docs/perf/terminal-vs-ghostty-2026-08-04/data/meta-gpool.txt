@@ -1,0 +1,4 @@
+label gpool
+terminal_pid 1219840
+terminal_comm TerminalApp
+grid 47x201

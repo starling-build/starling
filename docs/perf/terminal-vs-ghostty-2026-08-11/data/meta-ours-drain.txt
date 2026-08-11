@@ -1,0 +1,4 @@
+label ours-drain
+terminal_pid 3634669
+terminal_comm TerminalApp
+grid 47x201

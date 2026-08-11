@@ -1,0 +1,4 @@
+label ghn-vm
+terminal_pid 6034
+terminal_comm ghostty
+grid 47x201

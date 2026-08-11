@@ -1,0 +1,7 @@
+# gh130-vm-doom  terminal=7338/ghostty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.185 fps=506.33
+  cpu_s 2.32
+BENCHFPS frames=600 seconds=1.175 fps=510.64
+  cpu_s 2.30
+BENCHFPS frames=600 seconds=1.171 fps=512.38
+  cpu_s 2.29

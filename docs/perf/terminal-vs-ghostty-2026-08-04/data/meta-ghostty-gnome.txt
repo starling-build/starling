@@ -1,0 +1,4 @@
+label ghostty-gnome
+terminal_pid 913184
+terminal_comm ghostty
+grid 47x201

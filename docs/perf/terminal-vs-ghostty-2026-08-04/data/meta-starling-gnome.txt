@@ -1,0 +1,4 @@
+label starling-gnome
+terminal_pid 911804
+terminal_comm TerminalApp
+grid 47x201

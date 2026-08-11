@@ -1,0 +1,4 @@
+label fsghn
+terminal_pid 3696614
+terminal_comm ghostty
+grid 62x238

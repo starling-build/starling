@@ -1,0 +1,456 @@
+{
+ "rows": [
+  {
+   "name": "01_light_cells",
+   "ours_wall": 0.478,
+   "ours_wall_lo": 0.473,
+   "ours_wall_hi": 0.5,
+   "gh_wall": 0.411,
+   "gh_wall_lo": 0.394,
+   "gh_wall_hi": 0.412,
+   "ratio_wall": 1.1630170316301702,
+   "ours_cpu": 0.61,
+   "ours_cpu_lo": 0.6,
+   "ours_cpu_hi": 0.64,
+   "gh_cpu": 0.73,
+   "gh_cpu_lo": 0.71,
+   "gh_cpu_hi": 0.75,
+   "ratio_cpu": 0.8356164383561644
+  },
+  {
+   "name": "02_dense_cells",
+   "ours_wall": 0.17,
+   "ours_wall_lo": 0.166,
+   "ours_wall_hi": 0.176,
+   "gh_wall": 0.316,
+   "gh_wall_lo": 0.308,
+   "gh_wall_hi": 0.316,
+   "ratio_wall": 0.5379746835443038,
+   "ours_cpu": 0.22,
+   "ours_cpu_lo": 0.21,
+   "ours_cpu_hi": 0.24,
+   "gh_cpu": 0.59,
+   "gh_cpu_lo": 0.57,
+   "gh_cpu_hi": 0.6,
+   "ratio_cpu": 0.3728813559322034
+  },
+  {
+   "name": "03_sgr_fg",
+   "ours_wall": 1.087,
+   "ours_wall_lo": 1.082,
+   "ours_wall_hi": 1.118,
+   "gh_wall": 1.145,
+   "gh_wall_lo": 1.134,
+   "gh_wall_hi": 1.163,
+   "ratio_wall": 0.9493449781659388,
+   "ours_cpu": 2.18,
+   "ours_cpu_lo": 2.17,
+   "ours_cpu_hi": 2.25,
+   "gh_cpu": 1.99,
+   "gh_cpu_lo": 1.92,
+   "gh_cpu_hi": 2.13,
+   "ratio_cpu": 1.0954773869346734
+  },
+  {
+   "name": "04_sgr_truecolor",
+   "ours_wall": 1.125,
+   "ours_wall_lo": 1.122,
+   "ours_wall_hi": 1.127,
+   "gh_wall": 1.155,
+   "gh_wall_lo": 1.153,
+   "gh_wall_hi": 1.184,
+   "ratio_wall": 0.974025974025974,
+   "ours_cpu": 2.25,
+   "ours_cpu_lo": 2.24,
+   "ours_cpu_hi": 2.27,
+   "gh_cpu": 2.2,
+   "gh_cpu_lo": 2.2,
+   "gh_cpu_hi": 2.27,
+   "ratio_cpu": 1.0227272727272727
+  },
+  {
+   "name": "05_unicode",
+   "ours_wall": 0.608,
+   "ours_wall_lo": 0.605,
+   "ours_wall_hi": 0.62,
+   "gh_wall": 0.551,
+   "gh_wall_lo": 0.543,
+   "gh_wall_hi": 0.551,
+   "ratio_wall": 1.103448275862069,
+   "ours_cpu": 0.81,
+   "ours_cpu_lo": 0.81,
+   "ours_cpu_hi": 0.82,
+   "gh_cpu": 1.0,
+   "gh_cpu_lo": 0.99,
+   "gh_cpu_hi": 1.0,
+   "ratio_cpu": 0.81
+  },
+  {
+   "name": "06_cursor_motion",
+   "ours_wall": 0.049,
+   "ours_wall_lo": 0.046,
+   "ours_wall_hi": 0.054,
+   "gh_wall": 0.043,
+   "gh_wall_lo": 0.043,
+   "gh_wall_hi": 0.045,
+   "ratio_wall": 1.1395348837209303,
+   "ours_cpu": 0.06,
+   "ours_cpu_lo": 0.05,
+   "ours_cpu_hi": 0.07,
+   "gh_cpu": 0.07,
+   "gh_cpu_lo": 0.07,
+   "gh_cpu_hi": 0.08,
+   "ratio_cpu": 0.857142857142857
+  },
+  {
+   "name": "07_alt_screen",
+   "ours_wall": 0.147,
+   "ours_wall_lo": 0.147,
+   "ours_wall_hi": 0.15,
+   "gh_wall": 0.388,
+   "gh_wall_lo": 0.377,
+   "gh_wall_hi": 0.394,
+   "ratio_wall": 0.3788659793814433,
+   "ours_cpu": 0.2,
+   "ours_cpu_lo": 0.18,
+   "ours_cpu_hi": 0.2,
+   "gh_cpu": 0.64,
+   "gh_cpu_lo": 0.61,
+   "gh_cpu_hi": 0.65,
+   "ratio_cpu": 0.3125
+  },
+  {
+   "name": "08_scroll_region",
+   "ours_wall": 0.338,
+   "ours_wall_lo": 0.326,
+   "ours_wall_hi": 0.357,
+   "gh_wall": 0.468,
+   "gh_wall_lo": 0.464,
+   "gh_wall_hi": 0.501,
+   "ratio_wall": 0.7222222222222222,
+   "ours_cpu": 0.4,
+   "ours_cpu_lo": 0.4,
+   "ours_cpu_hi": 0.43,
+   "gh_cpu": 0.77,
+   "gh_cpu_lo": 0.75,
+   "gh_cpu_hi": 0.84,
+   "ratio_cpu": 0.5194805194805195
+  },
+  {
+   "name": "09_long_lines",
+   "ours_wall": 0.188,
+   "ours_wall_lo": 0.179,
+   "ours_wall_hi": 0.191,
+   "gh_wall": 0.409,
+   "gh_wall_lo": 0.403,
+   "gh_wall_hi": 0.414,
+   "ratio_wall": 0.45965770171149145,
+   "ours_cpu": 0.25,
+   "ours_cpu_lo": 0.23,
+   "ours_cpu_hi": 0.25,
+   "gh_cpu": 0.77,
+   "gh_cpu_lo": 0.75,
+   "gh_cpu_hi": 0.79,
+   "ratio_cpu": 0.3246753246753247
+  },
+  {
+   "name": "10_binary",
+   "ours_wall": 0.345,
+   "ours_wall_lo": 0.337,
+   "ours_wall_hi": 0.35,
+   "gh_wall": 0.819,
+   "gh_wall_lo": 0.815,
+   "gh_wall_hi": 0.828,
+   "ratio_wall": 0.42124542124542125,
+   "ours_cpu": 0.41,
+   "ours_cpu_lo": 0.4,
+   "ours_cpu_hi": 0.41,
+   "gh_cpu": 1.2,
+   "gh_cpu_lo": 1.16,
+   "gh_cpu_hi": 1.23,
+   "ratio_cpu": 0.3416666666666667
+  }
+ ],
+ "raw": {
+  "starling-gnome": [
+   {
+    "file": "res-starling-gnome-1.txt",
+    "tests": {
+     "01_light_cells": [
+      0.5,
+      0.64
+     ],
+     "02_dense_cells": [
+      0.166,
+      0.21
+     ],
+     "03_sgr_fg": [
+      1.118,
+      2.25
+     ],
+     "04_sgr_truecolor": [
+      1.122,
+      2.25
+     ],
+     "05_unicode": [
+      0.608,
+      0.81
+     ],
+     "06_cursor_motion": [
+      0.046,
+      0.05
+     ],
+     "07_alt_screen": [
+      0.147,
+      0.18
+     ],
+     "08_scroll_region": [
+      0.338,
+      0.4
+     ],
+     "09_long_lines": [
+      0.179,
+      0.23
+     ],
+     "10_binary": [
+      0.337,
+      0.4
+     ]
+    },
+    "rss_kb": 284264
+   },
+   {
+    "file": "res-starling-gnome-2.txt",
+    "tests": {
+     "01_light_cells": [
+      0.473,
+      0.6
+     ],
+     "02_dense_cells": [
+      0.17,
+      0.22
+     ],
+     "03_sgr_fg": [
+      1.087,
+      2.18
+     ],
+     "04_sgr_truecolor": [
+      1.127,
+      2.27
+     ],
+     "05_unicode": [
+      0.605,
+      0.81
+     ],
+     "06_cursor_motion": [
+      0.049,
+      0.06
+     ],
+     "07_alt_screen": [
+      0.15,
+      0.2
+     ],
+     "08_scroll_region": [
+      0.357,
+      0.43
+     ],
+     "09_long_lines": [
+      0.191,
+      0.25
+     ],
+     "10_binary": [
+      0.345,
+      0.41
+     ]
+    },
+    "rss_kb": 345884
+   },
+   {
+    "file": "res-starling-gnome-3.txt",
+    "tests": {
+     "01_light_cells": [
+      0.478,
+      0.61
+     ],
+     "02_dense_cells": [
+      0.176,
+      0.24
+     ],
+     "03_sgr_fg": [
+      1.082,
+      2.17
+     ],
+     "04_sgr_truecolor": [
+      1.125,
+      2.24
+     ],
+     "05_unicode": [
+      0.62,
+      0.82
+     ],
+     "06_cursor_motion": [
+      0.054,
+      0.07
+     ],
+     "07_alt_screen": [
+      0.147,
+      0.2
+     ],
+     "08_scroll_region": [
+      0.326,
+      0.4
+     ],
+     "09_long_lines": [
+      0.188,
+      0.25
+     ],
+     "10_binary": [
+      0.35,
+      0.41
+     ]
+    },
+    "rss_kb": 404540
+   }
+  ],
+  "ghostty-gnome": [
+   {
+    "file": "res-ghostty-gnome-1.txt",
+    "tests": {
+     "01_light_cells": [
+      0.411,
+      0.73
+     ],
+     "02_dense_cells": [
+      0.316,
+      0.59
+     ],
+     "03_sgr_fg": [
+      1.145,
+      1.99
+     ],
+     "04_sgr_truecolor": [
+      1.153,
+      2.2
+     ],
+     "05_unicode": [
+      0.543,
+      0.99
+     ],
+     "06_cursor_motion": [
+      0.045,
+      0.07
+     ],
+     "07_alt_screen": [
+      0.394,
+      0.64
+     ],
+     "08_scroll_region": [
+      0.464,
+      0.75
+     ],
+     "09_long_lines": [
+      0.409,
+      0.77
+     ],
+     "10_binary": [
+      0.828,
+      1.23
+     ]
+    },
+    "rss_kb": 164468
+   },
+   {
+    "file": "res-ghostty-gnome-2.txt",
+    "tests": {
+     "01_light_cells": [
+      0.394,
+      0.71
+     ],
+     "02_dense_cells": [
+      0.308,
+      0.57
+     ],
+     "03_sgr_fg": [
+      1.163,
+      2.13
+     ],
+     "04_sgr_truecolor": [
+      1.155,
+      2.2
+     ],
+     "05_unicode": [
+      0.551,
+      1.0
+     ],
+     "06_cursor_motion": [
+      0.043,
+      0.08
+     ],
+     "07_alt_screen": [
+      0.388,
+      0.65
+     ],
+     "08_scroll_region": [
+      0.501,
+      0.84
+     ],
+     "09_long_lines": [
+      0.414,
+      0.79
+     ],
+     "10_binary": [
+      0.815,
+      1.16
+     ]
+    },
+    "rss_kb": 165072
+   },
+   {
+    "file": "res-ghostty-gnome-3.txt",
+    "tests": {
+     "01_light_cells": [
+      0.412,
+      0.75
+     ],
+     "02_dense_cells": [
+      0.316,
+      0.6
+     ],
+     "03_sgr_fg": [
+      1.134,
+      1.92
+     ],
+     "04_sgr_truecolor": [
+      1.184,
+      2.27
+     ],
+     "05_unicode": [
+      0.551,
+      1.0
+     ],
+     "06_cursor_motion": [
+      0.043,
+      0.07
+     ],
+     "07_alt_screen": [
+      0.377,
+      0.61
+     ],
+     "08_scroll_region": [
+      0.468,
+      0.77
+     ],
+     "09_long_lines": [
+      0.403,
+      0.75
+     ],
+     "10_binary": [
+      0.819,
+      1.2
+     ]
+    },
+    "rss_kb": 165148
+   }
+  ]
+ }
+}

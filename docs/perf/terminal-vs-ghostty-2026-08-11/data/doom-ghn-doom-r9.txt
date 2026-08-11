@@ -1,0 +1,7 @@
+# ghn-doom-r9  terminal=3631427/ghostty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=0.486 fps=1234.57
+  cpu_s 0.70
+BENCHFPS frames=600 seconds=0.490 fps=1224.49
+  cpu_s 0.68
+BENCHFPS frames=600 seconds=0.494 fps=1214.57
+  cpu_s 0.69

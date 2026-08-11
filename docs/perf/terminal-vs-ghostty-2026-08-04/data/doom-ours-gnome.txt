@@ -1,0 +1,7 @@
+# ours-gnome  terminal=986140/TerminalApp  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.031 fps=581.96
+  cpu_s 2.26
+BENCHFPS frames=600 seconds=1.015 fps=591.13
+  cpu_s 2.18
+BENCHFPS frames=600 seconds=1.005 fps=597.01
+  cpu_s 2.21

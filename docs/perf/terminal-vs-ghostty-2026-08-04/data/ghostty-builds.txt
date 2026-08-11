@@ -1,0 +1,3 @@
+ghostty-1.3.0  = 1.3.0~us1-0ubuntu1 (Ubuntu resolute/universe, binary dated 2025-12-16)
+ghostty-nightly= 1.3.2-dev+48d85ea, built from the tip source tarball 2026-08-04, Zig 0.16.0, ReleaseFast
+both: app runtime .gtk, renderer OpenGL, libxev io_uring

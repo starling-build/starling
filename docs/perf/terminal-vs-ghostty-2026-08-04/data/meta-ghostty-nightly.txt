@@ -1,0 +1,4 @@
+label ghostty-nightly
+terminal_pid 948553
+terminal_comm ghostty
+grid 47x201

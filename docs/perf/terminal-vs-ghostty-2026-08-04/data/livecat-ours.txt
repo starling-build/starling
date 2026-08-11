@@ -1,0 +1,4 @@
+# ours term=1111674/TerminalApp grid=56x244
+wall 0.628  cpu 1.28  94.9 MB/s
+wall 0.643  cpu 1.30  92.8 MB/s
+wall 0.665  cpu 1.35  89.7 MB/s

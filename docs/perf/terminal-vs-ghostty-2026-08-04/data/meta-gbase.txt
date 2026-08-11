@@ -1,0 +1,4 @@
+label gbase
+terminal_pid 1220563
+terminal_comm TerminalApp
+grid 47x201

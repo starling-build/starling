@@ -1,0 +1,4 @@
+label longghn
+terminal_pid 3729217
+terminal_comm ghostty
+grid 62x238

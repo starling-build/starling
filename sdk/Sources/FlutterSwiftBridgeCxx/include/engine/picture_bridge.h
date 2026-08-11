@@ -87,7 +87,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// wraps the resulting SkImage in an ImageBridge for use from Swift.
   ///
   /// Returns nullptr if the surface cannot be created or the snapshot fails.
-  ImageBridge* ToImage(int width, int height) const;
+  ImageBridge* ToImage(int width, int height) const SWIFT_RETURNS_RETAINED;
 
   /// Whether Dispose() has been called.
   bool IsDisposed() const;

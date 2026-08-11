@@ -29,7 +29,17 @@ enum TerminalFont {
     static let fallbackFamily = "DejaVuSansMono"
     /// Every text style in the terminal carries this, so a glyph missing from
     /// the primary family is looked up here instead of dropping out.
-    static let fallback = [fallbackFamily]
+    private(set) nonisolated(unsafe) static var fallback = [fallbackFamily]
+    /// The engine has NO system font fallback: a glyph missing from every
+    /// loaded family paints NOTHING — `cat` of CJK or emoji text rendered as
+    /// blank gaps while the cursor advanced correctly over the cells (the
+    /// emulator was right; there was simply no glyph to draw). Load the
+    /// system Noto CJK and Color Emoji faces as additional fallbacks when
+    /// present; mappedIfSafe keeps the 20 MB TTC out of our copy of RSS.
+    private static let systemFallbacks: [(path: String, family: String)] = [
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "NotoSansCJK"),
+        ("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "NotoColorEmoji"),
+    ]
     private nonisolated(unsafe) static var _registered = false
 
     @discardableResult
@@ -48,6 +58,16 @@ enum TerminalFont {
                 return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
             }
             ok = ok || success
+        }
+        for (path, family) in systemFallbacks {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
+                                       options: .mappedIfSafe) else { continue }
+            let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
+                guard let base = buffer.baseAddress else { return false }
+                let ptr = base.assumingMemoryBound(to: UInt8.self)
+                return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
+            }
+            if success { fallback.append(family) }
         }
         _registered = ok
         return ok
@@ -74,6 +94,9 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     /// Monospace cell metrics, measured once at startup.
     private var cellW: Double = 7.8
     private var cellH: Double = 17.0
+    /// Extra per-glyph advance when STARLING_CELL_W forces the cell width
+    /// away from the font's natural advance. 0 in normal operation.
+    private var _cellSpacing: Double = 0
 
     private let padding: Double = 8
 
@@ -144,10 +167,10 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         emulator.onResponse = { [weak self] text in
             self?.pty?.write(text)
         }
-        pty.onData = { [weak self] bytes in
+        pty.onData = { [weak self] bytes, count in
             guard let self = self else { return }
             self._lock.lock()
-            self.emulator.feed(bytes)
+            self.emulator.feed(bytes, count: count)
             self._lock.unlock()
             self._scheduleRepaint()
         }
@@ -178,7 +201,13 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
     }
 
+    /// Diagnostic only (see test/bench/core/README.md): suppress all repaints
+    /// to split parse cost from render cost in live runs. Not a shipping knob.
+    private static let _benchNoRepaint =
+        ProcessInfo.processInfo.environment["STARLING_BENCH_NOREPAINT"] != nil
+
     private func _scheduleRepaint() {
+        if Self._benchNoRepaint { return }
         _lock.lock()
         let alreadyPending = _updatePending
         _updatePending = true
@@ -383,6 +412,18 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         }
         if painter.height > 0 {
             cellH = painter.height
+        }
+        // Bench knob (see test/bench/core/README.md): force the cell width.
+        // Two terminals given the same font at the same size can still land
+        // different grids because their font stacks round the advance
+        // differently (freetype hints Roboto Mono 13px to 8.0; our shaper
+        // keeps the fractional 7.8). Glyphs keep their natural advance; the
+        // difference is made up with letterSpacing so runs stay on the
+        // forced grid. Not a shipping knob.
+        if let v = ProcessInfo.processInfo.environment["STARLING_CELL_W"],
+           let forced = Double(v), forced > 0, cellW > 0 {
+            _cellSpacing = forced - cellW
+            cellW = forced
         }
     }
 
@@ -759,6 +800,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
             fontSize: TermTheme.fontSize,
             fontWeight: style.attrs.contains(.bold) ? .w700 : .normal,
             fontStyle: style.attrs.contains(.italic) ? .italic : .normal,
+            letterSpacing: _cellSpacing == 0 ? nil : _cellSpacing,
             decoration: style.attrs.contains(.underline) ? .underline : nil,
             fontFamily: TerminalFont.family,
             fontFamilyFallback: TerminalFont.fallback

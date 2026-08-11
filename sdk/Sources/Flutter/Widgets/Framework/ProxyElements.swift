@@ -115,14 +115,32 @@ open class InheritedElement: ProxyElement {
         super.init(widget)
     }
 
-    /// The set of dependents, mapping element identity to a tuple of the
-    /// actual element reference and an optional dependency value.
-    ///
-    /// We store the element reference alongside the ObjectIdentifier key so
-    /// that `notifyClients` can iterate over actual `Element` instances.
+    /// One dependent registration. The element reference is `weak`, and that
+    /// is load bearing: an InheritedElement is long-lived (the app's theme
+    /// lives as long as the app), and upstream relies on `deactivate()`
+    /// unregistering every dependent — which requires recursive deactivation
+    /// this port does not do. With a strong reference here, every element
+    /// that ever depended on an inherited widget was pinned by the live
+    /// theme after its subtree was dropped, together with its widget and the
+    /// widget's whole span tree — measured at ~5 MB per styled dump in the
+    /// terminal (heaptrack: 34.5 MB of TextSpans over 7 passes, all rooted
+    /// in dead-but-retained Text elements). Weak registration is the ARC
+    /// equivalent of Dart's collectable back-reference: a freed dependent
+    /// simply reads nil and is purged on the next notify.
+    internal final class _DependentEntry {
+        weak var element: Element?
+        var value: AnyObject?
+        init(_ element: Element, _ value: AnyObject?) {
+            self.element = element
+            self.value = value
+        }
+    }
+
+    /// The set of dependents, mapping element identity to the (weakly held)
+    /// element and an optional dependency value.
     ///
     /// **Dart Source:** `packages/flutter/lib/src/widgets/framework.dart:6211`
-    internal var _dependents: [ObjectIdentifier: (element: Element, value: AnyObject?)] = [:]
+    internal var _dependents: [ObjectIdentifier: _DependentEntry] = [:]
 
     // MARK: - Inheritance
 
@@ -151,7 +169,7 @@ open class InheritedElement: ProxyElement {
     ///
     /// **Dart Source:** `packages/flutter/lib/src/widgets/framework.dart:6225`
     open func setDependencies(_ dependent: Element, _ value: AnyObject?) {
-        _dependents[ObjectIdentifier(dependent)] = (element: dependent, value: value)
+        _dependents[ObjectIdentifier(dependent)] = _DependentEntry(dependent, value)
     }
 
     /// Called when a dependent is added or updated.
@@ -199,8 +217,16 @@ open class InheritedElement: ProxyElement {
     /// **Dart Source:** `packages/flutter/lib/src/widgets/framework.dart:6249`
     open override func notifyClients(_ oldWidget: ProxyWidget) {
         let oldInherited = oldWidget as! InheritedWidget
-        for (_, entry) in _dependents {
-            notifyDependent(oldInherited, entry.element)
+        // Purge entries whose dependent has been freed (weak ref reads nil),
+        // so the registration map cannot grow without bound either.
+        var dead: [ObjectIdentifier] = []
+        for (id, entry) in _dependents {
+            if let element = entry.element {
+                notifyDependent(oldInherited, element)
+            } else {
+                dead.append(id)
+            }
         }
+        for id in dead { _dependents.removeValue(forKey: id) }
     }
 }

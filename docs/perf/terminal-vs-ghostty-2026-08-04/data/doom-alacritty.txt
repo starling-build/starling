@@ -1,0 +1,7 @@
+# alacritty  terminal=989914/alacritty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=0.737 fps=814.11
+  cpu_s 0.80
+BENCHFPS frames=600 seconds=0.698 fps=859.60
+  cpu_s 0.75
+BENCHFPS frames=600 seconds=0.718 fps=835.65
+  cpu_s 0.78

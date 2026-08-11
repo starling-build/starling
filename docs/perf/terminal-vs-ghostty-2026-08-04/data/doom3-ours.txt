@@ -1,0 +1,19 @@
+# ours term=1035474/TerminalApp grid=56x244 frames=600
+utf8sgr BENCHFPS frames=600 seconds=1.311 fps=457.67
+  cpu_s 3.13
+utf8sgr BENCHFPS frames=600 seconds=1.309 fps=458.37
+  cpu_s 3.05
+utf8sgr BENCHFPS frames=600 seconds=1.294 fps=463.68
+  cpu_s 3.05
+asciisgr BENCHFPS frames=600 seconds=1.225 fps=489.80
+  cpu_s 3.14
+asciisgr BENCHFPS frames=600 seconds=1.207 fps=497.10
+  cpu_s 3.12
+asciisgr BENCHFPS frames=600 seconds=1.210 fps=495.87
+  cpu_s 3.07
+nosgr BENCHFPS frames=600 seconds=0.197 fps=3045.69
+  cpu_s 0.64
+nosgr BENCHFPS frames=600 seconds=0.198 fps=3030.30
+  cpu_s 0.63
+nosgr BENCHFPS frames=600 seconds=0.202 fps=2970.30
+  cpu_s 0.61

@@ -167,7 +167,19 @@ internal class TextLayout {
     // Computing plainText is a bit expensive and is currently not needed for
     // simple static text. Pass in the entire text painter so `TextPainter.plainText`
     // is only called when needed.
-    private let _painter: TextPainter
+    //
+    // `unowned`, and that is load bearing. This back-reference closes a strong
+    // cycle the painter itself completes: TextPainter._layoutCache →
+    // TextPainterLayoutCacheWithOffset.layout → TextLayout._painter →
+    // TextPainter. Dart's GC collects cycles so upstream can hold this
+    // strongly; under ARC it made every laid-out TextPainter immortal unless
+    // something explicitly called dispose()/markNeedsLayout() to nil the
+    // cache — which is exactly the ~20 MB/styled-dump terminal leak
+    // (docs/perf/terminal-vs-ghostty-2026-08-04/): paragraphs made 150 /
+    // freed 9, painters freed 0. Unowned rather than weak because a
+    // TextLayout is only reachable through its painter's _layoutCache, so the
+    // painter is always alive while any method here can run.
+    private unowned let _painter: TextPainter
 
     // This field is not final because the owner TextPainter could create a new
     // Paragraph with the exact same text layout (for example, when only the

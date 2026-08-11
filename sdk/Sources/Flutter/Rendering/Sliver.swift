@@ -1296,7 +1296,9 @@ open class SliverLogicalContainerParentData: SliverLogicalParentData,
     ContainerParentDataProtocol
 {
     /// The previous sibling in the parent's child list.
-    public var previousSibling: RenderSliver?
+    /// `weak`: back-pointer only — see ContainerBoxParentData.previousSibling
+    /// for why a strong one leaks whole dropped child lists under ARC.
+    public weak var previousSibling: RenderSliver?
 
     /// The next sibling in the parent's child list.
     public var nextSibling: RenderSliver?
@@ -1374,7 +1376,9 @@ open class SliverPhysicalContainerParentData: SliverPhysicalParentData,
     ContainerParentDataProtocol
 {
     /// The previous sibling in the parent's child list.
-    public var previousSibling: RenderSliver?
+    /// `weak`: back-pointer only — see ContainerBoxParentData.previousSibling
+    /// for why a strong one leaks whole dropped child lists under ARC.
+    public weak var previousSibling: RenderSliver?
 
     /// The next sibling in the parent's child list.
     public var nextSibling: RenderSliver?

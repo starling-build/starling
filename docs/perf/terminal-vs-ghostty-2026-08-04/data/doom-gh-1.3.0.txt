@@ -1,0 +1,7 @@
+# gh-1.3.0  terminal=988547/ghostty  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=1.166 fps=514.58
+  cpu_s 2.21
+BENCHFPS frames=600 seconds=1.152 fps=520.83
+  cpu_s 2.17
+BENCHFPS frames=600 seconds=1.154 fps=519.93
+  cpu_s 2.18

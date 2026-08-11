@@ -1,0 +1,1056 @@
+<meta charset="utf-8">
+<title>Starling's terminal against Ghostty — ten workloads, three runs each</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #fafbfc; --panel: #f1f3f6; --line: #d9dde3; --grid: #e6e9ee;
+    --ink: #171a1e; --ink-2: #565b63; --ink-3: #8a9099;
+    --c-star: #2a78d6; --c-gh: #7b52cc;
+    --c-star-soft: #2a78d61f; --warnbg: #fdf6ec; --warnline: #eda10055;
+    --c-bad: #c2410c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --paper: #16181b; --panel: #1d2024; --line: #33383f; --grid: #23272c;
+      --ink: #e8eaed; --ink-2: #a6adb6; --ink-3: #767d86;
+      --c-star: #3987e5; --c-gh: #9a7cf0;
+      --c-star-soft: #3987e526; --warnbg: #221d12; --warnline: #c9850055;
+      --c-bad: #f0763f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #16181b; --panel: #1d2024; --line: #33383f; --grid: #23272c;
+    --ink: #e8eaed; --ink-2: #a6adb6; --ink-3: #767d86;
+    --c-star: #3987e5; --c-gh: #9a7cf0;
+    --c-star-soft: #3987e526; --warnbg: #221d12; --warnline: #c9850055;
+    --c-bad: #f0763f;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --paper: #fafbfc; --panel: #f1f3f6; --line: #d9dde3; --grid: #e6e9ee;
+    --ink: #171a1e; --ink-2: #565b63; --ink-3: #8a9099;
+    --c-star: #2a78d6; --c-gh: #7b52cc;
+    --c-star-soft: #2a78d61f; --warnbg: #fdf6ec; --warnline: #eda10055;
+    --c-bad: #c2410c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 17px/1.65 Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  .prose { max-width: 70ch; }
+  h1, h2, h3 {
+    font-family: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.2; text-wrap: balance; letter-spacing: -0.01em;
+  }
+  h1 { font-size: 34px; font-weight: 650; margin: 10px 0 14px; }
+  h2 { font-size: 22px; font-weight: 650; margin: 56px 0 12px; }
+  h3 { font-size: 17px; font-weight: 650; margin: 28px 0 8px; }
+  p { margin: 0 0 14px; }
+  a { color: var(--c-star); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  .eyebrow {
+    font-family: system-ui, sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2);
+  }
+  .standfirst { font-size: 19px; color: var(--ink-2); max-width: 60ch; }
+  .meta {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+    font-size: 12.5px; color: var(--ink-3); margin-top: 18px;
+    display: flex; flex-wrap: wrap; gap: 6px 22px; padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  code, .mono {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+    font-size: 0.86em; font-variant-numeric: tabular-nums;
+  }
+  code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 34px 0 8px; }
+  @media (max-width: 640px) { .tiles { grid-template-columns: 1fr; } }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px 14px; }
+  .tile .who { font-family: system-ui, sans-serif; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .dotk { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .tile .big {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums;
+    font-size: 34px; font-weight: 600; line-height: 1.1; margin: 8px 0 2px; letter-spacing: -0.02em;
+  }
+  .tile .sub { font-family: system-ui, sans-serif; font-size: 12.5px; color: var(--ink-2); }
+  .tile.hero { background: var(--c-star-soft); border-color: color-mix(in srgb, var(--c-star) 45%, var(--line)); }
+  .tile.warn { background: var(--warnbg); border-color: var(--warnline); }
+  .tile.warn .big { color: var(--c-bad); }
+
+  figure { margin: 30px 0 8px; }
+  .figbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 10px; overflow-x: auto; }
+  figcaption { font-family: system-ui, sans-serif; font-size: 13px; color: var(--ink-2); margin: 10px 4px 0; max-width: 78ch; }
+  .figtitle { font-family: system-ui, sans-serif; font-weight: 650; font-size: 14.5px; margin: 0 0 2px; }
+  .figunit { font-family: system-ui, sans-serif; font-size: 12px; color: var(--ink-3); margin: 0 0 10px; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .lanelab { font-family: system-ui, sans-serif !important; font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .axis { font-size: 11px; fill: var(--ink-3); }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .zeroline { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; }
+  .vallab { font-size: 11.5px; fill: var(--ink-2); }
+  .pt { stroke: var(--panel); stroke-width: 2; }
+  .f-star { fill: var(--c-star); } .f-gh { fill: var(--c-gh); }
+  .s-star { stroke: var(--c-star); } .s-gh { stroke: var(--c-gh); }
+  .rangebar { stroke: var(--ink-3); stroke-width: 1.5; opacity: 0.55; }
+
+  .key { display: flex; gap: 18px; font-family: system-ui, sans-serif; font-size: 12.5px;
+         color: var(--ink-2); margin: 0 0 12px; flex-wrap: wrap; }
+  .key span { display: flex; align-items: center; gap: 7px; }
+
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--ink); color: var(--paper); font-family: system-ui, sans-serif;
+    font-size: 12.5px; padding: 6px 9px; border-radius: 6px; max-width: 260px; line-height: 1.4;
+  }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  th { font-family: system-ui, sans-serif; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+  td { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
+  td.t { font-family: system-ui, sans-serif; font-size: 13.5px; }
+  td.win { color: var(--c-star); } td.loss { color: var(--c-bad); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .tablewrap table { margin: 0; } .tablewrap th { background: var(--panel); }
+
+  .callout { background: var(--warnbg); border: 1px solid var(--warnline); border-radius: 10px; padding: 14px 18px; margin: 20px 0; font-size: 15.5px; }
+  .callout .mono { font-size: 13px; }
+  ul { padding-left: 22px; } li { margin-bottom: 8px; }
+  .cite { color: var(--ink-3); font-size: 0.82em; font-family: ui-monospace, Menlo, monospace; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Starling Desktop · Performance Report</div>
+    <h1>Starling&rsquo;s terminal against Ghostty</h1>
+    <p class="standfirst">Ten throughput workloads, three runs each, at an identical 47×201 grid.
+      Against the Ghostty in Ubuntu&rsquo;s archive, TerminalApp wins the suite. Against
+      Ghostty&rsquo;s <em>nightly</em>, built from today&rsquo;s source, it does not: the nightly is
+      1.43× faster than the shipped build, and against the Swift TerminalApp it won the suite
+      3.998 s to 4.535 s. Moving our emulator core from Swift to C reversed that: <b>2.618 s
+      against 3.998 s, on half the CPU</b>.
+      Ghostty&rsquo;s own three published tests are reproduced here across five terminals, where
+      the headline holds and TerminalApp comes second on ASCII, third on DOOM-Fire and last on
+      Unicode. Memory remains our clear loss, and it does not stop climbing.</p>
+    <div class="meta">
+      <span>2026-08-04</span>
+      <span>Ubuntu 26.04 · kernel 7.0.0-28</span>
+      <span>Ryzen 7 8845HS · Radeon 780M</span>
+      <span>3840×2160 @ scale 2.0</span>
+      <span>Ghostty 1.3.0~us1 (Ubuntu) + nightly 1.3.2-dev+48d85ea</span>
+      <span>Starling main@e185737</span>
+      <span>GNOME Shell 50.1 (Wayland)</span>
+    </div>
+  </header>
+
+  <div class="tiles" role="group" aria-label="Headline results">
+    <div class="tile hero">
+      <div class="who"><span class="dotk" style="background:var(--c-star)"></span>vs Ghostty nightly</div>
+      <div class="big">0.65&times;</div>
+      <div class="sub">2.62 s against its 3.998 s, and half the CPU (0.52×) —
+        after moving the emulator core to C. Was 1.13× <em>behind</em> in Swift.</div>
+    </div>
+    <div class="tile hero">
+      <div class="who"><span class="dotk" style="background:var(--c-star)"></span>Core rewrite</div>
+      <div class="big">2.7&times;</div>
+      <div class="sub">live app throughput on the DOOM stream, 92 → 250 MB/s,
+        on 2.8× less CPU</div>
+    </div>
+    <div class="tile warn">
+      <div class="who"><span class="dotk" style="background:var(--c-bad)"></span>Memory</div>
+      <div class="big">+25 MB</div>
+      <div class="sub">per pass of <span class="mono">sgr_fg</span>, indefinitely ·
+        both Ghostty builds stay flat (160 / 175 MB)</div>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h2>1 · The measurement</h2>
+    <p>The harness is the one already in the tree at <code>test/bench/</code>. Each workload is a
+      pre-generated file (419 MB of corpus in total) that the runner <code>cat</code>s into the
+      terminal it is running inside; the page cache is warmed first, so no test pays for disk and
+      the producer costs the same on both sides. The runner reads the terminal&rsquo;s own
+      <code>utime+stime</code> out of <code>/proc</code> around each <code>cat</code>, which is
+      why CPU can be attributed to the terminal rather than guessed at.</p>
+    <p>Three consecutive suites per terminal per desktop, every run in the table in §7. The
+      spread is small enough that the ranking never depends on which run you pick: the widest
+      run-to-run spread on any single workload is 7.8%, and most are under 3%.</p>
+    <p>It was measured twice, because the first round had a flaw. <b>Round 1</b> ran both
+      terminals in a Starling session as the unprivileged session user
+      (<span class="mono">uid 1001</span>) through a real GDM login — but the two windows did not
+      get the same grid, which taxes the cell-bound workloads unequally. <b>Round 2</b> removed
+      that: TerminalApp was built against the engine&rsquo;s GTK embedder
+      (<span class="mono">libflutter_linux_gtk</span>, <code>FlView</code> in a
+      <code>GtkWindow</code>) so it runs as an ordinary Wayland client, and both terminals were
+      then run in a GNOME session pinned to an <b>identical 47×201 grid</b>. Round 2 is the
+      headline number; Round 1 is kept because it is what motivated Round 2.</p>
+
+    <div class="callout">
+      <b>The grid is the thing to control for.</b> In Round 1 Ghostty&rsquo;s window came to
+      <span class="mono">45&times;201</span> (9,045 cells) and TerminalApp&rsquo;s to
+      <span class="mono">52&times;241</span> (12,532) — <b>39% more cells</b>, because its bundled
+      RobotoMono sets a smaller cell than Ghostty&rsquo;s default face at the same window size.
+      Every row-sized and frame-sized cost (scroll fills, blank-row memmoves, rows repainted per
+      frame) scales with that, while parse-bound cost does not, so no single correction factor
+      fixes it. In Round 2 both were pinned to <span class="mono">47&times;201</span> — Ghostty
+      maximised, TerminalApp given a window sized to land on the same grid — and every grid read
+      with <code>stty size</code> from inside the terminal itself. Nothing below needs adjusting.
+    </div>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">Round 1 · Wall time per workload, Starling session — lower is better</p>
+      <p class="figunit">seconds to drain the workload · bar = median of 3 runs · whisker = min–max ·
+        grids 52×241 (ours) vs 45×201 (Ghostty)</p>
+      <div class="key">
+        <span><span class="dotk" style="background:var(--c-star)"></span>Starling TerminalApp</span>
+        <span><span class="dotk" style="background:var(--c-gh)"></span>Ghostty 1.3.0-dev</span>
+      </div>
+      <svg id="fig-wall" viewBox="0 0 820 470" role="img" aria-label="Grouped bar chart of wall time per workload. TerminalApp is faster on nine of ten workloads; the largest margins are binary, long_lines, alt_screen and dense_cells."></svg>
+    </div>
+    <figcaption><b>Fig 1.</b> TerminalApp leads on nine of ten. The margins are widest where whole
+      rows move at once — <span class="mono">binary</span> 3.0&times;,
+      <span class="mono">alt_screen</span> 2.7&times;, <span class="mono">long_lines</span> 2.6&times;,
+      <span class="mono">dense_cells</span> 2.1&times; — which is the printable-run fast path
+      (<span class="mono">a6e5042</span>) doing its job. The one loss, <span class="mono">cursor_motion</span>, is
+      49 ms against 46 ms: a 3 ms difference on a workload both terminals finish in under a
+      twentieth of a second.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">Round 1 · CPU consumed per workload, Starling session — lower is better</p>
+      <p class="figunit">CPU-seconds (utime+stime) charged to the terminal process · bar = median of 3 · whisker = min–max ·
+        unequal grids</p>
+      <div class="key">
+        <span><span class="dotk" style="background:var(--c-star)"></span>Starling TerminalApp</span>
+        <span><span class="dotk" style="background:var(--c-gh)"></span>Ghostty 1.3.0-dev</span>
+      </div>
+      <svg id="fig-cpu" viewBox="0 0 820 470" role="img" aria-label="Grouped bar chart of CPU seconds per workload. TerminalApp is cheaper on eight of ten; Ghostty is cheaper on the two SGR workloads."></svg>
+    </div>
+    <figcaption><b>Fig 2.</b> The picture is the same except at the two SGR workloads, where
+      Ghostty is the cheaper of the two: <span class="mono">sgr_fg</span> 2.75 CPU-s against 2.00
+      (we cost 1.38&times;), <span class="mono">sgr_truecolor</span> 2.85 against 2.35 (1.21&times;).
+      Both are wall-time <em>wins</em> for us, so the extra CPU is buying parallelism, not
+      latency — but it is real, and it is the only workload class where Ghostty&rsquo;s engine is
+      plainly more efficient per byte.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h2>2 · Round 1 — where the margins come from</h2>
+    <p>The suite splits cleanly into two regimes. On <b>bulk text</b> — dense rows, autowrapped
+      long lines, alt-screen repaints, region scrolling, random bytes — TerminalApp is between
+      1.6&times; and 3.0&times; faster and uses a quarter to a half the CPU. This is the run-based
+      write path: scan forward for a span of plain printable ASCII and fill it through one
+      <code>withUnsafeMutableBufferPointer</code>, instead of paying Swift&rsquo;s exclusivity and
+      copy-on-write checks per character.</p>
+    <p>On <b>escape-heavy</b> input the two converge. <span class="mono">sgr_fg</span> and
+      <span class="mono">sgr_truecolor</span> put an SGR sequence in front of every single cell,
+      which defeats the run scanner by construction — there is never a run longer than one
+      character. What is left is the CSI parser and the per-cell style resolution, and there
+      Ghostty&rsquo;s costs less CPU than ours. We still finish those two workloads slightly
+      sooner in wall-clock (1.11 s vs 1.19 s; 1.14 s vs 1.25 s), because the repaint cap keeps the
+      render thread from serialising behind the parser, but we spend ~38% more CPU to do it.</p>
+    <p><span class="mono">cursor_motion</span> is the only wall-time loss and it is not worth
+      chasing: 400,000 cursor addressings land in 49 ms for us and 46 ms for Ghostty, and our
+      cost per addressing is below the timer resolution the harness can honestly report.</p>
+
+    <h2>3 · Round 2 — GNOME, at an identical grid</h2>
+    <p>TerminalApp&rsquo;s widget tree is host-neutral: <code>runStarlingApp</code> composites as a
+      DMA-BUF child when the shell&rsquo;s socket is in the environment, and otherwise hands off to
+      a windowed host. Linking the SDK&rsquo;s <span class="mono">FlutterGTK</span> and calling
+      <code>GTKWindowedHost.install()</code> gives it the engine&rsquo;s GTK embedder, so the same
+      terminal sources run as an ordinary GTK3 Wayland client. That build is opt-in
+      (<span class="mono">STARLING_APP_GTK=1</span>) and the shipped binary&rsquo;s link set is
+      unchanged — GTK appears in one and not the other.</p>
+    <p>With both terminals on GNOME Shell 50.1 (Wayland) at <b>47×201</b>, TerminalApp takes
+      <b>4.54 s / 7.39 CPU-s</b> against Ghostty&rsquo;s <b>5.71 s / 9.96</b> — 0.79× the wall
+      time and 0.74× the CPU, ahead on 7 of 10 workloads and cheaper on 8.</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">Round 2 · GNOME, identical 47×201 grid — lower is better</p>
+      <p class="figunit">seconds to drain the workload · bar = median of 3 runs · whisker = min–max</p>
+      <div class="key">
+        <span><span class="dotk" style="background:var(--c-star)"></span>TerminalApp (GTK embedder)</span>
+        <span><span class="dotk" style="background:var(--c-gh)"></span>Ghostty 1.3.0-dev</span>
+      </div>
+      <svg id="fig-gwall" viewBox="0 0 820 470" role="img" aria-label="Grouped bar chart of wall time per workload on GNOME at a matched grid. TerminalApp leads on seven of ten; Ghostty leads on light_cells, unicode and cursor_motion."></svg>
+    </div>
+    <figcaption><b>Fig 3.</b> Equalising the grid changes the picture in both directions, which is
+      the point of doing it. The bulk-text margins survive intact —
+      <span class="mono">alt_screen</span> 2.6&times;, <span class="mono">binary</span> 2.4&times;,
+      <span class="mono">long_lines</span> 2.2&times;, <span class="mono">dense_cells</span>
+      1.9&times;. But three workloads TerminalApp nominally won in Round 1 flip to Ghostty once it
+      no longer has 39% more cells to push: <span class="mono">light_cells</span> (1.16&times;),
+      <span class="mono">cursor_motion</span> (1.14&times;) and <span class="mono">unicode</span>
+      (1.10&times;). Those were grid artefacts, not wins.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">Round 2 · CPU on GNOME, identical grid — lower is better</p>
+      <p class="figunit">CPU-seconds charged to the terminal process · bar = median of 3 · whisker = min–max</p>
+      <div class="key">
+        <span><span class="dotk" style="background:var(--c-star)"></span>TerminalApp (GTK embedder)</span>
+        <span><span class="dotk" style="background:var(--c-gh)"></span>Ghostty 1.3.0-dev</span>
+      </div>
+      <svg id="fig-gcpu" viewBox="0 0 820 470" role="img" aria-label="Grouped bar chart of CPU per workload on GNOME at a matched grid. TerminalApp is cheaper on eight of ten; the SGR workloads are near parity."></svg>
+    </div>
+    <figcaption><b>Fig 4.</b> The CPU gap on the SGR workloads — Round 1&rsquo;s clearest loss at
+      1.38&times; and 1.21&times; — <b>largely disappears at a matched grid</b>:
+      <span class="mono">sgr_fg</span> falls to 1.10&times; and
+      <span class="mono">sgr_truecolor</span> to 1.02&times;. Most of what looked like a parser
+      deficit was TerminalApp repainting a third more cells. What remains is a real but small
+      edge to Ghostty on per-cell SGR.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h2>4 · What the compositor costs — the same binary on both desktops</h2>
+    <p>Ghostty is one unmodified binary, so running it on both desktops isolates the compositor
+      cleanly in a way TerminalApp cannot (its two builds use different embedders). Across the
+      suite Ghostty is <b>1.11× slower in wall time and uses 1.08× the CPU under Starling</b> than
+      under GNOME — 6.33 s / 10.77 CPU-s against 5.71 s / 9.96. The cost is spread over every
+      workload (1.04–1.13×) and concentrated in <span class="mono">binary</span>, at 1.31×.</p>
+    <p>Two things make that a floor rather than a ceiling. Ghostty&rsquo;s GNOME grid was
+      <em>larger</em> (47×201 against 45×201, 4.4% more cells), so the comparison is tilted
+      against GNOME and it still won. And the CPU charged to Ghostty excludes whatever the
+      compositor itself spends — this is what the client pays, not what the system pays.
+      Starling asks about 10% more of a Wayland client than mutter does under this workload.</p>
+    <p>For TerminalApp the equivalent run is confounded: on Starling the GTK build is handed a
+      56×244 grid by the compositor (it sizes clients itself), against 47×201 on GNOME, so the
+      two are not comparable directly. What it does show is that the <b>GTK embedder costs
+      TerminalApp little</b> — 4.87 s / 8.62 CPU-s at 13,664 cells through GTK on Starling, against
+      4.51 s / 8.15 at 12,532 cells through the native DMA-BUF path on the same compositor: about
+      9% more cells for about 8% more wall time.</p>
+
+    <h2>5 · Round 3 — Ghostty&rsquo;s nightly, and the end of the lead</h2>
+    <p>Rounds 1 and 2 measured <span class="mono">ghostty 1.3.0~us1-0ubuntu1</span>, the build in
+      Ubuntu&rsquo;s archive — <b>dated 2025-12-16, seven and a half months old</b>. In the
+      meantime Ghostty&rsquo;s maintainer announced large IO-throughput gains landing in
+      libghostty. That makes the first two rounds a comparison against a stale opponent, so the
+      nightly was built from the <span class="mono">tip</span> source tarball published the same
+      day as this report (<span class="mono">1.3.2-dev+48d85ea</span>, Zig 0.16.0, ReleaseFast) —
+      the same app runtime, renderer and event loop as the packaged build, so the only variable
+      is the seven months of work.</p>
+    <p>The claim holds. On this machine the nightly takes the suite in <b>3.998 s</b> against the
+      shipped build&rsquo;s 5.705 — <b>1.43× faster overall</b>, and far more than that on
+      individual workloads: <span class="mono">alt_screen</span> 4.7×,
+      <span class="mono">long_lines</span> 3.8×, <span class="mono">sgr_truecolor</span> 2.0×,
+      <span class="mono">unicode</span> 1.9×.</p>
+    <p>And it takes the lead from us. Against the nightly, TerminalApp is <b>1.13× slower on wall
+      time</b> (4.535 s vs 3.998) and ahead on exactly one workload of ten. CPU is close to
+      parity — 7.39 CPU-s against 7.19, or 1.03× — so we are not paying more to lose; we are
+      simply no longer faster.</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">Round 3 · TerminalApp against Ghostty nightly, 47×201 — lower is better</p>
+      <p class="figunit">seconds to drain the workload · bar = median of 3 runs · whisker = min–max</p>
+      <div class="key">
+        <span><span class="dotk" style="background:var(--c-star)"></span>TerminalApp</span>
+        <span><span class="dotk" style="background:var(--c-gh)"></span>Ghostty nightly (1.3.2-dev+48d85ea)</span>
+      </div>
+      <svg id="fig-nwall" viewBox="0 0 820 470" role="img" aria-label="Grouped bar chart: Ghostty nightly leads TerminalApp on nine of ten workloads; TerminalApp leads only on binary, and by a large margin."></svg>
+    </div>
+    <figcaption><b>Fig 5.</b> The nightly leads everywhere except
+      <span class="mono">binary</span> — where it is not merely behind but <b>1.64× slower than
+      the shipped 1.3.0</b> (1.341 s against 0.819), and 3.9× slower than TerminalApp. That is a
+      regression in the new code on the parser&rsquo;s worst case: 30 MB of random bytes salted
+      with stray <span class="mono">ESC</span> and <span class="mono">[</span>. It is consistent
+      across all three runs (1.339–1.381 s) and reproduces on the 1.3.0 build as a clean win,
+      so it is not measurement noise. Everything the announcement claims is real; this looks like
+      its cost.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3>Their three published tests, reproduced across five terminals</h3>
+    <p>The announcement runs three tests: <code>time cat 150MB_ascii.txt</code>,
+      <code>time cat 150MB_unicode.txt</code>, and <span class="mono">DOOM-Fire-Zig</span>. All
+      three are below, on five terminals, all at 47×201, median of 3 runs. The corpora are not
+      published so the two <code>cat</code> files are reconstructions of the same size and shape;
+      absolute seconds therefore are not comparable to their machine, only the ordering and
+      ratios measured here.</p>
+    <p><span class="mono">DOOM-Fire-Zig</span> renders until a key is pressed and prints a running
+      average to the screen. It was patched in two places (marked <span class="mono">BENCH</span>
+      in <span class="mono">src/main.zig</span>) to stop after a fixed 600 frames and report on
+      <b>stderr</b> — <em>stdout, the byte stream the terminal actually renders, is unchanged</em>,
+      and every terminal is asked for exactly the same frame count, so fps is a clean function of
+      how fast each drains and draws it.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Terminal</th>
+            <th>ASCII 150 MB</th><th>CPU</th>
+            <th>Unicode 150 MB</th><th>CPU</th>
+            <th>DOOM-Fire</th><th>CPU</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="t">Ghostty nightly</td>
+            <td class="win">0.738 s</td><td>1.47</td>
+            <td class="win">0.692 s</td><td>1.54</td>
+            <td class="win">1012 fps</td><td>1.33</td></tr>
+        <tr><td class="t">TerminalApp</td>
+            <td>0.840 s</td><td class="win">1.11</td>
+            <td class="loss">1.567 s</td><td>2.33</td>
+            <td>591 fps</td><td>2.21</td></tr>
+        <tr><td class="t">Alacritty 0.16.1</td>
+            <td>1.354 s</td><td>1.42</td>
+            <td>1.124 s</td><td class="win">1.17</td>
+            <td>836 fps</td><td class="win">0.78</td></tr>
+        <tr><td class="t">Kitty 0.45.0</td>
+            <td>1.250 s</td><td>1.59</td>
+            <td>1.295 s</td><td>1.50</td>
+            <td class="loss">354 fps</td><td>1.78</td></tr>
+        <tr><td class="t">Ghostty 1.3.0 (Ubuntu)</td>
+            <td class="loss">1.651 s</td><td>2.99</td>
+            <td class="loss">1.610 s</td><td>2.84</td>
+            <td>520 fps</td><td>2.18</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p><b>The headline reproduces.</b> Ghostty nightly is first on all three tests, and its margin
+      over the older Ghostty is the size claimed: 2.24× on ASCII, 2.33× on Unicode, 1.95× on
+      DOOM-Fire. On DOOM-Fire the published ordering reproduces exactly for the four terminals
+      both runs share — nightly &gt; Alacritty &gt; Ghostty-old &gt; Kitty — and our Ghostty 1.3.0
+      lands at 520 fps against their quoted 532 for 1.3.2, within 2%.</p>
+    <p><b>Two orderings differ from theirs</b>, worth flagging rather than glossing: on ASCII we
+      get Kitty ahead of Alacritty (1.250 s vs 1.354) where their table has the reverse, and our
+      Kitty DOOM-Fire number (354 fps) is well below their 485. Different machine, different
+      GPU, different corpus, and a fixed 47×201 grid rather than whatever window each opened
+      with — any of which can move a single result. The claim being tested is Ghostty&rsquo;s, and
+      that one holds.</p>
+    <p><b>Where TerminalApp lands.</b> Second on ASCII — within 14% of the nightly on wall while
+      using the <em>least CPU of any terminal here</em> (1.11 against 1.47). Third on DOOM-Fire,
+      ahead of both Kitty and the older Ghostty. But <b>last on Unicode</b>, behind even the
+      7-month-old Ghostty, at 2.3× the nightly and 1.4× Alacritty. That is the clearest signal in
+      this table: our UTF-8 decode path is the weak point, not our ASCII path, and it matches
+      <span class="mono">unicode</span> being one of our worst ratios in the main suite.</p>
+
+    <h3>Why DOOM-Fire is slow for us — measured, not guessed</h3>
+    <p>DOOM-Fire is an SGR torture test. Each cell is a 3-byte block glyph
+      (<span class="mono">U+2580</span>) preceded by 256-colour foreground and background
+      escapes whenever either changes, which in a fire animation is most cells: <b>13.5 bytes per
+      cell</b> against 3.0 for the glyph alone. A profile of TerminalApp during the run puts
+      <b>21.4% of its time in Swift runtime bookkeeping</b> — exclusivity checks 14.7%, ARC 4.6%,
+      copy-on-write uniqueness 2.2% — against 17.4% in the emulator&rsquo;s own parse-and-apply
+      work, with <span class="mono">_processCsi</span> the single hottest symbol at 6.2%.</p>
+    <p>To separate the ingredients, the same program was rebuilt twice: once with the glyph
+      changed to ASCII <span class="mono">#</span>, once with the colour escapes removed entirely.
+      Same frame count, same cell count, same everything else. In TerminalApp:</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Variant (600 frames, 56×244)</th><th>fps</th><th>CPU-s</th><th>KB/frame</th><th>Throughput</th></tr></thead>
+      <tbody>
+        <tr><td class="t">UTF-8 glyph + SGR <span class="mono">(upstream)</span></td>
+            <td>458</td><td>3.05</td><td>180.4</td><td class="loss">80.8 MB/s</td></tr>
+        <tr><td class="t">ASCII glyph + SGR</td>
+            <td>496</td><td>3.12</td><td>154.8</td><td class="loss">75.0 MB/s</td></tr>
+        <tr><td class="t">UTF-8 glyph, no SGR</td>
+            <td class="win">3030</td><td class="win">0.63</td><td>40.3</td><td class="win">119.2 MB/s</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p><b>It is not the Unicode.</b> Swapping the 3-byte glyph for ASCII buys 8% — the escapes are
+      what cost. And most of the raw fps difference is simply <em>volume</em>: the SGR stream is
+      4.5× more bytes per cell, so every terminal renders far fewer frames of it. Ghostty&rsquo;s
+      own fps drops 5.45× on the same comparison, close to our 6.6×.</p>
+    <p>The real gap shows only once you divide out the volume. <b>Ghostty sustains ~148 MB/s
+      whether the stream is plain glyphs or saturated with escapes — a 2.1% difference.
+      TerminalApp does 119 MB/s on plain glyphs but 81 MB/s once escapes are in it, losing
+      32%.</b> That is the defect: escape handling costs us a third of our throughput and costs
+      Ghostty essentially nothing. The profile says where it goes — an escape returns the parser
+      to ground state and breaks the printable-run fast path
+      (<span class="mono">a6e5042</span>), which only fires on runs of consecutive plain ASCII in
+      ground state. With an escape between cells every run collapses to length one, so each cell
+      pays the per-write exclusivity and COW checks that the run path exists to amortise, plus
+      the CSI parse itself.</p>
+    <p>Two consequences worth separating: we are also slower than Ghostty on the
+      <em>plain</em> stream (119 vs 148 MB/s), which is a straightforward per-cell write cost;
+      and we degrade on escapes where Ghostty does not, which is the fast-path collapse. The
+      second is the larger and the more fixable.</p>
+
+    <h3>How much is recoverable</h3>
+    <p>Replaying the captured stream through the emulator alone — no Flutter, no compositor —
+      isolates the core. There it runs at <b>122 MB/s</b>, and a profile with rendering out of
+      the picture puts <b>46.8% of its time in Swift runtime overhead</b>: dynamic exclusivity
+      checks 33.3%, ARC 7.4%, copy-on-write uniqueness 6.1%, against 43.2% doing the
+      emulator&rsquo;s own work. A C++ core covering the same hot path — flat array, per-character
+      writes, no fast path — was written to bound the ceiling. Both count cell writes, and on
+      this stream they agree to <b>54 writes in 3.81 million</b>, so they are demonstrably doing
+      the same work.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Emulator core, 59.7 MB DOOM-Fire stream, no rendering</th><th>Throughput</th><th>vs shipping</th></tr></thead>
+      <tbody>
+        <tr><td class="t">Swift <span class="mono">-O</span> — what ships today</td><td>122 MB/s</td><td>1.00×</td></tr>
+        <tr><td class="t">Swift, dynamic exclusivity checks off</td><td>180 MB/s</td><td>1.48×</td></tr>
+        <tr><td class="t">Swift <span class="mono">-Ounchecked</span>, exclusivity off</td><td>240 MB/s</td><td>1.97×</td></tr>
+        <tr><td class="t">C++ <span class="mono">-O2</span></td><td class="win">660 MB/s</td><td class="win">5.4×</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p>The two flag builds are not shipping proposals — they bound what a Swift-side restructure
+      (a flat grid plus a buffer pointer held across the feed loop, so length-one runs stop
+      re-paying exclusivity and COW) could recover: <b>about 2×</b>. Even with every safety check
+      disabled Swift stays 2.7× behind C++, so the rest is not checks at all — it is
+      <span class="mono">[[TermCell]]</span>&rsquo;s double indirection and codegen.</p>
+    <p>Whether any of that reaches the user is a separate question, and a crude serial model of
+      it gave the wrong answer. Measuring instead: the same captured stream was catted through
+      the live app at a fixed grid, once normally and once with repaints suppressed (the repaint
+      interval is a single constant), against the offline core on the same bytes and grid.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>59.7 MB stream, grid 56×244, median of 3</th><th>Wall</th><th>CPU</th><th>Throughput</th></tr></thead>
+      <tbody>
+        <tr><td class="t">Live app, normal</td><td>0.646 s</td><td>1.32 s</td><td>92 MB/s</td></tr>
+        <tr><td class="t">Live app, repaints suppressed</td><td>0.594 s</td><td class="win">0.59 s</td><td>100 MB/s</td></tr>
+        <tr><td class="t">Emulator core alone, offline</td><td>0.510 s</td><td>—</td><td>117 MB/s</td></tr>
+        <tr><td class="t">Ghostty nightly, same stream (45×201)</td><td class="win">0.384 s</td><td>0.81 s</td><td class="win">155 MB/s</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p><b>Rendering is not the bottleneck.</b> Turning it off saves <b>0.73 CPU-seconds but only
+      0.05 s of wall</b> — it is ~93% parallel with the parse, and costs 8% of the critical path.
+      That path is 79% emulator core (0.510 s of 0.646 s), with ~0.084 s of PTY and everything
+      else. So core work translates almost directly into user-visible time, and the earlier
+      serial estimate — which had rendering absorbing a third of any gain — was wrong.</p>
+    <p>Holding the non-core 0.136 s fixed: a <b>2× Swift restructure lands at ~0.39 s (153 MB/s)</b>,
+      roughly parity with Ghostty&rsquo;s 0.384 s on this stream. A <b>C core at 5.6× lands at
+      ~0.23 s (263 MB/s)</b>, about 1.7× ahead of it. Those are projections from a measured
+      decomposition rather than a guess, but they still assume the render tail stays parallel;
+      it consumes 0.73 CPU-s today, and at a 0.23 s wall that is ~3 cores of a 16-thread part, so
+      it should hold. The harness is in <span class="mono">test/bench/core/</span>.</p>
+    <p>On language: <b>C and C++ measure the same</b> here — 680 vs 670 MB/s on this stream,
+      1124 vs 1038 on the no-SGR one, with byte-identical checksums and cell-write counts. C is
+      the better fit regardless, because it is what this repo already speaks: 42
+      <span class="mono">.c</span> files to one <span class="mono">.cpp</span> in the shell, and
+      every SDK bridge target is C — including the one named
+      <span class="mono">FlutterSwiftBridgeCxx</span>. One detail if it is ever wired in for real:
+      Swift&rsquo;s <span class="mono">TermCell</span> is size 13, <b>stride 16</b>, offsets
+      0/4/8/12, and <span class="mono">CellAttrs.rawValue</span> is a
+      <span class="mono">UInt8</span> — so the C struct must be
+      <span class="mono">{ uint32_t scalar, fg, bg; uint8_t attrs; }</span>, not a
+      <span class="mono">uint32_t</span> field, or the two sides disagree about three bytes.</p>
+
+    <div class="callout">
+      <b>Not run, and why.</b> <b>iTerm2</b> and <b>Terminal.app</b> are macOS-only and cannot run
+      on this machine at all. <b>Warp</b> is not in Ubuntu&rsquo;s archive and its Linux build
+      requires an account sign-in, so it was not installed. And there is <b>no
+      <span class="mono">v1.3.2</span> tag</b> in the Ghostty repository — the newest release tag
+      is <span class="mono">v1.3.1</span>, and the nightly source self-reports
+      <span class="mono">1.3.2-dev</span>, so the announcement&rsquo;s &ldquo;1.3.2&rdquo; is a
+      main-branch development build that cannot be rebuilt from a released artifact. Ubuntu&rsquo;s
+      <span class="mono">1.3.0</span> stands in for it, and lands within 2% of their quoted 1.3.2
+      on the one test where a direct comparison is possible.
+    </div>
+
+    <h2>6 · The core, rewritten in C</h2>
+    <p>The decomposition above said the emulator core was 79% of the critical path and that
+      rendering was ~93% parallel with it, so core work should translate almost directly into
+      user-visible time. It did. The parser, grid, scrollback and alternate screen now live in C
+      (<span class="mono">apps/TerminalApp/Sources/CStarlingTerm</span>); the Swift side is a thin
+      wrapper, and <span class="mono">TerminalApp.swift</span> did not change at all, because the
+      wrapper keeps the same API and <span class="mono">TermCell</span> is laid out to match the C
+      struct so cells cross the boundary without marshalling.</p>
+    <p><b>It is a port, not a rewrite of the behaviour</b>, and that is checked rather than
+      asserted. A differential harness runs both implementations over the same bytes and compares
+      every cell of the grid and scrollback, the cursor, the modes and the emitted responses:
+      identical on all ten benchmark workloads, on a hand-written edge-case stream at six grids
+      (5×3 up to 244×56) and five chunk sizes (1 byte to 64 KB, so multi-byte characters split
+      across feeds), and on <b>200 randomised streams</b> of escape soup, invalid UTF-8 and OSC
+      variants. All of it in <span class="mono">test/bench/core/</span>.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Suite at 47×201 vs Ghostty nightly</th><th>Wall</th><th>CPU</th><th>Wall ratio</th></tr></thead>
+      <tbody>
+        <tr><td class="t">TerminalApp, Swift core</td><td>4.535 s</td><td>7.39 s</td><td class="loss">1.13× (behind)</td></tr>
+        <tr><td class="t">TerminalApp, <b>C core</b></td><td class="win">2.618 s</td><td class="win">3.72 s</td><td class="win">0.65× (ahead)</td></tr>
+        <tr><td class="t">Ghostty nightly</td><td>3.998 s</td><td>7.19 s</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p>Live, on the Starling session, the same captured DOOM stream went from <b>92 to 250 MB/s
+      on 2.8× less CPU</b> — ahead of the 221 MB/s the decomposition predicted. The core alone
+      is 1.1× to 5.1× faster per workload, with the largest gains where the escapes are
+      (<span class="mono">unicode</span> 5.1×, <span class="mono">sgr_fg</span> 4.2×,
+      <span class="mono">binary</span> now 3.7× ahead of Ghostty rather than behind it).</p>
+    <p><b>Where it now loses is informative.</b> Ghostty still leads on
+      <span class="mono">alt_screen</span> (1.45×), <span class="mono">long_lines</span> (1.39×),
+      <span class="mono">scroll_region</span> (1.21×) and the two cell-filling workloads — every
+      one of them dominated by moving or blanking whole rows. The Swift version handed out a
+      single shared blank row by copy-on-write, so a row that scrolled past untouched cost a
+      retain; the C port fills each one with a <span class="mono">memcpy</span> from a template
+      instead. Restoring that looked like the obvious next move, so it was built — refcounted
+      shared rows, differential-clean and ASan-clean — and <b>measured worse</b>: 1–5% where it
+      was meant to help, and 23–28% <em>slower</em> on the hot path, because
+      <span class="mono">put_scalar</span> then tests the shared flag on every character while
+      the run fast path pays it once per run. Reverted. The arithmetic points somewhere else:
+      <span class="mono">scroll_region</span>&rsquo;s ~600k line feeds each memmove ~47
+      <span class="mono">Row</span> structs, ~450 MB in total, which at ~20 GB/s is ~22 ms of its
+      ~77 ms — the 29.6% the profile attributes to <span class="mono">memmove</span>. If that
+      holds, the fix is a row-offset ring for the grid, not shared cells.</p>
+    <p>One more thing the rewrite settled: <b>the memory leak is not in the emulator.</b> RSS
+      still climbs 276 → 335 → 386 MB across three suites with an emulator that shares no code
+      with the one that leaked before. Whatever holds those 25 MB per styled dump is on the Swift
+      or engine side of the boundary.</p>
+
+    <h2>7 · Memory: the one place Ghostty wins outright</h2>
+    <p>Resident set after each successive suite tells two different stories. Ghostty finishes
+      every suite at essentially the same number — 159, 160, 160 MB — having drained 419 MB of
+      output three times over. TerminalApp finishes at 208, 269, and 331 MB: <b>+61 MB for each
+      suite it runs</b>, with no sign of levelling off.</p>
+    <p>Round 2 rules out the desktop and the embedder as causes. The GTK build on GNOME grows
+      278 → 338 → 395 MB (+59 MB per suite), and the same GTK build on Starling 304 → 374 → 444
+      (+70 MB). Ghostty sits at 161 MB on GNOME exactly as it sits at 160 on Starling.
+      <b>The growth follows our code, not the compositor and not the embedder.</b></p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">Resident set after each successive suite</p>
+      <p class="figunit">MB RSS, sampled at the end of each full 10-workload pass</p>
+      <svg id="fig-rss" viewBox="0 0 820 250" role="img" aria-label="Line chart of RSS after each suite. TerminalApp rises from 208 to 269 to 331 MB; Ghostty stays flat near 160 MB."></svg>
+    </div>
+    <figcaption><b>Fig 6.</b> Ghostty is flat; TerminalApp climbs linearly. Three suites is not
+      enough to call it a leak on its own — the growth could be a high-water mark from
+      fragmentation — so the next figure tests exactly that.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Running the suite once with an RSS sample after every individual workload localises the
+      growth: of the 93 MB a single pass adds, <span class="mono">sgr_fg</span> contributes 43 MB
+      and <span class="mono">sgr_truecolor</span> 27 MB. The other eight workloads together
+      account for 24 MB, most of it first-touch warmup in the first two. Five seconds of idle
+      afterwards releases none of it.</p>
+    <p>That points at styled content, so the discriminating test is to run one styled workload
+      over and over. If the growth were a high-water mark, RSS would jump once and then flatten.
+      It does not.</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <p class="figtitle">The same workload, five times over</p>
+      <p class="figunit"><span class="mono">03_sgr_fg</span> repeated in one freshly launched TerminalApp · MB RSS after each pass</p>
+      <svg id="fig-leak" viewBox="0 0 820 260" role="img" aria-label="Line chart: RSS after repeated passes of sgr_fg rises from 125 to 178, 203, 228, 254, 279 MB — a steady 25 MB per pass."></svg>
+    </div>
+    <figcaption><b>Fig 7.</b> A steady <b>+25 MB every pass</b> after the first, through five
+      passes, with the terminal returned to a cleared primary screen between each. That is
+      unbounded growth on repeated identical input, not fragmentation settling.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <p>Two obvious suspects are ruled out by reading the code. Scrollback is bounded — it is cut
+      back to <code>scrollbackLimit</code> (2,000 rows, plus 512 of slack) in
+      <span class="cite">TerminalEmulator.swift:662</span>, which at this grid caps it near 10 MB.
+      And the <code>TextStyle</code> cache added in round 2 is bounded too: it is dropped wholesale
+      once it passes 4,096 entries <span class="cite">TerminalApp.swift:652</span>, precisely so
+      truecolor content cannot mint an entry per cell. Neither can hold 25 MB per pass, and
+      <span class="mono">sgr_fg</span> only uses eight distinct colours in any case.</p>
+    <p>So the retention is somewhere else — the per-row widget tree, the framework&rsquo;s text
+      layout objects, or engine-side caches inside the app process. Pinning it down needs a heap
+      profile rather than a reading, which is outside what this benchmark can answer. It is the
+      clearest open defect the suite found, and it is worth noting that a long-lived terminal is
+      exactly the kind of process where 25 MB per styled dump compounds.</p>
+
+    <h2>8 · Idle</h2>
+    <p>With both windows open and static, sampled over 20 s: TerminalApp costs 0.01 CPU-s
+      (<b>0.05% of a core</b>), Ghostty 0.09 CPU-s (<b>0.45%</b>). Both are negligible in absolute
+      terms; the 9&times; ratio between them is real but worth nothing on a desktop. Neither
+      terminal spins when nothing is happening.</p>
+
+    <h2>9 · Every run</h2>
+    <p>Medians are what the figures plot; all three runs are below. Ratios are
+      ours&nbsp;÷&nbsp;Ghostty, so under 1.00 means TerminalApp is ahead.</p>
+  </div>
+
+  <div class="prose">
+    <h3>Round 1 — Starling session · ours 52×241, Ghostty 45×201</h3>
+  </div>
+  <div class="tablewrap">
+    <table id="data">
+      <thead>
+        <tr>
+          <th>Workload</th>
+          <th colspan="2">Wall s — ours</th>
+          <th colspan="2">Wall s — ghostty</th>
+          <th>Ratio</th>
+          <th colspan="2">CPU s — ours</th>
+          <th colspan="2">CPU s — ghostty</th>
+          <th>Ratio</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <h3>Round 3 — GNOME · ours vs Ghostty <b>nightly</b> · both 47×201</h3>
+  </div>
+  <div class="tablewrap">
+    <table id="data3">
+      <thead>
+        <tr>
+          <th>Workload</th>
+          <th colspan="2">Wall s — ours</th>
+          <th colspan="2">Wall s — nightly</th>
+          <th>Ratio</th>
+          <th colspan="2">CPU s — ours</th>
+          <th colspan="2">CPU s — nightly</th>
+          <th>Ratio</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <h3>Round 2 — GNOME session · ours vs Ghostty 1.3.0 · both 47×201</h3>
+  </div>
+  <div class="tablewrap">
+    <table id="data2">
+      <thead>
+        <tr>
+          <th>Workload</th>
+          <th colspan="2">Wall s — ours</th>
+          <th colspan="2">Wall s — ghostty</th>
+          <th>Ratio</th>
+          <th colspan="2">CPU s — ours</th>
+          <th colspan="2">CPU s — ghostty</th>
+          <th>Ratio</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <h2>10 · Method, and what this does not measure</h2>
+    <ul>
+      <li><b>Which Ghostty you measure decides the answer.</b> The distribution build
+        (<span class="mono">1.3.0~us1-0ubuntu1</span>, Ubuntu resolute/universe, binary dated
+        2025-12-16) and the nightly built from the same day&rsquo;s
+        <span class="mono">tip</span> tarball differ by 1.43× on this suite — a bigger gap than
+        the one between either of them and TerminalApp. A benchmark against &ldquo;Ghostty&rdquo;
+        that does not name the build is not reporting much. Both are ReleaseFast, GTK runtime,
+        OpenGL renderer, io_uring; only the source differs.</li>
+      <li><b>Each terminal&rsquo;s own process only.</b> CPU is read from
+        <code>/proc/&lt;pid&gt;/stat</code>, which aggregates every thread of the process
+        (Ghostty runs 29). Compositing is excluded on both sides — the frames each app submits
+        are drawn by <code>DesktopShellApp</code>, whose cost appears in neither column. If one
+        terminal submitted many more frames than the other, that difference would be invisible
+        here.</li>
+      <li><b>Round 1&rsquo;s grid asymmetry favoured Ghostty</b> (12,532 cells against 9,045);
+        Round 2 removes it entirely (47×201 both). Where the two rounds disagree, Round 2 is the
+        one to believe — and it moved results in <em>both</em> directions, which is the sign the
+        asymmetry was doing real work rather than just flattering one side.</li>
+      <li><b>Round 2 drives the suite without synthetic input.</b> The runner is launched as the
+        terminal&rsquo;s own child — <code>ghostty -e</code> on one side,
+        <span class="mono">STARLING_DEV_SHELL</span> (an existing hook) on the other — and it
+        finds the terminal by walking up its own process tree, recording the pid and grid it
+        attributed to a <span class="mono">meta-*.txt</span> beside the results. Neither terminal
+        was typed into, so nothing depends on a keystroke landing in the right window.</li>
+      <li><b>The two TerminalApp builds are not the same binary.</b> Round 1 uses the DMA-BUF
+        child path; Round 2 the GTK embedder. That is why the compositor comparison in §4 leans
+        on Ghostty, which <em>is</em> one binary on both desktops. Comparing TerminalApp&rsquo;s
+        own two rounds conflates embedder with compositor, and the grids differ too.</li>
+      <li><b>One machine, one afternoon.</b> Within each round the two terminals ran minutes
+        apart on an otherwise idle machine (load average 0.2), one at a time, never concurrently;
+        the two rounds are about half an hour apart, separated by a session switch. Numbers are
+        only comparable within one sitting on one machine, which is why the corpus, the runner
+        and the probes are checked in rather than described.</li>
+      <li><b>Font coverage differs</b> and is not a performance question, but it does mean the two
+        <span class="mono">unicode</span> runs do not put identical glyph loads on the
+        rasterisers: CJK, box-drawing and emoji are blank in RobotoMono, which TerminalApp
+        bundles. Decoding — the thing that workload targets — is unaffected.</li>
+      <li><b>Not measured:</b> startup time, latency under interactive input, memory under normal
+        (non-benchmark) use, and anything requiring a GPU-side counter.</li>
+    </ul>
+    <p style="margin-top:26px; padding-top:14px; border-top:1px solid var(--line); font-size:13.5px; color:var(--ink-3);">
+      Measured 2026-08-04 on <span class="mono">starling-dev</span> by
+      <span class="mono">test/bench/run-bench.sh</span>; the two memory probes
+      (<span class="mono">rss-probe.sh</span>, <span class="mono">repeat-probe.sh</span>) and the
+      summariser (<span class="mono">analyse.py</span>) sit beside this report, with the raw
+      per-run outputs in <span class="mono">data/</span>. All runs are reported, including the
+      unfavourable ones.</p>
+  </div>
+</div>
+
+<div id="tip" role="status"></div>
+
+<script>
+(function () {
+  "use strict";
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (svg, tag, attrs, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    svg.appendChild(e); return e;
+  };
+  const tip = document.getElementById("tip");
+  function bindTip(node, html) {
+    node.addEventListener("mousemove", ev => {
+      tip.innerHTML = html; tip.style.display = "block";
+      const w = tip.offsetWidth;
+      tip.style.left = Math.min(ev.clientX + 14, innerWidth - w - 8) + "px";
+      tip.style.top = (ev.clientY + 16) + "px";
+    });
+    node.addEventListener("mouseleave", () => tip.style.display = "none");
+  }
+  const med = a => [...a].sort((x, y) => x - y)[1];
+
+  const RAW = {
+    starling: {
+      light_cells:   {w:[0.423,0.456,0.424], c:[0.47,0.50,0.47]},
+      dense_cells:   {w:[0.164,0.163,0.168], c:[0.18,0.17,0.19]},
+      sgr_fg:        {w:[1.124,1.106,1.111], c:[2.74,2.77,2.75]},
+      sgr_truecolor: {w:[1.165,1.143,1.121], c:[2.89,2.85,2.84]},
+      unicode:       {w:[0.641,0.605,0.607], c:[0.78,0.74,0.76]},
+      cursor_motion: {w:[0.049,0.050,0.049], c:[0.05,0.05,0.05]},
+      alt_screen:    {w:[0.149,0.150,0.150], c:[0.17,0.16,0.17]},
+      scroll_region: {w:[0.323,0.328,0.326], c:[0.35,0.35,0.34]},
+      long_lines:    {w:[0.179,0.175,0.173], c:[0.21,0.20,0.20]},
+      binary:        {w:[0.375,0.341,0.356], c:[0.40,0.35,0.37]},
+    },
+    ghostty: {
+      light_cells:   {w:[0.442,0.424,0.427], c:[0.79,0.77,0.78]},
+      dense_cells:   {w:[0.348,0.351,0.338], c:[0.63,0.64,0.61]},
+      sgr_fg:        {w:[1.211,1.176,1.188], c:[2.10,1.99,2.00]},
+      sgr_truecolor: {w:[1.248,1.255,1.244], c:[2.35,2.35,2.31]},
+      unicode:       {w:[0.623,0.602,0.623], c:[1.12,1.08,1.12]},
+      cursor_motion: {w:[0.046,0.046,0.049], c:[0.09,0.08,0.08]},
+      alt_screen:    {w:[0.426,0.409,0.405], c:[0.75,0.67,0.66]},
+      scroll_region: {w:[0.498,0.511,0.516], c:[0.83,0.84,0.86]},
+      long_lines:    {w:[0.466,0.445,0.453], c:[0.84,0.82,0.82]},
+      binary:        {w:[1.051,1.075,1.080], c:[1.44,1.50,1.48]},
+    },
+  };
+  // Round 2: GNOME session, both terminals pinned to 47x201.
+  const GNOME = {
+    starling: {
+      light_cells:   {w:[0.500,0.473,0.478], c:[0.64,0.60,0.61]},
+      dense_cells:   {w:[0.166,0.170,0.176], c:[0.21,0.22,0.24]},
+      sgr_fg:        {w:[1.118,1.087,1.082], c:[2.25,2.18,2.17]},
+      sgr_truecolor: {w:[1.122,1.127,1.125], c:[2.25,2.27,2.24]},
+      unicode:       {w:[0.608,0.605,0.620], c:[0.81,0.81,0.82]},
+      cursor_motion: {w:[0.046,0.049,0.054], c:[0.05,0.06,0.07]},
+      alt_screen:    {w:[0.147,0.150,0.147], c:[0.18,0.20,0.20]},
+      scroll_region: {w:[0.338,0.357,0.326], c:[0.40,0.43,0.40]},
+      long_lines:    {w:[0.179,0.191,0.188], c:[0.23,0.25,0.25]},
+      binary:        {w:[0.337,0.345,0.350], c:[0.40,0.41,0.41]},
+    },
+    ghostty: {
+      light_cells:   {w:[0.411,0.394,0.412], c:[0.73,0.71,0.75]},
+      dense_cells:   {w:[0.316,0.308,0.316], c:[0.59,0.57,0.60]},
+      sgr_fg:        {w:[1.145,1.163,1.134], c:[1.99,2.13,1.92]},
+      sgr_truecolor: {w:[1.153,1.155,1.184], c:[2.20,2.20,2.27]},
+      unicode:       {w:[0.543,0.551,0.551], c:[0.99,1.00,1.00]},
+      cursor_motion: {w:[0.045,0.043,0.043], c:[0.07,0.08,0.07]},
+      alt_screen:    {w:[0.394,0.388,0.377], c:[0.64,0.65,0.61]},
+      scroll_region: {w:[0.464,0.501,0.468], c:[0.75,0.84,0.77]},
+      long_lines:    {w:[0.409,0.414,0.403], c:[0.77,0.79,0.75]},
+      binary:        {w:[0.828,0.815,0.819], c:[1.23,1.16,1.20]},
+    },
+  };
+  // Round 3: Ghostty nightly (1.3.2-dev+48d85ea) on GNOME, same 47x201 grid.
+  // `starling` here is the identical TerminalApp data as GNOME.starling.
+  const NIGHTLY = {
+    starling: GNOME.starling,
+    ghostty: {
+      light_cells:   {w:[0.419,0.430,0.419], c:[0.55,0.55,0.53]},
+      dense_cells:   {w:[0.148,0.152,0.156], c:[0.30,0.31,0.31]},
+      sgr_fg:        {w:[0.746,0.749,0.746], c:[1.42,1.43,1.42]},
+      sgr_truecolor: {w:[0.566,0.567,0.607], c:[1.22,1.23,1.31]},
+      unicode:       {w:[0.286,0.279,0.292], c:[0.64,0.63,0.64]},
+      cursor_motion: {w:[0.023,0.023,0.023], c:[0.04,0.05,0.04]},
+      alt_screen:    {w:[0.082,0.079,0.083], c:[0.19,0.17,0.20]},
+      scroll_region: {w:[0.275,0.268,0.288], c:[0.52,0.50,0.53]},
+      long_lines:    {w:[0.107,0.102,0.112], c:[0.23,0.22,0.24]},
+      binary:        {w:[1.341,1.339,1.381], c:[2.06,2.05,2.13]},
+    },
+  };
+  const NAMES = Object.keys(RAW.starling);
+
+  /* ---- Figs 1-4: grouped bars. Rounds share axis scales so the two
+         rounds' charts can be read against each other directly. ---- */
+  function bars(id, key, unit, max, ticks, tickDec, data) {
+    data = data || RAW;
+    const svg = document.getElementById(id);
+    if (!svg) return;
+    const W = 820, L = 128, R = 84, T = 14, rowH = 42, barH = 13, gap = 4;
+    const x = v => L + (v / max) * (W - L - R);
+    const H = NAMES.length * rowH;
+    ticks.forEach(g => {
+      el(svg, "line", { x1: x(g), x2: x(g), y1: T, y2: T + H, class: "gridline" });
+      el(svg, "text", { x: x(g), y: T + H + 18, "text-anchor": "middle", class: "axis" },
+         g.toFixed(tickDec));
+    });
+    el(svg, "line", { x1: L, x2: L, y1: T, y2: T + H, class: "zeroline" });
+
+    NAMES.forEach((n, i) => {
+      const top = T + i * rowH;
+      const mid = top + rowH / 2;
+      el(svg, "text", { x: 8, y: mid + 4, class: "lanelab" }, n);
+      [["starling", "star"], ["ghostty", "gh"]].forEach((pair, k) => {
+        const vals = data[pair[0]][n][key];
+        const m = med(vals), lo = Math.min(...vals), hi = Math.max(...vals);
+        const y = mid - barH - gap / 2 + k * (barH + gap);
+        const r = el(svg, "rect", { x: L, y: y, width: Math.max(1, x(m) - L), height: barH,
+                                    rx: 2, class: "f-" + pair[1] });
+        if (hi - lo > 0.0005) {
+          el(svg, "line", { x1: x(lo), x2: x(hi), y1: y + barH / 2, y2: y + barH / 2, class: "rangebar" });
+          el(svg, "line", { x1: x(lo), x2: x(lo), y1: y + 2, y2: y + barH - 2, class: "rangebar" });
+          el(svg, "line", { x1: x(hi), x2: x(hi), y1: y + 2, y2: y + barH - 2, class: "rangebar" });
+        }
+        el(svg, "text", { x: x(Math.max(m, hi)) + 8, y: y + barH - 2, class: "vallab" },
+           m.toFixed(key === "w" ? 3 : 2));
+        bindTip(r, "<b>" + (pair[0] === "starling" ? "TerminalApp" : "Ghostty") + "</b> · " + n +
+                   "<br>median " + m.toFixed(key === "w" ? 3 : 2) + " " + unit +
+                   "<br>runs: " + vals.join(", "));
+      });
+    });
+    el(svg, "text", { x: (L + W - R) / 2, y: T + H + 36, "text-anchor": "middle", class: "axis" }, unit);
+    svg.setAttribute("viewBox", "0 0 " + W + " " + (T + H + 46));
+  }
+  // One wall scale across all three rounds so the figures can be read against
+  // each other; 1.45 clears the nightly's binary outlier at 1.381.
+  const WMAX = 1.45, WTICKS = [0, 0.25, 0.5, 0.75, 1.0, 1.25];
+  bars("fig-wall", "w", "seconds", WMAX, WTICKS, 2);
+  bars("fig-cpu", "c", "CPU-seconds", 3.05, [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0], 1);
+  bars("fig-gwall", "w", "seconds", WMAX, WTICKS, 2, GNOME);
+  bars("fig-gcpu", "c", "CPU-seconds", 3.05, [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0], 1, GNOME);
+  bars("fig-nwall", "w", "seconds", WMAX, WTICKS, 2, NIGHTLY);
+
+  /* ---- Fig 3: RSS across suites ---- */
+  (function () {
+    const svg = document.getElementById("fig-rss");
+    if (!svg) return;
+    const W = 820, L = 70, R = 130, T = 16, H = 165;
+    const series = [
+      { name: "TerminalApp", cls: "star", pts: [208, 269, 331] },
+      { name: "Ghostty", cls: "gh", pts: [159, 160, 160] },
+    ];
+    const x = i => L + i * (W - L - R) / 2;
+    const y = v => T + H - (v / 360) * H;
+    [0, 90, 180, 270, 360].forEach(g => {
+      el(svg, "line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "gridline" });
+      el(svg, "text", { x: L - 10, y: y(g) + 4, "text-anchor": "end", class: "axis" }, g);
+    });
+    series.forEach(s => {
+      const d = s.pts.map((v, i) => (i ? "L" : "M") + x(i) + " " + y(v)).join(" ");
+      el(svg, "path", { d: d, fill: "none", class: "s-" + s.cls, "stroke-width": 2.5, "stroke-linejoin": "round" });
+      s.pts.forEach((v, i) => {
+        const c = el(svg, "circle", { cx: x(i), cy: y(v), r: 6.5, class: "pt f-" + s.cls });
+        bindTip(c, "<b>" + s.name + "</b><br>after suite " + (i + 1) + ": " + v + " MB");
+      });
+      el(svg, "text", { x: x(2) + 14, y: y(s.pts[2]) + 4, class: "lanelab" }, s.name);
+    });
+    [0, 1, 2].forEach(i =>
+      el(svg, "text", { x: x(i), y: T + H + 22, "text-anchor": "middle", class: "axis" }, "suite " + (i + 1)));
+    el(svg, "text", { x: L - 46, y: T + H / 2, "text-anchor": "middle", class: "axis",
+                      transform: "rotate(-90 " + (L - 46) + " " + (T + H / 2) + ")" }, "MB RSS");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + (T + H + 34));
+  })();
+
+  /* ---- Fig 4: repeated sgr_fg ---- */
+  (function () {
+    const svg = document.getElementById("fig-leak");
+    if (!svg) return;
+    const W = 820, L = 70, R = 60, T = 16, H = 175;
+    const pts = [125.2, 177.8, 202.9, 227.5, 253.6, 278.9];
+    const x = i => L + i * (W - L - R) / 5;
+    const y = v => T + H - (v / 300) * H;
+    [0, 75, 150, 225, 300].forEach(g => {
+      el(svg, "line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "gridline" });
+      el(svg, "text", { x: L - 10, y: y(g) + 4, "text-anchor": "end", class: "axis" }, g);
+    });
+    const d = pts.map((v, i) => (i ? "L" : "M") + x(i) + " " + y(v)).join(" ");
+    el(svg, "path", { d: d, fill: "none", class: "s-star", "stroke-width": 2.5, "stroke-linejoin": "round" });
+    pts.forEach((v, i) => {
+      const c = el(svg, "circle", { cx: x(i), cy: y(v), r: 6.5, class: "pt f-star" });
+      el(svg, "text", { x: x(i), y: y(v) - 14, "text-anchor": "middle", class: "vallab" }, v.toFixed(0));
+      const delta = i ? " (+" + (v - pts[i - 1]).toFixed(1) + " MB)" : " (fresh launch)";
+      bindTip(c, "<b>after pass " + i + "</b><br>" + v.toFixed(1) + " MB" + delta);
+    });
+    [0, 1, 2, 3, 4, 5].forEach(i =>
+      el(svg, "text", { x: x(i), y: T + H + 22, "text-anchor": "middle", class: "axis" },
+         i ? "pass " + i : "start"));
+    el(svg, "text", { x: L - 46, y: T + H / 2, "text-anchor": "middle", class: "axis",
+                      transform: "rotate(-90 " + (L - 46) + " " + (T + H / 2) + ")" }, "MB RSS");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + (T + H + 34));
+  })();
+
+  /* ---- §7 tables, one per round ---- */
+  function buildTable(sel, data) {
+    const tb = document.querySelector(sel + " tbody");
+    if (!tb) return;
+    const cell = (row, txt, cls) => {
+      const td = document.createElement("td");
+      td.textContent = txt; if (cls) td.className = cls; row.appendChild(td);
+    };
+    let tw = [0, 0], tc = [0, 0];
+    NAMES.forEach(n => {
+      const o = data.starling[n], g = data.ghostty[n];
+      const ow = med(o.w), gw = med(g.w), oc = med(o.c), gc = med(g.c);
+      tw[0] += ow; tw[1] += gw; tc[0] += oc; tc[1] += gc;
+      const tr = document.createElement("tr");
+      const t0 = document.createElement("td"); t0.className = "t"; t0.textContent = n; tr.appendChild(t0);
+      cell(tr, ow.toFixed(3)); cell(tr, "[" + Math.min(...o.w).toFixed(3) + "–" + Math.max(...o.w).toFixed(3) + "]");
+      cell(tr, gw.toFixed(3)); cell(tr, "[" + Math.min(...g.w).toFixed(3) + "–" + Math.max(...g.w).toFixed(3) + "]");
+      cell(tr, (ow / gw).toFixed(2) + "×", ow / gw < 1 ? "win" : "loss");
+      cell(tr, oc.toFixed(2)); cell(tr, "[" + Math.min(...o.c).toFixed(2) + "–" + Math.max(...o.c).toFixed(2) + "]");
+      cell(tr, gc.toFixed(2)); cell(tr, "[" + Math.min(...g.c).toFixed(2) + "–" + Math.max(...g.c).toFixed(2) + "]");
+      cell(tr, (oc / gc).toFixed(2) + "×", oc / gc < 1 ? "win" : "loss");
+      tb.appendChild(tr);
+    });
+    const tr = document.createElement("tr");
+    tr.style.fontWeight = "700";
+    const t0 = document.createElement("td"); t0.className = "t";
+    t0.textContent = "TOTAL"; t0.style.fontWeight = "700"; tr.appendChild(t0);
+    cell(tr, tw[0].toFixed(3)); cell(tr, "");
+    cell(tr, tw[1].toFixed(3)); cell(tr, "");
+    cell(tr, (tw[0] / tw[1]).toFixed(2) + "×", tw[0] / tw[1] < 1 ? "win" : "loss");
+    cell(tr, tc[0].toFixed(2)); cell(tr, "");
+    cell(tr, tc[1].toFixed(2)); cell(tr, "");
+    cell(tr, (tc[0] / tc[1]).toFixed(2) + "×", tc[0] / tc[1] < 1 ? "win" : "loss");
+    tb.appendChild(tr);
+  }
+  buildTable("#data", RAW);
+  buildTable("#data2", GNOME);
+  buildTable("#data3", NIGHTLY);
+})();
+</script>

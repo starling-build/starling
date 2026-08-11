@@ -1,0 +1,7 @@
+# ours-doom-r9  terminal=3631028/TerminalApp  grid=47x201  frames=600
+BENCHFPS frames=600 seconds=0.307 fps=1954.40
+  cpu_s 1.07
+BENCHFPS frames=600 seconds=0.306 fps=1960.78
+  cpu_s 1.02
+BENCHFPS frames=600 seconds=0.303 fps=1980.20
+  cpu_s 1.04

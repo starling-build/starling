@@ -1,0 +1,4 @@
+label gnorep
+terminal_pid 1273807
+terminal_comm TerminalApp
+grid 47x201

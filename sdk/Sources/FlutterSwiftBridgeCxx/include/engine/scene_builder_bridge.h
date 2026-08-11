@@ -74,7 +74,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// @param old_layer Optional previously-retained layer for diffing
   /// @return New EngineLayerBridge wrapping the TransformLayer
   EngineLayerBridge* PushTransform(const double* matrix4,
-                                   EngineLayerBridge* old_layer);
+                                   EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a translation offset onto the layer stack.
   ///
@@ -82,7 +82,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// **Original:** `pushOffset` / `_pushOffset`
   EngineLayerBridge* PushOffset(double dx,
                                 double dy,
-                                EngineLayerBridge* old_layer);
+                                EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a rectangular clip onto the layer stack.
   ///
@@ -96,7 +96,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
                                   double right,
                                   double bottom,
                                   int clip_behavior,
-                                  EngineLayerBridge* old_layer);
+                                  EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a rounded rectangle clip onto the layer stack.
   ///
@@ -109,7 +109,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// @param clip_behavior Clip enum index
   EngineLayerBridge* PushClipRRect(const float* rrect_values,
                                    int clip_behavior,
-                                   EngineLayerBridge* old_layer);
+                                   EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a rounded superellipse clip onto the layer stack.
   ///
@@ -132,7 +132,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
                                            double bl_radius_x,
                                            double bl_radius_y,
                                            int clip_behavior,
-                                           EngineLayerBridge* old_layer);
+                                           EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a path clip onto the layer stack.
   ///
@@ -143,7 +143,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// @param clip_behavior Clip enum index
   EngineLayerBridge* PushClipPath(PathBridge* path,
                                   int clip_behavior,
-                                  EngineLayerBridge* old_layer);
+                                  EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes an opacity layer onto the layer stack.
   ///
@@ -155,7 +155,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   EngineLayerBridge* PushOpacity(int alpha,
                                  double dx,
                                  double dy,
-                                 EngineLayerBridge* old_layer);
+                                 EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a color filter layer onto the layer stack.
   ///
@@ -164,7 +164,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   ///
   /// @param color_filter ColorFilterBridge containing the filter
   EngineLayerBridge* PushColorFilter(ColorFilterBridge* color_filter,
-                                     EngineLayerBridge* old_layer);
+                                     EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes an image filter layer onto the layer stack.
   ///
@@ -176,7 +176,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   EngineLayerBridge* PushImageFilter(ImageFilterBridge* image_filter,
                                      double dx,
                                      double dy,
-                                     EngineLayerBridge* old_layer);
+                                     EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a backdrop filter layer onto the layer stack.
   ///
@@ -190,7 +190,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
                                         int blend_mode,
                                         int64_t backdrop_id,
                                         bool has_backdrop_id,
-                                        EngineLayerBridge* old_layer);
+                                        EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pushes a shader mask layer onto the layer stack.
   ///
@@ -209,7 +209,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
                                     double mask_rect_bottom,
                                     int blend_mode,
                                     int filter_quality_index,
-                                    EngineLayerBridge* old_layer);
+                                    EngineLayerBridge* old_layer) SWIFT_RETURNS_RETAINED;
 
   /// Pops the current layer from the stack.
   ///
@@ -292,7 +292,7 @@ class FLUTTER_SWIFT_BRIDGE_EXPORT
   /// this SceneBuilderBridge should not be used further.
   ///
   /// @return New SceneBridge wrapping the composed scene
-  SceneBridge* Build();
+  SceneBridge* Build() SWIFT_RETURNS_RETAINED;
 
   ~SceneBuilderBridge();
 
