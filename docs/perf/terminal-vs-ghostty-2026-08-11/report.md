@@ -301,3 +301,40 @@ render resolution; the within-protocol ratios are the result. The published
 three tests stay on the calibrated protocol: their files' line wrap depends
 on column count, so a new grid would break comparability with ghostty's
 post and the earlier rounds.
+
+### Native 4K, no scaling anywhere: the verdict holds, the margin scales
+
+One scale question remained: this box's "display" is the injected-EDID 27"
+4K virtual panel, and mutter's own preferred scale for its 4K mode is
+**1.5** — the tilted field of the earlier rounds was GNOME's *default* for
+this hardware, not a leftover setting. (For the 1080p mode the preferred
+scale is 1.0, so the protocol above is GNOME's own unscaled choice there.)
+The remaining variant is native 4K at scale 1.0 — no scaling for anyone,
+grid verified **478x126** on both, corpus regenerated
+(`gen-bench.py /var/tmp/benchfs4k 478 126`, `BENCH_FS_DIR` selects it).
+Best-of-3, `data/*-fs4kours-*` / `data/*-fs4kghn-*`:
+
+| workload | ours | nightly | ratio | @238x62 |
+|---|---|---|---|---|
+| 03_sgr_fg | 0.190 | 0.649 | **0.29x** | 0.29x |
+| 04_sgr_truecolor | 0.225 | 0.513 | **0.44x** | 0.53x |
+| 10_binary | 0.519 | 0.835 | **0.62x** | 0.24x |
+| 06_cursor_motion | 0.015 | 0.020 | **0.75x** | 0.70x |
+| 05_unicode | 0.221 | 0.227 | **0.97x** | 0.94x |
+| 02_dense_cells | 0.153 | 0.147 | 1.04x | 1.13x |
+| 08_scroll_region | 0.300 | 0.268 | 1.12x | 1.09x |
+| 09_long_lines | 0.101 | 0.090 | 1.12x | 1.03x |
+| 07_alt_screen | 0.112 | 0.085 | 1.32x | 1.22x |
+| 01_light_cells | 0.541 | 0.404 | **1.34x** | 1.00x |
+| **total** | **2.377** | **3.238** | **0.73x** | 0.55x |
+
+Still ours at every protocol — 0.57x calibrated, 0.55x at 1080p, 0.73x at
+native 4K — but the 6x grid area moves the internals: the row-churn
+workloads scale with ROW WIDTH for us (light_cells 1.00x -> 1.34x — our
+per-line scroll/blank work grows with 478-cell rows) while ghostty's
+scrollback stays pty-bound and flat (0.400 -> 0.404). dense_cells narrows
+to 1.04x. If a future round chases the 4K-native shape, the lever is
+per-line cost at large widths (row pool / blank fill), not the transport.
+Note the realistic 4K desktop runs 1.5-2x scale, where the LOGICAL grid is
+near the 1080p one — the 478x126 shape is a stress variant, not a user
+setting.

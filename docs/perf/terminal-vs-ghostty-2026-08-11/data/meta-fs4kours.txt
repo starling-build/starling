@@ -1,0 +1,4 @@
+label fs4kours
+terminal_pid 3701600
+terminal_comm TerminalApp
+grid 126x478

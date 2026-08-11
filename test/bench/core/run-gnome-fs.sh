@@ -25,7 +25,9 @@
 set -u
 LABEL="$1"; KIND="$2"; TARGET="$3"
 G=/var/tmp/bench/gtkrun
-B=/var/tmp/benchfs
+# The corpus dir — regenerated for the protocol's VERIFIED grid (238x62 at
+# 1080p, 478x126 at native 4K; gen-bench.py <dir> <cols> <rows>).
+B=${BENCH_FS_DIR:-/var/tmp/benchfs}
 BENCH_USER=${BENCH_USER:-starling}
 BENCH_UID=${BENCH_UID:-$(id -u "$BENCH_USER")}
 pkill -x TerminalApp 2>/dev/null; pkill -x ghostty 2>/dev/null; sleep 2
@@ -35,20 +37,20 @@ echo "$LABEL" > /var/tmp/bench/LABEL
 # Both terminals exec their command BEFORE the fullscreen configure lands,
 # so the runner first waits for the grid to hold still (the same race made
 # an early grid probe read the pre-fullscreen size).
-cat > $B/wait-grid-then-bench.sh <<'EOF'
+cat > $B/wait-grid-then-bench.sh <<EOF
 #!/usr/bin/env bash
 prev=""; stable=0
-for i in $(seq 1 20); do
-  cur=$(stty size)
-  [ "$cur" = "$prev" ] && stable=$((stable+1)) || stable=0
-  [ $stable -ge 3 ] && break
-  prev="$cur"; sleep 1
+for i in \$(seq 1 20); do
+  cur=\$(stty size)
+  [ "\$cur" = "\$prev" ] && stable=\$((stable+1)) || stable=0
+  [ \$stable -ge 3 ] && break
+  prev="\$cur"; sleep 1
 done
-exec /var/tmp/benchfs/bench-in-terminal.sh "$1" 3
+exec $B/bench-in-terminal.sh "\$1" 3
 EOF
-cat > $B/shell-gnome-fs.sh <<'EOF'
+cat > $B/shell-gnome-fs.sh <<EOF
 #!/usr/bin/env bash
-exec /var/tmp/benchfs/wait-grid-then-bench.sh "$(cat /var/tmp/bench/LABEL)"
+exec $B/wait-grid-then-bench.sh "\$(cat /var/tmp/bench/LABEL)"
 EOF
 chmod 755 $B/shell-gnome-fs.sh $B/wait-grid-then-bench.sh
 
