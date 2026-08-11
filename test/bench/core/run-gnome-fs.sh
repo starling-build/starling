@@ -34,6 +34,13 @@ pkill -x TerminalApp 2>/dev/null; pkill -x ghostty 2>/dev/null; sleep 2
 rm -f /var/tmp/bench/res-$LABEL-*.txt /var/tmp/bench/meta-$LABEL.txt
 echo "$LABEL" > /var/tmp/bench/LABEL
 
+# Stage the runner pair from the REPO into the corpus dir: bench-in-terminal
+# resolves run-bench.sh (and run-bench resolves the corpus) from its own
+# directory, so everything the run touches lives in $B.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cp "$SCRIPT_DIR/../bench-in-terminal.sh" "$SCRIPT_DIR/../run-bench.sh" "$B/"
+chmod 755 "$B/bench-in-terminal.sh" "$B/run-bench.sh"
+
 # Both terminals exec their command BEFORE the fullscreen configure lands,
 # so the runner first waits for the grid to hold still (the same race made
 # an early grid probe read the pre-fullscreen size).

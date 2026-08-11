@@ -1,0 +1,12 @@
+# test wall_s cpu_s
+01_light_cells 0.544 0.74
+02_dense_cells 0.238 0.50
+03_sgr_fg 0.416 0.86
+04_sgr_truecolor 0.573 1.61
+05_unicode 0.431 1.28
+06_cursor_motion 0.014 0.01
+07_alt_screen 0.501 1.02
+08_scroll_region 0.310 0.51
+09_long_lines 0.232 0.54
+10_binary 0.527 0.70
+rss_kb 451396

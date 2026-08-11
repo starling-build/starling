@@ -276,31 +276,36 @@ grid (`gen-bench.py /var/tmp/benchfs 238 62`), and the runner waits for the
 fullscreen configure before timing (both terminals exec their command at the
 pre-fullscreen size — an early probe read 145x45 for exactly that reason).
 
-Best-of-3 (`data/*-fsours-*`, `data/*-fsghn-*`), identical grid and pixels:
+**Correction (same day):** the first fullscreen runs (`data/*-fsours-*`,
+`*-fsghn-*`, `*-fs4kours-*`, `*-fs4kghn-*`) did NOT run the regenerated
+corpus. `bench-in-terminal.sh` resolved `run-bench.sh` through `$OUTDIR`
+(/var/tmp/bench), whose copy cats its OWN directory's corpus — so every
+"fullscreen" run replayed the original 200-col files at the new grid. Both
+terminals still ran identical bytes at identical grids, so those ratios are
+valid A/Bs of *narrow content on a wide grid*; the tables below are the
+corrected runs with the per-grid corpus (`data/*-fs2*`, `*-fs4k2*`). The
+runner now lives in the repo and resolves corpus and sub-runner from its own
+directory. Caught because a 244 MB alt_screen "catted" in 0.087 s —
+2.8 GB/s through a pty; when a bench number beats a kernel floor, the bench
+is lying somewhere.
+
+Best-of-3, identical grid and pixels (`data/*-fs2ours-*`, `*-fs2ghn-*`):
 
 | workload | ours | nightly | ratio | calibrated (r10) |
 |---|---|---|---|---|
-| 10_binary | 0.312 | 1.286 | **0.24x** | 0.26x |
-| 03_sgr_fg | 0.180 | 0.625 | **0.29x** | 0.28x |
-| 04_sgr_truecolor | 0.249 | 0.467 | **0.53x** | 0.58x |
-| 06_cursor_motion | 0.014 | 0.020 | **0.70x** | 0.74x |
-| 05_unicode | 0.218 | 0.231 | **0.94x** | 0.93x |
-| 01_light_cells | 0.398 | 0.400 | **1.00x** | 0.99x |
-| 09_long_lines | 0.093 | 0.090 | 1.03x | 1.08x |
-| 08_scroll_region | 0.290 | 0.266 | 1.09x | 1.10x |
-| 02_dense_cells | 0.155 | 0.137 | 1.13x | 1.11x |
-| 07_alt_screen | 0.082 | 0.067 | 1.22x | 1.08x |
-| **total** | **1.991** | **3.589** | **0.55x** | 0.57x |
+| 10_binary | 0.304 | 1.289 | **0.24x** | 0.26x |
+| 03_sgr_fg | 0.195 | 0.733 | **0.27x** | 0.28x |
+| 04_sgr_truecolor | 0.283 | 0.533 | **0.53x** | 0.58x |
+| 06_cursor_motion | 0.015 | 0.020 | **0.75x** | 0.74x |
+| 05_unicode | 0.231 | 0.266 | **0.87x** | 0.93x |
+| 01_light_cells | 0.398 | 0.399 | **1.00x** | 0.99x |
+| 09_long_lines | 0.107 | 0.099 | 1.08x | 1.08x |
+| 02_dense_cells | 0.169 | 0.155 | 1.09x | 1.11x |
+| 07_alt_screen | 0.122 | 0.108 | 1.13x | 1.08x |
+| 08_scroll_region | 0.298 | 0.251 | 1.19x | 1.10x |
+| **total** | **2.122** | **3.853** | **0.55x** | 0.57x |
 
-**The verdict is not an artifact of the window mismatch**: 0.55x wall under
-strict equality against 0.57x calibrated, the same split of wins and
-losses, and the CPU margin widens slightly (3.26 vs 4.52 CPU-s) once ours
-stops rendering 78% more pixels than its rival. Absolute numbers are not
-comparable to the tables above — different grid, different corpus, different
-render resolution; the within-protocol ratios are the result. The published
-three tests stay on the calibrated protocol: their files' line wrap depends
-on column count, so a new grid would break comparability with ghostty's
-post and the earlier rounds.
+CPU 3.42 vs 4.91.
 
 ### Native 4K, no scaling anywhere: the verdict holds, the margin scales
 
@@ -312,29 +317,34 @@ scale is 1.0, so the protocol above is GNOME's own unscaled choice there.)
 The remaining variant is native 4K at scale 1.0 — no scaling for anyone,
 grid verified **478x126** on both, corpus regenerated
 (`gen-bench.py /var/tmp/benchfs4k 478 126`, `BENCH_FS_DIR` selects it).
-Best-of-3, `data/*-fs4kours-*` / `data/*-fs4kghn-*`:
+Best-of-3, `data/*-fs4k2ours-*` / `data/*-fs4k2ghn-*` (corrected corpus):
 
 | workload | ours | nightly | ratio | @238x62 |
 |---|---|---|---|---|
-| 03_sgr_fg | 0.190 | 0.649 | **0.29x** | 0.29x |
-| 04_sgr_truecolor | 0.225 | 0.513 | **0.44x** | 0.53x |
-| 10_binary | 0.519 | 0.835 | **0.62x** | 0.24x |
-| 06_cursor_motion | 0.015 | 0.020 | **0.75x** | 0.70x |
-| 05_unicode | 0.221 | 0.227 | **0.97x** | 0.94x |
-| 02_dense_cells | 0.153 | 0.147 | 1.04x | 1.13x |
-| 08_scroll_region | 0.300 | 0.268 | 1.12x | 1.09x |
-| 09_long_lines | 0.101 | 0.090 | 1.12x | 1.03x |
-| 07_alt_screen | 0.112 | 0.085 | 1.32x | 1.22x |
-| 01_light_cells | 0.541 | 0.404 | **1.34x** | 1.00x |
-| **total** | **2.377** | **3.238** | **0.73x** | 0.55x |
+| 10_binary | 0.526 | 0.857 | **0.61x** | 0.24x |
+| 03_sgr_fg | 0.393 | 1.458 | **0.27x** | 0.27x |
+| 04_sgr_truecolor | 0.552 | 1.046 | **0.53x** | 0.53x |
+| 06_cursor_motion | 0.014 | 0.021 | **0.67x** | 0.75x |
+| 05_unicode | 0.398 | 0.480 | **0.83x** | 0.87x |
+| 02_dense_cells | 0.237 | 0.215 | 1.10x | 1.09x |
+| 08_scroll_region | 0.295 | 0.259 | 1.14x | 1.19x |
+| 07_alt_screen | 0.484 | 0.406 | **1.19x** | 1.13x |
+| 09_long_lines | 0.220 | 0.180 | **1.22x** | 1.08x |
+| 01_light_cells | 0.544 | 0.406 | **1.34x** | 1.00x |
+| **total** | **3.663** | **5.328** | **0.69x** | 0.55x |
 
-Still ours at every protocol — 0.57x calibrated, 0.55x at 1080p, 0.73x at
-native 4K — but the 6x grid area moves the internals: the row-churn
-workloads scale with ROW WIDTH for us (light_cells 1.00x -> 1.34x — our
-per-line scroll/blank work grows with 478-cell rows) while ghostty's
-scrollback stays pty-bound and flat (0.400 -> 0.404). dense_cells narrows
-to 1.04x. If a future round chases the 4K-native shape, the lever is
-per-line cost at large widths (row pool / blank fill), not the transport.
+Still ours at every protocol — 0.57x calibrated, 0.55x at 1080p, 0.69x at
+native 4K — but the 6x grid area concentrates the losses into one cluster:
+every row-churn workload scales with ROW WIDTH for us (light_cells 1.00x ->
+1.34x, long_lines 1.08x -> 1.22x, alt_screen 1.13x -> 1.19x) while
+ghostty's stays pty-bound and flat (their light_cells 0.399 -> 0.406), and
+at 4K our CPU advantage disappears (7.36 vs 7.17 CPU-s — the one protocol
+where we cost more). The mechanism is harness-proven, not inferred:
+`ptyread` mode 4 at 478x126 on light_cells pushes cat to 0.52-0.54 against
+a 0.38-0.39 read floor with no compositor in the room — the emulator's
+per-line work alone. The candidate: `row_blank` memsets the full row width
+on every recycled line — 1.5M line feeds x 478 cells x 16 B = 11.5 GB of
+blanking for rows that carry ~7 characters.
 Note the realistic 4K desktop runs 1.5-2x scale, where the LOGICAL grid is
 near the 1080p one — the 478x126 shape is a stress variant, not a user
 setting.
