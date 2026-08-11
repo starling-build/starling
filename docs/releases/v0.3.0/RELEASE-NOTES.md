@@ -147,13 +147,21 @@ T3 release gate on a clean Ubuntu 26.04 VM: `.deb` installed the way the docs
 tell a user to, rebooted into GDM, logged in, session confirmed seat-active and
 started by the display manager (not by hand), polkit authorising `app-install`
 through the pkexec hop — then the functional suite twice, and Shut Down from
-the desktop's own power menu actually powering the machine off.
+the desktop's own power menu actually powering the machine off. The numbers
+are from gating the published artifact itself — the byte-identical `.deb`
+fetched back off this release — not a build made before the notes were
+written, so the two engine fixes that landed after the pre-release run
+(31 passed / 4 skipped, 25 / 10) are covered by them.
 
-    with 3D acceleration (virtio-gpu)   31 passed, 4 skipped
-    with none (virtio-vga, llvmpipe)    25 passed, 10 skipped
+    with 3D acceleration (virtio-gpu)   32 passed, 5 skipped
+    with none (virtio-vga, llvmpipe)    26 passed, 11 skipped
 
-Both runs skip the ScreenCast portal check (no gstreamer in the guest) and the
-hostile-dma-buf fixture (protocol XMLs absent). The no-3D run's remaining skips
+Both runs skip the ScreenCast portal check (no gstreamer in the guest), the
+hostile-dma-buf fixture (protocol XMLs absent), and the PRIME offload check —
+a VM has no second GPU to offload onto. The recording-zoom check passes in
+both; its first gate run failed on the harness, not the desktop — the guest
+lacked netpbm, which `shot` needs after the shell has already saved the
+screenshot (fixed, 70f29b1). The no-3D run's remaining skips
 are not identified here: the gate prints that pass through `tail -24`, so their
 lines scroll past. Worth widening if the skip count is ever meant to be read as
 coverage.
