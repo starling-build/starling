@@ -1,10 +1,33 @@
-# Starling 0.3.0 — apps can render on the NVIDIA GPU
+# Starling 0.3.0 — a workspace for your agent, and apps on the NVIDIA GPU
 
 The first release since 0.2.3 that changes what the desktop can do rather than
 what it gets wrong. Over a hundred commits of work since 0.2.3-2, plus the
-version bump and these notes. The headline is that a laptop with two GPUs now behaves
-like one: the shell keeps the display, and an app that wants the discrete card
-gets it.
+version bump and these notes. Front and center is the agent workspace: your AI
+agent gets a desktop of its own — you keep yours, you can watch, and you can
+step in. Underneath it, a laptop with two GPUs now behaves like one: the shell
+keeps the display, and an app that wants the discrete card gets it.
+
+## The agent workspace
+
+[![A workspace driving itself: a coding agent in the terminal, the page it built open in Chrome beside it — click to watch](../../../ui/img/agent-workspace-poster.jpg)](../../../ui/video/agent-workspace.mp4)
+
+**[▶ Watch the take (3:49)](../../../ui/video/agent-workspace.mp4)** — a
+coding agent hired into a terminal builds and serves a live page, opens Chrome
+beside itself, and the desktop outside the room never moves; when you want the
+wheel, you take it. One unedited take, recorded — and zoomed — by the
+desktop's own recorder.
+
+A named workspace holds a driver app down the middle — the terminal the agent
+lives in — and everything it opens as tabs on the right, with the workspace
+list on the left. Nothing the agent launches lands on your desktop. Rename
+from the pencil on the row you are pointing at; delete from the trash beside
+it, which stops the apps rather than rehoming them. Tabs you can read, and a
+way out.
+
+Each pane gets its own identity, so a second copy of an app in one workspace is
+no longer indistinguishable from the first. It was: closing a second terminal
+in a workspace whose driver was also a terminal deleted the *driver's* window
+and left its process running behind a dead texture.
 
 ## Per-app PRIME render offload
 
@@ -37,20 +60,6 @@ Control opens on the monitor you asked for it on, a secondary's space switch
 slides like the host's, and the second monitor's desktop is a desktop rather
 than a picture of one. Typing into a window on a second screen shows up without
 needing a nudge.
-
-## Workspace mode
-
-![A workspace: the list on the left, a driver app down the middle, everything it opened as tabs on the right](workspace-mode.png)
-
-A named workspace holds a driver app down the middle and everything it opens as
-tabs on the right, with the workspace list on the left. Rename from the pencil
-on the row you are pointing at; delete from the trash beside it, which stops the
-apps rather than rehoming them. Tabs you can read, and a way out.
-
-Each pane gets its own identity, so a second copy of an app in one workspace is
-no longer indistinguishable from the first. It was: closing a second terminal
-in a workspace whose driver was also a terminal deleted the *driver's* window
-and left its process running behind a dead texture.
 
 ## Recording, with a camera
 
