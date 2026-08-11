@@ -74,6 +74,10 @@ struct StarlingTerm {
     int  csi_count;
     int  csi_cur;              /* -1 = no digits since the last ';' */
     int  csi_private;
+    /* Intermediate byte (0x20-0x2F) collected inside a CSI, 0 if none. Before
+       this was tracked, `CSI ... $ r` (DECCARA) dispatched as a bare 'r' and
+       silently reprogrammed the scroll region. */
+    int  csi_inter;
 
     char osc[OSC_MAX];
     int  osc_len;
@@ -605,12 +609,56 @@ static void respond(StarlingTerm *t, const char *s) {
     if (t->response_cb) t->response_cb(t->response_ctx, s);
 }
 
+static void soft_reset(StarlingTerm *t) {
+    /* DECSTR (CSI ! p): reset modes and attributes, keep screen contents.
+       esctest sends it before every unit test. */
+    t->cur_fg = 0; t->cur_bg = 0; t->cur_attrs = 0;
+    t->region_top = 0; t->region_bottom = t->rows - 1;
+    t->origin_mode = 0; t->wrap_pending = 0;
+    t->cursor_visible = 1;
+    t->app_cursor_keys = 0;
+    t->saved_cursor_row = 0; t->saved_cursor_col = 0;
+    t->saved_fg = 0; t->saved_bg = 0; t->saved_attrs = 0;
+}
+
 static void dispatch_csi(StarlingTerm *t, uint8_t final) {
     const int *ps = t->csi_nums;
     int n = t->csi_count;
     /* Swift's p(i, def): an explicit 0 also means "use the default". */
     #define P(i, def) ((i) < n && ps[i] != 0 ? ps[i] : (def))
     int first = n > 0 ? ps[0] : 0;
+
+    if (t->csi_inter) {
+        /* An intermediate names a different control; never fall through to
+           the plain finals. */
+        if (t->csi_inter == '!' && final == 'p') { soft_reset(t); }
+        else if (t->csi_inter == '$' && final == 'w') {
+            /* DECRQCRA: checksum of a rectangle, the readback esctest's
+               screen assertions are built on (VT level 4). Coordinates are
+               1-based inclusive; defaults cover the whole screen; the page
+               parameter is ignored (one page). The checksum is the NEGATED
+               16-bit sum of the character codes — DEC STD 070 as xterm
+               implements it (verified against xterm patch 407: a lone 'A'
+               reads back 0xFFBF = 0x10000 - 0x41). esctest's --xterm-checksum
+               flag must be < 279 so it applies the same negation. */
+            int pid = n > 0 ? ps[0] : 0;
+            int top  = P(2, 1) - 1, left = P(3, 1) - 1;
+            int bot  = P(4, t->rows) - 1, right = P(5, t->cols) - 1;
+            if (top < 0) top = 0; if (left < 0) left = 0;
+            if (bot > t->rows - 1) bot = t->rows - 1;
+            if (right > t->cols - 1) right = t->cols - 1;
+            unsigned sum = 0;
+            for (int r = top; r <= bot; r++)
+                for (int c = left; c <= right && c < t->grid[r].cols; c++)
+                    sum += t->grid[r].cells[c].scalar;
+            char buf[48];
+            snprintf(buf, sizeof buf, "\x1bP%d!~%04X\x1b\\", pid,
+                     (0x10000 - (sum & 0xFFFF)) & 0xFFFF);
+            respond(t, buf);
+        }
+        /* "p (DECSCL), $p (DECRQM), $r (DECCARA)... consumed, unimplemented */
+        return;
+    }
 
     switch (final) {
     case 'A': move_cursor(t, -P(0, 1), 0); break;
@@ -689,7 +737,7 @@ static void process_ground(StarlingTerm *t, uint8_t b) {
 static void process_escape(StarlingTerm *t, uint8_t b) {
     t->state = ST_GROUND;
     switch (b) {
-    case '[': t->csi_count = 0; t->csi_cur = -1; t->csi_private = 0; t->state = ST_CSI; break;
+    case '[': t->csi_count = 0; t->csi_cur = -1; t->csi_private = 0; t->csi_inter = 0; t->state = ST_CSI; break;
     case ']': t->osc_len = 0; t->state = ST_OSC; break;
     case '7': save_cursor(t); break;
     case '8': restore_cursor(t); break;
@@ -722,6 +770,8 @@ static void process_csi(StarlingTerm *t, uint8_t b) {
         t->csi_cur = -1;
     } else if (b == 0x3F) {
         t->csi_private = 1;
+    } else if (b >= 0x20 && b <= 0x2F) {
+        t->csi_inter = b;
     } else if (b == 0x1B) {
         t->state = ST_ESCAPE;
     }
