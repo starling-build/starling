@@ -1,8 +1,13 @@
 /* Isolate the terminal's READ path: a real pty, a real `cat`, the real core.
  *
  *   ptyread <mode> <file> [cols rows]
- *     0 = blocking 64K reads, one feed per read      (what TerminalApp does)
+ *     0 = blocking 64K reads, one feed per read
  *     1 = poll + non-blocking drain, one feed per batch
+ *     2 = transport floor: read and discard, no parse
+ *     3 = ring: reader thread + parser thread, one publish per read
+ *         (what TerminalApp did before the drain change)
+ *     4 = ring + drain-into-slot: publish once per FULL slot or empty pty
+ *         (what TerminalApp does now — see Pty.swift startReader)
  *
  * Mode 0 also models the per-chunk Swift cost the app pays on top of feed: an
  * allocation and a copy of the chunk (`Array(buf[0..<n])`). Mode 1 has none.
@@ -46,6 +51,57 @@ typedef struct {
 
 typedef struct { int fd; Ring *r; long reads; size_t total; } RdArg;
 typedef struct { StarlingTerm *t; Ring *r; long feeds; } FdArg;
+
+
+/* ---- mode 4: ring + drain-into-slot --------------------------------------
+   Reader: one blocking-ish read (via poll) then keep reading non-blocking
+   into the SAME slot until it is full or the pty is empty, then publish once.
+   Coalesces only bytes already queued in the kernel, so a short burst still
+   publishes immediately; a flood publishes ~64K per ring pass instead of
+   ~700B, cutting lock/condvar traffic ~80x. */
+static void *rd4_thread(void *p) {
+    RdArg *a = p; Ring *r = a->r;
+    int flags = fcntl(a->fd, F_GETFL, 0);
+    fcntl(a->fd, F_SETFL, flags | O_NONBLOCK);
+    struct pollfd pf = { .fd = a->fd, .events = POLLIN };
+    for (;;) {
+        pthread_mutex_lock(&r->m);
+        while (r->count == RING_SLOTS) pthread_cond_wait(&r->not_full, &r->m);
+        int slot = r->tail;
+        pthread_mutex_unlock(&r->m);
+
+        size_t got = 0;
+        for (;;) {
+            ssize_t n = read(a->fd, r->buf[slot] + got, SLOT_CAP - got);
+            if (n > 0) {
+                a->reads++; got += (size_t)n; a->total += (size_t)n;
+                if (got == SLOT_CAP) break;
+                continue;
+            }
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                if (got > 0) break;              /* publish what we have */
+                if (poll(&pf, 1, -1) < 0 && errno != EINTR) { got = 0; goto eof4; }
+                continue;
+            }
+            if (n < 0 && errno == EINTR) continue;
+            goto eof4;                            /* EOF or error */
+        }
+        pthread_mutex_lock(&r->m);
+        r->len[slot] = got;
+        r->tail = (r->tail + 1) % RING_SLOTS;
+        r->count++;
+        pthread_cond_signal(&r->not_empty);
+        pthread_mutex_unlock(&r->m);
+        continue;
+    eof4:
+        pthread_mutex_lock(&r->m);
+        if (got) { r->len[slot] = got; r->tail = (r->tail + 1) % RING_SLOTS; r->count++; }
+        r->eof = 1;
+        pthread_cond_signal(&r->not_empty);
+        pthread_mutex_unlock(&r->m);
+        return NULL;
+    }
+}
 
 static void *rd_thread(void *p) {
     RdArg *a = p; Ring *r = a->r;
@@ -97,8 +153,8 @@ static void *fd_thread(void *p) {
     }
 }
 
-static void run_split(int fd, StarlingTerm *t, long *reads, long *feeds,
-                      size_t *total, double *elapsed) {
+static void run_split_fn(void *(*rfn)(void *), int fd, StarlingTerm *t,
+                         long *reads, long *feeds, size_t *total, double *elapsed) {
     static Ring r;
     memset(&r, 0, sizeof r);
     pthread_mutex_init(&r.m, NULL);
@@ -108,7 +164,7 @@ static void run_split(int fd, StarlingTerm *t, long *reads, long *feeds,
     FdArg fa = { .t = t, .r = &r };
     pthread_t rt, ft;
     double t0 = now();
-    pthread_create(&rt, NULL, rd_thread, &ra);
+    pthread_create(&rt, NULL, rfn, &ra);
     pthread_create(&ft, NULL, fd_thread, &fa);
     pthread_join(rt, NULL);
     pthread_join(ft, NULL);
@@ -117,7 +173,7 @@ static void run_split(int fd, StarlingTerm *t, long *reads, long *feeds,
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) { fprintf(stderr, "usage: ptyread <0|1> <file> [cols rows]\n"); return 2; }
+    if (argc < 3) { fprintf(stderr, "usage: ptyread <0|1|2|3|4> <file> [cols rows]\n"); return 2; }
     int mode = atoi(argv[1]);
     const char *file = argv[2];
     int cols = argc > 3 ? atoi(argv[3]) : 201, rows = argc > 4 ? atoi(argv[4]) : 47;
@@ -139,11 +195,12 @@ int main(int argc, char **argv) {
     long b4k = 0, b16k = 0, b64k = 0;
     double t0 = now();
 
-    if (mode == 3) {                   /* split: read on one thread, feed on another */
+    if (mode == 3 || mode == 4) {      /* split: read on one thread, feed on another */
         double el3;
-        run_split(master, t, &reads, &feeds, &total, &el3);
+        run_split_fn(mode == 4 ? rd4_thread : rd_thread,
+                     master, t, &reads, &feeds, &total, &el3);
         int st3; waitpid(pid, &st3, 0); close(master);
-        printf("mode 3  wall %.3f s  %.1f MB  %.0f MB/s\n", el3, total / 1e6, total / 1e6 / el3);
+        printf("mode %d  wall %.3f s  %.1f MB  %.0f MB/s\n", mode, el3, total / 1e6, total / 1e6 / el3);
         printf("   reads %ld  feeds %ld  mean batch %.0f B\n",
                reads, feeds, feeds ? (double)total / feeds : 0);
         starling_term_free(t); free(buf);
