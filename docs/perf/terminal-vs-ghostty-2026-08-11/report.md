@@ -368,6 +368,42 @@ where it should be. At 1080p the wall is inside session noise (2.173 vs
 3.22. Remaining 4K losses: alt_screen 1.18x, long_lines 1.20x,
 scroll_region 1.14x, dense_cells 1.13x — row-movement and cell-write bound,
 no longer blanking bound.
+
+### The last four, decomposed — and where the levers stop
+
+Writer-clock floors at 478x126 for the four remaining losses (`ptyread`
+mode 2, `PTYREAD_CMD` wrapper), against both live walls:
+
+| workload | read floor | ours live | nightly live |
+|---|---|---|---|
+| 02_dense_cells | 0.224-0.236 | 0.244 | **0.215 — below the floor** |
+| 07_alt_screen | 0.429-0.453 | 0.479 | **0.406 — below the floor** |
+| 08_scroll_region | 0.284-0.308 | 0.294 | **0.259 — below the floor** |
+| 09_long_lines | 0.176-0.201 | 0.216 | 0.180 — at the floor |
+
+Two components:
+
+1. **Ours-over-floor is the repaint, and it is measurable**: alt_screen
+   live with `STARLING_BENCH_NOREPAINT=1` drops 0.515 -> 0.449 (medians of
+   5) — onto the floor. At 4K the GTK harness presents ~33 MB per frame
+   through a software pixman blit whose memory traffic competes with the
+   ldisc copy chain; ghostty renders on the GPU. The lever here is GL
+   presentation in the FlutterGTK host — a bench-build artifact in part,
+   since the shipping DRM path never pays the blit.
+2. **The nightly's below-the-floor residue (~5-8%) is NOT reachable by any
+   read strategy we can construct.** Measured on the writer's clock, at
+   this grid, on these files: eager (mode 2), paced (6, 8 — catastrophic
+   here: sleeping throttles the writer within ~120us at these byte
+   rates), 256K-linger (9), adaptive inline (10 — engages, helps
+   scroll_region ~5%, cannot reach 0.406), fully serial (0 — parse goes
+   ADDITIVE on the big streams: alt 0.635 = 0.43 transport + 0.22 parse),
+   and io_uring (5, 7). A matched-cgroup control (the probe run inside the
+   bench user's systemd scope) reproduces the same floor, ruling out
+   scheduling-weight artifacts. Whatever the nightly's read context does
+   for the writer's kernel path — thread placement, turbo residency,
+   something else — it is not a consumption-pattern lever, and a
+   read-and-discard loop cannot match it. ~170 ms across the four (5% of
+   suite wall) is the total on the table; roughly half is component 1.
 Note the realistic 4K desktop runs 1.5-2x scale, where the LOGICAL grid is
 near the 1080p one — the 478x126 shape is a stress variant, not a user
 setting.
