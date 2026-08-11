@@ -1,0 +1,122 @@
+# Terminal vs Ghostty, round 9 — the lead retaken, the leak fixed, ascii at the floor
+
+2026-08-11, on the same NucBox K8 Plus and GNOME Shell 50.1 (Wayland) session
+as the [2026-08-04 report](../terminal-vs-ghostty-2026-08-04/), every terminal
+at exactly grid 47x201. Measured builds:
+
+    TerminalApp      this branch (C core + read-path split + leak fixes +
+                     drained reader), GTK embedder build (STARLING_APP_GTK=1)
+    ghostty nightly  1.3.2-dev, same binary as the 08-04 report
+    ghostty 1.3.0    1.3.0~us1-0ubuntu1 (Ubuntu archive)
+    alacritty        0.16.1-2ubuntu1
+    kitty            0.45.0-1build1
+
+Three findings, in the order they happened.
+
+## 1. The 10-workload suite: 0.58x of the nightly's wall
+
+Best-of-3 per workload, `data/res-*` (post-leak-fix run: `*-new-*`; final
+run with the drained reader: `res-ours-drain-*`).
+
+| workload | ours | nightly | ratio |
+|---|---|---|---|
+| 03_sgr_fg | 0.186 | 0.628 | **0.30x** |
+| 10_binary | 0.313 | 1.210 | **0.26x** |
+| 04_sgr_truecolor | 0.252 | 0.459 | **0.55x** |
+| 06_cursor_motion | 0.015 | 0.019 | **0.79x** |
+| 05_unicode | 0.224 | 0.242 | **0.93x** |
+| 01_light_cells | 0.406 | 0.404 | 1.00x |
+| 09_long_lines | 0.098 | 0.097 | 1.01x |
+| 02_dense_cells | 0.165 | 0.136 | 1.21x |
+| 08_scroll_region | 0.307 | 0.266 | 1.15x |
+| 07_alt_screen | 0.082 | 0.068 | 1.21x |
+| **total** | **2.05** | **3.53** | **0.58x** |
+
+On 08-04 (pre-C-core) we were 1.13x *slower* overall and last of five on
+unicode. Control: the same nightly binary reproduced its archived numbers to
+within 0.97-1.36x across workloads, so the movement is the code, not the box.
+
+## 2. Ghostty's own three published tests: two of three
+
+Their post's tests, five terminals, medians of 3 (`data/bigcat-*`,
+`data/doom-*`):
+
+| test | ours | ghn | ala | kitty | gh130 |
+|---|---|---|---|---|---|
+| `time cat 150mb_ascii.txt` | 0.750 (2nd) | **0.696** | 1.236 | 1.213 | 1.467 |
+| `time cat 150mb_unicode.txt` | **0.541** | 0.591 | 1.058 | 1.215 | 1.415 |
+| DOOM-Fire-Zig (fps, 600 frames) | **1960** | 1224 | 890 | 374 | 573 |
+
+On 08-04 the nightly swept all three. Our own moves: DOOM 591→1960 fps,
+unicode 1.567→0.541 s (was last of five), ascii 0.840→0.750. Our ascii CPU
+is 1.15 s to the nightly's 1.38 — we do less work; they finish sooner.
+
+## 3. Why ascii stops at 0.750, exactly
+
+`test/bench/core/ptyread.c` isolates the read path (modes 0-4). On this box,
+150 MB through a pty costs **0.74-0.75 s for every read(2)-based consumption
+pattern** — the pty returns ~600-byte reads during a flood regardless of
+buffer size, and mode 1 (poll + drain), mode 3 (threaded ring) and mode 4
+(ring + drain-into-slot) all land on the same wall. That is the floor, and
+0.750 sits on it.
+
+The nightly's 0.696 is *below* that floor: strace shows io_uring_enter in
+its read path and ~7 KB mean reads to our ~600 B. Matching it is a transport
+rewrite (io_uring), not a tune.
+
+What the drained reader (Pty.swift) did buy, versus publishing every ~700 B
+chunk through the ring: ring passes fell ~80x (ptyread mode 3 → mode 4:
+204k feeds → 2.8k), futex traffic fell from 34k calls (50% of strace'd time)
+to noise, ascii went 0.780→0.750 wall and **1.42→1.15 CPU**, and
+light_cells/long_lines became ties with the nightly.
+
+## The memory leak, fixed the same day
+
+The +20-25 MB-per-styled-dump leak (open since 08-04) is fixed: flat RSS over
+14 consecutive `03_sgr_fg` passes (was +20 MB per pass, unbounded). Six
+defects, all one species — reference patterns Dart's GC collects and ARC
+cannot:
+
+1. `Element._parent` was strong → the element tree was one retain-cycle
+   cluster; every dropped subtree leaked wholesale. Dominant (20→5 MB/pass).
+2. `InheritedElement._dependents` held dependents strongly and `deactivate()`
+   never unregistered them → the live theme pinned every dead Text element
+   with its whole span tree. The residual 5 MB/pass.
+3. `ParagraphBuilderBridge::Build()` (engine) lacked `SWIFT_RETURNS_RETAINED`
+   → every engine-side paragraph got an extra retain and never destructed.
+   Fifteen sibling factory methods had the same hole (scene builder, layers,
+   images, codecs, semantics) — all annotated.
+4. Unmount was not recursive → no descendant's `renderObject.dispose()` ran.
+5. `finalizeTree()` had no caller → inactive elements never unmounted at all.
+6. `TextLayout._painter` strong back-ref → every laid-out TextPainter
+   self-retained; sibling parentData pointers cycled adjacent children.
+
+Benchmark RSS after three suites: 399 MB → 240 MB (ghostty: 171).
+
+## Reproducing
+
+Both terminals run inside one GNOME Wayland session (GNOME refuses synthetic
+input, so each terminal *executes* the runner itself — ours via
+`STARLING_DEV_SHELL`, the others via `-e`). On a Starling box:
+`Session=gnome` in `/var/lib/AccountsService/users/<user>`, then restart
+**accounts-daemon and then gdm** — gdm alone reuses the cached session.
+
+1. Stage workloads + runners: `test/bench/gen-bench.py /var/tmp/bench`, copy
+   `test/bench/run-bench.sh` and the 08-04 report's `bigcat.sh` /
+   `doomfire.sh` there, plus the two 150 MB files and the patched
+   DOOM-fire binary (`../terminal-vs-ghostty-2026-08-04/` documents both).
+2. Stage the GTK build + its libraries into `/var/tmp/bench/gtkrun`
+   (binary, libFlutterShared.so, libflutter_engine.so, libflutter_linux_gtk.so,
+   resources — see `test/bench/core/README.md`).
+3. `./calibrate.sh` — solves the pixel size that gives TerminalApp exactly
+   201x47 (window flags are requests, not grids). `./calib-ghostty.sh` does
+   ghostty (201x47 request lands on 200x44; the answer here was 202x50).
+   kitty: `initial_window_width=201c` overshoots under fractional scaling —
+   194c x 46c landed on 201x47 here. Verify every grid; the cell-filling
+   workloads scale with cell count.
+4. `./bench.sh` — the 10-workload suite, three terminals.
+   `./published.sh` — the three published tests, five terminals.
+   `./report.sh` — best-of-3 aggregation.
+   `BENCH_USER=<session user>` if it is not `starling`.
+
+Raw data from this machine is under `data/`.
