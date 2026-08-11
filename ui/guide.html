@@ -292,7 +292,7 @@
 
   <div class="hero">
     <div class="wrap hero-inner">
-      <span class="eyebrow"><span class="dot"></span> User Guide · v0.2.3</span>
+      <span class="eyebrow"><span class="dot"></span> User Guide · v0.3.0</span>
       <h1>Using Starling</h1>
       <p class="lede">
         A tour of the desktop — the dock and Launchpad, spaces and Mission
@@ -563,16 +563,16 @@
       <div class="kicker">Good to know</div>
       <div class="sec-head">
         <h2>This is an early preview</h2>
-        <p>Starling (v0.2.3) boots as a real desktop on real hardware and runs
+        <p>Starling (v0.3.0) boots as a real desktop on real hardware and runs
         real applications, but it's the work of one person over a few months.
         A few limits you'll notice:</p>
       </div>
       <ul class="feats">
-        <li><strong>No screen lock or screensaver.</strong> Don't rely on it to secure an unattended machine.</li>
-        <li><strong>Scaling is fixed at 2.0.</strong> Fractional scaling produced blurry text and isn't usable yet.</li>
+        <li><strong>No screen lock.</strong> There is a screensaver, but it is decoration: any key or click dismisses it, with nothing asked. Don't rely on it to secure an unattended machine.</li>
+        <li><strong>Every display scales the same.</strong> The session picks one scale for the whole desktop (fractional steps included — 1.25 and 1.5 render as crisply as 2.0); per-display scale isn't implemented yet.</li>
         <li><strong>No display-mode picker.</strong> The session uses the connector's preferred mode.</li>
-        <li><strong>Zoom runs with a caveat</strong> — it starts but reports <code>no pactl and pacmd found</code>, since nothing pulls in an audio stack yet.</li>
-        <li>Verified on <strong>AMD</strong> and <strong>virtio-gpu</strong> graphics; Intel and NVIDIA aren't yet tested.</li>
+        <li><strong>Zoom runs without audio.</strong> It reports <code>no pactl and pacmd found</code> — expected, and deliberate: installing <code>pulseaudio-utils</code> makes Zoom crash at startup. Sound in other apps is unaffected.</li>
+        <li>Verified on <strong>AMD</strong> and <strong>virtio-gpu</strong> graphics, and on <strong>NVIDIA</strong> as a hybrid laptop's second GPU (per-app render offload); Intel, and NVIDIA driving the desktop itself, aren't yet tested.</li>
       </ul>
       <p class="note">Hit a problem? The session log is at
       <code>/tmp/starling-session-&lt;your-uid&gt;.log</code>, and issues go to

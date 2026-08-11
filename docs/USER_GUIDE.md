@@ -294,7 +294,7 @@ desktop.
 
 ## Things to know in this release
 
-Starling is an early preview (v0.2.3). A few limits you will notice:
+Starling is an early preview (v0.3.0). A few limits you will notice:
 
 - **No screen lock.** There is a screensaver (below), but it is decoration:
   any key or mouse movement dismisses it, with nothing asked. Do not rely on
@@ -313,8 +313,9 @@ Starling is an early preview (v0.2.3). A few limits you will notice:
   because Zoom crashes at startup when it is present. **Do not install
   `pulseaudio-utils` to fix it** — that trades a silent Zoom for one that will
   not start. Sound in other apps (Chrome, Slack, Teams) is unaffected.
-- Verified on **AMD** and **virtio-gpu** graphics; Intel and NVIDIA are not yet
-  tested.
+- Verified on **AMD** and **virtio-gpu** graphics, and on **NVIDIA** as the
+  second GPU of a hybrid laptop (per-app render offload). Intel, and NVIDIA
+  driving the desktop itself, are not yet tested.
 
 If something misbehaves, the session log is at
 `/tmp/starling-session-<your-uid>.log`, and issues go to
