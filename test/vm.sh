@@ -264,8 +264,11 @@ step "functional checks, against the installed .deb"
 # in the guest — wayland-scanner for the bindings, the protocol XML, and a
 # compiler — rather than shipping a binary that would rot against libwayland.
 # Without them it SKIPs, which is the hole this whole block exists to close.
+# The recording-zoom check is shell-drive's only `shot` user in this suite,
+# and shot converts the shell's .ppm through netpbm's pnmtopng — without it
+# the check FAILs on the conversion, after the shell already saved the shot.
 ssh_vm 'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-        wl-clipboard python3-gi gir1.2-gtk-3.0 \
+        wl-clipboard python3-gi gir1.2-gtk-3.0 netpbm \
         libwayland-bin libwayland-dev wayland-protocols gcc' >/dev/null 2>&1 \
     || echo "  note: test deps unavailable — clipboard/screensaver checks will skip"
 ssh_vm 'mkdir -p ~/fixtures'
