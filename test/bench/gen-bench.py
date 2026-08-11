@@ -12,9 +12,12 @@ long enough that startup and the repaint coalescing window do not dominate.
 import os, random, sys
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "bench"
-COLS = 200          # <= the narrower of the two terminals, so "one line" is
-                    # the same amount of work in both regardless of window size
-ROWS = 45
+# <= the narrower of the two terminals, so "one line" is the same amount of
+# work in both regardless of window size. The fullscreen protocol (both
+# terminals verified at the SAME grid — see run-gnome-fs.sh) regenerates the
+# corpus at that grid so the cell-filling workloads fill every column.
+COLS = int(sys.argv[2]) if len(sys.argv) > 2 else 200
+ROWS = int(sys.argv[3]) if len(sys.argv) > 3 else 45
 os.makedirs(OUT, exist_ok=True)
 random.seed(1234)   # deterministic corpus
 

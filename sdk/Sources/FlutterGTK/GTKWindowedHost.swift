@@ -41,6 +41,15 @@ public enum GTKWindowedHost {
                 """)
             }
             host = h
+            // Benchmark/dev knob: a fullscreen window (no chrome) is the only
+            // way to give every terminal in a comparison the same pixel area
+            // — width/height requests land wherever each toolkit's decoration
+            // and CSD policy put them. GTK queues the request until realize,
+            // so setting it before run() is fine.
+            if let fs = ProcessInfo.processInfo.environment["STARLING_WINDOW_FULLSCREEN"],
+               !fs.isEmpty {
+                h.setFullscreen(true)
+            }
             h.mountWidget(root)
             h.run()
         }

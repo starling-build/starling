@@ -254,3 +254,50 @@ split design itself — ghostty parses inline on its read thread, so no
 second thread perturbs the writer→kworker→reader chain during floods. An
 adaptive inline parse (harness mode 10) engages correctly and measures
 inside noise; it stays unshipped until a workload justifies it.
+
+## The fullscreen protocol: same pixels, same font, same grid — same verdict
+
+The calibrated-window ritual (solve each terminal's pixel request until the
+grids match) leaves two things unequal: the pixel areas, and — discovered
+while replacing it — the RENDER RESOLUTION. This session ran 4K at scale
+1.5, where a GTK3 client (our bench build) renders at integer scale 2
+(5120x2880, compositor-downscaled) while ghostty renders native fractional
+3840x2160. Every prior round ran on that tilted field.
+
+`run-gnome-fs.sh` is the replacement, one condition per line: session at
+1920x1080 @ scale 1 (mutter DisplayConfig), both terminals fullscreen
+(ghostty needs `--fullscreen=true`; the bare flag is ignored), both on the
+repo's Roboto Mono (ours 13 logical px, ghostty --font-size=9.75 — points at
+96 dpi), ours with `STARLING_CELL_W=8.0` (freetype hints the advance to 8.0
+where our shaper keeps the fractional 7.8; letterSpacing makes up the
+difference), ghostty with padding 6 so both floors land on the same column.
+Both terminals then VERIFY at 238x62, the corpus is regenerated for that
+grid (`gen-bench.py /var/tmp/benchfs 238 62`), and the runner waits for the
+fullscreen configure before timing (both terminals exec their command at the
+pre-fullscreen size — an early probe read 145x45 for exactly that reason).
+
+Best-of-3 (`data/*-fsours-*`, `data/*-fsghn-*`), identical grid and pixels:
+
+| workload | ours | nightly | ratio | calibrated (r10) |
+|---|---|---|---|---|
+| 10_binary | 0.312 | 1.286 | **0.24x** | 0.26x |
+| 03_sgr_fg | 0.180 | 0.625 | **0.29x** | 0.28x |
+| 04_sgr_truecolor | 0.249 | 0.467 | **0.53x** | 0.58x |
+| 06_cursor_motion | 0.014 | 0.020 | **0.70x** | 0.74x |
+| 05_unicode | 0.218 | 0.231 | **0.94x** | 0.93x |
+| 01_light_cells | 0.398 | 0.400 | **1.00x** | 0.99x |
+| 09_long_lines | 0.093 | 0.090 | 1.03x | 1.08x |
+| 08_scroll_region | 0.290 | 0.266 | 1.09x | 1.10x |
+| 02_dense_cells | 0.155 | 0.137 | 1.13x | 1.11x |
+| 07_alt_screen | 0.082 | 0.067 | 1.22x | 1.08x |
+| **total** | **1.991** | **3.589** | **0.55x** | 0.57x |
+
+**The verdict is not an artifact of the window mismatch**: 0.55x wall under
+strict equality against 0.57x calibrated, the same split of wins and
+losses, and the CPU margin widens slightly (3.26 vs 4.52 CPU-s) once ours
+stops rendering 78% more pixels than its rival. Absolute numbers are not
+comparable to the tables above — different grid, different corpus, different
+render resolution; the within-protocol ratios are the result. The published
+three tests stay on the calibrated protocol: their files' line wrap depends
+on column count, so a new grid would break comparability with ghostty's
+post and the earlier rounds.

@@ -74,6 +74,9 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     /// Monospace cell metrics, measured once at startup.
     private var cellW: Double = 7.8
     private var cellH: Double = 17.0
+    /// Extra per-glyph advance when STARLING_CELL_W forces the cell width
+    /// away from the font's natural advance. 0 in normal operation.
+    private var _cellSpacing: Double = 0
 
     private let padding: Double = 8
 
@@ -389,6 +392,18 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         }
         if painter.height > 0 {
             cellH = painter.height
+        }
+        // Bench knob (see test/bench/core/README.md): force the cell width.
+        // Two terminals given the same font at the same size can still land
+        // different grids because their font stacks round the advance
+        // differently (freetype hints Roboto Mono 13px to 8.0; our shaper
+        // keeps the fractional 7.8). Glyphs keep their natural advance; the
+        // difference is made up with letterSpacing so runs stay on the
+        // forced grid. Not a shipping knob.
+        if let v = ProcessInfo.processInfo.environment["STARLING_CELL_W"],
+           let forced = Double(v), forced > 0, cellW > 0 {
+            _cellSpacing = forced - cellW
+            cellW = forced
         }
     }
 
@@ -765,6 +780,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
             fontSize: TermTheme.fontSize,
             fontWeight: style.attrs.contains(.bold) ? .w700 : .normal,
             fontStyle: style.attrs.contains(.italic) ? .italic : .normal,
+            letterSpacing: _cellSpacing == 0 ? nil : _cellSpacing,
             decoration: style.attrs.contains(.underline) ? .underline : nil,
             fontFamily: TerminalFont.family,
             fontFamilyFallback: TerminalFont.fallback
