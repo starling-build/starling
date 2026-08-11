@@ -290,11 +290,12 @@ everything it opens stays beside it. The workspace list is on the left, the
 **Workspace** in the desktop menu) steps back out to the desktop you came
 from; the workspace and its apps keep running, and the same key leads back in.
 
-It is built for handing a project to an AI coding agent: start a terminal as
-the driver, run the agent in it, and the browsers and editors it opens stack
-up as tabs in its room while your own windows never move. You can watch, and
-you can step in — click into any pane and use it like any other window. There
-is a three-minute recording of exactly this on
+It is built for handing work to an AI agent — coding is the demo, not the
+boundary: start a terminal as the driver, run an agent in it, and whatever
+the agent opens to do its job — browsers, editors, documents — stacks up as
+tabs in its room while your own windows never move. You can watch, and you
+can step in — click into any pane and use it like any other window. There is
+a three-minute recording of a coding agent doing exactly this on
 [starling.build](https://starling.build/#agents).
 
 Working the room:
