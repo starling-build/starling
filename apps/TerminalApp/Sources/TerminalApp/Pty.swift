@@ -244,22 +244,62 @@ final class Pty: @unchecked Sendable {
     /// `ptyread.c` modes 0 and 3). Ghostty sits exactly on the transport floor
     /// on the workloads where we did not; this is why.
     func startReader() {
+        // Non-blocking + poll, so the reader can DRAIN into a slot: the pty
+        // returns ~600-byte reads during a flood no matter how big the buffer
+        // is, and publishing each one cost a ring pass — two NSCondition
+        // lock/broadcast round-trips, an emulator-lock acquisition and a
+        // repaint schedule — per ~700 bytes. strace during `cat 150mb_ascii`
+        // showed 34k futex calls (50% of traced time) against ghostty's 6.5k.
+        // Filling the slot from consecutive reads until it is full or the pty
+        // is EMPTY collapses ~200k ring passes into ~2.8k (mean batch ~54 KB,
+        // measured in test/bench/core/ptyread.c mode 4) while coalescing only
+        // bytes already queued in the kernel: a lone keystroke echo still
+        // publishes the moment the pty runs dry, so latency is unchanged.
+        let fl = fcntl(masterFd, F_GETFL, 0)
+        _ = fcntl(masterFd, F_SETFL, fl | O_NONBLOCK)
         let reader = Thread { [weak self] in
+            var pfd = pollfd(fd: -1, events: Int16(POLLIN), revents: 0)
             while true {
                 guard let self = self else { return }
-                // The slot is ours until we publish it, so the read lands
+                // The slot is ours until we publish it, so reads land
                 // straight in the ring — no chunk allocation, no copy.
                 guard let slot = self.ring.acquireForWrite() else { return }
-                let n = read(self.masterFd, slot.base, ChunkRing.slotCapacity)
-                if n > 0 {
-                    self.ring.publish(slot, count: n)
-                } else if n < 0 && errno == EINTR {
-                    self.ring.abandon(slot)
-                } else {
-                    self.ring.abandon(slot)
+                pfd.fd = self.masterFd
+                var got = 0
+                while true {
+                    let n = read(self.masterFd, slot.base + got,
+                                 ChunkRing.slotCapacity - got)
+                    if n > 0 {
+                        got += n
+                        if got == ChunkRing.slotCapacity { break }
+                        continue
+                    }
+                    if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        if got > 0 { break }   // publish what is queued
+                        pfd.revents = 0
+                        let p = poll(&pfd, 1, -1)
+                        if p < 0 && errno != EINTR {
+                            self.ring.abandon(slot)
+                            self.ring.close()
+                            return
+                        }
+                        // POLLHUP with nothing readable = child side closed.
+                        if pfd.revents & Int16(POLLHUP) != 0
+                            && pfd.revents & Int16(POLLIN) == 0 {
+                            self.ring.abandon(slot)
+                            self.ring.close()
+                            return
+                        }
+                        continue
+                    }
+                    if n < 0 && errno == EINTR { continue }
+                    // EOF or hard error: hand over what we have, then close.
+                    if got > 0 { self.ring.publish(slot, count: got) }
+                    else { self.ring.abandon(slot) }
                     self.ring.close()
                     return
                 }
+                self.ring.publish(slot, count: got)
             }
         }
         reader.name = "pty-reader"
@@ -286,14 +326,29 @@ final class Pty: @unchecked Sendable {
     }
 
     /// Writes bytes to the shell's input.
+    ///
+    /// The master fd is O_NONBLOCK (the reader drains it — see startReader),
+    /// so a large paste can fill the kernel's input buffer mid-write. That
+    /// surfaces as EAGAIN, not a short write; wait for writability and resume
+    /// rather than silently dropping the tail of the paste.
     func write(_ bytes: [UInt8]) {
         var remaining = bytes[...]
+        var pfd = pollfd(fd: masterFd, events: Int16(POLLOUT), revents: 0)
         while !remaining.isEmpty {
             let n = remaining.withUnsafeBytes { ptr -> Int in
                 Glibc.write(masterFd, ptr.baseAddress, ptr.count)
             }
-            if n <= 0 { return }
-            remaining = remaining.dropFirst(n)
+            if n > 0 {
+                remaining = remaining.dropFirst(n)
+                continue
+            }
+            if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+                pfd.revents = 0
+                if poll(&pfd, 1, 1000) <= 0 { return }  // shell gone or wedged
+                continue
+            }
+            if n < 0 && errno == EINTR { continue }
+            return
         }
     }
 
