@@ -207,9 +207,12 @@
   .feature .feature-text p { color: var(--ink-dim); font-size: 16px; }
   .feature .feature-text p + p { margin-top: 14px; }
   .feature figure { margin: 0; }
-  .feature figure img {
+  .feature figure img,
+  .feature figure video {
+    display: block; width: 100%; height: auto;
     border-radius: 10px; border: 1px solid var(--line);
     box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    background: var(--bg-sunk);
   }
   .feature figcaption {
     font-size: 14px; color: var(--ink-faint); margin-top: 12px; text-align: center;
@@ -466,9 +469,14 @@
           </p>
         </div>
         <figure>
-          <img src="img/workspace.jpg" width="2000" height="1125" loading="lazy"
-               alt="Starling in workspace mode: a workspace list on the left, a coding agent running in a terminal down the middle, and VS Code captured as a tab on the right.">
-          <figcaption>An agent driving in the middle; the editor it opened on the right.</figcaption>
+          <video controls preload="none" playsinline width="1920" height="1080"
+                 poster="img/agent-workspace-poster.jpg"
+                 aria-label="A three-and-a-half-minute narrated demo of agent workspace mode: an agent builds a web app in a terminal down the middle, opens Chrome and VS Code as tabs beside it, and the user steps in while their own desktop stays untouched.">
+            <source src="video/agent-workspace.mp4" type="video/mp4">
+            <img src="img/workspace.jpg" width="2000" height="1125"
+                 alt="Starling in workspace mode: a workspace list on the left, a coding agent running in a terminal down the middle, and VS Code captured as a tab on the right.">
+          </video>
+          <figcaption>Watch it happen — an agent builds and ships a page in its own room. 3½ minutes, narrated.</figcaption>
         </figure>
       </div>
 
