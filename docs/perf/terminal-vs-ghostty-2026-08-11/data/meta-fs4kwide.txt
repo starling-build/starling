@@ -1,0 +1,4 @@
+label fs4kwide
+terminal_pid 1194813
+terminal_comm TerminalApp
+grid 126x478
