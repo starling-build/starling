@@ -1,4 +1,12 @@
-# Two Windows perf fixes that did not work, and what the data says instead
+# Two Windows perf fixes that did not work, one profile that found it, and the fix
+
+**Resolved.** `01_light_cells` went **9.36 s -> 4.21 s (-55%)**, which is
+**1.01x Windows Terminal** where it had been 2.24x, and the suite went
+122.3 -> 116.8 (1.02x WT). The cause was not in our code at all: we were
+running a different, much slower console host than WT. Details in
+"The profile, and the fix" below — the two failed attempts above it are kept
+because the way they failed is the useful part.
+
 
 2026-08-11, win11 libvirt VM, same protocol as
 `../terminal-windows-2026-08-11/` (verified 40x120 both sides, 2 reps,
@@ -62,30 +70,72 @@ object recompiled after the edit, and `0x00100000` present in
 `starling_conpty.c.o`. Pipe capacity is not the constraint, which means
 conhost is not blocking on pipe backpressure: it paces the stream itself.
 
-## What the data actually says
+## The profile, and the fix
 
-We are not slow, we are **starved**. On `light_cells`, Windows Terminal spends
-**2.80 CPU-seconds to our 0.46 and finishes 2.2x sooner** — it is doing six
-times the work and winning. Nothing on our side of the pipe can fix a deficit
-in what arrives through it.
+Both failures above came from theorising about our own code. Profiling took
+one run: account for the CPU of **every process in the pipeline**, not just
+ours. Our benchmark had only ever recorded our own.
 
-The strongest remaining lead is that **we and Windows Terminal are not talking
-to the same ConPTY**. WT ships its own console host inside its package:
+`01_light_cells`, one rep, CPU-seconds by process:
 
-    C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.24.11911.0_x64__8wekyb3d8bbwe\OpenConsole.exe
+| process | ours | Windows Terminal |
+|---|---|---|
+| wall | **9.73 s** | **4.34 s** |
+| the terminal | 0.41 | 2.97 |
+| **conhost** | **7.27** | 0.00 |
+| **OpenConsole** | 0.00 | **2.23** |
 
-Our `CreatePseudoConsole()` binds the inbox `conhost.exe`. Since we are idle
-95% of the run waiting on the producer, and the producer is a *different and
-much newer binary* in WT's case, "their conhost vs the inbox conhost" is a
-candidate that fits every number here — including why the escape-heavy
-workloads, where conhost's re-synthesis dominates for both of us, are already
-at parity.
+Three things fall out at once. We and WT **run different console hosts** —
+each is exactly zero in the other's run. The same byte stream costs the inbox
+`conhost` **7.27 CPU-seconds against OpenConsole's 2.23, 3.3x** — and that is
+the whole gap. And WT "burning 6x our CPU" was never a mystery: 2.97 s of it
+is its own rendering, running in parallel with a cheap host, while we sat
+blocked behind an expensive one.
 
-**This is a lead, not a finding — it has not been tested.** The way to test it
-is to have our shim load WT's `OpenConsole.exe` as the ConPTY provider (which
-is the mechanism WT itself uses) and re-run `light_cells`. If the gap closes,
-the fix is packaging, not code, and it is worth knowing that before optimizing
-anything else on this platform.
+`OpenConsole.exe` is the same console host built from microsoft/terminal, years
+newer than the inbox one. WT reaches it because its statically linked
+`winconpty` looks for `OpenConsole.exe` beside its own module. Nothing
+redirects the inbox `CreatePseudoConsole` at a different host — dropping
+`OpenConsole.exe` into System32 was tried and does nothing — so
+`starling_conpty.c` now does what `winconpty` does and starts the host itself:
+ConDrv server handle, a reference handle under it, a signal pipe, and the host
+with all four handles inherited and named on its command line. The struct
+handed back matches the inbox `HPCON` layout, so CreateProcess's
+`PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE` still understands it.
+
+| workload | conhost (base) | OpenConsole | change | WT | new vs WT |
+|---|---|---|---|---|---|
+| 01_light_cells | 9.36 | 4.21 | **-55.1%** | 4.18 | 1.01x |
+| 02_dense_cells | 7.06 | 6.75 | -4.5% | 6.59 | 1.02x |
+| 03_sgr_fg | 17.81 | 17.16 | -3.7% | 17.70 | 0.97x |
+| 04_sgr_truecolor | 23.89 | 26.34 | **+10.3%** | 25.21 | 1.04x |
+| 05_unicode | 14.18 | 13.88 | -2.1% | 13.16 | 1.05x |
+| 06_cursor_motion | 1.32 | 1.41 | +6.6% | 1.35 | 1.04x |
+| 07_alt_screen | 7.77 | 7.85 | +0.9% | 7.65 | 1.03x |
+| 08_scroll_region | 16.46 | 17.01 | +3.4% | 16.98 | 1.00x |
+| 09_long_lines | 9.25 | 8.80 | -4.8% | 8.80 | 1.00x |
+| 10_binary | 15.17 | 13.44 | -11.4% | 13.16 | 1.02x |
+| **total** | **122.3** | **116.8** | **-4.4%** | **114.8** | **1.02x** |
+
+Every workload now sits between 0.97x and 1.05x of Windows Terminal. The one
+real deficit on this platform is gone.
+
+Honestly, the costs: **four workloads got slightly worse**, `sgr_truecolor`
+most at +10.3%, and **CPU rose 45.4 -> 54.6 s** because we now spend the run
+working instead of blocked. Neither cancels a 55% win on the target workload,
+but neither is noise, and `sgr_truecolor` deserves its own look. RSS is
+unchanged at 37 MB against WT's 95.
+
+**Not shippable yet.** This was measured against WT's copy of
+`OpenConsole.exe`; shipping means building our own from microsoft/terminal
+(MIT) and staging it beside the app. The path is opt-in and fails soft — no
+`OpenConsole.exe` beside the exe means the inbox `CreatePseudoConsole` runs
+exactly as before, and a failed spawn falls back rather than refusing to open
+a terminal. Both paths were verified **on screen**, which mattered: the first
+version of the change looked **2.5x faster and rendered a blank window**,
+because the host was spawned without std handles and so had nowhere to write.
+The writer finished early into a void. A timing harness alone would have
+called that a triumph.
 
 ## The methodological note
 
