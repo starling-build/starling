@@ -240,14 +240,32 @@ func _setupWidgetBinding(_ app: Widget) {
     buildOwner.onBuildScheduled = {
         pd.scheduleFrame()
 
-        #if !os(Linux)
+        #if os(Windows)
         // Schedule a fallback frame on the RunLoop, so that dirty
         // elements from programmatic setState (e.g. animation ticks from
         // Timer callbacks) get processed even if the engine doesn't deliver
         // a vsync frame promptly.
-        // NOTE: On Linux DRM mode, RunLoop.main never spins (the main thread
-        // runs the C++ epoll loop), so this fallback is useless and could
-        // cause race conditions if it somehow fires during initialization.
+        //
+        // Windows only, and the two exclusions are for opposite reasons.
+        //
+        // On Linux DRM mode, RunLoop.main never spins (the main thread runs
+        // the C++ epoll loop), so this fallback is useless and could cause
+        // race conditions if it somehow fires during initialization.
+        //
+        // On macOS it is worse than useless: it is destructive. [NSApp run]
+        // spins RunLoop.main, so the fallback DOES fire — ahead of the vsync
+        // frame the scheduleFrame() above just requested. It drains the whole
+        // pipeline out of band (buildScope, flushLayout, flushPaint), and its
+        // own compositeFrame() is submitted outside the engine's frame
+        // callback, where the scene does not reach the screen. The real vsync
+        // frame then arrives to find _dirtyElements, _nodesNeedingLayout and
+        // _nodesNeedingPaint all empty, so `shouldComposite` is false and it
+        // skips the composite that WOULD have been honoured. Net effect: the
+        // window keeps compositing its first frame forever while build() runs
+        // on every setState — a terminal whose emulator had the shell prompt
+        // and a cursor at column 37 painted an empty grid with the cursor at
+        // column 0. The engine delivers vsync reliably through the Cocoa
+        // embedder, so there is nothing here to fall back FROM.
         if !_fallbackFrameScheduled {
             _fallbackFrameScheduled = true
             RunLoop.main.perform(_sendablePerform {
