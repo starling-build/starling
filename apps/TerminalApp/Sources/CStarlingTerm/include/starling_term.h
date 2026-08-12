@@ -79,6 +79,11 @@ void starling_term_copy_line(const StarlingTerm *t, int abs_index,
                              StarlingTermCell *out);
 
 // Terminal responses (DSR/DA) destined for the pty, and BEL.
+/* UTF-8 of a cell's full content. A plain scalar encodes directly; a
+   grapheme-cluster reference (scalar above the Unicode range) expands to
+   its full sequence. Returns bytes written (no terminator). */
+int starling_term_cell_text(const StarlingTerm *t, uint32_t scalar, char *buf, int cap);
+
 void starling_term_set_response_cb(StarlingTerm *t,
                                    void (*cb)(void *ctx, const char *s),
                                    void *ctx);

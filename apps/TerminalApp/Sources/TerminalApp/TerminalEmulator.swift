@@ -158,6 +158,20 @@ final class TerminalEmulator {
     // for `visibleLines`, on demand for selection — never on the feed path,
     // which is the one that has to be fast.
 
+    /// The full text of a cell — for grapheme-cluster references (scalar
+    /// above the Unicode range) this is the whole sequence: a ZWJ emoji
+    /// family, a conjunct, a base with its combining marks.
+    func cellText(_ scalar: UInt32) -> String {
+        var buf = [UInt8](repeating: 0, count: 64)
+        let n = buf.withUnsafeMutableBufferPointer { p -> Int32 in
+            p.baseAddress!.withMemoryRebound(to: CChar.self, capacity: 64) { cp in
+                starling_term_cell_text(_t, scalar, cp, 64)
+            }
+        }
+        guard n > 0 else { return " " }
+        return String(decoding: buf[0..<Int(n)], as: UTF8.self)
+    }
+
     /// One line by absolute index: scrollback first, then the live screen.
     private func _line(_ absIndex: Int) -> [TermCell] {
         let n = cols

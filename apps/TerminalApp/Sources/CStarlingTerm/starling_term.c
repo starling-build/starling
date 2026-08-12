@@ -62,6 +62,13 @@ typedef enum {
     ST_GROUND, ST_ESCAPE, ST_ESC_INTERMEDIATE, ST_CSI, ST_OSC, ST_OSC_ESCAPE
 } ParseState;
 
+/* Grapheme cluster pool entry — the full codepoint sequence of a cell
+   whose scalar is a GP_BASE reference. See the pool section. */
+#define GP_BASE    0x110000u
+#define GP_MAX     65536
+#define GP_MAX_CPS 15
+typedef struct { uint32_t *cps; int n; } GraphemeEntry;
+
 struct StarlingTerm {
     int cols, rows;
 
@@ -102,6 +109,13 @@ struct StarlingTerm {
        any cursor movement or control invalidates it. */
     int      last_row, last_col, last_w;
     uint32_t last_scalar;
+    /* Grapheme cluster pool (see its section) and the join state: after a
+       ZWJ or a virama, the next printed character extends the last cell's
+       cluster instead of taking a column of its own. */
+    GraphemeEntry *gp;
+    int gp_n, gp_cap;
+    int *gp_map, gp_map_cap;
+    int join_pending;
     /* Intermediate byte (0x20-0x2F) collected inside a CSI, 0 if none. Before
        this was tracked, `CSI ... $ r` (DECCARA) dispatched as a bare 'r' and
        silently reprogrammed the scroll region. */
@@ -303,6 +317,9 @@ StarlingTerm *starling_term_new(int cols, int rows) {
 
 void starling_term_free(StarlingTerm *t) {
     if (!t) return;
+    for (int i = 0; i < t->gp_n; i++) free(t->gp[i].cps);
+    free(t->gp);
+    free(t->gp_map);
     for (int i = 0; i < t->rows; i++) free(t->grid[i].cells);
     free(t->grid);
     for (int i = 0; i < t->sb_len; i++) free(sb_at(t, i)->cells);
@@ -363,109 +380,7 @@ void starling_term_copy_line(const StarlingTerm *t, int abs_index, Cell *out) {
 
 typedef struct { uint32_t first, last; } CpRange;
 
-static const CpRange zero_width_tbl[] = {
-    {0x0300,0x036F},{0x0483,0x0489},{0x0591,0x05BD},{0x05BF,0x05BF},
-    {0x05C1,0x05C2},{0x05C4,0x05C5},{0x05C7,0x05C7},{0x0610,0x061A},
-    {0x064B,0x065F},{0x0670,0x0670},{0x06D6,0x06DC},{0x06DF,0x06E4},
-    {0x06E7,0x06E8},{0x06EA,0x06ED},{0x0711,0x0711},{0x0730,0x074A},
-    {0x07A6,0x07B0},{0x07EB,0x07F3},{0x07FD,0x07FD},{0x0816,0x0819},
-    {0x081B,0x0823},{0x0825,0x0827},{0x0829,0x082D},{0x0859,0x085B},
-    {0x08D3,0x08E1},{0x08E3,0x0902},{0x093A,0x093A},{0x093C,0x093C},
-    {0x0941,0x0948},{0x094D,0x094D},{0x0951,0x0957},{0x0962,0x0963},
-    {0x0981,0x0981},{0x09BC,0x09BC},{0x09C1,0x09C4},{0x09CD,0x09CD},
-    {0x09E2,0x09E3},{0x09FE,0x09FE},{0x0A01,0x0A02},{0x0A3C,0x0A3C},
-    {0x0A41,0x0A42},{0x0A47,0x0A48},{0x0A4B,0x0A4D},{0x0A51,0x0A51},
-    {0x0A70,0x0A71},{0x0A75,0x0A75},{0x0A81,0x0A82},{0x0ABC,0x0ABC},
-    {0x0AC1,0x0AC5},{0x0AC7,0x0AC8},{0x0ACD,0x0ACD},{0x0AE2,0x0AE3},
-    {0x0AFA,0x0AFF},{0x0B01,0x0B01},{0x0B3C,0x0B3C},{0x0B3F,0x0B3F},
-    {0x0B41,0x0B44},{0x0B4D,0x0B4D},{0x0B55,0x0B56},{0x0B62,0x0B63},
-    {0x0B82,0x0B82},{0x0BC0,0x0BC0},{0x0BCD,0x0BCD},{0x0C00,0x0C00},
-    {0x0C04,0x0C04},{0x0C3E,0x0C40},{0x0C46,0x0C48},{0x0C4A,0x0C4D},
-    {0x0C55,0x0C56},{0x0C62,0x0C63},{0x0C81,0x0C81},{0x0CBC,0x0CBC},
-    {0x0CBF,0x0CBF},{0x0CC6,0x0CC6},{0x0CCC,0x0CCD},{0x0CE2,0x0CE3},
-    {0x0D00,0x0D01},{0x0D3B,0x0D3C},{0x0D41,0x0D44},{0x0D4D,0x0D4D},
-    {0x0D62,0x0D63},{0x0D81,0x0D81},{0x0DCA,0x0DCA},{0x0DD2,0x0DD4},
-    {0x0DD6,0x0DD6},{0x0E31,0x0E31},{0x0E34,0x0E3A},{0x0E47,0x0E4E},
-    {0x0EB1,0x0EB1},{0x0EB4,0x0EBC},{0x0EC8,0x0ECD},{0x0F18,0x0F19},
-    {0x0F35,0x0F35},{0x0F37,0x0F37},{0x0F39,0x0F39},{0x0F71,0x0F7E},
-    {0x0F80,0x0F84},{0x0F86,0x0F87},{0x0F8D,0x0F97},{0x0F99,0x0FBC},
-    {0x0FC6,0x0FC6},{0x102D,0x1030},{0x1032,0x1037},{0x1039,0x103A},
-    {0x103D,0x103E},{0x1058,0x1059},{0x105E,0x1060},{0x1071,0x1074},
-    {0x1082,0x1082},{0x1085,0x1086},{0x108D,0x108D},{0x109D,0x109D},
-    /* Hangul jungseong/jongseong combine into the preceding choseong;
-       terminals give them zero columns (Kuhn's convention). */
-    {0x1160,0x11FF},
-    {0x135D,0x135F},{0x1712,0x1714},{0x1732,0x1734},{0x1752,0x1753},
-    {0x1772,0x1773},{0x17B4,0x17B5},{0x17B7,0x17BD},{0x17C6,0x17C6},
-    {0x17C9,0x17D3},{0x17DD,0x17DD},{0x180B,0x180D},{0x1885,0x1886},
-    {0x18A9,0x18A9},{0x1920,0x1922},{0x1927,0x1928},{0x1932,0x1932},
-    {0x1939,0x193B},{0x1A17,0x1A18},{0x1A1B,0x1A1B},{0x1A56,0x1A56},
-    {0x1A58,0x1A5E},{0x1A60,0x1A60},{0x1A62,0x1A62},{0x1A65,0x1A6C},
-    {0x1A73,0x1A7C},{0x1A7F,0x1A7F},{0x1AB0,0x1ACE},{0x1B00,0x1B03},
-    {0x1B34,0x1B34},{0x1B36,0x1B3A},{0x1B3C,0x1B3C},{0x1B42,0x1B42},
-    {0x1B6B,0x1B73},{0x1B80,0x1B81},{0x1BA2,0x1BA5},{0x1BA8,0x1BA9},
-    {0x1BAB,0x1BAD},{0x1BE6,0x1BE6},{0x1BE8,0x1BE9},{0x1BED,0x1BED},
-    {0x1BEF,0x1BF1},{0x1C2C,0x1C33},{0x1C36,0x1C37},{0x1CD0,0x1CD2},
-    {0x1CD4,0x1CE0},{0x1CE2,0x1CE8},{0x1CED,0x1CED},{0x1CF4,0x1CF4},
-    {0x1CF8,0x1CF9},{0x1DC0,0x1DFF},{0x200B,0x200F},{0x202A,0x202E},
-    {0x2060,0x2064},{0x20D0,0x20F0},{0x2CEF,0x2CF1},{0x2D7F,0x2D7F},
-    {0x2DE0,0x2DFF},{0xA66F,0xA672},{0xA674,0xA67D},{0xA69E,0xA69F},
-    {0xA6F0,0xA6F1},{0xA802,0xA802},{0xA806,0xA806},{0xA80B,0xA80B},
-    {0xA825,0xA826},{0xA82C,0xA82C},{0xA8C4,0xA8C5},{0xA8E0,0xA8F1},
-    {0xA8FF,0xA8FF},{0xA926,0xA92D},{0xA947,0xA951},{0xA980,0xA982},
-    {0xA9B3,0xA9B3},{0xA9B6,0xA9B9},{0xA9BC,0xA9BD},{0xA9E5,0xA9E5},
-    {0xAA29,0xAA2E},{0xAA31,0xAA32},{0xAA35,0xAA36},{0xAA43,0xAA43},
-    {0xAA4C,0xAA4C},{0xAA7C,0xAA7C},{0xAAB0,0xAAB0},{0xAAB2,0xAAB4},
-    {0xAAB7,0xAAB8},{0xAABE,0xAABF},{0xAAC1,0xAAC1},{0xAAEC,0xAAED},
-    {0xAAF6,0xAAF6},{0xABE5,0xABE5},{0xABE8,0xABE8},{0xABED,0xABED},
-    {0xFB1E,0xFB1E},{0xFE00,0xFE0F},{0xFE20,0xFE2F},{0xFEFF,0xFEFF},
-    {0x101FD,0x101FD},{0x102E0,0x102E0},{0x10376,0x1037A},
-    {0x10A01,0x10A03},{0x10A05,0x10A06},{0x10A0C,0x10A0F},
-    {0x10A38,0x10A3A},{0x10A3F,0x10A3F},{0x11001,0x11001},
-    {0x11038,0x11046},{0x1D165,0x1D169},{0x1D16D,0x1D172},
-    {0x1D17B,0x1D182},{0x1D185,0x1D18B},{0x1D1AA,0x1D1AD},
-    {0x1D242,0x1D244},{0xE0001,0xE0001},{0xE0020,0xE007F},
-    {0xE0100,0xE01EF},
-};
-
-static const CpRange wide_tbl[] = {
-    {0x1100,0x115F},{0x231A,0x231B},{0x2329,0x232A},{0x23E9,0x23EC},
-    {0x23F0,0x23F0},{0x23F3,0x23F3},{0x25FD,0x25FE},{0x2614,0x2615},
-    {0x2630,0x2637},{0x2648,0x2653},{0x267F,0x267F},{0x268A,0x268F},
-    {0x2693,0x2693},{0x26A1,0x26A1},
-    {0x26AA,0x26AB},{0x26BD,0x26BE},{0x26C4,0x26C5},{0x26CE,0x26CE},
-    {0x26D4,0x26D4},{0x26EA,0x26EA},{0x26F2,0x26F3},{0x26F5,0x26F5},
-    {0x26FA,0x26FA},{0x26FD,0x26FD},{0x2705,0x2705},{0x270A,0x270B},
-    {0x2728,0x2728},{0x274C,0x274C},{0x274E,0x274E},{0x2753,0x2755},
-    {0x2757,0x2757},{0x2795,0x2797},{0x27B0,0x27B0},{0x27BF,0x27BF},
-    {0x2B1B,0x2B1C},{0x2B50,0x2B50},{0x2B55,0x2B55},{0x2E80,0x2E99},
-    {0x2E9B,0x2EF3},{0x2F00,0x2FD5},{0x2FF0,0x2FFF},{0x3000,0x303E},
-    {0x3041,0x3096},{0x3099,0x30FF},{0x3105,0x312F},{0x3131,0x318E},
-    {0x3190,0x31E5},{0x31EF,0x321E},{0x3220,0x3247},{0x3250,0x4DBF},
-    {0x4E00,0xA48C},{0xA490,0xA4C6},{0xA960,0xA97C},{0xAC00,0xD7A3},
-    {0xF900,0xFAFF},{0xFE10,0xFE19},{0xFE30,0xFE52},{0xFE54,0xFE66},
-    {0xFE68,0xFE6B},{0xFF00,0xFF60},{0xFFE0,0xFFE6},
-    {0x16FE0,0x16FE4},{0x17000,0x187F7},{0x18800,0x18CD5},
-    {0x18D00,0x18D08},{0x1AFF0,0x1AFFF},{0x1B000,0x1B152},
-    {0x1B164,0x1B167},{0x1B170,0x1B2FB},{0x1F004,0x1F004},
-    {0x1F0CF,0x1F0CF},{0x1F18E,0x1F18E},{0x1F191,0x1F19A},
-    {0x1F1E6,0x1F1FF},
-    {0x1F200,0x1F202},{0x1F210,0x1F23B},{0x1F240,0x1F248},
-    {0x1F250,0x1F251},{0x1F260,0x1F265},{0x1F300,0x1F320},
-    {0x1F32D,0x1F335},{0x1F337,0x1F37C},{0x1F37E,0x1F393},
-    {0x1F3A0,0x1F3CA},{0x1F3CF,0x1F3D3},{0x1F3E0,0x1F3F0},
-    {0x1F3F4,0x1F3F4},{0x1F3F8,0x1F43E},{0x1F440,0x1F440},
-    {0x1F442,0x1F4FC},{0x1F4FF,0x1F53D},{0x1F54B,0x1F54E},
-    {0x1F550,0x1F567},{0x1F57A,0x1F57A},{0x1F595,0x1F596},
-    {0x1F5A4,0x1F5A4},{0x1F5FB,0x1F64F},{0x1F680,0x1F6C5},
-    {0x1F6CC,0x1F6CC},{0x1F6D0,0x1F6D2},{0x1F6D5,0x1F6D7},
-    {0x1F6DC,0x1F6DF},{0x1F6EB,0x1F6EC},{0x1F6F4,0x1F6FC},
-    {0x1F7E0,0x1F7EB},{0x1F7F0,0x1F7F0},{0x1F90C,0x1F93A},
-    {0x1F93C,0x1F945},{0x1F947,0x1F9FF},{0x1FA70,0x1FA7C},
-    {0x1FA80,0x1FA88},{0x1FA90,0x1FABD},{0x1FABF,0x1FAC5},
-    {0x1FACE,0x1FADB},{0x1FAE0,0x1FAE8},{0x1FAF0,0x1FAF8},
-    {0x20000,0x2FFFD},{0x30000,0x3FFFD},
-};
+#include "starling_widths_gen.h"
 
 static int in_ranges(const CpRange *tbl, int n, uint32_t cp) {
     if (cp < tbl[0].first || cp > tbl[n - 1].last) return 0;
@@ -479,11 +394,91 @@ static int in_ranges(const CpRange *tbl, int n, uint32_t cp) {
     return 0;
 }
 
+#define IN(tbl, cp) in_ranges(tbl, (int)(sizeof tbl / sizeof *(tbl)), cp)
+
 static int scalar_width(uint32_t cp) {
     if (cp < 0x0300) return 1;   /* covers all of ASCII + Latin-1 fast */
-    if (in_ranges(zero_width_tbl, (int)(sizeof zero_width_tbl / sizeof *zero_width_tbl), cp)) return 0;
-    if (in_ranges(wide_tbl, (int)(sizeof wide_tbl / sizeof *wide_tbl), cp)) return 2;
+    if (IN(gen_zero_tbl, cp)) return 0;
+    if (IN(gen_wide_tbl, cp)) return 2;
     return 1;
+}
+
+/* --------------------------------------------------- grapheme cluster pool */
+
+/* A cell stores one uint32. A grapheme cluster (ZWJ family, conjunct,
+   base + combining marks) stores its full codepoint sequence in an
+   interned pool, and the cell's scalar becomes GP_BASE + index — above
+   the Unicode range, so plain scalars and references never collide, and
+   the 16-byte Cell ABI with Swift is untouched. Interning means entries
+   are immutable and live for the terminal's lifetime: rows can scroll
+   into history, be recycled, or memmove around without any refcounting.
+   Real content repeats a small set of clusters; the pool is capped, and
+   past the cap new clusters degrade to their first codepoint — the
+   pre-cluster behaviour. */
+
+static uint32_t gp_hash(const uint32_t *cps, int n) {
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < n; i++) {
+        h ^= cps[i];
+        h *= 16777619u;
+    }
+    return h ? h : 1;
+}
+
+static int gp_find_slot(const StarlingTerm *t, const uint32_t *cps, int n, uint32_t h);
+
+static void gp_grow_map(StarlingTerm *t) {
+    int cap = t->gp_map_cap ? t->gp_map_cap * 2 : 256;
+    free(t->gp_map);
+    t->gp_map = malloc(sizeof(int) * (size_t)cap);
+    for (int i = 0; i < cap; i++) t->gp_map[i] = -1;
+    t->gp_map_cap = cap;
+    for (int i = 0; i < t->gp_n; i++) {
+        GraphemeEntry *e = &t->gp[i];
+        int s = gp_find_slot(t, e->cps, e->n, gp_hash(e->cps, e->n));
+        t->gp_map[s] = i;
+    }
+}
+
+/* First free-or-matching slot for the sequence; the map is always kept
+   under half full, so the probe terminates. */
+static int gp_find_slot(const StarlingTerm *t, const uint32_t *cps, int n, uint32_t h) {
+    int mask = t->gp_map_cap - 1;
+    int s = (int)(h & (uint32_t)mask);
+    for (;;) {
+        int idx = t->gp_map[s];
+        if (idx < 0) return s;
+        GraphemeEntry *e = &t->gp[idx];
+        if (e->n == n && memcmp(e->cps, cps, sizeof(uint32_t) * (size_t)n) == 0) return s;
+        s = (s + 1) & mask;
+    }
+}
+
+/* Interned index for the sequence, creating it if new; -1 on cap. */
+static int gp_intern(StarlingTerm *t, const uint32_t *cps, int n) {
+    if (n < 1 || n > GP_MAX_CPS) return -1;
+    if (t->gp_map_cap == 0 || t->gp_n * 2 >= t->gp_map_cap) gp_grow_map(t);
+    uint32_t h = gp_hash(cps, n);
+    int s = gp_find_slot(t, cps, n, h);
+    if (t->gp_map[s] >= 0) return t->gp_map[s];
+    if (t->gp_n >= GP_MAX) return -1;
+    if (t->gp_n == t->gp_cap) {
+        t->gp_cap = t->gp_cap ? t->gp_cap * 2 : 64;
+        t->gp = realloc(t->gp, sizeof(GraphemeEntry) * (size_t)t->gp_cap);
+    }
+    GraphemeEntry *e = &t->gp[t->gp_n];
+    e->cps = malloc(sizeof(uint32_t) * (size_t)n);
+    memcpy(e->cps, cps, sizeof(uint32_t) * (size_t)n);
+    e->n = n;
+    t->gp_map[s] = t->gp_n;
+    return t->gp_n++;
+}
+
+static uint32_t cell_first_cp(const StarlingTerm *t, uint32_t scalar) {
+    if (scalar < GP_BASE) return scalar;
+    uint32_t idx = scalar - GP_BASE;
+    if ((int)idx >= t->gp_n) return 32;
+    return t->gp[idx].cps[0];
 }
 
 /* ------------------------------------------------------- cursor + printing */
@@ -512,9 +507,9 @@ static void unsplit_pair(StarlingTerm *t, Row *rw, int col) {
     }
 }
 
-/* VS16 asks for emoji presentation: the character just printed becomes
-   wide. Only possible if that cell is still ours, still narrow, and has a
-   column to grow into. */
+/* Make the last printed cell wide (used by VS16 and by the conjunct and
+   Mc rules, whose clusters are capped at two columns). Only possible if
+   that cell is still ours, still narrow, and has a column to grow into. */
 static void widen_last(StarlingTerm *t) {
     if (t->last_col < 0 || t->last_w != 1) return;
     if (t->last_row < 0 || t->last_row >= t->rows) return;
@@ -565,23 +560,127 @@ static int is_regional_indicator(uint32_t v) {
     return v >= 0x1F1E6 && v <= 0x1F1FF;
 }
 
+static int is_virama(uint32_t v) {
+    return IN(gen_virama_tbl, v);
+}
+
+/* Extend the last printed cell's cluster with one more codepoint. The
+   cell's scalar becomes (or stays) a pool reference; the cursor does not
+   move. Silently a no-op if the cell is gone or the pool is capped —
+   the degradation is exactly the pre-cluster behaviour. */
+static void append_to_last(StarlingTerm *t, uint32_t v) {
+    if (t->last_col < 0 || t->last_row < 0 || t->last_row >= t->rows) return;
+    Row *rw = &t->grid[t->last_row];
+    if (t->last_col >= rw->cols) return;
+    Cell *c = &rw->cells[t->last_col];
+    if (c->scalar != t->last_scalar) return;
+    uint32_t tmp[GP_MAX_CPS + 1];
+    int n = 0;
+    if (c->scalar >= GP_BASE) {
+        uint32_t idx = c->scalar - GP_BASE;
+        if ((int)idx >= t->gp_n) return;
+        GraphemeEntry *e = &t->gp[idx];
+        if (e->n >= GP_MAX_CPS) return;
+        memcpy(tmp, e->cps, sizeof(uint32_t) * (size_t)e->n);
+        n = e->n;
+    } else {
+        tmp[0] = c->scalar; n = 1;
+    }
+    tmp[n++] = v;
+    int idx = gp_intern(t, tmp, n);
+    if (idx < 0) return;
+    c->scalar = GP_BASE + (uint32_t)idx;
+    t->last_scalar = c->scalar;
+}
+
+enum { JP_NONE = 0, JP_ZWJ, JP_VIRAMA };
+
 static void put_scalar(StarlingTerm *t, uint32_t v) {
+    /* The joining model mirrors python wcwidth (the library ucs-detect
+       grades against) branch for branch — see starling_widths_gen.h for
+       the shared tables. In cluster terms: ZWJ swallows the following
+       character into the last cell with no width change; a virama joins
+       the following consonant and caps the cluster at TWO columns (a
+       conjunct is 2 cells wide no matter how many consonants stack); a
+       spacing mark (Mc) also makes its cluster 2 columns; a Fitzpatrick
+       modifier melts into an emoji base; the second regional indicator
+       completes a flag. */
     int w = scalar_width(v);
+    if (t->join_pending == JP_ZWJ) {
+        t->join_pending = JP_NONE;
+        if (t->last_col >= 0) {
+            append_to_last(t, v);
+            return;
+        }
+    } else if (t->join_pending == JP_VIRAMA && w > 0) {
+        t->join_pending = JP_NONE;
+        if (t->last_col >= 0) {
+            append_to_last(t, v);
+            widen_last(t);      /* conjunct: cluster capped at 2 columns */
+            return;
+        }
+    }
     if (w == 0) {
-        /* Combining marks and ZWJ take no columns and are not stored —
-           cells hold one scalar, so the base renders unaccented while the
-           CURSOR arithmetic every TUI aligns by stays exact. The two
-           variation selectors are honoured as retroactive width fix-ups.
-           Grapheme storage is a renderer-model change for later. */
-        if (v == 0xFE0F) widen_last(t);
-        else if (v == 0xFE0E) narrow_last(t);
+        if (v == 0x200D) {
+            /* ZWJ after a virama keeps the virama armed (wcwidth's rule);
+               otherwise it arms its own join. */
+            if (t->join_pending != JP_VIRAMA && t->last_col >= 0) {
+                append_to_last(t, v);
+                t->join_pending = JP_ZWJ;
+            }
+            return;
+        }
+        if (IN(gen_virama_tbl, v)) {
+            if (t->last_col >= 0) {
+                append_to_last(t, v);
+                t->join_pending = JP_VIRAMA;
+            }
+            return;
+        }
+        t->join_pending = JP_NONE;
+        if (v == 0xFE0F) {
+            /* Emoji presentation: widens only the bases wcwidth widens. */
+            if (t->last_col >= 0 && IN(gen_vs16_base_tbl, cell_first_cp(t, t->last_scalar))) {
+                append_to_last(t, v);
+                widen_last(t);
+            } else {
+                append_to_last(t, v);
+            }
+            return;
+        }
+        if (v == 0xFE0E) {
+            if (t->last_col >= 0 && IN(gen_vs15_base_tbl, cell_first_cp(t, t->last_scalar))) {
+                append_to_last(t, v);
+                narrow_last(t);
+            } else {
+                append_to_last(t, v);
+            }
+            return;
+        }
+        if (t->last_col >= 0 && IN(gen_mc_tbl, v)) {
+            /* A spacing combining mark joins its base and the cluster
+               becomes two columns. */
+            append_to_last(t, v);
+            widen_last(t);
+            return;
+        }
+        /* Plain combining mark: joins the cluster, no width change. */
+        append_to_last(t, v);
         return;
     }
+    t->join_pending = JP_NONE;
     /* Two regional indicators pair into one flag occupying the first
        one's two columns; a third starts a new flag. */
     if (is_regional_indicator(v) && t->last_col >= 0 &&
-        is_regional_indicator(t->last_scalar)) {
+        t->last_scalar < GP_BASE && is_regional_indicator(t->last_scalar)) {
+        append_to_last(t, v);
         t->last_col = -1;
+        return;
+    }
+    /* A Fitzpatrick skin-tone modifier melts into the emoji before it. */
+    if (v >= 0x1F3FB && v <= 0x1F3FF && t->last_col >= 0 &&
+        IN(gen_emoji_zwj_tbl, cell_first_cp(t, t->last_scalar))) {
+        append_to_last(t, v);
         return;
     }
     if (t->wrap_pending) {
@@ -995,7 +1094,7 @@ static void dispatch_csi(StarlingTerm *t, uint8_t final) {
             unsigned sum = 0;
             for (int r = top; r <= bot; r++)
                 for (int c = left; c <= right && c < t->grid[r].cols; c++)
-                    sum += t->grid[r].cells[c].scalar;
+                    sum += cell_first_cp(t, t->grid[r].cells[c].scalar);
             char buf[48];
             snprintf(buf, sizeof buf, "\x1bP%d!~%04X\x1b\\", pid,
                      (0x10000 - (sum & 0xFFFF)) & 0xFFFF);
@@ -1324,4 +1423,45 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
     if (t->cursor_col > t->cols - 1) t->cursor_col = t->cols - 1;
     t->wrap_pending = 0;
     t->generation++;
+}
+
+/* UTF-8 of a cell's full content. A plain scalar encodes directly; a
+   cluster reference expands to its interned sequence. Returns bytes
+   written (no terminator), 0 for an empty/invalid cell. */
+int starling_term_cell_text(const StarlingTerm *t, uint32_t scalar, char *buf, int cap) {
+    const uint32_t one = scalar;
+    const uint32_t *cps = &one;
+    int n = 1;
+    if (scalar >= GP_BASE) {
+        uint32_t idx = scalar - GP_BASE;
+        if ((int)idx >= t->gp_n) return 0;
+        cps = t->gp[idx].cps;
+        n = t->gp[idx].n;
+    } else if (scalar == 0) {
+        return 0;
+    }
+    int out = 0;
+    for (int i = 0; i < n; i++) {
+        uint32_t c = cps[i];
+        if (c < 0x80) {
+            if (out + 1 > cap) break;
+            buf[out++] = (char)c;
+        } else if (c < 0x800) {
+            if (out + 2 > cap) break;
+            buf[out++] = (char)(0xC0 | (c >> 6));
+            buf[out++] = (char)(0x80 | (c & 0x3F));
+        } else if (c < 0x10000) {
+            if (out + 3 > cap) break;
+            buf[out++] = (char)(0xE0 | (c >> 12));
+            buf[out++] = (char)(0x80 | ((c >> 6) & 0x3F));
+            buf[out++] = (char)(0x80 | (c & 0x3F));
+        } else {
+            if (out + 4 > cap) break;
+            buf[out++] = (char)(0xF0 | (c >> 18));
+            buf[out++] = (char)(0x80 | ((c >> 12) & 0x3F));
+            buf[out++] = (char)(0x80 | ((c >> 6) & 0x3F));
+            buf[out++] = (char)(0x80 | (c & 0x3F));
+        }
+    }
+    return out;
 }

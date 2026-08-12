@@ -728,7 +728,13 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
                 flush()
                 runStyle = key
             }
-            runText.append(cell.char)
+            if cell.scalar > 0x10FFFF {
+                // A grapheme-cluster reference: fetch the full sequence so
+                // the shaper sees the family emoji / conjunct, not a box.
+                runText += emulator.cellText(cell.scalar)
+            } else {
+                runText.append(cell.char)
+            }
         }
         flush()
 
