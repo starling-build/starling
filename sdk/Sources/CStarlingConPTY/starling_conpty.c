@@ -21,8 +21,94 @@
 
 #include <windows.h>
 
+// ---------------------------------------------------------------------------
+// Using a bundled ConPTY (optional path)
+//
+// CreatePseudoConsole() always launches %SystemRoot%\System32\conhost.exe, and
+// profiling says that is where the time goes: on 01_light_cells the inbox
+// conhost burns 7.27 CPU-seconds of a 9.73 s run while this process uses 0.41,
+// where Windows Terminal's run costs its OpenConsole.exe 2.23 s. Same bytes,
+// same 120x40 grid, 3.3x the host cost. We were never the slow part.
+//
+// OpenConsole.exe is the same console host built from microsoft/terminal and
+// years newer than the inbox one. It ships with a `conpty.dll` that exports the
+// pseudoconsole API directly, so hosting it is a LoadLibrary away — no need to
+// reimplement the ConDrv/NtOpenFile handshake, which is what the first version
+// of this did. Both come from the MIT-licensed
+// Microsoft.Windows.Console.ConPTY NuGet package; sdk/tools/fetch-conpty.ps1
+// fetches them, and they are staged beside the executable. conpty.dll locates
+// OpenConsole.exe relative to its own module, which is why the pair must sit
+// together.
+//
+// Strictly opt-in: with no conpty.dll to load, everything below is skipped and
+// CreatePseudoConsole runs exactly as before.
+// ---------------------------------------------------------------------------
+
+typedef HRESULT(WINAPI* PFN_CONPTY_CREATE)(COORD, HANDLE, HANDLE, DWORD, HPCON*);
+typedef HRESULT(WINAPI* PFN_CONPTY_RESIZE)(HPCON, COORD);
+typedef void(WINAPI* PFN_CONPTY_CLOSE)(HPCON);
+
+static PFN_CONPTY_CREATE conpty_create = NULL;
+static PFN_CONPTY_RESIZE conpty_resize = NULL;
+static PFN_CONPTY_CLOSE conpty_close = NULL;
+
+// Loads the bundled conpty.dll once. Non-zero when the whole trio resolved —
+// a partial load is treated as no load, so we never mix the two mechanisms.
+static int conpty_dll_ready(void) {
+  static int tried = 0;
+  static int ok = 0;
+  if (tried) {
+    return ok;
+  }
+  tried = 1;
+
+  wchar_t path[MAX_PATH];
+  DWORD n = GetEnvironmentVariableW(L"STARLING_CONPTY_DLL", path, MAX_PATH);
+  if (n == 0 || n >= MAX_PATH) {
+    // Beside our own executable, which is where staging puts it.
+    DWORD m = GetModuleFileNameW(NULL, path, MAX_PATH);
+    if (m == 0 || m >= MAX_PATH) {
+      return 0;
+    }
+    wchar_t* slash = wcsrchr(path, L'\\');
+    if (slash == NULL) {
+      return 0;
+    }
+    *(slash + 1) = L'\0';
+    if (wcslen(path) + wcslen(L"conpty.dll") >= MAX_PATH) {
+      return 0;
+    }
+    wcscat_s(path, MAX_PATH, L"conpty.dll");
+  }
+  if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) {
+    return 0;
+  }
+
+  HMODULE dll = LoadLibraryW(path);
+  if (dll == NULL) {
+    fprintf(stderr, "[conpty] bundled conpty.dll present but failed to load (%lu)\n",
+            GetLastError());
+    return 0;
+  }
+  conpty_create = (PFN_CONPTY_CREATE)(void*)GetProcAddress(dll, "ConptyCreatePseudoConsole");
+  conpty_resize = (PFN_CONPTY_RESIZE)(void*)GetProcAddress(dll, "ConptyResizePseudoConsole");
+  conpty_close = (PFN_CONPTY_CLOSE)(void*)GetProcAddress(dll, "ConptyClosePseudoConsole");
+  if (conpty_create == NULL || conpty_resize == NULL || conpty_close == NULL) {
+    fprintf(stderr, "[conpty] conpty.dll is missing expected exports\n");
+    conpty_create = NULL;
+    conpty_resize = NULL;
+    conpty_close = NULL;
+    return 0;
+  }
+  ok = 1;
+  return ok;
+}
+
 struct StarlingConPty {
   HPCON pc;
+  // Non-zero when `pc` came from the bundled conpty.dll rather than the inbox
+  // CreatePseudoConsole: resize and close must go back to the same library.
+  int own_pc;
   // The ends we keep: what we write to becomes the child's input, what we
   // read from is the child's output. The other end of each pipe belongs to
   // the pseudoconsole and is closed right after CreatePseudoConsole — ConPTY
@@ -76,7 +162,24 @@ StarlingConPty* starling_conpty_open(int32_t cols,
   size.Y = (SHORT)rows;
 
   HPCON pc = NULL;
-  HRESULT hr = CreatePseudoConsole(size, in_read, out_write, 0, &pc);
+  int own_pc = 0;
+  HRESULT hr = S_OK;
+  if (conpty_dll_ready()) {
+    hr = conpty_create(size, in_read, out_write, 0, &pc);
+    if (SUCCEEDED(hr) && pc != NULL) {
+      own_pc = 1;
+    } else {
+      // Say why, then fall through to the inbox host rather than refusing to
+      // open a terminal at all.
+      fprintf(stderr, "[conpty] bundled ConptyCreatePseudoConsole failed "
+                      "(hr=0x%08lx), using the inbox host\n", (unsigned long)hr);
+      pc = NULL;
+      hr = S_OK;
+    }
+  }
+  if (pc == NULL) {
+    hr = CreatePseudoConsole(size, in_read, out_write, 0, &pc);
+  }
   // ConPTY has duplicated whatever it needs; these ends are the console's, not
   // ours. Closing out_write in particular is what lets our read see EOF when
   // the child goes away.
@@ -189,6 +292,7 @@ StarlingConPty* starling_conpty_open(int32_t cols,
     return NULL;
   }
   pty->pc = pc;
+  pty->own_pc = own_pc;
   pty->input_write = in_write;
   pty->output_read = out_read;
   pty->process = pi.hProcess;
@@ -214,6 +318,7 @@ int32_t starling_conpty_read(StarlingConPty* pty, uint8_t* buf, int32_t len) {
   return (int32_t)got;
 }
 
+
 int32_t starling_conpty_write(StarlingConPty* pty, const uint8_t* buf, int32_t len) {
   if (pty == NULL || buf == NULL || len <= 0) {
     return -1;
@@ -232,6 +337,10 @@ void starling_conpty_resize(StarlingConPty* pty, int32_t cols, int32_t rows) {
   COORD size;
   size.X = (SHORT)cols;
   size.Y = (SHORT)rows;
+  if (pty->own_pc) {
+    conpty_resize(pty->pc, size);
+    return;
+  }
   ResizePseudoConsole(pty->pc, size);
 }
 
@@ -250,7 +359,11 @@ void starling_conpty_shutdown(StarlingConPty* pty) {
   // Order matters: closing the pseudoconsole signals the attached application
   // to exit and releases the console's copy of the output pipe, which is what
   // wakes a reader parked in ReadFile.
-  ClosePseudoConsole(pty->pc);
+  if (pty->own_pc) {
+    conpty_close(pty->pc);
+  } else {
+    ClosePseudoConsole(pty->pc);
+  }
   pty->pc = NULL;
   CloseHandle(pty->input_write);
   pty->input_write = NULL;
