@@ -1,0 +1,7 @@
+# ours-doom-fs4k  terminal=1172467/TerminalApp  grid=126x478  frames=600
+BENCHFPS frames=600 seconds=1.213 fps=494.64
+  cpu_s 3.96
+BENCHFPS frames=600 seconds=1.259 fps=476.57
+  cpu_s 3.89
+BENCHFPS frames=600 seconds=1.207 fps=497.10
+  cpu_s 3.86
