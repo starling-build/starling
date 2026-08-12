@@ -19,6 +19,11 @@ struct CellAttrs: OptionSet {
     static let italic = CellAttrs(rawValue: 1 << 2)
     static let underline = CellAttrs(rawValue: 1 << 3)
     static let reverse = CellAttrs(rawValue: 1 << 4)
+    /// A two-column character: the lead cell carries the scalar, the
+    /// continuation cell carries scalar 0 and draws nothing — the lead's
+    /// glyph spans both columns. Mirrors STARLING_ATTR_WIDE/_WIDE_CONT.
+    static let wideLead = CellAttrs(rawValue: 1 << 5)
+    static let wideCont = CellAttrs(rawValue: 1 << 6)
 }
 
 /// One terminal grid cell. Colors are ARGB; 0 means "default fg/bg".

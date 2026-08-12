@@ -35,6 +35,13 @@ enum {
     STARLING_ATTR_ITALIC    = 1 << 2,
     STARLING_ATTR_UNDERLINE = 1 << 3,
     STARLING_ATTR_REVERSE   = 1 << 4,
+    /* Wide (two-column) characters occupy a LEAD cell carrying the scalar
+       and a CONTINUATION cell with scalar 0. The renderer draws the lead
+       across two cell widths and draws nothing for the continuation; the
+       emulator keeps the pair consistent (overwriting either half blanks
+       the other). */
+    STARLING_ATTR_WIDE      = 1 << 5,
+    STARLING_ATTR_WIDE_CONT = 1 << 6,
 };
 
 typedef struct StarlingTerm StarlingTerm;

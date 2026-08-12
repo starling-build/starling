@@ -707,6 +707,12 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
 
         for c in 0 ..< headEnd {
             var cell = c < line.count ? line[c] : .blank
+            // A continuation cell is the second column of a wide glyph: the
+            // lead already contributed the character, and the font's own
+            // double-width advance covers this column. Appending its scalar
+            // (0) would put a NUL into the shaped run.
+            if cell.attrs.contains(.wideCont) { continue }
+            cell.attrs.remove(.wideLead)
             var key = (fg: cell.fg, bg: cell.bg, attrs: cell.attrs)
             if cell.attrs.contains(.reverse) {
                 let fg = cell.bg == 0 ? UInt32(0xFF1E2127) : cell.bg

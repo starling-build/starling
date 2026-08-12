@@ -96,6 +96,12 @@ struct StarlingTerm {
     int  csi_count;
     int  csi_cur;              /* -1 = no digits since the last ';' */
     int  csi_private;
+    /* The most recent printed cell (lead column), for the retroactive
+       width fix-ups: VS16 widens it, VS15 narrows it, and a regional
+       indicator pairs with it into one flag. -1 = nothing to fix up —
+       any cursor movement or control invalidates it. */
+    int      last_row, last_col, last_w;
+    uint32_t last_scalar;
     /* Intermediate byte (0x20-0x2F) collected inside a CSI, 0 if none. Before
        this was tracked, `CSI ... $ r` (DECCARA) dispatched as a bare 'r' and
        silently reprogrammed the scroll region. */
@@ -285,6 +291,7 @@ StarlingTerm *starling_term_new(int cols, int rows) {
     t->autowrap = 1;
     t->cursor_visible = 1;
     t->csi_cur = -1;
+    t->last_col = -1;
     t->blank_bg = 0xFFFFFFFFu;
     t->blank_cols = -1;
     t->grid = malloc(sizeof(Row) * (size_t)t->rows);
@@ -345,28 +352,283 @@ void starling_term_copy_line(const StarlingTerm *t, int abs_index, Cell *out) {
     for (int i = keep; i < t->cols; i++) out[i] = b;
 }
 
+/* ------------------------------------------------------- character width */
+
+/* Display width of a codepoint: 0 (combining/format), 2 (East Asian
+   Wide/Fullwidth and emoji presentation), else 1. Interval tables in the
+   spirit of Markus Kuhn's wcwidth, brought forward to cover the emoji
+   blocks and the scripts terminals actually meet; the ASCII fast path
+   never reaches here, so this only prices the non-ASCII stream. A pair
+   {first, last} covers an inclusive range. */
+
+typedef struct { uint32_t first, last; } CpRange;
+
+static const CpRange zero_width_tbl[] = {
+    {0x0300,0x036F},{0x0483,0x0489},{0x0591,0x05BD},{0x05BF,0x05BF},
+    {0x05C1,0x05C2},{0x05C4,0x05C5},{0x05C7,0x05C7},{0x0610,0x061A},
+    {0x064B,0x065F},{0x0670,0x0670},{0x06D6,0x06DC},{0x06DF,0x06E4},
+    {0x06E7,0x06E8},{0x06EA,0x06ED},{0x0711,0x0711},{0x0730,0x074A},
+    {0x07A6,0x07B0},{0x07EB,0x07F3},{0x07FD,0x07FD},{0x0816,0x0819},
+    {0x081B,0x0823},{0x0825,0x0827},{0x0829,0x082D},{0x0859,0x085B},
+    {0x08D3,0x08E1},{0x08E3,0x0902},{0x093A,0x093A},{0x093C,0x093C},
+    {0x0941,0x0948},{0x094D,0x094D},{0x0951,0x0957},{0x0962,0x0963},
+    {0x0981,0x0981},{0x09BC,0x09BC},{0x09C1,0x09C4},{0x09CD,0x09CD},
+    {0x09E2,0x09E3},{0x09FE,0x09FE},{0x0A01,0x0A02},{0x0A3C,0x0A3C},
+    {0x0A41,0x0A42},{0x0A47,0x0A48},{0x0A4B,0x0A4D},{0x0A51,0x0A51},
+    {0x0A70,0x0A71},{0x0A75,0x0A75},{0x0A81,0x0A82},{0x0ABC,0x0ABC},
+    {0x0AC1,0x0AC5},{0x0AC7,0x0AC8},{0x0ACD,0x0ACD},{0x0AE2,0x0AE3},
+    {0x0AFA,0x0AFF},{0x0B01,0x0B01},{0x0B3C,0x0B3C},{0x0B3F,0x0B3F},
+    {0x0B41,0x0B44},{0x0B4D,0x0B4D},{0x0B55,0x0B56},{0x0B62,0x0B63},
+    {0x0B82,0x0B82},{0x0BC0,0x0BC0},{0x0BCD,0x0BCD},{0x0C00,0x0C00},
+    {0x0C04,0x0C04},{0x0C3E,0x0C40},{0x0C46,0x0C48},{0x0C4A,0x0C4D},
+    {0x0C55,0x0C56},{0x0C62,0x0C63},{0x0C81,0x0C81},{0x0CBC,0x0CBC},
+    {0x0CBF,0x0CBF},{0x0CC6,0x0CC6},{0x0CCC,0x0CCD},{0x0CE2,0x0CE3},
+    {0x0D00,0x0D01},{0x0D3B,0x0D3C},{0x0D41,0x0D44},{0x0D4D,0x0D4D},
+    {0x0D62,0x0D63},{0x0D81,0x0D81},{0x0DCA,0x0DCA},{0x0DD2,0x0DD4},
+    {0x0DD6,0x0DD6},{0x0E31,0x0E31},{0x0E34,0x0E3A},{0x0E47,0x0E4E},
+    {0x0EB1,0x0EB1},{0x0EB4,0x0EBC},{0x0EC8,0x0ECD},{0x0F18,0x0F19},
+    {0x0F35,0x0F35},{0x0F37,0x0F37},{0x0F39,0x0F39},{0x0F71,0x0F7E},
+    {0x0F80,0x0F84},{0x0F86,0x0F87},{0x0F8D,0x0F97},{0x0F99,0x0FBC},
+    {0x0FC6,0x0FC6},{0x102D,0x1030},{0x1032,0x1037},{0x1039,0x103A},
+    {0x103D,0x103E},{0x1058,0x1059},{0x105E,0x1060},{0x1071,0x1074},
+    {0x1082,0x1082},{0x1085,0x1086},{0x108D,0x108D},{0x109D,0x109D},
+    /* Hangul jungseong/jongseong combine into the preceding choseong;
+       terminals give them zero columns (Kuhn's convention). */
+    {0x1160,0x11FF},
+    {0x135D,0x135F},{0x1712,0x1714},{0x1732,0x1734},{0x1752,0x1753},
+    {0x1772,0x1773},{0x17B4,0x17B5},{0x17B7,0x17BD},{0x17C6,0x17C6},
+    {0x17C9,0x17D3},{0x17DD,0x17DD},{0x180B,0x180D},{0x1885,0x1886},
+    {0x18A9,0x18A9},{0x1920,0x1922},{0x1927,0x1928},{0x1932,0x1932},
+    {0x1939,0x193B},{0x1A17,0x1A18},{0x1A1B,0x1A1B},{0x1A56,0x1A56},
+    {0x1A58,0x1A5E},{0x1A60,0x1A60},{0x1A62,0x1A62},{0x1A65,0x1A6C},
+    {0x1A73,0x1A7C},{0x1A7F,0x1A7F},{0x1AB0,0x1ACE},{0x1B00,0x1B03},
+    {0x1B34,0x1B34},{0x1B36,0x1B3A},{0x1B3C,0x1B3C},{0x1B42,0x1B42},
+    {0x1B6B,0x1B73},{0x1B80,0x1B81},{0x1BA2,0x1BA5},{0x1BA8,0x1BA9},
+    {0x1BAB,0x1BAD},{0x1BE6,0x1BE6},{0x1BE8,0x1BE9},{0x1BED,0x1BED},
+    {0x1BEF,0x1BF1},{0x1C2C,0x1C33},{0x1C36,0x1C37},{0x1CD0,0x1CD2},
+    {0x1CD4,0x1CE0},{0x1CE2,0x1CE8},{0x1CED,0x1CED},{0x1CF4,0x1CF4},
+    {0x1CF8,0x1CF9},{0x1DC0,0x1DFF},{0x200B,0x200F},{0x202A,0x202E},
+    {0x2060,0x2064},{0x20D0,0x20F0},{0x2CEF,0x2CF1},{0x2D7F,0x2D7F},
+    {0x2DE0,0x2DFF},{0xA66F,0xA672},{0xA674,0xA67D},{0xA69E,0xA69F},
+    {0xA6F0,0xA6F1},{0xA802,0xA802},{0xA806,0xA806},{0xA80B,0xA80B},
+    {0xA825,0xA826},{0xA82C,0xA82C},{0xA8C4,0xA8C5},{0xA8E0,0xA8F1},
+    {0xA8FF,0xA8FF},{0xA926,0xA92D},{0xA947,0xA951},{0xA980,0xA982},
+    {0xA9B3,0xA9B3},{0xA9B6,0xA9B9},{0xA9BC,0xA9BD},{0xA9E5,0xA9E5},
+    {0xAA29,0xAA2E},{0xAA31,0xAA32},{0xAA35,0xAA36},{0xAA43,0xAA43},
+    {0xAA4C,0xAA4C},{0xAA7C,0xAA7C},{0xAAB0,0xAAB0},{0xAAB2,0xAAB4},
+    {0xAAB7,0xAAB8},{0xAABE,0xAABF},{0xAAC1,0xAAC1},{0xAAEC,0xAAED},
+    {0xAAF6,0xAAF6},{0xABE5,0xABE5},{0xABE8,0xABE8},{0xABED,0xABED},
+    {0xFB1E,0xFB1E},{0xFE00,0xFE0F},{0xFE20,0xFE2F},{0xFEFF,0xFEFF},
+    {0x101FD,0x101FD},{0x102E0,0x102E0},{0x10376,0x1037A},
+    {0x10A01,0x10A03},{0x10A05,0x10A06},{0x10A0C,0x10A0F},
+    {0x10A38,0x10A3A},{0x10A3F,0x10A3F},{0x11001,0x11001},
+    {0x11038,0x11046},{0x1D165,0x1D169},{0x1D16D,0x1D172},
+    {0x1D17B,0x1D182},{0x1D185,0x1D18B},{0x1D1AA,0x1D1AD},
+    {0x1D242,0x1D244},{0xE0001,0xE0001},{0xE0020,0xE007F},
+    {0xE0100,0xE01EF},
+};
+
+static const CpRange wide_tbl[] = {
+    {0x1100,0x115F},{0x231A,0x231B},{0x2329,0x232A},{0x23E9,0x23EC},
+    {0x23F0,0x23F0},{0x23F3,0x23F3},{0x25FD,0x25FE},{0x2614,0x2615},
+    {0x2630,0x2637},{0x2648,0x2653},{0x267F,0x267F},{0x268A,0x268F},
+    {0x2693,0x2693},{0x26A1,0x26A1},
+    {0x26AA,0x26AB},{0x26BD,0x26BE},{0x26C4,0x26C5},{0x26CE,0x26CE},
+    {0x26D4,0x26D4},{0x26EA,0x26EA},{0x26F2,0x26F3},{0x26F5,0x26F5},
+    {0x26FA,0x26FA},{0x26FD,0x26FD},{0x2705,0x2705},{0x270A,0x270B},
+    {0x2728,0x2728},{0x274C,0x274C},{0x274E,0x274E},{0x2753,0x2755},
+    {0x2757,0x2757},{0x2795,0x2797},{0x27B0,0x27B0},{0x27BF,0x27BF},
+    {0x2B1B,0x2B1C},{0x2B50,0x2B50},{0x2B55,0x2B55},{0x2E80,0x2E99},
+    {0x2E9B,0x2EF3},{0x2F00,0x2FD5},{0x2FF0,0x2FFF},{0x3000,0x303E},
+    {0x3041,0x3096},{0x3099,0x30FF},{0x3105,0x312F},{0x3131,0x318E},
+    {0x3190,0x31E5},{0x31EF,0x321E},{0x3220,0x3247},{0x3250,0x4DBF},
+    {0x4E00,0xA48C},{0xA490,0xA4C6},{0xA960,0xA97C},{0xAC00,0xD7A3},
+    {0xF900,0xFAFF},{0xFE10,0xFE19},{0xFE30,0xFE52},{0xFE54,0xFE66},
+    {0xFE68,0xFE6B},{0xFF00,0xFF60},{0xFFE0,0xFFE6},
+    {0x16FE0,0x16FE4},{0x17000,0x187F7},{0x18800,0x18CD5},
+    {0x18D00,0x18D08},{0x1AFF0,0x1AFFF},{0x1B000,0x1B152},
+    {0x1B164,0x1B167},{0x1B170,0x1B2FB},{0x1F004,0x1F004},
+    {0x1F0CF,0x1F0CF},{0x1F18E,0x1F18E},{0x1F191,0x1F19A},
+    {0x1F1E6,0x1F1FF},
+    {0x1F200,0x1F202},{0x1F210,0x1F23B},{0x1F240,0x1F248},
+    {0x1F250,0x1F251},{0x1F260,0x1F265},{0x1F300,0x1F320},
+    {0x1F32D,0x1F335},{0x1F337,0x1F37C},{0x1F37E,0x1F393},
+    {0x1F3A0,0x1F3CA},{0x1F3CF,0x1F3D3},{0x1F3E0,0x1F3F0},
+    {0x1F3F4,0x1F3F4},{0x1F3F8,0x1F43E},{0x1F440,0x1F440},
+    {0x1F442,0x1F4FC},{0x1F4FF,0x1F53D},{0x1F54B,0x1F54E},
+    {0x1F550,0x1F567},{0x1F57A,0x1F57A},{0x1F595,0x1F596},
+    {0x1F5A4,0x1F5A4},{0x1F5FB,0x1F64F},{0x1F680,0x1F6C5},
+    {0x1F6CC,0x1F6CC},{0x1F6D0,0x1F6D2},{0x1F6D5,0x1F6D7},
+    {0x1F6DC,0x1F6DF},{0x1F6EB,0x1F6EC},{0x1F6F4,0x1F6FC},
+    {0x1F7E0,0x1F7EB},{0x1F7F0,0x1F7F0},{0x1F90C,0x1F93A},
+    {0x1F93C,0x1F945},{0x1F947,0x1F9FF},{0x1FA70,0x1FA7C},
+    {0x1FA80,0x1FA88},{0x1FA90,0x1FABD},{0x1FABF,0x1FAC5},
+    {0x1FACE,0x1FADB},{0x1FAE0,0x1FAE8},{0x1FAF0,0x1FAF8},
+    {0x20000,0x2FFFD},{0x30000,0x3FFFD},
+};
+
+static int in_ranges(const CpRange *tbl, int n, uint32_t cp) {
+    if (cp < tbl[0].first || cp > tbl[n - 1].last) return 0;
+    int lo = 0, hi = n - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (cp < tbl[mid].first) hi = mid - 1;
+        else if (cp > tbl[mid].last) lo = mid + 1;
+        else return 1;
+    }
+    return 0;
+}
+
+static int scalar_width(uint32_t cp) {
+    if (cp < 0x0300) return 1;   /* covers all of ASCII + Latin-1 fast */
+    if (in_ranges(zero_width_tbl, (int)(sizeof zero_width_tbl / sizeof *zero_width_tbl), cp)) return 0;
+    if (in_ranges(wide_tbl, (int)(sizeof wide_tbl / sizeof *wide_tbl), cp)) return 2;
+    return 1;
+}
+
 /* ------------------------------------------------------- cursor + printing */
 
 static void line_feed(StarlingTerm *t);
 static void scroll_up(StarlingTerm *t, int n);
 
+/* Overwriting one half of a wide pair must not strand the other: a lead
+   without its continuation renders a glyph across a cell that now belongs
+   to someone else, and a continuation without its lead is a hole that
+   claims to belong to a glyph that is gone. Called for a column that is
+   about to be written; repairs the NEIGHBOUR, never the target. */
+static void unsplit_pair(StarlingTerm *t, Row *rw, int col) {
+    (void)t;
+    Cell *c = &rw->cells[col];
+    if ((c->attrs & STARLING_ATTR_WIDE) && col + 1 < rw->cols) {
+        Cell *n = &rw->cells[col + 1];
+        if (n->attrs & STARLING_ATTR_WIDE_CONT) {
+            n->scalar = 32; n->attrs = 0; n->fg = 0;
+        }
+    } else if ((c->attrs & STARLING_ATTR_WIDE_CONT) && col > 0) {
+        Cell *p = &rw->cells[col - 1];
+        if (p->attrs & STARLING_ATTR_WIDE) {
+            p->scalar = 32; p->attrs = 0; p->fg = 0;
+        }
+    }
+}
+
+/* VS16 asks for emoji presentation: the character just printed becomes
+   wide. Only possible if that cell is still ours, still narrow, and has a
+   column to grow into. */
+static void widen_last(StarlingTerm *t) {
+    if (t->last_col < 0 || t->last_w != 1) return;
+    if (t->last_row < 0 || t->last_row >= t->rows) return;
+    Row *rw = &t->grid[t->last_row];
+    if (t->last_col + 1 >= t->cols) return;   /* no room at the margin */
+    Cell *c = &rw->cells[t->last_col];
+    if (c->scalar != t->last_scalar) return;  /* someone wrote over it */
+    unsplit_pair(t, rw, t->last_col + 1);
+    c->attrs = (uint8_t)(c->attrs | STARLING_ATTR_WIDE);
+    Cell *nx = &rw->cells[t->last_col + 1];
+    nx->scalar = 0; nx->fg = c->fg; nx->bg = c->bg;
+    nx->attrs = (uint8_t)((c->attrs & ~STARLING_ATTR_WIDE) | STARLING_ATTR_WIDE_CONT);
+    if (t->last_col + 2 > rw->used) rw->used = t->last_col + 2;
+    if (t->cursor_row == t->last_row && t->cursor_col == t->last_col + 1) {
+        if (t->last_col + 2 >= t->cols) { t->cursor_col = t->cols - 1; t->wrap_pending = 1; }
+        else t->cursor_col = t->last_col + 2;
+    }
+    t->last_w = 2;
+}
+
+/* VS15 asks for text presentation: the wide character just printed
+   becomes narrow again, giving its second column back. */
+static void narrow_last(StarlingTerm *t) {
+    if (t->last_col < 0 || t->last_w != 2) return;
+    if (t->last_row < 0 || t->last_row >= t->rows) return;
+    Row *rw = &t->grid[t->last_row];
+    Cell *c = &rw->cells[t->last_col];
+    if (c->scalar != t->last_scalar || !(c->attrs & STARLING_ATTR_WIDE)) return;
+    c->attrs = (uint8_t)(c->attrs & ~STARLING_ATTR_WIDE);
+    if (t->last_col + 1 < t->cols) {
+        Cell *nx = &rw->cells[t->last_col + 1];
+        if (nx->attrs & STARLING_ATTR_WIDE_CONT) {
+            nx->scalar = 32; nx->attrs = 0; nx->fg = 0;
+        }
+    }
+    if (t->cursor_row == t->last_row) {
+        int after_pair = (t->wrap_pending && t->cursor_col == t->cols - 1)
+            ? t->cols : t->cursor_col;
+        if (after_pair == t->last_col + 2) {
+            t->cursor_col = t->last_col + 1;
+            t->wrap_pending = 0;
+        }
+    }
+    t->last_w = 1;
+}
+
+static int is_regional_indicator(uint32_t v) {
+    return v >= 0x1F1E6 && v <= 0x1F1FF;
+}
+
 static void put_scalar(StarlingTerm *t, uint32_t v) {
+    int w = scalar_width(v);
+    if (w == 0) {
+        /* Combining marks and ZWJ take no columns and are not stored —
+           cells hold one scalar, so the base renders unaccented while the
+           CURSOR arithmetic every TUI aligns by stays exact. The two
+           variation selectors are honoured as retroactive width fix-ups.
+           Grapheme storage is a renderer-model change for later. */
+        if (v == 0xFE0F) widen_last(t);
+        else if (v == 0xFE0E) narrow_last(t);
+        return;
+    }
+    /* Two regional indicators pair into one flag occupying the first
+       one's two columns; a third starts a new flag. */
+    if (is_regional_indicator(v) && t->last_col >= 0 &&
+        is_regional_indicator(t->last_scalar)) {
+        t->last_col = -1;
+        return;
+    }
     if (t->wrap_pending) {
         t->wrap_pending = 0;
         if (t->autowrap) { t->cursor_col = 0; line_feed(t); }
     }
     if (t->cursor_row < 0 || t->cursor_row >= t->rows ||
         t->cursor_col < 0 || t->cursor_col >= t->cols) return;
+    if (w == 2) {
+        /* A wide character needs two columns. At the last column it cannot
+           fit: with autowrap it moves whole to the next line (xterm's
+           behaviour); without, it is dropped rather than torn in half. */
+        if (t->cursor_col >= t->cols - 1) {
+            if (!t->autowrap) return;
+            t->cursor_col = 0; line_feed(t);
+            if (t->cursor_row < 0 || t->cursor_row >= t->rows) return;
+        }
+        Row *rw = &t->grid[t->cursor_row];
+        unsplit_pair(t, rw, t->cursor_col);
+        unsplit_pair(t, rw, t->cursor_col + 1);
+        Cell *c = &rw->cells[t->cursor_col];
+        c->scalar = v; c->fg = t->cur_fg; c->bg = t->cur_bg;
+        c->attrs = (uint8_t)(t->cur_attrs | STARLING_ATTR_WIDE);
+        Cell *n = &rw->cells[t->cursor_col + 1];
+        n->scalar = 0; n->fg = t->cur_fg; n->bg = t->cur_bg;
+        n->attrs = (uint8_t)(t->cur_attrs | STARLING_ATTR_WIDE_CONT);
+        if (t->cursor_col + 2 > rw->used) rw->used = t->cursor_col + 2;
+        t->last_row = t->cursor_row; t->last_col = t->cursor_col;
+        t->last_w = 2; t->last_scalar = v;
+        if (t->cursor_col + 2 >= t->cols) { t->cursor_col = t->cols - 1; t->wrap_pending = 1; }
+        else t->cursor_col += 2;
+        return;
+    }
     Row *rw = &t->grid[t->cursor_row];
+    unsplit_pair(t, rw, t->cursor_col);
     Cell *c = &rw->cells[t->cursor_col];
     c->scalar = v; c->fg = t->cur_fg; c->bg = t->cur_bg; c->attrs = t->cur_attrs;
     if (t->cursor_col >= rw->used) rw->used = t->cursor_col + 1;
+    t->last_row = t->cursor_row; t->last_col = t->cursor_col;
+    t->last_w = 1; t->last_scalar = v;
     if (t->cursor_col == t->cols - 1) t->wrap_pending = 1;
     else t->cursor_col++;
 }
 
 static void line_feed(StarlingTerm *t) {
     t->wrap_pending = 0;
+    t->last_col = -1;
     if (t->cursor_row == t->region_bottom) scroll_up(t, 1);
     else if (t->cursor_row < t->rows - 1) t->cursor_row++;
 }
@@ -406,6 +668,9 @@ static void erase_line(StarlingTerm *t, int mode) {
     if (t->cursor_row < 0 || t->cursor_row >= t->rows) return;
     Row *r = &t->grid[t->cursor_row];
     Cell b = blank_cell(t);
+    /* A partial erase whose boundary lands mid-pair must not strand the
+       surviving half. Mode 2 clears the whole row — no seam. */
+    if (mode == 0 || mode == 1) unsplit_pair(t, r, t->cursor_col);
     if (mode == 0) {
         /* Erase-to-end grows the tail. Backgrounds match: cells past the
            old extent are already these blanks, store only the prefix and
@@ -455,6 +720,9 @@ static void erase_chars(StarlingTerm *t, int n) {
     Row *rw = &t->grid[t->cursor_row];
     Cell b = blank_cell(t);
     int end = t->cursor_col + n; if (end > t->cols) end = t->cols;
+    if (end <= t->cursor_col) return;
+    unsplit_pair(t, rw, t->cursor_col);
+    unsplit_pair(t, rw, end - 1);
     for (int c = t->cursor_col; c < end; c++) rw->cells[c] = b;
     if (end > rw->used) rw->used = end;
 }
@@ -465,6 +733,15 @@ static void delete_chars(StarlingTerm *t, int n) {
     Cell *line = rw->cells;
     int count = n < t->cols - t->cursor_col ? n : t->cols - t->cursor_col;
     if (count <= 0) return;
+    /* Seams: the first deleted cell may be the continuation of a lead
+       that survives on the left; the first SURVIVING cell may be the
+       continuation of a lead that is being deleted — the survivor then
+       has no lead, so it becomes a blank before it shifts into place. */
+    unsplit_pair(t, rw, t->cursor_col);
+    if (t->cursor_col + count < t->cols &&
+        (line[t->cursor_col + count].attrs & STARLING_ATTR_WIDE_CONT)) {
+        line[t->cursor_col + count] = blank_cell(t);
+    }
     memmove(line + t->cursor_col, line + t->cursor_col + count,
             sizeof(Cell) * (size_t)(t->cols - t->cursor_col - count));
     Cell b = blank_cell(t);
@@ -479,10 +756,15 @@ static void insert_chars(StarlingTerm *t, int n) {
     Cell *line = rw->cells;
     int count = n < t->cols - t->cursor_col ? n : t->cols - t->cursor_col;
     if (count <= 0) return;
+    /* Seams: shifting right can tear a pair at the cursor (its lead stays,
+       the continuation moves) and push a continuation off the end leaving
+       its lead at the edge. */
+    unsplit_pair(t, rw, t->cursor_col);
     memmove(line + t->cursor_col + count, line + t->cursor_col,
             sizeof(Cell) * (size_t)(t->cols - t->cursor_col - count));
     Cell b = blank_cell(t);
     for (int c = t->cursor_col; c < t->cursor_col + count; c++) line[c] = b;
+    if (line[t->cols - 1].attrs & STARLING_ATTR_WIDE) line[t->cols - 1] = b;
     rw->used = t->cols;
 }
 
@@ -684,6 +966,9 @@ static void soft_reset(StarlingTerm *t) {
 static void dispatch_csi(StarlingTerm *t, uint8_t final) {
     const int *ps = t->csi_nums;
     int n = t->csi_count;
+    /* Any control between a character and its variation selector breaks
+       the fix-up window; real emitters send the pair adjacently. */
+    t->last_col = -1;
     /* Swift's p(i, def): an explicit 0 also means "use the default". */
     #define P(i, def) ((i) < n && ps[i] != 0 ? ps[i] : (def))
     int first = n > 0 ? ps[0] : 0;
@@ -792,7 +1077,7 @@ static void process_byte(StarlingTerm *t, uint8_t b);
 static void process_ground(StarlingTerm *t, uint8_t b) {
     switch (b) {
     case 0x07: if (t->bell_cb) t->bell_cb(t->bell_ctx); break;
-    case 0x08: if (t->cursor_col > 0) t->cursor_col--; t->wrap_pending = 0; break;
+    case 0x08: if (t->cursor_col > 0) t->cursor_col--; t->wrap_pending = 0; t->last_col = -1; break;
     case 0x09: {
         int c = ((t->cursor_col / 8) + 1) * 8;
         t->cursor_col = c < t->cols - 1 ? c : t->cols - 1;
@@ -929,12 +1214,19 @@ void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
                 Row *rw = &t->grid[t->cursor_row];
                 Cell *row = rw->cells;
                 int start = t->cursor_col;
+                /* Pairs strictly inside the run are overwritten whole; only
+                   the run's two edges can tear one. Two checks, not per-cell
+                   work — the fast path stays a tight store loop. */
+                unsplit_pair(t, rw, start);
+                unsplit_pair(t, rw, start + (int)run - 1);
                 uint32_t fg = t->cur_fg, bg = t->cur_bg; uint8_t at = t->cur_attrs;
                 for (size_t k = 0; k < run; k++) {
                     Cell *c = &row[start + (int)k];
                     c->scalar = input[i + k]; c->fg = fg; c->bg = bg; c->attrs = at;
                 }
                 if (start + (int)run > rw->used) rw->used = start + (int)run;
+                t->last_row = t->cursor_row; t->last_col = start + (int)run - 1;
+                t->last_w = 1; t->last_scalar = input[i + run - 1];
                 if (start + (int)run >= t->cols) { t->cursor_col = t->cols - 1; t->wrap_pending = 1; }
                 else t->cursor_col = start + (int)run;
                 i = end;
