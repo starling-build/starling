@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The terminal — a Starling SDK widget, faster than ghostty on Linux</title>
+<meta name="description" content="TerminalView is a widget in the Starling SDK: twenty lines of Swift gets you a complete terminal — and a workspace of them, tiled or floating, is a few hundred more. Measured at 0.55x of the ghostty nightly's wall on a ten-workload suite, with a clean sweep of ucs-detect.">
+<meta property="og:title" content="The terminal — a Starling SDK widget, faster than ghostty on Linux">
+<meta property="og:description" content="A complete terminal in twenty lines of Swift, because it is a widget. Tiling with draggable seams, floating windows picked from a cover flow, panes that know their command, and a C core that finishes the ghostty suite in about half the wall time.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://starling.build/img/terminal-tiling.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
+<style>
+  :root {
+    --bg:        #0a0e17;
+    --bg-raised: #111726;
+    --bg-sunk:   #070a11;
+    --line:      #1e2739;
+    --line-soft: #182135;
+    --ink:       #eef2f8;
+    --ink-dim:   #97a3b8;
+    --ink-faint: #64708a;
+    --amber:     #f0a02a;
+    --amber-soft:#fbbf5c;
+    --sky:       #5aa9e6;
+    --green:     #7fd1a0;
+    --maxw:      1120px;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  img, video { max-width: 100%; height: auto; display: block; }
+  a { color: var(--amber-soft); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 780px; }
+
+  h1, h2, h3 { margin: 0; line-height: 1.2; font-weight: 640; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(27px, 3.4vw, 36px); }
+  p  { margin: 0; }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(10,14,23,.86); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between;
+         gap: 20px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px;
+           color: var(--ink); font-weight: 640; font-size: 17px;
+           letter-spacing: -0.01em; }
+  .brand:hover { text-decoration: none; }
+  .mark { width: 22px; height: 22px; flex: none; }
+  .nav-links { display: flex; gap: 26px; font-size: 15px; }
+  .nav-links a { color: var(--ink-dim); }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-links a.here { color: var(--ink); }
+  .nav-gh {
+    display: inline-flex; align-items: center; gap: 7px; flex: none;
+    font-size: 14.5px; font-weight: 550; color: var(--ink-dim);
+    border: 1px solid var(--line); background: var(--bg-raised);
+    padding: 7px 13px; border-radius: 9px;
+  }
+  .nav-gh:hover { color: var(--ink); border-color: #2c3852; text-decoration: none; }
+  .nav-gh svg { width: 16px; height: 16px; flex: none; }
+  .menu { position: relative; display: none; }
+  .menu summary { list-style: none; cursor: pointer; display: inline-flex;
+                  align-items: center; gap: 8px; font-size: 14.5px;
+                  color: var(--ink-dim); border: 1px solid var(--line);
+                  background: var(--bg-raised); padding: 7px 12px; border-radius: 9px; }
+  .menu summary::-webkit-details-marker { display: none; }
+  .menu summary svg { width: 16px; height: 16px; }
+  .menu-panel { position: absolute; right: 0; top: 44px; min-width: 190px;
+                background: var(--bg-raised); border: 1px solid var(--line);
+                border-radius: 12px; padding: 8px; display: grid; gap: 2px; }
+  .menu-panel a { color: var(--ink-dim); padding: 8px 10px; border-radius: 8px;
+                  font-size: 15px; }
+  .menu-panel a:hover { background: var(--bg-sunk); color: var(--ink);
+                        text-decoration: none; }
+  .menu-panel a.here { color: var(--ink); }
+  @media (max-width: 860px) { .nav-links { display: none; } .menu { display: block; } }
+
+  /* ---------- hero ---------- */
+  .hero { position: relative; padding: 84px 0 0; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -20% -10% auto -10%; height: 420px;
+    background: radial-gradient(60% 60% at 45% 50%, rgba(240,160,42,.11), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; max-width: 880px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 13px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 20px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
+         box-shadow: 0 0 0 4px rgba(240,160,42,.14); }
+  .hero h1 {
+    font-size: clamp(34px, 5.4vw, 56px); letter-spacing: -0.035em;
+    margin-bottom: 22px;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(100deg, var(--amber-soft), var(--sky));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { font-size: clamp(18px, 2.1vw, 21px); color: var(--ink-dim);
+          line-height: 1.6; }
+  .lede + .lede { margin-top: 18px; }
+
+  /* ---------- figures ---------- */
+  .figure { margin-top: 46px; }
+  .frame {
+    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    background: var(--bg-sunk);
+    box-shadow: 0 30px 70px -30px rgba(0,0,0,.85);
+  }
+  .cap { margin-top: 14px; font-size: 14.5px; color: var(--ink-faint);
+         line-height: 1.55; }
+  .cap strong { color: var(--ink-dim); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { padding: 76px 0; }
+  section + section { border-top: 1px solid var(--line-soft); }
+  .kicker { font-size: 13px; letter-spacing: .09em; text-transform: uppercase;
+            color: var(--amber); margin-bottom: 14px; }
+  .prose h2 { margin-bottom: 24px; }
+  .prose p { font-size: clamp(17px, 1.9vw, 19px); line-height: 1.62;
+             color: var(--ink-dim); }
+  .prose p + p { margin-top: 20px; }
+  .prose strong { color: var(--ink); font-weight: 600; }
+  .prose h3 { font-size: 21px; margin: 42px 0 12px; }
+  .prose code, .inline-code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em; color: var(--amber-soft);
+    background: var(--bg-raised); border: 1px solid var(--line-soft);
+    padding: 1px 6px; border-radius: 6px;
+  }
+
+  pre {
+    margin: 0; padding: 18px 20px; overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13.5px; line-height: 1.62; color: var(--ink-dim);
+  }
+  pre .k { color: var(--sky); }
+  pre .c { color: var(--ink-faint); font-style: italic; }
+  pre .s { color: var(--amber-soft); }
+  pre .t { color: var(--green); }
+  .code-col { border: 1px solid var(--line); border-radius: 12px;
+              background: var(--bg-sunk); overflow: hidden; }
+  .code-head { font-size: 13px; font-weight: 620; letter-spacing: .05em;
+               text-transform: uppercase; color: var(--ink-faint);
+               padding: 12px 20px; border-bottom: 1px solid var(--line-soft); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 34px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--line); border-radius: 12px;
+          background: var(--bg-raised); padding: 22px 24px; }
+  .card h3 { font-size: 18px; margin: 0 0 10px; }
+  .card p { font-size: 16px; color: var(--ink-dim); }
+
+  .feat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+          margin-top: 34px; }
+  @media (max-width: 860px) { .feat { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .feat { grid-template-columns: 1fr; } }
+  .feat div { border: 1px solid var(--line-soft); border-radius: 10px;
+              background: var(--bg-raised); padding: 14px 16px;
+              font-size: 15px; color: var(--ink-dim); }
+  .feat b { display: block; color: var(--ink); font-weight: 600; font-size: 15.5px;
+            margin-bottom: 3px; }
+
+  /* ---------- numbers ---------- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+           margin-top: 38px; }
+  @media (max-width: 860px) { .stats { grid-template-columns: 1fr 1fr; } }
+  .stat { border: 1px solid var(--line); border-radius: 12px;
+          background: var(--bg-raised); padding: 20px; }
+  .stat .n { font-size: clamp(26px, 3.6vw, 34px); font-weight: 660;
+             letter-spacing: -0.03em; color: var(--amber-soft);
+             font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 14px; color: var(--ink-faint); margin-top: 6px;
+             line-height: 1.45; }
+
+  .tablewrap { margin-top: 34px; border: 1px solid var(--line);
+               border-radius: 12px; overflow-x: auto; background: var(--bg-sunk); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px;
+          font-size: 15px; }
+  th, td { text-align: right; padding: 11px 16px;
+           border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase;
+             color: var(--ink-faint); font-weight: 600; }
+  tbody td { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.total td { color: var(--ink); font-weight: 640;
+                      border-top: 1px solid var(--line); }
+  td.win { color: var(--green); font-weight: 600; }
+  td.loss { color: var(--ink-faint); }
+
+  .note { margin-top: 20px; font-size: 15px; color: var(--ink-faint);
+          line-height: 1.6; }
+  .note code { font-size: 0.9em; }
+
+  /* ---------- cta ---------- */
+  .cta { border: 1px solid var(--line); border-radius: 16px;
+         background: linear-gradient(160deg, var(--bg-raised), var(--bg-sunk));
+         padding: 40px; margin-top: 20px; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px;
+         padding: 11px 18px; border-radius: 10px; font-size: 15.5px;
+         font-weight: 570; border: 1px solid var(--line); color: var(--ink-dim);
+         background: var(--bg-raised); }
+  .btn:hover { color: var(--ink); border-color: #2c3852; text-decoration: none; }
+  .btn.primary { background: var(--amber); border-color: var(--amber);
+                 color: #16130a; }
+  .btn.primary:hover { background: var(--amber-soft); border-color: var(--amber-soft); }
+
+  /* ---------- footer ---------- */
+  footer { border-top: 1px solid var(--line-soft); padding: 40px 0 60px;
+           color: var(--ink-faint); font-size: 14.5px; }
+  .foot { display: flex; flex-wrap: wrap; gap: 14px 26px;
+          justify-content: space-between; }
+  footer a { color: var(--ink-faint); }
+  footer a:hover { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4"
+              stroke="url(#g)" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M3 15c3.4 3.9 8.2 4.6 11.6 2.4" stroke="url(#g)" stroke-width="1.9" stroke-linecap="round"/>
+        <circle cx="17.4" cy="8.1" r="1.05" fill="#f0a02a"/>
+        <defs><linearGradient id="g" x1="3" y1="5" x2="21" y2="18">
+          <stop stop-color="#fbbf5c"/><stop offset="1" stop-color="#5aa9e6"/>
+        </linearGradient></defs>
+      </svg>
+      Starling
+    </a>
+    <nav class="nav-links">
+      <a href="index.html#idea">The idea</a>
+      <a href="why.html">Why &amp; how</a>
+      <a href="sdk.html">SDK</a>
+      <a class="here" href="terminal.html">Terminal</a>
+      <a href="start.html">Get started</a>
+      <a href="guide.html">Guide</a>
+    </nav>
+    <details class="menu">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg> Menu</summary>
+      <div class="menu-panel">
+        <a href="index.html">Home</a>
+        <a href="why.html">Why &amp; how</a>
+        <a href="sdk.html">SDK</a>
+        <a class="here" href="terminal.html">Terminal</a>
+        <a href="start.html">Get started</a>
+        <a href="guide.html">Guide</a>
+      </div>
+    </details>
+    <a class="nav-gh" href="https://github.com/starling-build/starling/tree/main/sdk/Sources/Flutter/Terminal">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+      </svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</header>
+
+<!-- ============================ hero ============================ -->
+<div class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow"><span class="dot"></span> Starling SDK · TerminalView</div>
+    <h1>A terminal is a <span class="accent">widget</span> now.</h1>
+    <p class="lede">
+      Twenty lines of Swift open a complete terminal — the user's shell on a PTY,
+      wide characters, grapheme clusters, mouse reporting, scrollback, selection,
+      clipboard, fonts and fallbacks. Not a library you wire up. A widget you place.
+    </p>
+    <p class="lede">
+      A few hundred more lines turn it into the workspace below: many terminals,
+      <strong>tiled or floating</strong>, whose seams you can drag, whose windows
+      you can name, and each of which knows the command it was opened for.
+    </p>
+  </div>
+
+  <div class="wrap figure">
+    <div class="frame">
+      <video src="video/terminal-tiling.mp4" poster="img/terminal-poster.jpg"
+             autoplay loop muted playsinline></video>
+    </div>
+    <p class="cap">
+      One unedited take on a stock Ubuntu 26.04 GNOME session, driven by a script.
+      A new pane asks what to run; two splits later, dragging the seam between
+      them resizes both live — <strong>the child processes are resized with
+      it</strong>, which is why <code>top</code> reflows as the boundary moves.
+    </p>
+  </div>
+</div>
+
+<!-- ============================ twenty lines ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">The whole app</div>
+    <h2>This is the entire terminal.</h2>
+    <p>
+      <code>TerminalSession</code> owns the emulator and the PTY.
+      <code>TerminalView</code> renders it and routes input. Everything else —
+      the C emulator core, the fonts, the escape-sequence handling, the
+      selection model — comes with the widget.
+    </p>
+  </div>
+
+  <div class="wrap narrow figure">
+    <div class="code-col">
+      <div class="code-head">Examples/TerminalDemo/main.swift</div>
+<pre><span class="k">import</span> ExampleHost
+<span class="k">import</span> Flutter
+
+<span class="k">let</span> session = <span class="t">TerminalSession</span>()
+session.startShell()
+
+runExampleApp(title: <span class="s">"Terminal"</span>, width: <span class="s">940</span>, height: <span class="s">620</span>) {
+    <span class="t">TerminalView</span>(session: session)
+}</pre>
+    </div>
+    <p class="cap">
+      Run it with <code>swift run -c release TerminalDemo</code>. The file is 26
+      lines including the licence header and the comment explaining itself.
+    </p>
+  </div>
+
+  <div class="wrap narrow">
+    <div class="feat">
+      <div><b>Wide &amp; complex text</b>CJK, emoji, ZWJ families and Indic conjuncts, measured in real cells</div>
+      <div><b>Mouse reporting</b>1000/1002/1003 plus SGR 1006, and xterm's alternateScroll</div>
+      <div><b>Scrollback</b>Shift+PageUp/Down and the wheel, with the alt screen kept separate</div>
+      <div><b>Selection &amp; clipboard</b>Drag to select, Ctrl+Shift+C/V, through the Wayland clipboard</div>
+      <div><b>Fonts with fallback</b>Roboto Mono and DejaVu Sans Mono ship inside the framework</div>
+      <div><b>Headless mode</b>Skip the PTY and drive <code>feed()</code> yourself — an SSH channel, a replay, a remote agent</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ the workspace ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">What the widget makes cheap</div>
+    <h2>N terminals, tiled, with seams that move.</h2>
+    <p>
+      Tiling window managers make you accept their geometry. Here every boundary
+      is draggable, and the panes behind it resize live — each pane's view is told
+      its box, so its grid follows and its shell gets a real
+      <code>SIGWINCH</code> as the pointer moves. Splits are ratios rather than
+      pixel counts, so resizing the window redistributes every pane at once and
+      nothing has to be re-tiled.
+    </p>
+  </div>
+
+  <div class="wrap figure">
+    <div class="frame">
+      <img src="img/terminal-tiling.jpg" width="1400" height="962"
+           alt="Three tiled terminal panes: top on the left, a coloured git log graph top right, a shell listing the SDK's terminal sources bottom right.">
+    </div>
+    <p class="cap">
+      Three panes, three shells, three scrollbacks — <strong>and no terminal code
+      in the app at all</strong>. The tiling example is geometry, chrome and
+      z-order: a split tree, a couple of drag handlers, and a
+      <code>TerminalView</code> in each leaf.
+    </p>
+  </div>
+
+  <div class="wrap narrow">
+    <div class="grid2">
+      <div class="card">
+        <h3>Panes that know their command</h3>
+        <p>
+          A new pane asks what to run, offering the <code>Host</code> entries from
+          your <code>~/.ssh/config</code> and the commands you ran before. Opening
+          a terminal is usually opening it <em>for</em> something, and the hostname
+          is the part nobody remembers.
+        </p>
+      </div>
+      <div class="card">
+        <h3>So restart can mean reconnect</h3>
+        <p>
+          When a connection drops, the pane looks alive and answers nothing. ↻
+          kills the old process group — the wedged <code>ssh</code>, not just the
+          shell above it — and runs the same command again, keeping the scrollback
+          so you can still read what was on screen when it hung.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap figure">
+    <div class="frame">
+      <img src="img/terminal-launcher.jpg" width="1400" height="458"
+           alt="A new terminal pane asking what to run, listing ssh build-box from recent history and ssh prod-1 from the SSH config.">
+    </div>
+    <p class="cap">
+      Type to filter, <strong>↑↓</strong> to choose, Enter to run — or Enter on an
+      empty line for the plain shell you would otherwise have got automatically.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ floating ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">The other mode</div>
+    <h2>Or floating — and an iPod's way of picking one.</h2>
+    <p>
+      One toolbar toggle swaps the whole workspace between tiling and floating.
+      The panes are the same either way: one split tree still says which
+      terminals exist, and the mode only decides whether they are laid out edge
+      to edge or given frames to drag around. Frames are remembered, so flipping
+      back and forth leaves every window where it was.
+    </p>
+    <p>
+      Picking among a dozen windows by title is a guessing game, so the switcher
+      shows them as <strong>covers</strong>: the chosen window square to the
+      viewer, its neighbours turned away in perspective, flipped through with the
+      arrow keys. Every cover renders what is actually on that terminal's screen
+      right now — its live grid, read straight out of the session — so you choose
+      the window you meant rather than the name you half remember.
+    </p>
+  </div>
+
+  <div class="wrap figure">
+    <div class="frame">
+      <video src="video/terminal-floating.mp4" poster="img/terminal-floating-poster.jpg"
+             autoplay loop muted playsinline></video>
+    </div>
+    <p class="cap">
+      Same session, same script: a window is moved and resized, another raised and
+      renamed to <code>monitor</code>, then the switcher is flipped through and
+      Enter opens one — which both raises it <strong>and</strong> hands it the
+      keyboard. The take ends back in tiling, with the same three terminals.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ performance ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">Performance</div>
+    <h2>Measured against ghostty, on Linux.</h2>
+    <p>
+      The emulator underneath is ~1.5k lines of dependency-free C. It is fast
+      enough that the interesting comparison is with
+      <a href="https://ghostty.org">ghostty</a>, the fastest terminal on the
+      platform — same machine, same GNOME Wayland session, same grid, terminals
+      alternating, best-of-N.
+    </p>
+  </div>
+
+  <div class="wrap narrow">
+    <div class="stats">
+      <div class="stat">
+        <div class="n">0.55&times;</div>
+        <div class="l">of the ghostty nightly's wall on a ten-workload suite at 1080p (0.56&times; at 4K)</div>
+      </div>
+      <div class="stat">
+        <div class="n">0.51&times;</div>
+        <div class="l">on the same suite with a 6&times; corpus, median-of-5 — the lead grows with the run</div>
+      </div>
+      <div class="stat">
+        <div class="n">1960</div>
+        <div class="l">DOOM-Fire fps to the nightly's 1224, on the same laptop</div>
+      </div>
+      <div class="stat">
+        <div class="n">0</div>
+        <div class="l">ucs-detect errors across 37k+ measurements — the nightly scores 33</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap narrow">
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Workload</th><th>Starling</th><th>ghostty nightly</th><th>Ratio</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>10_binary</td><td>1.880</td><td>8.766</td><td class="win">0.21&times;</td></tr>
+          <tr><td>03_sgr_fg</td><td>1.334</td><td>5.121</td><td class="win">0.26&times;</td></tr>
+          <tr><td>04_sgr_truecolor</td><td>1.885</td><td>3.738</td><td class="win">0.50&times;</td></tr>
+          <tr><td>06_cursor_motion</td><td>0.062</td><td>0.101</td><td class="win">0.61&times;</td></tr>
+          <tr><td>05_unicode</td><td>1.437</td><td>1.597</td><td class="win">0.90&times;</td></tr>
+          <tr><td>01_light_cells</td><td>2.362</td><td>2.395</td><td>0.99&times;</td></tr>
+          <tr><td>02_dense_cells</td><td>1.007</td><td>0.969</td><td class="loss">1.04&times;</td></tr>
+          <tr><td>07_alt_screen</td><td>0.741</td><td>0.701</td><td class="loss">1.06&times;</td></tr>
+          <tr><td>08_scroll_region</td><td>1.787</td><td>1.647</td><td class="loss">1.09&times;</td></tr>
+          <tr><td>09_long_lines</td><td>0.645</td><td>0.592</td><td class="loss">1.09&times;</td></tr>
+          <tr class="total"><td>Total, seconds</td><td>13.140</td><td>25.627</td><td class="win">0.51&times;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      Median-of-5, 6&times; corpus, fullscreen protocol at a verified 238&times;62 grid.
+      Per-workload spread is ~5% for both terminals. The shorter standard suite puts
+      the same pair at 0.55&times; (1080p) and 0.56&times; (4K); the losses shrink as the
+      runs get longer, because startup effects stop being charged against a
+      0.1-second denominator.
+    </p>
+  </div>
+
+  <div class="wrap narrow prose">
+    <h3>Where ghostty still wins, and why</h3>
+    <p>
+      On ghostty's own published tests it is one-all-one: DOOM-Fire is decisively
+      ours (1960 fps vs 1224 on this laptop; 544–561 vs 354–371 on a second
+      machine), the 150 MB ASCII <code>cat</code> is a coin flip, and the unicode
+      <code>cat</code> goes to whichever machine you run it on.
+    </p>
+    <p>
+      The ASCII case is honest and instructive: <strong>150 MB through a PTY costs
+      0.74–0.75 s for every <code>read(2)</code>-based consumption pattern we can
+      construct on that box</strong> — that is the transport floor, and we sit on
+      it. The nightly gets <em>below</em> it with <code>io_uring</code>. Matching
+      that is a transport rewrite, not a tune, and we have not done it.
+    </p>
+    <p>
+      Memory is the other honest column: after three suites our RSS settles at
+      240 MB against ghostty's 171 MB. It used to be 399 MB before six retain-cycle
+      leaks were found and fixed — the price of a garbage-collected framework's
+      reference patterns being ported onto ARC.
+    </p>
+    <p>
+      One more caveat we insist on: <strong>quote per-machine pairs, never
+      cross-machine absolutes</strong>. Racing the same ghostty commit on two
+      machines showed it dropping 45–55% between them where ours dropped 15–20%.
+      Every number here is a pair measured back to back on one box.
+    </p>
+
+    <h3>Correctness, measured the same way</h3>
+    <p>
+      Speed is easy to buy by cutting corners on text. So the same box, the same
+      day, ran <code>ucs-detect --all</code> against both terminals: wide
+      characters, narrow, ZWJ emoji families, and 118 languages of Indic
+      conjuncts. <strong>Starling: zero errors in every category across 37k+
+      measurements. The ghostty nightly: 33</strong> — one wide miss and 32
+      language-conjunct errors. 26 conformance checks run in the desktop's
+      fast test tier on every change.
+    </p>
+    <p>
+      Correct wide advance is not free — it wraps more and pays a width lookup per
+      scalar, and the unicode workloads moved a few percent against us when it
+      landed. That trade is in the numbers above.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ the point ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">Why this matters for the SDK</div>
+    <h2>The hard part was already in the box.</h2>
+    <p>
+      A terminal is a demanding widget: a million lines a second of escape
+      sequences, a grid that must repaint without tearing the frame budget, text
+      shaping that has to be exactly right, and a child process on the other end
+      of a file descriptor. It is the kind of thing people write frameworks
+      <em>around</em>, not <em>in</em>.
+    </p>
+    <p>
+      Moving it into the SDK cost the benchmarks <strong>+0.1%</strong> at
+      median-of-5 — and made everything after it cheap. The tiling workspace,
+      the per-pane launcher, the restart-that-reconnects: all of it is app code
+      that never touches an escape sequence. That is the argument for the whole
+      framework, in one widget.
+    </p>
+  </div>
+
+  <div class="wrap narrow">
+    <div class="cta">
+      <h2>Run it</h2>
+      <p class="lede" style="margin-top:14px">
+        Both examples live in the SDK. They open an ordinary window on any
+        Wayland or X11 desktop — no Starling desktop required.
+      </p>
+      <div class="code-col" style="margin-top:24px">
+<pre><span class="c"># the twenty-line terminal</span>
+swift run -c release TerminalDemo
+
+<span class="c"># the tiling workspace: splits, draggable seams, named panes</span>
+swift run -c release TerminalTiling</pre>
+      </div>
+      <div class="btn-row">
+        <a class="btn primary" href="start.html">Get started</a>
+        <a class="btn" href="sdk.html">About the SDK</a>
+        <a class="btn" href="https://github.com/starling-build/starling/tree/main/sdk/Sources/Flutter/Terminal">TerminalView source</a>
+        <a class="btn" href="https://github.com/starling-build/starling/tree/main/docs/perf">Benchmark data</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>Starling — a desktop environment for Linux.</div>
+    <div>
+      <a href="index.html">Home</a> ·
+      <a href="sdk.html">SDK</a> ·
+      <a href="terminal.html">Terminal</a> ·
+      <a href="start.html">Get started</a> ·
+      <a href="guide.html">Guide</a> ·
+      <a href="https://github.com/starling-build/starling">Desktop source</a> ·
+      <a href="https://github.com/starling-build/starling/tree/main/sdk">SDK source</a> ·
+      <a href="https://github.com/starling-build/starling-engine">Engine source</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Cloudflare Web Analytics — cookieless, no consent banner required. -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "44d0e97496854c03b38f4c06ed50f5a8"}'></script>
+
+</body>
+</html>
