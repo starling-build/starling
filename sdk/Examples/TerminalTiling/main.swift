@@ -77,7 +77,9 @@ enum Tile {
     static let barPick = Color(0xFF35506E)
     static let barDim = Color(0xFF4A5364)
     static let grip = Color(0x8CFFFFFF)
-    static let gripIdle = Color(0x33FFFFFF)
+    /// Fully transparent, not absent: the hit area stays live so the corner
+    /// can still be grabbed by a pointer that arrives without hovering first.
+    static let gripHidden = Color(0x00000000)
     static let flowScrim = Color(0xE60A0D12)
     static let flowDim = Color(0xFF5C6675)
 
@@ -726,7 +728,12 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     /// The corner pull. Floating only — a tiled pane resizes by its seam.
     private func _resizeGrip(_ pane: Pane, _ workspace: Size) -> Widget {
         let f = pane.frame
-        let ink = pane.id == _activeId ? Tile.grip : Tile.gripIdle
+        // Drawn only while this window is being resized. The 16px hit area
+        // is always live, so the corner can still be grabbed; what an idle
+        // desktop shows is nothing — a mark per window, cascaded, is clutter
+        // on a workspace you are only reading.
+        let showing = _dragPane === pane && _dragKind == .resize
+        let ink = showing ? Tile.grip : Tile.gripHidden
         return Positioned(
             key: ValueKey(2_000_000 + pane.id),
             left: f.x + f.w - 16, top: f.y + f.h - 16,
@@ -757,11 +764,11 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                     _dragKind = .seam
                 },
                 behavior: .opaque,
-                // Two strokes meeting in the corner, not a dot: a dot in the
-                // middle of a 16px box reads as a stray mark on the desktop
-                // (they are scattered across a cascade, one per window), while
-                // a corner says "pull me" without a tooltip. The hit area
-                // stays the full 16px either way.
+                // Two strokes meeting in the corner, not a dot — and drawn
+                // only when the pointer is on it or a drag is in flight. The
+                // 16px hit area is always there, so reaching for the corner
+                // still finds it; what changes is that an unattended window
+                // shows nothing.
                 child: SizedBox(
                     width: 16, height: 16,
                     child: Stack(children: [
