@@ -19,7 +19,7 @@ static: termd.c protocol.h
 	$(CC) $(CFLAGS) -static -o starling-termd termd.c $(LDLIBS)
 
 test: starling-termd
-	./test-termd.sh
+	./test-termd.py
 
 install: starling-termd
 	install -Dm755 starling-termd $(DESTDIR)$(PREFIX)/bin/starling-termd

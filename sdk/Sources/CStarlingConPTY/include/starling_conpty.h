@@ -80,6 +80,46 @@ void starling_conpty_shutdown(StarlingConPty* pty);
 // reader.
 void starling_conpty_free(StarlingConPty* pty);
 
+// ---------------------------------------------------------------- child pipe
+//
+// A child process on two anonymous pipes, with NO pseudoconsole: the exact
+// opposite of the above. RemoteTerminal runs `ssh host starling-termd --stdio`
+// and the wire is a framed byte protocol, so a console in the middle would
+// rewrite the very bytes being framed — the transport wants a raw pipe, which
+// is what `ssh -T` asks for on the far side too.
+//
+// It is in this target because that is where Windows process plumbing already
+// lives (CreateProcessW, handle inheritance, PeekNamedPipe), not because it
+// has anything to do with ConPTY.
+
+typedef struct StarlingChild StarlingChild;
+
+// Starts `command_utf8` (a full command line, CreateProcessW convention) with
+// its stdin and stdout on pipes back to us. stderr is left on the parent's, so
+// ssh's diagnostics — host key prompts, "Permission denied" — reach the log
+// instead of being framed as protocol data and rejected as garbage.
+//
+// Returns NULL on failure; the reason lands on stderr.
+StarlingChild* starling_child_spawn(const char* command_utf8);
+
+// Bytes readable without blocking. 0 when empty, closed, or on error.
+int32_t starling_child_avail(StarlingChild* c);
+
+// Blocking read of up to `len` bytes. Returns bytes read, 0 at end of stream,
+// -1 on error.
+int32_t starling_child_read(StarlingChild* c, uint8_t* buf, int32_t len);
+
+// Writes `len` bytes to the child's stdin. Returns bytes written, or -1.
+int32_t starling_child_write(StarlingChild* c, const uint8_t* buf, int32_t len);
+
+// Non-zero while the child is still running.
+int32_t starling_child_alive(StarlingChild* c);
+
+// Closes both pipes, terminates the child if still running, and frees `c`.
+// Unlike the ConPTY pair this is a single call: the transport's reader owns
+// the handle for its whole life and is joined before teardown.
+void starling_child_close(StarlingChild* c);
+
 #ifdef __cplusplus
 }
 #endif

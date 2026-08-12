@@ -592,9 +592,10 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         _nextId += 1
         _activeId = pane.id
         if let command = Self.command {
-            pane.pending = false
-            pane.command = command
-            pane.session.startCommand(command)
+            // Through _launch, not startCommand: argv takes the same spellings
+            // the launcher does, and `remote:host` has to reach RemoteSpec or
+            // it is run as a local command and the shell reports it as a typo.
+            _launch(pane, command)
         } else {
             _launching = pane
             _launchFocus.requestFocus()

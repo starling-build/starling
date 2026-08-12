@@ -17,9 +17,171 @@
 //     remote.start()
 //     TerminalView(session: session)
 
-#if os(Linux)
+#if os(Linux) || os(Windows)
 import Foundation
+#if os(Linux)
 import Glibc
+#else
+import CStarlingConPTY
+import WinSDK
+#endif
+
+/// The `ssh` child and its two pipes — the only part of this transport that is
+/// platform-specific at all. Everything above it (framing, byte offsets,
+/// reconnect, the protocol itself) is the same code on both, which is the
+/// point of isolating it here rather than sprinkling `#if` through the loop.
+///
+/// `read` returns a positive count, `0` for "nothing within the timeout" (the
+/// caller uses that tick for ACK and heartbeat), or `-1` for end of stream.
+private final class ChildLink {
+#if os(Linux)
+    private var pid: pid_t
+    private let toChild: Int32
+    private let fromChild: Int32
+
+    private init(pid: pid_t, toChild: Int32, fromChild: Int32) {
+        self.pid = pid
+        self.toChild = toChild
+        self.fromChild = fromChild
+    }
+
+    static func spawn(_ argv: [String]) -> ChildLink? {
+        var inPipe: [Int32] = [-1, -1]
+        var outPipe: [Int32] = [-1, -1]
+        guard pipe(&inPipe) == 0, pipe(&outPipe) == 0 else { return nil }
+
+        let pid = fork()
+        if pid < 0 { return nil }
+        if pid == 0 {
+            dup2(inPipe[0], 0)
+            dup2(outPipe[1], 1)
+            // Qualified: this type has its own `close`, which would otherwise
+            // win the overload and fail to typecheck against a file descriptor.
+            Glibc.close(inPipe[0]); Glibc.close(inPipe[1])
+            Glibc.close(outPipe[0]); Glibc.close(outPipe[1])
+            var cargs: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) }
+            cargs.append(nil)
+            if let program = cargs[0] { execvp(program, &cargs) }
+            _exit(127)
+        }
+        Glibc.close(inPipe[0])
+        Glibc.close(outPipe[1])
+        return ChildLink(pid: pid, toChild: inPipe[1], fromChild: outPipe[0])
+    }
+
+    func read(into buf: inout [UInt8], timeoutMs: Int32) -> Int {
+        var pfd = pollfd(fd: fromChild, events: Int16(POLLIN), revents: 0)
+        let ready = poll(&pfd, 1, timeoutMs)
+        if ready < 0 { return errno == EINTR ? 0 : -1 }
+        if ready == 0 { return 0 }
+        if (pfd.revents & Int16(POLLIN)) != 0 {
+            let n = Glibc.read(fromChild, &buf, buf.count)
+            return n <= 0 ? -1 : n
+        }
+        if (pfd.revents & Int16(POLLHUP | POLLERR)) != 0 { return -1 }
+        return 0
+    }
+
+    func write(_ frame: [UInt8]) {
+        var off = 0
+        frame.withUnsafeBufferPointer { buf in
+            while off < buf.count {
+                let n = Glibc.write(toChild, buf.baseAddress! + off, buf.count - off)
+                if n > 0 { off += n; continue }
+                if errno == EINTR { continue }
+                break
+            }
+        }
+    }
+
+    func close() {
+        if toChild >= 0 { Glibc.close(toChild) }
+        if fromChild >= 0 { Glibc.close(fromChild) }
+        if pid > 0 {
+            kill(pid, SIGTERM)
+            var status: Int32 = 0
+            waitpid(pid, &status, 0)
+            pid = -1
+        }
+    }
+#else
+    private var handle: OpaquePointer?
+
+    private init(handle: OpaquePointer) { self.handle = handle }
+
+    static func spawn(_ argv: [String]) -> ChildLink? {
+        guard let h = starling_child_spawn(commandLine(argv)) else { return nil }
+        return ChildLink(handle: h)
+    }
+
+    /// argv -> one command line, by the rules CommandLineToArgvW undoes.
+    /// Backslashes are literal except before a quote, where they must be
+    /// doubled — the case that matters here, since every Windows path in an
+    /// `-o` option or an ssh binary override ends up inside these quotes.
+    private static func commandLine(_ argv: [String]) -> String {
+        argv.map { arg -> String in
+            if !arg.isEmpty && !arg.contains(where: { $0 == " " || $0 == "\t" || $0 == "\"" }) {
+                return arg
+            }
+            var out = "\""
+            var slashes = 0
+            for ch in arg {
+                if ch == "\\" {
+                    slashes += 1
+                } else if ch == "\"" {
+                    out += String(repeating: "\\", count: slashes * 2 + 1) + "\""
+                    slashes = 0
+                } else {
+                    out += String(repeating: "\\", count: slashes) + String(ch)
+                    slashes = 0
+                }
+            }
+            out += String(repeating: "\\", count: slashes * 2) + "\""
+            return out
+        }.joined(separator: " ")
+    }
+
+    /// No poll() on a Windows pipe: peek, and sleep in short slices so the
+    /// caller's ACK/heartbeat tick still lands on time. A child that has
+    /// exited with nothing queued is end of stream — without that check a
+    /// dead ssh reads as an idle one and never triggers a reconnect.
+    func read(into buf: inout [UInt8], timeoutMs: Int32) -> Int {
+        guard let h = handle else { return -1 }
+        let slice: UInt32 = 20
+        var waited: Int32 = 0
+        while true {
+            if starling_child_avail(h) > 0 {
+                let n = buf.withUnsafeMutableBufferPointer {
+                    starling_child_read(h, $0.baseAddress, Int32($0.count))
+                }
+                return n <= 0 ? -1 : Int(n)
+            }
+            if starling_child_alive(h) == 0 { return -1 }
+            if waited >= timeoutMs { return 0 }
+            Sleep(slice)
+            waited += Int32(slice)
+        }
+    }
+
+    func write(_ frame: [UInt8]) {
+        guard let h = handle else { return }
+        var off = 0
+        frame.withUnsafeBufferPointer { buf in
+            while off < buf.count {
+                let n = starling_child_write(h, buf.baseAddress! + off,
+                                             Int32(buf.count - off))
+                if n <= 0 { break }
+                off += Int(n)
+            }
+        }
+    }
+
+    func close() {
+        if let h = handle { starling_child_close(h) }
+        handle = nil
+    }
+#endif
+}
 
 public final class RemoteTerminal: @unchecked Sendable {
 
@@ -56,9 +218,7 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// ACK reports. The only piece of state a reconnect actually needs.
     private var consumed: UInt64 = 0
 
-    private var child: pid_t = -1
-    private var toChild: Int32 = -1
-    private var fromChild: Int32 = -1
+    private var child: ChildLink?
     private let lock = NSLock()
     private var stopped = false
     private var attempt = 0
@@ -152,10 +312,6 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// host is local — the same protocol either way, which is what makes a
     /// local persistent session and a remote one the same feature.
     private func spawn() -> Bool {
-        var inPipe: [Int32] = [-1, -1]
-        var outPipe: [Int32] = [-1, -1]
-        guard pipe(&inPipe) == 0, pipe(&outPipe) == 0 else { return false }
-
         var argv: [String]
         // Only "local" skips ssh. `localhost` is a real ssh destination and
         // must go through it — quietly short-circuiting the transport for the
@@ -170,24 +326,9 @@ public final class RemoteTerminal: @unchecked Sendable {
                     "-o", "ServerAliveInterval=15", host, serverPath, "--stdio"]
         }
 
-        let pid = fork()
-        if pid < 0 { return false }
-        if pid == 0 {
-            dup2(inPipe[0], 0)
-            dup2(outPipe[1], 1)
-            close(inPipe[0]); close(inPipe[1])
-            close(outPipe[0]); close(outPipe[1])
-            var cargs: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) }
-            cargs.append(nil)
-            if let program = cargs[0] { execvp(program, &cargs) }
-            _exit(127)
-        }
-        close(inPipe[0])
-        close(outPipe[1])
+        guard let link = ChildLink.spawn(argv) else { return false }
         lock.lock()
-        child = pid
-        toChild = inPipe[1]
-        fromChild = outPipe[0]
+        child = link
         lock.unlock()
 
         // HELLO, then either attach to the session we already know or open one.
@@ -222,22 +363,17 @@ public final class RemoteTerminal: @unchecked Sendable {
 
         while true {
             lock.lock()
-            let fd = fromChild
+            let link = child
             let done = stopped
             lock.unlock()
-            if done || fd < 0 { return }
+            guard !done, let link = link else { return }
 
-            var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
-            let ready = poll(&pfd, 1, 500)
-            if ready < 0 && errno != EINTR { return }
-
-            if ready > 0 && (pfd.revents & Int16(POLLIN)) != 0 {
-                let n = read(fd, &buf, buf.count)
-                if n <= 0 { return }
+            let n = link.read(into: &buf, timeoutMs: 500)
+            if n < 0 { return }
+            if n > 0 {
                 acc.append(contentsOf: buf[0..<n])
                 if !drain(&acc) { return }
             }
-            if ready > 0 && (pfd.revents & Int16(POLLHUP | POLLERR)) != 0 { return }
 
             // ACK what has been consumed, so the far end knows how far back it
             // must keep for us; and a heartbeat, because a half-open TCP link
@@ -336,21 +472,13 @@ public final class RemoteTerminal: @unchecked Sendable {
 
     private func send(_ type: Frame, _ payload: [UInt8]) {
         lock.lock()
-        let fd = toChild
+        let link = child
         lock.unlock()
-        guard fd >= 0 else { return }
+        guard let link = link else { return }
         var frame = [UInt8]([type.rawValue, 0, 0, 0])
         frame.append(contentsOf: RemoteTerminal.u32(UInt32(payload.count)))
         frame.append(contentsOf: payload)
-        var off = 0
-        frame.withUnsafeBufferPointer { buf in
-            while off < buf.count {
-                let n = write(fd, buf.baseAddress! + off, buf.count - off)
-                if n > 0 { off += n; continue }
-                if errno == EINTR { continue }
-                break
-            }
-        }
+        link.write(frame)
     }
 
     /// A line of our own in the user's terminal. It goes through the emulator
@@ -369,18 +497,10 @@ public final class RemoteTerminal: @unchecked Sendable {
 
     private func killChild() {
         lock.lock()
-        let (pid, a, b) = (child, toChild, fromChild)
-        child = -1
-        toChild = -1
-        fromChild = -1
+        let link = child
+        child = nil
         lock.unlock()
-        if a >= 0 { close(a) }
-        if b >= 0 { close(b) }
-        if pid > 0 {
-            kill(pid, SIGTERM)
-            var status: Int32 = 0
-            waitpid(pid, &status, 0)
-        }
+        link?.close()
     }
 
     private static func u16(_ v: UInt16) -> [UInt8] { [UInt8(v & 0xff), UInt8(v >> 8)] }
@@ -400,4 +520,4 @@ public final class RemoteTerminal: @unchecked Sendable {
         return v
     }
 }
-#endif  // os(Linux)
+#endif  // os(Linux) || os(Windows)

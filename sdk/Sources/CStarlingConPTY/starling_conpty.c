@@ -397,3 +397,157 @@ void starling_conpty_free(StarlingConPty* pty) {
   CloseHandle(pty->thread);
   free(pty);
 }
+
+// ---------------------------------------------------------------- child pipe
+
+struct StarlingChild {
+  HANDLE in_write;    // our end: the child's stdin
+  HANDLE out_read;    // our end: the child's stdout
+  HANDLE process;
+  HANDLE thread;
+};
+
+StarlingChild* starling_child_spawn(const char* command_utf8) {
+  if (command_utf8 == NULL) {
+    return NULL;
+  }
+
+  SECURITY_ATTRIBUTES sa;
+  sa.nLength = sizeof(sa);
+  sa.lpSecurityDescriptor = NULL;
+  sa.bInheritHandle = TRUE;
+
+  HANDLE in_read = NULL, in_write = NULL, out_read = NULL, out_write = NULL;
+  if (!CreatePipe(&in_read, &in_write, &sa, 0) ||
+      !CreatePipe(&out_read, &out_write, &sa, 0)) {
+    fprintf(stderr, "starling_child: CreatePipe failed (%lu)\n", GetLastError());
+    return NULL;
+  }
+
+  // Our ends must NOT be inheritable. A child holding a copy of the write end
+  // of its own output pipe means that pipe never reports EOF when the child
+  // dies, so the reader blocks forever on a dead link -- the reconnect logic
+  // above this would never fire and the pane would just freeze.
+  SetHandleInformation(in_write, HANDLE_FLAG_INHERIT, 0);
+  SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
+
+  STARTUPINFOW si;
+  ZeroMemory(&si, sizeof(si));
+  si.cb = sizeof(si);
+  si.dwFlags = STARTF_USESTDHANDLES;
+  si.hStdInput = in_read;
+  si.hStdOutput = out_write;
+  si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+
+  PROCESS_INFORMATION pi;
+  ZeroMemory(&pi, sizeof(pi));
+
+  wchar_t* cmd = to_wide(command_utf8);
+  if (cmd == NULL) {
+    CloseHandle(in_read); CloseHandle(in_write);
+    CloseHandle(out_read); CloseHandle(out_write);
+    return NULL;
+  }
+
+  BOOL ok = CreateProcessW(NULL, cmd, NULL, NULL,
+                           TRUE,            // inherit: the pipe ends above
+                           CREATE_NO_WINDOW,
+                           NULL, NULL, &si, &pi);
+  free(cmd);
+
+  // The child owns its ends now; ours must go, for the same EOF reason.
+  CloseHandle(in_read);
+  CloseHandle(out_write);
+
+  if (!ok) {
+    fprintf(stderr, "starling_child: CreateProcessW failed (%lu)\n",
+            GetLastError());
+    CloseHandle(in_write);
+    CloseHandle(out_read);
+    return NULL;
+  }
+
+  StarlingChild* c = calloc(1, sizeof(StarlingChild));
+  if (c == NULL) {
+    CloseHandle(in_write);
+    CloseHandle(out_read);
+    TerminateProcess(pi.hProcess, 1);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    return NULL;
+  }
+  c->in_write = in_write;
+  c->out_read = out_read;
+  c->process = pi.hProcess;
+  c->thread = pi.hThread;
+  return c;
+}
+
+int32_t starling_child_avail(StarlingChild* c) {
+  if (c == NULL || c->out_read == NULL) {
+    return 0;
+  }
+  DWORD avail = 0;
+  if (!PeekNamedPipe(c->out_read, NULL, 0, NULL, &avail, NULL)) {
+    return 0;
+  }
+  return (int32_t)avail;
+}
+
+int32_t starling_child_read(StarlingChild* c, uint8_t* buf, int32_t len) {
+  if (c == NULL || c->out_read == NULL || buf == NULL || len <= 0) {
+    return -1;
+  }
+  DWORD got = 0;
+  if (!ReadFile(c->out_read, buf, (DWORD)len, &got, NULL)) {
+    DWORD e = GetLastError();
+    // The child exited and closed its end: end of stream, not a failure.
+    return (e == ERROR_BROKEN_PIPE || e == ERROR_HANDLE_EOF) ? 0 : -1;
+  }
+  return (int32_t)got;
+}
+
+int32_t starling_child_write(StarlingChild* c, const uint8_t* buf, int32_t len) {
+  if (c == NULL || c->in_write == NULL || buf == NULL || len <= 0) {
+    return -1;
+  }
+  DWORD put = 0;
+  if (!WriteFile(c->in_write, buf, (DWORD)len, &put, NULL)) {
+    return -1;
+  }
+  return (int32_t)put;
+}
+
+int32_t starling_child_alive(StarlingChild* c) {
+  if (c == NULL || c->process == NULL) {
+    return 0;
+  }
+  return WaitForSingleObject(c->process, 0) == WAIT_TIMEOUT ? 1 : 0;
+}
+
+void starling_child_close(StarlingChild* c) {
+  if (c == NULL) {
+    return;
+  }
+  if (c->in_write != NULL) {
+    CloseHandle(c->in_write);
+    c->in_write = NULL;
+  }
+  if (c->out_read != NULL) {
+    CloseHandle(c->out_read);
+    c->out_read = NULL;
+  }
+  if (c->process != NULL) {
+    // Closing stdin asks ssh to leave; give it a moment before insisting.
+    if (WaitForSingleObject(c->process, 500) == WAIT_TIMEOUT) {
+      TerminateProcess(c->process, 1);
+    }
+    CloseHandle(c->process);
+    c->process = NULL;
+  }
+  if (c->thread != NULL) {
+    CloseHandle(c->thread);
+    c->thread = NULL;
+  }
+  free(c);
+}
