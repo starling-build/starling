@@ -11,12 +11,24 @@ next `ATTACH` resumes at whatever offset that client had reached.
 **It never renders a screen.** The wire format is the pty byte stream, so
 there is no second emulator here to disagree with the client's. That is what
 separates this from tmux, and it is why the daemon needs no terminal
-knowledge at all: no dependencies beyond libc and `forkpty`.
+knowledge at all: no dependencies beyond libc, a pty and threads.
+
+Linux and Windows both. `termd.c` is the same code on each and holds no
+`#ifdef`; everything that differs is `plat.h` with `plat_posix.c` (forkpty,
+AF_UNIX, pthreads) and `plat_win32.c` (ConPTY, AF_UNIX over `afunix.h`,
+CRITICAL_SECTION) behind it. Read the header before changing either: it
+explains why every session's pty gets its own reader thread rather than
+joining the socket wait, which is a Windows constraint the POSIX build
+adopts so there is only one control flow to reason about.
 
 ```bash
 make                     # ./starling-termd
 make static              # one binary to scp to a server with no toolchain
 make test                # the protocol test — twelve checks, under two seconds
+./test-termd.py --stdio  # the same checks through a --stdio bridge
+
+.\build-windows.ps1      # Windows: starling-termd.exe (clang, no make)
+python .\test-termd.py   # the same twelve, over --stdio automatically
 ```
 
 ```bash
