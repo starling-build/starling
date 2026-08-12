@@ -125,9 +125,19 @@ Combined build: OpenConsole host **plus** the reader/parser split
   inbox conhost the same split cost +2.3%. The host change is what made the
   split affordable, which is why testing them separately gave the wrong
   answer about both.
-- **The real cost is CPU: 54.6 -> 71.0 seconds, +30%.** That is a genuine
-  price, not noise, and it is the honest argument against shipping the split
-  blind. It still leaves us at 66% of WT's 107.6.
+- **The apparent CPU cost — 54.6 -> 71.0 seconds — is NOT trustworthy at this
+  granularity, and an earlier version of this report over-claimed it.** A
+  third suite (bundled conpty + split) read 94.0 for the same split, and the
+  per-workload numbers are incoherent across configurations:
+  `08_scroll_region` reads 10.6 CPU-seconds host-only, **7.1** with the split
+  added, then **15.0** with the split plus a host change that cannot touch it.
+  Adding work does not cut CPU by a third. Both reps agree *within* each run
+  (70.5/71.4, 94.5/93.5), so it is not startup pollution — it is run-to-run
+  variance in `TotalProcessorTime` sampling across a 14-thread process, and
+  the suite's CPU column is too noisy to attribute a 30% difference to code.
+  Wall time over the same runs is stable to ~1%. **Anyone deciding the split
+  on its CPU cost needs a better instrument than this** — per-thread sampling
+  over a fixed window, as `profile-doom.ps1` does.
 
 ### Bundling the host properly (`windows-conpty-bundled`)
 
@@ -168,6 +178,21 @@ instead, and ~190 lines of undocumented NT plumbing went away.
 Equal or slightly better (DOOM +2.4%, now **0.99x of WT**), on a supported API
 rather than reverse-engineered internals, and `conhost` stays at 0.00 — which
 is what proves the bundled host is the one running.
+
+The full ten-workload suite was then run on the shipping candidate
+(bundled conpty **+** split), because until then that exact configuration had
+only had DOOM and `light_cells` measured — the suite numbers above came from
+the *hand-rolled* host:
+
+| | suite wall | vs WT |
+|---|---|---|
+| host only | 116.8 | 1.02x |
+| split + hand-rolled host | 117.8 | 1.03x |
+| **bundled conpty + split** | **117.1** | **1.02x** |
+
+Within 0.6% of the hand-rolled measurement and 0.2% of host-only; every
+workload lands 0.98x-1.06x of Windows Terminal, worst single move +3.5%. The
+gap is closed: the candidate behaves on bulk exactly as the parts predicted.
 
 So the earlier "do not retry the reader/parser split" was wrong as written.
 The correct statement is narrower: **it does not pay for bulk throughput,

@@ -1,0 +1,23 @@
+# bundledA proc=TerminalApp grid=40x120
+01_light_cells 1 4.267 3.19
+01_light_cells 2 4.214 2.70
+02_dense_cells 1 6.792 3.92
+02_dense_cells 2 6.956 4.11
+03_sgr_fg 1 17.418 18.03
+03_sgr_fg 2 17.287 14.58
+04_sgr_truecolor 1 25.448 21.23
+04_sgr_truecolor 2 25.955 22.03
+05_unicode 1 13.608 8.92
+05_unicode 2 13.725 10.45
+06_cursor_motion 1 1.377 2.45
+06_cursor_motion 2 1.490 1.23
+07_alt_screen 1 7.625 5.14
+07_alt_screen 2 7.553 5.44
+08_scroll_region 1 17.360 15.78
+08_scroll_region 2 17.599 14.30
+09_long_lines 1 9.451 7.22
+09_long_lines 2 9.080 10.27
+10_binary 1 13.554 8.66
+10_binary 2 13.483 8.39
+rss_kb 35256
+DONE
