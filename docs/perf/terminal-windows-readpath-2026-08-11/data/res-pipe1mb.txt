@@ -1,0 +1,23 @@
+# pipeA proc=TerminalApp grid=40x120
+01_light_cells 1 9.319 0.45
+01_light_cells 2 9.388 0.55
+02_dense_cells 1 7.172 1.59
+02_dense_cells 2 7.076 3.77
+03_sgr_fg 1 18.148 7.41
+03_sgr_fg 2 17.478 6.56
+04_sgr_truecolor 1 24.232 11.23
+04_sgr_truecolor 2 24.635 11.91
+05_unicode 1 14.534 1.09
+05_unicode 2 14.066 1.14
+06_cursor_motion 1 1.364 0.00
+06_cursor_motion 2 1.368 0.00
+07_alt_screen 1 7.784 1.20
+07_alt_screen 2 7.737 1.11
+08_scroll_region 1 16.293 6.13
+08_scroll_region 2 16.621 7.61
+09_long_lines 1 9.696 12.02
+09_long_lines 2 9.563 5.89
+10_binary 1 15.304 2.80
+10_binary 2 15.270 3.14
+rss_kb 36044
+DONE

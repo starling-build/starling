@@ -65,11 +65,18 @@ Rep-to-rep spread was under 3% on every workload except our `05_unicode`
   ahead on wall.
 - **`01_light_cells` at 2.24x is the one real deficit**, and it is
   reproducible (1.9% spread). It is also the workload with the least escape
-  processing and the most raw line traffic — consistent with the standing
-  suspicion that our Windows reader is the pre-split serial loop:
-  `ChunkRing` and the drain-into-slot work that fixed exactly this shape on
-  Linux were never ported to `PtyWindows`. That is the next piece of work,
-  and it is now the *only* one the data supports.
+  processing and the most raw line traffic.
+
+  > **Followed up the same day, and the obvious fix is wrong.** The
+  > suspicion here was the pre-split serial reader — port `ChunkRing` and
+  > drain-into-slot from Linux. That was measured and is a **regression**
+  > (slower on all ten workloads, +2.3% wall, +22% CPU), as is visible in
+  > this very table: `light_cells` spent 9.36 s wall against **0.46 s of our
+  > CPU**, so there was no parse time for a split to hide. Raising the
+  > ConPTY pipe buffer to 1 MB was likewise a null. The live lead is that
+  > Windows Terminal ships its own newer `OpenConsole.exe` while we bind the
+  > inbox `conhost.exe` — we are starved, not slow.
+  > See `../terminal-windows-readpath-2026-08-11/`.
 
 Context that keeps these honest: **everything here is 20-1000x slower than
 Linux for both terminals** — ConPTY interprets the writer's output into its

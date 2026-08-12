@@ -1,0 +1,23 @@
+# splitB proc=TerminalApp grid=40x120
+01_light_cells 1 9.458 1.88
+01_light_cells 2 9.536 1.86
+02_dense_cells 1 7.227 3.52
+02_dense_cells 2 7.248 3.27
+03_sgr_fg 1 18.825 9.28
+03_sgr_fg 2 18.071 11.91
+04_sgr_truecolor 1 24.802 14.84
+04_sgr_truecolor 2 24.278 15.75
+05_unicode 1 14.276 7.38
+05_unicode 2 14.426 13.42
+06_cursor_motion 1 1.392 0.00
+06_cursor_motion 2 1.417 0.13
+07_alt_screen 1 7.977 1.45
+07_alt_screen 2 7.908 0.59
+08_scroll_region 1 16.770 0.00
+08_scroll_region 2 16.543 0.00
+09_long_lines 1 9.353 6.36
+09_long_lines 2 9.521 7.08
+10_binary 1 15.479 6.02
+10_binary 2 15.750 5.98
+rss_kb 37664
+DONE
