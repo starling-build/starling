@@ -139,6 +139,14 @@ public final class TerminalView: StatefulWidget {
     let theme: TerminalTheme
     let font: TerminalFont
     let padding: Double
+    /// The box this view will be laid out in, when the parent already knows
+    /// it — a pane in a workspace, a split, a tile. nil means "the whole
+    /// window", which is right for a terminal that IS the app and wrong for
+    /// every embedded one: the grid would be sized from the window while the
+    /// view is painted into a smaller box, so the child process is told a
+    /// window size it does not have. (The framework has no LayoutBuilder to
+    /// discover this from below.)
+    let size: Size?
     let autofocus: Bool
     /// Pressing Enter after the child exits calls `session.restart()` — the
     /// shipped Terminal's behaviour, and for a command session it repeats the
@@ -150,32 +158,34 @@ public final class TerminalView: StatefulWidget {
                 theme: TerminalTheme = .starlingDark,
                 font: TerminalFont = TerminalFont(),
                 padding: Double = 8,
+                size: Size? = nil,
                 autofocus: Bool = true,
                 restartOnEnter: Bool = true) {
         self.session = session
         self.theme = theme
         self.font = font
         self.padding = padding
+        self.size = size
         self.autofocus = autofocus
         self.restartOnEnter = restartOnEnter
         super.init()
     }
 
     override public func createState() -> State<StatefulWidget> {
-        return _TerminalViewState(
-            session: session, theme: theme, font: font, padding: padding,
-            autofocus: autofocus, restartOnEnter: restartOnEnter)
+        return _TerminalViewState(session: session)
     }
 }
 
 final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
+    /// The session is the view's identity and is captured once; everything
+    /// else is read from the CURRENT widget, so a parent that rebuilds with
+    /// a new size or theme is honoured without remounting the terminal.
     private let session: TerminalSession
-    private let theme: TerminalTheme
-    private let font: TerminalFont
-    private let padding: Double
-    private let autofocus: Bool
-    private let restartOnEnter: Bool
+    private var w: TerminalView { widget as! TerminalView }
+    private var theme: TerminalTheme { w.theme }
+    private var font: TerminalFont { w.font }
+    private var padding: Double { w.padding }
 
     private var _fontFallback: [String] { font.fallback ?? TerminalFontLoader.fallback }
     private var _lock: NSLock { session.lock }
@@ -215,14 +225,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// True while a selection drag is in flight (primary button held).
     private var _selecting = false
 
-    init(session: TerminalSession, theme: TerminalTheme, font: TerminalFont,
-         padding: Double, autofocus: Bool, restartOnEnter: Bool) {
+    init(session: TerminalSession) {
         self.session = session
-        self.theme = theme
-        self.font = font
-        self.padding = padding
-        self.autofocus = autofocus
-        self.restartOnEnter = restartOnEnter
         super.init()
     }
 
@@ -231,6 +235,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         TerminalFontLoader.register()
         _measureCell()
 
+        // Several views over one session is out of scope (see the plan), but
+        // several SESSIONS in one app is exactly the point — chain rather
+        // than overwrite so a pane mounting later cannot silently take the
+        // repaint signal away from the pane already running.
         session.onActivity = { [weak self] in self?._scheduleRepaint() }
         session.activityOwner = self
 
@@ -248,7 +256,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         focusNode.onFocusChange = { [weak self] _ in
             self?.setState {}
         }
-        if autofocus { focusNode.requestFocus() }
+        if w.autofocus { focusNode.requestFocus() }
     }
 
     override func dispose() {
@@ -371,7 +379,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
 
         if _exited {
-            if restartOnEnter, keyData.logical == 0xFF0D {  // Enter — restart
+            if w.restartOnEnter, keyData.logical == 0xFF0D {  // Enter — restart
                 _lock.lock()
                 let (cols, rows) = (emulator.cols, emulator.rows)
                 emulator.resize(cols: cols, rows: rows)
@@ -572,6 +580,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _viewLogicalSize() -> Size {
+        if let given = w.size { return given }
         if let view = PlatformDispatcher.instance.implicitView {
             let dpr = view.devicePixelRatio
             let phys = view.physicalSize
