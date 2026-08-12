@@ -99,13 +99,42 @@ WT's thread shape corroborates it: it concentrates ~13 CPU-seconds into
 Ours spreads 14.5 across **fourteen** with the hottest at 28%, i.e. a long
 pipeline with handoffs rather than two saturated stages.
 
-**This reopens a question I closed too broadly.** The reader/parser split was
-measured a regression and rejected — but that was on the ten-workload suite,
-which is all bulk dumps, where there is no parse time to hide behind
-transport. DOOM-Fire is the opposite regime: small frames, latency-bound, and
-exactly where overlapping read with parse should pay. The split may well be
-right *here* and wrong there. Not yet tested: it needs a build combining the
-split with the OpenConsole host, since the two live on separate branches.
+**This reopened a question the earlier round closed too broadly** — and the
+retest confirmed the profile. The reader/parser split had been measured a
+regression and rejected, but that was on the ten-workload suite, which is all
+bulk dumps, where there is no parse time to hide behind transport. DOOM-Fire
+is the opposite regime.
+
+## The split, retested in the regime it suits (`measure-split-openconsole`)
+
+Combined build: OpenConsole host **plus** the reader/parser split
+(b79fc0f + the split commit, 1216a42). Same protocol throughout.
+
+| | DOOM fps | vs WT | suite wall | suite CPU |
+|---|---|---|---|---|
+| OpenConsole only | 598.8 | 0.80x | 116.8 | 54.6 |
+| **+ reader/parser split** | **729.0** | **0.97x** | 117.8 (+0.8%) | **71.0 (+30%)** |
+| Windows Terminal | 752.8 | — | 114.8 | 107.6 |
+
+- **DOOM-Fire: +21.8%, from 0.80x to 0.97x of WT.** The profile predicted
+  this almost exactly: it said we were losing 0.22 ms/frame to serialized
+  read-and-parse against a 0.30 ms/frame parse cost, so overlapping the two
+  should recover most of the gap. It recovered 0.19 ms of the 0.22.
+- **The bulk suite is now neutral, not a regression: +0.8% wall**, with every
+  workload between -0.4% and +2.4% — inside the rep-to-rep spread. On the
+  inbox conhost the same split cost +2.3%. The host change is what made the
+  split affordable, which is why testing them separately gave the wrong
+  answer about both.
+- **The real cost is CPU: 54.6 -> 71.0 seconds, +30%.** That is a genuine
+  price, not noise, and it is the honest argument against shipping the split
+  blind. It still leaves us at 66% of WT's 107.6.
+
+So the earlier "do not retry the reader/parser split" was wrong as written.
+The correct statement is narrower: **it does not pay for bulk throughput,
+where parse is ~5% of wall and there is nothing to overlap; it pays roughly
+20% for frame-rate-bound work, where per-frame parse is on the critical
+path.** Which of those matters more is a product judgement — interactive
+full-screen apps look like DOOM-Fire, `cat`ting a log looks like the suite.
 
 ## Caveats, before anyone quotes these
 

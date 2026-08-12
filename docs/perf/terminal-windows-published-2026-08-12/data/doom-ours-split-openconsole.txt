@@ -1,0 +1,8 @@
+# split-oc proc=TerminalApp grid=40x120 frames=600
+BENCHFPS frames=600 seconds=0.813 fps=738.01
+  cpu_s 1.03
+BENCHFPS frames=600 seconds=0.826 fps=726.39
+  cpu_s 1.42
+BENCHFPS frames=600 seconds=0.823 fps=729.04
+  cpu_s 1.55
+DONE

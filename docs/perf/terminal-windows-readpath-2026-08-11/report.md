@@ -38,7 +38,16 @@ to `PtyWindows`. So port it.
 | **total** | **122.3** | **125.1 (+2.3%)** | **123.5 (+1.0%)** | **114.8** |
 | CPU s | 45.4 | 55.4 (+22%) | 42.8 | 107.6 |
 
-### 1. Reader/parser split over ChunkRing — REGRESSION, do not retry
+### 1. Reader/parser split over ChunkRing — regression HERE, but see the correction
+
+> **Corrected 2026-08-12 — "do not retry" was too broad.** Retested on top of
+> the OpenConsole host and profiled against DOOM-Fire, the split is **+21.8%
+> on frame-rate-bound work** (598.8 -> 729.0 fps, 0.80x -> 0.97x of Windows
+> Terminal) and **neutral on this bulk suite** (+0.8% wall, inside noise),
+> at +30% CPU. Everything below is still true *for bulk dumps* — and the
+> reason is the same one given here, that there is no parse time to hide.
+> What was wrong was generalising it to all workloads.
+> See `../terminal-windows-published-2026-08-12/`.
 
 Ported faithfully from `Pty.swift`: reader and parser threads over the
 existing `ChunkRing` (which was already compiled on Windows and unused), plus

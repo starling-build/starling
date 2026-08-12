@@ -1,0 +1,23 @@
+# ocA proc=TerminalApp grid=40x120
+01_light_cells 1 4.168 0.42
+01_light_cells 2 4.244 0.52
+02_dense_cells 1 6.779 2.38
+02_dense_cells 2 6.718 2.30
+03_sgr_fg 1 16.942 10.81
+03_sgr_fg 2 17.376 10.13
+04_sgr_truecolor 1 26.355 13.70
+04_sgr_truecolor 2 26.332 23.39
+05_unicode 1 13.887 3.30
+05_unicode 2 13.866 1.73
+06_cursor_motion 1 1.401 0.13
+06_cursor_motion 2 1.413 0.09
+07_alt_screen 1 7.643 2.06
+07_alt_screen 2 8.048 1.58
+08_scroll_region 1 17.092 10.80
+08_scroll_region 2 16.934 10.44
+09_long_lines 1 8.846 3.78
+09_long_lines 2 8.761 1.00
+10_binary 1 13.187 3.30
+10_binary 2 13.695 7.31
+rss_kb 37556
+DONE

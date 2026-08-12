@@ -1,0 +1,23 @@
+# splitocA proc=TerminalApp grid=40x120
+01_light_cells 1 4.195 3.69
+01_light_cells 2 4.187 2.77
+02_dense_cells 1 6.717 3.47
+02_dense_cells 2 6.790 3.66
+03_sgr_fg 1 17.670 14.53
+03_sgr_fg 2 17.487 14.53
+04_sgr_truecolor 1 26.183 22.64
+04_sgr_truecolor 2 26.343 21.75
+05_unicode 1 14.121 5.80
+05_unicode 2 13.719 5.63
+06_cursor_motion 1 1.415 0.47
+06_cursor_motion 2 1.459 0.58
+07_alt_screen 1 7.562 4.02
+07_alt_screen 2 8.133 4.52
+08_scroll_region 1 17.045 7.09
+08_scroll_region 2 17.799 7.06
+09_long_lines 1 8.900 3.73
+09_long_lines 2 9.013 3.89
+10_binary 1 13.395 5.08
+10_binary 2 13.448 7.05
+rss_kb 36708
+DONE
