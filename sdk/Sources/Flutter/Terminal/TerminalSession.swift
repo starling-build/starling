@@ -83,13 +83,21 @@ public final class TerminalSession {
     public func startCommand(_ command: String) -> Bool { _start(command) }
 
     /// Run again whatever this session ran last — the shell, or the command.
-    /// This is what a view offers after the child exits; restarting a
-    /// dashboard pane as an interactive shell would not be the same terminal.
+    ///
+    /// This is both what a view offers after the child exits and the way out
+    /// of a terminal that is stuck rather than finished: an `ssh` whose
+    /// connection died, a program that stopped reading its input. A live
+    /// child is killed first (`terminate()` signals the whole process group,
+    /// so the wedged thing on the far end goes too), the scrollback is kept,
+    /// and a fresh PTY takes its place.
     @discardableResult
     public func restart() -> Bool { _start(command) }
 
     private func _start(_ command: String?) -> Bool {
         self.command = command
+        // Restarting over a live child would leave it holding the far end of
+        // a PTY nobody reads any more.
+        if pty != nil { terminate() }
         processExited = false
         let (cols, rows) = (emulator.cols, emulator.rows)
         guard let pty = Pty(cols: cols, rows: rows, command: command) else {
@@ -100,15 +108,21 @@ public final class TerminalSession {
             return false
         }
         self.pty = pty
-        pty.onData = { [weak self] bytes, count in
-            guard let self = self else { return }
+        // Both handlers check that they still belong to the CURRENT pty. A
+        // restart leaves the old one's parser thread draining whatever the
+        // dead child had already written, and it ends by reporting an exit —
+        // into a session that has since moved on. Unguarded, restarting a
+        // stuck terminal prints "[process exited]" over the new shell's first
+        // prompt and marks the fresh session as dead.
+        pty.onData = { [weak self, weak pty] bytes, count in
+            guard let self = self, self.pty === pty else { return }
             self.lock.lock()
             self.emulator.feed(bytes, count: count)
             self.lock.unlock()
             self.onActivity?()
         }
-        pty.onExit = { [weak self] in
-            guard let self = self else { return }
+        pty.onExit = { [weak self, weak pty] in
+            guard let self = self, self.pty === pty else { return }
             self.lock.lock()
             self.processExited = true
             self.emulator.feed(Array("\r\n[process exited — press Enter to restart]\r\n".utf8))

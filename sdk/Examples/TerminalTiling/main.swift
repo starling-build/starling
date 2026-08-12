@@ -497,13 +497,15 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                             onPointerDown: { [self] _ in _beginRename(pane) },
                             behavior: .opaque,
                             child: SizedBox(
-                                width: max(0, box.w - 88), height: Tile.titleBarH
+                                width: max(0, box.w - 114), height: Tile.titleBarH
                             )
                         )
                     ),
                     Positioned(
-                        left: max(0, box.w - 52), top: 6,
+                        left: max(0, box.w - 78), top: 6,
                         child: Row(children: [
+                            _restartButton(pane, active: active),
+                            SizedBox(width: 8, height: 1),
                             _splitButton(node, axis: .row, active: active),
                             SizedBox(width: 8, height: 1),
                             _splitButton(node, axis: .column, active: active),
@@ -512,6 +514,49 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                 ])
             )
         )
+    }
+
+    /// Restart this pane's shell (or command). The way out of a terminal
+    /// that is stuck rather than finished — an ssh whose connection died, a
+    /// program that stopped reading — where the pane looks alive and answers
+    /// nothing. The session kills the old process group and spawns a fresh
+    /// PTY; the scrollback stays, so whatever was on screen when it hung is
+    /// still there to read.
+    private func _restartButton(_ pane: Pane, active: Bool) -> Widget {
+        let ink = active ? Tile.actionActive : Tile.action
+        return Listener(
+            onPointerDown: { [self] _ in _restart(pane) },
+            behavior: .opaque,
+            child: SizedBox(
+                width: 18, height: 18,
+                child: Center(
+                    child: Text(
+                        "↻",
+                        style: TextStyle(
+                            color: ink,
+                            fontSize: 15,
+                            fontFamily: TerminalFontLoader.family,
+                            // The arrow lives in the bundled DejaVu fallback,
+                            // not in Roboto Mono — the same fallback chain the
+                            // terminal itself leans on for box glyphs.
+                            fontFamilyFallback: TerminalFontLoader.fallback
+                        )
+                    )
+                )
+            )
+        )
+    }
+
+    private func _restart(_ pane: Pane) {
+        _activeId = pane.id
+        // Say so in the pane itself: a restart that only killed the process
+        // would read as the terminal having glitched.
+        pane.session.feed(Array("\r\n\u{1B}[38;5;244m[restarting…]\u{1B}[0m\r\n".utf8))
+        pane.session.restart()
+        // Remount so the fresh terminal takes the keyboard, the same trick
+        // the rename uses.
+        pane.focusEpoch += 1
+        setState {}
     }
 
     /// A 16x16 glyph drawn from boxes: a rectangle divided the way this

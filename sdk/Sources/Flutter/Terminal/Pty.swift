@@ -167,6 +167,16 @@ final class Pty: @unchecked Sendable {
     private var parserThread: Thread?
     private let ring = ChunkRing()
 
+    /// A pipe the reader polls alongside the master, so `terminate()` can wake
+    /// it deterministically. Closing the master under a blocked `poll()` is
+    /// not specified to wake anything, and a reader left polling a closed fd
+    /// is worse than a leak: the number gets reused and the thread starts
+    /// reading whatever lands on it next.
+    private var wakeRead: Int32 = -1
+    private var wakeWrite: Int32 = -1
+    /// Set before the wake, read by the reader once it is out of poll().
+    private var terminating = false
+
     /// `command` nil runs the shell interactively; a command line runs
     /// through it (`-c`), so PATH and pipelines behave as when typed.
     init?(cols: Int, rows: Int, command: String? = nil) {
@@ -293,14 +303,22 @@ final class Pty: @unchecked Sendable {
         // publishes the moment the pty runs dry, so latency is unchanged.
         let fl = fcntl(masterFd, F_GETFL, 0)
         _ = fcntl(masterFd, F_SETFL, fl | O_NONBLOCK)
+        var wake = [Int32](repeating: -1, count: 2)
+        if pipe(&wake) == 0 {
+            wakeRead = wake[0]
+            wakeWrite = wake[1]
+        }
         let reader = Thread { [weak self] in
-            var pfd = pollfd(fd: -1, events: Int16(POLLIN), revents: 0)
+            var pfds = [pollfd(fd: -1, events: Int16(POLLIN), revents: 0),
+                        pollfd(fd: -1, events: Int16(POLLIN), revents: 0)]
             while true {
                 guard let self = self else { return }
+                if self.terminating { self.ring.close(); return }
                 // The slot is ours until we publish it, so reads land
                 // straight in the ring — no chunk allocation, no copy.
                 guard let slot = self.ring.acquireForWrite() else { return }
-                pfd.fd = self.masterFd
+                pfds[0].fd = self.masterFd
+                pfds[1].fd = self.wakeRead
                 var got = 0
                 while true {
                     let n = read(self.masterFd, slot.base + got,
@@ -312,16 +330,25 @@ final class Pty: @unchecked Sendable {
                     }
                     if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
                         if got > 0 { break }   // publish what is queued
-                        pfd.revents = 0
-                        let p = poll(&pfd, 1, -1)
+                        pfds[0].revents = 0
+                        pfds[1].revents = 0
+                        let count: nfds_t = self.wakeRead >= 0 ? 2 : 1
+                        let p = poll(&pfds, count, -1)
                         if p < 0 && errno != EINTR {
                             self.ring.abandon(slot)
                             self.ring.close()
                             return
                         }
+                        // terminate() woke us: stop before touching the master
+                        // again, so the fd can be closed with no reader on it.
+                        if self.terminating || pfds[1].revents != 0 {
+                            self.ring.abandon(slot)
+                            self.ring.close()
+                            return
+                        }
                         // POLLHUP with nothing readable = child side closed.
-                        if pfd.revents & Int16(POLLHUP) != 0
-                            && pfd.revents & Int16(POLLIN) == 0 {
+                        if pfds[0].revents & Int16(POLLHUP) != 0
+                            && pfds[0].revents & Int16(POLLIN) == 0 {
                             self.ring.abandon(slot)
                             self.ring.close()
                             return
@@ -399,9 +426,48 @@ final class Pty: @unchecked Sendable {
         _ = ioctl(masterFd, Pty.TIOCSWINSZ, &ws)
     }
 
+    /// Ends the child and stops the reader.
+    ///
+    /// The signal goes to the process GROUP, not the pid: the child called
+    /// `setsid()` and leads its own group, and what is actually wedged is
+    /// usually something it spawned — a dropped `ssh`, a build that stopped
+    /// answering. Signalling only the shell leaves that orphan holding the
+    /// far end of the PTY, so the next read never ends and a "restart" gets
+    /// a terminal that is still stuck.
+    ///
+    /// SIGHUP is what a closing terminal sends; a process ignoring it (or
+    /// blocked in uninterruptible I/O on a dead socket) gets SIGKILL a
+    /// moment later. The wait reaps the child — without it every restart
+    /// leaves a zombie.
     func terminate() {
+        terminating = true
+        if wakeWrite >= 0 {
+            var byte: UInt8 = 1
+            _ = Glibc.write(wakeWrite, &byte, 1)
+        }
+        kill(-childPid, SIGHUP)
         kill(childPid, SIGHUP)
-        close(masterFd)
+
+        let pid = childPid
+        let master = masterFd
+        let wr = wakeWrite, rd = wakeRead
+        DispatchQueue.global().async {
+            var status: Int32 = 0
+            // Give the group a moment to go on its own, then insist.
+            for _ in 0 ..< 25 {
+                if waitpid(pid, &status, WNOHANG) != 0 { break }
+                usleep(10_000)
+            }
+            if waitpid(pid, &status, WNOHANG) == 0 {
+                kill(-pid, SIGKILL)
+                kill(pid, SIGKILL)
+                _ = waitpid(pid, &status, 0)
+            }
+            // Only now is nobody polling the master.
+            close(master)
+            if wr >= 0 { close(wr) }
+            if rd >= 0 { close(rd) }
+        }
     }
 }
 
