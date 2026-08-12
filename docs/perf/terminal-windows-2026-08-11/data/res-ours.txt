@@ -1,0 +1,13 @@
+# ours proc=TerminalApp grid=45x119
+01_light_cells 1 10.465 0.61
+02_dense_cells 1 8.653 0.84
+03_sgr_fg 1 248.595 42.17
+04_sgr_truecolor 1 34.824 14.70
+05_unicode 1 18.527 7.09
+06_cursor_motion 1 1.533 0.19
+07_alt_screen 1 18.462 2.80
+08_scroll_region 1 37.437 18.05
+09_long_lines 1 11.964 3.98
+10_binary 1 21.598 4.17
+rss_kb 39036
+DONE

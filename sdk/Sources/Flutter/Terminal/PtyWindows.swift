@@ -26,8 +26,12 @@ final class Pty: @unchecked Sendable {
     private var handle: OpaquePointer?
     private let handleLock = NSLock()
 
-    /// Called on the reader thread with each chunk read from the console.
-    var onData: (([UInt8]) -> Void)?
+    /// Called on the reader thread with each chunk read from the console. The
+    /// buffer is owned by the PTY and is valid only for the duration of the
+    /// call — copy anything that has to outlive it. (Same zero-copy contract
+    /// as the POSIX side, which moved to pointer+count with the read-path
+    /// split; this side follows so TerminalApp.swift stays host-neutral.)
+    var onData: ((UnsafePointer<UInt8>, Int) -> Void)?
 
     /// Called on the reader thread when the child exits / the console closes.
     var onExit: (() -> Void)?
@@ -90,7 +94,9 @@ final class Pty: @unchecked Sendable {
                     starling_conpty_read(h, ptr.baseAddress, Int32(ptr.count))
                 }
                 if n > 0 {
-                    self.onData?(Array(buf[0..<Int(n)]))
+                    buf.withUnsafeBufferPointer { ptr in
+                        self.onData?(ptr.baseAddress!, Int(n))
+                    }
                 } else {
                     self.onExit?()
                     return

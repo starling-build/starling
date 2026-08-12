@@ -1,0 +1,13 @@
+# wt proc=WindowsTerminal grid=40x120
+01_light_cells 1 4.521 3.34
+02_dense_cells 1 7.050 5.72
+03_sgr_fg 1 17.960 15.27
+04_sgr_truecolor 1 27.752 22.84
+05_unicode 1 14.183 11.77
+06_cursor_motion 1 1.499 1.28
+07_alt_screen 1 8.120 6.19
+08_scroll_region 1 18.258 14.33
+09_long_lines 1 9.403 7.22
+10_binary 1 13.940 28.05
+rss_kb 117860
+DONE
