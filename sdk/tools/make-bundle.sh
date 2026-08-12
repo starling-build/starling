@@ -108,7 +108,19 @@ fi
 # --- runtime data -----------------------------------------------------------
 # icudtl.dat and flutter_assets are needed at *run* time, not link time, but a
 # consumer with neither cannot start an engine, so they travel with the bundle.
-[ -f "$E/icudtl.dat" ] && install -m644 "$E/icudtl.dat" "$DEST/engine/share/"
+#
+# macOS deliberately does not take the one beside the engine. There are two
+# different files in a mac out directory and only one of them is Flutter's:
+# FlutterMacOS.framework/Versions/A/Resources/icudtl.dat is the trimmed build
+# (~780 KB, //flutter/third_party/icu/flutter) and has already travelled with
+# the framework above, while the top-level icudtl.dat is full ICU (~10 MB,
+# third_party/icu/common) that the engine's own tests use. Shipping the second
+# one would put 10 MB of the wrong flavour in engine/share for a consumer to
+# point at by habit, so on macOS the framework's copy is the only one — which
+# is why the hosts look inside the framework first.
+if [ "$PLATFORM" = linux ]; then
+    [ -f "$E/icudtl.dat" ] && install -m644 "$E/icudtl.dat" "$DEST/engine/share/"
+fi
 
 # flutter_assets: the vendored copy in Resources/ normally, overridable, with the
 # desktop's copy as a fallback for anyone building from a starling checkout.
@@ -123,6 +135,63 @@ if [ -n "$ASSETS" ]; then
 else
     echo "warning: no flutter_assets found; the bundle cannot start an engine" >&2
     echo "         set FLUTTER_SWIFT_ASSETS to an asset bundle" >&2
+fi
+
+# --- the generated README's platform-specific halves -------------------------
+# The two platforms differ in the three places a consumer can get stuck: the
+# extra swiftSettings they need, how the engine is deployed beside their binary,
+# and where icudtl.dat is. Writing the Linux answers on a macOS bundle would be
+# worse than saying nothing — .so/$ORIGIN/LD_LIBRARY_PATH have no meaning there.
+if [ "$PLATFORM" = linux ]; then
+    MATH_SETTING='
+            // Required on Ubuntu 26.04 (glibc 2.43 + libstdc++ 15), and harmless
+            // elsewhere. SwiftPM does not propagate swiftSettings from a
+            // dependency, so this package applying it internally does nothing for
+            // you: your own C++-interop targets pull Foundation'"'"'s C shim in their
+            // own context and hit "cmath: redefinition of '"'"'acos'"'"'" without it.
+            // Drop it once swift.org ships a native 26.04 toolchain.
+            .unsafeFlags(["-Xcc", "-D_GLIBCXX_MATH_H",
+                          "-Xcc", "-include", "-Xcc", "/usr/include/math.h"]),'
+    HOST_PRODUCT="FlutterGTK"
+    ENGINE_LIB_DESC="libflutter_engine.so, libflutter_linux_drm.so, libflutter_linux_gtk.so"
+    ICU_LAYOUT="    engine/share/icudtl.dat         ICU data, needed to start an engine"
+    SHIP_BODY='The rpath above points here, which is fine on your machine and useless on someone
+else'"'"'s. SwiftPM also puts `$ORIGIN` in the rpath, so deployment is a copy:
+
+```bash
+cp .build/release/App                 dist/
+cp /opt/'"$NAME"'/engine/lib/*.so         dist/     # sits beside the binary
+cp -r /opt/'"$NAME"'/engine/share         dist/     # icudtl.dat + flutter_assets
+```
+
+`dist/App` then runs anywhere with no `LD_LIBRARY_PATH`. Skip the library copy and
+you get `libflutter_engine.so: cannot open shared object file` at startup, not at
+build time. Point your embedder at `share/icudtl.dat` and `share/flutter_assets`.'
+    OVERRIDE_MATH='`FLUTTER_SWIFT_GLIBC_MATH_COMPAT=0/1` forces the Ubuntu 26.04 <cmath> workaround
+off or on; it is applied automatically when libstdc++ 15 or newer is present.'
+else
+    MATH_SETTING=''
+    HOST_PRODUCT="FlutterCocoa"
+    ENGINE_LIB_DESC="FlutterMacOS.framework, libswift_bridge.dylib"
+    ICU_LAYOUT="    engine/lib/FlutterMacOS.framework/Versions/A/Resources/icudtl.dat
+                                    ICU data, needed to start an engine —
+                                    inside the framework on this platform"
+    SHIP_BODY='The rpath above points here, which is fine on your machine and useless on someone
+else'"'"'s. SwiftPM also puts `@executable_path` in the rpath, so deployment is a copy:
+
+```bash
+cp .build/release/App                        dist/
+cp -R /opt/'"$NAME"'/engine/lib/FlutterMacOS.framework  dist/   # beside the binary
+cp    /opt/'"$NAME"'/engine/lib/libswift_bridge.dylib   dist/
+cp -r /opt/'"$NAME"'/engine/share                       dist/   # flutter_assets
+```
+
+Both engine binaries carry an `@rpath` install name, so `dist/App` then runs
+anywhere with nothing set in the environment. Skip the copy and you get
+`Library not loaded: @rpath/libswift_bridge.dylib` at launch, not at build time.
+Point your embedder at the framework'"'"'s
+`Versions/A/Resources/icudtl.dat` and at `share/flutter_assets`.'
+    OVERRIDE_MATH=''
 fi
 
 cat > "$DEST/README.md" <<EOF
@@ -143,20 +212,15 @@ targets: [
             // The dart:ui types — Offset, Size, Rect, Paint, Canvas. Separate
             // from Flutter, which does not re-export them.
             .product(name: "FlutterSwiftBridge", package: "$NAME"),
+            // The windowed host for this platform: it opens the window and
+            // starts the engine in Swift mode.
+            .product(name: "$HOST_PRODUCT", package: "$NAME"),
         ],
         swiftSettings: [
             // Required. The framework is C++-interop; this is not inherited from
             // the dependency, and without it you get:
             //   module 'FlutterSwiftBridgeCxx' requires feature 'cplusplus'
-            .interoperabilityMode(.Cxx),
-            // Required on Ubuntu 26.04 (glibc 2.43 + libstdc++ 15), and harmless
-            // elsewhere. SwiftPM does not propagate swiftSettings from a
-            // dependency, so this package applying it internally does nothing for
-            // you: your own C++-interop targets pull Foundation's C shim in their
-            // own context and hit "cmath: redefinition of 'acos'" without it.
-            // Drop it once swift.org ships a native 26.04 toolchain.
-            .unsafeFlags(["-Xcc", "-D_GLIBCXX_MATH_H",
-                          "-Xcc", "-include", "-Xcc", "/usr/include/math.h"]),
+            .interoperabilityMode(.Cxx),$MATH_SETTING
         ]
     ),
 ]
@@ -181,18 +245,7 @@ rebuilding**, as the engine location is in your binary's rpath.
 
 ## Ship your app
 
-The rpath above points here, which is fine on your machine and useless on someone
-else's. SwiftPM also puts \`\$ORIGIN\` in the rpath, so deployment is a copy:
-
-\`\`\`bash
-cp .build/release/App                 dist/
-cp /opt/$NAME/engine/lib/*.so         dist/     # sits beside the binary
-cp -r /opt/$NAME/engine/share         dist/     # icudtl.dat + flutter_assets
-\`\`\`
-
-\`dist/App\` then runs anywhere with no \`LD_LIBRARY_PATH\`. Skip the library copy and
-you get \`libflutter_engine.so: cannot open shared object file\` at startup, not at
-build time. Point your embedder at \`share/icudtl.dat\` and \`share/flutter_assets\`.
+$SHIP_BODY
 
 This bundle is built for **$PLATFORM/$ARCH**; other targets need their own.
 
@@ -200,15 +253,14 @@ This bundle is built for **$PLATFORM/$ARCH**; other targets need their own.
 
     Package.swift Sources/ Tests/   the framework
     Examples/                       the demo and example apps
-    engine/lib/                     engine binaries (linked, and loaded at runtime)
-    engine/share/icudtl.dat         ICU data, needed to start an engine
+    engine/lib/                     $ENGINE_LIB_DESC
+$ICU_LAYOUT
     engine/share/flutter_assets/    default asset bundle
 
 ## Overrides
 
 \`FLUTTER_SWIFT_ENGINE_OUT\` points at a different engine build.
-\`FLUTTER_SWIFT_GLIBC_MATH_COMPAT=0/1\` forces the Ubuntu 26.04 <cmath> workaround
-off or on; it is applied automatically when libstdc++ 15 or newer is present.
+$OVERRIDE_MATH
 EOF
 
 ( cd "$OUT" && tar czf "$NAME.tar.gz" "$NAME" )
