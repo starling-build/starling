@@ -76,6 +76,17 @@ CONF_BIN=$(mktemp /tmp/starling-conformance.XXXXXX)
      || { "$CONF_BIN" 2>/dev/null | grep FAIL; false; }) || fails=$((fails + 1))
 rm -f "$CONF_BIN"
 
+# The remote-session daemon (docs/plans/remote-terminal.md) is plain C too,
+# and its promise — a session outlives its client, a reattach at a byte
+# offset resumes exactly — is a protocol test over a unix socket, no GPU and
+# no display. It is the whole feature in twelve checks.
+step "unit tests: termd (remote sessions)"
+(make -s -C "$REPO/termd" >/dev/null 2>&1 \
+     && python3 "$REPO/termd/test-termd.py" | tail -1 | grep -q "all termd checks passed" \
+     && echo "  ✔ termd: sessions survive their client" \
+     || { python3 "$REPO/termd/test-termd.py" 2>&1 | grep -E "FAIL"; false; }) \
+     || fails=$((fails + 1))
+
 step "unit tests: registry"
 (cd "$REPO/registry" && as_user "$SWIFT" test 2>&1 \
     | grep -vE "libxml2.so.2: no version information" \
