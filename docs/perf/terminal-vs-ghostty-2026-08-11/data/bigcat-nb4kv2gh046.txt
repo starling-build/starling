@@ -1,0 +1,7 @@
+# file rep wall_s cpu_s   (terminal 3749132 / ghostty, grid 126x478)
+ascii_150mb 1 0.806 1.61
+ascii_150mb 2 0.765 1.53
+ascii_150mb 3 0.788 1.58
+unicode_150mb 1 0.723 1.70
+unicode_150mb 2 0.742 1.74
+unicode_150mb 3 0.713 1.70

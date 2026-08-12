@@ -469,3 +469,21 @@ result). Published tests here: DOOM-Fire decisively ours (544-561 vs
 (0.797 vs 0.784), the unicode cat theirs on this box — against the
 Lenovo's three-of-three with its from-source nightly. Machine and nightly
 vintage matter; within-machine, the suite verdict is unchanged at ~0.55x.
+
+### Same commit, both builds, one machine: the Lenovo sweep is the HARDWARE
+
+The NucBox/Lenovo disagreement (three-of-three there, a split here) invited
+two explanations: the Lenovo's control was built from source (slower
+pipeline?) or the machine treats the two terminals differently. Tested by
+building the Lenovo's exact control here — commit 046b8fc, Zig 0.16.0,
+ReleaseFast — and racing it against the official nightly binary back to
+back at 126x478 (`data/*-nb4kv2gh046*`, `*-nb4kv3ghn*`): ascii 0.788 vs
+0.789, unicode 0.723 vs 0.734, DOOM 382 vs 373 fps. **Identical within
+noise — the build pipeline explains nothing.** The same commit that does
+0.79/0.72/380 here did 1.155/1.166/243 on the Lenovo, a 45-55% drop,
+while our terminal drops only 15-20% between the same two machines.
+Ghostty's throughput is strongly hardware-dependent; ours is comparatively
+flat — the same shape the virgl VM addendum measured (their 1.95x
+degradation vs our 1.34x). The Lenovo's all-ten sweep is a true result on
+that hardware class, not a build artifact; quote per-machine pairs, never
+cross-machine absolutes.

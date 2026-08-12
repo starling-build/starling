@@ -1,0 +1,7 @@
+# nb4kv3ghn  terminal=3749560/ghostty  grid=126x478  frames=600
+BENCHFPS frames=600 seconds=1.607 fps=373.37
+  cpu_s 3.60
+BENCHFPS frames=600 seconds=1.606 fps=373.60
+  cpu_s 3.58
+BENCHFPS frames=600 seconds=1.641 fps=365.63
+  cpu_s 3.65
