@@ -131,6 +131,13 @@ for a in $APPS; do
     # wrong conclusions. Apps get the SHELL's build via the symlink loop
     # below, the same way they already get libflutter_engine.so — one
     # framework per staged tree, from one source.
+    #
+    # The flip side: after ADDING framework API (a new sdk widget), rebuild
+    # the SHELL before staging, or every app built against the new API dies
+    # at launch with `symbol lookup error: undefined symbol` — the app is
+    # new, the one framework it loads is the shell's old one. Same lazy-
+    # binding trap CLAUDE.md documents for the engine libraries, one layer
+    # up.
     # Vendored per-app libraries (ImageViewerApp's PDFium).
     for dep in "$REPO/apps/$a/.deps/"*/lib/*.so; do
         [ -f "$dep" ] && install -m644 "$dep" "$LIB/apps/"

@@ -68,13 +68,6 @@ var targets: [Target] = [
                     .product(name: "FlutterMacOSBridge", package: "FlutterSwift"),
                     .product(name: "Flutter", package: "FlutterSwift"),
                 ],
-                resources: [
-                    .copy("Resources/RobotoMono-Regular.ttf"),
-                    .copy("Resources/RobotoMono-Bold.ttf"),
-                    .copy("Resources/DejaVuSansMono-Regular.ttf"),
-                    .copy("Resources/DejaVuSansMono-Bold.ttf"),
-                    .copy("Resources/DejaVuSansMono-LICENSE.txt"),
-                ],
                 swiftSettings: [
                     .interoperabilityMode(.Cxx),
                     .unsafeFlags([
@@ -104,13 +97,6 @@ var targets: [Target] = [
                     .product(name: "FlutterWin32", package: "FlutterSwift"),
                     .product(name: "CTerminalCore", package: "FlutterSwift"),
                 ],
-                resources: [
-                    .copy("Resources/RobotoMono-Regular.ttf"),
-                    .copy("Resources/RobotoMono-Bold.ttf"),
-                    .copy("Resources/DejaVuSansMono-Regular.ttf"),
-                    .copy("Resources/DejaVuSansMono-Bold.ttf"),
-                    .copy("Resources/DejaVuSansMono-LICENSE.txt"),
-                ],
                 swiftSettings: [
                     .interoperabilityMode(.Cxx),
                 ],
@@ -134,13 +120,6 @@ var targets: [Target] = [
                         .product(name: "FlutterShared", package: "FlutterSwift"),
                         .product(name: "CTerminalCore", package: "FlutterSwift"),
                     ],
-                resources: [
-                    .copy("Resources/RobotoMono-Regular.ttf"),
-                    .copy("Resources/RobotoMono-Bold.ttf"),
-                    .copy("Resources/DejaVuSansMono-Regular.ttf"),
-                    .copy("Resources/DejaVuSansMono-Bold.ttf"),
-                    .copy("Resources/DejaVuSansMono-LICENSE.txt"),
-                ],
                 swiftSettings: gtkHost
                     ? [
                         .interoperabilityMode(.Cxx),
