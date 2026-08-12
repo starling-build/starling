@@ -104,10 +104,15 @@
     font-size: 13px; letter-spacing: .07em; text-transform: uppercase;
     color: var(--ink-faint); margin-bottom: 18px;
   }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
-         box-shadow: 0 0 0 4px rgba(240,160,42,.14); }
-  .hero h1 { font-size: clamp(34px, 5.2vw, 54px); letter-spacing: -0.035em;
-             margin-bottom: 18px; }
+  .badge { font-size: 12px; font-weight: 640; letter-spacing: .1em;
+           text-transform: uppercase; color: var(--amber);
+           border: 1px solid rgba(240,160,42,.35); border-radius: 999px;
+           padding: 4px 12px; background: rgba(240,160,42,.09); }
+  .hero h1 { font-size: clamp(44px, 7.4vw, 82px); letter-spacing: -0.04em;
+             margin-bottom: 14px; }
+  .tagline { font-size: clamp(21px, 2.7vw, 29px); color: var(--ink);
+             font-weight: 560; letter-spacing: -0.02em; line-height: 1.25;
+             margin-bottom: 16px; }
   .hero h1 .accent {
     background: linear-gradient(100deg, var(--amber-soft), var(--sky));
     -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -244,8 +249,9 @@
 <!-- ============================ hero: both modes ============================ -->
 <div class="hero">
   <div class="wrap hero-inner">
-    <div class="eyebrow"><span class="dot"></span> New — Starling Terminal</div>
-    <h1>A <span class="accent">cross-platform</span> terminal, built for speed.</h1>
+    <div class="eyebrow"><span class="badge">New</span></div>
+    <h1>Starling <span class="accent">Terminal</span></h1>
+    <p class="tagline">A cross-platform terminal, built for speed.</p>
     <p class="lede">
       Linux and Windows, macOS soon. Tiling or floating, from one toggle — and
       about half the wall time of ghostty on Linux.
