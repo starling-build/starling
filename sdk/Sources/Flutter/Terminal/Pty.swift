@@ -4,6 +4,26 @@
 import Foundation
 #if os(Linux)
 import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
+
+/// `write(2)`, spelled out with its defining module.
+///
+/// `Pty.write(_:)` shadows the C function inside the class, so the call has to
+/// name the module — and the module's name is the one thing that differs by
+/// platform. Guarded like the POSIX `Pty` below rather than left at file
+/// scope: Windows has neither module, and its own PTY lives in
+/// PtyWindows.swift.
+#if !os(Windows)
+@inline(__always)
+private func _sysWrite(_ fd: Int32, _ buf: UnsafeRawPointer?, _ count: Int) -> Int {
+    #if os(Linux)
+    return Glibc.write(fd, buf, count)
+    #else
+    return Darwin.write(fd, buf, count)
+    #endif
+}
 #endif
 
 /// A bounded ring of fixed-size buffers handed from the PTY reader thread to
@@ -147,9 +167,15 @@ final class ChunkRing: @unchecked Sendable {
 final class Pty: @unchecked Sendable {
 
     // ioctl request numbers (linux, generic): these are macros in C headers
-    // that Swift's Glibc module does not export.
+    // that Swift's Glibc module does not export. Linux-only: the values are
+    // BSD `_IOW`-encoded and entirely different on Darwin (TIOCSWINSZ is
+    // 0x80087467 there, not 0x5414), and Darwin's overlay does export its
+    // own — so hardcoding these for both platforms would silently address
+    // the wrong ioctl. The Darwin branch of `init` needs neither.
+    #if os(Linux)
     private static let TIOCSCTTY: UInt = 0x540E
     private static let TIOCSWINSZ: UInt = 0x5414
+    #endif
 
     /// Markers a terminal multiplexer leaves behind, which the shell we spawn
     /// would otherwise inherit and BELIEVE. We are the terminal here: whatever
@@ -194,7 +220,16 @@ final class Pty: @unchecked Sendable {
     /// `command` nil runs the shell interactively; a command line runs
     /// through it (`-c`), so PATH and pipelines behave as when typed.
     init?(cols: Int, rows: Int, command: String? = nil) {
+        // Declared before the platform split because Darwin needs it there:
+        // forkpty applies the window size in the same call that opens the
+        // master, while Linux ioctls it onto the master further down.
+        var ws = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols),
+                         ws_xpixel: 0, ws_ypixel: 0)
+
         // ── Master side ─────────────────────────────────────────────────
+        // Linux only: Darwin opens the master inside forkpty (see below), so
+        // there is nothing to do here on that platform.
+        #if os(Linux)
         let master = posix_openpt(O_RDWR | O_NOCTTY)
         guard master >= 0 else { return nil }
         guard grantpt(master) == 0, unlockpt(master) == 0 else {
@@ -208,9 +243,8 @@ final class Pty: @unchecked Sendable {
         }
         let slavePath = String(cString: nameBuf)
 
-        var ws = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols),
-                         ws_xpixel: 0, ws_ypixel: 0)
         _ = ioctl(master, Pty.TIOCSWINSZ, &ws)
+        #endif
 
         // ── Prepare exec arguments BEFORE fork (no allocation after) ────
         let shellPath = Pty._shellPath()
@@ -236,10 +270,22 @@ final class Pty: @unchecked Sendable {
         let shellPathC = strdup(shellPath)
         let homeC = strdup(home)
 
+        // Releases everything strdup'd above. The child never reaches it (it
+        // execs or _exits), so this runs on the parent and on the failure
+        // paths below.
+        func freeExecArgs() {
+            argv.forEach { free($0) }
+            envp.forEach { free($0) }
+            free(shellPathC)
+            free(homeC)
+        }
+
         // ── Fork + exec ─────────────────────────────────────────────────
+        #if os(Linux)
         let pid = fork()
         if pid < 0 {
             close(master)
+            freeExecArgs()
             return nil
         }
         if pid == 0 {
@@ -259,14 +305,33 @@ final class Pty: @unchecked Sendable {
             }
             _exit(127)
         }
+        #else
+        // Darwin: Swift's overlay marks `fork()` unavailable outright, and
+        // forkpty is the BSD call that does precisely what the Linux branch
+        // hand-rolls — open the master, fork, setsid, make the slave the
+        // child's controlling terminal, and dup it onto 0/1/2 — applying the
+        // window size in the same step. So the child here only has to chdir
+        // and exec, and neither TIOCSCTTY nor TIOCSWINSZ is needed.
+        var master: Int32 = -1
+        let pid = forkpty(&master, nil, nil, &ws)
+        if pid < 0 {
+            freeExecArgs()
+            return nil
+        }
+        if pid == 0 {
+            // Child: only async-signal-safe calls from here.
+            if let homeC = homeC { _ = chdir(homeC) }
+            if let path = shellPathC {
+                execve(path, &argv, &envp)
+            }
+            _exit(127)
+        }
+        #endif
 
         // Parent
         self.masterFd = master
         self.childPid = pid
-        argv.forEach { free($0) }
-        envp.forEach { free($0) }
-        free(shellPathC)
-        free(homeC)
+        freeExecArgs()
     }
 
     /// The shell to run: the Starling devbox when configured (terminal
@@ -414,7 +479,7 @@ final class Pty: @unchecked Sendable {
         var pfd = pollfd(fd: masterFd, events: Int16(POLLOUT), revents: 0)
         while !remaining.isEmpty {
             let n = remaining.withUnsafeBytes { ptr -> Int in
-                Glibc.write(masterFd, ptr.baseAddress, ptr.count)
+                _sysWrite(masterFd, ptr.baseAddress, ptr.count)
             }
             if n > 0 {
                 remaining = remaining.dropFirst(n)
@@ -438,7 +503,13 @@ final class Pty: @unchecked Sendable {
     func resize(cols: Int, rows: Int) {
         var ws = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols),
                          ws_xpixel: 0, ws_ypixel: 0)
+        // Darwin exports the real request number to Swift; Glibc does not, so
+        // Linux uses the transcribed constant above.
+        #if os(Linux)
         _ = ioctl(masterFd, Pty.TIOCSWINSZ, &ws)
+        #else
+        _ = ioctl(masterFd, TIOCSWINSZ, &ws)
+        #endif
     }
 
     /// Ends the child and stops the reader.

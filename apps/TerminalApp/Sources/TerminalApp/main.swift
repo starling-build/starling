@@ -13,17 +13,22 @@ import Foundation
 
 #if os(Windows)
 import FlutterWin32
+#elseif os(macOS)
+import FlutterCocoa
 #elseif STARLING_GTK
 import FlutterGTK
 #endif
 
 // Must run before runStarlingApp: these fill in the windowed-host hooks that
-// the host-neutral entry looks for when there is no shell socket. Windows has
-// no Starling shell to be a child of, so it always opens its own window; on
-// Linux the GTK host is the opt-in benchmark/dev build and the default binary
-// still composites through the shell.
+// the host-neutral entry looks for when there is no shell socket. Neither
+// Windows nor macOS has a Starling shell to be a child of — the compositor is
+// Linux-only — so both always open their own window; on Linux the GTK host is
+// the opt-in benchmark/dev build and the default binary still composites
+// through the shell.
 #if os(Windows)
 Win32WindowedHost.install()
+#elseif os(macOS)
+CocoaWindowedHost.install()
 #elseif STARLING_GTK
 GTKWindowedHost.install()
 #endif
