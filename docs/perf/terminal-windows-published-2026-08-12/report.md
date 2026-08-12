@@ -62,6 +62,51 @@ renders rather than trusting fps — see the note on blank-window artifacts in
   For scale, the same test on Linux gives us 1960 fps against ghostty
   nightly's 1224, so Windows costs us ~3.3x here.
 
+## Profiling the DOOM-Fire loss
+
+Same method that resolved `light_cells`: account for every process, then look
+inside. 6000 frames per run, `profile-doom.ps1`, raw in `data/doomprof-*.txt`.
+
+| | fps | ms/frame | terminal CPU | busy threads | OpenConsole CPU |
+|---|---|---|---|---|---|
+| ours | 600.2 | 1.666 | 14.47 | 14 | 6.78 |
+| ours, **repaints suppressed** | 647.5 | 1.544 | **1.80** | 2 | 6.58 |
+| Windows Terminal | 756.4 | 1.322 | 13.11 | 5 | 6.80 |
+
+Three things, and the last is the one that matters:
+
+1. **The host is NOT the difference here: 6.78 vs 6.80 CPU-seconds.** Unlike
+   `light_cells`, where the inbox conhost cost 3.3x what OpenConsole did,
+   both terminals now make the host do identical work. This deficit is
+   entirely ours.
+2. **Rendering is 88% of our CPU and almost none of our deficit.**
+   `STARLING_BENCH_NOREPAINT=1` drops us from 14.47 CPU-seconds to 1.80 — an
+   8x cut, 14 busy threads down to 2 — and buys only **8% more fps**
+   (600 -> 648). We are not fps-limited by drawing. (That also means our
+   render path is expensive in absolute terms; it just is not what caps the
+   frame rate.)
+3. **With zero rendering we are still 14% behind WT** (647.5 vs 756.4). So
+   the ceiling is in the consume path, not the draw path. Per frame:
+   ours-with-nothing-to-draw 1.544 ms vs WT 1.322 ms — a **0.22 ms/frame**
+   gap, against a measured parse cost of 1.80 s / 6000 = **0.30 ms/frame**.
+   The gap is the size of our own parse. That is the signature of
+   **read and parse being serialized**: the reader is the pre-split blocking
+   `ReadFile` loop, so while we parse a frame we are not draining the next
+   one, and at 1.3 ms/frame that stall is the whole difference.
+
+WT's thread shape corroborates it: it concentrates ~13 CPU-seconds into
+**two** threads at 59% and 55% of wall — a reader and a renderer, overlapped.
+Ours spreads 14.5 across **fourteen** with the hottest at 28%, i.e. a long
+pipeline with handoffs rather than two saturated stages.
+
+**This reopens a question I closed too broadly.** The reader/parser split was
+measured a regression and rejected — but that was on the ten-workload suite,
+which is all bulk dumps, where there is no parse time to hide behind
+transport. DOOM-Fire is the opposite regime: small frames, latency-bound, and
+exactly where overlapping read with parse should pay. The split may well be
+right *here* and wrong there. Not yet tested: it needs a build combining the
+split with the OpenConsole host, since the two live on separate branches.
+
 ## Caveats, before anyone quotes these
 
 - **Not comparable to the Linux numbers.** The corpora are the same shape,

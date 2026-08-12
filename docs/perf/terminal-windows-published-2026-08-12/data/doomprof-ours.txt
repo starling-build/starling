@@ -1,0 +1,17 @@
+# ours mode=ours frames=6000 wall=13.53
+CPU TerminalApp 14.47
+CPU OpenConsole 6.78
+CPU conhost 0.00
+CPU DOOM-fire -0.02
+# per-thread CPU of the terminal (top 8), seconds
+THREAD 6160 3.77  (28% of wall)
+THREAD 10652 2.59  (19% of wall)
+THREAD 8560 2.09  (15% of wall)
+THREAD 3644 0.75  (6% of wall)
+THREAD 10876 0.70  (5% of wall)
+THREAD 952 0.69  (5% of wall)
+THREAD 3736 0.67  (5% of wall)
+THREAD 8968 0.66  (5% of wall)
+THREADS_BUSY 14
+BENCHFPS frames=6000 seconds=9.996 fps=600.24
+DONE

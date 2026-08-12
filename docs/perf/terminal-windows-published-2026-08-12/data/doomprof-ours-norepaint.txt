@@ -1,0 +1,11 @@
+# ours-norepaint mode=ours frames=6000 wall=12.57
+CPU TerminalApp 1.80
+CPU OpenConsole 6.58
+CPU conhost 0.00
+CPU DOOM-fire -0.03
+# per-thread CPU of the terminal (top 8), seconds
+THREAD 3436 1.77  (14% of wall)
+THREAD 1712 0.03  (0% of wall)
+THREADS_BUSY 2
+BENCHFPS frames=6000 seconds=9.266 fps=647.53
+DONE

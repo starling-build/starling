@@ -1,0 +1,14 @@
+# wt mode=wt frames=6000 wall=11.31
+CPU WindowsTerminal 13.11
+CPU OpenConsole 6.80
+CPU conhost 0.02
+CPU DOOM-fire -0.03
+# per-thread CPU of the terminal (top 8), seconds
+THREAD 8616 6.67  (59% of wall)
+THREAD 1752 6.25  (55% of wall)
+THREAD 6964 0.13  (1% of wall)
+THREAD 5372 0.05  (0% of wall)
+THREAD 5524 0.02  (0% of wall)
+THREADS_BUSY 5
+BENCHFPS frames=6000 seconds=7.932 fps=756.43
+DONE
