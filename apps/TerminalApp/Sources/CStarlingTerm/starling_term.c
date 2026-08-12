@@ -624,7 +624,7 @@ static void exit_alt(StarlingTerm *t, int with_cursor) {
 }
 
 static void set_mode(StarlingTerm *t, const int *p, int n, int on) {
-    if (!t->csi_private) return;              /* ANSI modes ignored, as before */
+    if (t->csi_private != '?') return;        /* ANSI modes ignored, as before */
     for (int i = 0; i < n; i++) {
         switch (p[i]) {
         case 1: t->app_cursor_keys = on; break;
@@ -692,7 +692,7 @@ static void dispatch_csi(StarlingTerm *t, uint8_t final) {
         /* An intermediate names a different control; never fall through to
            the plain finals. */
         if (t->csi_inter == '!' && final == 'p') { soft_reset(t); }
-        else if (t->csi_inter == '$' && final == 'w') {
+        else if (t->csi_inter == '*' && final == 'y') {
             /* DECRQCRA: checksum of a rectangle, the readback esctest's
                screen assertions are built on (VT level 4). Coordinates are
                1-based inclusive; defaults cover the whole screen; the page
@@ -764,7 +764,20 @@ static void dispatch_csi(StarlingTerm *t, uint8_t final) {
         }
         break;
     }
-    case 'c': respond(t, "\033[?6c"); break;
+    case 'c':
+        /* DA: which question depends on the private prefix. DA1 (no
+           prefix) claims VT102; DA2 (ESC[>c) is the "secondary" identity
+           — VT220-class, firmware 10, no options. The prefix must be
+           honoured: answering DA2 with the DA1 string hangs probes
+           (ucs-detect's identification stalls exactly there). */
+        if (t->csi_private == '>') respond(t, "\033[>1;10;0c");
+        else if (!t->csi_private) respond(t, "\033[?6c");
+        break;
+    case 'q':
+        /* XTVERSION (ESC[>q): name and version as a DCS. No version
+           number — it would rot; tools want the name. */
+        if (t->csi_private == '>') respond(t, "\033P>|Starling Terminal\033\\");
+        break;
     case 's': save_cursor(t); break;
     case 'u': restore_cursor(t); break;
     default: break;
@@ -828,8 +841,14 @@ static void process_csi(StarlingTerm *t, uint8_t b) {
     } else if (b == 0x3B) {
         if (t->csi_count < MAX_PARAMS) t->csi_nums[t->csi_count++] = t->csi_cur < 0 ? 0 : t->csi_cur;
         t->csi_cur = -1;
-    } else if (b == 0x3F) {
-        t->csi_private = 1;
+    } else if (b >= 0x3C && b <= 0x3F) {
+        /* Private parameter prefix — '<', '=', '>' or '?'. Stored as the
+           byte itself: '?' selects DEC modes, '>' selects the secondary
+           DA / XTVERSION family. Dropping the byte (as this parser once
+           did for everything but '?') makes ESC[>c parse as ESC[c, and
+           the DA1 answer to a DA2 question hangs any tool that waits for
+           a ">"-shaped reply. */
+        t->csi_private = b;
     } else if (b >= 0x20 && b <= 0x2F) {
         t->csi_inter = b;
     } else if (b == 0x1B) {
