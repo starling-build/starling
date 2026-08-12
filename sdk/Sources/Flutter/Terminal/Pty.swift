@@ -40,9 +40,20 @@ private func _sysWrite(_ fd: Int32, _ buf: UnsafeRawPointer?, _ count: Int) -> I
 final class ChunkRing: @unchecked Sendable {
 
     /// A read never returns more than the PTY line discipline has buffered
-    /// (4 KB in practice), but bursts do occasionally fill this.
+    /// (4 KB in practice on Linux), but bursts do occasionally fill this.
+    /// Darwin is different: its pty hands back ~1 KB per read no matter the
+    /// buffer, and the reader's linger (see startReader) keeps one slot
+    /// filling across those, so slots there routinely fill to the brim —
+    /// bigger ones mean fewer ring passes. 256 KB is the knee (ptyread
+    /// mode 9 on `cat 03_sgr_fg`: 64 KB 0.528 s, 256 KB 0.506, 512 KB
+    /// 0.504); fewer, larger slots keep the ring's footprint at 1 MB.
+    #if canImport(Darwin)
+    static let slotCapacity = 262144
+    private static let slotCount = 4
+    #else
     static let slotCapacity = 65536
     private static let slotCount = 8
+    #endif
 
     struct Slot {
         let index: Int
@@ -391,6 +402,31 @@ final class Pty: @unchecked Sendable {
         let reader = Thread { [weak self] in
             var pfds = [pollfd(fd: -1, events: Int16(POLLIN), revents: 0),
                         pollfd(fd: -1, events: Int16(POLLIN), revents: 0)]
+            #if canImport(Darwin)
+            // Darwin's pty returns ~1 KB per read no matter the buffer size,
+            // with an EAGAIN between every pair — so "drain until empty"
+            // degenerates to one ~1 KB publish per ring pass and the slot
+            // never fills (ptyread mode 4: 71 762 feeds, 1013 B mean batch,
+            // on a 72.7 MB cat). The fix is to wait out the gap: on EAGAIN
+            // with data already in hand, linger briefly for the next burst
+            // instead of publishing. The wait must be event-driven — the pty
+            // queue is that same ~1 KB deep, the writer blocks until we
+            // drain it, so a blind nanosleep gates the whole stream at one KB
+            // per linger (measured: 46 s for the same cat). kevent gives a
+            // wake-on-data wait with a sub-ms timeout (poll's is
+            // ms-granular); mid-flood it returns in microseconds and only a
+            // genuinely quiet pty pays the full window. 278 feeds, 261 KB
+            // mean batch, 0.653 s -> 0.506 against a 0.474 read floor.
+            let kq = kqueue()
+            if kq >= 0, let self = self {
+                var reg = kevent()
+                reg.ident = UInt(self.masterFd)
+                reg.filter = Int16(EVFILT_READ)
+                reg.flags = UInt16(EV_ADD)
+                _ = kevent(kq, &reg, 1, nil, 0, nil)
+            }
+            defer { if kq >= 0 { close(kq) } }
+            #endif
             while true {
                 guard let self = self else { return }
                 if self.terminating { self.ring.close(); return }
@@ -409,7 +445,27 @@ final class Pty: @unchecked Sendable {
                         continue
                     }
                     if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        if got > 0 { break }   // publish what is queued
+                        if got > 0 {
+                            #if canImport(Darwin)
+                            // Mid-fill EAGAIN: linger (see above). Data
+                            // within the window: keep filling this slot.
+                            // Quiet for the whole window: genuine pause —
+                            // publish, so a lone keystroke echo still goes
+                            // out fast (the 400 us here is the only latency
+                            // the linger ever adds, and only mid-burst; the
+                            // first byte after idle still takes the blocking
+                            // poll below). Window length is uncritical:
+                            // 200 us / 400 us / 1 ms measured alike.
+                            if kq >= 0 {
+                                var timeout = timespec(tv_sec: 0, tv_nsec: 400_000)
+                                var ev = kevent()
+                                let kr = kevent(kq, nil, 0, &ev, 1, &timeout)
+                                if kr > 0 { continue }
+                                if kr < 0 && errno == EINTR { continue }
+                            }
+                            #endif
+                            break   // publish what is queued
+                        }
                         pfds[0].revents = 0
                         pfds[1].revents = 0
                         let count: nfds_t = self.wakeRead >= 0 ? 2 : 1
