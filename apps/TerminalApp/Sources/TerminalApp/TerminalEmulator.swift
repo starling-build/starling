@@ -1,7 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-import CStarlingTerm
+import CTerminalCore
 import Foundation
 
 // MARK: - Cell
@@ -50,7 +50,7 @@ struct TermCell {
 /// character grid (plus scrollback and an alternate screen) and emits responses
 /// (DSR/DA) via `onResponse`.
 ///
-/// The parser and grid live in C (`Sources/CStarlingTerm`). The Swift version
+/// The parser and grid live in C (`sdk/Sources/CTerminalCore`). The Swift version
 /// this replaced spent ~47% of its time in runtime bookkeeping — dynamic
 /// exclusivity checks, ARC and copy-on-write — rather than in the emulator's
 /// own work, because an escape between every cell collapses the printable-run

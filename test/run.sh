@@ -68,9 +68,9 @@ python3 "$REPO/test/lint.py" || fails=$((fails + 1))
 # every case a once-live bug) compiles and runs in well under a second.
 step "unit tests: terminal core"
 CONF_BIN=$(mktemp /tmp/starling-conformance.XXXXXX)
-(gcc -O1 -std=c99 -I "$REPO/apps/TerminalApp/Sources/CStarlingTerm/include" \
+(gcc -O1 -std=c99 -I "$REPO/sdk/Sources/CTerminalCore/include" \
      "$REPO/test/core/conformance.c" \
-     "$REPO/apps/TerminalApp/Sources/CStarlingTerm/starling_term.c" \
+     "$REPO/sdk/Sources/CTerminalCore/starling_term.c" \
      -o "$CONF_BIN" && "$CONF_BIN" | tail -1 | grep -q "all passed" \
      && echo "  ✔ terminal core conformance: all passed" \
      || { "$CONF_BIN" 2>/dev/null | grep FAIL; false; }) || fails=$((fails + 1))

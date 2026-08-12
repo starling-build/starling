@@ -59,7 +59,6 @@ var targets: [Target] = [
         // than in Swift because the Swift version spent ~47% of its time in
         // exclusivity/ARC/COW bookkeeping instead of the emulator's own work.
         // See test/bench/core/ for the measurement and the differential test.
-        .target(name: "CStarlingTerm"),
         {
             #if os(macOS)
             return .executableTarget(
@@ -104,7 +103,7 @@ var targets: [Target] = [
                     .product(name: "CupertinoIcons", package: "FlutterSwift"),
                     .product(name: "FlutterWin32", package: "FlutterSwift"),
                     "CStarlingConPTY",
-                    "CStarlingTerm",
+                    .product(name: "CTerminalCore", package: "FlutterSwift"),
                 ],
                 resources: [
                     .copy("Resources/RobotoMono-Regular.ttf"),
@@ -130,11 +129,11 @@ var targets: [Target] = [
                     ? [
                         .product(name: "FlutterShared", package: "FlutterSwift"),
                         .product(name: "FlutterGTK", package: "FlutterSwift"),
-                        "CStarlingTerm",
+                        .product(name: "CTerminalCore", package: "FlutterSwift"),
                     ]
                     : [
                         .product(name: "FlutterShared", package: "FlutterSwift"),
-                        "CStarlingTerm",
+                        .product(name: "CTerminalCore", package: "FlutterSwift"),
                     ],
                 resources: [
                     .copy("Resources/RobotoMono-Regular.ttf"),

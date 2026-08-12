@@ -259,6 +259,11 @@ var products: [Product] = [
     .library(name: "Flutter", targets: ["Flutter"]),
     .library(name: "SwiftRuntime", targets: ["SwiftRuntime"]),
     .library(name: "CupertinoIcons", targets: ["CupertinoIcons"]),
+    // The terminal emulator core: dependency-free C, shared by TerminalApp
+    // today and the TerminalView widget to come (docs/plans/terminal-widget.md).
+    // Its public header is the compatibility boundary; test/core/conformance.c
+    // is the contract's test.
+    .library(name: "CTerminalCore", targets: ["CTerminalCore"]),
 ]
 
 #if os(Linux)
@@ -344,6 +349,12 @@ let bridgeDeps: [Target.Dependency] = ["FlutterSwiftBridgeCxx"]
 #endif
 
 var targets: [Target] = [
+    // The terminal emulator core: dependency-free portable C (the widths
+    // header is generated from python wcwidth — see the file's provenance
+    // comment). Unconditional because the product is: Linux consumes it
+    // today, Windows will through ConPTY. Public header starling_term.h is
+    // the compatibility boundary; test/core/conformance.c is its contract.
+    .target(name: "CTerminalCore"),
     // Main Swift target containing the dart:ui Swift implementation
     .target(
         name: "FlutterSwiftBridge",
