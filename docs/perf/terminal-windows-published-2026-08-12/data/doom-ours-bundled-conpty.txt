@@ -1,0 +1,8 @@
+# bundled proc=TerminalApp grid=40x120 frames=600
+BENCHFPS frames=600 seconds=0.812 fps=738.92
+  cpu_s 1.17
+BENCHFPS frames=600 seconds=0.793 fps=756.62
+  cpu_s 1.52
+BENCHFPS frames=600 seconds=0.804 fps=746.27
+  cpu_s 1.20
+DONE

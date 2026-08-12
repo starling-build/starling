@@ -129,6 +129,46 @@ Combined build: OpenConsole host **plus** the reader/parser split
   price, not noise, and it is the honest argument against shipping the split
   blind. It still leaves us at 66% of WT's 107.6.
 
+### Bundling the host properly (`windows-conpty-bundled`)
+
+The host fix was first written by hand-rolling microsoft/terminal's
+`winconpty`: `NtOpenFile` on `\Device\ConDrv\Server`, a `\Reference` handle,
+a signal pipe, and a struct laid out to match the inbox `HPCON`. That was done
+on the belief that the API was not redistributable, because **Windows Terminal
+ships only `OpenConsoleProxy.dll`, a COM stub** — a conclusion drawn from a
+sample of one.
+
+Surveying what else was installed on the same machine showed three strategies
+and corrected it:
+
+| app | ships | approach |
+|---|---|---|
+| Windows Terminal | `OpenConsole.exe` v1.24 | statically linked winconpty, host beside its module |
+| VS Code / node-pty | `conpty.dll` + `OpenConsole.exe` **v1.25** | loads the DLL, which exports the API |
+| Alacritty | *nothing* | inbox `CreatePseudoConsole` -> `System32\conhost.exe` |
+| Visual Studio 2022 | `winpty.dll`, `winpty-agent.exe` | pre-ConPTY: hidden console, screen-scraped |
+
+Three console hosts on one machine — inbox `10.0.26100.1`, WT `1.24`, node-pty
+`1.25` — and the terminal you run decides which you get. Alacritty on Windows
+is paying exactly the tax we were.
+
+`conpty.dll` exports `ConptyCreatePseudoConsole`, `…AsUser`, `Resize`, `Close`,
+`Clear`, `Reparent`, `ShowHide`, and comes from the MIT-licensed
+**Microsoft.Windows.Console.ConPTY** package on nuget.org (v1.24.260710001 —
+the same build WT carries). So the shipping implementation loads that DLL
+instead, and ~190 lines of undocumented NT plumbing went away.
+`sdk/tools/fetch-conpty.ps1` fetches it; `sdk/Vendor/` is gitignored.
+
+| | DOOM fps | light_cells | conhost CPU | OpenConsole CPU |
+|---|---|---|---|---|
+| hand-rolled spawn | 729.0 | 4.21 | 0.00 | 1.97 |
+| **bundled conpty.dll** | **746.3** | 4.29 | **0.00** | 1.80 |
+| Windows Terminal | 752.8 | 4.18 | — | — |
+
+Equal or slightly better (DOOM +2.4%, now **0.99x of WT**), on a supported API
+rather than reverse-engineered internals, and `conhost` stays at 0.00 — which
+is what proves the bundled host is the one running.
+
 So the earlier "do not retry the reader/parser split" was wrong as written.
 The correct statement is narrower: **it does not pay for bulk throughput,
 where parse is ~5% of wall and there is nothing to overlap; it pays roughly
