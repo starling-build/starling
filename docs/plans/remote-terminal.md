@@ -114,9 +114,12 @@ needs no new core API.
    a `[link lost — reconnecting…]` line in the pane itself, resume from the
    consumed offset, PING/PONG every 10s with a 30s deadline so a half-open
    link is noticed rather than waited on, and the link state in the pane's
-   title. Verified live: a tick loop at 0.4s, the transport killed mid-run,
-   and the pane resumed `tick-11 → [link lost] → tick-12` — no gap, no
-   repeat, same shell.
+   title. **Verified over a real ssh link to a second machine** (a static
+   `starling-termd` scp'd to it, nothing else installed): a 0.4s tick loop,
+   the ssh process killed mid-run, and the pane resumed
+   `remote-tick-34 → [link lost — reconnecting…] → remote-tick-35` — no gap,
+   no repeat, same shell on the far end, which had kept running with nothing
+   attached to it.
 4. **`SNAPSHOT`** — a frame plus the core API it needs
    (`starling_term_snapshot` / `_restore`) so a long-detached session
    restores its screen instantly instead of replaying. **Deferred, with a
