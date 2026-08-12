@@ -1,5 +1,13 @@
 # Ghostty's three published tests on Windows — two ties and a loss
 
+> **Superseded for headline numbers.** The figures here were assembled from
+> runs taken hours apart. Re-running everything in one sitting showed the
+> machine drifts — and in different directions per workload (WT's suite
+> +2.5% slower, its DOOM 3.2% faster, same binary). The controlled numbers on
+> current `main` are in `../terminal-windows-main-2026-08-12/`: suite 1.04x,
+> DOOM 0.92x, cat tests 1.01x / 0.98x. The diagnoses in this document (which
+> host, which chunk size, which layout) still stand; only the ratios move.
+
 2026-08-12, win11 libvirt VM (4 vCPU, QXL at 1280x800). All three of
 ghostty's published tests — `time cat 150MB` ascii and unicode, plus
 DOOM-Fire-Zig — ours against **Windows Terminal 1.24.11911.0**. There is no

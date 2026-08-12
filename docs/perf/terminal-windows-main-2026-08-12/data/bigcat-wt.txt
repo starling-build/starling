@@ -1,0 +1,7 @@
+# wtCatNow proc=WindowsTerminal grid=40x120
+ascii_150mb 1 56.021 44.25
+ascii_150mb 2 57.613 46.19
+unicode_150mb 1 59.936 47.39
+unicode_150mb 2 58.348 47.16
+rss_kb 42208
+DONE
