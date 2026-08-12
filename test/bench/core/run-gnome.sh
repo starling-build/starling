@@ -23,7 +23,7 @@ chmod 755 /var/tmp/bench/shell-gnome.sh
 if [ "$KIND" = ours ]; then
     cp "$TARGET" "$G/TerminalApp"
     setsid sudo -u "$BENCH_USER" env XDG_RUNTIME_DIR=/run/user/"$BENCH_UID" WAYLAND_DISPLAY=wayland-0 \
-        GDK_BACKEND=wayland STARLING_APP_GTK=1 LD_LIBRARY_PATH="$G" \
+        GDK_BACKEND=wayland STARLING_APP_GTK=1 STARLING_TERMINAL_SINGLE=1 LD_LIBRARY_PATH="$G" \
         STARLING_WINDOW_W="$A" STARLING_WINDOW_H="$B" \
         STARLING_DEV_SHELL=/var/tmp/bench/shell-gnome.sh \
         "$G/TerminalApp" > /var/tmp/bench/log-$LABEL.txt 2>&1 &

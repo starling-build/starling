@@ -67,7 +67,7 @@ ENVB=(sudo -u "$BENCH_USER" env XDG_RUNTIME_DIR=/run/user/"$BENCH_UID"
 
 if [ "$KIND" = ours ]; then
     cp "$TARGET" "$G/TerminalApp"
-    setsid "${ENVB[@]}" STARLING_APP_GTK=1 LD_LIBRARY_PATH="$G" \
+    setsid "${ENVB[@]}" STARLING_APP_GTK=1 STARLING_TERMINAL_SINGLE=1 LD_LIBRARY_PATH="$G" \
         STARLING_WINDOW_FULLSCREEN=1 STARLING_CELL_W=8.0 \
         STARLING_DEV_SHELL=$B/shell-gnome-fs.sh \
         "$G/TerminalApp" > /var/tmp/bench/log-$LABEL.txt 2>&1 &
