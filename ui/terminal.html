@@ -134,6 +134,8 @@
   .kicker { font-size: 13px; letter-spacing: .09em; text-transform: uppercase;
             color: var(--amber); margin-bottom: 12px; }
   .prose p { font-size: 18px; line-height: 1.6; color: var(--ink-dim); }
+  .prose p + p { margin-top: 16px; }
+  .prose strong { color: var(--ink); font-weight: 600; }
   .prose h2 + p { margin-top: 18px; }
   code {
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -331,6 +333,27 @@
       path gets under a floor ours sits on. Every number is a pair measured back to
       back on one machine; full data and caveats in
       <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ how it is built ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">How it is built</div>
+    <h2>From scratch, on a UI engine.</h2>
+    <p>
+      The emulator is about 1,500 lines of C we wrote — no libvte, no libvterm,
+      nothing borrowed. The pixels come from the Flutter engine through the
+      Starling SDK: a <strong>general-purpose UI engine</strong>, not a
+      terminal-specific one.
+    </p>
+    <p>
+      That is the unusual part. Terminals this fast are normally built on a stack
+      that can only ever draw a terminal. This one matches or beats them on their
+      own benchmarks — and the engine underneath hands us the rest for free: the
+      same code on every platform, and a real widget tree around the grid, which
+      is where the splits, the floating frames and the cover flow come from.
     </p>
   </div>
 </section>
