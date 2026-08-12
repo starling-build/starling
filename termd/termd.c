@@ -703,7 +703,14 @@ static int stdio_bridge(void) {
                 if (!g_verbose) { dup2(null, 1); dup2(null, 2); }
                 if (null > 2) close(null);
             }
-            _exit(serve(3600));
+            // exec rather than serve() in this process: a forked daemon keeps
+            // the bridge's argv, so `ps` shows two --stdio processes and any
+            // pkill aimed at the bridge takes the daemon (and every session)
+            // with it. Re-exec puts --serve on the command line, where both a
+            // human and a script can see it.
+            execl("/proc/self/exe", "starling-termd", "--serve",
+                  "--idle-exit", "3600", (char *)NULL);
+            _exit(serve(3600));   // /proc unavailable: fall back in-process
         }
         for (int i = 0; i < 100 && fd < 0; i++) {
             struct timespec ts = {.tv_nsec = 20 * 1000 * 1000};

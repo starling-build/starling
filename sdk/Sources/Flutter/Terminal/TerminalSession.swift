@@ -53,6 +53,11 @@ public final class TerminalSession {
     /// whatever `write(_:)` is given. Unused while a PTY is attached.
     public var onOutput: ((String) -> Void)?
 
+    /// Headless only: the view resized the grid and there is no local PTY to
+    /// tell. Whoever owns the byte stream owns the far end's window size —
+    /// for a remote session that is a RESIZE frame.
+    public var onResize: ((Int, Int) -> Void)?
+
     var pty: Pty?
 
     public init(cols: Int = 80, rows: Int = 24) {
@@ -156,7 +161,8 @@ public final class TerminalSession {
     /// the process (see TerminalApp's build), so the two calls cannot be
     /// fused here without taking `lock` recursively.
     public func resizeProcess(cols: Int, rows: Int) {
-        pty?.resize(cols: cols, rows: rows)
+        if let pty = pty { pty.resize(cols: cols, rows: rows) }
+        else { onResize?(cols, rows) }
     }
 
     /// Terminate the child process, if any.

@@ -95,24 +95,36 @@ needs no new core API.
 
 ## Milestones (each lands green: `test/run.sh` plus its own test)
 
-1. **`termd/`, the daemon.** C, POSIX, one static binary. Sessions on ptys,
+1. **`termd/`, the daemon. — DONE** C, POSIX, one static binary. Sessions on ptys,
    per-session ring, unix socket in `$XDG_RUNTIME_DIR` mode 0600, `poll()`
    loop, `--serve` / `--stdio` / `--list`. `--stdio` is what ssh runs: it
    bridges the socket to stdin/stdout and starts the daemon if absent.
    Its test drives the protocol over a socketpair: open a session, write,
    detach, reattach at an offset, and compare bytes exactly.
-2. **The client transport**, first inside `Examples/TerminalTiling`: a
-   command like `remote:host` or `remote:host/3` spawns
-   `ssh host starling-termd --stdio`, speaks the protocol, and feeds a
-   headless `TerminalSession`. Everything above it — the widget, the panes,
-   the launcher — is unchanged.
-3. **Reconnect as a first-class state.** Backoff retry, a "reconnecting…"
-   line in the pane itself, resume from the last ACK, and a heartbeat so a
-   half-open TCP link is noticed rather than waited on.
-4. **Extract** the transport into the SDK (`RemoteTerminalSession`) once the
-   example has proven the API, and add a `SNAPSHOT` frame plus the core
-   API it needs (`starling_term_snapshot` / `_restore`) so a long-detached
-   session restores its full screen instantly instead of replaying.
+2. **The client transport. — DONE**, as `RemoteTerminal` in the sdk rather
+   than in the example first: the API is dictated by the protocol, not
+   discovered by the UI, and there is exactly one consumer, so the detour
+   through the example would have proved nothing. `remote:host`,
+   `remote:host/12` and `remote:host -- command` in the launcher spawn
+   `ssh host starling-termd --stdio` and feed a headless `TerminalSession`.
+   The widget, the panes and the launcher are unchanged; `TerminalSession`
+   gained one hook (`onResize`) so a view's resize becomes a RESIZE frame
+   when there is no local PTY.
+3. **Reconnect as a first-class state. — DONE.** Backoff retry (0.5s to 8s),
+   a `[link lost — reconnecting…]` line in the pane itself, resume from the
+   consumed offset, PING/PONG every 10s with a 30s deadline so a half-open
+   link is noticed rather than waited on, and the link state in the pane's
+   title. Verified live: a tick loop at 0.4s, the transport killed mid-run,
+   and the pane resumed `tick-11 → [link lost] → tick-12` — no gap, no
+   repeat, same shell.
+4. **`SNAPSHOT`** — a frame plus the core API it needs
+   (`starling_term_snapshot` / `_restore`) so a long-detached session
+   restores its screen instantly instead of replaying. **Deferred, with a
+   number:** replay runs at the core's parse rate (30+ MB/s measured), so
+   the whole 8 MB ring costs ~0.3 s — the benefit is real only for a much
+   larger ring, and the cost is that the daemon starts carrying terminal
+   state it currently does not have at all. Revisit when someone wants
+   history measured in hundreds of megabytes.
 5. **Later, separable:** several clients attached to one session, mosh-style
    local echo prediction, and a UDP path for roaming.
 

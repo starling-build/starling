@@ -144,6 +144,11 @@ final class Pane {
     /// keyboard back after a rename, a launch or a restart (a mounted
     /// TerminalView autofocuses only when it mounts).
     var focusEpoch = 0
+    /// Set when this pane's session lives on another machine. The pane is
+    /// otherwise identical — same widget, same keys, same resize — because
+    /// the transport drives a headless session (docs/plans/remote-terminal.md).
+    var remote: RemoteTerminal?
+    var link: RemoteTerminal.Link = .connecting
 
     /// Where this pane sits in FLOATING mode. The split tree stays the
     /// source of truth for which panes exist either way; the frame is just
@@ -158,13 +163,59 @@ final class Pane {
     }
 
     var title: String {
-        if let name = name, !name.isEmpty { return name }
-        if let command = command, !command.isEmpty { return command }
-        return "Terminal \(id)"
+        var base: String
+        if let name = name, !name.isEmpty { base = name }
+        else if let command = command, !command.isEmpty { base = command }
+        else { base = "Terminal \(id)" }
+        // A remote pane says what its link is doing, because a frozen screen
+        // and a dropped link look identical otherwise.
+        if remote != nil {
+            switch link {
+            case .connecting:              base += "  ·  connecting"
+            case .live(let id):            base += "  ·  #\(id)"
+            case .reconnecting(let n):     base += "  ·  reconnecting (\(n))"
+            case .closed(let why):         base += "  ·  " + (why ?? "closed")
+            }
+        }
+        return base
     }
 }
 
 // MARK: - What to run
+
+/// `remote:host`, `remote:host/12`, or `remote:host -- command`.
+///
+/// One syntax for the workflow this exists for: ssh somewhere, leave
+/// something running, come back to it. `host` is whatever ssh understands
+/// (an alias from ~/.ssh/config, user@host, a jump-host alias); `/12`
+/// re-attaches a known session id instead of opening a new one.
+struct RemoteSpec {
+    let host: String
+    let session: UInt32?
+    let command: String?
+
+    init?(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard t.lowercased().hasPrefix("remote:") else { return nil }
+        var rest = String(t.dropFirst("remote:".count))
+        var cmd: String? = nil
+        if let sep = rest.range(of: " -- ") {
+            cmd = String(rest[sep.upperBound...]).trimmingCharacters(in: .whitespaces)
+            rest = String(rest[..<sep.lowerBound])
+        }
+        rest = rest.trimmingCharacters(in: .whitespaces)
+        guard !rest.isEmpty else { return nil }
+        if let slash = rest.lastIndex(of: "/"),
+           let id = UInt32(rest[rest.index(after: slash)...]) {
+            host = String(rest[..<slash])
+            session = id
+        } else {
+            host = rest
+            session = nil
+        }
+        command = (cmd?.isEmpty ?? true) ? nil : cmd
+    }
+}
 
 /// Where the launcher's suggestions come from.
 ///
@@ -240,6 +291,12 @@ enum Launcher {
             out.append(Suggestion(command: command, source: "recent"))
         }
         for host in sshHosts() {
+            // The persistent form first: this is the workflow the remote
+            // session exists for, and plain ssh is one line below it.
+            let persistent = "remote:\(host)"
+            if seen.insert(persistent).inserted {
+                out.append(Suggestion(command: persistent, source: "keeps running"))
+            }
             let command = "ssh \(host)"
             if seen.insert(command).inserted {
                 out.append(Suggestion(command: command, source: "~/.ssh/config"))
@@ -378,13 +435,30 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         setState {}
     }
 
-    /// Start the pane: a command, or the login shell when nothing is typed.
+    /// Start the pane: a remote session, a command, or the login shell.
     private func _launch(_ pane: Pane, _ command: String?) {
         pane.pending = false
         pane.command = command
         if let command = command, !command.isEmpty {
             Launcher.remember(command)
-            pane.session.startCommand(command)
+            if let spec = RemoteSpec(command) {
+                // The session lives on the far machine and outlives this
+                // client; the widget above never learns the difference.
+                let remote = RemoteTerminal(session: pane.session,
+                                            host: spec.host,
+                                            attach: spec.session,
+                                            command: spec.command)
+                remote.onLink = { [weak self] link in
+                    DispatchQueue.main.async {
+                        pane.link = link
+                        self?.setState {}
+                    }
+                }
+                pane.remote = remote
+                remote.start()
+            } else {
+                pane.session.startCommand(command)
+            }
         } else {
             pane.session.startShell()
         }
@@ -550,6 +624,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     /// as the app having quit.
     private func _close(_ node: Node) {
         if _renaming === node.pane { _renaming = nil; _renameText = "" }
+        node.pane?.remote?.stop()
         node.pane?.session.terminate()
         guard let parent = node.parent,
               let sibling = (parent.first === node) ? parent.second : parent.first
@@ -1391,6 +1466,24 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
 
     private func _restart(_ pane: Pane) {
         guard !pane.pending else { _beginLaunch(pane); return }
+        if let remote = pane.remote {
+            // Reconnecting is not restarting: the far-side session is still
+            // running, so drop the link and let it re-attach at its offset.
+            _activeId = pane.id
+            pane.session.feed(Array("\r\n\u{1B}[38;5;244m[reconnecting…]\u{1B}[0m\r\n".utf8))
+            remote.stop()
+            let fresh = RemoteTerminal(session: pane.session,
+                                       host: remote.hostName,
+                                       attach: remote.remoteId)
+            fresh.onLink = { [weak self] link in
+                DispatchQueue.main.async { pane.link = link; self?.setState {} }
+            }
+            pane.remote = fresh
+            fresh.start()
+            pane.focusEpoch += 1
+            setState {}
+            return
+        }
         _activeId = pane.id
         // Say so in the pane itself: a restart that only killed the process
         // would read as the terminal having glitched.
