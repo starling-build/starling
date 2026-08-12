@@ -167,7 +167,9 @@ final class Pty: @unchecked Sendable {
     private var parserThread: Thread?
     private let ring = ChunkRing()
 
-    init?(cols: Int, rows: Int) {
+    /// `command` nil runs the shell interactively; a command line runs
+    /// through it (`-c`), so PATH and pipelines behave as when typed.
+    init?(cols: Int, rows: Int, command: String? = nil) {
         // ── Master side ─────────────────────────────────────────────────
         let master = posix_openpt(O_RDWR | O_NOCTTY)
         guard master >= 0 else { return nil }
@@ -191,8 +193,12 @@ final class Pty: @unchecked Sendable {
         let home = Pty._homeDir()
         var argv: [UnsafeMutablePointer<CChar>?] = [
             strdup((shellPath as NSString).lastPathComponent),
-            nil,
         ]
+        if let command = command {
+            argv.append(strdup("-c"))
+            argv.append(strdup(command))
+        }
+        argv.append(nil)
         var envp: [UnsafeMutablePointer<CChar>?] = []
         for (key, value) in ProcessInfo.processInfo.environment {
             if key == "TERM" || key == "HOME" { continue }

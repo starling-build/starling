@@ -285,6 +285,8 @@ products += [
     .executable(name: "CounterApp", targets: ["CounterApp"]),
     // The twenty-line terminal built on TerminalView (Examples/TerminalDemo).
     .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
+    // The same widget, tiled: a split tree of terminals with draggable seams.
+    .executable(name: "TerminalTiling", targets: ["TerminalTiling"]),
     .executable(name: "StartupNamerApp", targets: ["StartupNamerApp"]),
     .executable(name: "TodosApp", targets: ["TodosApp"]),
     .executable(name: "YouTubeApp", targets: ["YouTubeApp"]),
@@ -320,6 +322,8 @@ products += [
     .executable(name: "CounterApp", targets: ["CounterApp"]),
     // The twenty-line terminal built on TerminalView (Examples/TerminalDemo).
     .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
+    // The same widget, tiled: a split tree of terminals with draggable seams.
+    .executable(name: "TerminalTiling", targets: ["TerminalTiling"]),
 ]
 #endif
 
@@ -789,6 +793,23 @@ targets += [
             "FlutterSwiftBridge",
         ],
         path: "Examples/TerminalDemo",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
+]
+
+// The tiling workspace (Examples/TerminalTiling) — same dependencies as
+// TerminalDemo, and its own append for the same reason: every targets
+// literal here sits near the manifest type-checker's time budget.
+targets += [
+    .executableTarget(
+        name: "TerminalTiling",
+        dependencies: [
+            "Flutter",
+            "ExampleHost",
+            "FlutterSwiftBridge",
+        ],
+        path: "Examples/TerminalTiling",
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
         linkerSettings: engineLinkSettings
     ),

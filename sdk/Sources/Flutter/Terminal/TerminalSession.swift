@@ -10,7 +10,8 @@ import Foundation
 ///
 ///   - `startShell()` spawns the user's shell on a PTY sized to the grid;
 ///     output feeds the emulator, `write(_:)` reaches the child, and
-///     `onExit` fires when it dies.
+///     `onExit` fires when it dies. `startCommand(_:)` runs one program
+///     instead — a log tail, a build, an agent — on the same PTY.
 ///   - Headless: skip `startShell()` and own the byte streams yourself —
 ///     `feed(_:)` is terminal input (an SSH channel, a replay file, a remote
 ///     agent's pty) and `onOutput` carries what the terminal sends back
@@ -53,15 +54,38 @@ public final class TerminalSession {
         }
     }
 
+    /// What this session runs: nil for the user's interactive shell, else the
+    /// command line given to `startCommand(_:)`. `restart()` repeats it.
+    public private(set) var command: String? = nil
+
     /// Spawn the user's shell on a PTY sized to the current grid. On failure
     /// a message is fed to the grid and `false` returned.
     @discardableResult
-    public func startShell() -> Bool {
+    public func startShell() -> Bool { _start(nil) }
+
+    /// Run one command on a PTY instead of an interactive shell — a log tail,
+    /// a build, an agent. The command line goes through the user's shell
+    /// (`sh -c` and its per-platform equivalent), so PATH lookup, pipelines
+    /// and redirection work exactly as they would when typed.
+    ///
+    /// Everything else is unchanged: output feeds the emulator, `write(_:)`
+    /// reaches the child's stdin, and `onExit` fires when it finishes.
+    @discardableResult
+    public func startCommand(_ command: String) -> Bool { _start(command) }
+
+    /// Run again whatever this session ran last — the shell, or the command.
+    /// This is what a view offers after the child exits; restarting a
+    /// dashboard pane as an interactive shell would not be the same terminal.
+    @discardableResult
+    public func restart() -> Bool { _start(command) }
+
+    private func _start(_ command: String?) -> Bool {
+        self.command = command
         processExited = false
         let (cols, rows) = (emulator.cols, emulator.rows)
-        guard let pty = Pty(cols: cols, rows: rows) else {
+        guard let pty = Pty(cols: cols, rows: rows, command: command) else {
             lock.lock()
-            emulator.feed(Array("failed to start shell\r\n".utf8))
+            emulator.feed(Array("failed to start \(command ?? "shell")\r\n".utf8))
             lock.unlock()
             onActivity?()
             return false

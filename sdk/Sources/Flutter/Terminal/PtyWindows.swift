@@ -50,10 +50,13 @@ final class Pty: @unchecked Sendable {
     fileprivate static var _bytesReported = 0
     fileprivate static var _chunks = 0
 
-    init?(cols: Int, rows: Int) {
-        let command = Pty._shellCommand()
+    /// `command` nil runs the shell interactively; a command line runs
+    /// through it, with the flag that shell spells "run this and exit".
+    init?(cols: Int, rows: Int, command: String? = nil) {
+        let shell = Pty._shellCommand()
+        let line = command.map { Pty._commandLine(shell: shell, running: $0) } ?? shell
         let home = realUserHomeDirectory()
-        guard let h = command.withCString({ cmd in
+        guard let h = line.withCString({ cmd in
             home.withCString { cwd in
                 starling_conpty_open(Int32(cols), Int32(rows), cmd, cwd)
             }
@@ -82,6 +85,21 @@ final class Pty: @unchecked Sendable {
         if fm.fileExists(atPath: powershell) { return powershell }
         if let comspec = env["COMSPEC"], fm.fileExists(atPath: comspec) { return comspec }
         return root + "\\System32\\cmd.exe"
+    }
+
+    /// The command line that runs `command` under `shell` and exits. Each
+    /// shell spells that differently, and the shell here is a command line
+    /// rather than a path (STARLING_DEV_SHELL may carry arguments), so the
+    /// switch is on what the executable is named.
+    private static func _commandLine(shell: String, running command: String) -> String {
+        let lower = shell.lowercased()
+        if lower.contains("powershell") || lower.contains("pwsh") {
+            return "\(shell) -NoLogo -Command \(command)"
+        }
+        if lower.contains("cmd.exe") {
+            return "\(shell) /c \(command)"
+        }
+        return "\(shell) -c \"\(command)\""   // bash/zsh from an MSYS-style install
     }
 
     /// Starts the reader and parser threads.

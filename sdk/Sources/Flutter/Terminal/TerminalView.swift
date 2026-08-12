@@ -140,9 +140,10 @@ public final class TerminalView: StatefulWidget {
     let font: TerminalFont
     let padding: Double
     let autofocus: Bool
-    /// Pressing Enter after the child exits calls `session.startShell()`
-    /// again (the shipped Terminal's behaviour). Turn off to own the
-    /// lifecycle via `session.onExit`.
+    /// Pressing Enter after the child exits calls `session.restart()` — the
+    /// shipped Terminal's behaviour, and for a command session it repeats the
+    /// command rather than dropping to a shell. Turn off to own the lifecycle
+    /// via `session.onExit`.
     let restartOnEnter: Bool
 
     public init(session: TerminalSession,
@@ -366,7 +367,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 let (cols, rows) = (emulator.cols, emulator.rows)
                 emulator.resize(cols: cols, rows: rows)
                 _lock.unlock()
-                session.startShell()
+                session.restart()
                 setState {}
             }
             return true

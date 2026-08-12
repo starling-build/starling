@@ -156,6 +156,20 @@ pinned by 26 conformance checks in the desktop's fast test tier. Roboto Mono
 and DejaVu Sans Mono ship in the framework; the system Noto CJK and Color
 Emoji faces are picked up as fallbacks where installed.
 
+```bash
+swift run -c release TerminalTiling            # shells
+swift run -c release TerminalTiling "top -d 1" # …or one command per pane
+```
+
+is the same widget tiled: a split tree of terminals, each its own session,
+with **draggable seams** — tiling that resizes freely, the boundary moving
+under the pointer while the child processes are resized live behind it
+(`TerminalView(size:)` tells each pane's grid its box, so the shell gets its
+SIGWINCH). Splits are ratios rather than pixel counts, so resizing the
+window redistributes every pane at once. `TerminalSession.startCommand(_:)`
+runs one program in place of the login shell, and `restart()` (what the view
+offers after a child exits) repeats whichever it was.
+
 ## Consuming it
 
 Two ways, by how the engine arrives.
