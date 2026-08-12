@@ -1,0 +1,7 @@
+# wt proc=WindowsTerminal grid=40x120
+ascii_150mb 1 56.547 46.00
+ascii_150mb 2 58.074 47.09
+unicode_150mb 1 59.539 49.08
+unicode_150mb 2 58.299 47.23
+rss_kb 31092
+DONE

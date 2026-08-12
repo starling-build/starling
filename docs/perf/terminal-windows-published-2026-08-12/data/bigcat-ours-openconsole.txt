@@ -1,0 +1,7 @@
+# ours-oc proc=TerminalApp grid=40x120
+ascii_150mb 1 55.496 36.75
+ascii_150mb 2 56.388 5.09
+unicode_150mb 1 57.600 6.27
+unicode_150mb 2 58.284 6.36
+rss_kb 43776
+DONE
