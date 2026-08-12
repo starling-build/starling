@@ -1,0 +1,7 @@
+# nb4kv2ours  terminal=3745299/TerminalApp  grid=126x478  frames=600
+BENCHFPS frames=600 seconds=1.103 fps=543.97
+  cpu_s 2.69
+BENCHFPS frames=600 seconds=1.108 fps=541.52
+  cpu_s 2.42
+BENCHFPS frames=600 seconds=1.069 fps=561.27
+  cpu_s 2.16

@@ -1,0 +1,4 @@
+label nb1080ghn
+terminal_pid 3746386
+terminal_comm ghostty
+grid 62x238

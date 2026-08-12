@@ -444,3 +444,28 @@ Two components:
 Note the realistic 4K desktop runs 1.5-2x scale, where the LOGICAL grid is
 near the 1080p one — the 478x126 shape is a stress variant, not a user
 setting.
+
+## The cluster build on the NucBox — the verdict survives conformance
+
+Back on the NucBox with the merged main (wide cells + grapheme clusters +
+extent blanking), fullscreen protocol, medians of 3, same nightly control,
+both grids verified (`data/*-nb4k*`, `*-nb1080*`, published tests
+`*-nb4kv2*`). Suite totals: **0.55x at 1080p (2.407 vs 4.394), 0.56x at 4K
+(3.903 vs 6.941)**. The control ran ~15-30% slower than its own
+morning numbers across the board, so cross-round absolute comparisons are
+off the table; the within-pair ratios are the result.
+
+What conformance changed, honestly told: the unicode workloads flipped
+from wins to small losses (suite 05_unicode 0.87x -> 1.09x at 1080p,
+0.83x -> 1.16x at 4K; the published unicode cat went to the nightly here,
+0.876 vs 0.750 — on 30% less CPU, 1.25 vs 1.74 s) — correct wide advance
+wraps more and pays per-scalar width lookups, the same price the Lenovo
+measured. In exchange the 4K row-churn loss cluster is gone outright:
+alt_screen 0.92x, long_lines 0.94x, scroll_region 1.03x, dense_cells
+0.90x, light_cells 0.95x — every former loss now a win or tie (control
+drift flatters these; the direction matches the Lenovo's independent
+result). Published tests here: DOOM-Fire decisively ours (544-561 vs
+354-371 fps at 2.2-2.7 vs 3.6-3.8 CPU-s), the ascii cat a 1.7% coin flip
+(0.797 vs 0.784), the unicode cat theirs on this box — against the
+Lenovo's three-of-three with its from-source nightly. Machine and nightly
+vintage matter; within-machine, the suite verdict is unchanged at ~0.55x.

@@ -1,0 +1,4 @@
+label nb4kghn
+terminal_pid 3744580
+terminal_comm ghostty
+grid 126x478

@@ -1,0 +1,4 @@
+label nb4kours
+terminal_pid 3744094
+terminal_comm TerminalApp
+grid 126x478
