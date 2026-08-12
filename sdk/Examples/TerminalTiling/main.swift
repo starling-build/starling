@@ -76,7 +76,8 @@ enum Tile {
     static let barFill = Color(0xFF222833)
     static let barPick = Color(0xFF35506E)
     static let barDim = Color(0xFF4A5364)
-    static let grip = Color(0x66FFFFFF)
+    static let grip = Color(0x8CFFFFFF)
+    static let gripIdle = Color(0x33FFFFFF)
     static let flowScrim = Color(0xE60A0D12)
     static let flowDim = Color(0xFF5C6675)
 
@@ -725,6 +726,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     /// The corner pull. Floating only — a tiled pane resizes by its seam.
     private func _resizeGrip(_ pane: Pane, _ workspace: Size) -> Widget {
         let f = pane.frame
+        let ink = pane.id == _activeId ? Tile.grip : Tile.gripIdle
         return Positioned(
             key: ValueKey(2_000_000 + pane.id),
             left: f.x + f.w - 16, top: f.y + f.h - 16,
@@ -755,19 +757,25 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                     _dragKind = .seam
                 },
                 behavior: .opaque,
+                // Two strokes meeting in the corner, not a dot: a dot in the
+                // middle of a 16px box reads as a stray mark on the desktop
+                // (they are scattered across a cascade, one per window), while
+                // a corner says "pull me" without a tooltip. The hit area
+                // stays the full 16px either way.
                 child: SizedBox(
                     width: 16, height: 16,
-                    child: Center(
-                        child: SizedBox(
-                            width: 9, height: 9,
-                            child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                    color: Tile.grip,
-                                    borderRadius: BorderRadius.all(Radius(circular: 2))
-                                )
-                            )
-                        )
-                    )
+                    child: Stack(children: [
+                        Positioned(
+                            left: 2, top: 12,
+                            child: SizedBox(width: 12, height: 2,
+                                            child: ColoredBox(color: ink))
+                        ),
+                        Positioned(
+                            left: 12, top: 2,
+                            child: SizedBox(width: 2, height: 12,
+                                            child: ColoredBox(color: ink))
+                        ),
+                    ])
                 )
             )
         )
