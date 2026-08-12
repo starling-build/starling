@@ -17,6 +17,11 @@
 // is a ratio, not a pixel count, so resizing the window redistributes
 // every pane proportionally and nothing has to be re-tiled.
 //
+// Click a pane's title to name it — a wall of shells reads better as
+// "build", "logs", "prod" than as Terminal 1..4. The rename owns a focus
+// node of its own (every pane's terminal wants the keyboard) and hands it
+// back when you press Enter.
+//
 // The app is only geometry: no terminal code, no escape sequences, no pty.
 
 #if os(Linux) || os(Windows)
@@ -31,8 +36,10 @@ enum Tile {
     static let gutter = Color(0xFF0B0E12)
     static let titleBar = Color(0xFF23282F)
     static let titleBarActive = Color(0xFF2F3742)
+    static let titleBarEditing = Color(0xFF35506E)
     static let titleText = Color(0xFF98A1AD)
     static let titleTextActive = Color(0xFFE6EAF0)
+    static let titleTextEditing = Color(0xFFFFFFFF)
     static let border = Color(0xFF11151A)
     static let close = Color(0xFFFF5F57)
     static let closeIdle = Color(0xFF6E5A5E)
@@ -61,10 +68,23 @@ enum SplitAxis {
 final class Pane {
     let id: Int
     let session: TerminalSession
+    /// What the title bar calls this pane. nil until the user renames it —
+    /// click the title to type a name, so a wall of shells can say "build",
+    /// "logs", "prod" rather than counting from one.
+    var name: String?
+    /// Bumped to remount the pane, which is how the terminal takes the
+    /// keyboard back after a rename (a mounted TerminalView autofocuses
+    /// only when it mounts).
+    var focusEpoch = 0
 
     init(id: Int) {
         self.id = id
         self.session = TerminalSession()
+    }
+
+    func title(default fallback: String?) -> String {
+        if let name = name, !name.isEmpty { return name }
+        return fallback.map { "\($0) — \(id)" } ?? "Terminal \(id)"
     }
 }
 
@@ -131,14 +151,94 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         return args.isEmpty ? nil : args.joined(separator: " ")
     }()
 
+    /// The pane whose name is being edited, and the text so far. The editor
+    /// is deliberately hand-rolled rather than a TextBox: the keyboard is
+    /// contested here — every pane's terminal wants it — so the rename owns
+    /// a focus node of its own and hands it straight back when done.
+    private var _renaming: Pane?
+    private var _renameText = ""
+    private let _renameFocus = FocusNode(debugLabel: "PaneName")
+    private static let nameLimit = 32
+
     override func initState() {
         super.initState()
         root = Node(pane: _newPane())
+        _renameFocus.onKeyData = { [weak self] keyData in
+            self?._handleRenameKey(keyData) ?? false
+        }
+        // Clicking a terminal takes focus away mid-edit; keep the name typed
+        // so far rather than dropping the user's work.
+        _renameFocus.onFocusChange = { [weak self] focused in
+            guard let self = self, !focused, self._renaming != nil else { return }
+            self._commitRename()
+        }
     }
 
     override func dispose() {
+        _renameFocus.dispose()
         root.forEachLeaf { $0.pane?.session.terminate() }
         super.dispose()
+    }
+
+    // MARK: - Renaming
+
+    private func _beginRename(_ pane: Pane) {
+        _activeId = pane.id
+        _renaming = pane
+        _renameText = pane.name ?? ""
+        _renameFocus.requestFocus()
+        setState {}
+    }
+
+    private func _commitRename() {
+        guard let pane = _renaming else { return }
+        let trimmed = _renameText.trimmingCharacters(in: .whitespaces)
+        pane.name = trimmed.isEmpty ? nil : trimmed
+        _endRename(pane)
+    }
+
+    private func _endRename(_ pane: Pane) {
+        _renaming = nil
+        _renameText = ""
+        if _renameFocus.hasFocus { _renameFocus.unfocus() }
+        // Remount the pane so its TerminalView autofocuses: that is how the
+        // keyboard gets back to the terminal the user was working in.
+        pane.focusEpoch += 1
+        setState {}
+    }
+
+    private func _handleRenameKey(_ keyData: KeyData) -> Bool {
+        guard _renaming != nil else { return false }
+        guard keyData.type == .down || keyData.type == .repeat else { return false }
+        // Editing keys arrive under two different conventions: X11 keysyms
+        // from the DRM embedder (the Starling shell) and Flutter logical key
+        // ids from the GTK and Win32 hosts (a stock GNOME session). The sdk's
+        // own TerminalInput accepts both for exactly this reason; an example
+        // that checked only keysyms would take letters but ignore Enter the
+        // moment it ran on a desktop session.
+        switch keyData.logical {
+        case 0xFF0D, 0xFF8D, 0x1_0000_000D, 0x1_0000_020D:      // Enter
+            _commitRename()
+            return true
+        case 0xFF1B, 0x1_0000_001B:                             // Escape
+            if let pane = _renaming { _endRename(pane) }
+            return true
+        case 0xFF08, 0x1_0000_0008:                             // Backspace
+            if !_renameText.isEmpty {
+                setState { _renameText.removeLast() }
+            }
+            return true
+        default:
+            break
+        }
+        if let character = keyData.character,
+           let scalar = character.unicodeScalars.first,
+           scalar.value >= 0x20, scalar.value != 0x7F,
+           _renameText.count < Self.nameLimit {
+            setState { _renameText += character }
+            return true
+        }
+        return true   // while renaming, the terminals stay out of it
     }
 
     // MARK: - Panes
@@ -176,6 +276,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     /// opens a fresh shell — a terminal that closes to an empty window reads
     /// as the app having quit.
     private func _close(_ node: Node) {
+        if _renaming === node.pane { _renaming = nil; _renameText = "" }
         node.pane?.session.terminate()
         guard let parent = node.parent,
               let sibling = (parent.first === node) ? parent.second : parent.first
@@ -280,8 +381,10 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
             // A pane's identity is its session, not its slot: without the
             // key, re-tiling matches Stack children positionally and a
             // mounted terminal's element would be handed another session's
-            // widget — the same grid, the wrong shell.
-            key: ValueKey(pane.id),
+            // widget — the same grid, the wrong shell. The epoch is the
+            // other half: changing the key remounts the pane, which is how
+            // a finished rename gives the keyboard back to the terminal.
+            key: ValueKey(pane.id * 1000 + pane.focusEpoch),
             left: box.x, top: box.y,
             child: SizedBox(
                 width: box.w, height: box.h,
@@ -326,18 +429,26 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _titleBar(_ pane: Pane, active: Bool, width: Double) -> Widget {
+        let editing = _renaming === pane
+        // The caret is a block, drawn in the text: the rename field is 30px
+        // of title bar, and a blinking one-pixel line there is easy to miss.
+        let label = editing
+            ? _renameText + "▏"
+            : pane.title(default: Self.command)
         return SizedBox(
             width: width, height: Tile.titleBarH,
             child: DecoratedBox(
                 decoration: BoxDecoration(
-                    color: active ? Tile.titleBarActive : Tile.titleBar
+                    color: editing ? Tile.titleBarEditing
+                                   : (active ? Tile.titleBarActive : Tile.titleBar)
                 ),
                 child: Center(
                     child: Text(
-                        Self.command.map { "\($0) — \(pane.id)" }
-                            ?? "Terminal \(pane.id)",
+                        label,
                         style: TextStyle(
-                            color: active ? Tile.titleTextActive : Tile.titleText,
+                            color: editing ? Tile.titleTextEditing
+                                           : (active ? Tile.titleTextActive
+                                                     : Tile.titleText),
                             fontSize: 12,
                             fontFamily: TerminalFontLoader.family,
                             fontFamilyFallback: TerminalFontLoader.fallback
@@ -374,6 +485,19 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                                         shape: .circle
                                     )
                                 )
+                            )
+                        )
+                    ),
+                    // Click the title to name the pane. It lives in this
+                    // layer so the click does not also reach the terminal
+                    // underneath, which would steal the focus back.
+                    Positioned(
+                        left: 30, top: 0,
+                        child: Listener(
+                            onPointerDown: { [self] _ in _beginRename(pane) },
+                            behavior: .opaque,
+                            child: SizedBox(
+                                width: max(0, box.w - 88), height: Tile.titleBarH
                             )
                         )
                     ),

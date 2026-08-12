@@ -230,6 +230,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         _measureCell()
 
         session.onActivity = { [weak self] in self?._scheduleRepaint() }
+        session.activityOwner = self
 
         let (cols, rows) = _gridSize(for: _viewLogicalSize())
         _lock.lock()
@@ -249,7 +250,13 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     override func dispose() {
-        session.onActivity = nil
+        // Only if this view is still the owner: a remount installs the new
+        // view's hook first, and clearing it here would leave the pane
+        // running but permanently unpainted (see TerminalSession.activityOwner).
+        if session.activityOwner === self {
+            session.onActivity = nil
+            session.activityOwner = nil
+        }
         #if os(Linux)
         if _sentImeCaret {
             GpuDmaBufRenderer.current?.sendCaret(

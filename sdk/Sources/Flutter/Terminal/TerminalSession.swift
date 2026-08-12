@@ -36,6 +36,15 @@ public final class TerminalSession {
     /// Fires on the reader thread.
     public var onActivity: (() -> Void)?
 
+    /// Who `onActivity` belongs to. A view installs its hook on mount and
+    /// clears it on dispose — but element remount is the dominant update
+    /// path in this framework, and the replacement is mounted BEFORE the old
+    /// element is disposed. An unconditional `onActivity = nil` in dispose
+    /// therefore wipes the hook the new view just installed, and the pane
+    /// keeps its shell, its keyboard and its cursor while never painting
+    /// again. Clear the hook only when you still own it.
+    public weak var activityOwner: AnyObject?
+
     /// The child process exited. Fires on the reader thread, after the
     /// exit message has been fed to the grid.
     public var onExit: (() -> Void)?
