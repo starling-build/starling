@@ -161,12 +161,15 @@ swift run -c release TerminalTiling            # shells
 swift run -c release TerminalTiling "top -d 1" # …or one command per pane
 ```
 
-is the same widget tiled: a split tree of terminals, each its own session,
-with **draggable seams** — tiling that resizes freely, the boundary moving
+is the same widget in a workspace: **tiling or floating**, from a toolbar
+toggle, over one split tree of terminals, each its own session. Tiled, they
+have **draggable seams** — tiling that resizes freely, the boundary moving
 under the pointer while the child processes are resized live behind it
 (`TerminalView(size:)` tells each pane's grid its box, so the shell gets its
 SIGWINCH). Splits are ratios rather than pixel counts, so resizing the
-window redistributes every pane at once. A new pane asks what to run — the `Host` entries from
+window redistributes every pane at once. Floating, the Windows button opens a cover flow — the panes as covers, the
+chosen one square to the viewer and its neighbours turned away, each showing
+what is on that terminal's screen right now. A new pane asks what to run — the `Host` entries from
 `~/.ssh/config` and previously run commands, filtered as you type — so the
 pane knows its command and ↻ *reconnects* rather than dropping you at a
 local shell. Click a pane's title to name it. `TerminalSession.startCommand(_:)` runs one program in place of the
