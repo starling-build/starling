@@ -1,0 +1,23 @@
+# mainA proc=TerminalApp grid=40x120
+01_light_cells 1 4.290 1.39
+01_light_cells 2 4.427 1.84
+02_dense_cells 1 7.005 4.44
+02_dense_cells 2 7.077 3.42
+03_sgr_fg 1 18.449 13.22
+03_sgr_fg 2 18.277 13.88
+04_sgr_truecolor 1 26.890 22.30
+04_sgr_truecolor 2 27.237 19.66
+05_unicode 1 14.384 5.64
+05_unicode 2 14.037 5.94
+06_cursor_motion 1 1.436 0.58
+06_cursor_motion 2 1.421 0.67
+07_alt_screen 1 8.345 5.03
+07_alt_screen 2 7.992 4.39
+08_scroll_region 1 18.015 15.83
+08_scroll_region 2 17.998 11.19
+09_long_lines 1 9.178 5.42
+09_long_lines 2 9.473 14.80
+10_binary 1 13.751 6.64
+10_binary 2 14.016 6.09
+rss_kb 36408
+DONE
