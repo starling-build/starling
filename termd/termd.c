@@ -16,29 +16,24 @@
 //   starling-termd --stdio     bridge stdin/stdout to it (what ssh runs)
 //   starling-termd --list      one line per session, for humans
 //
-// POSIX only, no dependencies: this is meant to be one static binary you
-// scp to a machine that has nothing else on it.
+// No dependencies beyond libc and the platform layer: this is meant to be one
+// binary you scp to a machine that has nothing else on it. Everything that
+// differs between Linux and Windows lives in plat.h and its two
+// implementations; this file is the same code on both.
+//
+// Every session's pty is read by its own thread (see plat.h for why), so the
+// tables below are touched from more than one thread and every access goes
+// through g_lock.
 
 #define _GNU_SOURCE
-#include <errno.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <pty.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <sys/wait.h>
-#include <termios.h>
 #include <time.h>
-#include <unistd.h>
 
+#include "plat.h"
 #include "protocol.h"
 
 #ifndef TERMD_RING_BYTES
@@ -71,10 +66,9 @@ static void logf_(const char *fmt, ...) {
 struct session {
     uint32_t id;
     int used;
-    int master;      // pty master, -1 once the child is gone
-    pid_t child;
+    plat_pty *pty;   // NULL once the reader has seen end of output
     int alive;
-    int status;      // wait status once !alive
+    int status;      // exit code once !alive
     uint16_t cols, rows;
 
     // The ring. `head` is the total number of bytes this session has ever
@@ -87,7 +81,7 @@ struct session {
 
 struct client {
     int used;
-    int fd;
+    sock_t fd;
     uint32_t session;   // 0 = not attached
     uint64_t sent;      // next byte offset to send
     uint64_t acked;
@@ -106,6 +100,11 @@ struct client {
 static struct session g_sessions[MAX_SESSIONS];
 static struct client g_clients[MAX_CLIENTS];
 static uint32_t g_next_id = 1;
+
+// Guards both tables. Held by the main loop whenever it is not parked in
+// plat_poll, and by every reader thread while it appends and pumps. The
+// reader threads are the reason this exists at all.
+static plat_mutex *g_lock;
 
 static struct session *session_by_id(uint32_t id) {
     for (int i = 0; i < MAX_SESSIONS; i++)
@@ -146,15 +145,14 @@ static size_t ring_read(struct session *s, uint64_t *from, uint8_t *dst,
     return n;
 }
 
-static const char *shell_path(void) {
-    const char *sh = getenv("STARLING_DEV_SHELL");
-    if (sh && *sh && access(sh, X_OK) == 0) return sh;
-    sh = getenv("SHELL");
-    if (sh && *sh && access(sh, X_OK) == 0) return sh;
-    if (access("/bin/bash", X_OK) == 0) return "/bin/bash";
-    return "/bin/sh";
-}
+struct reader_arg {
+    uint32_t id;
+    plat_pty *pty;
+};
 
+static void session_reader(void *arg);
+
+// Called with g_lock held.
 static struct session *session_open(uint16_t cols, uint16_t rows,
                                     const char *command) {
     struct session *s = NULL;
@@ -166,50 +164,55 @@ static struct session *session_open(uint16_t cols, uint16_t rows,
     s->ring = malloc(TERMD_RING_BYTES);
     if (!s->ring) return NULL;
 
-    struct winsize ws = {.ws_row = rows ? rows : 24,
-                         .ws_col = cols ? cols : 80};
-    int master = -1;
-    pid_t pid = forkpty(&master, NULL, NULL, &ws);
-    if (pid < 0) {
+    plat_pty *pty = plat_pty_open(cols, rows, command);
+    if (!pty) {
         free(s->ring);
         memset(s, 0, sizeof(*s));
         return NULL;
     }
-    if (pid == 0) {
-        setenv("TERM", "xterm-256color", 1);
-        setenv("COLORTERM", "truecolor", 1);
-        const char *sh = shell_path();
-        if (command && *command) {
-            execl(sh, sh, "-c", command, (char *)NULL);
-        } else {
-            // A login-ish interactive shell, the way a terminal would.
-            const char *base = strrchr(sh, '/');
-            base = base ? base + 1 : sh;
-            execl(sh, base, (char *)NULL);
-        }
-        _exit(127);
-    }
-
-    // Non-blocking: one slow session must not stall the loop.
-    int fl = fcntl(master, F_GETFL, 0);
-    fcntl(master, F_SETFL, fl | O_NONBLOCK);
 
     s->used = 1;
     s->id = g_next_id++;
-    s->master = master;
-    s->child = pid;
+    s->pty = pty;
     s->alive = 1;
-    s->cols = ws.ws_col;
-    s->rows = ws.ws_row;
-    logf_("session %u opened (pid %d, %ux%u)", s->id, (int)pid, s->cols, s->rows);
+    s->cols = cols ? cols : 80;
+    s->rows = rows ? rows : 24;
+
+    // The reader owns the pty and knows its session only by id. It cannot
+    // hold the slot pointer: by the time it wakes, the session may have been
+    // closed and the slot reused, and the pointer would be aimed at a
+    // different session. It cannot look the pty up either — it has to be able
+    // to free it after the slot is gone.
+    struct reader_arg *ra = malloc(sizeof(*ra));
+    if (!ra) {
+        plat_pty_shutdown(pty);
+        plat_pty_free(pty);
+        free(s->ring);
+        memset(s, 0, sizeof(*s));
+        return NULL;
+    }
+    ra->id = s->id;
+    ra->pty = pty;
+    if (plat_thread_spawn(session_reader, ra) != 0) {
+        free(ra);
+        plat_pty_shutdown(pty);
+        plat_pty_free(pty);
+        free(s->ring);
+        memset(s, 0, sizeof(*s));
+        return NULL;
+    }
+    logf_("session %u opened (%ux%u)", s->id, s->cols, s->rows);
     return s;
 }
 
+// Called with g_lock held.
 static void session_close(struct session *s) {
     if (!s->used) return;
     logf_("session %u closed", s->id);
-    if (s->master >= 0) close(s->master);
-    if (s->alive) kill(-s->child, SIGHUP);
+    // Shut down but do not free: the reader thread may be parked inside
+    // plat_pty_read on this very handle. The shutdown is what wakes it, and
+    // it frees the pty itself on the way out.
+    if (s->pty) plat_pty_shutdown(s->pty);
     free(s->ring);
     memset(s, 0, sizeof(*s));
 }
@@ -268,7 +271,7 @@ static void client_error(struct client *c, uint16_t code, const char *msg) {
 static void client_drop(struct client *c) {
     if (!c->used) return;
     logf_("client detached from session %u", c->session);
-    close(c->fd);
+    plat_sock_close(c->fd);
     free(c->payload);
     free(c->out);
     memset(c, 0, sizeof(*c));
@@ -353,8 +356,7 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         c->sent = from;
         c->acked = from;
         if (cols && rows && s->alive) {
-            struct winsize ws = {.ws_row = rows, .ws_col = cols};
-            ioctl(s->master, TIOCSWINSZ, &ws);
+            plat_pty_resize(s->pty, cols, rows);
             s->cols = cols;
             s->rows = rows;
         }
@@ -368,12 +370,11 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
     }
     case TERMD_INPUT: {
         struct session *s = session_by_id(c->session);
-        if (!s || !s->alive) return;
+        if (!s || !s->alive || !s->pty) return;
         size_t off = 0;
         while (off < len) {
-            ssize_t n = write(s->master, p + off, len - off);
+            long n = plat_pty_write(s->pty, p + off, len - off);
             if (n > 0) { off += (size_t)n; continue; }
-            if (n < 0 && (errno == EAGAIN || errno == EINTR)) continue;
             break;
         }
         break;
@@ -385,10 +386,7 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         if (!cols || !rows) return;
         s->cols = cols;
         s->rows = rows;
-        if (s->alive) {
-            struct winsize ws = {.ws_row = rows, .ws_col = cols};
-            ioctl(s->master, TIOCSWINSZ, &ws);
-        }
+        if (s->alive) plat_pty_resize(s->pty, cols, rows);
         break;
     }
     case TERMD_ACK:
@@ -410,10 +408,10 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
 
 static void client_readable(struct client *c) {
     uint8_t buf[READ_CHUNK];
-    ssize_t n = read(c->fd, buf, sizeof(buf));
+    long n = plat_sock_read(c->fd, buf, sizeof(buf));
     if (n == 0) { c->dead = 1; return; }
     if (n < 0) {
-        if (errno == EAGAIN || errno == EINTR) return;
+        if (plat_would_block()) return;
         c->dead = 1;
         return;
     }
@@ -455,9 +453,10 @@ static void client_readable(struct client *c) {
 
 static void client_flush(struct client *c) {
     while (c->out_sent < c->out_len) {
-        ssize_t n = write(c->fd, c->out + c->out_sent, c->out_len - c->out_sent);
+        long n = plat_sock_write(c->fd, c->out + c->out_sent,
+                                 c->out_len - c->out_sent);
         if (n > 0) { c->out_sent += (size_t)n; continue; }
-        if (n < 0 && (errno == EAGAIN || errno == EINTR)) return;
+        if (n < 0 && plat_would_block()) return;
         c->dead = 1;
         return;
     }
@@ -488,171 +487,139 @@ static void client_pump(struct client *c) {
 static void socket_path(char *out, size_t len) {
     const char *dir = getenv("STARLING_TERMD_SOCKET");
     if (dir && *dir) { snprintf(out, len, "%s", dir); return; }
-    const char *run = getenv("XDG_RUNTIME_DIR");
-    if (run && *run) { snprintf(out, len, "%s/starling-termd.sock", run); return; }
-    snprintf(out, len, "/tmp/starling-termd-%d.sock", (int)getuid());
+    plat_default_socket_path(out, len);
 }
 
-static int listen_socket(void) {
+static sock_t listen_socket(void) {
     char path[256];
     socket_path(path, sizeof(path));
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
-
-    // A stale socket from a daemon that died is not a reason to refuse to
-    // start; a LIVE one is. Probe by connecting before unlinking.
-    int probe = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (probe >= 0) {
-        if (connect(probe, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-            close(probe);
-            close(fd);
-            errno = EADDRINUSE;
-            return -1;
-        }
-        close(probe);
-    }
-    unlink(path);
-    mode_t old = umask(0077);   // the socket is this user's business only
-    int rc = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
-    umask(old);
-    if (rc < 0 || listen(fd, 16) < 0) { close(fd); return -1; }
-    return fd;
+    return plat_listen_unix(path);
 }
 
-static int connect_socket(void) {
+static sock_t connect_socket(void) {
     char path[256];
     socket_path(path, sizeof(path));
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(fd);
-        return -1;
-    }
-    return fd;
+    return plat_connect_unix(path);
 }
 
-static void reap_children(void) {
-    int status;
-    pid_t pid;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        for (int i = 0; i < MAX_SESSIONS; i++) {
-            struct session *s = &g_sessions[i];
-            if (s->used && s->child == pid) {
-                s->alive = 0;
-                s->status = status;
-                logf_("session %u child exited", s->id);
+// One per session, for the reason in plat.h: the pty cannot join the socket
+// wait on Windows, so it gets its own thread on both platforms.
+//
+// Delivery happens here rather than being left for the main loop to notice.
+// The loop is parked in plat_poll on sockets alone and nothing in that set
+// becomes readable when a pty produces output, so waiting for it would add a
+// whole poll timeout of latency to every keystroke's echo.
+static void session_reader(void *arg) {
+    struct reader_arg *ra = arg;
+    uint8_t buf[READ_CHUNK];
+
+    for (;;) {
+        long n = plat_pty_read(ra->pty, buf, sizeof(buf));
+        if (n <= 0) break;      // 0 = the child is gone; <0 = the pty broke
+
+        plat_mutex_lock(g_lock);
+        struct session *s = session_by_id(ra->id);
+        if (!s) { plat_mutex_unlock(g_lock); break; }   // closed under us
+        ring_append(s, buf, (size_t)n);
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            struct client *c = &g_clients[i];
+            if (c->used && !c->dead && !c->closing && c->session == ra->id) {
+                client_pump(c);
+                client_flush(c);
             }
         }
+        plat_mutex_unlock(g_lock);
     }
+
+    // End of output. Keep the session and its ring — reattaching to read the
+    // last words is the point — but let go of the pty.
+    plat_mutex_lock(g_lock);
+    struct session *s = session_by_id(ra->id);
+    if (s) {
+        plat_pty_exited(ra->pty, &s->status);
+        s->alive = 0;
+        s->pty = NULL;
+        logf_("session %u child exited", ra->id);
+    }
+    plat_mutex_unlock(g_lock);
+
+    // Safe now: the slot no longer points at it, so session_close cannot
+    // reach this pty and no other thread is inside a call on it.
+    plat_pty_free(ra->pty);
+    free(ra);
 }
 
 static int serve(int idle_exit_seconds) {
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGCHLD, SIG_IGN);   // reaped explicitly below via waitpid
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = SIG_DFL;
-    sigaction(SIGCHLD, &sa, NULL);
+    plat_init();
+    if (!g_lock) g_lock = plat_mutex_new();
 
-    int lfd = listen_socket();
-    if (lfd < 0) {
-        if (errno == EADDRINUSE) return 0;   // someone else is already serving
-        perror("termd: listen");
+    sock_t lfd = listen_socket();
+    if (lfd == BAD_SOCK) {
+        if (plat_addr_in_use()) return 0;   // someone else is already serving
+        fprintf(stderr, "termd: cannot listen on the socket\n");
         return 1;
     }
     logf_("serving");
 
     time_t last_activity = time(NULL);
     for (;;) {
-        struct pollfd pfds[1 + MAX_CLIENTS + MAX_SESSIONS];
-        int map_client[MAX_CLIENTS], map_session[MAX_SESSIONS];
+        // Only sockets. The ptys are on their own threads, so there is
+        // nothing else this call could usefully wait on.
+        plat_pollfd pfds[1 + MAX_CLIENTS];
+        int map_client[1 + MAX_CLIENTS];
+
+        plat_mutex_lock(g_lock);
         int n = 0;
         pfds[n].fd = lfd;
         pfds[n].events = POLLIN;
         pfds[n].revents = 0;
+        map_client[n] = -1;
         n++;
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (!g_clients[i].used) continue;
             map_client[n] = i;
             pfds[n].fd = g_clients[i].fd;
-            pfds[n].events = (g_clients[i].closing ? 0 : POLLIN)
-                           | (g_clients[i].out_len ? POLLOUT : 0);
+            pfds[n].events = (short)((g_clients[i].closing ? 0 : POLLIN)
+                           | (g_clients[i].out_len ? POLLOUT : 0));
             pfds[n].revents = 0;
             n++;
         }
-        for (int i = 0; i < MAX_SESSIONS; i++) {
-            if (!g_sessions[i].used || g_sessions[i].master < 0) continue;
-            map_session[n] = i;
-            pfds[n].fd = g_sessions[i].master;
-            pfds[n].events = POLLIN;
-            pfds[n].revents = 0;
-            n++;
-        }
+        plat_mutex_unlock(g_lock);
 
-        int rc = poll(pfds, (nfds_t)n, 1000);
-        reap_children();
-        if (rc < 0 && errno != EINTR) break;
+        int rc = plat_poll(pfds, n, 1000);
+        if (rc < 0 && !plat_would_block()) break;
+
+        plat_mutex_lock(g_lock);
 
         if (pfds[0].revents & POLLIN) {
-            int cfd = accept(lfd, NULL, NULL);
-            if (cfd >= 0) {
+            sock_t cfd = accept(lfd, NULL, NULL);
+            if (cfd != BAD_SOCK) {
                 struct client *c = NULL;
                 for (int i = 0; i < MAX_CLIENTS; i++)
                     if (!g_clients[i].used) { c = &g_clients[i]; break; }
-                if (!c) { close(cfd); }
+                if (!c) { plat_sock_close(cfd); }
                 else {
                     memset(c, 0, sizeof(*c));
                     c->used = 1;
                     c->fd = cfd;
-                    int fl = fcntl(cfd, F_GETFL, 0);
-                    fcntl(cfd, F_SETFL, fl | O_NONBLOCK);
+                    plat_sock_nonblock(cfd);
                     logf_("client connected");
                 }
                 last_activity = time(NULL);
             }
         }
 
+        // Indexed by the map built above rather than by matching on the fd:
+        // a reader thread may have dropped a client while we were in poll,
+        // and a recycled slot would otherwise be mistaken for the old one.
         for (int k = 1; k < n; k++) {
-            if (pfds[k].fd == lfd) continue;
-            // sessions
-            int si = -1, ci = -1;
-            for (int i = 0; i < MAX_SESSIONS; i++)
-                if (g_sessions[i].used && g_sessions[i].master == pfds[k].fd) si = i;
-            for (int i = 0; i < MAX_CLIENTS; i++)
-                if (g_clients[i].used && g_clients[i].fd == pfds[k].fd) ci = i;
-            (void)map_client; (void)map_session;
-
-            if (si >= 0 && (pfds[k].revents & (POLLIN | POLLHUP))) {
-                struct session *s = &g_sessions[si];
-                uint8_t buf[READ_CHUNK];
-                for (;;) {
-                    ssize_t got = read(s->master, buf, sizeof(buf));
-                    if (got > 0) { ring_append(s, buf, (size_t)got); continue; }
-                    if (got < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
-                    if (got < 0 && errno == EINTR) continue;
-                    // EOF: the child is gone. Keep the session (and its ring)
-                    // so a client can still attach and read the last words.
-                    close(s->master);
-                    s->master = -1;
-                    s->alive = 0;
-                    break;
-                }
-                last_activity = time(NULL);
-            }
-            if (ci >= 0) {
-                struct client *c = &g_clients[ci];
-                if ((pfds[k].revents & POLLIN) && !c->closing) client_readable(c);
-                if (!c->dead && (pfds[k].revents & POLLOUT)) client_flush(c);
-                last_activity = time(NULL);
-            }
+            int ci = map_client[k];
+            if (ci < 0) continue;
+            struct client *c = &g_clients[ci];
+            if (!c->used || c->fd != pfds[k].fd) continue;
+            if ((pfds[k].revents & POLLIN) && !c->closing) client_readable(c);
+            if (!c->dead && (pfds[k].revents & POLLOUT)) client_flush(c);
+            last_activity = time(NULL);
         }
 
         for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -667,6 +634,7 @@ static int serve(int idle_exit_seconds) {
         // by nobody in particular is kept: reattaching to read the exit is
         // the point. It goes when a client asks, or when the daemon exits.
 
+        int stop = 0;
         if (idle_exit_seconds > 0) {
             int any_client = 0, any_session = 0;
             for (int i = 0; i < MAX_CLIENTS; i++) any_client |= g_clients[i].used;
@@ -674,14 +642,19 @@ static int serve(int idle_exit_seconds) {
             if (!any_client && !any_session &&
                 time(NULL) - last_activity > idle_exit_seconds) {
                 logf_("idle, exiting");
-                break;
+                stop = 1;
             }
         }
+
+        // Every path out of the loop leaves the lock released, which is why
+        // the decision is a flag rather than a break from inside the section.
+        plat_mutex_unlock(g_lock);
+        if (stop) break;
     }
-    close(lfd);
+    plat_sock_close(lfd);
     char path[256];
     socket_path(path, sizeof(path));
-    unlink(path);
+    plat_unlink(path);
     return 0;
 }
 
@@ -691,97 +664,100 @@ static int serve(int idle_exit_seconds) {
 // socket. This is what `ssh host starling-termd --stdio` runs, so the
 // client's transport is one process away from the sessions and nothing
 // needs a network port.
-static int stdio_bridge(void) {
-    int fd = connect_socket();
-    if (fd < 0) {
-        pid_t pid = fork();
-        if (pid == 0) {
-            setsid();
-            int null = open("/dev/null", O_RDWR);
-            if (null >= 0) {
-                dup2(null, 0);
-                if (!g_verbose) { dup2(null, 1); dup2(null, 2); }
-                if (null > 2) close(null);
-            }
-            // exec rather than serve() in this process: a forked daemon keeps
-            // the bridge's argv, so `ps` shows two --stdio processes and any
-            // pkill aimed at the bridge takes the daemon (and every session)
-            // with it. Re-exec puts --serve on the command line, where both a
-            // human and a script can see it.
-            execl("/proc/self/exe", "starling-termd", "--serve",
-                  "--idle-exit", "3600", (char *)NULL);
-            _exit(serve(3600));   // /proc unavailable: fall back in-process
+// stdin is not a socket on either platform, and on Windows it cannot be
+// waited on together with one at all. So the bridge is two halves: this
+// thread carries stdin to the daemon, the main thread carries the daemon to
+// stdout. Either half ending takes the process down, which is what closes
+// the ssh channel.
+struct bridge {
+    sock_t fd;
+    int done;
+};
+
+static void bridge_stdin(void *arg) {
+    struct bridge *b = arg;
+    uint8_t buf[READ_CHUNK];
+    for (;;) {
+        long got = plat_stdin_read(buf, sizeof(buf));
+        if (got <= 0) break;
+        size_t off = 0;
+        while (off < (size_t)got) {
+            long w = plat_sock_write(b->fd, buf + off, (size_t)got - off);
+            if (w > 0) { off += (size_t)w; continue; }
+            if (w < 0 && plat_would_block()) { plat_sleep_ms(1); continue; }
+            goto out;
         }
-        for (int i = 0; i < 100 && fd < 0; i++) {
-            struct timespec ts = {.tv_nsec = 20 * 1000 * 1000};
-            nanosleep(&ts, NULL);
+    }
+out:
+    b->done = 1;
+    // Wake the other half: it is parked in a blocking read on this socket and
+    // would otherwise sit there until the daemon happened to say something.
+    plat_sock_shutdown(b->fd);
+}
+
+static int stdio_bridge(void) {
+    plat_init();
+    sock_t fd = connect_socket();
+    if (fd == BAD_SOCK) {
+        if (plat_spawn_daemon(3600) != 0) {
+            fprintf(stderr, "termd: could not start the daemon\n");
+            return 1;
+        }
+        for (int i = 0; i < 100 && fd == BAD_SOCK; i++) {
+            plat_sleep_ms(20);
             fd = connect_socket();
         }
-        if (fd < 0) {
+        if (fd == BAD_SOCK) {
             fprintf(stderr, "termd: could not start or reach the daemon\n");
             return 1;
         }
     }
-    signal(SIGPIPE, SIG_IGN);
-    struct pollfd pfds[2];
+
+    struct bridge b;
+    b.fd = fd;
+    b.done = 0;
+    if (plat_thread_spawn(bridge_stdin, &b) != 0) {
+        plat_sock_close(fd);
+        return 1;
+    }
+
     uint8_t buf[READ_CHUNK];
-    for (;;) {
-        pfds[0].fd = 0;   pfds[0].events = POLLIN; pfds[0].revents = 0;
-        pfds[1].fd = fd;  pfds[1].events = POLLIN; pfds[1].revents = 0;
-        if (poll(pfds, 2, -1) < 0) {
-            if (errno == EINTR) continue;
+    while (!b.done) {
+        long n = plat_sock_read(fd, buf, sizeof(buf));
+        if (n == 0) break;
+        if (n < 0) {
+            if (plat_would_block()) { plat_sleep_ms(1); continue; }
             break;
         }
-        if (pfds[0].revents & POLLIN) {
-            ssize_t n = read(0, buf, sizeof(buf));
-            if (n <= 0) break;
-            for (ssize_t off = 0; off < n; ) {
-                ssize_t w = write(fd, buf + off, (size_t)(n - off));
-                if (w > 0) { off += w; continue; }
-                if (errno == EINTR) continue;
-                goto done;
-            }
-        }
-        if (pfds[1].revents & POLLIN) {
-            ssize_t n = read(fd, buf, sizeof(buf));
-            if (n <= 0) break;
-            for (ssize_t off = 0; off < n; ) {
-                ssize_t w = write(1, buf + off, (size_t)(n - off));
-                if (w > 0) { off += w; continue; }
-                if (errno == EINTR) continue;
-                goto done;
-            }
-        }
-        if (pfds[0].revents & (POLLHUP | POLLERR)) break;
-        if (pfds[1].revents & (POLLHUP | POLLERR)) break;
+        if (plat_stdout_write(buf, (size_t)n) < 0) break;
     }
-done:
-    close(fd);
+    plat_sock_close(fd);
     return 0;
 }
 
 // ── main ────────────────────────────────────────────────────────────────
 
 static int list_sessions(void) {
-    int fd = connect_socket();
-    if (fd < 0) { printf("no daemon running\n"); return 0; }
+    plat_init();
+    sock_t fd = connect_socket();
+    if (fd == BAD_SOCK) { printf("no daemon running\n"); return 0; }
     uint8_t hello[TERMD_HEADER_LEN + 2];
     hello[0] = TERMD_HELLO; hello[1] = 0;
     put_u16(hello + 2, 0);
     put_u32(hello + 4, 2);
     put_u16(hello + TERMD_HEADER_LEN, TERMD_PROTOCOL_VERSION);
-    (void)!write(fd, hello, sizeof(hello));
+    (void)plat_sock_write(fd, hello, sizeof(hello));
     uint8_t list[TERMD_HEADER_LEN];
     list[0] = TERMD_LIST; list[1] = 0;
     put_u16(list + 2, 0);
     put_u32(list + 4, 0);
-    (void)!write(fd, list, sizeof(list));
+    (void)plat_sock_write(fd, list, sizeof(list));
 
     uint8_t buf[8192];
     size_t have = 0;
     time_t deadline = time(NULL) + 2;
     while (time(NULL) < deadline) {
-        ssize_t n = read(fd, buf + have, sizeof(buf) - have);
+        long n = plat_sock_read(fd, buf + have, sizeof(buf) - have);
         if (n <= 0) break;
         have += (size_t)n;
         size_t off = 0;
@@ -800,7 +776,7 @@ static int list_sessions(void) {
                            e[8] ? "running" : "exited",
                            (unsigned long long)get_u64(e + 9));
                 }
-                close(fd);
+                plat_sock_close(fd);
                 return 0;
             }
             off += TERMD_HEADER_LEN + len;
@@ -808,7 +784,7 @@ static int list_sessions(void) {
         memmove(buf, buf + off, have - off);
         have -= off;
     }
-    close(fd);
+    plat_sock_close(fd);
     return 0;
 }
 
@@ -841,6 +817,7 @@ int main(int argc, char **argv) {
         }
     }
     if (!mode) { usage(); return 2; }
+    plat_init();
     if (!strcmp(mode, "--serve")) return serve(idle);
     if (!strcmp(mode, "--stdio")) return stdio_bridge();
     return list_sessions();

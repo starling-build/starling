@@ -6,11 +6,16 @@
 The claim under test is the one the whole design rests on: a session
 outlives its client, and a reattach at a byte offset resumes exactly —
 no repeated bytes, no lost ones. Everything here speaks the wire protocol
-directly over the unix socket, because the daemon has to be usable from a
-plain pipe (a design decision in the plan) and because a test that went
-through the Swift client would be testing two things at once.
+directly over the wire, because the daemon has to be usable from a plain
+pipe (a design decision in the plan) and because a test that went through
+the Swift client would be testing two things at once.
+
+Two transports, same checks. By default it connects to the unix socket. With
+--stdio it drives `starling-termd --stdio` over its pipes instead, which is
+what an ssh channel does -- and is the only way to run this on Windows, where
+CPython does not expose AF_UNIX even though the OS has it.
 """
-import os, socket, struct, subprocess, sys, tempfile, time
+import os, queue, socket, struct, subprocess, sys, tempfile, threading, time
 
 HDR = 8
 (HELLO, HELLO_OK, LIST, LIST_REPLY, OPEN, ATTACH, ATTACHED, DATA, INPUT,
@@ -18,7 +23,39 @@ HDR = 8
 VERSION = 1
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BIN = os.path.join(HERE, "starling-termd")
+WINDOWS = sys.platform == "win32"
+if WINDOWS:
+    # The console defaults to cp1252, which cannot encode the rule this prints
+    # as its heading — and an encoding error there aborts the whole run before
+    # a single check has been made.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+BIN = os.path.join(HERE, "starling-termd" + (".exe" if WINDOWS else ""))
+USE_STDIO = "--stdio" in sys.argv or WINDOWS
+
+# The session runs whatever shell the platform has, so the fixture that drives
+# it cannot be one string. Same three markers, same pauses, either way.
+# How long a shell takes to say anything, and how far apart the fixture puts
+# its markers. ConPTY plus PowerShell is roughly an order of magnitude slower
+# to start than /bin/sh, so both numbers are scaled rather than guessed at.
+BOOT = 15.0 if WINDOWS else 2.0
+STEP = 2.0 if WINDOWS else 0.4
+
+if WINDOWS:
+    # cmd, not PowerShell, and no inner quotes. powershell.exe -Command with a
+    # quoted multi-statement string loses its quotes somewhere between
+    # CreateProcessW and its own parser, and answers by prompting
+    # "Supply values for the following parameters" instead of running anything.
+    # `ping -n N` is the delay that needs no console of its own.
+    SCRIPT = ('cmd.exe /c echo FIRST& ping -n 3 127.0.0.1 >nul'
+              '& echo SECOND& ping -n 3 127.0.0.1 >nul'
+              '& echo THIRD& ping -n 60 127.0.0.1 >nul')
+    ECHO_INPUT = b"echo termd-input-works\r"
+    PROMPT = b">"      # PS C:\...>
+else:
+    SCRIPT = ("printf 'FIRST\\n'; sleep 0.4; printf 'SECOND\\n'; "
+              "sleep 0.4; printf 'THIRD\\n'; sleep 30")
+    ECHO_INPUT = b"echo termd-input-works\n"
+    PROMPT = b"$"
 
 fails = []
 
@@ -34,14 +71,50 @@ def frame(kind, payload=b""):
 
 
 class Client:
+    """One connection to the daemon, over a socket or over a --stdio bridge.
+
+    The pipe case needs a reader thread: there is no select() on a pipe on
+    Windows, and recv() below wants a timeout.
+    """
+
     def __init__(self, path):
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(5)
-        self.sock.connect(path)
         self.buf = b""
+        self.sock = None
+        self.proc = None
+        self.q = None
+        if USE_STDIO:
+            env = dict(os.environ, STARLING_TERMD_SOCKET=path)
+            self.proc = subprocess.Popen(
+                [BIN, "--stdio"], env=env,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            self.q = queue.Queue()
+            t = threading.Thread(target=self._drain, daemon=True)
+            t.start()
+        else:
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.sock.settimeout(5)
+            self.sock.connect(path)
+
+    def _drain(self):
+        # os.read on the raw fd, not stdout.read(n): the buffered reader waits
+        # for all n bytes, which for a stream that arrives in bursts means the
+        # test sees nothing until well past its own timeout.
+        fd = self.proc.stdout.fileno()
+        while True:
+            try:
+                chunk = os.read(fd, 65536)
+            except OSError:
+                chunk = b""
+            self.q.put(chunk)
+            if not chunk:
+                return
 
     def send(self, kind, payload=b""):
-        self.sock.sendall(frame(kind, payload))
+        if self.proc:
+            self.proc.stdin.write(frame(kind, payload))
+            self.proc.stdin.flush()
+        else:
+            self.sock.sendall(frame(kind, payload))
 
     def recv(self, want=None, timeout=3.0):
         """Next frame, or the next frame of type `want`, dropping others."""
@@ -57,11 +130,17 @@ class Client:
                     return kind, payload
             if time.time() > end:
                 return None, b""
-            self.sock.settimeout(max(0.05, end - time.time()))
-            try:
-                chunk = self.sock.recv(65536)
-            except socket.timeout:
-                return None, b""
+            if self.proc:
+                try:
+                    chunk = self.q.get(timeout=max(0.05, end - time.time()))
+                except queue.Empty:
+                    return None, b""
+            else:
+                self.sock.settimeout(max(0.05, end - time.time()))
+                try:
+                    chunk = self.sock.recv(65536)
+                except socket.timeout:
+                    return None, b""
             if not chunk:
                 return None, b""
             self.buf += chunk
@@ -71,11 +150,20 @@ class Client:
         kind, payload = self.recv(HELLO_OK)
         return kind == HELLO_OK
 
-    def collect(self, seconds=1.0):
-        """Every DATA byte that arrives within a window, plus the next offset."""
+    def collect(self, seconds=1.0, until=None):
+        """Every DATA byte that arrives within a window, plus the next offset.
+
+        With `until`, returns as soon as that marker has been seen. A fixed
+        window cannot serve both platforms: a POSIX shell prints within
+        milliseconds and ConPTY plus PowerShell takes well over a second, so
+        a window generous enough for Windows would swallow the next phase of
+        the fixture on Linux.
+        """
         out, first, nxt = b"", None, None
         end = time.time() + seconds
         while time.time() < end:
+            if until is not None and until in out:
+                break
             kind, payload = self.recv(timeout=max(0.05, end - time.time()))
             if kind == DATA:
                 seq = struct.unpack("<Q", payload[:8])[0]
@@ -87,7 +175,11 @@ class Client:
 
     def close(self):
         try:
-            self.sock.close()
+            if self.proc:
+                self.proc.stdin.close()
+                self.proc.terminate()
+            else:
+                self.sock.close()
         except OSError:
             pass
 
@@ -100,9 +192,15 @@ def main():
     tmp = tempfile.mkdtemp(prefix="termd-test-")
     sock_path = os.path.join(tmp, "sock")
     env = dict(os.environ, STARLING_TERMD_SOCKET=sock_path)
-    daemon = subprocess.Popen([BIN, "--serve", "--idle-exit", "60"], env=env,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    for _ in range(100):
+    # STARLING_TERMD_DEBUG=<file> keeps the daemon's own log, which is the
+    # only view of what the pty reader threads did.
+    dbg = os.environ.get("STARLING_TERMD_DEBUG")
+    argv = [BIN, "--serve", "--idle-exit", "60"] + (["-v"] if dbg else [])
+    log = open(dbg, "wb") if dbg else subprocess.DEVNULL
+    daemon = subprocess.Popen(argv, env=env,
+                              stdout=subprocess.DEVNULL,
+                              stderr=(log if dbg else subprocess.DEVNULL))
+    for _ in range(150):
         if os.path.exists(sock_path):
             break
         time.sleep(0.02)
@@ -113,19 +211,17 @@ def main():
         # A session that keeps producing after its client leaves.
         a = Client(sock_path)
         check("hello handshake", a.hello())
-        script = ("printf 'FIRST\\n'; sleep 0.4; printf 'SECOND\\n'; "
-                  "sleep 0.4; printf 'THIRD\\n'; sleep 30")
-        a.send(OPEN, struct.pack("<HH", 80, 24) + script.encode())
+        a.send(OPEN, struct.pack("<HH", 80, 24) + SCRIPT.encode())
         kind, payload = a.recv(ATTACHED)
         check("open returns a session", kind == ATTACHED)
         sid = struct.unpack("<I", payload[:4])[0]
 
-        seen, _, next_off = a.collect(0.25)
+        seen, _, next_off = a.collect(BOOT, until=b"FIRST")
         check("first output arrives", b"FIRST" in seen, repr(seen[:80]))
         a.close()
 
         # …the shell keeps running while nobody is attached…
-        time.sleep(1.0)
+        time.sleep(STEP * 1.6)
 
         # …and a reattach at the offset resumes exactly there.
         b = Client(sock_path)
@@ -136,7 +232,7 @@ def main():
         check("reattach honours the offset", kind == ATTACHED and got_id == sid
               and resume == next_off, f"asked {next_off}, got {resume}")
 
-        tail, first_seq, _ = b.collect(0.6)
+        tail, first_seq, _ = b.collect(STEP * 3, until=b"SECOND")
         check("output produced while detached is there", b"SECOND" in tail,
               repr(tail[:120]))
         check("nothing before the offset is repeated", b"FIRST" not in tail,
@@ -150,7 +246,7 @@ def main():
         c.hello()
         c.send(ATTACH, struct.pack("<IQHH", sid, 0, 80, 24))
         c.recv(ATTACHED)
-        whole, first_seq, _ = c.collect(0.6)
+        whole, first_seq, _ = c.collect(STEP * 3, until=b"SECOND")
         check("replay from zero has everything", b"FIRST" in whole
               and b"SECOND" in whole, repr(whole[:160]))
         check("replay from zero starts at zero", first_seq == 0, str(first_seq))
@@ -162,9 +258,9 @@ def main():
         d.send(OPEN, struct.pack("<HH", 80, 24))     # no command: a shell
         kind, payload = d.recv(ATTACHED)
         shell_id = struct.unpack("<I", payload[:4])[0]
-        d.collect(0.4)                                # let the prompt settle
-        d.send(INPUT, b"echo termd-input-works\n")
-        echoed, _, _ = d.collect(1.2)
+        d.collect(BOOT, until=PROMPT)   # let the prompt actually appear
+        d.send(INPUT, ECHO_INPUT)
+        echoed, _, _ = d.collect(BOOT, until=b"termd-input-works")
         check("input reaches the shell", b"termd-input-works" in echoed,
               repr(echoed[-120:]))
 
