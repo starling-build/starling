@@ -11,7 +11,6 @@
 
 #if os(Windows)
 import CStarlingConPTY
-import Flutter   // realUserHomeDirectory()
 import Foundation
 
 /// A pseudo-terminal running a shell process.

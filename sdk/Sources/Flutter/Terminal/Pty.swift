@@ -1,7 +1,6 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-import Flutter   // realUserHomeDirectory()
 import Foundation
 #if os(Linux)
 import Glibc

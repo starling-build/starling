@@ -102,7 +102,6 @@ var targets: [Target] = [
                     .product(name: "SwiftRuntime", package: "FlutterSwift"),
                     .product(name: "CupertinoIcons", package: "FlutterSwift"),
                     .product(name: "FlutterWin32", package: "FlutterSwift"),
-                    "CStarlingConPTY",
                     .product(name: "CTerminalCore", package: "FlutterSwift"),
                 ],
                 resources: [
@@ -171,7 +170,6 @@ var targets: [Target] = [
 // process attribute is a computed macro Swift cannot import; see the header.
 // <windows.h> stays inside this target, away from the C++-interop importer.
 targets += [
-    .target(name: "CStarlingConPTY"),
 ]
 #endif
 

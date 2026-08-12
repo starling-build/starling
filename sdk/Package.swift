@@ -329,14 +329,23 @@ products += [
 let flutterDeps: [Target.Dependency] = [
     "FlutterSwiftBridge",
     .target(name: "SwiftRuntime"),
+    .target(name: "CTerminalCore"),
     .target(name: "FlutterEmbedderBridge"),
     .target(name: "DmaBufBridge"),
     .target(name: "WaylandClipboardBridge"),
+]
+#elseif os(Windows)
+let flutterDeps: [Target.Dependency] = [
+    "FlutterSwiftBridge",
+    .target(name: "SwiftRuntime"),
+    .target(name: "CTerminalCore"),
+    .target(name: "CStarlingConPTY"),
 ]
 #else
 let flutterDeps: [Target.Dependency] = [
     "FlutterSwiftBridge",
     .target(name: "SwiftRuntime"),
+    .target(name: "CTerminalCore"),
 ]
 #endif
 
@@ -449,6 +458,9 @@ targets += [
     // vendored flutter_windows headers stay inside this target — <windows.h>
     // defines several thousand macros and must never reach the C++-interop
     // importer. Same containment the GTK bridge gives flutter_linux.
+    // ConPTY shim for the terminal's Windows PTY (moved from TerminalApp
+    // with the TerminalSession extraction).
+    .target(name: "CStarlingConPTY"),
     .target(
         name: "FlutterWin32Bridge",
         linkerSettings: [

@@ -84,11 +84,12 @@ class TerminalApp: StatefulWidget {
 
 class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
 
-    /// Guards emulator access (fed from the PTY reader thread, read in build).
-    private let _lock = NSLock()
-
-    private var emulator: TerminalEmulator!
-    private var pty: Pty?
+    /// The terminal — emulator + PTY — as the sdk's TerminalSession. The
+    /// session owns the lock guarding emulator access (fed from the PTY
+    /// reader thread, read in build).
+    private var session: TerminalSession!
+    private var _lock: NSLock { session.lock }
+    private var emulator: TerminalEmulator { session.emulator }
     private let focusNode = FocusNode(debugLabel: "Terminal")
 
     /// Monospace cell metrics, measured once at startup.
@@ -104,7 +105,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     private var _updatePending = false
 
     /// Set when the shell process exits; Enter restarts it.
-    private var _exited = false
+    private var _exited: Bool { session.processExited }
 
     /// Scrollback view offset in lines (0 = live screen). Shift+PageUp/Down
     /// or the mouse wheel.
@@ -132,7 +133,8 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         _measureCell()
 
         let (cols, rows) = _gridSize(for: _viewLogicalSize())
-        emulator = TerminalEmulator(cols: cols, rows: rows)
+        session = TerminalSession(cols: cols, rows: rows)
+        session.onActivity = { [weak self] in self?._scheduleRepaint() }
 
         focusNode.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
@@ -146,7 +148,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     override func dispose() {
-        pty?.terminate()
+        session.terminate()
         focusNode.dispose()
         super.dispose()
     }
@@ -154,35 +156,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: - Shell lifecycle
 
     private func _startShell() {
-        _exited = false
-        let (cols, rows) = (emulator.cols, emulator.rows)
-        guard let pty = Pty(cols: cols, rows: rows) else {
-            _lock.lock()
-            emulator.feed(Array("failed to start shell\r\n".utf8))
-            _lock.unlock()
-            return
-        }
-        self.pty = pty
-
-        emulator.onResponse = { [weak self] text in
-            self?.pty?.write(text)
-        }
-        pty.onData = { [weak self] bytes, count in
-            guard let self = self else { return }
-            self._lock.lock()
-            self.emulator.feed(bytes, count: count)
-            self._lock.unlock()
-            self._scheduleRepaint()
-        }
-        pty.onExit = { [weak self] in
-            guard let self = self else { return }
-            self._lock.lock()
-            self._exited = true
-            self.emulator.feed(Array("\r\n[process exited — press Enter to restart]\r\n".utf8))
-            self._lock.unlock()
-            self._scheduleRepaint()
-        }
-        pty.startReader()
+        session.startShell()
     }
 
     /// Shortest gap between rebuilds while output is streaming (~60/s).
@@ -303,7 +277,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         _lock.unlock()
 
         if let bytes = TerminalInput.bytes(for: keyData, appCursor: appCursor) {
-            pty?.write(bytes)
+            session.write(bytes)
             return true
         }
         return false
@@ -377,9 +351,9 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
             let bracketed = self.emulator.bracketedPaste
             self._lock.unlock()
             if bracketed {
-                self.pty?.write("\u{1B}[200~" + normalized + "\u{1B}[201~")
+                self.session.write("\u{1B}[200~" + normalized + "\u{1B}[201~")
             } else {
-                self.pty?.write(normalized)
+                self.session.write(normalized)
             }
         }
     }
@@ -452,7 +426,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         _lock.lock()
         if cols != emulator.cols || rows != emulator.rows {
             emulator.resize(cols: cols, rows: rows)
-            pty?.resize(cols: cols, rows: rows)
+            session.resizeProcess(cols: cols, rows: rows)
         }
         // Snapshot under the lock (arrays are CoW — cheap and safe).
         let viewOffset = min(_viewOffset, emulator.scrollbackCount)
@@ -612,7 +586,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
                     let ticks = min(abs(lines), 10)
                     var out = ""
                     for _ in 0..<ticks { out += "\u{1B}[<\(button);\(col);\(row)M" }
-                    pty?.write(out)
+                    session.write(out)
                     return
                 }
 
@@ -629,7 +603,7 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
                     let up = lines > 0
                     let key = appCursor ? (up ? "\u{1B}OA" : "\u{1B}OB")
                                         : (up ? "\u{1B}[A" : "\u{1B}[B")
-                    pty?.write(String(repeating: key, count: min(abs(lines), 10) * 3))
+                    session.write(String(repeating: key, count: min(abs(lines), 10) * 3))
                     return
                 }
 

@@ -12,36 +12,38 @@ import Foundation
 /// 12 of a 16-byte `TermCell`, matching `StarlingTermCell` on the C side so the
 /// grid can be copied across the boundary with no per-field marshalling. A
 /// `UInt32` here would make the two disagree about the three bytes after it.
-struct CellAttrs: OptionSet {
-    let rawValue: UInt8
-    static let bold = CellAttrs(rawValue: 1 << 0)
-    static let dim = CellAttrs(rawValue: 1 << 1)
-    static let italic = CellAttrs(rawValue: 1 << 2)
-    static let underline = CellAttrs(rawValue: 1 << 3)
-    static let reverse = CellAttrs(rawValue: 1 << 4)
+public struct CellAttrs: OptionSet, Sendable {
+    public let rawValue: UInt8
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public static let bold = CellAttrs(rawValue: 1 << 0)
+    public static let dim = CellAttrs(rawValue: 1 << 1)
+    public static let italic = CellAttrs(rawValue: 1 << 2)
+    public static let underline = CellAttrs(rawValue: 1 << 3)
+    public static let reverse = CellAttrs(rawValue: 1 << 4)
     /// A two-column character: the lead cell carries the scalar, the
     /// continuation cell carries scalar 0 and draws nothing — the lead's
     /// glyph spans both columns. Mirrors STARLING_ATTR_WIDE/_WIDE_CONT.
-    static let wideLead = CellAttrs(rawValue: 1 << 5)
-    static let wideCont = CellAttrs(rawValue: 1 << 6)
+    public static let wideLead = CellAttrs(rawValue: 1 << 5)
+    public static let wideCont = CellAttrs(rawValue: 1 << 6)
 }
 
 /// One terminal grid cell. Colors are ARGB; 0 means "default fg/bg".
 ///
 /// Layout must stay identical to `StarlingTermCell`: size 13, stride 16,
 /// align 4, offsets scalar=0 fg=4 bg=8 attrs=12.
-struct TermCell {
-    var scalar: UInt32 = 32          // U+0020 space
-    var fg: UInt32 = 0
-    var bg: UInt32 = 0
-    var attrs: CellAttrs = []
+public struct TermCell: Sendable {
+    public var scalar: UInt32 = 32          // U+0020 space
+    public var fg: UInt32 = 0
+    public var bg: UInt32 = 0
+    public var attrs: CellAttrs = []
 
     /// The scalar as a `Character`, for rendering and clipboard text.
-    var char: Character {
+    public var char: Character {
         Character(UnicodeScalar(scalar) ?? " ")
     }
 
-    static let blank = TermCell()
+    public static let blank = TermCell()
+    public init() {}
 }
 
 // MARK: - Emulator
@@ -63,21 +65,21 @@ struct TermCell {
 ///
 /// Threading: `feed`/`resize` and grid reads must be externally synchronized
 /// (the app wraps calls in a lock).
-final class TerminalEmulator {
+public final class TerminalEmulator {
 
     private let t: OpaquePointer
 
     /// Kept between `scrollbackLimit` and `scrollbackLimit + scrollbackSlack`
     /// lines: trimming is batched on the C side, so the limit is a floor rather
     /// than an exact count. `scrollbackCount` is the truth.
-    let scrollbackLimit = 2000
-    let scrollbackSlack = 512
+    public let scrollbackLimit = 2000
+    public let scrollbackSlack = 512
 
     /// Terminal responses (cursor position reports etc.) to write to the PTY.
-    var onResponse: ((String) -> Void)?
-    var onBell: (() -> Void)?
+    public var onResponse: ((String) -> Void)?
+    public var onBell: (() -> Void)?
 
-    init(cols: Int, rows: Int) {
+    public init(cols: Int, rows: Int) {
         t = starling_term_new(Int32(cols), Int32(rows))
         let ctx = Unmanaged.passUnretained(self).toOpaque()
         starling_term_set_response_cb(
@@ -101,7 +103,7 @@ final class TerminalEmulator {
 
     // MARK: - Feeding input
 
-    func feed(_ bytes: [UInt8]) {
+    public func feed(_ bytes: [UInt8]) {
         bytes.withUnsafeBufferPointer { buf in
             guard let base = buf.baseAddress else { return }
             starling_term_feed(_t, base, buf.count)
@@ -112,45 +114,45 @@ final class TerminalEmulator {
     /// The PTY reader owns its buffers for the duration of the call, so the
     /// per-chunk allocation and copy that `feed([UInt8])` implies is pure waste
     /// on the one path that has to keep up with a flood.
-    func feed(_ bytes: UnsafePointer<UInt8>, count: Int) {
+    public func feed(_ bytes: UnsafePointer<UInt8>, count: Int) {
         starling_term_feed(_t, bytes, count)
     }
 
-    func resize(cols newCols: Int, rows newRows: Int) {
+    public func resize(cols newCols: Int, rows newRows: Int) {
         starling_term_resize(_t, Int32(newCols), Int32(newRows))
     }
 
     // MARK: - State
 
-    var cols: Int { Int(starling_term_cols(_t)) }
-    var rows: Int { Int(starling_term_rows(_t)) }
-    var cursorRow: Int { Int(starling_term_cursor_row(_t)) }
-    var cursorCol: Int { Int(starling_term_cursor_col(_t)) }
-    var cursorVisible: Bool { starling_term_cursor_visible(_t) != 0 }
-    var applicationCursorKeys: Bool { starling_term_app_cursor_keys(_t) != 0 }
-    var bracketedPaste: Bool { starling_term_bracketed_paste(_t) != 0 }
-    var generation: UInt64 { starling_term_generation(_t) }
+    public var cols: Int { Int(starling_term_cols(_t)) }
+    public var rows: Int { Int(starling_term_rows(_t)) }
+    public var cursorRow: Int { Int(starling_term_cursor_row(_t)) }
+    public var cursorCol: Int { Int(starling_term_cursor_col(_t)) }
+    public var cursorVisible: Bool { starling_term_cursor_visible(_t) != 0 }
+    public var applicationCursorKeys: Bool { starling_term_app_cursor_keys(_t) != 0 }
+    public var bracketedPaste: Bool { starling_term_bracketed_paste(_t) != 0 }
+    public var generation: UInt64 { starling_term_generation(_t) }
 
     /// Readable because the scrollback belongs to the PRIMARY buffer: while a
     /// full-screen app owns the screen there is nothing of its own to scroll
     /// back through, and walking the primary's history would replace the app
     /// on screen with whatever the shell printed before it started.
-    var altActive: Bool { starling_term_alt_active(_t) != 0 }
+    public var altActive: Bool { starling_term_alt_active(_t) != 0 }
 
     /// DEC private modes 1000/1002/1003 — the app wants mouse events. Only
     /// the wheel is actually reported (see the UI): that is what a scroll
     /// gesture needs, and forwarding presses too would take click-drag text
     /// selection away from the user inside every full-screen app.
-    var mouseTracking: Bool { starling_term_mouse_tracking(_t) != 0 }
+    public var mouseTracking: Bool { starling_term_mouse_tracking(_t) != 0 }
 
     /// DEC private mode 1006 — SGR encoding (`ESC [ < b ; x ; y M`). The
     /// legacy X10 encoding stuffs coordinates into single bytes and breaks
     /// past column 223, so reporting is gated on this being on rather than
     /// emitting something that misreports a wide window.
-    var mouseSgr: Bool { starling_term_mouse_sgr(_t) != 0 }
+    public var mouseSgr: Bool { starling_term_mouse_sgr(_t) != 0 }
 
     /// Number of scrollback lines currently stored.
-    var scrollbackCount: Int { Int(starling_term_scrollback_count(_t)) }
+    public var scrollbackCount: Int { Int(starling_term_scrollback_count(_t)) }
 
     // MARK: - Reading the grid
     //
@@ -161,7 +163,7 @@ final class TerminalEmulator {
     /// The full text of a cell — for grapheme-cluster references (scalar
     /// above the Unicode range) this is the whole sequence: a ZWJ emoji
     /// family, a conjunct, a base with its combining marks.
-    func cellText(_ scalar: UInt32) -> String {
+    public func cellText(_ scalar: UInt32) -> String {
         var buf = [UInt8](repeating: 0, count: 64)
         let n = buf.withUnsafeMutableBufferPointer { p -> Int32 in
             p.baseAddress!.withMemoryRebound(to: CChar.self, capacity: 64) { cp in
@@ -186,19 +188,19 @@ final class TerminalEmulator {
     }
 
     /// The active screen, `rows` lines of `cols` cells.
-    var grid: [[TermCell]] {
+    public var grid: [[TermCell]] {
         let sb = scrollbackCount
         return (0 ..< rows).map { _line(sb + $0) }
     }
 
     /// Lines scrolled off the top of the primary screen (oldest first).
-    var scrollback: [[TermCell]] {
+    public var scrollback: [[TermCell]] {
         (0 ..< scrollbackCount).map { _line($0) }
     }
 
     /// The `rows` lines visible when scrolled back by `offset` lines
     /// (0 = the live screen). Clamped to the available history.
-    func visibleLines(offset: Int) -> [[TermCell]] {
+    public func visibleLines(offset: Int) -> [[TermCell]] {
         let sb = scrollbackCount
         let off = max(0, min(offset, sb))
         let base = sb - off
