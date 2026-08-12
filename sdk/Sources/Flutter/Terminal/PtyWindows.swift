@@ -41,6 +41,15 @@ final class Pty: @unchecked Sendable {
     private var parserThread: Thread?
     private let ring = ChunkRing()
 
+    // Diagnostic only: total bytes handed to the emulator, reported on stderr
+    // at exit when STARLING_PTY_BYTES is set. Used to compare what different
+    // console hosts actually emit for the same input.
+    fileprivate static let _countBytes =
+        ProcessInfo.processInfo.environment["STARLING_PTY_BYTES"] != nil
+    fileprivate static var _bytesSeen = 0
+    fileprivate static var _bytesReported = 0
+    fileprivate static var _chunks = 0
+
     init?(cols: Int, rows: Int) {
         let command = Pty._shellCommand()
         let home = realUserHomeDirectory()
@@ -140,8 +149,26 @@ final class Pty: @unchecked Sendable {
                 guard let chunk = self.ring.nextForRead() else {
                     // Drained and closed: every byte the shell wrote has been
                     // parsed before anyone is told it exited.
+                    if Pty._countBytes {
+                        let avg = Pty._bytesSeen / max(1, Pty._chunks)
+                        let msg = "PTYBYTES \(Pty._bytesSeen) chunks \(Pty._chunks) avg \(avg)\n"
+                        FileHandle.standardError.write(Data(msg.utf8))
+                    }
                     self.onExit?()
                     return
+                }
+                if Pty._countBytes {
+                    Pty._bytesSeen += chunk.count
+                    Pty._chunks += 1
+                    // Report as we go, not at EOF: with ConPTY the console
+                    // holds the pipe open after the shell exits, so an
+                    // end-of-stream report may never arrive.
+                    if Pty._bytesSeen - Pty._bytesReported >= 8 << 20 {
+                        Pty._bytesReported = Pty._bytesSeen
+                        let avg = Pty._bytesSeen / max(1, Pty._chunks)
+                        let msg = "PTYBYTES \(Pty._bytesSeen) chunks \(Pty._chunks) avg \(avg)\n"
+                        FileHandle.standardError.write(Data(msg.utf8))
+                    }
                 }
                 self.onData?(UnsafePointer(chunk.base), chunk.count)
                 self.ring.release(chunk)

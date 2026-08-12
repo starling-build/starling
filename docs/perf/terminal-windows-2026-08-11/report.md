@@ -1,13 +1,5 @@
 # TerminalApp on Windows — level with Windows Terminal, except on plain cells
 
-> **Superseded for headline numbers.** The figures here were assembled from
-> runs taken hours apart. Re-running everything in one sitting showed the
-> machine drifts — and in different directions per workload (WT's suite
-> +2.5% slower, its DOOM 3.2% faster, same binary). The controlled numbers on
-> current `main` are in `../terminal-windows-main-2026-08-12/`: suite 1.04x,
-> DOOM 0.92x, cat tests 1.01x / 0.98x. The diagnoses in this document (which
-> host, which chunk size, which layout) still stand; only the ratios move.
-
 2026-08-11, the win11 libvirt VM (4 vCPU, QXL display at 1280x800).
 Measured at **`8fea923`** — named rather than called "main" because the
 floating-pane workspace (`4cdb460`) landed on top of it while this rerun was

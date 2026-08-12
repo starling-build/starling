@@ -1,7 +1,0 @@
-# mainCat proc=TerminalApp grid=40x120
-ascii_150mb 1 56.631 56.17
-ascii_150mb 2 58.015 65.84
-unicode_150mb 1 58.524 38.61
-unicode_150mb 2 57.710 40.64
-rss_kb 45724
-DONE
