@@ -1,0 +1,7 @@
+# ghn-doom-fs4kv2  terminal=1206242/ghostty  grid=126x478  frames=600
+BENCHFPS frames=600 seconds=2.464 fps=243.51
+  cpu_s 5.10
+BENCHFPS frames=600 seconds=2.492 fps=240.77
+  cpu_s 5.13
+BENCHFPS frames=600 seconds=2.472 fps=242.72
+  cpu_s 5.08
