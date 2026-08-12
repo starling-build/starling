@@ -172,12 +172,74 @@ static void test_identity(void) {
     starling_term_free(t);
 }
 
+/* ---- resize ------------------------------------------------------------- */
+
+/* First row of the live grid, as text, so a test can say which line is on top. */
+static const char *top_line(StarlingTerm *t, char *buf, int cap) {
+    StarlingTermCell line[512];
+    starling_term_copy_line(t, starling_term_scrollback_count(t), line);
+    int n = 0;
+    for (int c = 0; c < starling_term_cols(t) && n < cap - 1; c++) {
+        if (line[c].scalar == 32 || line[c].scalar == 0) break;
+        n += starling_term_cell_text(t, line[c].scalar, buf + n, cap - 1 - n);
+    }
+    buf[n] = 0;
+    return buf;
+}
+
+static void test_resize(void) {
+    printf("resize:\n");
+    char buf[64];
+
+    /* Grow appends blank rows at the bottom; shrink used to take rows off the
+     * top unconditionally, so the two were not inverses. Found on Windows in
+     * TerminalTiling: a 31-row floating pane switched to a 36-row tiled one
+     * and back showed "17" on top instead of "11" — six lines scrolled away
+     * with five blank rows still sitting under the cursor. A pane whose output
+     * sits near the top loses all of it in one switch and reads as a repaint
+     * bug, which is how this was first reported. */
+    StarlingTerm *t = fresh(80, 31);
+    for (int i = 1; i <= 40; i++) { char s[16]; sprintf(s, "%d\r\n", i); feed(t, s); }
+    CHECK(strcmp(top_line(t, buf, sizeof buf), "11") == 0,
+          "40 lines into 31 rows leaves 11 on top");
+
+    int sb_before = starling_term_scrollback_count(t);
+    starling_term_resize(t, 80, 36);
+    CHECK(strcmp(top_line(t, buf, sizeof buf), "11") == 0,
+          "growing keeps the top line");
+    starling_term_resize(t, 80, 31);
+    CHECK(strcmp(top_line(t, buf, sizeof buf), "11") == 0,
+          "shrinking back is a no-op, not six lines of loss");
+    CHECK(starling_term_scrollback_count(t) == sb_before,
+          "a grow/shrink round trip pushes nothing to scrollback");
+
+    /* The other half of the contract: with no blank rows to reclaim, a shrink
+     * must still evict from the top, and into scrollback. */
+    starling_term_resize(t, 80, 28);
+    CHECK(strcmp(top_line(t, buf, sizeof buf), "14") == 0,
+          "a real shrink still scrolls the top away");
+    CHECK(starling_term_scrollback_count(t) == sb_before + 3,
+          "and the evicted rows land in scrollback");
+    starling_term_free(t);
+
+    /* The reported symptom in its original shape: a nearly empty pane, content
+     * at the very top, shrunk by a mode switch. Every line survived nothing
+     * before this. */
+    t = fresh(80, 30);
+    feed(t, "hello\r\nworld\r\n");
+    starling_term_resize(t, 80, 8);
+    CHECK(strcmp(top_line(t, buf, sizeof buf), "hello") == 0,
+          "shrinking a mostly blank pane keeps its content");
+    starling_term_free(t);
+}
+
 int main(void) {
     test_widths();
     test_wide_wrap_and_pairs();
     test_vs_and_flags();
     test_clusters();
     test_identity();
+    test_resize();
     if (fails) { printf("%d FAILED\n", fails); return 1; }
     printf("all passed\n");
     return 0;

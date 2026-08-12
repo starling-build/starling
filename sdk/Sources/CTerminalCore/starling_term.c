@@ -254,6 +254,11 @@ static Row row_blank(StarlingTerm *t)   { return row_filled(t, t->cur_bg); }
 /* A row of default-blank cells (bg 0) — what a fresh grid and RIS produce. */
 static Row row_default(StarlingTerm *t) { return row_filled(t, 0); }
 
+/* Nothing has ever been written to this row. `used == 0` is exactly that under
+   the extent invariant; a row left with a non-default tail background was
+   painted by the client and counts as content. */
+static int row_is_blank(const Row *r) { return r->used == 0 && r->tail_bg == 0; }
+
 static void row_fit(Row *r, int cols) {
     if (r->cols == cols) return;
     Cell *n = malloc(sizeof(Cell) * (size_t)cols);
@@ -1389,6 +1394,22 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
         for (int i = old_rows; i < new_rows; i++) t->grid[i] = row_default(t);
     } else if (new_rows < old_rows) {
         int drop = old_rows - new_rows;
+
+        /* Reclaim untouched rows below the cursor before evicting anything off
+           the top. Growing appends blank rows at the bottom, so without this
+           the two directions are not inverses: a grow/shrink round trip at the
+           same size — every switch between tiled and floating panes, and every
+           window resize that undoes an earlier one — scrolls one line of real
+           output out of view per row previously grown, while blank rows sit
+           under the cursor. A pane holding a few lines near the top loses all
+           of them at once and reads as a repaint bug. */
+        int live = old_rows;
+        while (drop > 0 && live - 1 > t->cursor_row && row_is_blank(&t->grid[live - 1])) {
+            row_release(t, &t->grid[live - 1]);
+            live--;
+            drop--;
+        }
+
         for (int k = 0; k < drop; k++) {
             Row removed = t->grid[0];
             if (!t->alt_active) {
@@ -1397,7 +1418,7 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
             } else {
                 row_release(t, &removed);
             }
-            memmove(&t->grid[0], &t->grid[1], sizeof(Row) * (size_t)(old_rows - 1 - k));
+            memmove(&t->grid[0], &t->grid[1], sizeof(Row) * (size_t)(live - 1 - k));
             if (t->cursor_row > 0) t->cursor_row--;
         }
         t->grid = realloc(t->grid, sizeof(Row) * (size_t)new_rows);
