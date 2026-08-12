@@ -619,7 +619,13 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
         // Pointer: focus on click, drag-select over the grid, wheel scrolls
         // through scrollback (any key press snaps back to live).
-        return Listener(
+        //
+        // Directionality is supplied HERE, not required of the embedder: a
+        // terminal is an LTR cell grid by construction (the painter indexes
+        // columns left to right), and a bare TerminalView under a host with
+        // no ambient direction otherwise dies in RenderStack._resolve — the
+        // framework's oldest trap, which a reusable widget should absorb.
+        return Directionality(textDirection: .ltr, child: Listener(
             onPointerDown: { [self] event in
                 focusNode.requestFocus()
                 guard event.buttons & 1 != 0 else { return }
@@ -716,7 +722,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 color: Color(Int(theme.background)),
                 child: Stack(children: layers)
             )
-        )
+        ))
     }
 
     // MARK: - Row rendering

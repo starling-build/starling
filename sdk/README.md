@@ -125,6 +125,37 @@ letting the framework veto), and its `flutter/keyevent` channel replies are
 not the JSON the GTK keyboard handler expects, so focus changes log a
 `Unable to retrieve framework response` warning.
 
+## The terminal widget
+
+```bash
+swift run -c release TerminalDemo
+```
+
+opens a complete terminal — the user's shell on a PTY — built from the two
+public pieces in `Sources/Flutter/Terminal/`:
+
+```swift
+let session = TerminalSession()   // owns the emulator and, optionally, a PTY
+session.startShell()
+runExampleApp(title: "Terminal", width: 940, height: 620) {
+    TerminalView(session: session)
+}
+```
+
+`TerminalView(session:theme:font:padding:autofocus:restartOnEnter:)` renders
+the grid and routes keys, mouse (SGR reporting and xterm's alternateScroll),
+clipboard, scrollback and selection; `TerminalSession` can also run headless
+— skip `startShell()` and drive `feed(_:)`/`onOutput` yourself for an SSH
+channel, a replay, or a remote agent's pty. The emulator underneath is the
+desktop Terminal's own C core: wide characters and grapheme clusters done
+properly (a clean sweep of ucs-detect's battery — wide, narrow, ZWJ
+families, 118 languages of conjuncts — where ghostty's nightly scores 33
+errors), measured at 0.49x of ghostty nightly's wall on the ten-workload
+suite in `docs/perf/terminal-vs-ghostty-2026-08-11/` (desktop repo), and
+pinned by 26 conformance checks in the desktop's fast test tier. Roboto Mono
+and DejaVu Sans Mono ship in the framework; the system Noto CJK and Color
+Emoji faces are picked up as fallbacks where installed.
+
 ## Consuming it
 
 Two ways, by how the engine arrives.

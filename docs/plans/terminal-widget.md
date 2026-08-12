@@ -1,6 +1,22 @@
 # TerminalView: the terminal as an SDK widget
 
-Status: design, 2026-08-11. Not started.
+Status: **implemented**, 2026-08-11 — steps 1–4 landed the same day the
+plan was written (58f4272, 74a2f76, 794720f, and the TerminalDemo commit).
+The extraction was perf-neutral: +0.1% at median-of-5 against the
+pre-widget baseline (`fs4kw3m` in the bench data). Remaining ideas live in
+"Later" under the migration order.
+
+Release-notes draft for the next SDK release:
+
+> **TerminalView** — the terminal is now a framework widget. A
+> `TerminalSession` owns the emulator and (optionally) a PTY;
+> `TerminalView` renders it: wide characters and grapheme clusters done
+> properly (a clean ucs-detect sweep where ghostty nightly scores 33
+> errors), 0.49x of ghostty nightly's wall on its own benchmark suite,
+> mouse reporting, scrollback, selection, bundled fonts. A complete
+> terminal app is twenty lines — `swift run TerminalDemo`. Headless
+> sessions (`feed`/`onOutput`) embed SSH channels, replays, or a remote
+> agent's pty.
 
 ## Why
 

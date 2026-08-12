@@ -283,6 +283,8 @@ products += [
     .executable(name: "FlutterDemo", targets: ["FlutterDemo"]),
     // Ports of famous Flutter sample apps, hosted the same way as the demo.
     .executable(name: "CounterApp", targets: ["CounterApp"]),
+    // The twenty-line terminal built on TerminalView (Examples/TerminalDemo).
+    .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
     .executable(name: "StartupNamerApp", targets: ["StartupNamerApp"]),
     .executable(name: "TodosApp", targets: ["TodosApp"]),
     .executable(name: "YouTubeApp", targets: ["YouTubeApp"]),
@@ -316,6 +318,8 @@ products += [
     // The classic `flutter create` counter, ported from Dart — the first
     // sample proven on this platform.
     .executable(name: "CounterApp", targets: ["CounterApp"]),
+    // The twenty-line terminal built on TerminalView (Examples/TerminalDemo).
+    .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
 ]
 #endif
 
@@ -610,6 +614,23 @@ targets += [
             .target(name: "SwiftRuntime"),
         ],
         path: "Examples/FlutterDemoApp",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
+]
+
+// The twenty-line terminal: TerminalSession + TerminalView, nothing else.
+// Its own append — every targets literal here sits near the manifest
+// type-checker's time budget, and one more entry in either tips it over.
+targets += [
+    .executableTarget(
+        name: "TerminalDemo",
+        dependencies: [
+            "Flutter",
+            "ExampleHost",
+            "FlutterSwiftBridge",
+        ],
+        path: "Examples/TerminalDemo",
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
         linkerSettings: engineLinkSettings
     ),
