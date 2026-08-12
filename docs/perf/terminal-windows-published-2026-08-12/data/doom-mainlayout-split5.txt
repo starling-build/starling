@@ -1,0 +1,12 @@
+# split5 proc=TerminalApp grid=28x105 frames=600
+BENCHFPS frames=600 seconds=0.529 fps=1134.22
+  cpu_s 0.69
+BENCHFPS frames=600 seconds=0.556 fps=1079.14
+  cpu_s 1.23
+BENCHFPS frames=600 seconds=0.577 fps=1039.86
+  cpu_s 0.80
+BENCHFPS frames=600 seconds=0.555 fps=1081.08
+  cpu_s 1.17
+BENCHFPS frames=600 seconds=0.591 fps=1015.23
+  cpu_s 0.48
+DONE

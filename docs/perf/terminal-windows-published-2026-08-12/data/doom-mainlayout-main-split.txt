@@ -1,0 +1,8 @@
+# main-split proc=TerminalApp grid=28x105 frames=600
+BENCHFPS frames=600 seconds=0.560 fps=1071.43
+  cpu_s 2.75
+BENCHFPS frames=600 seconds=0.524 fps=1145.04
+  cpu_s 0.63
+BENCHFPS frames=600 seconds=0.562 fps=1067.62
+  cpu_s 1.23
+DONE

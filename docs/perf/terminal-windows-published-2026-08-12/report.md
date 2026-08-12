@@ -198,8 +198,36 @@ So the earlier "do not retry the reader/parser split" was wrong as written.
 The correct statement is narrower: **it does not pay for bulk throughput,
 where parse is ~5% of wall and there is nothing to overlap; it pays roughly
 20% for frame-rate-bound work, where per-frame parse is on the critical
-path.** Which of those matters more is a product judgement — interactive
-full-screen apps look like DOOM-Fire, `cat`ting a log looks like the suite.
+path.**
+
+### …and on `main`'s actual layout it does not pay at all
+
+Everything above was measured on `8fea923`, i.e. **before** `4cdb460` made the
+terminal a workspace of floating panes. Rebuilt on current `main` and measured
+again, 8 reps per build, matched grid (28x105), both with the bundled host:
+
+| | median fps | mean | n |
+|---|---|---|---|
+| host only | **1134.2** | 1121.0 | 8 |
+| + reader/parser split | 1075.3 | 1079.2 | 8 |
+
+**-5.2%.** The split is neutral-to-negative on the tree it would actually be
+merged into. Same code, opposite sign, and the mechanism is not mysterious:
+in a pane the grid is 28x105 rather than 40x120, so a frame carries 39% fewer
+cells and already completes in ~0.88 ms instead of 1.67. There is much less
+per-frame parse to hide behind transport, and the split's thread handoffs are
+proportionally a larger share of it. (Spread is ~10% per build and the
+difference is about 2 standard errors, so read it as "no benefit here",
+not as a precise -5%.)
+
+**Merged accordingly: the bundled host and the staging tooling went to `main`
+(5cf98c6); the split did not.** It remains on `windows-terminal-conpty` as one
+cherry-pick, worth revisiting if a full-window (non-pane) terminal comes back,
+or for any workload that pushes per-frame parse back onto the critical path.
+
+The general lesson is the one this investigation kept re-teaching: **a
+measurement belongs to the tree it was taken on.** The 40x120 numbers were not
+wrong, they were about a different program.
 
 ## Caveats, before anyone quotes these
 

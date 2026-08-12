@@ -1,0 +1,8 @@
+# main-hostonly proc=TerminalApp grid=28x105 frames=600
+BENCHFPS frames=600 seconds=0.525 fps=1142.86
+  cpu_s 1.67
+BENCHFPS frames=600 seconds=0.517 fps=1160.54
+  cpu_s 0.98
+BENCHFPS frames=600 seconds=0.545 fps=1100.92
+  cpu_s 0.72
+DONE

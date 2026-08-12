@@ -1,0 +1,12 @@
+# host5 proc=TerminalApp grid=28x105 frames=600
+BENCHFPS frames=600 seconds=0.528 fps=1136.36
+  cpu_s 1.05
+BENCHFPS frames=600 seconds=0.579 fps=1036.27
+  cpu_s 0.88
+BENCHFPS frames=600 seconds=0.542 fps=1107.01
+  cpu_s 0.91
+BENCHFPS frames=600 seconds=0.521 fps=1151.63
+  cpu_s 0.47
+BENCHFPS frames=600 seconds=0.530 fps=1132.08
+  cpu_s 0.66
+DONE
