@@ -37,21 +37,32 @@ your login user.
 
 ## 1. Give it a display
 
-The dev box is usually headless. See CLAUDE.md, "Running headless", for why the
-order matters. 4K is worth it: more room for the three columns, and it exercises
-the fractional-scale path at 1.5x (2560x1440 logical).
+**On the Lenovo dev box, skip this section** — it has a real 2560x1600 panel
+(`eDP-1`) and usually a real 4K Dell on `HDMI-A-1`, and the session picks them
+up by itself. Do **not** force connectors there, and never write to `eDP-1`'s
+`status`: that is the user's screen, and `off` blanks it until they reboot. See
+CLAUDE.md, "This dev box has a real display".
+
+Only on a genuinely headless machine — nothing `connected` anywhere — hand an
+unused port a synthetic EDID. 4K is worth it: more room for the three columns,
+and it exercises the fractional-scale path at 1.5x (2560x1440 logical). See
+CLAUDE.md, "Running headless", for why the order matters.
 
     python3 build/tools/mkedid.py 4k > /tmp/edid.bin
-    C=/sys/kernel/debug/dri/0000:c6:00.0/HDMI-A-1
-    echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status   # force a re-probe
+    CARD=card2; CONN=HDMI-A-1     # confirm nothing is plugged into it
+    C=/sys/kernel/debug/dri/$(basename $(readlink -f /sys/class/drm/$CARD/device))/$CONN
+    echo detect | sudo tee /sys/class/drm/$CARD-$CONN/status   # force a re-probe
     sudo dd if=/tmp/edid.bin of=$C/edid_override bs=128 count=1
-    echo on | sudo tee /sys/class/drm/card1-HDMI-A-1/status
+    echo on | sudo tee /sys/class/drm/$CARD-$CONN/status
     sudo systemctl restart gdm
 
 Confirm in `/tmp/starling-session-1001.log`:
 
     [DrmView] Created: 3840x2160, engine running
     [DisplayLayout] scale 1.5 for 3840x2160 ... logical 2560x1440
+
+Put it back when the demo is over: `echo detect | sudo tee
+/sys/class/drm/$CARD-$CONN/status`.
 
 **Trap.** A connector that is already forced on caches its mode list. Writing a
 new EDID over it changes nothing until you cycle through `detect` — which is why

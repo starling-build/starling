@@ -92,19 +92,56 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
 - Run: `build/run-desktop.sh` — stages into `.stage/` then runs from there.
   Drive/screenshot with `sudo build/shell-drive.py …` (each action is **one**
   argv element: `"shot /tmp/x.png"`, not `shot /tmp/x.png`).
-- **Running headless — no monitor attached.** The dev box often has no display,
-  and then every connector reads `disconnected` with zero modes, so the shell
-  dies at `fl_drm_view_create`. Force a connector on and hand it an EDID; the
-  real GPU then programs a real CRTC and scans out into memory, so this is the
-  ordinary path (real EGL/GBM, real page flips), not an emulation — and
-  `shell-drive.py` screenshots work unchanged.
+- **This dev box has a real display. Never force a connector on it.** It is a
+  laptop: `eDP-1` is its own panel (AUO, 2560x1600, scale 2) and there is
+  usually a Dell P2715Q on `HDMI-A-1` (3840x2160) as well. Both are on the AMD
+  680M, both hand out a real EDID, and `build/run-desktop.sh` finds them on its
+  own — **nothing here needs the synthetic display below.** Use that recipe only
+  where `grep -l '^connected' /sys/class/drm/card*-*/status` comes back empty.
+  Three rules, each paid for in a real screen going dark:
+  - **Never write `off` to a connector's `status`, and never write anything to
+    `eDP-1`'s.** `off` is `DRM_FORCE_OFF`: the output blanks for every process
+    on the machine and stays blanked — no timeout, no reversion when the shell
+    exits. Only `echo detect` on that same file, or a reboot, undoes it. A
+    session forced `eDP-1` off to "keep it out of the scan", left it that way,
+    and the user's laptop screen was dead until they rebooted. `eDP-1` is the
+    screen the person using this machine is looking at.
+  - **Read an EDID with `cat`, never `stat`.** `.../edid` is a sysfs *bin*
+    attribute and always stats as **0 bytes**, on a perfectly good panel —
+    misreading that as "no EDID" is what started the above. Use
+    `cat /sys/class/drm/card2-eDP-1/edid | wc -c` (128 or 256 on a live
+    output) and `wc -l < .../modes`; the honest failure signal is `dmesg`'s
+    `No EDID found on connector: …`.
+  - **Card numbers move — never hardcode one.** They follow probe order: today
+    `card2` is the AMD 680M (`0000:73:00.0`) and owns every connector, `card1`
+    is the NVIDIA 3050. Both `run-desktop.sh` and `build/session/starling-session`
+    scan for the first *connected* connector, and fall back to `/dev/dri/card0`
+    when they find none — which does not exist here, and on a hybrid laptop is
+    the **displayless** dGPU. The error then reads `Failed to open
+    /dev/dri/card0` rather than "no display".
+- **Running headless — for a box with no monitor at all.** With every connector
+  `disconnected` and zero modes, the shell dies at `fl_drm_view_create`. Force a
+  connector on and hand it an EDID; the real GPU then programs a real CRTC and
+  scans out into memory, so this is the ordinary path (real EGL/GBM, real page
+  flips), not an emulation — and `shell-drive.py` screenshots work unchanged.
+  Pick a connector that has nothing plugged into it — an unused HDMI/DP port,
+  never the panel:
 
       python3 build/tools/mkedid.py 4k > /tmp/edid.bin   # or 1080p
-      C=/sys/kernel/debug/dri/0000:c6:00.0/HDMI-A-1   # the GPU's PCI debugfs dir
-      echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status   # re-probe
+      CARD=card2; CONN=HDMI-A-1                          # verify, don't assume
+      C=/sys/kernel/debug/dri/$(basename $(readlink -f /sys/class/drm/$CARD/device))/$CONN
+      echo detect | sudo tee /sys/class/drm/$CARD-$CONN/status   # re-probe
       sudo dd if=/tmp/edid.bin of=$C/edid_override bs=128 count=1
-      echo on | sudo tee /sys/class/drm/card1-HDMI-A-1/status
+      echo on | sudo tee /sys/class/drm/$CARD-$CONN/status
 
+  **Revert it in the same session** — `echo detect | sudo tee
+  /sys/class/drm/$CARD-$CONN/status` — rather than leaving a machine forced.
+  (Both settings live in debugfs/sysfs, so a reboot also clears them, but that
+  is the user's reboot, not yours.) The synthetic blob is `LNX`/`Starling VD`
+  and declares the same 60x34cm as a 27" 4K panel, so it impersonates a real
+  Dell convincingly in every tool that shows resolution — check the
+  manufacturer bytes, not the mode list, when you need to know which you are
+  looking at.
   **Order matters, twice over.** Writing `detect` to the sysfs `status` file
   *clears* the force, so the EDID goes first and the force second — the other
   way round reports `disconnected` with no hint why. And a connector that is
@@ -113,19 +150,11 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
   there and why swapping 1080p for 4K appears to silently fail without it.
   The EDID is what produces the mode list at all: forced on without one, the
   connector goes `connected` with **zero modes** and fails exactly like no
-  display. Both settings live in debugfs/sysfs and are gone after a reboot;
-  revert with `echo detect | sudo tee /sys/class/drm/card1-HDMI-A-1/status`.
-  The declared physical size drives `DeriveScale`, so `4k` (a 27" panel,
-  ~163 dpi) comes up at **1.5x — 2560x1440 logical**, which is also the
+  display. The declared physical size drives `DeriveScale`, so `4k` (a 27"
+  panel, ~163 dpi) comes up at **1.5x — 2560x1440 logical**, which is also the
   cheapest way to exercise the fractional-scale path.
   `vkms` looks like the obvious answer and is not — it has no render node, and
   the shell opens **one** device for both GBM/EGL and KMS.
-  Beware the fallback while headless: `build/session/starling-session` scans for
-  the first *connected* connector and otherwise falls back to `/dev/dri/card0`,
-  which on this machine does not exist (the GPU is card1; card0 was the
-  simple-framebuffer) and on a hybrid laptop is the **displayless** dGPU — card
-  numbering follows probe order and is never a safe default. Either way the
-  error reads `Failed to open /dev/dri/card0` rather than "no display".
 - Package: `build/package-desktop.sh` → .deb. It consumes `build/stage.sh`, which
   is the **single definition of the layout** — change assembly there, never in
   the packager alone. The session launcher, its `.desktop`, the polkit policy
