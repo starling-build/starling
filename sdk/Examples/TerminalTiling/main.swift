@@ -17,6 +17,15 @@
 // is a ratio, not a pixel count, so resizing the window redistributes
 // every pane proportionally and nothing has to be re-tiled.
 //
+// A new pane asks what to run before it runs anything, because opening a
+// terminal is usually opening it FOR something — most often to reach
+// another machine, whose name is the part nobody remembers. The launcher
+// offers the Host entries from ~/.ssh/config and the commands run before;
+// type to filter, ↑↓ to choose, Enter to run, Enter on an empty line (or
+// Escape) for a plain shell. A pane that knows its command puts it back:
+// ↻ on `ssh prod-1` reconnects, where a pane that merely once typed it
+// would come back as a local shell.
+//
 // Click a pane's title to name it — a wall of shells reads better as
 // "build", "logs", "prod" than as Terminal 1..4. The rename owns a focus
 // node of its own (every pane's terminal wants the keyboard) and hands it
@@ -46,6 +55,11 @@ enum Tile {
     static let action = Color(0xFF7C8695)
     static let actionActive = Color(0xFFCBD3DE)
     static let seamActive = Color(0xFF3E8FE0)
+    static let launcherBg = Color(0xFF13171D)
+    static let launcherInput = Color(0xFFE8EDF4)
+    static let launcherItem = Color(0xFF9AA4B2)
+    static let launcherPick = Color(0xFF7FD1A0)
+    static let launcherHint = Color(0xFF667180)
 
     static let titleBarH: Double = 30
     /// The draggable strip between two panes: wide enough to hit without
@@ -72,9 +86,20 @@ final class Pane {
     /// click the title to type a name, so a wall of shells can say "build",
     /// "logs", "prod" rather than counting from one.
     var name: String?
+    /// What this pane runs, nil for a plain login shell. It is also what
+    /// restart repeats, which is the point of asking: a pane that IS
+    /// `ssh prod-1` reconnects, where a pane that merely once typed it
+    /// would come back as a local shell.
+    var command: String?
+    /// Nothing has been started yet — the pane is asking what to run.
+    var pending = true
+    /// The launcher's input line and highlighted suggestion, per pane: a
+    /// split can leave two panes waiting at once, each half-typed.
+    var launchText = ""
+    var launchIndex = 0
     /// Bumped to remount the pane, which is how the terminal takes the
-    /// keyboard back after a rename (a mounted TerminalView autofocuses
-    /// only when it mounts).
+    /// keyboard back after a rename, a launch or a restart (a mounted
+    /// TerminalView autofocuses only when it mounts).
     var focusEpoch = 0
 
     init(id: Int) {
@@ -82,9 +107,97 @@ final class Pane {
         self.session = TerminalSession()
     }
 
-    func title(default fallback: String?) -> String {
+    var title: String {
         if let name = name, !name.isEmpty { return name }
-        return fallback.map { "\($0) — \(id)" } ?? "Terminal \(id)"
+        if let command = command, !command.isEmpty { return command }
+        return "Terminal \(id)"
+    }
+}
+
+// MARK: - What to run
+
+/// Where the launcher's suggestions come from.
+///
+/// Opening a terminal to reach another machine is the common case, and the
+/// hostname is exactly the part nobody remembers — so `~/.ssh/config` is
+/// read for its `Host` entries and offered directly. Past commands are
+/// remembered beside them, most recent first, so the second `ssh` to the
+/// same box is one keystroke.
+enum Launcher {
+    struct Suggestion {
+        let command: String
+        let source: String
+    }
+
+    private static var historyPath: String {
+        let home = realUserHomeDirectory()
+        return home + "/.local/state/starling-terminal-commands"
+    }
+
+    /// Commands run before, newest first.
+    static func history() -> [String] {
+        guard let text = try? String(contentsOfFile: historyPath, encoding: .utf8)
+        else { return [] }
+        var seen = Set<String>()
+        return text.split(separator: "\n").reversed().compactMap { line in
+            let s = String(line).trimmingCharacters(in: .whitespaces)
+            guard !s.isEmpty, seen.insert(s).inserted else { return nil }
+            return s
+        }
+    }
+
+    static func remember(_ command: String) {
+        let line = command.trimmingCharacters(in: .whitespaces)
+        guard !line.isEmpty else { return }
+        let path = historyPath
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true)
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            handle.write(Data((line + "\n").utf8))
+            try? handle.close()
+        } else {
+            try? (line + "\n").write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
+    /// `Host` entries from ~/.ssh/config, minus the patterns — a `Host *`
+    /// block configures every connection, it is not a machine to reach.
+    static func sshHosts() -> [String] {
+        let path = realUserHomeDirectory() + "/.ssh/config"
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8)
+        else { return [] }
+        var hosts: [String] = []
+        for line in text.split(separator: "\n") {
+            let parts = line.trimmingCharacters(in: .whitespaces)
+                .split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count >= 2,
+                  parts[0].lowercased() == "host" else { continue }
+            for host in parts.dropFirst() where
+                !host.contains("*") && !host.contains("?") {
+                hosts.append(String(host))
+            }
+        }
+        return hosts
+    }
+
+    /// The list a pane offers, filtered by what has been typed so far.
+    static func suggestions(matching typed: String) -> [Suggestion] {
+        var out: [Suggestion] = []
+        var seen = Set<String>()
+        for command in history() where seen.insert(command).inserted {
+            out.append(Suggestion(command: command, source: "recent"))
+        }
+        for host in sshHosts() {
+            let command = "ssh \(host)"
+            if seen.insert(command).inserted {
+                out.append(Suggestion(command: command, source: "~/.ssh/config"))
+            }
+        }
+        let needle = typed.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else { return out }
+        return out.filter { $0.command.lowercased().contains(needle) }
     }
 }
 
@@ -160,11 +273,25 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     private let _renameFocus = FocusNode(debugLabel: "PaneName")
     private static let nameLimit = 32
 
+    /// The pane whose launcher has the keyboard, and its own focus node for
+    /// the same reason the rename has one.
+    private var _launching: Pane?
+    private let _launchFocus = FocusNode(debugLabel: "PaneCommand")
+
     override func initState() {
         super.initState()
+        // The bundled fonts are registered by TerminalView on mount — and at
+        // startup no terminal has mounted yet, because the first pane is
+        // still asking what to run. Without this the launcher and the title
+        // bars draw in whatever the default face is, and every box-drawing
+        // and arrow glyph in them comes out as tofu.
+        TerminalFontLoader.register()
         root = Node(pane: _newPane())
         _renameFocus.onKeyData = { [weak self] keyData in
             self?._handleRenameKey(keyData) ?? false
+        }
+        _launchFocus.onKeyData = { [weak self] keyData in
+            self?._handleLaunchKey(keyData) ?? false
         }
         // Clicking a terminal takes focus away mid-edit; keep the name typed
         // so far rather than dropping the user's work.
@@ -176,8 +303,85 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
 
     override func dispose() {
         _renameFocus.dispose()
+        _launchFocus.dispose()
         root.forEachLeaf { $0.pane?.session.terminate() }
         super.dispose()
+    }
+
+    // MARK: - Asking what to run
+
+    private func _beginLaunch(_ pane: Pane) {
+        _activeId = pane.id
+        _launching = pane
+        _launchFocus.requestFocus()
+        setState {}
+    }
+
+    /// Start the pane: a command, or the login shell when nothing is typed.
+    private func _launch(_ pane: Pane, _ command: String?) {
+        pane.pending = false
+        pane.command = command
+        if let command = command, !command.isEmpty {
+            Launcher.remember(command)
+            pane.session.startCommand(command)
+        } else {
+            pane.session.startShell()
+        }
+        if _launching === pane {
+            _launching = nil
+            if _launchFocus.hasFocus { _launchFocus.unfocus() }
+        }
+        // The terminal is about to mount for the first time; the remount is
+        // what hands it the keyboard.
+        pane.focusEpoch += 1
+        setState {}
+    }
+
+    private func _handleLaunchKey(_ keyData: KeyData) -> Bool {
+        guard let pane = _launching else { return false }
+        guard keyData.type == .down || keyData.type == .repeat else { return false }
+        let matches = Launcher.suggestions(matching: pane.launchText)
+
+        switch keyData.logical {
+        case 0xFF0D, 0xFF8D, 0x1_0000_000D, 0x1_0000_020D:      // Enter
+            // A highlighted suggestion wins over the typed text: arrowing to
+            // a host and pressing Enter is the whole point of the list.
+            let chosen = pane.launchIndex > 0 && pane.launchIndex <= matches.count
+                ? matches[pane.launchIndex - 1].command
+                : pane.launchText.trimmingCharacters(in: .whitespaces)
+            _launch(pane, chosen.isEmpty ? nil : chosen)
+            return true
+        case 0xFF1B, 0x1_0000_001B:                             // Escape → shell
+            _launch(pane, nil)
+            return true
+        case 0xFF08, 0x1_0000_0008:                             // Backspace
+            if !pane.launchText.isEmpty {
+                setState {
+                    pane.launchText.removeLast()
+                    pane.launchIndex = 0
+                }
+            }
+            return true
+        case 0xFF52, 0x1_0000_0304:                             // Up
+            setState { pane.launchIndex = max(0, pane.launchIndex - 1) }
+            return true
+        case 0xFF54, 0x1_0000_0301, 0xFF09, 0x1_0000_0009:      // Down / Tab
+            setState { pane.launchIndex = min(matches.count, pane.launchIndex + 1) }
+            return true
+        default:
+            break
+        }
+
+        if let character = keyData.character,
+           let scalar = character.unicodeScalars.first,
+           scalar.value >= 0x20, scalar.value != 0x7F {
+            setState {
+                pane.launchText += character
+                pane.launchIndex = 0
+            }
+            return true
+        }
+        return true   // while the launcher is up, nothing else takes keys
     }
 
     // MARK: - Renaming
@@ -243,15 +447,23 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
 
     // MARK: - Panes
 
+    /// A new pane asks what to run before it runs anything. Opening a
+    /// terminal is usually opening it *for* something — most often to reach
+    /// another machine — and a pane that knows its command can put it back
+    /// when the connection drops. Given one on argv, every pane runs that
+    /// and the question is skipped.
     private func _newPane() -> Pane {
         let pane = Pane(id: _nextId)
         _nextId += 1
+        _activeId = pane.id
         if let command = Self.command {
+            pane.pending = false
+            pane.command = command
             pane.session.startCommand(command)
         } else {
-            pane.session.startShell()
+            _launching = pane
+            _launchFocus.requestFocus()
         }
-        _activeId = pane.id
         return pane
     }
 
@@ -393,7 +605,16 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                     // below still receives it (translucent), so one click
                     // both activates the pane and places the cursor.
                     onPointerDown: { [self] _ in
-                        if _activeId != pane.id { setState { _activeId = pane.id } }
+                        if pane.pending {
+                            // A pending pane has no terminal to take the
+                            // click's focus, so the launcher takes it.
+                            if _launching !== pane { _beginLaunch(pane) }
+                            else if _activeId != pane.id {
+                                setState { _activeId = pane.id }
+                            }
+                        } else if _activeId != pane.id {
+                            setState { _activeId = pane.id }
+                        }
                     },
                     behavior: .translucent,
                     child: DecoratedBox(
@@ -410,14 +631,18 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                                     SizedBox(
                                         width: box.w,
                                         height: terminalH,
-                                        child: TerminalView(
-                                            session: pane.session,
-                                            // The pane knows its box; the view
-                                            // must not size its grid from the
-                                            // window (see TerminalView.size).
-                                            size: Size(box.w, terminalH),
-                                            autofocus: active
-                                        )
+                                        child: pane.pending
+                                            ? _launcherBody(pane, width: box.w,
+                                                            height: terminalH)
+                                            : TerminalView(
+                                                session: pane.session,
+                                                // The pane knows its box; the
+                                                // view must not size its grid
+                                                // from the window (see
+                                                // TerminalView.size).
+                                                size: Size(box.w, terminalH),
+                                                autofocus: active
+                                            )
                                     ),
                                 ]
                             )
@@ -428,13 +653,63 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         )
     }
 
+    /// What a pane shows before it runs anything: a command line, and the
+    /// hosts and past commands worth not retyping.
+    private func _launcherBody(_ pane: Pane, width: Double, height: Double) -> Widget {
+        let focused = _launching === pane
+        let matches = Launcher.suggestions(matching: pane.launchText)
+        let rows = max(0, Int((height - 96) / 20))
+
+        func line(_ text: String, _ color: Color, size: Double = 13) -> Widget {
+            return Text(text, style: TextStyle(
+                color: color, fontSize: size,
+                fontFamily: TerminalFontLoader.family,
+                fontFamilyFallback: TerminalFontLoader.fallback))
+        }
+
+        var children: [Widget] = [
+            SizedBox(width: width, height: 18),
+            line("  run in this terminal", Tile.launcherHint, size: 12),
+            SizedBox(width: width, height: 6),
+            line("  ▸ " + pane.launchText + (focused ? "▏" : ""),
+                 Tile.launcherInput, size: 15),
+            SizedBox(width: width, height: 14),
+        ]
+        if matches.isEmpty {
+            children.append(
+                line("    nothing remembered yet — type a command, or press",
+                     Tile.launcherHint, size: 12))
+            children.append(
+                line("    Enter for a plain shell", Tile.launcherHint, size: 12))
+        } else {
+            for (i, match) in matches.prefix(rows).enumerated() {
+                let selected = pane.launchIndex == i + 1
+                children.append(
+                    line((selected ? "  ❯ " : "    ") + match.command
+                            + "   " + match.source,
+                         selected ? Tile.launcherPick : Tile.launcherItem,
+                         size: 13))
+            }
+            children.append(SizedBox(width: width, height: 10))
+            children.append(
+                line("    ↑↓ choose · Enter run · Esc plain shell",
+                     Tile.launcherHint, size: 11))
+        }
+
+        return SizedBox(
+            width: width, height: height,
+            child: DecoratedBox(
+                decoration: BoxDecoration(color: Tile.launcherBg),
+                child: Column(crossAxisAlignment: .start, children: children)
+            )
+        )
+    }
+
     private func _titleBar(_ pane: Pane, active: Bool, width: Double) -> Widget {
         let editing = _renaming === pane
         // The caret is a block, drawn in the text: the rename field is 30px
         // of title bar, and a blinking one-pixel line there is easy to miss.
-        let label = editing
-            ? _renameText + "▏"
-            : pane.title(default: Self.command)
+        let label = editing ? _renameText + "▏" : pane.title
         return SizedBox(
             width: width, height: Tile.titleBarH,
             child: DecoratedBox(
@@ -548,6 +823,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _restart(_ pane: Pane) {
+        guard !pane.pending else { _beginLaunch(pane); return }
         _activeId = pane.id
         // Say so in the pane itself: a restart that only killed the process
         // would read as the terminal having glitched.

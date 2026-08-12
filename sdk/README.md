@@ -166,8 +166,10 @@ with **draggable seams** — tiling that resizes freely, the boundary moving
 under the pointer while the child processes are resized live behind it
 (`TerminalView(size:)` tells each pane's grid its box, so the shell gets its
 SIGWINCH). Splits are ratios rather than pixel counts, so resizing the
-window redistributes every pane at once. Click a pane's title to
-name it. `TerminalSession.startCommand(_:)` runs one program in place of the
+window redistributes every pane at once. A new pane asks what to run — the `Host` entries from
+`~/.ssh/config` and previously run commands, filtered as you type — so the
+pane knows its command and ↻ *reconnects* rather than dropping you at a
+local shell. Click a pane's title to name it. `TerminalSession.startCommand(_:)` runs one program in place of the
 login shell, and `restart()` (what the view offers after a child exits)
 repeats whichever it was.
 
