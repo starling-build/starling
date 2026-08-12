@@ -9,17 +9,21 @@
 //   swift run -c release TerminalTiling
 //   swift run -c release TerminalTiling "top -d 1"    # what new panes run
 //
-// TILING or FLOATING, from the toolbar. The panes are the same either way —
-// one split tree says which panes exist; the mode only decides whether they
-// are laid out edge to edge or given frames to be dragged around by. Flipping
-// between the modes keeps every window where it was.
+// TILING or FULL SCREEN, from the toolbar. The panes are the same either
+// way — one split tree says which panes exist; the mode only decides whether
+// they share the window or take turns at all of it.
 //
-// In floating mode the toolbar's Windows button opens a cover flow: the panes
-// as covers, the chosen one square to the viewer and its neighbours turned
-// away in perspective, flipped through with the arrow keys the way an iPod
-// flips through albums. Each cover shows what is actually on that terminal's
-// screen right now, so you pick the window you meant rather than the name you
-// half remember.
+// Ctrl+Shift+Up (or the toolbar's Overview) shows every window at once, the
+// way Mission Control does: a grid of cards, each rendering what is actually
+// on that terminal's screen right now, arrows to choose and Enter to open.
+// A full-screen terminal is the right shape for working and the wrong shape
+// for finding, so finding gets its own view rather than a list of titles to
+// guess from. The chord has to be taken before the terminal sees it —
+// TerminalView.keyFilter exists for exactly that.
+//
+// (Floating windows were tried here and thrown out: a terminal is a
+// rectangle of text you want as much of as possible, and dragging little
+// windows around to see two at once is what tiling already does better.)
 //
 // Tiling, with the part tiling window managers get wrong made right: the
 // seams are draggable. Panes never overlap and never leave dead space, and
@@ -99,11 +103,15 @@ enum Tile {
 // MARK: - The split tree
 
 /// How the workspace arranges its panes. The same panes, two presentations:
-/// tiling fills the window with no overlap, floating gives each pane a frame
-/// it can be dragged around by.
+/// tiling fills the window with all of them at once; full screen gives the
+/// whole window to one and keeps the rest running behind it.
+///
+/// (Floating windows were tried here and thrown out: a terminal is a
+/// rectangle of text you want as much of as possible, and dragging little
+/// windows around to see two of them is what tiling already does better.)
 enum WorkspaceMode {
     case tiling
-    case floating
+    case fullScreen
 }
 
 enum SplitAxis {
@@ -150,12 +158,6 @@ final class Pane {
     var remote: RemoteTerminal?
     var link: RemoteTerminal.Link = .connecting
 
-    /// Where this pane sits in FLOATING mode. The split tree stays the
-    /// source of truth for which panes exist either way; the frame is just
-    /// the other presentation of the same pane, kept across a mode switch so
-    /// flipping back and forth does not shuffle anyone's windows.
-    var frame = Box(x: 0, y: 0, w: 0, h: 0)
-    var placed = false
 
     init(id: Int) {
         self.id = id
@@ -379,15 +381,12 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
 
     /// Tiling or floating. The panes are the same either way.
     private var _mode: WorkspaceMode = .tiling
-    /// Paint order in floating mode: last is on top, and on top is focused.
-    private var _z: [Int] = []
-    /// Drag state shared by the seam, the title bars and the resize grips.
-    private enum DragKind { case seam, move, resize }
-    private var _dragKind: DragKind = .seam
-    private var _dragPane: Pane?
-    private var _dragMoved = 0.0
 
-    /// The window switcher: pane covers, flipped through iPod-style.
+    /// Modifier state, tracked from the keys the terminal lets past us.
+    private var _ctrlDown = false
+    private var _shiftDown = false
+
+    /// The overview: every pane at once, chosen with the arrows.
     private var _flowOpen = false
     private var _flowIndex = 0
     private let _flowFocus = FocusNode(debugLabel: "PaneFlow")
@@ -704,10 +703,10 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
             Positioned(fill: (), child: ColoredBox(color: Tile.gutter))
         ]
         switch _mode {
-        case .tiling:  layers += _tilingLayers(workspace)
-        case .floating: layers += _floatingLayers(workspace)
+        case .tiling:     layers += _tilingLayers(workspace)
+        case .fullScreen: layers += _fullScreenLayers(workspace)
         }
-        if _flowOpen { layers.append(_flowOverlay(workspace)) }
+        if _flowOpen { layers.append(_overlay(workspace)) }
 
         return Directionality(
             textDirection: .ltr,
@@ -746,144 +745,87 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         return layers
     }
 
-    // MARK: - Floating
+    // MARK: - Full screen
 
-    /// Panes in paint order, bottom to top. The tree still says which panes
-    /// exist; `_z` only says who is in front.
-    private func _floatingPanes() -> [(Node, Pane)] {
-        var byId: [Int: (Node, Pane)] = [:]
-        var order: [Int] = []
-        root.forEachLeaf { node in
-            guard let pane = node.pane else { return }
-            byId[pane.id] = (node, pane)
-            order.append(pane.id)
-        }
-        // _z first (it is the authority on depth), then anything it has not
-        // heard of yet — a pane created while tiling.
-        var seen = Set<Int>()
+    /// Every pane, in tree order — the order the overview lays them out in
+    /// and the order the arrow keys walk.
+    private func _allPanes() -> [(Node, Pane)] {
         var out: [(Node, Pane)] = []
-        for id in _z where byId[id] != nil && seen.insert(id).inserted {
-            out.append(byId[id]!)
+        root.forEachLeaf { node in
+            if let pane = node.pane { out.append((node, pane)) }
         }
-        for id in order where seen.insert(id).inserted { out.append(byId[id]!) }
-        _z = out.map { $0.1.id }
         return out
     }
 
-    /// A frame for a pane that has never floated: cascaded from the last one,
-    /// so a new window never lands exactly on its parent.
-    private func _place(_ pane: Pane, _ workspace: Size, index: Int) {
-        guard !pane.placed else { return }
-        let n = Double(index % 7)
-        let w = min(820, max(Tile.minPane, workspace.width - 140))
-        let h = min(520, max(140, workspace.height - 150))
-        pane.frame = Box(x: 30 + n * 34, y: 24 + n * 30, w: w, h: h)
-        pane.placed = true
+    /// One terminal, the whole window. The others are not hidden so much as
+    /// not laid out: their shells keep running, their scrollback keeps
+    /// filling, and the overview is how you get back to them.
+    private func _fullScreenLayers(_ workspace: Size) -> [Widget] {
+        let panes = _allPanes()
+        guard !panes.isEmpty else { return [] }
+        let entry = panes.first { $0.1.id == _activeId } ?? panes[0]
+        _activeId = entry.1.id
+        let box = Box(x: 0, y: 0, w: workspace.width, h: workspace.height)
+        return [_paneWidget(entry.0, box), _paneControls(entry.0, box)]
     }
 
-    private func _raise(_ pane: Pane) {
-        _z.removeAll { $0 == pane.id }
-        _z.append(pane.id)
-        _activeId = pane.id
-    }
-
-    private func _floatingLayers(_ workspace: Size) -> [Widget] {
-        let panes = _floatingPanes()
-        var layers: [Widget] = []
-        for (i, entry) in panes.enumerated() {
-            _place(entry.1, workspace, index: i)
-            layers.append(_paneWidget(entry.0, entry.1.frame))
+    /// First refusal on every key, handed to each TerminalView.
+    ///
+    /// A terminal claims nearly the whole keyboard, so an app chord has to be
+    /// taken before the terminal sees it — Ctrl+Shift+Up here, which no TUI
+    /// expects and xterm has never defined. Modifiers are watched rather than
+    /// read off the event because the embedder reports them as their own key
+    /// events, not as flags on the letter.
+    private func _appChord(_ keyData: KeyData) -> Bool {
+        let down = keyData.type == .down || keyData.type == .repeat
+        switch keyData.logical {
+        // X11 keysyms from the DRM embedder, Flutter logical ids from the
+        // GTK/Win32 hosts — and the modifiers live in the 0x2000001xx block,
+        // not the 0x1000001xx one the arrows come from.
+        case 0xFFE1, 0xFFE2, 0x2_0000_0102, 0x2_0000_0103:   // shift
+            _shiftDown = down
+            return false
+        case 0xFFE3, 0xFFE4, 0x2_0000_0100, 0x2_0000_0101:   // control
+            _ctrlDown = down
+            return false
+        default:
+            break
         }
-        for entry in panes {
-            layers.append(_paneControls(entry.0, entry.1.frame, floating: true))
-            layers.append(_resizeGrip(entry.1, workspace))
+        guard down, _ctrlDown, _shiftDown else { return false }
+        switch keyData.logical {
+        case 0xFF52, 0x1_0000_0304:            // Up — show every window
+            if !_flowOpen { _openOverview() }
+            return true
+        default:
+            return false
         }
-        return layers
     }
 
-    /// The corner pull. Floating only — a tiled pane resizes by its seam.
-    private func _resizeGrip(_ pane: Pane, _ workspace: Size) -> Widget {
-        let f = pane.frame
-        // Drawn only while this window is being resized. The 16px hit area
-        // is always live, so the corner can still be grabbed; what an idle
-        // desktop shows is nothing — a mark per window, cascaded, is clutter
-        // on a workspace you are only reading.
-        let showing = _dragPane === pane && _dragKind == .resize
-        let ink = showing ? Tile.grip : Tile.gripHidden
-        return Positioned(
-            key: ValueKey(2_000_000 + pane.id),
-            left: f.x + f.w - 16, top: f.y + f.h - 16,
-            child: Listener(
-                onPointerDown: { [self] event in
-                    _raise(pane)
-                    _dragKind = .resize
-                    _dragPane = pane
-                    _lastPointer = event.position
-                    setState {}
-                },
-                onPointerMove: { [self] event in
-                    guard _dragKind == .resize, _dragPane === pane,
-                          let last = _lastPointer else { return }
-                    let dx = event.position.dx - last.dx
-                    let dy = event.position.dy - last.dy
-                    _lastPointer = event.position
-                    setState {
-                        pane.frame.w = max(Tile.minPane, min(workspace.width - pane.frame.x,
-                                                             pane.frame.w + dx))
-                        pane.frame.h = max(140, min(workspace.height - pane.frame.y,
-                                                    pane.frame.h + dy))
-                    }
-                },
-                onPointerUp: { [self] _ in
-                    _dragPane = nil
-                    _lastPointer = nil
-                    _dragKind = .seam
-                },
-                behavior: .opaque,
-                // Two strokes meeting in the corner, not a dot — and drawn
-                // only when the pointer is on it or a drag is in flight. The
-                // 16px hit area is always there, so reaching for the corner
-                // still finds it; what changes is that an unattended window
-                // shows nothing.
-                child: SizedBox(
-                    width: 16, height: 16,
-                    child: Stack(children: [
-                        Positioned(
-                            left: 2, top: 12,
-                            child: SizedBox(width: 12, height: 2,
-                                            child: ColoredBox(color: ink))
-                        ),
-                        Positioned(
-                            left: 12, top: 2,
-                            child: SizedBox(width: 2, height: 12,
-                                            child: ColoredBox(color: ink))
-                        ),
-                    ])
-                )
-            )
-        )
-    }
+    // MARK: - Overview (all windows at once)
 
-    // MARK: - The window switcher (cover flow)
-
-    private func _openFlow() {
-        let panes = _floatingPanes()
+    /// Every pane at once, scaled down, the way Mission Control shows
+    /// windows: a full-screen terminal is the right shape for working and
+    /// the wrong shape for finding, so finding gets its own view rather
+    /// than a list of titles to guess from. Each card renders what is
+    /// actually on that terminal's screen right now.
+    private func _openOverview() {
+        let panes = _allPanes()
         guard !panes.isEmpty else { return }
-        _flowIndex = panes.firstIndex { $0.1.id == _activeId } ?? panes.count - 1
+        _flowIndex = panes.firstIndex { $0.1.id == _activeId } ?? 0
         _flowOpen = true
         _flowFocus.requestFocus()
         setState {}
     }
 
-    private func _closeFlow(pick: Bool) {
-        let panes = _floatingPanes()
+    private func _closeOverview(pick: Bool) {
+        let panes = _allPanes()
         _flowOpen = false
         if _flowFocus.hasFocus { _flowFocus.unfocus() }
         if pick, _flowIndex >= 0, _flowIndex < panes.count {
             let pane = panes[_flowIndex].1
-            _raise(pane)
-            // Remount so the chosen terminal takes the keyboard, the same way
-            // a finished rename hands it back.
+            _activeId = pane.id
+            // Remount so the chosen terminal takes the keyboard, the same
+            // way a finished rename hands it back.
             pane.focusEpoch += 1
         }
         setState {}
@@ -892,7 +834,9 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     private func _handleFlowKey(_ keyData: KeyData) -> Bool {
         guard _flowOpen else { return false }
         guard keyData.type == .down || keyData.type == .repeat else { return false }
-        let count = _floatingPanes().count
+        let panes = _allPanes()
+        let count = panes.count
+        let columns = max(1, Int(ceil(Double(count).squareRoot())))
         switch keyData.logical {
         case 0xFF51, 0x1_0000_0302:                             // Left
             setState { _flowIndex = max(0, _flowIndex - 1) }
@@ -900,18 +844,24 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         case 0xFF53, 0x1_0000_0303:                             // Right
             setState { _flowIndex = min(count - 1, _flowIndex + 1) }
             return true
+        case 0xFF52, 0x1_0000_0304:                             // Up
+            setState { _flowIndex = max(0, _flowIndex - columns) }
+            return true
+        case 0xFF54, 0x1_0000_0301:                             // Down
+            setState { _flowIndex = min(count - 1, _flowIndex + columns) }
+            return true
         case 0xFF0D, 0xFF8D, 0x1_0000_000D, 0x1_0000_020D:      // Enter
-            _closeFlow(pick: true)
+            _closeOverview(pick: true)
             return true
         case 0xFF1B, 0x1_0000_001B:                             // Escape
-            _closeFlow(pick: false)
+            _closeOverview(pick: false)
             return true
         default:
             return true
         }
     }
 
-    /// The last few lines a pane has on screen, for its cover. Read under the
+    /// The last few lines a pane has on screen, for its card. Read under the
     /// session lock, like every other read of a live grid.
     private func _preview(_ pane: Pane, lines: Int, cols: Int) -> [String] {
         let session = pane.session
@@ -921,103 +871,68 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         var out: [String] = []
         for row in grid {
             let text = String(row.prefix(cols).map { $0.char })
-                .replacingOccurrences(of: "\u{0}", with: " ")
             if !text.trimmingCharacters(in: .whitespaces).isEmpty { out.append(text) }
         }
         if out.isEmpty { return ["", "  (nothing on screen yet)"] }
         return Array(out.suffix(lines))
     }
 
-    /// The covers, flipped iPod-style: the chosen pane square to the viewer,
-    /// its neighbours turned away in perspective. Flutter's Transform takes a
-    /// Matrix4, so the whole effect is one matrix per cover — perspective,
-    /// then the slide out from centre, then the turn.
-    private func _flowOverlay(_ workspace: Size) -> Widget {
-        let panes = _floatingPanes()
-        let cardW = min(460.0, max(260.0, workspace.width * 0.42))
-        let cardH = min(300.0, max(180.0, workspace.height * 0.52))
-        let centreX = workspace.width / 2 - cardW / 2
-        let centreY = workspace.height / 2 - cardH / 2 - 14
+    private func _overlay(_ workspace: Size) -> Widget {
+        let panes = _allPanes()
+        let count = max(1, panes.count)
+        let columns = max(1, Int(ceil(Double(count).squareRoot())))
+        let rows = max(1, Int(ceil(Double(count) / Double(columns))))
+        let pad = 26.0
+        let cellW = (workspace.width - pad * Double(columns + 1)) / Double(columns)
+        let cellH = (workspace.height - 64 - pad * Double(rows + 1)) / Double(rows)
 
         var layers: [Widget] = [
-            // The scrim. A bare SizedBox with a translucent Listener, never a
-            // ColoredBox at alpha 0 — that hit-tests opaque even when
-            // invisible, and would swallow the clicks meant for the covers.
+            // The scrim. A ColoredBox rather than a bare SizedBox because it
+            // must actually dim; the Listener over it is what swallows clicks.
             Positioned(fill: (), child: Listener(
-                onPointerDown: { [self] _ in _closeFlow(pick: false) },
+                onPointerDown: { [self] _ in _closeOverview(pick: false) },
                 behavior: .opaque,
                 child: ColoredBox(color: Tile.flowScrim)))
         ]
-
-        // Far covers first so the chosen one lands on top of its neighbours.
-        let order = panes.indices.sorted {
-            abs($0 - _flowIndex) > abs($1 - _flowIndex)
-        }
-        for i in order {
-            let offset = Double(i - _flowIndex)
-            let far = min(abs(offset), 4.0)
-            let dir = offset == 0 ? 0.0 : (offset > 0 ? 1.0 : -1.0)
-            // Compressed spacing: the first neighbour steps well clear, the
-            // rest stack behind it the way a shelf of covers does.
-            let dx = dir * (cardW * 0.34 + (far - 1) * cardW * 0.12) * (far > 0 ? 1 : 0)
-            let scale = offset == 0 ? 1.0 : max(0.62, 0.86 - (far - 1) * 0.06)
-            let angle = offset == 0 ? 0.0 : dir * -0.62
-
-            var m = Matrix4.identity()
-            m.storage[11] = -0.0011                      // perspective
-            m = m * Matrix4.translationValues(dx, 0, offset == 0 ? 0 : -60 * far)
-            m = m * Matrix4.rotationY(angle)
-            m = m * Matrix4.diagonal3Values(scale, scale, 1)
-
+        for (i, entry) in panes.enumerated() {
+            let x = pad + Double(i % columns) * (cellW + pad)
+            let y = pad + Double(i / columns) * (cellH + pad)
             layers.append(
                 Positioned(
-                    left: centreX, top: centreY,
-                    child: Transform(
-                        transform: m,
-                        alignment: Alignment.center,
-                        child: Listener(
-                            onPointerDown: { [self] _ in
-                                if i == _flowIndex { _closeFlow(pick: true) }
-                                else { setState { _flowIndex = i } }
-                            },
-                            behavior: .opaque,
-                            child: _flowCard(panes[i].1, w: cardW, h: cardH,
+                    left: x, top: y,
+                    child: Listener(
+                        onPointerDown: { [self] _ in
+                            if i == _flowIndex { _closeOverview(pick: true) }
+                            else { setState { _flowIndex = i } }
+                        },
+                        behavior: .opaque,
+                        child: _overviewCard(entry.1, w: cellW, h: cellH,
                                              chosen: i == _flowIndex)
-                        )
                     )
                 )
             )
         }
-
-        // The title under the shelf, as the iPod puts the track under the art.
-        if _flowIndex >= 0, _flowIndex < panes.count {
-            layers.append(
-                Positioned(
-                    left: 0, top: centreY + cardH + 26,
-                    child: SizedBox(
-                        width: workspace.width, height: 44,
-                        child: Column(children: [
-                            Text(panes[_flowIndex].1.title, style: TextStyle(
-                                color: Tile.titleTextActive, fontSize: 16,
-                                fontFamily: TerminalFontLoader.family,
-                                fontFamilyFallback: TerminalFontLoader.fallback)),
-                            SizedBox(width: 1, height: 6),
-                            Text("←→ choose · Enter open · Esc cancel",
-                                 style: TextStyle(
-                                    color: Tile.launcherHint, fontSize: 11.5,
-                                    fontFamily: TerminalFontLoader.family,
-                                    fontFamilyFallback: TerminalFontLoader.fallback)),
-                        ])
-                    )
+        layers.append(
+            Positioned(
+                left: 0, top: workspace.height - 34,
+                child: SizedBox(
+                    width: workspace.width, height: 24,
+                    child: Center(child: Text(
+                        "↑↓←→ choose · Enter open · Esc cancel",
+                        style: TextStyle(
+                            color: Tile.launcherHint, fontSize: 12,
+                            fontFamily: TerminalFontLoader.family,
+                            fontFamilyFallback: TerminalFontLoader.fallback)))
                 )
             )
-        }
+        )
         return Positioned(fill: (), child: Stack(children: layers))
     }
 
-    private func _flowCard(_ pane: Pane, w: Double, h: Double, chosen: Bool) -> Widget {
-        let cols = max(20, Int((w - 24) / 6.6))
-        let rows = max(3, Int((h - 52) / 15))
+    private func _overviewCard(_ pane: Pane, w: Double, h: Double,
+                               chosen: Bool) -> Widget {
+        let cols = max(20, Int((w - 20) / 6.4))
+        let rows = max(2, Int((h - 46) / 14))
         var body: [Widget] = []
         for line in _preview(pane, lines: rows, cols: cols) {
             body.append(Text(line, style: TextStyle(
@@ -1031,13 +946,14 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                 decoration: BoxDecoration(
                     color: Tile.launcherBg,
                     border: Border.all(
-                        color: chosen ? Tile.seamActive : Tile.border, width: 1),
+                        color: chosen ? Tile.seamActive : Tile.border,
+                        width: chosen ? 2 : 1),
                     borderRadius: BorderRadius.all(Radius(circular: 10)),
                     boxShadow: chosen
                         ? [BoxShadow(color: Color(0xAA000000),
-                                     offset: Offset(0, 18), blurRadius: 40)]
-                        : [BoxShadow(color: Color(0x55000000),
-                                     offset: Offset(0, 8), blurRadius: 20)]
+                                     offset: Offset(0, 14), blurRadius: 34)]
+                        : [BoxShadow(color: Color(0x44000000),
+                                     offset: Offset(0, 6), blurRadius: 16)]
                 ),
                 child: ClipRRect(
                     borderRadius: BorderRadius.all(Radius(circular: 10)),
@@ -1048,7 +964,8 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                                 width: w, height: 26,
                                 child: DecoratedBox(
                                     decoration: BoxDecoration(
-                                        color: chosen ? Tile.titleBarActive : Tile.titleBar),
+                                        color: chosen ? Tile.titleBarActive
+                                                      : Tile.titleBar),
                                     child: Center(child: Text(
                                         pane.title,
                                         style: TextStyle(
@@ -1087,14 +1004,14 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                         child: Row(children: [
                             _modeButton("Tiling", .tiling),
                             SizedBox(width: 6, height: 1),
-                            _modeButton("Floating", .floating),
+                            _modeButton("Full screen", .fullScreen),
                         ])
                     ),
                     Positioned(
                         left: max(0, width - 208), top: 5,
                         child: Row(children: [
-                            _barButton("Windows", enabled: _mode == .floating) {
-                                [self] in _openFlow()
+                            _barButton("Overview  ⌃⇧↑", enabled: true) {
+                                [self] in _openOverview()
                             },
                             SizedBox(width: 8, height: 1),
                             _barButton("+ New", enabled: true) { [self] in
@@ -1157,10 +1074,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
 
     private func _setMode(_ mode: WorkspaceMode) {
         guard _mode != mode else { return }
-        setState {
-            _mode = mode
-            if mode == .tiling { _flowOpen = false }
-        }
+        setState { _mode = mode }
     }
 
     /// The toolbar's New: a split in tiling (there is nowhere else to put it),
@@ -1170,8 +1084,12 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
         root.forEachLeaf { if $0.pane?.id == _activeId { target = $0 } }
         if target == nil { root.forEachLeaf { if target == nil { target = $0 } } }
         guard let node = target else { return }
-        _split(node, axis: _mode == .tiling ? .row : .column)
-        if _mode == .floating, let pane = node.second?.pane { _raise(pane) }
+        _split(node, axis: .row)
+        // In full screen the split is invisible — the new pane simply
+        // becomes the one on screen, and the old one is a card away.
+        if _mode == .fullScreen, let pane = node.second?.pane {
+            _activeId = pane.id
+        }
     }
 
     private func _paneWidget(_ node: Node, _ box: Box) -> Widget {
@@ -1195,7 +1113,6 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                     // below still receives it (translucent), so one click
                     // both activates the pane and places the cursor.
                     onPointerDown: { [self] _ in
-                        if _mode == .floating { setState { _raise(pane) } }
                         if pane.pending {
                             // A pending pane has no terminal to take the
                             // click's focus, so the launcher takes it.
@@ -1237,7 +1154,12 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                                                 // from the window (see
                                                 // TerminalView.size).
                                                 size: Size(box.w, terminalH),
-                                                autofocus: active
+                                                autofocus: active,
+                                                // The app takes its chord
+                                                // before the terminal does.
+                                                keyFilter: { [self] key in
+                                                    _appChord(key)
+                                                }
                                             )
                                     ),
                                 ]
@@ -1334,8 +1256,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
     /// workspace — see the note in `build`. A split needs no mode and no
     /// keyboard chord this way, and a chord would have to be taken away from
     /// the terminal, which owns its keys.
-    private func _paneControls(_ node: Node, _ box: Box,
-                               floating: Bool = false) -> Widget {
+    private func _paneControls(_ node: Node, _ box: Box) -> Widget {
         guard let pane = node.pane else { return SizedBox(width: 0, height: 0) }
         let active = pane.id == _activeId
         return Positioned(
@@ -1373,46 +1294,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                     Positioned(
                         left: 30, top: 0,
                         child: Listener(
-                            onPointerDown: { [self] event in
-                                if floating {
-                                    _raise(pane)
-                                    _dragKind = .move
-                                    _dragPane = pane
-                                    _dragMoved = 0
-                                    _lastPointer = event.position
-                                    setState {}
-                                } else {
-                                    _beginRename(pane)
-                                }
-                            },
-                            onPointerMove: { [self] event in
-                                guard floating, _dragKind == .move,
-                                      _dragPane === pane,
-                                      let last = _lastPointer else { return }
-                                let dx = event.position.dx - last.dx
-                                let dy = event.position.dy - last.dy
-                                _lastPointer = event.position
-                                _dragMoved += abs(dx) + abs(dy)
-                                setState {
-                                    // Keep a grabbable strip on screen: a pane
-                                    // dragged entirely past an edge could not
-                                    // be dragged back.
-                                    pane.frame.x = min(max(pane.frame.x + dx,
-                                                           -pane.frame.w + 90),
-                                                       _windowSize().width - 90)
-                                    pane.frame.y = min(max(pane.frame.y + dy, 0),
-                                                       _windowSize().height
-                                                           - Tile.barH - Tile.titleBarH)
-                                }
-                            },
-                            onPointerUp: { [self] _ in
-                                guard floating else { return }
-                                let moved = _dragMoved
-                                _dragPane = nil
-                                _lastPointer = nil
-                                _dragKind = .seam
-                                if moved < 4 { _beginRename(pane) }
-                            },
+                            onPointerDown: { [self] _ in _beginRename(pane) },
                             behavior: .opaque,
                             child: SizedBox(
                                 width: max(0, box.w - 114), height: Tile.titleBarH

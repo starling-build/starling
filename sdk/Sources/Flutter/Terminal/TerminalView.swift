@@ -153,6 +153,14 @@ public final class TerminalView: StatefulWidget {
     /// command rather than dropping to a shell. Turn off to own the lifecycle
     /// via `session.onExit`.
     let restartOnEnter: Bool
+    /// First refusal on every key, for the app around the terminal.
+    ///
+    /// A terminal claims the keyboard almost completely — that is its job —
+    /// so an embedder that wants a chord of its own (an overview, a pane
+    /// switcher, a command palette) has nowhere to put it: an ancestor
+    /// Focus never sees a key the focused view consumed. Return true to
+    /// swallow the key; the terminal then never sees it.
+    let keyFilter: ((KeyData) -> Bool)?
 
     public init(session: TerminalSession,
                 theme: TerminalTheme = .starlingDark,
@@ -160,7 +168,8 @@ public final class TerminalView: StatefulWidget {
                 padding: Double = 8,
                 size: Size? = nil,
                 autofocus: Bool = true,
-                restartOnEnter: Bool = true) {
+                restartOnEnter: Bool = true,
+                keyFilter: ((KeyData) -> Bool)? = nil) {
         self.session = session
         self.theme = theme
         self.font = font
@@ -168,6 +177,7 @@ public final class TerminalView: StatefulWidget {
         self.size = size
         self.autofocus = autofocus
         self.restartOnEnter = restartOnEnter
+        self.keyFilter = keyFilter
         super.init()
     }
 
@@ -330,6 +340,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: - Input
 
     private func _handleKey(_ keyData: KeyData) -> Bool {
+        // The app around us gets first refusal — see TerminalView.keyFilter.
+        // Before the modifier tracking, so a chord built from modifiers is
+        // not half-processed on the way past.
+        if let filter = w.keyFilter, filter(keyData) { return true }
+
         // Track Shift/Ctrl for scrollback paging and copy/paste chords.
         if keyData.logical == 0xFFE1 || keyData.logical == 0xFFE2 {
             _shiftDown = (keyData.type == .down || keyData.type == .repeat)
