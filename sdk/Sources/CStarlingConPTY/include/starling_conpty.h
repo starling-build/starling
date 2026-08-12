@@ -47,6 +47,17 @@ StarlingConPty* starling_conpty_open(int32_t cols,
 // thread writes.
 int32_t starling_conpty_read(StarlingConPty* pty, uint8_t* buf, int32_t len);
 
+// Bytes already queued on the output pipe, readable without blocking. 0 when
+// the pipe is empty, closed, or on any error — so a caller can treat it purely
+// as "is there more right now?" and never has to handle a failure separately.
+//
+// This exists for the reader's drain loop: ConPTY hands back small reads even
+// during a flood, and publishing each one costs a ring pass. Peeking lets the
+// reader keep filling one buffer while bytes are already waiting, and stop the
+// instant the pipe runs dry — so batching never adds latency to a lone
+// keystroke echo.
+int32_t starling_conpty_avail(StarlingConPty* pty);
+
 // Writes `len` bytes to the child's input. Returns bytes written, or -1.
 int32_t starling_conpty_write(StarlingConPty* pty, const uint8_t* buf, int32_t len);
 

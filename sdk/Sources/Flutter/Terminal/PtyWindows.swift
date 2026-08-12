@@ -26,17 +26,20 @@ final class Pty: @unchecked Sendable {
     private var handle: OpaquePointer?
     private let handleLock = NSLock()
 
-    /// Called on the reader thread with each chunk read from the console. The
+    /// Called on the PARSER thread with each chunk read from the console. The
     /// buffer is owned by the PTY and is valid only for the duration of the
     /// call — copy anything that has to outlive it. (Same zero-copy contract
     /// as the POSIX side, which moved to pointer+count with the read-path
     /// split; this side follows so TerminalApp.swift stays host-neutral.)
     var onData: ((UnsafePointer<UInt8>, Int) -> Void)?
 
-    /// Called on the reader thread when the child exits / the console closes.
+    /// Called on the parser thread once every queued chunk has been delivered
+    /// and the child has exited / the console has closed.
     var onExit: (() -> Void)?
 
     private var readerThread: Thread?
+    private var parserThread: Thread?
+    private let ring = ChunkRing()
 
     init?(cols: Int, rows: Int) {
         let command = Pty._shellCommand()
@@ -72,40 +75,84 @@ final class Pty: @unchecked Sendable {
         return root + "\\System32\\cmd.exe"
     }
 
-    /// Starts the reader loop on a background thread.
+    /// Starts the reader and parser threads.
+    ///
+    /// They are separate for the same reason as on POSIX (see the long note in
+    /// Pty.swift): a single thread that reads then parses stops draining the
+    /// console while it parses, so the shell blocks on a full pipe and the wall
+    /// time becomes transport PLUS parse instead of max(transport, parse).
+    /// This side kept the serial loop long after Linux was split, and the
+    /// Windows benchmark showed exactly the shape that predicts —
+    /// `01_light_cells`, the workload with the least escape processing and the
+    /// most raw line traffic, was 2.24x Windows Terminal while the
+    /// escape-heavy workloads were already at or ahead of parity.
     func startReader() {
-        let thread = Thread { [weak self] in
-            // 64K for the same reason the POSIX side uses it: every read costs
-            // an allocation, a feed and a repaint request, and a flooded
-            // terminal fills the buffer every time.
-            var buf = [UInt8](repeating: 0, count: 65536)
+        let reader = Thread { [weak self] in
             while true {
                 guard let self = self else { return }
+                // The slot is ours until we publish it, so ConPTY reads land
+                // straight in the ring — no per-chunk buffer, no copy.
+                guard let slot = self.ring.acquireForWrite() else { return }
+
                 // Take the handle under the lock so terminate() cannot free it
                 // between the check and the call.
                 self.handleLock.lock()
                 guard let h = self.handle else {
                     self.handleLock.unlock()
+                    self.ring.abandon(slot)
+                    self.ring.close()
                     return
                 }
                 self.handleLock.unlock()
 
-                let n = buf.withUnsafeMutableBufferPointer { ptr in
-                    starling_conpty_read(h, ptr.baseAddress, Int32(ptr.count))
-                }
-                if n > 0 {
-                    buf.withUnsafeBufferPointer { ptr in
-                        self.onData?(ptr.baseAddress!, Int(n))
+                var got = 0
+                while true {
+                    let n = starling_conpty_read(
+                        h, slot.base + got, Int32(ChunkRing.slotCapacity - got))
+                    if n > 0 {
+                        got += Int(n)
+                        if got == ChunkRing.slotCapacity { break }
+                        // Drain what is ALREADY queued into the same slot, and
+                        // stop the moment the pipe is dry. ConPTY hands back
+                        // small reads even mid-flood, and each publish costs a
+                        // ring pass plus an emulator lock and a repaint
+                        // schedule. Peeking coalesces only bytes the pipe had
+                        // waiting, so a lone keystroke echo still publishes
+                        // immediately — batching buys throughput without
+                        // costing latency.
+                        if starling_conpty_avail(h) <= 0 { break }
+                        continue
                     }
-                } else {
+                    // EOF or hard error: hand over what we have, then close.
+                    if got > 0 { self.ring.publish(slot, count: got) }
+                    else { self.ring.abandon(slot) }
+                    self.ring.close()
+                    return
+                }
+                self.ring.publish(slot, count: got)
+            }
+        }
+        reader.name = "pty-reader"
+
+        let parser = Thread { [weak self] in
+            while true {
+                guard let self = self else { return }
+                guard let chunk = self.ring.nextForRead() else {
+                    // Drained and closed: every byte the shell wrote has been
+                    // parsed before anyone is told it exited.
                     self.onExit?()
                     return
                 }
+                self.onData?(UnsafePointer(chunk.base), chunk.count)
+                self.ring.release(chunk)
             }
         }
-        thread.name = "pty-reader"
-        thread.start()
-        readerThread = thread
+        parser.name = "pty-parser"
+
+        readerThread = reader
+        parserThread = parser
+        reader.start()
+        parser.start()
     }
 
     /// Writes bytes to the shell's input.
@@ -147,12 +194,21 @@ final class Pty: @unchecked Sendable {
         // is still allowed to be inside starling_conpty_read on `h`.
         starling_conpty_shutdown(h)
 
+        // Shutdown only wakes a reader parked in ReadFile. With the ring in
+        // front of the parser the reader can instead be parked in
+        // acquireForWrite waiting for a free slot, which no console close
+        // reaches — so close the ring too. This also releases the parser once
+        // it has drained, which is what lets both threads below finish.
+        ring.close()
+
         // Join before freeing. Without this the reader could be dereferencing
         // the struct as it is released.
-        if let t = readerThread, !t.isFinished {
+        for t in [readerThread, parserThread] {
+            guard let t = t else { continue }
             while !t.isFinished { Thread.sleep(forTimeInterval: 0.002) }
         }
         readerThread = nil
+        parserThread = nil
 
         handleLock.lock()
         handle = nil

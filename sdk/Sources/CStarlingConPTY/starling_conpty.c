@@ -318,6 +318,19 @@ int32_t starling_conpty_read(StarlingConPty* pty, uint8_t* buf, int32_t len) {
   return (int32_t)got;
 }
 
+int32_t starling_conpty_avail(StarlingConPty* pty) {
+  if (pty == NULL || pty->output_read == NULL) {
+    return 0;
+  }
+  DWORD avail = 0;
+  // Every failure mode — closed handle, broken pipe, shutdown racing us — is
+  // reported as "nothing waiting". The reader then falls back to its blocking
+  // read, which is where EOF is detected properly.
+  if (!PeekNamedPipe(pty->output_read, NULL, 0, NULL, &avail, NULL)) {
+    return 0;
+  }
+  return (int32_t)avail;
+}
 
 int32_t starling_conpty_write(StarlingConPty* pty, const uint8_t* buf, int32_t len) {
   if (pty == NULL || buf == NULL || len <= 0) {
