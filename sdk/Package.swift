@@ -619,23 +619,6 @@ targets += [
     ),
 ]
 
-// The twenty-line terminal: TerminalSession + TerminalView, nothing else.
-// Its own append — every targets literal here sits near the manifest
-// type-checker's time budget, and one more entry in either tips it over.
-targets += [
-    .executableTarget(
-        name: "TerminalDemo",
-        dependencies: [
-            "Flutter",
-            "ExampleHost",
-            "FlutterSwiftBridge",
-        ],
-        path: "Examples/TerminalDemo",
-        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
-        linkerSettings: engineLinkSettings
-    ),
-]
-
 // The ported example apps, appended separately: one more entry in the array
 // literal above tips the manifest type-checker over its time budget.
 //
@@ -783,6 +766,33 @@ if staticEngine {
         )]
     }
 }
+#endif
+
+// --- Cross-platform example apps ---------------------------------------------
+
+// The twenty-line terminal: TerminalSession + TerminalView, nothing else.
+// Declared as a product on BOTH Linux and Windows, so the target append must
+// sit outside either platform's region — inside `#if os(Linux)` the Windows
+// product dangled and SwiftPM refused the whole graph, so *nothing* built on
+// Windows. ExampleHost is the Win32-hosted target there; CounterApp above is
+// the same shape.
+//
+// Its own append — every targets literal here sits near the manifest
+// type-checker's time budget, and one more entry in either tips it over.
+#if os(Linux) || os(Windows)
+targets += [
+    .executableTarget(
+        name: "TerminalDemo",
+        dependencies: [
+            "Flutter",
+            "ExampleHost",
+            "FlutterSwiftBridge",
+        ],
+        path: "Examples/TerminalDemo",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
+]
 #endif
 
 // --- Package declaration -----------------------------------------------------
