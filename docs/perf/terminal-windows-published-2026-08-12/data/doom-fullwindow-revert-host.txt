@@ -1,0 +1,12 @@
+# revert-host proc=TerminalApp grid=40x120 frames=600
+BENCHFPS frames=600 seconds=0.972 fps=617.28
+  cpu_s 1.13
+BENCHFPS frames=600 seconds=0.957 fps=626.96
+  cpu_s 1.30
+BENCHFPS frames=600 seconds=0.946 fps=634.25
+  cpu_s 1.06
+BENCHFPS frames=600 seconds=0.943 fps=636.27
+  cpu_s 1.05
+BENCHFPS frames=600 seconds=0.965 fps=621.76
+  cpu_s 0.88
+DONE

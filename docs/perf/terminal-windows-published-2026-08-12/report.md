@@ -220,10 +220,36 @@ proportionally a larger share of it. (Spread is ~10% per build and the
 difference is about 2 standard errors, so read it as "no benefit here",
 not as a precise -5%.)
 
-**Merged accordingly: the bundled host and the staging tooling went to `main`
-(5cf98c6); the split did not.** It remains on `windows-terminal-conpty` as one
-cherry-pick, worth revisiting if a full-window (non-pane) terminal comes back,
-or for any workload that pushes per-frame parse back onto the critical path.
+### Resolved by reverting the panes
+
+The pane workspace was reverted (`c82b6e7`), which restores the full-window
+terminal and the 40x120 grid, and the split was measured again on that tree —
+5 reps per build, same host, grid verified:
+
+| build (40x120) | median fps | range |
+|---|---|---|
+| revert, host only | 627.0 | 617-636 |
+| **revert, host + split** | **716.9** | 698-743 |
+
+**+14.3%, and the ranges do not overlap** — a much cleaner separation than the
+28x105 comparison, where both builds sat inside one ~10% band.
+
+The whole picture, one commit, opposite signs:
+
+| layout | grid | ms/frame | split |
+|---|---|---|---|
+| floating panes | 28x105 | ~0.88 | **-5.2%** |
+| full window | 40x120 | ~1.6 | **+14.3%** |
+
+The mechanism is cell count per frame. A pane frame carries 39% fewer cells and
+completes in about half the time, so there is little per-frame parse to hide
+behind transport and the split's thread handoffs are the larger share of what
+remains; a full-window frame leaves plenty to overlap.
+
+**Landed on `main`: the bundled host and staging tooling (5cf98c6), the panes
+revert (c82b6e7), and the split (4863511).** If the pane workspace returns,
+re-measure the split before assuming it still pays — that is the whole point of
+this section.
 
 The general lesson is the one this investigation kept re-teaching: **a
 measurement belongs to the tree it was taken on.** The 40x120 numbers were not

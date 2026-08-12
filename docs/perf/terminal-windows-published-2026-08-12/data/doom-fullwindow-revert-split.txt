@@ -1,0 +1,12 @@
+# revert-split proc=TerminalApp grid=40x120 frames=600
+BENCHFPS frames=600 seconds=0.859 fps=698.49
+  cpu_s 1.25
+BENCHFPS frames=600 seconds=0.808 fps=742.57
+  cpu_s 1.09
+BENCHFPS frames=600 seconds=0.837 fps=716.85
+  cpu_s 1.47
+BENCHFPS frames=600 seconds=0.853 fps=703.40
+  cpu_s 2.17
+BENCHFPS frames=600 seconds=0.834 fps=719.42
+  cpu_s 1.05
+DONE
