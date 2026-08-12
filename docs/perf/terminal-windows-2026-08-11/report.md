@@ -1,58 +1,139 @@
-# TerminalApp on Windows — first perf look, and it is not close
+# TerminalApp on Windows — level with Windows Terminal, except on plain cells
 
-2026-08-11, the win11 libvirt VM (4 vCPU, QXL display at 1280x800), current
-main (C core + extent blanking + wide cells + grapheme clusters) built with
+2026-08-11, the win11 libvirt VM (4 vCPU, QXL display at 1280x800).
+Measured at **`8fea923`** — named rather than called "main" because the
+floating-pane workspace (`4cdb460`) landed on top of it while this rerun was
+in flight, and that commit touches `TerminalView`. Built with
 `sdk/tools/build-windows.ps1 -Configuration release` against the Aug-5
-host_release engine. One source fix was needed: `PtyWindows.swift` still
-had the pre-split `onData([UInt8])` surface; it now matches the POSIX
-side's zero-copy `(UnsafePointer<UInt8>, Int)`.
+host_release engine.
 
-There is no ghostty on Windows (macOS/Linux only), so the rival is
-**Windows Terminal** — the default, and the only other terminal the VM can
-run: alacritty installs but needs OpenGL 3.3+, which the QXL adapter does
-not provide (WT survives on DirectX/WARP).
+**This report was published earlier the same day with numbers that were
+wrong, and the corrections are large.** What that first pass got wrong, and
+why, is at the bottom — it is the more useful half of the writeup. The table
+here supersedes it entirely.
 
-Protocol: both terminals at exactly **120x40** (ours via
-`STARLING_WINDOW_W=960/H=620` — Windows font metrics give different cell
-sizes than Linux, so the pixel request was calibrated empirically; WT via
-`--size 120,40`), corpus regenerated for that grid
-(`gen-bench.py C:\bench 120 40`), `test/bench/windows-runner.ps1` run
-inside each terminal via the interactive scheduled task, `cmd /c type` as
-the writer. Single rep — the gaps dwarf rep noise. Raw: `data/`.
+There is no ghostty on Windows (macOS/Linux only), so the rival is **Windows
+Terminal** — the default, and the only other terminal the VM can run:
+alacritty installs but needs OpenGL 3.3+, which the QXL adapter does not
+provide (WT survives on DirectX/WARP).
+
+Protocol: both terminals at a **verified** 120x40 — ours via
+`STARLING_WINDOW_W=960/H=620`, WT via `--size 120,40`, and in both cases the
+grid the runner recorded in its own header was checked, not assumed. Corpus
+generated for that grid (`gen-bench.py C:\bench 120 40`),
+`test/bench/windows-runner.ps1` run inside each terminal via the interactive
+scheduled task, `cmd /c type` as the writer, **2 reps, median**, on a VM
+warm for hours. Raw: `data/res-ours-warm.txt`, `data/res-wt-warm.txt`.
 
 | workload | ours | Windows Terminal | ours/WT |
 |---|---|---|---|
-| 01_light_cells | 10.47 | 4.52 | 2.3x |
-| 02_dense_cells | 8.65 | 7.05 | 1.2x |
-| 03_sgr_fg | **248.6** | 17.96 | **13.8x** |
-| 04_sgr_truecolor | 34.8 | 27.8 | 1.3x |
-| 05_unicode | 18.5 | 14.2 | 1.3x |
-| 06_cursor_motion | 1.53 | 1.50 | 1.0x |
-| 07_alt_screen | 18.5 | 8.12 | 2.3x |
-| 08_scroll_region | 37.4 | 18.3 | 2.0x |
-| 09_long_lines | 11.96 | 9.40 | 1.3x |
-| 10_binary | 21.6 | 13.9 | 1.6x |
+| 01_light_cells | 9.36 | 4.18 | **2.24x** |
+| 02_dense_cells | 7.06 | 6.59 | 1.07x |
+| 03_sgr_fg | 17.81 | 17.70 | 1.01x |
+| 04_sgr_truecolor | 23.89 | 25.21 | **0.95x** |
+| 05_unicode | 14.18 | 13.16 | 1.08x |
+| 06_cursor_motion | 1.32 | 1.35 | **0.98x** |
+| 07_alt_screen | 7.77 | 7.65 | 1.02x |
+| 08_scroll_region | 16.46 | 16.98 | **0.97x** |
+| 09_long_lines | 9.25 | 8.80 | 1.05x |
+| 10_binary | 15.17 | 13.16 | 1.15x |
+| **total** | **122.3** | **114.8** | **1.07x** |
 
-Context that keeps these numbers honest:
+| | ours | WT |
+|---|---|---|
+| CPU seconds, whole suite | **45.4** | 107.6 |
+| peak RSS | **36 MB** | 95 MB |
 
-- **Everything is 20-1000x slower than Linux for BOTH terminals** — ConPTY
-  interprets the writer's output into its own buffer and re-emits a
-  synthesized VT stream, and that pipeline, not the terminal, sets the
-  scale (Linux sgr_fg: 0.26 s; WT: 18 s). Relative numbers still
-  discriminate: WT beats us everywhere.
-- **Our Windows path has had zero performance work.** Every optimization
-  round to date was Linux: the reader here is the pre-split serial loop
-  (no ChunkRing, no drain-into-slot), and none of the read-path findings
-  have been ported.
-- **sgr_fg at 248.6 s (42 s terminal CPU, the rest stalled) is a
-  pathology, not a throughput number** — 0.17 MB/s. Something in our
-  ConPTY path goes quadratic-or-timeout-shaped on escape-dense
-  re-synthesized streams; first suspects are per-chunk repaint scheduling
-  against Foundation-on-Windows timer resolution, and the
-  read-parse-repaint serialization the Linux split removed. Diagnose
-  before optimizing anything else here.
+Rep-to-rep spread was under 3% on every workload except our `05_unicode`
+(5.1%); most were under 1%.
 
-The port itself is healthy: current main builds with one signature fix,
-runs, renders PowerShell, and survives the full corpus. The perf story is
-where Linux was in early August, pre-round-9: unmeasured until today, and
-now measured to be the next project.
+## What is true
+
+- **On the whole suite we are 7% behind, and one workload is the entire
+  gap.** Drop `01_light_cells` and the totals are 112.9 vs 110.6 — **1.02x,
+  a dead heat**. `light_cells` alone is 5.2 s of the 7.5 s difference.
+- **We win three outright** (`sgr_truecolor`, `cursor_motion`,
+  `scroll_region`) and are inside 2% on two more (`sgr_fg`, `alt_screen`).
+  The escape-heavy and scrolling workloads — the ones the C core was built
+  for — are where we are strongest, which is the result the Linux work
+  predicts.
+- **We do it on 42% of the CPU and 38% of the memory.** 45.4 CPU-seconds
+  against 107.6 is the most interesting number in the table: on a 4-vCPU
+  box, wall-clock parity at less than half the CPU means the ConPTY
+  pipeline, not the terminal, is holding the clock. `10_binary` is the
+  clearest case — WT spends 25.6 CPU-seconds to our 2.6 and still finishes
+  ahead on wall.
+- **`01_light_cells` at 2.24x is the one real deficit**, and it is
+  reproducible (1.9% spread). It is also the workload with the least escape
+  processing and the most raw line traffic — consistent with the standing
+  suspicion that our Windows reader is the pre-split serial loop:
+  `ChunkRing` and the drain-into-slot work that fixed exactly this shape on
+  Linux were never ported to `PtyWindows`. That is the next piece of work,
+  and it is now the *only* one the data supports.
+
+Context that keeps these honest: **everything here is 20-1000x slower than
+Linux for both terminals** — ConPTY interprets the writer's output into its
+own buffer and re-emits a synthesized VT stream, and that pipeline sets the
+scale (Linux `sgr_fg`: 0.26 s). Only within-Windows ratios mean anything.
+And our Windows path has still had zero performance work; this is what it
+does before anyone has optimized it.
+
+## What the first version got wrong, and why
+
+Two errors, one cause: **the pilot was run minutes after the VM booted**,
+with Defender still churning through a fresh `winget install`. Its raw data
+is kept as `data/res-{ours,wt}-pilot-RETRACTED.txt`. It reported:
+
+- **`03_sgr_fg` at 248.6 s — "13.8x behind"**, and a whole paragraph
+  diagnosing it as a pathology: 0.17 MB/s, "quadratic-or-timeout-shaped",
+  with per-chunk repaint scheduling and Foundation timer resolution named as
+  first suspects. **There is no pathology.** Warm, the same workload runs
+  **17.81 s against WT's 17.70 — parity.** The published figure was 14x its
+  own true value, and the paragraph of mechanism was reasoning about noise.
+- **A grid mismatch the report denied.** It claimed both terminals ran
+  "exactly 120x40". The raw data it shipped alongside records ours at
+  `45x119` and WT at `40x120` — so the published table compared a 45-row
+  terminal against a 40-row one, and said in prose that it hadn't. At the
+  same 960x620 request the build now lands on `40x120` three probes running,
+  so that too was the first boot's transient, not a calibration error.
+
+Every workload was inflated, not just the headline — `07_alt_screen` by
+2.37x, `08_scroll_region` by 2.27x, and the rest by 12-46%:
+
+| workload | published | corrected | inflation |
+|---|---|---|---|
+| 01_light_cells | 10.46 | 9.36 | 1.12x |
+| 02_dense_cells | 8.65 | 7.06 | 1.22x |
+| 03_sgr_fg | 248.59 | 17.81 | **13.96x** |
+| 04_sgr_truecolor | 34.82 | 23.89 | 1.46x |
+| 05_unicode | 18.53 | 14.18 | 1.31x |
+| 06_cursor_motion | 1.53 | 1.32 | 1.16x |
+| 07_alt_screen | 18.46 | 7.77 | 2.37x |
+| 08_scroll_region | 37.44 | 16.46 | 2.27x |
+| 09_long_lines | 11.96 | 9.25 | 1.29x |
+| 10_binary | 21.60 | 15.17 | 1.42x |
+
+WT's column was inflated too (`light_cells` 4.52 → 4.18, `sgr_truecolor`
+27.75 → 25.21), just far less — which is exactly why the ratios looked
+plausible enough to publish. The pilot's conclusion, "WT beats us
+everywhere", was wrong in both directions at once: we win three and tie two.
+
+Three rules came out of this, all cheap:
+
+1. **The first run after a VM boots is not data.** Nothing about the
+   terminal changed between the two runs in this document.
+2. **Print the grid and read it.** The runner already recorded the grid in
+   its header; the mismatch was sitting in the shipped data file the whole
+   time, contradicting the prose one directory away.
+3. **Do not write mechanism for a number you have measured once.** The
+   pathology paragraph was the most confident-sounding part of the report
+   and the only part describing something that does not exist. A second rep
+   would have cost 18 seconds.
+
+The port itself is healthy: current main builds, runs, renders PowerShell,
+and survives the full corpus — on a third of WT's memory and 42% of its CPU.
+
+(Both runs here also required a manifest fix, `8fea923`: the `TerminalDemo`
+product was declared for Windows while its target was appended only under
+`#if os(Linux)`, and SwiftPM refuses the entire graph for one dangling
+product — so nothing in the package built on Windows at all.)

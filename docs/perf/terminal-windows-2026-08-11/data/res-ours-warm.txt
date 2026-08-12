@@ -1,0 +1,23 @@
+# oursA proc=TerminalApp grid=40x120
+01_light_cells 1 9.449 0.44
+01_light_cells 2 9.267 0.48
+02_dense_cells 1 6.957 1.89
+02_dense_cells 2 7.171 1.19
+03_sgr_fg 1 17.867 6.73
+03_sgr_fg 2 17.760 6.42
+04_sgr_truecolor 1 23.845 8.50
+04_sgr_truecolor 2 23.942 11.09
+05_unicode 1 13.819 7.55
+05_unicode 2 14.540 7.30
+06_cursor_motion 1 1.313 0.67
+06_cursor_motion 2 1.327 1.33
+07_alt_screen 1 7.743 1.48
+07_alt_screen 2 7.805 1.20
+08_scroll_region 1 16.660 6.81
+08_scroll_region 2 16.258 12.56
+09_long_lines 1 9.229 6.53
+09_long_lines 2 9.274 3.48
+10_binary 1 15.231 2.22
+10_binary 2 15.108 2.97
+rss_kb 36424
+DONE

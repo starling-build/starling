@@ -1,0 +1,23 @@
+# wtA proc=WindowsTerminal grid=40x120
+01_light_cells 1 4.191 2.88
+01_light_cells 2 4.166 2.72
+02_dense_cells 1 6.628 5.19
+02_dense_cells 2 6.559 5.28
+03_sgr_fg 1 17.727 15.20
+03_sgr_fg 2 17.666 15.06
+04_sgr_truecolor 1 25.240 20.88
+04_sgr_truecolor 2 25.186 20.50
+05_unicode 1 13.100 10.84
+05_unicode 2 13.216 10.88
+06_cursor_motion 1 1.350 0.91
+06_cursor_motion 2 1.348 1.09
+07_alt_screen 1 7.578 5.91
+07_alt_screen 2 7.714 6.00
+08_scroll_region 1 16.924 13.52
+08_scroll_region 2 17.040 13.41
+09_long_lines 1 8.777 6.73
+09_long_lines 2 8.829 6.92
+10_binary 1 13.242 25.50
+10_binary 2 13.087 25.69
+rss_kb 96852
+DONE
