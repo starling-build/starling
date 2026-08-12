@@ -68,14 +68,18 @@ public final class RemoteTerminal: @unchecked Sendable {
                 host: String,
                 attach: UInt32? = nil,
                 command: String? = nil,
-                sshPath: String = "ssh",
-                serverPath: String = "starling-termd") {
+                sshPath: String? = nil,
+                serverPath: String? = nil) {
         self.session = session
         self.host = host
         self.remoteId = attach
         self.command = command
-        self.sshPath = sshPath
-        self.serverPath = serverPath
+        // Overridable because not every site reaches its machines with the
+        // stock `ssh` (a wrapper, a jump script, a different binary), and
+        // because a test needs to drive the transport without an sshd.
+        let env = ProcessInfo.processInfo.environment
+        self.sshPath = sshPath ?? env["STARLING_SSH"] ?? "ssh"
+        self.serverPath = serverPath ?? env["STARLING_TERMD"] ?? "starling-termd"
 
         // Keys and query responses go up the wire; the grid stays here.
         session.onOutput = { [weak self] text in
@@ -153,7 +157,11 @@ public final class RemoteTerminal: @unchecked Sendable {
         guard pipe(&inPipe) == 0, pipe(&outPipe) == 0 else { return false }
 
         var argv: [String]
-        if host.isEmpty || host == "local" || host == "localhost" {
+        // Only "local" skips ssh. `localhost` is a real ssh destination and
+        // must go through it — quietly short-circuiting the transport for the
+        // one host most likely to be used for testing it would hide exactly
+        // the bugs that testing is for.
+        if host.isEmpty || host == "local" {
             argv = [serverPath, "--stdio"]
         } else {
             // -T: no tty on the ssh channel. The stream must be the session's

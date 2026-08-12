@@ -34,3 +34,32 @@ offsets** from the first byte a session ever produced, which is what makes
 a reattach exact; a session keeps the last 8 MB, and an `ATTACH` older than
 that is answered with the oldest byte still held (`ATTACHED` says where it
 actually resumed, so a gap is visible rather than silent).
+
+## From the client
+
+Any Starling terminal can attach. In the workspace example, type a command
+of this shape into a new pane:
+
+```
+remote:prod-1              # open (or re-open) a session on that ssh host
+remote:prod-1/12           # re-attach session 12 specifically
+remote:prod-1 -- htop      # open one that runs a command instead of a shell
+remote:local               # the daemon on this machine, no ssh in between
+```
+
+`RemoteTerminal` (in the sdk) spawns `ssh <host> starling-termd --stdio`,
+speaks the protocol above, and feeds a headless `TerminalSession`. The
+widget above it is unchanged — same grid, same keys, same resize.
+
+`$STARLING_SSH` overrides the ssh binary (a wrapper, a jump script) and
+`$STARLING_TERMD` the server-side path, for sites where neither is on the
+default PATH.
+
+If the link drops, the pane says so in its own scrollback and reconnects
+with backoff, resuming at the byte offset it had reached:
+
+```
+tick-11
+[link lost — reconnecting…]
+tick-12
+```
