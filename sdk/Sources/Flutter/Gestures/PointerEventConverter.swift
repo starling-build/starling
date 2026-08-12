@@ -50,6 +50,16 @@ public enum PointerEventConverter {
 
     // MARK: - Private Helpers
 
+    /// Last cumulative pan of each pan/zoom gesture, by device.
+    ///
+    /// The embedder API carries only the CUMULATIVE pan (`pan_x`/`pan_y`) —
+    /// there is no delta field on the wire — so the per-event delta has to be
+    /// remembered here, exactly as Dart's converter does with its
+    /// `PointerState`. Reading a `panDelta` off the datum yields zero for
+    /// every event, which is a touchpad that reports its whole gesture and
+    /// still scrolls nothing.
+    private nonisolated(unsafe) static var _lastPan: [Int: Offset] = [:]
+
     /// Converts a physical-pixel measurement to logical pixels.
     ///
     /// **Dart Source:** `converter.dart:320-321`
@@ -277,6 +287,7 @@ public enum PointerEventConverter {
                     )
 
                 case .panZoomStart:
+                    _lastPan[device] = Offset.zero
                     return PointerPanZoomStartEvent(
                         viewId: viewId,
                         timeStamp: timeStamp,
@@ -292,10 +303,9 @@ public enum PointerEventConverter {
                         datum.panX / devicePixelRatio,
                         datum.panY / devicePixelRatio
                     )
-                    let panDelta = Offset(
-                        datum.panDeltaX / devicePixelRatio,
-                        datum.panDeltaY / devicePixelRatio
-                    )
+                    let lastPan = _lastPan[device] ?? Offset.zero
+                    let panDelta = Offset(pan.dx - lastPan.dx, pan.dy - lastPan.dy)
+                    _lastPan[device] = pan
                     return PointerPanZoomUpdateEvent(
                         viewId: viewId,
                         timeStamp: timeStamp,
@@ -311,6 +321,7 @@ public enum PointerEventConverter {
                     )
 
                 case .panZoomEnd:
+                    _lastPan.removeValue(forKey: device)
                     return PointerPanZoomEndEvent(
                         viewId: viewId,
                         timeStamp: timeStamp,
