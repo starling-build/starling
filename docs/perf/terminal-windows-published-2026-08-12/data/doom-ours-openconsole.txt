@@ -1,0 +1,8 @@
+# ours-oc proc=TerminalApp grid=40x120 frames=600
+BENCHFPS frames=600 seconds=1.011 fps=593.47
+  cpu_s 1.33
+BENCHFPS frames=600 seconds=0.946 fps=634.25
+  cpu_s 1.36
+BENCHFPS frames=600 seconds=1.002 fps=598.80
+  cpu_s 1.31
+DONE

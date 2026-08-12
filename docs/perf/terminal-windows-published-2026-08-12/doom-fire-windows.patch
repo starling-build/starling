@@ -1,0 +1,37 @@
+--- /var/tmp/doomfire/src/main.zig	2026-08-04 12:22:35.772979874 -0700
++++ /var/tmp/doomfire-win/src/main.zig	2026-08-12 00:33:22.534352278 -0700
+@@ -333,12 +333,23 @@
+ // doom-fire
+ /////////////////
+ 
++// BENCH: DOOMFIRE_FRAMES lookup that also compiles on Windows.
++// std.posix.getenv is a compile error there (environment strings are WTF-16),
++// so go through std.process, which is cross-platform. A fixed buffer keeps it
++// allocation-free and safe to call from the render loop.
++fn benchFrameLimit() ?u64 {
++    var buf: [64]u8 = undefined;
++    var fba = std.heap.FixedBufferAllocator.init(&buf);
++    const v = std.process.getEnvVarOwned(fba.allocator(), "DOOMFIRE_FRAMES") catch return null;
++    return std.fmt.parseInt(u64, v, 10) catch 600;
++}
++
+ pub fn pause() !void {
+     //todo - poll / read a keystroke w/out echo, \n etc
+ 
+     // BENCH: non-interactive when DOOMFIRE_FRAMES is set. Emits nothing extra,
+     // so the byte stream the terminal renders is unchanged.
+-    if (std.posix.getenv("DOOMFIRE_FRAMES") != null) return;
++    if (benchFrameLimit() != null) return;
+ 
+     try emit(color_reset);
+     try emit("Press return to continue...");
+@@ -698,8 +709,7 @@
+     // BENCH: stop after a fixed number of frames so every terminal is asked
+     // for exactly the same work, and report on stderr where it cannot perturb
+     // the rendered stream.
+-    if (std.posix.getenv("DOOMFIRE_FRAMES")) |lim_s| {
+-        const lim = std.fmt.parseInt(u64, lim_s, 10) catch 600;
++    if (benchFrameLimit()) |lim| {
+         if (bs_frame_tic >= lim) {
+             std.io.getStdErr().writer().print(
+                 "BENCHFPS frames={d} seconds={d:.3} fps={d:.2}\n",

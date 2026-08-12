@@ -1,0 +1,8 @@
+# wt proc=WindowsTerminal grid=40x120 frames=600
+BENCHFPS frames=600 seconds=0.850 fps=705.88
+  cpu_s 1.97
+BENCHFPS frames=600 seconds=0.783 fps=766.28
+  cpu_s 1.91
+BENCHFPS frames=600 seconds=0.797 fps=752.82
+  cpu_s 1.86
+DONE
