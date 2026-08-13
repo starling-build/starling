@@ -80,14 +80,60 @@ final class TerminalGridPainter: CustomPainter {
     /// the per-cell tint layer costs more than the batching saves, exactly as
     /// predicted above. Kept as the recorded answer; numbers and the probe
     /// diff are in docs/plans/terminal-perf-macos.md (Lever 2).
-    static let paragraphMode =
-        ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] == "2"
+    /// AND IT IS THE DEFAULT ON iOS, where the atlas image cannot be used.
+    /// Two engine-level problems stand between iOS and the blit, one fixed
+    /// and one open:
+    ///
+    ///   * `Picture.toImageSync`'s bridge always rasterised through Skia,
+    ///     and iOS renders with Impeller — `FML_CHECK(blob) << "Impeller
+    ///     DlText cannot be drawn to a Skia canvas."` aborted the process on
+    ///     the terminal's first paint. FIXED: the shell now routes the bridge
+    ///     through the rasteriser's own snapshot (SwiftBridgeEngineRegistry::
+    ///     SetSnapshotCallback), so building the image works.
+    ///   * With the image built, sampling it PER-SLOT comes out wrong under
+    ///     Impeller: every glyph renders with a band of misplaced content,
+    ///     while the same texture drawn whole — via drawImage, a whole-image
+    ///     drawRawAtlas, or drawImageRect — is pixel-perfect, and the same
+    ///     slot arithmetic against a rect-drawn texture of the same shape is
+    ///     also clean. Verified not to be: the tint path, the sampler, mips,
+    ///     partial repaint, deferred-vs-sync rasterisation, or the rect and
+    ///     transform values (printed and checked by hand). OPEN; the one
+    ///     untested hypothesis is the per-call vertex volume (the clean
+    ///     synthetic repro peaked at 448 quads, the corrupted real frames at
+    ///     ~707, and vertex data is emplaced contiguously per call into the
+    ///     engine's partitioned host buffer).
+    ///
+    /// Until the second is found, this mode — every glyph a cached paragraph,
+    /// placed per cell — is the iOS default: it keeps per-cell placement,
+    /// which box-drawing runs depend on, and needs no atlas image at all.
+    /// `STARLING_TERM_ATLAS=1` forces the blit on for engine work.
+    static let paragraphMode: Bool = {
+        if let env = ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] {
+            return env == "2"
+        }
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }()
 
     /// Laid out once per distinct glyph, painted at every cell that wants it.
     /// Static so it survives the per-frame painter, like the atlas does.
     private struct GlyphKey: Hashable { let scalar: UInt32; let bold: Bool }
     private static var paragraphCache: [GlyphKey: any Paragraph] = [:]
     private static var paragraphBaseline: Double = 0
+
+    /// The metrics the cache was shaped for. The key deliberately omits the
+    /// font — every entry shares one — so a font change must dump the lot, or
+    /// the stale entries keep painting: a paragraph laid out at the old size,
+    /// clipped to the new cell by the saveLayer in `paintCachedGlyph`, shows
+    /// as every glyph missing its top. The window where the two sizes differ
+    /// is real and ordinary — a session that starts producing output before
+    /// the first `_refit` has fitted the font to the width paints exactly
+    /// there — so this is not a can't-happen guard.
+    private static var cacheFontSize: Double = 0
+    private static var cacheFontFamily: String = ""
 
     private let lines: [[TermCell]]
     private let cols: Int
@@ -180,8 +226,20 @@ final class TerminalGridPainter: CustomPainter {
                 // shapes them (see TerminalGlyphAtlas.rebuildIfNeeded), so
                 // they fill the cell exactly and still cost one quad.
                 if Self.paragraphMode, TerminalGlyphAtlas.canDraw(cell) {
-                    paintCachedGlyph(canvas, scalar: cell.scalar, bold: bold,
-                                     x: x, y: y, fg: fg)
+                    // Box and block characters are drawn from the CELL here
+                    // too, not just in the atlas. Shaped, the font sizes a box
+                    // glyph to its own advance, so a border drawn as a run of
+                    // U+2500 is a chain of short dashes — Claude Code's input
+                    // frame is exactly that run, and on iOS this mode is the
+                    // default, so the defect would be the shipped rendering.
+                    if TerminalBoxGlyphs.handles(cell.scalar) {
+                        TerminalBoxGlyphs.draw(canvas, scalar: cell.scalar,
+                                               x: x, y: y, w: cellW, h: cellH,
+                                               color: fg, scale: atlas.scale)
+                    } else {
+                        paintCachedGlyph(canvas, scalar: cell.scalar, bold: bold,
+                                         x: x, y: y, fg: fg)
+                    }
                 } else if !Self.paragraphMode, TerminalGlyphAtlas.canDraw(cell),
                           let src = atlas.rect(for: cell.scalar, bold: bold) {
                     let s = Float(atlas.blitScale)
@@ -253,6 +311,12 @@ final class TerminalGridPainter: CustomPainter {
     /// keeping the cache keyed on the glyph alone.
     private func paintCachedGlyph(_ canvas: any Canvas, scalar: UInt32,
                                   bold: Bool, x: Double, y: Double, fg: UInt32) {
+        if font.size != Self.cacheFontSize || font.family != Self.cacheFontFamily {
+            Self.paragraphCache.removeAll()
+            Self.paragraphBaseline = 0
+            Self.cacheFontSize = font.size
+            Self.cacheFontFamily = font.family
+        }
         let key = GlyphKey(scalar: scalar, bold: bold)
         let paragraph: any Paragraph
         if let hit = Self.paragraphCache[key] {
@@ -318,8 +382,8 @@ final class TerminalGridPainter: CustomPainter {
         let picture = recorder.endRecording()
         let w = max(1, Int((size.width * scale).rounded()))
         let h = max(1, Int((size.height * scale).rounded()))
-        let image = picture.toImageSync(width: w, height: h)
-        guard let bytes = try? image.toByteData(format: .rawStraightRgba)
+        guard let image = picture.toImageSync(width: w, height: h),
+              let bytes = try? image.toByteData(format: .rawStraightRgba)
         else { return }
         var out = Data("RGBA \(w) \(h)\n".utf8)
         out.append(bytes)

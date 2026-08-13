@@ -77,6 +77,10 @@ static CGSize g_window_size = {0, 0};
     [child.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
   ]];
   [_flutter didMoveToParentViewController:self];
+
+  // The key-input responder goes inside the Flutter view, not beside it — see
+  // fluikit_keyboard.m for why the responder chain makes that load-bearing.
+  fluikit_keyboard_attach((__bridge void*)child);
 }
 
 // The status bar over a terminal is white-on-black like everything else here.

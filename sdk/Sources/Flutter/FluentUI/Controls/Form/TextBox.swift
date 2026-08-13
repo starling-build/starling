@@ -169,6 +169,15 @@ class _TextBoxState: State<StatefulWidget> {
             }
             if focused {
                 self._startCaretBlink()
+                // A focused field on a touch device has to ask for the keys.
+                // Every text field in the framework — Fluent and Macos alike —
+                // is this widget underneath, so asking here is what makes them
+                // all typable on a phone rather than each wiring its own.
+                //
+                // Only on gain. Hiding on loss would close the keyboard for the
+                // instant between one field blurring and the next focusing,
+                // which on a form is every time you move between two fields.
+                SoftKeyboard.show()
             } else {
                 self._stopCaretBlink()
             }

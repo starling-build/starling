@@ -54,6 +54,9 @@ public final class UIKitHost {
         let box = Unmanaged.passRetained(Box(builder)).toOpaque()
         _ = fluikit_host_run(title, UnsafeRawPointer(callbacks), { userData in
             guard let userData else { return }
+            // Before the tree is mounted: a widget's initState may already want
+            // to know whether this host has a keyboard to offer.
+            UIKitSoftKeyboard.install()
             let box = Unmanaged<Box>.fromOpaque(userData).takeUnretainedValue()
             runApp(box.builder())
         }, box)

@@ -26,7 +26,14 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
 
     override func initState() {
         super.initState()
-        #if !os(iOS)
+        #if os(iOS)
+        // Connect straight away when the environment named a target — the
+        // simulator dev loop, which cannot tap a button. See
+        // SSHTarget.fromEnvironment.
+        if let target = SSHTarget.fromEnvironment() {
+            connect(target)
+        }
+        #else
         session.startShell()
         #endif
     }

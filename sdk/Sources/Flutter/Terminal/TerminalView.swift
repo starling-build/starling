@@ -538,7 +538,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         let appCursor = emulator.applicationCursorKeys
         _lock.unlock()
 
-        if let bytes = TerminalInput.bytes(for: keyData, appCursor: appCursor) {
+        if let bytes = TerminalInput.bytes(
+            for: keyData, appCursor: appCursor, shift: _shiftDown) {
             session.write(bytes)
             return true
         }
@@ -778,6 +779,26 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         let size = (usable / Double(columns)) / _advanceRatio
         guard size > 0, abs(size - _fontSize) > 0.0001 else { return false }
         _measureCell(size: size)
+
+        // `_measureCell` does not necessarily hand back the cell it was asked
+        // for: with the atlas on it snaps the width UP to whole device pixels,
+        // and `_gridSize` then lays out `columns` of them without dividing back
+        // out — so the grid is wider than the width it was fitted to, by up to
+        // one device pixel per column. At 80 columns on a 3x phone that is
+        // ~26pt of a ~400pt screen running off the right edge: the rightmost
+        // few columns are simply not on the display, which reads as the fit
+        // being wrong rather than as a rounding step after it.
+        //
+        // Neither behaviour is wrong alone — snapping is what keeps a glyph
+        // blit 1:1, and fitting is what keeps the column count fixed across a
+        // rotation. They only disagree when both are on, which is now the
+        // default. One correction is enough: the snap adds less than a device
+        // pixel, so shrinking by the measured overflow cannot re-cross it.
+        let laidOut = cellW * Double(columns)
+        if laidOut > usable + 0.0001 {
+            let corrected = size * (usable / laidOut)
+            if corrected > 0 { _measureCell(size: corrected) }
+        }
         return true
     }
 
@@ -1006,6 +1027,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                         _selAnchor = nil
                         _selHead = nil
                     }
+                    // ...and, where there is one, asks for the on-screen
+                    // keyboard. Raised from the tap rather than from focus,
+                    // because dismissing it with the bar's own button leaves
+                    // this view focused the whole time — keyed on focus, the
+                    // tap that means "give it back" would do nothing.
+                    SoftKeyboard.show()
                 }
             },
             onPointerCancel: { [self] event in
@@ -1078,6 +1105,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// stays in-tree unchanged as the comparison baseline. "2" selects the
     /// cached-paragraph experiment (measured, and it lost — see the painter);
     /// the painter branches on `TerminalGridPainter.paragraphMode`.
+    /// On everywhere, including iOS — but iOS runs the painter in paragraph
+    /// mode rather than blitting: the whole story, including the fixed crash
+    /// and the still-open Impeller sampling defect, is on
+    /// `TerminalGridPainter.paragraphMode`.
     private static let _useAtlas: Bool = {
         ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] != "0"
     }()

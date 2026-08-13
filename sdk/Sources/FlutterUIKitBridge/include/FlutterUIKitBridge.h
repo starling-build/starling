@@ -3,9 +3,14 @@
 
 // The UIKit host for a FlutterSwift app: the engine's real iOS embedder
 // (Flutter.framework — FlutterViewController, Metal rendering, touch input,
-// the software keyboard, a11y) inside an ordinary UIWindow, with the engine
-// started in Swift mode so the Swift framework drives frames instead of a
-// Dart isolate.
+// a11y) inside an ordinary UIWindow, with the engine started in Swift mode so
+// the Swift framework drives frames instead of a Dart isolate.
+//
+// The software keyboard is the one thing the embedder does NOT give us. Its
+// FlutterTextInputPlugin only raises a keyboard once the framework opens a
+// flutter/textinput client, which a Swift framework with no Dart text-editing
+// layer never does — so this bridge implements UIKeyInput itself. Why that is
+// also the right answer rather than a stopgap: fluikit_keyboard.m.
 //
 // This header is the whole Swift-visible surface. <UIKit/UIKit.h> and the
 // Flutter* ObjC classes stay behind it — the glue imports them, the
@@ -16,6 +21,7 @@
 #ifndef FLUTTER_UIKIT_BRIDGE_H
 #define FLUTTER_UIKIT_BRIDGE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -58,6 +64,54 @@ int32_t fluikit_host_run(const char* title,
 // requested width and height to honour — so the Swift side reads it rather
 // than passing one in.
 void fluikit_host_window_size(double* out_width, double* out_height);
+
+// MARK: - Software keyboard
+//
+// See fluikit_keyboard.m for why this exists at all: iOS emits key events only
+// for a hardware keyboard, so a framework that reads keys gets nothing from the
+// on-screen one until something implements UIKeyInput.
+
+// Named keys the on-screen keyboard and its accessory bar can produce. The
+// values are X11 keysyms because that is what TerminalInput already switches
+// on, so a synthesized key needs no translation table of its own.
+typedef enum {
+  kFlUIKitKeyBackspace = 0xFF08,
+  kFlUIKitKeyTab = 0xFF09,
+  kFlUIKitKeyEnter = 0xFF0D,
+  kFlUIKitKeyEscape = 0xFF1B,
+  kFlUIKitKeyLeft = 0xFF51,
+  kFlUIKitKeyUp = 0xFF52,
+  kFlUIKitKeyRight = 0xFF53,
+  kFlUIKitKeyDown = 0xFF54,
+} FlUIKitKey;
+
+// One keystroke. Exactly one of the two arrows is taken:
+//   `text` non-NULL — characters that were typed, UTF-8, with Ctrl already
+//                     folded in (Ctrl+C arrives as 0x03, as from a hardware
+//                     keyboard), and `keysym` is 0.
+//   `text` NULL     — `keysym` is one of FlUIKitKey.
+// `shift` is set when the bar's Shift was armed for this key; it matters for
+// the chords the bar exists to send, Shift+Tab above all.
+//
+// Called on the main thread.
+typedef void (*FlUIKitKeyCallback)(void* user,
+                                   const char* text,
+                                   int32_t keysym,
+                                   int32_t shift);
+
+// Installs the key-input responder inside the given FlutterView. Under the
+// Flutter view rather than beside it, so an unhandled hardware press keeps
+// travelling up the responder chain into the engine.
+void fluikit_keyboard_attach(void* flutter_view);
+
+void fluikit_keyboard_set_callback(FlUIKitKeyCallback cb, void* user);
+
+// Raise and dismiss the on-screen keyboard. Showing it is what makes the
+// accessory bar appear too, so a hardware-keyboard user who wants Escape and
+// the arrows asks for this as well.
+void fluikit_keyboard_show(void);
+void fluikit_keyboard_hide(void);
+bool fluikit_keyboard_visible(void);
 
 #ifdef __cplusplus
 }

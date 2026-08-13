@@ -40,6 +40,40 @@ struct SSHTarget {
         UserDefaults.standard.set(port, forKey: "starling.ssh.port")
         UserDefaults.standard.set(user, forKey: "starling.ssh.user")
     }
+
+    /// A target handed in by the environment, so a simulator run can reach the
+    /// terminal without someone tapping through the login.
+    ///
+    /// This exists because there is no other way. `simctl` has no input verb
+    /// at all — no tap, no text — so driving the app from a script means
+    /// driving the Simulator's window through the accessibility API, which
+    /// needs a TCC grant that CI will not have and a person may not want to
+    /// give. Without this, every change to the terminal has to be re-verified
+    /// by a human logging in by hand, which is how a crash on the terminal's
+    /// FIRST PAINT shipped past a build, an install, a launch and a
+    /// screenshot: everything before the login looked perfect.
+    ///
+    /// SIMULATOR ONLY, and the `#if` is the point rather than a precaution.
+    /// A password read from the environment is a password sitting in a process
+    /// listing; on the simulator it can only be one a developer put there for
+    /// a machine they already control, and on a device this code does not
+    /// exist to be reached. The shipping path stays what it was — typed per
+    /// connection, remembered by nothing.
+    static func fromEnvironment() -> SSHTarget? {
+        #if targetEnvironment(simulator)
+        let env = ProcessInfo.processInfo.environment
+        guard let host = env["STARLING_SSH_HOST"], !host.isEmpty,
+              let user = env["STARLING_SSH_USER"], !user.isEmpty,
+              let password = env["STARLING_SSH_PASSWORD"]
+        else { return nil }
+        return SSHTarget(host: host,
+                         port: Int(env["STARLING_SSH_PORT"] ?? "") ?? 22,
+                         user: user,
+                         password: password)
+        #else
+        return nil
+        #endif
+    }
 }
 
 class SSHConnectView: StatefulWidget {
