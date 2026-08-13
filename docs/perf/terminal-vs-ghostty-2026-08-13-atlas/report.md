@@ -88,6 +88,29 @@ DOOM-Fire and the cats are unchanged to slightly better — the fire is all
 box sprites and gained the nearest-sampling path. The headline ratios
 survive correctness intact.
 
+## Same-font round (`data-samefont/`): ghostty on Roboto Mono too
+
+The matched-video work raised the obvious control: does ghostty's default
+font flatter or hurt it? Rerun with ghostty configured (via its config
+file, so calibration inherited it) to the video-matched metrics —
+`font-family = Roboto Mono`, `font-size = 10.5`, `adjust-cell-height =
+-8%` — which equalises the FONT and, at the tiled/calibrated grids, the
+rastered pixel area per cell. Ours as control reproduced (3.219 vs
+3.274 s). Ghostty, medians of 3, both grids verified:
+
+| | ghostty default font | ghostty Roboto Mono | |
+|---|---|---|---|
+| suite wall | 5.335 s | 5.183 s (-2.8%) | ours 0.62x either way |
+| ascii cat | 0.833 s | 0.829 s | ours 1.05x |
+| unicode cat | 0.816 s | 0.815 s | ours **0.81x** |
+| DOOM-Fire | 633 fps (cpu 2.05) | **701 fps** (cpu 1.89) | ours 1200 fps (cpu 1.12) → **1.71x on 59% CPU** |
+
+The cats and the suite barely move — ghostty is parse-bound, as every
+round has said. DOOM-Fire moves +11%, and that is not the typeface: the
+Roboto Mono config shrinks ghostty's cell from ~10.5 px to 8.15 px, so
+each fire frame rasters ~40% less area. Cell-for-cell AND pixel-for-pixel
+is the fairest fire comparison yet, and it reads 1.71x at 0.59x CPU.
+
 ## The original caveat (now historical): the atlas shipped with broken attributes
 
 `test/glyph-pixels.py` on the `data/` build FAILED its four attribute rows
