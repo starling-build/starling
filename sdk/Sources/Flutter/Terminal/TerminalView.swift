@@ -967,13 +967,21 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // One paragraph per run, once the row needs a family we did not load
         // ourselves.
         //
-        // Font fallback inside a paragraph is MONOTONIC here: a run may
-        // resolve a family at the same or a later index in
-        // `fontFamilyFallback` than the run before it, never an earlier one.
-        // Measured on one row at a time, same binary: `✓✗→ 日本語` (DejaVu at
-        // index 1, then Hiragino at 3) draws; `日本語 ✓✗→` — the same two runs
-        // the other way round — drops BOTH, and everything after them. Each
-        // family alone is fine, and `日本語 안녕` (3 then 5, forward) is fine.
+        // Font fallback inside a paragraph is MONOTONIC: a run may resolve a
+        // family at the same or a later index in `fontFamilyFallback` than
+        // the run before it, never an earlier one. Measured on one row at a
+        // time, same binary: `✓✗→ 日本語` (DejaVu at index 1, then Hiragino at
+        // 3) draws; `日本語 ✓✗→` — the same two runs the other way round —
+        // drops BOTH, and everything after them. Each family alone is fine,
+        // and `日本語 안녕` (3 then 5, forward) is fine.
+        //
+        // **This is NOT macOS-only**, which is why the split below is not
+        // platform-gated. The measurements here are from macOS, where the CJK
+        // arrives through CoreText's own fallback rather than a family we
+        // registered, so it looks at first like a CoreText quirk — but Linux,
+        // where every fallback IS a family we loaded ourselves, shows the same
+        // failure. Gating this to `#if os(macOS)` for the ~8% it costs
+        // 05_unicode would put the bug straight back on Linux.
         // A colour-emoji run poisons every fallback run in its row outright.
         //
         // This is why `cat`ing the unicode benchmark corpus showed no CJK at
