@@ -1,0 +1,7 @@
+# file rep wall_s cpu_s   (terminal 388561 / TerminalApp, grid 47x201)
+ascii_150mb 1 1.000 1.41
+ascii_150mb 2 0.890 1.19
+ascii_150mb 3 0.853 1.17
+unicode_150mb 1 0.608 1.25
+unicode_150mb 2 0.611 1.29
+unicode_150mb 3 0.635 1.31

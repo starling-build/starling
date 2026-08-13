@@ -65,15 +65,35 @@ same as every prior round. DOOM-Fire at 1181 vs 646 fps on half the CPU is
 the atlas painter's headline: the r9-era windowed numbers had ours ahead
 but nowhere near 1.8x.
 
-## Caveat: the atlas ships with broken attributes
+## Rerun on the gate-clean painter (`8f18ce5`, same day, `data-fixed/`)
 
-`test/glyph-pixels.py` on this exact build FAILS its four attribute rows
-under the default atlas (reverse video and all three underline cases draw
-no rule; the glyph rows all pass). These numbers therefore price a painter
-that is not yet drawing underline/reverse — closing that gap will add some
-cost to attribute-heavy content. The suite's SGR workloads exercise color,
-not underline/reverse, so the wins above should survive, but re-run this
-round when the attribute half lands.
+The caveat below was real and then resolved: the attribute fixes
+(baseline-anchored underline, nearest sampling on exact blits, the
+neutral-gamma grey raster) landed as `8f18ce5` with the pixel gate green
+on all 16 rows, and the whole set was rerun on the identical protocol.
+What correctness cost, measured:
+
+| | broken painter (data/) | fixed painter (data-fixed/) |
+|---|---|---|
+| suite wall | 3.225 s (0.62x ghn) | 3.274 s (**0.61x** ghn, 0.41x 1.3.0) |
+| ascii cat | 0.878 s (1.05x) | 0.890 s (1.10x, cpu 0.74x) |
+| unicode cat | 0.655 s (0.80x) | **0.611 s (0.73x, cpu 0.68x)** |
+| DOOM-Fire | 1181 fps, cpu 1.16 | **1186 fps (1.87x ghn), cpu 1.17** |
+| rss (suite end) | 226 MB | 227 MB |
+
+Suite +1.5% overall, concentrated in `03_sgr_fg`/`04_sgr_truecolor`
+(+6-8% — the per-frame underline scan is per-cell even when nothing is
+underlined; a per-row attribute summary from the core would buy it back).
+DOOM-Fire and the cats are unchanged to slightly better — the fire is all
+box sprites and gained the nearest-sampling path. The headline ratios
+survive correctness intact.
+
+## The original caveat (now historical): the atlas shipped with broken attributes
+
+`test/glyph-pixels.py` on the `data/` build FAILED its four attribute rows
+under the default atlas (reverse video and all three underline cases drew
+no rule inside the scanned band; the glyph rows all passed). The `data/`
+numbers price that incomplete painter; `data-fixed/` is the honest set.
 
 ## What invalidated the first run
 

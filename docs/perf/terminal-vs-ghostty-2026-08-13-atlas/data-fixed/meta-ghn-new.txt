@@ -1,0 +1,4 @@
+label ghn-new
+terminal_pid 387590
+terminal_comm ghostty
+grid 47x202
