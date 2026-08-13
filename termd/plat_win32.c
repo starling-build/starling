@@ -72,6 +72,19 @@ int plat_poll(plat_pollfd *fds, int nfds, int timeout_ms) {
     return WSAPoll(fds, (ULONG)nfds, timeout_ms);
 }
 
+// Both halves matter. SetEnvironmentVariable owns the block CreateProcessW
+// copies into a child, and _putenv_s owns the CRT's own copy that getenv here
+// reads; neither updates the other, so a variable dropped from one alone is
+// still live in the other.
+void plat_env_unset(const char *name) {
+    SetEnvironmentVariableA(name, NULL);
+    _putenv_s(name, "");
+}
+
+// Windows has no comm: a process is named by its image file, which is already
+// starling-termd.exe however it was started.
+void plat_set_process_name(const char *name) { (void)name; }
+
 int plat_addr_in_use(void) {
     int e = WSAGetLastError();
     return e == WSAEADDRINUSE;

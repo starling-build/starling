@@ -24,11 +24,11 @@ adopts so there is only one control flow to reason about.
 ```bash
 make                     # ./starling-termd
 make static              # one binary to scp to a server with no toolchain
-make test                # the protocol test — twelve checks, under two seconds
+make test                # the protocol test — thirteen checks, under two seconds
 ./test-termd.py --stdio  # the same checks through a --stdio bridge
 
 .\build-windows.ps1      # Windows: starling-termd.exe (clang, no make)
-python .\test-termd.py   # the same twelve, over --stdio automatically
+python .\test-termd.py   # the same thirteen, over --stdio automatically
 ```
 
 ```bash
@@ -40,6 +40,16 @@ starling-termd --list    # sessions, for humans
 The socket is `$STARLING_TERMD_SOCKET`, else
 `$XDG_RUNTIME_DIR/starling-termd.sock`, mode 0600. There is no network
 listener: authentication is ssh's job.
+
+A session's environment is the daemon's, with `TERM=xterm-256color`,
+`COLORTERM=truecolor`, and the terminal-multiplexer markers removed —
+`TMUX`, `TMUX_PANE`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, `STY`, `WINDOW`.
+The daemon outlives the shell that started it, so without that scrub a
+daemon started from inside tmux hands every session it ever forks a `TMUX`
+and a `TERM_PROGRAM=tmux`; programs that adapt their drawing to their host
+believe them and render for a multiplexer that is not there, which looks
+like a bug in the terminal rather than in the server. Setting `TERM` alone
+does not cover it.
 
 Wire format in [protocol.h](protocol.h). Sequence numbers are **byte
 offsets** from the first byte a session ever produced, which is what makes

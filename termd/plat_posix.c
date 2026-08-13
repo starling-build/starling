@@ -17,6 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -52,6 +55,16 @@ int plat_would_block(void) {
 
 int plat_poll(plat_pollfd *fds, int nfds, int timeout_ms) {
     return poll(fds, (nfds_t)nfds, timeout_ms);
+}
+
+void plat_env_unset(const char *name) { unsetenv(name); }
+
+void plat_set_process_name(const char *name) {
+#ifdef __linux__
+    prctl(PR_SET_NAME, name, 0, 0, 0);   // silently truncated to 15 + NUL
+#else
+    (void)name;
+#endif
 }
 
 int plat_addr_in_use(void) { return errno == EADDRINUSE; }

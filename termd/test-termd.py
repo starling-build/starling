@@ -40,6 +40,18 @@ USE_STDIO = "--stdio" in sys.argv or WINDOWS
 BOOT = 15.0 if WINDOWS else 2.0
 STEP = 2.0 if WINDOWS else 0.4
 
+# Prints the multiplexer markers a session must NOT have inherited, wrapped in
+# brackets so an empty one is still visible in the stream and a check can tell
+# "unset" from "the fixture never ran".
+if WINDOWS:
+    MUX_SCRIPT = 'cmd.exe /c echo MUX[%TMUX%][%TERM_PROGRAM%]'
+    # cmd leaves an unset %VAR% as the literal text, so that is what absence
+    # looks like here rather than an empty pair of brackets.
+    MUX_CLEAN = b"MUX[%TMUX%][%TERM_PROGRAM%]"
+else:
+    MUX_SCRIPT = "printf 'MUX[%s][%s]\\n' \"$TMUX\" \"$TERM_PROGRAM\""
+    MUX_CLEAN = b"MUX[][]"
+
 if WINDOWS:
     # cmd, not PowerShell, and no inner quotes. powershell.exe -Command with a
     # quoted multi-statement string loses its quotes somewhere between
@@ -191,7 +203,12 @@ def main():
 
     tmp = tempfile.mkdtemp(prefix="termd-test-")
     sock_path = os.path.join(tmp, "sock")
-    env = dict(os.environ, STARLING_TERMD_SOCKET=sock_path)
+    # Started the way a daemon launched from inside tmux is, so the scrub has
+    # something real to remove: without these the check below passes on a
+    # build that does nothing at all.
+    env = dict(os.environ, STARLING_TERMD_SOCKET=sock_path,
+               TMUX="/tmp/tmux-1000/default,1,0", TMUX_PANE="%0",
+               TERM_PROGRAM="tmux", TERM_PROGRAM_VERSION="3.6")
     # STARLING_TERMD_DEBUG=<file> keeps the daemon's own log, which is the
     # only view of what the pty reader threads did.
     dbg = os.environ.get("STARLING_TERMD_DEBUG")
@@ -273,6 +290,19 @@ def main():
         check("list reports the sessions", {sid, shell_id} <= ids,
               f"{ids} missing one of {sid},{shell_id}")
         d.close()
+
+        # A session does not inherit the multiplexer markers of whatever
+        # started the daemon. Programs that adapt their drawing to their host
+        # believe these, so a tmux-started daemon otherwise makes every
+        # session render for a tmux that is not there.
+        m = Client(sock_path)
+        m.hello()
+        m.send(OPEN, struct.pack("<HH", 80, 24) + MUX_SCRIPT.encode())
+        m.recv(ATTACHED)
+        mux, _, _ = m.collect(BOOT, until=b"]")
+        check("a session inherits no multiplexer markers", MUX_CLEAN in mux,
+              repr(mux[-120:]))
+        m.close()
 
         # A wrong version is refused rather than half-spoken.
         e = Client(sock_path)

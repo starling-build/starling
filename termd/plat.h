@@ -48,6 +48,20 @@ typedef struct pollfd plat_pollfd;
 // WSAStartup on Windows, SIGPIPE on POSIX. Idempotent.
 int plat_init(void);
 
+// Remove a variable from this process's environment, so no child inherits it.
+// Separate from the pty spawn on purpose: a POSIX child could unsetenv between
+// fork and exec, but the Windows one cannot — CreateProcessW is handed
+// lpEnvironment = NULL and copies the daemon's block wholesale. Scrubbing the
+// daemon itself is the one place that works the same on both.
+void plat_env_unset(const char *name);
+
+// Set the name this process reports to `ps`/`pgrep`. plat_spawn_daemon execs
+// /proc/self/exe, and the kernel takes the comm from THAT path's last
+// component — so an auto-started daemon calls itself "exe" and `pkill -x
+// starling-termd` misses it while `ps` shows the right thing, argv[0] being
+// correct. A no-op where the concept does not exist.
+void plat_set_process_name(const char *name);
+
 // ── sockets ─────────────────────────────────────────────────────────────
 // Thin wrappers because Windows sockets are not file descriptors: they need
 // closesocket/ioctlsocket/WSAGetLastError rather than close/fcntl/errno.

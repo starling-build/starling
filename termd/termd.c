@@ -549,8 +549,32 @@ static void session_reader(void *arg) {
     free(ra);
 }
 
+// Markers a terminal multiplexer leaves in the environment of whatever it
+// started. They are inherited by every pty this daemon forks and BELIEVED
+// there: a daemon started from inside tmux hands each session a TMUX and a
+// TERM_PROGRAM=tmux, and full-screen programs that adapt their drawing to
+// their host — Claude Code among them — then draw for a tmux that is not
+// there. Setting TERM alone does not cover it, which is what makes the
+// symptom look like a rendering bug in the client rather than an environment
+// leak in the server.
+//
+// Scrubbed once here rather than per spawn because the daemon outlives the
+// shell that started it, so this is the only moment the leak can enter. Same
+// list as build/run-desktop.sh and build/session/starling-session, which fixed
+// this for the desktop's own launchers; termd is the third and was missed.
+static void scrub_multiplexer_env(void) {
+    static const char *const markers[] = {
+        "TMUX", "TMUX_PANE", "TERM_PROGRAM", "TERM_PROGRAM_VERSION",
+        "STY", "WINDOW",
+    };
+    for (size_t i = 0; i < sizeof(markers) / sizeof(*markers); i++)
+        plat_env_unset(markers[i]);
+}
+
 static int serve(int idle_exit_seconds) {
     plat_init();
+    plat_set_process_name("starling-termd");
+    scrub_multiplexer_env();
     if (!g_lock) g_lock = plat_mutex_new();
 
     sock_t lfd = listen_socket();
