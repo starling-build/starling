@@ -40,6 +40,23 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     #if os(iOS)
+    /// Columns the grid is sized to. 80 because that is the width the software
+    /// world assumes — man pages, `ls -l`, git, every TUI's default layout —
+    /// and a phone that reports anything narrower makes all of them wrap.
+    ///
+    /// The desktop does the opposite (pick a font, take the columns that
+    /// result), which is right for a window that is 1100pt wide and wrong for
+    /// one that is 402: the same 13pt default yields 49 columns there.
+    private static let defaultColumns = 80
+
+    private var columns: Int {
+        get {
+            let stored = UserDefaults.standard.integer(forKey: "starling.term.columns")
+            return stored > 0 ? stored : Self.defaultColumns
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "starling.term.columns") }
+    }
+
     private var ssh: SSHTerminal?
     /// nil until the user has connected once; the connect screen is what is
     /// on screen until then.
@@ -54,13 +71,23 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         setState { self.connected = true }
     }
 
+    /// The terminal proper: a grid sized to a column count rather than to a
+    /// font size, and a pinch that moves that count.
+    private func terminal() -> Widget {
+        return TerminalView(
+            session: session,
+            fitColumns: columns,
+            onFitColumnsChanged: { [weak self] in self?.columns = $0 },
+            pinchToZoom: true)
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         if !connected {
             return SSHConnectView(onConnect: { [weak self] target in
                 self?.connect(target)
             })
         }
-        return TerminalView(session: session)
+        return terminal()
     }
     #else
     override func build(_ context: any BuildContext) -> Widget {
