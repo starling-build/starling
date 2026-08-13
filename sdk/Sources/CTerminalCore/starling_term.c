@@ -35,6 +35,53 @@
 
 typedef StarlingTermCell Cell;
 
+/* STARLING_NO_NEON compiles the portable path on a NEON target, so the
+   fallback every non-arm64 build ships can be differentially tested here. */
+#if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && !defined(STARLING_NO_NEON)
+#include <arm_neon.h>
+#define STARLING_NEON 1
+#endif
+
+/* Cells are written through 32-bit lanes by the vectorised run store below.
+   Saying `may_alias` makes that defined rather than merely customary: the
+   store aliases `scalar`/`fg`/`bg` (themselves uint32_t) and, for the fourth
+   lane, `attrs` plus the three padding bytes after it. Writing that padding
+   is safe — nothing reads it, on either side of the Swift ABI, and it was
+   already whatever malloc left there. */
+typedef uint32_t cell_lane __attribute__((may_alias));
+
+/* Write `n` cells of printable ASCII sharing one style. Every cell differs
+   only in its scalar, and a Cell is exactly four 32-bit lanes, so on NEON
+   `vst4q_u32` lays down FOUR WHOLE CELLS per instruction: the four vectors
+   are interleaved element-wise, which is precisely {scalar,fg,bg,attrs} per
+   cell. The scalar loop it replaces did one character per iteration —
+   `ldrb; str; stur; strb` plus index arithmetic, about nine instructions per
+   character, and 35% of the whole core on unstyled ASCII.
+
+   The portable path stays for non-NEON targets and for the tail. */
+static void store_ascii_run(Cell *dst, const uint8_t *src, size_t n,
+                            uint32_t fg, uint32_t bg, uint8_t at) {
+    size_t k = 0;
+#ifdef STARLING_NEON
+    if (n >= 8) {
+        uint32x4x4_t q;
+        q.val[1] = vdupq_n_u32(fg);
+        q.val[2] = vdupq_n_u32(bg);
+        q.val[3] = vdupq_n_u32((uint32_t)at);        /* attrs + zeroed pad */
+        for (; k + 8 <= n; k += 8) {
+            uint16x8_t w = vmovl_u8(vld1_u8(src + k));
+            cell_lane *p = (cell_lane *)(dst + k);
+            q.val[0] = vmovl_u16(vget_low_u16(w));  vst4q_u32(p,      q);
+            q.val[0] = vmovl_u16(vget_high_u16(w)); vst4q_u32(p + 16, q);
+        }
+    }
+#endif
+    for (; k < n; k++) {
+        Cell *c = &dst[k];
+        c->scalar = src[k]; c->fg = fg; c->bg = bg; c->attrs = at;
+    }
+}
+
 /* Extent-based blanking. Filling a freshly recycled row used to memset the
    full width on every line feed; at 478 columns the light_cells workload
    (1.5 M line feeds) moved 11.5 GB of blanking for rows that carry ~7
@@ -1557,9 +1604,21 @@ void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
                 unsplit_pair(t, rw, start);
                 unsplit_pair(t, rw, start + (int)run - 1);
                 uint32_t fg = t->cur_fg, bg = t->cur_bg; uint8_t at = t->cur_attrs;
-                for (size_t k = 0; k < run; k++) {
-                    Cell *c = &row[start + (int)k];
-                    c->scalar = input[i + k]; c->fg = fg; c->bg = bg; c->attrs = at;
+                Cell *dst = row + start;
+                const uint8_t *src = input + i;
+                /* Short runs stay on the inline store they have always used.
+                   Styled content is nothing but short runs — 03_sgr_fg
+                   averages a handful of characters between SGR sequences —
+                   and routing those through a call costs it ~4%, which is
+                   more than the vector path could ever win back on a run too
+                   short to enter it. */
+                if (run >= 8) {
+                    store_ascii_run(dst, src, run, fg, bg, at);
+                } else {
+                    for (size_t k = 0; k < run; k++) {
+                        Cell *c = &dst[k];
+                        c->scalar = src[k]; c->fg = fg; c->bg = bg; c->attrs = at;
+                    }
                 }
                 if (start + (int)run > rw->used) rw->used = start + (int)run;
                 t->last_row = t->cursor_row; t->last_col = start + (int)run - 1;

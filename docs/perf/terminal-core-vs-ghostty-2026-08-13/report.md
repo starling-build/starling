@@ -50,34 +50,45 @@ deadlock that stopped the 2026-08-12 round from building ghostty at all.
 
 MB/s, floors subtracted; ratio is ours/theirs, so **below 1.00 is ours**.
 
-| corpus | ours | ghostty | ratio |
-|---|---|---|---|
-| 10_binary | 507 MB/s | 68 | **0.13x** |
-| styled (theirs, `--style-rate=0.8`) | 332 | 48 | **0.15x** |
-| 03_sgr_fg | 340 | 135 | **0.40x** |
-| 01_light_cells | 420 | 187 | **0.44x** |
-| 04_sgr_truecolor | 371 | 204 | **0.55x** |
-| unicode (theirs, mixed + graphemes) | 112 | 62 | **0.56x** |
-| 07_alt_screen | 876 | 668 | **0.76x** |
-| 05_unicode | 500 | 471 | 0.94x |
-| 08_scroll_region | 787 | 826 | 1.05x |
-| 02_dense_cells | 909 | 1253 | 1.38x |
-| 09_long_lines | 847 | 1246 | 1.47x |
-| ascii (theirs, unstyled) | 745 | **1323** | 1.78x |
+| corpus | ours | ghostty | ratio | before the run store |
+|---|---|---|---|---|
+| 10_binary | 508 MB/s | 74 | **0.14x** | 0.13x |
+| styled (theirs, `--style-rate=0.8`) | 329 | 49 | **0.15x** | 0.15x |
+| 03_sgr_fg | 319 | 136 | **0.43x** | 0.40x |
+| 01_light_cells | 400 | 186 | **0.47x** | 0.44x |
+| 04_sgr_truecolor | 363 | 204 | **0.56x** | 0.55x |
+| unicode (theirs, mixed + graphemes) | 112 | 62 | **0.56x** | 0.56x |
+| 07_alt_screen | 1187 | 669 | **0.56x** | 0.76x |
+| 08_scroll_region | 1025 | 831 | **0.81x** | 1.05x |
+| 05_unicode | 494 | 463 | 0.94x | 0.94x |
+| 02_dense_cells | 1269 | 1243 | 0.98x | 1.38x |
+| 09_long_lines | 1134 | 1282 | 1.13x | 1.47x |
+| ascii (theirs, unstyled) | 955 | **1313** | 1.37x | 1.78x |
 
-**The split is clean and it is the same on both parties' corpora**: every
-workload carrying escape sequences or non-ASCII text is ours, often by
-multiples; every workload that is plain unstyled ASCII cell-fill is theirs.
-Their ascii path is 1.78x ours — that will be SIMD — and `02_dense_cells` and
-`09_long_lines` are the same thing in our corpus. Ours is 7.5x theirs on
-`10_binary` (random bytes with stray escapes, the parser's worst case) and
-6.7x on their own heavily-styled corpus.
-
-This is exactly the shape the Linux rounds reported from the *live* suite —
+**The split was clean and it was the same on both parties' corpora**: every
+workload carrying escape sequences or non-ASCII text was ours, often by
+multiples; every workload that was plain unstyled ASCII cell-fill was theirs.
+That is exactly the shape the Linux rounds reported from the *live* suite —
 "we take the escape/parser workloads, the nightly keeps raw cell-fill"
-(`terminal-vs-ghostty-2026-08-11`, §1) — now confirmed at the core with the
+(`terminal-vs-ghostty-2026-08-11`, §1) — confirmed at the core with the
 transport and the renderer removed from the room, on their corpora and through
-their harness. Two independent methods, same conclusion.
+their harness.
+
+**The last column is why that is past tense.** The first run of this round put
+their ASCII path at 1.78x ours, and the disassembly said why: our run store
+wrote one character per iteration — `ldrb; str; stur d; strb` plus index
+arithmetic, about nine instructions per cell, no vectorisation. A Cell is
+exactly four 32-bit lanes, so `vst4q_u32` lays down four whole cells in one
+instruction. With that, plain cell-fill went 746 -> 955 MB/s and the cluster
+of losses collapsed: `02_dense_cells` to a tie, `08_scroll_region` and
+`07_alt_screen` from losses to wins, `09_long_lines` to within 13%, and their
+own ascii corpus from 1.78x to 1.37x.
+
+What remains of their ASCII lead is real and is the same 16 bytes per cell we
+have to write either way: theirs is smaller, because ghostty interns styles
+per page and stores a style id where we store fg, bg and attrs inline. That is
+an ABI change on our side (`StarlingTermCell` is layout-shared with Swift), not
+a tuning one.
 
 ## What it explains
 
@@ -87,13 +98,23 @@ they do not:
 - We win the **10-workload suite** 0.75x, because that corpus is
   escape-and-Unicode-heavy — the half of the space our core owns.
 - We win **`cat 150mb_ascii`** live (0.570 s to their 0.634) *even though
-  their core is 1.78x ours on exactly that content*, because through a real
+  their core was 1.78x ours on exactly that content*, because through a real
   pty the transport dominates: the macOS pty hands back at most 1024 bytes per
   read, so 150 MB is ~147 000 round trips and neither core is the bottleneck.
-  Their advantage is real and it is invisible at the terminal.
 
 So the core comparison is the one place their ASCII throughput shows up
 undiluted, and the only place ours can be read without the pty floor on top.
+
+**The corollary is worth stating plainly, because it cuts against the change
+above**: making the core 30% faster on cell-fill moved the live suite by
+-0.3% and the live ascii cat by 0.002 s — both inside noise, measured by
+interleaving two builds in one sitting rather than comparing across runs. On
+`cat`-shaped workloads through a pty this is invisible. It is worth having
+anyway — it is the scoreboard here, it halves the instruction count per cell,
+and consumers that feed the core without a pty in the middle (termd's remote
+sessions, replay) get all of it — but nobody should expect it to show up in a
+terminal benchmark, and an earlier cross-run comparison that appeared to show
+it *regressing* the suite by 1.3% was drift, not signal.
 
 ## Where ours is weak, and what to do about it
 
