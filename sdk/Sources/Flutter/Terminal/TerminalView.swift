@@ -678,21 +678,19 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             && !_exited && viewOffset == 0
         let sbCount = emulator.scrollbackCount
         let gridCols = emulator.cols
+        // Bumped once per feed by the core, so it is exactly "has anything
+        // changed" for the painter's shouldRepaint. Scrollback position is
+        // folded in because scrolling changes the visible rows without
+        // touching the emulator.
+        let gen = emulator.generation &+ UInt64(viewOffset)
         _lock.unlock()
-
-        var lines: [Widget] = []
-        lines.reserveCapacity(grid.count)
-        for line in grid {
-            lines.append(_rowWidget(line))
-        }
 
         var layers: [Widget] = [
             Padding(
                 padding: EdgeInsets(all: padding),
-                child: Column(
-                    crossAxisAlignment: .start,
-                    children: lines
-                )
+                child: Self._useAtlas
+                    ? _gridPainterWidget(grid, cols: gridCols, generation: gen)
+                    : _rowColumnWidget(grid)
             )
         ]
 
@@ -827,7 +825,81 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         ))
     }
 
-    // MARK: - Row rendering
+    // MARK: - Grid rendering
+
+    /// Opt in to the per-cell atlas painter (docs/plans/terminal-perf-macos.md,
+    /// Lever 2). Off by default while it earns its place: the Text path below
+    /// is unchanged and remains what ships.
+    private static let _useAtlas =
+        ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] == "1"
+
+    /// Rebuilt whenever the metrics it rasterised for move — cell size follows
+    /// the font and the display, and a stale atlas would blit glyphs drawn for
+    /// a different grid.
+    private var _atlas: TerminalGlyphAtlas?
+
+    private func _atlasForCurrentMetrics() -> TerminalGlyphAtlas {
+        let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+        if let a = _atlas, a.matches(cellW: cellW, cellH: cellH, scale: scale,
+                                     family: font.family, fontSize: font.size) {
+            return a
+        }
+        let made = TerminalGlyphAtlas(
+            cellW: cellW, cellH: cellH, scale: scale,
+            family: font.family, fallback: _fontFallback, fontSize: font.size)
+        _atlas = made
+        return made
+    }
+
+    /// Debug only: write what the painter draws to this path as raw RGBA.
+    private static let _dumpPath =
+        ProcessInfo.processInfo.environment["STARLING_TERM_DUMP"]
+
+    /// The whole visible grid as one painted layer.
+    private func _gridPainterWidget(_ grid: [[TermCell]], cols: Int,
+                                    generation: UInt64) -> Widget {
+        if let path = Self._dumpPath {
+            let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+            let size = Size(Double(cols) * cellW, Double(grid.count) * cellH)
+            _makePainter(grid, cols: cols, generation: generation)
+                .dumpRaw(to: path, size: size, scale: scale)
+        }
+        let size = Size(Double(cols) * cellW, Double(grid.count) * cellH)
+        return SizedBox(
+            width: size.width,
+            height: size.height,
+            child: CustomPaint(
+                painter: _makePainter(grid, cols: cols, generation: generation),
+                size: size
+            )
+        )
+    }
+
+    private func _makePainter(_ grid: [[TermCell]], cols: Int,
+                              generation: UInt64) -> TerminalGridPainter {
+        TerminalGridPainter(
+            lines: grid,
+            cols: cols,
+            cellW: cellW,
+            cellH: cellH,
+            theme: theme,
+            font: font,
+            fallbackFamilies: _fontFallback,
+            atlas: _atlasForCurrentMetrics(),
+            generation: generation,
+            clusterText: { [emulator] in emulator.cellText($0) }
+        )
+    }
+
+    /// The shipping path: one rich-text widget per row, stacked.
+    private func _rowColumnWidget(_ grid: [[TermCell]]) -> Widget {
+        var lines: [Widget] = []
+        lines.reserveCapacity(grid.count)
+        for line in grid {
+            lines.append(_rowWidget(line))
+        }
+        return Column(crossAxisAlignment: .start, children: lines)
+    }
 
     /// Renders one grid line as a single rich-text row of merged style runs.
     private func _rowWidget(_ line: [TermCell]) -> Widget {
