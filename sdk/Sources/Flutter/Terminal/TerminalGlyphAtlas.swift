@@ -137,7 +137,10 @@ final class TerminalGlyphAtlas {
     /// The atlas rect for a glyph, reserving a slot on first sighting. nil when
     /// the atlas is full — the caller then falls back for that row.
     func rect(for scalar: UInt32, bold: Bool) -> Rect? {
-        let key = GlyphKey(scalar: scalar, bold: bold)
+        // A drawn sprite has no weight, so bold and regular share one slot
+        // rather than rasterising the same rectangles twice.
+        let key = GlyphKey(scalar: scalar,
+                           bold: bold && !TerminalBoxGlyphs.handles(scalar))
         let index: Int
         if let existing = slots[key] {
             index = existing
@@ -201,6 +204,27 @@ final class TerminalGlyphAtlas {
         // colour. This is the only place shaping happens, once per glyph.
         for (key, index) in slots {
             guard let u = Unicode.Scalar(key.scalar) else { continue }
+            let col = index % TerminalGlyphAtlas.slotsPerRow
+            let row = index / TerminalGlyphAtlas.slotsPerRow
+            let ox = Double(col * pitchW + TerminalGlyphAtlas.pad) / sx
+            let oy = Double(row * pitchH + TerminalGlyphAtlas.pad) / sy
+
+            // Box and block characters are drawn from the SLOT's geometry
+            // rather than shaped, because a font glyph is sized to its own
+            // advance and the cell is not the advance — see TerminalBoxGlyphs.
+            // Doing it here rather than straight onto the frame's canvas is
+            // what keeps them on the fast path: the slot fills the cell
+            // exactly AND the cell is still one batched quad, instead of a
+            // drawRect per cell. Drawn white, so the per-quad tint colours
+            // them like any other glyph; a shade is white at a fraction of
+            // full alpha, which the tint then multiplies to the right result.
+            if TerminalBoxGlyphs.handles(key.scalar) {
+                TerminalBoxGlyphs.draw(canvas, scalar: key.scalar,
+                                       x: ox, y: oy, w: cellW, h: cellH,
+                                       color: 0xFFFF_FFFF, scale: sx)
+                continue
+            }
+
             let style = TextStyle(
                 color: Color(0xFFFF_FFFF),
                 fontSize: fontSize,
@@ -214,15 +238,10 @@ final class TerminalGlyphAtlas {
             builder.addText(String(Character(u)))
             let paragraph = builder.build()
             paragraph.layout(ParagraphConstraints(width: Double.infinity))
-            let col = index % TerminalGlyphAtlas.slotsPerRow
-            let row = index / TerminalGlyphAtlas.slotsPerRow
-            // Slot origins are device pixels (the padding is), so they come
-            // back through the per-axis scale applied above; the baseline
-            // correction is in the same logical units.
+            // The baseline correction is in the same logical units as the
+            // slot origin computed above.
             canvas.drawParagraph(paragraph, Offset(
-                Double(col * pitchW + TerminalGlyphAtlas.pad) / sx,
-                Double(row * pitchH + TerminalGlyphAtlas.pad) / sy
-                    + (reference - paragraph.alphabeticBaseline)))
+                ox, oy + (reference - paragraph.alphabeticBaseline)))
         }
         let picture = recorder.endRecording()
         image = picture.toImageSync(width: w, height: h)

@@ -44,13 +44,6 @@ import FlutterSwiftBridge
 
 /// One cell that the atlas could not supply a glyph for, held until the
 /// fallback pass so the atlas blit stays one call.
-private struct BoxCell {
-    let scalar: UInt32
-    let col: Int
-    let row: Int
-    let fg: UInt32
-}
-
 private struct FallbackCell {
     let text: String
     let col: Int
@@ -141,7 +134,6 @@ final class TerminalGridPainter: CustomPainter {
         var rects: [Float] = []
         var colors: [Int32] = []
         var fallbacks: [FallbackCell] = []
-        var boxes: [BoxCell] = []
         transforms.reserveCapacity(cols * lines.count * 4)
         rects.reserveCapacity(cols * lines.count * 4)
         colors.reserveCapacity(cols * lines.count)
@@ -157,13 +149,12 @@ final class TerminalGridPainter: CustomPainter {
                 let bold = cell.attrs.contains(.bold)
                 let x = Double(c) * cellW
 
-                // Box and block characters are drawn from the CELL's geometry,
-                // not the font's advance — see TerminalBoxGlyphs. Collected
-                // rather than drawn here so the atlas blit stays one call.
-                if TerminalBoxGlyphs.handles(cell.scalar) {
-                    boxes.append(BoxCell(scalar: cell.scalar, col: c, row: r, fg: fg))
-                } else if TerminalGlyphAtlas.canDraw(cell),
-                          let src = atlas.rect(for: cell.scalar, bold: bold) {
+                // Box and block characters reach the atlas like anything
+                // else; what differs is that the atlas DRAWS rather than
+                // shapes them (see TerminalGlyphAtlas.rebuildIfNeeded), so
+                // they fill the cell exactly and still cost one quad.
+                if TerminalGlyphAtlas.canDraw(cell),
+                   let src = atlas.rect(for: cell.scalar, bold: bold) {
                     let s = Float(atlas.blitScale)
                     transforms.append(contentsOf: [s, 0, Float(x), Float(y)])
                     rects.append(contentsOf: [Float(src.left), Float(src.top),
@@ -194,15 +185,6 @@ final class TerminalGridPainter: CustomPainter {
             paint.filterQuality = .low     // the blit is near 1:1; see `pad`
             canvas.drawRawAtlas(image, transforms, rects, colors,
                                 .modulate, nil, paint)
-        }
-
-        // ── pass 2b: box and block characters, from cell geometry ────────
-        for b in boxes {
-            TerminalBoxGlyphs.draw(canvas, scalar: b.scalar,
-                                   x: Double(b.col) * cellW,
-                                   y: Double(b.row) * cellH,
-                                   w: cellW, h: cellH,
-                                   color: b.fg, scale: atlas.scale)
         }
 
         // ── pass 3: everything the atlas cannot represent ────────────────
