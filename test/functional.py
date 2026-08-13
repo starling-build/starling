@@ -14,6 +14,14 @@ anything: every theme tweak, font change and animation invalidates it, and the
 usual response is to re-bless the baseline, at which point it tests nothing.
 Screenshots here are artifacts for a human, not assertions.
 
+One check reads pixels — `terminal: the glyphs paint, and on the grid`. What
+that rule is really against is a stored BASELINE, and there is none: the
+terminal paints its own ruler and the check relates two measurements inside a
+single frame (see test/glyph-pixels.py). It is here because the thing it
+watches — whether a cell drew anything, and in the right column — is invisible
+to structured state by construction. The grid was correct in all four of the
+rendering failures that have shipped from this tree.
+
 What is deliberately NOT covered, because a dev shell cannot: the App Store's
 pkexec hop. polkit authorises the seat-active session, and a shell launched
 over SSH is not it, so Install/Remove from the store UI can only be exercised
@@ -2232,6 +2240,43 @@ def check_clipboard_frozen_owner() -> None:
         log("paste recovers once the owner resumes")
     finally:
         _close_editor()
+
+
+@check("terminal: the glyphs paint, and on the grid")
+def check_glyph_pixels() -> None:
+    """The one check here that reads PIXELS, and the reasons it is not a
+    screenshot suite are in test/glyph-pixels.py.
+
+    Nothing else in this tree looks at what the terminal drew. The grid is
+    compared by the core's conformance suite and the differential battery, and
+    the grid has been right through every one of these: a codepoint no loaded
+    face carries paints nothing, a run downstream of a backwards font fallback
+    paints nothing, a cell background painted by the text engine stops short of
+    its cell, and a row placed by the shaper walks its glyphs off their
+    columns. Four failures, all shipped, all found by a person looking at a
+    screen — and the benchmark scored every one of them as an improvement,
+    because not painting is cheaper than painting.
+
+    There is no stored image. The terminal paints a ruler — a row of cells with
+    alternating background colours — so the cell grid is measured from the same
+    frame as the glyphs, and the assertions relate two things inside that one
+    screenshot. A theme change or a new font re-derives it rather than
+    invalidating it.
+    """
+    gate = REPO / "test/glyph-pixels.py"
+    if not gate.exists():
+        raise Skip("test/glyph-pixels.py is not in this tree (VM run)")
+    r = subprocess.run([sys.executable, str(gate)],
+                       capture_output=True, text=True)
+    if r.returncode:
+        # The report is the finding: it names the row, the glyph and the group
+        # that draws with it. Passing only "exit 1" up would throw that away.
+        detail = "\n        ".join(
+            l for l in (r.stdout + r.stderr).splitlines()
+            if l.strip() and "Warning" not in l)
+        raise AssertionError(detail)
+    for line in r.stdout.splitlines():
+        log(line)
 
 
 CHECKS = [v for v in dict(globals()).values()

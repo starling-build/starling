@@ -106,6 +106,9 @@ rots faster than it catches anything: every theme tweak and animation
 invalidates it, the baseline gets re-blessed, and it ends up testing nothing.
 Screenshots stay artifacts for humans.
 
+**One check reads pixels**, and what that rule is against is a stored
+*baseline* — of which it has none. See `glyph-pixels.py` below.
+
 Nine checks: the shell agrees with `catalog.d` on disk; the dock's pinned slots
 are the installed `Dock=` apps in order; **a real app installs through
 `app-install` and appears in the launcher**; a third-party window is attributed
@@ -141,6 +144,43 @@ Fixtures are overlaid onto a *copy* of the real catalog via
 `STARLING_CATALOG_DIR`; the shipped catalog is never modified. They are
 deliberately outside `lint.py`'s scope: they are test doubles, not apps, and
 `starlingselftest` has an `Exec` that launches nothing on purpose.
+
+### `glyph-pixels.py` — the terminal's pixels, in the functional tier
+
+Everything else in this tree checks the **grid**. The grid has been right in
+every rendering failure this terminal has shipped, and there have been four:
+
+| what happened | how it looked | what saw it |
+| --- | --- | --- |
+| no glyph in any loaded face | box drawing, then braille, painted nothing | a person, months apart |
+| a run downstream of a backwards font fallback | `日本語 ✓✗→` lost its tail | a person, `cat`ing the corpus |
+| a cell background painted by the text engine | short of its cell, or absent | this gate, first run |
+| a row placed by the shaper | wide glyphs walked off their columns | a person, screenshotting |
+
+The benchmark scored all four as *improvements*, because not painting is
+cheaper than painting. `test/bench/glyph-gate.py` closed the first (a font
+question, answered from the fonts on disk, in the default tier). This closes
+the rest, where the only evidence is what reached the screen.
+
+It works without a baseline: the terminal prints a block whose background it
+sets itself, including a **ruler** — a row of cells with alternating background
+colours, which the row painter fills by the grid rect. So the cell grid is
+measured from the same frame as the glyphs, and every assertion relates two
+things inside that one screenshot: does this cell contain ink, does the row's
+background cover its cells, and does the row's last glyph sit on the column the
+ruler puts it in. Change the theme, the font or the window and it re-derives
+itself.
+
+    sudo test/glyph-pixels.py            drive a live desktop end to end
+    sudo test/glyph-pixels.py --keep     ... and leave the terminal up
+         test/glyph-pixels.py --shot P   analyse a screenshot taken earlier
+         test/glyph-pixels.py --pattern  print the pattern, to run by hand
+
+Verified failing, twice. With `DejaVuSans.ttf` moved out of the staged
+resources it reports `braille: 19/20 glyphs painted NOTHING`; against the
+renderer as it stood before this work it reports seventeen findings — a blank
+ruler, eleven rows showing the terminal through their backgrounds, a glyph that
+never painted, and rows off their columns.
 
 ### `vm.sh` — the release gate
 
