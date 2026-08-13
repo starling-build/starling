@@ -43,25 +43,34 @@ import NIOSSH
 private final class TrustOnFirstUse: NIOSSHClientServerAuthenticationDelegate {
     private let key: String
 
+    /// The pin is versioned because the first implementation stored something
+    /// that could never match — see `validateHostKey`. Bumping the key name
+    /// discards those values rather than reporting every machine as rekeyed.
+    private static let prefix = "starling.ssh.hostkey.v2."
+
     init(host: String, port: Int) {
-        self.key = "starling.ssh.hostkey.\(host):\(port)"
+        self.key = "\(TrustOnFirstUse.prefix)\(host):\(port)"
     }
 
     static func forget(host: String, port: Int) {
-        UserDefaults.standard.removeObject(
-            forKey: "starling.ssh.hostkey.\(host):\(port)")
+        UserDefaults.standard.removeObject(forKey: "\(prefix)\(host):\(port)")
     }
 
     func validateHostKey(hostKey: NIOSSHPublicKey,
                          validationCompletePromise: EventLoopPromise<Void>) {
-        // The key's own hash, not a transcription of it: NIOSSHPublicKey is
-        // Hashable over its backing key, and a stable string of that is all a
-        // comparison needs. It is not the OpenSSH fingerprint format and does
-        // not try to be — nothing here shows it to a user or compares it with
-        // what `ssh-keygen -lf` prints.
-        var hasher = Hasher()
-        hostKey.hash(into: &hasher)
-        let fingerprint = String(hasher.finalize(), radix: 16)
+        // The key's own bytes, in OpenSSH's "algorithm-id base64-blob" form —
+        // the same text a known_hosts line carries, so a pin can be compared
+        // with one by eye.
+        //
+        // What this must NOT be is Swift's `Hasher`, which is what it was.
+        // `Hasher` is seeded randomly PER PROCESS, so hashing the same key
+        // twice in two launches gives two different values: the first
+        // connection to a machine pinned a number that the second could never
+        // reproduce, and every connection after the first failed as a changed
+        // host key. It looked like the app breaking overnight rather than a
+        // hash being unstable, because the first run of a fresh install always
+        // worked.
+        let fingerprint = String(openSSHPublicKey: hostKey)
 
         let defaults = UserDefaults.standard
         guard let known = defaults.string(forKey: key) else {
@@ -74,6 +83,35 @@ private final class TrustOnFirstUse: NIOSSHClientServerAuthenticationDelegate {
         } else {
             validationCompletePromise.fail(SSHTerminal.Failure.hostKeyChanged)
         }
+    }
+}
+
+/// Remembers the last error the connection saw, so a handshake that fails can
+/// say why.
+///
+/// Everything before the session channel exists — the version exchange, key
+/// exchange, host-key validation, authentication — happens on the parent
+/// channel, and NIOSSH reports those failures by firing an error down that
+/// pipeline and closing. `SessionChannelHandler` is on the CHILD channel and
+/// is never added when the handshake fails, so without this the error had
+/// nowhere to land: the connection simply closed and the app sat on
+/// "connecting…" for ever, with no message and no way to retry.
+private final class ErrorCapture: ChannelInboundHandler {
+    typealias InboundIn = Any
+
+    private let lock = NSLock()
+    private var _error: Error?
+
+    var error: Error? {
+        lock.lock(); defer { lock.unlock() }
+        return _error
+    }
+
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        lock.lock()
+        if _error == nil { _error = error }
+        lock.unlock()
+        context.fireErrorCaught(error)
     }
 }
 
@@ -165,6 +203,9 @@ public final class SSHTerminal: @unchecked Sendable {
 
     public enum Failure: Error {
         case hostKeyChanged
+        /// The connection closed before the shell was running and the pipeline
+        /// recorded no error of its own.
+        case closedDuringHandshake
     }
 
     /// What the connection is doing, for chrome that wants to say so.
@@ -183,6 +224,8 @@ public final class SSHTerminal: @unchecked Sendable {
     private let group: MultiThreadedEventLoopGroup
     private var connection: Channel?
     private var channel: Channel?
+    private var _reachedLive = false
+    private var _reported = false
     private let lock = NSLock()
 
     public init(session: TerminalSession) {
@@ -199,9 +242,17 @@ public final class SSHTerminal: @unchecked Sendable {
     }
 
     public func connect(host: String, port: Int, user: String, password: String) {
+        // Both latches are per-attempt. Left set, a retry on the same object
+        // would suppress the second failure's message and read the previous
+        // attempt's success as this one's.
+        lock.lock()
+        _reachedLive = false
+        _reported = false
+        lock.unlock()
         setLink(.connecting)
         note("\u{1B}[38;5;244mconnecting to \(user)@\(host):\(port)…\u{1B}[0m\r\n")
 
+        let errors = ErrorCapture()
         let bootstrap = ClientBootstrap(group: group)
             .channelOption(.socketOption(.so_reuseaddr), value: 1)
             .channelInitializer { channel in
@@ -213,6 +264,7 @@ public final class SSHTerminal: @unchecked Sendable {
                             serverAuthDelegate: TrustOnFirstUse(host: host, port: port))),
                         allocator: channel.allocator,
                         inboundChildChannelInitializer: nil),
+                    errors,
                 ])
             }
 
@@ -225,9 +277,28 @@ public final class SSHTerminal: @unchecked Sendable {
                 self.lock.lock()
                 self.connection = connection
                 self.lock.unlock()
+                // A connection that closes before the shell is running failed,
+                // whatever the reason — and the reason is whatever the pipeline
+                // last saw. Without this the only paths that reported anything
+                // were a refused TCP connect and a channel that had already
+                // opened, which left the whole handshake silent.
+                connection.closeFuture.whenComplete { [weak self] _ in
+                    guard let self = self, !self.reachedLive else { return }
+                    self.fail(self.describe(errors.error ?? Failure.closedDuringHandshake))
+                }
                 self.openSession(on: connection)
             }
         }
+    }
+
+    /// Latched once the shell has been running, so a connection that closes
+    /// can tell "the session ended" from "it never started". It cannot be read
+    /// off `link`, which is back to `.idle` by the time a clean disconnect
+    /// reaches the close future — that would report every normal logout as a
+    /// handshake failure.
+    private var reachedLive: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return _reachedLive
     }
 
     /// Ends the session. Unlike the termd transport there is nothing left
@@ -272,6 +343,7 @@ public final class SSHTerminal: @unchecked Sendable {
     private func ready(_ child: Channel) {
         lock.lock()
         channel = child
+        _reachedLive = true
         lock.unlock()
 
         // Keys go up the wire; the grid stays here. Set after the shell is
@@ -314,7 +386,15 @@ public final class SSHTerminal: @unchecked Sendable {
         setLink(why.map { .failed($0) } ?? .idle)
     }
 
+    /// Reports a failure once. A dead handshake reaches this twice — the
+    /// session-channel promise fails and the connection then closes — and the
+    /// second report would print a second red line for one event.
     private func fail(_ message: String) {
+        lock.lock()
+        let alreadyFailed = _reported
+        _reported = true
+        lock.unlock()
+        guard !alreadyFailed else { return }
         note("\r\n\u{1B}[31m[" + message + "]\u{1B}[0m\r\n")
         setLink(.failed(message))
     }
@@ -325,6 +405,10 @@ public final class SSHTerminal: @unchecked Sendable {
         if case Failure.hostKeyChanged = error {
             return "the host key changed since the last connection — "
                  + "if the machine was rebuilt, forget it and reconnect"
+        }
+        if case Failure.closedDuringHandshake = error {
+            return "the connection closed before the shell started — "
+                 + "wrong password, or the server refused the session"
         }
         if let ssh = error as? NIOSSHError {
             let text = "\(ssh)"
