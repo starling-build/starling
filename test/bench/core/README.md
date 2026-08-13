@@ -4,6 +4,21 @@ Feeds a captured byte stream straight through the emulator and times it. No
 Flutter, no compositor, no PTY: this isolates parse + grid-write cost, which is
 the part a C++ port would replace.
 
+**No PTY means no ONLCR, and that changes the workload — not just the bytes.**
+A corpus captured to a file holds bare LFs. The core never sees those live: a
+program writes to a pty slave and the line discipline expands every LF to CRLF
+on the way out. Fed verbatim, a bare LF moves down a row *without* returning to
+column 0, so the text staircases diagonally across the screen. Same bytes,
+different workload, and it reads as a plausible core result rather than an
+error. On `01_light_cells` the staircase leaves rows ~100 columns wide instead
+of ~7, so every scrolled-in row blanks ~100 cells instead of ~7: **90 MB/s
+staircased against 196 MB/s as a pty delivers it.** That 90 stood in
+`docs/plans/terminal-perf-macos.md` as "the core's outlier, 4x slower per byte
+than anything else" and sent Lever 3 after the allocator; the outlier was the
+harness. `bench_st` now expands LF to CRLF itself and takes `BENCH_RAW=1` for
+a stream captured *from* a pty, which already carries its CRs. `ptyread_mac`
+never had the problem — it runs a real `cat` through a real pty.
+
     # capture a stream (any terminal program, through a pty at a fixed grid)
     #   -> /var/tmp/bench/doomstream.bin   (see docs/perf/terminal-vs-ghostty-2026-08-04)
     cp ../../../apps/TerminalApp/Sources/TerminalApp/TerminalEmulator.swift .
