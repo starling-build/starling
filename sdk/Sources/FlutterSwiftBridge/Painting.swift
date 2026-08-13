@@ -2823,7 +2823,10 @@ internal class _NativeColorFilter {
         assert(creator.filterType == 1) // _kTypeMode
         self.creator = creator
         self.bridge = flutter.swift_bridge.ColorFilterBridge()
-        bridge.InitMode(Int32(creator.filterColor!.value), Int32(creator.filterBlendMode!.rawValue))
+        // Bit-pattern, not value: any colour with the alpha top bit set (all
+        // opaque ones) exceeds Int32.max and a checked Int32(_:) traps.
+        bridge.InitMode(Int32(bitPattern: UInt32(creator.filterColor!.value)),
+                        Int32(creator.filterBlendMode!.rawValue))
     }
 
     /// Creates a matrix color filter backed by native DlColorFilter.
@@ -5048,16 +5051,28 @@ public final class Paint: CustomStringConvertible {
     ///
     /// When a shape is being drawn, `colorFilter` overrides `color` and `shader`.
     ///
-    /// DIFFERENCE FROM DART: In Dart, ColorFilter is stored via a _ColorFilter native
-    /// wrapper which has a creator property. In Swift, we store ColorFilter directly.
-    /// REASON: Swift doesn't need the native wrapper pattern since we don't use @Native.
+    /// Stored as the `_NativeColorFilter` wrapper, exactly as Dart stores
+    /// `_ColorFilter` in `_objects`: the wrapper owns the C++ DlColorFilter
+    /// that `colorFilterBridgePtr` hands to draw calls, so it must live as
+    /// long as the Paint. Storing the bare struct and wrapping at draw time
+    /// let ARC free the wrapper before the canvas bridge read the pointer —
+    /// an EXC_BAD_ACCESS inside DecodePaint, not a Swift-side error.
     public var colorFilter: ColorFilter? {
         get {
-            return objects?[Paint.kColorFilterIndex] as? ColorFilter
+            return (objects?[Paint.kColorFilterIndex] as? _NativeColorFilter)?.creator
         }
         set {
             _ = ensureObjectsInitialized()
-            objects![Paint.kColorFilterIndex] = newValue as AnyObject?
+            if let value = newValue {
+                // Same dedupe as Dart: setting the value already stored must
+                // not rebuild the native filter.
+                let current = objects![Paint.kColorFilterIndex] as? _NativeColorFilter
+                if current?.creator != value {
+                    objects![Paint.kColorFilterIndex] = value.toNativeColorFilter()
+                }
+            } else {
+                objects![Paint.kColorFilterIndex] = nil
+            }
         }
     }
 
@@ -5088,11 +5103,15 @@ public final class Paint: CustomStringConvertible {
     /// REASON: Swift doesn't need the native wrapper pattern since we don't use @Native.
     public var imageFilter: (any ImageFilter)? {
         get {
-            return objects?[Paint.kImageFilterIndex] as? (any ImageFilter)
+            return (objects?[Paint.kImageFilterIndex] as? NativeImageFilter)?
+                .creator as? (any ImageFilter)
         }
         set {
             _ = ensureObjectsInitialized()
-            objects![Paint.kImageFilterIndex] = newValue as AnyObject?
+            // Stored as the native wrapper for the same lifetime reason as
+            // `colorFilter` above. No dedupe: `creator` is `Any` here, so the
+            // equality Dart uses is not expressible without narrowing it.
+            objects![Paint.kImageFilterIndex] = newValue?.toNativeImageFilter()
         }
     }
 
@@ -5211,22 +5230,25 @@ public final class Paint: CustomStringConvertible {
 
     /// Returns the color filter bridge pointer for use with CanvasBridge draw methods.
     /// Returns nil if no color filter is set.
+    ///
+    /// Reads the wrapper the setter stored — never a temporary. The returned
+    /// pointer is into the wrapper's C++ object, so whoever holds it must keep
+    /// the Paint alive across the bridge call, which every caller does.
     internal var colorFilterBridgePtr: UnsafeRawPointer? {
-        guard let colorFilter = objects?[Paint.kColorFilterIndex] as? ColorFilter else {
+        guard let native = objects?[Paint.kColorFilterIndex] as? _NativeColorFilter else {
             return nil
         }
-        let nativeFilter = colorFilter.toNativeColorFilter()
-        return UnsafeRawPointer(nativeFilter.bridge.GetFilterPtr())
+        return UnsafeRawPointer(native.bridge.GetFilterPtr())
     }
 
     /// Returns the image filter bridge pointer for use with CanvasBridge draw methods.
-    /// Returns nil if no image filter is set.
+    /// Returns nil if no image filter is set. Same lifetime contract as
+    /// `colorFilterBridgePtr`.
     internal var imageFilterBridgePtr: UnsafeRawPointer? {
-        guard let imageFilter = objects?[Paint.kImageFilterIndex] as? (any ImageFilter) else {
+        guard let native = objects?[Paint.kImageFilterIndex] as? NativeImageFilter else {
             return nil
         }
-        let nativeFilter = imageFilter.toNativeImageFilter()
-        return UnsafeRawPointer(nativeFilter.bridge.GetFilterPtr(-1))
+        return UnsafeRawPointer(native.bridge.GetFilterPtr(-1))
     }
 }
 
