@@ -13,3 +13,4 @@ __pycache__/
 # Fetched at build time by sdk/tools/fetch-conpty.ps1 (MIT, from nuget.org).
 # Binaries are not committed; run the script to populate.
 sdk/Vendor/
+.build-shared/

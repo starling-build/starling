@@ -3,6 +3,7 @@
 #
 #   build/run-desktop.sh [-- <shell args>]
 #   build/run-desktop.sh --no-stage        reuse the existing .stage/ as-is
+#   build/run-desktop.sh --no-build        skip the build, stage what exists
 #
 # Stages the build outputs into one self-contained tree (build/stage.sh) and
 # runs the desktop out of it — the same arrangement the .deb installs, so the
@@ -14,8 +15,9 @@
 #   ./bootstrap.sh                                  (engine symlink)
 #   engine built:  ninja -C engine/src/out/host_release \
 #                        libflutter_engine.so libflutter_linux_drm.so
-#   shell built:   cd shell && swift build -c release
-#   apps built:    cd apps/<App> && swift build -c release   (optional)
+#
+# The Swift side is built here, on every run (build/build-all.sh) — sdk, shell
+# and apps into one tree. --no-build skips it.
 #
 # The GPU must be free: no display manager or compositor holding it. Drop to
 # a TTY or `sudo systemctl isolate multi-user.target`, then check with
@@ -34,13 +36,30 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 STAGE_DIR="${STARLING_STAGE:-$REPO/.stage}"
 
 DO_STAGE=1
+DO_BUILD=1
 ARGS=()
 for a in "$@"; do
     case "$a" in
         --no-stage) DO_STAGE=0 ;;
+        --no-build) DO_BUILD=0 ;;
         *) ARGS+=("$a") ;;
     esac
 done
+
+# --- build --------------------------------------------------------------------
+# sdk, shell and every app, into one tree — because forgetting part of it is
+# the mistake this loop could not survive. Letting the build system answer "is
+# this current?" beats any check that guesses from the filesystem, and once the
+# framework is built the answer costs seconds: a fully up-to-date tree is ~15 s
+# of no-op builds, and the framework is compiled once for all twelve packages
+# rather than once each (build-all.sh has the measurements).
+if [ "$DO_BUILD" = 1 ]; then
+    if command -v swift >/dev/null 2>&1; then
+        "$REPO/build/build-all.sh"
+    else
+        echo "run-desktop: no swift on PATH — skipping the build" >&2
+    fi
+fi
 
 # --- stage --------------------------------------------------------------------
 if [ "$DO_STAGE" = 1 ]; then

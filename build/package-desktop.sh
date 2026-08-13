@@ -5,8 +5,8 @@
 # the binaries' $ORIGIN RUNPATH plus the launcher's LD_LIBRARY_PATH make
 # the tree self-contained (no swiftly toolchain, no dev paths on target).
 #
-# Prereqs: shell + apps built (swift build -c release), engine host_release
-# built (ninja libflutter_linux_drm.so libflutter_engine.so).
+# Prereqs: build/build-all.sh (sdk + shell + apps, one scratch tree), engine
+# host_release built (ninja libflutter_linux_drm.so libflutter_engine.so).
 #
 # The payload comes from build/stage.sh — that script defines the layout, and
 # build/run-desktop.sh runs from the same staged tree, so what you test in dev
@@ -23,7 +23,9 @@ PKG=starling
 OUT="${1:-/tmp/starling-pkg}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 E=$REPO/engine/src/out/host_release
-SHELL_BUILD=$REPO/shell/.build
+# The one build tree build/build-all.sh produces — sdk, shell and every app,
+# with a single libFlutterShared.so. Same variable stage.sh uses.
+SHELL_BUILD="${STARLING_SCRATCH:-$REPO/.build-shared}"
 # The system-integration payload: the session launcher GDM execs, its
 # wayland-session entry, the polkit policy behind the App Store's Install
 # button, and the NetworkManager drop-in. Real files rather than heredocs so
@@ -82,7 +84,7 @@ vendored_arch_mismatch() {
 
 APPS=""
 for a in $(first_party_execs); do
-    if [ -x "$REPO/apps/$a/.build/release/$a" ]; then
+    if [ -x "$SHELL_BUILD/release/$a" ]; then
         APPS="$APPS $a"
     elif mismatch=$(vendored_arch_mismatch "$REPO/apps/$a"); then
         echo "warning: $a is NOT in this .deb — vendored $mismatch" >&2
@@ -91,7 +93,8 @@ for a in $(first_party_execs); do
         # installed desktop will show it in the launcher and possibly the dock;
         # shipping without the binary is the bug this whole block replaces.
         echo "error: $a is in registry/catalog.d but has no built binary at" >&2
-        echo "       apps/$a/.build/release/$a — build it, or drop its record" >&2
+        echo "       $SHELL_BUILD/release/$a — run build/build-all.sh, or" >&2
+        echo "       drop its record" >&2
         exit 1
     fi
 done

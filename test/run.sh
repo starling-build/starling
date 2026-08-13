@@ -234,15 +234,23 @@ vendored_arch_mismatch() {
 }
 
 if [ "$BUILD" = 1 ]; then
-    step "build: shell + apps"
-    for pkg in shell apps/*/; do
+    step "build: sdk + shell + apps"
+    # Into ONE scratch tree, sdk first — build/build-all.sh explains why, and
+    # it is the difference between ~3.5 min and ~19 min: sdk/ is a path
+    # dependency of all twelve packages, and SwiftPM compiles one copy per
+    # consuming package unless they share a scratch path.
+    SCRATCH="${STARLING_SCRATCH:-$REPO/.build-shared}"
+    for pkg in sdk shell apps/*/; do
         [ -f "$REPO/$pkg/Package.swift" ] || continue
         name=$(basename "$pkg")
         if mismatch=$(vendored_arch_mismatch "$REPO/$pkg"); then
             echo "  skip  $name — vendored $mismatch"
             continue
         fi
-        out=$(cd "$REPO/$pkg" && as_user "$SWIFT" build -c release 2>&1)
+        sdk_only=""
+        [ "$pkg" = sdk ] && sdk_only="--product FlutterShared"
+        out=$(as_user "$SWIFT" build -c release --package-path "$REPO/$pkg" \
+                      --scratch-path "$SCRATCH" $sdk_only 2>&1)
         # Every package builds on Linux, including the macOS-only ones: they
         # select a placeholder target off macOS (see apps/DSATool/Package.swift)
         # rather than failing to compile. So a build error here is a real one —

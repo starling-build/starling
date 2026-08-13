@@ -42,7 +42,16 @@ while [ $# -gt 0 ]; do
 done
 OUT="${OUT:-$REPO/.stage}"
 
-SHELL_BUILD=$REPO/shell/.build
+# ONE build tree for the whole desktop — the shell and every app — produced by
+# build/build-all.sh. sdk/ is a path dependency of all twelve packages, and
+# SwiftPM compiles a path dependency per consuming package: built one package
+# at a time, this tree holds twelve copies of the framework and staging has to
+# choose. Choosing is where the bugs lived — the staged copy was the shell's,
+# so an sdk/ change reached the app you rebuilt and not the framework it loads,
+# silently whenever the change was to an existing function rather than the API.
+# A shared scratch path builds the sdk targets once and has everything reuse
+# them, so there is one framework and nothing to choose between.
+SHELL_BUILD="${STARLING_SCRATCH:-$REPO/.build-shared}"
 
 # SwiftPM writes to .build/<target-triple>/<config>, so staging has to know the
 # triple. Derive it — this used to be hardcoded to x86_64-unknown-linux-gnu, so
@@ -77,14 +86,14 @@ E="${STARLING_ENGINE_OUT:-$E}"
     echo "error: no libflutter_engine.so in $E — build the engine first" >&2; exit 1
 }
 [ -x "$SHELL_BUILD/$CONFIG/DesktopShellApp" ] || {
-    echo "error: shell not built — cd shell && swift build -c $CONFIG" >&2; exit 1
+    echo "error: nothing built at $SHELL_BUILD — run build/build-all.sh" >&2; exit 1
 }
 
 # Default app set: every app with a built binary for this config.
 if [ -z "$APPS" ]; then
     for d in "$REPO"/apps/*/; do
         a=$(basename "$d")
-        [ -x "$REPO/apps/$a/.build/$CONFIG/$a" ] && APPS="$APPS $a"
+        [ -x "$SHELL_BUILD/$CONFIG/$a" ] && APPS="$APPS $a"
     done
 fi
 APPS="$(echo "$APPS" | xargs)"   # trim
@@ -109,35 +118,28 @@ done
 # the swiftly toolchain provides (absent on target machines) ------------------
 {
     ldd "$SHELL_BUILD/$CONFIG/DesktopShellApp"
-    for a in $APPS; do ldd "$REPO/apps/$a/.build/$CONFIG/$a"; done
+    for a in $APPS; do ldd "$SHELL_BUILD/$CONFIG/$a"; done
 } 2>/dev/null | awk '$3 ~ /swiftly\/toolchains/ {print $3}' | sort -u | while read -r so; do
     install -m644 "$so" "$LIB/"
 done
 
 # --- first-party apps --------------------------------------------------------
 for a in $APPS; do
-    install -m755 "$REPO/apps/$a/.build/$CONFIG/$a" "$LIB/apps/"
-    for r in "$REPO/apps/$a/.build/$TRIPLE/$CONFIG/"*.resources; do
+    install -m755 "$SHELL_BUILD/$CONFIG/$a" "$LIB/apps/"
+    for r in "$SHELL_BUILD/$TRIPLE/$CONFIG/"*.resources; do
         [ -d "$r" ] && cp -r "$r" "$LIB/apps/"
     done
-    # NOTE: the app's own libFlutterShared.so build product is deliberately
-    # NOT staged. Every package compiles its own copy of the framework, so
-    # each app has one — and installing them here meant the LAST app in this
-    # loop supplied the framework every child app loaded ($ORIGIN is the
-    # shared apps/ dir). Nine apps silently ran whichever build happened to
-    # be staged last, and a framework fix rebuilt into the shell (or into the
-    # app under test) changed nothing on screen: the instrumented build was
-    # never the loaded one, which cost a debugging session a full round of
-    # wrong conclusions. Apps get the SHELL's build via the symlink loop
-    # below, the same way they already get libflutter_engine.so — one
-    # framework per staged tree, from one source.
+    # No per-app framework to stage, and no choice to get wrong: every
+    # package is built into one scratch tree (see the note at SHELL_BUILD), so
+    # there is exactly one libFlutterShared.so and the apps reach it through
+    # the symlink loop below, the same way they reach libflutter_engine.so.
     #
-    # The flip side: after ADDING framework API (a new sdk widget), rebuild
-    # the SHELL before staging, or every app built against the new API dies
-    # at launch with `symbol lookup error: undefined symbol` — the app is
-    # new, the one framework it loads is the shell's old one. Same lazy-
-    # binding trap CLAUDE.md documents for the engine libraries, one layer
-    # up.
+    # It used to be one .build per package — twelve copies of the same
+    # framework. Staging them all meant the LAST app in this loop supplied the
+    # framework every child app loaded, since $ORIGIN is the shared apps/ dir;
+    # staging only the shell's meant an sdk/ change reached the app you rebuilt
+    # but not the library it loads. Both were silent. Building once removes the
+    # question rather than answering it.
     # Vendored per-app libraries (ImageViewerApp's PDFium).
     for dep in "$REPO/apps/$a/.deps/"*/lib/*.so; do
         [ -f "$dep" ] && install -m644 "$dep" "$LIB/apps/"
