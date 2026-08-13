@@ -275,6 +275,20 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var font: TerminalFont { w.font }
     private var padding: Double { w.padding }
 
+    /// The font glyphs are actually SHAPED with: the widget's font carries the
+    /// family, the fit decides the size. `w.font.size` and `_fontSize` are the
+    /// same number everywhere except a fitted grid (`fitColumns`), where the
+    /// size follows the width — and there, shaping with `w.font` draws 13pt
+    /// glyphs into ~8pt cells. On the Text path that was understood from the
+    /// start (`_makeTextStyle` uses `_fontSize`); the painter and the atlas
+    /// arrived from a tree with no fit feature, shaped with `font.size`, and
+    /// on every fitted grid produced glyphs ~1.6x their cells: clipped tops in
+    /// paragraph mode, and slot overflow in the atlas — each glyph spilling
+    /// into its neighbour's slot, so the blit sampled fragments of both.
+    private var _shapedFont: TerminalFont {
+        TerminalFont(family: w.font.family, size: _fontSize, fallback: w.font.fallback)
+    }
+
     private var _fontFallback: [String] { font.fallback ?? TerminalFontLoader.fallback }
     private var _lock: NSLock { session.lock }
     private var emulator: TerminalEmulator { session.emulator }
@@ -1105,10 +1119,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// stays in-tree unchanged as the comparison baseline. "2" selects the
     /// cached-paragraph experiment (measured, and it lost — see the painter);
     /// the painter branches on `TerminalGridPainter.paragraphMode`.
-    /// On everywhere, including iOS — but iOS runs the painter in paragraph
-    /// mode rather than blitting: the whole story, including the fixed crash
-    /// and the still-open Impeller sampling defect, is on
-    /// `TerminalGridPainter.paragraphMode`.
+    /// On everywhere, iOS included. iOS needed two fixes to get here: the
+    /// engine snapshots pictures through the rasteriser in use rather than
+    /// always Skia (SwiftBridgeEngineRegistry::SetSnapshotCallback — Impeller
+    /// aborted otherwise), and the painter/atlas shape with `_shapedFont`, the
+    /// FITTED size, not `w.font.size` (see the note on `_shapedFont`).
     private static let _useAtlas: Bool = {
         ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] != "0"
     }()
@@ -1121,12 +1136,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private func _atlasForCurrentMetrics() -> TerminalGlyphAtlas {
         let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
         if let a = _atlas, a.matches(cellW: cellW, cellH: cellH, scale: scale,
-                                     family: font.family, fontSize: font.size) {
+                                     family: font.family, fontSize: _shapedFont.size) {
             return a
         }
         let made = TerminalGlyphAtlas(
             cellW: cellW, cellH: cellH, scale: scale,
-            family: font.family, fallback: _fontFallback, fontSize: font.size)
+            family: font.family, fallback: _fontFallback, fontSize: _shapedFont.size)
         _atlas = made
         return made
     }
@@ -1163,7 +1178,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             cellW: cellW,
             cellH: cellH,
             theme: theme,
-            font: font,
+            font: _shapedFont,
             fallbackFamilies: _fontFallback,
             atlas: _atlasForCurrentMetrics(),
             generation: generation,

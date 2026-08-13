@@ -80,43 +80,16 @@ final class TerminalGridPainter: CustomPainter {
     /// the per-cell tint layer costs more than the batching saves, exactly as
     /// predicted above. Kept as the recorded answer; numbers and the probe
     /// diff are in docs/plans/terminal-perf-macos.md (Lever 2).
-    /// AND IT IS THE DEFAULT ON iOS, where the atlas image cannot be used.
-    /// Two engine-level problems stand between iOS and the blit, one fixed
-    /// and one open:
     ///
-    ///   * `Picture.toImageSync`'s bridge always rasterised through Skia,
-    ///     and iOS renders with Impeller — `FML_CHECK(blob) << "Impeller
-    ///     DlText cannot be drawn to a Skia canvas."` aborted the process on
-    ///     the terminal's first paint. FIXED: the shell now routes the bridge
-    ///     through the rasteriser's own snapshot (SwiftBridgeEngineRegistry::
-    ///     SetSnapshotCallback), so building the image works.
-    ///   * With the image built, sampling it PER-SLOT comes out wrong under
-    ///     Impeller: every glyph renders with a band of misplaced content,
-    ///     while the same texture drawn whole — via drawImage, a whole-image
-    ///     drawRawAtlas, or drawImageRect — is pixel-perfect, and the same
-    ///     slot arithmetic against a rect-drawn texture of the same shape is
-    ///     also clean. Verified not to be: the tint path, the sampler, mips,
-    ///     partial repaint, deferred-vs-sync rasterisation, or the rect and
-    ///     transform values (printed and checked by hand). OPEN; the one
-    ///     untested hypothesis is the per-call vertex volume (the clean
-    ///     synthetic repro peaked at 448 quads, the corrupted real frames at
-    ///     ~707, and vertex data is emplaced contiguously per call into the
-    ///     engine's partitioned host buffer).
-    ///
-    /// Until the second is found, this mode — every glyph a cached paragraph,
-    /// placed per cell — is the iOS default: it keeps per-cell placement,
-    /// which box-drawing runs depend on, and needs no atlas image at all.
-    /// `STARLING_TERM_ATLAS=1` forces the blit on for engine work.
-    static let paragraphMode: Bool = {
-        if let env = ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] {
-            return env == "2"
-        }
-        #if os(iOS)
-        return true
-        #else
-        return false
-        #endif
-    }()
+    /// (2026-08-13, resolved) This mode spent an afternoon as the iOS default,
+    /// standing in for the atlas while the blit rendered garbage there. The
+    /// garbage was never Impeller's: the painter and atlas shaped glyphs at
+    /// `w.font.size` while a FITTED grid (`fitColumns`, the phone feature)
+    /// sizes cells from `_fontSize` — 13pt glyphs in ~8pt slots, every glyph
+    /// overflowing into its neighbour's. `TerminalView._shapedFont` is the
+    /// fix, and the atlas is the default everywhere again.
+    static let paragraphMode =
+        ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] == "2"
 
     /// Laid out once per distinct glyph, painted at every cell that wants it.
     /// Static so it survives the per-frame painter, like the atlas does.
