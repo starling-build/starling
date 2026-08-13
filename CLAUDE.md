@@ -54,7 +54,7 @@ build/     stage.sh (assembles the tree — the single definition of the layout)
            package-desktop.sh (Ubuntu .deb), session/ (the four
            system-integration files it installs verbatim), app-run/app-install,
            tools/ (drm_screenshot), vendored flutter_assets, bundled wallpapers
-           live in shell/Resources
+           live in shell/Resources, ios-app.sh (stage.sh's iOS counterpart)
 macos-compat/  research: running unmodified Mach-O macOS binaries on Linux.
                Not part of the desktop, and deliberately not part of the SDK.
 docs/plans/    design notes, including standalone-sdk.md — the framework's
@@ -155,6 +155,26 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
   cheapest way to exercise the fractional-scale path.
   `vkms` looks like the obvious answer and is not — it has no render node, and
   the shell opens **one** device for both GBM/EGL and KMS.
+- **iOS** → `build/ios-app.sh [app] [--run]`, which builds, assembles a real
+  `.app` and can install and launch it on a simulator. It is `stage.sh`'s
+  counterpart and exists for a stronger version of the same reason: an iOS app
+  cannot run out of `.build` at all — a bare Mach-O is not an app there, the
+  loader only follows `@rpath` into the bundle, and the engine finds its assets
+  through `NSBundle`. Needs an iOS engine first:
+
+      cd engine/src
+      ./flutter/tools/gn --ios --simulator --simulator-cpu arm64 --no-lto
+      ninja -C out/ios_debug_sim_arm64 \
+          flutter/shell/platform/darwin/ios:universal_flutter_framework \
+          flutter/lib/ui/swift:swift_bridge
+
+  **`STARLING_IOS=1` is an environment variable and cannot be a `#if`.** A
+  `Package.swift` is compiled and run on the *host*, so `#if os(iOS)` is false
+  there even mid-cross-compile, and a manifest that tests it silently builds
+  the macOS configuration. Sources are the opposite — `#if os(iOS)` in a
+  `.swift` file under `Sources/` is evaluated for the target and is the right
+  spelling there. Both manifests (`sdk/` and the app's) must agree on the
+  variable, because it picks the engine out-directory each links against.
 - Package: `build/package-desktop.sh` → .deb. It consumes `build/stage.sh`, which
   is the **single definition of the layout** — change assembly there, never in
   the packager alone. The session launcher, its `.desktop`, the polkit policy

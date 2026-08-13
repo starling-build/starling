@@ -36,6 +36,21 @@ engine on its own, and each host is pinned around that moment:
   the engine's initial `FlutterWindowMetricsEvent` is skipped
   (`updateWindowMetricsForViewController` returns early for an unloaded view)
   and nothing composites; showing before running hands you a Dart isolate.
+- **UIKit** — the mirror image of Cocoa: `FlutterViewController.initWithEngine:`
+  takes an engine as given and never starts one (`initWithProject:` is the path
+  that would), so there is no race to win. What is forced instead is the
+  *shape*: `UIApplicationMain` owns the launch sequence and never returns, so
+  the engine can only be built inside a delegate callback, the widget tree is
+  mounted from there, and `UIKitHost` therefore has no create/mount/run split
+  like the other three. That is why `windowedHostBoot`'s `root` is `@escaping`.
+
+**The UIKit host insets its view, and every app depends on it.** The
+FlutterViewController is a child of `FlUIKitRootViewController`, pinned to the
+safe-area layout guide rather than made the window's root. The framework has
+no MediaQuery padding and no `SafeArea` widget — it grew up on a desktop,
+where nothing overlaps a window — so a tree given the whole screen draws its
+first row under the status bar. If a `SafeArea` is ever ported, this is what
+it replaces.
 
 **macOS-only build note.** The engine is `FlutterMacOS.framework` plus a
 separate `libswift_bridge.dylib`, and `--mac-cpu arm64` decides both the ABI
