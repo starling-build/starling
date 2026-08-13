@@ -880,11 +880,19 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         var spans: [InlineSpan] = []
         var runText = ""
         var runStyle: _RunKey? = nil
+        // Columns each finished run covers, and whether any cell in this row
+        // needs a family other than the primary. Both feed the segmented
+        // layout below; an all-ASCII row uses neither.
+        var runColumns: [Int] = []
+        var runCells = 0
+        var needsFallback = false
 
         func flush() {
             guard let style = runStyle, !runText.isEmpty else { return }
             spans.append(TextSpan(text: runText, style: _textStyle(style)))
+            runColumns.append(runCells)
             runText = ""
+            runCells = 0
         }
 
         for c in 0 ..< headEnd {
@@ -932,6 +940,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 flush()
                 runStyle = key
             }
+            if cell.scalar > 0x7F { needsFallback = true }
+            runCells += columns
             if let cluster = cluster { runText += cluster }
             else { runText.append(cell.char) }
         }
@@ -954,14 +964,51 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // With soft wrap off the paragraph lays out against infinite width, so
         // it never breaks, and RenderParagraph clips it to the box — which is
         // what a terminal does with a cell that does not fit.
-        let head = SizedBox(
-            height: cellH,
-            child: Text(
-                rich: TextSpan(children: spans),
-                softWrap: false,
-                maxLines: 1
+        // One paragraph per run, once the row needs a family we did not load
+        // ourselves.
+        //
+        // Font fallback inside a paragraph is MONOTONIC here: a run may
+        // resolve a family at the same or a later index in
+        // `fontFamilyFallback` than the run before it, never an earlier one.
+        // Measured on one row at a time, same binary: `✓✗→ 日本語` (DejaVu at
+        // index 1, then Hiragino at 3) draws; `日本語 ✓✗→` — the same two runs
+        // the other way round — drops BOTH, and everything after them. Each
+        // family alone is fine, and `日本語 안녕` (3 then 5, forward) is fine.
+        // A colour-emoji run poisons every fallback run in its row outright.
+        //
+        // This is why `cat`ing the unicode benchmark corpus showed no CJK at
+        // all: its line is `… αβγδ 日本語 中文 ✓✗→ ≤∞ 🎉🚀`, which walks the
+        // chain backwards at ✓ and then hits emoji.
+        //
+        // Splitting the row into one Text per run gives each run its own
+        // paragraph, so nothing walks backwards inside one. The cost is a
+        // widget and a paragraph per run, so it is spent only where it buys
+        // something: a row of pure ASCII — every hot benchmark row — stays a
+        // single Text with all its spans, exactly as before. The engine bug
+        // is upstream of us and this does not fix it, it routes around it;
+        // the per-cell painter (docs/plans/terminal-perf-macos.md, Lever 2)
+        // retires the whole class.
+        let head: Widget
+        if needsFallback && spans.count > 1 {
+            var segments: [Widget] = []
+            segments.reserveCapacity(spans.count)
+            for (i, span) in spans.enumerated() {
+                segments.append(SizedBox(
+                    width: Double(runColumns[i]) * cellW,
+                    height: cellH,
+                    child: Text(rich: span, softWrap: false, maxLines: 1)))
+            }
+            head = SizedBox(height: cellH, child: Row(children: segments))
+        } else {
+            head = SizedBox(
+                height: cellH,
+                child: Text(
+                    rich: TextSpan(children: spans),
+                    softWrap: false,
+                    maxLines: 1
+                )
             )
-        )
+        }
         guard tailWidth > 0 else { return head }
         // The head is pinned to its cell width so the coloured tail starts
         // exactly on the grid, whatever the text engine makes of a run that
