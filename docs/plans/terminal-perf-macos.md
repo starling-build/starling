@@ -189,6 +189,34 @@ emoji, underline and reverse — which is precisely the set that is broken today
 So the painter needs both halves: the atlas fast path for ordinary cells, and a
 fallback that still places by cell rather than by advance.
 
+### Does the atlas earn its second texture? Yes — measured 2026-08-13
+
+The engine already has a glyph atlas (Impeller's typographer), so ours is a
+second one layered over it. `STARLING_TERM_ATLAS=2` tested the obvious
+alternative: cache one laid-out `Paragraph` per distinct glyph and Paint it at
+each cell — engine rasterisation, engine atlas, our placement, no second
+texture. What it gives up is batching (a draw op per cell instead of one
+`drawRawAtlas`) and it pays a bounded saveLayer + srcIn colour filter per cell
+to tint a white glyph, because a paragraph bakes its colour in.
+
+DOOM-Fire, 600 frames x 3 reps x 2 interleaved rounds, on battery (so compare
+across the arms, not against other days' numbers):
+
+    Text path (off)   1.45 1.46 1.38 / 1.52 1.48 1.48   mean 1.46 CPU-s
+    atlas      (=1)   0.88 0.89 0.90 / 0.90 0.92 0.92   mean 0.90 CPU-s
+    paragraphs (=2)   1.55 1.38 1.35 / 1.70 1.60 1.60   mean 1.53 CPU-s
+
+Mode 2 renders correctly (probe diff vs mode 1: 0.097% of pixels, all of it
+the ▓▒░ shades drawn from the font's dither glyphs instead of our procedural
+greys) — and loses exactly as predicted: the per-cell layer costs more than
+the whole second texture, landing back at the Text path's CPU. The mode stays
+in-tree as the recorded answer; do not re-run it expecting otherwise. If the
+second texture ever has to go, the path is the engine's positioned-glyph op —
+`DlCanvas::DrawText(std::shared_ptr<DlText>)` exists, but the Swift bridge
+would need a new entry point taking glyph ids and positions, giving per-cell
+placement AND the engine's atlas with neither a second texture nor a per-cell
+layer.
+
 ## Lever 3 — `01_light_cells` — DONE, and it was never the allocator
 
 The premise was wrong twice over, and both errors are worth keeping.

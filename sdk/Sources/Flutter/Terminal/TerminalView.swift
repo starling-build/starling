@@ -862,9 +862,14 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     /// Opt in to the per-cell atlas painter (docs/plans/terminal-perf-macos.md,
     /// Lever 2). Off by default while it earns its place: the Text path below
-    /// is unchanged and remains what ships.
-    private static let _useAtlas =
-        ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] == "1"
+    /// is unchanged and remains what ships. "2" is the cached-paragraph
+    /// experiment — it shares this gate (and the cell snap it enables) so both
+    /// modes paint the identical grid; the painter itself branches on
+    /// `TerminalGridPainter.paragraphMode`.
+    private static let _useAtlas: Bool = {
+        let v = ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"]
+        return v == "1" || v == "2"
+    }()
 
     /// Rebuilt whenever the metrics it rasterised for move — cell size follows
     /// the font and the display, and a stale atlas would blit glyphs drawn for

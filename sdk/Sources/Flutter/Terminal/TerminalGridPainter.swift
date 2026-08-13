@@ -74,6 +74,12 @@ final class TerminalGridPainter: CustomPainter {
     /// that costs us per frame WITHOUT the second texture, and still lets us
     /// place every cell ourselves. What it gives up is batching: one draw op
     /// per cell rather than one for the screen.
+    ///
+    /// ANSWERED 2026-08-13: the atlas earns its texture. DOOM-Fire, two
+    /// interleaved rounds: Text 1.46 / atlas 0.90 / this mode 1.53 CPU-s —
+    /// the per-cell tint layer costs more than the batching saves, exactly as
+    /// predicted above. Kept as the recorded answer; numbers and the probe
+    /// diff are in docs/plans/terminal-perf-macos.md (Lever 2).
     static let paragraphMode =
         ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] == "2"
 
@@ -267,14 +273,27 @@ final class TerminalGridPainter: CustomPainter {
             paragraph = made
         }
         let dy = Self.paragraphBaseline - paragraph.alphabeticBaseline
-        canvas.saveLayer(nil, tintPaint(fg))
+        // Bound the layer to the cell: an unbounded saveLayer is sized to the
+        // whole clip, which would bill every cell for a screen-sized layer and
+        // measure nothing but that mistake. Clipping at the cell edge is also
+        // what the atlas slot does, so the two modes crop identically.
+        canvas.saveLayer(Rect.fromLTWH(x, y, cellW, cellH), tintPaint(fg))
         canvas.drawParagraph(paragraph, Offset(x, y + dy))
         canvas.restore()
     }
 
+    /// One Paint per foreground colour, kept like the paragraphs: setting a
+    /// colorFilter builds a C++ DlColorFilter, and rebuilding that per cell
+    /// per frame would charge the experiment for a cache we simply forgot.
+    /// Unbounded under truecolor content, like the paragraph cache — fine for
+    /// an opt-in experiment, capped before this could ever ship.
+    private static var tintPaints: [UInt32: Paint] = [:]
+
     private func tintPaint(_ fg: UInt32) -> Paint {
+        if let hit = Self.tintPaints[fg] { return hit }
         let p = Paint()
         p.colorFilter = ColorFilter(mode: Color(Int(fg)), .srcIn)
+        Self.tintPaints[fg] = p
         return p
     }
 
