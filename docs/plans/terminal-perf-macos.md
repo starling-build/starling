@@ -36,20 +36,33 @@ not per-byte.
 
 ## Where it ended up
 
-Lever 1 is done. Against ghostty 1.3.2-main+51ed437cd, same machine, same
-grid, AC power, best of 3:
+Levers 1 and 3 are done. Against ghostty 1.3.2-main+51ed437cd, same machine,
+same grid (both `meta-*` verified at `grid 47x201`), AC power, best of 3:
 
 | | ours | ghostty | |
 |---|---|---|---|
-| suite wall | **2.505 s** | 2.656 s | **0.94x** |
-| suite CPU | **3.85 s** | 4.67 s | 0.82x |
+| suite wall | **2.230 s** | 2.961 s | **0.75x** |
+| suite CPU | **3.52 s** | 8.00 s | 0.44x |
 
-which is the first round we finish ahead. The four we win are 10_binary
-(0.40x), 03_sgr_fg (0.75x), 04_sgr_truecolor and 08_scroll_region (0.96x);
-the three we lose worst are 05_unicode (1.77x), 07_alt_screen (1.42x) and
-01_light_cells (1.40x). Two of those three are the workloads the inline
-reader gave up to win the rest — see below — so they are the next lever,
-not a surprise.
+We take nine of ten, and burn 44% of the CPU doing it:
+
+    10_binary 0.32   03_sgr_fg 0.70   01_light_cells 0.72   02_dense_cells 0.80
+    08_scroll_region 0.85   09_long_lines 0.86   04_sgr_truecolor 0.88
+    06_cursor_motion 0.97   05_unicode 1.00   07_alt_screen 1.13
+
+`07_alt_screen` is the only loss. `01_light_cells` was 1.40x before the
+sliding grid window and is 0.72x after it; `05_unicode` was 1.77x when this
+plan was written, 1.42x after Lever 1, and is a tie now.
+
+**Ghostty's own three published tests, same session, are three of three** —
+ascii cat 0.90x, unicode cat 0.98x, DOOM-Fire 1.11x, on 40-60% of their CPU.
+That set is the one that found the width-cache bug below; the suite did not.
+See `docs/perf/terminal-vs-ghostty-macos-2026-08-12/report.md`.
+
+The ghostty side had to be retried once: it came up at **17x49** instead of
+47x201, which at a corpus generated for 201 columns wraps 4x and makes ghostty
+read ~2.4x slow — indistinguishable from a win without reading `meta-gh.txt`.
+`bench.sh` still does not enforce this; check it every round.
 
 ## Lever 1 — collapse the reader/parser split on Darwin — DONE
 
@@ -121,13 +134,48 @@ Risks to hold in mind, none of them showstoppers:
 Expected: the suite's parse-only wall 2.76 s toward mode 0's 2.35 s, i.e. the
 live suite from 2.99 s to roughly 2.6 s.
 
+## Re-measured after Lever 1 — and two of the levers below moved
+
+Everything from here down was written against the 2026-08-12 morning numbers.
+Three of its premises did not survive re-measurement on the same machine that
+evening, so read this section before acting on any of them.
+
+**The decomposition is no longer 39/14/47.** Same suite, same grid, AC power,
+best of 3, with the inline reader in:
+
+| | wall | share |
+|---|---|---|
+| live | **2.420 s** | |
+| repaints suppressed (`STARLING_BENCH_NOREPAINT=1`) | 2.366 s | |
+| → rendering | **0.054 s** | **2.2% of wall, 48% of CPU** |
+| core alone, per workload, summed | ~1.01 s | 42% |
+| → PTY read path | ~1.36 s | 56% |
+
+Rendering was 14% of wall before Lever 1 and is **2.2%** after it. Nothing
+about the renderer changed: the inline reader put parse on the reader thread,
+so rendering now overlaps it almost entirely, and the 60 Hz repaint cap was
+already keeping frame count off the critical path. A *perfect* renderer would
+take the suite from 2.420 s to 2.366 s and no further.
+
+**The pty's 1 KB grain is a hard kernel limit.** `ptyprobe` (in this round's
+data) histograms every read: `max=1024` on all ten workloads, mean 1009-1024.
+The 442 MB suite is therefore ~432 000 producer/consumer round trips and no
+buffer size changes that. Putting the pty slave in **raw mode (OPOST off) makes
+the transport 1.8x faster** — 3.79 µs/read against 6.76 — because the tty's
+output path goes bulk instead of character-at-a-time. It is not a lever we
+have: the shell sets its own termios the moment it starts, and ONLCR is
+required for correctness. Ghostty pays the identical floor.
+
 ## Lever 2 — the glyph atlas painter (CPU, frame rate, and correctness)
 
-The atlas landed in f3aa62c and nothing calls it yet. On the cat suite it can
-win at most the 14% that rendering costs — but that is not why to do it:
+**It cannot move the benchmark.** Rendering is 2.2% of the suite's wall (above),
+so a free renderer is worth 0.054 s. Do it for the other three reasons, which
+are undiminished — and do not schedule it expecting a throughput result:
 
-- **CPU halves.** 2.5 of our 5.26 CPU-seconds are rendering, and on a laptop
-  that is battery and fan, not just a number.
+- **CPU halves.** 1.80 of our 3.77 CPU-seconds are rendering — 48%, unchanged
+  as a share even though the wall cost collapsed — and on a laptop that is
+  battery and fan, not just a number. The atlas landed in f3aa62c and nothing
+  calls it yet.
 - **Frame rate.** DOOM-Fire is 803 fps against ghostty's ~940-1030, and a
   sample puts 72.9% of that wall inside the paragraph shaper — re-shaping a
   monospace grid whose answers are all known in advance.
@@ -141,19 +189,66 @@ emoji, underline and reverse — which is precisely the set that is broken today
 So the painter needs both halves: the atlas fast path for ordinary cells, and a
 fallback that still places by cell rather than by advance.
 
-## Lever 3 — `01_light_cells`, the core's outlier
+## Lever 3 — `01_light_cells` — DONE, and it was never the allocator
 
-Core-alone throughput on this machine, MB/s:
+The premise was wrong twice over, and both errors are worth keeping.
 
-    alt_screen 744   long_lines 652   dense_cells 516   scroll_region 502
-    truecolor  352   cursor_motion 339   unicode 336   binary 324   sgr_fg 294
-    light_cells 81
+**The 81 MB/s was a harness artifact.** `bench_st` fed the corpus file
+verbatim, but a corpus file holds bare LFs and the core never sees those live:
+a pty's line discipline expands LF to CRLF on the way out. Fed raw, every LF
+moved down a row without returning to column 0, so the text staircased
+diagonally and left each row ~100 columns wide instead of ~7 — a different
+workload on the same bytes, reported as a core throughput number. Corrected,
+the same core does **196 MB/s**, not 81. `bench_st` now applies ONLCR itself
+(`BENCH_RAW=1` opts out, for a capture taken *from* a pty); see
+`test/bench/core/README.md`.
 
-`01_light_cells` is 1.5 M short lines — 1.5 M line feeds — and it runs 4x
-slower per byte than anything else. On Linux this was the allocator (226 k
-minor faults, fixed by the row pool: 25 -> 106 MB/s). At 81 MB/s here the same
-workload is still the outlier, so the question is whether the pool's assumptions
-survive libmalloc. Profile it on macOS before assuming the Linux fix carries.
+**What was actually slow was `grid_rotate_in`.** Every line feed outside a
+scroll region removed row 0 and memmoved the whole `Row` array down one —
+1128 bytes per feed, 1.7 GB over this workload's 1.5 M feeds, and a profile put
+68% of the run inside that one memmove. The grid is now a **sliding window**
+into a block with `GRID_SLACK` rows of headroom, so the whole-screen scroll is
+a pointer bump and the move happens once per 1024 feeds. Scroll *regions* still
+move rows: sliding would drag the rows outside the region with it.
+
+Core throughput, corrected corpus, before → after:
+
+    light_cells 196 -> 315 (+60%)   long_lines 700 -> 745   binary 426 -> 450
+    unicode     365 -> 383           dense_cells 708 -> 730
+    the rest within ±1%
+
+Live suite **2.420 -> 2.335 s (-3.5%)**, every workload flat or better:
+01_light_cells -18.3%, 05_unicode -7.7%, 06_cursor_motion -6.9%.
+
+## The reader question is closed — inline wins everywhere now
+
+Lever 1 shipped the inline reader knowing it lost two workloads, and this plan
+recorded that the parse/read ratio did not predict which. It did not, because
+the split was never about the transport: **it was the core's cost on those two
+streams**, and the sliding window removed it. Re-measured through
+`test/bench/core/ptyread_mac.c` (real pty, real `cat`, real core) against the
+faster core:
+
+    workload           inline    ring    spin
+    01_light_cells      0.099   0.091   0.094
+    05_unicode          0.302   0.315   0.299
+    07_alt_screen       0.194   0.218   0.219
+    03_sgr_fg           0.399   0.538   0.562
+    08_scroll_region    0.156   0.253   0.268
+
+05_unicode has flipped to inline (it was the ring by 21%), and 01_light_cells
+has narrowed from 37% to 8%. Do not reopen the adaptive-switch idea.
+
+**And the condvar was never the ring's cost.** `ptyread_mac` mode 11 is a
+lock-free SPSC byte ring — two atomic indices, release/acquire, a bounded
+spin, an 8 MB buffer, no condition variable anywhere in the hot path. It lands
+*on top of* the condvar ring's numbers, workload for workload. The reason is
+visible in its own counters: mean feed 1088 B and millions of empty polls. The
+consumer starves because the pty delivers 1 KB at a time, so there is nothing
+to overlap. What actually separates the designs is **pacing**: an eager reader
+returns to `read(2)` instantly and blocks on an empty queue every time (the
+`ptyprobe` read-and-discard floor is *slower* than read-and-parse), while the
+inline reader's parse gives the writer exactly long enough to refill.
 
 ## Lever 4 — engine-side, not chased
 
@@ -187,13 +282,44 @@ needs per-cell placement to fix at all.
 
 ## Ordering
 
-1. ~~ptyread mode 10~~ and ~~Lever 1~~ — done, `af2d426`.
-2. **Lever 2**, the painter. Now the biggest item: the CPU win, the frame
-   rate, and the three rendering bugs above.
-3. **Lever 3**, `01_light_cells` — and it is now one of the two workloads we
-   lose worst (1.40x), so profiling it on macOS matters more than it did.
-4. `05_unicode` at 1.77x is our worst ratio. It is the workload the inline
-   reader gave up, and the one carrying the per-run paragraph split.
+1. ~~ptyread mode 10~~, ~~Lever 1~~ (`af2d426`), ~~Lever 3~~ (the sliding grid
+   window) and ~~`05_unicode`~~ (the width cache) — done.
+2. **Lever 2**, the painter — for CPU, frame rate and the three rendering bugs.
+   Not for the suite: it is worth 0.054 s (see above). DOOM-Fire is the test
+   that would move, and we now lead it 1099 fps to 990.
+3. `07_alt_screen` at 1.13x, the only loss left. Its core is already 763 MB/s,
+   so there is ~0.024 s in it at most — it is transport, not compute.
+
+Everything else we win or tie: 10_binary 0.32x, 03_sgr_fg 0.70x,
+01_light_cells 0.72x, 05_unicode 1.00x.
+
+## `05_unicode` — DONE, and the suite is what hid it
+
+`width_lookup`'s eight-entry MRU span cache was **43.6% of the whole core** on
+ghostty's published unicode corpus. Eight entries hold every script a mixed
+line touches at once, which is why the structure looked right — but a line
+does not touch its scripts once, it CYCLES them, and a cycle is what MRU
+handles worst: each script is evicted to the back exactly in time for its next
+use, so every transition missed, paid both binary searches over ~460
+intervals, and shifted seven entries. Now direct-mapped on the codepoint's
+512-wide block: 128 slots, the whole BMP alias-free, each slot re-checking its
+stored interval so a collision costs a recompute and never a wrong answer.
+
+    core, MB/s        before   after
+    unicode_150mb      282.3   458.8   +62.5%
+    05_unicode         381.7   480.5   +25.9%
+    everything else               ±2%
+
+Live: suite `05_unicode` 0.356 -> 0.282 s (1.22x -> **1.00x**, from 1.77x when
+this plan was written), and ghostty's published unicode cat 1.300 -> 0.745 s.
+
+**The 10-workload suite could not see this.** It ranked `05_unicode` a 1.22x
+also-ran while the published unicode cat — 150 MB of nothing but mixed script
+— was at 1.71x and had regressed 56% behind this branch's own earlier build.
+One line of mixed script among ten workloads averages the cost away. When the
+two disagree, the concentrated test is the one telling the truth; run
+`docs/perf/terminal-vs-ghostty-macos-2026-08-12/published.sh` alongside the
+suite, not instead of it.
 
 ## Measuring at all
 
