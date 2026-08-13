@@ -20,9 +20,29 @@ underneath the old numbers.
 - ours: GTK TerminalApp from `.build-gtk` (STARLING_APP_GTK=1, release,
   host_release engine), window 1624x823 → grid **47x201 verified**, cell
   exactly 8.00 px (the atlas' whole-pixel cells are visible in the solve).
-- ghostty: nightly 1.3.2-dev tip build and 1.3.0 stable, request 202x50 →
+- ghostty: nightly 1.3.2-dev tip build and 1.3.0-dev, request 202x50 →
   **47x202** on the suite legs (the familiar one-column drift; 202 ≥ 201 so
   nothing wraps) and **47x201 exactly** on the published legs.
+
+## Provenance — exactly what was measured
+
+- **ours**: `cocoa-verify` at `8f18ce5` (gate-clean atlas painter; the
+  `data/` set predates it at `99e379d`), Swift release build against the
+  engine's host_release at `0da247b490c` on the paired engine branch.
+- **ghostty nightly** (`/var/tmp/ghostty-nightly`): `1.3.2-dev+0000000`,
+  channel tip, built from the source tarball fetched 2026-08-11
+  (`+0000000` = tarball build, no commit hash embedded; unpacked at
+  `/var/tmp/ghostty-src`). Build config from `ghostty --version`:
+  **Zig 0.16.0**, ReleaseFast, GTK 4.22.4 runtime, fontconfig/freetype,
+  OpenGL renderer, libxev io_uring.
+- **ghostty "stable"** (`/usr/bin/ghostty`): `1.3.0-dev+0000000`, also a
+  tarball tip build, **Zig 0.15.2**, ReleaseFast — earlier rounds called
+  this leg "1.3.0 stable"; strictly it is a 1.3.0-dev source build.
+- **DOOM-Fire**: `github.com/const-void/DOOM-fire-zig` at `eb0631b`
+  (2025-08-20) plus the harness's 19-line patch to `src/main.zig` (the
+  `BENCH` markers: stop after `DOOMFIRE_FRAMES`, report fps on stderr —
+  documented in `doomfire.sh`), built with **Zig 0.14** (0.16 does not
+  build its `build.zig`; both toolchains live under `/var/tmp`).
 
 ## The 10-workload suite (medians of 3)
 
