@@ -32,6 +32,19 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         // SSHTarget.fromEnvironment.
         if let target = SSHTarget.fromEnvironment() {
             connect(target)
+            // `STARLING_SSH_COMMAND`: typed into the session once the shell
+            // has had a moment to come up — the dev loop's only way to reach
+            // a TUI, since `simctl` cannot tap or type. Sent as keystrokes
+            // rather than exec'd so what renders is exactly what a person
+            // launching it would see. Simulator-only by the same gate as the
+            // credentials above; the delay is crude by design, this is a
+            // debugging hook and not a protocol.
+            if let command = ProcessInfo.processInfo.environment["STARLING_SSH_COMMAND"],
+               !command.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                    self?.session.write(command + "\r")
+                }
+            }
         }
         #else
         session.startShell()
