@@ -669,12 +669,13 @@ def running(name):
 def quit_terminal():
     """Let the terminal exit through its own shell, not through a signal.
 
-    `pkill` leaves the process a ZOMBIE — the desktop shell does not reap the
-    children it spawns — and the dock then believes the terminal is still up:
-    clicking its icon focuses the dead window instead of launching, for the
-    rest of the session. That is a real bug and it is not this file's, but a
-    gate that provokes it cannot be run twice, so ask the shell inside the
-    terminal to exit and only fall back to force.
+    `pkill` used to leave the process a ZOMBIE — the shell watched for exit
+    on fds the terminal's own descendants inherit, so a killed TerminalApp
+    went unreaped and the dock focused its dead window for the rest of the
+    session, which made this gate unrunnable twice. The shell reaps by
+    waitpid now (LinuxProcessAppManager) and the fallback below is safe;
+    exiting through the shell stays the primary path because it is what a
+    user does, and it keeps the gate honest on builds that predate the fix.
     """
     if not running("TerminalApp"):
         return

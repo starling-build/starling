@@ -92,8 +92,7 @@ private struct PendingDmaBufResize: @unchecked Sendable {
 
 /// Pending DMA-BUF launch result — zero-copy path via Unix socket + SCM_RIGHTS.
 private struct PendingDmaBufLaunch: @unchecked Sendable {
-    let process: Process
-    let pipe: Pipe
+    let pid: pid_t
     let sock: ChildSocket         // connected client socket for frame signals
     let dmaFd: Int32              // DMA-BUF fd received from child
     let width: Int
@@ -254,9 +253,8 @@ class LinuxProcessAppManager {
                 }
 
                 let entry = ProcessAppEntry(
-                    process: launch.process,
+                    pid: launch.pid,
                     textureId: texId,
-                    pipe: launch.pipe,
                     width: launch.width,
                     height: launch.height,
                     onTerminated: launch.onTerminated,
@@ -490,7 +488,11 @@ class LinuxProcessAppManager {
 
         unlink(socketPath)
 
-        let listenSock = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+        // SOCK_CLOEXEC on the shell's own fds: every app spawned later
+        // inherits anything here that lacks it, and a stray copy of one
+        // child's channel in another child outlives the first.
+        let listenSock = socket(AF_UNIX,
+                                Int32(SOCK_STREAM.rawValue) | Int32(SOCK_CLOEXEC.rawValue), 0)
         guard listenSock >= 0 else { return false }
 
         var addr = sockaddr_un()
@@ -519,10 +521,19 @@ class LinuxProcessAppManager {
             return false
         }
 
-        // Launch child with FLUTTER_DMABUF_SOCKET env var
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: siblingPath)
-        if !extraArgs.isEmpty { process.arguments = extraArgs }
+        // Launch child with FLUTTER_DMABUF_SOCKET env var.
+        //
+        // posix_spawn + a blocking waitpid thread, NOT Foundation.Process:
+        // Process watches for exit through a socketpair whose child end
+        // survives exec, so every descendant the app forks inherits it — and
+        // one descendant that outlives the app (a `setsid`/`nohup` job in
+        // the terminal, a daemon) held it open, the EOF never came, and
+        // Foundation neither reaped the child nor ran terminationHandler.
+        // The app sat in the process table as a zombie, onTerminated never
+        // fired, and the dock spent the rest of the session focusing a dead
+        // window (relaunch impossible: the launcher saw the app "running").
+        // waitpid reports the child's death itself, which no descendant can
+        // postpone.
         var env = ProcessInfo.processInfo.environment
         env["FLUTTER_DMABUF_SOCKET"] = socketPath
         // The system clipboard: the SDK connects back as a data-control client
@@ -547,10 +558,51 @@ class LinuxProcessAppManager {
                 env.removeValue(forKey: key)
             }
         }
-        process.environment = env
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
+        // Capture stdout only for callers that asked for it (the portal
+        // picker reads the child's selection from it). Everyone else
+        // inherits the shell's stdout: a pipe nobody drains blocks the
+        // child's first print after 64 KB.
+        var stdoutPipe: [Int32] = [-1, -1]
+        if onExit != nil {
+            guard pipe(&stdoutPipe) == 0 else {
+                Glibc.close(listenSock)
+                unlink(socketPath)
+                return false
+            }
+            _ = fcntl(stdoutPipe[0], F_SETFD, FD_CLOEXEC)
+            _ = fcntl(stdoutPipe[1], F_SETFD, FD_CLOEXEC)
+        }
+
+        var fileActions = posix_spawn_file_actions_t()
+        posix_spawn_file_actions_init(&fileActions)
+        if stdoutPipe[1] >= 0 {
+            // dup2 clears CLOEXEC on the child's copy; the parent-side flag
+            // above keeps the ends out of every OTHER child.
+            posix_spawn_file_actions_adddup2(&fileActions, stdoutPipe[1], 1)
+        }
+        var argvC: [UnsafeMutablePointer<CChar>?] = [strdup(siblingPath)]
+        for arg in extraArgs { argvC.append(strdup(arg)) }
+        argvC.append(nil)
+        var envpC: [UnsafeMutablePointer<CChar>?] =
+            env.map { strdup("\($0.key)=\($0.value)") }
+        envpC.append(nil)
+        var childPid: pid_t = 0
+        let spawnRc = posix_spawn(&childPid, siblingPath, &fileActions, nil,
+                                  &argvC, &envpC)
+        posix_spawn_file_actions_destroy(&fileActions)
+        argvC.forEach { free($0) }
+        envpC.forEach { free($0) }
+        // The write end now lives in the child as its stdout; the parent's
+        // copy must go, or the pipe never reads EOF.
+        if stdoutPipe[1] >= 0 { Glibc.close(stdoutPipe[1]) }
+        guard spawnRc == 0 else {
+            if stdoutPipe[0] >= 0 { Glibc.close(stdoutPipe[0]) }
+            Glibc.close(listenSock)
+            unlink(socketPath)
+            return false
+        }
+        let spawnedPid = childPid
 
         let launchState = AtomicBox<(texId: Int64, earlyFrame: Bool)>((0, false))
         let pendingDmaBufLaunches = self.pendingDmaBufLaunches
@@ -579,6 +631,7 @@ class LinuxProcessAppManager {
             unlink(capturedSocketPath)
 
             guard clientSock >= 0 else { return }
+            _ = fcntl(clientSock, F_SETFD, FD_CLOEXEC)
 
             // Send configure message with content area dimensions
             if let w = contentWidth, let h = contentHeight {
@@ -607,8 +660,7 @@ class LinuxProcessAppManager {
 
             // Queue for tick() on platform thread
             pendingDmaBufLaunches.withLock { $0.append(PendingDmaBufLaunch(
-                process: process,
-                pipe: pipe,
+                pid: spawnedPid,
                 sock: sock,
                 dmaFd: receivedFd,
                 width: Int(meta.width),
@@ -713,29 +765,41 @@ class LinuxProcessAppManager {
             sock.close()
         }
 
-        // Handle process termination
-        let capturedPipe = pipe
+        // The reaper: one thread parked in waitpid for this child's whole
+        // life, the mirror of its socket-reader thread above. It answers for
+        // the child's DEATH — exit, crash, or kill — where every fd-based
+        // signal in this file answers only for fds, which descendants can
+        // keep alive after the child is gone.
+        let capturedStdoutFd = stdoutPipe[0]
         let sendableOnExit = onExit.map {
             unsafeBitCast($0, to: (@Sendable (String, Int32) -> Void).self)
         }
-        process.terminationHandler = { proc in
-            // Deliver captured stdout (used by the portal file chooser to read
-            // the picker's selected URIs) before signaling termination.
+        DispatchQueue.global(qos: .utility).async {
+            var status: Int32 = 0
+            while waitpid(spawnedPid, &status, 0) == -1 && errno == EINTR {}
+            // Deliver captured stdout (used by the portal file chooser to
+            // read the picker's selected URIs) before signaling termination.
             if let onExit = sendableOnExit {
-                let data = capturedPipe.fileHandleForReading.readDataToEndOfFile()
+                var data = Data()
+                if capturedStdoutFd >= 0 {
+                    var buf = [UInt8](repeating: 0, count: 4096)
+                    while true {
+                        let n = Glibc.read(capturedStdoutFd, &buf, buf.count)
+                        if n < 0 && errno == EINTR { continue }
+                        if n <= 0 { break }
+                        data.append(contentsOf: buf[0..<n])
+                    }
+                }
                 let text = String(data: data, encoding: .utf8) ?? ""
-                onExit(text, proc.terminationStatus)
+                // Foundation's terminationStatus convention: the exit code
+                // for a normal exit, the signal number for a killed child.
+                let exitedNormally = (status & 0x7f) == 0
+                let code = exitedNormally ? (status >> 8) & 0xff : status & 0x7f
+                onExit(text, code)
             }
+            if capturedStdoutFd >= 0 { Glibc.close(capturedStdoutFd) }
             pendingTerminations.withLock { $0.append { sendableOnTerminated() } }
             FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
-        }
-
-        do {
-            try process.run()
-        } catch {
-            Glibc.close(listenSock)
-            unlink(socketPath)
-            return false
         }
         return true
     }
@@ -924,9 +988,11 @@ class LinuxProcessAppManager {
     /// Terminates the child process and unregisters its texture.
     func destroyApp(textureId: Int64) {
         guard let entry = apps.removeValue(forKey: textureId) else { return }
-        entry.pipe.fileHandleForReading.readabilityHandler = nil
-        if entry.process.isRunning {
-            entry.process.terminate()
+        // A SIGTERM at a pid this process spawned and has not yet reaped can
+        // never hit a stranger; if the child already died it is a no-op and
+        // the waitpid thread finishes the story.
+        if entry.pid > 0 {
+            kill(entry.pid, SIGTERM)
         }
         if entry.dmaFd >= 0 {
             Glibc.close(entry.dmaFd)
@@ -938,9 +1004,8 @@ class LinuxProcessAppManager {
 
 /// Internal bookkeeping for a single process app instance.
 private struct ProcessAppEntry {
-    let process: Process
+    let pid: pid_t
     let textureId: Int64
-    let pipe: Pipe
     var width: Int
     var height: Int
     let onTerminated: () -> Void
