@@ -100,7 +100,8 @@ public enum TerminalFontLoader {
     /// rendered as blank gaps while the cursor advanced correctly over the
     /// cells (the emulator was right; there was simply no glyph to draw).
     /// Load the system Noto CJK and Color Emoji faces as additional fallbacks
-    /// when present; mappedIfSafe keeps the 20 MB TTC out of our copy of RSS.
+    /// when present — by path (see register()), so the ~30 MB of font data
+    /// is page cache, not per-app heap.
     private static let systemFallbacks: [(path: String, family: String)] = [
         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "NotoSansCJK"),
         ("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "NotoColorEmoji"),
@@ -113,12 +114,10 @@ public enum TerminalFontLoader {
     /// Naming, not loading, is the point. The paths above are `/usr/share`,
     /// which does not exist on macOS, so both registrations silently failed
     /// and the list stayed one entry long. Pointing them at the macOS faces
-    /// instead would be worse than useless: `LoadFontFromList` hands the
-    /// bytes to `SkMemoryStream(..., /*copy=*/true)`, so Apple Color Emoji
-    /// alone would COPY 192 MB into RSS — a terminal that costs more resident
-    /// memory than the rest of the desktop, to get glyphs CoreText already
-    /// has. A family name in the fallback list costs nothing until a cell
-    /// needs it.
+    /// instead would still be wasteful — Apple Color Emoji is 192 MB that
+    /// CoreText already has resident systemwide, and even mmap'd it would be
+    /// re-parsed per app — while a family name in the fallback list costs
+    /// nothing until a cell needs it.
     private static let systemFamilyNames = [
         "Apple Color Emoji",     // emoji; nothing else carries them
         "Hiragino Sans GB",      // Chinese
@@ -132,18 +131,19 @@ public enum TerminalFontLoader {
         guard !_registered else { return true }
         var ok = false
         var symbolsLoaded = false
+        // By path, not by bytes: LoadFontFromFile mmaps, so the font stays
+        // file-backed — shared across every app that loads it and evictable —
+        // where LoadFontFromList has to copy the buffer into the app's heap.
+        // Measured on the terminal, the by-bytes path held the CJK fallback
+        // resident ~2.5x over (49 MB of a 234 MB idle footprint).
         for (name, family) in [("RobotoMono-Regular", family),
                                ("RobotoMono-Bold", family),
                                ("DejaVuSansMono-Regular", fallbackFamily),
                                ("DejaVuSansMono-Bold", fallbackFamily),
                                ("DejaVuSans", symbolFallbackFamily)] {
-            guard let url = Bundle.module.url(forResource: name, withExtension: "ttf"),
-                  let data = try? Data(contentsOf: url) else { continue }
-            let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
-                guard let base = buffer.baseAddress else { return false }
-                let ptr = base.assumingMemoryBound(to: UInt8.self)
-                return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
-            }
+            guard let url = Bundle.module.url(forResource: name, withExtension: "ttf")
+            else { continue }
+            let success = flutter.swift_bridge.LoadFontFromFile(url.path, family)
             ok = ok || success
             if family == symbolFallbackFamily { symbolsLoaded = success }
         }
@@ -151,14 +151,9 @@ public enum TerminalFontLoader {
         fallback.append(contentsOf: systemFamilyNames)
         #else
         for (path, family) in systemFallbacks {
-            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
-                                       options: .mappedIfSafe) else { continue }
-            let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
-                guard let base = buffer.baseAddress else { return false }
-                let ptr = base.assumingMemoryBound(to: UInt8.self)
-                return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
+            if flutter.swift_bridge.LoadFontFromFile(path, family) {
+                fallback.append(family)
             }
-            if success { fallback.append(family) }
         }
         #endif
         // After the system faces, so colour emoji still wins its own

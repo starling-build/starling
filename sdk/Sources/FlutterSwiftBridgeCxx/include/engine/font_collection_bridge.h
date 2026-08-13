@@ -43,6 +43,24 @@ FLUTTER_SWIFT_BRIDGE_EXPORT bool LoadFontFromList(
     size_t length,
     const char* family_name);
 
+/// Loads a font from a file on disk and makes it available for rendering
+/// text — same registration as LoadFontFromList, different memory story.
+///
+/// The file is mmap'd (SkData::MakeFromFileName), so its bytes stay
+/// file-backed: shared between every process that loads the font, evictable
+/// under memory pressure, and never counted against the app's anonymous
+/// RSS. LoadFontFromList must copy because its buffer dies with the call;
+/// a font that exists as a file should come through here instead — the
+/// terminal's CJK + emoji fallbacks are ~30 MB of font data, which this
+/// turns from per-app heap into shared page cache.
+///
+/// @param path Null-terminated filesystem path to a .ttf/.ttc/.otf
+/// @param family_name Optional font family name (null-terminated string, or
+/// nullptr to use the font's own name)
+/// @return True if the font was loaded successfully
+FLUTTER_SWIFT_BRIDGE_EXPORT bool LoadFontFromFile(const char* path,
+                                                  const char* family_name);
+
 /// Clears the font family cache.
 ///
 /// This should be called after loading fonts to ensure the paragraph
