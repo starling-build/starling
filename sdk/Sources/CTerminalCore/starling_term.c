@@ -21,6 +21,10 @@
 
 #define SB_LIMIT 2000
 #define SB_SLACK 512
+/* Rows of headroom after the live screen, so a full-screen scroll can bump a
+   pointer instead of moving every row. One recentring memmove per this many
+   line feeds; at 24 bytes a Row the whole reserve is ~24 KB. */
+#define GRID_SLACK 1024
 #define MAX_PARAMS 64
 #define OSC_MAX 256
 /* Sized to the scrollback trim batch: a trim frees SB_SLACK rows at once and the
@@ -77,7 +81,14 @@ typedef struct { uint32_t lo, hi; int w, ordinary; } WidthSpan;
 struct StarlingTerm {
     int cols, rows;
 
-    Row *grid;                 /* rows entries */
+    /* The live screen is a WINDOW into a larger block, not the block itself:
+       `grid[0 .. rows-1]` are the rows, and `grid` slides forward through
+       `grid_base[0 .. grid_cap-1]` as the screen scrolls. See grid_rotate_in
+       for why. Only scrolling ever moves `grid`; everything else calls
+       grid_recenter() first and then treats grid_base as a plain array. */
+    Row *grid;                 /* rows entries — the live window */
+    Row *grid_base;            /* the allocation `grid` points into */
+    int  grid_cap;             /* Row slots in grid_base */
     Row *sb;                   /* scrollback ring, oldest at sb_head */
     int  sb_cap, sb_head, sb_len;
 
@@ -95,8 +106,10 @@ struct StarlingTerm {
     int mouse_tracking, mouse_sgr;
 
     int  alt_active;
-    Row *saved_primary;        /* NULL when not in alt screen */
+    Row *saved_primary;        /* NULL when not in alt screen — always the
+                                  recentred base, so it is a plain array */
     int  saved_primary_rows;
+    int  saved_primary_cap;
     int  saved_primary_cursor_row, saved_primary_cursor_col;
 
     int      saved_cursor_row, saved_cursor_col;
@@ -332,7 +345,9 @@ StarlingTerm *starling_term_new(int cols, int rows) {
         t->wspan[i].lo = 0; t->wspan[i].hi = 0x02FF;
         t->wspan[i].w = 1;  t->wspan[i].ordinary = 1;
     }
-    t->grid = malloc(sizeof(Row) * (size_t)t->rows);
+    t->grid_cap = t->rows + GRID_SLACK;
+    t->grid_base = malloc(sizeof(Row) * (size_t)t->grid_cap);
+    t->grid = t->grid_base;
     for (int i = 0; i < t->rows; i++) t->grid[i] = row_default(t);
     t->sb_cap = SB_LIMIT + SB_SLACK + 2;
     t->sb = calloc((size_t)t->sb_cap, sizeof(Row));
@@ -345,7 +360,7 @@ void starling_term_free(StarlingTerm *t) {
     free(t->gp);
     free(t->gp_map);
     for (int i = 0; i < t->rows; i++) free(t->grid[i].cells);
-    free(t->grid);
+    free(t->grid_base);
     for (int i = 0; i < t->sb_len; i++) free(sb_at(t, i)->cells);
     free(t->sb);
     if (t->saved_primary) {
@@ -985,13 +1000,48 @@ static void insert_chars(StarlingTerm *t, int n) {
     rw->used = t->cols;
 }
 
-/* Remove grid row `at`, shifting up, and put `r` in at `to` (to >= at). */
+/* Slide the live window back to the start of its block, so everything that is
+   not a scroll can treat grid_base as a plain `rows`-long array. Costs one
+   memmove of the window, amortised over GRID_SLACK scrolls. */
+static void grid_recenter(StarlingTerm *t) {
+    if (t->grid == t->grid_base) return;
+    memmove(t->grid_base, t->grid, sizeof(Row) * (size_t)t->rows);
+    t->grid = t->grid_base;
+}
+
+/* Remove grid row `at`, shifting up, and put `r` in at `to` (to >= at).
+ *
+ * The whole-screen case — `at == 0 && to == rows-1`, which is what every
+ * line feed outside a scroll region does — is a POINTER BUMP, not a move.
+ * That case dominates: 01_light_cells is 1.5 M line feeds, and profiling the
+ * core on it put 68% of the entire workload inside this function's memmove
+ * (1128 bytes of Row per feed, 1.7 GB over the run). Sliding costs one
+ * memmove per GRID_SLACK scrolls instead of one per scroll.
+ *
+ * A scroll REGION still moves rows: sliding would carry the rows outside the
+ * region along with it. */
 static void grid_rotate_in(StarlingTerm *t, int at, int to, Row r) {
+    if (at == 0 && to == t->rows - 1) {
+        if (t->grid + t->rows >= t->grid_base + t->grid_cap) grid_recenter(t);
+        t->grid++;
+        t->grid[to] = r;
+        return;
+    }
     memmove(&t->grid[at], &t->grid[at + 1], sizeof(Row) * (size_t)(to - at));
     t->grid[to] = r;
 }
-/* Remove grid row `at`, shifting down, and put `r` in at `to` (to <= at). */
+/* Remove grid row `at`, shifting down, and put `r` in at `to` (to <= at).
+ *
+ * The mirror image, and it can only slide when the window has already moved
+ * forward — which is the case that matters, since scrolling back down is
+ * always undoing a scroll up. With no room before the window it falls back to
+ * the move rather than growing a second recentre direction for a rare path. */
 static void grid_rotate_in_rev(StarlingTerm *t, int at, int to, Row r) {
+    if (to == 0 && at == t->rows - 1 && t->grid > t->grid_base) {
+        t->grid--;
+        t->grid[0] = r;
+        return;
+    }
     memmove(&t->grid[to + 1], &t->grid[to], sizeof(Row) * (size_t)(at - to));
     t->grid[to] = r;
 }
@@ -1081,12 +1131,18 @@ static void sgr(StarlingTerm *t, const int *p, int n) {
 static void enter_alt(StarlingTerm *t, int with_cursor) {
     if (t->alt_active) return;
     if (with_cursor) save_cursor(t);
-    t->saved_primary = t->grid;
+    /* Hand the primary screen over as a plain array — everything that touches
+       saved_primary (resize, the refit in exit_alt) indexes it directly. */
+    grid_recenter(t);
+    t->saved_primary = t->grid_base;
     t->saved_primary_rows = t->rows;
+    t->saved_primary_cap = t->grid_cap;
     t->saved_primary_cursor_row = t->cursor_row;
     t->saved_primary_cursor_col = t->cursor_col;
     t->alt_active = 1;
-    t->grid = malloc(sizeof(Row) * (size_t)t->rows);
+    t->grid_cap = t->rows + GRID_SLACK;
+    t->grid_base = malloc(sizeof(Row) * (size_t)t->grid_cap);
+    t->grid = t->grid_base;
     for (int i = 0; i < t->rows; i++) t->grid[i] = row_blank(t);
     t->cursor_row = 0; t->cursor_col = 0;
 }
@@ -1096,22 +1152,27 @@ static void exit_alt(StarlingTerm *t, int with_cursor) {
     t->alt_active = 0;
     if (t->saved_primary) {
         for (int i = 0; i < t->rows; i++) row_release(t, &t->grid[i]);
-        free(t->grid);
-        t->grid = t->saved_primary;
+        free(t->grid_base);
+        t->grid_base = t->saved_primary;
+        t->grid = t->grid_base;
+        t->grid_cap = t->saved_primary_cap;
         t->saved_primary = NULL;
         /* resize() keeps saved_primary fitted to the live rows/cols, so this
            is normally a no-op; it is the equivalent of Swift's _normalizeGrid
            on the restored screen. */
         for (int i = 0; i < t->saved_primary_rows; i++) row_fit(&t->grid[i], t->cols);
         if (t->saved_primary_rows != t->rows) {
-            Row *g = malloc(sizeof(Row) * (size_t)t->rows);
+            int cap = t->rows + GRID_SLACK;
+            Row *g = malloc(sizeof(Row) * (size_t)cap);
             int keep = t->saved_primary_rows < t->rows ? t->saved_primary_rows : t->rows;
             int drop = t->saved_primary_rows - keep;      /* oldest lines go first */
             for (int k = 0; k < drop; k++) row_release(t, &t->grid[k]);
             for (int i = 0; i < keep; i++) g[i] = t->grid[drop + i];
             for (int i = keep; i < t->rows; i++) g[i] = row_default(t);
-            free(t->grid);
+            free(t->grid_base);
+            t->grid_base = g;
             t->grid = g;
+            t->grid_cap = cap;
         }
         t->saved_primary_rows = t->rows;
     }
@@ -1630,6 +1691,10 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
     if (new_rows < 2) new_rows = 2;
     if (new_cols == t->cols && new_rows == t->rows) return;
 
+    /* Everything below indexes the grid as a plain array and reallocs it, so
+       flatten the scroll window first — while `t->rows` still describes it. */
+    grid_recenter(t);
+
     int old_rows = t->rows;
     t->cols = new_cols;
     t->rows = new_rows;
@@ -1640,7 +1705,9 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
     for (int i = 0; i < old_rows; i++) row_fit(&t->grid[i], t->cols);
 
     if (new_rows > old_rows) {
-        t->grid = realloc(t->grid, sizeof(Row) * (size_t)new_rows);
+        t->grid_cap = new_rows + GRID_SLACK;
+        t->grid_base = realloc(t->grid_base, sizeof(Row) * (size_t)t->grid_cap);
+        t->grid = t->grid_base;
         for (int i = old_rows; i < new_rows; i++) t->grid[i] = row_default(t);
     } else if (new_rows < old_rows) {
         int drop = old_rows - new_rows;
@@ -1671,13 +1738,17 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
             memmove(&t->grid[0], &t->grid[1], sizeof(Row) * (size_t)(live - 1 - k));
             if (t->cursor_row > 0) t->cursor_row--;
         }
-        t->grid = realloc(t->grid, sizeof(Row) * (size_t)new_rows);
+        t->grid_cap = new_rows + GRID_SLACK;
+        t->grid_base = realloc(t->grid_base, sizeof(Row) * (size_t)t->grid_cap);
+        t->grid = t->grid_base;
     }
 
     if (t->saved_primary) {
         for (int i = 0; i < t->saved_primary_rows; i++) row_fit(&t->saved_primary[i], t->cols);
         if (t->saved_primary_rows < t->rows) {
-            t->saved_primary = realloc(t->saved_primary, sizeof(Row) * (size_t)t->rows);
+            t->saved_primary_cap = t->rows + GRID_SLACK;
+            t->saved_primary = realloc(t->saved_primary,
+                                       sizeof(Row) * (size_t)t->saved_primary_cap);
             for (int i = t->saved_primary_rows; i < t->rows; i++)
                 t->saved_primary[i] = row_default(t);
         } else if (t->saved_primary_rows > t->rows) {
@@ -1685,7 +1756,9 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
             for (int k = 0; k < drop; k++) row_release(t, &t->saved_primary[k]);
             memmove(&t->saved_primary[0], &t->saved_primary[drop],
                     sizeof(Row) * (size_t)t->rows);
-            t->saved_primary = realloc(t->saved_primary, sizeof(Row) * (size_t)t->rows);
+            t->saved_primary_cap = t->rows + GRID_SLACK;
+            t->saved_primary = realloc(t->saved_primary,
+                                       sizeof(Row) * (size_t)t->saved_primary_cap);
         }
         t->saved_primary_rows = t->rows;
     }
