@@ -53,6 +53,7 @@ final class Pty: @unchecked Sendable {
     /// `command` nil runs the shell interactively; a command line runs
     /// through it, with the flag that shell spells "run this and exit".
     init?(cols: Int, rows: Int, command: String? = nil) {
+        Pty._scrubMultiplexerEnv()
         let shell = Pty._shellCommand()
         let line = command.map { Pty._commandLine(shell: shell, running: $0) } ?? shell
         let home = realUserHomeDirectory()
@@ -62,6 +63,19 @@ final class Pty: @unchecked Sendable {
             }
         }) else { return nil }
         handle = h
+    }
+
+    /// Drop the multiplexer markers (see `Pty.multiplexerMarkers`) from THIS
+    /// process, because that is the only lever here: `starling_conpty_open`
+    /// takes no environment block, so CreateProcessW copies ours wholesale and
+    /// a per-spawn filter — what the POSIX side does — has nowhere to live.
+    /// Mutating our own environment is safe in the way that matters: nothing
+    /// in an app hosting a terminal reads these, and a terminal that forwards
+    /// them tells every child it is running under a multiplexer it is not.
+    static func _scrubMultiplexerEnv() {
+        for key in Pty.multiplexerMarkers where getenv(key) != nil {
+            _ = key.withCString { unsetenv($0) }
+        }
     }
 
     /// The shell to run: `STARLING_DEV_SHELL` when set (same override the

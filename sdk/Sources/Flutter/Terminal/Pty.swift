@@ -151,6 +151,20 @@ final class Pty: @unchecked Sendable {
     private static let TIOCSCTTY: UInt = 0x540E
     private static let TIOCSWINSZ: UInt = 0x5414
 
+    /// Markers a terminal multiplexer leaves behind, which the shell we spawn
+    /// would otherwise inherit and BELIEVE. We are the terminal here: whatever
+    /// launched this app — a tmux pane, a screen session — is not what the
+    /// child is talking to, and a program that adapts its drawing to its host
+    /// (Claude Code underlines every line under tmux) then draws for the wrong
+    /// one. Setting TERM is not enough; these are read independently of it.
+    /// Same list as build/run-desktop.sh, build/session/starling-session and
+    /// termd's scrub_multiplexer_env — a terminal that forwards them is a
+    /// terminal lying about itself.
+    static let multiplexerMarkers: Set<String> = [
+        "TMUX", "TMUX_PANE", "TERM_PROGRAM", "TERM_PROGRAM_VERSION",
+        "STY", "WINDOW",
+    ]
+
     let masterFd: Int32
     let childPid: pid_t
 
@@ -212,6 +226,7 @@ final class Pty: @unchecked Sendable {
         var envp: [UnsafeMutablePointer<CChar>?] = []
         for (key, value) in ProcessInfo.processInfo.environment {
             if key == "TERM" || key == "HOME" { continue }
+            if Pty.multiplexerMarkers.contains(key) { continue }
             envp.append(strdup("\(key)=\(value)"))
         }
         envp.append(strdup("TERM=xterm-256color"))
