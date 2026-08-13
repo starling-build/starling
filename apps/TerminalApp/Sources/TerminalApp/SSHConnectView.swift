@@ -56,16 +56,48 @@ class SSHConnectView: StatefulWidget {
 }
 
 private class _SSHConnectViewState: State<StatefulWidget>, @unchecked Sendable {
-    private var target = SSHTarget.remembered()
+    // Built once, in initState, and NOT per build. A controller created
+    // inside build() is a new one on every rebuild, so it is reconstructed
+    // from the value it was last told about and the caret jumps back to where
+    // that string ends — which looks like the field ignoring the cursor.
+    // These own the text; `target` is only read when Connect is pressed.
+    private var hostField = TextEditingController()
+    private var userField = TextEditingController()
+    private var passwordField = TextEditingController()
+    private var portField = TextEditingController()
 
-    private var canConnect: Bool {
-        !target.host.isEmpty && !target.user.isEmpty && !target.password.isEmpty
+    override func initState() {
+        super.initState()
+        let remembered = SSHTarget.remembered()
+        hostField = TextEditingController(text: remembered.host)
+        userField = TextEditingController(text: remembered.user)
+        passwordField = TextEditingController()
+        portField = TextEditingController(text: String(remembered.port))
     }
 
-    private func field(_ label: String, _ value: String,
+    override func dispose() {
+        hostField.dispose()
+        userField.dispose()
+        passwordField.dispose()
+        portField.dispose()
+        super.dispose()
+    }
+
+    private var target: SSHTarget {
+        SSHTarget(host: hostField.text,
+                  port: Int(portField.text) ?? 22,
+                  user: userField.text,
+                  password: passwordField.text)
+    }
+
+    private var canConnect: Bool {
+        !hostField.text.isEmpty && !userField.text.isEmpty
+            && !passwordField.text.isEmpty
+    }
+
+    private func field(_ label: String, _ controller: TextEditingController,
                        placeholder: String,
-                       obscure: Bool = false,
-                       _ set: @escaping (String) -> Void) -> Widget {
+                       obscure: Bool = false) -> Widget {
         return Padding(padding: EdgeInsets(bottom: 14)) {
             Column(crossAxisAlignment: .start) {
                 Padding(padding: EdgeInsets(bottom: 4)) {
@@ -73,17 +105,12 @@ private class _SSHConnectViewState: State<StatefulWidget>, @unchecked Sendable {
                         color: Color(0xFF98989D), fontSize: 12))
                 }
                 MacosTextField(
-                    controller: TextEditingController(text: value),
+                    controller: controller,
                     placeholder: placeholder,
-                    onChanged: { [weak self] text in
-                        // No setState: the fields own their own text through
-                        // their controllers, and rebuilding here would rebuild
-                        // them from `value` mid-keystroke. Only `canConnect`
-                        // depends on this, and the button reads it on the
-                        // rebuild the submit triggers.
-                        set(text)
-                        self?.setState {}
-                    },
+                    // The rebuild is only so the button can re-read
+                    // `canConnect`; the text itself lives in the controller
+                    // and is not touched by it.
+                    onChanged: { [weak self] _ in self?.setState {} },
                     obscureText: obscure)
             }
         }
@@ -99,19 +126,11 @@ private class _SSHConnectViewState: State<StatefulWidget>, @unchecked Sendable {
                                 color: Color(0xFFFFFFFF), fontSize: 28,
                                 fontWeight: .w600))
                         }
-                        field("HOST", target.host, placeholder: "mac-mini.local") {
-                            self.target.host = $0
-                        }
-                        field("USER", target.user, placeholder: "your account") {
-                            self.target.user = $0
-                        }
-                        field("PASSWORD", target.password, placeholder: "",
-                              obscure: true) {
-                            self.target.password = $0
-                        }
-                        field("PORT", String(target.port), placeholder: "22") {
-                            self.target.port = Int($0) ?? 22
-                        }
+                        field("HOST", hostField, placeholder: "mac-mini.local")
+                        field("USER", userField, placeholder: "your account")
+                        field("PASSWORD", passwordField, placeholder: "",
+                              obscure: true)
+                        field("PORT", portField, placeholder: "22")
                         Padding(padding: EdgeInsets(top: 10)) {
                             PushButton(
                                 child: Text(canConnect ? "Connect"

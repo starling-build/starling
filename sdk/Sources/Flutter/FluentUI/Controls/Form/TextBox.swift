@@ -191,7 +191,24 @@ class _TextBoxState: State<StatefulWidget> {
 
     // MARK: - Key Handling
 
-    /// X11 keysyms as delivered in `KeyData.logical` by the DRM embedder.
+    // Two numbering schemes reach us, and both have to be recognised — the
+    // same split TerminalInput documents at length, and for the same reason.
+    //
+    // The DRM embedder and the shell's DMA-BUF key forwarding put **X11
+    // keysyms** in KeyData.logical. The engine's own embedders — Win32, GTK,
+    // Cocoa and UIKit — put **Flutter logical key ids** there instead, which
+    // are unrelated values in a plane above 2^32.
+    //
+    // Printable characters were unaffected either way, because they fall
+    // through to keyData.character. Special keys were not, and the failure is
+    // quiet and total: on every platform but the Starling shell, backspace
+    // deleted nothing, the arrows did not move the caret, and Enter did not
+    // submit. That reads as "the field is stuck" rather than as a key id
+    // mismatch, and it is what an iOS run made unmissable — a phone has no
+    // other way to correct a typo.
+    //
+    // The two ranges cannot collide (keysyms are 16-bit here, Flutter ids are
+    // ≥ 0x1_0000_0000), so one switch serves both.
     private enum _Keysym {
         static let backspace: Int64 = 0xFF08
         static let tab: Int64 = 0xFF09
@@ -205,6 +222,23 @@ class _TextBoxState: State<StatefulWidget> {
         static let delete: Int64 = 0xFFFF
     }
 
+    /// Flutter logical key ids, as the engine's own embedders deliver them.
+    /// Same table as TerminalInput.FlutterKey; kept beside its keysym
+    /// counterpart here rather than shared, because the two enums exist to be
+    /// read together at the switch below.
+    private enum _FlutterKey {
+        static let backspace: Int64 = 0x1_0000_0008
+        static let tab: Int64 = 0x1_0000_0009
+        static let enter: Int64 = 0x1_0000_000D
+        static let escape: Int64 = 0x1_0000_001B
+        static let delete: Int64 = 0x1_0000_007F
+        static let arrowLeft: Int64 = 0x1_0000_0302
+        static let arrowRight: Int64 = 0x1_0000_0303
+        static let end: Int64 = 0x1_0000_0305
+        static let home: Int64 = 0x1_0000_0306
+        static let numpadEnter: Int64 = 0x2_0000_020D
+    }
+
     private func _handleKey(_ keyData: KeyData) -> Bool {
         guard keyData.type == .down || keyData.type == .repeat else {
             return false
@@ -214,30 +248,31 @@ class _TextBoxState: State<StatefulWidget> {
         let controller = _effectiveController
 
         switch keyData.logical {
-        case _Keysym.enter, _Keysym.kpEnter:
+        case _Keysym.enter, _Keysym.kpEnter,
+             _FlutterKey.enter, _FlutterKey.numpadEnter:
             textBox.onSubmitted?(controller.text)
             return true
-        case _Keysym.escape:
+        case _Keysym.escape, _FlutterKey.escape:
             _focusNode.unfocus()
             return true
-        case _Keysym.tab:
+        case _Keysym.tab, _FlutterKey.tab:
             return false
-        case _Keysym.backspace:
+        case _Keysym.backspace, _FlutterKey.backspace:
             if !textBox.readOnly { controller.deleteBackward() }
             return true
-        case _Keysym.delete:
+        case _Keysym.delete, _FlutterKey.delete:
             if !textBox.readOnly { controller.deleteForward() }
             return true
-        case _Keysym.left:
+        case _Keysym.left, _FlutterKey.arrowLeft:
             controller.moveCursorLeft()
             return true
-        case _Keysym.right:
+        case _Keysym.right, _FlutterKey.arrowRight:
             controller.moveCursorRight()
             return true
-        case _Keysym.home:
+        case _Keysym.home, _FlutterKey.home:
             controller.moveCursorToStart()
             return true
-        case _Keysym.end:
+        case _Keysym.end, _FlutterKey.end:
             controller.moveCursorToEnd()
             return true
         default:
