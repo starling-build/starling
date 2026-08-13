@@ -36,8 +36,8 @@
 // columns, clusters and colour emoji drawn whole. Backgrounds, underlines and
 // the block cursor are rectangles the painter draws directly.
 //
-// Enabled by STARLING_TERM_ATLAS=1 while it earns its place; the Text path
-// stays the default and is unchanged.
+// The DEFAULT painter since 2026-08-13; STARLING_TERM_ATLAS=0 opts back into
+// the Text path, which stays in-tree unchanged as the comparison baseline.
 
 import Foundation
 import FlutterSwiftBridge
@@ -62,6 +62,32 @@ private struct FallbackCell {
 final class TerminalGridPainter: CustomPainter {
 
     static let debug = ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS_DEBUG"] != nil
+
+    /// STARLING_TERM_ATLAS=2 paints each cell from a CACHED PARAGRAPH instead
+    /// of blitting from our own atlas image.
+    ///
+    /// The point of the experiment: the engine already has a glyph atlas
+    /// (Impeller's typographer), so our atlas is a second one layered over it
+    /// — a glyph is rasterised into Impeller's atlas, composited into our
+    /// image, uploaded as a texture and sampled again. A Paragraph separates
+    /// Layout from Paint, so caching one per distinct glyph skips the shaping
+    /// that costs us per frame WITHOUT the second texture, and still lets us
+    /// place every cell ourselves. What it gives up is batching: one draw op
+    /// per cell rather than one for the screen.
+    ///
+    /// ANSWERED 2026-08-13: the atlas earns its texture. DOOM-Fire, two
+    /// interleaved rounds: Text 1.46 / atlas 0.90 / this mode 1.53 CPU-s —
+    /// the per-cell tint layer costs more than the batching saves, exactly as
+    /// predicted above. Kept as the recorded answer; numbers and the probe
+    /// diff are in docs/plans/terminal-perf-macos.md (Lever 2).
+    static let paragraphMode =
+        ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] == "2"
+
+    /// Laid out once per distinct glyph, painted at every cell that wants it.
+    /// Static so it survives the per-frame painter, like the atlas does.
+    private struct GlyphKey: Hashable { let scalar: UInt32; let bold: Bool }
+    private static var paragraphCache: [GlyphKey: any Paragraph] = [:]
+    private static var paragraphBaseline: Double = 0
 
     private let lines: [[TermCell]]
     private let cols: Int
@@ -149,8 +175,15 @@ final class TerminalGridPainter: CustomPainter {
                 let bold = cell.attrs.contains(.bold)
                 let x = Double(c) * cellW
 
-                if TerminalGlyphAtlas.canDraw(cell),
-                   let src = atlas.rect(for: cell.scalar, bold: bold) {
+                // Box and block characters reach the atlas like anything
+                // else; what differs is that the atlas DRAWS rather than
+                // shapes them (see TerminalGlyphAtlas.rebuildIfNeeded), so
+                // they fill the cell exactly and still cost one quad.
+                if Self.paragraphMode, TerminalGlyphAtlas.canDraw(cell) {
+                    paintCachedGlyph(canvas, scalar: cell.scalar, bold: bold,
+                                     x: x, y: y, fg: fg)
+                } else if !Self.paragraphMode, TerminalGlyphAtlas.canDraw(cell),
+                          let src = atlas.rect(for: cell.scalar, bold: bold) {
                     let s = Float(atlas.blitScale)
                     transforms.append(contentsOf: [s, 0, Float(x), Float(y)])
                     rects.append(contentsOf: [Float(src.left), Float(src.top),
@@ -207,6 +240,61 @@ final class TerminalGridPainter: CustomPainter {
                 c = end
             }
         }
+    }
+
+    /// Paint one cell from the shared paragraph cache. The paragraph is laid
+    /// out on a miss and reused for every frame and every cell after that, so
+    /// the per-frame cost is the draw op alone.
+    ///
+    /// Colour has to be baked into the paragraph, because a paragraph carries
+    /// its own style — so the cache key would need the colour too. Terminals
+    /// use few colours, but "few" is not one, and truecolor content is
+    /// unbounded. This paints white and tints with a colour filter instead,
+    /// keeping the cache keyed on the glyph alone.
+    private func paintCachedGlyph(_ canvas: any Canvas, scalar: UInt32,
+                                  bold: Bool, x: Double, y: Double, fg: UInt32) {
+        let key = GlyphKey(scalar: scalar, bold: bold)
+        let paragraph: any Paragraph
+        if let hit = Self.paragraphCache[key] {
+            paragraph = hit
+        } else {
+            let style = TextStyle(
+                color: Color(0xFFFF_FFFF), fontSize: font.size,
+                fontWeight: bold ? .w700 : .normal,
+                fontFamily: font.family, fontFamilyFallback: fallbackFamilies)
+            let builder = ParagraphBuilders.create(
+                style.getParagraphStyle(textDirection: .ltr))
+            builder.pushStyle(style.getTextStyle(textScaler: TextScalers.noScaling))
+            builder.addText(String(Character(UnicodeScalar(scalar) ?? " ")))
+            let made = builder.build()
+            made.layout(ParagraphConstraints(width: Double.infinity))
+            Self.paragraphCache[key] = made
+            if Self.paragraphBaseline == 0 { Self.paragraphBaseline = made.alphabeticBaseline }
+            paragraph = made
+        }
+        let dy = Self.paragraphBaseline - paragraph.alphabeticBaseline
+        // Bound the layer to the cell: an unbounded saveLayer is sized to the
+        // whole clip, which would bill every cell for a screen-sized layer and
+        // measure nothing but that mistake. Clipping at the cell edge is also
+        // what the atlas slot does, so the two modes crop identically.
+        canvas.saveLayer(Rect.fromLTWH(x, y, cellW, cellH), tintPaint(fg))
+        canvas.drawParagraph(paragraph, Offset(x, y + dy))
+        canvas.restore()
+    }
+
+    /// One Paint per foreground colour, kept like the paragraphs: setting a
+    /// colorFilter builds a C++ DlColorFilter, and rebuilding that per cell
+    /// per frame would charge the experiment for a cache we simply forgot.
+    /// Unbounded under truecolor content, like the paragraph cache — fine for
+    /// an opt-in experiment, capped before this could ever ship.
+    private static var tintPaints: [UInt32: Paint] = [:]
+
+    private func tintPaint(_ fg: UInt32) -> Paint {
+        if let hit = Self.tintPaints[fg] { return hit }
+        let p = Paint()
+        p.colorFilter = ColorFilter(mode: Color(Int(fg)), .srcIn)
+        Self.tintPaints[fg] = p
+        return p
     }
 
     // MARK: - Headless dump

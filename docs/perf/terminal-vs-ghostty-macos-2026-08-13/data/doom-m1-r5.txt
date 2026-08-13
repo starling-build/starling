@@ -1,0 +1,8 @@
+# m1 terminal=97142/TerminalApp grid=47x196 frames=600
+BENCHFPS frames=600 seconds=0.533 fps=1125.70
+  cpu_s 0.89
+BENCHFPS frames=600 seconds=0.554 fps=1083.03
+  cpu_s 0.93
+BENCHFPS frames=600 seconds=0.558 fps=1075.27
+  cpu_s 0.95
+grid_after 47x196

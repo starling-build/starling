@@ -1,0 +1,8 @@
+# off3 terminal=83027/TerminalApp grid=47x201 frames=600
+BENCHFPS frames=600 seconds=0.601 fps=998.34
+  cpu_s 1.38
+BENCHFPS frames=600 seconds=0.607 fps=988.47
+  cpu_s 1.37
+BENCHFPS frames=600 seconds=0.626 fps=958.47
+  cpu_s 1.42
+grid_after 47x201
