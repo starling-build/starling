@@ -76,10 +76,25 @@ CONF_BIN=$(mktemp /tmp/starling-conformance.XXXXXX)
      || { "$CONF_BIN" 2>/dev/null | grep FAIL; false; }) || fails=$((fails + 1))
 rm -f "$CONF_BIN"
 
+# The conformance suite above proves the GRID is right. This proves the grid
+# can be SEEN: the engine has no system font fallback, so a codepoint missing
+# from every loaded face paints nothing while the cell holds the right
+# character and the cursor advances over it correctly. Both tests above pass
+# on a terminal drawing a blank screen, and the benchmark rewards it — not
+# drawing is cheaper. Two of these shipped: Roboto Mono has no box drawing at
+# all, and braille (every TUI spinner) was in none of the four faces.
+step "glyph coverage: what a TUI draws"
+GLYPH_OUT=$(mktemp /tmp/starling-glyph.XXXXXX)
+(python3 "$REPO/test/bench/glyph-gate.py" > "$GLYPH_OUT" 2>&1 \
+     && echo "  ✔ every TUI drawing group resolves to a loaded face" \
+     || { grep -E "GAP|FAIL|glyph-gate:" "$GLYPH_OUT" | head -5; false; }) \
+     || fails=$((fails + 1))
+rm -f "$GLYPH_OUT"
+
 # The remote-session daemon (docs/plans/remote-terminal.md) is plain C too,
 # and its promise — a session outlives its client, a reattach at a byte
 # offset resumes exactly — is a protocol test over a unix socket, no GPU and
-# no display. It is the whole feature in twelve checks.
+# no display. It is the whole feature in thirteen checks.
 step "unit tests: termd (remote sessions)"
 (make -s -C "$REPO/termd" >/dev/null 2>&1 \
      && python3 "$REPO/termd/test-termd.py" | tail -1 | grep -q "all termd checks passed" \

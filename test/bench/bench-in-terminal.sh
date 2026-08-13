@@ -47,6 +47,23 @@ fi
 # /var/tmp/bench's original 200-col corpus at every grid (caught when a
 # 244 MB alt_screen "catted" in 0.087 s — 2.8 GB/s through a pty).
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# A codepoint with no glyph in any loaded face paints nothing — and painting
+# nothing is cheaper than shaping and rasterising, so a coverage gap arrives
+# as a BETTER number with no other check objecting (the core battery compares
+# the grid, where the cell is correct). Gate the corpus before timing it, and
+# refuse to produce numbers that would flatter us for not drawing.
+#
+# Captured rather than piped: `cmd | tail` reports TAIL's exit status, so the
+# obvious spelling of this check passes on every failure it exists to catch.
+if ! gate=$(python3 "$SELF_DIR/glyph-gate.py" "$SELF_DIR" 2>&1); then
+    echo "$gate" | tail -20
+    echo "bench-in-terminal: corpus has characters this build cannot draw —" >&2
+    echo "  the numbers would reward the gap. Fix the fallback chain first." >&2
+    exec /bin/bash
+fi
+echo "$gate" | tail -2
+
 for i in $(seq 1 "$RUNS"); do
     bash "$SELF_DIR/run-bench.sh" "$term" "$OUTDIR/res-$LABEL-$i.txt"
 done
