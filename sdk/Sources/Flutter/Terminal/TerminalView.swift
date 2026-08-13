@@ -638,7 +638,40 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
            let forced = Double(v), forced > 0, cellW > 0 {
             _cellSpacing = forced - cellW
             cellW = forced
+        } else if Self._useAtlas {
+            _snapCellToDevicePixels()
         }
+    }
+
+    /// Round the cell up to a whole number of DEVICE pixels.
+    ///
+    /// The atlas painter needs this, and it is the difference between a blit
+    /// that resamples and one that does not. A slot is an integer number of
+    /// device pixels; a measured cell is 7.8 logical, which at scale 2 is 15.6.
+    /// So every glyph was rasterised into a 16 px slot — 2.5% larger than its
+    /// natural size — and then scaled back down to 15.6, with a sub-pixel
+    /// phase that differs per column. The result is soft text everywhere and,
+    /// on box-drawing characters, a line whose brightness bands at every cell
+    /// boundary. Snapped, `cellW * scale` is an integer, the atlas rasterises
+    /// at native scale and the blit is exactly 1:1.
+    ///
+    /// Glyphs keep their natural advance and `_cellSpacing` makes up the
+    /// difference, exactly as the bench knob above does — so the Text path
+    /// stays on the grid too. This is deliberately gated on the atlas being
+    /// enabled: it changes the column count for a given window (7.8 -> 8.0 is
+    /// 2.5% fewer columns), which is not a change to make behind the shipping
+    /// path's back.
+    private func _snapCellToDevicePixels() {
+        let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+        guard scale > 0, cellW > 0 else { return }
+        let snapped = (cellW * scale).rounded(.up) / scale
+        guard snapped > 0, snapped != cellW else { return }
+        _cellSpacing = snapped - cellW
+        cellW = snapped
+        // The height matters just as much — it sets the slot height and so the
+        // vertical phase of every blit — but it is only ever used whole, so
+        // rounding it does not need a spacing correction.
+        cellH = (cellH * scale).rounded(.up) / scale
     }
 
     private func _viewLogicalSize() -> Size {
