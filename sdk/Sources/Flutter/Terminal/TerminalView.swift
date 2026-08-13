@@ -831,51 +831,95 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     /// Renders one grid line as a single rich-text row of merged style runs.
     private func _rowWidget(_ line: [TermCell]) -> Widget {
-        // Trim trailing blank cells (default bg, space).
+        // Two layers, and the split is the point of this function. Cell
+        // BACKGROUNDS are grid rectangles painted under the text; only glyphs
+        // go through the text engine.
+        //
+        // They used to ride along as `TextStyle.backgroundColor`, which hands
+        // the cell's paint job to the shaper — and the shaper answers with the
+        // FONT's line box, not the cell. Two failures come straight out of
+        // that, and `test/glyph-pixels.py` found both on its first run:
+        //
+        //   - a run with NO INK paints no background at all. Text layout
+        //     excludes whitespace from the painted line, so a run of coloured
+        //     spaces bounded by runs in other faces left a hole with the
+        //     window showing through it. The ruler that gate paints — forty
+        //     cells of alternating colour, every one a space — came out
+        //     entirely blank, and the spaces between the runs of
+        //     `日本語 ✓✗→ ⠋⠋ abcdef` were holes in the row.
+        //   - the box is the FONT's line height. Measured against a 25.47 px
+        //     row on this box: 19-23 px under Latin, 11 under ●, 6 under CJK.
+        //     Every coloured cell was short, by an amount set by whichever
+        //     family resolved the glyph in it, so a region filled in one
+        //     colour showed seams wherever the script changed.
+        //
+        // Neither is visible to anything that compares the grid, which is why
+        // both outlived every test in this tree: the cells carried the right
+        // characters and the right colours throughout.
+        //
+        // The layer costs one widget per background RUN, and only on rows that
+        // have one — every cell of an ordinary shell row carries bg 0, so the
+        // hot path skips it whole. It also retires the special case this
+        // function used to carry for background-colour erase (`ESC[41m` then
+        // `ESC[K`), which was this same bug caught in the one place someone
+        // noticed it: a coloured tail vanished at end of line and drew fine
+        // with any glyph after it.
+        //
+        // Carried in locals and appended only where the colour changes. The
+        // obvious spelling — extend `bgRuns.last` in place — puts an array
+        // element write in a loop that runs once per cell of every row, and
+        // the benchmark charged 8% of 03_sgr_fg for it: a row of coloured
+        // FOREGROUNDS has one background run and gained a hundred writes to
+        // build it. Here an ordinary row costs one comparison per cell and no
+        // allocation at all, because the trailing default-coloured run is
+        // never appended.
+        var bgRuns: [(cells: Int, color: UInt32)] = []
+        var runColor: UInt32 = 0
+        var runLen = 0
+        for cell in line {
+            let bg = _paintedBG(cell)
+            if bg == runColor {
+                runLen += 1
+                continue
+            }
+            if runLen > 0 { bgRuns.append((cells: runLen, color: runColor)) }
+            runColor = bg
+            runLen = 1
+        }
+        if runLen > 0, runColor != 0 || !bgRuns.isEmpty {
+            bgRuns.append((cells: runLen, color: runColor))
+        }
+        while let last = bgRuns.last, last.color == 0 { bgRuns.removeLast() }
+
+        // Trailing cells with neither ink nor an underline contribute nothing
+        // to the text layer. Their colour, if they had one, is in bgRuns.
         var end = line.count
         while end > 0 {
             let cell = line[end - 1]
-            if cell.scalar == 32 && cell.bg == 0 { end -= 1 } else { break }
+            guard cell.scalar == 32, !cell.attrs.contains(.underline) else { break }
+            end -= 1
+        }
+
+        var backdrop: Widget? = nil
+        if !bgRuns.isEmpty {
+            var boxes: [Widget] = []
+            boxes.reserveCapacity(bgRuns.count)
+            for run in bgRuns {
+                boxes.append(SizedBox(
+                    width: Double(run.cells) * cellW,
+                    height: cellH,
+                    child: run.color == 0
+                        ? nil : ColoredBox(color: Color(Int(run.color)))))
+            }
+            backdrop = Row(mainAxisSize: .min, children: boxes)
         }
 
         if end == 0 {
-            return SizedBox(width: 1, height: cellH)
-        }
-
-        // Background-colour erase: a run of coloured spaces that ENDS the line
-        // has to be drawn as a box, not as text.
-        //
-        // `ESC[41m` then `ESC[K` fills the rest of the row with red-background
-        // spaces, and the cells are set correctly — but text layout excludes
-        // trailing whitespace from the painted line, so the span's background
-        // never appeared. The same run rendered fine with any glyph after it,
-        // which is what gave the cause away: red showed mid-line, and vanished
-        // at end of line.
-        //
-        // Split that tail off and paint it as a sized ColoredBox. The head Text
-        // is given an explicit width too, so the boundary is pinned to the cell
-        // grid rather than to whatever width the text engine decides a string
-        // with trailing spaces has.
-        var tailStart = end
-        let tailBg = line[end - 1].bg
-        if tailBg != 0 {
-            var i = end
-            while i > 0 {
-                let cell = line[i - 1]
-                // Same colour, no attributes (an underlined space still has to
-                // be drawn as text so the line shows), and a space.
-                guard cell.scalar == 32, cell.bg == tailBg, cell.attrs.isEmpty
-                else { break }
-                i -= 1
+            guard let backdrop = backdrop else {
+                return SizedBox(width: 1, height: cellH)
             }
-            tailStart = i
+            return SizedBox(height: cellH, child: backdrop)
         }
-        let tailWidth = Double(end - tailStart) * cellW
-        if tailStart == 0 {
-            return SizedBox(width: tailWidth, height: cellH,
-                            child: ColoredBox(color: Color(Int(tailBg))))
-        }
-        let headEnd = tailStart
 
         var spans: [InlineSpan] = []
         var runText = ""
@@ -895,7 +939,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             runCells = 0
         }
 
-        for c in 0 ..< headEnd {
+        for c in 0 ..< end {
             var cell = c < line.count ? line[c] : .blank
             // A continuation cell is the second column of a wide glyph: the
             // lead already contributed the character, and the lead's span
@@ -925,15 +969,13 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             } else {
                 spacing = _cellSpacing
             }
+            // Only the foreground: the swapped background is the backdrop's
+            // business, and _paintedBG resolved it there.
             if cell.attrs.contains(.reverse) {
-                let fg = cell.bg == 0 ? theme.reverseBackground : cell.bg
-                let bg = cell.fg == 0 ? theme.defaultForeground : cell.fg
-                cell.fg = fg
-                cell.bg = bg
+                cell.fg = cell.bg == 0 ? theme.reverseBackground : cell.bg
                 cell.attrs.remove(.reverse)
             }
-            let key = _RunKey(fg: cell.fg, bg: cell.bg, attrs: cell.attrs,
-                              spacing: spacing)
+            let key = _RunKey(fg: cell.fg, attrs: cell.attrs, spacing: spacing)
             if runStyle == nil {
                 runStyle = key
             } else if runStyle! != key {
@@ -1009,15 +1051,20 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 )
             )
         }
-        guard tailWidth > 0 else { return head }
-        // The head is pinned to its cell width so the coloured tail starts
-        // exactly on the grid, whatever the text engine makes of a run that
-        // ends in spaces.
-        return SizedBox(height: cellH, child: Row(children: [
-            SizedBox(width: Double(headEnd) * cellW, height: cellH, child: head),
-            SizedBox(width: tailWidth, height: cellH,
-                     child: ColoredBox(color: Color(Int(tailBg)))),
-        ]))
+        guard let backdrop = backdrop else { return head }
+        return SizedBox(height: cellH,
+                        child: Stack(children: [backdrop, head]))
+    }
+
+    /// The colour a cell's background is actually painted in.
+    ///
+    /// Reverse video swaps the pair, and it has to be resolved here as well as
+    /// in the text loop: the backdrop is built from the raw line, before that
+    /// loop has touched anything.
+    @inline(__always)
+    private func _paintedBG(_ cell: TermCell) -> UInt32 {
+        guard cell.attrs.contains(.reverse) else { return cell.bg }
+        return cell.fg == 0 ? theme.defaultForeground : cell.fg
     }
 
     /// One run of cells that can share a single shaped span: same colours,
@@ -1029,11 +1076,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// cell — but the same handful of styles repeat endlessly for any content
     /// using a palette rather than 24-bit colour.
     private struct _RunKey: Hashable {
-        let fg: UInt32, bg: UInt32, attrsRaw: UInt8, spacing: Double
+        // No background: it is painted by the row's backdrop now, so cells
+        // that differ only in colour behind the glyph share one shaped run.
+        let fg: UInt32, attrsRaw: UInt8, spacing: Double
         var attrs: CellAttrs { CellAttrs(rawValue: attrsRaw) }
-        init(fg: UInt32, bg: UInt32, attrs: CellAttrs, spacing: Double) {
+        init(fg: UInt32, attrs: CellAttrs, spacing: Double) {
             self.fg = fg
-            self.bg = bg
             self.attrsRaw = attrs.rawValue
             self.spacing = spacing
         }
@@ -1146,7 +1194,6 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
         return TextStyle(
             color: Color(Int(fg)),
-            backgroundColor: style.bg == 0 ? nil : Color(Int(style.bg)),
             fontSize: font.size,
             fontWeight: style.attrs.contains(.bold) ? .w700 : .normal,
             fontStyle: style.attrs.contains(.italic) ? .italic : .normal,
