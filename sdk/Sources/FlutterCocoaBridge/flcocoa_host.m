@@ -163,6 +163,19 @@ FlCocoaHost* flcocoa_host_create(const char* title,
     [window setContentSize:NSMakeSize(width, height)];
     [window center];
 
+    // Optional explicit placement, for the same reason the callers expose the
+    // size: putting this window beside another terminal is the only way to
+    // film or measure the two head-to-head. Top-left corner in points from
+    // the main screen's top-left; both unset (or empty — an empty env var
+    // must mean "unset", never "0") keeps the centred default.
+    const char* pos_x = getenv("STARLING_WINDOW_X");
+    const char* pos_y = getenv("STARLING_WINDOW_Y");
+    if (pos_x != NULL && pos_x[0] != '\0' && pos_y != NULL && pos_y[0] != '\0') {
+      NSRect screen = [NSScreen mainScreen].frame;
+      [window setFrameTopLeftPoint:NSMakePoint(NSMinX(screen) + strtod(pos_x, NULL),
+                                               NSMaxY(screen) - strtod(pos_y, NULL))];
+    }
+
     if (![engine runSwiftWithRuntimeCallbacks:runtime_controller]) {
       fprintf(stderr, "[FlCocoaHost] the engine refused to start in Swift mode "
                       "(assets: %s, icu: %s)\n",
