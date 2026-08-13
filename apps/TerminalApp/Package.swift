@@ -41,12 +41,24 @@ let engineOutDir = env("STARLING_ENGINE_OUT",
 // sdk/Package.swift, keyed on the same marker — picking a directory that does
 // not exist would point -L and the baked rpath at nothing, and the failure
 // would not surface until the app launched.
+//
+// iOS narrows that list to one directory rather than adding to it: a
+// simulator build and a device build are different SDKs and different
+// architecture slices, so probing between them would only ever find the wrong
+// one first. Which one is chosen comes from STARLING_IOS, spelled exactly as
+// sdk/Package.swift spells it — an environment variable and not `#if os(iOS)`
+// because a manifest is compiled and run on the host, so every `#if` here
+// reports macOS even mid-cross-compile. The two manifests must agree on the
+// directory, and one convention is how they do.
+let iosMode = env("STARLING_IOS", default: "")
+let iosBuild = !iosMode.isEmpty
 let engineOutDir: String = {
     if let v = Context.environment["STARLING_ENGINE_OUT"], !v.isEmpty { return v }
-    let candidates = [
-        appPackageDir + "/../../engine/src/out/host_debug_arm64",
-        appPackageDir + "/../../engine/src/out/host_debug",
-    ]
+    let candidates = iosBuild
+        ? [appPackageDir + "/../../engine/src/out/"
+            + (iosMode == "device" ? "ios_debug_arm64" : "ios_debug_sim_arm64")]
+        : [appPackageDir + "/../../engine/src/out/host_debug_arm64",
+           appPackageDir + "/../../engine/src/out/host_debug"]
     let fm = FileManager.default
     return candidates.first { fm.fileExists(atPath: $0 + "/libswift_bridge.dylib") }
         ?? candidates[0]
@@ -63,7 +75,8 @@ let glibcMathCompat: [String] = []
 #endif
 
 #if os(macOS)
-let platformConstraints: [SupportedPlatform] = [.macOS(.v14)]
+let platformConstraints: [SupportedPlatform] =
+    iosBuild ? [.macOS(.v14), .iOS(.v17)] : [.macOS(.v14)]
 #else
 let platformConstraints: [SupportedPlatform] = []
 #endif
@@ -75,6 +88,41 @@ var targets: [Target] = [
         // See test/bench/core/ for the measurement and the differential test.
         {
             #if os(macOS)
+            if iosBuild {
+                // FlutterUIKit is the Cocoa host's counterpart and carries the
+                // same things with it: FlutterUIKitBridge underneath owns the
+                // vendored Flutter headers and the -F/-framework that link the
+                // framework. The rpath here is @executable_path/Frameworks and
+                // NOT the engine out-directory — an iOS app loads its
+                // libraries from inside its own bundle, and pointing at a
+                // build tree would work on the simulator and fail on a device.
+                return .executableTarget(
+                    name: "TerminalApp",
+                    dependencies: [
+                        .product(name: "Flutter", package: "FlutterSwift"),
+                        .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
+                        .product(name: "SwiftRuntime", package: "FlutterSwift"),
+                        .product(name: "CupertinoIcons", package: "FlutterSwift"),
+                        .product(name: "FlutterUIKit", package: "FlutterSwift"),
+                        .product(name: "CTerminalCore", package: "FlutterSwift"),
+                        // The ssh client. iOS is the only platform here that
+                        // needs one in-process: everywhere else the terminal
+                        // reaches another machine by spawning the system
+                        // `ssh`, and iOS has no fork to spawn it with.
+                        .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                    ],
+                    swiftSettings: [
+                        .interoperabilityMode(.Cxx),
+                    ],
+                    linkerSettings: [
+                        .unsafeFlags([
+                            "-L\(engineOutDir)",
+                            "-lswift_bridge",
+                            "-Xlinker", "-rpath", "-Xlinker", "@executable_path/Frameworks",
+                        ]),
+                    ]
+                )
+            }
             // FlutterCocoa brings the engine's Cocoa embedder host in with it,
             // and FlutterCocoaBridge underneath it owns the vendored
             // FlutterMacOS headers and the -F/-framework/-rpath that link the
@@ -175,9 +223,16 @@ targets += [
 let package = Package(
     name: "TerminalApp",
     platforms: platformConstraints.isEmpty ? nil : platformConstraints,
+    // swift-nio-ssh only on the iOS build, and deliberately here rather than
+    // in sdk/: the framework has no external dependencies at all — that is
+    // what lets it be consumed as a path dependency with a vendored engine and
+    // nothing else — and an ssh client is not framework material. It stays a
+    // property of this one app until something else wants it.
     dependencies: [
         .package(name: "FlutterSwift", path: "../../sdk"),
-    ],
+    ] + (iosBuild ? [
+        .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.9.0"),
+    ] : []),
     targets: targets,
     cxxLanguageStandard: .cxx20
 )

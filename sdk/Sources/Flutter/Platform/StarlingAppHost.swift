@@ -12,8 +12,15 @@ import Foundation
 
 /// Boots a window and runs the tree; never returns. Installed by
 /// GTKWindowedHost.install() (FlutterGTK). (title, width, height, root).
+///
+/// `root` escapes. Two of the four hosts build the tree inside the call, but
+/// the UIKit one cannot: UIApplicationMain owns the launch sequence, so the
+/// engine — and therefore the earliest moment a tree may be mounted — exists
+/// only inside a delegate callback that runs after this closure would
+/// otherwise have returned. Marking it here rather than having that one host
+/// copy the builder into a box keeps the escape visible at the declaration.
 public nonisolated(unsafe) var windowedHostBoot:
-    ((String, Int, Int, () -> Widget) -> Void)? = nil
+    ((String, Int, Int, @escaping () -> Widget) -> Void)? = nil
 
 /// Installs a repeating timer on whatever loop the host runs the UI on;
 /// returns a token keeping it alive (or nil for hosts that retain it
@@ -31,7 +38,7 @@ public nonisolated(unsafe) var hostPeriodicTimerInstall:
 ///   `GTKWindowedHost.install()` before this).
 /// Neither: fail loudly, with the fix in the message.
 public func runStarlingApp(title: String, width: Int = 800, height: Int = 600,
-                           root: () -> Widget) {
+                           root: @escaping () -> Widget) {
     #if os(Linux)
     if let sock = ProcessInfo.processInfo.environment["FLUTTER_DMABUF_SOCKET"],
        !sock.isEmpty {
