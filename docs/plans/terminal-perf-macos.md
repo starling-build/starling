@@ -34,7 +34,24 @@ finding as the last round's, one layer down: the macOS pty hands back ~1 KB per
 `read(2)` no matter the buffer size, so the cost is per-syscall and per-handoff,
 not per-byte.
 
-## Lever 1 — collapse the reader/parser split on Darwin
+## Where it ended up
+
+Lever 1 is done. Against ghostty 1.3.2-main+51ed437cd, same machine, same
+grid, AC power, best of 3:
+
+| | ours | ghostty | |
+|---|---|---|---|
+| suite wall | **2.505 s** | 2.656 s | **0.94x** |
+| suite CPU | **3.85 s** | 4.67 s | 0.82x |
+
+which is the first round we finish ahead. The four we win are 10_binary
+(0.40x), 03_sgr_fg (0.75x), 04_sgr_truecolor and 08_scroll_region (0.96x);
+the three we lose worst are 05_unicode (1.77x), 07_alt_screen (1.42x) and
+01_light_cells (1.40x). Two of those three are the workloads the inline
+reader gave up to win the rest — see below — so they are the next lever,
+not a surprise.
+
+## Lever 1 — collapse the reader/parser split on Darwin — DONE
 
 `test/bench/core/ptyread.c` runs a real pty, a real `cat` and the real core
 through each transport shape. Best of the run, 201x47:
@@ -51,13 +68,41 @@ overlap transport with parse, and on this platform it pays a condition-variable
 round trip per kilobyte to overlap a kilobyte of parse: at a 1 KB batch the
 parse is a few microseconds and the handoff is tens.
 
-Two workloads go the other way — `01_light_cells` (0.124 against mode 9's
-0.105) and `05_unicode` (0.385 against 0.332) — and they are exactly the two
-where the core is slowest per byte, so the parse is worth overlapping. That is
-the shape of the fix, not an argument against it: **parse inline while the
-parser keeps up, hand off to the ring when it does not.** `ptyread` mode 10
-already models this ("adaptive inline parse"); measure it before writing any
-Swift.
+Two workloads go the other way — `01_light_cells` and `05_unicode` — and they
+are exactly the two where the core is slowest per byte (81 and 336 MB/s against
+500-750 for the rest), so there is enough parse work to be worth overlapping.
+
+**The obvious fix for that does not work, and this was measured twice.** Parse
+inline while the parser keeps up, hand to the ring when it does not:
+
+- `ptyread` mode 10 flips per slot on a cheap proxy (drain ended dry and the
+  ring is empty). It came out **worse than either fixed choice** on all five
+  workloads tried — 03_sgr_fg 0.431 against inline's 0.402 and the ring's
+  0.552.
+- A hysteretic one-way handover on measured cost — time the read and the feed,
+  switch once a 512 KB window says parse is the larger term — collapsed onto
+  the ring's numbers live (suite 2.878 s against the ring's 2.931 and inline's
+  2.514), because with data always queued a read returns instantly and the
+  parse always looks dominant.
+
+And the signal itself has no predictive power. Median parse/read ratio over
+512 KB windows, against which design actually wins:
+
+    03_sgr_fg        1.81   inline wins by 28%
+    01_light_cells   1.47   ring wins by 37%
+    05_unicode       1.00   ring wins by 21%
+    08_scroll_region 0.95   inline wins by 29%
+    02_dense_cells   0.86   inline wins by 28%
+
+The workload with the highest parse share is one inline wins outright. So
+Darwin ships the fixed inline reader and keeps the two regressions; whatever
+separates those two workloads, it is not the balance between reading and
+parsing, and a switch rebuilt on that signal will fail the same way.
+
+Shipped as `af2d426`: suite 2.931 -> 2.478 s (-15.5%), CPU 4.99 -> 3.86
+(-23%). Shutdown moved to a SIGUSR2 sent to the reader thread, installed via
+`sigaction` with sa_flags 0 — `signal(2)` on Darwin sets SA_RESTART, which
+resumes the blocking read instead of failing it with EINTR.
 
 The live app's parse-only wall matches the harness workload for workload —
 03_sgr_fg 0.562 live against mode 9's 0.575, 08_scroll_region 0.251 against
@@ -117,13 +162,38 @@ embedder's display link. Idle, so little CPU, but each start is a thread spawn
 and up to a frame of latency. Worth knowing before anyone reads a frame-pacing
 number on this platform.
 
+## Lever 2 also has correctness riding on it
+
+Since this plan was written, three rendering bugs were fixed by hand in the
+row painter, and all three are the same bug underneath — the row is one shaped
+paragraph, so the text engine decides where each glyph lands:
+
+- Wide glyphs came back at the fallback font's own advance (CJK at 1 em
+  against our 1.2 em cell pair), so every column after a CJK character was
+  wrong. Fixed with a measured per-scalar `letterSpacing` (`b0dc7d5`).
+- Fallback resolution inside a paragraph is monotonic, so a row needing two
+  families in descending order lost everything from the first fallback glyph
+  on — which is why `cat`ing our own 05_unicode corpus showed no CJK at all.
+  Fixed by giving each run its own paragraph (`c2ecbf3`), at +7.8% on
+  05_unicode.
+- Upstream's braille face is 0.7324 em against a 0.6001 em grid, so a spinner
+  still shifts the rest of its row.
+
+None of these can happen to a painter that places each cell itself, and the
+`letterSpacing` correction and the per-run paragraph split both come back out
+when that lands. The remaining visible defect — a wide glyph sits
+left-aligned in its two columns, so CJK reads spaced-out rather than tight —
+needs per-cell placement to fix at all.
+
 ## Ordering
 
-1. **ptyread mode 10** — one measurement, decides Lever 1's shape.
-2. **Lever 1**, the adaptive reader. Biggest wall win, contained to `Pty.swift`.
-3. **Lever 2**, the painter. Biggest CPU win, and it retires the class of
-   alignment bug fixed by hand below.
-4. **Lever 3**, only after profiling light_cells on macOS.
+1. ~~ptyread mode 10~~ and ~~Lever 1~~ — done, `af2d426`.
+2. **Lever 2**, the painter. Now the biggest item: the CPU win, the frame
+   rate, and the three rendering bugs above.
+3. **Lever 3**, `01_light_cells` — and it is now one of the two workloads we
+   lose worst (1.40x), so profiling it on macOS matters more than it did.
+4. `05_unicode` at 1.77x is our worst ratio. It is the workload the inline
+   reader gave up, and the one carrying the per-run paragraph split.
 
 ## Measuring at all
 
