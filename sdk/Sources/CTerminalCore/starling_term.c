@@ -75,7 +75,14 @@ typedef struct { uint32_t *cps; int n; } GraphemeEntry;
 
 /* One remembered width answer and the codepoint interval over which it is
    the answer. See the character-width section. */
-#define WIDTH_SPANS 8
+/* Remembered width answers, keyed by the codepoint's 512-wide block rather
+   than held in a most-recently-used list. See width_lookup. 128 slots cover
+   the whole BMP with no aliasing at all (0xFFFF >> 9 == 127); the astral
+   planes fold back onto it, which costs a recompute on collision and can
+   never give a wrong answer, because every slot re-checks the interval it
+   stored. 2 KB per terminal. */
+#define WIDTH_SLOTS 128
+#define WIDTH_SLOT(cp) (((cp) >> 9) & (WIDTH_SLOTS - 1))
 typedef struct { uint32_t lo, hi; int w, ordinary; } WidthSpan;
 
 struct StarlingTerm {
@@ -163,7 +170,7 @@ struct StarlingTerm {
        pushes those across cache lines and costs the workloads that never
        reach it: measured +5% on 03_sgr_fg and +6% on 02_dense_cells, neither
        of which contains a byte >= 0x80. Seeded in starling_term_new. */
-    WidthSpan wspan[WIDTH_SPANS];
+    WidthSpan wspan[WIDTH_SLOTS];
 };
 
 /* ---------------------------------------------------------------- palette */
@@ -341,8 +348,13 @@ StarlingTerm *starling_term_new(int cols, int rows) {
     /* Every width span starts as the one scalar_width answers without
        consulting a table. Seeding matters as well as helping: a calloc'd
        entry is the interval [0,0] claiming width 0, and U+0000 would hit it. */
-    for (int i = 0; i < WIDTH_SPANS; i++) {
-        t->wspan[i].lo = 0; t->wspan[i].hi = 0x02FF;
+    for (int i = 0; i < WIDTH_SLOTS; i++) {
+        /* An EMPTY interval, not a plausible one: `lo > hi` can be satisfied
+           by no codepoint, so a cold slot always misses and recomputes. A
+           calloc'd or [0,0x2FF]-seeded slot would instead be a live answer
+           for the wrong block — U+0000 hitting a zero-width [0,0] is the
+           original form of that bug. */
+        t->wspan[i].lo = 1; t->wspan[i].hi = 0;
         t->wspan[i].w = 1;  t->wspan[i].ordinary = 1;
     }
     t->grid_cap = t->rows + GRID_SLACK;
@@ -507,25 +519,34 @@ static int width_span(uint32_t cp, WidthSpan *s) {
    character; but text arrives in runs from one script, and the tables' gaps
    are wide (Cyrillic and Greek share the single gap 0x370-0x482, all of CJK
    is one range), so the interval one lookup lands in almost always answers
-   the next one too. Eight entries hold the scripts a mixed line touches at
-   once — Latin accents, Cyrillic, Greek, arrows, dingbats, CJK and two
-   emoji blocks is exactly seven — and even a miss only costs a compare per
-   entry on top of the search it was going to do anyway. The spans are
-   derived from the tables at the moment of use, so nothing here needs
-   updating when they are regenerated, and there is nothing to invalidate:
-   the tables are immutable. */
+   the next one too.
+
+   This WAS an eight-entry most-recently-used list, on the reasoning that
+   eight holds every script a mixed line touches at once. That is true and
+   it is still the wrong structure, because a line does not touch its
+   scripts once — it CYCLES them, and a cycle is the one access pattern MRU
+   handles worst: each script is evicted to the back exactly in time for its
+   next use, so every transition misses, pays both binary searches, and then
+   shifts seven entries. Ghostty's own published unicode corpus is that case
+   in the extreme — Latin, Cyrillic, Greek, CJK, kana, Hangul, Arabic,
+   symbols and emoji, in runs of two to five characters — and a profile put
+   43.6% of the whole core inside this function, nearly all of it the miss.
+
+   So: direct-mapped on the codepoint's block instead. Distinct scripts land
+   in distinct slots and stay there, so a cycle hits every time, and there is
+   no list to search or shift. Collisions cannot give a wrong answer — the
+   slot re-checks the interval it stored, and a mismatch just recomputes.
+   The spans are derived from the tables at the moment of use, so nothing
+   here needs updating when they are regenerated, and there is nothing to
+   invalidate: the tables are immutable. */
 static int width_lookup(StarlingTerm *t, uint32_t cp, int *ordinary) {
-    for (int i = 0; i < WIDTH_SPANS; i++) {
-        if (cp >= t->wspan[i].lo && cp <= t->wspan[i].hi) {
-            *ordinary = t->wspan[i].ordinary;
-            return t->wspan[i].w;
-        }
+    WidthSpan *s = &t->wspan[WIDTH_SLOT(cp)];
+    if (cp >= s->lo && cp <= s->hi) {          /* the slot still answers */
+        *ordinary = s->ordinary;
+        return s->w;
     }
-    WidthSpan s;
-    int w = width_span(cp, &s);
-    for (int i = WIDTH_SPANS - 1; i > 0; i--) t->wspan[i] = t->wspan[i - 1];
-    t->wspan[0] = s;             /* most recent first: the next lookup is it */
-    *ordinary = s.ordinary;
+    int w = width_span(cp, s);                 /* computed straight into it */
+    *ordinary = s->ordinary;
     return w;
 }
 
