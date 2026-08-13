@@ -91,6 +91,15 @@ final class TerminalGlyphAtlas {
     /// to put a `slotW`-wide source into a `cellW`-wide cell.
     var blitScale: Double { cellW / Double(slotW) }
 
+    /// True when one atlas texel lands on exactly one device pixel — the
+    /// common case on an integer-scale display, where `slotW` is exactly
+    /// `cellW * scale`. The blit should then sample NEAREST: bilinear at a
+    /// 1:1 mapping is the identity only at zero phase, and the live raster
+    /// carries a small constant sub-texel phase that diffused every one-pixel
+    /// stem into a ~0.8/0.2 pair — glyphs composited measurably translucent,
+    /// which is how the pixel gate caught it. Nearest rounds the phase away.
+    var exactBlit: Bool { abs(blitScale * scale - 1.0) < 1e-9 }
+
     init(cellW: Double, cellH: Double, scale: Double,
          family: String, fallback: [String], fontSize: Double) {
         self.cellW = cellW
@@ -161,7 +170,17 @@ final class TerminalGlyphAtlas {
     }
 
     /// The baseline of an ordinary glyph in the primary family — the line
-    /// every other family's glyph is shifted onto.
+    /// every other family's glyph is shifted onto, and the line the painter
+    /// hangs underlines from. Cached: it costs a paragraph layout.
+    private var _primaryBaseline: Double?
+
+    var primaryBaseline: Double {
+        if let b = _primaryBaseline { return b }
+        let b = baselineOfPrimary()
+        _primaryBaseline = b
+        return b
+    }
+
     private func baselineOfPrimary() -> Double {
         let style = TextStyle(color: Color(0xFFFF_FFFF), fontSize: fontSize,
                               fontFamily: family)
@@ -185,6 +204,18 @@ final class TerminalGlyphAtlas {
 
         let recorder = NativePictureRecorder()
         let canvas = NativeCanvas(recorder: recorder)
+        // The whole raster goes through one layer whose colour matrix forces
+        // RGB to white and passes ALPHA through. The blit's modulate needs
+        // white texels; the rasteriser needs a non-white paint (the note at
+        // `rasterColor` below) — this layer is what lets both be true.
+        let flatten = Paint()
+        flatten.colorFilter = ColorFilter(matrix: [
+            0, 0, 0, 0, 255,
+            0, 0, 0, 0, 255,
+            0, 0, 0, 0, 255,
+            0, 0, 0, 1, 0,
+        ])
+        canvas.saveLayer(Rect.fromLTWH(0, 0, Double(w), Double(h)), flatten)
         // Scale each axis to fill its slot exactly, rather than by the display
         // scale — the slot is an integer number of pixels and the cell is not,
         // so these differ slightly, and it is the slot the blit samples.
@@ -198,10 +229,20 @@ final class TerminalGlyphAtlas {
         // row they are supposed to join and a full block leaves a gap at one
         // edge. So measure the primary family's baseline once and shift each
         // glyph onto it, which is what a terminal row means by a baseline.
-        let reference = baselineOfPrimary()
+        let reference = primaryBaseline
 
-        // White on transparent: the atlas carries coverage, the blit carries
-        // colour. This is the only place shaping happens, once per glyph.
+        // The atlas carries COVERAGE (alpha); the blit carries colour via
+        // srcIn, which reads only the texture's alpha — so the raster colour
+        // here never reaches the screen. It still matters, because Skia's
+        // text masks are gamma-keyed on the paint's LUMINANCE: rasterised
+        // white (as this first shipped, with a modulate blit that needed
+        // white texels), every glyph carried the boosted light-on-dark mask,
+        // and tinted dark onto a light background it came out measurably
+        // fatter than the Text path drawing the same glyph in its real
+        // colour — one-pixel stems grew a second core pixel, and the pixel
+        // gate's reverse-video row caught the coverage difference. Mid-grey
+        // keys the neutral mask, the compromise that serves both directions.
+        let rasterColor = Color(0xFF80_8080)
         for (key, index) in slots {
             guard let u = Unicode.Scalar(key.scalar) else { continue }
             let col = index % TerminalGlyphAtlas.slotsPerRow
@@ -221,12 +262,12 @@ final class TerminalGlyphAtlas {
             if TerminalBoxGlyphs.handles(key.scalar) {
                 TerminalBoxGlyphs.draw(canvas, scalar: key.scalar,
                                        x: ox, y: oy, w: cellW, h: cellH,
-                                       color: 0xFFFF_FFFF, scale: sx)
+                                       color: 0xFF80_8080, scale: sx)
                 continue
             }
 
             let style = TextStyle(
-                color: Color(0xFFFF_FFFF),
+                color: rasterColor,
                 fontSize: fontSize,
                 fontWeight: key.bold ? .w700 : .normal,
                 fontFamily: family,
@@ -243,6 +284,7 @@ final class TerminalGlyphAtlas {
             canvas.drawParagraph(paragraph, Offset(
                 ox, oy + (reference - paragraph.alphabeticBaseline)))
         }
+        canvas.restore()   // the flatten-to-white layer
         let picture = recorder.endRecording()
         image = picture.toImageSync(width: w, height: h)
     }

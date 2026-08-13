@@ -211,7 +211,16 @@ final class TerminalGridPainter: CustomPainter {
         }
         if !colors.isEmpty, let image = atlas.image {
             let paint = Paint()
-            paint.filterQuality = .low     // the blit is near 1:1; see `pad`
+            // Exact 1:1 samples nearest — see TerminalGlyphAtlas.exactBlit.
+            // Only the fractional case pays bilinear for its resample.
+            paint.filterQuality = atlas.exactBlit ? .none : .low
+            // Modulate needs white texels (it multiplies the texture's RGB
+            // into the tint); the atlas guarantees them — rasterised grey
+            // for the neutral gamma mask, flattened to white by a colour
+            // matrix (see the raster-colour note in rebuildIfNeeded).
+            // srcIn — “tint by texture alpha alone” — was tried and punched
+            // alpha holes through the backgrounds: a transparent quad region
+            // composited srcIn against the canvas somewhere down the path.
             canvas.drawRawAtlas(image, transforms, rects, colors,
                                 .modulate, nil, paint)
         }
@@ -220,10 +229,19 @@ final class TerminalGridPainter: CustomPainter {
         for f in fallbacks { paintFallback(canvas, f) }
 
         // ── pass 4: underlines ───────────────────────────────────────────
+        // Just under the BASELINE, like the text engine's own rule — not at
+        // the cell's bottom edge, where it reads as the next row's border
+        // and sits outside the band anyone (person or gate) scans for it.
         let thickness = max(1.0, (cellH / 16).rounded())
+        // Half a thickness below the baseline: where the text engine's own
+        // rule hugs it. A full thickness down was measurably different — it
+        // put the rule into the last 12% of the cell, past where the engine
+        // ever draws and outside the band the pixel gate scans.
+        let ruleOffset = min(atlas.primaryBaseline + thickness * 0.5,
+                             cellH - thickness)
         let ulPaint = Paint()
         for (r, line) in lines.enumerated() {
-            let y = Double(r) * cellH + cellH - thickness
+            let y = Double(r) * cellH + ruleOffset
             var c = 0
             while c < min(cols, line.count) {
                 guard line[c].attrs.contains(.underline) else { c += 1; continue }
