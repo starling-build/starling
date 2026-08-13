@@ -21,6 +21,10 @@
 
 #define SB_LIMIT 2000
 #define SB_SLACK 512
+/* Rows of headroom after the live screen, so a full-screen scroll can bump a
+   pointer instead of moving every row. One recentring memmove per this many
+   line feeds; at 24 bytes a Row the whole reserve is ~24 KB. */
+#define GRID_SLACK 1024
 #define MAX_PARAMS 64
 #define OSC_MAX 256
 /* Sized to the scrollback trim batch: a trim frees SB_SLACK rows at once and the
@@ -30,6 +34,53 @@
 #define ROW_POOL_MAX (SB_SLACK + 64)
 
 typedef StarlingTermCell Cell;
+
+/* STARLING_NO_NEON compiles the portable path on a NEON target, so the
+   fallback every non-arm64 build ships can be differentially tested here. */
+#if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && !defined(STARLING_NO_NEON)
+#include <arm_neon.h>
+#define STARLING_NEON 1
+#endif
+
+/* Cells are written through 32-bit lanes by the vectorised run store below.
+   Saying `may_alias` makes that defined rather than merely customary: the
+   store aliases `scalar`/`fg`/`bg` (themselves uint32_t) and, for the fourth
+   lane, `attrs` plus the three padding bytes after it. Writing that padding
+   is safe — nothing reads it, on either side of the Swift ABI, and it was
+   already whatever malloc left there. */
+typedef uint32_t cell_lane __attribute__((may_alias));
+
+/* Write `n` cells of printable ASCII sharing one style. Every cell differs
+   only in its scalar, and a Cell is exactly four 32-bit lanes, so on NEON
+   `vst4q_u32` lays down FOUR WHOLE CELLS per instruction: the four vectors
+   are interleaved element-wise, which is precisely {scalar,fg,bg,attrs} per
+   cell. The scalar loop it replaces did one character per iteration —
+   `ldrb; str; stur; strb` plus index arithmetic, about nine instructions per
+   character, and 35% of the whole core on unstyled ASCII.
+
+   The portable path stays for non-NEON targets and for the tail. */
+static void store_ascii_run(Cell *dst, const uint8_t *src, size_t n,
+                            uint32_t fg, uint32_t bg, uint8_t at) {
+    size_t k = 0;
+#ifdef STARLING_NEON
+    if (n >= 8) {
+        uint32x4x4_t q;
+        q.val[1] = vdupq_n_u32(fg);
+        q.val[2] = vdupq_n_u32(bg);
+        q.val[3] = vdupq_n_u32((uint32_t)at);        /* attrs + zeroed pad */
+        for (; k + 8 <= n; k += 8) {
+            uint16x8_t w = vmovl_u8(vld1_u8(src + k));
+            cell_lane *p = (cell_lane *)(dst + k);
+            q.val[0] = vmovl_u16(vget_low_u16(w));  vst4q_u32(p,      q);
+            q.val[0] = vmovl_u16(vget_high_u16(w)); vst4q_u32(p + 16, q);
+        }
+    }
+#endif
+    for (; k < n; k++) {
+        Cell *c = &dst[k];
+        c->scalar = src[k]; c->fg = fg; c->bg = bg; c->attrs = at;
+    }
+}
 
 /* Extent-based blanking. Filling a freshly recycled row used to memset the
    full width on every line feed; at 478 columns the light_cells workload
@@ -71,13 +122,27 @@ typedef struct { uint32_t *cps; int n; } GraphemeEntry;
 
 /* One remembered width answer and the codepoint interval over which it is
    the answer. See the character-width section. */
-#define WIDTH_SPANS 8
+/* Remembered width answers, keyed by the codepoint's 512-wide block rather
+   than held in a most-recently-used list. See width_lookup. 128 slots cover
+   the whole BMP with no aliasing at all (0xFFFF >> 9 == 127); the astral
+   planes fold back onto it, which costs a recompute on collision and can
+   never give a wrong answer, because every slot re-checks the interval it
+   stored. 2 KB per terminal. */
+#define WIDTH_SLOTS 128
+#define WIDTH_SLOT(cp) (((cp) >> 9) & (WIDTH_SLOTS - 1))
 typedef struct { uint32_t lo, hi; int w, ordinary; } WidthSpan;
 
 struct StarlingTerm {
     int cols, rows;
 
-    Row *grid;                 /* rows entries */
+    /* The live screen is a WINDOW into a larger block, not the block itself:
+       `grid[0 .. rows-1]` are the rows, and `grid` slides forward through
+       `grid_base[0 .. grid_cap-1]` as the screen scrolls. See grid_rotate_in
+       for why. Only scrolling ever moves `grid`; everything else calls
+       grid_recenter() first and then treats grid_base as a plain array. */
+    Row *grid;                 /* rows entries — the live window */
+    Row *grid_base;            /* the allocation `grid` points into */
+    int  grid_cap;             /* Row slots in grid_base */
     Row *sb;                   /* scrollback ring, oldest at sb_head */
     int  sb_cap, sb_head, sb_len;
 
@@ -95,8 +160,10 @@ struct StarlingTerm {
     int mouse_tracking, mouse_sgr;
 
     int  alt_active;
-    Row *saved_primary;        /* NULL when not in alt screen */
+    Row *saved_primary;        /* NULL when not in alt screen — always the
+                                  recentred base, so it is a plain array */
     int  saved_primary_rows;
+    int  saved_primary_cap;
     int  saved_primary_cursor_row, saved_primary_cursor_col;
 
     int      saved_cursor_row, saved_cursor_col;
@@ -150,7 +217,7 @@ struct StarlingTerm {
        pushes those across cache lines and costs the workloads that never
        reach it: measured +5% on 03_sgr_fg and +6% on 02_dense_cells, neither
        of which contains a byte >= 0x80. Seeded in starling_term_new. */
-    WidthSpan wspan[WIDTH_SPANS];
+    WidthSpan wspan[WIDTH_SLOTS];
 };
 
 /* ---------------------------------------------------------------- palette */
@@ -328,11 +395,18 @@ StarlingTerm *starling_term_new(int cols, int rows) {
     /* Every width span starts as the one scalar_width answers without
        consulting a table. Seeding matters as well as helping: a calloc'd
        entry is the interval [0,0] claiming width 0, and U+0000 would hit it. */
-    for (int i = 0; i < WIDTH_SPANS; i++) {
-        t->wspan[i].lo = 0; t->wspan[i].hi = 0x02FF;
+    for (int i = 0; i < WIDTH_SLOTS; i++) {
+        /* An EMPTY interval, not a plausible one: `lo > hi` can be satisfied
+           by no codepoint, so a cold slot always misses and recomputes. A
+           calloc'd or [0,0x2FF]-seeded slot would instead be a live answer
+           for the wrong block — U+0000 hitting a zero-width [0,0] is the
+           original form of that bug. */
+        t->wspan[i].lo = 1; t->wspan[i].hi = 0;
         t->wspan[i].w = 1;  t->wspan[i].ordinary = 1;
     }
-    t->grid = malloc(sizeof(Row) * (size_t)t->rows);
+    t->grid_cap = t->rows + GRID_SLACK;
+    t->grid_base = malloc(sizeof(Row) * (size_t)t->grid_cap);
+    t->grid = t->grid_base;
     for (int i = 0; i < t->rows; i++) t->grid[i] = row_default(t);
     t->sb_cap = SB_LIMIT + SB_SLACK + 2;
     t->sb = calloc((size_t)t->sb_cap, sizeof(Row));
@@ -345,7 +419,7 @@ void starling_term_free(StarlingTerm *t) {
     free(t->gp);
     free(t->gp_map);
     for (int i = 0; i < t->rows; i++) free(t->grid[i].cells);
-    free(t->grid);
+    free(t->grid_base);
     for (int i = 0; i < t->sb_len; i++) free(sb_at(t, i)->cells);
     free(t->sb);
     if (t->saved_primary) {
@@ -492,25 +566,34 @@ static int width_span(uint32_t cp, WidthSpan *s) {
    character; but text arrives in runs from one script, and the tables' gaps
    are wide (Cyrillic and Greek share the single gap 0x370-0x482, all of CJK
    is one range), so the interval one lookup lands in almost always answers
-   the next one too. Eight entries hold the scripts a mixed line touches at
-   once — Latin accents, Cyrillic, Greek, arrows, dingbats, CJK and two
-   emoji blocks is exactly seven — and even a miss only costs a compare per
-   entry on top of the search it was going to do anyway. The spans are
-   derived from the tables at the moment of use, so nothing here needs
-   updating when they are regenerated, and there is nothing to invalidate:
-   the tables are immutable. */
+   the next one too.
+
+   This WAS an eight-entry most-recently-used list, on the reasoning that
+   eight holds every script a mixed line touches at once. That is true and
+   it is still the wrong structure, because a line does not touch its
+   scripts once — it CYCLES them, and a cycle is the one access pattern MRU
+   handles worst: each script is evicted to the back exactly in time for its
+   next use, so every transition misses, pays both binary searches, and then
+   shifts seven entries. Ghostty's own published unicode corpus is that case
+   in the extreme — Latin, Cyrillic, Greek, CJK, kana, Hangul, Arabic,
+   symbols and emoji, in runs of two to five characters — and a profile put
+   43.6% of the whole core inside this function, nearly all of it the miss.
+
+   So: direct-mapped on the codepoint's block instead. Distinct scripts land
+   in distinct slots and stay there, so a cycle hits every time, and there is
+   no list to search or shift. Collisions cannot give a wrong answer — the
+   slot re-checks the interval it stored, and a mismatch just recomputes.
+   The spans are derived from the tables at the moment of use, so nothing
+   here needs updating when they are regenerated, and there is nothing to
+   invalidate: the tables are immutable. */
 static int width_lookup(StarlingTerm *t, uint32_t cp, int *ordinary) {
-    for (int i = 0; i < WIDTH_SPANS; i++) {
-        if (cp >= t->wspan[i].lo && cp <= t->wspan[i].hi) {
-            *ordinary = t->wspan[i].ordinary;
-            return t->wspan[i].w;
-        }
+    WidthSpan *s = &t->wspan[WIDTH_SLOT(cp)];
+    if (cp >= s->lo && cp <= s->hi) {          /* the slot still answers */
+        *ordinary = s->ordinary;
+        return s->w;
     }
-    WidthSpan s;
-    int w = width_span(cp, &s);
-    for (int i = WIDTH_SPANS - 1; i > 0; i--) t->wspan[i] = t->wspan[i - 1];
-    t->wspan[0] = s;             /* most recent first: the next lookup is it */
-    *ordinary = s.ordinary;
+    int w = width_span(cp, s);                 /* computed straight into it */
+    *ordinary = s->ordinary;
     return w;
 }
 
@@ -985,13 +1068,48 @@ static void insert_chars(StarlingTerm *t, int n) {
     rw->used = t->cols;
 }
 
-/* Remove grid row `at`, shifting up, and put `r` in at `to` (to >= at). */
+/* Slide the live window back to the start of its block, so everything that is
+   not a scroll can treat grid_base as a plain `rows`-long array. Costs one
+   memmove of the window, amortised over GRID_SLACK scrolls. */
+static void grid_recenter(StarlingTerm *t) {
+    if (t->grid == t->grid_base) return;
+    memmove(t->grid_base, t->grid, sizeof(Row) * (size_t)t->rows);
+    t->grid = t->grid_base;
+}
+
+/* Remove grid row `at`, shifting up, and put `r` in at `to` (to >= at).
+ *
+ * The whole-screen case — `at == 0 && to == rows-1`, which is what every
+ * line feed outside a scroll region does — is a POINTER BUMP, not a move.
+ * That case dominates: 01_light_cells is 1.5 M line feeds, and profiling the
+ * core on it put 68% of the entire workload inside this function's memmove
+ * (1128 bytes of Row per feed, 1.7 GB over the run). Sliding costs one
+ * memmove per GRID_SLACK scrolls instead of one per scroll.
+ *
+ * A scroll REGION still moves rows: sliding would carry the rows outside the
+ * region along with it. */
 static void grid_rotate_in(StarlingTerm *t, int at, int to, Row r) {
+    if (at == 0 && to == t->rows - 1) {
+        if (t->grid + t->rows >= t->grid_base + t->grid_cap) grid_recenter(t);
+        t->grid++;
+        t->grid[to] = r;
+        return;
+    }
     memmove(&t->grid[at], &t->grid[at + 1], sizeof(Row) * (size_t)(to - at));
     t->grid[to] = r;
 }
-/* Remove grid row `at`, shifting down, and put `r` in at `to` (to <= at). */
+/* Remove grid row `at`, shifting down, and put `r` in at `to` (to <= at).
+ *
+ * The mirror image, and it can only slide when the window has already moved
+ * forward — which is the case that matters, since scrolling back down is
+ * always undoing a scroll up. With no room before the window it falls back to
+ * the move rather than growing a second recentre direction for a rare path. */
 static void grid_rotate_in_rev(StarlingTerm *t, int at, int to, Row r) {
+    if (to == 0 && at == t->rows - 1 && t->grid > t->grid_base) {
+        t->grid--;
+        t->grid[0] = r;
+        return;
+    }
     memmove(&t->grid[to + 1], &t->grid[to], sizeof(Row) * (size_t)(at - to));
     t->grid[to] = r;
 }
@@ -1081,12 +1199,18 @@ static void sgr(StarlingTerm *t, const int *p, int n) {
 static void enter_alt(StarlingTerm *t, int with_cursor) {
     if (t->alt_active) return;
     if (with_cursor) save_cursor(t);
-    t->saved_primary = t->grid;
+    /* Hand the primary screen over as a plain array — everything that touches
+       saved_primary (resize, the refit in exit_alt) indexes it directly. */
+    grid_recenter(t);
+    t->saved_primary = t->grid_base;
     t->saved_primary_rows = t->rows;
+    t->saved_primary_cap = t->grid_cap;
     t->saved_primary_cursor_row = t->cursor_row;
     t->saved_primary_cursor_col = t->cursor_col;
     t->alt_active = 1;
-    t->grid = malloc(sizeof(Row) * (size_t)t->rows);
+    t->grid_cap = t->rows + GRID_SLACK;
+    t->grid_base = malloc(sizeof(Row) * (size_t)t->grid_cap);
+    t->grid = t->grid_base;
     for (int i = 0; i < t->rows; i++) t->grid[i] = row_blank(t);
     t->cursor_row = 0; t->cursor_col = 0;
 }
@@ -1096,22 +1220,27 @@ static void exit_alt(StarlingTerm *t, int with_cursor) {
     t->alt_active = 0;
     if (t->saved_primary) {
         for (int i = 0; i < t->rows; i++) row_release(t, &t->grid[i]);
-        free(t->grid);
-        t->grid = t->saved_primary;
+        free(t->grid_base);
+        t->grid_base = t->saved_primary;
+        t->grid = t->grid_base;
+        t->grid_cap = t->saved_primary_cap;
         t->saved_primary = NULL;
         /* resize() keeps saved_primary fitted to the live rows/cols, so this
            is normally a no-op; it is the equivalent of Swift's _normalizeGrid
            on the restored screen. */
         for (int i = 0; i < t->saved_primary_rows; i++) row_fit(&t->grid[i], t->cols);
         if (t->saved_primary_rows != t->rows) {
-            Row *g = malloc(sizeof(Row) * (size_t)t->rows);
+            int cap = t->rows + GRID_SLACK;
+            Row *g = malloc(sizeof(Row) * (size_t)cap);
             int keep = t->saved_primary_rows < t->rows ? t->saved_primary_rows : t->rows;
             int drop = t->saved_primary_rows - keep;      /* oldest lines go first */
             for (int k = 0; k < drop; k++) row_release(t, &t->grid[k]);
             for (int i = 0; i < keep; i++) g[i] = t->grid[drop + i];
             for (int i = keep; i < t->rows; i++) g[i] = row_default(t);
-            free(t->grid);
+            free(t->grid_base);
+            t->grid_base = g;
             t->grid = g;
+            t->grid_cap = cap;
         }
         t->saved_primary_rows = t->rows;
     }
@@ -1475,9 +1604,21 @@ void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
                 unsplit_pair(t, rw, start);
                 unsplit_pair(t, rw, start + (int)run - 1);
                 uint32_t fg = t->cur_fg, bg = t->cur_bg; uint8_t at = t->cur_attrs;
-                for (size_t k = 0; k < run; k++) {
-                    Cell *c = &row[start + (int)k];
-                    c->scalar = input[i + k]; c->fg = fg; c->bg = bg; c->attrs = at;
+                Cell *dst = row + start;
+                const uint8_t *src = input + i;
+                /* Short runs stay on the inline store they have always used.
+                   Styled content is nothing but short runs — 03_sgr_fg
+                   averages a handful of characters between SGR sequences —
+                   and routing those through a call costs it ~4%, which is
+                   more than the vector path could ever win back on a run too
+                   short to enter it. */
+                if (run >= 8) {
+                    store_ascii_run(dst, src, run, fg, bg, at);
+                } else {
+                    for (size_t k = 0; k < run; k++) {
+                        Cell *c = &dst[k];
+                        c->scalar = src[k]; c->fg = fg; c->bg = bg; c->attrs = at;
+                    }
                 }
                 if (start + (int)run > rw->used) rw->used = start + (int)run;
                 t->last_row = t->cursor_row; t->last_col = start + (int)run - 1;
@@ -1630,6 +1771,10 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
     if (new_rows < 2) new_rows = 2;
     if (new_cols == t->cols && new_rows == t->rows) return;
 
+    /* Everything below indexes the grid as a plain array and reallocs it, so
+       flatten the scroll window first — while `t->rows` still describes it. */
+    grid_recenter(t);
+
     int old_rows = t->rows;
     t->cols = new_cols;
     t->rows = new_rows;
@@ -1640,7 +1785,9 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
     for (int i = 0; i < old_rows; i++) row_fit(&t->grid[i], t->cols);
 
     if (new_rows > old_rows) {
-        t->grid = realloc(t->grid, sizeof(Row) * (size_t)new_rows);
+        t->grid_cap = new_rows + GRID_SLACK;
+        t->grid_base = realloc(t->grid_base, sizeof(Row) * (size_t)t->grid_cap);
+        t->grid = t->grid_base;
         for (int i = old_rows; i < new_rows; i++) t->grid[i] = row_default(t);
     } else if (new_rows < old_rows) {
         int drop = old_rows - new_rows;
@@ -1671,13 +1818,17 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
             memmove(&t->grid[0], &t->grid[1], sizeof(Row) * (size_t)(live - 1 - k));
             if (t->cursor_row > 0) t->cursor_row--;
         }
-        t->grid = realloc(t->grid, sizeof(Row) * (size_t)new_rows);
+        t->grid_cap = new_rows + GRID_SLACK;
+        t->grid_base = realloc(t->grid_base, sizeof(Row) * (size_t)t->grid_cap);
+        t->grid = t->grid_base;
     }
 
     if (t->saved_primary) {
         for (int i = 0; i < t->saved_primary_rows; i++) row_fit(&t->saved_primary[i], t->cols);
         if (t->saved_primary_rows < t->rows) {
-            t->saved_primary = realloc(t->saved_primary, sizeof(Row) * (size_t)t->rows);
+            t->saved_primary_cap = t->rows + GRID_SLACK;
+            t->saved_primary = realloc(t->saved_primary,
+                                       sizeof(Row) * (size_t)t->saved_primary_cap);
             for (int i = t->saved_primary_rows; i < t->rows; i++)
                 t->saved_primary[i] = row_default(t);
         } else if (t->saved_primary_rows > t->rows) {
@@ -1685,7 +1836,9 @@ void starling_term_resize(StarlingTerm *t, int new_cols, int new_rows) {
             for (int k = 0; k < drop; k++) row_release(t, &t->saved_primary[k]);
             memmove(&t->saved_primary[0], &t->saved_primary[drop],
                     sizeof(Row) * (size_t)t->rows);
-            t->saved_primary = realloc(t->saved_primary, sizeof(Row) * (size_t)t->rows);
+            t->saved_primary_cap = t->rows + GRID_SLACK;
+            t->saved_primary = realloc(t->saved_primary,
+                                       sizeof(Row) * (size_t)t->saved_primary_cap);
         }
         t->saved_primary_rows = t->rows;
     }

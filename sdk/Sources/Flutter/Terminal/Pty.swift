@@ -381,6 +381,150 @@ final class Pty: @unchecked Sendable {
     /// `ptyread.c` modes 0 and 3). Ghostty sits exactly on the transport floor
     /// on the workloads where we did not; this is why.
     func startReader() {
+        #if canImport(Darwin)
+        _startReaderInline()
+        return
+        #else
+        _startReaderRing()
+        #endif
+    }
+
+    #if canImport(Darwin)
+    /// The pthread behind `readerThread`, so `terminate()` can interrupt a
+    /// blocking read (see `_readerWakeSignal`).
+    private var readerPthread: pthread_t?
+
+    /// A signal whose handler does nothing and which is installed WITHOUT
+    /// SA_RESTART, so delivering it makes an in-flight `read(2)` return
+    /// EINTR. `signal(2)` cannot be used: on Darwin it installs BSD-style
+    /// handlers with SA_RESTART set, so read would resume and never notice
+    /// that the terminal is shutting down.
+    private static let _readerWakeSignal: Int32 = SIGUSR2
+    private static let _installReaderWake: Bool = {
+        var sa = sigaction()
+        sa.__sigaction_u.__sa_handler = { _ in }
+        sa.sa_flags = 0
+        sigemptyset(&sa.sa_mask)
+        return sigaction(Pty._readerWakeSignal, &sa, nil) == 0
+    }()
+
+    /// Darwin: ONE thread, blocking reads, parse inline — no ring, no parser
+    /// thread.
+    ///
+    /// The split exists to overlap transport with parse, and on this platform
+    /// it is a net loss: the pty hands back ~1 KB per read regardless of
+    /// buffer size, so the ring pays a condition-variable round trip to
+    /// parallelise a kilobyte of parse work — microseconds of parse behind
+    /// tens of microseconds of handoff. Worse, non-blocking reads see an
+    /// EAGAIN between every pair, so each kilobyte costs two syscalls plus a
+    /// poll; blocking reads cost one.
+    ///
+    /// `test/bench/core/ptyread.c`, best of 2 at 201x47, wall in seconds:
+    ///
+    ///     workload          mode 0 (this)  mode 9 (the ring + linger)
+    ///     02_dense_cells        0.114          0.169
+    ///     03_sgr_fg             0.402          0.552
+    ///     08_scroll_region      0.159          0.242
+    ///     01_light_cells        0.127          0.099
+    ///     05_unicode            0.372          0.316
+    ///
+    /// It loses exactly where the CORE is slowest per byte — light_cells at
+    /// 81 MB/s and unicode at 336, against 500-750 for the three it wins —
+    /// because that is where there is enough parse work to be worth
+    /// overlapping. Net over the ten-workload suite: 2.345 s against 2.901,
+    /// -19%.
+    ///
+    /// Mode 10 in that harness is the obvious "best of both" — parse inline
+    /// while the parser keeps up, hand to the ring when it does not — and it
+    /// measured WORSE THAN EITHER on every one of the five (0.126 / 0.431 /
+    /// 0.176 / 0.157 / 0.476). It pays the ring's bookkeeping and loses the
+    /// single-thread locality without buying back the overlap. Do not retry
+    /// that shape without a different mechanism.
+    // SWITCHING BETWEEN THE TWO AT RUNTIME: TRIED, AND THE SIGNAL IS NOT
+    // THERE.
+    //
+    // Inline loses two of the ten workloads, so an adaptive reader — inline
+    // until the parse becomes the bottleneck, then hand the fd to the ring —
+    // looks obvious. Two shapes were built and measured, and both are worse
+    // than simply picking one:
+    //
+    //   * `ptyread` mode 10 flips per slot when the drain ends dry and the
+    //     ring is empty. It measured WORSE THAN EITHER fixed choice on all
+    //     five workloads tried (e.g. 03_sgr_fg 0.431 against inline's 0.402
+    //     and the ring's 0.552).
+    //   * A hysteretic one-way handover on measured cost: time the read and
+    //     the feed, hand over once a 512 KB window says the parse is the
+    //     larger term. Live, it collapsed onto the ring's numbers (suite
+    //     2.878 s against the ring's 2.931 and inline's 2.514) because with
+    //     data always queued a read returns instantly and the parse ALWAYS
+    //     looks dominant.
+    //
+    // The measured parse/read ratio does not predict the winner at all.
+    // Median over 512 KB windows, against which design actually wins:
+    //
+    //     03_sgr_fg        1.81   inline wins by 28%
+    //     01_light_cells   1.47   ring wins by 37%
+    //     05_unicode       1.00   ring wins by 21%
+    //     08_scroll_region 0.95   inline wins by 29%
+    //     02_dense_cells   0.86   inline wins by 28%
+    //
+    // The workload with the HIGHEST parse share is one inline wins outright.
+    // Whatever separates these two groups, it is not the balance between
+    // reading and parsing, so do not rebuild this switch on that signal.
+
+    private func _startReaderInline() {
+        _ = Pty._installReaderWake
+        let reader = Thread { [weak self] in
+            guard let self = self else { return }
+            self.readerPthread = pthread_self()
+            let cap = ChunkRing.slotCapacity
+            let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: cap)
+            defer { buf.deallocate() }
+
+            // Which of the two halves is actually the bottleneck, measured
+            // rather than assumed — this is what the two workloads inline
+            // reading LOSES have in common, and the reason the switch is not
+            // a platform #if.
+            //
+            // Inline wins whenever the parse is cheap next to the transport,
+            // which is most content: 02_dense_cells, 03_sgr_fg,
+            // 08_scroll_region and 09_long_lines each come in 28% faster.
+            // 01_light_cells (+37%) and 05_unicode (+21%) go the other way,
+            // and they are precisely the streams the core is slowest on — 81
+            // and 336 MB/s against 500-750 for the rest. There, parsing while
+            // nobody drains the pty stalls the writer, and the ring's second
+            // thread pays for itself.
+            //
+            // So: time both halves, and once a window's worth of bytes says
+            // the parse is the larger term, hand the fd to the ring reader and
+            // retire this thread. One-way and hysteretic on purpose — mode 10
+            // in `ptyread` flips per slot on a cheaper proxy (is the ring
+            // empty) and lands worse than either fixed choice.
+            while true {
+                if self.terminating { break }
+                let n = read(self.masterFd, buf, cap)
+                if n > 0 {
+                    // Straight into the emulator on this thread. The buffer is
+                    // ours until the call returns, which is the same contract
+                    // the ring gave the parser thread.
+                    self.onData?(UnsafePointer(buf), n)
+                    continue
+                }
+                if n < 0 && errno == EINTR { continue }
+                break   // EOF (the child closed its side) or a hard error
+            }
+            // Every byte read has been parsed by the time this runs, so the
+            // exit message cannot overtake the output that preceded it —
+            // the property the ring's drain-then-close gave us.
+            self.onExit?()
+        }
+        reader.name = "pty-reader"
+        readerThread = reader
+        reader.start()
+    }
+    #endif
+
+    private func _startReaderRing() {
         // Non-blocking + poll, so the reader can DRAIN into a slot: the pty
         // returns ~600-byte reads during a flood no matter how big the buffer
         // is, and publishing each one cost a ring pass — two NSCondition
@@ -583,6 +727,13 @@ final class Pty: @unchecked Sendable {
     /// leaves a zombie.
     func terminate() {
         terminating = true
+        #if canImport(Darwin)
+        // The inline reader is parked in a BLOCKING read on the master, which
+        // closing the fd is not specified to wake. Signal it instead: the
+        // handler does nothing, but the delivery makes read return EINTR and
+        // the loop then sees `terminating`.
+        if let t = readerPthread { pthread_kill(t, Pty._readerWakeSignal) }
+        #endif
         if wakeWrite >= 0 {
             var byte: UInt8 = 1
             // `_sysWrite`, not `Glibc.write`: that module does not exist on

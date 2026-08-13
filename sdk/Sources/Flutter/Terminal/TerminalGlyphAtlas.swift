@@ -46,6 +46,17 @@ final class TerminalGlyphAtlas {
     private static let slotsPerRow = 32
     private static let maxSlots = 32 * 64
 
+    /// Device pixels of empty space around every slot.
+    ///
+    /// The blit is close to 1:1 — a slot is `ceil(cell * scale)` device pixels
+    /// and lands on `cell` logical ones — but never exactly, because the cell
+    /// size is fractional and the destination lands on sub-pixel offsets. So
+    /// the sampler reaches slightly outside the source rect, and with slots
+    /// packed edge to edge that means picking up the NEIGHBOURING GLYPH: a
+    /// faint ghost of an unrelated character down one side of every cell. One
+    /// pixel would do for bilinear; two is free and covers rounding.
+    private static let pad = 2
+
     private var slots: [GlyphKey: Int] = [:]     // key -> slot index
     private var next = 0
     private var dirty = false
@@ -58,8 +69,27 @@ final class TerminalGlyphAtlas {
     private let fallback: [String]
     private let fontSize: Double
 
+    /// The glyph's own area, in device pixels.
+    ///
+    /// The height is derived from the width rather than measured, so the slot
+    /// has EXACTLY the cell's aspect ratio. It has to: the blit is an
+    /// `RSTransform`, whose scale is uniform, so one factor has to satisfy
+    /// both axes. Rounding each axis independently — `ceil(cellW * scale)` by
+    /// `ceil(cellH * scale)` — makes them disagree by a couple of percent, and
+    /// the vertical comes out short: box-drawing characters then stop
+    /// connecting to the row above and below, and a full block ▀ leaves a gap.
+    /// That is 0.4 px at a 17 px cell and it is plainly visible.
     private var slotW: Int { max(1, Int((cellW * scale).rounded(.up))) }
-    private var slotH: Int { max(1, Int((cellH * scale).rounded(.up))) }
+    private var slotH: Int {
+        max(1, Int((Double(slotW) * cellH / cellW).rounded()))
+    }
+    /// Slot-to-slot spacing, padding included.
+    private var pitchW: Int { slotW + 2 * TerminalGlyphAtlas.pad }
+    private var pitchH: Int { slotH + 2 * TerminalGlyphAtlas.pad }
+
+    /// What one atlas pixel is worth on screen: the uniform scale a blit needs
+    /// to put a `slotW`-wide source into a `cellW`-wide cell.
+    var blitScale: Double { cellW / Double(slotW) }
 
     init(cellW: Double, cellH: Double, scale: Double,
          family: String, fallback: [String], fontSize: Double) {
@@ -80,14 +110,29 @@ final class TerminalGlyphAtlas {
             && self.family == family && self.fontSize == fontSize
     }
 
-    /// Whether a cell is inside this renderer's scope (see the file comment).
+    /// Whether this cell's GLYPH can come from the atlas.
+    ///
+    /// Narrower than it looks, because the painter handles more than the atlas
+    /// does. Reverse video is a colour swap the painter resolves before it
+    /// gets here, and an underline is a rectangle the painter draws itself —
+    /// neither changes which glyph is wanted, so neither disqualifies a cell.
+    /// What does: anything the atlas cannot represent as one tintable,
+    /// single-cell, upright image.
     static func canDraw(_ cell: TermCell) -> Bool {
         if cell.scalar > 0x10FFFF { return false }       // cluster reference
+        // A wide glyph spans two columns and has to be CENTRED across them;
+        // its continuation cell draws nothing at all.
         if cell.attrs.contains(.wideLead) || cell.attrs.contains(.wideCont) { return false }
-        if cell.attrs.contains(.underline) || cell.attrs.contains(.reverse) { return false }
         if cell.attrs.contains(.italic) { return false } // one face pair for now
         return true
     }
+
+    /// Blank cells never reach the atlas — there is no glyph to draw and a
+    /// space would waste a slot per style.
+    static func isBlank(_ scalar: UInt32) -> Bool { scalar == 32 || scalar == 0 }
+
+    var slotCount: Int { next }
+    var imageSize: String { image.map { "\($0.width)x\($0.height)" } ?? "none" }
 
     /// The atlas rect for a glyph, reserving a slot on first sighting. nil when
     /// the atlas is full — the caller then falls back for that row.
@@ -105,8 +150,25 @@ final class TerminalGlyphAtlas {
         }
         let col = index % TerminalGlyphAtlas.slotsPerRow
         let row = index / TerminalGlyphAtlas.slotsPerRow
-        let x = Double(col * slotW), y = Double(row * slotH)
+        // The glyph sits inside its padding, so the rect handed out is the
+        // inner area — the padding exists to be sampled INTO, never drawn.
+        let x = Double(col * pitchW + TerminalGlyphAtlas.pad)
+        let y = Double(row * pitchH + TerminalGlyphAtlas.pad)
         return Rect.fromLTRB(x, y, x + Double(slotW), y + Double(slotH))
+    }
+
+    /// The baseline of an ordinary glyph in the primary family — the line
+    /// every other family's glyph is shifted onto.
+    private func baselineOfPrimary() -> Double {
+        let style = TextStyle(color: Color(0xFFFF_FFFF), fontSize: fontSize,
+                              fontFamily: family)
+        let builder = ParagraphBuilders.create(
+            style.getParagraphStyle(textDirection: .ltr))
+        builder.pushStyle(style.getTextStyle(textScaler: TextScalers.noScaling))
+        builder.addText("M")
+        let p = builder.build()
+        p.layout(ParagraphConstraints(width: Double.infinity))
+        return p.alphabeticBaseline
     }
 
     /// Re-rasterise if glyphs were added. Cheap once the working set settles.
@@ -115,12 +177,25 @@ final class TerminalGlyphAtlas {
         dirty = false
 
         let rows = (next + TerminalGlyphAtlas.slotsPerRow - 1) / TerminalGlyphAtlas.slotsPerRow
-        let w = slotW * TerminalGlyphAtlas.slotsPerRow
-        let h = slotH * max(rows, 1)
+        let w = pitchW * TerminalGlyphAtlas.slotsPerRow
+        let h = pitchH * max(rows, 1)
 
         let recorder = NativePictureRecorder()
         let canvas = NativeCanvas(recorder: recorder)
-        canvas.scale(scale, scale)
+        // Scale each axis to fill its slot exactly, rather than by the display
+        // scale — the slot is an integer number of pixels and the cell is not,
+        // so these differ slightly, and it is the slot the blit samples.
+        let sx = Double(slotW) / cellW
+        let sy = Double(slotH) / cellH
+        canvas.scale(sx, sy)
+
+        // Every glyph is its own paragraph here, so every glyph gets ITS OWN
+        // font's baseline — and a fallback family's differs from the primary's.
+        // Left alone, box-drawing characters sit a couple of pixels off the
+        // row they are supposed to join and a full block leaves a gap at one
+        // edge. So measure the primary family's baseline once and shift each
+        // glyph onto it, which is what a terminal row means by a baseline.
+        let reference = baselineOfPrimary()
 
         // White on transparent: the atlas carries coverage, the blit carries
         // colour. This is the only place shaping happens, once per glyph.
@@ -141,8 +216,13 @@ final class TerminalGlyphAtlas {
             paragraph.layout(ParagraphConstraints(width: Double.infinity))
             let col = index % TerminalGlyphAtlas.slotsPerRow
             let row = index / TerminalGlyphAtlas.slotsPerRow
-            canvas.drawParagraph(paragraph,
-                                 Offset(Double(col) * cellW, Double(row) * cellH))
+            // Slot origins are device pixels (the padding is), so they come
+            // back through the per-axis scale applied above; the baseline
+            // correction is in the same logical units.
+            canvas.drawParagraph(paragraph, Offset(
+                Double(col * pitchW + TerminalGlyphAtlas.pad) / sx,
+                Double(row * pitchH + TerminalGlyphAtlas.pad) / sy
+                    + (reference - paragraph.alphabeticBaseline)))
         }
         let picture = recorder.endRecording()
         image = picture.toImageSync(width: w, height: h)

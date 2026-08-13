@@ -1,3 +1,10 @@
+// COPY of sdk/Sources/CTerminalCore/include/starling_term.h, kept here only so
+// the harnesses in this directory build with no -I. A quoted #include searches
+// the includer's directory FIRST, so a stale copy here silently SHADOWS the
+// real header: this one had drifted five declarations behind, and a harness
+// calling one of them failed as "undeclared function" pointing at the harness.
+// Refresh it whenever the real header changes, or delete it and pass -I.
+
 // starling_term — the terminal emulator core in C.
 //
 // A faithful port of TerminalEmulator.swift's semantics: VT100/xterm parsing,
@@ -35,6 +42,13 @@ enum {
     STARLING_ATTR_ITALIC    = 1 << 2,
     STARLING_ATTR_UNDERLINE = 1 << 3,
     STARLING_ATTR_REVERSE   = 1 << 4,
+    /* Wide (two-column) characters occupy a LEAD cell carrying the scalar
+       and a CONTINUATION cell with scalar 0. The renderer draws the lead
+       across two cell widths and draws nothing for the continuation; the
+       emulator keeps the pair consistent (overwriting either half blanks
+       the other). */
+    STARLING_ATTR_WIDE      = 1 << 5,
+    STARLING_ATTR_WIDE_CONT = 1 << 6,
 };
 
 typedef struct StarlingTerm StarlingTerm;
@@ -52,6 +66,14 @@ int      starling_term_cursor_col(const StarlingTerm *t);
 int      starling_term_cursor_visible(const StarlingTerm *t);
 int      starling_term_app_cursor_keys(const StarlingTerm *t);
 int      starling_term_bracketed_paste(const StarlingTerm *t);
+/* Alt screen is readable because the scrollback belongs to the PRIMARY buffer:
+   a full-screen app has no history of its own to scroll back through. */
+int      starling_term_alt_active(const StarlingTerm *t);
+/* DEC 1000/1002/1003 (any tracking flavour) and 1006 (SGR encoding). The UI
+   reports the wheel only, and gates it on SGR so a wide window is not
+   misreported by the legacy single-byte encoding. */
+int      starling_term_mouse_tracking(const StarlingTerm *t);
+int      starling_term_mouse_sgr(const StarlingTerm *t);
 int      starling_term_scrollback_count(const StarlingTerm *t);
 uint64_t starling_term_generation(const StarlingTerm *t);
 
@@ -64,6 +86,11 @@ void starling_term_copy_line(const StarlingTerm *t, int abs_index,
                              StarlingTermCell *out);
 
 // Terminal responses (DSR/DA) destined for the pty, and BEL.
+/* UTF-8 of a cell's full content. A plain scalar encodes directly; a
+   grapheme-cluster reference (scalar above the Unicode range) expands to
+   its full sequence. Returns bytes written (no terminator). */
+int starling_term_cell_text(const StarlingTerm *t, uint32_t scalar, char *buf, int cap);
+
 void starling_term_set_response_cb(StarlingTerm *t,
                                    void (*cb)(void *ctx, const char *s),
                                    void *ctx);

@@ -8817,37 +8817,9 @@ public class NativeCanvas: Canvas {
     // Convert colors to int32 array
     let colorsData: [Int32]? = colors?.map { Int32(bitPattern: UInt32($0.toARGB32())) }
 
-    // Convert cull rect to float array
-    let cullData: [Float]? = cullRect.map {
-      [Float($0.left), Float($0.top), Float($0.right), Float($0.bottom)]
-    }
-
-    rstData.withUnsafeBufferPointer { rstBuf in
-      rectsData.withUnsafeBufferPointer { rectsBuf in
-        paint.withDataPointer { paintData in
-          let colorsPtr: UnsafePointer<Int32>? = colorsData?.withUnsafeBufferPointer { $0.baseAddress }
-          let cullPtr: UnsafePointer<Float>? = cullData?.withUnsafeBufferPointer { $0.baseAddress }
-          let error = String(cString: bridge.DrawAtlas(
-            atlas.bridge,
-            rstBuf.baseAddress!,
-            rectsBuf.baseAddress!,
-            Int32(rects.count),
-            colorsPtr,
-            Int32(colorsData?.count ?? 0),
-            Int32(blendMode?.rawValue ?? BlendMode.srcOver.rawValue),
-            cullPtr,
-            paintData,
-            paint.shaderBridgePtr,
-            paint.colorFilterBridgePtr,
-            paint.imageFilterBridgePtr,
-            Int32(paint.filterQuality.rawValue)
-          ))
-          if !error.isEmpty {
-            assertionFailure("drawAtlas failed: \(error)")
-          }
-        }
-      }
-    }
+    // One implementation, not two: drawRawAtlas takes the same four buffers
+    // and is the one that gets their lifetimes right (see the note there).
+    drawRawAtlas(atlas, rstData, rectsData, colorsData, blendMode, cullRect, paint)
   }
 
   public func drawRawAtlas(
@@ -8865,28 +8837,50 @@ public class NativeCanvas: Canvas {
       [Float($0.left), Float($0.top), Float($0.right), Float($0.bottom)]
     }
 
-    rstTransforms.withUnsafeBufferPointer { rstBuf in
-      rects.withUnsafeBufferPointer { rectsBuf in
-        paint.withDataPointer { paintData in
-          let colorsPtr: UnsafePointer<Int32>? = colors?.withUnsafeBufferPointer { $0.baseAddress }
-          let cullPtr: UnsafePointer<Float>? = cullData?.withUnsafeBufferPointer { $0.baseAddress }
-          let error = String(cString: bridge.DrawAtlas(
-            atlas.bridge,
-            rstBuf.baseAddress!,
-            rectsBuf.baseAddress!,
-            Int32(rectCount),
-            colorsPtr,
-            Int32(colors?.count ?? 0),
-            Int32(blendMode?.rawValue ?? BlendMode.srcOver.rawValue),
-            cullPtr,
-            paintData,
-            paint.shaderBridgePtr,
-            paint.colorFilterBridgePtr,
-            paint.imageFilterBridgePtr,
-            Int32(paint.filterQuality.rawValue)
-          ))
-          if !error.isEmpty {
-            assertionFailure("drawRawAtlas failed: \(error)")
+    // The `colors` and `cullRect` buffers are borrowed by NESTED closures, not
+    // by `withUnsafeBufferPointer { $0.baseAddress }`. That spelling returns a
+    // pointer whose buffer is only guaranteed alive for the duration of the
+    // closure it escapes from, so the callee received a dangling pointer — it
+    // happened to work while the array stayed alive by luck of the caller's
+    // stack. The terminal's atlas painter passes a per-quad colour array on
+    // every frame, which is exactly the case that would eventually bite.
+    withExtendedLifetime(colors) {
+      rstTransforms.withUnsafeBufferPointer { rstBuf in
+        rects.withUnsafeBufferPointer { rectsBuf in
+          paint.withDataPointer { paintData in
+            func call(_ colorsPtr: UnsafePointer<Int32>?,
+                      _ cullPtr: UnsafePointer<Float>?) {
+              let error = String(cString: bridge.DrawAtlas(
+                atlas.bridge,
+                rstBuf.baseAddress!,
+                rectsBuf.baseAddress!,
+                Int32(rectCount),
+                colorsPtr,
+                Int32(colors?.count ?? 0),
+                Int32(blendMode?.rawValue ?? BlendMode.srcOver.rawValue),
+                cullPtr,
+                paintData,
+                paint.shaderBridgePtr,
+                paint.colorFilterBridgePtr,
+                paint.imageFilterBridgePtr,
+                Int32(paint.filterQuality.rawValue)
+              ))
+              if !error.isEmpty {
+                assertionFailure("drawRawAtlas failed: \(error)")
+              }
+            }
+            func withCull(_ colorsPtr: UnsafePointer<Int32>?) {
+              if let cullData = cullData {
+                cullData.withUnsafeBufferPointer { call(colorsPtr, $0.baseAddress) }
+              } else {
+                call(colorsPtr, nil)
+              }
+            }
+            if let colors = colors {
+              colors.withUnsafeBufferPointer { withCull($0.baseAddress) }
+            } else {
+              withCull(nil)
+            }
           }
         }
       }
