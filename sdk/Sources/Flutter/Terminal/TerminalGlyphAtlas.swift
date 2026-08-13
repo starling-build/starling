@@ -21,8 +21,8 @@
 // the row fall back to the Text path, which stays the only place those rules
 // live. `canDraw` is the gate, and the caller decides per row.
 //
-// Enabled by STARLING_TERM_ATLAS=1 while it earns its place; the Text path is
-// unchanged and remains the default.
+// Feeds the default painter since 2026-08-13; STARLING_TERM_ATLAS=0 opts back
+// into the Text path, which stays in-tree unchanged as the comparison baseline.
 
 import Foundation
 import FlutterSwiftBridge

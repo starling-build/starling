@@ -860,15 +860,20 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     // MARK: - Grid rendering
 
-    /// Opt in to the per-cell atlas painter (docs/plans/terminal-perf-macos.md,
-    /// Lever 2). Off by default while it earns its place: the Text path below
-    /// is unchanged and remains what ships. "2" is the cached-paragraph
-    /// experiment — it shares this gate (and the cell snap it enables) so both
-    /// modes paint the identical grid; the painter itself branches on
-    /// `TerminalGridPainter.paragraphMode`.
+    /// The per-cell atlas painter (docs/plans/terminal-perf-macos.md, Lever 2)
+    /// is the DEFAULT as of 2026-08-13: measured at 44% less CPU on DOOM-Fire
+    /// than the Text path at the same frame rate, and it fixes the three
+    /// placement bugs a row-long paragraph cannot (wide-glyph centring, the
+    /// monotonic-fallback dropout, CJK drift) plus the row-seam banding block
+    /// content exposes live. The price, accepted deliberately: snapping the
+    /// cell to whole device pixels costs ~2.5% of columns.
+    ///
+    /// `STARLING_TERM_ATLAS=0` opts back into the Text path below, which
+    /// stays in-tree unchanged as the comparison baseline. "2" selects the
+    /// cached-paragraph experiment (measured, and it lost — see the painter);
+    /// the painter branches on `TerminalGridPainter.paragraphMode`.
     private static let _useAtlas: Bool = {
-        let v = ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"]
-        return v == "1" || v == "2"
+        ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] != "0"
     }()
 
     /// Rebuilt whenever the metrics it rasterised for move — cell size follows

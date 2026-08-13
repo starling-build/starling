@@ -36,8 +36,8 @@
 // columns, clusters and colour emoji drawn whole. Backgrounds, underlines and
 // the block cursor are rectangles the painter draws directly.
 //
-// Enabled by STARLING_TERM_ATLAS=1 while it earns its place; the Text path
-// stays the default and is unchanged.
+// The DEFAULT painter since 2026-08-13; STARLING_TERM_ATLAS=0 opts back into
+// the Text path, which stays in-tree unchanged as the comparison baseline.
 
 import Foundation
 import FlutterSwiftBridge

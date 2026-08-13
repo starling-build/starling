@@ -168,6 +168,17 @@ required for correctness. Ghostty pays the identical floor.
 
 ## Lever 2 — the glyph atlas painter (CPU, frame rate, and correctness)
 
+**DEFAULT since 2026-08-13.** The product call on the snap cost was made:
+~2.5% of columns (47x201 → 47x196 at the bench window) in exchange for 44%
+less CPU at the same frame rate, the three placement fixes below, and the
+row-seam banding that block content exposed live on the Text path (visible in
+the first side-by-side film — the fire had dark lines through it; a viewer
+read it as "ghostty is much smoother"). `STARLING_TERM_ATLAS=0` opts back
+into the Text path, which stays in-tree unchanged as the comparison baseline.
+Bench-harness note: matched-grid rounds calibrated against the Text path's
+cell width now need recalibrating or `STARLING_TERM_ATLAS=0` on our side —
+the same window yields fewer columns under the snap.
+
 **It cannot move the benchmark.** Rendering is 2.2% of the suite's wall (above),
 so a free renderer is worth 0.054 s. Do it for the other three reasons, which
 are undiminished — and do not schedule it expecting a throughput result:
