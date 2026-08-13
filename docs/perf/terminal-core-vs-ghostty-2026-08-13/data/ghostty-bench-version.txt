@@ -1,0 +1,3 @@
+info: ghostty version=1.3.2-HEAD-+046b8fcc2
+info: ghostty build optimize=ReleaseFast
+info: runtime=.none

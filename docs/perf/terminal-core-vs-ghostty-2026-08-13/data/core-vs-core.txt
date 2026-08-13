@@ -1,0 +1,17 @@
+# core vs core, grid 201x47, best of 5, floors subtracted
+# 2026-08-13T13:20:34Z  info: ghostty version=1.3.2-HEAD-+046b8fcc2
+corpus                ours_s      gh_s    ours_MBs      gh_MBs    ratio
+-- ghostty's own generated corpora --
+ascii                 0.211    0.119      744.7     1322.8    1.78x
+unicode               1.401    2.519      112.3       62.4    0.56x
+styled                0.474    3.251      332.0       48.4    0.15x
+-- our 10-workload corpora (CRLF copies) --
+03_sgr_fg             0.214    0.537      339.8      135.3    0.40x
+05_unicode            0.118    0.125      500.0      470.5    0.94x
+02_dense_cells        0.034    0.024      909.0     1253.1    1.38x
+09_long_lines         0.048    0.032      847.4     1246.1    1.47x
+10_binary             0.061    0.455      507.4       67.6    0.13x
+01_light_cells        0.029    0.066      420.0      186.9    0.44x
+04_sgr_truecolor      0.303    0.552      371.2      204.1    0.55x
+07_alt_screen         0.045    0.059      876.1      668.3    0.76x
+08_scroll_region      0.056    0.054      786.7      826.3    1.05x
