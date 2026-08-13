@@ -30,6 +30,10 @@ final class FlutterTaskQueue: @unchecked Sendable {
         // Set read end non-blocking
         let flags = fcntl(wakeupReadFd, F_GETFL)
         _ = fcntl(wakeupReadFd, F_SETFL, flags | O_NONBLOCK)
+        // CLOEXEC: keep the wakeup pipe out of anything this app forks —
+        // a descendant's copy holds the loop's plumbing open past app death.
+        _ = fcntl(wakeupReadFd, F_SETFD, FD_CLOEXEC)
+        _ = fcntl(wakeupWriteFd, F_SETFD, FD_CLOEXEC)
     }
 
     deinit {
@@ -818,8 +822,14 @@ public class GpuDmaBufRenderer {
 
     /// Creates a GpuDmaBufRenderer. Returns nil if GBM/EGL setup fails.
     public init?(width: Int, height: Int, socketPath: String) {
-        // 1. Connect to parent's Unix domain socket first (to receive configure)
-        let sock = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+        // 1. Connect to parent's Unix domain socket first (to receive
+        // configure). SOCK_CLOEXEC: this is the app↔shell control channel;
+        // inherited by a fork (the terminal's bash, and through it anything
+        // the user backgrounds), a surviving descendant's copy stops the
+        // shell's reader from ever seeing this app close it — and lets a
+        // stranger write into the shell's control protocol.
+        let sock = socket(AF_UNIX,
+                          Int32(SOCK_STREAM.rawValue) | Int32(SOCK_CLOEXEC.rawValue), 0)
         guard sock >= 0 else {
             print("[GpuDmaBufRenderer] socket() failed: \(String(cString: strerror(errno)))")
             return nil

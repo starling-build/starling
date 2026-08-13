@@ -48,7 +48,8 @@ public final class AgentSemanticsEndpoint: @unchecked Sendable {
 
     private func start() -> Bool {
         unlink(path)
-        let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+        let fd = socket(AF_UNIX,
+                        Int32(SOCK_STREAM.rawValue) | Int32(SOCK_CLOEXEC.rawValue), 0)
         guard fd >= 0 else { return false }
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)

@@ -1,6 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
+import CTerminalCore
 import Foundation
 #if os(Linux)
 import Glibc
@@ -310,6 +311,11 @@ final class Pty: @unchecked Sendable {
             dup2(slave, 2)
             if slave > 2 { close(slave) }
             close(master)
+            // Everything else in this fd table belongs to the app, not the
+            // shell it is about to become — and one `nohup`ed descendant
+            // holding a stray copy keeps the desktop from ever seeing the
+            // app die (see the header comment on this function).
+            starling_close_extra_fds()
             if let homeC = homeC { _ = chdir(homeC) }
             if let path = shellPathC {
                 execve(path, &argv, &envp)
@@ -330,7 +336,10 @@ final class Pty: @unchecked Sendable {
             return nil
         }
         if pid == 0 {
-            // Child: only async-signal-safe calls from here.
+            // Child: only async-signal-safe calls from here. forkpty has
+            // already put the slave on 0/1/2; drop every other inherited fd
+            // (see the Linux branch).
+            starling_close_extra_fds()
             if let homeC = homeC { _ = chdir(homeC) }
             if let path = shellPathC {
                 execve(path, &argv, &envp)
@@ -339,7 +348,10 @@ final class Pty: @unchecked Sendable {
         }
         #endif
 
-        // Parent
+        // Parent. CLOEXEC on the master: a copy that leaks through some
+        // other fork site would keep this pty open after the terminal dies,
+        // and the shell inside it would never get its hangup.
+        _ = fcntl(master, F_SETFD, FD_CLOEXEC)
         self.masterFd = master
         self.childPid = pid
         freeExecArgs()
@@ -540,6 +552,11 @@ final class Pty: @unchecked Sendable {
         _ = fcntl(masterFd, F_SETFL, fl | O_NONBLOCK)
         var wake = [Int32](repeating: -1, count: 2)
         if pipe(&wake) == 0 {
+            // CLOEXEC: this pipe is reader-thread plumbing, and the same
+            // object forks shells — without the flag every job the shell
+            // starts inherits both ends.
+            _ = fcntl(wake[0], F_SETFD, FD_CLOEXEC)
+            _ = fcntl(wake[1], F_SETFD, FD_CLOEXEC)
             wakeRead = wake[0]
             wakeWrite = wake[1]
         }

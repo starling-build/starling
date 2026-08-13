@@ -18,6 +18,7 @@
 //     TerminalView(session: session)
 
 #if os(Linux) || os(Windows)
+import CTerminalCore
 import Foundation
 #if os(Linux)
 import Glibc
@@ -59,6 +60,8 @@ private final class ChildLink {
             // win the overload and fail to typecheck against a file descriptor.
             Glibc.close(inPipe[0]); Glibc.close(inPipe[1])
             Glibc.close(outPipe[0]); Glibc.close(outPipe[1])
+            // ssh needs 0/1/2 and nothing this process was holding.
+            starling_close_extra_fds()
             var cargs: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) }
             cargs.append(nil)
             if let program = cargs[0] { execvp(program, &cargs) }

@@ -14,9 +14,42 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
+#if defined(__linux__)
+#include <sys/syscall.h>
+// glibc only declares syscall() under _GNU_SOURCE, and this header is also
+// compiled by plain-gcc test harnesses. Same prototype glibc uses, so the
+// two declarations coexist when both are visible.
+long syscall(long __sysno, ...);
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Between fork() and exec(): close every fd above stderr, so the spawned
+// shell starts with 0/1/2 and nothing else. What it would otherwise inherit
+// is other people's plumbing — the app↔shell control socket, exit-watch
+// fds, event pipes — and a descendant that outlives the pty hangup
+// (`setsid`, `nohup`, a daemon) then holds them open on the terminal's
+// behalf: the desktop shell reads "still alive" from fds whose owner is
+// long dead. Swift can't express this itself (glibc's close_range isn't in
+// the Glibc module, and the fallback loop must run between fork and exec,
+// where only async-signal-safe calls are allowed).
+static inline void starling_close_extra_fds(void) {
+#if defined(__linux__)
+    // By syscall number: the glibc wrapper needs _GNU_SOURCE and glibc
+    // 2.34; the syscall (Linux 5.9+) needs neither. ENOSYS falls through.
+    if (syscall(SYS_close_range, 3u, ~0u, 0u) == 0) return;
+#endif
+#if !defined(_WIN32)
+    long limit = sysconf(_SC_OPEN_MAX);
+    if (limit < 0 || limit > 65536) limit = 65536;  // rlimit can be 2^20
+    for (long fd = 3; fd < limit; fd++) close((int)fd);
+#endif
+}
 
 // Layout-compatible with Swift's TermCell: size 13, stride 16, align 4,
 // offsets scalar=0 fg=4 bg=8 attrs=12. `attrs` MUST stay uint8_t —

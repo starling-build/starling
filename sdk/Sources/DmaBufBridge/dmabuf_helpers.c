@@ -75,7 +75,10 @@ int dmabuf_recv_fd(int socket, void* meta, size_t meta_len) {
     msg.msg_control = cmsg_buf;
     msg.msg_controllen = sizeof(cmsg_buf);
 
-    ssize_t received = recvmsg(socket, &msg, 0);
+    // MSG_CMSG_CLOEXEC: an fd that arrives over SCM_RIGHTS must never cross
+    // an exec — a dma-buf copied into some future child pins GPU memory to a
+    // process that has no idea it holds it.
+    ssize_t received = recvmsg(socket, &msg, MSG_CMSG_CLOEXEC);
     if (received < 0) {
         fprintf(stderr, "[DmaBufBridge] recvmsg failed: %s\n", strerror(errno));
         return -1;
@@ -121,7 +124,7 @@ ssize_t dmabuf_recv_with_fd(int socket, void* buf, size_t buf_len,
     // pointer events while every request it SENT went nowhere.
     ssize_t received;
     do {
-        received = recvmsg(socket, &msg, 0);
+        received = recvmsg(socket, &msg, MSG_CMSG_CLOEXEC);
     } while (received < 0 && errno == EINTR);
     if (out_fd) *out_fd = -1;
 
