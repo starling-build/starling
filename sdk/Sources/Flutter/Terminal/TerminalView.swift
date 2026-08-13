@@ -95,15 +95,35 @@ public enum TerminalFontLoader {
     /// Every text style in the terminal carries this, so a glyph missing from
     /// the primary family is looked up here instead of dropping out.
     public private(set) nonisolated(unsafe) static var fallback = [fallbackFamily]
-    /// The engine has NO system font fallback: a glyph missing from every
-    /// loaded family paints NOTHING — `cat` of CJK or emoji text rendered as
-    /// blank gaps while the cursor advanced correctly over the cells (the
-    /// emulator was right; there was simply no glyph to draw). Load the
-    /// system Noto CJK and Color Emoji faces as additional fallbacks when
-    /// present; mappedIfSafe keeps the 20 MB TTC out of our copy of RSS.
+    /// On Linux the engine has NO system font fallback: a glyph missing from
+    /// every loaded family paints NOTHING — `cat` of CJK or emoji text
+    /// rendered as blank gaps while the cursor advanced correctly over the
+    /// cells (the emulator was right; there was simply no glyph to draw).
+    /// Load the system Noto CJK and Color Emoji faces as additional fallbacks
+    /// when present; mappedIfSafe keeps the 20 MB TTC out of our copy of RSS.
     private static let systemFallbacks: [(path: String, family: String)] = [
         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "NotoSansCJK"),
         ("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", "NotoColorEmoji"),
+    ]
+    /// macOS resolves families through CoreText, which DOES fall back on its
+    /// own — that is why CJK painted here while emoji did not: CoreText finds
+    /// Hiragino for 漢 but nothing reaches for Apple Color Emoji unless a
+    /// family asks for it. So name the system faces rather than loading them.
+    ///
+    /// Naming, not loading, is the point. The paths above are `/usr/share`,
+    /// which does not exist on macOS, so both registrations silently failed
+    /// and the list stayed one entry long. Pointing them at the macOS faces
+    /// instead would be worse than useless: `LoadFontFromList` hands the
+    /// bytes to `SkMemoryStream(..., /*copy=*/true)`, so Apple Color Emoji
+    /// alone would COPY 192 MB into RSS — a terminal that costs more resident
+    /// memory than the rest of the desktop, to get glyphs CoreText already
+    /// has. A family name in the fallback list costs nothing until a cell
+    /// needs it.
+    private static let systemFamilyNames = [
+        "Apple Color Emoji",     // emoji; nothing else carries them
+        "Hiragino Sans GB",      // Chinese
+        "Hiragino Kaku Gothic ProN",  // Japanese kana
+        "Apple SD Gothic Neo",   // Korean
     ]
     private nonisolated(unsafe) static var _registered = false
 
@@ -127,6 +147,9 @@ public enum TerminalFontLoader {
             ok = ok || success
             if family == symbolFallbackFamily { symbolsLoaded = success }
         }
+        #if os(macOS)
+        fallback.append(contentsOf: systemFamilyNames)
+        #else
         for (path, family) in systemFallbacks {
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
                                        options: .mappedIfSafe) else { continue }
@@ -137,7 +160,10 @@ public enum TerminalFontLoader {
             }
             if success { fallback.append(family) }
         }
-        // After the Noto faces, so colour emoji still wins its own codepoints.
+        #endif
+        // After the system faces, so colour emoji still wins its own
+        // codepoints — on macOS those are names in `systemFamilyNames`, on
+        // Linux the Noto files loaded just above.
         if symbolsLoaded { fallback.append(symbolFallbackFamily) }
         _registered = ok
         return ok
@@ -853,7 +879,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
         var spans: [InlineSpan] = []
         var runText = ""
-        var runStyle: (fg: UInt32, bg: UInt32, attrs: CellAttrs)? = nil
+        var runStyle: _RunKey? = nil
 
         func flush() {
             guard let style = runStyle, !runText.isEmpty else { return }
@@ -864,33 +890,50 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         for c in 0 ..< headEnd {
             var cell = c < line.count ? line[c] : .blank
             // A continuation cell is the second column of a wide glyph: the
-            // lead already contributed the character, and the font's own
-            // double-width advance covers this column. Appending its scalar
-            // (0) would put a NUL into the shaped run.
+            // lead already contributed the character, and the lead's span
+            // covers this column. Appending its scalar (0) would put a NUL
+            // into the shaped run.
             if cell.attrs.contains(.wideCont) { continue }
+            let wide = cell.attrs.contains(.wideLead)
             cell.attrs.remove(.wideLead)
-            var key = (fg: cell.fg, bg: cell.bg, attrs: cell.attrs)
+            // What the glyph costs against what the grid gave it. Everything
+            // outside the primary family arrives at its OWN advance, and the
+            // run is placed by the shaper, so anything but an exact match
+            // walks the rest of the row off its columns — see _gridSpacing.
+            //
+            // A cluster is the only case that needs its text up front. The
+            // rest append a Character straight into the run: building a
+            // `String` per cell to hand to the cache put an allocation in the
+            // hottest loop the row painter has.
+            let cluster: String? = cell.scalar > 0x10FFFF
+                ? emulator.cellText(cell.scalar) : nil
+            let bold = cell.attrs.contains(.bold)
+            let columns = wide ? 2 : 1
+            let spacing: Double
+            if let cluster = cluster {
+                spacing = _clusterSpacing(cluster, columns: columns, bold: bold)
+            } else if wide || cell.scalar > 0x7F {
+                spacing = _gridSpacing(cell.scalar, columns: columns, bold: bold)
+            } else {
+                spacing = _cellSpacing
+            }
             if cell.attrs.contains(.reverse) {
                 let fg = cell.bg == 0 ? theme.reverseBackground : cell.bg
                 let bg = cell.fg == 0 ? theme.defaultForeground : cell.fg
                 cell.fg = fg
                 cell.bg = bg
                 cell.attrs.remove(.reverse)
-                key = (fg: cell.fg, bg: cell.bg, attrs: cell.attrs)
             }
+            let key = _RunKey(fg: cell.fg, bg: cell.bg, attrs: cell.attrs,
+                              spacing: spacing)
             if runStyle == nil {
                 runStyle = key
             } else if runStyle! != key {
                 flush()
                 runStyle = key
             }
-            if cell.scalar > 0x10FFFF {
-                // A grapheme-cluster reference: fetch the full sequence so
-                // the shaper sees the family emoji / conjunct, not a box.
-                runText += emulator.cellText(cell.scalar)
-            } else {
-                runText.append(cell.char)
-            }
+            if let cluster = cluster { runText += cluster }
+            else { runText.append(cell.char) }
         }
         flush()
 
@@ -930,20 +973,29 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         ]))
     }
 
-    /// Cache key for a resolved cell style. `TextStyle` construction and copy
+    /// One run of cells that can share a single shaped span: same colours,
+    /// same attributes, and the same grid correction.
+    ///
+    /// Doubles as the style cache's key. `TextStyle` construction and copy
     /// showed up in a profile of colour-heavy output (its value-witness copy
     /// alone was 2.4%), and a row of per-cell colours asks for one style per
     /// cell — but the same handful of styles repeat endlessly for any content
     /// using a palette rather than 24-bit colour.
-    private struct _StyleKey: Hashable {
-        let fg: UInt32, bg: UInt32, attrs: UInt8
+    private struct _RunKey: Hashable {
+        let fg: UInt32, bg: UInt32, attrsRaw: UInt8, spacing: Double
+        var attrs: CellAttrs { CellAttrs(rawValue: attrsRaw) }
+        init(fg: UInt32, bg: UInt32, attrs: CellAttrs, spacing: Double) {
+            self.fg = fg
+            self.bg = bg
+            self.attrsRaw = attrs.rawValue
+            self.spacing = spacing
+        }
     }
-    private var _styleCache: [_StyleKey: TextStyle] = [:]
+    private var _styleCache: [_RunKey: TextStyle] = [:]
 
-    private func _textStyle(_ style: (fg: UInt32, bg: UInt32, attrs: CellAttrs)) -> TextStyle {
-        let key = _StyleKey(fg: style.fg, bg: style.bg, attrs: style.attrs.rawValue)
+    private func _textStyle(_ key: _RunKey) -> TextStyle {
         if let hit = _styleCache[key] { return hit }
-        let made = _makeTextStyle(style)
+        let made = _makeTextStyle(key)
         // Truecolor content can mint a distinct style per cell, so the cache
         // must not grow without bound. Drop it wholesale rather than tracking
         // ages — the working set for palette content is tiny, so it refills at
@@ -953,7 +1005,90 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         return made
     }
 
-    private func _makeTextStyle(_ style: (fg: UInt32, bg: UInt32, attrs: CellAttrs)) -> TextStyle {
+    /// The advance a glyph needs ON TOP of its own so the cell after it starts
+    /// on its column — `letterSpacing`, measured rather than assumed.
+    ///
+    /// The row is one shaped paragraph, so the shaper places every glyph by
+    /// the advance of whatever font it resolved in, and only the primary
+    /// family is on our grid. A CJK glyph comes back from CoreText's Hiragino
+    /// at 1 em, which is 1.63 cells at 13 pt — not the 2 the emulator
+    /// reserved — so `你好世界|` put its pipe in column 6.5 and every column
+    /// after a CJK character was wrong. The same is true, in miniature, of
+    /// every fallback glyph: DejaVu's 0.6021 em against Roboto Mono's 0.6001
+    /// is a third of a pixel per box-drawing character.
+    ///
+    /// Measured once per (glyph, weight) and cached — the working set of a
+    /// session is small, and the correction lands in the run key, so cells
+    /// needing different corrections simply do not share a span.
+    /// Keyed by scalar, not by the string: this is looked up for EVERY
+    /// non-ASCII cell, and hashing a `String` there cost 05_unicode 12%
+    /// (0.331 -> 0.371 s). Clusters, which have no single scalar, keep the
+    /// string key — they are rare enough to pay for it.
+    private struct _MetricKey: Hashable { let scalar: UInt32, bold: Bool }
+    private var _spacingCache: [_MetricKey: Double] = [:]
+    private struct _ClusterKey: Hashable { let text: String, bold: Bool }
+    private var _clusterSpacingCache: [_ClusterKey: Double] = [:]
+    /// Diagnostic: dump every glyph measurement, which is how a glyph that
+    /// resolves to a font but paints nothing is told apart from one no font
+    /// carries at all (the first measures its advance, the second measures 0).
+    private static let _debugMetrics =
+        ProcessInfo.processInfo.environment["STARLING_TERM_METRICS"] != nil
+
+    /// The correction for a single scalar. The string it measures is built on
+    /// a cache MISS only — this is called for every non-ASCII cell.
+    private func _gridSpacing(_ scalar: UInt32, columns: Int, bold: Bool) -> Double {
+        let key = _MetricKey(scalar: scalar, bold: bold)
+        if let hit = _spacingCache[key] { return hit }
+        let text = String(Character(UnicodeScalar(scalar) ?? " "))
+        let spacing = _measureSpacing(text, columns: columns, bold: bold)
+        if _spacingCache.count > 8192 { _spacingCache.removeAll(keepingCapacity: true) }
+        _spacingCache[key] = spacing
+        return spacing
+    }
+
+    /// The correction for a grapheme cluster, which has no single scalar to
+    /// key on. Rare enough to pay for hashing the string.
+    private func _clusterSpacing(_ text: String, columns: Int, bold: Bool) -> Double {
+        let key = _ClusterKey(text: text, bold: bold)
+        if let hit = _clusterSpacingCache[key] { return hit }
+        let spacing = _measureSpacing(text, columns: columns, bold: bold)
+        if _clusterSpacingCache.count > 1024 {
+            _clusterSpacingCache.removeAll(keepingCapacity: true)
+        }
+        _clusterSpacingCache[key] = spacing
+        return spacing
+    }
+
+    private func _measureSpacing(_ text: String, columns: Int, bold: Bool) -> Double {
+        let painter = TextPainter(
+            text: TextSpan(
+                text: text,
+                style: TextStyle(
+                    fontSize: font.size,
+                    fontWeight: bold ? .w700 : .normal,
+                    fontFamily: font.family,
+                    fontFamilyFallback: _fontFallback
+                )
+            ),
+            textDirection: .ltr
+        )
+        painter.layout()
+        // A glyph no loaded family carries measures zero: leave the cell alone
+        // rather than inventing a correction for something that will not paint.
+        let spacing = painter.width > 0
+            ? Double(columns) * cellW - painter.width
+            : _cellSpacing
+        if Self._debugMetrics {
+            let scalars = text.unicodeScalars.map { String($0.value, radix: 16) }
+                .joined(separator: "+")
+            let line = "[term] metric U+\(scalars) cols=\(columns)"
+                + " measured=\(painter.width) cell=\(cellW) spacing=\(spacing)\n"
+            FileHandle.standardError.write(Data(line.utf8))
+        }
+        return spacing
+    }
+
+    private func _makeTextStyle(_ style: _RunKey) -> TextStyle {
         var fg = style.fg == 0 ? theme.defaultForeground : style.fg
         if style.attrs.contains(.dim) {
             // Halve the brightness for dim text.
@@ -968,7 +1103,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             fontSize: font.size,
             fontWeight: style.attrs.contains(.bold) ? .w700 : .normal,
             fontStyle: style.attrs.contains(.italic) ? .italic : .normal,
-            letterSpacing: _cellSpacing == 0 ? nil : _cellSpacing,
+            letterSpacing: style.spacing == 0 ? nil : style.spacing,
             decoration: style.attrs.contains(.underline) ? .underline : nil,
             fontFamily: font.family,
             fontFamilyFallback: _fontFallback
