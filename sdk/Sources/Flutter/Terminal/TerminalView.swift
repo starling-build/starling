@@ -972,18 +972,70 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             end -= 1
         }
 
-        var backdrop: Widget? = nil
-        if !bgRuns.isEmpty {
-            var boxes: [Widget] = []
-            boxes.reserveCapacity(bgRuns.count)
-            for run in bgRuns {
-                boxes.append(SizedBox(
-                    width: Double(run.cells) * cellW,
-                    height: cellH,
-                    child: run.color == 0
-                        ? nil : ColoredBox(color: Color(Int(run.color)))))
+        // Underlined spaces that END the line, drawn as a rule rather than
+        // asked of the text engine.
+        //
+        // Keeping them in `end` above is necessary and not sufficient: text
+        // layout excludes the line's trailing whitespace from what it PAINTS,
+        // so a run with no ink in it draws no decoration either — `ESC[4m`
+        // followed by spaces to end of line came out as nothing at all, while
+        // the same run with any glyph after it drew a rule. Exactly the shape
+        // of the background bug above, one attribute over, and invisible to
+        // everything that reads the grid.
+        //
+        // Only the ink-less tail is drawn here; wherever the engine paints a
+        // rule, it stays the engine's. test/glyph-pixels.py asserts the two
+        // meet as one continuous rule.
+        var inkEnd = end
+        while inkEnd > 0, line[inkEnd - 1].scalar == 32 { inkEnd -= 1 }
+        var ruleRuns: [(start: Int, cells: Int, color: UInt32)] = []
+        var c = inkEnd
+        while c < end {
+            guard line[c].attrs.contains(.underline) else { c += 1; continue }
+            let fg = line[c].fg == 0 ? theme.defaultForeground : line[c].fg
+            let start = c
+            while c < end, line[c].attrs.contains(.underline),
+                  (line[c].fg == 0 ? theme.defaultForeground : line[c].fg) == fg {
+                c += 1
             }
-            backdrop = Row(mainAxisSize: .min, children: boxes)
+            ruleRuns.append((start: start, cells: c - start, color: fg))
+        }
+
+        var backdrop: Widget? = nil
+        if !bgRuns.isEmpty || !ruleRuns.isEmpty {
+            var layers: [Widget] = []
+            if !bgRuns.isEmpty {
+                var boxes: [Widget] = []
+                boxes.reserveCapacity(bgRuns.count)
+                for run in bgRuns {
+                    boxes.append(SizedBox(
+                        width: Double(run.cells) * cellW,
+                        height: cellH,
+                        child: run.color == 0
+                            ? nil : ColoredBox(color: Color(Int(run.color)))))
+                }
+                layers.append(Row(mainAxisSize: .min, children: boxes))
+            }
+            if !ruleRuns.isEmpty {
+                let rule = _underlineRect()
+                // A Stack of only Positioned children has no size of its own,
+                // and an underlined tail on a default-background row has no
+                // background box to give it one — so state the extent.
+                if bgRuns.isEmpty {
+                    layers.append(SizedBox(width: Double(end) * cellW,
+                                           height: cellH))
+                }
+                for run in ruleRuns {
+                    layers.append(Positioned(
+                        left: Double(run.start) * cellW,
+                        top: rule.top,
+                        child: SizedBox(
+                            width: Double(run.cells) * cellW,
+                            height: rule.height,
+                            child: ColoredBox(color: Color(Int(run.color))))))
+                }
+            }
+            backdrop = layers.count == 1 ? layers[0] : Stack(children: layers)
         }
 
         if end == 0 {
@@ -1135,6 +1187,38 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         return SizedBox(height: cellH,
                         child: Stack(children: [backdrop, head]))
     }
+
+    /// Where the text engine puts an underline, so the rule this painter draws
+    /// for the runs it will not is the same rule.
+    ///
+    /// Measured off the primary family's own baseline — the same thing
+    /// TerminalGlyphAtlas measures, and for the same reason: a constant
+    /// fraction of the cell is right for one font at one size and wrong
+    /// everywhere else. The offset and thickness below are proportions of the
+    /// FONT, and `test/glyph-pixels.py` checks the join: a row of underlined
+    /// text followed by underlined spaces has to come out as one unbroken
+    /// rule, which fails the moment these drift from what the engine does.
+    private func _underlineRect() -> (top: Double, height: Double) {
+        if let cached = _underlineCache { return cached }
+        let style = TextStyle(color: Color(0xFFFF_FFFF), fontSize: font.size,
+                              fontFamily: font.family)
+        let builder = ParagraphBuilders.create(
+            style.getParagraphStyle(textDirection: .ltr))
+        builder.pushStyle(style.getTextStyle(textScaler: TextScalers.noScaling))
+        builder.addText("M")
+        let p = builder.build()
+        p.layout(ParagraphConstraints(width: Double.infinity))
+        // At the baseline, not below it. Measured against the rule the engine
+        // draws for the same font: a first attempt put the top a tenth of an
+        // em lower, which came out two device pixels under the engine's and
+        // showed as a step at the seam — the join row in test/glyph-pixels.py
+        // is there to keep this honest.
+        let made = (top: p.alphabeticBaseline,
+                    height: max(1.0, (font.size / 14).rounded()))
+        _underlineCache = made
+        return made
+    }
+    private var _underlineCache: (top: Double, height: Double)?
 
     /// The colour a cell's background is actually painted in.
     ///

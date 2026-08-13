@@ -98,12 +98,46 @@ ROWS = [
     ("mixed cjk last",  _spans("abcdef ⠋⠋ ✓✗→ 日本語"), "the same glyphs, the order that worked"),
 ]
 
+# ── attributes ──────────────────────────────────────────────────────────────
+# The rows above ask whether a glyph painted. These ask whether the CELL did,
+# under the three attributes that are drawn rather than shaped — and both are
+# places a cell can come out invisible while the grid holds exactly the right
+# character and attribute bits.
+#
+#   reverse   the swap happens in two places now: the background is resolved by
+#             _paintedBG for the backdrop layer, the foreground by the row
+#             painter's own loop. Nothing makes them agree. Resolve both to the
+#             same colour and the cell is a flat block with the text inside it
+#             invisible — and every structural check here still passes, because
+#             the cell is painted, just uniformly.
+#   underline the only ink on a space. TerminalView trims trailing cells that
+#             carry neither ink nor an underline, so an underlined run at the
+#             END of a line survives only because of an explicit guard in that
+#             condition. Nothing exercised it; the tail row below does.
+#
+# Each carries its own check and skips the glyph checks, which mean nothing
+# here: a reversed cell is ink from edge to edge by design.
+ATTR_ROWS = [
+    ("reverse", "\x1b[7m", "\x1b[27m", "M" * CONTENT_CELLS, True,
+     "reverse video (ESC[7m): a selected line, a status bar"),
+    ("underline", "\x1b[4m", "\x1b[24m", " " * CONTENT_CELLS, True,
+     "underline (ESC[4m) on spaces: the rule is the only ink"),
+    ("underline tail", "\x1b[4m", "\x1b[24m", None, False,
+     "underlined spaces that END the line — the trailing-trim guard"),
+    # `J N`: the space at cell 1 is underlined and NOT trailing, so the ENGINE
+    # rules it; cells 3+ are trailing, so the row painter does. Two rule-only
+    # cells, one from each painter, in one row.
+    ("underline join", "\x1b[4m", "\x1b[24m", "J N", False,
+     "text then spaces, both underlined: two painters, one rule"),
+]
+
 # The first and last printed lines are solid cyan bars and the second is the
 # ruler, so the block's extent and its row pitch are readable off the image
 # without knowing anything about the font.
 BAR, RULER = 0, 1
 FIRST_ROW = 2
-N_LINES = FIRST_ROW + len(ROWS) + 1
+FIRST_ATTR_ROW = FIRST_ROW + len(ROWS)
+N_LINES = FIRST_ATTR_ROW + len(ATTR_ROWS) + 1
 
 
 def sgr(fg, bg):
@@ -125,6 +159,21 @@ def pattern_lines():
         assert used == CONTENT_CELLS, f"{text!r} is {used} cells, not {CONTENT_CELLS}"
         pad = " " * (BLOCK_CELLS - TERMINATOR_CELL - 1)
         lines.append(sgr(FG, MAGENTA) + text + " " + TERMINATOR + pad + RESET)
+    for _, on, off, text, terminated, _ in ATTR_ROWS:
+        if not terminated:
+            # Fills the block, so the attribute run is what ENDS the line —
+            # with nothing after it to keep the trimmer honest. Any text comes
+            # first, which is what puts the two painters on one row: the engine
+            # rules the part with ink in it, the row painter the trailing rest.
+            body = text or ""
+            lines.append(sgr(FG, MAGENTA) + on + body
+                         + " " * (BLOCK_CELLS - len(body)) + RESET)
+            continue
+        pad = " " * (BLOCK_CELLS - TERMINATOR_CELL - 1)
+        # `off` rather than a full reset: the terminator has to stay an
+        # ordinary white-on-magenta glyph so it still measures the grid.
+        lines.append(sgr(FG, MAGENTA) + on + text + off + " " + TERMINATOR
+                     + pad + RESET)
     lines.append(sgr(FG, CYAN) + " " * BLOCK_CELLS + RESET)
     assert len(lines) == N_LINES
     return lines
@@ -337,6 +386,69 @@ TOLERANCE = 0.15
 MIN_INK = 2
 
 
+def _near(p, c, tol=60):
+    return max(abs(p[0] - c[0]), abs(p[1] - c[1]), abs(p[2] - c[2])) <= tol
+
+
+def _rule_rows(img, cell_box, line, c):
+    """Which pixel rows of one cell carry ink — the rule, in a blank cell."""
+    x0, y0, x1, y1 = cell_box(line, c, 1)
+    return {y for y in range(y0, y1)
+            if any(not _near(img.getpixel((x, y)), MAGENTA)
+                   for x in range(x0, x1))}
+
+
+def check_reverse(img, cell_box, line):
+    """Reverse video must swap the pair, not merge it.
+
+    Both directions are asserted, and that is the point: the cell must be
+    mostly FG colour (the swapped background actually painted) and must still
+    contain BG-coloured pixels (the glyph drawn in what was the background).
+    Resolve the two to the same value — which the split between _paintedBG and
+    the row painter's own loop makes possible — and you get a flat block with
+    invisible text, which every other check in this file happily passes.
+    """
+    bad = []
+    for c in range(CONTENT_CELLS):
+        px = list(img.crop(cell_box(line, c, 1)).getdata())
+        if not px:
+            continue
+        swapped = sum(1 for p in px if _near(p, FG)) / len(px)
+        glyph = sum(1 for p in px if _near(p, MAGENTA))
+        if swapped < 0.5:
+            bad.append(f"cell {c}: background did not invert")
+        elif glyph < 2:
+            bad.append(f"cell {c}: inverted, but the glyph is not in it")
+    return bad
+
+
+def check_underline(img, cell_box, line, plain_line, cells):
+    """An underline is the only ink an underlined space has.
+
+    The band is validated against a row known NOT to be underlined before it is
+    trusted: a band placed off the rule would report every cell blank, which
+    reads as a broken renderer rather than a broken measurement.
+    """
+    def band(ln, c):
+        x0, y0, x1, y1 = cell_box(ln, c, 1)
+        h = y1 - y0
+        return img.crop((x0, y0 + int(h * 0.62), x1, y1))
+
+    def inked(ln, c):
+        return sum(1 for p in band(ln, c).getdata() if not _near(p, MAGENTA))
+
+    # The negative control is the PAD of a plain row — unattributed spaces on
+    # the same background. Using that row's glyph cells instead does not work
+    # and is the first thing tried: a letter's ink reaches well into the lower
+    # third of its cell, so the band tested positive on a row with no underline
+    # in it at all and this guard fired on a perfectly good renderer.
+    if sum(inked(plain_line, c) for c in range(TERMINATOR_CELL + 2,
+                                               BLOCK_CELLS - 1)) > 0:
+        die("the underline band catches ink where a plain row has only blank "
+            "background — it is mis-placed, and every result from it is noise")
+    return [f"cell {c}: no underline drawn" for c in cells if inked(line, c) < 1]
+
+
 def _is_hole(p):
     """Is this pixel showing the terminal through the block?
 
@@ -466,15 +578,58 @@ def analyse(path, verbose=True):
         print(f"  {name:<17} {column:>9.2f} {drift:>+8.2f} {covered:>5.0%}   "
               f"{note or 'ok'}")
 
+    # ── attributes ──────────────────────────────────────────────────────────
+    for i, (name, _, _, _, terminated, who) in enumerate(ATTR_ROWS):
+        line = FIRST_ATTR_ROW + i
+        if name == "reverse":
+            bad = check_reverse(img, cell_box, line)
+        elif name == "underline join":
+            # `J N` then underlined spaces to the block edge. The engine rules
+            # cells 0-2, because that run has ink in it; everything after is
+            # trailing whitespace, which the engine will not paint and the row
+            # painter does. They have to be ONE rule — same pixel rows, no step
+            # at the seam — which is the only thing keeping _underlineRect()
+            # honest about where the engine puts a rule.
+            #
+            # An earlier version of this row carried a terminator, so the
+            # spaces were not trailing after all: the engine drew the whole
+            # rule and this compared its output against itself. It passed
+            # against a deliberately mis-placed rule, which is how that was
+            # found.
+            bad = check_underline(img, cell_box, line, FIRST_ROW,
+                                  range(BLOCK_CELLS - 1))
+            engine, painter = (_rule_rows(img, cell_box, line, c)
+                               for c in (1, TERMINATOR_CELL))
+            if not engine or not painter:
+                side = "the engine" if not engine else "the row painter"
+                bad.append(f"{side} drew no rule on its side of the seam")
+            elif engine != painter:
+                bad.append(f"the rule steps at the seam: engine draws rows "
+                           f"{sorted(engine)}, the row painter {sorted(painter)}")
+        elif terminated:
+            bad = check_underline(img, cell_box, line, FIRST_ROW,
+                                  range(CONTENT_CELLS))
+        else:
+            # Only the tail: cells past where a terminator would have been, so
+            # the run under test is the one that ends the line.
+            bad = check_underline(img, cell_box, line, FIRST_ROW,
+                                  range(TERMINATOR_CELL + 1, BLOCK_CELLS - 1))
+        if bad:
+            failures.append(f"{name}: {bad[0]}"
+                            + (f" (+{len(bad) - 1} more cells)" if len(bad) > 1
+                               else "") + f" — {who}")
+        print(f"  {name:<17} {'--':>9} {'--':>8} {'--':>6}   "
+              f"{'ok' if not bad else str(len(bad)) + ' BAD'}")
+
     print()
     if failures:
         print(f"glyph-pixels: FAIL — {len(failures)} finding(s)")
         for f in failures:
             print(f"  - {f}")
         return 1
-    print(f"glyph-pixels: ok — {len(ROWS)} rows: every glyph painted, every "
-          f"cell background covered, every row ends on its column (within "
-          f"{TOLERANCE:g} of a cell)")
+    print(f"glyph-pixels: ok — {len(ROWS)} glyph rows (every glyph painted, "
+          f"every cell background covered, every row ends on its column within "
+          f"{TOLERANCE:g} of a cell) and {len(ATTR_ROWS)} attribute rows")
     return 0
 
 
