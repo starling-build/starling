@@ -1,0 +1,8 @@
+# gh3 terminal=94437/ghostty grid=47x201
+ascii_150mb 0.773 1.76
+ascii_150mb 0.774 1.76
+ascii_150mb 0.782 1.77
+unicode_150mb 0.936 2.43
+unicode_150mb 0.955 2.49
+unicode_150mb 0.936 2.45
+rss_kb 177040
