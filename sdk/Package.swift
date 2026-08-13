@@ -394,7 +394,10 @@ var targets: [Target] = [
             .copy("Terminal/Fonts/RobotoMono-Bold.ttf"),
             .copy("Terminal/Fonts/DejaVuSansMono-Regular.ttf"),
             .copy("Terminal/Fonts/DejaVuSansMono-Bold.ttf"),
-            .copy("Terminal/Fonts/DejaVuSansMono-LICENSE.txt"),
+            // Proportional, and last in the chain: the only face here with
+            // braille, which every TUI spinner is made of.
+            .copy("Terminal/Fonts/DejaVuSans.ttf"),
+            .copy("Terminal/Fonts/DejaVu-LICENSE.txt"),
         ],
         // Language mode 5 restores the minimal concurrency checking this target
         // predates (tools-version 6.0 defaults every target to mode 6). It replaces

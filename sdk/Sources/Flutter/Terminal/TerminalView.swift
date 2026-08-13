@@ -76,6 +76,22 @@ public enum TerminalFontLoader {
     /// its advance is 0.6021 em against Roboto Mono's 0.6001, so a run of box
     /// characters stays on the grid to well under half a cell.
     public static let fallbackFamily = "DejaVuSansMono"
+    /// Braille (U+2800–U+28FF) is in NO monospace font we can reach — not
+    /// Roboto Mono, not DejaVu Sans Mono, not the Noto faces below — and TUIs
+    /// spin with it: Claude Code alone ships 82 distinct braille frames, so its
+    /// whole thinking indicator painted as an empty cell. DejaVu *Sans* (the
+    /// proportional sibling, same family, same licence) has all 256, plus most
+    /// of U+2B00 that the mono cut also lacks.
+    ///
+    /// It is LAST in the chain for two reasons. Anything the mono face has must
+    /// resolve there — Sans is proportional, and its ✓ is 0.8379 em against the
+    /// grid's 0.6001 — and the Noto faces must keep colour emoji, which Sans
+    /// would otherwise answer for in monochrome. Even so a braille cell is
+    /// 0.7324 em, 22% over: a spinner shifts the rest of ITS row a couple of
+    /// pixels right, and softWrap:false clips the tail (see the note on the
+    /// row's Text). Visible dots beat a correctly-sized blank; the tighter
+    /// option, if that ever grates, is DejaVu Sans Condensed at 0.6592.
+    public static let symbolFallbackFamily = "DejaVuSans"
     /// Every text style in the terminal carries this, so a glyph missing from
     /// the primary family is looked up here instead of dropping out.
     public private(set) nonisolated(unsafe) static var fallback = [fallbackFamily]
@@ -95,10 +111,12 @@ public enum TerminalFontLoader {
     public static func register() -> Bool {
         guard !_registered else { return true }
         var ok = false
+        var symbolsLoaded = false
         for (name, family) in [("RobotoMono-Regular", family),
                                ("RobotoMono-Bold", family),
                                ("DejaVuSansMono-Regular", fallbackFamily),
-                               ("DejaVuSansMono-Bold", fallbackFamily)] {
+                               ("DejaVuSansMono-Bold", fallbackFamily),
+                               ("DejaVuSans", symbolFallbackFamily)] {
             guard let url = Bundle.module.url(forResource: name, withExtension: "ttf"),
                   let data = try? Data(contentsOf: url) else { continue }
             let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
@@ -107,6 +125,7 @@ public enum TerminalFontLoader {
                 return flutter.swift_bridge.LoadFontFromList(ptr, data.count, family)
             }
             ok = ok || success
+            if family == symbolFallbackFamily { symbolsLoaded = success }
         }
         for (path, family) in systemFallbacks {
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path),
@@ -118,6 +137,8 @@ public enum TerminalFontLoader {
             }
             if success { fallback.append(family) }
         }
+        // After the Noto faces, so colour emoji still wins its own codepoints.
+        if symbolsLoaded { fallback.append(symbolFallbackFamily) }
         _registered = ok
         return ok
     }
