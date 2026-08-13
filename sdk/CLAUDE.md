@@ -5,7 +5,9 @@ engine's C core. No Dart VM. (The SwiftPM package name remains `FlutterSwift`.)
 
 ## Layout
 
-- `Sources/` — SDK targets only (the framework, bridges, `FlutterGTK` host).
+- `Sources/` — SDK targets only (the framework, bridges, and the three windowed
+  hosts: `FlutterGTK` on Linux, `FlutterCocoa` on macOS, `FlutterWin32` on
+  Windows, each with a `*Bridge` target holding the platform C/ObjC glue).
 - `Examples/` — everything app-related: `FlutterDemoApp`, the ported samples,
   their shared `ExampleHost`, and `Examples/Calendar/` (the kalender port:
   `Library/` is the `CalendarKit` target, `App/` is `CalendarApp`).
@@ -16,6 +18,29 @@ engine's C core. No Dart VM. (The SwiftPM package name remains `FlutterSwift`.)
 swift build -c release
 tools/run-tests.sh        # not `swift test` — see README (Ubuntu 26.04 <cmath> clash)
 ```
+
+## The hosts, and the one thing they must each get right
+
+Every host starts the engine in **Swift mode** and then runs the platform's own
+event loop. What differs is when the embedder would otherwise start a *Dart*
+engine on its own, and each host is pinned around that moment:
+
+- **GTK** — the engine starts when the view realizes, so
+  `fl_engine_set_swift_runtime` is set before the window is shown.
+- **Win32** — the engine starts inside view-controller creation, so Swift mode
+  is set on the engine before that call.
+- **Cocoa** — `FlutterViewController.viewWillAppear` calls `runWithEntrypoint:`
+  if the engine is not already running. So the order in `flcocoa_host.m` is
+  load the view (assign `contentViewController`), *then* run the engine, *then*
+  show the window — and both halves matter. Running before the view loads means
+  the engine's initial `FlutterWindowMetricsEvent` is skipped
+  (`updateWindowMetricsForViewController` returns early for an unloaded view)
+  and nothing composites; showing before running hands you a Dart isolate.
+
+**macOS-only build note.** The engine is `FlutterMacOS.framework` plus a
+separate `libswift_bridge.dylib`, and `--mac-cpu arm64` decides both the ABI
+and the output directory (`out/host_debug_arm64`). Full commands in the
+README's *Building → macOS*.
 
 ## Widget composition: use the trailing-closure result builders
 

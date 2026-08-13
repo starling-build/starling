@@ -1,0 +1,6 @@
+# ptyread on macOS, 03_sgr_fg (72.7 MB), grid 201x47, best-of-3
+# mode  wall_s(3 runs)            feeds     mean_batch
+0       0.400 0.414 0.403         72050     1009 B   blocking 64K reads, single-threaded
+2       0.474 0.479 0.481         71366     1019 B   transport floor (read+discard)
+9       0.545 0.558 0.568           278   261583 B   ring + 2ms linger
+4       0.684 0.707 0.710         71762     1013 B   ring + drain (Pty.swift today)

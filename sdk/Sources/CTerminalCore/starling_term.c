@@ -69,6 +69,11 @@ typedef enum {
 #define GP_MAX_CPS 15
 typedef struct { uint32_t *cps; int n; } GraphemeEntry;
 
+/* One remembered width answer and the codepoint interval over which it is
+   the answer. See the character-width section. */
+#define WIDTH_SPANS 8
+typedef struct { uint32_t lo, hi; int w, ordinary; } WidthSpan;
+
 struct StarlingTerm {
     int cols, rows;
 
@@ -139,6 +144,13 @@ struct StarlingTerm {
     void *response_ctx;
     void (*bell_cb)(void *ctx);
     void *bell_ctx;
+
+    /* Last, deliberately. This is 128 bytes and it is touched only by the
+       non-ASCII run path, so putting it among the fields the hot loops use
+       pushes those across cache lines and costs the workloads that never
+       reach it: measured +5% on 03_sgr_fg and +6% on 02_dense_cells, neither
+       of which contains a byte >= 0x80. Seeded in starling_term_new. */
+    WidthSpan wspan[WIDTH_SPANS];
 };
 
 /* ---------------------------------------------------------------- palette */
@@ -313,6 +325,13 @@ StarlingTerm *starling_term_new(int cols, int rows) {
     t->last_col = -1;
     t->blank_bg = 0xFFFFFFFFu;
     t->blank_cols = -1;
+    /* Every width span starts as the one scalar_width answers without
+       consulting a table. Seeding matters as well as helping: a calloc'd
+       entry is the interval [0,0] claiming width 0, and U+0000 would hit it. */
+    for (int i = 0; i < WIDTH_SPANS; i++) {
+        t->wspan[i].lo = 0; t->wspan[i].hi = 0x02FF;
+        t->wspan[i].w = 1;  t->wspan[i].ordinary = 1;
+    }
     t->grid = malloc(sizeof(Row) * (size_t)t->rows);
     for (int i = 0; i < t->rows; i++) t->grid[i] = row_default(t);
     t->sb_cap = SB_LIMIT + SB_SLACK + 2;
@@ -401,11 +420,98 @@ static int in_ranges(const CpRange *tbl, int n, uint32_t cp) {
 
 #define IN(tbl, cp) in_ranges(tbl, (int)(sizeof tbl / sizeof *(tbl)), cp)
 
+/* The range containing cp, or the gap between the two that surround it. The
+   caller gets the same yes/no answer in_ranges gives, plus the interval over
+   which that answer cannot change. */
+static int span_in_ranges(const CpRange *tbl, int n, uint32_t cp,
+                          uint32_t *lo, uint32_t *hi) {
+    int at = -1, a = 0, b = n - 1;
+    while (a <= b) {                       /* last entry with first <= cp */
+        int m = (a + b) / 2;
+        if (tbl[m].first <= cp) { at = m; a = m + 1; }
+        else b = m - 1;
+    }
+    if (at >= 0 && cp <= tbl[at].last) {
+        *lo = tbl[at].first; *hi = tbl[at].last;
+        return 1;
+    }
+    *lo = at >= 0 ? tbl[at].last + 1 : 0;
+    *hi = at + 1 < n ? tbl[at + 1].first - 1 : 0x10FFFF;
+    return 0;
+}
+
 static int scalar_width(uint32_t cp) {
     if (cp < 0x0300) return 1;   /* covers all of ASCII + Latin-1 fast */
     if (IN(gen_zero_tbl, cp)) return 0;
     if (IN(gen_wide_tbl, cp)) return 2;
     return 1;
+}
+
+/* scalar_width's answer for cp, plus the interval over which that answer
+   holds and whether every codepoint in the interval prints as an ordinary
+   cell — the two things a run of characters wants to know at once. The
+   tables are sorted and mutually disjoint (a codepoint is zero-width or
+   wide, never both), so a hit is constant across its own range and a miss is
+   constant across the intersection of both gaps. */
+static int width_span(uint32_t cp, WidthSpan *s) {
+    uint32_t zl, zh, wl, wh;
+    if (cp < 0x0300) {           /* the shortcut in scalar_width, as a span */
+        s->lo = 0; s->hi = 0x02FF; s->w = 1; s->ordinary = 1;
+        return 1;
+    }
+    if (span_in_ranges(gen_zero_tbl, (int)(sizeof gen_zero_tbl / sizeof *gen_zero_tbl),
+                       cp, &zl, &zh)) {
+        s->w = 0; s->lo = zl; s->hi = zh;
+    } else if (span_in_ranges(gen_wide_tbl, (int)(sizeof gen_wide_tbl / sizeof *gen_wide_tbl),
+                              cp, &wl, &wh)) {
+        s->w = 2; s->lo = wl; s->hi = wh;
+    } else {
+        s->w = 1;
+        s->lo = zl > wl ? zl : wl;
+        s->hi = zh < wh ? zh : wh;
+    }
+    /* Below U+0300 the answer is the shortcut's, not the tables' ({0x0,0x0}
+       is a zero-width range the shortcut overrides), so no span computed
+       from the tables may reach down there. */
+    if (s->lo < 0x0300) s->lo = 0x0300;
+    /* "Ordinary" is what put_scalar_w does with nothing to say: width 0 is
+       the whole combining and cluster machinery, and two ranges of width 2
+       carry rules of their own — regional indicators pair into a flag, and
+       skin-tone modifiers melt into the emoji before them. Excluding them by
+       interval rather than per character keeps the test out of the run
+       scanner's inner loop. */
+    s->ordinary = s->w != 0 &&
+                  !(s->lo <= 0x1F1FF && s->hi >= 0x1F1E6) &&
+                  !(s->lo <= 0x1F3FF && s->hi >= 0x1F3FB);
+    return s->w;
+}
+
+/* Same answer as scalar_width, remembering the last few intervals it came
+   from, and reporting `ordinary` alongside. A width lookup is two binary
+   searches over ~460 intervals and it is the price of every non-ASCII
+   character; but text arrives in runs from one script, and the tables' gaps
+   are wide (Cyrillic and Greek share the single gap 0x370-0x482, all of CJK
+   is one range), so the interval one lookup lands in almost always answers
+   the next one too. Eight entries hold the scripts a mixed line touches at
+   once — Latin accents, Cyrillic, Greek, arrows, dingbats, CJK and two
+   emoji blocks is exactly seven — and even a miss only costs a compare per
+   entry on top of the search it was going to do anyway. The spans are
+   derived from the tables at the moment of use, so nothing here needs
+   updating when they are regenerated, and there is nothing to invalidate:
+   the tables are immutable. */
+static int width_lookup(StarlingTerm *t, uint32_t cp, int *ordinary) {
+    for (int i = 0; i < WIDTH_SPANS; i++) {
+        if (cp >= t->wspan[i].lo && cp <= t->wspan[i].hi) {
+            *ordinary = t->wspan[i].ordinary;
+            return t->wspan[i].w;
+        }
+    }
+    WidthSpan s;
+    int w = width_span(cp, &s);
+    for (int i = WIDTH_SPANS - 1; i > 0; i--) t->wspan[i] = t->wspan[i - 1];
+    t->wspan[0] = s;             /* most recent first: the next lookup is it */
+    *ordinary = s.ordinary;
+    return w;
 }
 
 /* --------------------------------------------------- grapheme cluster pool */
@@ -600,7 +706,11 @@ static void append_to_last(StarlingTerm *t, uint32_t v) {
 
 enum { JP_NONE = 0, JP_ZWJ, JP_VIRAMA };
 
-static void put_scalar(StarlingTerm *t, uint32_t v) {
+/* `w` is scalar_width(v), taken as a parameter because the feed loop's run
+   scanner has already measured the character to decide whether it belonged in
+   the run. put_scalar, at the end of this function, is the spelling for every
+   other caller. */
+static void put_scalar_w(StarlingTerm *t, uint32_t v, int w) {
     /* The joining model mirrors python wcwidth (the library ucs-detect
        grades against) branch for branch — see starling_widths_gen.h for
        the shared tables. In cluster terms: ZWJ swallows the following
@@ -610,7 +720,6 @@ static void put_scalar(StarlingTerm *t, uint32_t v) {
        spacing mark (Mc) also makes its cluster 2 columns; a Fitzpatrick
        modifier melts into an emoji base; the second regional indicator
        completes a flag. */
-    int w = scalar_width(v);
     if (t->join_pending == JP_ZWJ) {
         t->join_pending = JP_NONE;
         if (t->last_col >= 0) {
@@ -728,6 +837,10 @@ static void put_scalar(StarlingTerm *t, uint32_t v) {
     t->last_w = 1; t->last_scalar = v;
     if (t->cursor_col == t->cols - 1) t->wrap_pending = 1;
     else t->cursor_col++;
+}
+
+static void put_scalar(StarlingTerm *t, uint32_t v) {
+    put_scalar_w(t, v, scalar_width(v));
 }
 
 static void line_feed(StarlingTerm *t) {
@@ -1280,6 +1393,44 @@ static int is_scalar(uint32_t v) {          /* mirrors UnicodeScalar(v) == nil *
     return 1;
 }
 
+/* One scalar from the `len` bytes at `p`, which the caller has already
+   confirmed are all present. Malformed input — a lead byte utf8_len could not
+   classify, a bad continuation byte, a surrogate, a value past U+10FFFF —
+   yields U+FFFD, and the caller consumes all `len` bytes either way, so a
+   truncated sequence swallows the byte after it. Both of those, and the
+   absence of an overlong check, are the behaviour the per-character loop has
+   always had and the differential harness pins; this is that code lifted out
+   so the run scanner can share it, not a new decoder. */
+static uint32_t utf8_decode(const uint8_t *p, int len) {
+    uint32_t v;
+    switch (len) {
+    case 2: v = (uint32_t)(p[0] & 0x1F); break;
+    case 3: v = (uint32_t)(p[0] & 0x0F); break;
+    case 4: v = (uint32_t)(p[0] & 0x07); break;
+    default: return 0xFFFD;
+    }
+    for (int k = 1; k < len; k++) {
+        if ((p[k] & 0xC0) != 0x80) return 0xFFFD;
+        v = (v << 6) | (uint32_t)(p[k] & 0x3F);
+    }
+    return is_scalar(v) ? v : 0xFFFD;
+}
+
+/* How many scalars the non-ASCII run path decodes before committing. A run
+   stops at the right margin regardless, so this only bites on grids wider
+   than 256 columns, and then only by splitting one run into two. */
+#define UTF8_RUN_MAX 256
+
+/* In that buffer, and nowhere else, the top bit tags a two-column scalar:
+   scalars stop at U+10FFFF, and the tag is stripped before the value reaches
+   a cell. Carrying the width beside the scalar is what lets one run mix
+   widths without measuring anything twice. */
+#define RUN_WIDE 0x80000000u
+
+/* Defined below the feed loop, deliberately — see the comment there. */
+static int feed_ordinary_run(StarlingTerm *t, const uint8_t *input, size_t count,
+                             size_t *ip, uint32_t v, int w, int ordinary);
+
 void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
     const uint8_t *input = bytes;
     size_t count = n;
@@ -1347,22 +1498,32 @@ void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
                 t->utf8_pending_len = keep;
                 break;
             }
-            uint32_t v;
-            switch (len) {
-            case 2: v = (uint32_t)(b & 0x1F); break;
-            case 3: v = (uint32_t)(b & 0x0F); break;
-            case 4: v = (uint32_t)(b & 0x07); break;
-            default: v = b; break;
-            }
-            int valid = len > 1;
-            for (int k = 1; k < (len > 1 ? len : 1); k++) {
-                uint8_t cont = input[i + (size_t)k];
-                if ((cont & 0xC0) != 0x80) { valid = 0; break; }
-                v = (v << 6) | (uint32_t)(cont & 0x3F);
-            }
-            if (!valid || !is_scalar(v)) v = 0xFFFD;
-            put_scalar(t, v);
+            uint32_t v = utf8_decode(input + i, len);
+            int ordinary, w = width_lookup(t, v, &ordinary);
             i += (size_t)len;
+
+            /* Fast path 2: a run of ORDINARY scalars — the ones put_scalar_w
+               merely stores and steps the cursor over — committed the way the
+               ASCII run above is. width_lookup decides ordinariness by
+               interval: width 0 is the whole combining and cluster machinery,
+               and regional indicators and skin-tone modifiers reach back into
+               the cell already printed, so all of those stay on put_scalar_w,
+               which remains the only place those rules live. What is left is
+               one or two columns of plain storage, so a run may mix widths —
+               and it must: one character in six of the unicode benchmark is
+               CJK or emoji, and ending a run at each of them leaves runs
+               about five characters long, too short to amortise a commit.
+
+               Only the cursor's own state has to be rechecked: a run cannot
+               start mid-wrap or mid-join, and it stops at the right margin,
+               so no wrap — and so no scroll, and so no scroll region — can
+               happen inside one. ASCII printables ride along inside a run
+               rather than starting one; mixed text ("héllo wörld Привет") is
+               otherwise a dozen two- and three-character runs each paying a
+               full commit, while a run that begins with ASCII still belongs
+               to the path above. */
+            if (feed_ordinary_run(t, input, count, &i, v, w, ordinary)) continue;
+            put_scalar_w(t, v, w);
             continue;
         }
 
@@ -1371,6 +1532,95 @@ void starling_term_feed(StarlingTerm *t, const uint8_t *bytes, size_t n) {
     }
     t->generation++;
     free(joined);
+}
+
+/* The body of fast path 2, out of line. It is only reachable for a byte >=
+   0x80, but leaving it inside the feed loop cost the streams that never get
+   there: `cat 03_sgr_fg` measured 0.392 -> 0.444 s and dense_cells 0.109 ->
+   0.113 with it inlined, on a workload whose every byte is ASCII. The loop
+   around it is small and extremely hot, and this is ~70 lines with a 256-entry
+   scratch array; the win is in keeping that out of it. Runs average 88
+   characters, so one call per run costs nothing measurable.
+
+   Returns 1 when the run was committed (the caller's `i` has been advanced
+   past it), 0 when the character is not eligible and the caller should print
+   it the ordinary way. */
+static int feed_ordinary_run(StarlingTerm *t, const uint8_t *input, size_t count,
+                             size_t *ip, uint32_t v, int w, int ordinary) {
+    size_t i = *ip;
+    if (ordinary && !t->wrap_pending && t->join_pending == JP_NONE &&
+        t->cursor_row >= 0 && t->cursor_row < t->rows &&
+        t->cursor_col >= 0 && t->cursor_col + w <= t->cols) {
+                uint32_t run[UTF8_RUN_MAX];
+                int cap = t->cols - t->cursor_col;   /* columns, not characters */
+                int used = w, n = 1, tail = 0;
+                run[0] = v | (w == 2 ? RUN_WIDE : 0);
+                while (n < UTF8_RUN_MAX && used < cap && i < count) {
+                    uint8_t x = input[i];
+                    int adv;
+                    if (x < 0x80) {
+                        if (x < 0x20 || x >= 0x7F) break;   /* the state machine's */
+                        v = x; w = 1; adv = 1;
+                    } else {
+                        adv = utf8_len(x);
+                        /* A sequence straddling the end of this feed belongs
+                           to the pending stash above; stop and let the next
+                           turn of the loop hand it over intact. */
+                        if (i + (size_t)adv > count) break;
+                        v = utf8_decode(input + i, adv);
+                        w = width_lookup(t, v, &ordinary);
+                        /* Not ours: consume it here and print it below, so
+                           that the character which ended the run is not
+                           decoded and measured a second time. */
+                        if (!ordinary) { i += (size_t)adv; tail = 1; break; }
+                        /* A wide character with one column left does not go
+                           here at all — it wraps whole, or is dropped with
+                           autowrap off. Leave it to put_scalar_w. */
+                        if (used + w > cap) break;
+                    }
+                    run[n++] = v | (w == 2 ? RUN_WIDE : 0);
+                    used += w;
+                    i += (size_t)adv;
+                }
+
+                Row *rw = &t->grid[t->cursor_row];
+                Cell *row = rw->cells;
+                int start = t->cursor_col;
+                /* As in the ASCII path: every column from `start` to the last
+                   one written is overwritten whole, so only the two edges can
+                   tear an existing pair. */
+                unsplit_pair(t, rw, start);
+                unsplit_pair(t, rw, start + used - 1);
+                uint32_t fg = t->cur_fg, bg = t->cur_bg; uint8_t at = t->cur_attrs;
+                int col = start;
+                for (int k = 0; k < n; k++) {
+                    Cell *c = &row[col];
+                    c->fg = fg; c->bg = bg;
+                    if (run[k] & RUN_WIDE) {
+                        c->scalar = run[k] & ~RUN_WIDE;
+                        c->attrs = (uint8_t)(at | STARLING_ATTR_WIDE);
+                        Cell *nx = &row[col + 1];
+                        nx->scalar = 0; nx->fg = fg; nx->bg = bg;
+                        nx->attrs = (uint8_t)(at | STARLING_ATTR_WIDE_CONT);
+                        col += 2;
+                    } else {
+                        c->scalar = run[k]; c->attrs = at;
+                        col++;
+                    }
+                }
+                if (col > rw->used) rw->used = col;
+                t->last_row = t->cursor_row;
+                t->last_w = (run[n - 1] & RUN_WIDE) ? 2 : 1;
+                t->last_col = col - t->last_w;
+                t->last_scalar = run[n - 1] & ~RUN_WIDE;
+                if (col >= t->cols) { t->cursor_col = t->cols - 1; t->wrap_pending = 1; }
+                else t->cursor_col = col;
+                if (tail) put_scalar_w(t, v, w);
+                *ip = i;
+                return 1;
+    }
+    *ip = i;
+    return 0;
 }
 
 /* ----------------------------------------------------------------- resize */

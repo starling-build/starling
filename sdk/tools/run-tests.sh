@@ -95,4 +95,9 @@ if needs_compat; then
     for f in "${COMPAT_CFLAGS[@]}"; do ARGS+=(-Xswiftc "$f"); done
 fi
 
-exec "$SWIFT" test "${ARGS[@]}" "$@"
+# ${ARGS[@]+"${ARGS[@]}"} rather than "${ARGS[@]}": on any platform that does not
+# need the compat flags ARGS is empty, and bash 3.2 — which is the
+# /usr/bin/env bash on macOS — treats expanding an empty array under `set -u` as
+# an unbound variable and dies before running a single test. bash 4.4 and newer
+# made that legal, which is why Linux never saw it.
+exec "$SWIFT" test ${ARGS[@]+"${ARGS[@]}"} "$@"

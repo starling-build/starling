@@ -25,7 +25,8 @@ thin platform bindings needed to host an engine — nothing desktop-specific.
 | `FlutterDRMBridge` | clang module over the DRM/KMS embedder (`fl_drm_view.h`) |
 | `DmaBufBridge` | GBM + `SCM_RIGHTS` + EGL dma-buf import helpers |
 | `FlutterGTK` | desktop-session host: the engine's GTK embedder (`FlView` in a `GtkWindow`) running in Swift mode, with `FlutterGTKBridge` (C glue + vendored `flutter_linux` headers) and `CGtk3` (system GTK 3 via pkg-config) underneath |
-| `FlutterMacOSBridge` | macOS embedder bindings (unverified — see *Status*) |
+| `FlutterCocoa` | desktop host on macOS: the engine's Cocoa embedder (a `FlutterViewController` in an `NSWindow`) running in Swift mode, with `FlutterCocoaBridge` (ObjC glue + vendored `FlutterMacOS` headers) underneath |
+| `FlutterWin32` | desktop host on Windows: the engine's Win32 embedder (`flutter_windows.dll`) running in Swift mode, with `FlutterWin32Bridge` (C glue + vendored `flutter_windows` headers) underneath |
 
 `FlutterShared` is a dynamic product bundling the whole stack into one
 `libFlutterShared.so`, so a fleet of apps ships one copy rather than a static
@@ -88,6 +89,36 @@ Foundation's C shim in *your* compilation context and hits the clash there. This
 is easy to miss, because a machine with a locally patched
 `/usr/include/c++/15/math.h` never sees it — that artifact produced one wrong
 conclusion here already.
+
+### macOS
+
+The engine is `FlutterMacOS.framework` plus a separate `libswift_bridge.dylib`
+— unlike Linux and Windows, where the bridge is merged into the engine
+library, because a framework is a Mach-O of its own with nothing to merge it
+into. Build both from an engine checkout with:
+
+```bash
+cd engine/src
+flutter/tools/gn --runtime-mode=debug --no-lto --no-backtrace --no-rbe --mac-cpu arm64
+ninja -C out/host_debug_arm64 \
+    flutter/shell/platform/darwin/macos:flutter_framework \
+    flutter/lib/ui/swift:swift_bridge
+```
+
+`--mac-cpu arm64` is not optional on Apple Silicon: it defaults to `x64`.
+It also decides the output directory, because `flutter/tools/gn` appends the
+CPU only when it is not the default — so an Apple Silicon build lands in
+`out/host_debug_arm64` and an Intel one in `out/host_debug`. `Package.swift`
+probes for both.
+
+Two macOS-only notes on the tooling. `tools/sync-vendored-headers.sh` needs
+bash, and the `/usr/bin/env bash` on a Mac is 3.2 — it avoids bash 4 builtins
+for that reason. It also will not overwrite the vendored `<swift/bridging>`,
+which is the only header here that describes the *toolchain* rather than the
+engine's ABI: Xcode's bundled Swift is typically older than the swiftly
+toolchain Linux builds with, and letting a Mac downgrade that copy made
+`--check` fail on every Mac. `FLUTTER_SWIFT_SYNC_TOOLCHAIN=1` forces it when
+deliberately moving to a newer toolchain.
 
 ## The demo app
 
@@ -223,17 +254,38 @@ lands. `FLUTTER_SWIFT_LINK=static|dynamic` overrides the mode choice.
 
 `tools/make-bundle.sh` (Linux/macOS) and `tools/make-bundle.ps1` (Windows)
 produce a self-contained tree carrying the framework and the engine binaries
-together. Same layout on both, so a consumer's manifest differs only in which
-host product it imports — `FlutterGTK` or `FlutterWin32`. The Windows bundle
-carries each DLL beside its `.lib` import library, because the link step needs
-the import library and the run needs the DLL; it does **not** carry the Swift
-runtime DLLs, which belong to the consumer's toolchain exactly as
-`libswiftCore` does on Linux.
+together. Same layout on all three, so a consumer's manifest differs only in
+which host product it imports — `FlutterGTK`, `FlutterCocoa` or
+`FlutterWin32`. The Windows bundle carries each DLL beside its `.lib` import
+library, because the link step needs the import library and the run needs the
+DLL; it does **not** carry the Swift runtime DLLs, which belong to the
+consumer's toolchain exactly as `libswiftCore` does on Linux.
 
     starling-sdk-linux-aarch64/
       Package.swift Sources/ Examples/ Tests/ tools/ LICENSE
       engine/lib/     libflutter_engine.so, libflutter_linux_drm.so
       engine/share/   icudtl.dat, flutter_assets/
+
+    starling-sdk-macos-arm64/
+      Package.swift Sources/ Examples/ Tests/ tools/ LICENSE
+      engine/lib/     FlutterMacOS.framework, libswift_bridge.dylib
+      engine/share/   flutter_assets/
+
+`engine/share/icudtl.dat` is missing from the macOS bundle on purpose. A mac
+out directory has **two different** files by that name, and only one is
+Flutter's: the framework build puts the trimmed ~780 KB build (from
+`//flutter/third_party/icu/flutter`) inside
+`FlutterMacOS.framework/Versions/A/Resources`, while the top-level
+`icudtl.dat` beside the engine is full ICU (~10 MB, `third_party/icu/common`)
+for the engine's own tests. Taking the top-level one the way the Linux branch
+does would put 10 MB of the wrong flavour in `engine/share` for a consumer to
+point at out of habit, so the framework's copy is the only one that ships —
+which is also why the hosts look inside the framework first.
+
+The bundle's generated README carries the per-platform deployment recipe,
+which is not the same shape: on macOS both engine binaries have `@rpath`
+install names and are copied beside the executable, with nothing to set in
+the environment.
 
 Unpack it and depend on it by path:
 
@@ -286,11 +338,26 @@ tools/sync-vendored-headers.sh             # re-sync
 
 ## Status
 
-Linux is the tested platform. `Package.swift` has a macOS branch and a
-`FlutterMacOSBridge` target, but nothing here verifies them — they need a machine
-and CI. Two environment knobs read by `Sources/Flutter/Platform/` still carry
-Starling names (`STARLING_AGENT_ENDPOINT`, `STARLING_APP_DRM_DEVICE`); both are
-inert when unset.
+Linux is the primary platform and the one the Starling desktop ships on. macOS
+and Windows both run: the framework, a windowed host, and the ported
+`CounterApp` build and work on all three.
+
+macOS is verified on Apple Silicon (macOS 26, Xcode 26's Swift 6.2.1) against a
+locally built engine: the window opens, the widget tree builds off engine
+frames, and clicking the floating action button increments the counter — so
+compositing, pointer input and `setState` are all live. `swift build -c release`
+builds every macOS product, and `tools/make-bundle.sh` produces a bundle that
+builds `CounterApp` on its own. The whole of `Sources/Flutter` needed no
+changes for the port.
+
+What macOS has not been through: an Intel Mac, a `.app` bundle (the host is
+built for a bare SwiftPM executable and points the engine at explicit asset
+paths for that reason), text input and IME, accessibility, multi-window, and
+anything beyond the smallest sample. There is no CI on any platform.
+
+Two environment knobs read by `Sources/Flutter/Platform/` still carry Starling
+names (`STARLING_AGENT_ENDPOINT`, `STARLING_APP_DRM_DEVICE`); both are inert
+when unset.
 
 ## License
 

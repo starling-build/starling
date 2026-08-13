@@ -35,8 +35,22 @@ let gtkHost = !env("STARLING_APP_GTK", default: "").isEmpty
 let engineOutDir = env("STARLING_ENGINE_OUT",
                        default: appPackageDir + "/../../engine/src/out/host_debug")
 #else
-let engineOutDir = env("STARLING_ENGINE_OUT",
-                       default: appPackageDir + "/../../engine/src/out/ci/host_debug_unopt_arm64")
+// Two out-directory spellings on macOS, because flutter/tools/gn appends the
+// CPU only when it is not the default: an Apple Silicon build (--mac-cpu
+// arm64) lands in host_debug_arm64, an Intel one in host_debug. Same probe as
+// sdk/Package.swift, keyed on the same marker — picking a directory that does
+// not exist would point -L and the baked rpath at nothing, and the failure
+// would not surface until the app launched.
+let engineOutDir: String = {
+    if let v = Context.environment["STARLING_ENGINE_OUT"], !v.isEmpty { return v }
+    let candidates = [
+        appPackageDir + "/../../engine/src/out/host_debug_arm64",
+        appPackageDir + "/../../engine/src/out/host_debug",
+    ]
+    let fm = FileManager.default
+    return candidates.first { fm.fileExists(atPath: $0 + "/libswift_bridge.dylib") }
+        ?? candidates[0]
+}()
 #endif
 
 // Ubuntu 26.04 (glibc 2.43 + libstdc++ 15) vs the ubuntu24.04-built 6.2.4
@@ -61,23 +75,29 @@ var targets: [Target] = [
         // See test/bench/core/ for the measurement and the differential test.
         {
             #if os(macOS)
+            // FlutterCocoa brings the engine's Cocoa embedder host in with it,
+            // and FlutterCocoaBridge underneath it owns the vendored
+            // FlutterMacOS headers and the -F/-framework/-rpath that link the
+            // framework — so nothing here names those. What is left is the
+            // Swift bridge, which on macOS is a dylib of its own beside the
+            // framework rather than merged into the engine library.
             return .executableTarget(
                 name: "TerminalApp",
                 dependencies: [
-                    .product(name: "SwiftRuntime", package: "FlutterSwift"),
-                    .product(name: "FlutterMacOSBridge", package: "FlutterSwift"),
                     .product(name: "Flutter", package: "FlutterSwift"),
+                    .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
+                    .product(name: "SwiftRuntime", package: "FlutterSwift"),
+                    .product(name: "CupertinoIcons", package: "FlutterSwift"),
+                    .product(name: "FlutterCocoa", package: "FlutterSwift"),
+                    .product(name: "CTerminalCore", package: "FlutterSwift"),
                 ],
                 swiftSettings: [
                     .interoperabilityMode(.Cxx),
-                    .unsafeFlags([
-                        "-Xcc", "-I\(engineOutDir)/FlutterMacOS.framework/Versions/A/Headers",
-                    ]),
                 ],
                 linkerSettings: [
                     .unsafeFlags([
-                        "-F\(engineOutDir)",
-                        "-framework", "FlutterMacOS",
+                        "-L\(engineOutDir)",
+                        "-lswift_bridge",
                         "-Xlinker", "-rpath", "-Xlinker", "\(engineOutDir)",
                     ]),
                 ]

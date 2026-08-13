@@ -4,6 +4,26 @@
 import Foundation
 #if os(Linux)
 import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
+
+/// `write(2)`, spelled out with its defining module.
+///
+/// `Pty.write(_:)` shadows the C function inside the class, so the call has to
+/// name the module — and the module's name is the one thing that differs by
+/// platform. Guarded like the POSIX `Pty` below rather than left at file
+/// scope: Windows has neither module, and its own PTY lives in
+/// PtyWindows.swift.
+#if !os(Windows)
+@inline(__always)
+private func _sysWrite(_ fd: Int32, _ buf: UnsafeRawPointer?, _ count: Int) -> Int {
+    #if os(Linux)
+    return Glibc.write(fd, buf, count)
+    #else
+    return Darwin.write(fd, buf, count)
+    #endif
+}
 #endif
 
 /// A bounded ring of fixed-size buffers handed from the PTY reader thread to
@@ -20,9 +40,20 @@ import Glibc
 final class ChunkRing: @unchecked Sendable {
 
     /// A read never returns more than the PTY line discipline has buffered
-    /// (4 KB in practice), but bursts do occasionally fill this.
+    /// (4 KB in practice on Linux), but bursts do occasionally fill this.
+    /// Darwin is different: its pty hands back ~1 KB per read no matter the
+    /// buffer, and the reader's linger (see startReader) keeps one slot
+    /// filling across those, so slots there routinely fill to the brim —
+    /// bigger ones mean fewer ring passes. 256 KB is the knee (ptyread
+    /// mode 9 on `cat 03_sgr_fg`: 64 KB 0.528 s, 256 KB 0.506, 512 KB
+    /// 0.504); fewer, larger slots keep the ring's footprint at 1 MB.
+    #if canImport(Darwin)
+    static let slotCapacity = 262144
+    private static let slotCount = 4
+    #else
     static let slotCapacity = 65536
     private static let slotCount = 8
+    #endif
 
     struct Slot {
         let index: Int
@@ -147,9 +178,15 @@ final class ChunkRing: @unchecked Sendable {
 final class Pty: @unchecked Sendable {
 
     // ioctl request numbers (linux, generic): these are macros in C headers
-    // that Swift's Glibc module does not export.
+    // that Swift's Glibc module does not export. Linux-only: the values are
+    // BSD `_IOW`-encoded and entirely different on Darwin (TIOCSWINSZ is
+    // 0x80087467 there, not 0x5414), and Darwin's overlay does export its
+    // own — so hardcoding these for both platforms would silently address
+    // the wrong ioctl. The Darwin branch of `init` needs neither.
+    #if os(Linux)
     private static let TIOCSCTTY: UInt = 0x540E
     private static let TIOCSWINSZ: UInt = 0x5414
+    #endif
 
     /// Markers a terminal multiplexer leaves behind, which the shell we spawn
     /// would otherwise inherit and BELIEVE. We are the terminal here: whatever
@@ -194,7 +231,16 @@ final class Pty: @unchecked Sendable {
     /// `command` nil runs the shell interactively; a command line runs
     /// through it (`-c`), so PATH and pipelines behave as when typed.
     init?(cols: Int, rows: Int, command: String? = nil) {
+        // Declared before the platform split because Darwin needs it there:
+        // forkpty applies the window size in the same call that opens the
+        // master, while Linux ioctls it onto the master further down.
+        var ws = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols),
+                         ws_xpixel: 0, ws_ypixel: 0)
+
         // ── Master side ─────────────────────────────────────────────────
+        // Linux only: Darwin opens the master inside forkpty (see below), so
+        // there is nothing to do here on that platform.
+        #if os(Linux)
         let master = posix_openpt(O_RDWR | O_NOCTTY)
         guard master >= 0 else { return nil }
         guard grantpt(master) == 0, unlockpt(master) == 0 else {
@@ -208,9 +254,8 @@ final class Pty: @unchecked Sendable {
         }
         let slavePath = String(cString: nameBuf)
 
-        var ws = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols),
-                         ws_xpixel: 0, ws_ypixel: 0)
         _ = ioctl(master, Pty.TIOCSWINSZ, &ws)
+        #endif
 
         // ── Prepare exec arguments BEFORE fork (no allocation after) ────
         let shellPath = Pty._shellPath()
@@ -236,10 +281,22 @@ final class Pty: @unchecked Sendable {
         let shellPathC = strdup(shellPath)
         let homeC = strdup(home)
 
+        // Releases everything strdup'd above. The child never reaches it (it
+        // execs or _exits), so this runs on the parent and on the failure
+        // paths below.
+        func freeExecArgs() {
+            argv.forEach { free($0) }
+            envp.forEach { free($0) }
+            free(shellPathC)
+            free(homeC)
+        }
+
         // ── Fork + exec ─────────────────────────────────────────────────
+        #if os(Linux)
         let pid = fork()
         if pid < 0 {
             close(master)
+            freeExecArgs()
             return nil
         }
         if pid == 0 {
@@ -259,14 +316,33 @@ final class Pty: @unchecked Sendable {
             }
             _exit(127)
         }
+        #else
+        // Darwin: Swift's overlay marks `fork()` unavailable outright, and
+        // forkpty is the BSD call that does precisely what the Linux branch
+        // hand-rolls — open the master, fork, setsid, make the slave the
+        // child's controlling terminal, and dup it onto 0/1/2 — applying the
+        // window size in the same step. So the child here only has to chdir
+        // and exec, and neither TIOCSCTTY nor TIOCSWINSZ is needed.
+        var master: Int32 = -1
+        let pid = forkpty(&master, nil, nil, &ws)
+        if pid < 0 {
+            freeExecArgs()
+            return nil
+        }
+        if pid == 0 {
+            // Child: only async-signal-safe calls from here.
+            if let homeC = homeC { _ = chdir(homeC) }
+            if let path = shellPathC {
+                execve(path, &argv, &envp)
+            }
+            _exit(127)
+        }
+        #endif
 
         // Parent
         self.masterFd = master
         self.childPid = pid
-        argv.forEach { free($0) }
-        envp.forEach { free($0) }
-        free(shellPathC)
-        free(homeC)
+        freeExecArgs()
     }
 
     /// The shell to run: the Starling devbox when configured (terminal
@@ -326,6 +402,31 @@ final class Pty: @unchecked Sendable {
         let reader = Thread { [weak self] in
             var pfds = [pollfd(fd: -1, events: Int16(POLLIN), revents: 0),
                         pollfd(fd: -1, events: Int16(POLLIN), revents: 0)]
+            #if canImport(Darwin)
+            // Darwin's pty returns ~1 KB per read no matter the buffer size,
+            // with an EAGAIN between every pair — so "drain until empty"
+            // degenerates to one ~1 KB publish per ring pass and the slot
+            // never fills (ptyread mode 4: 71 762 feeds, 1013 B mean batch,
+            // on a 72.7 MB cat). The fix is to wait out the gap: on EAGAIN
+            // with data already in hand, linger briefly for the next burst
+            // instead of publishing. The wait must be event-driven — the pty
+            // queue is that same ~1 KB deep, the writer blocks until we
+            // drain it, so a blind nanosleep gates the whole stream at one KB
+            // per linger (measured: 46 s for the same cat). kevent gives a
+            // wake-on-data wait with a sub-ms timeout (poll's is
+            // ms-granular); mid-flood it returns in microseconds and only a
+            // genuinely quiet pty pays the full window. 278 feeds, 261 KB
+            // mean batch, 0.653 s -> 0.506 against a 0.474 read floor.
+            let kq = kqueue()
+            if kq >= 0, let self = self {
+                var reg = kevent()
+                reg.ident = UInt(self.masterFd)
+                reg.filter = Int16(EVFILT_READ)
+                reg.flags = UInt16(EV_ADD)
+                _ = kevent(kq, &reg, 1, nil, 0, nil)
+            }
+            defer { if kq >= 0 { close(kq) } }
+            #endif
             while true {
                 guard let self = self else { return }
                 if self.terminating { self.ring.close(); return }
@@ -344,7 +445,27 @@ final class Pty: @unchecked Sendable {
                         continue
                     }
                     if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        if got > 0 { break }   // publish what is queued
+                        if got > 0 {
+                            #if canImport(Darwin)
+                            // Mid-fill EAGAIN: linger (see above). Data
+                            // within the window: keep filling this slot.
+                            // Quiet for the whole window: genuine pause —
+                            // publish, so a lone keystroke echo still goes
+                            // out fast (the 400 us here is the only latency
+                            // the linger ever adds, and only mid-burst; the
+                            // first byte after idle still takes the blocking
+                            // poll below). Window length is uncritical:
+                            // 200 us / 400 us / 1 ms measured alike.
+                            if kq >= 0 {
+                                var timeout = timespec(tv_sec: 0, tv_nsec: 400_000)
+                                var ev = kevent()
+                                let kr = kevent(kq, nil, 0, &ev, 1, &timeout)
+                                if kr > 0 { continue }
+                                if kr < 0 && errno == EINTR { continue }
+                            }
+                            #endif
+                            break   // publish what is queued
+                        }
                         pfds[0].revents = 0
                         pfds[1].revents = 0
                         let count: nfds_t = self.wakeRead >= 0 ? 2 : 1
@@ -414,7 +535,7 @@ final class Pty: @unchecked Sendable {
         var pfd = pollfd(fd: masterFd, events: Int16(POLLOUT), revents: 0)
         while !remaining.isEmpty {
             let n = remaining.withUnsafeBytes { ptr -> Int in
-                Glibc.write(masterFd, ptr.baseAddress, ptr.count)
+                _sysWrite(masterFd, ptr.baseAddress, ptr.count)
             }
             if n > 0 {
                 remaining = remaining.dropFirst(n)
@@ -438,7 +559,13 @@ final class Pty: @unchecked Sendable {
     func resize(cols: Int, rows: Int) {
         var ws = winsize(ws_row: UInt16(rows), ws_col: UInt16(cols),
                          ws_xpixel: 0, ws_ypixel: 0)
+        // Darwin exports the real request number to Swift; Glibc does not, so
+        // Linux uses the transcribed constant above.
+        #if os(Linux)
         _ = ioctl(masterFd, Pty.TIOCSWINSZ, &ws)
+        #else
+        _ = ioctl(masterFd, TIOCSWINSZ, &ws)
+        #endif
     }
 
     /// Ends the child and stops the reader.
@@ -458,7 +585,10 @@ final class Pty: @unchecked Sendable {
         terminating = true
         if wakeWrite >= 0 {
             var byte: UInt8 = 1
-            _ = Glibc.write(wakeWrite, &byte, 1)
+            // `_sysWrite`, not `Glibc.write`: that module does not exist on
+            // Darwin, which is the whole reason the shim at the top of this
+            // file is there.
+            _ = _sysWrite(wakeWrite, &byte, 1)
         }
         kill(-childPid, SIGHUP)
         kill(childPid, SIGHUP)

@@ -99,13 +99,21 @@ let engineCandidates = [
 ]
 #else
 // On macOS the Swift bridge is a separate libswift_bridge.dylib that sits
-// alongside FlutterMacOS.framework (the engine itself) in engineOutDir.
+// alongside FlutterMacOS.framework (the engine itself) in engineOutDir —
+// the framework is a Mach-O of its own, so there is nothing to merge it into
+// the way Linux and Windows merge it into flutter_engine.
 let engineLinkName = "swift_bridge"
 let engineMarker = "libswift_bridge.dylib"
+// Two out-directory spellings, because flutter/tools/gn names the mac output
+// after the CPU only when it is not the default: an Apple Silicon build
+// (--mac-cpu arm64) lands in host_debug_arm64, an Intel one in host_debug.
+// Listing both keeps the in-tree default working on either machine.
 let engineCandidates = [
     packageDir + "/engine/lib",
-    packageDir + "/../engine/src/out/ci/host_debug_unopt_arm64",
-    packageDir + "/../starling-engine/engine/src/out/ci/host_debug_unopt_arm64",
+    packageDir + "/../engine/src/out/host_debug_arm64",
+    packageDir + "/../engine/src/out/host_debug",
+    packageDir + "/../starling-engine/engine/src/out/host_debug_arm64",
+    packageDir + "/../starling-engine/engine/src/out/host_debug",
 ]
 #endif
 
@@ -306,7 +314,15 @@ products += [
 
 #if os(macOS)
 products += [
-    .library(name: "FlutterMacOSBridge", targets: ["FlutterMacOSBridge"]),
+    // Desktop host: the engine's own Cocoa embedder (FlutterMacOS.framework)
+    // with the engine in Swift mode, rather than a hand-rolled view — so
+    // window management, input, IME and accessibility come from the same code
+    // path real Flutter macOS apps use. The counterpart of FlutterGTK on Linux
+    // and FlutterWin32 on Windows.
+    .library(name: "FlutterCocoa", targets: ["FlutterCocoa"]),
+    // The classic `flutter create` counter, ported from Dart — the first
+    // sample proven on this platform.
+    .executable(name: "CounterApp", targets: ["CounterApp"]),
 ]
 #endif
 
@@ -457,13 +473,66 @@ var targets: [Target] = [
 
 #if os(macOS)
 targets += [
+    // ObjC glue around the engine's Cocoa embedder: a FlutterViewController in
+    // an NSWindow, with the engine in Swift mode. The vendored FlutterMacOS
+    // headers stay inside this target — <Cocoa/Cocoa.h> and the Flutter* ObjC
+    // classes must never reach the C++-interop importer. Same containment the
+    // GTK bridge gives flutter_linux and the Win32 bridge flutter_windows.
+    //
+    // -fobjc-arc because SwiftPM does not enable ARC for .m sources, and this
+    // glue is written for it (__bridge / CFBridgingRetain, no manual retain).
+    // -F/-framework rather than -l: the engine is a framework on this platform,
+    // and its rpath entry is what lets the executable find it at run time.
     .target(
-        name: "FlutterMacOSBridge",
+        name: "FlutterCocoaBridge",
         cSettings: [
+            .unsafeFlags(["-fobjc-arc"]),
+        ],
+        linkerSettings: [
             .unsafeFlags([
-                "-I", "\(engineOutDir)/FlutterMacOS.framework/Versions/A/Headers",
+                "-F\(engineOutDir)", "-framework", "FlutterMacOS",
+                "-Xlinker", "-rpath", "-Xlinker", "\(engineOutDir)",
             ]),
         ]
+    ),
+    // The desktop host: the real Flutter macOS embedder, Swift-driven.
+    .target(
+        name: "FlutterCocoa",
+        dependencies: [
+            "Flutter",
+            "FlutterSwiftBridge",
+            .target(name: "SwiftRuntime"),
+            .target(name: "FlutterCocoaBridge"),
+        ],
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
+    ),
+    // Shared plumbing for the ported example apps: the engine-data bootstrap,
+    // the run sequence, and the Material-look chrome. Same target as on Linux
+    // and Windows, hosted on FlutterCocoa.
+    .target(
+        name: "ExampleHost",
+        dependencies: [
+            "Flutter",
+            "FlutterCocoa",
+            "FlutterSwiftBridge",
+            "CupertinoIcons",
+            .target(name: "SwiftRuntime"),
+        ],
+        path: "Examples/ExampleHost",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
+    ),
+    // The classic `flutter create` counter, ported from Dart.
+    .executableTarget(
+        name: "CounterApp",
+        dependencies: [
+            "Flutter",
+            "ExampleHost",
+            "FlutterSwiftBridge",
+            "CupertinoIcons",
+        ],
+        path: "Examples/CounterApp",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
     ),
 ]
 #endif

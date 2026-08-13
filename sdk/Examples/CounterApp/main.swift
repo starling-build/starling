@@ -8,7 +8,7 @@
 //
 //   swift run -c release CounterApp
 
-#if os(Linux) || os(Windows)
+#if os(Linux) || os(Windows) || os(macOS)
 import CupertinoIcons
 import ExampleHost
 import Flutter
@@ -81,5 +81,5 @@ class _MyHomePageState: State<StatefulWidget> {
 runExampleApp(title: "Flutter Demo", width: 480, height: 720) { MyApp() }
 
 #else
-fatalError("The example apps currently target Linux and Windows desktop sessions.")
+fatalError("The example apps currently target Linux, Windows and macOS desktop sessions.")
 #endif

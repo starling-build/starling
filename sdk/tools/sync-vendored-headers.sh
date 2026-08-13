@@ -77,8 +77,13 @@ one() {
 }
 
 # The C++ bridge set, as declared by the modulemap (basenames only).
-mapfile -t HEADERS < <(sed -n 's/.*header "\([^"]*\)".*/\1/p' "$MODULEMAP" \
-                       | xargs -n1 basename | sort -u)
+# read -r in a loop rather than mapfile: mapfile is a bash 4 builtin and macOS
+# ships bash 3.2 as /bin/bash, which is what /usr/bin/env bash finds there.
+HEADERS=()
+while IFS= read -r h; do
+    HEADERS+=("$h")
+done < <(sed -n 's/.*header "\([^"]*\)".*/\1/p' "$MODULEMAP" \
+         | xargs -n1 basename | sort -u)
 if [ "${#HEADERS[@]}" -eq 0 ]; then
     echo "error: $MODULEMAP declares no headers" >&2; exit 1
 fi
@@ -151,6 +156,55 @@ for stale in $(cd "$WIN_DEST" 2>/dev/null && ls -1 *.h 2>/dev/null || true); do
     fi
 done
 
+# FlutterMacOS.framework's public header set, vendored for the same reason as
+# the other two: only FlutterCocoaBridge's ObjC glue includes them, so
+# <Cocoa/Cocoa.h> and the Flutter* ObjC classes never reach the C++-interop
+# importer.
+#
+# The set is the framework's own, taken from the two lists the framework build
+# copies into Versions/A/Headers: the macOS headers in
+# shell/platform/darwin/macos/BUILD.gn and framework_common_headers from
+# shell/platform/darwin/common/framework_common.gni. It has to be spelled out
+# here because those two lists live in GN, and it must stay equal to them —
+# vendoring a header the framework does not publish would compile here and be
+# missing from any bundle built against a real framework.
+#
+# Flattening into one directory is what the framework does too
+# (install_framework_headers.py copies basenames), and the headers are written
+# for it: they import each other by bare quoted filename across the macos/common
+# split. So a plain copy is enough, with no include rewriting.
+MAC_DEST="Sources/FlutterCocoaBridge/flutter_macos"
+MAC_HEADERS=(
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterAppDelegate.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterAppLifecycleDelegate.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterEngine.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterMacOS.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterPlatformViews.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterPluginMacOS.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterPluginRegistrarMacOS.h"
+    "flutter/shell/platform/darwin/macos/framework/Headers/FlutterViewController.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterMacros.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterBinaryMessenger.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterChannels.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterCodecs.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterHourFormat.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterTexture.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterDartProject.h"
+)
+MAC_BASENAMES=()
+for rel in "${MAC_HEADERS[@]}"; do
+    one "$SRC/$rel" "$MAC_DEST/$(basename "$rel")"
+    MAC_BASENAMES+=("$(basename "$rel")")
+done
+for stale in $(cd "$MAC_DEST" 2>/dev/null && ls -1 *.h 2>/dev/null || true); do
+    printf '%s\n' "${MAC_BASENAMES[@]}" | grep -qxF "$stale" && continue
+    if [ "$CHECK" = 1 ]; then
+        echo "stale: flutter_macos/$stale is vendored but not in the list"; drift=1
+    else
+        rm -f "$MAC_DEST/$stale"; echo "removed stale flutter_macos/$stale"
+    fi
+done
+
 # --- TOOLCHAIN --------------------------------------------------------------
 #
 # <swift/bridging> is the only toolchain header the bridge headers need, and it
@@ -165,9 +219,23 @@ done
 # memory; the real definitions have to be here.
 #
 # The tradeoff: this copy shadows the toolchain's own for anyone building with a
-# different Swift version. It is a small, stable compiler-support header, and
-# --check catches drift against the toolchain in use — but if a future toolchain
-# changes it incompatibly, this is where that breaks.
+# different Swift version. It is a small, stable compiler-support header — but
+# if a future toolchain changes it incompatibly, this is where that breaks.
+#
+# It is deliberately NOT part of the drift gate, and not overwritten once it
+# exists. Unlike every other header here it does not describe the engine's ABI;
+# it describes the toolchain in use, and toolchains differ per machine. The
+# vendored copy is the newest known-good one, and it has to be: macOS builds
+# with Xcode's bundled Swift (6.2.1 at the time of writing) while Linux builds
+# with swiftly's (6.2.4), and 6.2.4's copy is a superset — same
+# SWIFT_SHARED_REFERENCE and SWIFT_RETURNS_INDEPENDENT_VALUE, plus macros the
+# older one lacks. Copying unconditionally meant a macOS run silently
+# downgraded it, and --check then failed on every macOS machine, which blocks
+# make-bundle.sh before it starts.
+#
+# So: sync it only when it is missing, and report a difference without failing.
+# FLUTTER_SWIFT_SYNC_TOOLCHAIN=1 forces the overwrite, which is what to use when
+# deliberately moving to a newer toolchain.
 # Ask the compiler where its resources are rather than guessing from $(which
 # swiftc): under swiftly that is a shim binary, so walking up from it lands
 # nowhere. runtimeResourcePath is <toolchain>/usr/lib/swift on every platform.
@@ -178,8 +246,15 @@ if [ -z "$RESOURCE_DIR" ]; then
     exit 1
 fi
 TOOLCHAIN_INCLUDE="$(cd "$RESOURCE_DIR/../../include" && pwd)"
-one "$TOOLCHAIN_INCLUDE/swift/bridging" \
-    "Sources/FlutterSwiftBridgeCxx/include/swift/bridging"
+BRIDGING_SRC="$TOOLCHAIN_INCLUDE/swift/bridging"
+BRIDGING_DEST="Sources/FlutterSwiftBridgeCxx/include/swift/bridging"
+if [ ! -f "$BRIDGING_DEST" ] || [ "${FLUTTER_SWIFT_SYNC_TOOLCHAIN:-0}" = 1 ]; then
+    one "$BRIDGING_SRC" "$BRIDGING_DEST"
+elif ! cmp -s "$BRIDGING_SRC" "$BRIDGING_DEST"; then
+    echo "note: ${BRIDGING_DEST#Sources/} differs from this toolchain's copy" \
+         "($TOOLCHAIN_INCLUDE) — kept the vendored one;" \
+         "FLUTTER_SWIFT_SYNC_TOOLCHAIN=1 to take the toolchain's"
+fi
 
 if [ "$CHECK" = 1 ]; then
     if [ "$drift" = 0 ]; then
