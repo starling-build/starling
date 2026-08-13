@@ -12,11 +12,20 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+// forkpty lives in <pty.h> on glibc and in <util.h> on Darwin — the BSD
+// original. Same function, same signature; only the header moved.
+#ifdef __APPLE__
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// TIOCSWINSZ's ioctl: glibc's <pty.h> drags this in for us, Darwin's
+// <util.h> does not, so name it rather than depend on either.
+#include <sys/ioctl.h>
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif

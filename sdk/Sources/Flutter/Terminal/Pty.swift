@@ -585,7 +585,10 @@ final class Pty: @unchecked Sendable {
         terminating = true
         if wakeWrite >= 0 {
             var byte: UInt8 = 1
-            _ = Glibc.write(wakeWrite, &byte, 1)
+            // `_sysWrite`, not `Glibc.write`: that module does not exist on
+            // Darwin, which is the whole reason the shim at the top of this
+            // file is there.
+            _ = _sysWrite(wakeWrite, &byte, 1)
         }
         kill(-childPid, SIGHUP)
         kill(childPid, SIGHUP)
