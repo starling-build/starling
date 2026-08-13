@@ -144,3 +144,98 @@ and not a stray `ghostty` on `PATH` (a copy outside its bundle is only the
 helper CLI and prints usage). Ghostty's first launch also shows Sparkle's
 "Check for updates automatically?" dialog, which blocks the terminal window
 from ever opening; the harness expects it suppressed.
+
+## Addendum, same day: ghostty's own three published tests
+
+The Linux rounds have run ghostty's advertised set since 2026-08-04; this
+round measured it and never wrote it up. Closing that, with `published.sh`
+(added here), against the same tip build, both terminals verified at 47x201
+for every run. Best of 3 — walls are `time cat` **inside** the terminal, so
+this is the writer's clock, the metric those rounds settled on.
+
+| test | ours | ghostty | | our CPU | gh CPU |
+|---|---|---|---|---|---|
+| `cat 150mb_ascii` | **0.570 s** | 0.634 s | **0.90x** | 0.56 | 1.49 |
+| `cat 150mb_unicode` | **0.745 s** | 0.761 s | **0.98x** | 1.32 | 2.16 |
+| DOOM-Fire-Zig, 600 frames | **1099 fps** | 990 fps | **1.11x** | 1.28 | 1.62 |
+
+**Three of three, on 40-60% of the CPU** (RSS 143 MB to their 171). The Linux
+rounds took two of three on the NucBox and three of three on the Lenovo, so
+this is the first macOS result of the set and it agrees with the Lenovo's.
+
+### It was two of three an hour earlier, and the unicode cat found a real bug
+
+Run before the width-cache fix below, same session:
+
+| test | ours | ghostty | |
+|---|---|---|---|
+| `cat 150mb_ascii` | 0.580 | 0.654 | 0.89x |
+| `cat 150mb_unicode` | **1.300** | 0.762 | **1.71x** |
+| DOOM-Fire | 1107 fps | 948 | 1.17x |
+
+The unicode cat was 1.71x, and worse than the same test measured before this
+branch's correctness fixes (0.832 s) — a 56% regression that the 10-workload
+suite did not show, because `05_unicode` is one line of mixed script among ten
+workloads while this corpus is 150 MB of nothing else.
+
+**It was not the renderer.** `STARLING_BENCH_NOREPAINT=1` put it at 1.242 s
+against 1.300 live: rendering is 4.5% of it (and half the CPU, the same
+signature as the suite). `ptyread_mac` reproduced it off the app entirely —
+1.115 s for unicode against 0.555 s for ascii at the *same read count*,
+147 849 against 148 882 — so it was the core, on identical transport.
+
+**The cause was `width_lookup`'s eight-entry MRU cache**, 43.6% of the whole
+core on this corpus. Eight entries hold every script a mixed line touches, so
+the structure looks right; but a line does not touch its scripts once, it
+CYCLES them, and MRU handles a cycle worst of all — each script is evicted to
+the back exactly in time for its next use. This corpus is that case in the
+extreme (Latin, Cyrillic, Greek, CJK, kana, Hangul, Arabic, symbols, emoji in
+runs of two to five), so nearly every lookup missed, paid both binary searches
+over ~460 intervals, and then shifted seven entries.
+
+Direct-mapped on the codepoint's 512-wide block instead — 128 slots, the whole
+BMP alias-free, each slot re-checking the interval it stored so a collision
+can only cost a recompute:
+
+    core, MB/s          before   after
+    unicode_150mb        282.3   458.8   +62.5%
+    05_unicode           381.7   480.5   +25.9%
+    every other workload             within ±2%
+
+Live, that is the unicode cat 1.300 -> 0.745 s (**-43%**) and suite
+`05_unicode` 0.356 -> 0.282 s, which takes it from 1.22x to **1.00x** — it
+was 1.77x when `docs/plans/terminal-perf-macos.md` was written. Output is
+byte-identical to the previous core across all twelve corpora (`gridstate.c`,
+plus conformance and ASan).
+
+The lesson is about the benchmark, not the cache: **the suite and the
+published tests disagreed, and the published test was right.** A workload that
+is 100% of one hard thing finds what a ten-workload average buries.
+
+### Suite, after both of this session's core changes
+
+Same protocol as the table at the top, both grids verified:
+
+| | ours | ghostty | |
+|---|---|---|---|
+| suite wall | **2.230 s** | 2.961 s | **0.75x** |
+| suite CPU | **3.52 s** | 8.00 s | 0.44x |
+
+Nine of ten, the lone loss `07_alt_screen` at 1.13x; `05_unicode` is a tie and
+`10_binary` is 0.32x. The two changes are the sliding grid window and the
+width cache — see the plan.
+
+### Running it
+
+    GHOSTTY=<Ghostty.app>/Contents/MacOS/ghostty ./published.sh
+
+`published.sh` retries the ghostty side until it reports the requested grid.
+That guard is not decorative: it fired on this very run — ghostty came up at
+**17x49**, where the fire draws a quarter of the cells and the cat wraps four
+times. Both of `bigcat-mac.sh` and `doomfire-mac.sh` record `grid=` in their
+header, and doomfire records `grid_after` as a second check, because the
+window is resized a moment after the shell starts.
+
+DOOM-Fire needs the upstream binary with the archived BENCH patch (stop after
+`DOOMFIRE_FRAMES`, report on stderr) plus a Zig 0.16 port — upstream pins
+0.14, which cannot link the macOS 26 SDK. `DOOM_BIN` points at it.
