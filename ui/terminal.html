@@ -501,19 +501,19 @@
         <div class="rtrack" title="Linux — 0.479 s vs ghostty 1.624 s"><i class="bar w" style="left:28.51%;width:68.14%"></i><em class="v in" style="left:96.65%">3.39&times;</em></div>
         <div class="rtrack" title="macOS — 0.189 s vs ghostty 0.545 s"><i class="bar w" style="left:28.51%;width:59.04%"></i><em class="v in" style="left:87.55%">2.88&times;</em></div>
 
-        <div class="rgroup">ghostty's published tests — 150 MB cats</div>
+        <div class="rgroup">ghostty's published tests, run at length — 500 MB cats, 150,000-frame fire</div>
 
         <div class="rlabel">ascii cat</div>
-        <div class="rtrack" title="Linux — 0.869 s vs ghostty 0.829 s"><i class="bar l" style="left:25.65%;width:2.86%"></i><em class="v" style="left:calc(28.51% + 7px)">0.95&times;</em></div>
-        <div class="rtrack" title="macOS — 0.611 s vs ghostty 0.692 s"><i class="bar w" style="left:28.51%;width:6.82%"></i><em class="v" style="left:calc(35.33% + 7px)">1.13&times;</em></div>
+        <div class="rtrack" title="Linux — 2.97 s vs ghostty 2.79 s"><i class="bar l" style="left:25.02%;width:3.49%"></i><em class="v" style="left:calc(28.51% + 7px)">0.94&times;</em></div>
+        <div class="rtrack" title="macOS — 1.82 s vs ghostty 2.01 s"><i class="bar w" style="left:28.51%;width:5.54%"></i><em class="v" style="left:calc(34.05% + 7px)">1.11&times;</em></div>
 
         <div class="rlabel">unicode cat</div>
-        <div class="rtrack" title="Linux — 0.659 s vs ghostty 0.815 s"><i class="bar w" style="left:28.51%;width:12.01%"></i><em class="v" style="left:calc(40.52% + 7px)">1.24&times;</em></div>
-        <div class="rtrack" title="macOS — 0.806 s vs ghostty 0.826 s"><i class="bar w" style="left:28.51%;width:1.10%"></i><em class="v" style="left:calc(29.61% + 7px)">1.02&times;</em></div>
+        <div class="rtrack" title="Linux — 2.88 s vs ghostty 5.15 s"><i class="bar w" style="left:28.51%;width:32.44%"></i><em class="v" style="left:calc(60.95% + 7px)">1.79&times;</em></div>
+        <div class="rtrack" title="macOS — 1.76 s vs ghostty 2.45 s"><i class="bar w" style="left:28.51%;width:18.46%"></i><em class="v" style="left:calc(46.97% + 7px)">1.39&times;</em></div>
 
         <div class="rlabel">DOOM-Fire</div>
-        <div class="rtrack" title="Linux — 1200 fps vs ghostty 701 fps"><i class="bar w" style="left:28.51%;width:29.94%"></i><em class="v" style="left:calc(58.45% + 7px)">1.71&times;</em></div>
-        <div class="rtrack" title="macOS — 1058 fps vs ghostty 960 fps"><i class="bar w" style="left:28.51%;width:5.32%"></i><em class="v" style="left:calc(33.83% + 7px)">1.10&times;</em></div>
+        <div class="rtrack" title="Linux — 1610 fps vs ghostty 830 fps"><i class="bar w" style="left:28.51%;width:36.98%"></i><em class="v" style="left:calc(65.49% + 7px)">1.94&times;</em></div>
+        <div class="rtrack" title="macOS — 1119 fps vs ghostty 1071 fps"><i class="bar w" style="left:28.51%;width:2.45%"></i><em class="v" style="left:calc(30.96% + 7px)">1.05&times;</em></div>
 
         <div class="rgroup"></div>
 
@@ -526,10 +526,15 @@
         <div class="raxis"><span class="mn" style="left:12.45%">0.75&times;</span><span style="left:28.51%">1&times;</span><span class="mn" style="left:51.14%">1.5&times;</span><span style="left:67.2%">2&times;</span><span class="mn" style="left:89.82%">3&times;</span></div>
       </div>
     </div>
-    <p class="note">Medians of three runs; hover a row for the raw values. The one test
-      ghostty keeps on Linux is the ascii cat, by ~5% — its <code>io_uring</code> read
-      path gets under the <code>read(2)</code> floor ours sits on. macOS has no io_uring,
-      and the cat flips to us.</p>
+    <p class="note">Medians of three runs; hover a row for the raw values. The ten
+      workloads are ten-second bursts; the cats and the fire are run at length,
+      because length is where sustained throughput shows — at 500 MB, ghostty's
+      Linux unicode throughput roughly halves (184 to 97 MB/s) while ours holds,
+      and at 150 MB the same cat reads a mere 1.24&times;. The one test ghostty
+      keeps is the Linux ascii cat, by ~6% — its <code>io_uring</code> read path
+      gets under the <code>read(2)</code> floor ours sits on. macOS has no
+      io_uring, and the cat flips to us; the macOS legs run this week's
+      paced-reader build.</p>
 
     <p class="dim-head">The cost — CPU and memory for the same work</p>
     <div class="cost-grid">
