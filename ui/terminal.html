@@ -210,6 +210,7 @@
                    padding-bottom: 4px; }
   .rlabel { font-size: 13.5px; color: var(--ink-dim); white-space: nowrap;
             overflow: hidden; text-overflow: ellipsis; }
+  .rlabel.tot { white-space: normal; line-height: 1.25; }
   .rgroup { grid-column: 1 / -1; font-size: 12px; letter-spacing: .07em;
             text-transform: uppercase; color: var(--ink-faint); font-weight: 600;
             border-top: 1px solid var(--line-soft); padding-top: 12px; margin-top: 6px; }
@@ -236,7 +237,6 @@
   @media (max-width: 720px) {
     .rchart { grid-template-columns: 88px 1fr 1fr; column-gap: 10px; }
     .rlabel { font-size: 12px; }
-    .rlabel.tot { white-space: normal; line-height: 1.25; }
     .rtrack .v { font-size: 10.5px; }
     .raxis .mn { display: none; }
   }
@@ -517,9 +517,13 @@
 
         <div class="rgroup"></div>
 
-        <div class="rlabel tot">All ten workloads</div>
+        <div class="rlabel tot">All ten, 10-second bursts</div>
         <div class="rtrack" title="Linux — 3.219 s vs ghostty 5.183 s"><i class="bar w" style="left:28.51%;width:26.58%"></i><em class="v tot" style="left:calc(55.09% + 7px)">1.61&times;</em></div>
         <div class="rtrack" title="macOS — 2.391 s vs ghostty 3.114 s"><i class="bar w" style="left:28.51%;width:14.64%"></i><em class="v tot" style="left:calc(43.15% + 7px)">1.30&times;</em></div>
+
+        <div class="rlabel tot">All ten, steady state</div>
+        <div class="rtrack" title="Linux — 696 s vs ghostty 960 s, each workload run 1–2 minutes"><i class="bar w" style="left:28.51%;width:17.97%"></i><em class="v tot" style="left:calc(46.48% + 7px)">1.38&times;</em></div>
+        <div class="rtrack" title="macOS — 761 s vs ghostty 974 s, each workload run 1–2 minutes"><i class="bar w" style="left:28.51%;width:13.78%"></i><em class="v tot" style="left:calc(42.29% + 7px)">1.28&times;</em></div>
 
         <div></div>
         <div class="raxis"><span class="mn" style="left:12.45%">0.75&times;</span><span style="left:28.51%">1&times;</span><span class="mn" style="left:51.14%">1.5&times;</span><span style="left:67.2%">2&times;</span><span class="mn" style="left:89.82%">3&times;</span></div>
@@ -602,24 +606,7 @@
       set no matter how much has been drawn — while ghostty's grows with load; only
       the light Linux legs leave it below us.</p>
 
-    <p class="dim-head">Steady state — every test run for minutes, not seconds</p>
-    <div class="tablewrap">
-      <table class="wide">
-        <thead>
-          <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
-          <tr><th>Test</th>
-              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
-              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td></tr>
-          <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">1081 s</td><td>2436 s</td><td class="win">2.25&times;</td></tr>
-          <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.82 s</td><td>2.01 s</td><td class="win">1.11&times;</td></tr>
-          <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">1.76 s</td><td>2.45 s</td><td class="win">1.39&times;</td></tr>
-          <tr><td>DOOM-Fire, 150,000 frames</td><td class="sep">1610 fps</td><td>830 fps</td><td class="win">1.94&times;</td><td class="sep">1119 fps</td><td>1071 fps</td><td class="win">1.05&times;</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <p class="dim-head">The steady-state rounds</p>
     <p class="note">
       The same suite repeated until each workload runs one to two minutes (~159 GB of
       escape-sequence traffic per terminal on Linux, ~30 GB on macOS), the cats grown
@@ -698,6 +685,25 @@
               <tr><td>Linux, after two 500 MB cats</td><td>225 MB</td><td>256 MB</td><td class="win">&minus;31 MB</td></tr>
               <tr><td>macOS, after 30 GB of suite</td><td>130 MB</td><td>155 MB</td><td class="win">&minus;25 MB</td></tr>
               <tr><td>macOS, after two 500 MB cats</td><td>130 MB</td><td>176 MB</td><td class="win">&minus;46 MB</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="dim-head">Steady state — every test run for minutes, not seconds</p>
+        <div class="tablewrap">
+          <table class="wide">
+            <thead>
+              <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
+              <tr><th>Test</th>
+                  <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
+                  <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td></tr>
+              <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">1081 s</td><td>2436 s</td><td class="win">2.25&times;</td></tr>
+              <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.82 s</td><td>2.01 s</td><td class="win">1.11&times;</td></tr>
+              <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">1.76 s</td><td>2.45 s</td><td class="win">1.39&times;</td></tr>
+              <tr><td>DOOM-Fire, 150,000 frames</td><td class="sep">1610 fps</td><td>830 fps</td><td class="win">1.94&times;</td><td class="sep">1119 fps</td><td>1071 fps</td><td class="win">1.05&times;</td></tr>
             </tbody>
           </table>
         </div>
