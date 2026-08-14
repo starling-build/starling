@@ -24,6 +24,7 @@
     --amber-soft:#fbbf5c;
     --sky:       #5aa9e6;
     --green:     #7fd1a0;
+    --gh:        #6b7690;
     --maxw:      1120px;
   }
 
@@ -182,6 +183,102 @@
   .dim-head { font-size: 16px; font-weight: 620; color: var(--ink); margin: 36px 0 0; }
   .dim-head + .tablewrap { margin-top: 12px; }
 
+  /* ---------- race hero ---------- */
+  .race { margin-top: 44px; }
+  .plat { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .plat span { font-size: 13.5px; color: var(--ink-dim); border: 1px solid var(--line);
+               border-radius: 8px; padding: 5px 12px; background: var(--bg-sunk); }
+  .plat span.active { color: var(--amber-soft); border-color: rgba(240,160,42,.45);
+                      background: rgba(240,160,42,.08); font-weight: 600; }
+  .plat span.soon { color: var(--ink-faint); border-style: dashed; }
+
+  /* ---------- charts ---------- */
+  .chart-card { border: 1px solid var(--line); border-radius: 12px;
+                background: var(--bg-sunk); padding: 20px 20px 14px; margin-top: 12px; }
+  .chart-key { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline;
+               font-size: 13px; color: var(--ink-dim); margin-bottom: 16px; }
+  .chart-key .k { display: inline-flex; align-items: center; gap: 7px; }
+  .chart-key .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .chart-key .sw.s { background: var(--amber); }
+  .chart-key .sw.g { background: var(--gh); }
+  .chart-key .hint { color: var(--ink-faint); margin-left: auto; }
+
+  .rchart { display: grid; grid-template-columns: 122px 1fr 1fr;
+            column-gap: 18px; row-gap: 7px; align-items: center; }
+  .rchart .phead { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase;
+                   color: var(--ink-faint); font-weight: 600; text-align: center;
+                   padding-bottom: 4px; }
+  .rlabel { font-size: 13.5px; color: var(--ink-dim); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; }
+  .rgroup { grid-column: 1 / -1; font-size: 12px; letter-spacing: .07em;
+            text-transform: uppercase; color: var(--ink-faint); font-weight: 600;
+            border-top: 1px solid var(--line-soft); padding-top: 12px; margin-top: 6px; }
+  .rlabel.tot, .rtrack .v.tot { color: var(--ink); font-weight: 640; }
+  .rtrack { position: relative; height: 22px;
+            background-image: linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(#2b3652, #2b3652);
+            background-repeat: no-repeat; background-size: 1px 100%;
+            background-position: 12.45% 0, 51.14% 0, 67.2% 0, 89.82% 0, 28.51% 0; }
+  .rtrack .bar { position: absolute; top: 5px; height: 12px; }
+  .rtrack .bar.w { background: var(--amber); border-radius: 0 4px 4px 0; }
+  .rtrack .bar.l { background: var(--gh); border-radius: 4px 0 0 4px; }
+  .rtrack .v { position: absolute; top: 50%; transform: translateY(-50%);
+               font-size: 12px; color: var(--ink-dim); white-space: nowrap;
+               font-variant-numeric: tabular-nums; }
+  .rtrack .v.in { color: #16130a; font-weight: 640; transform: translate(-100%, -50%);
+                  padding-right: 7px; }
+  .raxis { position: relative; height: 18px; font-size: 11.5px; color: var(--ink-faint);
+           font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .raxis span { position: absolute; transform: translateX(-50%); }
+  @media (max-width: 720px) {
+    .rchart { grid-template-columns: 88px 1fr 1fr; column-gap: 10px; }
+    .rlabel { font-size: 12px; }
+    .rlabel.tot { white-space: normal; line-height: 1.25; }
+    .rtrack .v { font-size: 10.5px; }
+    .raxis .mn { display: none; }
+  }
+
+  .cost-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+               margin-top: 12px; }
+  @media (max-width: 860px) { .cost-grid { grid-template-columns: 1fr; } }
+  .card-title { font-size: 15px; font-weight: 620; color: var(--ink); }
+  .card-sub { font-size: 12.5px; color: var(--ink-faint); margin: 2px 0 14px; }
+  .cpu-plat { display: flex; justify-content: space-between; align-items: baseline;
+              font-size: 13px; color: var(--ink); font-weight: 620; margin: 10px 0 6px; }
+  .cpu-plat span { color: var(--ink-faint); font-weight: 500; font-size: 12.5px; }
+  .cpu-row { display: grid; grid-template-columns: 58px 1fr; align-items: center;
+             gap: 10px; margin-bottom: 5px; }
+  .cpu-row .who { font-size: 12.5px; color: var(--ink-faint); }
+  .cpu-row .track { position: relative; height: 16px; }
+  .cpu-row .bar { position: absolute; top: 2px; height: 12px;
+                  border-radius: 0 4px 4px 0; }
+  .cpu-row .bar.s { background: var(--amber); }
+  .cpu-row .bar.g { background: var(--gh); }
+  .cpu-row .v { position: absolute; top: 50%; transform: translateY(-50%);
+                font-size: 12px; color: var(--ink-dim); white-space: nowrap;
+                font-variant-numeric: tabular-nums; }
+  .card-foot { margin-top: 12px; font-size: 12.5px; color: var(--ink-faint);
+               line-height: 1.55; }
+  .mem-svg { width: 100%; height: auto; display: block; }
+  .cost-grid .chart-card { display: flex; flex-direction: column; }
+  .cost-grid .mem-svg { margin: auto 0; }
+
+  /* ---------- receipts ---------- */
+  details.receipts { margin-top: 36px; border: 1px solid var(--line);
+                     border-radius: 12px; background: var(--bg-raised); }
+  details.receipts > summary { list-style: none; cursor: pointer; padding: 16px 20px;
+                               font-size: 15px; font-weight: 600; color: var(--ink-dim); }
+  details.receipts > summary::-webkit-details-marker { display: none; }
+  details.receipts > summary::before { content: "▸"; margin-right: 10px;
+                                       color: var(--ink-faint); }
+  details.receipts[open] > summary::before { content: "▾"; }
+  details.receipts > summary:hover { color: var(--ink); }
+  details.receipts .inner { padding: 0 20px 20px; }
+  details.receipts .dim-head:first-child { margin-top: 0; }
+
   /* ---------- code ---------- */
   .code-col { border: 1px solid var(--line); border-radius: 12px;
               background: var(--bg-sunk); overflow: hidden; margin-top: 28px; }
@@ -264,24 +361,24 @@
     <p class="lede">
       Linux, Windows and macOS. Tiling or floating, from one toggle — and faster
       than the ghostty nightly on both Linux and macOS, at half the CPU or less.
+      Below: both terminals on one machine, same 122&times;233 grid, three tests,
+      one take.
     </p>
   </div>
 
-  <div class="wrap duo">
-    <div>
-      <div class="frame">
-        <video src="video/terminal-tiling.mp4" poster="img/terminal-poster.jpg"
-               autoplay loop muted playsinline></video>
-      </div>
-      <div class="shot-label"><b>Tiling</b><span>seams drag, shells resize live</span></div>
+  <div class="wrap race">
+    <div class="plat">
+      <span class="active">Linux</span>
+      <span class="soon">macOS — soon</span>
+      <span class="soon">Windows — soon</span>
     </div>
-    <div>
-      <div class="frame">
-        <video src="video/terminal-floating.mp4" poster="img/terminal-floating-poster.jpg"
-               autoplay loop muted playsinline></video>
-      </div>
-      <div class="shot-label"><b>Floating</b><span>pick a window by its cover</span></div>
+    <div class="frame">
+      <video src="video/terminal-race-linux.mp4" poster="img/terminal-race-linux-poster.jpg"
+             autoplay loop muted playsinline controls></video>
     </div>
+    <div class="shot-label"><b>Starling vs ghostty, head to head</b>
+      <span>a 1.26 GB ascii cat, a 1.29 GB unicode cat, DOOM-Fire for 10,200 frames —
+      Starling finishes all three in 39.6 s, ghostty in 57.0 s</span></div>
   </div>
 </div>
 
@@ -311,6 +408,33 @@
   </div>
 </section>
 
+<!-- ============================ the workspace ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">The workspace</div>
+    <h2>Tiling or floating — one toggle.</h2>
+    <p>The same workspace runs both ways. Tiling gives every shell a pane and
+       draggable seams; floating gives each shell its own window and a cover-flow
+       picker. Flip between them live, shells intact.</p>
+  </div>
+  <div class="wrap duo">
+    <div>
+      <div class="frame">
+        <video src="video/terminal-tiling.mp4" poster="img/terminal-poster.jpg"
+               autoplay loop muted playsinline></video>
+      </div>
+      <div class="shot-label"><b>Tiling</b><span>seams drag, shells resize live</span></div>
+    </div>
+    <div>
+      <div class="frame">
+        <video src="video/terminal-floating.mp4" poster="img/terminal-floating-poster.jpg"
+               autoplay loop muted playsinline></video>
+      </div>
+      <div class="shot-label"><b>Floating</b><span>pick a window by its cover</span></div>
+    </div>
+  </div>
+</section>
+
 <!-- ============================ performance ============================ -->
 <section>
   <div class="wrap narrow prose">
@@ -320,98 +444,163 @@
        at our cell metrics, at the same verified 47&times;201 grid — so cell for cell,
        both terminals raster the same pixels. Ten workloads, medians of three runs.
        Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a MacBook Pro (M1 Pro),
-       our build on a full release engine. Every ratio below is a multiple in
-       Starling's favour: <strong>above 1.00&times;, Starling is ahead</strong>;
-       below it, ghostty is.</p>
+       our build on a full release engine. Every bar below is a multiple of
+       ghostty's pace, on a log scale so a 2&times; win and a 2&times; loss have
+       equal length: <strong>amber, rightward — Starling is ahead</strong>; grey,
+       leftward — ghostty is. Every raw second sits in the tables at the end of
+       the section.</p>
   </div>
 
   <div class="wrap narrow">
-    <p class="dim-head">Raw speed — seconds to drain each workload</p>
-    <div class="tablewrap">
-      <table class="wide">
-        <thead>
-          <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
-          <tr><th>Workload</th>
-              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
-              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Light cells</td><td class="sep">0.586</td><td>0.497</td><td class="loss">0.85&times;</td><td class="sep">0.111</td><td>0.149</td><td class="win">1.34&times;</td></tr>
-          <tr><td>Dense cells</td><td class="sep">0.249</td><td>0.173</td><td class="loss">0.69&times;</td><td class="sep">0.129</td><td>0.145</td><td class="win">1.12&times;</td></tr>
-          <tr><td>Coloured text</td><td class="sep">0.387</td><td>1.039</td><td class="win">2.68&times;</td><td class="sep">0.438</td><td>0.642</td><td class="win">1.47&times;</td></tr>
-          <tr><td>Truecolour</td><td class="sep">0.390</td><td>0.761</td><td class="win">1.95&times;</td><td class="sep">0.619</td><td>0.713</td><td class="win">1.15&times;</td></tr>
-          <tr><td>Unicode</td><td class="sep">0.334</td><td>0.316</td><td class="loss">0.95&times;</td><td class="sep">0.323</td><td>0.305</td><td class="loss">0.94&times;</td></tr>
-          <tr><td>Cursor motion</td><td class="sep">0.022</td><td>0.034</td><td class="win">1.55&times;</td><td class="sep">0.031</td><td>0.037</td><td class="win">1.19&times;</td></tr>
-          <tr><td>Alt screen</td><td class="sep">0.117</td><td>0.135</td><td class="win">1.15&times;</td><td class="sep">0.207</td><td>0.180</td><td class="loss">0.87&times;</td></tr>
-          <tr><td>Scroll region</td><td class="sep">0.510</td><td>0.457</td><td class="loss">0.90&times;</td><td class="sep">0.181</td><td>0.217</td><td class="win">1.20&times;</td></tr>
-          <tr><td>Long lines</td><td class="sep">0.145</td><td>0.147</td><td>1.01&times;</td><td class="sep">0.163</td><td>0.181</td><td class="win">1.11&times;</td></tr>
-          <tr><td>Binary dump</td><td class="sep">0.479</td><td>1.624</td><td class="win">3.39&times;</td><td class="sep">0.189</td><td>0.545</td><td class="win">2.88&times;</td></tr>
-          <tr class="total"><td>All ten workloads</td><td class="sep">3.219</td><td>5.183</td><td class="win">1.61&times;</td><td class="sep">2.391</td><td>3.114</td><td class="win">1.30&times;</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">Seconds compare within a platform, not across it: the Linux round ran
-      on a 30 Hz display, which slows both terminals' absolute times equally. The ratios
-      carry.</p>
+    <p class="dim-head">Speed — thirteen tests, both platforms</p>
+    <div class="chart-card">
+      <div class="chart-key">
+        <span class="k"><i class="sw s"></i>Starling ahead</span>
+        <span class="k"><i class="sw g"></i>ghostty ahead</span>
+        <span class="hint">1&times; = ghostty's pace &middot; log scale</span>
+      </div>
+      <div class="rchart">
+        <div></div><div class="phead">Linux</div><div class="phead">macOS</div>
 
-    <p class="dim-head">CPU — what the suite costs the machine</p>
-    <div class="tablewrap">
-      <table>
-        <thead>
-          <tr><th>Ten workloads</th><th>Starling</th><th>ghostty</th><th>Speedup</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Linux</td><td>4.46 s</td><td>9.66 s</td><td class="win">2.17&times;</td></tr>
-          <tr><td>macOS</td><td>2.38 s</td><td>8.02 s</td><td class="win">3.37&times;</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">CPU-seconds charged to the terminal's own process, read around each
-      workload. The wall-time wins are not bought with cores: ghostty burns 2.17&times;
-      the CPU on Linux and 3.37&times; on macOS to run the same suite.</p>
+        <div class="rlabel">Light cells</div>
+        <div class="rtrack" title="Linux — 0.586 s vs ghostty 0.497 s"><i class="bar l" style="left:19.44%;width:9.07%"></i><em class="v" style="left:calc(28.51% + 7px)">0.85&times;</em></div>
+        <div class="rtrack" title="macOS — 0.111 s vs ghostty 0.149 s"><i class="bar w" style="left:28.51%;width:16.33%"></i><em class="v" style="left:calc(44.84% + 7px)">1.34&times;</em></div>
 
-    <p class="dim-head">Memory — resident set</p>
-    <div class="tablewrap">
-      <table>
-        <thead>
-          <tr><th>Sampled at</th><th>Starling</th><th>ghostty</th><th>Delta</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Linux, after the suite</td><td>226 MB</td><td>209 MB</td><td class="loss">+17 MB</td></tr>
-          <tr><td>Linux, after 159 GB of suite</td><td>225 MB</td><td>212 MB</td><td class="loss">+13 MB</td></tr>
-          <tr><td>Linux, after two 500 MB cats</td><td>225 MB</td><td>256 MB</td><td class="win">&minus;31 MB</td></tr>
-          <tr><td>macOS, after the suite</td><td>121 MB</td><td>127 MB</td><td class="win">&minus;6 MB</td></tr>
-          <tr><td>macOS, after 30 GB of suite</td><td>121 MB</td><td>155 MB</td><td class="win">&minus;34 MB</td></tr>
-          <tr><td>macOS, after two 500 MB cats</td><td>121 MB</td><td>177 MB</td><td class="win">&minus;56 MB</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="note">Flat on both platforms — Starling's resident set is the same 225 MB
-      (Linux) / 121 MB (macOS) whether it has drawn one suite or 159 GB. ghostty's
-      grows with load on both platforms; only the light Linux legs leave it below us.</p>
+        <div class="rlabel">Dense cells</div>
+        <div class="rtrack" title="Linux — 0.249 s vs ghostty 0.173 s"><i class="bar l" style="left:7.80%;width:20.71%"></i><em class="v" style="left:calc(28.51% + 7px)">0.69&times;</em></div>
+        <div class="rtrack" title="macOS — 0.129 s vs ghostty 0.145 s"><i class="bar w" style="left:28.51%;width:6.32%"></i><em class="v" style="left:calc(34.83% + 7px)">1.12&times;</em></div>
 
-    <p class="dim-head">ghostty's own three tests</p>
-    <div class="tablewrap">
-      <table class="wide">
-        <thead>
-          <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
-          <tr><th>Test</th>
-              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
-              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>ascii cat, 150 MB</td><td class="sep">0.869 s</td><td>0.829 s</td><td class="loss">0.95&times;</td><td class="sep">0.611 s</td><td>0.692 s</td><td class="win">1.13&times;</td></tr>
-          <tr><td>unicode cat, 150 MB</td><td class="sep">0.659 s</td><td>0.815 s</td><td class="win">1.24&times;</td><td class="sep">0.806 s</td><td>0.826 s</td><td>1.02&times;</td></tr>
-          <tr><td>DOOM-Fire</td><td class="sep">1200 fps</td><td>701 fps</td><td class="win">1.71&times;</td><td class="sep">1058 fps</td><td>960 fps</td><td class="win">1.10&times;</td></tr>
-        </tbody>
-      </table>
+        <div class="rlabel">Coloured text</div>
+        <div class="rtrack" title="Linux — 0.387 s vs ghostty 1.039 s"><i class="bar w" style="left:28.51%;width:55.02%"></i><em class="v" style="left:calc(83.53% + 7px)">2.68&times;</em></div>
+        <div class="rtrack" title="macOS — 0.438 s vs ghostty 0.642 s"><i class="bar w" style="left:28.51%;width:21.50%"></i><em class="v" style="left:calc(50.01% + 7px)">1.47&times;</em></div>
+
+        <div class="rlabel">Truecolour</div>
+        <div class="rtrack" title="Linux — 0.390 s vs ghostty 0.761 s"><i class="bar w" style="left:28.51%;width:37.27%"></i><em class="v" style="left:calc(65.78% + 7px)">1.95&times;</em></div>
+        <div class="rtrack" title="macOS — 0.619 s vs ghostty 0.713 s"><i class="bar w" style="left:28.51%;width:7.80%"></i><em class="v" style="left:calc(36.31% + 7px)">1.15&times;</em></div>
+
+        <div class="rlabel">Unicode</div>
+        <div class="rtrack" title="Linux — 0.334 s vs ghostty 0.316 s"><i class="bar l" style="left:25.65%;width:2.86%"></i><em class="v" style="left:calc(28.51% + 7px)">0.95&times;</em></div>
+        <div class="rtrack" title="macOS — 0.323 s vs ghostty 0.305 s"><i class="bar l" style="left:25.06%;width:3.45%"></i><em class="v" style="left:calc(28.51% + 7px)">0.94&times;</em></div>
+
+        <div class="rlabel">Cursor motion</div>
+        <div class="rtrack" title="Linux — 0.022 s vs ghostty 0.034 s"><i class="bar w" style="left:28.51%;width:24.46%"></i><em class="v" style="left:calc(52.97% + 7px)">1.55&times;</em></div>
+        <div class="rtrack" title="macOS — 0.031 s vs ghostty 0.037 s"><i class="bar w" style="left:28.51%;width:9.71%"></i><em class="v" style="left:calc(38.22% + 7px)">1.19&times;</em></div>
+
+        <div class="rlabel">Alt screen</div>
+        <div class="rtrack" title="Linux — 0.117 s vs ghostty 0.135 s"><i class="bar w" style="left:28.51%;width:7.80%"></i><em class="v" style="left:calc(36.31% + 7px)">1.15&times;</em></div>
+        <div class="rtrack" title="macOS — 0.207 s vs ghostty 0.180 s"><i class="bar l" style="left:20.74%;width:7.77%"></i><em class="v" style="left:calc(28.51% + 7px)">0.87&times;</em></div>
+
+        <div class="rlabel">Scroll region</div>
+        <div class="rtrack" title="Linux — 0.510 s vs ghostty 0.457 s"><i class="bar l" style="left:22.63%;width:5.88%"></i><em class="v" style="left:calc(28.51% + 7px)">0.90&times;</em></div>
+        <div class="rtrack" title="macOS — 0.181 s vs ghostty 0.217 s"><i class="bar w" style="left:28.51%;width:10.18%"></i><em class="v" style="left:calc(38.69% + 7px)">1.20&times;</em></div>
+
+        <div class="rlabel">Long lines</div>
+        <div class="rtrack" title="Linux — 0.145 s vs ghostty 0.147 s"><i class="bar w" style="left:28.51%;width:0.56%"></i><em class="v" style="left:calc(29.07% + 7px)">1.01&times;</em></div>
+        <div class="rtrack" title="macOS — 0.163 s vs ghostty 0.181 s"><i class="bar w" style="left:28.51%;width:5.82%"></i><em class="v" style="left:calc(34.33% + 7px)">1.11&times;</em></div>
+
+        <div class="rlabel">Binary dump</div>
+        <div class="rtrack" title="Linux — 0.479 s vs ghostty 1.624 s"><i class="bar w" style="left:28.51%;width:68.14%"></i><em class="v in" style="left:96.65%">3.39&times;</em></div>
+        <div class="rtrack" title="macOS — 0.189 s vs ghostty 0.545 s"><i class="bar w" style="left:28.51%;width:59.04%"></i><em class="v in" style="left:87.55%">2.88&times;</em></div>
+
+        <div class="rgroup">ghostty's published tests — 150 MB cats</div>
+
+        <div class="rlabel">ascii cat</div>
+        <div class="rtrack" title="Linux — 0.869 s vs ghostty 0.829 s"><i class="bar l" style="left:25.65%;width:2.86%"></i><em class="v" style="left:calc(28.51% + 7px)">0.95&times;</em></div>
+        <div class="rtrack" title="macOS — 0.611 s vs ghostty 0.692 s"><i class="bar w" style="left:28.51%;width:6.82%"></i><em class="v" style="left:calc(35.33% + 7px)">1.13&times;</em></div>
+
+        <div class="rlabel">unicode cat</div>
+        <div class="rtrack" title="Linux — 0.659 s vs ghostty 0.815 s"><i class="bar w" style="left:28.51%;width:12.01%"></i><em class="v" style="left:calc(40.52% + 7px)">1.24&times;</em></div>
+        <div class="rtrack" title="macOS — 0.806 s vs ghostty 0.826 s"><i class="bar w" style="left:28.51%;width:1.10%"></i><em class="v" style="left:calc(29.61% + 7px)">1.02&times;</em></div>
+
+        <div class="rlabel">DOOM-Fire</div>
+        <div class="rtrack" title="Linux — 1200 fps vs ghostty 701 fps"><i class="bar w" style="left:28.51%;width:29.94%"></i><em class="v" style="left:calc(58.45% + 7px)">1.71&times;</em></div>
+        <div class="rtrack" title="macOS — 1058 fps vs ghostty 960 fps"><i class="bar w" style="left:28.51%;width:5.32%"></i><em class="v" style="left:calc(33.83% + 7px)">1.10&times;</em></div>
+
+        <div class="rgroup"></div>
+
+        <div class="rlabel tot">All ten workloads</div>
+        <div class="rtrack" title="Linux — 3.219 s vs ghostty 5.183 s"><i class="bar w" style="left:28.51%;width:26.58%"></i><em class="v tot" style="left:calc(55.09% + 7px)">1.61&times;</em></div>
+        <div class="rtrack" title="macOS — 2.391 s vs ghostty 3.114 s"><i class="bar w" style="left:28.51%;width:14.64%"></i><em class="v tot" style="left:calc(43.15% + 7px)">1.30&times;</em></div>
+
+        <div></div>
+        <div class="raxis"><span class="mn" style="left:12.45%">0.75&times;</span><span style="left:28.51%">1&times;</span><span class="mn" style="left:51.14%">1.5&times;</span><span style="left:67.2%">2&times;</span><span class="mn" style="left:89.82%">3&times;</span></div>
+        <div class="raxis"><span class="mn" style="left:12.45%">0.75&times;</span><span style="left:28.51%">1&times;</span><span class="mn" style="left:51.14%">1.5&times;</span><span style="left:67.2%">2&times;</span><span class="mn" style="left:89.82%">3&times;</span></div>
+      </div>
     </div>
-    <p class="note">
-      Raw values are seconds for the cats and frames per second for DOOM-Fire; the
-      speedup is Starling's multiple either way. The one test ghostty keeps is the
-      Linux ascii cat, by ~5% — its <code>io_uring</code> read path gets under the
-      <code>read(2)</code> floor ours sits on. macOS has no io_uring, and the cat flips
-      to us. CPU is ours on all six legs — ghostty spends 1.4–2.8&times; as much.</p>
+    <p class="note">Medians of three runs; hover a row for the raw values. The one test
+      ghostty keeps on Linux is the ascii cat, by ~5% — its <code>io_uring</code> read
+      path gets under the <code>read(2)</code> floor ours sits on. macOS has no io_uring,
+      and the cat flips to us.</p>
+
+    <p class="dim-head">The cost — CPU and memory for the same work</p>
+    <div class="cost-grid">
+      <div class="chart-card">
+        <div class="card-title">CPU to run the suite</div>
+        <div class="card-sub">process CPU-seconds, all ten workloads</div>
+        <div class="cpu-plat"><b>Linux</b><span>ghostty burns 2.17&times;</span></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:34.3%"></i><em class="v" style="left:calc(34.3% + 7px)">4.5 s</em></div></div>
+        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:74.3%"></i><em class="v" style="left:calc(74.3% + 7px)">9.7 s</em></div></div>
+        <div class="cpu-plat"><b>macOS</b><span>ghostty burns 3.37&times;</span></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:18.3%"></i><em class="v" style="left:calc(18.3% + 7px)">2.4 s</em></div></div>
+        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:61.7%"></i><em class="v" style="left:calc(61.7% + 7px)">8.0 s</em></div></div>
+        <p class="card-foot">The wall-time wins are not bought with cores — and the gap
+          holds at steady state: 1.87&times; on Linux, 2.96&times; on macOS.</p>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">Memory — Linux</div>
+        <div class="card-sub">resident set, MB, as load accumulates</div>
+        <svg class="mem-svg" viewBox="0 0 300 146" role="img"
+             aria-label="Linux resident set: Starling flat at 225 MB from one suite to 159 GB to the 500 MB cats; ghostty grows from 209 to 256 MB">
+          <line x1="24" y1="10" x2="24" y2="114" stroke="#182135"/>
+          <line x1="150" y1="10" x2="150" y2="114" stroke="#182135"/>
+          <line x1="276" y1="10" x2="276" y2="114" stroke="#182135"/>
+          <polyline points="24,95.6 150,90.8 276,20.4" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="24,68.4 150,70 276,70" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="24" cy="95.6" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="150" cy="90.8" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="20.4" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="24" cy="68.4" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="150" cy="70" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="70" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <text x="24" y="59" font-size="11" fill="#97a3b8">Starling &middot; 226</text>
+          <text x="24" y="112" font-size="11" fill="#97a3b8">ghostty &middot; 209</text>
+          <text x="276" y="87" font-size="11" fill="#97a3b8" text-anchor="end">225 MB</text>
+          <text x="276" y="12" font-size="11" fill="#97a3b8" text-anchor="end">256 MB</text>
+          <text x="24" y="136" font-size="10.5" fill="#64708a">after the suite</text>
+          <text x="150" y="136" font-size="10.5" fill="#64708a" text-anchor="middle">after 159 GB</text>
+          <text x="276" y="136" font-size="10.5" fill="#64708a" text-anchor="end">after the cats</text>
+        </svg>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">Memory — macOS</div>
+        <div class="card-sub">resident set, MB, as load accumulates</div>
+        <svg class="mem-svg" viewBox="0 0 300 146" role="img"
+             aria-label="macOS resident set: Starling flat at 121 MB throughout; ghostty grows from 127 to 177 MB">
+          <line x1="24" y1="10" x2="24" y2="114" stroke="#182135"/>
+          <line x1="150" y1="10" x2="150" y2="114" stroke="#182135"/>
+          <line x1="276" y1="10" x2="276" y2="114" stroke="#182135"/>
+          <polyline points="24,86.7 150,48.3 276,18.1" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="24,94.9 150,94.9 276,94.9" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="24" cy="86.7" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="150" cy="48.3" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="18.1" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="24" cy="94.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="150" cy="94.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="94.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <text x="24" y="78" font-size="11" fill="#97a3b8">ghostty &middot; 127</text>
+          <text x="24" y="112" font-size="11" fill="#97a3b8">Starling &middot; 121</text>
+          <text x="276" y="111" font-size="11" fill="#97a3b8" text-anchor="end">121 MB</text>
+          <text x="276" y="10" font-size="11" fill="#97a3b8" text-anchor="end">177 MB</text>
+          <text x="24" y="136" font-size="10.5" fill="#64708a">after the suite</text>
+          <text x="150" y="136" font-size="10.5" fill="#64708a" text-anchor="middle">after 30 GB</text>
+          <text x="276" y="136" font-size="10.5" fill="#64708a" text-anchor="end">after the cats</text>
+        </svg>
+      </div>
+    </div>
+    <p class="note">CPU-seconds are charged to the terminal's own process, read around
+      each workload. Memory is flat on our side of both platforms — the same resident
+      set after one suite or 159 GB — while ghostty's grows with load; only the light
+      Linux legs leave it below us.</p>
 
     <p class="dim-head">Steady state — every test run for minutes, not seconds</p>
     <div class="tablewrap">
@@ -448,6 +637,89 @@
       <code>terminal-vs-ghostty-macos-2026-08-13-samefont</code>, and the two
       steady-state rounds, <code>-long</code>).
     </p>
+
+    <details class="receipts">
+      <summary>Every number behind the charts — the raw tables</summary>
+      <div class="inner">
+        <p class="dim-head">Raw speed — seconds to drain each workload</p>
+        <div class="tablewrap">
+          <table class="wide">
+            <thead>
+              <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
+              <tr><th>Workload</th>
+                  <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
+                  <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Light cells</td><td class="sep">0.586</td><td>0.497</td><td class="loss">0.85&times;</td><td class="sep">0.111</td><td>0.149</td><td class="win">1.34&times;</td></tr>
+              <tr><td>Dense cells</td><td class="sep">0.249</td><td>0.173</td><td class="loss">0.69&times;</td><td class="sep">0.129</td><td>0.145</td><td class="win">1.12&times;</td></tr>
+              <tr><td>Coloured text</td><td class="sep">0.387</td><td>1.039</td><td class="win">2.68&times;</td><td class="sep">0.438</td><td>0.642</td><td class="win">1.47&times;</td></tr>
+              <tr><td>Truecolour</td><td class="sep">0.390</td><td>0.761</td><td class="win">1.95&times;</td><td class="sep">0.619</td><td>0.713</td><td class="win">1.15&times;</td></tr>
+              <tr><td>Unicode</td><td class="sep">0.334</td><td>0.316</td><td class="loss">0.95&times;</td><td class="sep">0.323</td><td>0.305</td><td class="loss">0.94&times;</td></tr>
+              <tr><td>Cursor motion</td><td class="sep">0.022</td><td>0.034</td><td class="win">1.55&times;</td><td class="sep">0.031</td><td>0.037</td><td class="win">1.19&times;</td></tr>
+              <tr><td>Alt screen</td><td class="sep">0.117</td><td>0.135</td><td class="win">1.15&times;</td><td class="sep">0.207</td><td>0.180</td><td class="loss">0.87&times;</td></tr>
+              <tr><td>Scroll region</td><td class="sep">0.510</td><td>0.457</td><td class="loss">0.90&times;</td><td class="sep">0.181</td><td>0.217</td><td class="win">1.20&times;</td></tr>
+              <tr><td>Long lines</td><td class="sep">0.145</td><td>0.147</td><td>1.01&times;</td><td class="sep">0.163</td><td>0.181</td><td class="win">1.11&times;</td></tr>
+              <tr><td>Binary dump</td><td class="sep">0.479</td><td>1.624</td><td class="win">3.39&times;</td><td class="sep">0.189</td><td>0.545</td><td class="win">2.88&times;</td></tr>
+              <tr class="total"><td>All ten workloads</td><td class="sep">3.219</td><td>5.183</td><td class="win">1.61&times;</td><td class="sep">2.391</td><td>3.114</td><td class="win">1.30&times;</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Seconds compare within a platform, not across it: the Linux round ran
+          on a 30 Hz display, which slows both terminals' absolute times equally. The ratios
+          carry.</p>
+
+        <p class="dim-head">CPU — what the suite costs the machine</p>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr><th>Ten workloads</th><th>Starling</th><th>ghostty</th><th>Speedup</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Linux</td><td>4.46 s</td><td>9.66 s</td><td class="win">2.17&times;</td></tr>
+              <tr><td>macOS</td><td>2.38 s</td><td>8.02 s</td><td class="win">3.37&times;</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="dim-head">Memory — resident set</p>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr><th>Sampled at</th><th>Starling</th><th>ghostty</th><th>Delta</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Linux, after the suite</td><td>226 MB</td><td>209 MB</td><td class="loss">+17 MB</td></tr>
+              <tr><td>Linux, after 159 GB of suite</td><td>225 MB</td><td>212 MB</td><td class="loss">+13 MB</td></tr>
+              <tr><td>Linux, after two 500 MB cats</td><td>225 MB</td><td>256 MB</td><td class="win">&minus;31 MB</td></tr>
+              <tr><td>macOS, after the suite</td><td>121 MB</td><td>127 MB</td><td class="win">&minus;6 MB</td></tr>
+              <tr><td>macOS, after 30 GB of suite</td><td>121 MB</td><td>155 MB</td><td class="win">&minus;34 MB</td></tr>
+              <tr><td>macOS, after two 500 MB cats</td><td>121 MB</td><td>177 MB</td><td class="win">&minus;56 MB</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="dim-head">ghostty's own three tests</p>
+        <div class="tablewrap">
+          <table class="wide">
+            <thead>
+              <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
+              <tr><th>Test</th>
+                  <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
+                  <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>ascii cat, 150 MB</td><td class="sep">0.869 s</td><td>0.829 s</td><td class="loss">0.95&times;</td><td class="sep">0.611 s</td><td>0.692 s</td><td class="win">1.13&times;</td></tr>
+              <tr><td>unicode cat, 150 MB</td><td class="sep">0.659 s</td><td>0.815 s</td><td class="win">1.24&times;</td><td class="sep">0.806 s</td><td>0.826 s</td><td>1.02&times;</td></tr>
+              <tr><td>DOOM-Fire</td><td class="sep">1200 fps</td><td>701 fps</td><td class="win">1.71&times;</td><td class="sep">1058 fps</td><td>960 fps</td><td class="win">1.10&times;</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Raw values are seconds for the cats and frames per second for
+          DOOM-Fire; the speedup is Starling's multiple either way. CPU is ours on all
+          six legs — ghostty spends 1.4–2.8&times; as much.</p>
+      </div>
+    </details>
   </div>
 </section>
 
