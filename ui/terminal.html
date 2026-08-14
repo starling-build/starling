@@ -189,6 +189,8 @@
   .plat span.active { color: var(--amber-soft); border-color: rgba(240,160,42,.45);
                       background: rgba(240,160,42,.08); font-weight: 600; }
   .plat span.soon { color: var(--ink-faint); border-style: dashed; }
+  .plat span[data-src] { cursor: pointer; }
+  .plat span[data-src]:not(.active):hover { color: var(--ink); border-color: #2c3852; }
 
   /* ---------- charts ---------- */
   .chart-card { border: 1px solid var(--line); border-radius: 12px;
@@ -366,19 +368,45 @@
 
   <div class="wrap race">
     <div class="plat">
-      <span class="active">Linux</span>
-      <span class="soon">macOS — soon</span>
+      <span class="active" data-src="video/terminal-race-linux.mp4"
+            data-poster="img/terminal-race-linux-poster.jpg"
+            data-cap="a 1.26 GB ascii cat, a 1.29 GB unicode cat, DOOM-Fire for 10,200 frames — Starling finishes all three in 39.6 s, ghostty in 57.0 s">Linux</span>
+      <span data-src="video/terminal-race-macos.mp4"
+            data-poster="img/terminal-race-macos-poster.jpg"
+            data-cap="500 MB ascii and unicode cats, then DOOM-Fire for 15,000 frames, on macOS 26.6.1 — contending for the same cores the two finish in a photo-finish; the measured solo rounds below are the record">macOS</span>
       <span class="soon">Windows — soon</span>
     </div>
     <div class="frame">
-      <video src="video/terminal-race-linux.mp4" poster="img/terminal-race-linux-poster.jpg"
+      <video id="race-video" src="video/terminal-race-linux.mp4"
+             poster="img/terminal-race-linux-poster.jpg"
              autoplay loop muted playsinline controls></video>
     </div>
     <div class="shot-label"><b>Starling vs ghostty, head to head</b>
-      <span>a 1.26 GB ascii cat, a 1.29 GB unicode cat, DOOM-Fire for 10,200 frames —
-      Starling finishes all three in 39.6 s, ghostty in 57.0 s</span></div>
+      <span id="race-cap">a 1.26 GB ascii cat, a 1.29 GB unicode cat, DOOM-Fire for
+      10,200 frames — Starling finishes all three in 39.6 s, ghostty in 57.0 s</span></div>
   </div>
 </div>
+
+<script>
+(function () {
+  var v = document.getElementById('race-video');
+  var cap = document.getElementById('race-cap');
+  var tabs = document.querySelectorAll('.plat [data-src]');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      if (t.classList.contains('active')) return;
+      tabs.forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      v.pause();
+      v.poster = t.dataset.poster;
+      v.src = t.dataset.src;
+      cap.textContent = t.dataset.cap;
+      v.load();
+      v.play();
+    });
+  });
+})();
+</script>
 
 <!-- ============================ three points ============================ -->
 <section>
