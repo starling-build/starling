@@ -92,6 +92,7 @@ ROWS = [
     ("diagonals",  _uniform("╳"),         "cross-outs; drawn past the cell on purpose"),
     ("sextants",   _uniform("\U0001FB13"), "btop graphs, chafa images"),
     ("octants",    _uniform("\U0001CD48"), "Unicode 16 mosaics: notcurses, chafa"),
+    ("wedges",     _uniform("\U0001FB45"), "smooth mosaics: chafa's smooth mode"),
     ("blocks",    _uniform("█"),          "progress bars, sparklines"),
     ("shades",    _uniform("▓"),          "meters, htop bars"),
     ("braille",   _uniform("⠋"),          "EVERY TUI spinner"),

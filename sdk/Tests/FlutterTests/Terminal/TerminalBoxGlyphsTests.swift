@@ -104,8 +104,7 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         // and the complete block-elements block.
         s.formUnion(0x2500...0x259F)
         s.formUnion(0x2800...0x28FF)                               // braille
-        s.formUnion(0x1FB00...0x1FB3B)                             // sextants
-        s.formUnion(0x1FB70...0x1FB8F)                             // eighth blocks
+        s.formUnion(0x1FB00...0x1FB8F)                 // sextants, wedges, eighths
         s.formUnion(0x1CD00...0x1CDE5)                             // octants
         s.formUnion(0xE0B0...0xE0B7)                               // powerline
         return s
@@ -637,6 +636,75 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                     return XCTFail(String(format: "U+%05X not a shade", cp))
                 }
                 XCTAssertEqual(f, 0.5)
+            }
+        }
+    }
+
+    // MARK: - 4f · Wedges and triangles
+
+    /// The smooth mosaics are single filled polygons whose every vertex lies
+    /// on the wedge lattice — x at {0, ½, 1}, y at {0, ⅓, ⅔, 1} — with the
+    /// vertex sets distinct across the range.
+    func testWedgePolygons() {
+        sweep { c in
+            var seen = Set<[Int]>()
+            for cp in UInt32(0x1FB3C)...UInt32(0x1FB67) {
+                let name = String(format: "U+%05X", cp)
+                let ops = plan(cp, c)
+                XCTAssertEqual(ops.count, 1, name)
+                guard case .fillPath(let from, let segments) = ops[0] else {
+                    return XCTFail("\(name): not a filled polygon")
+                }
+                var poly = [from]
+                for s in segments {
+                    guard case .line(let to) = s else {
+                        return XCTFail("\(name): non-line segment")
+                    }
+                    poly.append(to)
+                }
+                XCTAssertGreaterThanOrEqual(poly.count, 3, name)
+                var key: [Int] = []
+                for p in poly {
+                    let xi = [c.x, c.x + c.w / 2, c.x + c.w].firstIndex { near($0, p.dx) }
+                    let yi = [c.y, c.y + c.h / 3, c.y + 2 * c.h / 3, c.y + c.h]
+                        .firstIndex { near($0, p.dy) }
+                    XCTAssertNotNil(xi, "\(name) x off lattice: \(p.dx)")
+                    XCTAssertNotNil(yi, "\(name) y off lattice: \(p.dy)")
+                    key.append((xi ?? -1) * 10 + (yi ?? -1))
+                }
+                XCTAssertTrue(seen.insert(key).inserted, "\(name) duplicate shape")
+            }
+            // 🬼 is the small lower-left triangle: left ⅔ → corner → bottom ½.
+            if case .fillPath(let f, let segs)? = plan(0x1FB3C, c).first {
+                XCTAssertTrue(near(f.dx, c.x) && near(f.dy, c.y + 2 * c.h / 3))
+                XCTAssertEqual(segs.count, 2)
+            } else { XCTFail("U+1FB3C") }
+        }
+    }
+
+    /// The quarter triangles point at the exact cell centre, and each
+    /// three-quarter block is the cell minus the matching triangle — five
+    /// vertices, sharing the triangle's centre point.
+    func testCentreTriangles() {
+        sweep { c in
+            for cp in UInt32(0x1FB68)...UInt32(0x1FB6F) {
+                let name = String(format: "U+%05X", cp)
+                guard case .fillPath(let from, let segments)? = plan(cp, c).first else {
+                    return XCTFail("\(name): not a filled polygon")
+                }
+                var poly = [from]
+                for s in segments {
+                    if case .line(let to) = s { poly.append(to) }
+                }
+                XCTAssertEqual(poly.count, cp <= 0x1FB6B ? 5 : 3, name)
+                XCTAssertTrue(poly.contains {
+                    near($0.dx, c.x + c.w / 2) && near($0.dy, c.y + c.h / 2)
+                }, "\(name) misses the centre")
+                for p in poly where !(near(p.dx, c.x + c.w / 2) && near(p.dy, c.y + c.h / 2)) {
+                    let corner = (near(p.dx, c.x) || near(p.dx, c.x + c.w))
+                        && (near(p.dy, c.y) || near(p.dy, c.y + c.h))
+                    XCTAssertTrue(corner, "\(name) vertex \(p) is neither centre nor corner")
+                }
             }
         }
     }

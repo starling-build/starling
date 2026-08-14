@@ -74,8 +74,7 @@ enum TerminalBoxGlyphs {
         switch scalar {
         case 0x2500...0x259F: return true              // ALL box drawing + blocks
         case 0x2800...0x28FF: return true              // braille patterns
-        case 0x1FB00...0x1FB3B: return true            // sextants
-        case 0x1FB70...0x1FB8F: return true            // eighth/quarter blocks + half shades
+        case 0x1FB00...0x1FB8F: return true            // sextants, wedges, eighth blocks
         case 0x1CD00...0x1CDE5: return true            // octants
         case 0xE0B0...0xE0B7: return true              // powerline separators
         default: return false
@@ -168,6 +167,12 @@ enum TerminalBoxGlyphs {
         }
         if (0x1FB00...0x1FB3B).contains(scalar) {
             return sextantOps(scalar, x: x, y: y, w: w, h: h)
+        }
+        if (0x1FB3C...0x1FB67).contains(scalar) {
+            return wedgeOps(scalar, x: x, y: y, w: w, h: h)
+        }
+        if (0x1FB68...0x1FB6F).contains(scalar) {
+            return triangleOps(scalar, x: x, y: y, w: w, h: h)
         }
         if (0x1FB70...0x1FB8F).contains(scalar) {
             return legacyBlockOps(scalar, x: x, y: y, w: w, h: h)
@@ -646,6 +651,68 @@ enum TerminalBoxGlyphs {
                 : Rect.fromLTRB(xm, ys[row], x + w, ys[row + 1])))
         }
         return ops
+    }
+
+    /// Smooth mosaics U+1FB3C–1FB67 — the wedges chafa's smooth mode draws
+    /// images with. Each glyph is one filled polygon whose vertices lie on
+    /// the wedge lattice: x at {0, ½, 1}, y at {0, ⅓, ⅔, 1}. The masks flag
+    /// which of the ten boundary points are vertices, in polygon-walk order
+    /// (down the left side, across the bottom, up the right, back across the
+    /// top); they are derived from ghostty's hand-written pattern table
+    /// (MIT) through its own vertex reduction, because no mathematical
+    /// pattern relates codepoint to shape.
+    private static let wedgeMasks: [UInt16] = [
+        0x01C, 0x02C, 0x01A, 0x02A, 0x019, 0x32A, 0x12A, 0x32C, 0x12C, 0x328,
+        0x0AC, 0x070, 0x068, 0x0B0, 0x0A8, 0x130, 0x2A9, 0x0A9, 0x269, 0x069,
+        0x229, 0x06A, 0x135, 0x125, 0x133, 0x123, 0x131, 0x203, 0x103, 0x205,
+        0x105, 0x209, 0x185, 0x159, 0x149, 0x199, 0x189, 0x119, 0x380, 0x181,
+        0x340, 0x141, 0x320, 0x143,
+    ]
+
+    private static func wedgeOps(_ scalar: UInt32,
+                                 x: Double, y: Double,
+                                 w: Double, h: Double) -> [BoxPlanOp] {
+        let mask = wedgeMasks[Int(scalar - 0x1FB3C)]
+        let pts: [(Double, Double)] = [
+            (x, y),                                      // top-left corner
+            (x, y + h / 3), (x, y + 2 * h / 3),          // left edge thirds
+            (x, y + h),                                  // bottom-left corner
+            (x + w / 2, y + h),                          // bottom centre
+            (x + w, y + h),                              // bottom-right corner
+            (x + w, y + 2 * h / 3), (x + w, y + h / 3),  // right edge thirds
+            (x + w, y),                                  // top-right corner
+            (x + w / 2, y),                              // top centre
+        ]
+        var poly: [Offset] = []
+        for bit in 0..<10 where mask & (1 << bit) != 0 {
+            poly.append(Offset(pts[bit].0, pts[bit].1))
+        }
+        return [.fillPath(from: poly[0],
+                          segments: poly.dropFirst().map { .line(to: $0) })]
+    }
+
+    /// U+1FB68–1FB6F: the four quarter triangles pointing at the cell
+    /// centre, and the four three-quarter blocks that are the cell minus
+    /// one of them.
+    private static func triangleOps(_ scalar: UInt32,
+                                    x: Double, y: Double,
+                                    w: Double, h: Double) -> [BoxPlanOp] {
+        let c = Offset(x + w / 2, y + h / 2)
+        let tl = Offset(x, y), tr = Offset(x + w, y)
+        let bl = Offset(x, y + h), br = Offset(x + w, y + h)
+        let poly: [Offset]
+        switch scalar {
+        case 0x1FB68: poly = [tl, c, bl, br, tr]         // 🭨 all but left
+        case 0x1FB69: poly = [tl, c, tr, br, bl]         // 🭩 all but top
+        case 0x1FB6A: poly = [tr, c, br, bl, tl]         // 🭪 all but right
+        case 0x1FB6B: poly = [bl, c, br, tr, tl]         // 🭫 all but bottom
+        case 0x1FB6C: poly = [tl, c, bl]                 // 🭬 left triangle
+        case 0x1FB6D: poly = [tl, tr, c]                 // 🭭 upper triangle
+        case 0x1FB6E: poly = [tr, br, c]                 // 🭮 right triangle
+        default:      poly = [bl, c, br]                 // 🭯 lower triangle
+        }
+        return [.fillPath(from: poly[0],
+                          segments: poly.dropFirst().map { .line(to: $0) })]
     }
 
     /// U+1FB70–1FB8F: the positional eighth blocks (a vertical or horizontal
