@@ -58,6 +58,28 @@ func dirContaining(_ candidates: [(dir: String, marker: String)]) -> String? {
     candidates.first { FileManager.default.fileExists(atPath: $0.dir + "/" + $0.marker) }?.dir
 }
 
+// --- iOS ---------------------------------------------------------------------
+//
+// An environment variable rather than `#if os(iOS)`, and it has to be: a
+// manifest is compiled and run on the HOST, so when SwiftPM cross-compiles this
+// package for iOS (`--triple arm64-apple-ios…-simulator`) every `#if` here
+// still reports macOS. There is no target-platform predicate available to a
+// manifest at all — Context exposes none — so the iOS build is an explicit
+// opt-in, the same shape as the desktop apps' STARLING_APP_GTK.
+//
+//   STARLING_IOS=1        the simulator (the default: it needs no signing
+//                         identity, so it is the one that can be driven
+//                         unattended)
+//   STARLING_IOS=device   a real iPhone
+//
+// It selects the engine out-directory and swaps the Cocoa host for the UIKit
+// one. Both must move together — Flutter.framework and FlutterMacOS.framework
+// are different frameworks with different view controllers — which is why one
+// variable drives both rather than the targets each probing for themselves.
+let iosMode = env("STARLING_IOS", default: "")
+let iosBuild = !iosMode.isEmpty
+let iosDevice = iosMode == "device"
+
 // Canonicalise before this reaches a -L or an -rpath. The candidates above are
 // built with "..", and this package is often reached through a symlink (the
 // desktop points its repo-root `sdk` at a checkout of this repo). Clang
@@ -102,19 +124,26 @@ let engineCandidates = [
 // alongside FlutterMacOS.framework (the engine itself) in engineOutDir —
 // the framework is a Mach-O of its own, so there is nothing to merge it into
 // the way Linux and Windows merge it into flutter_engine.
-let engineLinkName = "swift_bridge"
-let engineMarker = "libswift_bridge.dylib"
 // Two out-directory spellings, because flutter/tools/gn names the mac output
 // after the CPU only when it is not the default: an Apple Silicon build
 // (--mac-cpu arm64) lands in host_debug_arm64, an Intel one in host_debug.
 // Listing both keeps the in-tree default working on either machine.
-let engineCandidates = [
-    packageDir + "/engine/lib",
-    packageDir + "/../engine/src/out/host_debug_arm64",
-    packageDir + "/../engine/src/out/host_debug",
-    packageDir + "/../starling-engine/engine/src/out/host_debug_arm64",
-    packageDir + "/../starling-engine/engine/src/out/host_debug",
-]
+//
+// iOS builds on the same host and links the same libswift_bridge.dylib, so
+// only the out-directory changes: flutter/tools/gn names it after the target
+// and the CPU, and a simulator build is not interchangeable with a device one
+// (different SDK, different architecture slice), so the two are separate
+// directories rather than one probed pair.
+let engineLinkName = "swift_bridge"
+let engineMarker = "libswift_bridge.dylib"
+let engineDirNames: [String] = iosBuild
+    ? (iosDevice ? ["ios_debug_arm64"] : ["ios_debug_sim_arm64"])
+    : ["host_debug_arm64", "host_debug"]
+let engineCandidates = [packageDir + "/engine/lib"]
+    + engineDirNames.flatMap {
+        [packageDir + "/../engine/src/out/" + $0,
+         packageDir + "/../starling-engine/engine/src/out/" + $0]
+    }
 #endif
 
 // nil when no engine is present locally — which flips the package into
@@ -313,6 +342,15 @@ products += [
 #endif
 
 #if os(macOS)
+if iosBuild {
+products += [
+    // Mobile host: the engine's own iOS embedder (Flutter.framework) with the
+    // engine in Swift mode — so the view, Metal surface, touch input, the
+    // software keyboard and accessibility come from the same code path real
+    // Flutter iOS apps use. The counterpart of FlutterCocoa on macOS.
+    .library(name: "FlutterUIKit", targets: ["FlutterUIKit"]),
+]
+} else {
 products += [
     // Desktop host: the engine's own Cocoa embedder (FlutterMacOS.framework)
     // with the engine in Swift mode, rather than a hand-rolled view — so
@@ -324,6 +362,7 @@ products += [
     // sample proven on this platform.
     .executable(name: "CounterApp", targets: ["CounterApp"]),
 ]
+}
 #endif
 
 #if os(Windows)
@@ -469,9 +508,49 @@ var targets: [Target] = [
     ),
 ]
 
-// --- macOS-only targets ------------------------------------------------------
+// --- Darwin targets: macOS, or iOS under STARLING_IOS ------------------------
 
 #if os(macOS)
+if iosBuild {
+targets += [
+    // ObjC glue around the engine's iOS embedder: a FlutterViewController in
+    // a UIWindow, with the engine in Swift mode. The vendored Flutter headers
+    // stay inside this target — <UIKit/UIKit.h> and the Flutter* ObjC classes
+    // must never reach the C++-interop importer. Same containment the Cocoa
+    // bridge gives FlutterMacOS and the GTK bridge gives flutter_linux.
+    //
+    // No -rpath to the engine out-directory, unlike every other host here. An
+    // iOS app cannot load a framework from an absolute path outside its own
+    // bundle — the simulator would tolerate it, a device will not, and the
+    // habit is the kind that works right up until the first device build. The
+    // rpath is @executable_path/Frameworks instead, which is where the bundler
+    // puts Flutter.framework and libswift_bridge.dylib, and -F here is a
+    // link-time search path only.
+    .target(
+        name: "FlutterUIKitBridge",
+        cSettings: [
+            .unsafeFlags(["-fobjc-arc"]),
+        ],
+        linkerSettings: [
+            .unsafeFlags([
+                "-F\(engineOutDir)", "-framework", "Flutter",
+                "-Xlinker", "-rpath", "-Xlinker", "@executable_path/Frameworks",
+            ]),
+        ]
+    ),
+    // The mobile host: the real Flutter iOS embedder, Swift-driven.
+    .target(
+        name: "FlutterUIKit",
+        dependencies: [
+            "Flutter",
+            "FlutterSwiftBridge",
+            .target(name: "SwiftRuntime"),
+            .target(name: "FlutterUIKitBridge"),
+        ],
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)]
+    ),
+]
+} else {
 targets += [
     // ObjC glue around the engine's Cocoa embedder: a FlutterViewController in
     // an NSWindow, with the engine in Swift mode. The vendored FlutterMacOS
@@ -535,6 +614,7 @@ targets += [
         linkerSettings: engineLinkSettings
     ),
 ]
+}
 #endif
 
 // --- Windows-only targets ----------------------------------------------------
@@ -890,8 +970,14 @@ targets += [
 
 // --- Package declaration -----------------------------------------------------
 
+// macOS 14 / iOS 17 are the same line drawn twice: @Observable (the BLoC
+// pattern's state container) is the Observation framework, which shipped in
+// that pair. Both are declared on an iOS build — the manifest still runs on
+// macOS and SwiftPM builds macOS-hosted plugins and tools from this package
+// even when the products are cross-compiled.
 #if os(macOS)
-let platformConstraints: [SupportedPlatform] = [.macOS(.v14)]
+let platformConstraints: [SupportedPlatform] =
+    iosBuild ? [.macOS(.v14), .iOS(.v17)] : [.macOS(.v14)]
 #else
 let platformConstraints: [SupportedPlatform] = []
 #endif

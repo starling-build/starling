@@ -286,6 +286,14 @@ final class TerminalGlyphAtlas {
         }
         canvas.restore()   // the flatten-to-white layer
         let picture = recorder.endRecording()
-        image = picture.toImageSync(width: w, height: h)
+        guard let made = picture.toImageSync(width: w, height: h) else {
+            // The rasteriser was not ready (Impeller's snapshot needs the
+            // raster thread to have a context). Keep the old image if there
+            // is one and try again next paint — a frame of stale or missing
+            // glyphs, not a crash.
+            dirty = true
+            return
+        }
+        image = made
     }
 }

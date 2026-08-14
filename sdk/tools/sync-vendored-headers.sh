@@ -205,6 +205,53 @@ for stale in $(cd "$MAC_DEST" 2>/dev/null && ls -1 *.h 2>/dev/null || true); do
     fi
 done
 
+# Flutter.framework's (iOS) public header set, vendored exactly as macOS's is
+# and for the same reason: only FlutterUIKitBridge's ObjC glue includes them,
+# so <UIKit/UIKit.h> and the Flutter* ObjC classes never reach the C++-interop
+# importer.
+#
+# The two Darwin sets overlap in the seven common headers and diverge in the
+# platform ones, and they are NOT interchangeable — iOS's FlutterViewController
+# is a UIViewController and macOS's is an NSViewController — so they are
+# vendored into separate directories rather than shared. Same source of truth
+# as macOS: the header lists in shell/platform/darwin/ios/BUILD.gn and
+# framework_common.gni.
+IOS_DEST="Sources/FlutterUIKitBridge/flutter_ios"
+IOS_HEADERS=(
+    "flutter/shell/platform/darwin/ios/framework/Headers/Flutter.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterAppDelegate.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterCallbackCache.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterEngine.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterEngineGroup.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterHeadlessDartRunner.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPlatformViews.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPlugin.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterPluginAppLifeCycleDelegate.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterSceneDelegate.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterSceneLifeCycle.h"
+    "flutter/shell/platform/darwin/ios/framework/Headers/FlutterViewController.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterMacros.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterBinaryMessenger.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterChannels.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterCodecs.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterHourFormat.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterTexture.h"
+    "flutter/shell/platform/darwin/common/framework/Headers/FlutterDartProject.h"
+)
+IOS_BASENAMES=()
+for rel in "${IOS_HEADERS[@]}"; do
+    one "$SRC/$rel" "$IOS_DEST/$(basename "$rel")"
+    IOS_BASENAMES+=("$(basename "$rel")")
+done
+for stale in $(cd "$IOS_DEST" 2>/dev/null && ls -1 *.h 2>/dev/null || true); do
+    printf '%s\n' "${IOS_BASENAMES[@]}" | grep -qxF "$stale" && continue
+    if [ "$CHECK" = 1 ]; then
+        echo "stale: flutter_ios/$stale is vendored but not in the list"; drift=1
+    else
+        rm -f "$IOS_DEST/$stale"; echo "removed stale flutter_ios/$stale"
+    fi
+done
+
 # --- TOOLCHAIN --------------------------------------------------------------
 #
 # <swift/bridging> is the only toolchain header the bridge headers need, and it

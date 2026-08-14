@@ -203,6 +203,31 @@ public final class TerminalView: StatefulWidget {
     /// Focus never sees a key the focused view consumed. Return true to
     /// swallow the key; the terminal then never sees it.
     let keyFilter: ((KeyData) -> Bool)?
+    /// Size the font so exactly this many columns fit the width, instead of
+    /// taking `font.size` as given. `font.size` then only sets the scale the
+    /// advance is measured at, and the grid is always a whole number of
+    /// columns wide with no leftover strip.
+    ///
+    /// This is what a terminal on a PHONE needs. A desktop picks the font and
+    /// gets whatever column count the window allows, which is the right way
+    /// round when the window is 1100pt wide. At 402pt it is not: the desktop's
+    /// 13pt default yields **49 columns**, so every line of ordinary output —
+    /// `ls -l`, a git log, anything laid out for 80 — wraps and leaves
+    /// fragments stranded on the next row. Sizing from the column count
+    /// inverts the dependency and 80 columns fit at ~8pt, which sounds tiny
+    /// and is not: a phone is held at about half a laptop's viewing distance,
+    /// so 8pt there subtends roughly what 13pt does on a laptop.
+    ///
+    /// It also makes rotation behave. With a fixed font size, turning the
+    /// phone re-wraps every line to a new width; with a fixed column count the
+    /// text simply grows, and the grid the far end is looking at never moves.
+    let fitColumns: Int?
+    /// Reports the column count after a pinch, so the app can remember it.
+    let onFitColumnsChanged: ((Int) -> Void)?
+    /// Pinch to change `fitColumns` — the touch equivalent of a font-size
+    /// setting. Off by default: it costs a gesture recognizer, and a mouse
+    /// has no pinch.
+    let pinchToZoom: Bool
 
     public init(session: TerminalSession,
                 theme: TerminalTheme = .starlingDark,
@@ -211,6 +236,9 @@ public final class TerminalView: StatefulWidget {
                 size: Size? = nil,
                 autofocus: Bool = true,
                 restartOnEnter: Bool = true,
+                fitColumns: Int? = nil,
+                onFitColumnsChanged: ((Int) -> Void)? = nil,
+                pinchToZoom: Bool = false,
                 keyFilter: ((KeyData) -> Bool)? = nil) {
         self.session = session
         self.theme = theme
@@ -219,6 +247,9 @@ public final class TerminalView: StatefulWidget {
         self.size = size
         self.autofocus = autofocus
         self.restartOnEnter = restartOnEnter
+        self.fitColumns = fitColumns
+        self.onFitColumnsChanged = onFitColumnsChanged
+        self.pinchToZoom = pinchToZoom
         self.keyFilter = keyFilter
         super.init()
     }
@@ -239,6 +270,20 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var font: TerminalFont { w.font }
     private var padding: Double { w.padding }
 
+    /// The font glyphs are actually SHAPED with: the widget's font carries the
+    /// family, the fit decides the size. `w.font.size` and `_fontSize` are the
+    /// same number everywhere except a fitted grid (`fitColumns`), where the
+    /// size follows the width — and there, shaping with `w.font` draws 13pt
+    /// glyphs into ~8pt cells. On the Text path that was understood from the
+    /// start (`_makeTextStyle` uses `_fontSize`); the painter and the atlas
+    /// arrived from a tree with no fit feature, shaped with `font.size`, and
+    /// on every fitted grid produced glyphs ~1.6x their cells: clipped tops in
+    /// paragraph mode, and slot overflow in the atlas — each glyph spilling
+    /// into its neighbour's slot, so the blit sampled fragments of both.
+    private var _shapedFont: TerminalFont {
+        TerminalFont(family: w.font.family, size: _fontSize, fallback: w.font.fallback)
+    }
+
     private var _fontFallback: [String] { font.fallback ?? TerminalFontLoader.fallback }
     private var _lock: NSLock { session.lock }
     private var emulator: TerminalEmulator { session.emulator }
@@ -246,12 +291,38 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     private let focusNode = FocusNode(debugLabel: "Terminal")
 
-    /// Monospace cell metrics, measured once at startup.
+    /// Monospace cell metrics, for the size in `_fontSize`.
     private var cellW: Double = 7.8
     private var cellH: Double = 17.0
     /// Extra per-glyph advance when STARLING_CELL_W forces the cell width
     /// away from the font's natural advance. 0 in normal operation.
     private var _cellSpacing: Double = 0
+
+    /// The size the rows are actually painted at. Equal to `font.size` unless
+    /// `fitColumns` is in play, when it is derived from the view's width.
+    private var _fontSize: Double = 13
+    /// Cell width per point of font size. The advance is exactly linear in
+    /// size — measured, not assumed: 80 columns at 8pt come to 384.06pt both
+    /// by multiplication and by laying out all 80 — so one measurement turns
+    /// a column count into a font size by division.
+    private var _advanceRatio: Double = 0.6
+    /// The current column target, moved by pinch. nil when the widget did not
+    /// ask to fit columns, and the font size is then the widget's own.
+    private var _fitColumns: Int?
+    /// The width `_fontSize` was fitted for, so a rotation or a pane resize
+    /// re-fits and nothing else does.
+    private var _fittedWidth: Double = 0
+    /// Column count at the start of a pinch, which the gesture scales.
+    private var _pinchColumns: Int?
+    /// Pointers currently down. A second finger means a pinch, not a drag
+    /// through the text, so the selection in flight has to be abandoned —
+    /// otherwise zooming also sweeps a selection across the screen.
+    private var _pointers = Set<Int>()
+    /// "80 × 69", shown for a moment after the grid changes size. A pinch
+    /// otherwise gives no feedback about the thing it is actually changing.
+    private var _sizeHud: String?
+    /// Invalidates a pending HUD dismissal when another pinch lands first.
+    private var _hudGeneration = 0
 
     /// Coalesces reader-thread repaint requests.
     private var _updatePending = false
@@ -285,7 +356,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     override func initState() {
         super.initState()
         TerminalFontLoader.register()
-        _measureCell()
+        // The nominal size first: it establishes the advance ratio that turns
+        // a column count into a size.
+        _measureCell(size: font.size)
+        _fitColumns = w.fitColumns
+        _refit(width: _viewLogicalSize().width)
 
         // Several views over one session is out of scope (see the plan), but
         // several SESSIONS in one app is exactly the point — chain rather
@@ -309,6 +384,27 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             self?.setState {}
         }
         if w.autofocus { focusNode.requestFocus() }
+    }
+
+    /// The cell metrics are measured, not derived, so a rebuild that changes
+    /// the font has to re-measure — nothing else notices.
+    ///
+    /// Without this the state kept the metrics of whatever size it first saw
+    /// while the rows were painted at the new one: rows spaced for 8pt with
+    /// 13pt glyphs in them, so every row was clipped at the baseline and the
+    /// grid ran off the right edge. It reads as a font-rendering fault rather
+    /// than a stale measurement, because the text itself is perfectly formed.
+    override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        guard let old = oldWidget as? TerminalView else { return }
+        if old.font.size != w.font.size || old.font.family != w.font.family {
+            _measureCell(size: w.font.size)
+            _fittedWidth = 0
+        }
+        if old.fitColumns != w.fitColumns {
+            _fitColumns = w.fitColumns
+            _fittedWidth = 0
+        }
     }
 
     override func dispose() {
@@ -451,7 +547,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         let appCursor = emulator.applicationCursorKeys
         _lock.unlock()
 
-        if let bytes = TerminalInput.bytes(for: keyData, appCursor: appCursor) {
+        if let bytes = TerminalInput.bytes(
+            for: keyData, appCursor: appCursor, shift: _shiftDown) {
             session.write(bytes)
             return true
         }
@@ -595,7 +692,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     // MARK: - Geometry
 
-    private func _measureCell() {
+    private func _measureCell(size: Double) {
         // Measure with the SAME style the rows are painted with — the fallback
         // list included. Measuring `family` alone means that if the primary
         // family ever fails to resolve, the painter answers with the platform's
@@ -604,11 +701,17 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // render monospace. Nothing errors: the grid silently gets a cell 45%
         // too wide, so the block cursor is drawn oversized and walks further
         // right with every column.
+        _fontSize = size
+        // The style cache is keyed by colour and attributes only — size is not
+        // part of the key because until now it could not change. It can now,
+        // so a stale entry would paint the old size for every colour already
+        // seen, i.e. almost everything on screen.
+        _styleCache.removeAll(keepingCapacity: true)
         let painter = TextPainter(
             text: TextSpan(
                 text: "MMMMMMMMMM",
                 style: TextStyle(
-                    fontSize: font.size,
+                    fontSize: size,
                     fontFamily: font.family,
                     fontFamilyFallback: _fontFallback
                 )
@@ -618,6 +721,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         painter.layout()
         if painter.width > 0 {
             cellW = painter.width / 10.0
+            if size > 0 { _advanceRatio = cellW / size }
         }
         if painter.height > 0 {
             cellH = painter.height
@@ -669,6 +773,76 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         cellH = (cellH * scale).rounded(.up) / scale
     }
 
+    /// Re-measure so `_fitColumns` columns fill `width`, if that is not
+    /// already what the current metrics do.
+    ///
+    /// Called from `build` rather than once at startup, because the width is
+    /// not known at startup and does not stay still afterwards: on iOS the
+    /// tree is mounted before the view has reported any size at all, and the
+    /// device then rotates.
+    @discardableResult
+    private func _refit(width: Double) -> Bool {
+        guard let columns = _fitColumns, width > 0 else { return false }
+        _fittedWidth = width
+        let usable = max(1, width - padding * 2)
+        let size = (usable / Double(columns)) / _advanceRatio
+        guard size > 0, abs(size - _fontSize) > 0.0001 else { return false }
+        _measureCell(size: size)
+
+        // `_measureCell` does not necessarily hand back the cell it was asked
+        // for: with the atlas on it snaps the width UP to whole device pixels,
+        // and `_gridSize` then lays out `columns` of them without dividing back
+        // out — so the grid is wider than the width it was fitted to, by up to
+        // one device pixel per column. At 80 columns on a 3x phone that is
+        // ~26pt of a ~400pt screen running off the right edge: the rightmost
+        // few columns are simply not on the display, which reads as the fit
+        // being wrong rather than as a rounding step after it.
+        //
+        // Neither behaviour is wrong alone — snapping is what keeps a glyph
+        // blit 1:1, and fitting is what keeps the column count fixed across a
+        // rotation. They only disagree when both are on, which is now the
+        // default. One correction is enough: the snap adds less than a device
+        // pixel, so shrinking by the measured overflow cannot re-cross it.
+        let laidOut = cellW * Double(columns)
+        if laidOut > usable + 0.0001 {
+            let corrected = size * (usable / laidOut)
+            if corrected > 0 { _measureCell(size: corrected) }
+        }
+        return true
+    }
+
+    /// Clamp for a pinch. The lower bound is a grid narrower than any prompt
+    /// is useful at; the upper is where a cell reaches one device pixel per
+    /// stem and the text stops being text.
+    private static let columnRange = 20...200
+
+    private func _setColumns(_ columns: Int) {
+        let clamped = min(max(columns, Self.columnRange.lowerBound),
+                          Self.columnRange.upperBound)
+        guard clamped != _fitColumns else { return }
+        _fitColumns = clamped
+        _refit(width: _fittedWidth)
+        w.onFitColumnsChanged?(clamped)
+        _showSizeHud()
+        setState {}
+    }
+
+    private func _showSizeHud() {
+        _lock.lock()
+        let rows = emulator.rows
+        _lock.unlock()
+        _sizeHud = "\(_fitColumns ?? emulator.cols) × \(rows)"
+        _hudGeneration += 1
+        let generation = _hudGeneration
+        // asyncAfter, not Timer: Foundation.Timer never fires on the DRM
+        // embedder, so a Timer-based dismissal would leave the badge on screen
+        // for ever on the desktop.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { [weak self] in
+            guard let self = self, self._hudGeneration == generation else { return }
+            self.setState { self._sizeHud = nil }
+        }
+    }
+
     private func _viewLogicalSize() -> Size {
         if let given = w.size { return given }
         if let view = PlatformDispatcher.instance.implicitView {
@@ -682,8 +856,16 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _gridSize(for size: Size) -> (cols: Int, rows: Int) {
-        let cols = Int((size.width - padding * 2) / cellW)
         let rows = Int((size.height - padding * 2) / cellH)
+        // A fitted font gets the column count it was fitted for, rather than
+        // dividing back out: cellW came from `usable / columns`, so the
+        // division is exact in real arithmetic and one ulp short of it in
+        // floating point — which rounds down to 79 columns about as often as
+        // 80, and silently, since both are plausible numbers.
+        if let columns = _fitColumns {
+            return (columns, max(2, rows))
+        }
+        let cols = Int((size.width - padding * 2) / cellW)
         return (max(4, cols), max(2, rows))
     }
 
@@ -691,7 +873,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     override func build(_ context: any BuildContext) -> Widget {
         // React to window resizes: recompute the grid from the view metrics.
-        let (cols, rows) = _gridSize(for: _viewLogicalSize())
+        // When the font is fitted to a column count the size has to be redone
+        // first — a rotation changes the width, and the whole point is that
+        // the column count survives it and the glyphs grow instead.
+        let logical = _viewLogicalSize()
+        if logical.width != _fittedWidth { _refit(width: logical.width) }
+        let (cols, rows) = _gridSize(for: logical)
         _lock.lock()
         if cols != emulator.cols || rows != emulator.rows {
             emulator.resize(cols: cols, rows: rows)
@@ -792,9 +979,38 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // columns left to right), and a bare TerminalView under a host with
         // no ambient direction otherwise dies in RenderStack._resolve — the
         // framework's oldest trap, which a reusable widget should absorb.
-        return Directionality(textDirection: .ltr, child: Listener(
+        // The size badge, over everything.
+        if let hud = _sizeHud {
+            layers.append(Positioned(
+                left: padding,
+                top: padding,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(color: Color(0xCC000000)),
+                    child: Padding(
+                        padding: EdgeInsets(horizontal: 10, vertical: 6),
+                        child: Text(hud, style: TextStyle(
+                            color: Color(0xFFFFFFFF),
+                            fontSize: 13,
+                            fontFamily: font.family,
+                            fontFamilyFallback: _fontFallback))))))
+        }
+
+        return Directionality(textDirection: .ltr, child: _withPinch(Listener(
             onPointerDown: { [self] event in
                 focusNode.requestFocus()
+                _pointers.insert(event.pointer)
+                // A second finger is a pinch. Drop the selection it would
+                // otherwise have been dragging out from under the first.
+                if _pointers.count > 1 {
+                    if _selecting || _selAnchor != nil {
+                        setState {
+                            _selecting = false
+                            _selAnchor = nil
+                            _selHead = nil
+                        }
+                    }
+                    return
+                }
                 guard event.buttons & 1 != 0 else { return }
                 let cell = _cellAt(event.localPosition)
                 setState {
@@ -804,13 +1020,14 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 }
             },
             onPointerMove: { [self] event in
-                guard _selecting else { return }
+                guard _selecting, _pointers.count <= 1 else { return }
                 let cell = _cellAt(event.localPosition)
                 if _selHead == nil || cell != _selHead! {
                     setState { _selHead = cell }
                 }
             },
-            onPointerUp: { [self] _ in
+            onPointerUp: { [self] event in
+                _pointers.remove(event.pointer)
                 guard _selecting else { return }
                 _selecting = false
                 // A click without a drag clears the selection.
@@ -819,7 +1036,17 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                         _selAnchor = nil
                         _selHead = nil
                     }
+                    // ...and, where there is one, asks for the on-screen
+                    // keyboard. Raised from the tap rather than from focus,
+                    // because dismissing it with the bar's own button leaves
+                    // this view focused the whole time — keyed on focus, the
+                    // tap that means "give it back" would do nothing.
+                    SoftKeyboard.show()
                 }
+            },
+            onPointerCancel: { [self] event in
+                _pointers.remove(event.pointer)
+                _selecting = false
             },
             // A touchpad does not arrive here. The GTK embedder splits the two
             // apart (fl_scrolling_manager.cc): a wheel becomes a scroll SIGNAL,
@@ -850,7 +1077,27 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 color: Color(Int(theme.background)),
                 child: Stack(children: layers)
             )
-        ))
+        )))
+    }
+
+    /// Wraps the grid in a pinch recognizer when the widget asked for one.
+    ///
+    /// Pinch moves the COLUMN COUNT, not a free-floating scale factor. That is
+    /// the quantity a terminal is actually about — the far end is told it, and
+    /// programs lay themselves out against it — and it keeps the grid exactly
+    /// filling the width at every step, where a continuous scale leaves a
+    /// ragged partial column that changes width as you pinch.
+    private func _withPinch(_ child: Widget) -> Widget {
+        guard w.pinchToZoom, _fitColumns != nil else { return child }
+        return GestureDetector(
+            onScaleStart: { [self] _ in _pinchColumns = _fitColumns },
+            onScaleUpdate: { [self] details in
+                guard let start = _pinchColumns, details.scale > 0 else { return }
+                // Spreading the fingers magnifies, which means FEWER columns.
+                _setColumns(Int((Double(start) / details.scale).rounded()))
+            },
+            onScaleEnd: { [self] _ in _pinchColumns = nil },
+            child: child)
     }
 
     // MARK: - Grid rendering
@@ -867,6 +1114,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// stays in-tree unchanged as the comparison baseline. "2" selects the
     /// cached-paragraph experiment (measured, and it lost — see the painter);
     /// the painter branches on `TerminalGridPainter.paragraphMode`.
+    /// On everywhere, iOS included. iOS needed two fixes to get here: the
+    /// engine snapshots pictures through the rasteriser in use rather than
+    /// always Skia (SwiftBridgeEngineRegistry::SetSnapshotCallback — Impeller
+    /// aborted otherwise), and the painter/atlas shape with `_shapedFont`, the
+    /// FITTED size, not `w.font.size` (see the note on `_shapedFont`).
     private static let _useAtlas: Bool = {
         ProcessInfo.processInfo.environment["STARLING_TERM_ATLAS"] != "0"
     }()
@@ -879,12 +1131,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private func _atlasForCurrentMetrics() -> TerminalGlyphAtlas {
         let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
         if let a = _atlas, a.matches(cellW: cellW, cellH: cellH, scale: scale,
-                                     family: font.family, fontSize: font.size) {
+                                     family: font.family, fontSize: _shapedFont.size) {
             return a
         }
         let made = TerminalGlyphAtlas(
             cellW: cellW, cellH: cellH, scale: scale,
-            family: font.family, fallback: _fontFallback, fontSize: font.size)
+            family: font.family, fallback: _fontFallback, fontSize: _shapedFont.size)
         _atlas = made
         return made
     }
@@ -921,7 +1173,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             cellW: cellW,
             cellH: cellH,
             theme: theme,
-            font: font,
+            font: _shapedFont,
             fallbackFamilies: _fontFallback,
             atlas: _atlasForCurrentMetrics(),
             generation: generation,
@@ -1396,7 +1648,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
         return TextStyle(
             color: Color(Int(fg)),
-            fontSize: font.size,
+            // No backgroundColor here: cell backgrounds are grid rects
+            // painted under the text (a4543ca — the style's background takes
+            // the FONT's line box, not the cell, and vanishes for ink-less
+            // runs; test/glyph-pixels.py asserts the rects). The size is the
+            // FITTED size, not w.font.size — see the note on `_shapedFont`.
+            fontSize: _fontSize,
             fontWeight: style.attrs.contains(.bold) ? .w700 : .normal,
             fontStyle: style.attrs.contains(.italic) ? .italic : .normal,
             letterSpacing: style.spacing == 0 ? nil : style.spacing,

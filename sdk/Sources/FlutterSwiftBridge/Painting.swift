@@ -7196,7 +7196,7 @@ public protocol Picture: AnyObject {
   /// efficient to draw.
   ///
   /// If no GPU context is available, the image will be rasterized on the CPU.
-  func toImageSync(width: Int, height: Int) -> Image
+  func toImageSync(width: Int, height: Int) -> Image?
 
   /// Release the resources used by this object. The object is no longer usable
   /// after this method is called.
@@ -7326,13 +7326,22 @@ public class NativePicture: Picture, NativePictureProvider {
   /// a DeferredImage via the snapshot delegate for GPU-backed textures. Our implementation
   /// uses CPU rasterization via PictureBridge.ToImage instead.
   /// REASON: We bypass UIDartState/snapshot delegate and rasterize directly on the CPU.
-  public func toImageSync(width: Int, height: Int) -> Image {
+  /// DIFFERENCE FROM DART: returns nil where Dart throws
+  /// PictureRasterizationException. The bridge can genuinely fail to
+  /// rasterise — under Impeller the snapshot goes through the raster thread,
+  /// which may not have a context yet — and the force-unwrap this used to do
+  /// turned that into a crash indistinguishable from a bug. A caller that
+  /// cannot proceed without the image can still trap; the terminal's atlas,
+  /// the one caller that hits this in practice, retries on the next frame.
+  public func toImageSync(width: Int, height: Int) -> Image? {
     assert(!_disposed)
     guard width > 0 && height > 0 else {
       fatalError("Invalid image dimensions.")
     }
-    let imagePtr = bridge.ToImage(Int32(width), Int32(height))
-    return Image.wrap(imagePtr!)
+    guard let imagePtr = bridge.ToImage(Int32(width), Int32(height)) else {
+      return nil
+    }
+    return Image.wrap(imagePtr)
   }
 
   /// Release the resources used by this object.

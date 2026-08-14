@@ -70,7 +70,11 @@ enum TerminalInput {
     ///
     /// `appCursor` is the emulator's DECCKM state: arrows/Home/End send
     /// `ESC O x` instead of `ESC [ x` when set.
-    static func bytes(for keyData: KeyData, appCursor: Bool) -> [UInt8]? {
+    ///
+    /// `shift` is only consulted for Tab. Every other shifted key arrives with
+    /// the modifier already folded into `character` by the keymap, so reading
+    /// it here would double-apply it.
+    static func bytes(for keyData: KeyData, appCursor: Bool, shift: Bool = false) -> [UInt8]? {
         let logical = keyData.logical
 
         // Special keys first — they take priority over any character the
@@ -82,7 +86,12 @@ enum TerminalInput {
         case Keysym.backspace, FlutterKey.backspace:
             return [0x7F]
         case Keysym.tab, FlutterKey.tab:
-            return [0x09]
+            // Shift+Tab is CSI Z (back-tab), not Tab. Nothing here sent it
+            // before, so a TUI that cycles on Shift+Tab — Claude Code's
+            // permission mode is the one that matters on a phone — saw a plain
+            // Tab and completed instead, which reads as the chord being
+            // swallowed rather than mistranslated.
+            return shift ? Array("\u{1B}[Z".utf8) : [0x09]
         case Keysym.escape, FlutterKey.escape:
             return [0x1B]
         case Keysym.up, FlutterKey.arrowUp:       return _cursor("A", appCursor)

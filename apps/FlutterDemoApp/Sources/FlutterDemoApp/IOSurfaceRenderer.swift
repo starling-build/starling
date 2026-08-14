@@ -124,7 +124,8 @@ class IOSurfaceRenderer {
         guard let picture = pictureLayer.picture as? NativePicture else { return }
 
         // Rasterize to Image
-        let image = picture.toImageSync(width: width, height: height)
+        guard let image = picture.toImageSync(width: width, height: height)
+        else { return }
 
         // Get raw RGBA bytes
         guard let rgbaData = try? image.toByteData(format: .rawRgba) else {

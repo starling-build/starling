@@ -18,6 +18,10 @@ public class MacosTextField: StatefulWidget {
     public let style: TextStyle?
     public let padding: EdgeInsets
     public let decoration: BoxDecoration?
+    /// Renders every character as `obscuringCharacter` — a password field.
+    /// The editing underneath is unchanged; only what is painted differs.
+    public let obscureText: Bool
+    public let obscuringCharacter: String
 
     public init(
         key: (any Key)? = nil,
@@ -32,7 +36,9 @@ public class MacosTextField: StatefulWidget {
         onSubmitted: ((String) -> Void)? = nil,
         style: TextStyle? = nil,
         padding: EdgeInsets = EdgeInsets(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration? = nil
+        decoration: BoxDecoration? = nil,
+        obscureText: Bool = false,
+        obscuringCharacter: String = "\u{2022}"
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -46,6 +52,8 @@ public class MacosTextField: StatefulWidget {
         self.style = style
         self.padding = padding
         self.decoration = decoration
+        self.obscureText = obscureText
+        self.obscuringCharacter = obscuringCharacter
         super.init(key: key)
     }
 
@@ -110,6 +118,8 @@ class _MacosTextFieldState: State<StatefulWidget> {
                 enabled: field.enabled,
                 style: field.style ?? theme.typography.body,
                 padding: field.padding,
+                obscureText: field.obscureText,
+                obscuringCharacter: field.obscuringCharacter,
                 decoration: bgDecoration,
                 focusedDecoration: focusedDecoration,
                 prefix: field.prefix,
