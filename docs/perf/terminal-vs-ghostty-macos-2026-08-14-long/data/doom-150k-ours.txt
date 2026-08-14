@@ -1,0 +1,8 @@
+# ours terminal=74113/TerminalApp grid=47x201 frames=150000
+BENCHFPS frames=150000 seconds=134.063 fps=1118.88
+  cpu_s 216.49
+BENCHFPS frames=150000 seconds=133.974 fps=1119.62
+  cpu_s 216.27
+BENCHFPS frames=150000 seconds=133.381 fps=1124.60
+  cpu_s 215.83
+grid_after 47x201
