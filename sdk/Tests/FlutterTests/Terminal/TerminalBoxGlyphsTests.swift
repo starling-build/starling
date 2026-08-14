@@ -109,7 +109,13 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         s.formUnion(0x1FB00...0x1FBAF)                 // sextants…fills…chamfers
         s.remove(0x1FB93)                              // reserved, unassigned
         s.formUnion([0x1FBCE, 0x1FBCF])                            // thirds
+        s.formUnion(0x1FBD0...0x1FBEF)                 // diagonal pieces, circles
+        s.formUnion(0x1CC1B...0x1CC1E)                             // line+bar
+        s.formUnion(0x1CC21...0x1CC3F)                 // separated quads, arcs
         s.formUnion(0x1CD00...0x1CDE5)                             // octants
+        s.formUnion([0x1CE00, 0x1CE01, 0x1CE0B, 0x1CE0C])          // white circles
+        s.formUnion(0x1CE16...0x1CE19)                             // │ + edge bar
+        s.formUnion(0x1CE51...0x1CE9F)                 // separated sextants, 16ths
         s.formUnion(0xE0B0...0xE0BF)                               // powerline
         return s
     }()
@@ -810,6 +816,106 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 }
                 XCTAssertTrue(near(closing.dx, from.dx) && near(closing.dy, from.dy),
                               "\(name) not closed")
+            }
+        }
+    }
+
+    // MARK: - 4h · Diagonal pieces, circles, separated mosaics
+
+    /// U+1FBD0–1FBDF: light strokes whose every endpoint sits on the 3x3
+    /// alignment grid, chevrons sharing their middle point, all distinct.
+    func testDiagonalPieces() {
+        sweep { c in
+            var seen = Set<[Int]>()
+            for cp in UInt32(0x1FBD0)...UInt32(0x1FBDF) {
+                let name = String(format: "U+%05X", cp)
+                let ops = plan(cp, c)
+                XCTAssertEqual(ops.count, cp < 0x1FBD8 ? 1 : 2, name)
+                var key: [Int] = []
+                var last: Offset?
+                for op in ops {
+                    guard case .stroke(let from, let segments, _) = op,
+                          case .line(let to)? = segments.first else {
+                        return XCTFail("\(name): not a line stroke")
+                    }
+                    for p in [from, to] {
+                        let xi = (0...2).first { near(p.dx, c.x + c.w * Double($0) / 2) }
+                        let yi = (0...2).first { near(p.dy, c.y + c.h * Double($0) / 2) }
+                        XCTAssertNotNil(xi, "\(name) x off grid")
+                        XCTAssertNotNil(yi, "\(name) y off grid")
+                        key.append((xi ?? -1) * 3 + (yi ?? -1))
+                    }
+                    if let l = last {
+                        XCTAssertTrue(near(l.dx, from.dx) && near(l.dy, from.dy),
+                                      "\(name) chevron does not share its point")
+                    }
+                    last = to
+                }
+                XCTAssertTrue(seen.insert(key).inserted, "\(name) duplicate")
+            }
+        }
+    }
+
+    /// Circles carry π sweeps (halves) or π/2 (quarters and pieces); the
+    /// separated mosaics keep every rect strictly inside the cell — the
+    /// gutter IS the glyph — with the mask honoured.
+    func testCirclesAndSeparatedMosaics() {
+        sweep { c in
+            for (cp, fr) in [(UInt32(0x1FBE4), (0.25, 0.0, 0.75, 0.5)),
+                             (0x1FBE5, (0.25, 0.5, 0.75, 1.0)),
+                             (0x1FBE6, (0.0, 0.25, 0.5, 0.75)),
+                             (0x1FBE7, (0.5, 0.25, 1.0, 0.75))] {
+                let rs = fills(plan(cp, c))
+                XCTAssertEqual(rs.count, 1)
+                XCTAssertTrue(near(rs[0].left, c.x + fr.0 * c.w)
+                                && near(rs[0].top, c.y + fr.1 * c.h)
+                                && near(rs[0].right, c.x + fr.2 * c.w)
+                                && near(rs[0].bottom, c.y + fr.3 * c.h),
+                              String(format: "U+%05X", cp))
+            }
+            for cp in [UInt32(0x1FBE0), 0x1FBE1, 0x1FBE2, 0x1FBE3] {
+                guard case .stroke(_, let segs, _)? = plan(cp, c).first,
+                      case .arc(_, _, let sweepAngle)? = segs.first else {
+                    return XCTFail(String(format: "U+%05X not an arc stroke", cp))
+                }
+                XCTAssertTrue(near(abs(sweepAngle), Double.pi))
+            }
+            for cp in [UInt32(0x1FBEC), 0x1FBED, 0x1FBEE, 0x1FBEF] {
+                guard case .fillPath(_, let segs, _)? = plan(cp, c).first,
+                      case .arc(_, _, let sweepAngle)? = segs.first else {
+                    return XCTFail(String(format: "U+%05X not an arc fill", cp))
+                }
+                XCTAssertTrue(near(abs(sweepAngle), Double.pi / 2))
+            }
+            for cp in UInt32(0x1CC30)...UInt32(0x1CC3F) {
+                guard case .stroke(_, let segs, _)? = plan(cp, c).first,
+                      case .arc(_, _, let sweepAngle)? = segs.first else {
+                    return XCTFail(String(format: "U+%05X not an arc stroke", cp))
+                }
+                XCTAssertTrue(near(abs(sweepAngle), Double.pi / 2))
+            }
+            for (base, range, bits) in [(UInt32(0x1CC20), UInt32(0x1CC21)...UInt32(0x1CC2F), 4),
+                                        (UInt32(0x1CE50), UInt32(0x1CE51)...UInt32(0x1CE8F), 6)] {
+                for cp in range {
+                    let name = String(format: "U+%05X", cp)
+                    let rs = fills(plan(cp, c))
+                    XCTAssertEqual(rs.count, (cp - base).nonzeroBitCount, name)
+                    _ = bits
+                    for r in rs {
+                        XCTAssertGreaterThan(r.left, c.x, name)
+                        XCTAssertLessThan(r.right, c.x + c.w, name)
+                        XCTAssertGreaterThan(r.top, c.y, name)
+                        XCTAssertLessThan(r.bottom, c.y + c.h, name)
+                    }
+                }
+            }
+            for cp in UInt32(0x1CE90)...UInt32(0x1CE9F) {
+                let i = Double(cp - 0x1CE90)
+                let rs = fills(plan(cp, c))
+                XCTAssertEqual(rs.count, 1)
+                XCTAssertTrue(near(rs[0].left, c.x + c.w * (i.truncatingRemainder(dividingBy: 4)) / 4)
+                                && near(rs[0].top, c.y + c.h * (i / 4).rounded(.down) / 4),
+                              String(format: "U+%05X", cp))
             }
         }
     }

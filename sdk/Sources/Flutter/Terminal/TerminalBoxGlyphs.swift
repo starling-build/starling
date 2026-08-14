@@ -79,7 +79,13 @@ enum TerminalBoxGlyphs {
         case 0x1FB93: return false                     // reserved, unassigned
         case 0x1FB00...0x1FBAF: return true            // sextants…fills…chamfers
         case 0x1FBCE, 0x1FBCF: return true             // thirds blocks
+        case 0x1FBD0...0x1FBEF: return true            // diagonal pieces, circles
+        case 0x1CC1B...0x1CC1E: return true            // line + edge-bar combos
+        case 0x1CC21...0x1CC3F: return true            // separated quads, circle pieces
         case 0x1CD00...0x1CDE5: return true            // octants
+        case 0x1CE00, 0x1CE01, 0x1CE0B, 0x1CE0C: return true  // white circles/ellipses
+        case 0x1CE16...0x1CE19: return true            // vertical + edge-bar combos
+        case 0x1CE51...0x1CE9F: return true            // separated sextants, sixteenths
         case 0xE0B0...0xE0BF: return true              // powerline separators
         default: return false
         }
@@ -188,6 +194,29 @@ enum TerminalBoxGlyphs {
         if (0x25E2...0x25E5).contains(scalar) || (0x25F8...0x25FA).contains(scalar)
             || scalar == 0x25FF {
             return geometricTriangleOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x1FBD0...0x1FBDF).contains(scalar) {
+            return diagonalPieceOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x1FBE0...0x1FBEF).contains(scalar) {
+            return circleOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x1CC1B...0x1CC1E).contains(scalar) || (0x1CE16...0x1CE19).contains(scalar) {
+            return lineBarOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x1CC21...0x1CC2F).contains(scalar) || (0x1CE51...0x1CE8F).contains(scalar) {
+            return separatedOps(scalar, x: x, y: y, w: w, h: h)
+        }
+        if (0x1CC30...0x1CC3F).contains(scalar)
+            || [0x1CE00, 0x1CE01, 0x1CE0B, 0x1CE0C].contains(scalar) {
+            return circlePieceOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x1CE90...0x1CE9F).contains(scalar) {
+            let i = Int(scalar - 0x1CE90)
+            return [.fill(Rect.fromLTRB(x + w * Double(i % 4) / 4,
+                                        y + h * Double(i / 4) / 4,
+                                        x + w * Double(i % 4 + 1) / 4,
+                                        y + h * Double(i / 4 + 1) / 4))]
         }
         if (0x1CD00...0x1CDE5).contains(scalar) {
             return octantOps(scalar, x: x, y: y, w: w, h: h)
@@ -895,6 +924,236 @@ enum TerminalBoxGlyphs {
                         segments: corners.dropFirst().map { .line(to: $0) }
                             + [.line(to: corners[0])],
                         thickness: thickness(1, scale))]
+    }
+
+    // MARK: - Diagonal pieces and circles
+
+    /// U+1FBD0–1FBDF: light strokes between points of the cell's 3x3
+    /// alignment grid — corners, edge midpoints, centre. The first eight are
+    /// single segments; the rest are two segments meeting at a shared point,
+    /// the chevron family.
+    private static func diagonalPieceOps(_ scalar: UInt32,
+                                         x: Double, y: Double, w: Double, h: Double,
+                                         scale: Double) -> [BoxPlanOp] {
+        // Grid coordinates: (col, row) in 0...2, scaled by the half-cell.
+        typealias P = (Int, Int)
+        let table: [[(P, P)]] = [
+            [((2, 1), (0, 2))],                          // 🯐 MR→LL
+            [((2, 0), (0, 1))],                          // 🯑 UR→ML
+            [((0, 0), (2, 1))],                          // 🯒 UL→MR
+            [((0, 1), (2, 2))],                          // 🯓 ML→LR
+            [((0, 0), (1, 2))],                          // 🯔 UL→LC
+            [((1, 0), (2, 2))],                          // 🯕 UC→LR
+            [((2, 0), (1, 2))],                          // 🯖 UR→LC
+            [((1, 0), (0, 2))],                          // 🯗 UC→LL
+            [((0, 0), (1, 1)), ((1, 1), (2, 0))],        // 🯘 UL→C→UR
+            [((2, 0), (1, 1)), ((1, 1), (2, 2))],        // 🯙 UR→C→LR
+            [((0, 2), (1, 1)), ((1, 1), (2, 2))],        // 🯚 LL→C→LR
+            [((0, 0), (1, 1)), ((1, 1), (0, 2))],        // 🯛 UL→C→LL
+            [((0, 0), (1, 2)), ((1, 2), (2, 0))],        // 🯜 UL→LC→UR
+            [((2, 0), (0, 1)), ((0, 1), (2, 2))],        // 🯝 UR→ML→LR
+            [((0, 2), (1, 0)), ((1, 0), (2, 2))],        // 🯞 LL→UC→LR
+            [((0, 0), (2, 1)), ((2, 1), (0, 2))],        // 🯟 UL→MR→LL
+        ]
+        let t = thickness(1, scale)
+        func pt(_ p: P) -> Offset {
+            Offset(x + w * Double(p.0) / 2, y + h * Double(p.1) / 2)
+        }
+        return table[Int(scalar - 0x1FBD0)].map {
+            .stroke(from: pt($0.0), segments: [.line(to: pt($0.1))], thickness: t)
+        }
+    }
+
+    /// U+1FBE0–1FBEF: circles centred on cell edges and corners (the in-cell
+    /// part is a half or quarter disc), and the four centred half-size
+    /// blocks. Radius is half the smaller cell dimension, like a font would
+    /// square the shape.
+    private static func circleOps(_ scalar: UInt32,
+                                  x: Double, y: Double, w: Double, h: Double,
+                                  scale: Double) -> [BoxPlanOp] {
+        let t = thickness(1, scale)
+        let pi = Double.pi
+        let r = min(w, h) / 2
+        func oval(_ cx: Double, _ cy: Double, _ radius: Double) -> Rect {
+            Rect.fromLTRB(cx - radius, cy - radius, cx + radius, cy + radius)
+        }
+        // The visible half of a circle centred on an edge midpoint, as a
+        // start angle and sweep (y-down angles; π/2 is the cell's bottom).
+        func half(_ cx: Double, _ cy: Double, start: Double,
+                  filled: Bool) -> BoxPlanOp {
+            filled
+                ? .fillPath(from: Offset(cx + r * cos(start), cy + r * sin(start)),
+                            segments: [.arc(oval: oval(cx, cy, r),
+                                            start: start, sweep: pi)],
+                            alpha: 1)
+                : .stroke(from: Offset(cx + (r - t / 2) * cos(start),
+                                       cy + (r - t / 2) * sin(start)),
+                          segments: [.arc(oval: oval(cx, cy, r - t / 2),
+                                          start: start, sweep: pi)],
+                          thickness: t)
+        }
+        // A quarter disc hanging off a corner: arc plus the two edge runs
+        // back through the corner.
+        func quarter(_ corner: Offset, start: Double) -> BoxPlanOp {
+            let from = Offset(corner.dx + r * cos(start), corner.dy + r * sin(start))
+            return .fillPath(from: from,
+                             segments: [.arc(oval: oval(corner.dx, corner.dy, r),
+                                             start: start, sweep: pi / 2),
+                                        .line(to: corner)],
+                             alpha: 1)
+        }
+        switch scalar {
+        case 0x1FBE0: return [half(x + w / 2, y, start: pi, filled: false)]      // 🯠
+        case 0x1FBE1: return [half(x + w, y + h / 2, start: pi / 2, filled: false)] // 🯡
+        case 0x1FBE2: return [half(x + w / 2, y + h, start: pi, filled: false)]  // 🯢
+        case 0x1FBE3: return [half(x, y + h / 2, start: -pi / 2, filled: false)] // 🯣
+        case 0x1FBE4:                                    // 🯤 upper centre block
+            return [.fill(Rect.fromLTRB(x + w / 4, y, x + 3 * w / 4, y + h / 2))]
+        case 0x1FBE5:                                    // 🯥 lower centre block
+            return [.fill(Rect.fromLTRB(x + w / 4, y + h / 2, x + 3 * w / 4, y + h))]
+        case 0x1FBE6:                                    // 🯦 middle left block
+            return [.fill(Rect.fromLTRB(x, y + h / 4, x + w / 2, y + 3 * h / 4))]
+        case 0x1FBE7:                                    // 🯧 middle right block
+            return [.fill(Rect.fromLTRB(x + w / 2, y + h / 4, x + w, y + 3 * h / 4))]
+        case 0x1FBE8: return [half(x + w / 2, y, start: pi, filled: true)]       // 🯨
+        case 0x1FBE9: return [half(x + w, y + h / 2, start: pi / 2, filled: true)] // 🯩
+        case 0x1FBEA: return [half(x + w / 2, y + h, start: pi, filled: true)]   // 🯪
+        case 0x1FBEB: return [half(x, y + h / 2, start: -pi / 2, filled: true)]  // 🯫
+        case 0x1FBEC: return [quarter(Offset(x + w, y), start: pi / 2)]          // 🯬
+        case 0x1FBED: return [quarter(Offset(x, y + h), start: -pi / 2)]         // 🯭
+        case 0x1FBEE: return [quarter(Offset(x + w, y + h), start: pi)]          // 🯮
+        default:      return [quarter(Offset(x, y), start: 0)]                   // 🯯
+        }
+    }
+
+    // MARK: - Supplement combos and separated mosaics
+
+    /// U+1CC1B–1CC1E and U+1CE16–1CE19: a full light line with an
+    /// edge-hugging half bar — chart plumbing for old character sets.
+    private static func lineBarOps(_ scalar: UInt32,
+                                   x: Double, y: Double, w: Double, h: Double,
+                                   scale: Double) -> [BoxPlanOp] {
+        let t = thickness(1, scale)
+        var ops: [BoxPlanOp] = []
+        switch scalar {
+        case 0x1CC1B, 0x1CC1C:                           // 𜰛𜰜 ─ + right edge bar
+            ops = armOps(BoxArms(left: 1, right: 1), x: x, y: y, w: w, h: h, scale: scale)
+            ops.append(.fill(scalar == 0x1CC1B
+                ? Rect.fromLTRB(x + w - t, y, x + w, y + h / 2)
+                : Rect.fromLTRB(x + w - t, y + h / 2, x + w, y + h)))
+        case 0x1CC1D:                                    // 𜰝 top bar + upper left bar
+            ops = [.fill(Rect.fromLTRB(x, y, x + w, y + t)),
+                   .fill(Rect.fromLTRB(x, y, x + t, y + h / 2))]
+        case 0x1CC1E:                                    // 𜰞 bottom bar + lower left bar
+            ops = [.fill(Rect.fromLTRB(x, y + h - t, x + w, y + h)),
+                   .fill(Rect.fromLTRB(x, y + h / 2, x + t, y + h))]
+        default:                                         // 𜸖𜸗𜸘𜸙 │ + edge bar
+            ops = armOps(BoxArms(up: 1, down: 1), x: x, y: y, w: w, h: h, scale: scale)
+            switch scalar {
+            case 0x1CE16: ops.append(.fill(Rect.fromLTRB(x + w / 2, y, x + w, y + t)))
+            case 0x1CE17: ops.append(.fill(Rect.fromLTRB(x + w / 2, y + h - t, x + w, y + h)))
+            case 0x1CE18: ops.append(.fill(Rect.fromLTRB(x, y, x + w / 2, y + t)))
+            default:      ops.append(.fill(Rect.fromLTRB(x, y + h - t, x + w / 2, y + h)))
+            }
+        }
+        return ops
+    }
+
+    /// Separated quadrants U+1CC21–1CC2F and separated sextants
+    /// U+1CE51–1CE8F: the mosaic cells inset by a gutter — a twelfth of the
+    /// cell width outside, two gutters between — so adjacent glyphs read as
+    /// distinct dots. Masks are the codepoint offset, no skips.
+    private static func separatedOps(_ scalar: UInt32,
+                                     x: Double, y: Double,
+                                     w: Double, h: Double) -> [BoxPlanOp] {
+        let g = w / 12
+        let cw = (w - 4 * g) / 2
+        let xs = [x + g, x + g + cw + 2 * g]
+        var ops: [BoxPlanOp] = []
+        if scalar <= 0x1CC2F {                           // quadrants, 2 rows
+            let mask = scalar - 0x1CC20
+            let ch = (h - 4 * g) / 2
+            let ys = [y + g, y + g + ch + 2 * g]
+            for bit in 0..<4 where mask & (1 << bit) != 0 {
+                ops.append(.fill(Rect.fromLTWH(xs[bit % 2], ys[bit / 2], cw, ch)))
+            }
+        } else {                                         // sextants, 3 rows
+            let mask = scalar - 0x1CE50
+            let ch = (h - 6 * g) / 3
+            let ys = [y + g, y + g + ch + 2 * g, y + g + 2 * (ch + 2 * g)]
+            for bit in 0..<6 where mask & (1 << bit) != 0 {
+                ops.append(.fill(Rect.fromLTWH(xs[bit % 2], ys[bit / 2], cw, ch)))
+            }
+        }
+        return ops
+    }
+
+    /// U+1CC30–1CC3F and the white circle/ellipse pairs: stroked quarter
+    /// arcs of circles spanning one or two cells, so a 2x2 block of the
+    /// twelfth pieces composes one large circle across cells.
+    private static func circlePieceOps(_ scalar: UInt32,
+                                       x: Double, y: Double, w: Double, h: Double,
+                                       scale: Double) -> [BoxPlanOp] {
+        let t = thickness(1, scale)
+        let pi = Double.pi
+        // (px, py): this cell's offset into the circle's bounding box, in
+        // cells. (cw, ch): the circle's RADIUS in cells — a "twelfth circle"
+        // piece belongs to a circle spanning 2·cw x 2·ch cells, whose ring
+        // passes through twelve boundary cells. Quarter per corner: tl is
+        // the arc from the box's left edge to its top.
+        func piece(_ px: Double, _ py: Double, _ cw: Double, _ ch: Double,
+                   _ corner: String) -> BoxPlanOp {
+            let ox = x - px * w, oy = y - py * h
+            let oval = Rect.fromLTRB(ox + t / 2, oy + t / 2,
+                                     ox + 2 * cw * w - t / 2, oy + 2 * ch * h - t / 2)
+            let (start, sweep): (Double, Double)
+            switch corner {
+            case "tl": (start, sweep) = (pi, pi / 2)     // left → top
+            case "tr": (start, sweep) = (3 * pi / 2, pi / 2)
+            case "bl": (start, sweep) = (pi / 2, pi / 2)
+            default:   (start, sweep) = (0, pi / 2)      // br
+            }
+            let cx = (oval.left + oval.right) / 2, cy = (oval.top + oval.bottom) / 2
+            let rx = (oval.right - oval.left) / 2, ry = (oval.bottom - oval.top) / 2
+            return .stroke(from: Offset(cx + rx * cos(start), cy + ry * sin(start)),
+                           segments: [.arc(oval: oval, start: start, sweep: sweep)],
+                           thickness: t)
+        }
+        switch scalar {
+        case 0x1CC30: return [piece(0, 0, 2, 2, "tl")]
+        case 0x1CC31: return [piece(1, 0, 2, 2, "tl")]
+        case 0x1CC32: return [piece(2, 0, 2, 2, "tr")]
+        case 0x1CC33: return [piece(3, 0, 2, 2, "tr")]
+        case 0x1CC34: return [piece(0, 1, 2, 2, "tl")]
+        case 0x1CC35: return [piece(0, 0, 1, 1, "tl")]
+        case 0x1CC36: return [piece(1, 0, 1, 1, "tr")]
+        case 0x1CC37: return [piece(3, 1, 2, 2, "tr")]
+        case 0x1CC38: return [piece(0, 2, 2, 2, "bl")]
+        case 0x1CC39: return [piece(0, 1, 1, 1, "bl")]
+        case 0x1CC3A: return [piece(1, 1, 1, 1, "br")]
+        case 0x1CC3B: return [piece(3, 2, 2, 2, "br")]
+        case 0x1CC3C: return [piece(0, 3, 2, 2, "bl")]
+        case 0x1CC3D: return [piece(1, 3, 2, 2, "bl")]
+        case 0x1CC3E: return [piece(2, 3, 2, 2, "br")]
+        case 0x1CC3F: return [piece(3, 3, 2, 2, "br")]
+        case 0x1CE00:                                    // 𜸀 left+right white circles
+            return circleOps(0x1FBE3, x: x, y: y, w: w, h: h, scale: scale)
+                + circleOps(0x1FBE1, x: x, y: y, w: w, h: h, scale: scale)
+        case 0x1CE01:                                    // 𜸁 top+bottom white circles
+            return circleOps(0x1FBE0, x: x, y: y, w: w, h: h, scale: scale)
+                + circleOps(0x1FBE2, x: x, y: y, w: w, h: h, scale: scale)
+        case 0x1CE0B, 0x1CE0C:                           // 𜸋𜸌 half white ellipses
+            let oval = Rect.fromLTRB(x + t / 2, y + t / 2,
+                                     x + w - t / 2, y + h - t / 2)
+            let start = scalar == 0x1CE0B ? pi / 2 : -pi / 2
+            let cx = (oval.left + oval.right) / 2, cy = (oval.top + oval.bottom) / 2
+            let rx = (oval.right - oval.left) / 2, ry = (oval.bottom - oval.top) / 2
+            return [.stroke(from: Offset(cx + rx * cos(start), cy + ry * sin(start)),
+                            segments: [.arc(oval: oval, start: start, sweep: pi)],
+                            thickness: t)]
+        default:
+            return []
+        }
     }
 
     // MARK: - Powerline
