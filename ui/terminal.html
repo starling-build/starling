@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Starling Terminal — a cross-platform terminal, built for speed</title>
-<meta name="description" content="A terminal workspace: tiling or floating, on Linux and Windows, with macOS in progress. About half the wall time of the ghostty nightly on Linux, and a widget you can build your own terminal app from in twenty lines of Swift.">
+<meta name="description" content="A terminal workspace: tiling or floating, on Linux, Windows and macOS. Faster than the ghostty nightly on Linux and macOS at a fraction of the CPU, and a widget you can build your own terminal app from in twenty lines of Swift.">
 <meta property="og:title" content="Starling Terminal — a cross-platform terminal, built for speed">
-<meta property="og:description" content="Tiling or floating, on Linux and Windows. Half the wall time of the ghostty nightly, zero conformance errors, and twenty lines of Swift to build your own.">
+<meta property="og:description" content="Tiling or floating, on Linux, Windows and macOS. Faster than the ghostty nightly on Linux and macOS, zero conformance errors, and twenty lines of Swift to build your own.">
 <meta property="og:type" content="article">
 <meta property="og:image" content="https://starling.build/img/terminal-tiling.jpg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
@@ -174,6 +174,13 @@
   td.win { color: var(--green); font-weight: 600; }
   td.loss { color: var(--ink-faint); }
   .note { margin-top: 16px; font-size: 14.5px; color: var(--ink-faint); line-height: 1.55; }
+  table.wide { min-width: 660px; }
+  table.wide th, table.wide td { padding-left: 10px; padding-right: 10px; }
+  thead tr.grp th { border-bottom: none; padding-bottom: 0; text-align: center;
+                    color: var(--ink-dim); }
+  th.sep, td.sep { border-left: 1px solid var(--line-soft); }
+  .dim-head { font-size: 16px; font-weight: 620; color: var(--ink); margin: 36px 0 0; }
+  .dim-head + .tablewrap { margin-top: 12px; }
 
   /* ---------- code ---------- */
   .code-col { border: 1px solid var(--line); border-radius: 12px;
@@ -255,8 +262,8 @@
     <h1>Starling <span class="accent">Terminal</span></h1>
     <p class="tagline">A cross-platform terminal, built for speed.</p>
     <p class="lede">
-      Linux and Windows, macOS soon. Tiling or floating, from one toggle — and
-      about half the wall time of ghostty on Linux.
+      Linux, Windows and macOS. Tiling or floating, from one toggle — and faster
+      than the ghostty nightly on both Linux and macOS, at half the CPU or less.
     </p>
   </div>
 
@@ -282,22 +289,24 @@
 <section>
   <div class="wrap points">
     <div class="point">
-      <div class="os"><span>Linux</span><span>Windows</span><span class="soon">macOS soon</span></div>
+      <div class="os"><span>Linux</span><span>Windows</span><span>macOS</span></div>
       <h3>Runs where you work</h3>
       <p>Wayland or X11 on Linux; a native window on Windows, where it runs on par
-         with Windows Terminal. macOS is in progress.</p>
+         with Windows Terminal; and now a Cocoa window on macOS.</p>
     </div>
     <div class="point">
-      <div class="big">0.55&times;</div>
+      <div class="big">1.61&times;</div>
       <h3>Faster than ghostty</h3>
-      <p>Half the wall time of the ghostty nightly over ten workloads — same
-         machine, same grid, same session.</p>
+      <p>Across ten workloads against the ghostty nightly on Linux, and
+         1.30&times; on macOS — matched grid and font, while ghostty burns
+         two to three times the CPU.</p>
     </div>
     <div class="point">
-      <div class="big">0 <small>vs 33</small></div>
+      <div class="big">0 <small>vs 40</small></div>
       <h3>Text done properly</h3>
-      <p>Zero <code>ucs-detect</code> errors in 37k+ measurements: wide characters,
-         emoji families, 118 languages of conjuncts.</p>
+      <p>Zero <code>ucs-detect</code> errors in 107k+ measurements — wide characters,
+         emoji families, 118 languages of conjuncts — where the ghostty nightly
+         logs 40.</p>
     </div>
   </div>
 </section>
@@ -306,33 +315,105 @@
 <section>
   <div class="wrap narrow prose">
     <div class="kicker">Performance</div>
-    <h2>Measured against ghostty, on Linux.</h2>
-    <p>Same machine, same GNOME session, same grid. Median-of-5, in seconds.</p>
+    <h2>Measured against ghostty, on Linux and macOS.</h2>
+    <p>Both platforms run ghostty's current nightly, configured onto our Roboto Mono
+       at our cell metrics, at the same verified 47&times;201 grid — so cell for cell,
+       both terminals raster the same pixels. Ten workloads, medians of three runs.
+       Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a MacBook Pro (M1 Pro),
+       our build on a full release engine. Every ratio below is a multiple in
+       Starling's favour: <strong>above 1.00&times;, Starling is ahead</strong>;
+       below it, ghostty is.</p>
   </div>
 
   <div class="wrap narrow">
+    <p class="dim-head">Raw speed — seconds to drain each workload</p>
+    <div class="tablewrap">
+      <table class="wide">
+        <thead>
+          <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
+          <tr><th>Workload</th>
+              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
+              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Light cells</td><td class="sep">0.586</td><td>0.497</td><td class="loss">0.85&times;</td><td class="sep">0.111</td><td>0.149</td><td class="win">1.34&times;</td></tr>
+          <tr><td>Dense cells</td><td class="sep">0.249</td><td>0.173</td><td class="loss">0.69&times;</td><td class="sep">0.129</td><td>0.145</td><td class="win">1.12&times;</td></tr>
+          <tr><td>Coloured text</td><td class="sep">0.387</td><td>1.039</td><td class="win">2.68&times;</td><td class="sep">0.438</td><td>0.642</td><td class="win">1.47&times;</td></tr>
+          <tr><td>Truecolour</td><td class="sep">0.390</td><td>0.761</td><td class="win">1.95&times;</td><td class="sep">0.619</td><td>0.713</td><td class="win">1.15&times;</td></tr>
+          <tr><td>Unicode</td><td class="sep">0.334</td><td>0.316</td><td class="loss">0.95&times;</td><td class="sep">0.323</td><td>0.305</td><td class="loss">0.94&times;</td></tr>
+          <tr><td>Cursor motion</td><td class="sep">0.022</td><td>0.034</td><td class="win">1.55&times;</td><td class="sep">0.031</td><td>0.037</td><td class="win">1.19&times;</td></tr>
+          <tr><td>Alt screen</td><td class="sep">0.117</td><td>0.135</td><td class="win">1.15&times;</td><td class="sep">0.207</td><td>0.180</td><td class="loss">0.87&times;</td></tr>
+          <tr><td>Scroll region</td><td class="sep">0.510</td><td>0.457</td><td class="loss">0.90&times;</td><td class="sep">0.181</td><td>0.217</td><td class="win">1.20&times;</td></tr>
+          <tr><td>Long lines</td><td class="sep">0.145</td><td>0.147</td><td>1.01&times;</td><td class="sep">0.163</td><td>0.181</td><td class="win">1.11&times;</td></tr>
+          <tr><td>Binary dump</td><td class="sep">0.479</td><td>1.624</td><td class="win">3.39&times;</td><td class="sep">0.189</td><td>0.545</td><td class="win">2.88&times;</td></tr>
+          <tr class="total"><td>All ten workloads</td><td class="sep">3.219</td><td>5.183</td><td class="win">1.61&times;</td><td class="sep">2.391</td><td>3.114</td><td class="win">1.30&times;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Seconds compare within a platform, not across it: the Linux round ran
+      on a 30 Hz display, which slows both terminals' absolute times equally. The ratios
+      carry.</p>
+
+    <p class="dim-head">CPU — what the suite costs the machine</p>
     <div class="tablewrap">
       <table>
         <thead>
-          <tr><th>Workload</th><th>Starling</th><th>ghostty</th><th>Ratio</th></tr>
+          <tr><th>Ten workloads</th><th>Starling</th><th>ghostty</th><th>Speedup</th></tr>
         </thead>
         <tbody>
-          <tr><td>Binary dump</td><td>1.880</td><td>8.766</td><td class="win">0.21&times;</td></tr>
-          <tr><td>Coloured text</td><td>1.334</td><td>5.121</td><td class="win">0.26&times;</td></tr>
-          <tr><td>Truecolour</td><td>1.885</td><td>3.738</td><td class="win">0.50&times;</td></tr>
-          <tr><td>Unicode</td><td>1.437</td><td>1.597</td><td class="win">0.90&times;</td></tr>
-          <tr><td>Light cells</td><td>2.362</td><td>2.395</td><td>0.99&times;</td></tr>
-          <tr><td>Scroll region</td><td>1.787</td><td>1.647</td><td class="loss">1.09&times;</td></tr>
-          <tr class="total"><td>All ten workloads</td><td>13.140</td><td>25.627</td><td class="win">0.51&times;</td></tr>
+          <tr><td>Linux</td><td>4.46 s</td><td>9.66 s</td><td class="win">2.17&times;</td></tr>
+          <tr><td>macOS</td><td>2.38 s</td><td>8.02 s</td><td class="win">3.37&times;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">CPU-seconds charged to the terminal's own process, read around each
+      workload. The wall-time wins are not bought with cores: ghostty burns 2.17&times;
+      the CPU on Linux and 3.37&times; on macOS to run the same suite.</p>
+
+    <p class="dim-head">Memory — resident set</p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Sampled at</th><th>Starling</th><th>ghostty</th><th>Delta</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Linux, after the suite</td><td>226 MB</td><td>209 MB</td><td class="loss">+17 MB</td></tr>
+          <tr><td>macOS, after the suite</td><td>121 MB</td><td>127 MB</td><td class="win">&minus;6 MB</td></tr>
+          <tr><td>macOS, after two 150 MB cats</td><td>120 MB</td><td>171 MB</td><td class="win">&minus;51 MB</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Flat on both platforms — within 1 MB across three consecutive suites.
+      On macOS Starling now holds less memory than ghostty; on Linux it still carries
+      17 MB more.</p>
+
+    <p class="dim-head">ghostty's own three tests</p>
+    <div class="tablewrap">
+      <table class="wide">
+        <thead>
+          <tr class="grp"><th></th><th colspan="3" class="sep">Linux</th><th colspan="3" class="sep">macOS</th></tr>
+          <tr><th>Test</th>
+              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th>
+              <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>ascii cat, 150 MB</td><td class="sep">0.869 s</td><td>0.829 s</td><td class="loss">0.95&times;</td><td class="sep">0.611 s</td><td>0.692 s</td><td class="win">1.13&times;</td></tr>
+          <tr><td>unicode cat, 150 MB</td><td class="sep">0.659 s</td><td>0.815 s</td><td class="win">1.24&times;</td><td class="sep">0.806 s</td><td>0.826 s</td><td>1.02&times;</td></tr>
+          <tr><td>DOOM-Fire, 600 frames</td><td class="sep">1200 fps</td><td>701 fps</td><td class="win">1.71&times;</td><td class="sep">1025 fps</td><td>845 fps</td><td class="win">1.21&times;</td></tr>
         </tbody>
       </table>
     </div>
     <p class="note">
-      DOOM-Fire runs at 1960 fps to ghostty's 1224. We lose four of the ten, and a
-      150 MB <code>cat</code> is a coin flip — ghostty's <code>io_uring</code> read
-      path gets under a floor ours sits on. Every number is a pair measured back to
-      back on one machine; full data and caveats in
-      <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>.
+      Raw values are seconds for the cats and frames per second for DOOM-Fire; the
+      speedup is Starling's multiple either way. The one test ghostty keeps is the
+      Linux ascii cat, by ~5% — its <code>io_uring</code> read path gets under the
+      <code>read(2)</code> floor ours sits on. macOS has no io_uring, and the cat flips
+      to us. CPU is ours on all six legs — ghostty spends 1.4–2.8&times; as much. We
+      lose four of ten workloads on Linux and two on macOS; every number is a pair
+      measured back to back on one machine, and the raw runs are checked in at
+      <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>
+      (<code>terminal-vs-ghostty-2026-08-13-atlas</code> and
+      <code>terminal-vs-ghostty-macos-2026-08-13-samefont</code>).
     </p>
   </div>
 </section>
