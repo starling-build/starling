@@ -1,0 +1,8 @@
+# gh terminal=9271/ghostty grid=47x201
+ascii_500mb 2.049 4.75
+ascii_500mb 2.105 4.86
+ascii_500mb 1.925 4.47
+unicode_500mb 2.396 6.40
+unicode_500mb 2.395 6.42
+unicode_500mb 2.401 6.42
+rss_kb 176896

@@ -1,0 +1,4 @@
+label gh
+terminal_pid 94879
+terminal_comm ghostty
+grid 47x201

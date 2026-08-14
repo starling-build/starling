@@ -1,0 +1,4 @@
+label ours
+terminal_pid 82515
+terminal_comm TerminalApp
+grid 47x201
