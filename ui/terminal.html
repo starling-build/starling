@@ -515,7 +515,7 @@
         <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:18.3%"></i><em class="v" style="left:calc(18.3% + 7px)">2.4 s</em></div></div>
         <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:61.7%"></i><em class="v" style="left:calc(61.7% + 7px)">8.0 s</em></div></div>
         <p class="card-foot">The wall-time wins are not bought with cores — and the gap
-          holds at steady state: 1.87&times; on Linux, 2.96&times; on macOS.</p>
+          holds at steady state: 1.87&times; on Linux, 2.25&times; on macOS.</p>
       </div>
       <div class="chart-card">
         <div class="card-title">Memory — Linux</div>
@@ -546,32 +546,28 @@
         <div class="card-title">Memory — macOS</div>
         <div class="card-sub">resident set, MB, as load accumulates</div>
         <svg class="mem-svg" viewBox="0 0 300 146" role="img"
-             aria-label="macOS resident set: Starling flat at 121 MB throughout; ghostty grows from 127 to 177 MB">
+             aria-label="macOS resident set: Starling flat at 130 MB from 30 GB of suite through the 500 MB cats; ghostty grows from 155 to 176 MB">
           <line x1="24" y1="10" x2="24" y2="114" stroke="#182135"/>
-          <line x1="150" y1="10" x2="150" y2="114" stroke="#182135"/>
           <line x1="276" y1="10" x2="276" y2="114" stroke="#182135"/>
-          <polyline points="24,86.7 150,48.3 276,18.1" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <polyline points="24,94.9 150,94.9 276,94.9" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <circle cx="24" cy="86.7" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
-          <circle cx="150" cy="48.3" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
-          <circle cx="276" cy="18.1" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
-          <circle cx="24" cy="94.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <circle cx="150" cy="94.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <circle cx="276" cy="94.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <text x="24" y="78" font-size="11" fill="#97a3b8">ghostty &middot; 127</text>
-          <text x="24" y="112" font-size="11" fill="#97a3b8">Starling &middot; 121</text>
-          <text x="276" y="111" font-size="11" fill="#97a3b8" text-anchor="end">121 MB</text>
-          <text x="276" y="10" font-size="11" fill="#97a3b8" text-anchor="end">177 MB</text>
-          <text x="24" y="136" font-size="10.5" fill="#64708a">after the suite</text>
-          <text x="150" y="136" font-size="10.5" fill="#64708a" text-anchor="middle">after 30 GB</text>
+          <polyline points="24,48.3 276,19.5" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="24,82.6 276,82.6" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="24" cy="48.3" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="19.5" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="24" cy="82.6" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="82.6" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <text x="24" y="40" font-size="11" fill="#97a3b8">ghostty &middot; 155</text>
+          <text x="24" y="99" font-size="11" fill="#97a3b8">Starling &middot; 130</text>
+          <text x="276" y="99" font-size="11" fill="#97a3b8" text-anchor="end">130 MB</text>
+          <text x="276" y="12" font-size="11" fill="#97a3b8" text-anchor="end">176 MB</text>
+          <text x="24" y="136" font-size="10.5" fill="#64708a">after 30 GB of suite</text>
           <text x="276" y="136" font-size="10.5" fill="#64708a" text-anchor="end">after the cats</text>
         </svg>
       </div>
     </div>
     <p class="note">CPU-seconds are charged to the terminal's own process, read around
       each workload. Memory is flat on our side of both platforms — the same resident
-      set after one suite or 159 GB — while ghostty's grows with load; only the light
-      Linux legs leave it below us.</p>
+      set no matter how much has been drawn — while ghostty's grows with load; only
+      the light Linux legs leave it below us.</p>
 
     <p class="dim-head">Steady state — every test run for minutes, not seconds</p>
     <div class="tablewrap">
@@ -583,11 +579,11 @@
               <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
         </thead>
         <tbody>
-          <tr><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">883 s</td><td>979 s</td><td class="win">1.11&times;</td></tr>
-          <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">828 s</td><td>2451 s</td><td class="win">2.96&times;</td></tr>
-          <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.91 s</td><td>2.05 s</td><td class="win">1.07&times;</td></tr>
-          <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">2.54 s</td><td>2.40 s</td><td class="loss">0.94&times;</td></tr>
-          <tr><td>DOOM-Fire, 150,000 frames</td><td class="sep">1610 fps</td><td>830 fps</td><td class="win">1.94&times;</td><td class="sep">1084 fps</td><td>1065 fps</td><td>1.02&times;</td></tr>
+          <tr><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td></tr>
+          <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">1081 s</td><td>2436 s</td><td class="win">2.25&times;</td></tr>
+          <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.82 s</td><td>2.01 s</td><td class="win">1.11&times;</td></tr>
+          <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">1.76 s</td><td>2.45 s</td><td class="win">1.39&times;</td></tr>
+          <tr><td>DOOM-Fire, 150,000 frames</td><td class="sep">1610 fps</td><td>830 fps</td><td class="win">1.94&times;</td><td class="sep">1119 fps</td><td>1071 fps</td><td class="win">1.05&times;</td></tr>
         </tbody>
       </table>
     </div>
@@ -595,18 +591,22 @@
       The same suite repeated until each workload runs one to two minutes (~159 GB of
       escape-sequence traffic per terminal on Linux, ~30 GB on macOS), the cats grown
       to 500 MB, DOOM-Fire run to 150,000 frames three times over. Length is kind to
-      both terminals, and on Linux it is kinder to us: the two workloads ghostty won
-      at short range (light and dense cells, 0.85&times; and 0.69&times; above)
-      converge to parity at steady state, and no Linux workload is behind by more
-      than 2%. On macOS the fire converges to a tie at a shared ceiling; on Linux it
-      widens to 1.94&times; — 1610 fps on ~1.8 cores against 830 on ~2.1. What never
-      converges is cost: at steady state ghostty burns 1.9&times; our CPU on Linux
-      and 3&times; on macOS for the same bytes. Every number is a pair measured back
-      to back on one machine, and the raw runs are checked in at
+      us on both platforms. On Linux, the two workloads ghostty won at short range
+      (light and dense cells, 0.85&times; and 0.69&times; above) converge to parity,
+      no workload falls behind by more than 2%, and the fire widens to 1.94&times; —
+      1610 fps on ~1.8 cores against 830 on ~2.1. On macOS — measured on this week's
+      build, whose paced pty reader postdates the short-run chart above — all ten
+      workloads land at or ahead, the unicode cat flips from a 6% loss to a
+      1.39&times; win, and the fire holds 1.05&times; on 0.57&times; the CPU; a rerun
+      after the macOS 26.6.1 upgrade moved nothing. What never converges is cost: at
+      steady state ghostty burns 1.9&times; our CPU on Linux and 2.25&times; on macOS
+      for the same bytes. Every number is a pair measured back to back on one machine,
+      and the raw runs are checked in at
       <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>
       (<code>terminal-vs-ghostty-2026-08-13-atlas</code>,
-      <code>terminal-vs-ghostty-macos-2026-08-13-samefont</code>, and the two
-      steady-state rounds, <code>-long</code>).
+      <code>terminal-vs-ghostty-macos-2026-08-13-samefont</code>, the two
+      <code>-2026-08-14-long</code> steady-state rounds, and the
+      <code>-macos-2026-08-14-postupgrade</code> confirmation).
     </p>
 
     <details class="receipts">
@@ -663,9 +663,8 @@
               <tr><td>Linux, after the suite</td><td>226 MB</td><td>209 MB</td><td class="loss">+17 MB</td></tr>
               <tr><td>Linux, after 159 GB of suite</td><td>225 MB</td><td>212 MB</td><td class="loss">+13 MB</td></tr>
               <tr><td>Linux, after two 500 MB cats</td><td>225 MB</td><td>256 MB</td><td class="win">&minus;31 MB</td></tr>
-              <tr><td>macOS, after the suite</td><td>121 MB</td><td>127 MB</td><td class="win">&minus;6 MB</td></tr>
-              <tr><td>macOS, after 30 GB of suite</td><td>121 MB</td><td>155 MB</td><td class="win">&minus;34 MB</td></tr>
-              <tr><td>macOS, after two 500 MB cats</td><td>121 MB</td><td>177 MB</td><td class="win">&minus;56 MB</td></tr>
+              <tr><td>macOS, after 30 GB of suite</td><td>130 MB</td><td>155 MB</td><td class="win">&minus;25 MB</td></tr>
+              <tr><td>macOS, after two 500 MB cats</td><td>130 MB</td><td>176 MB</td><td class="win">&minus;46 MB</td></tr>
             </tbody>
           </table>
         </div>
