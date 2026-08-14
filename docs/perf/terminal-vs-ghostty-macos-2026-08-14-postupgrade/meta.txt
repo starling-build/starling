@@ -1,0 +1,14 @@
+Post-upgrade rerun of the 08-14 long round, same binaries both sides.
+date: 2026-08-14 (launched 22:21:50Z)
+macos: 26.6.1 (25G76)   <- upgraded today from the round at commit bbe93b8
+ours: starling main bbe93b8, TerminalApp release build against
+      host_release_arm64 (engine starling ea78543), dyld-verified,
+      paced reader + atlas painter defaults
+ghostty: 1.3.2-main+f81dcadc8 tip (~/dev/ghostty-tip-20260814), matched-font
+      config (Roboto Mono 13.33, adjust-cell-height -5%), NSAppSleepDisabled=1
+grid: 47x201 both sides (OURS_WINDOW 1624x817, gh 201x47) — recalibrated OK
+onset: both flat post-upgrade (ours 1.36 s/block to 54.5 s, gh 2.56 s/block to 51.3 s)
+note: upgrade wiped /var/tmp/bench (restored from checkpoint); doomfire-mac.sh
+      reconstructed (checkpoint gap), validated on a 600-frame leg;
+      screensaver idleTime 300 -> 0 (upgrade had re-enabled it, aerial was
+      animating the idle display); ANE/Spotlight churn waited out.
