@@ -1,0 +1,4 @@
+label ours
+terminal_pid 35799
+terminal_comm TerminalApp
+grid 47x201

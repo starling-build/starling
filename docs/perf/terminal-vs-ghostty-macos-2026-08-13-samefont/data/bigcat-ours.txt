@@ -1,0 +1,8 @@
+# ours terminal=38207/TerminalApp grid=47x201
+ascii_150mb 0.609 0.57
+ascii_150mb 0.616 0.57
+ascii_150mb 0.611 0.56
+unicode_150mb 0.806 1.26
+unicode_150mb 0.801 1.26
+unicode_150mb 0.826 1.29
+rss_kb 122608
