@@ -406,7 +406,11 @@
     <p class="note">
       Raw values are seconds for the cats and frames per second for DOOM-Fire; the
       speedup is Starling's multiple either way. The macOS fire is the 6,000-frame
-      durable number — short runs understate ghostty's warm-up by ~12%. The one test ghostty keeps is the
+      durable number — short runs understate ghostty's warm-up by ~12%, and run for
+      minutes instead the fps converge to a tie at a shared ceiling (1.02&times; at
+      150,000 frames) while the efficiency gap does not move: at steady state the
+      suite costs ghostty ~3&times; our CPU, and memory holds at 121&nbsp;MB to
+      their 155&ndash;177. The one test ghostty keeps is the
       Linux ascii cat, by ~5% — its <code>io_uring</code> read path gets under the
       <code>read(2)</code> floor ours sits on. macOS has no io_uring, and the cat flips
       to us. CPU is ours on all six legs — ghostty spends 1.4–2.8&times; as much. We
