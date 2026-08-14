@@ -115,3 +115,33 @@ else:
         left -= k
     binary = b"".join(parts)
 write("10_binary.txt", binary + b"\x1b[0m\n")
+
+# box_glyphs — deliberately UNNUMBERED: not part of the 10-workload suite, so
+# every archived round's suite totals stay comparable. This is the corpus for
+# the synthesized-glyph path (TerminalBoxGlyphs): TUI chrome repaints with
+# rounded corners and dashed separators, double-line frames, braille spinners
+# and graphs, and powerline status lines. Run it standalone when the
+# synthesis coverage changes, so "the fast path got wider" stays a measured
+# claim rather than an argued one.
+inner = COLS - 2
+spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+frames = []
+for i in range(S(900)):
+    f = []
+    f.append("\x1b[H")
+    f.append("╭" + "─" * inner + "╮\n")
+    for r in range(ROWS - 6):
+        s = spin[(i + r) % len(spin)]
+        graph = "".join(chr(0x2800 + ((i * 7 + r * 13 + k) % 255) + 1)
+                        for k in range(24))
+        body = f" {s} job {r:03d} {graph} " + "▁▂▃▄▅▆▇█"[(i + r) % 8] * 8
+        f.append("│" + body.ljust(inner)[:inner] + "│\n")
+    f.append("├" + "┄" * inner + "┤\n")
+    f.append("╔" + "═" * (inner - 2) + "╗\n".ljust(1))
+    seg = (f"\x1b[47;30m mode {i % 9} \x1b[0m"
+           f"\x1b[7m branch/main \x1b[27m ok ")
+    f.append("║" + (seg + "\x1b[0m").ljust(inner) + "║\n")
+    f.append("╚" + "═" * (inner - 2) + "╝\n")
+    f.append("╰" + "─" * inner + "╯\n")
+    frames.append("".join(f))
+write("box_glyphs.txt", "".join(frames))
