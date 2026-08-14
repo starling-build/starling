@@ -1,7 +1,0 @@
-# ghn-doom-r13  terminal=359544/ghostty  grid=47x201  frames=600
-BENCHFPS frames=600 seconds=0.967 fps=620.48
-  cpu_s 2.13
-BENCHFPS frames=600 seconds=0.911 fps=658.62
-  cpu_s 2.00
-BENCHFPS frames=600 seconds=0.929 fps=645.86
-  cpu_s 2.05

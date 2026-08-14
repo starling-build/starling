@@ -1,7 +1,0 @@
-# ours-doom-r13  terminal=359236/TerminalApp  grid=47x201  frames=600
-BENCHFPS frames=600 seconds=0.484 fps=1239.67
-  cpu_s 1.16
-BENCHFPS frames=600 seconds=0.528 fps=1136.36
-  cpu_s 1.21
-BENCHFPS frames=600 seconds=0.508 fps=1181.10
-  cpu_s 1.16

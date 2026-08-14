@@ -1,4 +1,0 @@
-label ours-new
-terminal_pid 357178
-terminal_comm TerminalApp
-grid 47x201
