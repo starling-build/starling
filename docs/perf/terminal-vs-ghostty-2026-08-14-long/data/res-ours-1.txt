@@ -1,0 +1,11 @@
+01_light_cells 101.153 105.22 210
+02_dense_cells 86.795 114.32 490
+03_sgr_fg 33.995 53.37 120
+04_sgr_truecolor 54.164 93.61 160
+05_unicode 97.132 186.31 360
+06_cursor_motion 49.946 76.19 3500
+07_alt_screen 80.777 134.75 900
+08_scroll_region 80.376 84.93 240
+09_long_lines 85.040 151.31 820
+10_binary 26.656 30.03 75
+rss_kb 230768

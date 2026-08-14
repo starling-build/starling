@@ -1,0 +1,37 @@
+16:10:00Z ROUND START ours=gtk-58d5f86 gh=f81dcad
+16:10:02Z leg suite/ours try 1
+16:21:52Z   done (11 lines)
+16:21:54Z leg suite/gh try 1
+16:22:04Z   wrong grid 47x202 — abort
+16:22:06Z leg suite/gh try 2
+16:22:16Z   wrong grid 47x202 — abort
+16:22:18Z leg suite/gh try 3
+16:22:28Z   wrong grid 47x202 — abort
+16:22:29Z   giving up
+16:22:31Z leg bigcat/ours try 1
+16:22:51Z   done (8 lines)
+16:22:53Z leg bigcat/gh try 1
+16:23:03Z   wrong grid 47x202 — abort
+16:23:05Z leg bigcat/gh try 2
+16:23:15Z   wrong grid 47x202 — abort
+16:23:17Z leg bigcat/gh try 3
+16:23:27Z   wrong grid 47x202 — abort
+16:23:27Z   giving up
+16:23:29Z leg doom/ours try 1
+16:28:29Z   done (8 lines)
+16:28:31Z leg doom/gh try 1
+16:28:41Z   wrong grid 47x202 — abort
+16:28:43Z leg doom/gh try 2
+16:28:53Z   wrong grid 47x202 — abort
+16:28:55Z leg doom/gh try 3
+16:29:05Z   wrong grid 47x202 — abort
+16:29:05Z   giving up
+16:29:08Z ROUND COMPLETE
+16:29:12Z MANUAL GH LEGS START
+16:29:14Z manual leg suite/gh try 1
+16:45:25Z   done grid=47x202
+16:45:27Z manual leg bigcat/gh try 1
+16:45:57Z   done grid=grid=47x202
+16:45:59Z manual leg doom/gh try 1
+16:55:19Z   done grid=grid=47x202
+16:55:21Z MANUAL GH LEGS COMPLETE
