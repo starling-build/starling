@@ -87,6 +87,7 @@ ROWS = [
     ("ascii",     _uniform("M"),          "the reference: the primary face, on its own grid"),
     ("box light", _uniform("─"),          "every frame: vim, htop, mc"),
     ("box heavy", _uniform("━"),          "emphasis frames"),
+    ("box double", _uniform("═"),         "double frames: lazygit, dialogs"),
     ("blocks",    _uniform("█"),          "progress bars, sparklines"),
     ("shades",    _uniform("▓"),          "meters, htop bars"),
     ("braille",   _uniform("⠋"),          "EVERY TUI spinner"),
@@ -131,13 +132,34 @@ ATTR_ROWS = [
      "text then spaces, both underlined: two painters, one rule"),
 ]
 
+# ── seams ───────────────────────────────────────────────────────────────────
+# The rows above ask whether a glyph painted; these ask whether it CONNECTS.
+# Box and block glyphs exist to meet their neighbours, and the failure that
+# shipped (Claude Code's welcome frame as per-cell dashes) was every glyph
+# painting and none of them touching: the cells fell back to the font, whose
+# │ stops short of the cell edge. The sdk's TerminalBoxGlyphsTests assert the
+# PLANNED geometry reaches the edges; this pair of lines asserts what was
+# COMPOSITED does — the only layer that also sees routing (a cell silently
+# taking the fallback path), atlas blits, and stale binaries.
+#
+# Each column is a vertical pair that must join across the shared boundary:
+# bars to themselves, rounded corners into sides (the exact seam that was
+# wrong), doubles into their corners, blocks to blocks.
+SEAM_PAIRS = [
+    ("│", "│"), ("┃", "┃"), ("║", "║"),
+    ("╭", "│"), ("╮", "│"), ("│", "╰"), ("│", "╯"),
+    ("╔", "║"), ("║", "╚"),
+    ("█", "█"), ("▌", "▌"), ("▐", "▐"),
+]
+
 # The first and last printed lines are solid cyan bars and the second is the
 # ruler, so the block's extent and its row pitch are readable off the image
 # without knowing anything about the font.
 BAR, RULER = 0, 1
 FIRST_ROW = 2
 FIRST_ATTR_ROW = FIRST_ROW + len(ROWS)
-N_LINES = FIRST_ATTR_ROW + len(ATTR_ROWS) + 1
+FIRST_SEAM_ROW = FIRST_ATTR_ROW + len(ATTR_ROWS)
+N_LINES = FIRST_SEAM_ROW + 2 + 1
 
 
 def sgr(fg, bg):
@@ -174,6 +196,11 @@ def pattern_lines():
         # ordinary white-on-magenta glyph so it still measures the grid.
         lines.append(sgr(FG, MAGENTA) + on + text + off + " " + TERMINATOR
                      + pad + RESET)
+    for half in (0, 1):
+        text = ("".join(p[half] for p in SEAM_PAIRS)
+                + " " * (CONTENT_CELLS - len(SEAM_PAIRS)))
+        pad = " " * (BLOCK_CELLS - TERMINATOR_CELL - 1)
+        lines.append(sgr(FG, MAGENTA) + text + " " + TERMINATOR + pad + RESET)
     lines.append(sgr(FG, CYAN) + " " * BLOCK_CELLS + RESET)
     assert len(lines) == N_LINES
     return lines
@@ -575,6 +602,23 @@ def analyse(path, verbose=True):
                 f"cursor advanced over them ({who})")
             note = f"{len(blank)}/{len(spans)} BLANK"
 
+        # 4. a rule row must be one unbroken line: every pixel column across
+        # the run carries ink, or cells that should join edge-to-edge do not.
+        # This is the horizontal half of the seam contract; the vertical half
+        # is the SEAM_PAIRS block below.
+        if not blank and name in ("box light", "box heavy", "box double"):
+            rx0, ry0, _, ry1 = cell_box(line, 0, 1)
+            _, _, rx1, _ = cell_box(line, CONTENT_CELLS - 1, 1)
+            gaps = [gx for gx in range(rx0 + 1, rx1 - 1)
+                    if not any(not _near(img.getpixel((gx, gy)), MAGENTA)
+                               for gy in range(ry0, ry1))]
+            if gaps:
+                failures.append(
+                    f"{name}: the rule breaks at {len(gaps)} pixel columns "
+                    f"(first at x={gaps[0]}) — cells that should join "
+                    f"edge-to-edge do not ({who})")
+                note = note or f"{len(gaps)} RULE GAPS"
+
         print(f"  {name:<17} {column:>9.2f} {drift:>+8.2f} {covered:>5.0%}   "
               f"{note or 'ok'}")
 
@@ -620,6 +664,29 @@ def analyse(path, verbose=True):
                                else "") + f" — {who}")
         print(f"  {name:<17} {'--':>9} {'--':>8} {'--':>6}   "
               f"{'ok' if not bad else str(len(bad)) + ' BAD'}")
+
+    # ── seams ───────────────────────────────────────────────────────────────
+    # The four pixel rows straddling the boundary between the two seam lines
+    # must EACH carry ink in every pair's column span. A glyph that stops
+    # short of its cell edge — the font-fallback signature, whatever put the
+    # cell there — reads as background exactly here.
+    boundary = y0 + (FIRST_SEAM_ROW + 1) * row_h
+    seam_bad = []
+    for c, (t, b) in enumerate(SEAM_PAIRS):
+        sx0, _, sx1, _ = cell_box(FIRST_SEAM_ROW, c, 1)
+        for sy in range(int(boundary) - 2, int(boundary) + 2):
+            if not any(not _near(img.getpixel((sx, sy)), MAGENTA)
+                       for sx in range(sx0, sx1)):
+                seam_bad.append(f"{t} over {b} (col {c}): boundary row "
+                                f"y={sy} has no ink")
+                break
+    if seam_bad:
+        failures.append(
+            f"seams: {seam_bad[0]}"
+            + (f" (+{len(seam_bad) - 1} more pairs)" if len(seam_bad) > 1 else "")
+            + " — glyphs that must join across the cell boundary do not")
+    print(f"  {'seams':<17} {'--':>9} {'--':>8} {'--':>6}   "
+          f"{'ok' if not seam_bad else str(len(seam_bad)) + ' BROKEN'}")
 
     print()
     if failures:
