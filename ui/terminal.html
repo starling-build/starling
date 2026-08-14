@@ -120,9 +120,7 @@
   }
   .lede { font-size: clamp(18px, 2.1vw, 20px); color: var(--ink-dim); line-height: 1.55; }
 
-  /* ---------- side-by-side films ---------- */
-  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 44px; }
-  @media (max-width: 820px) { .duo { grid-template-columns: 1fr; } }
+  /* ---------- film frame ---------- */
   .frame { border: 1px solid var(--line); border-radius: 13px; overflow: hidden;
            background: var(--bg-sunk); box-shadow: 0 24px 60px -30px rgba(0,0,0,.85); }
   .shot-label { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
@@ -404,33 +402,6 @@
       <p>Zero <code>ucs-detect</code> errors in 107k+ measurements — wide characters,
          emoji families, 118 languages of conjuncts — where the ghostty nightly
          logs 40.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============================ the workspace ============================ -->
-<section>
-  <div class="wrap narrow prose">
-    <div class="kicker">The workspace</div>
-    <h2>Tiling or floating — one toggle.</h2>
-    <p>The same workspace runs both ways. Tiling gives every shell a pane and
-       draggable seams; floating gives each shell its own window and a cover-flow
-       picker. Flip between them live, shells intact.</p>
-  </div>
-  <div class="wrap duo">
-    <div>
-      <div class="frame">
-        <video src="video/terminal-tiling.mp4" poster="img/terminal-poster.jpg"
-               autoplay loop muted playsinline></video>
-      </div>
-      <div class="shot-label"><b>Tiling</b><span>seams drag, shells resize live</span></div>
-    </div>
-    <div>
-      <div class="frame">
-        <video src="video/terminal-floating.mp4" poster="img/terminal-floating-poster.jpg"
-               autoplay loop muted playsinline></video>
-      </div>
-      <div class="shot-label"><b>Floating</b><span>pick a window by its cover</span></div>
     </div>
   </div>
 </section>
