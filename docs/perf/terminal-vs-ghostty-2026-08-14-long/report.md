@@ -140,3 +140,19 @@ columns are the `terminal-vs-ghostty-2026-08-13-atlas` matched-font
 medians; ours' binary has moved since that round (the glyph-coverage
 work landed in between), ghostty's tip moved a day — the columns are
 regime comparisons, not same-binary A/Bs.
+
+## The filmed head-to-head (same rig, ~10 s per test — a race, not a benchmark)
+
+Both terminals tiled to halves of the 4K screen (GNOME edge tiling driven
+by `film/keytap.py`, a raw uinput keyboard — no ydotool on the box), both
+verified **122x233** (ghostty needed `window-padding-x = 8` to shed its
+two extra columns; removed after filming). Tests sized from an untimed
+calibration run so each lasts ~10 s on our side: 1.26 GB ascii cat,
+1.29 GB unicode cat, DOOM-Fire 10,200 frames. Recorded with GNOME's
+hardware screencast (`film/recorder.py` holds the D-Bus connection open —
+the "sender has vanished" trap). On-screen verdicts: **ours 10.91 s /
+10.93 s / 865 fps, all three in 39.6 s; ghostty 11.57 s / 20.99 s /
+551 fps, 57.0 s** — ours' verdict card sits on screen for 17 s while
+ghostty's fire still burns. Contended, recorded, shared cores: the
+steady-state tables above are the citable numbers. Video (228 MB, not
+committed): `/var/tmp/bench-film/head-to-head.mp4`.
