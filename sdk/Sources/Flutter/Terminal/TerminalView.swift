@@ -740,6 +740,16 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         } else if Self._useAtlas {
             _snapCellToDevicePixels()
         }
+        // The height twin, for the same reason (see the side-by-side film
+        // notes): ghostty quantizes its row to whole device pixels while we
+        // keep the font's fractional line height, so equal fonts still drift
+        // 0.33 device px per row and no window size can align the two grids.
+        // Glyphs keep their natural metrics; rows just pack on the forced
+        // pitch. Not a shipping knob.
+        if let v = ProcessInfo.processInfo.environment["STARLING_CELL_H"],
+           let forced = Double(v), forced > 0, cellH > 0 {
+            cellH = forced
+        }
     }
 
     /// Round the cell up to a whole number of DEVICE pixels.
