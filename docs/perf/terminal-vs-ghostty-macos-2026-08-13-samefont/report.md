@@ -104,6 +104,26 @@ round — today it was not. Per launch (median fps / median cpu_s of 3 reps):
 
 Every launch verified `grid=47x201` in both header and `grid_after`.
 
+### Frame count matters: 600-frame runs understate ghostty ~12%
+
+Rerun the same night (same grid, same configs, verified 47x201) at **6000
+frames** per rep, two launches interleaved per side, after the side-by-side
+film showed ghostty's long contended runs beating its own short solo ones:
+
+    ghostty: 896/975/965 then 943/962/963 fps, ~16.1 cpu_s  → ~960 typical
+    ours:    1107/1110/405* then 1057/1059/1059 fps, ~6.3 cpu_s → ~1058
+
+Ghostty amortizes warm-up (renderer pipeline, atlas population, the fire's
+own ramp) over the longer run and lands ~960 where 600 frames read ~845;
+ours moves 1025 → ~1058. **The durable fire numbers are ours ~1058 vs
+ghostty ~960 — 1.10x fps at 0.39x CPU** — and the 600-frame table above
+carries the warm-up penalty in ghostty's column. (*) One of our six reps
+stalled to 405 fps / 14.8 cpu_s and recovered; once, launch-local, the
+other five reps within 0.4%. Recorded as a sighting beside the Linux
+round's GTK repaint stall; second launches raw in `data/doom-6000-*.txt`
+(the first launches' files were overwritten in place; their numbers are
+the ones above).
+
 ## Ghostty is font-sensitive on macOS
 
 The Linux round found ghostty parse-bound — under 3% between its default
