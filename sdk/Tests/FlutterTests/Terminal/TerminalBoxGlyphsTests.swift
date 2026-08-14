@@ -57,7 +57,7 @@ final class TerminalBoxGlyphsTests: XCTestCase {
             switch $0 {
             case .fill(let r): return r
             case .shade(let r, _): return r
-            case .stroke: return nil
+            case .stroke, .disc, .fillPath: return nil
             }
         }
     }
@@ -109,6 +109,10 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         s.formUnion([0x256D, 0x256E, 0x256F, 0x2570])              // rounded
         s.formUnion(0x2574...0x257F)                               // half-lines
         s.formUnion(0x2580...0x259F)                               // blocks
+        s.formUnion(0x2504...0x250B)                               // 3/4-dashes
+        s.formUnion(0x254C...0x254F)                               // 2-dashes
+        s.formUnion(0x2800...0x28FF)                               // braille
+        s.formUnion(0xE0B0...0xE0B7)                               // powerline
         return s
     }()
 
@@ -118,15 +122,22 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                            Self.synthesized.contains(cp),
                            String(format: "U+%04X", cp))
         }
+        for cp in UInt32(0xE0A0)...UInt32(0xE0D8) {
+            XCTAssertEqual(TerminalBoxGlyphs.handles(cp),
+                           Self.synthesized.contains(cp),
+                           String(format: "U+%04X", cp))
+        }
     }
 
     /// Every synthesized codepoint must produce a non-empty plan — a scalar
     /// that `handles()` accepts but `plan()` ignores would paint nothing.
+    /// (U+2800, the empty braille pattern, correctly paints nothing.)
     func testEveryHandledScalarHasAPlan() {
         sweep { c in
-            for cp in Self.synthesized {
+            for cp in Self.synthesized where cp != 0x2800 {
                 XCTAssertFalse(plan(cp, c).isEmpty, String(format: "U+%04X", cp))
             }
+            XCTAssertTrue(plan(0x2800, c).isEmpty)
         }
     }
 
@@ -277,6 +288,150 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 }
                 XCTAssertEqual(f, frac)
                 XCTAssertTrue(near(r.left, c.x) && near(r.right, c.x + c.w))
+            }
+        }
+    }
+
+    // MARK: - 4b · Dashes
+
+    /// A dash is a broken bar: the right segment count, every segment on the
+    /// canonical band of its weight, and — the defining property — touching
+    /// NO cell edge, or it would read as a solid line.
+    func testDashesAreBrokenBarsOnTheirBands() {
+        let dashes: [UInt32: (n: Int, weight: Int, horizontal: Bool)] = [
+            0x2504: (3, 1, true), 0x2505: (3, 2, true),
+            0x2506: (3, 1, false), 0x2507: (3, 2, false),
+            0x2508: (4, 1, true), 0x2509: (4, 2, true),
+            0x250A: (4, 1, false), 0x250B: (4, 2, false),
+            0x254C: (2, 1, true), 0x254D: (2, 2, true),
+            0x254E: (2, 1, false), 0x254F: (2, 2, false),
+        ]
+        sweep { c in
+            for (cp, d) in dashes {
+                let name = String(format: "U+%04X", cp)
+                let rs = fills(plan(cp, c))
+                XCTAssertEqual(rs.count, d.n, name)
+                for r in rs {
+                    if d.horizontal {
+                        XCTAssertTrue(near(r.top...r.bottom, hband(d.weight, c)),
+                                      "\(name) band")
+                        XCTAssertGreaterThan(r.left, c.x, name)
+                        XCTAssertLessThan(r.right, c.x + c.w, name)
+                    } else {
+                        XCTAssertTrue(near(r.left...r.right, vband(d.weight, c)),
+                                      "\(name) band")
+                        XCTAssertGreaterThan(r.top, c.y, name)
+                        XCTAssertLessThan(r.bottom, c.y + c.h, name)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - 4c · Braille
+
+    /// The bit mapping is the Unicode one — dot k is bit k-1, dots 1-3 down
+    /// the left column, 4-6 down the right, 7-8 the bottom pair — and every
+    /// dot lies inside its cell with its whole radius.
+    func testBrailleDots() {
+        let grid: [(col: Double, row: Double)] = [(0, 0), (0, 1), (0, 2),
+                                                  (1, 0), (1, 1), (1, 2),
+                                                  (0, 3), (1, 3)]
+        sweep { c in
+            for cp in UInt32(0x2800)...UInt32(0x28FF) {
+                let name = String(format: "U+%04X", cp)
+                let bits = cp - 0x2800
+                var dots: [(Offset, Double)] = []
+                for op in plan(cp, c) {
+                    guard case .disc(let centre, let radius) = op else {
+                        return XCTFail("\(name): non-disc op")
+                    }
+                    dots.append((centre, radius))
+                }
+                XCTAssertEqual(dots.count, bits.nonzeroBitCount, name)
+                var expected = Set<Int>()
+                for bit in 0..<8 where bits & (1 << bit) != 0 { expected.insert(bit) }
+                for (centre, radius) in dots {
+                    XCTAssertGreaterThan(radius, 0, name)
+                    XCTAssertGreaterThanOrEqual(centre.dx - radius, c.x, name)
+                    XCTAssertLessThanOrEqual(centre.dx + radius, c.x + c.w, name)
+                    XCTAssertGreaterThanOrEqual(centre.dy - radius, c.y, name)
+                    XCTAssertLessThanOrEqual(centre.dy + radius, c.y + c.h, name)
+                    let bit = grid.firstIndex {
+                        near(centre.dx, c.x + c.w * (0.25 + 0.5 * $0.col))
+                            && near(centre.dy, c.y + c.h * (0.125 + 0.25 * $0.row))
+                    }
+                    XCTAssertNotNil(bit, "\(name) dot off the grid")
+                    if let bit { XCTAssertTrue(expected.remove(bit) != nil, name) }
+                }
+                XCTAssertTrue(expected.isEmpty, "\(name) missing dots \(expected)")
+            }
+        }
+    }
+
+    // MARK: - 4d · Powerline
+
+    /// The solid separators hard-attach to one cell edge for the full height
+    /// — the flush transition is the whole point — and reach the opposite
+    /// edge at the vertical midline. Paths are continuous like the corners.
+    func testPowerlineSeparators() {
+        // (attached edge is left?, solid?)
+        let claims: [UInt32: (attachedLeft: Bool, solid: Bool)] = [
+            0xE0B0: (true, true), 0xE0B1: (true, false),
+            0xE0B2: (false, true), 0xE0B3: (false, false),
+            0xE0B4: (true, true), 0xE0B5: (true, false),
+            0xE0B6: (false, true), 0xE0B7: (false, false),
+        ]
+        sweep { c in
+            for (cp, claim) in claims {
+                let name = String(format: "U+%04X", cp)
+                let ops = plan(cp, c)
+                XCTAssertEqual(ops.count, 1, name)
+                let from: Offset
+                let segments: [BoxStroke]
+                switch ops[0] {
+                case .fillPath(let f, let s):
+                    XCTAssertTrue(claim.solid, name)
+                    from = f; segments = s
+                case .stroke(let f, let s, let t):
+                    XCTAssertFalse(claim.solid, name)
+                    XCTAssertTrue(near(t, TerminalBoxGlyphs.thickness(1, c.scale)), name)
+                    from = f; segments = s
+                default:
+                    return XCTFail("\(name): unexpected op")
+                }
+                let edge = claim.attachedLeft ? c.x : c.x + c.w
+                let far = claim.attachedLeft ? c.x + c.w : c.x
+                // Starts at the attached edge's top corner…
+                XCTAssertTrue(near(from.dx, edge) && near(from.dy, c.y), name)
+                // …walks continuously…
+                var at = from
+                var apexes: [Offset] = []
+                for segment in segments {
+                    switch segment {
+                    case .line(let to):
+                        at = to
+                        apexes.append(to)
+                    case .arc(let oval, let start, let sweepAngle):
+                        let cx = (oval.left + oval.right) / 2
+                        let cy = (oval.top + oval.bottom) / 2
+                        let rx = (oval.right - oval.left) / 2
+                        let ry = (oval.bottom - oval.top) / 2
+                        let s = Offset(cx + rx * cos(start), cy + ry * sin(start))
+                        XCTAssertTrue(near(s.dx, at.dx) && near(s.dy, at.dy), name)
+                        // The arc's extreme point must reach the far edge.
+                        let mid = start + sweepAngle / 2
+                        apexes.append(Offset(cx + rx * cos(mid), cy + ry * sin(mid)))
+                        at = Offset(cx + rx * cos(start + sweepAngle),
+                                    cy + ry * sin(start + sweepAngle))
+                    }
+                }
+                // …and ends at the attached edge's bottom corner.
+                XCTAssertTrue(near(at.dx, edge) && near(at.dy, c.y + c.h), name)
+                // Something along the way reached the far edge at the midline.
+                XCTAssertTrue(apexes.contains {
+                    near($0.dx, far) && near($0.dy, c.y + c.h / 2)
+                }, "\(name) never reaches the far edge")
             }
         }
     }

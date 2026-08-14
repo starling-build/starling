@@ -20,15 +20,18 @@
 // its draw functions the integer cell width and height.
 //
 // SCOPE. The uniform-weight box characters (all arms light, or all heavy),
-// the half-lines, the rounded corners, the pure double-line set, and the
-// block elements — eighths, quadrants, and the three shades. That is
+// the half-lines, the dashed variants, the rounded corners, the pure
+// double-line set, the block elements — eighths, quadrants, and the three
+// shades — the braille patterns, and the core powerline separators. That is
 // essentially all of what real terminal output uses: Claude Code's welcome
-// frame is rounded corners plus light sides, and its logo is quadrants,
-// which is what pulled the corners and quadrants in here (the font-drawn
-// corner visibly failed to meet the synthesized side). What still comes
-// from the font: the dashed variants and the mixed light/heavy joins,
-// where the font is correct and merely soft. Adding them is a matter of
-// extending `arms(for:)`.
+// frame is rounded corners plus light sides, its logo is quadrants and its
+// spinner is braille, and every powerline prompt is E0B0–E0B7. What still
+// comes from the font: the mixed light/heavy joins, the single/double
+// hybrids (╒…╫), and the diagonals ╱╲╳ — the diagonals deliberately, until
+// the atlas can draw past the cell bounds, because a clipped diagonal
+// pinches where it should meet its neighbour's corner. Adding a glyph means
+// extending a table here AND the decision list in the tests; the tests fail
+// on either drifting from the other.
 //
 // SHAPE OF THIS FILE. Every glyph's geometry is computed as a pure PLAN —
 // fills, shades and stroked segments as numbers — and `draw` merely replays
@@ -53,6 +56,8 @@ enum BoxPlanOp {
     case fill(Rect)                    // solid, at the glyph's colour
     case shade(Rect, Double)           // solid, at a fraction of its alpha
     case stroke(from: Offset, segments: [BoxStroke], thickness: Double)
+    case disc(Offset, Double)          // a braille dot: centre, radius
+    case fillPath(from: Offset, segments: [BoxStroke])  // closed and filled
 }
 
 /// One segment of a stroked plan. The pen starts at the plan's `from` and
@@ -68,12 +73,16 @@ enum TerminalBoxGlyphs {
     /// range test and a table lookup, not a dictionary.
     static func handles(_ scalar: UInt32) -> Bool {
         switch scalar {
+        case 0x2504...0x250B: return true              // triple/quad dashes
         case 0x2500...0x254B: return arms(for: scalar) != nil
+        case 0x254C...0x254F: return true              // double dashes
         case 0x2550, 0x2551, 0x2554, 0x2557, 0x255A, 0x255D,
              0x2560, 0x2563, 0x2566, 0x2569, 0x256C: return true
         case 0x256D...0x2570: return true
         case 0x2574...0x257F: return arms(for: scalar) != nil
         case 0x2580...0x259F: return true
+        case 0x2800...0x28FF: return true              // braille patterns
+        case 0xE0B0...0xE0B7: return true              // powerline separators
         default: return false
         }
     }
@@ -102,19 +111,33 @@ enum TerminalBoxGlyphs {
                 paint.color = Color(Int(color))
                 paint.style = .stroke
                 paint.strokeWidth = thickness
-                let path = Path()
-                path.moveTo(from.dx, from.dy)
-                for segment in segments {
-                    switch segment {
-                    case .line(let to):
-                        path.lineTo(to.dx, to.dy)
-                    case .arc(let oval, let start, let sweep):
-                        path.arcTo(oval, start, sweep, false)
-                    }
-                }
+                canvas.drawPath(builtPath(from, segments), paint)
+            case .disc(let centre, let radius):
+                let paint = Paint()
+                paint.color = Color(Int(color))
+                canvas.drawCircle(centre, radius, paint)
+            case .fillPath(let from, let segments):
+                let paint = Paint()
+                paint.color = Color(Int(color))
+                let path = builtPath(from, segments)
+                path.close()
                 canvas.drawPath(path, paint)
             }
         }
+    }
+
+    private static func builtPath(_ from: Offset, _ segments: [BoxStroke]) -> Path {
+        let path = Path()
+        path.moveTo(from.dx, from.dy)
+        for segment in segments {
+            switch segment {
+            case .line(let to):
+                path.lineTo(to.dx, to.dy)
+            case .arc(let oval, let start, let sweep):
+                path.arcTo(oval, start, sweep, false)
+            }
+        }
+        return path
     }
 
     /// The full drawing plan for one cell. Everything `draw` paints comes
@@ -122,6 +145,9 @@ enum TerminalBoxGlyphs {
     /// rasteriser aside.
     static func plan(scalar: UInt32, x: Double, y: Double,
                      w: Double, h: Double, scale: Double) -> [BoxPlanOp] {
+        if (0x2504...0x250B).contains(scalar) || (0x254C...0x254F).contains(scalar) {
+            return dashOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
         if let a = arms(for: scalar) {
             return armOps(a, x: x, y: y, w: w, h: h, scale: scale)
         }
@@ -130,6 +156,12 @@ enum TerminalBoxGlyphs {
         }
         if (0x2550...0x256C).contains(scalar) {
             return doubleOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x2800...0x28FF).contains(scalar) {
+            return brailleOps(scalar, x: x, y: y, w: w, h: h)
+        }
+        if (0xE0B0...0xE0B7).contains(scalar) {
+            return powerlineOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
         }
         return blockOps(scalar, x: x, y: y, w: w, h: h)
     }
@@ -374,6 +406,129 @@ enum TerminalBoxGlyphs {
             return [.shade(Rect.fromLTWH(x, y, w, h), frac)]
         default:
             return []
+        }
+    }
+
+    // MARK: - Dashes
+
+    /// ╌╍┄┅┆┇┈┉┊┋ ╎╏ — a broken bar on the canonical band of its weight: n
+    /// segments, each 60% ink centred in its slice, so the line reads dashed
+    /// and adjacent dashed cells stay visibly separate (a dash deliberately
+    /// touches NO cell edge — that is what distinguishes it from ─).
+    private static func dashOps(_ scalar: UInt32,
+                                x: Double, y: Double, w: Double, h: Double,
+                                scale: Double) -> [BoxPlanOp] {
+        let (n, weight, horizontal): (Int, Int, Bool)
+        switch scalar {
+        case 0x2504: (n, weight, horizontal) = (3, 1, true)   // ┄
+        case 0x2505: (n, weight, horizontal) = (3, 2, true)   // ┅
+        case 0x2506: (n, weight, horizontal) = (3, 1, false)  // ┆
+        case 0x2507: (n, weight, horizontal) = (3, 2, false)  // ┇
+        case 0x2508: (n, weight, horizontal) = (4, 1, true)   // ┈
+        case 0x2509: (n, weight, horizontal) = (4, 2, true)   // ┉
+        case 0x250A: (n, weight, horizontal) = (4, 1, false)  // ┊
+        case 0x250B: (n, weight, horizontal) = (4, 2, false)  // ┋
+        case 0x254C: (n, weight, horizontal) = (2, 1, true)   // ╌
+        case 0x254D: (n, weight, horizontal) = (2, 2, true)   // ╍
+        case 0x254E: (n, weight, horizontal) = (2, 1, false)  // ╎
+        default:     (n, weight, horizontal) = (2, 2, false)  // ╏
+        }
+        let t = thickness(weight, scale)
+        var ops: [BoxPlanOp] = []
+        if horizontal {
+            let by = y + snap((h - t) / 2, scale)
+            let seg = w / Double(n)
+            for i in 0..<n {
+                ops.append(.fill(Rect.fromLTRB(x + seg * (Double(i) + 0.2), by,
+                                               x + seg * (Double(i) + 0.8), by + t)))
+            }
+        } else {
+            let bx = x + snap((w - t) / 2, scale)
+            let seg = h / Double(n)
+            for i in 0..<n {
+                ops.append(.fill(Rect.fromLTRB(bx, y + seg * (Double(i) + 0.2),
+                                               bx + t, y + seg * (Double(i) + 0.8))))
+            }
+        }
+        return ops
+    }
+
+    // MARK: - Braille
+
+    /// U+2800–28FF as discs on the standard 2x4 dot grid. Dots never join
+    /// across cells, so there is no seam contract here — the properties that
+    /// matter are the bit mapping (dot k is bit k-1) and that every dot stays
+    /// inside its cell. Every TUI spinner lives in this range.
+    private static func brailleOps(_ scalar: UInt32,
+                                   x: Double, y: Double,
+                                   w: Double, h: Double) -> [BoxPlanOp] {
+        let bits = scalar - 0x2800
+        // Dot k → (column, row) of the 2x4 grid, per the Unicode layout:
+        // dots 1-3 down the left, 4-6 down the right, 7-8 the bottom pair.
+        let grid: [(Int, Int)] = [(0, 0), (0, 1), (0, 2),      // dots 1 2 3
+                                  (1, 0), (1, 1), (1, 2),      // dots 4 5 6
+                                  (0, 3), (1, 3)]              // dots 7 8
+        let radius = min(w / 2, h / 4) * 0.33
+        var ops: [BoxPlanOp] = []
+        for bit in 0..<8 where bits & (1 << bit) != 0 {
+            let (col, row) = grid[bit]
+            ops.append(.disc(Offset(x + w * (0.25 + 0.5 * Double(col)),
+                                    y + h * (0.125 + 0.25 * Double(row))),
+                             radius))
+        }
+        return ops
+    }
+
+    // MARK: - Powerline
+
+    /// U+E0B0–E0B7, the private-use separators every powerline prompt is
+    /// built from: solid and outline triangles, solid and outline
+    /// half-circles. The solid forms hard-attach to one cell edge — the whole
+    /// visual trick is the flush transition — so they claim that edge for the
+    /// full cell height.
+    private static func powerlineOps(_ scalar: UInt32,
+                                     x: Double, y: Double, w: Double, h: Double,
+                                     scale: Double) -> [BoxPlanOp] {
+        let t = thickness(1, scale)
+        let midY = y + h / 2
+        let pi = Double.pi
+        switch scalar {
+        case 0xE0B0:                                     // solid right triangle
+            return [.fillPath(from: Offset(x, y),
+                              segments: [.line(to: Offset(x + w, midY)),
+                                         .line(to: Offset(x, y + h))])]
+        case 0xE0B1:                                     // right chevron
+            return [.stroke(from: Offset(x, y),
+                            segments: [.line(to: Offset(x + w, midY)),
+                                       .line(to: Offset(x, y + h))],
+                            thickness: t)]
+        case 0xE0B2:                                     // solid left triangle
+            return [.fillPath(from: Offset(x + w, y),
+                              segments: [.line(to: Offset(x, midY)),
+                                         .line(to: Offset(x + w, y + h))])]
+        case 0xE0B3:                                     // left chevron
+            return [.stroke(from: Offset(x + w, y),
+                            segments: [.line(to: Offset(x, midY)),
+                                       .line(to: Offset(x + w, y + h))],
+                            thickness: t)]
+        case 0xE0B4:                                     // solid right half-circle
+            return [.fillPath(from: Offset(x, y),
+                              segments: [.arc(oval: Rect.fromLTRB(x - w, y, x + w, y + h),
+                                              start: -pi / 2, sweep: pi)])]
+        case 0xE0B5:                                     // right half-circle line
+            return [.stroke(from: Offset(x, y),
+                            segments: [.arc(oval: Rect.fromLTRB(x - w, y, x + w, y + h),
+                                            start: -pi / 2, sweep: pi)],
+                            thickness: t)]
+        case 0xE0B6:                                     // solid left half-circle
+            return [.fillPath(from: Offset(x + w, y),
+                              segments: [.arc(oval: Rect.fromLTRB(x, y, x + w + w, y + h),
+                                              start: -pi / 2, sweep: -pi)])]
+        default:                                         // E0B7 left half-circle line
+            return [.stroke(from: Offset(x + w, y),
+                            segments: [.arc(oval: Rect.fromLTRB(x, y, x + w + w, y + h),
+                                            start: -pi / 2, sweep: -pi)],
+                            thickness: t)]
         }
     }
 
