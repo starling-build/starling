@@ -394,7 +394,16 @@ final class Pty: @unchecked Sendable {
     /// on the workloads where we did not; this is why.
     func startReader() {
         #if canImport(Darwin)
-        _startReaderInline()
+        // The paced reader is the DEFAULT since 2026-08-14: suite wall -10%,
+        // unicode cat -29%, 07_alt_screen -23% against inline, at +33% CPU
+        // while streaming (see _startReaderPaced for the mechanism).
+        // STARLING_TERM_READER=inline opts back into the single-thread
+        // baseline, kept in-tree unchanged as the comparison point.
+        if ProcessInfo.processInfo.environment["STARLING_TERM_READER"] == "inline" {
+            _startReaderInline()
+        } else {
+            _startReaderPaced()
+        }
         return
         #else
         _startReaderRing()
@@ -532,6 +541,72 @@ final class Pty: @unchecked Sendable {
         }
         reader.name = "pty-reader"
         readerThread = reader
+        reader.start()
+    }
+
+    /// Darwin: TWO threads — a ~1us-paced reader and a batch parser — the
+    /// design that finally overlaps transport with parse on this platform.
+    ///
+    /// Every earlier ring lost to inline because its reader was EAGER: re-arm
+    /// read(2) immediately and you catch the tty queue empty, sleeping a full
+    /// writer-wake round trip per kilobyte (~242 MB/s ceiling, measured with
+    /// a read-and-discard probe). The inline reader's parse accidentally
+    /// paced it into lockstep (~282 MB/s on ascii) — but on escape-dense
+    /// content the parse overshoots the refill window and the same mechanism
+    /// collapses (07_alt_screen at 209, 40% behind ghostty live). A fixed
+    /// ~1us busy pace after each read keeps the lockstep on EVERY content
+    /// shape: the probe (scratch ptyread_mac mode 13, 2026-08-14) holds
+    /// ~290 MB/s on ascii, alt_screen and unicode alike, against inline's
+    /// 282/209/229. The pace value is flat across 0.8-1.6us and collapses
+    /// past ~3us; mach_wait_until cannot replace the busy wait (the kernel
+    /// stretches 1us sleeps ~5x and the pipeline falls to the eager floor).
+    ///
+    /// The consumer polls the ring with a 500us sleep when empty — an eager
+    /// consumer's wake storms cost ~8% of throughput, and 8 MB of ring is
+    /// ~26 ms of slack at full rate. onExit fires from the PARSE thread after
+    /// the drain, preserving inline's ordering property (every byte parsed
+    /// before the exit message).
+    private func _startReaderPaced() {
+        _ = Pty._installReaderWake
+        let paceNs = UInt64(ProcessInfo.processInfo.environment["STARLING_TERM_PACE_NS"] ?? "") ?? 1000
+        guard let ring = st_ring_new(8 << 20) else { _startReaderInline(); return }
+
+        let reader = Thread { [weak self] in
+            guard let self = self else { st_ring_close(ring); return }
+            self.readerPthread = pthread_self()
+            let cap = ChunkRing.slotCapacity
+            let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: cap)
+            defer {
+                buf.deallocate()
+                st_ring_close(ring)     // the producer's last touch; the parser frees
+            }
+            while true {
+                if self.terminating { break }
+                let n = read(self.masterFd, buf, cap)
+                if n > 0 {
+                    st_ring_write(ring, buf, n)
+                    if paceNs > 0 { st_pace(paceNs) }
+                    continue
+                }
+                if n < 0 && errno == EINTR { continue }
+                break   // EOF or hard error
+            }
+        }
+        let parser = Thread { [weak self] in
+            var span: UnsafePointer<UInt8>? = nil
+            while true {
+                let n = st_ring_take(ring, &span)
+                if n == 0 { break }
+                if let self = self, let p = span { self.onData?(p, Int(n)) }
+                st_ring_consume(ring, n)
+            }
+            st_ring_free(ring)
+            self?.onExit?()
+        }
+        reader.name = "pty-reader"
+        parser.name = "pty-parser"
+        readerThread = reader
+        parser.start()
         reader.start()
     }
     #endif

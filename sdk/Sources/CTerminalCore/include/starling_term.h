@@ -122,6 +122,17 @@ void starling_term_set_response_cb(StarlingTerm *t,
                                    void *ctx);
 void starling_term_set_bell_cb(StarlingTerm *t, void (*cb)(void *ctx), void *ctx);
 
+/* SPSC byte ring + pace helper for the Darwin paced pty reader (st_ring.c,
+   Darwin-only definitions). One producer thread, one consumer thread. */
+typedef struct StRing StRing;
+StRing *st_ring_new(size_t cap);
+void    st_ring_free(StRing *r);
+void    st_ring_write(StRing *r, const unsigned char *p, size_t n);
+size_t  st_ring_take(StRing *r, const unsigned char **out);  /* 0 = closed+drained */
+void    st_ring_consume(StRing *r, size_t n);
+void    st_ring_close(StRing *r);
+void    st_pace(unsigned long long ns);                      /* busy-wait */
+
 #ifdef __cplusplus
 }
 #endif
