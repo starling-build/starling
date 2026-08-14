@@ -54,6 +54,7 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
     return n
 }
 
+
 runStarlingApp(title: "Terminal",
                width: windowMetric("STARLING_WINDOW_W", defaultWindowW),
                height: windowMetric("STARLING_WINDOW_H", defaultWindowH)) {

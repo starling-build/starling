@@ -60,6 +60,68 @@ public final class TerminalSession {
 
     var pty: Pty?
 
+    #if os(macOS)
+    /// Anti-throttling assertion, held only while output streams.
+    ///
+    /// After ~15 s of sustained pty streaming macOS demotes the app's
+    /// coalition (App Nap / timer coalescing) — and the CHILD shares the
+    /// coalition, so both ends of the pty land on slow wakes and the
+    /// pipeline collapses ~10-15x: DOOM-Fire's 3rd consecutive run fell
+    /// from ~1080 fps to 100-200 with both processes asleep in read/write,
+    /// while paints, priorities, tty modes and fd flags all measured
+    /// normal. `beginActivity([.userInitiated, .latencyCritical])`
+    /// eliminates it (4x6000-frame kill test, 2026-08-14). The display-off
+    /// benchmark collapse in the -long round was the same demotion,
+    /// triggered instantly by occlusion. Held per-session while bytes
+    /// flow; dropped after 5 s of quiet so an idle terminal still naps.
+    /// Fields are guarded by `lock`; the check runs on the main queue.
+    private var _throttleToken: NSObjectProtocol?
+    private var _lastOutput: TimeInterval = 0
+    private var _throttleCheckPending = false
+    private static let _throttleIdleQuiet: TimeInterval = 5
+
+    func _noteOutputActivity() {
+        lock.lock()
+        _lastOutput = ProcessInfo.processInfo.systemUptime
+        let needBegin = _throttleToken == nil
+        if needBegin {
+            _throttleToken = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated, .latencyCritical],
+                reason: "terminal output streaming")
+        }
+        let needCheck = !_throttleCheckPending
+        if needCheck { _throttleCheckPending = true }
+        lock.unlock()
+        if needCheck { _scheduleThrottleCheck(after: Self._throttleIdleQuiet) }
+    }
+
+    private func _scheduleThrottleCheck(after s: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + s) { [weak self] in
+            guard let self = self else { return }
+            self.lock.lock()
+            let idle = ProcessInfo.processInfo.systemUptime - self._lastOutput
+            if idle >= Self._throttleIdleQuiet {
+                self._throttleCheckPending = false
+                let token = self._throttleToken
+                self._throttleToken = nil
+                self.lock.unlock()
+                if let token { ProcessInfo.processInfo.endActivity(token) }
+            } else {
+                self.lock.unlock()
+                self._scheduleThrottleCheck(after: Self._throttleIdleQuiet - idle)
+            }
+        }
+    }
+
+    func _endOutputActivity() {
+        lock.lock()
+        let token = _throttleToken
+        _throttleToken = nil
+        lock.unlock()
+        if let token { ProcessInfo.processInfo.endActivity(token) }
+    }
+    #endif
+
     public init(cols: Int = 80, rows: Int = 24) {
         emulator = TerminalEmulator(cols: cols, rows: rows)
         emulator.onResponse = { [weak self] text in
@@ -124,6 +186,9 @@ public final class TerminalSession {
             self.lock.lock()
             self.emulator.feed(bytes, count: count)
             self.lock.unlock()
+            #if os(macOS)
+            self._noteOutputActivity()
+            #endif
             self.onActivity?()
         }
         pty.onExit = { [weak self, weak pty] in
@@ -169,5 +234,8 @@ public final class TerminalSession {
     public func terminate() {
         pty?.terminate()
         pty = nil
+        #if os(macOS)
+        _endOutputActivity()
+        #endif
     }
 }
