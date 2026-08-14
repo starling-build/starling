@@ -98,19 +98,11 @@ final class TerminalBoxGlyphsTests: XCTestCase {
     /// drifting from this list — either way — is a failure.
     private static let synthesized: Set<UInt32> = {
         var s = Set<UInt32>()
-        s.formUnion([0x2500, 0x2501, 0x2502, 0x2503])              // ─━│┃
-        s.formUnion([0x250C, 0x250F, 0x2510, 0x2513,               // corners
-                     0x2514, 0x2517, 0x2518, 0x251B])
-        s.formUnion([0x251C, 0x2523, 0x2524, 0x252B,               // tees
-                     0x252C, 0x2533, 0x2534, 0x253B])
-        s.formUnion([0x253C, 0x254B])                              // crosses
-        s.formUnion([0x2550, 0x2551, 0x2554, 0x2557, 0x255A,       // doubles
-                     0x255D, 0x2560, 0x2563, 0x2566, 0x2569, 0x256C])
-        s.formUnion([0x256D, 0x256E, 0x256F, 0x2570])              // rounded
-        s.formUnion(0x2574...0x257F)                               // half-lines
-        s.formUnion(0x2580...0x259F)                               // blocks
-        s.formUnion(0x2504...0x250B)                               // 3/4-dashes
-        s.formUnion(0x254C...0x254F)                               // 2-dashes
+        // The COMPLETE box-drawing block: lines and dashes, all 64
+        // corner/tee/cross variants including the mixed weights, the double
+        // set pure and hybrid, rounded corners, diagonals, half-lines —
+        // and the complete block-elements block.
+        s.formUnion(0x2500...0x259F)
         s.formUnion(0x2800...0x28FF)                               // braille
         s.formUnion(0xE0B0...0xE0B7)                               // powerline
         return s
@@ -151,18 +143,41 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                       left: a.left > 0, right: a.right > 0)
     }
 
-    private static let doubleClaims: [UInt32: (up: Bool, down: Bool, left: Bool, right: Bool)] = [
-        0x2550: (false, false, true, true),   // ═
-        0x2551: (true, true, false, false),   // ║
-        0x2554: (false, true, false, true),   // ╔
-        0x2557: (false, true, true, false),   // ╗
-        0x255A: (true, false, false, true),   // ╚
-        0x255D: (true, false, true, false),   // ╝
-        0x2560: (true, true, false, true),    // ╠
-        0x2563: (true, true, true, false),    // ╣
-        0x2566: (false, true, true, true),    // ╦
-        0x2569: (true, false, true, true),    // ╩
-        0x256C: (true, true, true, true),     // ╬
+    /// What kind of band a glyph's ink occupies at each edge it touches:
+    /// the single canonical bar, or one of the double pair. `.none` means
+    /// the edge is not touched at all.
+    private enum Band { case none, single, double }
+
+    private static let doubleSpec: [UInt32: (up: Band, down: Band, left: Band, right: Band)] = [
+        0x2550: (.none, .none, .double, .double),      // ═
+        0x2551: (.double, .double, .none, .none),      // ║
+        0x2552: (.none, .single, .none, .double),      // ╒
+        0x2553: (.none, .double, .none, .single),      // ╓
+        0x2554: (.none, .double, .none, .double),      // ╔
+        0x2555: (.none, .single, .double, .none),      // ╕
+        0x2556: (.none, .double, .single, .none),      // ╖
+        0x2557: (.none, .double, .double, .none),      // ╗
+        0x2558: (.single, .none, .none, .double),      // ╘
+        0x2559: (.double, .none, .none, .single),      // ╙
+        0x255A: (.double, .none, .none, .double),      // ╚
+        0x255B: (.single, .none, .double, .none),      // ╛
+        0x255C: (.double, .none, .single, .none),      // ╜
+        0x255D: (.double, .none, .double, .none),      // ╝
+        0x255E: (.single, .single, .none, .double),    // ╞
+        0x255F: (.double, .double, .none, .single),    // ╟
+        0x2560: (.double, .double, .none, .double),    // ╠
+        0x2561: (.single, .single, .double, .none),    // ╡
+        0x2562: (.double, .double, .single, .none),    // ╢
+        0x2563: (.double, .double, .double, .none),    // ╣
+        0x2564: (.none, .single, .double, .double),    // ╤
+        0x2565: (.none, .double, .single, .single),    // ╥
+        0x2566: (.none, .double, .double, .double),    // ╦
+        0x2567: (.single, .none, .double, .double),    // ╧
+        0x2568: (.double, .none, .single, .single),    // ╨
+        0x2569: (.double, .none, .double, .double),    // ╩
+        0x256A: (.single, .single, .double, .double),  // ╪
+        0x256B: (.double, .double, .single, .single),  // ╫
+        0x256C: (.double, .double, .double, .double),  // ╬
     ]
 
     func testArmsAndDoublesTouchExactlyTheirClaimedEdges() {
@@ -170,9 +185,9 @@ final class TerminalBoxGlyphsTests: XCTestCase {
             var cases: [(UInt32, Claims)] = []
             for cp in Self.synthesized {
                 if let claims = armClaims(cp) { cases.append((cp, claims)) }
-                if let d = Self.doubleClaims[cp] {
-                    cases.append((cp, Claims(up: d.up, down: d.down,
-                                             left: d.left, right: d.right)))
+                if let d = Self.doubleSpec[cp] {
+                    cases.append((cp, Claims(up: d.up != .none, down: d.down != .none,
+                                             left: d.left != .none, right: d.right != .none)))
                 }
             }
             for (cp, claims) in cases {
@@ -220,23 +235,89 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         }
     }
 
-    /// Doubles: every edge-touching bar lands on one of ║/═'s two bands, so
-    /// a ╔ continues into the ║ below it and the ═ beside it.
-    func testDoubleEdgeInkSitsOnTheDoubleBands() {
+    /// Doubles and hybrids: every edge-touching bar lands on the band its
+    /// spec names — one of ║/═'s pair for a double edge, the canonical
+    /// single band for a single one. That equality is what lets a ╪
+    /// continue into the │ above it AND the ═ beside it.
+    func testDoubleEdgeInkSitsOnItsSpecifiedBands() {
         sweep { c in
             let vb = doubleVBands(c), hb = doubleHBands(c)
-            for (cp, _) in Self.doubleClaims {
+            func vOK(_ xr: ClosedRange<Double>, _ kind: Band) -> Bool {
+                switch kind {
+                case .none: return false
+                case .single: return near(xr, vband(1, c))
+                case .double: return vb.contains { near(xr, $0) }
+                }
+            }
+            func hOK(_ yr: ClosedRange<Double>, _ kind: Band) -> Bool {
+                switch kind {
+                case .none: return false
+                case .single: return near(yr, hband(1, c))
+                case .double: return hb.contains { near(yr, $0) }
+                }
+            }
+            for (cp, spec) in Self.doubleSpec {
                 let name = String(format: "U+%04X", cp)
                 for r in fills(plan(cp, c)) {
                     let xr = r.left...r.right, yr = r.top...r.bottom
-                    if near(r.top, c.y) || near(r.bottom, c.y + c.h) {
-                        XCTAssertTrue(vb.contains { near(xr, $0) },
-                                      "\(name) vertical band \(xr)")
+                    if near(r.top, c.y) {
+                        XCTAssertTrue(vOK(xr, spec.up), "\(name) up band \(xr)")
                     }
-                    if near(r.left, c.x) || near(r.right, c.x + c.w) {
-                        XCTAssertTrue(hb.contains { near(yr, $0) },
-                                      "\(name) horizontal band \(yr)")
+                    if near(r.bottom, c.y + c.h) {
+                        XCTAssertTrue(vOK(xr, spec.down), "\(name) down band \(xr)")
                     }
+                    if near(r.left, c.x) {
+                        XCTAssertTrue(hOK(yr, spec.left), "\(name) left band \(yr)")
+                    }
+                    if near(r.right, c.x + c.w) {
+                        XCTAssertTrue(hOK(yr, spec.right), "\(name) right band \(yr)")
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - 5b · Diagonals
+
+    /// The diagonals overshoot their corners by one thickness along the
+    /// diagonal — the overlap that keeps two adjacent cells' strokes from
+    /// pinching where they meet — and run corner to corner at the cell's
+    /// exact slope.
+    func testDiagonalsOvershootTheirCorners() {
+        sweep { c in
+            let t = TerminalBoxGlyphs.thickness(1, c.scale)
+            let len = (c.w * c.w + c.h * c.h).squareRoot()
+            let ox = t * c.w / len, oy = t * c.h / len
+            for cp in [UInt32(0x2571), 0x2572, 0x2573] {
+                let name = String(format: "U+%04X", cp)
+                let ops = plan(cp, c)
+                XCTAssertEqual(ops.count, cp == 0x2573 ? 2 : 1, name)
+                var kinds = Set<Bool>()          // true = rising ╱
+                for op in ops {
+                    guard case .stroke(let from, let segments, let th) = op,
+                          segments.count == 1,
+                          case .line(let to) = segments[0] else {
+                        return XCTFail("\(name): not a single-segment stroke")
+                    }
+                    XCTAssertTrue(near(th, t), name)
+                    let rising = from.dy > to.dy
+                    kinds.insert(rising)
+                    if rising {
+                        XCTAssertTrue(near(from.dx, c.x - ox)
+                                        && near(from.dy, c.y + c.h + oy), name)
+                        XCTAssertTrue(near(to.dx, c.x + c.w + ox)
+                                        && near(to.dy, c.y - oy), name)
+                    } else {
+                        XCTAssertTrue(near(from.dx, c.x - ox)
+                                        && near(from.dy, c.y - oy), name)
+                        XCTAssertTrue(near(to.dx, c.x + c.w + ox)
+                                        && near(to.dy, c.y + c.h + oy), name)
+                    }
+                }
+                switch cp {
+                case 0x2571: XCTAssertEqual(kinds, [true], name)
+                case 0x2572: XCTAssertEqual(kinds, [false], name)
+                default:     XCTAssertEqual(kinds, [true, false], name)
                 }
             }
         }

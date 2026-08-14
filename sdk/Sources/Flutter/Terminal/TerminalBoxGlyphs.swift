@@ -19,19 +19,18 @@
 // cares about this does the same — ghostty calls it a "sprite face" and hands
 // its draw functions the integer cell width and height.
 //
-// SCOPE. The uniform-weight box characters (all arms light, or all heavy),
-// the half-lines, the dashed variants, the rounded corners, the pure
-// double-line set, the block elements — eighths, quadrants, and the three
-// shades — the braille patterns, and the core powerline separators. That is
-// essentially all of what real terminal output uses: Claude Code's welcome
-// frame is rounded corners plus light sides, its logo is quadrants and its
-// spinner is braille, and every powerline prompt is E0B0–E0B7. What still
-// comes from the font: the mixed light/heavy joins, the single/double
-// hybrids (╒…╫), and the diagonals ╱╲╳ — the diagonals deliberately, until
-// the atlas can draw past the cell bounds, because a clipped diagonal
-// pinches where it should meet its neighbour's corner. Adding a glyph means
-// extending a table here AND the decision list in the tests; the tests fail
-// on either drifting from the other.
+// SCOPE. The COMPLETE box-drawing and block-elements blocks, U+2500–259F —
+// every line, dash, corner, tee and cross including the mixed weights, the
+// double set pure and hybrid, the rounded corners, the diagonals, the
+// half-lines, the eighths, quadrants and shades — plus the braille patterns
+// and the core powerline separators. That is what real terminal output is
+// drawn from: Claude Code's welcome frame is rounded corners plus light
+// sides, its logo is quadrants and its spinner is braille, and every
+// powerline prompt is E0B0–E0B7. The diagonals draw DIRECT on the frame
+// canvas with a deliberate overshoot past the cell corners (`overflowsCell`)
+// — a clipped atlas slot would pinch them where adjacent cells' strokes
+// meet. Adding a glyph means extending a table here AND the decision list
+// in the tests; the tests fail on either drifting from the other.
 //
 // SHAPE OF THIS FILE. Every glyph's geometry is computed as a pure PLAN —
 // fills, shades and stroked segments as numbers — and `draw` merely replays
@@ -73,18 +72,19 @@ enum TerminalBoxGlyphs {
     /// range test and a table lookup, not a dictionary.
     static func handles(_ scalar: UInt32) -> Bool {
         switch scalar {
-        case 0x2504...0x250B: return true              // triple/quad dashes
-        case 0x2500...0x254B: return arms(for: scalar) != nil
-        case 0x254C...0x254F: return true              // double dashes
-        case 0x2550, 0x2551, 0x2554, 0x2557, 0x255A, 0x255D,
-             0x2560, 0x2563, 0x2566, 0x2569, 0x256C: return true
-        case 0x256D...0x2570: return true
-        case 0x2574...0x257F: return arms(for: scalar) != nil
-        case 0x2580...0x259F: return true
+        case 0x2500...0x259F: return true              // ALL box drawing + blocks
         case 0x2800...0x28FF: return true              // braille patterns
         case 0xE0B0...0xE0B7: return true              // powerline separators
         default: return false
         }
+    }
+
+    /// The three diagonals draw past their cell bounds so adjacent cells'
+    /// strokes overlap at the shared corner instead of pinching there — which
+    /// a clipped atlas slot cannot represent. The painter draws these DIRECT
+    /// on the frame canvas in every mode.
+    static func overflowsCell(_ scalar: UInt32) -> Bool {
+        (0x2571...0x2573).contains(scalar)
     }
 
     /// Draw one cell: compute the plan, replay it. `x`/`y` are the cell's
@@ -156,6 +156,9 @@ enum TerminalBoxGlyphs {
         }
         if (0x2550...0x256C).contains(scalar) {
             return doubleOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x2571...0x2573).contains(scalar) {
+            return diagonalOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
         }
         if (0x2800...0x28FF).contains(scalar) {
             return brailleOps(scalar, x: x, y: y, w: w, h: h)
@@ -289,9 +292,10 @@ enum TerminalBoxGlyphs {
 
     // MARK: - Doubles
 
-    /// The pure double-line set: two light bars a light-line's width apart,
-    /// centred as a pair on the same lines the single bars use. The mixed
-    /// single/double hybrids (╒╓…╫) stay with the font.
+    /// The double-line set, pure and hybrid: two light bars a light-line's
+    /// width apart, centred as a pair on the same lines the single bars use;
+    /// the hybrids (╒╓…╫) mix that pair with a single bar on the canonical
+    /// band, so a ╪ continues into the │ above it and the ═ beside it.
     private static func doubleOps(_ scalar: UInt32,
                                   x: Double, y: Double, w: Double, h: Double,
                                   scale: Double) -> [BoxPlanOp] {
@@ -341,6 +345,60 @@ enum TerminalBoxGlyphs {
             hbar(hi, x, x + w)
             hbar(ho, x, vo + th / 2); hbar(ho, vi - th / 2, x + w)
             vbar(vo, y, ho + th / 2); vbar(vi, y, ho + th / 2)
+        case 0x2552:                                     // ╒ down S, right D
+            hbar(ho, bx - th / 2, x + w); hbar(hi, bx - th / 2, x + w)
+            vbar(bx, ho - th / 2, y + h)
+        case 0x2553:                                     // ╓ down D, right S
+            hbar(by, vo - th / 2, x + w)
+            vbar(vo, by - th / 2, y + h); vbar(vi, by - th / 2, y + h)
+        case 0x2555:                                     // ╕ down S, left D
+            hbar(ho, x, bx + th / 2); hbar(hi, x, bx + th / 2)
+            vbar(bx, ho - th / 2, y + h)
+        case 0x2556:                                     // ╖ down D, left S
+            hbar(by, x, vi + th / 2)
+            vbar(vo, by - th / 2, y + h); vbar(vi, by - th / 2, y + h)
+        case 0x2558:                                     // ╘ up S, right D
+            hbar(ho, bx - th / 2, x + w); hbar(hi, bx - th / 2, x + w)
+            vbar(bx, y, hi + th / 2)
+        case 0x2559:                                     // ╙ up D, right S
+            hbar(by, vo - th / 2, x + w)
+            vbar(vo, y, by + th / 2); vbar(vi, y, by + th / 2)
+        case 0x255B:                                     // ╛ up S, left D
+            hbar(ho, x, bx + th / 2); hbar(hi, x, bx + th / 2)
+            vbar(bx, y, hi + th / 2)
+        case 0x255C:                                     // ╜ up D, left S
+            hbar(by, x, vi + th / 2)
+            vbar(vo, y, by + th / 2); vbar(vi, y, by + th / 2)
+        case 0x255E:                                     // ╞ vertical S, right D
+            vbar(bx, y, y + h)
+            hbar(ho, bx - th / 2, x + w); hbar(hi, bx - th / 2, x + w)
+        case 0x255F:                                     // ╟ vertical D, right S
+            vbar(vo, y, y + h); vbar(vi, y, y + h)
+            hbar(by, vi - th / 2, x + w)
+        case 0x2561:                                     // ╡ vertical S, left D
+            vbar(bx, y, y + h)
+            hbar(ho, x, bx + th / 2); hbar(hi, x, bx + th / 2)
+        case 0x2562:                                     // ╢ vertical D, left S
+            vbar(vo, y, y + h); vbar(vi, y, y + h)
+            hbar(by, x, vo + th / 2)
+        case 0x2564:                                     // ╤ horizontal D, down S
+            hbar(ho, x, x + w); hbar(hi, x, x + w)
+            vbar(bx, hi - th / 2, y + h)
+        case 0x2565:                                     // ╥ horizontal S, down D
+            hbar(by, x, x + w)
+            vbar(vo, by - th / 2, y + h); vbar(vi, by - th / 2, y + h)
+        case 0x2567:                                     // ╧ horizontal D, up S
+            hbar(ho, x, x + w); hbar(hi, x, x + w)
+            vbar(bx, y, ho + th / 2)
+        case 0x2568:                                     // ╨ horizontal S, up D
+            hbar(by, x, x + w)
+            vbar(vo, y, by + th / 2); vbar(vi, y, by + th / 2)
+        case 0x256A:                                     // ╪ vertical S, horizontal D
+            vbar(bx, y, y + h)
+            hbar(ho, x, x + w); hbar(hi, x, x + w)
+        case 0x256B:                                     // ╫ vertical D, horizontal S
+            vbar(vo, y, y + h); vbar(vi, y, y + h)
+            hbar(by, x, x + w)
         default:                                         // ╬
             vbar(vo, y, ho + th / 2); vbar(vo, hi - th / 2, y + h)
             vbar(vi, y, ho + th / 2); vbar(vi, hi - th / 2, y + h)
@@ -453,6 +511,36 @@ enum TerminalBoxGlyphs {
         return ops
     }
 
+    // MARK: - Diagonals
+
+    /// ╱ ╲ ╳ as strokes overshooting the cell corners by one line thickness
+    /// along the diagonal. Clipped exactly at the corner, two diagonals
+    /// meeting from adjacent cells pinch to a point under antialiasing — the
+    /// problem ghostty's quarter-cell sprite padding exists for. Here the
+    /// overshoot rides the stroke itself, and the painter draws these three
+    /// direct on the frame canvas (`overflowsCell`), never through a clipped
+    /// atlas slot.
+    private static func diagonalOps(_ scalar: UInt32,
+                                    x: Double, y: Double, w: Double, h: Double,
+                                    scale: Double) -> [BoxPlanOp] {
+        let t = thickness(1, scale)
+        let len = (w * w + h * h).squareRoot()
+        let ox = t * w / len, oy = t * h / len
+        let rising = BoxPlanOp.stroke(
+            from: Offset(x - ox, y + h + oy),
+            segments: [.line(to: Offset(x + w + ox, y - oy))],
+            thickness: t)
+        let falling = BoxPlanOp.stroke(
+            from: Offset(x - ox, y - oy),
+            segments: [.line(to: Offset(x + w + ox, y + h + oy))],
+            thickness: t)
+        switch scalar {
+        case 0x2571: return [rising]                     // ╱
+        case 0x2572: return [falling]                    // ╲
+        default:     return [rising, falling]            // ╳
+        }
+    }
+
     // MARK: - Braille
 
     /// U+2800–28FF as discs on the standard 2x4 dot grid. Dots never join
@@ -544,22 +632,68 @@ enum TerminalBoxGlyphs {
         case 0x2502: return BoxArms(up: L, down: L)             // │
         case 0x2503: return BoxArms(up: H, down: H)             // ┃
         case 0x250C: return BoxArms(down: L, right: L)          // ┌
+        case 0x250D: return BoxArms(down: L, right: H)          // ┍
+        case 0x250E: return BoxArms(down: H, right: L)          // ┎
         case 0x250F: return BoxArms(down: H, right: H)          // ┏
         case 0x2510: return BoxArms(down: L, left: L)           // ┐
+        case 0x2511: return BoxArms(down: L, left: H)           // ┑
+        case 0x2512: return BoxArms(down: H, left: L)           // ┒
         case 0x2513: return BoxArms(down: H, left: H)           // ┓
         case 0x2514: return BoxArms(up: L, right: L)            // └
+        case 0x2515: return BoxArms(up: L, right: H)            // ┕
+        case 0x2516: return BoxArms(up: H, right: L)            // ┖
         case 0x2517: return BoxArms(up: H, right: H)            // ┗
         case 0x2518: return BoxArms(up: L, left: L)             // ┘
+        case 0x2519: return BoxArms(up: L, left: H)             // ┙
+        case 0x251A: return BoxArms(up: H, left: L)             // ┚
         case 0x251B: return BoxArms(up: H, left: H)             // ┛
         case 0x251C: return BoxArms(up: L, down: L, right: L)   // ├
+        case 0x251D: return BoxArms(up: L, down: L, right: H)   // ┝
+        case 0x251E: return BoxArms(up: H, down: L, right: L)   // ┞
+        case 0x251F: return BoxArms(up: L, down: H, right: L)   // ┟
+        case 0x2520: return BoxArms(up: H, down: H, right: L)   // ┠
+        case 0x2521: return BoxArms(up: H, down: L, right: H)   // ┡
+        case 0x2522: return BoxArms(up: L, down: H, right: H)   // ┢
         case 0x2523: return BoxArms(up: H, down: H, right: H)   // ┣
         case 0x2524: return BoxArms(up: L, down: L, left: L)    // ┤
+        case 0x2525: return BoxArms(up: L, down: L, left: H)    // ┥
+        case 0x2526: return BoxArms(up: H, down: L, left: L)    // ┦
+        case 0x2527: return BoxArms(up: L, down: H, left: L)    // ┧
+        case 0x2528: return BoxArms(up: H, down: H, left: L)    // ┨
+        case 0x2529: return BoxArms(up: H, down: L, left: H)    // ┩
+        case 0x252A: return BoxArms(up: L, down: H, left: H)    // ┪
         case 0x252B: return BoxArms(up: H, down: H, left: H)    // ┫
         case 0x252C: return BoxArms(down: L, left: L, right: L) // ┬
+        case 0x252D: return BoxArms(down: L, left: H, right: L) // ┭
+        case 0x252E: return BoxArms(down: L, left: L, right: H) // ┮
+        case 0x252F: return BoxArms(down: L, left: H, right: H) // ┯
+        case 0x2530: return BoxArms(down: H, left: L, right: L) // ┰
+        case 0x2531: return BoxArms(down: H, left: H, right: L) // ┱
+        case 0x2532: return BoxArms(down: H, left: L, right: H) // ┲
         case 0x2533: return BoxArms(down: H, left: H, right: H) // ┳
         case 0x2534: return BoxArms(up: L, left: L, right: L)   // ┴
+        case 0x2535: return BoxArms(up: L, left: H, right: L)   // ┵
+        case 0x2536: return BoxArms(up: L, left: L, right: H)   // ┶
+        case 0x2537: return BoxArms(up: L, left: H, right: H)   // ┷
+        case 0x2538: return BoxArms(up: H, left: L, right: L)   // ┸
+        case 0x2539: return BoxArms(up: H, left: H, right: L)   // ┹
+        case 0x253A: return BoxArms(up: H, left: L, right: H)   // ┺
         case 0x253B: return BoxArms(up: H, left: H, right: H)   // ┻
         case 0x253C: return BoxArms(up: L, down: L, left: L, right: L)  // ┼
+        case 0x253D: return BoxArms(up: L, down: L, left: H, right: L)  // ┽
+        case 0x253E: return BoxArms(up: L, down: L, left: L, right: H)  // ┾
+        case 0x253F: return BoxArms(up: L, down: L, left: H, right: H)  // ┿
+        case 0x2540: return BoxArms(up: H, down: L, left: L, right: L)  // ╀
+        case 0x2541: return BoxArms(up: L, down: H, left: L, right: L)  // ╁
+        case 0x2542: return BoxArms(up: H, down: H, left: L, right: L)  // ╂
+        case 0x2543: return BoxArms(up: H, down: L, left: H, right: L)  // ╃
+        case 0x2544: return BoxArms(up: H, down: L, left: L, right: H)  // ╄
+        case 0x2545: return BoxArms(up: L, down: H, left: H, right: L)  // ╅
+        case 0x2546: return BoxArms(up: L, down: H, left: L, right: H)  // ╆
+        case 0x2547: return BoxArms(up: H, down: L, left: H, right: H)  // ╇
+        case 0x2548: return BoxArms(up: L, down: H, left: H, right: H)  // ╈
+        case 0x2549: return BoxArms(up: H, down: H, left: H, right: L)  // ╉
+        case 0x254A: return BoxArms(up: H, down: H, left: L, right: H)  // ╊
         case 0x254B: return BoxArms(up: H, down: H, left: H, right: H)  // ╋
         case 0x2574: return BoxArms(left: L)                    // ╴
         case 0x2575: return BoxArms(up: L)                      // ╵

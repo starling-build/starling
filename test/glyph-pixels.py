@@ -89,6 +89,7 @@ ROWS = [
     ("box heavy", _uniform("━"),          "emphasis frames"),
     ("box double", _uniform("═"),         "double frames: lazygit, dialogs"),
     ("box dashed", _uniform("┄"),         "tree views, soft separators"),
+    ("diagonals",  _uniform("╳"),         "cross-outs; drawn past the cell on purpose"),
     ("blocks",    _uniform("█"),          "progress bars, sparklines"),
     ("shades",    _uniform("▓"),          "meters, htop bars"),
     ("braille",   _uniform("⠋"),          "EVERY TUI spinner"),

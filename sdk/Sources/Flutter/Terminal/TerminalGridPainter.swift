@@ -213,6 +213,16 @@ final class TerminalGridPainter: CustomPainter {
                         paintCachedGlyph(canvas, scalar: cell.scalar, bold: bold,
                                          x: x, y: y, fg: fg)
                     }
+                } else if TerminalBoxGlyphs.overflowsCell(cell.scalar),
+                          TerminalGlyphAtlas.canDraw(cell) {
+                    // The diagonals overshoot their cell so adjacent cells'
+                    // strokes overlap at the shared corner. An atlas slot is
+                    // clipped to the cell and cannot represent that, so these
+                    // three draw direct — they are rare enough per frame that
+                    // losing the batched quad costs nothing measurable.
+                    TerminalBoxGlyphs.draw(canvas, scalar: cell.scalar,
+                                           x: x, y: y, w: cellW, h: cellH,
+                                           color: fg, scale: atlas.scale)
                 } else if !Self.paragraphMode, TerminalGlyphAtlas.canDraw(cell),
                           let src = atlas.rect(for: cell.scalar, bold: bold) {
                     let s = Float(atlas.blitScale)
