@@ -85,8 +85,9 @@ enum TerminalBoxGlyphs {
         case 0x1CD00...0x1CDE5: return true            // octants
         case 0x1CE00, 0x1CE01, 0x1CE0B, 0x1CE0C: return true  // white circles/ellipses
         case 0x1CE16...0x1CE19: return true            // vertical + edge-bar combos
-        case 0x1CE51...0x1CE9F: return true            // separated sextants, sixteenths
+        case 0x1CE51...0x1CEAF: return true            // separated sextants, sixteenths
         case 0xE0B0...0xE0BF: return true              // powerline separators
+        case 0xF5D0...0xF60D: return true              // branch drawing (git graphs)
         default: return false
         }
     }
@@ -217,6 +218,21 @@ enum TerminalBoxGlyphs {
                                         y + h * Double(i / 4) / 4,
                                         x + w * Double(i % 4 + 1) / 4,
                                         y + h * Double(i / 4 + 1) / 4))]
+        }
+        if (0x1CEA0...0x1CEAF).contains(scalar) {
+            // The corner runs: single rects with quarter-fraction bounds.
+            let q: [(Double, Double, Double, Double)] = [
+                (2, 4, 3, 4), (1, 4, 3, 4), (0, 3, 3, 4), (0, 2, 3, 4),
+                (0, 1, 2, 4), (0, 1, 1, 4), (0, 1, 0, 3), (0, 1, 0, 2),
+                (0, 2, 0, 1), (0, 3, 0, 1), (1, 4, 0, 1), (2, 4, 0, 1),
+                (3, 4, 0, 2), (3, 4, 0, 3), (3, 4, 1, 4), (3, 4, 2, 4),
+            ]
+            let f = q[Int(scalar - 0x1CEA0)]
+            return [.fill(Rect.fromLTRB(x + w * f.0 / 4, y + h * f.2 / 4,
+                                        x + w * f.1 / 4, y + h * f.3 / 4))]
+        }
+        if (0xF5D0...0xF60D).contains(scalar) {
+            return branchOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
         }
         if (0x1CD00...0x1CDE5).contains(scalar) {
             return octantOps(scalar, x: x, y: y, w: w, h: h)
@@ -1231,6 +1247,120 @@ enum TerminalBoxGlyphs {
             case 0xE0BE: return solid(tl, tr, br)        // upper-right solid
             default:     return slant(tl, br)            // E0BF, its diagonal
             }
+        }
+    }
+
+    // MARK: - Branch drawing
+
+    /// U+F5D0–F60D, the branch-drawing set kitty specified for git graphs
+    /// (implemented from the published character-set description): centre
+    /// lines, fading lines, centre-bend arcs — the rounded corners' own
+    /// geometry — and commit nodes: a centred circle, filled or open, with
+    /// line stubs from the cell edges to its rim.
+    private static func branchOps(_ scalar: UInt32,
+                                  x: Double, y: Double, w: Double, h: Double,
+                                  scale: Double) -> [BoxPlanOp] {
+        let t = thickness(1, scale)
+        func lines(_ a: BoxArms) -> [BoxPlanOp] {
+            armOps(a, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        func bend(_ corner: UInt32) -> [BoxPlanOp] {
+            roundedOps(corner, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        // A line fading toward one edge: the canonical band in four
+        // segments of descending ink.
+        func fading(horizontal: Bool, towardEnd: Bool) -> [BoxPlanOp] {
+            var ops: [BoxPlanOp] = []
+            for i in 0..<4 {
+                let along = towardEnd ? i : 3 - i
+                let alpha = 1.0 - (Double(along) + 0.5) / 4
+                if horizontal {
+                    let by = y + snap((h - t) / 2, scale)
+                    ops.append(.shade(Rect.fromLTRB(x + w * Double(i) / 4, by,
+                                                    x + w * Double(i + 1) / 4, by + t),
+                                      alpha))
+                } else {
+                    let bx = x + snap((w - t) / 2, scale)
+                    ops.append(.shade(Rect.fromLTRB(bx, y + h * Double(i) / 4,
+                                                    bx + t, y + h * Double(i + 1) / 4),
+                                      alpha))
+                }
+            }
+            return ops
+        }
+        // A commit node: circle at the band centre, radius to the nearest
+        // edge, with stubs from the edges to the rim.
+        func node(_ mask: UInt32) -> [BoxPlanOp] {
+            let bx = x + snap((w - t) / 2, scale) + t / 2
+            let by = y + snap((h - t) / 2, scale) + t / 2
+            let r = min(min(bx - x, by - y), min(x + w - bx, y + h - by))
+            var ops: [BoxPlanOp] = []
+            if mask & 1 != 0 {                           // up stub
+                ops.append(.fill(Rect.fromLTRB(bx - t / 2, y, bx + t / 2, by - r + t / 2)))
+            }
+            if mask & 2 != 0 {                           // right stub
+                ops.append(.fill(Rect.fromLTRB(bx + r - t / 2, by - t / 2, x + w, by + t / 2)))
+            }
+            if mask & 4 != 0 {                           // down stub
+                ops.append(.fill(Rect.fromLTRB(bx - t / 2, by + r - t / 2, bx + t / 2, y + h)))
+            }
+            if mask & 8 != 0 {                           // left stub
+                ops.append(.fill(Rect.fromLTRB(x, by - t / 2, bx - r + t / 2, by + t / 2)))
+            }
+            if mask & 0x10 != 0 {
+                ops.append(.disc(Offset(bx, by), r))
+            } else {
+                let oval = Rect.fromLTRB(bx - r + t / 2, by - r + t / 2,
+                                         bx + r - t / 2, by + r - t / 2)
+                ops.append(.stroke(from: Offset(bx + r - t / 2, by),
+                                   segments: [.arc(oval: oval, start: 0, sweep: .pi),
+                                              .arc(oval: oval, start: .pi, sweep: .pi)],
+                                   thickness: t))
+            }
+            return ops
+        }
+        switch scalar {
+        case 0xF5D0: return lines(BoxArms(left: 1, right: 1))
+        case 0xF5D1: return lines(BoxArms(up: 1, down: 1))
+        case 0xF5D2: return fading(horizontal: true, towardEnd: true)
+        case 0xF5D3: return fading(horizontal: true, towardEnd: false)
+        case 0xF5D4: return fading(horizontal: false, towardEnd: true)
+        case 0xF5D5: return fading(horizontal: false, towardEnd: false)
+        case 0xF5D6: return bend(0x256D)                 //  ╭, down+right
+        case 0xF5D7: return bend(0x256E)                 //  ╮, down+left
+        case 0xF5D8: return bend(0x2570)                 //  ╰, up+right
+        case 0xF5D9: return bend(0x256F)                 //  ╯, up+left
+        case 0xF5DA: return lines(BoxArms(up: 1, down: 1)) + bend(0x2570)
+        case 0xF5DB: return lines(BoxArms(up: 1, down: 1)) + bend(0x256D)
+        case 0xF5DC: return bend(0x2570) + bend(0x256D)
+        case 0xF5DD: return lines(BoxArms(up: 1, down: 1)) + bend(0x256F)
+        case 0xF5DE: return lines(BoxArms(up: 1, down: 1)) + bend(0x256E)
+        case 0xF5DF: return bend(0x256F) + bend(0x256E)
+        case 0xF5E0: return bend(0x256E) + lines(BoxArms(left: 1, right: 1))
+        case 0xF5E1: return bend(0x256D) + lines(BoxArms(left: 1, right: 1))
+        case 0xF5E2: return bend(0x256D) + bend(0x256E)
+        case 0xF5E3: return bend(0x256F) + lines(BoxArms(left: 1, right: 1))
+        case 0xF5E4: return bend(0x2570) + lines(BoxArms(left: 1, right: 1))
+        case 0xF5E5: return bend(0x2570) + bend(0x256F)
+        case 0xF5E6: return lines(BoxArms(up: 1, down: 1)) + bend(0x256F) + bend(0x2570)
+        case 0xF5E7: return lines(BoxArms(up: 1, down: 1)) + bend(0x256E) + bend(0x256D)
+        case 0xF5E8: return lines(BoxArms(left: 1, right: 1)) + bend(0x256E) + bend(0x256F)
+        case 0xF5E9: return lines(BoxArms(left: 1, right: 1)) + bend(0x2570) + bend(0x256D)
+        case 0xF5EA: return lines(BoxArms(up: 1, down: 1)) + bend(0x256F) + bend(0x256D)
+        case 0xF5EB: return lines(BoxArms(up: 1, down: 1)) + bend(0x2570) + bend(0x256E)
+        case 0xF5EC: return lines(BoxArms(left: 1, right: 1)) + bend(0x256F) + bend(0x256D)
+        case 0xF5ED: return lines(BoxArms(left: 1, right: 1)) + bend(0x2570) + bend(0x256E)
+        case 0xF5EE: return node(0x10)
+        case 0xF5EF: return node(0)
+        default:
+            // F5F0–F60D: nodes with stubs, filled/open alternating.
+            // Bits: 1 up, 2 right, 4 down, 8 left, 0x10 filled.
+            let masks: [UInt32] = [
+                0x12, 0x02, 0x18, 0x08, 0x1A, 0x0A, 0x14, 0x04, 0x11, 0x01,
+                0x15, 0x05, 0x16, 0x06, 0x1C, 0x0C, 0x13, 0x03, 0x19, 0x09,
+                0x17, 0x07, 0x1D, 0x0D, 0x1E, 0x0E, 0x1B, 0x0B, 0x1F, 0x0F,
+            ]
+            return node(masks[Int(scalar - 0xF5F0)])
         }
     }
 

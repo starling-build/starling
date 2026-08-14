@@ -115,14 +115,16 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         s.formUnion(0x1CD00...0x1CDE5)                             // octants
         s.formUnion([0x1CE00, 0x1CE01, 0x1CE0B, 0x1CE0C])          // white circles
         s.formUnion(0x1CE16...0x1CE19)                             // │ + edge bar
-        s.formUnion(0x1CE51...0x1CE9F)                 // separated sextants, 16ths
+        s.formUnion(0x1CE51...0x1CEAF)                 // separated sextants, 16ths
+        s.formUnion(0xF5D0...0xF60D)                   // branch drawing
         s.formUnion(0xE0B0...0xE0BF)                               // powerline
         return s
     }()
 
     func testHandlesMatchesTheDecisionList() {
         let sweeps: [ClosedRange<UInt32>] = [0x2400...0x2A00, 0xE0A0...0xE0D8,
-                                             0x1FA00...0x1FC00, 0x1CC00...0x1CF00]
+                                             0x1FA00...0x1FC00, 0x1CC00...0x1CF00,
+                                             0xF5C0...0xF620]
         for range in sweeps {
             for cp in range {
                 XCTAssertEqual(TerminalBoxGlyphs.handles(cp),
@@ -916,6 +918,75 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 XCTAssertTrue(near(rs[0].left, c.x + c.w * (i.truncatingRemainder(dividingBy: 4)) / 4)
                                 && near(rs[0].top, c.y + c.h * (i / 4).rounded(.down) / 4),
                               String(format: "U+%05X", cp))
+            }
+        }
+    }
+
+    // MARK: - 4i · Branch drawing and corner runs
+
+    /// Branch nodes: a disc (filled) or two-arc circle (open) at the band
+    /// centre, stubs reaching exactly their claimed edges; fading lines are
+    /// four segments of strictly descending ink toward the fade edge.
+    func testBranchGlyphs() {
+        sweep { c in
+            func stubEdges(_ ops: [BoxPlanOp]) -> Set<String> {
+                var edges = Set<String>()
+                for r in fills(ops) {
+                    if near(r.top, c.y) { edges.insert("up") }
+                    if near(r.bottom, c.y + c.h) { edges.insert("down") }
+                    if near(r.left, c.x) { edges.insert("left") }
+                    if near(r.right, c.x + c.w) { edges.insert("right") }
+                }
+                return edges
+            }
+            // Plain nodes.
+            if case .disc? = plan(0xF5EE, c).first {} else { XCTFail("F5EE not a disc") }
+            if case .stroke(_, let segs, _)? = plan(0xF5EF, c).first {
+                XCTAssertEqual(segs.count, 2)
+            } else { XCTFail("F5EF not a circle stroke") }
+            // Full cross nodes: four stubs at all four edges.
+            XCTAssertEqual(stubEdges(plan(0xF60C, c)), ["up", "down", "left", "right"])
+            XCTAssertEqual(stubEdges(plan(0xF60D, c)), ["up", "down", "left", "right"])
+            // Single-stub pairs: the filled and open variants claim the same edge.
+            XCTAssertEqual(stubEdges(plan(0xF5F0, c)), ["right"])
+            XCTAssertEqual(stubEdges(plan(0xF5F1, c)), ["right"])
+            XCTAssertEqual(stubEdges(plan(0xF5F8, c)), ["up"])
+            // Fading lines: four shades, strictly descending toward the edge.
+            for (cp, reversedFade) in [(UInt32(0xF5D2), false), (0xF5D3, true)] {
+                var alphas: [Double] = []
+                for op in plan(cp, c) {
+                    guard case .shade(_, let a) = op else { return XCTFail("not a shade") }
+                    alphas.append(a)
+                }
+                XCTAssertEqual(alphas.count, 4)
+                let ordered = reversedFade ? alphas.reversed().map { $0 } : alphas
+                XCTAssertTrue(zip(ordered, ordered.dropFirst()).allSatisfy { $0 > $1 },
+                              String(format: "U+%05X fade not monotonic", cp))
+            }
+        }
+    }
+
+    /// The sixteenth corner runs U+1CEA0–1CEAF: one rect each, bounds on the
+    /// quarter lattice, hugging exactly one corner region.
+    func testSixteenthCornerRuns() {
+        sweep { c in
+            for cp in UInt32(0x1CEA0)...UInt32(0x1CEAF) {
+                let name = String(format: "U+%05X", cp)
+                let rs = fills(plan(cp, c))
+                XCTAssertEqual(rs.count, 1, name)
+                let r = rs[0]
+                for (v, span) in [(r.left, c.w), (r.right, c.w)] {
+                    let onLattice = (0...4).contains {
+                        near(v, c.x + span * Double($0) / 4)
+                    }
+                    XCTAssertTrue(onLattice, "\(name) x bound off quarter lattice")
+                }
+                for v in [r.top, r.bottom] {
+                    let onLattice = (0...4).contains {
+                        near(v, c.y + c.h * Double($0) / 4)
+                    }
+                    XCTAssertTrue(onLattice, "\(name) y bound off quarter lattice")
+                }
             }
         }
     }
