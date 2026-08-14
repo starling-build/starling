@@ -54,8 +54,25 @@ done
 # of no-op builds, and the framework is compiled once for all twelve packages
 # rather than once each (build-all.sh has the measurements).
 if [ "$DO_BUILD" = 1 ]; then
+    # The standard invocation is `sudo build/run-desktop.sh`, and root has no
+    # swift — the toolchain is swiftly, under the invoking user's HOME (and on
+    # a PATH only their interactive shell sets, so probing via a login shell
+    # fails too). A bare warning here cost a real hour: every restart "skipped
+    # the build" into a scrolling log and staged a week-old tree whose install
+    # mtimes looked fresh. Find the user's newest toolchain directly and build
+    # as them — which also keeps .build-shared user-owned.
+    u_swift=""
+    if ! command -v swift >/dev/null 2>&1 && [ -n "${SUDO_USER:-}" ]; then
+        u_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+        u_swift="$(ls -d "$u_home"/.local/share/swiftly/toolchains/*/usr/bin \
+                       2>/dev/null | sort -V | tail -1)"
+    fi
     if command -v swift >/dev/null 2>&1; then
         "$REPO/build/build-all.sh"
+    elif [ -n "$u_swift" ] && [ -x "$u_swift/swift" ]; then
+        sudo -u "$SUDO_USER" env HOME="$u_home" \
+             PATH="$u_swift:/usr/local/bin:/usr/bin:/bin" \
+             "$REPO/build/build-all.sh"
     else
         echo "run-desktop: no swift on PATH — skipping the build" >&2
     fi

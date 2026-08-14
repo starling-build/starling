@@ -91,4 +91,13 @@ if [ "$DO_APPS" = 1 ]; then
     [ "$fails" -eq 0 ] || { echo "build-all: $fails package(s) failed" >&2; exit 1; }
 fi
 
+# Currency stamp: staged binaries carry install(1)'s copy time as their mtime,
+# so "how fresh is this tree" cannot be answered from the filesystem. This can:
+# stage.sh prints it and installs it beside the shell as lib/BUILD-STAMP.
+sha="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo nogit)"
+git -C "$REPO" diff --quiet HEAD 2>/dev/null || sha="$sha+dirty"
+stamp="$sha $(date '+%Y-%m-%d %H:%M:%S')"
+echo "$stamp" > "$SCRATCH/$CONFIG/BUILD-STAMP"
+echo "  stamp: $stamp"
+
 echo "  one framework: $(find "$SCRATCH" -name libFlutterShared.so | wc -l)"

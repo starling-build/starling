@@ -64,8 +64,17 @@ docs/plans/    design notes, including standalone-sdk.md — the framework's
 
 ## Build & iterate
 
-- Shell/app Swift change → `cd shell && swift build -c release` (apps likewise),
-  then `build/run-desktop.sh` (it re-stages first).
+- Shell/app Swift change → `build/build-all.sh` (sdk once into the repo-root
+  **`.build-shared`**, then shell + apps in seconds), then
+  `build/run-desktop.sh` (it re-stages first). **`stage.sh` reads ONLY
+  `.build-shared`** (`$STARLING_SCRATCH`) — a bare `cd shell && swift build`
+  compiles into `shell/.build`, which nothing stages: fine as a compile check,
+  invisible on the desktop, and the staged binary's fresh mtime (it is
+  `install`(1)'s copy time) will happily tell you otherwise. One package alone:
+  `swift build -c release --package-path apps/<App> --scratch-path
+  $PWD/.build-shared`. Staging prints the tree's `BUILD-STAMP` (git sha +
+  build time) and warns if a package-local scratch holds newer binaries —
+  believe those two lines over any mtime.
 - Engine C++ change → rebuild in the **engine repo** (`ninja -C engine/src/out/host_debug
   libflutter_linux_drm.so libflutter_engine.so`) — no shell relink needed.
   Rebuild host_release too before packaging.
@@ -372,12 +381,18 @@ Build / runtime:
   though the manifest lists it. Editing an existing file is more dangerous,
   because it fails silently — you get a binary built from the old code and no
   error at all. This has already invalidated one round of testing and produced
-  a confidently wrong conclusion about where a bug was. When a change to `sdk/`
-  appears to have no effect, before theorising:
+  a confidently wrong conclusion about where a bug was — twice: the second
+  time an hour went to "stale" rendering because the rebuilt scratch was
+  `shell/.build` while the desktop stages `.build-shared` (see Build &
+  iterate; the framework is `libFlutterShared.so`, so the app *binary* never
+  contains the change and `nm` on it proves nothing). When a change to `sdk/`
+  appears to have no effect, before theorising — with the scratch that your
+  binary actually comes from (`.build-shared` for anything staged,
+  `<pkg>/.build*` only for standalone builds like `.build-gtk`):
 
-      rm -f  <pkg>/.build/release.yaml <pkg>/.build/build.db
-      rm -rf <pkg>/.build/*/release/Flutter.build
-      swift build -c release        # twice: the first re-plans
+      rm -f  .build-shared/release.yaml .build-shared/build.db
+      rm -rf .build-shared/*/release/Flutter.build
+      build/build-all.sh            # or swift build twice: the first re-plans
 
 - **On Windows a cold `swift build` always fails, and the failure is a lie.**
   It dies inside the MSVC standard library —

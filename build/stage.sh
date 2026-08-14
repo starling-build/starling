@@ -98,6 +98,30 @@ if [ -z "$APPS" ]; then
 fi
 APPS="$(echo "$APPS" | xargs)"   # trim
 
+# Building in a package-local scratch is invisible here — stage reads ONLY
+# $SHELL_BUILD. If such a scratch holds a NEWER binary than the one about to
+# be staged, someone almost certainly rebuilt the wrong tree; say so loudly,
+# because the staged copy's own mtime is install(1)'s copy time and looks
+# fresh regardless of what it was built from.
+drift=""
+if [ -x "$REPO/shell/.build/$CONFIG/DesktopShellApp" ] &&
+   [ "$REPO/shell/.build/$CONFIG/DesktopShellApp" -nt "$SHELL_BUILD/$CONFIG/DesktopShellApp" ]; then
+    drift="$drift shell/.build"
+fi
+for a in $APPS; do
+    if [ -x "$REPO/apps/$a/.build/$CONFIG/$a" ] && [ -x "$SHELL_BUILD/$CONFIG/$a" ] &&
+       [ "$REPO/apps/$a/.build/$CONFIG/$a" -nt "$SHELL_BUILD/$CONFIG/$a" ]; then
+        drift="$drift apps/$a/.build"
+    fi
+done
+if [ -n "$drift" ]; then
+    echo "stage: WARNING: newer binaries in:$drift — package-local scratches are" >&2
+    echo "stage: NOT staged; build/build-all.sh feeds $SHELL_BUILD" >&2
+fi
+if [ -f "$SHELL_BUILD/$CONFIG/BUILD-STAMP" ]; then
+    echo "stage: staging build $(cat "$SHELL_BUILD/$CONFIG/BUILD-STAMP")"
+fi
+
 LIB=$OUT/lib
 SHARE=$OUT/share
 rm -rf "$OUT"
@@ -106,6 +130,9 @@ mkdir -p "$LIB/apps" "$LIB/appbin" "$SHARE/shaders" "$OUT/bin"
 # --- shell + engine ----------------------------------------------------------
 install -m755 "$SHELL_BUILD/$CONFIG/DesktopShellApp" "$LIB/"
 install -m644 "$SHELL_BUILD/$TRIPLE/$CONFIG/libFlutterShared.so" "$LIB/"
+if [ -f "$SHELL_BUILD/$CONFIG/BUILD-STAMP" ]; then
+    install -m644 "$SHELL_BUILD/$CONFIG/BUILD-STAMP" "$LIB/"
+fi
 install -m644 "$E/libflutter_engine.so" "$E/libflutter_linux_drm.so" "$LIB/"
 
 # SwiftPM resource bundles (CupertinoIcons font, …): the generated accessor
