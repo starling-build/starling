@@ -115,6 +115,81 @@ private final class ErrorCapture: ChannelInboundHandler {
     }
 }
 
+/// Pumps one ssh exec channel into and out of a TermdClient: the transport
+/// half of the persistent-session arrangement, with the protocol half in the
+/// sdk (`TermdClient`, which explains the split).
+///
+/// No pty is requested, deliberately. The stream must be termd's frames and
+/// nothing else — a pty in the middle would translate newlines, echo input
+/// and mangle every byte over 0x7f. That is also why stderr is routed to the
+/// screen as text rather than into the client: the far side's `sh -lc` and
+/// termd itself both report their troubles there ("command not found",
+/// "could not start the daemon"), and those lines are for the person.
+private final class TermdChannelHandler: ChannelInboundHandler {
+    typealias InboundIn = SSHChannelData
+
+    private let client: TermdClient
+    private let command: String
+    private let onReady: () -> Void
+    private let onClose: (String?) -> Void
+
+    init(client: TermdClient, command: String,
+         onReady: @escaping () -> Void,
+         onClose: @escaping (String?) -> Void) {
+        self.client = client
+        self.command = command
+        self.onReady = onReady
+        self.onClose = onClose
+    }
+
+    func handlerAdded(context: ChannelHandlerContext) {
+        let exec = SSHChannelRequestEvent.ExecRequest(
+            command: command, wantReply: true)
+        context.triggerUserOutboundEvent(exec).whenComplete { [weak self] result in
+            switch result {
+            case .failure(let error):
+                self?.onClose("exec refused: \(error)")
+            case .success:
+                self?.onReady()
+            }
+        }
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let channelData = self.unwrapInboundIn(data)
+        guard case .byteBuffer(let buffer) = channelData.data else { return }
+        let bytes = Array(buffer.readableBytesView)
+        if case .stdErr = channelData.type {
+            client.session.feed(Array("\u{1B}[38;5;244m".utf8))
+            client.session.feed(bytes)
+            client.session.feed(Array("\u{1B}[0m".utf8))
+        } else {
+            client.receive(bytes)
+        }
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if let status = event as? SSHChannelRequestEvent.ExitStatus {
+            // 127 is "starling-termd: command not found" from the login
+            // shell — the fallback trigger, reported by exit status because
+            // by then there is no other channel left to say it on.
+            onClose(status.exitStatus == 0
+                    ? nil : "termd bridge exited with status \(status.exitStatus)")
+        }
+        context.fireUserInboundEventTriggered(event)
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        onClose(nil)
+        context.fireChannelInactive()
+    }
+
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        onClose("\(error)")
+        context.close(promise: nil)
+    }
+}
+
 /// Pumps one ssh session channel into and out of a TerminalSession.
 private final class SessionChannelHandler: ChannelInboundHandler {
     typealias InboundIn = SSHChannelData
@@ -228,6 +303,30 @@ public final class SSHTerminal: @unchecked Sendable {
     private var _reported = false
     private let lock = NSLock()
 
+    // ── the persistent-session state ────────────────────────────────────
+    /// The protocol engine, created on the first termd connection and kept
+    /// across reconnects — it holds the session id and the byte offset, which
+    /// are exactly what a resume needs.
+    private var termd: TermdClient?
+    /// Credentials, kept in memory for the lifetime of this object so a
+    /// dropped link can be rebuilt without asking again. Never persisted:
+    /// the app's rule is that a password is typed per connection, and a
+    /// reconnect is the same connection from the user's point of view.
+    private var creds: (host: String, port: Int, user: String, password: String)?
+    /// False once termd proved absent on this host — the plain-shell
+    /// fallback, which cannot resume and therefore must not auto-reconnect.
+    private var termdMode = true
+    private var reconnectAttempt = 0
+    private var userStopped = false
+    private var keepalive: RepeatedTask?
+
+    /// Where the far side's session id is remembered between app launches,
+    /// so a relaunch walks back into the same shell.
+    private var sessionKey: String? {
+        guard let c = creds else { return nil }
+        return "starling.termd.session.\(c.user)@\(c.host):\(c.port)"
+    }
+
     public init(session: TerminalSession) {
         self.session = session
         // One thread: this drives a single interactive session, and its
@@ -248,6 +347,8 @@ public final class SSHTerminal: @unchecked Sendable {
         lock.lock()
         _reachedLive = false
         _reported = false
+        creds = (host, port, user, password)
+        userStopped = false
         lock.unlock()
         setLink(.connecting)
         note("\u{1B}[38;5;244mconnecting to \(user)@\(host):\(port)…\u{1B}[0m\r\n")
@@ -301,17 +402,15 @@ public final class SSHTerminal: @unchecked Sendable {
         return _reachedLive
     }
 
-    /// Ends the session. Unlike the termd transport there is nothing left
-    /// running on the far side to reattach to: an ssh shell dies with its
-    /// connection, which is the trade for needing nothing installed there.
+    /// Drops the link, on the user's say-so. Through termd the session on
+    /// the far side keeps running and the next connection re-attaches to it;
+    /// on the plain-shell fallback the far side dies with the connection,
+    /// which is the trade for needing nothing installed there.
     public func disconnect() {
         lock.lock()
-        let (channel, connection) = (self.channel, self.connection)
-        self.channel = nil
-        self.connection = nil
+        userStopped = true
         lock.unlock()
-        channel?.close(promise: nil)
-        connection?.close(promise: nil)
+        disconnectKeepingState()
         setLink(.idle)
     }
 
@@ -327,6 +426,21 @@ public final class SSHTerminal: @unchecked Sendable {
                         return child.eventLoop.makeFailedFuture(
                             ChannelError.inappropriateOperationForState)
                     }
+                    self.lock.lock()
+                    let viaTermd = self.termdMode
+                    self.lock.unlock()
+                    if viaTermd {
+                        // `sh -lc`: a LOGIN shell, because an ssh exec channel
+                        // gets sshd's minimal PATH, and starling-termd lives
+                        // in ~/.local/bin on any machine it was installed to
+                        // without root — which .profile puts on PATH and
+                        // nothing else does.
+                        return child.pipeline.addHandler(TermdChannelHandler(
+                            client: self.termdClient(),
+                            command: "sh -lc 'exec starling-termd --stdio'",
+                            onReady: { [weak self] in self?.termdReady(child) },
+                            onClose: { [weak self] why in self?.termdClosed(why) }))
+                    }
                     return child.pipeline.addHandler(SessionChannelHandler(
                         session: self.session,
                         onReady: { [weak self] in self?.ready(child) },
@@ -338,6 +452,164 @@ public final class SSHTerminal: @unchecked Sendable {
             guard let self = self else { return }
             self.fail(self.describe(error))
         }
+    }
+
+    // MARK: - The termd link
+
+    /// The one client this object ever has: session id and byte offset live
+    /// in it, so keeping it across reconnects IS the resume.
+    private func termdClient() -> TermdClient {
+        lock.lock()
+        if let existing = termd {
+            lock.unlock()
+            return existing
+        }
+        var attach: UInt32?
+        if let c = creds {
+            let key = "starling.termd.session.\(c.user)@\(c.host):\(c.port)"
+            let stored = UserDefaults.standard.integer(forKey: key)
+            if stored > 0 { attach = UInt32(stored) }
+        }
+        // A fresh launch attaches from offset zero: the server replays from
+        // the oldest byte its ring holds, which rebuilds screen and
+        // scrollback both. Mid-run reconnects resume from the client's own
+        // offset because the client object survives them.
+        let client = TermdClient(session: session, attach: attach, from: 0)
+        termd = client
+        lock.unlock()
+        return client
+    }
+
+    private func termdReady(_ child: Channel) {
+        lock.lock()
+        channel = child
+        _reachedLive = true
+        reconnectAttempt = 0
+        lock.unlock()
+
+        let client = termdClient()
+        client.sendFrame = { [weak self] frame in self?.send(frame) }
+        client.onLive = { [weak self] id in
+            guard let self = self else { return }
+            self.lock.lock()
+            let key = self.sessionKey
+            self.lock.unlock()
+            if let key = key { UserDefaults.standard.set(Int(id), forKey: key) }
+            self.setLink(.live)
+        }
+        client.onEnded = { [weak self] why in
+            // A protocol-level refusal will not fix itself by retrying —
+            // and the stored id describes a server state that no longer
+            // exists, so drop that too.
+            guard let self = self else { return }
+            self.lock.lock()
+            self.userStopped = true
+            let key = self.sessionKey
+            self.lock.unlock()
+            if let key = key { UserDefaults.standard.removeObject(forKey: key) }
+            self.disconnectKeepingState()
+            self.setLink(why.map { .failed($0) } ?? .idle)
+        }
+        client.begin(cols: session.emulator.cols, rows: session.emulator.rows)
+
+        // PING every 10s and declare the link dead after 30s of silence —
+        // a half-open TCP connection otherwise looks healthy forever, which
+        // on a phone is the COMMON case: iOS freezes the app mid-air when it
+        // is backgrounded, and the far side's RSTs go nowhere.
+        lock.lock()
+        keepalive?.cancel()
+        keepalive = child.eventLoop.scheduleRepeatedTask(
+            initialDelay: .seconds(10), delay: .seconds(10)
+        ) { [weak self, weak child] _ in
+            guard let self = self, let client = self.currentTermd() else { return }
+            if !client.keepalive() { child?.close(promise: nil) }
+        }
+        lock.unlock()
+    }
+
+    private func currentTermd() -> TermdClient? {
+        lock.lock(); defer { lock.unlock() }
+        return termd
+    }
+
+    /// The termd channel died. Three different stories end here, told apart
+    /// by what the client saw and how the bridge exited.
+    private func termdClosed(_ why: String?) {
+        lock.lock()
+        keepalive?.cancel()
+        keepalive = nil
+        channel = nil
+        let stopped = userStopped
+        let sawServer = termd?.sawServer ?? false
+        let conn = connection
+        lock.unlock()
+        if stopped { return }
+
+        // starling-termd is not on that machine: the login shell said 127,
+        // or sshd refused the exec outright. Fall back to a plain shell on
+        // the same connection — the app still works everywhere, it merely
+        // loses what termd would have given it. Only these two signatures
+        // fall back: a network drop mid-handshake must reconnect instead,
+        // or a flaky link would silently downgrade the session.
+        let absent = (why?.contains("exited with status 127") ?? false)
+            || (why?.contains("exited with status 126") ?? false)
+            || (why?.contains("exec refused") ?? false)
+        if !sawServer && absent {
+            lock.lock()
+            termdMode = false
+            termd = nil
+            lock.unlock()
+            note("\r\n\u{1B}[38;5;244m[starling-termd is not installed on this "
+                 + "machine — plain shell; the session will not survive a "
+                 + "disconnect]\u{1B}[0m\r\n")
+            if let conn = conn, conn.isActive {
+                openSession(on: conn)
+            } else {
+                fail(why ?? "connection lost")
+            }
+            return
+        }
+
+        // The link died; the session on the far side is fine. Rebuild the
+        // link and re-attach at the byte offset the client already holds.
+        note("\r\n\u{1B}[38;5;244m[link lost — reconnecting…]\u{1B}[0m\r\n")
+        scheduleReconnect()
+    }
+
+    private func scheduleReconnect() {
+        lock.lock()
+        reconnectAttempt += 1
+        let attempt = reconnectAttempt
+        let c = creds
+        let conn = connection
+        connection = nil
+        lock.unlock()
+        conn?.close(promise: nil)
+        guard let creds = c else { return }
+
+        let backoff = min(8.0, pow(2.0, Double(min(attempt, 3))) * 0.25)
+        DispatchQueue.global().asyncAfter(deadline: .now() + backoff) { [weak self] in
+            guard let self = self else { return }
+            self.lock.lock()
+            let stopped = self.userStopped
+            self.lock.unlock()
+            guard !stopped else { return }
+            self.connect(host: creds.host, port: creds.port,
+                         user: creds.user, password: creds.password)
+        }
+    }
+
+    /// Close the wire without touching `termd` — the resume state.
+    private func disconnectKeepingState() {
+        lock.lock()
+        let (channel, connection) = (self.channel, self.connection)
+        self.channel = nil
+        self.connection = nil
+        keepalive?.cancel()
+        keepalive = nil
+        lock.unlock()
+        channel?.close(promise: nil)
+        connection?.close(promise: nil)
     }
 
     private func ready(_ child: Channel) {
