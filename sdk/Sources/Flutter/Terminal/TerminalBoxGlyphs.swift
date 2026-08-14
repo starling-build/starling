@@ -20,11 +20,15 @@
 // its draw functions the integer cell width and height.
 //
 // SCOPE. The uniform-weight box characters (all arms light, or all heavy),
-// the block elements including the eighths, and the three shades. That is
-// essentially all of what real terminal output uses. The rest of U+2500's
-// block — dashes, doubles, rounded corners, and the mixed light/heavy joins —
-// keeps coming from the font, where it is correct and merely soft. Adding
-// them here is a matter of extending `arms(for:)`.
+// the half-lines, the rounded corners, the pure double-line set, and the
+// block elements — eighths, quadrants, and the three shades. That is
+// essentially all of what real terminal output uses: Claude Code's welcome
+// frame is rounded corners plus light sides, and its logo is quadrants,
+// which is what pulled the corners and quadrants in here (the font-drawn
+// corner visibly failed to meet the synthesized side). What still comes
+// from the font: the dashed variants and the mixed light/heavy joins,
+// where the font is correct and merely soft. Adding them is a matter of
+// extending `arms(for:)`.
 
 import Foundation
 import FlutterSwiftBridge
@@ -42,7 +46,11 @@ enum TerminalBoxGlyphs {
     static func handles(_ scalar: UInt32) -> Bool {
         switch scalar {
         case 0x2500...0x254B: return arms(for: scalar) != nil
-        case 0x2580...0x2593: return true
+        case 0x2550, 0x2551, 0x2554, 0x2557, 0x255A, 0x255D,
+             0x2560, 0x2563, 0x2566, 0x2569, 0x256C: return true
+        case 0x256D...0x2570: return true
+        case 0x2574...0x257F: return arms(for: scalar) != nil
+        case 0x2580...0x259F: return true
         default: return false
         }
     }
@@ -56,6 +64,16 @@ enum TerminalBoxGlyphs {
 
         if let a = arms(for: scalar) {
             drawArms(canvas, a, x: x, y: y, w: w, h: h, paint: paint, scale: scale)
+            return
+        }
+        if (0x256D...0x2570).contains(scalar) {
+            drawRounded(canvas, scalar: scalar, x: x, y: y, w: w, h: h,
+                        paint: paint, scale: scale)
+            return
+        }
+        if (0x2550...0x256C).contains(scalar) {
+            drawDouble(canvas, scalar: scalar, x: x, y: y, w: w, h: h,
+                       paint: paint, scale: scale)
             return
         }
         drawBlock(canvas, scalar: scalar, x: x, y: y, w: w, h: h,
@@ -105,6 +123,120 @@ enum TerminalBoxGlyphs {
         (v * scale).rounded() / scale
     }
 
+    // MARK: - Rounded corners
+
+    /// ╭╮╯╰ as a stroked path: two straight runs meeting in a quarter arc,
+    /// with the stroke centred on the same lines the rect arms occupy, so a
+    /// rounded corner continues seamlessly into a `│` above or a `─` beside
+    /// it — the seam between the font's corner and our synthesized sides is
+    /// what forced these in here.
+    private static func drawRounded(_ canvas: any Canvas, scalar: UInt32,
+                                    x: Double, y: Double, w: Double, h: Double,
+                                    paint: Paint, scale: Double) {
+        let th = thickness(1, scale)
+        // The rect arms put a bar's LEADING edge at cx/cy; the stroke is
+        // centred, so the centreline sits half a thickness further in.
+        let bx = x + snap((w - th) / 2, scale) + th / 2
+        let by = y + snap((h - th) / 2, scale) + th / 2
+        let r = max(th, min(w, h) / 2 - th / 2)
+
+        let stroke = Paint()
+        stroke.color = paint.color
+        stroke.style = .stroke
+        stroke.strokeWidth = th
+
+        let path = Path()
+        let pi = Double.pi
+        switch scalar {
+        case 0x256D:                                     // ╭ down + right
+            path.moveTo(bx, y + h)
+            path.lineTo(bx, by + r)
+            path.arcTo(Rect.fromLTRB(bx, by, bx + 2 * r, by + 2 * r),
+                       pi, pi / 2, false)
+            path.lineTo(x + w, by)
+        case 0x256E:                                     // ╮ down + left
+            path.moveTo(bx, y + h)
+            path.lineTo(bx, by + r)
+            path.arcTo(Rect.fromLTRB(bx - 2 * r, by, bx, by + 2 * r),
+                       0, -pi / 2, false)
+            path.lineTo(x, by)
+        case 0x256F:                                     // ╯ up + left
+            path.moveTo(bx, y)
+            path.lineTo(bx, by - r)
+            path.arcTo(Rect.fromLTRB(bx - 2 * r, by - 2 * r, bx, by),
+                       0, pi / 2, false)
+            path.lineTo(x, by)
+        default:                                         // ╰ up + right
+            path.moveTo(bx, y)
+            path.lineTo(bx, by - r)
+            path.arcTo(Rect.fromLTRB(bx, by - 2 * r, bx + 2 * r, by),
+                       pi, -pi / 2, false)
+            path.lineTo(x + w, by)
+        }
+        canvas.drawPath(path, stroke)
+    }
+
+    // MARK: - Doubles
+
+    /// The pure double-line set: two light bars a light-line's width apart,
+    /// centred as a pair on the same lines the single bars use. The mixed
+    /// single/double hybrids (╒╓…╫) stay with the font.
+    private static func drawDouble(_ canvas: any Canvas, scalar: UInt32,
+                                   x: Double, y: Double, w: Double, h: Double,
+                                   paint: Paint, scale: Double) {
+        let th = thickness(1, scale)
+        let bx = x + snap((w - th) / 2, scale) + th / 2
+        let by = y + snap((h - th) / 2, scale) + th / 2
+        let d = th                                       // pair offset
+        let vo = bx - d, vi = bx + d                     // vertical centres
+        let ho = by - d, hi = by + d                     // horizontal centres
+        func hbar(_ cy: Double, _ x0: Double, _ x1: Double) {
+            canvas.drawRect(Rect.fromLTRB(x0, cy - th / 2, x1, cy + th / 2), paint)
+        }
+        func vbar(_ cx: Double, _ y0: Double, _ y1: Double) {
+            canvas.drawRect(Rect.fromLTRB(cx - th / 2, y0, cx + th / 2, y1), paint)
+        }
+        switch scalar {
+        case 0x2550:                                     // ═
+            hbar(ho, x, x + w); hbar(hi, x, x + w)
+        case 0x2551:                                     // ║
+            vbar(vo, y, y + h); vbar(vi, y, y + h)
+        case 0x2554:                                     // ╔ down + right
+            hbar(ho, vo - th / 2, x + w); vbar(vo, ho - th / 2, y + h)
+            hbar(hi, vi - th / 2, x + w); vbar(vi, hi - th / 2, y + h)
+        case 0x2557:                                     // ╗ down + left
+            hbar(ho, x, vi + th / 2); vbar(vi, ho - th / 2, y + h)
+            hbar(hi, x, vo + th / 2); vbar(vo, hi - th / 2, y + h)
+        case 0x255A:                                     // ╚ up + right
+            hbar(hi, vo - th / 2, x + w); vbar(vo, y, hi + th / 2)
+            hbar(ho, vi - th / 2, x + w); vbar(vi, y, ho + th / 2)
+        case 0x255D:                                     // ╝ up + left
+            hbar(hi, x, vi + th / 2); vbar(vi, y, hi + th / 2)
+            hbar(ho, x, vo + th / 2); vbar(vo, y, ho + th / 2)
+        case 0x2560:                                     // ╠
+            vbar(vo, y, y + h)
+            vbar(vi, y, ho + th / 2); vbar(vi, hi - th / 2, y + h)
+            hbar(ho, vi - th / 2, x + w); hbar(hi, vi - th / 2, x + w)
+        case 0x2563:                                     // ╣
+            vbar(vi, y, y + h)
+            vbar(vo, y, ho + th / 2); vbar(vo, hi - th / 2, y + h)
+            hbar(ho, x, vo + th / 2); hbar(hi, x, vo + th / 2)
+        case 0x2566:                                     // ╦
+            hbar(ho, x, x + w)
+            hbar(hi, x, vo + th / 2); hbar(hi, vi - th / 2, x + w)
+            vbar(vo, hi - th / 2, y + h); vbar(vi, hi - th / 2, y + h)
+        case 0x2569:                                     // ╩
+            hbar(hi, x, x + w)
+            hbar(ho, x, vo + th / 2); hbar(ho, vi - th / 2, x + w)
+            vbar(vo, y, ho + th / 2); vbar(vi, y, ho + th / 2)
+        default:                                         // ╬
+            vbar(vo, y, ho + th / 2); vbar(vo, hi - th / 2, y + h)
+            vbar(vi, y, ho + th / 2); vbar(vi, hi - th / 2, y + h)
+            hbar(ho, x, vo + th / 2); hbar(ho, vi - th / 2, x + w)
+            hbar(hi, x, vo + th / 2); hbar(hi, vi - th / 2, x + w)
+        }
+    }
+
     // MARK: - Blocks and shades
 
     private static func drawBlock(_ canvas: any Canvas, scalar: UInt32,
@@ -128,6 +260,32 @@ enum TerminalBoxGlyphs {
         case 0x2589...0x258F:                            // ▉▊▋▌▍▎▏ left eighths
             let n = Double(0x2590 - scalar)              // 7...1 eighths wide
             canvas.drawRect(Rect.fromLTWH(x, y, w * n / 8, h), paint)
+        case 0x2594:                                     // ▔ upper eighth
+            canvas.drawRect(Rect.fromLTWH(x, y, w, h / 8), paint)
+        case 0x2595:                                     // ▕ right eighth
+            canvas.drawRect(Rect.fromLTRB(x + w * 7 / 8, y, x + w, y + h), paint)
+        case 0x2596...0x259F:                            // ▖▗▘▙▚▛▜▝▞▟ quadrants
+            // Quadrants share the exact midpoint coordinates, so the pairs
+            // that should touch (▛'s upper-right and lower-left, a ▘ beside
+            // a ▝) abut with no seam and no overlap.
+            let xm = x + w / 2, ym = y + h / 2
+            let mask: Int                                //  UL=1 UR=2 LL=4 LR=8
+            switch scalar {
+            case 0x2596: mask = 4                        // ▖
+            case 0x2597: mask = 8                        // ▗
+            case 0x2598: mask = 1                        // ▘
+            case 0x2599: mask = 1 | 4 | 8                // ▙
+            case 0x259A: mask = 1 | 8                    // ▚
+            case 0x259B: mask = 1 | 2 | 4                // ▛
+            case 0x259C: mask = 1 | 2 | 8                // ▜
+            case 0x259D: mask = 2                        // ▝
+            case 0x259E: mask = 2 | 4                    // ▞
+            default:     mask = 2 | 4 | 8                // ▟
+            }
+            if mask & 1 != 0 { canvas.drawRect(Rect.fromLTRB(x, y, xm, ym), paint) }
+            if mask & 2 != 0 { canvas.drawRect(Rect.fromLTRB(xm, y, x + w, ym), paint) }
+            if mask & 4 != 0 { canvas.drawRect(Rect.fromLTRB(x, ym, xm, y + h), paint) }
+            if mask & 8 != 0 { canvas.drawRect(Rect.fromLTRB(xm, ym, x + w, y + h), paint) }
         case 0x2591, 0x2592, 0x2593:                     // ░▒▓ shades
             // A shade is a fraction of ink, and as a solid fill at that alpha
             // it is both closer to the intent and steadier than the font's
@@ -170,6 +328,18 @@ enum TerminalBoxGlyphs {
         case 0x253B: return BoxArms(up: H, left: H, right: H)   // ┻
         case 0x253C: return BoxArms(up: L, down: L, left: L, right: L)  // ┼
         case 0x254B: return BoxArms(up: H, down: H, left: H, right: H)  // ╋
+        case 0x2574: return BoxArms(left: L)                    // ╴
+        case 0x2575: return BoxArms(up: L)                      // ╵
+        case 0x2576: return BoxArms(right: L)                   // ╶
+        case 0x2577: return BoxArms(down: L)                    // ╷
+        case 0x2578: return BoxArms(left: H)                    // ╸
+        case 0x2579: return BoxArms(up: H)                      // ╹
+        case 0x257A: return BoxArms(right: H)                   // ╺
+        case 0x257B: return BoxArms(down: H)                    // ╻
+        case 0x257C: return BoxArms(left: L, right: H)          // ╼
+        case 0x257D: return BoxArms(up: L, down: H)             // ╽
+        case 0x257E: return BoxArms(left: H, right: L)          // ╾
+        case 0x257F: return BoxArms(up: H, down: L)             // ╿
         default: return nil
         }
     }
