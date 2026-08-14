@@ -57,6 +57,18 @@ assertion survives 26.6.1, and so does ghostty's `NSAppSleepDisabled` defense
 — both onset probes ran flat (ours 1.36 s/block through 54.5 s, ghostty
 2.56 s/block through 51.3 s; see `meta.txt`).
 
+## The film
+
+`starling-vs-ghostty-postupgrade-demo.mp4` (46 s): the two side by side on
+this OS — 500 MB ascii cat, 500 MB unicode cat, DOOM-Fire 15 000 frames,
+matched Roboto Mono, both grids 106x57, synchronized start. The simultaneous
+run is a demo, not a benchmark (both sides contend for the same cores and
+converge to a tie — cards read 4.51/4.66/19.7 s vs 4.36/4.59/19.6 s); the
+solo interleaved legs above are the record. Filmed with the checkpoint's
+`demo-run.sh` recipe; two new 26.6.1 filming traps (the capture
+re-authorization dialog, and the cursor it strands mid-frame) are recorded
+in the side-by-side-demo-filming memory.
+
 ## What the upgrade actually broke (environment, not terminals)
 
 - `/var/tmp/bench` was wiped — restored from
