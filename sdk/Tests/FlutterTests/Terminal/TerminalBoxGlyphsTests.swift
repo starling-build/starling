@@ -104,20 +104,22 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         // and the complete block-elements block.
         s.formUnion(0x2500...0x259F)
         s.formUnion(0x2800...0x28FF)                               // braille
+        s.formUnion(0x1FB00...0x1FB3B)                             // sextants
+        s.formUnion(0x1FB70...0x1FB8F)                             // eighth blocks
+        s.formUnion(0x1CD00...0x1CDE5)                             // octants
         s.formUnion(0xE0B0...0xE0B7)                               // powerline
         return s
     }()
 
     func testHandlesMatchesTheDecisionList() {
-        for cp in UInt32(0x2400)...UInt32(0x2A00) {
-            XCTAssertEqual(TerminalBoxGlyphs.handles(cp),
-                           Self.synthesized.contains(cp),
-                           String(format: "U+%04X", cp))
-        }
-        for cp in UInt32(0xE0A0)...UInt32(0xE0D8) {
-            XCTAssertEqual(TerminalBoxGlyphs.handles(cp),
-                           Self.synthesized.contains(cp),
-                           String(format: "U+%04X", cp))
+        let sweeps: [ClosedRange<UInt32>] = [0x2400...0x2A00, 0xE0A0...0xE0D8,
+                                             0x1FA00...0x1FC00, 0x1CC00...0x1CF00]
+        for range in sweeps {
+            for cp in range {
+                XCTAssertEqual(TerminalBoxGlyphs.handles(cp),
+                               Self.synthesized.contains(cp),
+                               String(format: "U+%04X", cp))
+            }
         }
     }
 
@@ -513,6 +515,128 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 XCTAssertTrue(apexes.contains {
                     near($0.dx, far) && near($0.dy, c.y + c.h / 2)
                 }, "\(name) never reaches the far edge")
+            }
+        }
+    }
+
+    // MARK: - 4e · Mosaics
+
+    /// Reconstruct a mosaic's bitmask from its plan: every rect must be
+    /// exactly one cell of the 2xN grid, no cell twice. nil = malformed.
+    private func mosaicMask(_ cp: UInt32, _ c: Cell, rows: Int) -> UInt32? {
+        var mask: UInt32 = 0
+        let xm = c.x + c.w / 2
+        for r in fills(plan(cp, c)) {
+            let colIdx: Int
+            if near(r.left, c.x) && near(r.right, xm) { colIdx = 0 }
+            else if near(r.left, xm) && near(r.right, c.x + c.w) { colIdx = 1 }
+            else { return nil }
+            var rowIdx = -1
+            for row in 0..<rows {
+                if near(r.top, c.y + c.h * Double(row) / Double(rows))
+                    && near(r.bottom, c.y + c.h * Double(row + 1) / Double(rows)) {
+                    rowIdx = row
+                    break
+                }
+            }
+            if rowIdx < 0 { return nil }
+            let bit = UInt32(1) << (rowIdx * 2 + colIdx)
+            if mask & bit != 0 { return nil }
+            mask |= bit
+        }
+        return mask
+    }
+
+    /// Sextants: 60 distinct 2x3 masks, and the exclusion law — never empty,
+    /// full, or a half-block, because those shapes live in U+2580's block
+    /// and the codepoint range skips them.
+    func testSextantMosaics() {
+        sweep { c in
+            var seen = Set<UInt32>()
+            for cp in UInt32(0x1FB00)...UInt32(0x1FB3B) {
+                let name = String(format: "U+%04X", cp)
+                guard let mask = mosaicMask(cp, c, rows: 3) else {
+                    return XCTFail("\(name): rects off the 2x3 grid")
+                }
+                XCTAssertTrue(seen.insert(mask).inserted, "\(name) duplicate")
+                XCTAssertFalse([0, 0b111111, 0b010101, 0b101010].contains(mask), name)
+            }
+            XCTAssertEqual(mosaicMask(0x1FB00, c, rows: 3), 1)          // 🬀 cell 1
+            XCTAssertEqual(mosaicMask(0x1FB3B, c, rows: 3), 0b111110)   // 🬻 all but 1
+        }
+    }
+
+    /// Octants: 230 distinct 2x4 masks, and the exclusion law — nothing a
+    /// quadrant combination, half, or quarter block already draws.
+    func testOctantMosaics() {
+        var excluded: Set<UInt32> = [0x03, 0x3F, 0xC0, 0xFC]  // ¼/¾ blocks
+        for q in 0...15 {                                     // quadrant unions
+            var m: UInt32 = 0
+            if q & 1 != 0 { m |= 0x05 }
+            if q & 2 != 0 { m |= 0x0A }
+            if q & 4 != 0 { m |= 0x50 }
+            if q & 8 != 0 { m |= 0xA0 }
+            excluded.insert(m)
+        }
+        sweep { c in
+            var seen = Set<UInt32>()
+            for cp in UInt32(0x1CD00)...UInt32(0x1CDE5) {
+                let name = String(format: "U+%05X", cp)
+                guard let mask = mosaicMask(cp, c, rows: 4) else {
+                    return XCTFail("\(name): rects off the 2x4 grid")
+                }
+                XCTAssertTrue(seen.insert(mask).inserted, "\(name) duplicate")
+                XCTAssertFalse(excluded.contains(mask), "\(name) is an excluded shape")
+            }
+            XCTAssertEqual(mosaicMask(0x1CD00, c, rows: 4), 0x04)  // OCTANT-3
+            XCTAssertEqual(mosaicMask(0x1CDE5, c, rows: 4), 0xFE)  // OCTANT-2345678
+        }
+    }
+
+    /// The positional eighth blocks: expected coverage written independently
+    /// from the chart, fractions of the cell.
+    func testLegacyEighthBlocks() {
+        typealias F = (Double, Double, Double, Double)
+        var expect: [UInt32: [F]] = [:]
+        for n in 0..<6 {                                   // vertical eighths 2-7
+            let k = Double(n + 1)
+            expect[UInt32(0x1FB70 + n)] = [(k / 8, 0, (k + 1) / 8, 1)]
+        }
+        for n in 0..<6 {                                   // horizontal eighths 2-7
+            let k = Double(n + 1)
+            expect[UInt32(0x1FB76 + n)] = [(0, k / 8, 1, (k + 1) / 8)]
+        }
+        let leftCol: F = (0, 0, 1.0 / 8, 1), rightCol: F = (7.0 / 8, 0, 1, 1)
+        let topRow: F = (0, 0, 1, 1.0 / 8), bottomRow: F = (0, 7.0 / 8, 1, 1)
+        expect[0x1FB7C] = [leftCol, bottomRow]
+        expect[0x1FB7D] = [leftCol, topRow]
+        expect[0x1FB7E] = [rightCol, topRow]
+        expect[0x1FB7F] = [rightCol, bottomRow]
+        expect[0x1FB80] = [topRow, bottomRow]
+        expect[0x1FB81] = [topRow, (0, 2.0 / 8, 1, 3.0 / 8),
+                           (0, 4.0 / 8, 1, 5.0 / 8), bottomRow]
+        for (i, k) in [2.0, 3, 5, 6, 7].enumerated() {
+            expect[UInt32(0x1FB82 + i)] = [(0, 0, 1, k / 8)]           // upper k/8
+            expect[UInt32(0x1FB87 + i)] = [((8 - k) / 8, 0, 1, 1)]     // right k/8
+        }
+        sweep { c in
+            for (cp, frs) in expect {
+                let name = String(format: "U+%05X", cp)
+                let rs = fills(plan(cp, c))
+                XCTAssertEqual(rs.count, frs.count, name)
+                for f in frs {
+                    XCTAssertTrue(rs.contains { r in
+                        near(r.left, c.x + f.0 * c.w) && near(r.top, c.y + f.1 * c.h)
+                            && near(r.right, c.x + f.2 * c.w)
+                            && near(r.bottom, c.y + f.3 * c.h)
+                    }, "\(name) rect \(f)")
+                }
+            }
+            for cp in UInt32(0x1FB8C)...UInt32(0x1FB8F) {              // half shades
+                guard case .shade(_, let f)? = plan(cp, c).first else {
+                    return XCTFail(String(format: "U+%05X not a shade", cp))
+                }
+                XCTAssertEqual(f, 0.5)
             }
         }
     }
