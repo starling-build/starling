@@ -267,7 +267,19 @@ final class TerminalGridPainter: CustomPainter {
         }
 
         // ── pass 3: everything the atlas cannot represent ────────────────
-        for f in fallbacks { paintFallback(canvas, f) }
+        // Inside one layer, deliberately: with FLUTTER_TEXT_LCD the engine
+        // rasterises direct-drawn text with RGB-stripe subpixel coverage,
+        // while every atlas glyph is grayscale (the atlas rasters offscreen,
+        // where the pixel geometry is unknown). Skia degrades LCD to
+        // grayscale inside a layer, so this keeps one AA mode across a row —
+        // otherwise CJK and clusters carry colour fringes the Latin beside
+        // them lacks.
+        if !fallbacks.isEmpty {
+            canvas.saveLayer(Rect.fromLTWH(0, 0, Double(cols) * cellW,
+                                           Double(lines.count) * cellH), Paint())
+            for f in fallbacks { paintFallback(canvas, f) }
+            canvas.restore()
+        }
 
         // ── pass 4: underlines ───────────────────────────────────────────
         // Just under the BASELINE, like the text engine's own rule — not at
