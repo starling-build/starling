@@ -24,6 +24,42 @@ underneath the old numbers.
   **47x202** on the suite legs (the familiar one-column drift; 202 ≥ 201 so
   nothing wraps) and **47x201 exactly** on the published legs.
 
+## The filmed head-to-head (same day, not a measurement)
+
+Both terminals tiled to halves of the 4K screen on GNOME, launched into a
+synchronized script (banner → wait for a trigger file → 150 MB ascii cat →
+150 MB unicode cat → DOOM-Fire 3000 frames), recorded with GNOME's
+screencast (hardware vah264enc). Typography matched end to end: same
+Roboto Mono, same rendered size, same 233-column width, row grids aligned
+to the pixel — the DOOM test cards' quote bars landed at identical y in
+both panes, and the simultaneous start even seeds both DOOM-Fires the
+same random quote. On-screen verdicts across takes: ours 802-842 fps vs
+ghostty 497-600. These are a RACE on shared cores, not a benchmark — the
+`data-samefont/` numbers are the citable ones.
+
+The matching recipe, with its traps:
+
+- Install the sdk's RobotoMono TTFs system-wide (ghostty resolves through
+  fontconfig, not paths).
+- Ghostty's `--font-size` is NOT 96 dpi points here — measured ~1.65
+  px/pt, and the em quantizes in ~2 px steps. Solve empirically with a
+  clamp probe: request `--window-width=600` (impossible), read `stty
+  size`, divide screen width by columns. 10.5 pt lands the 8.15 px cell
+  that gives the same column count as our 8.00 px cell in a half-screen.
+- Row height needs `adjust-cell-height`; it quantizes to WHOLE pixels and
+  silently ignores fractional values. `-8%` (17.7 px vs our 17.2) is the
+  closest quantum; the differing title-bar heights absorbed the residual.
+- GNOME's Screencast D-Bus service aborts the moment its calling bus
+  connection drops — `gdbus call` produces a 48-byte file ("Sender has
+  vanished"). Hold the connection open for the recording's lifetime.
+
+One sighting from a discarded take, worth remembering: the GTK-hosted
+TerminalApp ran its whole workload at full speed (fps file written,
+timings normal) while its WINDOW stayed frozen on a stale frame for ~6 s
+through the cat phase, then snapped forward at the test card. Repaint
+stall in the GTK host presentation path, once in ~six runs; the DRM path
+never showed it.
+
 ## Provenance — exactly what was measured
 
 - **ours**: `cocoa-verify` at `8f18ce5` (gate-clean atlas painter; the
