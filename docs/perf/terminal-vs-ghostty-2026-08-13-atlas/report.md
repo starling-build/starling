@@ -38,16 +38,16 @@ it is parse-bound, the typeface is irrelevant to it.
 
 | workload | ours | ghostty nightly | ratio | ghostty 1.3.0-dev | ratio |
 |---|---|---|---|---|---|
-| 01_light_cells | 0.586 | 0.497 | 1.18x | | |
-| 02_dense_cells | 0.249 | 0.173 | 1.44x | | |
-| 03_sgr_fg | 0.387 | 1.039 | **0.37x** | | |
-| 04_sgr_truecolor | 0.390 | 0.761 | **0.51x** | | |
-| 05_unicode | 0.334 | 0.316 | 1.06x | | |
-| 06_cursor_motion | 0.022 | 0.034 | **0.65x** | | |
-| 07_alt_screen | 0.117 | 0.135 | **0.87x** | | |
-| 08_scroll_region | 0.510 | 0.457 | 1.12x | | |
-| 09_long_lines | 0.145 | 0.147 | 0.99x | | |
-| 10_binary | 0.479 | 1.624 | **0.29x** | | |
+| 01_light_cells | 0.586 | 0.497 | 1.18x | 0.478 | 1.23x |
+| 02_dense_cells | 0.249 | 0.173 | 1.44x | 0.391 | 0.64x |
+| 03_sgr_fg | 0.387 | 1.039 | **0.37x** | 1.432 | 0.27x |
+| 04_sgr_truecolor | 0.390 | 0.761 | **0.51x** | 1.464 | 0.27x |
+| 05_unicode | 0.334 | 0.316 | 1.06x | 0.744 | 0.45x |
+| 06_cursor_motion | 0.022 | 0.034 | **0.65x** | 0.047 | 0.47x |
+| 07_alt_screen | 0.117 | 0.135 | **0.87x** | 0.614 | 0.19x |
+| 08_scroll_region | 0.510 | 0.457 | 1.12x | 0.617 | 0.83x |
+| 09_long_lines | 0.145 | 0.147 | 0.99x | 0.577 | 0.25x |
+| 10_binary | 0.479 | 1.624 | **0.29x** | 1.411 | 0.34x |
 | **suite wall** | **3.219** | 5.183 | **0.62x** | 7.775 | **0.41x** |
 
 End-of-suite RSS: ours 226 MB, nightly 209 MB, 1.3.0-dev 198 MB. The
