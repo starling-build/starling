@@ -43,7 +43,12 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHELL_DRIVE = os.path.join(REPO, "build/shell-drive.py")
-PATTERN_PATH = "/tmp/starling-glyph-pattern.sh"
+# NOT under /tmp: both are written by root (shell-drive under sudo) and read
+# or rewritten across runs whose effective identities can differ (the shell
+# writes the screenshot too), and /tmp's sticky bit plus fs.protected_regular
+# turns that mix into EPERM on a file the previous run left behind. The repo
+# root is a plain directory owned by the developer; everything can write it.
+PATTERN_PATH = os.path.join(REPO, ".glyph-pattern.sh")
 
 # ── the pattern ─────────────────────────────────────────────────────────────
 # Colours chosen to be absent from any wallpaper we ship and far apart in every
@@ -93,13 +98,16 @@ ROWS = [
     ("sextants",   _uniform("\U0001FB13"), "btop graphs, chafa images"),
     ("octants",    _uniform("\U0001CD48"), "Unicode 16 mosaics: notcurses, chafa"),
     ("wedges",     _uniform("\U0001FB45"), "smooth mosaics: chafa's smooth mode"),
+    ("triangles",  _uniform("◢"),         "prompt slants, chart corners"),
     ("blocks",    _uniform("█"),          "progress bars, sparklines"),
     ("shades",    _uniform("▓"),          "meters, htop bars"),
     ("braille",   _uniform("⠋"),          "EVERY TUI spinner"),
     ("powerline", _uniform(""),     "prompt separators: starship, agnoster"),
     ("arrows",    _uniform("→"),          "hints, diffs"),
     ("marks",     _uniform("✓"),          "pass/fail"),
-    ("geometric", _uniform("●"),          "bullets, play/stop"),
+    # ("geometric" ● was here; dropped when the synthesized rows grew the
+    # pattern past the desktop terminal's 30 lines — a plain font disc, and
+    # the mixed rows already prove font glyphs paint and advance.)
     ("cjk",       _uniform("日", 2),      "wide cells: two columns, one glyph"),
     ("mixed cjk first", _spans("日本語 ✓✗→ ⠋⠋ abcdef"), "the order that lost half the row"),
     ("mixed cjk last",  _spans("abcdef ⠋⠋ ✓✗→ 日本語"), "the same glyphs, the order that worked"),
@@ -820,7 +828,7 @@ def main():
     if "--shot" in args:
         return analyse(args[args.index("--shot") + 1])
 
-    png = "/tmp/starling-glyph-pixels.png"
+    png = os.path.join(REPO, ".glyph-pixels.png")
     try:
         capture(png)
         return analyse(png)

@@ -103,10 +103,14 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         // set pure and hybrid, rounded corners, diagonals, half-lines —
         // and the complete block-elements block.
         s.formUnion(0x2500...0x259F)
+        s.formUnion([0x25E2, 0x25E3, 0x25E4, 0x25E5,               // ◢◣◤◥
+                     0x25F8, 0x25F9, 0x25FA, 0x25FF])              // ◸◹◺◿
         s.formUnion(0x2800...0x28FF)                               // braille
-        s.formUnion(0x1FB00...0x1FB8F)                 // sextants, wedges, eighths
+        s.formUnion(0x1FB00...0x1FBAF)                 // sextants…fills…chamfers
+        s.remove(0x1FB93)                              // reserved, unassigned
+        s.formUnion([0x1FBCE, 0x1FBCF])                            // thirds
         s.formUnion(0x1CD00...0x1CDE5)                             // octants
-        s.formUnion(0xE0B0...0xE0B7)                               // powerline
+        s.formUnion(0xE0B0...0xE0BF)                               // powerline
         return s
     }()
 
@@ -472,7 +476,7 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 let from: Offset
                 let segments: [BoxStroke]
                 switch ops[0] {
-                case .fillPath(let f, let s):
+                case .fillPath(let f, let s, _):
                     XCTAssertTrue(claim.solid, name)
                     from = f; segments = s
                 case .stroke(let f, let s, let t):
@@ -652,7 +656,7 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 let name = String(format: "U+%05X", cp)
                 let ops = plan(cp, c)
                 XCTAssertEqual(ops.count, 1, name)
-                guard case .fillPath(let from, let segments) = ops[0] else {
+                guard case .fillPath(let from, let segments, _) = ops[0] else {
                     return XCTFail("\(name): not a filled polygon")
                 }
                 var poly = [from]
@@ -675,7 +679,7 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                 XCTAssertTrue(seen.insert(key).inserted, "\(name) duplicate shape")
             }
             // 🬼 is the small lower-left triangle: left ⅔ → corner → bottom ½.
-            if case .fillPath(let f, let segs)? = plan(0x1FB3C, c).first {
+            if case .fillPath(let f, let segs, _)? = plan(0x1FB3C, c).first {
                 XCTAssertTrue(near(f.dx, c.x) && near(f.dy, c.y + 2 * c.h / 3))
                 XCTAssertEqual(segs.count, 2)
             } else { XCTFail("U+1FB3C") }
@@ -689,7 +693,7 @@ final class TerminalBoxGlyphsTests: XCTestCase {
         sweep { c in
             for cp in UInt32(0x1FB68)...UInt32(0x1FB6F) {
                 let name = String(format: "U+%05X", cp)
-                guard case .fillPath(let from, let segments)? = plan(cp, c).first else {
+                guard case .fillPath(let from, let segments, _)? = plan(cp, c).first else {
                     return XCTFail("\(name): not a filled polygon")
                 }
                 var poly = [from]
@@ -705,6 +709,107 @@ final class TerminalBoxGlyphsTests: XCTestCase {
                         && (near(p.dy, c.y) || near(p.dy, c.y + c.h))
                     XCTAssertTrue(corner, "\(name) vertex \(p) is neither centre nor corner")
                 }
+            }
+        }
+    }
+
+    // MARK: - 4g · Fills, chamfers, and geometric triangles
+
+    /// Structural laws for the U+1FB90+ extras: checkers are eight exact
+    /// sixteenth-cells, hatches are five parallel strokes with endpoints on
+    /// the boundary, chamfer lines run edge-midpoint to edge-midpoint with
+    /// distinct masks, corner triangle shades carry half ink, and the
+    /// thirds blocks fill exact thirds.
+    func testLegacyExtras() {
+        sweep { c in
+            for cp in [UInt32(0x1FB95), 0x1FB96] {
+                XCTAssertEqual(fills(plan(cp, c)).count, 8, String(format: "U+%05X", cp))
+            }
+            for cp in [UInt32(0x1FB98), 0x1FB99] {
+                let name = String(format: "U+%05X", cp)
+                let ops = plan(cp, c)
+                XCTAssertEqual(ops.count, 5, name)
+                for op in ops {
+                    guard case .stroke(let from, let segments, _) = op,
+                          case .line(let to)? = segments.first else {
+                        return XCTFail("\(name): not a line stroke")
+                    }
+                    for p in [from, to] {
+                        let onEdge = near(p.dx, c.x) || near(p.dx, c.x + c.w)
+                            || near(p.dy, c.y) || near(p.dy, c.y + c.h)
+                        XCTAssertTrue(onEdge, "\(name) endpoint \(p) off boundary")
+                    }
+                    // Parallel to the cell diagonal, one direction per glyph.
+                    let slope = (to.dy - from.dy) / (to.dx - from.dx)
+                    XCTAssertTrue(near(abs(slope), c.h / c.w), "\(name) slope")
+                }
+            }
+            var chamferSets = Set<Int>()
+            for cp in UInt32(0x1FBA0)...UInt32(0x1FBAE) {
+                let name = String(format: "U+%05X", cp)
+                var key = 0
+                for op in plan(cp, c) {
+                    guard case .stroke(let from, let segments, _) = op,
+                          case .line(let to)? = segments.first else {
+                        return XCTFail("\(name): not a line stroke")
+                    }
+                    let mids = [Offset(c.x + c.w / 2, c.y), Offset(c.x, c.y + c.h / 2),
+                                Offset(c.x + c.w, c.y + c.h / 2), Offset(c.x + c.w / 2, c.y + c.h)]
+                    for p in [from, to] {
+                        XCTAssertTrue(mids.contains { near($0.dx, p.dx) && near($0.dy, p.dy) },
+                                      "\(name) endpoint \(p) not an edge midpoint")
+                    }
+                    let iFrom = mids.firstIndex { near($0.dx, from.dx) && near($0.dy, from.dy) } ?? -1
+                    let iTo = mids.firstIndex { near($0.dx, to.dx) && near($0.dy, to.dy) } ?? -1
+                    key |= 1 << (iFrom * 4 + iTo)
+                }
+                XCTAssertTrue(chamferSets.insert(key).inserted, "\(name) duplicate")
+            }
+            for cp in UInt32(0x1FB9C)...UInt32(0x1FB9F) {
+                guard case .fillPath(_, _, let alpha)? = plan(cp, c).first else {
+                    return XCTFail(String(format: "U+%05X not a filled path", cp))
+                }
+                XCTAssertEqual(alpha, 0.5)
+            }
+            let twoThirds = fills(plan(0x1FBCE, c))
+            XCTAssertEqual(twoThirds.count, 1)
+            XCTAssertTrue(near(twoThirds[0].right, c.x + 2 * c.w / 3))
+            let oneThird = fills(plan(0x1FBCF, c))
+            XCTAssertTrue(near(oneThird[0].right, c.x + c.w / 3))
+        }
+    }
+
+    /// ◢◣◤◥ are half-cell corner triangles (three cell corners, solid);
+    /// ◸◹◺◿ the same shapes stroked and explicitly closed.
+    func testGeometricTriangles() {
+        sweep { c in
+            let corners = [Offset(c.x, c.y), Offset(c.x + c.w, c.y),
+                           Offset(c.x, c.y + c.h), Offset(c.x + c.w, c.y + c.h)]
+            func isCorner(_ p: Offset) -> Bool {
+                corners.contains { near($0.dx, p.dx) && near($0.dy, p.dy) }
+            }
+            for cp in [UInt32(0x25E2), 0x25E3, 0x25E4, 0x25E5] {
+                let name = String(format: "U+%04X", cp)
+                guard case .fillPath(let from, let segments, let alpha)? = plan(cp, c).first,
+                      segments.count == 2 else {
+                    return XCTFail("\(name): not a triangle fill")
+                }
+                XCTAssertEqual(alpha, 1, name)
+                XCTAssertTrue(isCorner(from), name)
+                for s in segments {
+                    guard case .line(let to) = s else { return XCTFail(name) }
+                    XCTAssertTrue(isCorner(to), name)
+                }
+            }
+            for cp in [UInt32(0x25F8), 0x25F9, 0x25FA, 0x25FF] {
+                let name = String(format: "U+%04X", cp)
+                guard case .stroke(let from, let segments, _)? = plan(cp, c).first,
+                      segments.count == 3,
+                      case .line(let closing) = segments[2] else {
+                    return XCTFail("\(name): not a closed stroked triangle")
+                }
+                XCTAssertTrue(near(closing.dx, from.dx) && near(closing.dy, from.dy),
+                              "\(name) not closed")
             }
         }
     }

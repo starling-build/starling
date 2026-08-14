@@ -17,3 +17,5 @@ sdk/Vendor/
 
 # The iOS .app bundle build/ios-app.sh assembles.
 .stage-ios/
+.glyph-pattern.sh
+.glyph-pixels.png

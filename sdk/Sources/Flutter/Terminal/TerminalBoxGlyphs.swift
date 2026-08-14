@@ -56,7 +56,7 @@ enum BoxPlanOp {
     case shade(Rect, Double)           // solid, at a fraction of its alpha
     case stroke(from: Offset, segments: [BoxStroke], thickness: Double)
     case disc(Offset, Double)          // a braille dot: centre, radius
-    case fillPath(from: Offset, segments: [BoxStroke])  // closed and filled
+    case fillPath(from: Offset, segments: [BoxStroke], alpha: Double)  // closed + filled
 }
 
 /// One segment of a stroked plan. The pen starts at the plan's `from` and
@@ -73,10 +73,14 @@ enum TerminalBoxGlyphs {
     static func handles(_ scalar: UInt32) -> Bool {
         switch scalar {
         case 0x2500...0x259F: return true              // ALL box drawing + blocks
+        case 0x25E2...0x25E5: return true              // ◢◣◤◥ corner triangles
+        case 0x25F8...0x25FA, 0x25FF: return true      // ◸◹◺◿ outline triangles
         case 0x2800...0x28FF: return true              // braille patterns
-        case 0x1FB00...0x1FB8F: return true            // sextants, wedges, eighth blocks
+        case 0x1FB93: return false                     // reserved, unassigned
+        case 0x1FB00...0x1FBAF: return true            // sextants…fills…chamfers
+        case 0x1FBCE, 0x1FBCF: return true             // thirds blocks
         case 0x1CD00...0x1CDE5: return true            // octants
-        case 0xE0B0...0xE0B7: return true              // powerline separators
+        case 0xE0B0...0xE0BF: return true              // powerline separators
         default: return false
         }
     }
@@ -118,9 +122,10 @@ enum TerminalBoxGlyphs {
                 let paint = Paint()
                 paint.color = Color(Int(color))
                 canvas.drawCircle(centre, radius, paint)
-            case .fillPath(let from, let segments):
+            case .fillPath(let from, let segments, let alpha):
+                let a = Double((color >> 24) & 0xFF) * alpha
                 let paint = Paint()
-                paint.color = Color(Int(color))
+                paint.color = Color(Int((UInt32(a.rounded()) << 24) | (color & 0x00FF_FFFF)))
                 let path = builtPath(from, segments)
                 path.close()
                 canvas.drawPath(path, paint)
@@ -177,10 +182,17 @@ enum TerminalBoxGlyphs {
         if (0x1FB70...0x1FB8F).contains(scalar) {
             return legacyBlockOps(scalar, x: x, y: y, w: w, h: h)
         }
+        if (0x1FB90...0x1FBAF).contains(scalar) || scalar == 0x1FBCE || scalar == 0x1FBCF {
+            return legacyExtraOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x25E2...0x25E5).contains(scalar) || (0x25F8...0x25FA).contains(scalar)
+            || scalar == 0x25FF {
+            return geometricTriangleOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
         if (0x1CD00...0x1CDE5).contains(scalar) {
             return octantOps(scalar, x: x, y: y, w: w, h: h)
         }
-        if (0xE0B0...0xE0B7).contains(scalar) {
+        if (0xE0B0...0xE0BF).contains(scalar) {
             return powerlineOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
         }
         return blockOps(scalar, x: x, y: y, w: w, h: h)
@@ -688,7 +700,8 @@ enum TerminalBoxGlyphs {
             poly.append(Offset(pts[bit].0, pts[bit].1))
         }
         return [.fillPath(from: poly[0],
-                          segments: poly.dropFirst().map { .line(to: $0) })]
+                          segments: poly.dropFirst().map { .line(to: $0) },
+                          alpha: 1)]
     }
 
     /// U+1FB68–1FB6F: the four quarter triangles pointing at the cell
@@ -712,7 +725,8 @@ enum TerminalBoxGlyphs {
         default:      poly = [bl, c, br]                 // 🭯 lower triangle
         }
         return [.fillPath(from: poly[0],
-                          segments: poly.dropFirst().map { .line(to: $0) })]
+                          segments: poly.dropFirst().map { .line(to: $0) },
+                          alpha: 1)]
     }
 
     /// U+1FB70–1FB8F: the positional eighth blocks (a vertical or horizontal
@@ -757,6 +771,132 @@ enum TerminalBoxGlyphs {
         }
     }
 
+    // MARK: - Legacy fills, shade combos, and chamfer lines
+
+    /// U+1FB90–1FBAF plus the thirds blocks: the inverse-shade combinations,
+    /// the checker and stripe fills, the hourglass and bowtie pairs, the
+    /// corner triangle shades, the corner chamfer lines, and U+1FBAF (the
+    /// heavy-vertical/light-horizontal cross this block re-encodes).
+    private static func legacyExtraOps(_ scalar: UInt32,
+                                       x: Double, y: Double, w: Double, h: Double,
+                                       scale: Double) -> [BoxPlanOp] {
+        let c = Offset(x + w / 2, y + h / 2)
+        let tl = Offset(x, y), tr = Offset(x + w, y)
+        let bl = Offset(x, y + h), br = Offset(x + w, y + h)
+        func tri(_ a: Offset, _ b: Offset, _ d: Offset,
+                 _ alpha: Double = 1) -> BoxPlanOp {
+            .fillPath(from: a, segments: [.line(to: b), .line(to: d)], alpha: alpha)
+        }
+        switch scalar {
+        case 0x1FB90:                                    // 🮐 inverse medium shade
+            return [.shade(Rect.fromLTWH(x, y, w, h), 0.5)]
+        case 0x1FB91:                                    // 🮑 upper solid, lower shade
+            return [.fill(Rect.fromLTRB(x, y, x + w, y + h / 2)),
+                    .shade(Rect.fromLTRB(x, y + h / 2, x + w, y + h), 0.5)]
+        case 0x1FB92:                                    // 🮒 upper shade, lower solid
+            return [.shade(Rect.fromLTRB(x, y, x + w, y + h / 2), 0.5),
+                    .fill(Rect.fromLTRB(x, y + h / 2, x + w, y + h))]
+        case 0x1FB94:                                    // 🮔 left shade, right solid
+            return [.shade(Rect.fromLTRB(x, y, x + w / 2, y + h), 0.5),
+                    .fill(Rect.fromLTRB(x + w / 2, y, x + w, y + h))]
+        case 0x1FB95, 0x1FB96:                           // 🮕🮖 checker + inverse
+            let parity = scalar == 0x1FB95 ? 0 : 1
+            var ops: [BoxPlanOp] = []
+            for row in 0..<4 {
+                for col in 0..<4 where (row + col) % 2 == parity {
+                    ops.append(.fill(Rect.fromLTRB(
+                        x + w * Double(col) / 4, y + h * Double(row) / 4,
+                        x + w * Double(col + 1) / 4, y + h * Double(row + 1) / 4)))
+                }
+            }
+            return ops
+        case 0x1FB97:                                    // 🮗 heavy horizontal fill
+            return [.fill(Rect.fromLTRB(x, y + h / 4, x + w, y + h / 2)),
+                    .fill(Rect.fromLTRB(x, y + 3 * h / 4, x + w, y + h))]
+        case 0x1FB98, 0x1FB99:                           // 🮘🮙 diagonal hatches
+            // Five strokes parallel to the cell diagonal, endpoints on the
+            // boundary — a real hatch, not a flat shade, because at cell
+            // scale the direction of the pattern is the glyph.
+            let t = thickness(1, scale)
+            let down = scalar == 0x1FB98                 // ╲ direction or ╱
+            var ops: [BoxPlanOp] = []
+            for k in [-0.667, -0.333, 0.0, 0.333, 0.667] {
+                let (p0, p1): (Offset, Offset)
+                if k < 0 {                               // toward the left/bottom
+                    let f = 1 + k
+                    (p0, p1) = down
+                        ? (Offset(x, y + h * -k), Offset(x + w * f, y + h))
+                        : (Offset(x + w * f, y), Offset(x, y + h * f))
+                } else {                                 // toward the right/top
+                    let f = 1 - k
+                    (p0, p1) = down
+                        ? (Offset(x + w * k, y), Offset(x + w, y + h * f))
+                        : (Offset(x + w, y + h * k), Offset(x + w * k, y + h))
+                }
+                ops.append(.stroke(from: p0, segments: [.line(to: p1)], thickness: t))
+            }
+            return ops
+        case 0x1FB9A:                                    // 🮚 hourglass
+            return [tri(tl, tr, c), tri(bl, c, br)]
+        case 0x1FB9B:                                    // 🮛 bowtie
+            return [tri(tl, c, bl), tri(tr, br, c)]
+        case 0x1FB9C: return [tri(tl, bl, tr, 0.5)]      // 🮜 shaded corner triangles
+        case 0x1FB9D: return [tri(tl, br, tr, 0.5)]      // 🮝
+        case 0x1FB9E: return [tri(bl, br, tr, 0.5)]      // 🮞
+        case 0x1FB9F: return [tri(tl, bl, br, 0.5)]      // 🮟
+        case 0x1FBA0...0x1FBAE:                          // 🮠…🮮 corner chamfer lines
+            let masks: [UInt32] = [1, 2, 4, 8, 5, 10, 12, 3, 9, 6, 14, 13, 11, 7, 15]
+            let mask = masks[Int(scalar - 0x1FBA0)]
+            let t = thickness(1, scale)
+            let mt = Offset(x + w / 2, y), ml = Offset(x, y + h / 2)
+            let mr = Offset(x + w, y + h / 2), mb = Offset(x + w / 2, y + h)
+            var ops: [BoxPlanOp] = []
+            if mask & 1 != 0 { ops.append(.stroke(from: mt, segments: [.line(to: ml)], thickness: t)) }
+            if mask & 2 != 0 { ops.append(.stroke(from: mt, segments: [.line(to: mr)], thickness: t)) }
+            if mask & 4 != 0 { ops.append(.stroke(from: mb, segments: [.line(to: ml)], thickness: t)) }
+            if mask & 8 != 0 { ops.append(.stroke(from: mb, segments: [.line(to: mr)], thickness: t)) }
+            return ops
+        case 0x1FBAF:                                    // 🮯 heavy vertical, light horizontal
+            return armOps(BoxArms(up: 2, down: 2, left: 1, right: 1),
+                          x: x, y: y, w: w, h: h, scale: scale)
+        case 0x1FBCE:                                    // 🯎 left two thirds
+            return [.fill(Rect.fromLTRB(x, y, x + 2 * w / 3, y + h))]
+        default:                                         // 🯏 left one third
+            return [.fill(Rect.fromLTRB(x, y, x + w / 3, y + h))]
+        }
+    }
+
+    /// ◢◣◤◥ solid and ◸◹◺◿ outlined half-cell triangles — prompt decorations
+    /// and the odd TUI chart. The outlines are stroked with an explicit
+    /// closing segment.
+    private static func geometricTriangleOps(_ scalar: UInt32,
+                                             x: Double, y: Double,
+                                             w: Double, h: Double,
+                                             scale: Double) -> [BoxPlanOp] {
+        let tl = Offset(x, y), tr = Offset(x + w, y)
+        let bl = Offset(x, y + h), br = Offset(x + w, y + h)
+        let corners: [Offset]
+        switch scalar {
+        case 0x25E2: corners = [bl, br, tr]              // ◢ lower right
+        case 0x25E3: corners = [tl, bl, br]              // ◣ lower left
+        case 0x25E4: corners = [tl, bl, tr]              // ◤ upper left
+        case 0x25E5: corners = [tl, br, tr]              // ◥ upper right
+        case 0x25F8: corners = [tl, bl, tr]              // ◸ outlined upper left
+        case 0x25F9: corners = [tl, br, tr]              // ◹ outlined upper right
+        case 0x25FA: corners = [tl, bl, br]              // ◺ outlined lower left
+        default:     corners = [bl, br, tr]              // ◿ outlined lower right
+        }
+        if scalar <= 0x25E5 {
+            return [.fillPath(from: corners[0],
+                              segments: corners.dropFirst().map { .line(to: $0) },
+                              alpha: 1)]
+        }
+        return [.stroke(from: corners[0],
+                        segments: corners.dropFirst().map { .line(to: $0) }
+                            + [.line(to: corners[0])],
+                        thickness: thickness(1, scale))]
+    }
+
     // MARK: - Powerline
 
     /// U+E0B0–E0B7, the private-use separators every powerline prompt is
@@ -774,7 +914,8 @@ enum TerminalBoxGlyphs {
         case 0xE0B0:                                     // solid right triangle
             return [.fillPath(from: Offset(x, y),
                               segments: [.line(to: Offset(x + w, midY)),
-                                         .line(to: Offset(x, y + h))])]
+                                         .line(to: Offset(x, y + h))],
+                              alpha: 1)]
         case 0xE0B1:                                     // right chevron
             return [.stroke(from: Offset(x, y),
                             segments: [.line(to: Offset(x + w, midY)),
@@ -783,7 +924,8 @@ enum TerminalBoxGlyphs {
         case 0xE0B2:                                     // solid left triangle
             return [.fillPath(from: Offset(x + w, y),
                               segments: [.line(to: Offset(x, midY)),
-                                         .line(to: Offset(x + w, y + h))])]
+                                         .line(to: Offset(x + w, y + h))],
+                              alpha: 1)]
         case 0xE0B3:                                     // left chevron
             return [.stroke(from: Offset(x + w, y),
                             segments: [.line(to: Offset(x, midY)),
@@ -792,7 +934,8 @@ enum TerminalBoxGlyphs {
         case 0xE0B4:                                     // solid right half-circle
             return [.fillPath(from: Offset(x, y),
                               segments: [.arc(oval: Rect.fromLTRB(x - w, y, x + w, y + h),
-                                              start: -pi / 2, sweep: pi)])]
+                                              start: -pi / 2, sweep: pi)],
+                              alpha: 1)]
         case 0xE0B5:                                     // right half-circle line
             return [.stroke(from: Offset(x, y),
                             segments: [.arc(oval: Rect.fromLTRB(x - w, y, x + w, y + h),
@@ -801,12 +944,34 @@ enum TerminalBoxGlyphs {
         case 0xE0B6:                                     // solid left half-circle
             return [.fillPath(from: Offset(x + w, y),
                               segments: [.arc(oval: Rect.fromLTRB(x, y, x + w + w, y + h),
-                                              start: -pi / 2, sweep: -pi)])]
-        default:                                         // E0B7 left half-circle line
+                                              start: -pi / 2, sweep: -pi)],
+                              alpha: 1)]
+        case 0xE0B7:                                     // left half-circle line
             return [.stroke(from: Offset(x + w, y),
                             segments: [.arc(oval: Rect.fromLTRB(x, y, x + w + w, y + h),
                                             start: -pi / 2, sweep: -pi)],
                             thickness: t)]
+        default:
+            // E0B8–E0BF: the corner slants — a half-cell triangle hanging
+            // off one bottom or top edge, and the matching bare diagonal.
+            let tl = Offset(x, y), tr = Offset(x + w, y)
+            let bl = Offset(x, y + h), br = Offset(x + w, y + h)
+            func solid(_ a: Offset, _ b: Offset, _ c: Offset) -> [BoxPlanOp] {
+                [.fillPath(from: a, segments: [.line(to: b), .line(to: c)], alpha: 1)]
+            }
+            func slant(_ a: Offset, _ b: Offset) -> [BoxPlanOp] {
+                [.stroke(from: a, segments: [.line(to: b)], thickness: t)]
+            }
+            switch scalar {
+            case 0xE0B8: return solid(tl, bl, br)        // lower-left solid
+            case 0xE0B9: return slant(tl, br)            // its diagonal
+            case 0xE0BA: return solid(bl, br, tr)        // lower-right solid
+            case 0xE0BB: return slant(bl, tr)            // its diagonal
+            case 0xE0BC: return solid(bl, tl, tr)        // upper-left solid
+            case 0xE0BD: return slant(bl, tr)            // its diagonal
+            case 0xE0BE: return solid(tl, tr, br)        // upper-right solid
+            default:     return slant(tl, br)            // E0BF, its diagonal
+            }
         }
     }
 
