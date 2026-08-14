@@ -1,0 +1,191 @@
+[
+ {
+  "label": "2E3A two-em dash",
+  "text": "U+2E3A",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "2E3B three-em dash",
+  "text": "U+2E3B",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "16D63 Kirat Rai",
+  "text": "U+16D63",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "16D67 Kirat Rai",
+  "text": "U+16D67",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "16D68 Kirat Rai",
+  "text": "U+16D68",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "16D69 Kirat Rai",
+  "text": "U+16D69",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "16D6A Kirat Rai",
+  "text": "U+16D6A",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "115F hangul filler",
+  "text": "U+115F",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "jav A98F+A9C0",
+  "text": "U+A98F U+A9C0",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "jav A9A0+A9C0",
+  "text": "U+A9A0 U+A9C0",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "jav A9A5+A9B3+A9C0",
+  "text": "U+A9A5 U+A9B3 U+A9C0",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "jav A9B1+A9C0",
+  "text": "U+A9B1 U+A9C0",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "gra 11315+1134D",
+  "text": "U+11315 U+1134D",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "gra 11327+1134D",
+  "text": "U+11327 U+1134D",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "gra 11338+1134D",
+  "text": "U+11338 U+1134D",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "231A watch",
+  "text": "U+231A",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "CJK ni",
+  "text": "U+4F60",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "hangul syllable",
+  "text": "U+D55C",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "e+combining acute",
+  "text": "U+0065 U+0301",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "devanagari ksa",
+  "text": "U+0915 U+094D U+0937",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "thai cluster",
+  "text": "U+0E01 U+0E34",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "ZWJ family",
+  "text": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "flag US",
+  "text": "U+1F1FA U+1F1F8",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "umbrella+VS16",
+  "text": "U+2602 U+FE0F",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "watch+VS15",
+  "text": "U+231A U+FE0E",
+  "measured": 1,
+  "wcwidth": 1,
+  "ok": true
+ },
+ {
+  "label": "skin tone wave",
+  "text": "U+1F44B U+1F3FD",
+  "measured": 2,
+  "wcwidth": 2,
+  "ok": true
+ },
+ {
+  "label": "mixed abc+CJK",
+  "text": "U+0061 U+0062 U+4E2D U+6587 U+0063",
+  "measured": 7,
+  "wcwidth": 7,
+  "ok": true
+ }
+]
