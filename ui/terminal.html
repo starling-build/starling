@@ -158,6 +158,20 @@
              border-radius: 7px; padding: 4px 10px; background: var(--bg-sunk); }
   .os span.soon { color: var(--ink-faint); border-style: dashed; }
 
+  /* ---------- install ---------- */
+  .inst-list { margin-top: 28px; }
+  .inst { border: 1px solid var(--line); border-radius: 12px;
+          background: var(--bg-raised); padding: 20px 22px 18px; }
+  .inst + .inst { margin-top: 14px; }
+  .inst-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .inst-head h3 { font-size: 19px; }
+  .inst-head span { font-size: 13.5px; color: var(--ink-faint); }
+  .inst pre { margin: 14px 0 0; padding: 13px 16px; border: 1px solid var(--line-soft);
+              border-radius: 9px; background: var(--bg-sunk); }
+  .inst .note { margin-top: 12px; }
+  .inst .body { margin-top: 10px; font-size: 15.5px; color: var(--ink-dim);
+                line-height: 1.6; }
+
   /* ---------- table ---------- */
   .tablewrap { margin-top: 30px; border: 1px solid var(--line);
                border-radius: 12px; overflow-x: auto; background: var(--bg-sunk); }
@@ -293,6 +307,9 @@
   pre .k { color: var(--sky); }
   pre .s { color: var(--amber-soft); }
   pre .t { color: var(--green); }
+  pre .c { color: var(--ink-faint); }
+  .code-col + .note { margin-top: 16px; }
+  .note + .code-col { margin-top: 16px; }
 
   .btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
   .btn { display: inline-flex; align-items: center; padding: 11px 18px;
@@ -365,6 +382,10 @@
       Below: both terminals on one machine, matched font and grid, three tests,
       one take.
     </p>
+    <div class="btn-row">
+      <a class="btn primary" href="#install">Install the terminal</a>
+      <a class="btn" href="#perf">See the numbers</a>
+    </div>
   </div>
 
   <div class="wrap race">
@@ -435,8 +456,62 @@
   </div>
 </section>
 
+<!-- ============================ install ============================ -->
+<section id="install">
+  <div class="wrap narrow prose">
+    <div class="kicker">Install</div>
+    <h2>Get it on your machine.</h2>
+    <p>Version 0.1.0, from the
+       <a href="https://github.com/starling-build/starling/releases/tag/terminal-v0.1.0">GitHub
+       release</a>: a <code>.deb</code> for any Linux desktop and a
+       <code>Terminal.app</code> for Apple Silicon Macs. One file each — no
+       account, no installer wizard.</p>
+  </div>
+
+  <div class="wrap narrow inst-list">
+    <div class="inst">
+      <div class="inst-head"><h3>Linux</h3>
+        <span>x86_64 &middot; GNOME, KDE or any desktop &middot; Wayland or X11</span></div>
+<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-terminal_0.1.0_amd64.deb
+sudo apt install ./starling-terminal_0.1.0_amd64.deb</code></pre>
+      <p class="note">Everything the terminal loads — engine, Swift runtime,
+        fonts — rides inside the package under
+        <code>/usr/lib/starling-terminal</code>; <code>apt</code> resolves the
+        few system libraries. It opens from the app grid as
+        <strong>Starling Terminal</strong>, or as <code>starling-terminal</code>
+        from any prompt. On the <a href="index.html">Starling desktop</a> there
+        is nothing to install — the terminal is part of the desktop.</p>
+    </div>
+
+    <div class="inst">
+      <div class="inst-head"><h3>macOS</h3>
+        <span>Apple Silicon &middot; macOS 14 or newer</span></div>
+<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/Terminal-0.1.0-macos-arm64.zip
+ditto -xk Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
+      <p class="note">Or unzip it and drag <strong>Terminal.app</strong> into
+        Applications yourself. The bundle is signed but not notarized, so macOS
+        holds the first launch: approve it under System Settings &rarr; Privacy
+        &amp; Security &rarr; <strong>Open Anyway</strong>, or clear the
+        quarantine bit with
+        <code>xattr -dr com.apple.quarantine /Applications/Terminal.app</code>.</p>
+    </div>
+
+    <div class="inst">
+      <div class="inst-head"><h3>Windows</h3>
+        <span>x86_64 &middot; from source, for now</span></div>
+      <p class="body">The Windows build is real — a native Win32 window that
+        runs on par with Windows Terminal — but 0.1.0 does not package it. It
+        builds from a
+        <a href="https://github.com/starling-build/starling">repo checkout</a>
+        with the SDK's Windows tooling: <code>build-windows.ps1</code> to build,
+        then <code>stage-windows.ps1</code> for a folder you can carry to
+        another machine. A downloadable build is next.</p>
+    </div>
+  </div>
+</section>
+
 <!-- ============================ performance ============================ -->
-<section>
+<section id="perf">
   <div class="wrap narrow prose">
     <div class="kicker">Performance</div>
     <h2>Measured against ghostty, on Linux and macOS.</h2>
@@ -771,13 +846,32 @@
     <p>
       The terminal ships in the <a href="sdk.html">Starling SDK</a>, so your app can
       have one too — shell, escape sequences, fonts, scrollback and selection
-      included. A whole terminal app, in full:
+      included. Download one file, run it, and you have a terminal of your own:
     </p>
   </div>
 
   <div class="wrap narrow">
     <div class="code-col">
-      <div class="code-head">main.swift</div>
+      <div class="code-head">terminal</div>
+<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-create
+chmod +x starling-create
+./starling-create myterm
+<span class="k">cd</span> myterm &amp;&amp; swift run -c release</code></pre>
+    </div>
+    <p class="note">
+      <code>starling-create</code> is an asset on the release above — the same
+      one the terminal itself ships from. It checks your toolchain, fetches the
+      SDK from that tag — the framework and the engine binaries it links
+      against, 23 MB — and writes the SwiftPM project around it. No repo to
+      clone, no engine checkout, no Flutter install; a Swift toolchain is the
+      only prerequisite. The SDK is cached once and shared, so the second
+      project costs no download, and <code>--template app</code> scaffolds a
+      plain window instead of a terminal. What it writes is this, and this is
+      the whole app:
+    </p>
+
+    <div class="code-col">
+      <div class="code-head">myterm/Sources/Myterm/main.swift — in full</div>
 <pre><code><span class="k">import</span> ExampleHost
 <span class="k">import</span> Flutter
 
@@ -789,8 +883,9 @@ runExampleApp(title: <span class="s">"Terminal"</span>, width: <span class="s">9
 }</code></pre>
     </div>
     <p class="note">
-      The workspace in the films above is that widget with geometry around it —
-      splits, frames and a cover flow, and no terminal code of its own.
+      That is the same widget the films above run on. The workspace there is it
+      with geometry around it — splits, frames and a cover flow, and no terminal
+      code of its own.
     </p>
     <div class="btn-row">
       <a class="btn primary" href="start.html">Get started</a>
