@@ -984,7 +984,17 @@ static int attach_session(const char *target) {
     uint16_t cols = 80, rows = 24;
     (void)plat_tty_size(&cols, &rows);
 
-    uint8_t buf[TERMD_MAX_PAYLOAD + TERMD_HEADER_LEN];
+    // NOT on the stack: a megabyte-and-change local is fine against Linux's
+    // 8 MB stack and fatal against Windows' 1 MB default. Worse, it is fatal
+    // for EVERY mode rather than this one — clang inlines the four one-shot
+    // mode functions into main at -O2, merging their frames, so main's
+    // prologue touches the whole megabyte and `--list` dies on entry with
+    // STATUS_STACK_OVERFLOW (0xC00000FD) before printing a byte. That reads
+    // as "the Windows build is broken", not as "one buffer is too big"; at
+    // -O0, where the inlining cannot happen, everything but attach works.
+    // Static rather than malloc'd because this path runs once per process,
+    // from main, on one thread — so there is no free() to get wrong.
+    static uint8_t buf[TERMD_MAX_PAYLOAD + TERMD_HEADER_LEN];
     uint32_t rlen = 0;
     uint8_t hello[2];
     put_u16(hello, TERMD_PROTOCOL_VERSION);
