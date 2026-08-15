@@ -126,6 +126,23 @@ void plat_sleep_ms(int ms);
 long plat_stdin_read(void *buf, size_t n);
 long plat_stdout_write(const void *buf, size_t n);
 
+// The attaching client's own terminal.
+//
+// Raw mode is what makes the tunnel byte-exact, and it matters in BOTH
+// directions: turning off canonical mode and echo stops the line discipline
+// eating keys on the way in, and turning off output post-processing (ONLCR)
+// stops it rewriting newlines on the way out — without that second half a
+// session tunnelled through ssh prints a staircase. Returns -1 when there is
+// no terminal (piped stdin), which is not an error: the caller carries on
+// without it.
+int  plat_tty_raw(void);
+void plat_tty_restore(void);
+// Current window size. The attach loop polls this rather than handling
+// SIGWINCH: an ioctl every few hundred ms costs nothing, a resize is a
+// human-speed event, and it keeps one control flow across both platforms —
+// Windows has no such signal to handle.
+int  plat_tty_size(uint16_t *cols, uint16_t *rows);
+
 // Starts this same binary as a detached `--serve --idle-exit S`, for the
 // stdio bridge to fall back on when no daemon is listening. Re-execs rather
 // than serving in-process on purpose: a forked daemon would keep the

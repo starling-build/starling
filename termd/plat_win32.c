@@ -412,3 +412,49 @@ long plat_stdout_write(const void *buf, size_t n) {
     }
     return (long)off;
 }
+
+// ── the attaching client's terminal ─────────────────────────────────────
+
+static DWORD g_con_in_saved, g_con_out_saved;
+static int g_con_is_raw = 0;
+
+int plat_tty_raw(void) {
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (!GetConsoleMode(in, &g_con_in_saved)) return -1;   // piped, not a console
+    if (!GetConsoleMode(out, &g_con_out_saved)) return -1;
+    // The console's own equivalents of ICANON/ECHO/ISIG, plus the flag that
+    // makes it hand us the key bytes rather than input records.
+    DWORD im = g_con_in_saved;
+    im &= (DWORD)~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+    im |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+    if (!SetConsoleMode(in, im)) return -1;
+    // DISABLE_NEWLINE_AUTO_RETURN is OPOST's counterpart: without it the
+    // console adds a carriage return to every LF we pass through.
+    DWORD om = g_con_out_saved | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+             | DISABLE_NEWLINE_AUTO_RETURN;
+    SetConsoleMode(out, om);
+    g_con_is_raw = 1;
+    return 0;
+}
+
+void plat_tty_restore(void) {
+    if (!g_con_is_raw) return;
+    SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), g_con_in_saved);
+    SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), g_con_out_saved);
+    g_con_is_raw = 0;
+}
+
+int plat_tty_size(uint16_t *cols, uint16_t *rows) {
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
+        return -1;
+    // The WINDOW, not the buffer: the buffer is usually far taller, and a
+    // session sized to it would draw most of itself out of sight.
+    int c = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    int r = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    if (c <= 0 || r <= 0) return -1;
+    *cols = (uint16_t)c;
+    *rows = (uint16_t)r;
+    return 0;
+}

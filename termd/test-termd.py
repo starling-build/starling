@@ -363,6 +363,109 @@ def main():
               trimmed_id == named_id, f"{trimmed_id} != {named_id}")
         n3.close()
 
+        # `starling-termd "name"` — the attach client. It is the one part of
+        # the binary that touches a terminal, and it must not RENDER any of
+        # it: DATA goes to stdout untouched. What is checked here is the
+        # plumbing around that, because every piece of it is a way to strand
+        # a user's terminal or their session.
+        att_env = dict(env, STARLING_TERMD_SOCKET=sock_path)
+        ap = subprocess.Popen([BIN, "attach probe"], env=att_env,
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
+        aq = queue.Queue()
+        threading.Thread(target=lambda: [aq.put(c) or (c or None)
+                                         for c in iter(lambda: os.read(
+                                             ap.stdout.fileno(), 65536), b"")],
+                         daemon=True).start()
+
+        def acollect(seconds, until=None):
+            out, end = b"", time.time() + seconds
+            while time.time() < end:
+                try:
+                    chunk = aq.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                if not chunk:
+                    break
+                out += chunk
+                if until and until in out:
+                    break
+            return out
+
+        acollect(BOOT if WINDOWS else 1.0, until=PROMPT)
+        ap.stdin.write(ECHO_INPUT)
+        ap.stdin.flush()
+        seen = acollect(BOOT, until=b"termd-input-works")
+        check("attach carries input and output", b"termd-input-works" in seen,
+              repr(seen[-120:]))
+
+        # ^] d detaches. Without a stolen key there is no way out of a
+        # byte-exact tunnel at all, and the session must survive the exit.
+        ap.stdin.write(b"\x1dd")
+        ap.stdin.flush()
+        try:
+            ap.wait(timeout=5)
+            check("^] d detaches the client", ap.returncode == 0,
+                  f"rc={ap.returncode}")
+        except subprocess.TimeoutExpired:
+            check("^] d detaches the client", False, "client never exited")
+            ap.kill()
+
+        probe = Client(sock_path)
+        probe.hello()
+        probe.send(LIST)
+        kind, payload = probe.recv(LIST_REPLY)
+        alive = {e[5]: e[3] for e in list_entries(payload)}
+        check("the session outlives the detached client",
+              alive.get("attach probe") == 1, str(alive))
+        probe.close()
+
+        # The tty half, which only exists on POSIX. Raw mode is what makes
+        # the tunnel byte-exact — and OPOST in particular, without which a
+        # tunnelled session prints a staircase — and a client that fails to
+        # put it back leaves the user's shell unusable after it exits.
+        if not WINDOWS:
+            import fcntl, pty, termios
+            master, slave = pty.openpty()
+            fcntl.ioctl(master, termios.TIOCSWINSZ,
+                        struct.pack("HHHH", 30, 100, 0, 0))
+            tp = subprocess.Popen([BIN, "tty probe"], env=att_env,
+                                  stdin=slave, stdout=slave,
+                                  stderr=subprocess.DEVNULL)
+            os.close(slave)
+            time.sleep(1.2)
+            attrs = termios.tcgetattr(master)
+            check("attach puts the terminal in raw mode",
+                  not attrs[3] & termios.ICANON and not attrs[3] & termios.ECHO
+                  and not attrs[1] & termios.OPOST, "termios still cooked")
+
+            def sess_size(name):
+                out = subprocess.run([BIN, "--list"], env=att_env,
+                                     capture_output=True, text=True).stdout
+                for line in out.splitlines():
+                    if name in line:
+                        return line.split()[-4]
+                return "?"
+
+            check("the session opens at the terminal's size",
+                  sess_size("tty probe") == "100x30", sess_size("tty probe"))
+            fcntl.ioctl(master, termios.TIOCSWINSZ,
+                        struct.pack("HHHH", 44, 132, 0, 0))
+            time.sleep(1.0)
+            check("resizing the window resizes the session",
+                  sess_size("tty probe") == "132x44", sess_size("tty probe"))
+
+            os.write(master, b"\x1dd")
+            try:
+                tp.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                tp.kill()
+            back = termios.tcgetattr(master)
+            check("the terminal is restored on the way out",
+                  bool(back[3] & termios.ICANON) and bool(back[1] & termios.OPOST),
+                  "left raw")
+            os.close(master)
+
         # A session does not inherit the multiplexer markers of whatever
         # started the daemon. Programs that adapt their drawing to their host
         # believe these, so a tmux-started daemon otherwise makes every

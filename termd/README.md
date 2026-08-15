@@ -24,14 +24,15 @@ adopts so there is only one control flow to reason about.
 ```bash
 make                     # ./starling-termd
 make static              # one binary to scp to a server with no toolchain
-make test                # the protocol test — twenty checks, under two seconds
+make test                # the protocol test — twenty-seven checks, a few seconds
 ./test-termd.py --stdio  # the same checks through a --stdio bridge
 
 .\build-windows.ps1      # Windows: starling-termd.exe (clang, no make)
-python .\test-termd.py   # the same twenty, over --stdio automatically
+python .\test-termd.py   # the same checks, over --stdio automatically
 ```
 
 ```bash
+starling-termd "iOS dev" # attach to that session, creating it if the name is new
 starling-termd --serve   # the daemon (idempotent: exits if one is running)
 starling-termd --stdio   # bridge stdin/stdout to it — what ssh runs
 starling-termd --list    # sessions, for humans
@@ -89,6 +90,47 @@ repaint the screen of whoever ran `--list`, and `"iOS dev "` pasted with a
 trailing space has to be the same handle as `"iOS dev"` or it silently opens
 a second session. Sessions opened without a name are addressed by id, as
 before.
+
+## Attaching from a shell
+
+`starling-termd "iOS dev"` puts the session on the terminal you are already
+sitting in — over ssh, that means your own terminal at the far end of the
+link:
+
+```bash
+ssh box                     # or run it locally
+starling-termd "iOS dev"    # attach, creating the session if the name is new
+starling-termd 12           # all-digits is an id, and re-attaches exactly
+```
+
+**It renders nothing.** DATA payloads go to stdout verbatim and whatever
+emulator you are looking at does the drawing — which is why it needs no
+terminfo, no capability negotiation, and no agreement with the far side
+about what a screen is. What it does instead is tty plumbing: raw mode so
+keys travel byte-exact (including `OPOST` off, without which a tunnelled
+session prints a staircase), the window size on a RESIZE, and one stolen key
+so there is a way back out.
+
+**`^] d` detaches** and leaves the session running. A byte-exact tunnel has
+no spare keystroke by definition, so one byte has to be ours: `^]` is
+telnet's old escape and essentially nothing binds it today. Deliberately not
+tmux's `^b`, which is backward-char in readline and page-up in vim — and
+which would collide in exactly the case this exists for, attaching to a box
+that already runs tmux. `^] ^]` sends a literal one, and any other key after
+it passes both bytes through rather than eating a keystroke.
+`$STARLING_TERMD_PREFIX` picks another (`C-b`, `^a`, or a single literal
+character) for fingers that already know a different multiplexer.
+
+Killing the connection detaches too — that is the whole point of the daemon,
+so a dropped ssh link costs nothing.
+
+The window is resized by polling `TIOCGWINSZ`, not by handling `SIGWINCH`: an
+ioctl every 250 ms costs nothing, a resize is a human-speed event, and it
+keeps one control flow across both platforms, since Windows has no such
+signal. Note that resize is **last-writer-wins** across clients — two
+terminals attached at different sizes will fight, and the loser sees a
+layout drawn for someone else's window. Per-client sizing is the thing that
+would require an emulator here, and not having one is the trade.
 
 ## From the client
 

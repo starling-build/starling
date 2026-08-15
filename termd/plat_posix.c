@@ -340,3 +340,39 @@ long plat_stdout_write(const void *buf, size_t n) {
     }
     return (long)off;
 }
+
+// ── the attaching client's terminal ─────────────────────────────────────
+
+static struct termios g_tty_saved;
+static int g_tty_is_raw = 0;
+
+int plat_tty_raw(void) {
+    if (!isatty(0)) return -1;
+    if (tcgetattr(0, &g_tty_saved) != 0) return -1;
+    struct termios raw = g_tty_saved;
+    // cfmakeraw does all of it: ICANON and ECHO off so keys arrive as they
+    // are struck, ISIG off so ^C reaches the remote program instead of
+    // killing this client, IXON off so ^S is not swallowed as flow control,
+    // and OPOST off — the output half that keeps the tunnel byte-exact.
+    cfmakeraw(&raw);
+    raw.c_cc[VMIN] = 1;    // return on the first byte…
+    raw.c_cc[VTIME] = 0;   // …and never on a timer
+    if (tcsetattr(0, TCSANOW, &raw) != 0) return -1;
+    g_tty_is_raw = 1;
+    return 0;
+}
+
+void plat_tty_restore(void) {
+    if (!g_tty_is_raw) return;
+    tcsetattr(0, TCSANOW, &g_tty_saved);
+    g_tty_is_raw = 0;
+}
+
+int plat_tty_size(uint16_t *cols, uint16_t *rows) {
+    struct winsize ws;
+    if (ioctl(0, TIOCGWINSZ, &ws) != 0) return -1;
+    if (!ws.ws_col || !ws.ws_row) return -1;
+    *cols = ws.ws_col;
+    *rows = ws.ws_row;
+    return 0;
+}

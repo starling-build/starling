@@ -821,6 +821,314 @@ static int stdio_bridge(void) {
     return 0;
 }
 
+// ── attach: put a session on this terminal ──────────────────────────────
+//
+// What `starling-termd "iOS dev"` runs. It behaves like a terminal without
+// being one: it renders NOTHING. DATA payloads go to stdout verbatim and
+// whatever emulator the user is actually looking at does the drawing — over
+// ssh that is the one on their own machine, at the far end of the link. All
+// this does is tty plumbing: raw mode so keys travel byte-exact, the window
+// size on a RESIZE, and one stolen key so there is a way back out.
+//
+// Structured like the stdio bridge, and for the same reason: a thread on
+// stdin rather than polling it, because Windows cannot poll a console
+// handle alongside a socket. Two threads write to the socket here (INPUT
+// from the reader, RESIZE and ACK from the main loop), so those writes take
+// a lock the bridge did not need.
+
+// C-] (0x1d). A prefix has to be a byte nobody wants; this is telnet's old
+// escape and essentially nothing binds it today. Deliberately NOT tmux's
+// C-b, which is backward-char in readline and page-up in vim — and which
+// would collide in the very case this exists for, attaching to a box that
+// already runs tmux. $STARLING_TERMD_PREFIX overrides it, "C-b" included,
+// for fingers that already know the other spelling.
+#define TERMD_PREFIX_DEFAULT 0x1d
+
+struct attach {
+    sock_t fd;
+    plat_mutex *wlock;
+    uint8_t prefix;
+    int detached;   // the user asked to leave, so the exit note says so
+};
+
+static uint8_t attach_prefix(void) {
+    const char *s = getenv("STARLING_TERMD_PREFIX");
+    if (!s || !*s) return TERMD_PREFIX_DEFAULT;
+    char c = 0;
+    if ((s[0] == 'C' || s[0] == 'c') && s[1] == '-' && s[2]) c = s[2];
+    else if (s[0] == '^' && s[1]) c = s[1];
+    else if (!s[1]) return (uint8_t)s[0];   // a lone character, taken as itself
+    else return TERMD_PREFIX_DEFAULT;
+    if (c >= 'a' && c <= 'z') c = (char)(c - 32);
+    return (uint8_t)(c & 0x1f);
+}
+
+static void attach_write_all(sock_t fd, const uint8_t *p, size_t n) {
+    size_t off = 0;
+    while (off < n) {
+        long put = plat_sock_write(fd, p + off, n - off);
+        if (put > 0) { off += (size_t)put; continue; }
+        if (put < 0 && plat_would_block()) { plat_sleep_ms(2); continue; }
+        return;
+    }
+}
+
+static void attach_send(struct attach *a, uint8_t type,
+                        const void *payload, size_t n) {
+    uint8_t hdr[TERMD_HEADER_LEN];
+    hdr[0] = type;
+    hdr[1] = 0;
+    put_u16(hdr + 2, 0);
+    put_u32(hdr + 4, (uint32_t)n);
+    plat_mutex_lock(a->wlock);
+    attach_write_all(a->fd, hdr, sizeof(hdr));
+    if (n) attach_write_all(a->fd, (const uint8_t *)payload, n);
+    plat_mutex_unlock(a->wlock);
+}
+
+// stdin → INPUT frames, with the prefix key intercepted on the way past.
+static void attach_stdin(void *arg) {
+    struct attach *a = arg;
+    uint8_t buf[4096];
+    uint8_t out[sizeof(buf) * 2];   // worst case: every byte is a held prefix
+    int held = 0;
+    for (;;) {
+        long n = plat_stdin_read(buf, sizeof(buf));
+        if (n <= 0) break;
+        size_t m = 0;
+        for (long i = 0; i < n; i++) {
+            uint8_t ch = buf[i];
+            if (held) {
+                held = 0;
+                if (ch == 'd' || ch == 'D') {
+                    if (m) attach_send(a, TERMD_INPUT, out, m);
+                    a->detached = 1;
+                    attach_send(a, TERMD_DETACH, NULL, 0);
+                    // Wake the main loop out of its poll; the session and
+                    // its shell are untouched by any of this.
+                    plat_sock_shutdown(a->fd);
+                    return;
+                }
+                if (ch == a->prefix) { out[m++] = ch; continue; }  // literal
+                // Any other key: the prefix was not a command after all, so
+                // neither byte belongs to us. Pass both rather than eating a
+                // keystroke the user meant for the far side.
+                out[m++] = a->prefix;
+                out[m++] = ch;
+                continue;
+            }
+            if (ch == a->prefix) { held = 1; continue; }
+            out[m++] = ch;
+        }
+        if (m) attach_send(a, TERMD_INPUT, out, m);
+    }
+    plat_sock_shutdown(a->fd);
+}
+
+// Blocks until a frame of `want` arrives (or the link dies). Anything else
+// is dropped: nothing but the handshake runs before the pump starts.
+static int attach_await(sock_t fd, uint8_t want, uint8_t *buf, size_t cap,
+                        uint32_t *out_len) {
+    size_t have = 0;
+    for (;;) {
+        size_t off = 0;
+        while (have - off >= TERMD_HEADER_LEN) {
+            uint32_t len = get_u32(buf + off + 4);
+            if (len > cap - TERMD_HEADER_LEN) return -1;
+            if (have - off < TERMD_HEADER_LEN + len) break;
+            uint8_t type = buf[off];
+            if (type == want || type == TERMD_ERROR) {
+                memmove(buf, buf + off + TERMD_HEADER_LEN, len);
+                *out_len = len;
+                return type == want ? 0 : -2;
+            }
+            off += TERMD_HEADER_LEN + len;
+        }
+        if (off) { memmove(buf, buf + off, have - off); have -= off; }
+        if (have == cap) return -1;
+        long n = plat_sock_read(fd, buf + have, cap - have);
+        if (n <= 0) {
+            if (n < 0 && plat_would_block()) { plat_sleep_ms(5); continue; }
+            return -1;
+        }
+        have += (size_t)n;
+    }
+}
+
+static int attach_session(const char *target) {
+    if (!target || !*target) {
+        fprintf(stderr, "termd: name a session — starling-termd <name|id>\n"
+                        "       (starling-termd --list shows them)\n");
+        return 2;
+    }
+    sock_t fd = connect_socket();
+    if (fd == BAD_SOCK) {
+        // No daemon yet: start one, the way the stdio bridge does. Asking
+        // for a session by name on a cold machine should just work.
+        if (plat_spawn_daemon(3600) != 0) {
+            fprintf(stderr, "termd: could not start the daemon\n");
+            return 1;
+        }
+        for (int i = 0; i < 100 && fd == BAD_SOCK; i++) {
+            plat_sleep_ms(20);
+            fd = connect_socket();
+        }
+        if (fd == BAD_SOCK) {
+            fprintf(stderr, "termd: could not start or reach the daemon\n");
+            return 1;
+        }
+    }
+
+    // The size to open or resume at is this terminal's, so the shell is
+    // shaped like the window it is about to appear in.
+    uint16_t cols = 80, rows = 24;
+    (void)plat_tty_size(&cols, &rows);
+
+    uint8_t buf[TERMD_MAX_PAYLOAD + TERMD_HEADER_LEN];
+    uint32_t rlen = 0;
+    uint8_t hello[2];
+    put_u16(hello, TERMD_PROTOCOL_VERSION);
+    uint8_t hdr[TERMD_HEADER_LEN];
+    hdr[0] = TERMD_HELLO; hdr[1] = 0; put_u16(hdr + 2, 0); put_u32(hdr + 4, 2);
+    attach_write_all(fd, hdr, sizeof(hdr));
+    attach_write_all(fd, hello, sizeof(hello));
+    if (attach_await(fd, TERMD_HELLO_OK, buf, sizeof(buf), &rlen) != 0) {
+        fprintf(stderr, "termd: the daemon refused the handshake"
+                        " (version %d here)\n", TERMD_PROTOCOL_VERSION);
+        plat_sock_close(fd);
+        return 1;
+    }
+
+    // All digits is an id and re-attaches exactly; anything else is a name,
+    // and a named OPEN is attach-or-create — so the same command starts
+    // "iOS dev" the first time and resumes it every time after.
+    int numeric = 1;
+    for (const char *q = target; *q; q++) if (*q < '0' || *q > '9') numeric = 0;
+    uint8_t req[TERMD_HEADER_LEN + 16 + TERMD_MAX_NAME];
+    size_t n = 0;
+    if (numeric) {
+        put_u32(req + n, (uint32_t)strtoul(target, NULL, 10)); n += 4;
+        put_u64(req + n, 0); n += 8;             // from 0: the daemon clamps
+        put_u16(req + n, cols); n += 2;          // to the oldest byte it holds
+        put_u16(req + n, rows); n += 2;
+    } else {
+        size_t nl = strlen(target);
+        if (nl > TERMD_MAX_NAME - 1) nl = TERMD_MAX_NAME - 1;
+        put_u16(req + n, cols); n += 2;
+        put_u16(req + n, rows); n += 2;
+        put_u16(req + n, (uint16_t)nl); n += 2;
+        memcpy(req + n, target, nl); n += nl;
+    }
+    hdr[0] = numeric ? TERMD_ATTACH : TERMD_OPEN;
+    put_u32(hdr + 4, (uint32_t)n);
+    attach_write_all(fd, hdr, sizeof(hdr));
+    attach_write_all(fd, req, n);
+
+    int rc = attach_await(fd, TERMD_ATTACHED, buf, sizeof(buf), &rlen);
+    if (rc == -2) {
+        fprintf(stderr, "termd: %.*s\n", (int)(rlen > 2 ? rlen - 2 : 0), buf + 2);
+        plat_sock_close(fd);
+        return 1;
+    }
+    if (rc != 0) {
+        fprintf(stderr, "termd: no answer from the daemon\n");
+        plat_sock_close(fd);
+        return 1;
+    }
+    uint64_t consumed = rlen >= 12 ? get_u64(buf + 4) : 0;
+
+    struct attach a;
+    a.fd = fd;
+    a.prefix = attach_prefix();
+    a.detached = 0;
+    a.wlock = plat_mutex_new();
+    if (!a.wlock) { plat_sock_close(fd); return 1; }
+
+    int raw = plat_tty_raw() == 0;
+    // \r\n, not \n: OPOST is off now, so a bare newline would leave the
+    // cursor mid-line.
+    fprintf(stderr, "termd: attached to %s — press ^%c d to detach\r\n",
+            target, (char)(a.prefix + 64));
+    fflush(stderr);
+
+    if (plat_thread_spawn(attach_stdin, &a) != 0) {
+        if (raw) plat_tty_restore();
+        plat_sock_close(fd);
+        return 1;
+    }
+
+    uint64_t acked = consumed;
+    size_t have = 0;
+    int ended = 0;
+    for (;;) {
+        plat_pollfd pf;
+        pf.fd = fd;
+        pf.events = POLLIN;
+        pf.revents = 0;
+        int pr = plat_poll(&pf, 1, 250);
+        if (pr < 0 && !plat_would_block()) break;
+
+        if (pr > 0 && (pf.revents & (POLLIN | POLLHUP | POLLERR))) {
+            long got = plat_sock_read(fd, buf + have, sizeof(buf) - have);
+            if (got == 0) break;
+            if (got < 0) {
+                if (plat_would_block()) goto tick;
+                break;
+            }
+            have += (size_t)got;
+            size_t off = 0;
+            while (have - off >= TERMD_HEADER_LEN) {
+                uint32_t len = get_u32(buf + off + 4);
+                if (len > sizeof(buf) - TERMD_HEADER_LEN) { ended = 1; break; }
+                if (have - off < TERMD_HEADER_LEN + len) break;
+                uint8_t type = buf[off];
+                const uint8_t *p = buf + off + TERMD_HEADER_LEN;
+                if (type == TERMD_DATA && len > 8) {
+                    // The payload past its seq, straight out. This is the
+                    // only place session bytes are touched, and they are not
+                    // read — only forwarded.
+                    (void)plat_stdout_write(p + 8, len - 8);
+                    consumed = get_u64(p) + (len - 8);
+                } else if (type == TERMD_EXIT) {
+                    ended = 1;
+                } else if (type == TERMD_PING) {
+                    attach_send(&a, TERMD_PONG, p, len);
+                } else if (type == TERMD_ERROR) {
+                    ended = 1;
+                }
+                off += TERMD_HEADER_LEN + len;
+            }
+            if (off) { memmove(buf, buf + off, have - off); have -= off; }
+            if (ended) break;
+        }
+
+    tick:
+        if (a.detached) break;
+        if (consumed != acked) {
+            uint8_t ack[8];
+            put_u64(ack, consumed);
+            attach_send(&a, TERMD_ACK, ack, sizeof(ack));
+            acked = consumed;
+        }
+        // Polled, not signal-driven: see plat_tty_size.
+        uint16_t c2 = cols, r2 = rows;
+        if (plat_tty_size(&c2, &r2) == 0 && (c2 != cols || r2 != rows)) {
+            cols = c2; rows = r2;
+            uint8_t rs[4];
+            put_u16(rs, cols);
+            put_u16(rs + 2, rows);
+            attach_send(&a, TERMD_RESIZE, rs, sizeof(rs));
+        }
+    }
+
+    if (raw) plat_tty_restore();
+    plat_sock_close(fd);
+    fprintf(stderr, "termd: %s\n",
+            a.detached ? "detached — the session is still running"
+                       : (ended ? "session ended" : "link closed"));
+    return 0;
+}
+
 // ── main ────────────────────────────────────────────────────────────────
 
 static int list_sessions(void) {
@@ -886,10 +1194,14 @@ static void usage(void) {
     fprintf(stderr,
         "starling-termd — terminal sessions that outlive their client\n"
         "\n"
+        "  starling-termd <name|id>                 attach to a session,\n"
+        "                                           creating it if the name is new\n"
         "  starling-termd --serve [--idle-exit S]   run the daemon\n"
         "  starling-termd --stdio                   bridge stdin/stdout to it\n"
         "  starling-termd --list                    show sessions\n"
         "\n"
+        "Attached, ^] d detaches and leaves the session running\n"
+        "($STARLING_TERMD_PREFIX picks another key, e.g. C-b).\n"
         "The socket is $STARLING_TERMD_SOCKET, else\n"
         "$XDG_RUNTIME_DIR/starling-termd.sock.\n");
 }
@@ -897,14 +1209,23 @@ static void usage(void) {
 int main(int argc, char **argv) {
     int idle = 0;
     const char *mode = NULL;
+    const char *target = NULL;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--serve") || !strcmp(argv[i], "--stdio")
             || !strcmp(argv[i], "--list")) {
             mode = argv[i];
+        } else if (!strcmp(argv[i], "--attach")) {
+            mode = "--attach";
+            if (i + 1 < argc && argv[i + 1][0] != '-') target = argv[++i];
         } else if (!strcmp(argv[i], "--idle-exit") && i + 1 < argc) {
             idle = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
             g_verbose = 1;
+        } else if (argv[i][0] != '-' && !mode && !target) {
+            // A bare word is a session: `starling-termd "iOS dev"`. The
+            // common case deserves the short spelling.
+            mode = "--attach";
+            target = argv[i];
         } else {
             usage();
             return 2;
@@ -914,5 +1235,6 @@ int main(int argc, char **argv) {
     plat_init();
     if (!strcmp(mode, "--serve")) return serve(idle);
     if (!strcmp(mode, "--stdio")) return stdio_bridge();
+    if (!strcmp(mode, "--attach")) return attach_session(target);
     return list_sessions();
 }
