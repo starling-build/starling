@@ -74,6 +74,12 @@ install -Dm755 "$REPO/build/terminal-gtk/starling-terminal" \
 install -Dm644 "$REPO/build/terminal-gtk/starling-terminal.desktop" \
                "$ROOT/usr/share/applications/starling-terminal.desktop"
 
+# The icon: extracted from the SAME .icns the macOS app ships, so the two
+# platforms cannot drift. gen-icon.swift (macOS) is the true source.
+python3 "$REPO/build/terminal-gtk/icns-to-hicolor.py" \
+    "$REPO/build/macos/Terminal.icns" \
+    "$ROOT/usr/share/icons/hicolor" starling-terminal
+
 # --- licensing ---------------------------------------------------------------
 DOC=$ROOT/usr/share/doc/$PKG
 cp "$REPO/LICENSE"     "$DOC/LICENSE.Apache-2.0"
