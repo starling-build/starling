@@ -128,6 +128,126 @@ The gap is not subtle, and it grows with the length of the run:
   — ours and wt back-to-back within it, as the protocol requires, but not
   interleaved with the rest of the round.
 
+## The filmed head-to-head (same box, ~10 s per test — a race, not a benchmark)
+
+The Windows counterpart of the Linux and macOS races, same three tests and
+same shape: both terminals tiled to halves of the 1280x800 screen, both
+verified **43x76**, tests sized from an untimed calibration run so each lasts
+about ten seconds on our side — 1.5 GB ascii cat, 1 GB unicode cat, DOOM-Fire
+9,600 frames — started together off a shared `GO` file, each printing its own
+verdict card at the end.
+
+Matching the grids needed the Windows Terminal equivalent of ghostty's
+`window-padding-x`: its cell is relatively wider than ours, so no single font
+size hits both 43 rows and 76 columns in the same 640x800 frame. WT runs at
+`fontSize 10` with `padding "5,49,5,49"` — small enough to overshoot both
+axes, then padded back down to the exact grid.
+
+**Windows Terminal wins this one.**
+
+| | ascii cat | unicode cat | DOOM-Fire | total |
+|---|---:|---:|---:|---:|
+| ours | 8.96 s | 12.76 s | 987 fps | **37.9 s** |
+| Windows Terminal | 8.37 s | 11.51 s | 1,090 fps | **35.1 s** |
+
+Three filmed runs agree: 36.6/41.8, 35.8/38.5, 35.1/37.9 — WT ahead by
+2.7-5.2 s every time. This is not in tension with the suite result above, it
+is the same result seen from its worst angle: the race is made of exactly the
+three tests Windows Terminal already won in the measured round (bigcat ascii
+and unicode, DOOM-Fire), and none of the ten suite workloads where we win.
+The narrow half-screen grid widens its margin further — 76 columns costs us
+more than it costs WT, our ascii throughput falling from 215 MB/s at 39x120
+to ~170 MB/s at 43x76.
+
+Two honest readings, then: on a screenful of terminal work at steady state we
+finish in 0.84x the time on 0.54x the CPU; on a three-test sprint of cats and
+fire, Windows Terminal is 8% faster. Video: `ui/video/terminal-race-windows.mp4`
+(not linked from the site). Harness in `film/`.
+
+## Why we lost the cats — a profile, and half the gap closed
+
+Process-level profile of the 500 MB cats (CPU snapshotted either side of each
+rep, terminal + console host + writer), then an A/B on the two candidate
+causes. The decisive number is that **we were using ~half Windows Terminal's
+CPU and still finishing later** — so the deficit was never throughput.
+
+**The console host is the pace-setter.** ConPTY's `OpenConsole` is a
+single-threaded stage that needs a fixed ~1.9 CPU-s per 500 MB of ascii and
+~4.8 for unicode. The cat cannot finish faster than that, and the only way to
+lose is to leave it idle — which happens whenever our ring is full and its
+write blocks.
+
+| | wall | host occupancy | our CPU |
+|---|---:|---:|---:|
+| ours, 512 KB ring | 2.45 / 5.68 s | 0.80-0.88 cores | 0.54-0.87 |
+| ours, no repaint | 2.24-2.30 s (ascii) | 0.87-0.88 | 0.35 |
+| **ours, 2 MB ring** | **2.31 / 5.27 s** | **0.87-0.92** | 0.57-0.84 |
+| Windows Terminal | 2.26 / 5.25 s | 0.86-0.93 | 1.08-1.29 |
+
+Two separate causes, one per corpus:
+
+- **unicode was the ring.** 8x64 KB is 512 KB, which at 220 MB/s is **2.3 ms**
+  of slack — any parse or repaint hiccup longer than that stalls the host.
+  Raising it to 2 MB takes unicode from 5.68 s to 5.27 s, a dead heat with
+  Windows Terminal's 5.25. 8 MB buys nothing further: past the knee the host
+  is already saturated. Now the default (`Pty.swift`), overridable with
+  `STARLING_TERM_SLOT_KB` / `STARLING_TERM_SLOTS`.
+- **ascii is the repaint path.** Suppressing repaints
+  (`STARLING_BENCH_NOREPAINT=1`) lands at 2.24-2.30 s against WT's 2.26 —
+  i.e. the whole remaining ascii gap is render work stealing drain time. The
+  ring fix takes it from 2.45 to 2.31; the last ~2% is still there.
+
+### Spending CPU to close the rest: ported, measured, and it does nothing
+
+The floor is the host's own CPU — ~1.9 s ascii, ~4.8 s unicode — so perfect
+draining would finish around 1.95 / 4.85 s, ahead of Windows Terminal on
+both. Getting there means driving host occupancy from ~0.9 to 1.0, which is a
+latency problem, and Darwin already solves exactly that by spending CPU:
+`_startReaderPaced` busy-waits ~1 us before re-arming the read, because an
+eager re-arm catches the pty queue empty and pays a writer-wake round trip per
+kilobyte. It is worth 29% on the unicode cat there.
+
+So it was ported — `starling_conpty_pace` (QueryPerformanceCounter busy-wait;
+Windows will not sleep for a microsecond) plus a pace in the ConPTY reader,
+both on a dry pipe and before re-arming. Alternating A/B on the cats, six to
+eight reps a side:
+
+| | ascii | unicode |
+|---|---:|---:|
+| pace off | 2.31 s | 5.41 s |
+| pace 1 us | 2.35 s | 5.36 s |
+
+Both differences sit inside a run-to-run spread of 2.25-2.46 and 5.16-5.62.
+**It buys nothing here**, and the reason is in `STARLING_PTY_BYTES`: ConPTY
+already hands us **~45 KB per read** (61k reads for 2.7 GB) because the reader
+coalesces on `PeekNamedPipe`, where Darwin's pty returns ~1 KB no matter the
+buffer. The empty-queue round trip the pace exists to avoid is not happening,
+so all a busy-wait buys is a spinning core. Shipped **off**, with the knob and
+this measurement kept in place so the experiment is not repeated.
+
+(One run showed unicode at 10.7 s with the pace on — twice the host CPU too.
+It did not reproduce in eight further runs and was contamination from a
+leftover process. Recorded because a single spectacular number is exactly the
+kind of thing that gets believed.)
+
+### Where it leaves us
+
+Same-session baseline, 2 MB ring, pace off:
+
+| | ours | Windows Terminal | before |
+|---|---:|---:|---|
+| ascii cat | 2.305 s | 2.290 s | 2.45 vs 2.26 |
+| unicode cat | 5.405 s | 5.192 s | 5.68 vs 5.25 |
+
+Ascii is a dead heat; unicode's deficit halves to 4%. Our CPU is 1.6-2.0 cores
+against Windows Terminal's 2.2-2.4 throughout. The remaining unicode gap and
+the last of ascii are the repaint path, which `NOREPAINT` shows is worth
+~0.5-0.7 CPU-s per 500 MB of drain time — that is the next thing to look at,
+not the reader.
+
+Caveat: the ring change is verified on the cats only. The ten-workload suite
+has not been re-run against it.
+
 ## Raw data
 
 `data/` holds every result file and both orchestrator logs
