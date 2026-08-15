@@ -886,39 +886,150 @@ static void attach_send(struct attach *a, uint8_t type,
     plat_mutex_unlock(a->wlock);
 }
 
-// stdin → INPUT frames, with the prefix key intercepted on the way past.
+// One win32-input-mode key event: ESC [ Vk ; Sc ; Uc ; Kd ; Cs ; Rc _
+//
+// Windows consoles under a ConPTY report keys this way rather than as bytes
+// (see plat_tty_raw), so on that path the prefix never appears as a byte and
+// has to be recognised here instead. Standard VT sequences end in a letter;
+// this one ends in '_', so nothing else in a terminal stream looks like it
+// and the check is safe to run over every platform's input.
+//
+// Returns the length of the event at `p`, 0 if it is not one. `*partial` is
+// set when the buffer ends mid-event, so the caller can carry the tail into
+// the next read rather than forwarding half a sequence.
+static size_t w32_key(const uint8_t *p, size_t n, uint32_t *uc, int *down,
+                      int *partial) {
+    *partial = 0;
+    if (n == 0) return 0;
+    if (p[0] != 0x1b) return 0;
+    if (n < 2) { *partial = 1; return 0; }
+    if (p[1] != '[') return 0;
+    uint32_t f[6] = {0, 0, 0, 0, 0, 0};
+    int nf = 0;
+    size_t i = 2;
+    for (;;) {
+        uint32_t v = 0;
+        while (i < n && p[i] >= '0' && p[i] <= '9') {
+            v = v * 10 + (uint32_t)(p[i] - '0');
+            i++;
+        }
+        if (i >= n) { *partial = 1; return 0; }
+        if (nf < 6) f[nf] = v;
+        nf++;
+        if (p[i] == ';') { i++; continue; }
+        if (p[i] == '_') {
+            i++;
+            if (nf < 4) return 0;         // too few fields to be one of ours
+            *uc = f[2];
+            *down = f[3] != 0;
+            return i;
+        }
+        return 0;                          // some other escape sequence
+    }
+}
+
+// One byte of terminal input, with the prefix key intercepted on the way
+// past. Returns 1 when the user has completed the detach command.
+static int feed_byte(struct attach *a, uint8_t ch, uint8_t *out, size_t *m,
+                     int *held) {
+    if (*held) {
+        *held = 0;
+        if (ch == 'd' || ch == 'D') return 1;
+        if (ch == a->prefix) { out[(*m)++] = ch; return 0; }   // literal
+        // Any other key: the prefix was not a command after all, so neither
+        // byte belongs to us. Pass both rather than eating a keystroke the
+        // user meant for the far side.
+        out[(*m)++] = a->prefix;
+        out[(*m)++] = ch;
+        return 0;
+    }
+    if (ch == a->prefix) { *held = 1; return 0; }
+    out[(*m)++] = ch;
+    return 0;
+}
+
+// stdin → INPUT frames.
+//
+// A Windows console under a ConPTY reports key EVENTS rather than key bytes
+// (see plat_tty_raw), so ASCII ones are turned back into the bytes a pty
+// would have produced. Two things depend on it:
+//
+//   - the prefix. ^] is an event carrying code point 29, never a 0x1d byte,
+//     so without this the scan below cannot match and ^] d never detaches.
+//   - cursor keys. ssh delivers one as its raw bytes; the client's console
+//     re-spells those as THREE events carrying 27, 91 and 65, and forwarding
+//     them verbatim — what this did before — makes the far end replay three
+//     separate keystrokes. The shell sees Escape, then '[', then 'A', so
+//     every arrow key clears the line and types "[A" into it. Decoding
+//     restores ESC [ A.
+//
+// Anything that is not a plain ASCII code point is passed through as the
+// event it arrived as: a bare modifier and a function key have no bytes to
+// make from them, and a non-ASCII code point decodes losslessly at the far
+// end's console, where the same character as UTF-8 bytes would be read in
+// that console's OEM code page and arrive as mojibake (é becomes ├⌐).
+// That last one is the seam to watch: the event spelling is understood by a
+// Windows far end and would be noise to a POSIX one, so a Windows client
+// attached to a Linux daemon still cannot type é. Cursor keys, the prefix
+// and all ASCII are byte-exact either way.
 static void attach_stdin(void *arg) {
     struct attach *a = arg;
-    uint8_t buf[4096];
-    uint8_t out[sizeof(buf) * 2];   // worst case: every byte is a held prefix
+    uint8_t work[4160];
+    uint8_t out[sizeof(work) * 2];   // worst case: every byte is a held prefix
+    size_t ncarry = 0;
     int held = 0;
+
     for (;;) {
-        long n = plat_stdin_read(buf, sizeof(buf));
+        long n = plat_stdin_read(work + ncarry, sizeof(work) - ncarry);
         if (n <= 0) break;
-        size_t m = 0;
-        for (long i = 0; i < n; i++) {
-            uint8_t ch = buf[i];
-            if (held) {
-                held = 0;
-                if (ch == 'd' || ch == 'D') {
-                    if (m) attach_send(a, TERMD_INPUT, out, m);
-                    a->detached = 1;
-                    attach_send(a, TERMD_DETACH, NULL, 0);
-                    // Wake the main loop out of its poll; the session and
-                    // its shell are untouched by any of this.
-                    plat_sock_shutdown(a->fd);
-                    return;
+        size_t total = ncarry + (size_t)n;
+        ncarry = 0;
+
+        size_t m = 0, i = 0;
+        int detach = 0;
+        while (i < total) {
+            uint32_t uc = 0;
+            int down = 0, partial = 0;
+            size_t seq = w32_key(work + i, total - i, &uc, &down, &partial);
+
+            if (partial) {
+                // Hold the tail back for the next read rather than forwarding
+                // half an event. Anything longer than an event could ever be
+                // is not one, so it goes through as bytes.
+                size_t rest = total - i;
+                if (rest < sizeof(work) / 2) {
+                    memmove(work, work + i, rest);
+                    ncarry = rest;
+                    break;
                 }
-                if (ch == a->prefix) { out[m++] = ch; continue; }  // literal
-                // Any other key: the prefix was not a command after all, so
-                // neither byte belongs to us. Pass both rather than eating a
-                // keystroke the user meant for the far side.
-                out[m++] = a->prefix;
-                out[m++] = ch;
+            }
+
+            if (seq) {
+                i += seq;
+                if (uc != 0 && uc < 0x80) {
+                    if (!down) continue;        // a byte stream has no key-ups
+                    detach = feed_byte(a, (uint8_t)uc, out, &m, &held);
+                    if (detach) break;
+                    continue;
+                }
+                memcpy(out + m, work + i - seq, seq);
+                m += seq;
                 continue;
             }
-            if (ch == a->prefix) { held = 1; continue; }
-            out[m++] = ch;
+
+            detach = feed_byte(a, work[i], out, &m, &held);
+            i++;
+            if (detach) break;
+        }
+
+        if (detach) {
+            if (m) attach_send(a, TERMD_INPUT, out, m);
+            a->detached = 1;
+            attach_send(a, TERMD_DETACH, NULL, 0);
+            // Wake the main loop out of its poll; the session and its shell
+            // are untouched by any of this.
+            plat_sock_shutdown(a->fd);
+            return;
         }
         if (m) attach_send(a, TERMD_INPUT, out, m);
     }

@@ -418,6 +418,23 @@ long plat_stdout_write(const void *buf, size_t n) {
 static DWORD g_con_in_saved, g_con_out_saved;
 static int g_con_is_raw = 0;
 
+// ENABLE_VIRTUAL_TERMINAL_INPUT stays ON here, and what it delivers is not
+// what its name suggests. Under a ConPTY — which is every ssh session, since
+// Windows OpenSSH runs one — it does not hand the client key BYTES, it hands
+// it key EVENTS in win32-input-mode: `x` arrives as ESC [88;45;120;1;0;…_
+// (virtual key, scan code, code point, down flag, modifiers, repeat) and one
+// Ctrl-] keypress arrives as four such events, the useful one carrying code
+// point 29. No 0x1d byte is ever in that stream, which is why the client's
+// prefix scan has to read the events rather than the bytes (see w32_key in
+// termd.c).
+//
+// Clearing the flag was tried first and is WRONG, though it looks like a
+// one-line fix and does make ^] d work: without it the console falls back to
+// translating key events into characters, and characters are all you get —
+// measured over ssh, the arrow keys, Home and F1 produce NOTHING at all, and
+// é arrives as a single code-page byte instead of its two UTF-8 ones. A
+// terminal tunnel that cannot carry an arrow key or a non-ASCII character is
+// not worth a working detach key.
 int plat_tty_raw(void) {
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
     HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
