@@ -327,6 +327,21 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// Coalesces reader-thread repaint requests.
     private var _updatePending = false
 
+    /// Cursor blink phase: true = the overlay is drawn. The cursor blinks at
+    /// rest, macOS Terminal style — held solid through keystrokes and output,
+    /// and only ticking while the view is focused and the process alive.
+    /// Main-queue only, like the rest of the view state.
+    private var _blinkOn = true
+    /// Invalidates pending blink ticks on focus loss, dispose, and restart.
+    private var _blinkGeneration = 0
+    /// Whether a tick is scheduled, so activity can revive a stopped loop.
+    private var _blinkTicking = false
+    /// Monotonic deadline before which the cursor stays solid: last
+    /// keystroke/output plus one period.
+    private var _blinkHeldSolidUntil: Double = 0
+    /// macOS Terminal's cadence, near enough.
+    private static let blinkPeriod: Double = 0.6
+
     /// Scrollback view offset in lines (0 = live screen). Shift+PageUp/Down,
     /// the mouse wheel, or a touchpad pan.
     private var _viewOffset = 0
@@ -380,8 +395,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         focusNode.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
         }
-        focusNode.onFocusChange = { [weak self] _ in
-            self?.setState {}
+        focusNode.onFocusChange = { [weak self] focused in
+            guard let self else { return }
+            if focused { self._restartBlink() } else { self._stopBlink() }
+            self.setState {}
         }
         if w.autofocus { focusNode.requestFocus() }
     }
@@ -408,6 +425,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     override func dispose() {
+        _stopBlink()
         // Only if this view is still the owner: a remount installs the new
         // view's hook first, and clearing it here would leave the pane
         // running but permanently unpainted (see TerminalSession.activityOwner).
@@ -466,12 +484,65 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             self._updatePending = false
             self._lastRepaint = Self._now()
             self._lock.unlock()
+            self._blinkActivity()
             self.setState {}
         }
         if delay <= 0 {
             DispatchQueue.main.async(execute: work)
         } else {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    }
+
+    // MARK: - Cursor blink
+
+    /// A keystroke or output landed: hold the cursor solid for one period —
+    /// it blinks only at rest — and revive the tick loop if it had stopped.
+    /// Main queue only (key events, and _scheduleRepaint's main-queue work).
+    private func _blinkActivity() {
+        _blinkHeldSolidUntil = Self._now() + Self.blinkPeriod
+        if !_blinkOn { _blinkOn = true; setState {} }
+        if !_blinkTicking && focusNode.hasFocus { _restartBlink() }
+    }
+
+    private func _restartBlink() {
+        _blinkGeneration += 1
+        _blinkOn = true
+        _blinkHeldSolidUntil = Self._now() + Self.blinkPeriod
+        _scheduleBlinkTick(after: Self.blinkPeriod)
+    }
+
+    /// Leaves the phase solid, so whatever brings the cursor back draws it.
+    private func _stopBlink() {
+        _blinkGeneration += 1
+        _blinkTicking = false
+        _blinkOn = true
+    }
+
+    /// DispatchQueue + a generation token, never Foundation.Timer — Timer
+    /// never fires on the DRM embedder.
+    private func _scheduleBlinkTick(after delay: Double) {
+        _blinkTicking = true
+        let gen = _blinkGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, gen == self._blinkGeneration else { return }
+            // No cursor on screen (unfocused, or the child exited): stop
+            // rather than rebuild an idle pane every period. Focus return
+            // and _blinkActivity restart the loop.
+            guard self.focusNode.hasFocus, !self._exited else {
+                self._blinkTicking = false
+                self._blinkOn = true
+                return
+            }
+            let now = Self._now()
+            if now < self._blinkHeldSolidUntil {
+                if !self._blinkOn { self._blinkOn = true; self.setState {} }
+                self._scheduleBlinkTick(after: self._blinkHeldSolidUntil - now)
+                return
+            }
+            self._blinkOn.toggle()
+            self.setState {}
+            self._scheduleBlinkTick(after: Self.blinkPeriod)
         }
     }
 
@@ -493,6 +564,9 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             return false
         }
         guard keyData.type == .down || keyData.type == .repeat else { return false }
+
+        // Typing holds the cursor solid; it resumes blinking when idle.
+        _blinkActivity()
 
         // Ctrl+Shift+C / Ctrl+Shift+V — copy selection / paste clipboard.
         // Handled before the view-snap so copying while scrolled back works.
@@ -964,8 +1038,9 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         #endif
 
         // Block cursor: a translucent overlay so it is visible regardless of
-        // what the text shaper does with trailing spaces.
-        if showCursor {
+        // what the text shaper does with trailing spaces. The IME caret above
+        // deliberately does not blink — only the drawn block does.
+        if showCursor && _blinkOn {
             layers.append(
                 Positioned(
                     left: padding + Double(cursorCol) * cellW,
