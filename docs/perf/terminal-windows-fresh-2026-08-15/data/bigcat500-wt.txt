@@ -1,0 +1,9 @@
+# wt grid=39x120 pid=4544
+ascii 1 2.262 4.34
+ascii 2 2.225 4.48
+ascii 3 2.184 4.44
+unicode 1 5.017 11.33
+unicode 2 5.042 11.33
+unicode 3 5.113 11.48
+rss_kb 103648
+grid_after 39x120

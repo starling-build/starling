@@ -1,0 +1,36 @@
+00:35:15Z BENCH-LONG START frames=150000 grid=39x120
+00:35:15Z pre-existing WindowsTerminal pids (never killed): 2092
+00:35:15Z powerthrottling disable 'C:\dist\TerminalApp\TerminalApp.exe' -> 
+00:35:15Z powerthrottling disable 'C:\Users\Administrator\AppData\Local\Microsoft\WindowsApps\wt.exe' -> Unable to perform operation.  An unexpected error (0x780) has occurred:  The file cannot be accessed by the system. System.Management.Automation.RemoteException System.Management.Automation.RemoteException
+00:35:15Z powerthrottling disable 'C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.24.11911.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe' -> 
+00:35:17Z === onset/ours attempt 1 ===
+00:35:22Z   grid 39x120 ok, streaming
+00:35:47Z   done
+00:35:51Z === onset/wt attempt 1 ===
+00:35:55Z   grid 39x120 ok, streaming
+00:36:20Z   done
+00:36:22Z onset ours -> VERDICT flat
+00:36:22Z onset wt -> VERDICT flat
+00:36:24Z === suite/ours attempt 1 ===
+00:36:28Z   grid 39x120 ok, streaming
+00:54:15Z   done
+00:54:19Z === suite/wt attempt 1 ===
+00:54:23Z   grid 39x120 ok, streaming
+01:15:35Z   done
+01:15:39Z === bigcat/ours attempt 1 ===
+01:15:43Z   grid 39x120 ok, streaming
+01:16:18Z   done
+01:16:22Z === bigcat/wt attempt 1 ===
+01:17:42Z   BAD GRID '' (want 39x120) -- killing after 80s
+01:17:46Z === bigcat/wt attempt 2 ===
+01:19:06Z   BAD GRID '' (want 39x120) -- killing after 80s
+01:19:10Z === bigcat/wt attempt 3 ===
+01:20:31Z   BAD GRID '' (want 39x120) -- killing after 80s
+01:20:33Z !!! bigcat/wt FAILED after 3 attempts
+01:20:35Z === doom/ours attempt 1 ===
+01:20:39Z   grid 39x120 ok, streaming
+01:32:15Z   done
+01:32:19Z === doom/wt attempt 1 ===
+01:32:23Z   grid 39x120 ok, streaming
+01:43:24Z   done
+01:43:26Z BENCH-LONG-DONE

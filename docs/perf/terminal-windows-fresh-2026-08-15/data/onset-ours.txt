@@ -1,0 +1,24 @@
+# ours grid=39x120 pid=2024 blocks=20
+block 1 1.532 cum 1.5 cpu 1.36
+block 2 1.158 cum 2.7 cpu 1.34
+block 3 1.142 cum 3.8 cpu 2.14
+block 4 1.146 cum 5.0 cpu 2.63
+block 5 1.142 cum 6.1 cpu 2.48
+block 6 1.161 cum 7.3 cpu 2.02
+block 7 1.165 cum 8.4 cpu 3.11
+block 8 1.164 cum 9.6 cpu 2.67
+block 9 1.173 cum 10.8 cpu 2.28
+block 10 1.171 cum 12.0 cpu 1.31
+block 11 1.178 cum 13.1 cpu 1.44
+block 12 1.152 cum 14.3 cpu 1.36
+block 13 1.154 cum 15.4 cpu 1.30
+block 14 1.168 cum 16.6 cpu 1.39
+block 15 1.171 cum 17.8 cpu 1.25
+block 16 1.169 cum 18.9 cpu 1.81
+block 17 1.174 cum 20.1 cpu 2.03
+block 18 1.153 cum 21.3 cpu 1.97
+block 19 1.186 cum 22.5 cpu 3.14
+block 20 1.164 cum 23.6 cpu 2.67
+early 1.277 late 1.168 ratio 0.91
+VERDICT flat
+onset_done

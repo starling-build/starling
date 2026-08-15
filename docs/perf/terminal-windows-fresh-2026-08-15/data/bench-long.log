@@ -1,0 +1,12 @@
+01:44:15Z BENCH-LONG START frames=150000 grid=39x120
+01:44:15Z pre-existing WindowsTerminal pids (never killed): 4544
+01:44:15Z powerthrottling disable 'C:\dist\TerminalApp\TerminalApp.exe' -> 
+01:44:15Z powerthrottling disable 'C:\Users\Administrator\AppData\Local\Microsoft\WindowsApps\wt.exe' -> Unable to perform operation.  An unexpected error (0x780) has occurred:  The file cannot be accessed by the system. System.Management.Automation.RemoteException System.Management.Automation.RemoteException
+01:44:15Z powerthrottling disable 'C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.24.11911.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe' -> 
+01:44:17Z === bigcat/ours attempt 1 ===
+01:44:21Z   grid 39x120 ok, streaming
+01:44:51Z   done
+01:44:55Z === bigcat/wt attempt 1 ===
+01:44:59Z   grid 39x120 ok, streaming
+01:45:29Z   done
+01:45:31Z BENCH-LONG-DONE
