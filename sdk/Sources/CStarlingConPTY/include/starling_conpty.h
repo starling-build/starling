@@ -82,6 +82,23 @@ void starling_conpty_free(StarlingConPty* pty);
 
 // ---------------------------------------------------------------- child pipe
 //
+// Busy-waits `ns` nanoseconds. Sub-microsecond, so it cannot be a sleep:
+// Windows timer granularity rounds a 1 us Sleep up by three orders of
+// magnitude, which is the same reason Darwin's paced reader cannot use
+// mach_wait_until.
+//
+// This exists for the pty reader's pace. A reader that re-arms its read the
+// instant the last one returned catches the console's queue EMPTY and pays a
+// full writer-wake round trip for the privilege; waiting about a microsecond
+// first means the next read finds a batch already waiting. On Darwin that one
+// change was worth 29% on the unicode cat (see Pty._startReaderPaced), and
+// ConPTY has the same shape — it hands back small reads mid-flood, which is
+// why the reader coalesces on PeekNamedPipe at all.
+//
+// Same placement argument as the child-spawn API below: this is Win32
+// plumbing (QueryPerformanceCounter), not a pseudoconsole feature.
+void starling_conpty_pace(uint64_t ns);
+
 // A child process on two anonymous pipes, with NO pseudoconsole: the exact
 // opposite of the above. RemoteTerminal runs `ssh host starling-termd --stdio`
 // and the wire is a framed byte protocol, so a console in the middle would

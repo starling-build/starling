@@ -343,6 +343,27 @@ int32_t starling_conpty_write(StarlingConPty* pty, const uint8_t* buf, int32_t l
   return (int32_t)put;
 }
 
+void starling_conpty_pace(uint64_t ns) {
+  // QPC, not Sleep: the shortest sleep Windows will actually give is about a
+  // millisecond, and this is called with a thousand nanoseconds.
+  static LARGE_INTEGER freq;
+  if (freq.QuadPart == 0 && !QueryPerformanceFrequency(&freq)) {
+    return;
+  }
+  const LONGLONG ticks = (LONGLONG)((ns * (uint64_t)freq.QuadPart) / 1000000000ULL);
+  if (ticks <= 0) {
+    return;
+  }
+  LARGE_INTEGER t0, now;
+  QueryPerformanceCounter(&t0);
+  do {
+    // Tell the core we are spinning, so a hyperthread sibling gets the
+    // pipeline while we wait.
+    YieldProcessor();
+    QueryPerformanceCounter(&now);
+  } while (now.QuadPart - t0.QuadPart < ticks);
+}
+
 void starling_conpty_resize(StarlingConPty* pty, int32_t cols, int32_t rows) {
   if (pty == NULL || cols <= 0 || rows <= 0) {
     return;

@@ -150,6 +150,30 @@ final class Pty: @unchecked Sendable {
     /// most raw line traffic, was 2.24x Windows Terminal while the
     /// escape-heavy workloads were already at or ahead of parity.
     func startReader() {
+        // OFF by default, and that is a measurement rather than an oversight.
+        //
+        // This is Darwin's _startReaderPaced ported: there, re-arming the read
+        // the instant the last one returned catches the pty queue empty and
+        // pays a full writer-wake round trip per kilobyte, and a ~1 us wait
+        // before the next read is worth 29% on the unicode cat. It does
+        // nothing here. Alternating A/B on the 500 MB cats, six to eight reps
+        // a side:
+        //
+        //   pace off   ascii 2.31 s   unicode 5.41 s
+        //   pace 1 us  ascii 2.35 s   unicode 5.36 s
+        //
+        // — both inside a run-to-run spread of 2.25-2.46 and 5.16-5.62.
+        //
+        // The reason is visible in STARLING_PTY_BYTES: ConPTY already hands us
+        // ~45 KB per read (61k reads for 2.7 GB) because the loop below
+        // coalesces on PeekNamedPipe, where Darwin's pty returns ~1 KB no
+        // matter the buffer. The empty-queue round trip the pace exists to
+        // avoid is not happening, so all a busy-wait buys is a spinning core.
+        //
+        // Kept, with the knob, so the experiment is not repeated: set
+        // STARLING_TERM_PACE_NS if the read path ever changes shape.
+        let paceNs = UInt64(ProcessInfo.processInfo.environment["STARLING_TERM_PACE_NS"] ?? "")
+            ?? 0
         let reader = Thread { [weak self] in
             while true {
                 guard let self = self else { return }
@@ -175,6 +199,13 @@ final class Pty: @unchecked Sendable {
                     if n > 0 {
                         got += Int(n)
                         if got == ChunkRing.slotCapacity { break }
+                        // Dry, but only just: linger one pace and look again
+                        // rather than publishing a half-empty slot and going
+                        // back to a blocking read. Bounded at ~1 us, so a lone
+                        // keystroke echo still publishes immediately.
+                        if paceNs > 0 && starling_conpty_avail(h) <= 0 {
+                            starling_conpty_pace(paceNs)
+                        }
                         // Drain what is ALREADY queued into the same slot, and
                         // stop the moment the pipe is dry. ConPTY hands back
                         // small reads even mid-flood, and each publish costs a
@@ -193,6 +224,10 @@ final class Pty: @unchecked Sendable {
                     return
                 }
                 self.ring.publish(slot, count: got)
+                // And do not re-arm eagerly either: the same pace before the
+                // next read is what keeps the console host writing instead of
+                // waiting on us.
+                if paceNs > 0 { starling_conpty_pace(paceNs) }
             }
         }
         reader.name = "pty-reader"

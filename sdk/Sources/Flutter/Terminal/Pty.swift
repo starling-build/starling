@@ -51,6 +51,28 @@ final class ChunkRing: @unchecked Sendable {
     #if canImport(Darwin)
     static let slotCapacity = 262144
     private static let slotCount = 4
+    #elseif os(Windows)
+    // 2 MB on Windows, and the depth is the point rather than the slot size.
+    // ConPTY's OpenConsole is a single-threaded stage that needs a fixed
+    // ~2.0 CPU-s per 500 MB of ascii and ~4.8 for unicode: the cat can go no
+    // faster than that, so the only way to lose is to leave the host idle,
+    // and it idles whenever our ring is full and its write blocks. The old
+    // 8x64 KB was 512 KB — 2.3 ms of slack at 220 MB/s — so any parse or
+    // repaint hiccup longer than that cost wall time directly. Measured on
+    // the 500 MB cats, four reps per config:
+    //
+    //   512 KB   ascii 2.45 s   unicode 5.68 s   host 0.88 cores
+    //   2 MB     ascii 2.32 s   unicode 5.26 s   host 0.90-0.91
+    //   8 MB     ascii 2.42 s   unicode 5.28 s   (no further gain)
+    //   (Windows Terminal: 2.26 / 5.25, host 0.91-0.93)
+    //
+    // which is the whole unicode gap closed. The knee is at 2 MB; past it the
+    // host is already saturated and more buffer buys nothing. Overridable for
+    // re-tuning. See docs/perf/terminal-windows-fresh-2026-08-15.
+    static let slotCapacity =
+        (Int(ProcessInfo.processInfo.environment["STARLING_TERM_SLOT_KB"] ?? "") ?? 256) * 1024
+    private static let slotCount =
+        Int(ProcessInfo.processInfo.environment["STARLING_TERM_SLOTS"] ?? "") ?? 8
     #else
     static let slotCapacity = 65536
     private static let slotCount = 8
