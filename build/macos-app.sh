@@ -10,7 +10,7 @@
 # engine data rides beside the executable, and every absolute rpath is
 # deleted after the copy.
 #
-#   Terminal.app/Contents/
+#   Starling Terminal.app/Contents/
 #     MacOS/TerminalApp               the executable (CFBundleExecutable)
 #     MacOS/data -> ../Resources/data CocoaHost reads <exe dir>/data/… — the
 #                                     same layout as the GTK and Win32 hosts —
@@ -68,11 +68,15 @@ fi
 BUILT="$PKG/.build/release"
 [ -f "$BUILT/$APP" ] || { echo "error: no $APP binary under $BUILT" >&2; exit 1; }
 
-# The bundle name drops the "App" suffix the SwiftPM target carries, so the
-# Dock reads "Terminal" the way every other Starling surface names it.
+# The short name drops the "App" suffix the SwiftPM target carries; it keys
+# the icon lookup (build/macos/<Name>.icns) and the CFBundleIconFile. What
+# the user SEES — Dock, menu bar, app switcher, Activity Monitor, Finder —
+# is the display name, and there the bare short name collides: "Terminal"
+# on a Mac reads as Apple's Terminal. So the visible name carries the brand.
 NAME="${APP%App}"
+DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-Starling $NAME}"
 VER="${STARLING_APP_VERSION:-0.1.0}"
-OUT="$REPO/.stage-macos/$NAME.app"
+OUT="$REPO/.stage-macos/$DISPLAY_NAME.app"
 C="$OUT/Contents"
 rm -rf "$OUT"
 mkdir -p "$C/MacOS" "$C/Frameworks" "$C/Resources/data"
@@ -120,8 +124,8 @@ cat > "$C/Info.plist" <<PLIST
   <key>CFBundleExecutable</key>               <string>$APP</string>
   <key>CFBundleIdentifier</key>               <string>build.starling.$(echo "$NAME" | tr '[:upper:]' '[:lower:]')</string>
   <key>CFBundleInfoDictionaryVersion</key>    <string>6.0</string>
-  <key>CFBundleName</key>                     <string>$NAME</string>
-  <key>CFBundleDisplayName</key>              <string>$NAME</string>
+  <key>CFBundleName</key>                     <string>$DISPLAY_NAME</string>
+  <key>CFBundleDisplayName</key>              <string>$DISPLAY_NAME</string>
   <key>CFBundlePackageType</key>              <string>APPL</string>
   <key>CFBundleShortVersionString</key>       <string>$VER</string>
   <key>CFBundleVersion</key>                  <string>$VER</string>
@@ -148,7 +152,7 @@ codesign --verify --strict "$OUT"
 echo "==> $OUT"
 
 if [ "$ZIP" = 1 ]; then
-    ZIPOUT="$REPO/.stage-macos/$NAME-$VER-macos-arm64.zip"
+    ZIPOUT="$REPO/.stage-macos/${DISPLAY_NAME// /-}-$VER-macos-arm64.zip"
     rm -f "$ZIPOUT"
     # ditto's zip keeps symlinks and metadata, which `zip -r` would flatten —
     # a framework with a materialized Versions/Current fails codesign on the

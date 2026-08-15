@@ -55,7 +55,7 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
 }
 
 
-runStarlingApp(title: "Terminal",
+runStarlingApp(title: "Starling Terminal",
                width: windowMetric("STARLING_WINDOW_W", defaultWindowW),
                height: windowMetric("STARLING_WINDOW_H", defaultWindowH)) {
     MacosApp(
