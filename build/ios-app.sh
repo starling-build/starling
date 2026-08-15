@@ -139,14 +139,33 @@ cat > "$OUT/Info.plist" <<PLIST
 PLIST
 
 # Ad-hoc is enough for the simulator, which checks that a signature exists and
-# not who made it. A device build needs a real identity: pass one in
-# $STARLING_IOS_IDENTITY along with a provisioning profile in the bundle.
+# not who made it. A device install needs two real things: an identity in
+# $STARLING_IOS_IDENTITY (a hash or name from
+# `security find-identity -p codesigning`) and, in $STARLING_IOS_PROFILE, a
+# .mobileprovision covering the bundle id and the target device. The profile
+# is embedded in the bundle, and its own Entitlements block is what the app
+# signature must claim (app id, team, get-task-allow) — extracted from the
+# profile rather than hand-written, so the two cannot disagree. Install the
+# result with:  xcrun devicectl device install app --device <id> <.app>
 IDENTITY="${STARLING_IOS_IDENTITY:--}"
+ENTITLEMENTS=""
+if [ -n "${STARLING_IOS_PROFILE:-}" ]; then
+    cp "$STARLING_IOS_PROFILE" "$OUT/embedded.mobileprovision"
+    ENTITLEMENTS="$(mktemp -t entitlements.XXXXXX).plist"
+    security cms -D -i "$STARLING_IOS_PROFILE" \
+        | plutil -extract Entitlements xml1 -o "$ENTITLEMENTS" -
+fi
 codesign --force --sign "$IDENTITY" --timestamp=none \
     "$OUT/Frameworks/libswift_bridge.dylib" >/dev/null 2>&1 || true
 codesign --force --sign "$IDENTITY" --timestamp=none \
     "$OUT/Frameworks/Flutter.framework" >/dev/null 2>&1 || true
-codesign --force --sign "$IDENTITY" --timestamp=none "$OUT"
+if [ -n "$ENTITLEMENTS" ]; then
+    codesign --force --sign "$IDENTITY" --timestamp=none \
+        --entitlements "$ENTITLEMENTS" --generate-entitlement-der "$OUT"
+    rm -f "$ENTITLEMENTS"
+else
+    codesign --force --sign "$IDENTITY" --timestamp=none "$OUT"
+fi
 
 echo "==> $OUT"
 
