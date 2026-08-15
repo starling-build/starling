@@ -363,6 +363,14 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// True while a selection drag is in flight (primary button held).
     private var _selecting = false
 
+    /// Find bar (Ctrl+Shift+F). Matches are in ABSOLUTE buffer coordinates —
+    /// the selection's space — so they stay anchored to content while new
+    /// output scrolls the screen.
+    private var _searchActive = false
+    private var _searchQuery = ""
+    private var _searchMatches: [(line: Int, col: Int, len: Int)] = []
+    private var _searchCurrent = 0
+
     init(session: TerminalSession) {
         self.session = session
         super.init()
@@ -575,6 +583,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // Typing holds the cursor solid; it resumes blinking when idle.
         _blinkActivity()
 
+        // While the find bar is open, keys edit the query and walk matches
+        // instead of reaching the shell.
+        if _searchActive { return _handleSearchKey(keyData) }
+
         // Ctrl+Shift+C / Ctrl+Shift+V — copy selection / paste clipboard.
         // Handled before the view-snap so copying while scrolled back works.
         if _ctrlDown && _shiftDown {
@@ -584,6 +596,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             }
             if keyData.logical == 0x56 || keyData.logical == 0x76 {  // V/v
                 _paste()
+                return true
+            }
+            if keyData.logical == 0x46 || keyData.logical == 0x66 {  // F/f
+                _openSearch()
                 return true
             }
         }
@@ -961,6 +977,114 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         return (max(4, cols), max(2, rows))
     }
 
+    // MARK: - Search
+
+    /// Keys while the find bar is open. The terminal owns the keyboard, so
+    /// the bar has no focus node of its own: everything routes here and is
+    /// consumed — a stray key must never leak through to the shell. Both
+    /// logical-id schemes are matched, keysym and Flutter id, like
+    /// TerminalInput.
+    private func _handleSearchKey(_ keyData: KeyData) -> Bool {
+        let logical = keyData.logical
+        // Esc — or the opening chord again — closes. The view offset is
+        // kept: the next ordinary keystroke snaps back to live, as always.
+        if logical == 0xFF1B || logical == 0x1_0000_001B
+            || (_ctrlDown && _shiftDown && (logical == 0x46 || logical == 0x66)) {
+            _closeSearch()
+            return true
+        }
+        if logical == 0xFF0D || logical == 0xFF8D
+            || logical == 0x1_0000_000D || logical == 0x2_0000_020D {
+            _stepSearch(older: !_shiftDown)  // Enter: older; Shift+Enter: newer
+            return true
+        }
+        if logical == 0xFF52 || logical == 0x1_0000_0304 {  // Up
+            _stepSearch(older: true)
+            return true
+        }
+        if logical == 0xFF54 || logical == 0x1_0000_0301 {  // Down
+            _stepSearch(older: false)
+            return true
+        }
+        if logical == 0xFF08 || logical == 0x1_0000_0008 {  // Backspace
+            if !_searchQuery.isEmpty {
+                _searchQuery.removeLast()
+                _runSearch()
+            }
+            return true
+        }
+        if !_ctrlDown, let ch = keyData.character, !ch.isEmpty,
+           let s = ch.unicodeScalars.first, s.value >= 0x20 {
+            _searchQuery += ch
+            _runSearch()
+        }
+        return true
+    }
+
+    private func _openSearch() {
+        _searchActive = true
+        _searchQuery = ""
+        _searchMatches = []
+        _searchCurrent = 0
+        setState {}
+    }
+
+    private func _closeSearch() {
+        _searchActive = false
+        _searchMatches = []
+        setState {}
+    }
+
+    /// Recompute matches for the current query, across scrollback + screen.
+    private func _runSearch() {
+        _searchMatches = []
+        _searchCurrent = 0
+        guard !_searchQuery.isEmpty else { setState {}; return }
+        _lock.lock()
+        let all = emulator.scrollback + emulator.grid
+        _lock.unlock()
+        var found: [(line: Int, col: Int, len: Int)] = []
+        for (li, row) in all.enumerated() {
+            // One Character per cell (blank = space), so Character distance
+            // IS the cell column — the invariant _copySelection leans on.
+            let text = String(row.map { $0.char })
+            var from = text.startIndex
+            while let r = text.range(of: _searchQuery, options: .caseInsensitive,
+                                     range: from ..< text.endIndex) {
+                found.append((line: li,
+                              col: text.distance(from: text.startIndex, to: r.lowerBound),
+                              len: text.distance(from: r.lowerBound, to: r.upperBound)))
+                from = r.upperBound
+            }
+        }
+        _searchMatches = found
+        // Start at the newest match — the bottom of the buffer is where the
+        // user's eyes are.
+        _searchCurrent = max(0, found.count - 1)
+        _jumpToCurrentMatch()
+    }
+
+    private func _stepSearch(older: Bool) {
+        let n = _searchMatches.count
+        guard n > 0 else { return }
+        _searchCurrent = older ? (_searchCurrent + n - 1) % n
+                               : (_searchCurrent + 1) % n
+        _jumpToCurrentMatch()
+    }
+
+    /// Scroll so the current match is on screen: centred when it lives in
+    /// scrollback, the live screen left where it is.
+    private func _jumpToCurrentMatch() {
+        guard _searchCurrent < _searchMatches.count else { setState {}; return }
+        let m = _searchMatches[_searchCurrent]
+        _lock.lock()
+        let sb = emulator.scrollbackCount
+        let rows = emulator.rows
+        _lock.unlock()
+        _viewOffset = m.line >= sb ? 0 : max(0, min(sb - m.line + rows / 2, sb))
+        setState {}
+    }
+
     // MARK: - Build
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -1026,6 +1150,25 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             }
         }
 
+        // Search highlights: every visible match washed translucent, the
+        // current one brighter — macOS Terminal's yellow.
+        if _searchActive && !_searchMatches.isEmpty {
+            let base = sbCount - viewOffset
+            for (i, m) in _searchMatches.enumerated() {
+                let r = m.line - base
+                guard r >= 0, r < grid.count else { continue }
+                layers.append(Positioned(
+                    left: padding + Double(m.col) * cellW,
+                    top: padding + Double(r) * cellH,
+                    child: SizedBox(
+                        width: Double(m.len) * cellW,
+                        height: cellH,
+                        child: DecoratedBox(decoration: BoxDecoration(
+                            color: Color(i == _searchCurrent ? 0xCCFFB300
+                                                             : 0x5AFFD54A))))))
+            }
+        }
+
         #if os(Linux)
         // Report the cursor cell to the shell — anchors the IME candidate
         // panel next to the terminal cursor. Only while the terminal owns
@@ -1082,6 +1225,28 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                     child: Padding(
                         padding: EdgeInsets(horizontal: 10, vertical: 6),
                         child: Text(hud, style: TextStyle(
+                            color: Color(0xFFFFFFFF),
+                            fontSize: 13,
+                            fontFamily: font.family,
+                            fontFamilyFallback: _fontFallback))))))
+        }
+
+        // The find bar (Ctrl+Shift+F), top right like macOS Terminal's.
+        // Not a focused text field — _handleSearchKey owns the keyboard
+        // while it is open; "▏" is the standing caret.
+        if _searchActive {
+            let count = _searchMatches.isEmpty
+                ? (_searchQuery.isEmpty ? "" : "  0/0")
+                : "  \(_searchCurrent + 1)/\(_searchMatches.count)"
+            layers.append(Positioned(
+                top: padding,
+                right: padding,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(color: Color(0xE6202329)),
+                    child: Padding(
+                        padding: EdgeInsets(horizontal: 10, vertical: 6),
+                        child: Text("Find: \(_searchQuery)▏\(count)",
+                                    style: TextStyle(
                             color: Color(0xFFFFFFFF),
                             fontSize: 13,
                             fontFamily: font.family,
