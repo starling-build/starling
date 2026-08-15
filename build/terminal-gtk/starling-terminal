@@ -1,0 +1,10 @@
+#!/bin/sh
+# Starling Terminal launcher. STARLING_APP_GTK picks the windowed GTK host
+# inside the binary — the same binary runs under the Starling shell's
+# compositor without it. LD_LIBRARY_PATH covers the bundled engine + Swift
+# runtime for every library in the process, not just those the binary's own
+# $ORIGIN RUNPATH reaches.
+D=/usr/lib/starling-terminal
+export STARLING_APP_GTK=1
+export LD_LIBRARY_PATH="$D${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$D/starling-terminal" "$@"
