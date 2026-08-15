@@ -220,9 +220,10 @@
                               linear-gradient(var(--line-soft), var(--line-soft)),
                               linear-gradient(var(--line-soft), var(--line-soft)),
                               linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
                               linear-gradient(#2b3652, #2b3652);
             background-repeat: no-repeat; background-size: 1px 100%;
-            background-position: 12.45% 0, 51.14% 0, 67.2% 0, 89.82% 0, 28.51% 0; }
+            background-position: 11.2% 0, 45.99% 0, 60.43% 0, 80.78% 0, 95.22% 0, 25.64% 0; }
   .rtrack .bar { position: absolute; top: 5px; height: 12px; }
   .rtrack .bar.w { background: var(--amber); border-radius: 0 4px 4px 0; }
   .rtrack .bar.l { background: var(--gh); border-radius: 4px 0 0 4px; }
@@ -418,11 +419,11 @@
          with Windows Terminal; and now a Cocoa window on macOS.</p>
     </div>
     <div class="point">
-      <div class="big">1.61&times;</div>
+      <div class="big">1.38&times;</div>
       <h3>Faster than ghostty</h3>
-      <p>Across ten workloads against the ghostty nightly on Linux, and
-         1.30&times; on macOS — matched grid and font, while ghostty burns
-         two to three times the CPU.</p>
+      <p>Across ten workloads at steady state against the ghostty nightly on
+         Linux, and 1.28&times; on macOS — matched grid and font, while ghostty
+         burns about twice the CPU.</p>
     </div>
     <div class="point">
       <div class="big">0 <small>vs 40</small></div>
@@ -441,17 +442,19 @@
     <h2>Measured against ghostty, on Linux and macOS.</h2>
     <p>Both platforms run ghostty's current nightly, configured onto our Roboto Mono
        at our cell metrics, at the same verified 47&times;201 grid — so cell for cell,
-       both terminals raster the same pixels. Ten workloads, medians of three runs.
-       Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a MacBook Pro (M1 Pro),
-       our build on a full release engine. Every bar below is a multiple of
-       ghostty's pace, on a log scale so a 2&times; win and a 2&times; loss have
-       equal length: <strong>amber, rightward — Starling is ahead</strong>; grey,
-       leftward — ghostty is. Every raw second sits in the tables at the end of
-       the section.</p>
+       both terminals raster the same pixels. And every test runs at
+       <strong>steady state</strong>: each workload sustained for one to two minutes
+       per side, the cats 500 MB, DOOM-Fire run to 150,000 frames — no cold starts,
+       no ten-second sprints. Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a
+       MacBook Pro (M1 Pro), our build on a full release engine. Every bar below is
+       a multiple of ghostty's pace, on a log scale so a 2&times; win and a 2&times;
+       loss have equal length: <strong>amber, rightward — Starling is ahead</strong>;
+       grey, leftward — ghostty is. Every raw second sits in the tables at the end
+       of the section.</p>
   </div>
 
   <div class="wrap narrow">
-    <p class="dim-head">Speed — thirteen tests, both platforms</p>
+    <p class="dim-head">Speed — thirteen tests at steady state, both platforms</p>
     <div class="chart-card">
       <div class="chart-key">
         <span class="k"><i class="sw s"></i>Starling ahead</span>
@@ -462,97 +465,92 @@
         <div></div><div class="phead">Linux</div><div class="phead">macOS</div>
 
         <div class="rlabel">Light cells</div>
-        <div class="rtrack" title="Linux — 0.586 s vs ghostty 0.497 s"><i class="bar l" style="left:19.44%;width:9.07%"></i><em class="v" style="left:calc(28.51% + 7px)">0.85&times;</em></div>
-        <div class="rtrack" title="macOS — 0.111 s vs ghostty 0.149 s"><i class="bar w" style="left:28.51%;width:16.33%"></i><em class="v" style="left:calc(44.84% + 7px)">1.34&times;</em></div>
+        <div class="rtrack" title="Linux — 101.2 s vs ghostty 102.0 s"><i class="bar w" style="left:25.64%;width:0.39%"></i><em class="v" style="left:calc(26.03% + 7px)">1.01&times;</em></div>
+        <div class="rtrack" title="macOS — 53.9 s vs ghostty 96.9 s"><i class="bar w" style="left:25.64%;width:29.44%"></i><em class="v" style="left:calc(55.08% + 7px)">1.80&times;</em></div>
 
         <div class="rlabel">Dense cells</div>
-        <div class="rtrack" title="Linux — 0.249 s vs ghostty 0.173 s"><i class="bar l" style="left:7.80%;width:20.71%"></i><em class="v" style="left:calc(28.51% + 7px)">0.69&times;</em></div>
-        <div class="rtrack" title="macOS — 0.129 s vs ghostty 0.145 s"><i class="bar w" style="left:28.51%;width:6.32%"></i><em class="v" style="left:calc(34.83% + 7px)">1.12&times;</em></div>
+        <div class="rtrack" title="Linux — 86.8 s vs ghostty 86.2 s"><i class="bar l" style="left:25.29%;width:0.35%"></i><em class="v" style="left:calc(25.64% + 7px)">0.99&times;</em></div>
+        <div class="rtrack" title="macOS — 92.0 s vs ghostty 96.7 s"><i class="bar w" style="left:25.64%;width:2.50%"></i><em class="v" style="left:calc(28.14% + 7px)">1.05&times;</em></div>
 
         <div class="rlabel">Coloured text</div>
-        <div class="rtrack" title="Linux — 0.387 s vs ghostty 1.039 s"><i class="bar w" style="left:28.51%;width:55.02%"></i><em class="v" style="left:calc(83.53% + 7px)">2.68&times;</em></div>
-        <div class="rtrack" title="macOS — 0.438 s vs ghostty 0.642 s"><i class="bar w" style="left:28.51%;width:21.50%"></i><em class="v" style="left:calc(50.01% + 7px)">1.47&times;</em></div>
+        <div class="rtrack" title="Linux — 34.0 s vs ghostty 108.3 s"><i class="bar w" style="left:25.64%;width:58.15%"></i><em class="v" style="left:calc(83.79% + 7px)">3.19&times;</em></div>
+        <div class="rtrack" title="macOS — 76.9 s vs ghostty 112.4 s"><i class="bar w" style="left:25.64%;width:19.05%"></i><em class="v" style="left:calc(44.69% + 7px)">1.46&times;</em></div>
 
         <div class="rlabel">Truecolour</div>
-        <div class="rtrack" title="Linux — 0.390 s vs ghostty 0.761 s"><i class="bar w" style="left:28.51%;width:37.27%"></i><em class="v" style="left:calc(65.78% + 7px)">1.95&times;</em></div>
-        <div class="rtrack" title="macOS — 0.619 s vs ghostty 0.713 s"><i class="bar w" style="left:28.51%;width:7.80%"></i><em class="v" style="left:calc(36.31% + 7px)">1.15&times;</em></div>
+        <div class="rtrack" title="Linux — 54.2 s vs ghostty 122.8 s"><i class="bar w" style="left:25.64%;width:41.05%"></i><em class="v" style="left:calc(66.69% + 7px)">2.27&times;</em></div>
+        <div class="rtrack" title="macOS — 81.1 s vs ghostty 106.5 s"><i class="bar w" style="left:25.64%;width:13.67%"></i><em class="v" style="left:calc(39.31% + 7px)">1.31&times;</em></div>
 
         <div class="rlabel">Unicode</div>
-        <div class="rtrack" title="Linux — 0.334 s vs ghostty 0.316 s"><i class="bar l" style="left:25.65%;width:2.86%"></i><em class="v" style="left:calc(28.51% + 7px)">0.95&times;</em></div>
-        <div class="rtrack" title="macOS — 0.323 s vs ghostty 0.305 s"><i class="bar l" style="left:25.06%;width:3.45%"></i><em class="v" style="left:calc(28.51% + 7px)">0.94&times;</em></div>
+        <div class="rtrack" title="Linux — 97.1 s vs ghostty 107.3 s"><i class="bar w" style="left:25.64%;width:5.01%"></i><em class="v" style="left:calc(30.65% + 7px)">1.10&times;</em></div>
+        <div class="rtrack" title="macOS — 81.9 s vs ghostty 98.3 s"><i class="bar w" style="left:25.64%;width:9.16%"></i><em class="v" style="left:calc(34.80% + 7px)">1.20&times;</em></div>
 
         <div class="rlabel">Cursor motion</div>
-        <div class="rtrack" title="Linux — 0.022 s vs ghostty 0.034 s"><i class="bar w" style="left:28.51%;width:24.46%"></i><em class="v" style="left:calc(52.97% + 7px)">1.55&times;</em></div>
-        <div class="rtrack" title="macOS — 0.031 s vs ghostty 0.037 s"><i class="bar w" style="left:28.51%;width:9.71%"></i><em class="v" style="left:calc(38.22% + 7px)">1.19&times;</em></div>
+        <div class="rtrack" title="Linux — 49.9 s vs ghostty 74.3 s"><i class="bar w" style="left:25.64%;width:19.98%"></i><em class="v" style="left:calc(45.62% + 7px)">1.49&times;</em></div>
+        <div class="rtrack" title="macOS — 70.4 s vs ghostty 71.2 s"><i class="bar w" style="left:25.64%;width:0.57%"></i><em class="v" style="left:calc(26.21% + 7px)">1.01&times;</em></div>
 
         <div class="rlabel">Alt screen</div>
-        <div class="rtrack" title="Linux — 0.117 s vs ghostty 0.135 s"><i class="bar w" style="left:28.51%;width:7.80%"></i><em class="v" style="left:calc(36.31% + 7px)">1.15&times;</em></div>
-        <div class="rtrack" title="macOS — 0.207 s vs ghostty 0.180 s"><i class="bar l" style="left:20.74%;width:7.77%"></i><em class="v" style="left:calc(28.51% + 7px)">0.87&times;</em></div>
+        <div class="rtrack" title="Linux — 80.8 s vs ghostty 85.9 s"><i class="bar w" style="left:25.64%;width:3.07%"></i><em class="v" style="left:calc(28.71% + 7px)">1.06&times;</em></div>
+        <div class="rtrack" title="macOS — 88.8 s vs ghostty 88.4 s"><i class="bar l" style="left:25.41%;width:0.23%"></i><em class="v" style="left:calc(25.64% + 7px)">1.00&times;</em></div>
 
         <div class="rlabel">Scroll region</div>
-        <div class="rtrack" title="Linux — 0.510 s vs ghostty 0.457 s"><i class="bar l" style="left:22.63%;width:5.88%"></i><em class="v" style="left:calc(28.51% + 7px)">0.90&times;</em></div>
-        <div class="rtrack" title="macOS — 0.181 s vs ghostty 0.217 s"><i class="bar w" style="left:28.51%;width:10.18%"></i><em class="v" style="left:calc(38.69% + 7px)">1.20&times;</em></div>
+        <div class="rtrack" title="Linux — 80.4 s vs ghostty 78.5 s"><i class="bar l" style="left:24.44%;width:1.20%"></i><em class="v" style="left:calc(25.64% + 7px)">0.98&times;</em></div>
+        <div class="rtrack" title="macOS — 90.3 s vs ghostty 96.6 s"><i class="bar w" style="left:25.64%;width:3.38%"></i><em class="v" style="left:calc(29.02% + 7px)">1.07&times;</em></div>
 
         <div class="rlabel">Long lines</div>
-        <div class="rtrack" title="Linux — 0.145 s vs ghostty 0.147 s"><i class="bar w" style="left:28.51%;width:0.56%"></i><em class="v" style="left:calc(29.07% + 7px)">1.01&times;</em></div>
-        <div class="rtrack" title="macOS — 0.163 s vs ghostty 0.181 s"><i class="bar w" style="left:28.51%;width:5.82%"></i><em class="v" style="left:calc(34.33% + 7px)">1.11&times;</em></div>
+        <div class="rtrack" title="Linux — 85.0 s vs ghostty 84.3 s"><i class="bar l" style="left:25.22%;width:0.42%"></i><em class="v" style="left:calc(25.64% + 7px)">0.99&times;</em></div>
+        <div class="rtrack" title="macOS — 93.7 s vs ghostty 97.3 s"><i class="bar w" style="left:25.64%;width:1.89%"></i><em class="v" style="left:calc(27.53% + 7px)">1.04&times;</em></div>
 
         <div class="rlabel">Binary dump</div>
-        <div class="rtrack" title="Linux — 0.479 s vs ghostty 1.624 s"><i class="bar w" style="left:28.51%;width:68.14%"></i><em class="v in" style="left:96.65%">3.39&times;</em></div>
-        <div class="rtrack" title="macOS — 0.189 s vs ghostty 0.545 s"><i class="bar w" style="left:28.51%;width:59.04%"></i><em class="v in" style="left:87.55%">2.88&times;</em></div>
+        <div class="rtrack" title="Linux — 26.7 s vs ghostty 109.9 s"><i class="bar w" style="left:25.64%;width:71.01%"></i><em class="v in" style="left:96.65%">4.12&times;</em></div>
+        <div class="rtrack" title="macOS — 31.8 s vs ghostty 110.1 s"><i class="bar w" style="left:25.64%;width:62.33%"></i><em class="v in" style="left:87.97%">3.46&times;</em></div>
 
-        <div class="rgroup">Run at length — 500 MB cats, 150,000-frame fire</div>
+        <div class="rgroup">Cats and DOOM-Fire — 500 MB, 150,000 frames</div>
 
         <div class="rlabel">ascii cat</div>
-        <div class="rtrack" title="Linux — 2.97 s vs ghostty 2.79 s"><i class="bar l" style="left:25.02%;width:3.49%"></i><em class="v" style="left:calc(28.51% + 7px)">0.94&times;</em></div>
-        <div class="rtrack" title="macOS — 1.82 s vs ghostty 2.01 s"><i class="bar w" style="left:28.51%;width:5.54%"></i><em class="v" style="left:calc(34.05% + 7px)">1.11&times;</em></div>
+        <div class="rtrack" title="Linux — 2.97 s vs ghostty 2.79 s"><i class="bar l" style="left:22.50%;width:3.14%"></i><em class="v" style="left:calc(25.64% + 7px)">0.94&times;</em></div>
+        <div class="rtrack" title="macOS — 1.82 s vs ghostty 2.01 s"><i class="bar w" style="left:25.64%;width:4.98%"></i><em class="v" style="left:calc(30.62% + 7px)">1.11&times;</em></div>
 
         <div class="rlabel">unicode cat</div>
-        <div class="rtrack" title="Linux — 2.88 s vs ghostty 5.15 s"><i class="bar w" style="left:28.51%;width:32.44%"></i><em class="v" style="left:calc(60.95% + 7px)">1.79&times;</em></div>
-        <div class="rtrack" title="macOS — 1.76 s vs ghostty 2.45 s"><i class="bar w" style="left:28.51%;width:18.46%"></i><em class="v" style="left:calc(46.97% + 7px)">1.39&times;</em></div>
+        <div class="rtrack" title="Linux — 2.88 s vs ghostty 5.15 s"><i class="bar w" style="left:25.64%;width:29.17%"></i><em class="v" style="left:calc(54.81% + 7px)">1.79&times;</em></div>
+        <div class="rtrack" title="macOS — 1.76 s vs ghostty 2.45 s"><i class="bar w" style="left:25.64%;width:16.60%"></i><em class="v" style="left:calc(42.24% + 7px)">1.39&times;</em></div>
 
         <div class="rlabel">DOOM-Fire</div>
-        <div class="rtrack" title="Linux — 1610 fps vs ghostty 830 fps"><i class="bar w" style="left:28.51%;width:36.98%"></i><em class="v" style="left:calc(65.49% + 7px)">1.94&times;</em></div>
-        <div class="rtrack" title="macOS — 1119 fps vs ghostty 1071 fps"><i class="bar w" style="left:28.51%;width:2.45%"></i><em class="v" style="left:calc(30.96% + 7px)">1.05&times;</em></div>
+        <div class="rtrack" title="Linux — 1610 fps vs ghostty 830 fps"><i class="bar w" style="left:25.64%;width:33.25%"></i><em class="v" style="left:calc(58.89% + 7px)">1.94&times;</em></div>
+        <div class="rtrack" title="macOS — 1119 fps vs ghostty 1071 fps"><i class="bar w" style="left:25.64%;width:2.20%"></i><em class="v" style="left:calc(27.84% + 7px)">1.05&times;</em></div>
 
         <div class="rgroup"></div>
 
-        <div class="rlabel tot">All ten, 10-second bursts</div>
-        <div class="rtrack" title="Linux — 3.219 s vs ghostty 5.183 s"><i class="bar w" style="left:28.51%;width:26.58%"></i><em class="v tot" style="left:calc(55.09% + 7px)">1.61&times;</em></div>
-        <div class="rtrack" title="macOS — 2.391 s vs ghostty 3.114 s"><i class="bar w" style="left:28.51%;width:14.64%"></i><em class="v tot" style="left:calc(43.15% + 7px)">1.30&times;</em></div>
-
-        <div class="rlabel tot">All ten, steady state</div>
-        <div class="rtrack" title="Linux — 696 s vs ghostty 960 s, each workload run 1–2 minutes"><i class="bar w" style="left:28.51%;width:17.97%"></i><em class="v tot" style="left:calc(46.48% + 7px)">1.38&times;</em></div>
-        <div class="rtrack" title="macOS — 761 s vs ghostty 974 s, each workload run 1–2 minutes"><i class="bar w" style="left:28.51%;width:13.78%"></i><em class="v tot" style="left:calc(42.29% + 7px)">1.28&times;</em></div>
+        <div class="rlabel tot">All ten workloads</div>
+        <div class="rtrack" title="Linux — 696 s vs ghostty 960 s"><i class="bar w" style="left:25.64%;width:16.12%"></i><em class="v tot" style="left:calc(41.76% + 7px)">1.38&times;</em></div>
+        <div class="rtrack" title="macOS — 761 s vs ghostty 974 s"><i class="bar w" style="left:25.64%;width:12.41%"></i><em class="v tot" style="left:calc(38.05% + 7px)">1.28&times;</em></div>
 
         <div></div>
-        <div class="raxis"><span class="mn" style="left:12.45%">0.75&times;</span><span style="left:28.51%">1&times;</span><span class="mn" style="left:51.14%">1.5&times;</span><span style="left:67.2%">2&times;</span><span class="mn" style="left:89.82%">3&times;</span></div>
-        <div class="raxis"><span class="mn" style="left:12.45%">0.75&times;</span><span style="left:28.51%">1&times;</span><span class="mn" style="left:51.14%">1.5&times;</span><span style="left:67.2%">2&times;</span><span class="mn" style="left:89.82%">3&times;</span></div>
+        <div class="raxis"><span class="mn" style="left:11.2%">0.75&times;</span><span style="left:25.64%">1&times;</span><span class="mn" style="left:45.99%">1.5&times;</span><span style="left:60.43%">2&times;</span><span class="mn" style="left:80.78%">3&times;</span><span class="mn" style="left:95.22%">4&times;</span></div>
+        <div class="raxis"><span class="mn" style="left:11.2%">0.75&times;</span><span style="left:25.64%">1&times;</span><span class="mn" style="left:45.99%">1.5&times;</span><span style="left:60.43%">2&times;</span><span class="mn" style="left:80.78%">3&times;</span><span class="mn" style="left:95.22%">4&times;</span></div>
       </div>
     </div>
-    <p class="note">Medians of three runs; hover a row for the raw values. The ten
-      workloads are ten-second bursts; the cats and the fire are run at length,
-      because length is where sustained throughput shows — at 500 MB, ghostty's
-      Linux unicode throughput roughly halves (184 to 97 MB/s) while ours holds,
-      and at 150 MB the same cat reads a mere 1.24&times;. The one test ghostty
-      keeps is the Linux ascii cat, by ~6% — its <code>io_uring</code> read path
-      gets under the <code>read(2)</code> floor ours sits on. macOS has no
-      io_uring, and the cat flips to us; the macOS legs run this week's
-      paced-reader build.</p>
+    <p class="note">Hover any row for the raw seconds. Sustained is the regime that
+      matters, and it is not always the flattering one — the two workloads ghostty
+      wins in ten-second bursts (light and dense cells, 0.85&times; and 0.69&times;
+      short-range) converge to parity here, but ghostty also gains nothing back:
+      its Linux unicode throughput halves at scale (184 to 97 MB/s) while ours
+      holds. The one test it keeps anywhere is the Linux ascii cat, by ~6% — its
+      <code>io_uring</code> read path gets under the <code>read(2)</code> floor
+      ours sits on. macOS has no io_uring, and the cat flips to us.</p>
 
     <p class="dim-head">The cost — CPU and memory for the same work</p>
     <div class="cost-grid">
       <div class="chart-card">
         <div class="card-title">CPU to run the suite</div>
-        <div class="card-sub">process CPU-seconds, all ten workloads</div>
-        <div class="cpu-plat"><b>Linux</b><span>ghostty burns 2.17&times;</span></div>
-        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:34.3%"></i><em class="v" style="left:calc(34.3% + 7px)">4.5 s</em></div></div>
-        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:74.3%"></i><em class="v" style="left:calc(74.3% + 7px)">9.7 s</em></div></div>
-        <div class="cpu-plat"><b>macOS</b><span>ghostty burns 3.37&times;</span></div>
-        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:18.3%"></i><em class="v" style="left:calc(18.3% + 7px)">2.4 s</em></div></div>
-        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:61.7%"></i><em class="v" style="left:calc(61.7% + 7px)">8.0 s</em></div></div>
-        <p class="card-foot">The wall-time wins are not bought with cores — and the gap
-          holds at steady state: 1.87&times; on Linux, 2.25&times; on macOS.</p>
+        <div class="card-sub">process CPU-seconds, ten workloads at steady state</div>
+        <div class="cpu-plat"><b>Linux</b><span>ghostty burns 1.87&times;</span></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:34.3%"></i><em class="v" style="left:calc(34.3% + 7px)">1030 s</em></div></div>
+        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:64.3%"></i><em class="v" style="left:calc(64.3% + 7px)">1930 s</em></div></div>
+        <div class="cpu-plat"><b>macOS</b><span>ghostty burns 2.25&times;</span></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:36.0%"></i><em class="v" style="left:calc(36.0% + 7px)">1081 s</em></div></div>
+        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:81.2%"></i><em class="v" style="left:calc(81.2% + 7px)">2436 s</em></div></div>
+        <p class="card-foot">The wall wins are not bought with cores. In ten-second
+          bursts the gap is wider still: 2.17&times; and 3.37&times;.</p>
       </div>
       <div class="chart-card">
         <div class="card-title">Memory — Linux</div>
@@ -606,27 +604,21 @@
       set no matter how much has been drawn — while ghostty's grows with load; only
       the light Linux legs leave it below us.</p>
 
-    <p class="dim-head">The steady-state rounds</p>
+    <p class="dim-head">The rounds behind the numbers</p>
     <p class="note">
-      The same suite repeated until each workload runs one to two minutes (~159 GB of
-      escape-sequence traffic per terminal on Linux, ~30 GB on macOS), the cats grown
-      to 500 MB, DOOM-Fire run to 150,000 frames three times over. Length is kind to
-      us on both platforms. On Linux, the two workloads ghostty won at short range
-      (light and dense cells, 0.85&times; and 0.69&times; above) converge to parity,
-      no workload falls behind by more than 2%, and the fire widens to 1.94&times; —
-      1610 fps on ~1.8 cores against 830 on ~2.1. On macOS — measured on this week's
-      build, whose paced pty reader postdates the short-run chart above — all ten
-      workloads land at or ahead, the unicode cat flips from a 6% loss to a
-      1.39&times; win, and the fire holds 1.05&times; on 0.57&times; the CPU; a rerun
-      after the macOS 26.6.1 upgrade moved nothing. What never converges is cost: at
-      steady state ghostty burns 1.9&times; our CPU on Linux and 2.25&times; on macOS
-      for the same bytes. Every number is a pair measured back to back on one machine,
-      and the raw runs are checked in at
+      Each workload is repeated until it runs one to two minutes per side — ~159 GB
+      of escape-sequence traffic per terminal on Linux, ~30 GB on macOS — the cats
+      are exact 500,000,000-byte corpora, and DOOM-Fire runs its 150,000 frames
+      three times over, all verified at the same grid. The Linux legs ran on a
+      30 Hz display, so raw walls compare within a platform; the ratios carry. The
+      macOS legs run this week's paced pty reader, and a rerun after the macOS
+      26.6.1 upgrade moved nothing. Every number is a pair measured back to back on
+      one machine, and the raw runs are checked in at
       <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>
-      (<code>terminal-vs-ghostty-2026-08-13-atlas</code>,
-      <code>terminal-vs-ghostty-macos-2026-08-13-samefont</code>, the two
-      <code>-2026-08-14-long</code> steady-state rounds, and the
-      <code>-macos-2026-08-14-postupgrade</code> confirmation).
+      (the two <code>-2026-08-14-long</code> rounds, the
+      <code>-macos-2026-08-14-postupgrade</code> confirmation, and the short-range
+      rounds <code>-2026-08-13-atlas</code> and
+      <code>-macos-2026-08-13-samefont</code>).
     </p>
 
     <details class="receipts">
@@ -699,7 +691,17 @@
                   <th class="sep">Starling</th><th>ghostty</th><th>Speedup</th></tr>
             </thead>
             <tbody>
-              <tr><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td></tr>
+              <tr><td>Light cells</td><td class="sep">101.2 s</td><td>102.0 s</td><td>1.01&times;</td><td class="sep">53.9 s</td><td>96.9 s</td><td class="win">1.80&times;</td></tr>
+              <tr><td>Dense cells</td><td class="sep">86.8 s</td><td>86.2 s</td><td>0.99&times;</td><td class="sep">92.0 s</td><td>96.7 s</td><td class="win">1.05&times;</td></tr>
+              <tr><td>Coloured text</td><td class="sep">34.0 s</td><td>108.3 s</td><td class="win">3.19&times;</td><td class="sep">76.9 s</td><td>112.4 s</td><td class="win">1.46&times;</td></tr>
+              <tr><td>Truecolour</td><td class="sep">54.2 s</td><td>122.8 s</td><td class="win">2.27&times;</td><td class="sep">81.1 s</td><td>106.5 s</td><td class="win">1.31&times;</td></tr>
+              <tr><td>Unicode</td><td class="sep">97.1 s</td><td>107.3 s</td><td class="win">1.10&times;</td><td class="sep">81.9 s</td><td>98.3 s</td><td class="win">1.20&times;</td></tr>
+              <tr><td>Cursor motion</td><td class="sep">49.9 s</td><td>74.3 s</td><td class="win">1.49&times;</td><td class="sep">70.4 s</td><td>71.2 s</td><td>1.01&times;</td></tr>
+              <tr><td>Alt screen</td><td class="sep">80.8 s</td><td>85.9 s</td><td class="win">1.06&times;</td><td class="sep">88.8 s</td><td>88.4 s</td><td>1.00&times;</td></tr>
+              <tr><td>Scroll region</td><td class="sep">80.4 s</td><td>78.5 s</td><td class="loss">0.98&times;</td><td class="sep">90.3 s</td><td>96.6 s</td><td class="win">1.07&times;</td></tr>
+              <tr><td>Long lines</td><td class="sep">85.0 s</td><td>84.3 s</td><td>0.99&times;</td><td class="sep">93.7 s</td><td>97.3 s</td><td class="win">1.04&times;</td></tr>
+              <tr><td>Binary dump</td><td class="sep">26.7 s</td><td>109.9 s</td><td class="win">4.12&times;</td><td class="sep">31.8 s</td><td>110.1 s</td><td class="win">3.46&times;</td></tr>
+              <tr class="total"><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td></tr>
               <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">1081 s</td><td>2436 s</td><td class="win">2.25&times;</td></tr>
               <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.82 s</td><td>2.01 s</td><td class="win">1.11&times;</td></tr>
               <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">1.76 s</td><td>2.45 s</td><td class="win">1.39&times;</td></tr>
