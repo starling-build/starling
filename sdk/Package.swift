@@ -313,6 +313,13 @@ products += [
     // IME and a11y come from the same code path real Flutter Linux apps use.
     // Separate product so shell/DRM consumers don't inherit GTK linkage.
     .library(name: "FlutterGTK", targets: ["FlutterGTK"]),
+    // The host the examples run on — `runExampleApp` over GTKHost, plus the
+    // engine-data bootstrap. A product, not just a target, because an outside
+    // package cannot import a target: without this the eight-line terminal
+    // (Examples/TerminalDemo, and the starter repo that mirrors it) is
+    // reproducible only *inside* this package, which is precisely the claim
+    // it exists to make.
+    .library(name: "ExampleHost", targets: ["ExampleHost"]),
     // The demo, runnable on a stock desktop: swift run -c release FlutterDemo.
     // Named FlutterDemo, not FlutterDemoApp: the starling desktop ships an app
     // by that name in the same package graph, and SwiftPM requires target and
@@ -358,6 +365,10 @@ products += [
     // path real Flutter macOS apps use. The counterpart of FlutterGTK on Linux
     // and FlutterWin32 on Windows.
     .library(name: "FlutterCocoa", targets: ["FlutterCocoa"]),
+    // As on Linux: the example host, exported so an outside package can build
+    // the same few-line app. Not in the iosBuild branch above — ExampleHost is
+    // defined only for the desktop half of this platform.
+    .library(name: "ExampleHost", targets: ["ExampleHost"]),
     // The classic `flutter create` counter, ported from Dart — the first
     // sample proven on this platform.
     .executable(name: "CounterApp", targets: ["CounterApp"]),
@@ -372,6 +383,9 @@ products += [
     // management, input, IME and accessibility come from the same code path
     // real Flutter Windows apps use. The counterpart of FlutterGTK on Linux.
     .library(name: "FlutterWin32", targets: ["FlutterWin32"]),
+    // As on Linux: the example host, exported so an outside package can build
+    // the same few-line app.
+    .library(name: "ExampleHost", targets: ["ExampleHost"]),
     // The classic `flutter create` counter, ported from Dart — the first
     // sample proven on this platform.
     .executable(name: "CounterApp", targets: ["CounterApp"]),
