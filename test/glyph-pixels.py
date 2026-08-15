@@ -431,9 +431,9 @@ def _near(p, c, tol=60):
     return max(abs(p[0] - c[0]), abs(p[1] - c[1]), abs(p[2] - c[2])) <= tol
 
 
-def _rule_rows(img, cell_box, line, c):
+def _rule_rows(img, rule_box, line, c):
     """Which pixel rows of one cell carry ink — the rule, in a blank cell."""
-    x0, y0, x1, y1 = cell_box(line, c, 1)
+    x0, y0, x1, y1 = rule_box(line, c, 1)
     return {y for y in range(y0, y1)
             if any(not _near(img.getpixel((x, y)), MAGENTA)
                    for x in range(x0, x1))}
@@ -463,7 +463,7 @@ def check_reverse(img, cell_box, line):
     return bad
 
 
-def check_underline(img, cell_box, line, plain_line, cells):
+def check_underline(img, rule_box, line, plain_line, cells):
     """An underline is the only ink an underlined space has.
 
     The band is validated against a row known NOT to be underlined before it is
@@ -471,7 +471,7 @@ def check_underline(img, cell_box, line, plain_line, cells):
     reads as a broken renderer rather than a broken measurement.
     """
     def band(ln, c):
-        x0, y0, x1, y1 = cell_box(ln, c, 1)
+        x0, y0, x1, y1 = rule_box(ln, c, 1)
         h = y1 - y0
         return img.crop((x0, y0 + int(h * 0.62), x1, y1))
 
@@ -534,6 +534,23 @@ def analyse(path, verbose=True):
         # this gate must never be wrong in.
         return (round(origin + c0 * cell), top,
                 round(origin + (c0 + cells) * cell), bot)
+
+    def rule_box(line, c0, cells):
+        """The same cell, WITHOUT the vertical inset — for underlines only.
+
+        An underline is drawn on the cell's last pixel row, which is exactly
+        what `cell_box`'s 12% bottom inset removes: at a 17 px row that inset
+        is 2 px, the rule sits inside it, and a terminal drawing underlines
+        perfectly reports every cell blank. Measured on Windows at a 17.00 px
+        row — rule at y=505, band ended at y=504 — and both terminals under
+        test failed identically, which is what a measurement bug looks like
+        and a renderer bug does not.
+
+        The bottom is the row's own last pixel, so this still cannot reach
+        into the row below; only the inset the glyph checks need is dropped.
+        """
+        x0b, _, x1b, _ = cell_box(line, c0, cells)
+        return (x0b, int(y0 + line * row_h), x1b, int(y0 + (line + 1) * row_h))
 
     failures = []
     if ruler_complaint:
@@ -654,9 +671,9 @@ def analyse(path, verbose=True):
             # rule and this compared its output against itself. It passed
             # against a deliberately mis-placed rule, which is how that was
             # found.
-            bad = check_underline(img, cell_box, line, FIRST_ROW,
+            bad = check_underline(img, rule_box, line, FIRST_ROW,
                                   range(BLOCK_CELLS - 1))
-            engine, painter = (_rule_rows(img, cell_box, line, c)
+            engine, painter = (_rule_rows(img, rule_box, line, c)
                                for c in (1, TERMINATOR_CELL))
             if not engine or not painter:
                 side = "the engine" if not engine else "the row painter"
@@ -665,12 +682,12 @@ def analyse(path, verbose=True):
                 bad.append(f"the rule steps at the seam: engine draws rows "
                            f"{sorted(engine)}, the row painter {sorted(painter)}")
         elif terminated:
-            bad = check_underline(img, cell_box, line, FIRST_ROW,
+            bad = check_underline(img, rule_box, line, FIRST_ROW,
                                   range(CONTENT_CELLS))
         else:
             # Only the tail: cells past where a terminator would have been, so
             # the run under test is the one that ends the line.
-            bad = check_underline(img, cell_box, line, FIRST_ROW,
+            bad = check_underline(img, rule_box, line, FIRST_ROW,
                                   range(TERMINATOR_CELL + 1, BLOCK_CELLS - 1))
         if bad:
             failures.append(f"{name}: {bad[0]}"
