@@ -378,12 +378,37 @@ int plat_spawn_daemon(int idle_seconds) {
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi;
     ZeroMemory(&pi, sizeof(pi));
-    // DETACHED_PROCESS: the daemon must outlive the ssh channel that started
-    // it, and must not inherit the bridge's console.
-    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE,
-                        DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+
+    // DETACHED_PROCESS keeps the daemon off the bridge's console, and
+    // CREATE_BREAKAWAY_FROM_JOB is what actually keeps it alive.
+    //
+    // Windows OpenSSH runs each session inside a JOB OBJECT and kills the job
+    // when the connection drops, which takes every descendant with it —
+    // detached or not, new process group or not. Without breakaway a session
+    // does not outlive its ssh client, which is the one thing this program
+    // exists to do: measured, `--list` from a second connection went from one
+    // daemon to "no daemon running" the moment the first client's ssh died.
+    // It is invisible locally, where nothing puts us in a job.
+    //
+    // Breakaway needs the job to permit it (JOB_OBJECT_LIMIT_BREAKAWAY_OK);
+    // when it does not, CreateProcess fails with ERROR_ACCESS_DENIED rather
+    // than silently ignoring the flag, so retry without it and leave the
+    // daemon in the job. That is worse than nothing only in the sense that it
+    // is what we had before — a session that dies with its client beats no
+    // session at all.
+    DWORD flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                | CREATE_BREAKAWAY_FROM_JOB;
+    if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, flags,
                         NULL, NULL, &si, &pi)) {
-        return -1;
+        if (GetLastError() != ERROR_ACCESS_DENIED) return -1;
+        // The command line buffer may have been written to by the failed call.
+        _snwprintf(cmd, MAX_PATH + 64, L"\"%s\" --serve --idle-exit %d",
+                   self, idle_seconds);
+        flags &= ~(DWORD)CREATE_BREAKAWAY_FROM_JOB;
+        if (!CreateProcessW(NULL, cmd, NULL, NULL, FALSE, flags,
+                            NULL, NULL, &si, &pi)) {
+            return -1;
+        }
     }
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
