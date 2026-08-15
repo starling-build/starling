@@ -100,6 +100,26 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       }
       return 0;
 
+    case WM_DPICHANGED:
+      // The frame has to resize ITSELF here. flwin32_host_create asks for
+      // PER_MONITOR_AWARE_V2, which is a promise that this window handles its
+      // own scaling — so Windows stops stretching it for us and merely says
+      // "you are now at this DPI, here is the rectangle you should occupy"
+      // (lparam). Ignore it and the window keeps its old *physical* size
+      // across the change: dragged onto a 150% monitor it stays small with
+      // the content laid out for the other scale, and maximized onto one it
+      // covers the wrong area. Flutter's own Win32 runner does exactly this;
+      // the WM_SIZE that follows carries the new client size down to the
+      // engine's child.
+      if (lparam != 0) {
+        const RECT* suggested = (const RECT*)lparam;
+        SetWindowPos(hwnd, NULL, suggested->left, suggested->top,
+                     suggested->right - suggested->left,
+                     suggested->bottom - suggested->top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+      }
+      return 0;
+
     case WM_SETFOCUS:
       // Hand keyboard focus down to the engine's view. Activating the frame
       // focuses the frame, and the view is a child window — without this the
