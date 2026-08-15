@@ -413,6 +413,33 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var _viewOffset = 0
     /// Fractional lines carried between touchpad pan events.
     private var _panLines: Double = 0
+
+    /// A finger is not a mouse. A mouse selects from the down edge and
+    /// scrolls with its wheel; a finger's drag IS the scroll — a phone has
+    /// no other scroll input — so on touch the roles move: drag scrolls the
+    /// scrollback, a long-press (finger held inside the slop) starts the
+    /// selection, and a plain tap raises the soft keyboard. Mouse, trackpad
+    /// and stylus keep the desktop behaviour above.
+    private enum TouchPhase { case undecided, scrolling, selecting }
+    /// The touch being tracked, nil when none — or when a second finger
+    /// turned the gesture into a pinch and took it away.
+    private var _touchPointer: Int?
+    private var _touchPhase = TouchPhase.undecided
+    /// Where the finger landed; movement past the slop decides scrolling.
+    private var _touchStart = Offset.zero
+    /// Last position: per-event scroll deltas, and where a fling anchors.
+    private var _touchLast = Offset.zero
+    /// Fractional lines carried between touch move events.
+    private var _touchLines: Double = 0
+    /// (monotonic seconds, y) samples inside the fling velocity window.
+    private var _touchSamples: [(t: Double, y: Double)] = []
+    /// Invalidates the pending long-press when the finger moves or lifts.
+    private var _longPressGeneration = 0
+    /// Invalidates fling ticks on a new touch, a keystroke, or dispose.
+    private var _flingGeneration = 0
+    /// Flutter's kTouchSlop and kLongPressTimeout.
+    private static let touchSlop: Double = 18
+    private static let longPressTimeout: Double = 0.5
     /// True while this terminal is the reported IME caret anchor.
     private var _sentImeCaret = false
 
@@ -503,6 +530,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     override func dispose() {
         _stopBlink()
+        _longPressGeneration += 1
+        _flingGeneration += 1
         // Only if this view is still the owner: a remount installs the new
         // view's hook first, and clearing it here would leave the pane
         // running but permanently unpainted (see TerminalSession.activityOwner).
@@ -723,7 +752,9 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
 
         // Any other key snaps the view back to the live screen and drops
-        // the selection.
+        // the selection — and stops a fling mid-air, which would otherwise
+        // scroll straight back out of the live screen it just snapped to.
+        _flingGeneration += 1
         if _viewOffset != 0 || _selAnchor != nil {
             _viewOffset = 0
             _selAnchor = nil
@@ -813,6 +844,133 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         let target = max(0, min(_viewOffset + lines, limit))
         if target != _viewOffset {
             setState { _viewOffset = target }
+        }
+    }
+
+    // MARK: - Touch
+
+    /// A finger going down decides nothing yet: inside the slop it may still
+    /// become a tap (keyboard) or a long-press (selection); past it, a scroll.
+    private func _touchBegan(_ event: PointerEvent) {
+        _touchPointer = event.pointer
+        _touchPhase = .undecided
+        _touchStart = event.localPosition
+        _touchLast = event.localPosition
+        _touchLines = 0
+        _touchSamples = [(Self._now(), event.localPosition.dy)]
+        _longPressGeneration += 1
+        let generation = _longPressGeneration
+        let pointer = event.pointer
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.longPressTimeout
+        ) { [weak self] in
+            guard let self, generation == self._longPressGeneration,
+                  self._touchPointer == pointer,
+                  self._touchPhase == .undecided else { return }
+            // The finger held still: a selection, anchored where it rests,
+            // extended by whatever drag follows.
+            self._touchPhase = .selecting
+            let cell = self._cellAt(self._touchLast)
+            self.setState {
+                self._selecting = true
+                self._selAnchor = cell
+                self._selHead = cell
+            }
+        }
+    }
+
+    private func _touchMoved(_ event: PointerEvent) {
+        let pos = event.localPosition
+        if _touchPhase == .undecided {
+            let dx = pos.dx - _touchStart.dx, dy = pos.dy - _touchStart.dy
+            guard dx * dx + dy * dy > Self.touchSlop * Self.touchSlop else {
+                _touchLast = pos
+                return
+            }
+            _longPressGeneration += 1  // moved: no longer a long-press
+            _touchPhase = .scrolling
+            _touchLast = pos           // the slop is not scroll distance
+            _touchSamples = [(Self._now(), pos.dy)]
+            return
+        }
+        // .scrolling. Dragging DOWN pulls older lines into view: positive
+        // lines walk back through history — the direct-manipulation
+        // direction, opposite in sign to a trackpad's pan delta.
+        let dy = pos.dy - _touchLast.dy
+        _touchLast = pos
+        let now = Self._now()
+        _touchSamples.append((now, pos.dy))
+        _touchSamples.removeAll { now - $0.t > 0.1 }
+        _touchLines += dy / cellH
+        let whole = _touchLines.rounded(.towardZero)
+        guard whole != 0 else { return }
+        _touchLines -= whole
+        _scrollBy(lines: Int(whole), at: pos)
+    }
+
+    private func _touchEnded(_ event: PointerEvent) {
+        _touchPointer = nil
+        _longPressGeneration += 1
+        let phase = _touchPhase
+        _touchPhase = .undecided
+        switch phase {
+        case .undecided:
+            // A tap: clears the selection, and asks for the keyboard.
+            // Raised from the tap rather than from focus, because dismissing
+            // it with the accessory bar's own button leaves this view focused
+            // the whole time — keyed on focus, the tap that means "give it
+            // back" would do nothing.
+            if _selAnchor != nil || _selHead != nil {
+                setState {
+                    _selAnchor = nil
+                    _selHead = nil
+                }
+            }
+            SoftKeyboard.show()
+        case .selecting:
+            // The drag is over; the selection stays, for Copy.
+            _selecting = false
+        case .scrolling:
+            _startFling(at: event.localPosition)
+        }
+    }
+
+    /// Carry a released drag onward with UIScrollView's decay (0.998/ms).
+    /// Scrollback only: a fling translated into arrow keys or wheel reports
+    /// would hose the far application with input it never asked for.
+    private func _startFling(at position: Offset) {
+        _lock.lock()
+        let plain = !emulator.altActive
+            && !(emulator.mouseTracking && emulator.mouseSgr)
+        _lock.unlock()
+        guard plain, _touchSamples.count >= 2,
+              let first = _touchSamples.first, let last = _touchSamples.last,
+              last.t - first.t > 0.001 else { return }
+        let velocity = (last.y - first.y) / (last.t - first.t)
+        guard abs(velocity) > 200 else { return }
+        _flingGeneration += 1
+        _flingTick(_flingGeneration, velocity: velocity, carry: _touchLines,
+                   position: position)
+    }
+
+    private func _flingTick(_ generation: Int, velocity: Double,
+                            carry: Double, position: Offset) {
+        let dt = 1.0 / 60.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + dt) { [weak self] in
+            guard let self, generation == self._flingGeneration else { return }
+            var carry = carry + velocity * dt / self.cellH
+            let whole = carry.rounded(.towardZero)
+            carry -= whole
+            if whole != 0 {
+                let before = self._viewOffset
+                self._scrollBy(lines: Int(whole), at: position)
+                // Pinned against an end of the scrollback: nothing further.
+                if self._viewOffset == before { return }
+            }
+            let next = velocity * pow(0.998, dt * 1000)
+            guard abs(next) > 40 else { return }
+            self._flingTick(generation, velocity: next, carry: carry,
+                            position: position)
         }
     }
 
@@ -1364,9 +1522,14 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             onPointerDown: { [self] event in
                 focusNode.requestFocus()
                 _pointers.insert(event.pointer)
+                _flingGeneration += 1
                 // A second finger is a pinch. Drop the selection it would
-                // otherwise have been dragging out from under the first.
+                // otherwise have been dragging out from under the first —
+                // and the touch gesture in flight with it.
                 if _pointers.count > 1 {
+                    _longPressGeneration += 1
+                    _touchPointer = nil
+                    _touchPhase = .undecided
                     if _selecting || _selAnchor != nil {
                         setState {
                             _selecting = false
@@ -1374,6 +1537,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                             _selHead = nil
                         }
                     }
+                    return
+                }
+                if event.kind == .touch {
+                    _touchBegan(event)
                     return
                 }
                 guard event.buttons & 1 != 0 else { return }
@@ -1385,7 +1552,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 }
             },
             onPointerMove: { [self] event in
-                guard _selecting, _pointers.count <= 1 else { return }
+                guard _pointers.count <= 1 else { return }
+                if _touchPointer == event.pointer, _touchPhase != .selecting {
+                    _touchMoved(event)
+                    return
+                }
+                guard _selecting else { return }
                 let cell = _cellAt(event.localPosition)
                 if _selHead == nil || cell != _selHead! {
                     setState { _selHead = cell }
@@ -1393,6 +1565,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             },
             onPointerUp: { [self] event in
                 _pointers.remove(event.pointer)
+                if _touchPointer == event.pointer {
+                    _touchEnded(event)
+                    return
+                }
                 guard _selecting else { return }
                 _selecting = false
                 // A click without a drag clears the selection.
@@ -1412,6 +1588,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             onPointerCancel: { [self] event in
                 _pointers.remove(event.pointer)
                 _selecting = false
+                if _touchPointer == event.pointer {
+                    _touchPointer = nil
+                    _touchPhase = .undecided
+                    _longPressGeneration += 1
+                }
             },
             // A touchpad does not arrive here. The GTK embedder splits the two
             // apart (fl_scrolling_manager.cc): a wheel becomes a scroll SIGNAL,
