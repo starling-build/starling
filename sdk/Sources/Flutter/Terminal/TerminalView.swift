@@ -354,6 +354,9 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var _shiftDown = false
     /// Ctrl state (keysyms 0xFFE3/0xFFE4) — for Ctrl+Shift+C/V copy/paste.
     private var _ctrlDown = false
+    /// Cmd state (Flutter logical ids 0x2_0000_0106/7, keysyms 0xFFE7/0xFFE8)
+    /// — for the native Cmd+C/V/F chords on macOS.
+    private var _metaDown = false
 
     /// Text selection, in ABSOLUTE buffer coordinates (line index into
     /// scrollback+grid, column) so it stays anchored to content while new
@@ -578,6 +581,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             _ctrlDown = (keyData.type == .down || keyData.type == .repeat)
             return false
         }
+        if keyData.logical == 0xFFE7 || keyData.logical == 0xFFE8
+            || keyData.logical == 0x2_0000_0106 || keyData.logical == 0x2_0000_0107 {
+            _metaDown = (keyData.type == .down || keyData.type == .repeat)
+            return false
+        }
         guard keyData.type == .down || keyData.type == .repeat else { return false }
 
         // Typing holds the cursor solid; it resumes blinking when idle.
@@ -603,6 +611,25 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 return true
             }
         }
+
+        #if os(macOS)
+        // Cmd+C / Cmd+V / Cmd+F — the native macOS chords, beside the
+        // Ctrl+Shift ones every platform gets.
+        if _metaDown && !_ctrlDown {
+            if keyData.logical == 0x43 || keyData.logical == 0x63 {  // C/c
+                _copySelection()
+                return true
+            }
+            if keyData.logical == 0x56 || keyData.logical == 0x76 {  // V/v
+                _paste()
+                return true
+            }
+            if keyData.logical == 0x46 || keyData.logical == 0x66 {  // F/f
+                _openSearch()
+                return true
+            }
+        }
+        #endif
 
         // Shift+PageUp / Shift+PageDown page through scrollback.
         if _shiftDown && (keyData.logical == 0xFF55 || keyData.logical == 0xFF56) {
@@ -988,8 +1015,12 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         let logical = keyData.logical
         // Esc — or the opening chord again — closes. The view offset is
         // kept: the next ordinary keystroke snaps back to live, as always.
-        if logical == 0xFF1B || logical == 0x1_0000_001B
-            || (_ctrlDown && _shiftDown && (logical == 0x46 || logical == 0x66)) {
+        let isF = logical == 0x46 || logical == 0x66
+        var toggleChord = _ctrlDown && _shiftDown && isF
+        #if os(macOS)
+        toggleChord = toggleChord || (_metaDown && isF)  // Cmd+F, like open
+        #endif
+        if logical == 0xFF1B || logical == 0x1_0000_001B || toggleChord {
             _closeSearch()
             return true
         }
@@ -1013,7 +1044,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             }
             return true
         }
-        if !_ctrlDown, let ch = keyData.character, !ch.isEmpty,
+        if !_ctrlDown, !_metaDown, let ch = keyData.character, !ch.isEmpty,
            let s = ch.unicodeScalars.first, s.value >= 0x20 {
             _searchQuery += ch
             _runSearch()

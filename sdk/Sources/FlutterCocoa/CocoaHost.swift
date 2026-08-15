@@ -36,6 +36,12 @@ public final class CocoaHost {
     /// is not.
     public init?(width: Int, height: Int, title: String,
                  assetsPath: String? = nil, icuDataPath: String? = nil) {
+        // The system clipboard, so copy/paste reaches the rest of the Mac
+        // rather than staying inside the process (Clipboard's no-provider
+        // fallback). Here and not in CocoaWindowedHost.install(), because
+        // the example hosts construct a CocoaHost without going through it.
+        Clipboard.provider = CocoaClipboardProvider()
+
         let dataDir = CocoaHost.executableDirectory + "/data"
         let assets = assetsPath ?? (dataDir + "/flutter_assets")
         let icu = icuDataPath ?? (dataDir + "/icudtl.dat")
