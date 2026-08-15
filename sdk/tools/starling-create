@@ -1,0 +1,376 @@
+#!/usr/bin/env bash
+# starling-create — start a Starling app from nothing.
+#
+#   curl -fLO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-create
+#   chmod +x starling-create
+#   ./starling-create myterm && cd myterm && swift run -c release
+#
+# One file, shipped as an asset on the Starling Terminal release — the same
+# release that carries the terminal itself — so the tool and the SDK bundle it
+# fetches are versioned together and come from one tag. It checks your
+# toolchain, downloads the SDK — the Flutter-to-Swift framework plus the engine
+# binaries it links against — and writes a SwiftPM project wired to it. There
+# is no repo to clone, no engine checkout, no Flutter install and no system
+# Flutter anywhere in that.
+#
+#   ./starling-create [name] [options]
+#
+#     --template terminal|app   what to scaffold (default: terminal)
+#     --run                     build and run it when the project is written
+#     --release <tag>           release to fetch the SDK from (default: $RELEASE)
+#     --force                   overwrite an existing directory
+#     -h, --help
+#
+# The SDK is cached once per release under ~/.starling/sdk and shared by every
+# project, so the second project costs no download. The project gets an `sdk`
+# symlink into that cache, which is what its Package.swift depends on by path.
+#
+# Overrides, for working offline or against an unreleased build:
+#   STARLING_SDK_TARBALL   a local bundle tarball (sdk/tools/make-bundle.sh)
+#   STARLING_SDK_HOME      cache location, default ~/.starling/sdk
+set -euo pipefail
+
+# The release this tool ships on, and therefore the one it pulls the SDK from:
+# a tool downloaded from a tag should install that tag, not drift to whatever
+# is newest. Bump both together when cutting a release.
+RELEASE="${STARLING_RELEASE:-terminal-v0.1.0}"
+GH_REPO="starling-build/starling"
+NAME=""
+TEMPLATE=terminal
+RUN=0
+FORCE=0
+
+die() { echo "error: $*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+
+# Everything from line 2 down to the `set` line, comments only — so editing the
+# header above cannot silently truncate --help the way a fixed line range does.
+usage() { sed -n '2,/^set -euo/p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'; exit 0; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --template)    TEMPLATE="${2:-}"; shift 2 ;;
+        --template=*)  TEMPLATE="${1#*=}"; shift ;;
+        --release)     RELEASE="${2:-}"; shift 2 ;;
+        --release=*)   RELEASE="${1#*=}"; shift ;;
+        --run)         RUN=1; shift ;;
+        --force)       FORCE=1; shift ;;
+        -h|--help)     usage ;;
+        -*)            die "unknown option: $1  (--help for usage)" ;;
+        *)             [ -z "$NAME" ] || die "more than one name given: $NAME, $1"
+                       NAME="$1"; shift ;;
+    esac
+done
+
+NAME="${NAME:-starling-terminal}"
+case "$TEMPLATE" in
+    terminal|app) ;;
+    *) die "unknown template '$TEMPLATE' — use terminal or app" ;;
+esac
+
+# A SwiftPM target name must be an identifier; the directory can be anything.
+# "my-term" is a perfectly good directory and an invalid module, so derive one
+# rather than failing on it.
+MODULE="$(printf '%s' "$NAME" | sed 's/[^A-Za-z0-9]\+/ /g' |
+          awk '{for(i=1;i<=NF;i++) printf "%s%s", toupper(substr($i,1,1)), substr($i,2)}')"
+[ -n "$MODULE" ] || MODULE=App
+case "$MODULE" in [0-9]*) MODULE="App$MODULE" ;; esac
+
+# --- prerequisites -----------------------------------------------------------
+command -v swift >/dev/null 2>&1 || die "no swift toolchain on PATH.
+       Install one from https://swift.org/install (6.0 or newer)."
+command -v curl >/dev/null 2>&1 || die "curl is needed to fetch the SDK."
+
+case "$(uname -s)" in
+    Linux)  PLATFORM=linux ;;
+    Darwin) PLATFORM=macos ;;
+    *) die "unsupported platform $(uname -s).
+       On Windows, use the repo checkout: https://github.com/$GH_REPO" ;;
+esac
+ARCH="$(uname -m)"
+BUNDLE="starling-sdk-$PLATFORM-$ARCH"
+
+# The runtime libraries the windowed host loads. They are the one thing the
+# bundle cannot carry — GTK pulls in a large part of the desktop — so name them
+# now rather than letting the app die at startup on a missing .so.
+if [ "$PLATFORM" = linux ]; then
+    MISSING=""
+    for lib in libgtk-3.so.0 libEGL.so.1 libGLESv2.so.2; do
+        ldconfig -p 2>/dev/null | grep -q "$lib" || MISSING="$MISSING $lib"
+    done
+    if [ -n "$MISSING" ]; then
+        say "warning: these runtime libraries are missing:$MISSING"
+        say "         on Debian/Ubuntu: sudo apt install libgtk-3-0 libegl1 libgles2"
+        say ""
+    fi
+fi
+
+# --- the SDK -----------------------------------------------------------------
+SDK_HOME="${STARLING_SDK_HOME:-$HOME/.starling/sdk}"
+SDK_DIR="$SDK_HOME/$BUNDLE-$RELEASE"
+
+fetch_sdk() {
+    mkdir -p "$SDK_HOME"
+    local work; work="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$work'" RETURN
+
+    local tarball
+    if [ -n "${STARLING_SDK_TARBALL:-}" ]; then
+        [ -f "$STARLING_SDK_TARBALL" ] ||
+            die "STARLING_SDK_TARBALL=$STARLING_SDK_TARBALL does not exist"
+        say "==> using local bundle $STARLING_SDK_TARBALL"
+        tarball="$STARLING_SDK_TARBALL"
+    else
+        local base="https://github.com/$GH_REPO/releases/download/$RELEASE"
+        say "==> downloading the Starling SDK ($BUNDLE, $RELEASE)"
+        tarball="$work/$BUNDLE.tar.gz"
+        curl -fL --progress-bar -o "$tarball" "$base/$BUNDLE.tar.gz" || die "could not fetch
+       $base/$BUNDLE.tar.gz
+       Check https://github.com/$GH_REPO/releases for a bundle matching
+       $PLATFORM/$ARCH, and pass --release if it is on a different tag."
+
+        # Verify when the release publishes sums; a checksum we cannot reach is
+        # not a reason to refuse, but one that mismatches is.
+        if curl -fsL -o "$work/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null; then
+            local want got
+            want="$(awk -v a="$BUNDLE.tar.gz" '$2 ~ a {print $1}' "$work/SHA256SUMS" | head -1)"
+            if [ -n "$want" ]; then
+                got="$(shasum -a 256 "$tarball" 2>/dev/null | cut -d' ' -f1)"
+                [ -n "$got" ] || got="$(sha256sum "$tarball" | cut -d' ' -f1)"
+                [ "$want" = "$got" ] || die "checksum mismatch for $BUNDLE.tar.gz
+       expected $want
+       got      $got"
+                say "    checksum verified"
+            fi
+        fi
+    fi
+
+    say "==> unpacking into $SDK_DIR"
+    tar -xzf "$tarball" -C "$work"
+    [ -d "$work/$BUNDLE" ] || die "$BUNDLE.tar.gz did not contain $BUNDLE/"
+    rm -rf "$SDK_DIR.partial"
+    mv "$work/$BUNDLE" "$SDK_DIR.partial"
+    # Move into place last, so an interrupted run never leaves a half-unpacked
+    # tree that the next run would happily treat as a cache hit.
+    rm -rf "$SDK_DIR"
+    mv "$SDK_DIR.partial" "$SDK_DIR"
+}
+
+if [ -d "$SDK_DIR" ] && { [ -f "$SDK_DIR/engine/lib/libflutter_engine.so" ] ||
+                          [ -d "$SDK_DIR/engine/lib/FlutterMacOS.framework" ]; }; then
+    say "==> SDK already cached at $SDK_DIR"
+else
+    fetch_sdk
+fi
+
+# --- the project -------------------------------------------------------------
+# Written as ifs, not an && chain: under `set -e` a chain whose final test is
+# false takes the whole script down with it, so `--force` would exit 1 here
+# having done nothing at all.
+if [ -e "$NAME" ]; then
+    if [ "$FORCE" = 0 ]; then
+        die "$NAME already exists — pass --force to overwrite it"
+    fi
+    rm -rf "$NAME"
+fi
+
+say "==> writing $NAME/ ($TEMPLATE)"
+mkdir -p "$NAME/Sources/$MODULE"
+ln -sfn "$SDK_DIR" "$NAME/sdk"
+
+cat > "$NAME/Package.swift" <<PACKAGE
+// swift-tools-version: 6.0
+import PackageDescription
+import Foundation
+
+// ./sdk is a symlink into the shared SDK cache (~/.starling/sdk), holding the
+// framework and the engine binaries it links against.
+//
+// A path dependency rather than .package(url:from:) is inherent, not a
+// shortcut: locating the bundled engine needs -L/-rpath, which SwiftPM
+// classifies as unsafe flags and permits for path dependencies only. You do
+// not add the engine library here and you do not set a library path — the
+// SDK's own linker settings do both, and bake the rpath into this executable.
+let sdk = "sdk"
+
+// Ubuntu 26.04 (glibc 2.43 + libstdc++ 15) needs two flags on any C++-interop
+// target, and swiftSettings are NOT inherited from a dependency — so the SDK
+// applying them internally does nothing here. Without them the build fails
+// inside Foundation's C shim with "cmath: redefinition of 'acos'".
+// libstdc++ 15 is the discriminator: 24.04 ships 13/14, 26.04 ships 15.
+func needsGlibcMathCompat() -> Bool {
+    if let forced = ProcessInfo.processInfo.environment["FLUTTER_SWIFT_GLIBC_MATH_COMPAT"],
+       !forced.isEmpty {
+        return forced != "0"
+    }
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: "/usr/include/math.h") else { return false }
+    let newest = ((try? fm.contentsOfDirectory(atPath: "/usr/include/c++")) ?? [])
+        .compactMap { Int(\$0) }.max() ?? 0
+    return newest >= 15
+}
+
+#if os(Linux)
+let glibcMathCompat = needsGlibcMathCompat()
+    ? ["-Xcc", "-D_GLIBCXX_MATH_H", "-Xcc", "-include", "-Xcc", "/usr/include/math.h"]
+    : []
+#else
+let glibcMathCompat: [String] = []
+#endif
+
+// .interoperabilityMode(.Cxx) is required: the framework is C++-interop and
+// that setting is not inherited either. Without it the build stops at
+// "module 'FlutterSwiftBridgeCxx' requires feature 'cplusplus'".
+let appSettings: [SwiftSetting] = [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
+    + (glibcMathCompat.isEmpty ? [] : [.unsafeFlags(glibcMathCompat)])
+
+let package = Package(
+    name: "$NAME",
+    dependencies: [
+        .package(path: sdk),
+    ],
+    targets: [
+        .executableTarget(
+            name: "$MODULE",
+            dependencies: [
+                // The framework: widgets, rendering, gestures — and TerminalView.
+                .product(name: "Flutter", package: sdk),
+                // The windowed host: opens the window, starts the engine in
+                // Swift mode, mounts the widget. runExampleApp lives here.
+                .product(name: "ExampleHost", package: sdk),
+                // The dart:ui types — Offset, Size, Rect, Paint, Canvas.
+                // Separate from Flutter, which does not re-export them.
+                .product(name: "FlutterSwiftBridge", package: sdk),
+                // Glyphs, for anything with an Icon in it.
+                .product(name: "CupertinoIcons", package: sdk),
+            ],
+            path: "Sources/$MODULE",
+            swiftSettings: appSettings
+        ),
+    ]
+)
+PACKAGE
+
+if [ "$TEMPLATE" = terminal ]; then
+cat > "$NAME/Sources/$MODULE/main.swift" <<'SOURCE'
+// A terminal, in full.
+//
+// TerminalSession spawns your shell; TerminalView renders it. Everything a
+// terminal actually needs — the C emulator core, the glyph atlas, scrollback,
+// selection, mouse reporting, wide characters and grapheme clusters, the
+// bundled fonts — comes with the widget.
+
+import ExampleHost
+import Flutter
+
+let session = TerminalSession()
+session.startShell()
+
+runExampleApp(title: "Terminal", width: 940, height: 620) {
+    TerminalView(session: session)
+}
+SOURCE
+else
+cat > "$NAME/Sources/$MODULE/main.swift" <<'SOURCE'
+// A window with a widget tree in it. Everything below is ordinary Swift —
+// there is no Dart VM and no code generation anywhere in this app.
+
+import ExampleHost
+import Flutter
+import FlutterSwiftBridge
+
+class MyApp: StatelessWidget {
+    override func build(_ context: any BuildContext) -> Widget {
+        // Directionality is not optional: a tree with no app widget above it
+        // has no text direction to inherit, and the first Text you render
+        // brings the process down. Every root here needs one.
+        return Directionality(textDirection: .ltr, child: HomePage())
+    }
+}
+
+class HomePage: StatelessWidget {
+    override func build(_ context: any BuildContext) -> Widget {
+        return MaterialScaffold(
+            appBar: MaterialAppBar(title: "Hello, Starling"),
+            body: Center(
+                child: Column(
+                    mainAxisAlignment: .center,
+                    children: [
+                        Text(
+                            "It runs.",
+                            style: TextStyle(color: MaterialColors.headline, fontSize: 34)
+                        ),
+                        Text(
+                            "Edit Sources/main.swift and build again.",
+                            style: TextStyle(color: MaterialColors.body, fontSize: 14)
+                        ),
+                    ]
+                )
+            )
+        )
+    }
+}
+
+runExampleApp(title: "Hello, Starling", width: 480, height: 720) { MyApp() }
+SOURCE
+fi
+
+cat > "$NAME/.gitignore" <<'IGNORE'
+.build/
+sdk
+IGNORE
+
+cat > "$NAME/README.md" <<README
+# $NAME
+
+Built with \`starling-create\`. Run it:
+
+\`\`\`bash
+swift run -c release
+\`\`\`
+
+\`sdk\` is a symlink into the shared SDK cache ($SDK_HOME) — the
+Flutter-to-Swift framework plus the engine binaries it links against. It is
+gitignored, so anyone cloning this project re-creates it with:
+
+\`\`\`bash
+curl -fLO https://github.com/$GH_REPO/releases/download/$RELEASE/starling-create
+chmod +x starling-create
+./starling-create --release $RELEASE $NAME
+\`\`\`
+
+## Shipping it
+
+The rpath points into the cache, which is useless on someone else's machine.
+SwiftPM also puts \`\$ORIGIN\` in the rpath, so deployment is a copy:
+
+\`\`\`bash
+mkdir -p dist
+cp .build/release/$MODULE  dist/
+cp sdk/engine/lib/*.so     dist/     # sits beside the binary
+cp -r sdk/engine/share     dist/     # icudtl.dat + flutter_assets
+\`\`\`
+
+Skip the library copy and it dies at startup on
+\`libflutter_engine.so: cannot open shared object file\` — at run time, not
+build time.
+README
+
+say ""
+say "    $NAME/"
+say "      Package.swift"
+say "      Sources/$MODULE/main.swift"
+say "      sdk -> $SDK_DIR"
+say ""
+
+if [ "$RUN" = 1 ]; then
+    say "==> building and running (release)"
+    ( cd "$NAME" && swift run -c release )
+else
+    say "Next:"
+    say ""
+    say "    cd $NAME"
+    say "    swift run -c release"
+    say ""
+fi
