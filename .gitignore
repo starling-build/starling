@@ -17,5 +17,10 @@ sdk/Vendor/
 
 # The iOS .app bundle build/ios-app.sh assembles.
 .stage-ios/
+
+# SwiftPM rewrites these during resolution (TerminalApp pulls swift-nio-ssh
+# and friends for iOS). Deps float within the manifests' ranges; pins are
+# not tracked.
+Package.resolved
 .glyph-pattern.sh
 .glyph-pixels.png
