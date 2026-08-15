@@ -164,6 +164,14 @@ finish in 0.84x the time on 0.54x the CPU; on a three-test sprint of cats and
 fire, Windows Terminal is 8% faster. Video: `ui/video/terminal-race-windows.mp4`
 (not linked from the site). Harness in `film/`.
 
+**Addendum, 2026-08-15 (later the same day):** this race ran on the
+pre-ring-fix build, and the verdict did not survive re-measurement on the
+build carrying the 2 MB ring. Six re-runs of the same harness put the sprint
+inside run-to-run noise — ours ahead in 2 of 6, mean gap ~0.7 s in 37 — and
+the narrow-grid asymmetry inferred above did not reproduce solo (profiled at
+43x76, both cats and DOOM-Fire are dead heats with the host equally
+saturated). See `../terminal-windows-race-regime-2026-08-15/`.
+
 ## Why we lost the cats — a profile, and half the gap closed
 
 Process-level profile of the 500 MB cats (CPU snapshotted either side of each

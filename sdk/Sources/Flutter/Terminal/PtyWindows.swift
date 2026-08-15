@@ -174,7 +174,20 @@ final class Pty: @unchecked Sendable {
         // STARLING_TERM_PACE_NS if the read path ever changes shape.
         let paceNs = UInt64(ProcessInfo.processInfo.environment["STARLING_TERM_PACE_NS"] ?? "")
             ?? 0
+        // ABOVE_NORMAL for the two threads that keep the console host fed —
+        // and only those; the UI thread stays where it is. The theory was
+        // that under saturation (both terminals racing plus a screen
+        // recorder, the filmed-race regime) every hop in reader -> ring ->
+        // parser waits in the ready queue and each delayed wake is drain
+        // time the host spends idle. Measured, it is a null result: three
+        // filmed races per config on win11-fresh (2026-08-15), the
+        // ours-minus-wt deltas are -1.0/-1.4/+0.4 s unboosted and
+        // -0.9/+0.1/-1.3 s boosted — the same distribution. OFF by
+        // default; STARLING_TERM_BOOST=1 keeps the experiment repeatable
+        // (same policy as STARLING_TERM_PACE_NS above).
+        let boost = ProcessInfo.processInfo.environment["STARLING_TERM_BOOST"] != nil
         let reader = Thread { [weak self] in
+            if boost { starling_conpty_boost_thread() }
             while true {
                 guard let self = self else { return }
                 // The slot is ours until we publish it, so ConPTY reads land
@@ -233,6 +246,7 @@ final class Pty: @unchecked Sendable {
         reader.name = "pty-reader"
 
         let parser = Thread { [weak self] in
+            if boost { starling_conpty_boost_thread() }
             while true {
                 guard let self = self else { return }
                 guard let chunk = self.ring.nextForRead() else {

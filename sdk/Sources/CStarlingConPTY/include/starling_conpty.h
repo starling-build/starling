@@ -99,6 +99,16 @@ void starling_conpty_free(StarlingConPty* pty);
 // plumbing (QueryPerformanceCounter), not a pseudoconsole feature.
 void starling_conpty_pace(uint64_t ns);
 
+// Raises the CALLING thread to THREAD_PRIORITY_ABOVE_NORMAL. For the pty
+// reader and parser threads: on an idle box it changes nothing measurable,
+// but when the machine is saturated — both terminals racing plus a screen
+// recorder, the filmed-race regime — every hop in reader -> ring -> parser
+// -> emulator waits in the ready queue behind whoever else is runnable, and
+// each delayed wake is drain time the console host spends idle. The two
+// threads that keep the host fed get to skip that queue; the UI thread
+// deliberately does not.
+void starling_conpty_boost_thread(void);
+
 // A child process on two anonymous pipes, with NO pseudoconsole: the exact
 // opposite of the above. RemoteTerminal runs `ssh host starling-termd --stdio`
 // and the wire is a framed byte protocol, so a console in the middle would

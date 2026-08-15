@@ -1,0 +1,8 @@
+# p1024-r1 grid=39x120 pid=10712
+ascii 1 2.348 3.31
+ascii 2 2.284 2.81
+ascii 3 2.252 3.56
+unicode 1 5.179 8.69
+unicode 2 5.151 7.63
+unicode 3 5.203 8.31
+rss_kb 73936

@@ -1,0 +1,9 @@
+# p4-r2 grid=39x120 pid=324
+ascii 1 2.377 3.34
+ascii 2 2.260 2.88
+ascii 3 2.236 3.48
+unicode 1 5.299 9.34
+unicode 2 5.082 8.55
+unicode 3 5.066 7.97
+rss_kb 71076
+grid_after 39x120

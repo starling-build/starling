@@ -149,10 +149,32 @@ StarlingConPty* starling_conpty_open(int32_t cols,
     rows = 24;
   }
 
+  // The output pipe's buffer looked like the console host's only slack — the
+  // default (nSize 0) is ~4 KB, 18 MICROSECONDS at a cat's ~220 MB/s, and the
+  // 2 MB ChunkRing sits BEHIND the reader where it can absorb none of it. It
+  // is not: measured on the 500 MB cats (win11-fresh, 2026-08-15, alternating
+  // legs, 3 reps each), 4 KB / 1 MB / 4 MB are indistinguishable —
+  //
+  //   4 KB   ascii 2.24 s   unicode 5.13 s
+  //   1 MB   ascii 2.29 s   unicode 5.17 s
+  //   4 MB   ascii 2.33 s   unicode 5.16 s   (Windows Terminal: 2.26 / 5.14)
+  //
+  // — because the host does not block on this pipe: our reader re-arms
+  // ReadFile inside even the 4 KB drain window, so extra buffer is slack
+  // nobody uses. Shipped at the system default, with the knob kept so the
+  // experiment is not repeated (same policy as STARLING_TERM_PACE_NS).
+  DWORD out_pipe_bytes = 0;
+  {
+    wchar_t kb[16];
+    DWORD n = GetEnvironmentVariableW(L"STARLING_CONPTY_PIPE_KB", kb, 16);
+    if (n > 0 && n < 16) {
+      out_pipe_bytes = (DWORD)(wcstoul(kb, NULL, 10) * 1024);
+    }
+  }
   HANDLE in_read = NULL, in_write = NULL;
   HANDLE out_read = NULL, out_write = NULL;
   if (!CreatePipe(&in_read, &in_write, NULL, 0) ||
-      !CreatePipe(&out_read, &out_write, NULL, 0)) {
+      !CreatePipe(&out_read, &out_write, NULL, out_pipe_bytes)) {
     fprintf(stderr, "[conpty] CreatePipe failed (%lu)\n", GetLastError());
     return NULL;
   }
@@ -362,6 +384,10 @@ void starling_conpty_pace(uint64_t ns) {
     YieldProcessor();
     QueryPerformanceCounter(&now);
   } while (now.QuadPart - t0.QuadPart < ticks);
+}
+
+void starling_conpty_boost_thread(void) {
+  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
 }
 
 void starling_conpty_resize(StarlingConPty* pty, int32_t cols, int32_t rows) {

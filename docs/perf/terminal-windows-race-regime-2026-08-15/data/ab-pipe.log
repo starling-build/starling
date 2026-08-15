@@ -1,0 +1,26 @@
+08:17:03Z AB-PIPE START rounds=2 reps=3 exe=2026-08-15 08:14:54
+08:17:05Z === p4-r1 ===
+08:17:13Z   grid ok, streaming
+08:17:40Z   done
+08:17:44Z === p1024-r1 ===
+08:17:48Z   grid ok, streaming
+08:18:15Z   done
+08:18:19Z === p4096-r1 ===
+08:18:23Z   grid ok, streaming
+08:18:50Z   done
+08:18:54Z === wt-r1 ===
+08:18:58Z   grid ok, streaming
+08:19:25Z   done
+08:19:29Z === p4-r2 ===
+08:19:33Z   grid ok, streaming
+08:20:00Z   done
+08:20:04Z === p1024-r2 ===
+08:20:08Z   grid ok, streaming
+08:20:36Z   done
+08:20:40Z === p4096-r2 ===
+08:20:44Z   grid ok, streaming
+08:21:14Z   done
+08:21:18Z === wt-r2 ===
+08:21:22Z   grid ok, streaming
+08:21:49Z   done
+08:21:51Z AB-PIPE-DONE

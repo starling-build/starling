@@ -1,0 +1,6 @@
+ascii 1 wall 2.464 totcpu 3.44 (1.40 cores) :: OpenConsole#8160 2.08s/0.84c | powershell#11556 0.36s/0.15c | TerminalApp#6888 1.00s/0.41c
+ascii 2 wall 2.476 totcpu 3.48 (1.41 cores) :: OpenConsole#8160 2.08s/0.84c | powershell#11556 0.30s/0.12c | TerminalApp#6888 1.11s/0.45c
+ascii 3 wall 2.458 totcpu 3.30 (1.34 cores) :: OpenConsole#8160 2.16s/0.88c | powershell#11556 0.19s/0.08c | TerminalApp#6888 0.95s/0.39c
+unicode 1 wall 5.112 totcpu 7.50 (1.47 cores) :: OpenConsole#8160 4.58s/0.90c | powershell#11556 0.41s/0.08c | TerminalApp#6888 2.52s/0.49c
+unicode 2 wall 5.072 totcpu 7.36 (1.45 cores) :: OpenConsole#8160 4.69s/0.92c | powershell#11556 0.31s/0.06c | TerminalApp#6888 2.36s/0.47c
+unicode 3 wall 5.093 totcpu 7.39 (1.45 cores) :: OpenConsole#8160 4.58s/0.90c | powershell#11556 0.41s/0.08c | TerminalApp#6888 2.41s/0.47c

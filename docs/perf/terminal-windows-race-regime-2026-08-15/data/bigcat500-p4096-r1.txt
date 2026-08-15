@@ -1,0 +1,9 @@
+# p4096-r1 grid=39x120 pid=4916
+ascii 1 2.297 3.67
+ascii 2 2.244 3.14
+ascii 3 2.239 4.20
+unicode 1 5.255 8.64
+unicode 2 5.112 8.33
+unicode 3 5.125 7.58
+rss_kb 73264
+grid_after 39x120

@@ -1,0 +1,9 @@
+# wt-r1 grid=39x120 pid=11008
+ascii 1 2.282 4.28
+ascii 2 2.275 4.53
+ascii 3 2.257 4.55
+unicode 1 5.163 11.39
+unicode 2 5.048 11.11
+unicode 3 5.027 11.39
+rss_kb 98644
+grid_after 39x120

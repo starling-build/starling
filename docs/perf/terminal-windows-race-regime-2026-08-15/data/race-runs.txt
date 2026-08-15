@@ -1,0 +1,25 @@
+# The six filmed race runs, 2026-08-15, win11-fresh, both sides verified 43x76
+# by the launcher before filming (film-launch.ps1, REPS=3 UREPS=2 FRAMES=9600).
+#
+# Provenance: transcribed from C:\film\launch.txt's "times" lines at the end
+# of each run. film-launch.ps1 removes times-* at every launch, which took the
+# archived .txt copies with it — these lines were captured per run before the
+# next one started. Videos remain on the box: race-newbuild-{1,2,3}.mp4,
+# race-boost-{1,2,3}.mp4.
+#
+# runs 1-3: pipe-knob build (08:14:54, pipe default 1 MB, no boost code)
+# runs 4-6: boost build (08:45:42, pipe default 0, boost default on)
+# Pipe sizes measured equivalent (data/ab-pipe legs); the boost measured null.
+
+run1 ours ascii=8.77 unicode=12.35 fps=1009.57 total=37.0
+run1 wt   ascii=8.57 unicode=11.75 fps=1044.05 total=36.0
+run2 ours ascii=9.10 unicode=12.51 fps=1018.46 total=37.4
+run2 wt   ascii=9.04 unicode=11.63 fps=1082.06 total=36.0
+run3 ours ascii=9.05 unicode=12.74 fps=969.89  total=38.1
+run3 wt   ascii=9.31 unicode=12.59 fps=951.44  total=38.5
+run4 ours ascii=8.53 unicode=12.01 fps=1035.15 total=36.2  (boost)
+run4 wt   ascii=8.28 unicode=11.61 fps=1081.69 total=35.3
+run5 ours ascii=8.68 unicode=12.10 fps=1019.43 total=36.6  (boost)
+run5 wt   ascii=8.93 unicode=12.05 fps=1040.42 total=36.7
+run6 ours ascii=9.00 unicode=12.33 fps=1001.36 total=37.3  (boost)
+run6 wt   ascii=8.76 unicode=11.80 fps=1069.04 total=36.0

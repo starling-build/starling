@@ -1,0 +1,18 @@
+08:30:39Z probe w=620 grid=43x75
+08:30:45Z probe w=618 grid=43x75
+08:30:51Z probe w=622 grid=43x75
+08:30:57Z probe w=616 grid=43x75
+08:31:03Z probe w=624 grid=43x76
+08:31:07Z === nours-r1 attempt 1 ===
+08:31:11Z   grid ok, streaming
+08:32:16Z   done
+08:32:20Z === nwt-r1 attempt 1 ===
+08:32:24Z   grid ok, streaming
+08:33:29Z   done
+08:33:33Z === nours-r2 attempt 1 ===
+08:33:37Z   grid ok, streaming
+08:34:43Z   done
+08:34:47Z === nwt-r2 attempt 1 ===
+08:34:51Z   grid ok, streaming
+08:35:56Z   done
+08:35:58Z DOOM-NARROW-DONE

@@ -1,0 +1,9 @@
+# ours grid=39x120 pid=7400
+ascii 1 2.418 3.56
+ascii 2 2.366 3.03
+ascii 3 2.268 3.28
+unicode 1 5.192 8.09
+unicode 2 5.149 8.30
+unicode 3 5.137 9.36
+rss_kb 73452
+grid_after 39x120

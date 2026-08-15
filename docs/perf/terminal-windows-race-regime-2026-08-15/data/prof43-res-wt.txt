@@ -1,0 +1,6 @@
+ascii 1 wall 2.581 totcpu 5.34 (2.07 cores) :: OpenConsole#11596 2.14s/0.83c | powershell#3352 0.38s/0.15c | WindowsTerminal#11008 2.83s/1.10c
+ascii 2 wall 2.522 totcpu 5.25 (2.08 cores) :: OpenConsole#11596 2.19s/0.87c | powershell#3352 0.27s/0.11c | WindowsTerminal#11008 2.80s/1.11c
+ascii 3 wall 2.544 totcpu 5.17 (2.03 cores) :: OpenConsole#11596 2.09s/0.82c | powershell#3352 0.39s/0.15c | WindowsTerminal#11008 2.69s/1.06c
+unicode 1 wall 5.319 totcpu 11.63 (2.19 cores) :: OpenConsole#11596 4.91s/0.92c | powershell#3352 0.28s/0.05c | WindowsTerminal#11008 6.44s/1.21c
+unicode 2 wall 5.241 totcpu 11.63 (2.22 cores) :: OpenConsole#11596 4.81s/0.92c | powershell#3352 0.22s/0.04c | WindowsTerminal#11008 6.59s/1.26c
+unicode 3 wall 5.186 totcpu 11.34 (2.19 cores) :: OpenConsole#11596 4.69s/0.90c | powershell#3352 0.38s/0.07c | WindowsTerminal#11008 6.28s/1.21c

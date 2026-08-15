@@ -1,0 +1,7 @@
+# nwt-r2 grid=43x76 pid=11008 frames=30000
+BENCHFPS frames=30000 seconds=26.430 fps=1135.07
+  cpu_s 58.03
+BENCHFPS frames=30000 seconds=27.046 fps=1109.22
+  cpu_s 58.98
+rss_kb 125480
+grid_after 43x76

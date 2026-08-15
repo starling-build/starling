@@ -1,0 +1,7 @@
+# nours-r1 grid=43x76 pid=11316 frames=30000
+BENCHFPS frames=30000 seconds=25.800 fps=1162.79
+  cpu_s 31.34
+BENCHFPS frames=30000 seconds=26.366 fps=1137.83
+  cpu_s 40.72
+rss_kb 68812
+grid_after 43x76
