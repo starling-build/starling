@@ -29,7 +29,20 @@ make test                # the protocol test — twenty-seven checks, a few seco
 
 .\build-windows.ps1      # Windows: starling-termd.exe (clang, no make)
 python .\test-termd.py   # the same checks, over --stdio automatically
+
+./test-ssh-attach.py     # attach over ssh to a Windows daemon — eleven checks
 ```
+
+**Run `test-ssh-attach.py` before believing the Windows build works.** The
+protocol suite drives pipes, and both bugs that made termd unusable over ssh
+passed all twenty-seven of its checks: a Windows console under a ConPTY
+reports key EVENTS rather than key bytes, so `^] d` never detached and every
+cursor key arrived at the far end as Escape then `[A`; and Windows OpenSSH
+runs each session in a job object it kills on disconnect, so the daemon died
+with the client that started it. Neither is reachable without a real pty on
+both ends and a real ssh connection to drop. It needs a Windows host with
+sshd and the exe built there (`TERMD_SSH_HOST`, `TERMD_SSH_KEY`,
+`TERMD_REMOTE_EXE` override the defaults).
 
 ```bash
 starling-termd "iOS dev" # attach to that session, creating it if the name is new
