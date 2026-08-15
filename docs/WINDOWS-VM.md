@@ -23,13 +23,32 @@ Templates live beside this file in `docs/windows-vm/`.
 ## Host prerequisites
 
 ```bash
-sudo apt install qemu-kvm libvirt-daemon-system virtinst swtpm swtpm-tools \
-                 genisoimage ovmf
+sudo apt install qemu-system-x86 libvirt-daemon-system virtinst swtpm \
+                 swtpm-tools genisoimage ovmf wimtools
 sudo usermod -aG libvirt "$USER"      # log out and back in
+sudo systemctl enable --now libvirtd
+sudo virsh net-start default && sudo virsh net-autostart default
 ```
+
+**`qemu-kvm` is not installable on 26.04** — it is a virtual package, and apt
+refuses with "has no installation candidate" rather than picking a provider.
+The real one is `qemu-system-x86`. `wimtools` supplies `wiminfo` for step 1,
+and libvirt's `default` network is *inactive* on a fresh install, so a guest
+created against it fails to start until the two lines above have run.
 
 `swtpm` and the `.ms.fd` OVMF firmware matter: Windows 11 wants TPM 2.0 and
 Secure Boot, and giving it real ones is less trouble than bypassing them.
+
+**Take the virt-install command in step 4 as a unit.** It was arrived at by
+experiment and the parts interlock. A run on a Ryzen 7735HS that dropped
+Secure Boot and SMM (to chase what looked like an SMM hang), changed the CPU
+topology to one socket, and disabled the `hv-avic` enlightenment produced a
+guest that booted the Windows kernel and then silently reset, about every
+twelve seconds, forever — no bugcheck, no message, nothing written to disk.
+Restoring the command below fixed it immediately. Those four changes were made
+together and reverted together, so which one was fatal is *not* known; what is
+known is that the recipe as written works and improvised variants of it may
+not.
 
 You need two ISOs in `/var/lib/libvirt/images/`:
 
@@ -150,6 +169,60 @@ From here it is unattended. `Installing Windows 11 — n% complete` on the next
 screenshot means the answer file was read; a **Product key** page means it was
 not.
 
+### If those keypresses do nothing: build a no-prompt ISO
+
+On some hosts `send-key` drives OVMF's boot manager perfectly and **never
+reaches Windows' bootloader**, so that prompt times out however hard you hit
+it. On one Ryzen box four approaches all failed — 16 presses at 1 s, 90 at
+0.3 s, 150 from a cold boot, and adding a USB keyboard to the domain
+(`<input type='keyboard' bus='usb'/>`, on the theory that bootmgr ignored the
+PS/2 one). Every time, the screen fell back to `BdsDxe: No bootable option or
+device was found`.
+
+Do not keep fighting it. Microsoft ships the answer on the ISO: alongside
+`efi/microsoft/boot/efisys.bin` there is **`efisys_noprompt.bin`**, the same
+1,474,560 bytes, whose bootloader skips the prompt entirely. Swap it in and the
+install needs no keystrokes at all.
+
+`xorriso -boot_image any replay` **cannot** do this — it fails with `Cannot
+enable EL Torito boot image #1 because it is not a data file in the ISO
+filesystem`, because the boot images are hidden extents rather than files. So
+patch the extent directly. Find it in the El Torito catalog:
+
+```python
+import struct
+f = open("Win11_25H2_English_x64.iso", "rb")
+f.seek(17 * 2048)                      # Boot Record Volume Descriptor
+cat = struct.unpack("<I", f.read(2048)[71:75])[0]
+f.seek(cat * 2048)                     # boot catalog: 32-byte entries
+e = f.read(2048)[96:128]               # the EFI (platform 0xEF) section entry
+print("image LBA", struct.unpack("<I", e[8:12])[0])
+```
+
+On the 25H2 ISO that is catalog LBA 22 and image **LBA 536 = byte 1,097,728**.
+Verify before writing — the extent must hash equal to `efisys.bin` — then copy
+the ISO and overwrite those bytes with `efisys_noprompt.bin`:
+
+```bash
+cp Win11_25H2_English_x64.iso win11-noprompt.iso
+python3 - <<'PY'
+data = open("/mnt/w11/efi/microsoft/boot/efisys_noprompt.bin","rb").read()
+with open("win11-noprompt.iso","r+b") as f:
+    f.seek(536*2048); f.write(data)
+PY
+```
+
+Then confirm you did not damage the media: mount the patched ISO **as UDF**
+(`mount -t udf`) and compare `sources/install.wim` against the original. UDF is
+the filesystem Windows setup actually reads, because `install.wim` is 6.8 GB
+and ISO9660's view of it is not what setup uses — that size is also why the
+usual "extract to a FAT32 USB image" trick is unavailable, FAT32 capping files
+at 4 GB.
+
+Boot now goes straight through: `failed to load Boot0002 "UEFI QEMU HARDDISK" :
+Not Found`, then the DVD, then setup. No menu navigation, no keypresses, and
+the same recipe works unattended on every host.
+
 ## 5. Wait for it
 
 The guest agent answering a ping is the signal that setup finished, first
@@ -222,6 +295,91 @@ schtasks /run /tn RunApp
 on — which the answer file's `<AutoLogon>` guarantees. `/rl HIGHEST` is
 needed by anything that wants an elevated token (`powercfg`, for one).
 
+## Telling progress from a hang
+
+A Windows install shows a spinner whether it is working or wedged, so judge it
+by I/O, not by the screen. `virsh domblkstat` is the honest instrument, because
+it counts what the *guest* asked for:
+
+```bash
+virsh domblkstat win11-fresh sda      # the disk: writes mean real progress
+virsh domblkstat win11-fresh sdb      # the Windows ISO: reads
+```
+
+Three readings and what they mean:
+
+- **disk `wr_bytes` climbing** — installing. Nothing else needs checking.
+- **ISO `rd_bytes` climbing past the size of the ISO** — a boot loop. Windows
+  starts, resets, firmware re-reads, repeat; the reads accumulate past 100%
+  while `wr_bytes` stays at 0. A ~12-second cycle of firmware screen → black →
+  firmware screen in successive screenshots is the same thing seen from
+  outside.
+- **both flat, CPU high** — genuinely stuck. `virsh qemu-monitor-command
+  <dom> --hmp 'info registers'` says where: `SMM=1` is the firmware's
+  System Management Mode, an `RIP` of `0xfffff801…` is the Windows kernel, and
+  a low `RIP` around the 2 GB mark is OVMF.
+
+Two ways to mislead yourself here, both of which did:
+
+- **`/proc/<pid>/io` `read_bytes` is not guest I/O.** The ISO sits in the
+  host's page cache, so a guest reading it furiously shows almost no host
+  block reads. It looks exactly like a hang. Use `domblkstat`.
+- **`pgrep -f qemu…` matches your own shell.** The `bash -c` line containing
+  the pattern is itself a match, so CPU sampled from that pid reads as zero
+  and a busy VM looks dead. Select the real one:
+  `ps -eo pid,cmd | awk '/qemu-system-x86_64.*guest=<name>/{print $1; exit}'`.
+
+## Passing a GPU through
+
+This is what the `win11-gpu` box exists for. Check the card is alone in its
+IOMMU group first — if it shares one, everything in that group must move too:
+
+```bash
+ls /sys/bus/pci/devices/0000:01:00.0/iommu_group/devices/
+```
+
+Bind it to `vfio-pci` at boot, ahead of the vendor driver:
+
+```
+# /etc/modprobe.d/vfio-starling.conf
+options vfio-pci ids=10de:25ac
+softdep nvidia         pre: vfio-pci
+softdep nvidia_drm     pre: vfio-pci
+softdep nvidia_modeset pre: vfio-pci
+softdep nvidia_uvm     pre: vfio-pci
+```
+
+`softdep` rather than a blacklist keeps the vendor driver installed and
+upgradable; it simply finds nothing to bind. Then add the hostdev with
+`managed='yes'` and reboot.
+
+**`/etc/initramfs-tools/modules` does nothing on Ubuntu 26.04.** The initramfs
+is generated by **dracut** — `dpkg -S $(readlink -f $(command -v
+update-initramfs))` says `dracut: /usr/sbin/update-initramfs` — so the
+initramfs-tools file is inert and vfio silently never ships. This matters
+because the nvidia modules *are* in the initramfs, so without forcing vfio in
+beside them the vendor driver claims the card in early boot and the softdep
+above never gets a chance. The file that works:
+
+```
+# /etc/dracut.conf.d/90-vfio.conf
+force_drivers+=" vfio vfio_pci vfio_iommu_type1 "
+```
+
+Verify before rebooting, because the failure is silent:
+
+```bash
+lsinitramfs /boot/initrd.img-$(uname -r) | grep -E 'vfio.*\.ko'   # expect 4
+```
+
+Two things to know before committing to this. A **muxless laptop dGPU** — PCI
+class `0302` "3D controller", no display outputs, no HDMI-audio function — has
+no monitor to drive, so the guest boots on its emulated display and sees the
+card as a second, headless render device: good for CUDA, NVENC and compute,
+not for plugging a screen into the VM. And the host loses the card entirely
+while this is in place, which on this desktop means no PRIME render offload
+for apps and no NVENC recording.
+
 ## Traps that cost real time
 
 - **A missing `<ProductKey>` stops an unattended install dead.** With a
@@ -234,6 +392,14 @@ needed by anything that wants an elevated token (`powercfg`, for one).
   sequence for it is a trap rather than a recipe — see step 4. Screenshot
   before every key press in firmware; it costs one round trip and saves a
   reinstall.
+- **`send-key` may reach the firmware and not the Windows bootloader.** The
+  boot menu responds, the *Press any key to boot from CD* prompt does not, on
+  any timing and with either keyboard bus. Build the no-prompt ISO instead of
+  hunting for a magic interval — see step 4.
+- **`virsh snapshot-create-as` does not capture the UEFI varstore.** The
+  `<nvram>` file lives outside the disk image, so a domain restored from a
+  snapshot keeps whatever boot entries it has now. Copy
+  `/var/lib/libvirt/qemu/nvram/<name>_VARS.fd` alongside the snapshot.
 - **A task's own console host is Windows Terminal.** On Windows 11, console
   applications are hosted in `WindowsTerminal.exe` by default, so a script
   launched from a scheduled task is *inside* one. A blanket
