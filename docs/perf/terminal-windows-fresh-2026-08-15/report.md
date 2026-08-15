@@ -230,6 +230,25 @@ It did not reproduce in eight further runs and was contamination from a
 leftover process. Recorded because a single spectacular number is exactly the
 kind of thing that gets believed.)
 
+### The whole round, re-run on the shipping build
+
+`data/ring-suite/` is a complete round on the 2 MB ring — suite, cats and
+DOOM-Fire, each leg's pair back to back — and it is the one the site quotes.
+
+| | ours | Windows Terminal | |
+|---|---:|---:|---|
+| ten workloads, wall | 1,064 s | 1,241 s | **1.17x** |
+| ten workloads, CPU | 1,566 s | 2,729 s | **1.74x** |
+| resident set after them | **32 MB** | 1,035 MB | 32x |
+| ascii cat, 500 MB | 2.31 s | 2.25 s | 0.97x |
+| unicode cat, 500 MB | 5.30 s | 5.06 s | 0.95x |
+| DOOM-Fire, 150k frames | 733 fps | 738 fps | 0.99x |
+
+DOOM-Fire has become a dead heat — 733 against 738 fps, from 0.95x in the
+first round — on 0.60x the CPU (276 s against 464 s). The two cats stay 3-5%
+behind, which is the repaint path noted above and the only place on this
+platform where Windows Terminal is still ahead.
+
 ### Where it leaves us
 
 Same-session baseline, 2 MB ring, pace off:
