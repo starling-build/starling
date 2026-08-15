@@ -161,6 +161,30 @@ struct plat_pty {
     int status;
 };
 
+// The inbox console host, deliberately — do not "fix" this by bundling
+// conpty.dll and OpenConsole.exe the way the SDK's terminal does.
+//
+// It is a tempting change, because CreatePseudoConsole always launches
+// %SystemRoot%\System32\conhost.exe and the bundled host from
+// Microsoft.Windows.Console.ConPTY is years newer (and, for the terminal,
+// measurably cheaper). It was written, wired through create/resize/close,
+// and measured here, and it was reverted for two reasons:
+//
+//   - it does not fix what it was built for. A typed é still arrives as
+//     `caf├⌐` — the two UTF-8 bytes read in CP437 — under OpenConsole
+//     exactly as under conhost, whether the client sends the character as a
+//     key event or as UTF-8 bytes, and whether or not the session ran
+//     `chcp 65001` first. The session's input decoding is not the host's to
+//     decide, so a newer host changes nothing.
+//   - it breaks history replay. With the bundled host loaded, reattaching
+//     to a session whose previous client was killed outright replays
+//     nothing, reproducibly; with conpty.dll renamed away the same run
+//     passes. test-ssh-attach.py catches it.
+//
+// So non-ASCII input remains broken over ssh, and the cause is downstream of
+// everything termd controls: the client reads é as one key event carrying
+// U+00E9 and the daemon receives exactly that.
+
 static wchar_t *to_wide(const char *utf8) {
     if (!utf8) return NULL;
     int n = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
