@@ -181,9 +181,10 @@ struct plat_pty {
 //     nothing, reproducibly; with conpty.dll renamed away the same run
 //     passes. test-ssh-attach.py catches it.
 //
-// So non-ASCII input remains broken over ssh, and the cause is downstream of
-// everything termd controls: the client reads é as one key event carrying
-// U+00E9 and the daemon receives exactly that.
+// The actual cause turned out to be the session console's code page at byte
+// arrival — the same on both hosts, which is why swapping hosts changed
+// nothing. The fix lives in plat_pty_open below: the console is set to
+// UTF-8 the way sshd sets its own, and the client sends UTF-8 bytes.
 
 static wchar_t *to_wide(const char *utf8) {
     if (!utf8) return NULL;
@@ -278,6 +279,52 @@ plat_pty *plat_pty_open(uint16_t cols, uint16_t rows, const char *command) {
         free(p);
         return NULL;
     }
+
+    // The session's console must decode input as UTF-8, and there is no flag
+    // on CreatePseudoConsole for it: a fresh conhost comes up at the OEM code
+    // page (CP437 on an en-US box), input bytes are decoded with it on
+    // arrival, and the two UTF-8 bytes of a typed é become ├⌐ before any
+    // process has read anything. Nothing downstream can repair that —
+    // measured: `chcp 65001` in the session, a fresh shell started after it,
+    // and [Console]::InputEncoding all leave é broken, because they run after
+    // the decode. Sending the é as a win32-input key EVENT dodges the arrival
+    // decode and still fails: the event reaches the input queue intact
+    // (ReadKey reads U+00E9), then dies in cooked reads, in PowerShell and in
+    // cmd alike.
+    //
+    // What measurably works, end to end, with this same shell on this same
+    // machine, is what sshd runs: UTF-8 bytes into a console whose code page
+    // IS 65001 before the shell starts. The attach client produces exactly
+    // those bytes; this makes the console side true. A code page belongs to a
+    // console, not a process, and only an attached process can set it — so
+    // attach to the child's console for the moment it takes. The daemon
+    // ordinarily has no console of its own (spawned DETACHED); when someone
+    // runs `--serve` from a terminal by hand it does, so that console is let
+    // go first and re-attached after, best effort.
+    //
+    // Sessions are opened with g_lock held, which is what makes this
+    // process-wide attach/free dance safe against a second session opening.
+    //
+    // Re-attach to the old console only if there WAS one. An unconditional
+    // AttachConsole(ATTACH_PARENT_PROCESS) looks like a tidy restore and is
+    // a live bug: an auto-spawned daemon's parent is the ATTACH CLIENT, so
+    // the daemon quietly joined the client's ssh console — and an ssh
+    // session does not tear down while another process holds its console,
+    // which turned every ^] d into a hang with the client's own exit path
+    // measuring innocent.
+    int had_console = GetConsoleWindow() != NULL;
+    FreeConsole();
+    for (int tries = 0; tries < 40; tries++) {
+        if (AttachConsole(pi.dwProcessId)) {
+            SetConsoleCP(CP_UTF8);
+            SetConsoleOutputCP(CP_UTF8);
+            FreeConsole();
+            break;
+        }
+        Sleep(25);
+    }
+    if (had_console) AttachConsole(ATTACH_PARENT_PROCESS);
+
     p->process = pi.hProcess;
     p->thread = pi.hThread;
     return p;
@@ -465,6 +512,7 @@ long plat_stdout_write(const void *buf, size_t n) {
 // ── the attaching client's terminal ─────────────────────────────────────
 
 static DWORD g_con_in_saved, g_con_out_saved;
+static UINT g_con_cp_in_saved, g_con_cp_out_saved;
 static int g_con_is_raw = 0;
 
 // ENABLE_VIRTUAL_TERMINAL_INPUT stays ON here, and what it delivers is not
@@ -500,6 +548,18 @@ int plat_tty_raw(void) {
     DWORD om = g_con_out_saved | ENABLE_VIRTUAL_TERMINAL_PROCESSING
              | DISABLE_NEWLINE_AUTO_RETURN;
     SetConsoleMode(out, om);
+    // UTF-8 both ways for the duration, because raw mode IS byte-exact mode:
+    // everything this client writes to its console is the session's byte
+    // stream, and the session emits UTF-8 (ConPTY output always is). At the
+    // OEM default the two bytes of an é coming BACK from a session render as
+    // ├⌐ — measured with the session's ring holding perfect UTF-8, which is
+    // what pinned the last mojibake on this side of the wire rather than
+    // that one. Saved and restored like the modes: the code page belongs to
+    // the console, which belongs to whoever ran us.
+    g_con_cp_in_saved = GetConsoleCP();
+    g_con_cp_out_saved = GetConsoleOutputCP();
+    SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
     g_con_is_raw = 1;
     return 0;
 }
@@ -508,6 +568,8 @@ void plat_tty_restore(void) {
     if (!g_con_is_raw) return;
     SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), g_con_in_saved);
     SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), g_con_out_saved);
+    SetConsoleCP(g_con_cp_in_saved);
+    SetConsoleOutputCP(g_con_cp_out_saved);
     g_con_is_raw = 0;
 }
 

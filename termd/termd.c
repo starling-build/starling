@@ -897,8 +897,8 @@ static void attach_send(struct attach *a, uint8_t type,
 // Returns the length of the event at `p`, 0 if it is not one. `*partial` is
 // set when the buffer ends mid-event, so the caller can carry the tail into
 // the next read rather than forwarding half a sequence.
-static size_t w32_key(const uint8_t *p, size_t n, uint32_t *uc, int *down,
-                      int *partial) {
+static size_t w32_key(const uint8_t *p, size_t n, uint32_t *vk, uint32_t *uc,
+                      int *down, int *partial) {
     *partial = 0;
     if (n == 0) return 0;
     if (p[0] != 0x1b) return 0;
@@ -920,12 +920,67 @@ static size_t w32_key(const uint8_t *p, size_t n, uint32_t *uc, int *down,
         if (p[i] == '_') {
             i++;
             if (nf < 4) return 0;         // too few fields to be one of ours
+            *vk = f[0];
             *uc = f[2];
             *down = f[3] != 0;
             return i;
         }
         return 0;                          // some other escape sequence
     }
+}
+
+// The byte spelling of a key event that carries no character: arrows,
+// navigation, function keys. A terminal that speaks bytes would have sent
+// exactly these, so this is reconstruction, not invention. Everything else
+// with no character — a bare Ctrl going down, a dead key — has no byte
+// spelling, and NULL here means "say nothing".
+static const char *w32_vk_bytes(uint32_t vk) {
+    switch (vk) {
+    case 0x25: return "\x1b[D";     // left
+    case 0x26: return "\x1b[A";     // up
+    case 0x27: return "\x1b[C";     // right
+    case 0x28: return "\x1b[B";     // down
+    case 0x24: return "\x1b[H";     // home
+    case 0x23: return "\x1b[F";     // end
+    case 0x21: return "\x1b[5~";    // page up
+    case 0x22: return "\x1b[6~";    // page down
+    case 0x2D: return "\x1b[2~";    // insert
+    case 0x2E: return "\x1b[3~";    // delete
+    case 0x70: return "\x1bOP";     // F1
+    case 0x71: return "\x1bOQ";     // F2
+    case 0x72: return "\x1bOR";     // F3
+    case 0x73: return "\x1bOS";     // F4
+    case 0x74: return "\x1b[15~";   // F5
+    case 0x75: return "\x1b[17~";   // F6
+    case 0x76: return "\x1b[18~";   // F7
+    case 0x77: return "\x1b[19~";   // F8
+    case 0x78: return "\x1b[20~";   // F9
+    case 0x79: return "\x1b[21~";   // F10
+    case 0x7A: return "\x1b[23~";   // F11
+    case 0x7B: return "\x1b[24~";   // F12
+    default:   return NULL;
+    }
+}
+
+// One code point as UTF-8 — the bytes a pty would have carried.
+static size_t utf8_put(uint32_t cp, uint8_t *o) {
+    if (cp < 0x80) { o[0] = (uint8_t)cp; return 1; }
+    if (cp < 0x800) {
+        o[0] = (uint8_t)(0xC0 | (cp >> 6));
+        o[1] = (uint8_t)(0x80 | (cp & 0x3F));
+        return 2;
+    }
+    if (cp < 0x10000) {
+        o[0] = (uint8_t)(0xE0 | (cp >> 12));
+        o[1] = (uint8_t)(0x80 | ((cp >> 6) & 0x3F));
+        o[2] = (uint8_t)(0x80 | (cp & 0x3F));
+        return 3;
+    }
+    o[0] = (uint8_t)(0xF0 | (cp >> 18));
+    o[1] = (uint8_t)(0x80 | ((cp >> 12) & 0x3F));
+    o[2] = (uint8_t)(0x80 | ((cp >> 6) & 0x3F));
+    o[3] = (uint8_t)(0x80 | (cp & 0x3F));
+    return 4;
 }
 
 // One byte of terminal input, with the prefix key intercepted on the way
@@ -963,21 +1018,27 @@ static int feed_byte(struct attach *a, uint8_t ch, uint8_t *out, size_t *m,
 //     every arrow key clears the line and types "[A" into it. Decoding
 //     restores ESC [ A.
 //
-// Anything that is not a plain ASCII code point is passed through as the
-// event it arrived as: a bare modifier and a function key have no bytes to
-// make from them, and a non-ASCII code point decodes losslessly at the far
-// end's console, where the same character as UTF-8 bytes would be read in
-// that console's OEM code page and arrive as mojibake (é becomes ├⌐).
-// That last one is the seam to watch: the event spelling is understood by a
-// Windows far end and would be noise to a POSIX one, so a Windows client
-// attached to a Linux daemon still cannot type é. Cursor keys, the prefix
-// and all ASCII are byte-exact either way.
+// EVERY event becomes bytes — UTF-8 for characters (surrogate halves are
+// paired back into one code point first), the standard VT sequences for
+// arrows and function keys, nothing at all for a bare modifier. No event
+// text ever reaches the wire, and that is the design, not tidiness: the
+// wire is the pty byte stream, a POSIX daemon can be on the far end of it,
+// and — measured — a Windows daemon cannot digest the event spelling
+// either. Forwarding é's event put ├⌐ in the shell's line while ReadKey in
+// the same session read the event correctly as U+00E9: the event survives
+// into the input queue and dies in the cooked-read path, immune to chcp,
+// to [Console]::InputEncoding, and to which console host is running. The
+// configuration that measurably works end to end is the one sshd itself
+// uses — UTF-8 bytes into a console set to code page 65001 — so the client
+// produces exactly those bytes, and the daemon sets exactly that code page
+// (see plat_pty_open in plat_win32.c).
 static void attach_stdin(void *arg) {
     struct attach *a = arg;
     uint8_t work[4160];
     uint8_t out[sizeof(work) * 2];   // worst case: every byte is a held prefix
     size_t ncarry = 0;
     int held = 0;
+    uint32_t hi_sur = 0;   // the high half of a surrogate pair, awaiting its low
 
     for (;;) {
         long n = plat_stdin_read(work + ncarry, sizeof(work) - ncarry);
@@ -988,9 +1049,9 @@ static void attach_stdin(void *arg) {
         size_t m = 0, i = 0;
         int detach = 0;
         while (i < total) {
-            uint32_t uc = 0;
+            uint32_t vk = 0, uc = 0;
             int down = 0, partial = 0;
-            size_t seq = w32_key(work + i, total - i, &uc, &down, &partial);
+            size_t seq = w32_key(work + i, total - i, &vk, &uc, &down, &partial);
 
             if (partial) {
                 // Hold the tail back for the next read rather than forwarding
@@ -1006,14 +1067,34 @@ static void attach_stdin(void *arg) {
 
             if (seq) {
                 i += seq;
-                if (uc != 0 && uc < 0x80) {
-                    if (!down) continue;        // a byte stream has no key-ups
-                    detach = feed_byte(a, (uint8_t)uc, out, &m, &held);
+                // Characters ride on key-DOWN events — except those with no
+                // key of their own, which the console delivers Alt+Numpad
+                // style: an Alt press whose key-UP carries the code point.
+                // An emoji arrives as exactly two such pairs, one per
+                // surrogate half (vk 18 is Alt; measured, not theorised).
+                // Every other key-up is dropped: a byte stream has no
+                // key-ups, and an ordinary key carries its character on
+                // both edges — forwarding the up would double every letter.
+                if (!down && !(vk == 18 && uc != 0)) continue;
+                if (uc == 0) {
+                    const char *vs = w32_vk_bytes(vk);
+                    for (; vs && *vs && !detach; vs++)
+                        detach = feed_byte(a, (uint8_t)*vs, out, &m, &held);
                     if (detach) break;
                     continue;
                 }
-                memcpy(out + m, work + i - seq, seq);
-                m += seq;
+                if (uc >= 0xD800 && uc <= 0xDBFF) { hi_sur = uc; continue; }
+                uint32_t cp = uc;
+                if (uc >= 0xDC00 && uc <= 0xDFFF) {
+                    if (!hi_sur) continue;      // a lone low half says nothing
+                    cp = 0x10000 + ((hi_sur - 0xD800) << 10) + (uc - 0xDC00);
+                }
+                hi_sur = 0;
+                uint8_t enc[4];
+                size_t k = utf8_put(cp, enc);
+                for (size_t z = 0; z < k && !detach; z++)
+                    detach = feed_byte(a, enc[z], out, &m, &held);
+                if (detach) break;
                 continue;
             }
 

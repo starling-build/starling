@@ -166,6 +166,24 @@ recalled = a.read_count(b"termd-ssh-4242", seen_before + 1, timeout=15)
 check("the up arrow recalls the last command, not '[A'",
       recalled and b"[A" not in a.buf[mark:], repr(a.buf[mark:][-160:]))
 
+# Non-ASCII, all three shapes: a two-byte UTF-8 character, three-byte CJK,
+# and a four-byte emoji whose surrogate halves arrive Alt+Numpad style — on
+# the key-UP of Alt, which a decoder that drops key-ups silently eats. The
+# expected text appears twice, typed echo and command output; matching on
+# the payload alone dodges the colour escapes the shell paints between
+# tokens. These were ALL broken over ssh once: the session console decoded
+# input bytes at the OEM code page, and no chcp after the fact could reach
+# the decision. The daemon now sets the console to UTF-8 the way sshd does.
+a.send("echo café\r".encode())
+check("a two-byte character round-trips (café)",
+      a.read_count("café".encode(), 2), repr(a.buf[-120:]))
+a.send("echo 日本語\r".encode())
+check("CJK round-trips (日本語)",
+      a.read_count("日本語".encode(), 2), repr(a.buf[-120:]))
+a.send("echo \U0001F389\r".encode())
+check("an astral-plane character round-trips (emoji)",
+      a.read_count("\U0001F389".encode(), 2), repr(a.buf[-120:]))
+
 listing = ssh_run(f"& '{EXE}' --list")
 check("the session is listed while attached", NAME in listing, listing.strip()[:200])
 check(f"the session opened at the terminal's size ({COLS}x{ROWS})",
