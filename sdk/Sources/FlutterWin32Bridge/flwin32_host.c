@@ -2,8 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// redirect_std_to_log_file uses plain _wfreopen deliberately (see the comment
+// there); keep the CRT from warning us toward the _s variant that caused the
+// bug. Must precede the first CRT include.
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "include/FlutterWin32Bridge.h"
 
+#include <fcntl.h>
+#include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -243,6 +252,156 @@ FlWin32Host* flwin32_host_create(const char* title,
 
   SetWindowLongPtrW(window, GWLP_USERDATA, (LONG_PTR)host);
   return host;
+}
+
+// Last resort when there is no console and no redirection: send stdout and
+// stderr to %LOCALAPPDATA%\Starling\<exe>.log.
+//
+// Without this a GUI-subsystem app double-clicked in Explorer has nowhere to
+// write, and the one message that matters is the one you lose: Swift prints
+// "Fatal error: <reason>: file X, line N" to stderr and *then* executes its
+// trap instruction, so a crash that would name its own cause instead shows up
+// only as an illegal-instruction bucket in the Windows event log, pointing at
+// swiftCore.dll with no reason attached. That is exactly how one real crash
+// here cost a night of guessing.
+static void redirect_std_to_log_file(void) {
+  wchar_t dir[MAX_PATH];
+  DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
+  if (n == 0 || n >= MAX_PATH - 32) {
+    return;
+  }
+  if (wcscat_s(dir, MAX_PATH, L"\\Starling") != 0) {
+    return;
+  }
+  // Already-exists is the normal case and not an error.
+  CreateDirectoryW(dir, NULL);
+
+  wchar_t exe[MAX_PATH];
+  if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) {
+    return;
+  }
+  wchar_t* base = wcsrchr(exe, L'\\');
+  base = (base != NULL) ? base + 1 : exe;
+  wchar_t* dot = wcsrchr(base, L'.');
+  if (dot != NULL) {
+    *dot = L'\0';
+  }
+
+  wchar_t path[MAX_PATH];
+  if (swprintf_s(path, MAX_PATH, L"%s\\%s.log", dir, base) < 0) {
+    return;
+  }
+
+  // ONE kernel-append handle, and every descriptor in the process that can
+  // reach the log is a duplicate of it. The writers do not agree on how to
+  // write — Swift print and printf go through the CRT FILE streams, the
+  // Swift runtime's "Fatal error: <reason>" is a bare _write(2, …), and
+  // Foundation's FileHandle resolves a descriptor to its OS handle and calls
+  // raw WriteFile — and only FILE_APPEND_DATA makes the KERNEL pin all of
+  // them to end-of-file. Anything less loses data in practice, twice over:
+  //
+  //   - _wfreopen_s for the streams (_SH_SECURE — exclusive write) made the
+  //     second reopen of the same path fail with a sharing violation, and
+  //     freopen closes its stream even when the new open fails; the first
+  //     print through the dead stdout then fast-failed the whole process
+  //     (exit 0xc0000409) with the log created and empty.
+  //   - plain _wfreopen(path, "a") for the streams worked for CRT writers
+  //     (the CRT seeks to end before its own writes) but left the handles
+  //     plain GENERIC_WRITE, so Foundation's first raw WriteFile landed at
+  //     the handle's stored position — 0 — and erased the log's head
+  //     (observed: the startup line vanished the moment the first [Adapter]
+  //     line was written).
+  //
+  // CREATE_ALWAYS: fresh log each launch.
+  HANDLE append = CreateFileW(path, FILE_APPEND_DATA,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                              CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (append == INVALID_HANDLE_VALUE) {
+    // Streams stay detached; prints remain silent no-ops, which is safe.
+    return;
+  }
+  int afd = _open_osfhandle((intptr_t)append, _O_APPEND | _O_TEXT);
+  if (afd < 0) {
+    CloseHandle(append);
+    return;
+  }
+
+  // Rebind the FILE streams. freopen to NUL first, because that is the only
+  // supported way to give a detached stream (_fileno == -2) a real
+  // descriptor again; then point that descriptor at the log with _dup2,
+  // which installs a duplicate of the append handle (flags included) under
+  // the same fd number. NUL, not the log path, so no plain-write handle to
+  // the log ever exists for Foundation to find via the stream's fd.
+  FILE* f = _wfreopen(L"NUL", L"w", stderr);
+  if (f != NULL) {
+    // Unbuffered, or a crash takes the buffered tail with it — defeating
+    // the whole point of the file.
+    setvbuf(stderr, NULL, _IONBF, 0);
+    int fd = _fileno(stderr);
+    if (fd >= 0 && fd != afd) {
+      _dup2(afd, fd);
+    }
+  }
+  FILE* g = _wfreopen(L"NUL", L"w", stdout);
+  if (g != NULL) {
+    setvbuf(stdout, NULL, _IONBF, 0);
+    int fd = _fileno(stdout);
+    if (fd >= 0 && fd != afd) {
+      _dup2(afd, fd);
+    }
+  }
+
+  // Descriptors 1 and 2 as well — the freopens above land on the lowest
+  // free fds (3 and 4 in practice, never 1 and 2), and the Swift runtime's
+  // fatal-error report writes to fd 2 by number.
+  _dup2(afd, 1);
+  _dup2(afd, 2);
+  if (afd > 2 && (f == NULL || afd != _fileno(stderr))
+      && (g == NULL || afd != _fileno(stdout))) {
+    _close(afd);
+  }
+
+  // And the Win32-level handles, for anything that asks GetStdHandle.
+  SetStdHandle(STD_OUTPUT_HANDLE, (HANDLE)_get_osfhandle(1));
+  SetStdHandle(STD_ERROR_HANDLE, (HANDLE)_get_osfhandle(2));
+}
+
+void flwin32_attach_parent_console(void) {
+  // A console-subsystem build already owns one, and AttachConsole would fail
+  // on it anyway.
+  if (GetConsoleWindow() != NULL) {
+    return;
+  }
+
+  // Read before attaching, not after. A redirected stream (`app.exe >
+  // log.txt`, or the bench scripts' Start-Process -RedirectStandardOutput)
+  // arrives as a real file handle; reopening CONOUT$ over it would put the
+  // output on the console and leave the file empty — a silent loss, since the
+  // file is created either way.
+  HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+  HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
+
+  // Fails, harmlessly, when the launcher had no console — Explorer, the
+  // Start menu, a shortcut. That is the common case and wants no console, but
+  // it still wants somewhere for a crash to say why.
+  if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
+    if ((out == NULL || out == INVALID_HANDLE_VALUE) &&
+        (err == NULL || err == INVALID_HANDLE_VALUE)) {
+      redirect_std_to_log_file();
+    }
+    return;
+  }
+
+  // Attaching gives the process a console but not CRT streams pointing at it:
+  // stdout is still the closed/absent handle the process started with, so
+  // both printf and Swift's print stay silent until the FILE* is reopened.
+  FILE* reopened = NULL;
+  if (out == NULL || out == INVALID_HANDLE_VALUE) {
+    freopen_s(&reopened, "CONOUT$", "w", stdout);
+  }
+  if (err == NULL || err == INVALID_HANDLE_VALUE) {
+    freopen_s(&reopened, "CONOUT$", "w", stderr);
+  }
 }
 
 void flwin32_host_show(FlWin32Host* host) {

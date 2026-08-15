@@ -12,6 +12,7 @@
 #if os(Windows)
 import Flutter
 import FlutterSwiftBridge
+import FlutterWin32Bridge
 import Foundation
 import WinSDK
 
@@ -23,6 +24,11 @@ public enum Win32WindowedHost {
     /// Point runStarlingApp/startPeriodicTimer at the Win32 host. Call once,
     /// before runStarlingApp.
     public static func install() {
+        // First, because everything below it may print. A windowed app links
+        // GUI-subsystem so Explorer does not open a console window behind it,
+        // and this hands the logging back to whoever launched it from a shell.
+        // A no-op under Explorer, which is where the silence is wanted.
+        flwin32_attach_parent_console()
         // The system clipboard, so copy/paste reaches the rest of Windows
         // rather than staying inside the process.
         Clipboard.provider = Win32ClipboardProvider()

@@ -38,6 +38,19 @@ FlWin32Host* flwin32_host_create(const char* title,
                                  int32_t height,
                                  const void* runtime_controller);
 
+// Borrows the launching console, if the app was launched from one.
+//
+// A GUI-subsystem binary (which is what an app with a window should be —
+// see the /SUBSYSTEM:WINDOWS note in the app's Package.swift) starts with no
+// console, so `printf` and Swift's `print` go nowhere. Run from a shell that
+// is a problem; run from Explorer it is the entire point. This resolves both:
+// attach to the parent's console when there is one, leave a redirected stream
+// alone, and do nothing at all under Explorer.
+//
+// Call once, before anything prints. Safe to call from a console-subsystem
+// build, where it returns immediately.
+void flwin32_attach_parent_console(void);
+
 // Shows the window.
 void flwin32_host_show(FlWin32Host* host);
 

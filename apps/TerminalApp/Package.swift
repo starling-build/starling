@@ -172,6 +172,25 @@ var targets: [Target] = [
                     .unsafeFlags([
                         "-L\(engineOutDir)",
                         "-lflutter_engine.dll",
+                        // Windows picks a subsystem from the entry point, and
+                        // every Swift executable's entry point is `main` — so
+                        // the default link is a CONSOLE binary, and launching
+                        // it from Explorer opens a console window that sits
+                        // behind the terminal's own for the life of the
+                        // process. A GUI app is what this is; say so.
+                        //
+                        // /ENTRY comes with it and is not optional:
+                        // SUBSYSTEM:WINDOWS makes the linker look for
+                        // WinMainCRTStartup, which wants a `WinMain` no Swift
+                        // program has, and the link fails with an unresolved
+                        // external rather than anything about subsystems.
+                        //
+                        // Logging survives: a GUI process still inherits a
+                        // redirected stdout/stderr, and
+                        // `flwin32_attach_parent_console` borrows the console
+                        // when there is one to borrow.
+                        "-Xlinker", "/SUBSYSTEM:WINDOWS",
+                        "-Xlinker", "/ENTRY:mainCRTStartup",
                     ]),
                 ]
             )
