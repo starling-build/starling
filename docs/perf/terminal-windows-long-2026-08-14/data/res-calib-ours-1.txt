@@ -1,0 +1,13 @@
+# calib-ours grid=40x120 pid=5496
+01_light_cells 0.257 0.36 1
+02_dense_cells 0.090 0.11 1
+03_sgr_fg 1.145 1.31 1
+04_sgr_truecolor 0.869 0.97 1
+05_unicode 0.400 1.06 1
+06_cursor_motion 0.060 0.06 1
+07_alt_screen 0.159 0.19 1
+08_scroll_region 0.926 1.17 1
+09_long_lines 0.096 0.33 1
+10_binary 2.216 2.81 1
+rss_kb 67708
+grid_after 40x120

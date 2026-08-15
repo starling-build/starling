@@ -1,0 +1,13 @@
+# calib-wt grid=40x120 pid=5368
+01_light_cells 0.275 0.64 1
+02_dense_cells 0.087 0.20 1
+03_sgr_fg 1.134 3.05 1
+04_sgr_truecolor 0.854 2.02 1
+05_unicode 0.401 0.94 1
+06_cursor_motion 0.059 0.19 1
+07_alt_screen 0.205 0.50 1
+08_scroll_region 0.981 2.55 1
+09_long_lines 0.096 0.22 1
+10_binary 10.428 17.45 1
+rss_kb 123600
+grid_after 40x120

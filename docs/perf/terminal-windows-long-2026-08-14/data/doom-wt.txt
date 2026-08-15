@@ -1,0 +1,4 @@
+# wt grid=40x120 pid=8012 frames=150000
+BENCHFPS frames=150000 seconds=206.887 fps=725.03
+  cpu_s 495.50
+^C
