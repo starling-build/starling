@@ -245,8 +245,29 @@ the last of ascii are the repaint path, which `NOREPAINT` shows is worth
 ~0.5-0.7 CPU-s per 500 MB of drain time — that is the next thing to look at,
 not the reader.
 
-Caveat: the ring change is verified on the cats only. The ten-workload suite
-has not been re-run against it.
+### The suite, re-run against the ring change
+
+The caveat above is now closed: both suite legs re-run back to back on the
+2 MB ring (`data/ring-suite/`).
+
+| | ours before | ours after | |
+|---|---:|---:|---|
+| total, ten workloads | 1057.2 s | 1064.2 s | +0.7%, inside drift |
+| 05_unicode | 120.2 s | **113.7 s** | **-5.4%** |
+| vs Windows Terminal | 0.836x wall / 0.537x CPU | **0.858x / 0.574x** | |
+
+**No regression, and the suite's one losing workload is gone.** `05_unicode`
+was the only outright loss in the first round (0.953x) and is now level
+(1.011x) — the same path the ring fixed on the unicode cat. Everything else
+moves ~1%, which is what this box does between sittings.
+
+Which is the warning attached to these numbers: Windows Terminal's own legs
+moved up to 12% between the two rounds (`03_sgr_fg` -12.7%, `06_cursor_motion`
+-11.2%, `08_scroll_region` +8.5%) on identical work. **Only within-session
+ratios are trustworthy here.** `07_alt_screen` reads +9.1% for us and +7.6%
+for Windows Terminal, so it is drift rather than a regression — but it is
+exactly the shape a real regression would take, which is why the pair is run
+back to back.
 
 ## Raw data
 
