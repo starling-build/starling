@@ -325,7 +325,9 @@ func _setupWidgetBinding(_ app: Widget) {
                 if let sp = secondaryPipelines.removeValue(forKey: id) {
                     _ = RenderObjectToWidgetAdapter(child: nil, container: sp.renderView)
                         .attachToRenderTree(buildOwner, sp.rootElement)
-                    FileHandle.standardError.write(Data(
+                    // try? — see the config-change write below: a failed
+                    // diagnostic write must not be fatal.
+                    try? FileHandle.standardError.write(contentsOf: Data(
                         "[Adapter] view \(id) pipeline disposed\n".utf8))
                 }
             }
@@ -353,15 +355,27 @@ func _setupWidgetBinding(_ app: Widget) {
                 let root = adapter.attachToRenderTree(buildOwner)
                 secondaryPipelines[id] = SecondaryViewPipeline(
                     renderView: rv, pipelineOwner: po, rootElement: root)
-                FileHandle.standardError.write(Data(
+                // try? — see the config-change write below: a failed
+                // diagnostic write must not be fatal.
+                try? FileHandle.standardError.write(contentsOf: Data(
                     "[Adapter] view \(id) pipeline created (\(flutterView.physicalSize.width)x\(flutterView.physicalSize.height))\n".utf8))
             }
         }
 
         // Update configuration each frame (view metrics may have changed)
+        //
+        // `try?`, and everywhere a diagnostic line is written from a running
+        // frame: FileHandle's non-throwing write(_:) calls fatalError when the
+        // write FAILS, and a GUI-subsystem Windows app launched from Explorer
+        // starts with no stderr handle at all. This exact line was the first
+        // stderr write of the process's life, so clicking maximize — the first
+        // metrics change — trapped the whole app in the Swift runtime
+        // (c000001d in swiftCore, inside the window procedure). A log line
+        // with nowhere to go must be dropped, never fatal.
         let newConfig = RenderViewConfiguration.fromView(view)
         if renderView!.configuration != newConfig {
-            FileHandle.standardError.write(Data("[Adapter] config change: \(renderView!.configuration) -> \(newConfig)\n".utf8))
+            try? FileHandle.standardError.write(
+                contentsOf: Data("[Adapter] config change: \(renderView!.configuration) -> \(newConfig)\n".utf8))
             renderView!.configuration = newConfig
             // Metrics changed: re-run every build() so size-derived state
             // (a terminal's row count) follows the new metrics — see the

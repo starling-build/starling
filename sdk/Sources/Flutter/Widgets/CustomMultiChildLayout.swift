@@ -41,7 +41,8 @@ public class LayoutId: ParentDataWidget<MultiChildLayoutParentData> {
             let msg = "[LayoutId] applyParentData: expected MultiChildLayoutParentData but got "
                 + "\(type(of: renderObject.parentData)) on \(type(of: renderObject)) -- "
                 + "LayoutId is not directly inside a CustomMultiChildLayout; skipping (id=\(id))\n"
-            FileHandle.standardError.write(Data(msg.utf8))
+            // try? — degrade-path warning; see Positioned.applyParentData.
+            try? FileHandle.standardError.write(contentsOf: Data(msg.utf8))
             return
         }
         if parentData.id != id {

@@ -1251,7 +1251,11 @@ public class Positioned: ParentDataWidget<StackParentData> {
                 + "(l=\(String(describing: left)) t=\(String(describing: top)) "
                 + "r=\(String(describing: right)) b=\(String(describing: bottom)) "
                 + "w=\(String(describing: width)) h=\(String(describing: height)))\n"
-            FileHandle.standardError.write(Data(msg.utf8))
+            // try? — the point of this path is to DEGRADE. FileHandle's
+            // non-throwing write traps when the write fails (e.g. a Windows
+            // GUI app with no stderr), which would turn the warning itself
+            // into the crash it exists to avoid.
+            try? FileHandle.standardError.write(contentsOf: Data(msg.utf8))
             return
         }
         var needsLayout = false
@@ -1447,7 +1451,8 @@ public class Flexible: ParentDataWidget<FlexParentData> {
             let msg = "[Flexible] applyParentData: expected FlexParentData but got "
                 + "\(type(of: renderObject.parentData)) on \(type(of: renderObject)) -- "
                 + "Flexible/Expanded is not directly inside a Row/Column/Flex; skipping\n"
-            FileHandle.standardError.write(Data(msg.utf8))
+            // try? — degrade-path warning; see Positioned.applyParentData.
+            try? FileHandle.standardError.write(contentsOf: Data(msg.utf8))
             return
         }
         var needsLayout = false
