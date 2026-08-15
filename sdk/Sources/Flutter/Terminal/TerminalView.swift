@@ -420,7 +420,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// scrollback, a long-press (finger held inside the slop) starts the
     /// selection, and a plain tap raises the soft keyboard. Mouse, trackpad
     /// and stylus keep the desktop behaviour above.
-    private enum TouchPhase { case undecided, scrolling, selecting }
+    private enum TouchPhase { case undecided, scrolling, selecting, keyboard }
     /// The touch being tracked, nil when none — or when a second finger
     /// turned the gesture into a pinch and took it away.
     private var _touchPointer: Int?
@@ -433,6 +433,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var _touchLines: Double = 0
     /// (monotonic seconds, y) samples inside the fling velocity window.
     private var _touchSamples: [(t: Double, y: Double)] = []
+    /// Whether the view was on the live screen when this touch landed. The
+    /// keyboard swipe is only offered to a finger that started there — a
+    /// flick out of deep scrollback ends at the live screen too, and should
+    /// not also summon a keyboard nobody asked for.
+    private var _touchStartAtLive = true
     /// Invalidates the pending long-press when the finger moves or lifts.
     private var _longPressGeneration = 0
     /// Invalidates fling ticks on a new touch, a keystroke, or dispose.
@@ -440,6 +445,9 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// Flutter's kTouchSlop and kLongPressTimeout.
     private static let touchSlop: Double = 18
     private static let longPressTimeout: Double = 0.5
+    /// How far a swipe must travel to summon or dismiss the keyboard. Well
+    /// past the scroll slop, so an ordinary scroll never trips it.
+    private static let keyboardSwipe: Double = 60
     /// True while this terminal is the reported IME caret anchor.
     private var _sentImeCaret = false
 
@@ -500,13 +508,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             return self?._handleKey(keyData) ?? false
         }
         #if os(iOS)
-        // A phone terminal exists to be typed into: take focus and raise the
-        // keyboard the moment the view appears, rather than demanding a tap
-        // first. Deferred a turn so the node is attached before it asks.
+        // Focus, but NO keyboard: the grid is what the user came to read, and
+        // a keyboard that shows itself uninvited eats half of it. It is one
+        // swipe up away (see _touchMoved), the way a phone raises any panel.
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.focusNode.requestFocus()
-            SoftKeyboard.show()
+            self?.focusNode.requestFocus()
         }
         #endif
         focusNode.onFocusChange = { [weak self] focused in
@@ -867,6 +873,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         _touchStart = event.localPosition
         _touchLast = event.localPosition
         _touchLines = 0
+        _touchStartAtLive = _viewOffset == 0
         _touchSamples = [(Self._now(), event.localPosition.dy)]
         _longPressGeneration += 1
         let generation = _longPressGeneration
@@ -891,6 +898,9 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
 
     private func _touchMoved(_ event: PointerEvent) {
         let pos = event.localPosition
+        // The keyboard swipe has already spent this gesture: whatever the
+        // finger does until it lifts, it is not also a scroll.
+        if _touchPhase == .keyboard { return }
         if _touchPhase == .undecided {
             let dx = pos.dx - _touchStart.dx, dy = pos.dy - _touchStart.dy
             guard dx * dx + dy * dy > Self.touchSlop * Self.touchSlop else {
@@ -903,6 +913,31 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             _touchSamples = [(Self._now(), pos.dy)]
             return
         }
+        // The keyboard rides the same swipe, at the two moments where
+        // scrolling has nothing left to do — pulled up from the live screen
+        // where there is nothing below, and pushed back down while it is
+        // covering the view. Both are checked against distance from the
+        // finger's ORIGIN, not the running delta, so only a deliberate long
+        // swipe crosses the line and a shove through the scrollback never
+        // does.
+        if SoftKeyboard.isAvailable {
+            let travelled = pos.dy - _touchStart.dy
+            if SoftKeyboard.isVisible {
+                if travelled > Self.keyboardSwipe {
+                    _touchPhase = .keyboard
+                    SoftKeyboard.hide()
+                    setState {}
+                    return
+                }
+            } else if travelled < -Self.keyboardSwipe
+                        && _touchStartAtLive && _viewOffset == 0 {
+                _touchPhase = .keyboard
+                SoftKeyboard.show()
+                setState {}
+                return
+            }
+        }
+
         // .scrolling. Dragging DOWN pulls older lines into view: positive
         // lines walk back through history — the direct-manipulation
         // direction, opposite in sign to a trackpad's pan delta.
@@ -942,6 +977,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             _selecting = false
         case .scrolling:
             _startFling(at: event.localPosition)
+        case .keyboard:
+            break  // the swipe was the whole gesture
         }
     }
 
@@ -1504,6 +1541,28 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                             fontSize: 13,
                             fontFamily: font.family,
                             fontFamilyFallback: _fontFallback))))))
+        }
+
+        // A grabber at the bottom edge while the keyboard is away. The swipe
+        // that summons it is invisible otherwise, and a phone should show
+        // where its panels come from — this is the same pill iOS puts on a
+        // sheet, read the same way: pull me up. It sits BELOW the last row
+        // (the grid leaves a partial row's slack at the bottom) so it never
+        // covers text, and it is gone while the keyboard is up, where the
+        // keyboard's own presence is the affordance.
+        if SoftKeyboard.isAvailable && !SoftKeyboard.isVisible {
+            layers.append(Positioned(
+                left: 0,
+                right: 0,
+                bottom: 3,
+                child: Center(
+                    child: SizedBox(
+                        width: 40,
+                        height: 4,
+                        child: DecoratedBox(
+                            decoration: BoxDecoration(
+                                color: Color(0x40FFFFFF),
+                                borderRadius: BorderRadius.circular(2)))))))
         }
 
         // The find bar (Ctrl+Shift+F), top right like macOS Terminal's.
