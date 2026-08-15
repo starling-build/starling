@@ -74,7 +74,7 @@ let engineOutDir: String = {
     if !iosBuild, !sdkBundle.isEmpty { return sdkBundle + "/engine/lib" }
     let candidates = iosBuild
         ? [appPackageDir + "/../../engine/src/out/"
-            + (iosMode == "device" ? "ios_debug_arm64" : "ios_debug_sim_arm64")]
+            + (iosMode == "device" ? "ios_debug" : "ios_debug_sim_arm64")]
         : [appPackageDir + "/../../engine/src/out/host_debug_arm64",
            appPackageDir + "/../../engine/src/out/host_debug"]
     let fm = FileManager.default

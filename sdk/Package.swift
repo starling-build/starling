@@ -137,7 +137,9 @@ let engineCandidates = [
 let engineLinkName = "swift_bridge"
 let engineMarker = "libswift_bridge.dylib"
 let engineDirNames: [String] = iosBuild
-    ? (iosDevice ? ["ios_debug_arm64"] : ["ios_debug_sim_arm64"])
+    // gn's device directory has no cpu suffix: `--ios` alone is arm64,
+    // only `--simulator` grows a `_sim_arm64` tail.
+    ? (iosDevice ? ["ios_debug"] : ["ios_debug_sim_arm64"])
     : ["host_debug_arm64", "host_debug"]
 let engineCandidates = [packageDir + "/engine/lib"]
     + engineDirNames.flatMap {

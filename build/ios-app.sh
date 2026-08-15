@@ -51,7 +51,9 @@ done
 if [ "$MODE" = "device" ]; then
     SDK_NAME="iphoneos"
     TRIPLE="arm64-apple-ios17.0"
-    ENGINE_OUT="$REPO/engine/src/out/ios_debug_arm64"
+    # gn names the device directory without the cpu suffix: `--ios` alone
+    # is arm64, only `--simulator` grows a `_sim_arm64` tail.
+    ENGINE_OUT="$REPO/engine/src/out/ios_debug"
     STARLING_IOS_VALUE="device"
 else
     SDK_NAME="iphonesimulator"
