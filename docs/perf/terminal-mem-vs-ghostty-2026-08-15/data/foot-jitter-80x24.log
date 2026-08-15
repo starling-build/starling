@@ -1,0 +1,5 @@
+footprint jitter, 5 runs each, 80x24 (bytes)
+ours     empty   81920 81920 65536 81920 65536 
+ghostty  empty   196632 180224 196632 180224 180248 
+ours     screen  98304 98304 98304 98304 98304 
+ghostty  screen  229400 229400 229400 229400 229400 

@@ -19,7 +19,14 @@
 #include <string.h>
 #include <stdio.h>
 
+/* The shipping default is 2000 and stays 2000. The guard exists so a bench
+   build can be compiled at another depth (-DSB_LIMIT=10000) without editing
+   this file: comparing our memory against a core whose scrollback default is
+   deeper is meaningless at mismatched depth, because the cheaper number is
+   just the one holding less history. See test/bench/core/mem-bench.sh. */
+#ifndef SB_LIMIT
 #define SB_LIMIT 2000
+#endif
 #define SB_SLACK 512
 /* Rows of headroom after the live screen, so a full-screen scroll can bump a
    pointer instead of moving every row. One recentring memmove per this many

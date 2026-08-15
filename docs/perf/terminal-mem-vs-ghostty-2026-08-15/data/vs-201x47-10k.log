@@ -1,0 +1,25 @@
+ours     01e0647 (SB_LIMIT=10000)
+ghostty  046b8fcc2
+grid 201x47  lines 10000
+
+engine   mode    payload   cols  rows    lines  sb_rows     heap_B  counted_B     foot_B     B/row   B/cell
+ours     -       empty      201    47        0        0     465920          0     245760    5228.9    26.01
+ghostty  def     empty      201    47        0        0      11744          0     180248    3835.1    19.08
+ghostty  def+z   empty      201    47        0        0      11744          0     196632    4183.7    20.81
+ours     -       screen     201    47       47        0     465920          0     262144    5577.5    27.75
+ghostty  def     screen     201    47       47        0      11744          0     262144    5577.5    27.75
+ghostty  def+z   screen     201    47       47        0      11744          0     262144    5577.5    27.75
+ours     -       plain      201    47    10000     9954   36141056          0   41500696    4149.7    20.65
+ghostty  def     plain      201    47    10000     9954      31712          0   17580080    1757.8     8.75
+ghostty  def+z   plain      201    47    10000     9954     289760          0     639024      63.9     0.32
+ours     -       unicode    201    47    10000     9954   36143200          0   41500696    4149.7    20.65
+ghostty  def     unicode    201    47    10000     9782      31712          0   17465392    1776.9     8.84
+ghostty  def+z   unicode    201    47    10000     9782    2046944          0    2687024     273.4     1.36
+ours     -       styled     201    47    10000     9954   36141056          0   41517080    4151.3    20.65
+ghostty  def     styled     201    47    10000     9954      31712          0   23167072    2316.5    11.52
+ghostty  def+z   styled     201    47    10000     9954    2096096          0    2506848     250.7     1.25
+ours     -       mixed      201    47    10000     9954   36143200          0   41484312    4148.0    20.64
+ghostty  def     mixed      201    47    10000     9896      31712          0   23019616    2315.2    11.52
+ghostty  def+z   mixed      201    47    10000     9896    3390432          0    4210784     423.5     2.11
+
+ghostty  cnt     plain      201    47    10000     9954      31712      29194   17678384    1767.7     8.79
