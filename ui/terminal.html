@@ -361,8 +361,8 @@
     <p class="tagline">A cross-platform terminal, built for speed.</p>
     <p class="lede">
       Linux, Windows and macOS. Tiling or floating, from one toggle — and faster
-      than the ghostty nightly on both Linux and macOS, at half the CPU or less.
-      Below: both terminals on one machine, same 122&times;233 grid, three tests,
+      than the ghostty nightly on both Linux and macOS, at about half the CPU.
+      Below: both terminals on one machine, matched font and grid, three tests,
       one take.
     </p>
   </div>
@@ -442,10 +442,12 @@
     <h2>Measured against ghostty, on Linux and macOS.</h2>
     <p>Both platforms run ghostty's current nightly, configured onto our Roboto Mono
        at our cell metrics, at the same verified 47&times;201 grid — so cell for cell,
-       both terminals raster the same pixels. And every test runs at
-       <strong>steady state</strong>: each workload sustained for one to two minutes
-       per side, the cats 500 MB, DOOM-Fire run to 150,000 frames — no cold starts,
-       no ten-second sprints. Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a
+       both terminals raster the same pixels. (The one wrinkle: ghostty's Linux legs
+       came up 47&times;202 every time — an extra blank column that only DOOM-Fire
+       fills, so its Linux fire fps reads up to 0.5% low.) And every test runs at
+       <strong>steady state</strong>: each workload repeated until the slower side
+       sustains one to two minutes, the cats 500 MB, DOOM-Fire run to 150,000
+       frames — no cold starts, no ten-second sprints. Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a
        MacBook Pro (M1 Pro), our build on a full release engine. Every bar below is
        a multiple of ghostty's pace, on a log scale so a 2&times; win and a 2&times;
        loss have equal length: <strong>amber, rightward — Starling is ahead</strong>;
@@ -534,7 +536,8 @@
       wins in ten-second bursts (light and dense cells, 0.85&times; and 0.69&times;
       short-range) converge to parity here, but ghostty also gains nothing back:
       its Linux unicode throughput halves at scale (184 to 97 MB/s) while ours
-      holds. The one test it keeps anywhere is the Linux ascii cat, by ~6% — its
+      sheds only a quarter (228 to 173 MB/s). The one test it keeps by more than
+      noise is the Linux ascii cat, by ~6% — its
       <code>io_uring</code> read path gets under the <code>read(2)</code> floor
       ours sits on. macOS has no io_uring, and the cat flips to us.</p>
 
@@ -561,14 +564,14 @@
           <line x1="150" y1="10" x2="150" y2="114" stroke="#182135"/>
           <line x1="276" y1="10" x2="276" y2="114" stroke="#182135"/>
           <polyline points="24,95.6 150,90.8 276,20.4" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <polyline points="24,68.4 150,70 276,70" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="24,70 150,70 276,70" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
           <circle cx="24" cy="95.6" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
           <circle cx="150" cy="90.8" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
           <circle cx="276" cy="20.4" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
-          <circle cx="24" cy="68.4" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="24" cy="70" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
           <circle cx="150" cy="70" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
           <circle cx="276" cy="70" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <text x="24" y="59" font-size="11" fill="#97a3b8">Starling &middot; 226</text>
+          <text x="24" y="59" font-size="11" fill="#97a3b8">Starling &middot; 225</text>
           <text x="24" y="112" font-size="11" fill="#97a3b8">ghostty &middot; 209</text>
           <text x="276" y="87" font-size="11" fill="#97a3b8" text-anchor="end">225 MB</text>
           <text x="276" y="12" font-size="11" fill="#97a3b8" text-anchor="end">256 MB</text>
@@ -581,19 +584,19 @@
         <div class="card-title">Memory — macOS</div>
         <div class="card-sub">resident set, MB, as load accumulates</div>
         <svg class="mem-svg" viewBox="0 0 300 146" role="img"
-             aria-label="macOS resident set: Starling flat at 130 MB from 30 GB of suite through the 500 MB cats; ghostty grows from 155 to 176 MB">
+             aria-label="macOS resident set: Starling flat at 127 MB from 30 GB of suite through the 500 MB cats; ghostty grows from 151 to 172 MB">
           <line x1="24" y1="10" x2="24" y2="114" stroke="#182135"/>
           <line x1="276" y1="10" x2="276" y2="114" stroke="#182135"/>
-          <polyline points="24,48.3 276,19.5" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="24,48.9 276,19.5" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
           <polyline points="24,82.6 276,82.6" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <circle cx="24" cy="48.3" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="24" cy="48.9" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
           <circle cx="276" cy="19.5" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
           <circle cx="24" cy="82.6" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
           <circle cx="276" cy="82.6" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <text x="24" y="40" font-size="11" fill="#97a3b8">ghostty &middot; 155</text>
-          <text x="24" y="99" font-size="11" fill="#97a3b8">Starling &middot; 130</text>
-          <text x="276" y="99" font-size="11" fill="#97a3b8" text-anchor="end">130 MB</text>
-          <text x="276" y="12" font-size="11" fill="#97a3b8" text-anchor="end">176 MB</text>
+          <text x="24" y="40" font-size="11" fill="#97a3b8">ghostty &middot; 151</text>
+          <text x="24" y="99" font-size="11" fill="#97a3b8">Starling &middot; 127</text>
+          <text x="276" y="99" font-size="11" fill="#97a3b8" text-anchor="end">127 MB</text>
+          <text x="276" y="12" font-size="11" fill="#97a3b8" text-anchor="end">172 MB</text>
           <text x="24" y="136" font-size="10.5" fill="#64708a">after 30 GB of suite</text>
           <text x="276" y="136" font-size="10.5" fill="#64708a" text-anchor="end">after the cats</text>
         </svg>
@@ -606,18 +609,20 @@
 
     <p class="dim-head">The rounds behind the numbers</p>
     <p class="note">
-      Each workload is repeated until it runs one to two minutes per side — ~159 GB
-      of escape-sequence traffic per terminal on Linux, ~30 GB on macOS — the cats
-      are exact 500,000,000-byte corpora, and DOOM-Fire runs its 150,000 frames
-      three times over, all verified at the same grid. The Linux legs ran on a
+      Each workload is repeated until the slower side runs one to two minutes —
+      ~159 GB of escape-sequence traffic per terminal on Linux, ~30 GB on macOS —
+      the cats are exact 500,000,000-byte corpora, and DOOM-Fire runs its 150,000
+      frames three times over, every leg grid-verified. The Linux legs ran on a
       30 Hz display, so raw walls compare within a platform; the ratios carry. The
-      macOS legs run this week's paced pty reader, and a rerun after the macOS
-      26.6.1 upgrade moved nothing. Every number is a pair measured back to back on
-      one machine, and the raw runs are checked in at
+      macOS legs run this week's paced pty reader, and the macOS numbers are the
+      rerun taken after the macOS 26.6.1 upgrade — which moved nothing beyond run
+      noise against the same-day pre-upgrade round. Every number is a pair measured
+      back to back on one machine, and the raw runs are checked in at
       <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>
-      (the two <code>-2026-08-14-long</code> rounds, the
-      <code>-macos-2026-08-14-postupgrade</code> confirmation, and the short-range
-      rounds <code>-2026-08-13-atlas</code> and
+      (Linux: <code>-2026-08-14-long</code>; macOS:
+      <code>-macos-2026-08-14-postupgrade</code>, confirmed against
+      <code>-macos-2026-08-14-long</code>; short range:
+      <code>-2026-08-13-atlas</code> and
       <code>-macos-2026-08-13-samefont</code>).
     </p>
 
@@ -672,11 +677,11 @@
               <tr><th>Sampled at</th><th>Starling</th><th>ghostty</th><th>Delta</th></tr>
             </thead>
             <tbody>
-              <tr><td>Linux, after the suite</td><td>226 MB</td><td>209 MB</td><td class="loss">+17 MB</td></tr>
+              <tr><td>Linux, after the suite</td><td>225 MB</td><td>209 MB</td><td class="loss">+16 MB</td></tr>
               <tr><td>Linux, after 159 GB of suite</td><td>225 MB</td><td>212 MB</td><td class="loss">+13 MB</td></tr>
               <tr><td>Linux, after two 500 MB cats</td><td>225 MB</td><td>256 MB</td><td class="win">&minus;31 MB</td></tr>
-              <tr><td>macOS, after 30 GB of suite</td><td>130 MB</td><td>155 MB</td><td class="win">&minus;25 MB</td></tr>
-              <tr><td>macOS, after two 500 MB cats</td><td>130 MB</td><td>176 MB</td><td class="win">&minus;46 MB</td></tr>
+              <tr><td>macOS, after 30 GB of suite</td><td>127 MB</td><td>151 MB</td><td class="win">&minus;24 MB</td></tr>
+              <tr><td>macOS, after two 500 MB cats</td><td>127 MB</td><td>172 MB</td><td class="win">&minus;45 MB</td></tr>
             </tbody>
           </table>
         </div>
@@ -710,7 +715,7 @@
           </table>
         </div>
 
-        <p class="dim-head">Cats and DOOM-Fire at short range — 150 MB, 600 frames</p>
+        <p class="dim-head">Cats and DOOM-Fire at short range — 150 MB cats</p>
         <div class="tablewrap">
           <table class="wide">
             <thead>
@@ -727,7 +732,10 @@
           </table>
         </div>
         <p class="note">Raw values are seconds for the cats and frames per second for
-          DOOM-Fire; the speedup is Starling's multiple either way. CPU is ours on all
+          DOOM-Fire; the speedup is Starling's multiple either way. The fire rows run
+          600 frames on Linux and 6,000 on macOS — at 600 the macOS pair reads
+          ~1025 vs ~845 fps (1.21&times;), but the longer run amortizes ghostty's
+          warm-up and is the fairer number. CPU is ours on all
           six legs — ghostty spends 1.4–2.8&times; as much.</p>
       </div>
     </details>
@@ -740,7 +748,7 @@
     <div class="kicker">How it is built</div>
     <h2>From scratch, on a UI engine.</h2>
     <p>
-      The emulator is about 1,500 lines of C we wrote — no libvte, no libvterm,
+      The emulator is about 2,000 lines of C we wrote — no libvte, no libvterm,
       nothing borrowed. The pixels come from the Flutter engine through the
       Starling SDK: a <strong>general-purpose UI engine</strong>, not a
       terminal-specific one.

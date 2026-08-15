@@ -18,6 +18,9 @@ sdk/Vendor/
 # The iOS .app bundle build/ios-app.sh assembles.
 .stage-ios/
 
+# The macOS .app bundle (and zip) build/macos-app.sh assembles.
+.stage-macos/
+
 # SwiftPM rewrites these during resolution (TerminalApp pulls swift-nio-ssh
 # and friends for iOS). Deps float within the manifests' ranges; pins are
 # not tracked.
