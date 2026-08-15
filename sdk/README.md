@@ -180,7 +180,7 @@ clipboard, scrollback and selection; `TerminalSession` can also run headless
 channel, a replay, or a remote agent's pty. The emulator underneath is the
 desktop Terminal's own C core: wide characters and grapheme clusters done
 properly (a clean sweep of ucs-detect's battery — wide, narrow, ZWJ
-families, 118 languages of conjuncts — where ghostty's nightly scores 33
+families, 118 languages of conjuncts — where ghostty's nightly scores 40
 errors), measured at 0.49x of ghostty nightly's wall on the ten-workload
 suite in `docs/perf/terminal-vs-ghostty-2026-08-11/` (desktop repo), and
 pinned by 26 conformance checks in the desktop's fast test tier. Roboto Mono
