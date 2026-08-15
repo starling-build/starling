@@ -554,12 +554,19 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // not half-processed on the way past.
         if let filter = w.keyFilter, filter(keyData) { return true }
 
-        // Track Shift/Ctrl for scrollback paging and copy/paste chords.
-        if keyData.logical == 0xFFE1 || keyData.logical == 0xFFE2 {
+        // Track Shift/Ctrl for scrollback paging, copy/paste chords, and
+        // Ctrl+letter control bytes. Two id schemes, same as TerminalInput:
+        // the DRM embedder sends X11 keysyms (0xFFE1…), the engine's own
+        // GTK/Win32 embedders send Flutter logical ids (0x2_0000_010x).
+        // Matching only the keysyms meant that on the GTK host Ctrl and
+        // Shift were invisible: Ctrl+C typed a plain "c".
+        if keyData.logical == 0xFFE1 || keyData.logical == 0xFFE2
+            || keyData.logical == 0x2_0000_0102 || keyData.logical == 0x2_0000_0103 {
             _shiftDown = (keyData.type == .down || keyData.type == .repeat)
             return false
         }
-        if keyData.logical == 0xFFE3 || keyData.logical == 0xFFE4 {
+        if keyData.logical == 0xFFE3 || keyData.logical == 0xFFE4
+            || keyData.logical == 0x2_0000_0100 || keyData.logical == 0x2_0000_0101 {
             _ctrlDown = (keyData.type == .down || keyData.type == .repeat)
             return false
         }
@@ -622,7 +629,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         _lock.unlock()
 
         if let bytes = TerminalInput.bytes(
-            for: keyData, appCursor: appCursor, shift: _shiftDown) {
+            for: keyData, appCursor: appCursor, shift: _shiftDown,
+            ctrl: _ctrlDown) {
             session.write(bytes)
             return true
         }

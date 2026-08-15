@@ -74,7 +74,8 @@ enum TerminalInput {
     /// `shift` is only consulted for Tab. Every other shifted key arrives with
     /// the modifier already folded into `character` by the keymap, so reading
     /// it here would double-apply it.
-    static func bytes(for keyData: KeyData, appCursor: Bool, shift: Bool = false) -> [UInt8]? {
+    static func bytes(for keyData: KeyData, appCursor: Bool, shift: Bool = false,
+                      ctrl: Bool = false) -> [UInt8]? {
         let logical = keyData.logical
 
         // Special keys first — they take priority over any character the
@@ -124,6 +125,23 @@ enum TerminalInput {
                 // F5.. use CSI codes with gaps (15,17,18,19,20,21,23,24)
                 let codes = [15, 17, 18, 19, 20, 21, 23, 24]
                 return Array("\u{1B}[\(codes[n - 4])~".utf8)
+            }
+        }
+
+        // Ctrl+key → control byte. The DRM embedder's keymap folds Ctrl into
+        // `character` (Ctrl+C arrives as 0x03 and the branch below passes it
+        // through), but the engine's GTK and Win32 embedders deliver the BARE
+        // letter with the modifier reported separately — without this, Ctrl+C
+        // in the windowed terminal typed a "c". Only when the keymap did NOT
+        // fold (scalar ≥ 0x20), so the DRM path is untouched.
+        if ctrl, let scalar = keyData.character?.unicodeScalars.first?.value,
+           scalar >= 0x20 {
+            switch scalar {
+            case 0x61...0x7A, 0x40...0x5F:      // a-z, @ A-Z [ \ ] ^ _
+                return [UInt8(scalar & 0x1F)]
+            case 0x20: return [0x00]            // Ctrl+Space → NUL
+            case 0x3F: return [0x7F]            // Ctrl+? → DEL
+            default: break                       // Ctrl+digit etc.: fall through
             }
         }
 
