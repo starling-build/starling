@@ -63,14 +63,14 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     #if os(iOS)
-    /// Columns the grid is sized to. 80 because that is the width the software
-    /// world assumes — man pages, `ls -l`, git, every TUI's default layout —
-    /// and a phone that reports anything narrower makes all of them wrap.
-    ///
-    /// The desktop does the opposite (pick a font, take the columns that
-    /// result), which is right for a window that is 1100pt wide and wrong for
-    /// one that is 402: the same 13pt default yields 49 columns there.
-    private static let defaultColumns = 80
+    /// Columns the grid is sized to. 50, which on a 393pt phone puts the
+    /// font at ~13pt — the size the desktop terminal itself defaults to.
+    /// 80 was tried first, because that is the width the software world
+    /// assumes (man pages, `ls -l`, every TUI's layout) — and it came out
+    /// unreadable, ~8pt on an iPhone 15. On a phone held in one hand,
+    /// reading the text beats not wrapping it; pinch inward for the full
+    /// 80 when a TUI needs its layout over your eyesight.
+    private static let defaultColumns = 50
 
     private var columns: Int {
         get {
