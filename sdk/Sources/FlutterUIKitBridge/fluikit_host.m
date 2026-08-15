@@ -70,9 +70,15 @@ static CGSize g_window_size = {0, 0};
   child.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:child];
   UILayoutGuide* safe = self.view.safeAreaLayoutGuide;
+  // The bottom edge follows the KEYBOARD, not the safe area: the guide's top
+  // sits at the safe-area bottom while no keyboard is up, and rides the
+  // keyboard's top edge while one is — so the Flutter view shrinks, the
+  // framework gets a metrics event, and a terminal refits its rows with the
+  // prompt landing just above the keys instead of underneath them.
   [NSLayoutConstraint activateConstraints:@[
     [child.topAnchor constraintEqualToAnchor:safe.topAnchor],
-    [child.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+    [child.bottomAnchor
+        constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
     [child.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
     [child.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
   ]];

@@ -499,6 +499,16 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         focusNode.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
         }
+        #if os(iOS)
+        // A phone terminal exists to be typed into: take focus and raise the
+        // keyboard the moment the view appears, rather than demanding a tap
+        // first. Deferred a turn so the node is attached before it asks.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.focusNode.requestFocus()
+            SoftKeyboard.show()
+        }
+        #endif
         focusNode.onFocusChange = { [weak self] focused in
             guard let self else { return }
             if focused { self._restartBlink() } else { self._stopBlink() }
