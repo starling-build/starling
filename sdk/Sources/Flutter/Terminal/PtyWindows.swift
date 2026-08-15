@@ -12,6 +12,7 @@
 #if os(Windows)
 import CStarlingConPTY
 import Foundation
+import WinSDK
 
 /// A pseudo-terminal running a shell process.
 ///
@@ -72,9 +73,30 @@ final class Pty: @unchecked Sendable {
     /// Mutating our own environment is safe in the way that matters: nothing
     /// in an app hosting a terminal reads these, and a terminal that forwards
     /// them tells every child it is running under a multiplexer it is not.
+    ///
+    /// `SetEnvironmentVariableW`, not the CRT's `unsetenv`/`_putenv_s`, for two
+    /// separate reasons:
+    ///
+    ///   - `unsetenv` is POSIX and simply does not exist here.
+    ///   - There are two environments on Windows, and only one of them is the
+    ///     one that matters. `CreateProcessW` with a NULL environment block —
+    ///     what `starling_conpty_open` passes — copies the *Win32* block, while
+    ///     `getenv` reads the UCRT's own copy, made at startup and not updated
+    ///     by `SetEnvironmentVariable`. Writing the Win32 block is what the
+    ///     child actually inherits, so there is no `getenv` guard on the loop
+    ///     either: it would test the view we are not writing, and skip a marker
+    ///     that is genuinely set.
+    ///
+    /// The value is NULL, which DELETES the variable. Setting it to `""` looks
+    /// equivalent and is not — an empty variable is still present, and every
+    /// `getenv("TMUX") != NULL` check in a child then reads it as "inside a
+    /// multiplexer", the same non-NULL-empty-string trap the engine's connector
+    /// filter hit.
     static func _scrubMultiplexerEnv() {
-        for key in Pty.multiplexerMarkers where getenv(key) != nil {
-            _ = key.withCString { unsetenv($0) }
+        for key in Pty.multiplexerMarkers {
+            _ = key.withCString(encodedAs: UTF16.self) {
+                SetEnvironmentVariableW($0, nil)
+            }
         }
     }
 
