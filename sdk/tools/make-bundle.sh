@@ -50,8 +50,16 @@ NAME="starling-sdk-$PLATFORM-$ARCH"
 DEST="$OUT/$NAME"
 
 # The engine build to take binaries from. host_debug is what the desktop links
-# against day to day; host_release is what a consumer should ship.
-E="${FLUTTER_SWIFT_ENGINE_OUT:-$ENGINE_ROOT/src/out/host_$CONFIG}"
+# against day to day; host_release is what a consumer should ship. On a Mac
+# the gn out dir carries the cpu suffix (--mac-cpu arm64 → host_release_arm64),
+# so probe that spelling first there.
+E="${FLUTTER_SWIFT_ENGINE_OUT:-}"
+if [ -z "$E" ]; then
+    E="$ENGINE_ROOT/src/out/host_$CONFIG"
+    if [ "$PLATFORM" = macos ] && [ -d "$ENGINE_ROOT/src/out/host_${CONFIG}_$ARCH" ]; then
+        E="$ENGINE_ROOT/src/out/host_${CONFIG}_$ARCH"
+    fi
+fi
 if [ ! -f "$E/libflutter_engine.so" ] && [ ! -f "$E/libswift_bridge.dylib" ]; then
     echo "error: no engine binaries in $E" >&2
     echo "       build the engine first (see docs/BUILDING.md), or set" >&2

@@ -227,6 +227,9 @@ let appSettings: [SwiftSetting] = [.interoperabilityMode(.Cxx), .swiftLanguageMo
 
 let package = Package(
     name: "$NAME",
+    // Without this the executable defaults to macOS 10.13 and SwiftPM refuses
+    // to link the SDK's macOS-14 products. Linux ignores it.
+    platforms: [.macOS(.v14)],
     dependencies: [
         .package(path: sdk),
     ],
