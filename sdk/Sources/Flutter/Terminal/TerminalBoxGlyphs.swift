@@ -72,6 +72,7 @@ enum TerminalBoxGlyphs {
     /// range test and a table lookup, not a dictionary.
     static func handles(_ scalar: UInt32) -> Bool {
         switch scalar {
+        case 0x23F4...0x23FA: return true              // ⏴⏵⏶⏷⏸⏹⏺ media controls
         case 0x2500...0x259F: return true              // ALL box drawing + blocks
         case 0x25E2...0x25E5: return true              // ◢◣◤◥ corner triangles
         case 0x25F8...0x25FA, 0x25FF: return true      // ◸◹◺◿ outline triangles
@@ -195,6 +196,9 @@ enum TerminalBoxGlyphs {
         if (0x25E2...0x25E5).contains(scalar) || (0x25F8...0x25FA).contains(scalar)
             || scalar == 0x25FF {
             return geometricTriangleOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
+        }
+        if (0x23F4...0x23FA).contains(scalar) {
+            return mediaControlOps(scalar, x: x, y: y, w: w, h: h)
         }
         if (0x1FBD0...0x1FBDF).contains(scalar) {
             return diagonalPieceOps(scalar, x: x, y: y, w: w, h: h, scale: scale)
@@ -940,6 +944,52 @@ enum TerminalBoxGlyphs {
                         segments: corners.dropFirst().map { .line(to: $0) }
                             + [.line(to: corners[0])],
                         thickness: thickness(1, scale))]
+    }
+
+    // MARK: - Media controls
+
+    /// ⏴⏵⏶⏷⏸⏹⏺ (U+23F4–23FA). No face in the bundled fallback chain has
+    /// them — Roboto Mono, both DejaVu monos, DejaVu Sans, the Noto CJK and
+    /// emoji faces all stop short of the media-control block — and with no
+    /// system font fallback the cells painted NOTHING: Claude Code's "⏵⏵"
+    /// auto-mode indicator was simply absent. Shapes are sized from the cell
+    /// WIDTH (a terminal cell is ~1.7x taller than wide, so keying off the
+    /// full cell box draws comically stretched arrows).
+    private static func mediaControlOps(_ scalar: UInt32,
+                                        x: Double, y: Double,
+                                        w: Double, h: Double) -> [BoxPlanOp] {
+        let cx = x + w / 2, cy = y + h / 2
+        // Triangles keep a margin so a run like Claude Code's "⏵⏵" reads as
+        // two arrows, not one chain; the pause/stop/record marks keep the
+        // larger box for the same visual weight.
+        let tri2 = min(w, h) * 0.44
+        let mark = min(w, h) * 0.48
+        func tri(_ a: Offset, _ b: Offset, _ c: Offset) -> [BoxPlanOp] {
+            [.fillPath(from: a, segments: [.line(to: b), .line(to: c)], alpha: 1)]
+        }
+        switch scalar {
+        case 0x23F4:                                     // ⏴ left
+            return tri(Offset(cx + tri2, cy - tri2), Offset(cx + tri2, cy + tri2),
+                       Offset(cx - tri2, cy))
+        case 0x23F5:                                     // ⏵ right
+            return tri(Offset(cx - tri2, cy - tri2), Offset(cx - tri2, cy + tri2),
+                       Offset(cx + tri2, cy))
+        case 0x23F6:                                     // ⏶ up
+            return tri(Offset(cx - tri2, cy + tri2), Offset(cx + tri2, cy + tri2),
+                       Offset(cx, cy - tri2))
+        case 0x23F7:                                     // ⏷ down
+            return tri(Offset(cx - tri2, cy - tri2), Offset(cx + tri2, cy - tri2),
+                       Offset(cx, cy + tri2))
+        case 0x23F8:                                     // ⏸ pause
+            let bar = mark * 0.62
+            return [.fill(Rect.fromLTRB(cx - mark, cy - mark, cx - mark + bar, cy + mark)),
+                    .fill(Rect.fromLTRB(cx + mark - bar, cy - mark, cx + mark, cy + mark))]
+        case 0x23F9:                                     // ⏹ stop
+            let s = mark * 0.86
+            return [.fill(Rect.fromLTRB(cx - s, cy - s, cx + s, cy + s))]
+        default:                                         // ⏺ record
+            return [.disc(Offset(cx, cy), mark * 0.92)]
+        }
     }
 
     // MARK: - Diagonal pieces and circles
