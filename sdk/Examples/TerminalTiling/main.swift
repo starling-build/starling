@@ -185,15 +185,20 @@ final class Pane {
 
 // MARK: - What to run
 
-/// `remote:host`, `remote:host/12`, or `remote:host -- command`.
+/// `remote:host`, `remote:host/iOS dev`, `remote:host/12`, or
+/// `remote:host -- command`.
 ///
 /// One syntax for the workflow this exists for: ssh somewhere, leave
 /// something running, come back to it. `host` is whatever ssh understands
-/// (an alias from ~/.ssh/config, user@host, a jump-host alias); `/12`
-/// re-attaches a known session id instead of opening a new one.
+/// (an alias from ~/.ssh/config, user@host, a jump-host alias). After the
+/// slash comes the session: a **name** — the handle worth typing, which
+/// opens that session or re-opens it if it is already there — or a bare
+/// number, which re-attaches that id exactly. All-digits reads as an id, so
+/// a session named "12" is not addressable by name; anything else is a name.
 struct RemoteSpec {
     let host: String
     let session: UInt32?
+    let name: String?
     let command: String?
 
     init?(_ text: String) {
@@ -207,13 +212,23 @@ struct RemoteSpec {
         }
         rest = rest.trimmingCharacters(in: .whitespaces)
         guard !rest.isEmpty else { return nil }
-        if let slash = rest.lastIndex(of: "/"),
-           let id = UInt32(rest[rest.index(after: slash)...]) {
+        // The FIRST slash: a hostname cannot contain one, and a name can —
+        // "iOS dev/2" is a reasonable thing to call a session.
+        if let slash = rest.firstIndex(of: "/") {
             host = String(rest[..<slash])
-            session = id
+            let tail = String(rest[rest.index(after: slash)...])
+                .trimmingCharacters(in: .whitespaces)
+            if let id = UInt32(tail) {
+                session = id
+                name = nil
+            } else {
+                session = nil
+                name = tail.isEmpty ? nil : tail
+            }
         } else {
             host = rest
             session = nil
+            name = nil
         }
         command = (cmd?.isEmpty ?? true) ? nil : cmd
     }
@@ -445,6 +460,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
                 // client; the widget above never learns the difference.
                 let remote = RemoteTerminal(session: pane.session,
                                             host: spec.host,
+                                            name: spec.name,
                                             attach: spec.session,
                                             command: spec.command)
                 remote.onLink = { [weak self] link in
@@ -1357,6 +1373,7 @@ final class _TilingState: State<StatefulWidget>, @unchecked Sendable {
             remote.stop()
             let fresh = RemoteTerminal(session: pane.session,
                                        host: remote.hostName,
+                                       name: remote.sessionName,
                                        attach: remote.remoteId)
             fresh.onLink = { [weak self] link in
                 DispatchQueue.main.async { pane.link = link; self?.setState {} }

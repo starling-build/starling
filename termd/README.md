@@ -24,11 +24,11 @@ adopts so there is only one control flow to reason about.
 ```bash
 make                     # ./starling-termd
 make static              # one binary to scp to a server with no toolchain
-make test                # the protocol test — thirteen checks, under two seconds
+make test                # the protocol test — twenty checks, under two seconds
 ./test-termd.py --stdio  # the same checks through a --stdio bridge
 
 .\build-windows.ps1      # Windows: starling-termd.exe (clang, no make)
-python .\test-termd.py   # the same thirteen, over --stdio automatically
+python .\test-termd.py   # the same twenty, over --stdio automatically
 ```
 
 ```bash
@@ -57,6 +57,39 @@ a reattach exact; a session keeps the last 8 MB, and an `ATTACH` older than
 that is answered with the oldest byte still held (`ATTACHED` says where it
 actually resumed, so a gap is visible rather than silent).
 
+## Names
+
+A session can carry a name — `iOS dev`, not `12` — and that is the handle
+worth typing:
+
+```
+$ starling-termd --list
+session 1   iOS dev              80x24  running  48213 bytes
+session 2   prod tail            80x24  running  9911 bytes
+session 3   -                    80x24  running  204 bytes
+```
+
+**A named `OPEN` is attach-or-create.** Asking for a name that already
+exists resumes that shell — from the oldest byte still held, so the screen
+comes back — rather than forking a second one beside it, and the command in
+that `OPEN` is ignored. One request means "get me into iOS dev", whether or
+not it is the first time, which is what lets a client reconnect knowing
+nothing but the name.
+
+That matters because **ids do not survive the daemon**: a restarted
+`starling-termd` numbers from 1 again, so a stale id either misses or lands
+on a different session. A name is what the person typed and can type again,
+so the client keeps it across reconnects and re-opens by name whenever it
+has no id.
+
+Names are unique among live sessions, at most 63 bytes, and the daemon
+treats them as opaque text apart from dropping control characters and
+trimming edge whitespace — a name with an escape sequence in it would
+repaint the screen of whoever ran `--list`, and `"iOS dev "` pasted with a
+trailing space has to be the same handle as `"iOS dev"` or it silently opens
+a second session. Sessions opened without a name are addressed by id, as
+before.
+
 ## From the client
 
 Any Starling terminal can attach. In the workspace example, type a command
@@ -64,6 +97,7 @@ of this shape into a new pane:
 
 ```
 remote:prod-1              # open (or re-open) a session on that ssh host
+remote:prod-1/iOS dev      # open "iOS dev" there, or resume it if it exists
 remote:prod-1/12           # re-attach session 12 specifically
 remote:prod-1 -- htop      # open one that runs a command instead of a shell
 remote:local               # the daemon on this machine, no ssh in between

@@ -207,6 +207,13 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// what makes the next attach resume the same shell.
     public private(set) var remoteId: UInt32?
 
+    /// The session's name, if one was asked for — the handle that survives
+    /// what the id does not. A daemon restarted between reconnects renumbers
+    /// from 1, so the stale id misses (or, worse, hits someone else's
+    /// session); the name still finds the right shell, or makes it.
+    public var sessionName: String? { name }
+    private let name: String?
+
     /// The ssh destination this transport talks to, for a caller that wants
     /// to rebuild it (a reconnect button) without remembering it.
     public var hostName: String { host }
@@ -229,12 +236,14 @@ public final class RemoteTerminal: @unchecked Sendable {
 
     public init(session: TerminalSession,
                 host: String,
+                name: String? = nil,
                 attach: UInt32? = nil,
                 command: String? = nil,
                 sshPath: String? = nil,
                 serverPath: String? = nil) {
         self.session = session
         self.host = host
+        self.name = (name?.isEmpty ?? true) ? nil : name
         self.remoteId = attach
         self.command = command
         // Overridable because not every site reaches its machines with the
@@ -349,8 +358,15 @@ public final class RemoteTerminal: @unchecked Sendable {
             p.append(contentsOf: RemoteTerminal.u16(UInt16(clamping: r)))
             send(.attach, p)
         } else {
+            // Length-prefixed name, then the command. Named OPENs are
+            // attach-or-create server-side, so this is both "start iOS dev"
+            // and "get me back into iOS dev" — including after a daemon
+            // restart, when there is no id left to attach by.
+            let n = Array((name ?? "").utf8.prefix(RemoteTerminal.maxNameBytes))
             var p = RemoteTerminal.u16(UInt16(clamping: c))
             p.append(contentsOf: RemoteTerminal.u16(UInt16(clamping: r)))
+            p.append(contentsOf: RemoteTerminal.u16(UInt16(n.count)))
+            p.append(contentsOf: n)
             if let command = command { p.append(contentsOf: Array(command.utf8)) }
             send(.open, p)
         }
@@ -471,7 +487,10 @@ public final class RemoteTerminal: @unchecked Sendable {
         case attach = 6, attached = 7, data = 8, input = 9, resize = 10
         case ack = 11, exit = 12, detach = 13, error = 14, ping = 15, pong = 16
     }
-    static let protocolVersion = 1
+    // 2 added session names (termd/protocol.h).
+    static let protocolVersion = 2
+    /// termd/protocol.h's TERMD_MAX_NAME, less the NUL the daemon adds.
+    static let maxNameBytes = 63
 
     private func send(_ type: Frame, _ payload: [UInt8]) {
         lock.lock()

@@ -20,7 +20,7 @@ import os, queue, socket, struct, subprocess, sys, tempfile, threading, time
 HDR = 8
 (HELLO, HELLO_OK, LIST, LIST_REPLY, OPEN, ATTACH, ATTACHED, DATA, INPUT,
  RESIZE, ACK, EXIT, DETACH, ERROR, PING, PONG) = range(1, 17)
-VERSION = 1
+VERSION = 2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WINDOWS = sys.platform == "win32"
@@ -63,11 +63,13 @@ if WINDOWS:
               '& echo THIRD& ping -n 60 127.0.0.1 >nul')
     ECHO_INPUT = b"echo termd-input-works\r"
     PROMPT = b">"      # PS C:\...>
+    NAMED_SCRIPT = 'cmd.exe /c echo NAMED-ONE& ping -n 60 127.0.0.1 >nul'
 else:
     SCRIPT = ("printf 'FIRST\\n'; sleep 0.4; printf 'SECOND\\n'; "
               "sleep 0.4; printf 'THIRD\\n'; sleep 30")
     ECHO_INPUT = b"echo termd-input-works\n"
     PROMPT = b"$"
+    NAMED_SCRIPT = "printf 'NAMED-ONE\\n'; sleep 30"
 
 fails = []
 
@@ -80,6 +82,31 @@ def check(name, ok, detail=""):
 
 def frame(kind, payload=b""):
     return struct.pack("<BBHI", kind, 0, 0, len(payload)) + payload
+
+
+def open_payload(cols=80, rows=24, name="", command=""):
+    """An OPEN body: the name is length-prefixed so the command can be free."""
+    n = name.encode()
+    return struct.pack("<HHH", cols, rows, len(n)) + n + command.encode()
+
+
+def list_entries(payload):
+    """LIST_REPLY → [(id, cols, rows, alive, seq, name)].
+
+    Entries are variable-length since names arrived, so this walks rather
+    than indexing.
+    """
+    count = struct.unpack("<H", payload[:2])[0]
+    out, off = [], 2
+    for _ in range(count):
+        if off + 19 > len(payload):
+            break
+        sid, cols, rows, alive, seq, nlen = struct.unpack(
+            "<IHHBQH", payload[off:off + 19])
+        name = payload[off + 19:off + 19 + nlen].decode("utf-8", "replace")
+        out.append((sid, cols, rows, alive, seq, name))
+        off += 19 + nlen
+    return out
 
 
 class Client:
@@ -228,7 +255,7 @@ def main():
         # A session that keeps producing after its client leaves.
         a = Client(sock_path)
         check("hello handshake", a.hello())
-        a.send(OPEN, struct.pack("<HH", 80, 24) + SCRIPT.encode())
+        a.send(OPEN, open_payload(command=SCRIPT))
         kind, payload = a.recv(ATTACHED)
         check("open returns a session", kind == ATTACHED)
         sid = struct.unpack("<I", payload[:4])[0]
@@ -272,7 +299,7 @@ def main():
         # Input reaches the shell, and its echo comes back on the same stream.
         d = Client(sock_path)
         d.hello()
-        d.send(OPEN, struct.pack("<HH", 80, 24))     # no command: a shell
+        d.send(OPEN, open_payload())                 # no command: a shell
         kind, payload = d.recv(ATTACHED)
         shell_id = struct.unpack("<I", payload[:4])[0]
         d.collect(BOOT, until=PROMPT)   # let the prompt actually appear
@@ -284,12 +311,57 @@ def main():
         # LIST sees both sessions.
         d.send(LIST)
         kind, payload = d.recv(LIST_REPLY)
-        count = struct.unpack("<H", payload[:2])[0] if kind == LIST_REPLY else 0
-        ids = {struct.unpack("<I", payload[2 + i * 17:6 + i * 17])[0]
-               for i in range(count)}
+        ids = {e[0] for e in list_entries(payload)} if kind == LIST_REPLY else set()
         check("list reports the sessions", {sid, shell_id} <= ids,
               f"{ids} missing one of {sid},{shell_id}")
         d.close()
+
+        # Names: the handle a human can remember. `termd "iOS dev"` has to
+        # reach the same shell tomorrow without anyone recalling a number,
+        # which makes a named OPEN attach-or-create rather than always create.
+        n1 = Client(sock_path)
+        n1.hello()
+        n1.send(OPEN, open_payload(name="iOS dev", command=NAMED_SCRIPT))
+        kind, payload = n1.recv(ATTACHED)
+        named_id = struct.unpack("<I", payload[:4])[0] if kind == ATTACHED else 0
+        check("a named open returns a session", kind == ATTACHED)
+        marked, _, _ = n1.collect(BOOT, until=b"NAMED-ONE")
+        check("the named session runs", b"NAMED-ONE" in marked, repr(marked[:80]))
+        n1.close()
+
+        n2 = Client(sock_path)
+        n2.hello()
+        n2.send(LIST)
+        kind, payload = n2.recv(LIST_REPLY)
+        by_name = {e[5]: e[0] for e in list_entries(payload)}
+        check("list reports the name", by_name.get("iOS dev") == named_id,
+              f"{by_name} has no iOS dev at {named_id}")
+
+        # Opening the same name resumes that shell — never forks a second one
+        # beside it — and replays what it printed while nobody was attached.
+        # The command is ignored on that path, so a name is safe to re-open.
+        n2.send(OPEN, open_payload(name="iOS dev", command="echo SHOULD-NOT-RUN"))
+        kind, payload = n2.recv(ATTACHED)
+        again_id = struct.unpack("<I", payload[:4])[0] if kind == ATTACHED else 0
+        check("re-opening a name attaches, never forks", again_id == named_id,
+              f"{again_id} != {named_id}")
+        back, _, _ = n2.collect(STEP * 3, until=b"NAMED-ONE")
+        check("a named re-open replays the history", b"NAMED-ONE" in back,
+              repr(back[:120]))
+        check("the re-open ran no second command", b"SHOULD-NOT-RUN" not in back,
+              repr(back[:120]))
+        n2.close()
+
+        # A name typed with a stray space or a control byte is the same name:
+        # otherwise a paste that carried one silently opens a second session.
+        n3 = Client(sock_path)
+        n3.hello()
+        n3.send(OPEN, open_payload(name="  iOS dev\x07 ", command=NAMED_SCRIPT))
+        kind, payload = n3.recv(ATTACHED)
+        trimmed_id = struct.unpack("<I", payload[:4])[0] if kind == ATTACHED else 0
+        check("a name matches after trimming and control bytes",
+              trimmed_id == named_id, f"{trimmed_id} != {named_id}")
+        n3.close()
 
         # A session does not inherit the multiplexer markers of whatever
         # started the daemon. Programs that adapt their drawing to their host
@@ -297,7 +369,7 @@ def main():
         # session render for a tmux that is not there.
         m = Client(sock_path)
         m.hello()
-        m.send(OPEN, struct.pack("<HH", 80, 24) + MUX_SCRIPT.encode())
+        m.send(OPEN, open_payload(command=MUX_SCRIPT))
         m.recv(ATTACHED)
         mux, _, _ = m.collect(BOOT, until=b"]")
         check("a session inherits no multiplexer markers", MUX_CLEAN in mux,

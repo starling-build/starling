@@ -60,6 +60,11 @@ public final class TermdClient: @unchecked Sendable {
 
     /// The far-side session id, once known — the reattach handle.
     public private(set) var remoteId: UInt32?
+    /// The session's name, if this client asked for one. A durable handle in
+    /// a way the id is not: ids are gone when the daemon restarts, whereas
+    /// "iOS dev" is what the person typed and can type again. Sent with every
+    /// OPEN, which the server treats as attach-or-create.
+    public let name: String?
     /// Byte offset fed to the emulator so far: what a reconnect resumes from.
     public private(set) var consumed: UInt64 = 0
     /// True once HELLO_OK has arrived — the proof that what answered was
@@ -81,9 +86,11 @@ public final class TermdClient: @unchecked Sendable {
     private let lock = NSLock()
 
     public init(session: TerminalSession,
+                name: String? = nil,
                 attach: UInt32? = nil,
                 from: UInt64 = 0) {
         self.session = session
+        self.name = (name?.isEmpty ?? true) ? nil : name
         self.remoteId = attach
         self.consumed = from
     }
@@ -270,8 +277,15 @@ public final class TermdClient: @unchecked Sendable {
         lock.lock()
         let (c, r, cmd) = (cols, rows, command)
         lock.unlock()
+        // cols, rows, then the name length-prefixed so the command after it
+        // needs no escaping. A named OPEN is attach-or-create on the server:
+        // this is also how a reconnect finds its session again when the id it
+        // held is gone (a restarted daemon renumbers from 1).
+        let n = Array((name ?? "").utf8.prefix(Self.maxNameBytes))
         var p = Self.u16(UInt16(clamping: c))
         p.append(contentsOf: Self.u16(UInt16(clamping: r)))
+        p.append(contentsOf: Self.u16(UInt16(n.count)))
+        p.append(contentsOf: n)
         if let cmd = cmd { p.append(contentsOf: Array(cmd.utf8)) }
         send(.open, p)
     }
@@ -294,7 +308,12 @@ public final class TermdClient: @unchecked Sendable {
         case attach = 6, attached = 7, data = 8, input = 9, resize = 10
         case ack = 11, exit = 12, detach = 13, error = 14, ping = 15, pong = 16
     }
-    static let protocolVersion = 1
+    // 2 added session names (termd/protocol.h). The daemon refuses a version
+    // it does not speak, so an old server answers ERROR rather than
+    // misreading a named OPEN as a command.
+    static let protocolVersion = 2
+    /// termd/protocol.h's TERMD_MAX_NAME, less the NUL the daemon adds.
+    static let maxNameBytes = 63
 
     private func send(_ type: Frame, _ payload: [UInt8]) {
         var frame = [UInt8]([type.rawValue, 0, 0, 0])

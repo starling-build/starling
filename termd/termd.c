@@ -65,6 +65,10 @@ static void logf_(const char *fmt, ...) {
 
 struct session {
     uint32_t id;
+    // How a human addresses this session: "iOS dev", not 12. Empty for a
+    // session opened without one. Unique across live sessions — the name
+    // lookup has to be unambiguous for a named OPEN to reattach.
+    char name[TERMD_MAX_NAME];
     int used;
     plat_pty *pty;   // NULL once the reader has seen end of output
     int alive;
@@ -112,6 +116,32 @@ static struct session *session_by_id(uint32_t id) {
     return NULL;
 }
 
+static struct session *session_by_name(const char *name) {
+    if (!name || !*name) return NULL;
+    for (int i = 0; i < MAX_SESSIONS; i++)
+        if (g_sessions[i].used && !strcmp(g_sessions[i].name, name))
+            return &g_sessions[i];
+    return NULL;
+}
+
+// A name arrives from a human and leaves through --list and every client's
+// UI, so control bytes are dropped rather than trusted — a name carrying an
+// escape sequence would repaint the screen of whoever listed it. Edge
+// whitespace goes too: "iOS dev " and "iOS dev" are the same handle to the
+// person typing them, and a name that only matches when invisible padding
+// matches is a name that mysteriously opens a second session. The rest is
+// opaque bytes; the daemon never interprets the encoding.
+static void name_sanitize(char *dst, const uint8_t *src, size_t len) {
+    while (len && (src[0] == ' ' || src[0] == '\t')) { src++; len--; }
+    while (len && (src[len - 1] == ' ' || src[len - 1] == '\t')) len--;
+    size_t n = 0;
+    for (size_t i = 0; i < len && n + 1 < TERMD_MAX_NAME; i++) {
+        if (src[i] < 0x20 || src[i] == 0x7f) continue;
+        dst[n++] = (char)src[i];
+    }
+    dst[n] = 0;
+}
+
 static void ring_append(struct session *s, const uint8_t *data, size_t len) {
     if (len >= TERMD_RING_BYTES) {
         // A single read bigger than the ring: keep only its tail.
@@ -154,7 +184,7 @@ static void session_reader(void *arg);
 
 // Called with g_lock held.
 static struct session *session_open(uint16_t cols, uint16_t rows,
-                                    const char *command) {
+                                    const char *name, const char *command) {
     struct session *s = NULL;
     for (int i = 0; i < MAX_SESSIONS; i++)
         if (!g_sessions[i].used) { s = &g_sessions[i]; break; }
@@ -173,6 +203,7 @@ static struct session *session_open(uint16_t cols, uint16_t rows,
 
     s->used = 1;
     s->id = g_next_id++;
+    if (name) snprintf(s->name, sizeof(s->name), "%s", name);
     s->pty = pty;
     s->alive = 1;
     s->cols = cols ? cols : 80;
@@ -301,7 +332,7 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         break;
     }
     case TERMD_LIST: {
-        uint8_t buf[2 + MAX_SESSIONS * 17];
+        uint8_t buf[2 + MAX_SESSIONS * (19 + TERMD_MAX_NAME)];
         size_t n = 2;
         uint16_t count = 0;
         for (int i = 0; i < MAX_SESSIONS; i++) {
@@ -312,6 +343,9 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
             put_u16(buf + n, s->rows);        n += 2;
             buf[n++] = (uint8_t)s->alive;
             put_u64(buf + n, s->head);        n += 8;
+            size_t nlen = strlen(s->name);
+            put_u16(buf + n, (uint16_t)nlen); n += 2;
+            memcpy(buf + n, s->name, nlen);   n += nlen;
             count++;
         }
         put_u16(buf, count);
@@ -321,22 +355,50 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
     case TERMD_OPEN: {
         uint16_t cols = len >= 2 ? get_u16(p) : 80;
         uint16_t rows = len >= 4 ? get_u16(p + 2) : 24;
+        char name[TERMD_MAX_NAME] = {0};
+        size_t off = 4;
+        if (len >= 6) {
+            uint16_t nlen = get_u16(p + 4);
+            off = 6;
+            if (nlen > len - off) nlen = (uint16_t)(len - off);
+            name_sanitize(name, p + off, nlen);
+            off += nlen;
+        }
         char command[4096];
-        size_t clen = len > 4 ? len - 4 : 0;
+        size_t clen = len > off ? len - off : 0;
         if (clen >= sizeof(command)) clen = sizeof(command) - 1;
-        memcpy(command, p + 4, clen);
+        memcpy(command, p + off, clen);
         command[clen] = 0;
-        struct session *s = session_open(cols, rows, command);
-        if (!s) {
-            client_error(c, TERMD_ERR_OPEN_FAILED, "could not open a session");
-            return;
+
+        // A named OPEN is attach-or-create: the name is the handle, so
+        // asking for one that exists resumes it rather than forking a
+        // second shell beside it. Resuming from the oldest byte still held
+        // is what a human means by "get me back into iOS dev" — the client
+        // replays it into its emulator and the screen comes back.
+        struct session *s = session_by_name(name);
+        uint64_t from = 0;
+        if (s) {
+            from = s->head - s->filled;
+            if (cols && rows && s->alive) {
+                plat_pty_resize(s->pty, cols, rows);
+                s->cols = cols;
+                s->rows = rows;
+            }
+            logf_("client re-opened session %u by name \"%s\" from %llu", s->id,
+                  s->name, (unsigned long long)from);
+        } else {
+            s = session_open(cols, rows, name, command);
+            if (!s) {
+                client_error(c, TERMD_ERR_OPEN_FAILED, "could not open a session");
+                return;
+            }
         }
         c->session = s->id;
-        c->sent = 0;
-        c->acked = 0;
+        c->sent = from;
+        c->acked = from;
         uint8_t reply[12];
         put_u32(reply, s->id);
-        put_u64(reply + 4, 0);
+        put_u64(reply + 4, from);
         client_out(c, TERMD_ATTACHED, reply, sizeof(reply));
         break;
     }
@@ -793,12 +855,20 @@ static int list_sessions(void) {
             if (type == TERMD_LIST_REPLY) {
                 uint16_t count = get_u16(p);
                 if (!count) printf("no sessions\n");
-                for (uint16_t i = 0; i < count; i++) {
-                    const uint8_t *e = p + 2 + i * 17;
-                    printf("session %u  %ux%u  %s  %llu bytes\n",
-                           get_u32(e), get_u16(e + 4), get_u16(e + 6),
+                const uint8_t *e = p + 2;
+                const uint8_t *end = p + len;
+                for (uint16_t i = 0; i < count && e + 19 <= end; i++) {
+                    uint16_t nlen = get_u16(e + 17);
+                    if (e + 19 + nlen > end) break;
+                    char name[TERMD_MAX_NAME] = {0};
+                    size_t n = nlen < sizeof(name) ? nlen : sizeof(name) - 1;
+                    memcpy(name, e + 19, n);
+                    printf("session %-3u %-20s %ux%u  %s  %llu bytes\n",
+                           get_u32(e), name[0] ? name : "-",
+                           get_u16(e + 4), get_u16(e + 6),
                            e[8] ? "running" : "exited",
                            (unsigned long long)get_u64(e + 9));
+                    e += 19 + nlen;
                 }
                 plat_sock_close(fd);
                 return 0;
