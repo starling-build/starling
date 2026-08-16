@@ -1,0 +1,6 @@
+# wt grid=40x120 pid=17316
+# plan 05_unicode=300 08_scroll_region=123
+05_unicode 237.648 444.36 300
+08_scroll_region 310.146 609.95 123
+rss_kb 112916
+grid_after 40x120

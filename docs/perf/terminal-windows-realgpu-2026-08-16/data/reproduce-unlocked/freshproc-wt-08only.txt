@@ -1,0 +1,5 @@
+# wt grid=40x120 pid=2216
+# plan 08_scroll_region=123
+08_scroll_region 303.423 594.75 123
+rss_kb 106788
+grid_after 40x120

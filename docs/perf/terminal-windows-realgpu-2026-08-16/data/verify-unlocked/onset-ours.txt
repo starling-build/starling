@@ -1,0 +1,12 @@
+# ours grid=40x120 pid=6720 blocks=8
+block 1 1.843 cum 1.8 cpu 2.03
+block 2 1.765 cum 3.6 cpu 2.05
+block 3 1.777 cum 5.4 cpu 2.02
+block 4 1.782 cum 7.2 cpu 2.06
+block 5 1.796 cum 9.0 cpu 2.00
+block 6 1.803 cum 10.8 cpu 2.11
+block 7 1.798 cum 12.6 cpu 2.22
+block 8 1.781 cum 14.3 cpu 1.95
+early 1.795 late 1.794 ratio 1.00
+VERDICT flat
+onset_done

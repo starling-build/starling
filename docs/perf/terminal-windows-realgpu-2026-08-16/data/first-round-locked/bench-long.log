@@ -1,0 +1,32 @@
+16:20:29Z BENCH-LONG START frames=150000 grid=40x120
+16:20:29Z wt exe C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe (1.25.1912.0)
+16:20:31Z pre-existing WindowsTerminal pids (never killed): 14868
+16:20:31Z powerthrottling disable 'C:\dist\TerminalApp\TerminalApp.exe' ->
+16:20:31Z powerthrottling disable 'C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe' ->
+16:20:33Z === onset/ours attempt 1 ===
+16:20:39Z   grid 40x120 ok, streaming
+16:21:19Z   done
+16:21:23Z === onset/wt attempt 1 ===
+16:21:29Z   grid 40x120 ok, streaming
+16:22:14Z   done
+16:22:16Z onset ours -> VERDICT flat
+16:22:16Z onset wt -> VERDICT flat
+16:22:18Z === suite/ours attempt 1 ===
+16:22:24Z   grid 40x120 ok, streaming
+16:49:02Z   done
+16:49:06Z === suite/wt attempt 1 ===
+16:49:12Z   grid 40x120 ok, streaming
+17:27:31Z   done
+17:27:35Z === bigcat/ours attempt 1 ===
+17:27:41Z   grid 40x120 ok, streaming
+17:28:21Z   done
+17:28:25Z === bigcat/wt attempt 1 ===
+17:28:32Z   grid 40x120 ok, streaming
+17:29:22Z   done
+17:29:26Z === doom/ours attempt 1 ===
+17:29:32Z   grid 40x120 ok, streaming
+17:45:14Z   done
+17:45:18Z === doom/wt attempt 1 ===
+17:45:24Z   grid 40x120 ok, streaming
+18:05:31Z   done
+18:05:33Z BENCH-LONG-DONE

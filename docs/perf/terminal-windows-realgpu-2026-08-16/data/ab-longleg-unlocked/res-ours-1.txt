@@ -1,0 +1,6 @@
+# ours grid=40x120 pid=10416
+# plan 05_unicode=300 08_scroll_region=123
+05_unicode 167.751 244.05 300
+08_scroll_region 181.005 193.19 123
+rss_kb 72676
+grid_after 40x120

@@ -1,0 +1,14 @@
+# calib-ours grid=40x120 pid=5436
+# plan 01_light_cells=1 02_dense_cells=1 03_sgr_fg=1 04_sgr_truecolor=1 05_unicode=1 06_cursor_motion=1 07_alt_screen=1 08_scroll_region=1 09_long_lines=1 10_binary=1
+01_light_cells 0.391 0.41 1
+02_dense_cells 0.120 0.14 1
+03_sgr_fg 1.805 1.95 1
+04_sgr_truecolor 1.361 1.63 1
+05_unicode 0.620 0.92 1
+06_cursor_motion 0.097 0.09 1
+07_alt_screen 0.246 0.27 1
+08_scroll_region 1.451 1.63 1
+09_long_lines 0.140 0.14 1
+10_binary 3.469 3.70 1
+rss_kb 75888
+grid_after 40x120

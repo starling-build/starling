@@ -1,0 +1,14 @@
+# wt-occluded grid=40x120 pid=16240 workload=08_scroll_region reps=10
+rep 1 2.199 4.33
+rep 2 2.493 4.95
+rep 3 2.481 4.81
+rep 4 2.406 4.70
+rep 5 2.444 4.80
+rep 6 2.426 4.80
+rep 7 2.230 4.44
+rep 8 2.473 4.92
+rep 9 2.441 4.83
+rep 10 2.447 4.81
+rss_kb 106020
+grid_after 40x120
+curve_done

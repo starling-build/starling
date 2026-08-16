@@ -1,0 +1,9 @@
+# wt grid=40x120 pid=8520 frames=150000
+BENCHFPS frames=150000 seconds=401.670 fps=373.44
+  cpu_s 710.05
+BENCHFPS frames=150000 seconds=393.595 fps=381.10
+  cpu_s 706.92
+BENCHFPS frames=150000 seconds=392.495 fps=382.17
+  cpu_s 699.31
+rss_kb 91384
+grid_after 40x120

@@ -1,0 +1,14 @@
+# wt-foreground grid=40x120 pid=2192 workload=08_scroll_region reps=10
+rep 1 2.438 4.67
+rep 2 2.469 4.81
+rep 3 2.414 4.67
+rep 4 2.452 4.78
+rep 5 2.452 4.80
+rep 6 2.438 4.80
+rep 7 2.444 4.77
+rep 8 2.457 4.86
+rep 9 2.446 4.72
+rep 10 2.449 4.91
+rss_kb 106224
+grid_after 40x120
+curve_done

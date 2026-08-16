@@ -1,0 +1,33 @@
+20:36:20Z BENCH-LONG START frames=150000 grid=40x120 short=False onsetblocks=20
+20:36:20Z workstation locked: False
+20:36:20Z wt exe C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe (1.25.1912.0)
+20:36:22Z pre-existing WindowsTerminal pids (never killed): 14868
+20:36:22Z powerthrottling disable 'C:\dist\TerminalApp\TerminalApp.exe' -> 
+20:36:22Z powerthrottling disable 'C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe' -> 
+20:36:24Z === onset/ours attempt 1 ===
+20:36:30Z   grid 40x120 ok, streaming
+20:37:10Z   done
+20:37:14Z === onset/wt attempt 1 ===
+20:37:20Z   grid 40x120 ok, streaming
+20:38:10Z   done
+20:38:12Z onset ours -> VERDICT flat
+20:38:12Z onset wt -> VERDICT flat
+20:38:14Z === suite/ours attempt 1 ===
+20:38:20Z   grid 40x120 ok, streaming
+21:04:48Z   done
+21:04:52Z === suite/wt attempt 1 ===
+21:04:58Z   grid 40x120 ok, streaming
+21:41:32Z   done
+21:41:36Z === bigcat/ours attempt 1 ===
+21:41:42Z   grid 40x120 ok, streaming
+21:42:22Z   done
+21:42:26Z === bigcat/wt attempt 1 ===
+21:42:32Z   grid 40x120 ok, streaming
+21:43:22Z   done
+21:43:26Z === doom/ours attempt 1 ===
+21:43:32Z   grid 40x120 ok, streaming
+21:59:14Z   done
+21:59:18Z === doom/wt attempt 1 ===
+21:59:24Z   grid 40x120 ok, streaming
+22:18:56Z   done
+22:18:58Z BENCH-LONG-DONE

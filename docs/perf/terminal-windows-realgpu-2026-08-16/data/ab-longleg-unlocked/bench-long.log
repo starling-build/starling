@@ -1,0 +1,13 @@
+19:47:04Z BENCH-LONG START frames=150000 grid=40x120 short=False onsetblocks=20
+19:47:04Z workstation locked: False
+19:47:04Z wt exe C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe (1.25.1912.0)
+19:47:06Z pre-existing WindowsTerminal pids (never killed): 14868
+19:47:06Z powerthrottling disable 'C:\dist\TerminalApp\TerminalApp.exe' -> 
+19:47:06Z powerthrottling disable 'C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe' -> 
+19:47:08Z === suite/ours attempt 1 ===
+19:47:14Z   grid 40x120 ok, streaming
+19:53:05Z   done
+19:53:09Z === suite/wt attempt 1 ===
+19:53:15Z   grid 40x120 ok, streaming
+20:02:26Z   done
+20:02:28Z BENCH-LONG-DONE

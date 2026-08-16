@@ -1,0 +1,24 @@
+# wt grid=40x120 pid=2460 blocks=20
+block 1 2.451 cum 2.5 cpu 4.84
+block 2 2.457 cum 4.9 cpu 4.86
+block 3 2.127 cum 7.0 cpu 4.17
+block 4 2.074 cum 9.1 cpu 4.11
+block 5 2.485 cum 11.6 cpu 4.89
+block 6 2.462 cum 14.1 cpu 4.88
+block 7 2.112 cum 16.2 cpu 4.13
+block 8 2.087 cum 18.3 cpu 4.17
+block 9 2.457 cum 20.7 cpu 4.86
+block 10 2.473 cum 23.2 cpu 4.86
+block 11 2.105 cum 25.3 cpu 4.16
+block 12 2.111 cum 27.4 cpu 4.16
+block 13 2.442 cum 29.8 cpu 4.86
+block 14 2.484 cum 32.3 cpu 4.94
+block 15 2.116 cum 34.4 cpu 4.20
+block 16 2.093 cum 36.5 cpu 4.19
+block 17 2.400 cum 38.9 cpu 4.73
+block 18 2.498 cum 41.4 cpu 4.92
+block 19 2.130 cum 43.6 cpu 4.25
+block 20 2.118 cum 45.7 cpu 4.20
+early 2.345 late 2.249 ratio 0.96
+VERDICT flat
+onset_done
