@@ -1,0 +1,15 @@
+start 16:09:00
+wt exe C:\Program Files\WindowsApps\Microsoft.WindowsTerminalPreview_1.25.1912.0_x64__8wekyb3d8bbwe\WindowsTerminal.exe (1.25.1912.0)
+pre-existing WindowsTerminal (never killed): 14868
+killed 0 stale race.ps1 runner(s)
+ours pid=14076
+wt hwnd=1377760
+grids: ours=50x100 wt=50x100 want=50x100 match=True
+minimised 3 window(s) to clear the desktop
+ffmpeg pid=17800
+GO at 16:09:35.092
+both done at 16:10:29.362
+times ours: ascii=11.64 unicode=10.22 fps=544.27 total=39.4
+times wt:   ascii=14.64 unicode=17.86 fps=448.40 total=52.4
+mp4: 95 MB
+done

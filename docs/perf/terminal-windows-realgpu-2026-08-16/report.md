@@ -40,6 +40,11 @@ both sides at every leg, every leg first attempt, and `cpuref` — a fixed
 compute loop timed inside each leg — reads 0.416 for ours against 0.422 for
 WT, so both sides were measured with the machine in the same state.
 
+**There is a film of it**: `starling-vs-windows-terminal-realgpu.mp4`, the two
+terminals side by side on one screen at a verified 50x100, racing three tests
+from the same start signal — ours finishes all three in 39.4 s to Windows
+Terminal's 52.4 s. Details and the one deliberate deviation in `film/README.md`.
+
 ## What the numbers say
 
 - **`10_binary` is a 4.3x win** — 41.4 s to 176.2 s — the widest gap in any
@@ -60,6 +65,8 @@ WT, so both sides were measured with the machine in the same state.
 - **Unicode is no longer our weakness anywhere.** `cat 500 MB unicode` is
   0.66x and `05_unicode` is 0.73x. On Linux this was our standout weakness —
   last of five terminals, 2.3x behind ghostty — before that gap was closed.
+  **Read those two with the code-page caveat below**, which understates the
+  margin rather than inflating it.
 - **DOOM-Fire inverts.** 487 fps against 390, on half the CPU. It was 0.80x
   on the win11 VM and 0.92x on the fresh VM, and those rounds made "latency
   in our frame path" the standing open lead on Windows. On real hardware that
@@ -135,6 +142,34 @@ rep-to-rep spread under 3% and the per-rep curves are flat from the first
 repetition, so the shortening costs precision this comparison never used —
 but quote long-round numbers when comparing against the archived rounds,
 which were all taken at >=120 s.
+
+## The unicode workloads are not measuring unicode
+
+Found while filming the head-to-head, not while measuring: **no Windows round
+in this series has ever set the console code page**, this one included.
+
+The corpora are UTF-8 bytes and `Write-Corpus` streams them raw, so with the
+console on its inherited legacy code page the host reinterprets every one of
+them before the terminal sees it. On film the unicode test draws `µùÑµ£¼Ð¬`
+where it should draw 日本語テキスト. Both terminals are handed the identical
+stream, so `05_unicode` and `cat 500 MB unicode` are still fair comparisons —
+but what they compare is throughput on reinterpreted Latin-1, not CJK glyph
+rendering, which is what the workload names claim and what the Linux and
+macOS rounds actually measure.
+
+Correcting it (`chcp 65001`) widens our margin rather than narrowing it. From
+the two filmed takes, same machine, minutes apart:
+
+| `cat` 1 GB unicode | legacy code page | UTF-8 |
+|---|---|---|
+| ours | 16.52 s | **10.22 s** |
+| Windows Terminal | 22.33 s | 17.86 s |
+| ours/WT | 0.74x | **0.57x** |
+
+So the headline table understates unicode, and every archived Windows unicode
+figure needs the same asterisk. Re-running the round under `chcp 65001` is the
+obvious next measurement; it would not be comparable to the archive, which is
+precisely the point.
 
 ## Two things the harness now records, and why
 
