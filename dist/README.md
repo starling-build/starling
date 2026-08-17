@@ -122,8 +122,17 @@ the header-ABI half of the same guarantee:
         -EngineOut <engine>\engine\src\out\host_release `
         -OutDir <repo>\.stage-sdk
 
-Getting that check to run on Windows at all took three fixes (`3147f5d`) — it
-had been silently skipped on the VM, which has no bash. Note the toolchain that
+Verified the way the other two were: unpacked to a clean directory and built
+with nothing in the environment pointing at an engine checkout
+(`FLUTTER_SWIFT_ENGINE_OUT` and `STARLING_ENGINE_OUT` both cleared), so the
+link had only the bundle's own `engine/lib` to resolve against.
+`tools\build-windows.ps1 -PackagePath . -Configuration release` compiled the
+whole framework and both example executables — `CounterApp.exe` and
+`TerminalTiling.exe` — in 515 s with no errors. A bundle missing an import
+library fails that at link time, which is the failure this catches.
+
+Getting the drift check to run on Windows at all took three fixes (`3147f5d`) —
+it had been silently skipped on the VM, which has no bash. Note the toolchain that
 built these DLLs is Swift 6.2.3 / MSVC 14.44 / Windows SDK 10.0.22621, and that
 a consumer needs its own Swift toolchain: the runtime DLLs deliberately do not
 travel in the bundle.
