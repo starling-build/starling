@@ -25,7 +25,9 @@
 #include <freerdp/listener.h>
 #include <freerdp/peer.h>
 #include <freerdp/codec/color.h>
+#include <freerdp/codec/nsc.h>
 #include <freerdp/codec/rfx.h>
+#include <freerdp/constants.h>
 #include <freerdp/input.h>
 #include <freerdp/settings.h>
 #include <freerdp/update.h>
@@ -55,7 +57,14 @@ struct RdpServer {
 
     // Encode state — touched only by the pushing thread, between
     // activation and disconnect.
+    //
+    // Which codec is in use is the client's choice, not ours: RemoteFX if it
+    // negotiated one, else NSCodec, else raw bitmaps. mstsc does not always
+    // take RemoteFX, and refusing it outright (as this once did) turns
+    // "connect from Windows" into a disconnect with no explanation.
+    enum { CODEC_RFX, CODEC_NSC, CODEC_RAW } codec;
     RFX_CONTEXT* rfx;
+    NSC_CONTEXT* nsc;
     wStream* stream;
     freerdp_peer* peer;
     pthread_mutex_t peer_lock;  // guards peer/rfx/stream against teardown
@@ -151,32 +160,84 @@ static BOOL peer_activate(freerdp_peer* peer) {
     RdpServer* s = ctx->server;
     rdpSettings* settings = peer->context->settings;
 
-    // RemoteFX is the only codec this version speaks. Refusing here (rather
-    // than silently sending nothing) makes an unsupported client a visible
-    // disconnect instead of a black screen.
-    if (!freerdp_settings_get_bool(settings, FreeRDP_RemoteFxCodec)) {
-        fprintf(stderr, "[Rdp] client did not negotiate RemoteFX — "
-                        "rejecting (v1 is RFX-only)\n");
-        return FALSE;
+    // Which codec the CLIENT offered is carried by the codec ids, not by the
+    // RemoteFxCodec/NSCodec booleans: those keep whatever the server set on
+    // itself and say nothing about the peer. The ids come out of the client's
+    // Bitmap Codecs capability set, so a non-zero id is the real evidence
+    // that this client can decode that codec.
+    const UINT32 rfx_id =
+        freerdp_settings_get_uint32(settings, FreeRDP_RemoteFxCodecId);
+    const UINT32 nsc_id =
+        freerdp_settings_get_uint32(settings, FreeRDP_NSCodecId);
+    fprintf(stderr, "[Rdp] client codecs: rfx_id=%u nsc_id=%u surfcmds=%d\n",
+            rfx_id, nsc_id,
+            freerdp_settings_get_bool(settings, FreeRDP_SurfaceCommandsEnabled));
+
+    // Test seam: the ladder's lower rungs are hard to reach with a client
+    // that advertises everything (xfreerdp offers RemoteFX even with -rfx),
+    // so allow forcing one. Not a tuning knob — a way to exercise the paths
+    // mstsc will take without needing mstsc.
+    const char* force = getenv("STARLING_RDP_CODEC");
+    const int force_nsc = force && strcmp(force, "nsc") == 0;
+    const int force_raw = force && strcmp(force, "raw") == 0;
+    if (force) {
+        fprintf(stderr, "[Rdp] STARLING_RDP_CODEC=%s\n", force);
+    }
+    if (force_nsc && nsc_id == 0) {
+        fprintf(stderr, "[Rdp] cannot force NSCodec: this client did not "
+                        "offer it (nsc_id=0) — using the ladder instead\n");
     }
 
+    // Best the client offered, in descending order of what it costs on the
+    // wire. Raw is always available — SurfaceCommands with codecID 0 — so
+    // there is no client we cannot draw for, only clients we draw for
+    // expensively.
     pthread_mutex_lock(&s->peer_lock);
-    if (!s->rfx) {
-        s->rfx = rfx_context_new(TRUE);  // encoder
-    }
-    if (s->rfx) {
-        // The engine's capture is R,G,B,X in memory order.
-        rfx_context_set_pixel_format(s->rfx, PIXEL_FORMAT_RGBX32);
-        if (!rfx_context_reset(s->rfx, s->desktop_w, s->desktop_h)) {
+    if (rfx_id != 0 && !force_raw && !(force_nsc && nsc_id != 0)) {
+        s->codec = CODEC_RFX;
+        if (!s->rfx) {
+            s->rfx = rfx_context_new(TRUE);  // encoder
+        }
+        // Frames arrive R,G,B,X in memory order, from the capture sink on
+        // DRM and from glReadPixels in display mode alike.
+        if (!s->rfx || !rfx_context_reset(s->rfx, s->desktop_w, s->desktop_h)) {
             fprintf(stderr, "[Rdp] rfx_context_reset failed\n");
             pthread_mutex_unlock(&s->peer_lock);
             return FALSE;
         }
+        rfx_context_set_pixel_format(s->rfx, PIXEL_FORMAT_RGBX32);
+    } else if (nsc_id != 0 && !force_raw) {
+        // Only when the client actually offered NSCodec. Sending NSC data
+        // under a codec id the client never assigned decodes to nothing, and
+        // a black screen is a worse failure than falling through to raw —
+        // which is what forcing nsc against xfreerdp (it advertises no
+        // NSCodec) produced while this was being written.
+        s->codec = CODEC_NSC;
+        if (!s->nsc) {
+            s->nsc = nsc_context_new();
+        }
+        if (!s->nsc || !nsc_context_reset(s->nsc, s->desktop_w, s->desktop_h)) {
+            fprintf(stderr, "[Rdp] nsc_context_reset failed\n");
+            pthread_mutex_unlock(&s->peer_lock);
+            return FALSE;
+        }
+        if (!nsc_context_set_parameters(s->nsc, NSC_COLOR_FORMAT,
+                                        PIXEL_FORMAT_RGBX32)) {
+            fprintf(stderr, "[Rdp] nsc colour format rejected\n");
+            pthread_mutex_unlock(&s->peer_lock);
+            return FALSE;
+        }
+    } else {
+        s->codec = CODEC_RAW;
     }
     if (!s->stream) {
-        s->stream = Stream_New(NULL, 1024 * 1024);
+        // Raw frames are the largest thing that ever goes through here:
+        // width * height * 4 plus command overhead, so size for that rather
+        // than growing under the encode.
+        const size_t raw = (size_t)s->desktop_w * s->desktop_h * 4 + 4096;
+        s->stream = Stream_New(NULL, raw);
     }
-    int ok = (s->rfx != NULL && s->stream != NULL);
+    int ok = (s->stream != NULL);
     if (ok) {
         s->peer = peer;
     }
@@ -205,8 +266,11 @@ static BOOL peer_activate(freerdp_peer* peer) {
     s->last_x = s->desktop_w / 2.0;
     s->last_y = s->desktop_h / 2.0;
     s->peer_active = 1;
-    fprintf(stderr, "[Rdp] client activated: %ux%u RemoteFX\n", s->desktop_w,
-            s->desktop_h);
+    fprintf(stderr, "[Rdp] client activated: %ux%u %s\n", s->desktop_w,
+            s->desktop_h,
+            s->codec == CODEC_RFX ? "RemoteFX"
+            : s->codec == CODEC_NSC ? "NSCodec"
+                                    : "raw bitmaps (no codec negotiated)");
     return TRUE;
 }
 
@@ -373,6 +437,10 @@ done:
         rfx_context_free(s->rfx);
         s->rfx = NULL;
     }
+    if (s->nsc) {
+        nsc_context_free(s->nsc);
+        s->nsc = NULL;
+    }
     if (s->stream) {
         Stream_Free(s->stream, TRUE);
         s->stream = NULL;
@@ -431,6 +499,9 @@ static BOOL on_peer_accepted(freerdp_listener* instance, freerdp_peer* peer) {
         !freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE) ||
         !freerdp_settings_set_bool(settings, FreeRDP_RdpSecurity, FALSE) ||
         !freerdp_settings_set_bool(settings, FreeRDP_RemoteFxCodec, TRUE) ||
+        // Offered so a client without RemoteFX still has something better
+        // than raw to negotiate; which one it picks is read back at activate.
+        !freerdp_settings_set_bool(settings, FreeRDP_NSCodec, TRUE) ||
         !freerdp_settings_set_bool(settings, FreeRDP_SurfaceCommandsEnabled,
                                    TRUE) ||
         !freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, 32) ||
@@ -594,22 +665,86 @@ int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba, uint32_t w,
     }
 
     pthread_mutex_lock(&s->peer_lock);
-    if (!s->peer_active || !s->rfx || !s->stream || !s->peer) {
+    if (!s->peer_active || !s->stream || !s->peer) {
         pthread_mutex_unlock(&s->peer_lock);
-        return 0;
-    }
-
-    Stream_SetPosition(s->stream, 0);
-    RFX_RECT rect = { 0, 0, (UINT16)w, (UINT16)h };
-    int ok = rfx_compose_message(s->rfx, s->stream, &rect, 1, rgba, w, h,
-                                 w * 4);
-    if (!ok) {
-        pthread_mutex_unlock(&s->peer_lock);
-        fprintf(stderr, "[Rdp] rfx_compose_message failed\n");
         return 0;
     }
 
     rdpSettings* settings = s->peer->context->settings;
+    UINT16 codec_id = 0;
+    const BYTE* payload = NULL;
+    UINT32 payload_len = 0;
+
+    switch (s->codec) {
+        case CODEC_RFX: {
+            Stream_SetPosition(s->stream, 0);
+            RFX_RECT rect = { 0, 0, (UINT16)w, (UINT16)h };
+            if (!s->rfx || !rfx_compose_message(s->rfx, s->stream, &rect, 1,
+                                                rgba, w, h, w * 4)) {
+                pthread_mutex_unlock(&s->peer_lock);
+                fprintf(stderr, "[Rdp] rfx_compose_message failed\n");
+                return 0;
+            }
+            codec_id = (UINT16)freerdp_settings_get_uint32(
+                settings, FreeRDP_RemoteFxCodecId);
+            payload = Stream_Buffer(s->stream);
+            payload_len = (UINT32)Stream_GetPosition(s->stream);
+            break;
+        }
+        case CODEC_NSC: {
+            Stream_SetPosition(s->stream, 0);
+            if (!s->nsc || !nsc_compose_message(s->nsc, s->stream, rgba, w, h,
+                                                w * 4)) {
+                pthread_mutex_unlock(&s->peer_lock);
+                fprintf(stderr, "[Rdp] nsc_compose_message failed\n");
+                return 0;
+            }
+            codec_id = (UINT16)freerdp_settings_get_uint32(
+                settings, FreeRDP_NSCodecId);
+            payload = Stream_Buffer(s->stream);
+            payload_len = (UINT32)Stream_GetPosition(s->stream);
+            break;
+        }
+        case CODEC_RAW:
+        default: {
+            // No codec: the pixels go as they are. Expensive — a 1080p frame
+            // is 8 MB every time — so this is the floor, not a target.
+            //
+            // It is also the one path with no encoder to tell our layout to,
+            // and it differs from the codecs on BOTH axes:
+            //   - colour: uncompressed 32bpp is BGRX on the wire, our frames
+            //     are RGBX. Wrong, and the desktop arrives with red and blue
+            //     exchanged.
+            //   - row order: uncompressed bitmap data is BOTTOM-UP, while
+            //     RemoteFX takes the top-down frame as-is. Wrong, and the
+            //     desktop arrives upside down — which is exactly how this
+            //     was found.
+            // Both are handled in the one pass we are already making.
+            const size_t stride = (size_t)w * 4;
+            const size_t need = stride * h;
+            if (Stream_Capacity(s->stream) < need) {
+                pthread_mutex_unlock(&s->peer_lock);
+                fprintf(stderr, "[Rdp] raw scratch too small\n");
+                return 0;
+            }
+            BYTE* dst = Stream_Buffer(s->stream);
+            for (uint32_t y = 0; y < h; y++) {
+                const uint8_t* src_row = rgba + (size_t)y * stride;
+                BYTE* dst_row = dst + (size_t)(h - 1 - y) * stride;
+                for (size_t x = 0; x < stride; x += 4) {
+                    dst_row[x + 0] = src_row[x + 2];
+                    dst_row[x + 1] = src_row[x + 1];
+                    dst_row[x + 2] = src_row[x + 0];
+                    dst_row[x + 3] = src_row[x + 3];
+                }
+            }
+            codec_id = RDP_CODEC_ID_NONE;
+            payload = dst;
+            payload_len = (UINT32)need;
+            break;
+        }
+    }
+
     SURFACE_BITS_COMMAND cmd = { 0 };
     cmd.cmdType = CMDTYPE_STREAM_SURFACE_BITS;
     cmd.destLeft = 0;
@@ -618,15 +753,14 @@ int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba, uint32_t w,
     cmd.destBottom = h;
     cmd.bmp.bpp = 32;
     cmd.bmp.flags = 0;
-    cmd.bmp.codecID =
-        (UINT16)freerdp_settings_get_uint32(settings, FreeRDP_RemoteFxCodecId);
+    cmd.bmp.codecID = codec_id;
     cmd.bmp.width = (UINT16)w;
     cmd.bmp.height = (UINT16)h;
-    cmd.bmp.bitmapDataLength = (UINT32)Stream_GetPosition(s->stream);
-    cmd.bmp.bitmapData = Stream_Buffer(s->stream);
+    cmd.bmp.bitmapDataLength = payload_len;
+    cmd.bmp.bitmapData = (BYTE*)payload;
 
     rdpUpdate* update = s->peer->context->update;
-    ok = update->SurfaceBits(update->context, &cmd);
+    int ok = update->SurfaceBits(update->context, &cmd);
     pthread_mutex_unlock(&s->peer_lock);
 
     if (!ok) {
