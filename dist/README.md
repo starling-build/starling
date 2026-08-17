@@ -4,10 +4,15 @@
 x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
 `SHA256SUMS`.
 
-Every other platform's binaries are GitHub Release assets rather than repo
-contents (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
-Windows zip). This one is in the tree by explicit request, so that a Windows
-build is downloadable from a checkout before the terminal release is cut.
+`starling-sdk-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
+0.3.0 release candidate: framework source plus the release engine binaries
+(`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
+one tree a consumer depends on by path. 14 MB, checksum in `SHA256SUMS`.
+
+Every other binary is a GitHub Release asset rather than repo contents
+(`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
+Windows zip). These two are in the tree by explicit request, each so that a
+build is downloadable from a checkout before its release is cut.
 Do not take it as licence to add more: a binary committed here is in every
 clone forever, and removing it later means rewriting history.
 
@@ -49,12 +54,25 @@ Linux or macOS and gets one long flat filename. The staging script asserts
 against it — 0 backslash entries, `data/icudtl.dat` present — and refuses to
 write an archive that fails either check.
 
-## Refreshing it
+## The SDK bundle's provenance
 
-Rebuild and re-stage as above, copy the zip here, and regenerate the
-checksum:
+Built on the Mac from `release-sdk-0.3.0` (engine `ea78543`,
+`host_release_arm64`), verified by unpacking to a clean directory, building
+the whole package as a path-dependency consumer, and launching an example —
+the engine starts from the bundle's own `engine/lib`:
 
-    sha256sum starling-terminal-windows-x86_64.zip > SHA256SUMS
+    sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
 
-Replace the file rather than adding a second one; each version committed
-costs another 47 MB of permanent history.
+It unpacks into a named `starling-sdk-macos-arm64/` directory (unlike the
+terminal zip, which extracts flat).
+
+## Refreshing them
+
+Rebuild as above, copy the artifact here, and regenerate the checksums —
+one file, both lines:
+
+    shasum -a 256 starling-terminal-windows-x86_64.zip \
+                  starling-sdk-macos-arm64.tar.gz > SHA256SUMS
+
+Replace files rather than adding versions; each version committed costs its
+full size in permanent history.
