@@ -37,6 +37,11 @@ nonisolated(unsafe) private var rdpEngine: OpaquePointer? = nil
 nonisolated(unsafe) private var rdpPendingSize: (w: UInt32, h: UInt32)? = nil
 private let rdpSizeLock = NSLock()
 
+/// Dispatch sources standing in for the DRM loop's epoll registrations.
+/// Held here because a released source stops firing.
+nonisolated(unsafe) private var rdpWaylandSource: DispatchSourceRead? = nil
+nonisolated(unsafe) private var rdpWakeupSource: DispatchSourceRead? = nil
+
 func runRdpDisplay() -> Never {
     let env = ProcessInfo.processInfo.environment
 
@@ -84,6 +89,15 @@ func runRdpDisplay() -> Never {
     displayLayout = DisplayLayout.build(
         physicalWidth: Int(width), physicalHeight: Int(height),
         scale: scale, refreshMhz: 60000, name: "rdp")
+
+    // The texture registry resolves GL entry points through our context
+    // rather than the DRM view's. Created before the engine because the
+    // renderer config's external-texture callback reaches it.
+    let textureRegistry = LinuxTextureRegistry()
+    textureRegistry.glProcAddressResolver = { name in
+        return rdp_egl_get_proc_address(name)
+    }
+    drmTextureRegistry = textureRegistry
 
     runApp(
         MacosApp(
@@ -134,6 +148,19 @@ func runRdpDisplay() -> Never {
         guard let name else { return nil }
         return rdp_egl_get_proc_address(name)
     }
+    // Client windows composite through here, exactly as they do on DRM —
+    // the registry's GL paths are unchanged, they just run on a surfaceless
+    // context. This callback is why display mode is worth building on GL:
+    // under the software renderer the embedder resolves no external
+    // textures at all and every client window paints nothing.
+    rendererConfig.open_gl.gl_external_texture_frame_callback = {
+        _, textureId, width, height, textureOut in
+        guard let registry = drmTextureRegistry, let out = textureOut else {
+            return false
+        }
+        return registry.populateTexture(id: textureId, width: Int(width),
+                                        height: Int(height), textureOut: out)
+    }
     rendererConfig.open_gl.present = { _ in
         guard let e = rdpEgl, let svc = rdpDisplayService else { return false }
         // Raster thread. Skip the readback entirely when nobody is attached
@@ -146,6 +173,18 @@ func runRdpDisplay() -> Never {
             rdp_egl_read_frame(e, p.baseAddress, p.count) != 0
         }
         if ok { svc.submit(slot.buf) }
+        // A push to the client is this mode's page flip, and Wayland clients
+        // are paced off it exactly as they are off a real one on DRM —
+        // otherwise frame callbacks never fire and every client stalls after
+        // its first buffer. Marshalled to main, where the Wayland event loop
+        // lives here (the DRM path calls it on its platform thread, which is
+        // the same thread as its event loop, for the same reason).
+        let now = UInt64(DispatchTime.now().uptimeNanoseconds)
+        DispatchQueue.main.async {
+            waylandIntegration?.handlePresent(flipTimeNs: now,
+                                              refreshNs: 16_666_667,
+                                              outputId: 0)
+        }
         return true
     }
 
@@ -183,6 +222,69 @@ func runRdpDisplay() -> Never {
     rdpEngine = engine
     pointer.attach(engine: engine)
     keyboard.attach(engine: engine)
+
+    // ─── Compositor services ─────────────────────────────────────────────
+    // Everything below needs a running engine, not a DRM view. X11 is
+    // deliberately absent (Wayland only, per CLAUDE.md), and so is the
+    // dma-buf advertisement: without /dev/dri nothing can export one, and
+    // not offering linux-dmabuf is what makes clients pick wl_shm by
+    // themselves instead of failing.
+    let externalApps = LinuxExternalAppManager(engine: engine,
+                                               textureRegistry: textureRegistry)
+    linuxExternalAppManager = externalApps
+    let processApps = LinuxProcessAppManager(engine: engine,
+                                             textureRegistry: textureRegistry)
+    FrameCallbackScheduler.shared.register(processApps) { [weak processApps] in
+        processApps?.tick()
+    }
+    linuxProcessAppManager = processApps
+    processApps.onThemeChangeRequested = { dark in
+        _shellState?._setAppearance(dark: dark)
+    }
+    processApps.onLayoutChangeRequested = { tiling in
+        _shellState?._setTiling(tiling)
+    }
+    processApps.onWallpaperChangeRequested = { preset in
+        _shellState?._setWallpaper(preset)
+    }
+
+    let wayland = WaylandIntegration(engine: engine,
+                                     textureRegistry: textureRegistry)
+    wayland.start(screenWidth: Int(width), screenHeight: Int(height),
+                  scale: max(1, Int(scale)), shellDpi: scale,
+                  refreshMhz: 60000)
+    // The compositor's C side records its event-loop thread on first dispatch
+    // and warns about every call from anywhere else. On DRM that invariant
+    // holds for free: the engine's GCD integration drains the main queue ON
+    // the platform thread, so main queue, epoll loop and Wayland dispatch are
+    // all one thread. Display mode has no such integration — the scheduler
+    // fires on the engine's UI thread — so the hop is explicit here, and
+    // every server call funnels through the main queue with the fd sources.
+    FrameCallbackScheduler.shared.register(wayland) {
+        // Reaches the integration through the global rather than capturing
+        // it, so nothing is sent across the queue boundary.
+        DispatchQueue.main.async { waylandIntegration?.tick() }
+    }
+    waylandIntegration = wayland
+    _onWaylandIntegrationReady?()
+
+    // The DRM path hangs these fds off the engine's epoll loop. Here the
+    // main queue IS the platform thread, so they become dispatch sources —
+    // same single-threaded delivery, no epoll to register with.
+    if wayland.serverFd >= 0 {
+        let src = DispatchSource.makeReadSource(fileDescriptor: Int32(wayland.serverFd),
+                                                queue: .main)
+        src.setEventHandler { waylandIntegration?.dispatchEvents() }
+        src.resume()
+        rdpWaylandSource = src
+    }
+    if wayland.wakeupReadFd >= 0 {
+        let src = DispatchSource.makeReadSource(
+            fileDescriptor: Int32(wayland.wakeupReadFd), queue: .main)
+        src.setEventHandler { waylandIntegration?.drainWakeupPipe() }
+        src.resume()
+        rdpWakeupSource = src
+    }
 
     sendRdpMetrics(engine: engine, width: width, height: height, scale: scale)
 
