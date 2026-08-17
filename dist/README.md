@@ -83,24 +83,42 @@ archives a staged tree rather than a package.)
 
 ## Provenance
 
-Built on the real Windows box (not the win11 VM this time) from
-`release-terminal-0.1.0` at `382298a`, release configuration, against a
-`host_release` engine built from `starling` at `ea78543d95e`:
+Built on the real Windows box (not the win11 VM this time), release
+configuration — and **built against the SDK bundle beside it**, not against
+this repo's `sdk/` or an engine checkout. That is the point: the shipped
+terminal is now produced exactly the way an external consumer produces one, so
+every release exercises the bundle it ships with.
+
+    # unpack the SDK release artifact; nothing else is on PATH or in the env
+    Expand-Archive dist\starling-sdk-windows-x86_64.zip -DestinationPath C:\dist\sdk-only
+    $env:STARLING_SDK_BUNDLE = "C:\dist\sdk-only\starling-sdk-windows-x86_64"
 
     sdk\tools\build-windows.ps1 -PackagePath apps\TerminalApp `
         -Product TerminalApp -Configuration release
     sdk\tools\stage-windows.ps1 -PackagePath apps\TerminalApp `
         -Product TerminalApp -Configuration release -Zip `
-        -Out C:\dist\starling-terminal-windows-x86_64 `
-        -EngineOut C:\Users\starling\dev\starling-engine\engine\src\out\host_release
+        -Out C:\dist\sdkbuilt\starling-terminal-windows-x86_64 `
+        -EngineOut $env:STARLING_SDK_BUNDLE\engine\lib
+
+`FLUTTER_SWIFT_ENGINE_OUT` and `STARLING_ENGINE_OUT` must be unset for this to
+mean anything. With either set — or with `STARLING_SDK_BUNDLE` unset on a box
+that has an engine checkout — the manifest's own `-L` finds the checkout and
+the build passes while proving nothing. The check is the build plan: it carried
+58 references to the unpacked bundle and zero to `starling-engine` or to
+`sdk/`. The engine, `icudtl.dat`, flutter_assets and `conpty.dll` +
+`OpenConsole.exe` in this archive all came out of that bundle
+(`7658b95e`, engine `ea78543`).
 
 Toolchain: Swift 6.2.3, MSVC 14.44.35207, Windows SDK 10.0.22621 — the same
 pairing the VM used, chosen deliberately over the newer Swift and SDK on offer
 so the binary is comparable to the one it replaces. What a Windows build host
 needs from nothing is in `docs/BUILDING.md`.
 
-The executable is stamped 2026-08-16 22:21:24 and carries the tab work from
-`393d089` (several shells in one window), which the previous archive predated.
+The executable is stamped 2026-08-16 23:56:47 and carries the tab work from
+`393d089` (several shells in one window), which the previous archive predated by
+a day and a half. That gap is what `Ctrl+T` doing nothing looks like from the
+outside, and it is checkable without running anything: this binary has 8
+`TerminalTabs` matches in it, the one it replaces has none.
 
 **It is not the binary the Windows numbers were measured on.** Everything in
 `docs/perf/terminal-windows-race-regime-2026-08-15/` and
