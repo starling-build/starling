@@ -33,7 +33,8 @@ public enum GTKWindowedHost {
         windowedHostBoot = { title, width, height, root in
             setbuf(stdout, nil)
             print("[\(title)] Starting (GTK host)")
-            ensureEngineData()
+            // Engine data is GTKHost's own business now — it is the thing that
+            // starts the engine, and every way in has to arrive with it.
             guard let h = GTKHost(width: width, height: height, title: title) else {
                 fatalError("""
                 [\(title)] Could not create a window — run inside a Wayland \
@@ -68,44 +69,4 @@ public enum GTKWindowedHost {
         }
     }
 
-    /// Engine data (icudtl.dat + flutter_assets) for standalone runs: make
-    /// a `data/` beside the executable pointing at an engine checkout. The
-    /// desktop's staged tree ships these; a `swift run` build has neither.
-    private static func ensureEngineData() {
-        let fm = FileManager.default
-        guard let exe = try? fm.destinationOfSymbolicLink(atPath: "/proc/self/exe")
-        else { return }
-        let dataDir = (exe as NSString).deletingLastPathComponent + "/data"
-        if fm.fileExists(atPath: dataDir + "/icudtl.dat") { return }
-
-        let env = ProcessInfo.processInfo.environment
-        var icuCandidates: [String] = []
-        for key in ["FLUTTER_SWIFT_ENGINE_OUT", "FLUTTER_ENGINE_OUT"] {
-            if let v = env[key], !v.isEmpty { icuCandidates.append(v + "/icudtl.dat") }
-        }
-        // …/sdk/Sources/FlutterGTK/GTKWindowedHost.swift → sdk/
-        let sdkDir = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().path
-        icuCandidates += [
-            // The starling repo's engine symlink, one level above sdk/.
-            sdkDir + "/../engine/src/out/host_debug/icudtl.dat",
-        ]
-        guard let icu = icuCandidates.first(where: { fm.fileExists(atPath: $0) })
-        else {
-            FileHandle.standardError.write(Data((
-                "[GTKWindowedHost] no data/ next to the executable and no "
-                + "engine checkout to link from — tried "
-                + icuCandidates.joined(separator: ", ") + "\n").utf8))
-            return
-        }
-        try? fm.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
-        try? fm.createSymbolicLink(atPath: dataDir + "/icudtl.dat",
-                                   withDestinationPath: icu)
-        let assets = sdkDir + "/Resources/flutter_assets"
-        if fm.fileExists(atPath: assets) {
-            try? fm.createSymbolicLink(atPath: dataDir + "/flutter_assets",
-                                       withDestinationPath: assets)
-        }
-    }
 }

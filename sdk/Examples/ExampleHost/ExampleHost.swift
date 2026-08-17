@@ -14,41 +14,15 @@ import FlutterSwiftBridge
 import Foundation
 import Glibc
 
-/// Dev bootstrap, same as FlutterDemoApp's: when `<exe dir>/data` is missing
-/// (a `swift run` from the repo rather than an installed bundle), assemble it
-/// as symlinks — icudtl from the engine checkout ($FLUTTER_SWIFT_ENGINE_OUT /
-/// $FLUTTER_ENGINE_OUT / sibling clone), flutter_assets from this package's
-/// Resources.
+/// Dev bootstrap: when `<exe dir>/data` is missing (a `swift run` from the
+/// repo rather than an installed bundle), assemble it as symlinks. This was
+/// one of several hand-maintained copies of the candidate list, and it had
+/// drifted — it knew about a bundle's `engine/share/icudtl.dat` but linked
+/// assets only from `Resources/`, which a bundle does not ship, so an example
+/// run from an unpacked SDK came up with no fonts. The list lives in the host
+/// now, which is the thing that starts the engine.
 public func ensureEngineData() {
-    let fm = FileManager.default
-    guard let exe = try? fm.destinationOfSymbolicLink(atPath: "/proc/self/exe") else { return }
-    let dataDir = (exe as NSString).deletingLastPathComponent + "/data"
-    if fm.fileExists(atPath: dataDir + "/icudtl.dat") { return }
-
-    let env = ProcessInfo.processInfo.environment
-    var icuCandidates: [String] = []
-    for key in ["FLUTTER_SWIFT_ENGINE_OUT", "FLUTTER_ENGINE_OUT"] {
-        if let v = env[key], !v.isEmpty { icuCandidates.append(v + "/icudtl.dat") }
-    }
-    let packageDir = URL(fileURLWithPath: #filePath)         // …/Examples/ExampleHost/ExampleHost.swift
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path
-    icuCandidates += [
-        packageDir + "/engine/share/icudtl.dat",
-        packageDir + "/../starling-engine/engine/src/out/host_debug/icudtl.dat",
-    ]
-    guard let icu = icuCandidates.first(where: { fm.fileExists(atPath: $0) }) else {
-        FileHandle.standardError.write(Data((
-            "[ExampleHost] no data/ next to the executable and no engine " +
-            "checkout to link from — tried " + icuCandidates.joined(separator: ", ") + "\n").utf8))
-        return
-    }
-    try? fm.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
-    try? fm.createSymbolicLink(atPath: dataDir + "/icudtl.dat", withDestinationPath: icu)
-    let assets = packageDir + "/Resources/flutter_assets"
-    if fm.fileExists(atPath: assets) {
-        try? fm.createSymbolicLink(atPath: dataDir + "/flutter_assets", withDestinationPath: assets)
-    }
-    print("[ExampleHost] Linked engine data into \(dataDir)")
+    GTKHost.ensureEngineData()
 }
 
 /// The host created by runExampleApp, for apps that need window control

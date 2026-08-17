@@ -263,7 +263,8 @@ consumer's toolchain exactly as `libswiftCore` does on Linux.
 
     starling-sdk-linux-aarch64/
       Package.swift Sources/ Examples/ Tests/ tools/ LICENSE
-      engine/lib/     libflutter_engine.so, libflutter_linux_drm.so
+      engine/lib/     libflutter_engine.so, libflutter_linux_gtk.so,
+                      libflutter_linux_drm.so
       engine/share/   icudtl.dat, flutter_assets/
 
     starling-sdk-macos-arm64/

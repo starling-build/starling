@@ -169,12 +169,21 @@ else'"'"'s. SwiftPM also puts `$ORIGIN` in the rpath, so deployment is a copy:
 ```bash
 cp .build/release/App                 dist/
 cp /opt/'"$NAME"'/engine/lib/*.so         dist/     # sits beside the binary
-cp -r /opt/'"$NAME"'/engine/share         dist/     # icudtl.dat + flutter_assets
+cp -r /opt/'"$NAME"'/engine/share         dist/data # icudtl.dat + flutter_assets
 ```
 
 `dist/App` then runs anywhere with no `LD_LIBRARY_PATH`. Skip the library copy and
 you get `libflutter_engine.so: cannot open shared object file` at startup, not at
-build time. Point your embedder at `share/icudtl.dat` and `share/flutter_assets`.'
+build time.
+
+**`share` is copied as `data`, and the name is not cosmetic.** The GTK embedder
+resolves engine data as `<executable dir>/data/{icudtl.dat,flutter_assets}` and
+takes no override, so a `dist/share` it will never look in aborts the process on
+the first frame with `Check failed: context->IsValid(). Must be able to
+initialize the ICU context` — a crash that names a path, but not the reason it
+is wrong. In a *build* tree you get this for free: `GTKHost` links a `data/` next
+to the executable out of this bundle'"'"'s own `engine/share` the first time one
+is created.'
     OVERRIDE_MATH='`FLUTTER_SWIFT_GLIBC_MATH_COMPAT=0/1` forces the Ubuntu 26.04 <cmath> workaround
 off or on; it is applied automatically when libstdc++ 15 or newer is present.'
 else
@@ -191,14 +200,19 @@ else'"'"'s. SwiftPM also puts `@executable_path` in the rpath, so deployment is 
 cp .build/release/App                        dist/
 cp -R /opt/'"$NAME"'/engine/lib/FlutterMacOS.framework  dist/   # beside the binary
 cp    /opt/'"$NAME"'/engine/lib/libswift_bridge.dylib   dist/
-cp -r /opt/'"$NAME"'/engine/share                       dist/   # flutter_assets
+cp -r /opt/'"$NAME"'/engine/share                       dist/data # flutter_assets
 ```
 
 Both engine binaries carry an `@rpath` install name, so `dist/App` then runs
 anywhere with nothing set in the environment. Skip the copy and you get
 `Library not loaded: @rpath/libswift_bridge.dylib` at launch, not at build time.
-Point your embedder at the framework'"'"'s
-`Versions/A/Resources/icudtl.dat` and at `share/flutter_assets`.'
+
+`share` is copied as `data` because that is where `CocoaHost` looks by default:
+`<executable dir>/data/{icudtl.dat,flutter_assets}`. Unlike the GTK host it will
+take any other pair — `CocoaHost(assetsPath:icuDataPath:)` — and the ICU data it
+needs is the trimmed copy inside the framework
+(`Versions/A/Resources/icudtl.dat`), which travels with the framework you just
+copied.'
     OVERRIDE_MATH=''
 fi
 
