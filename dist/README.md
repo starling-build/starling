@@ -19,6 +19,19 @@ downloaded copy wants right-click → Open, or Privacy & Security →
 **Open Anyway**, or `xattr -dr com.apple.quarantine` once. Removing that step
 means Developer ID signing plus notarization, not a build change.
 
+`starling-terminal-linux-x86_64.deb` — Starling Terminal for Linux x86_64, the
+same 0.1.0 release candidate. 52 MB, checksum in `SHA256SUMS`. A **.deb**
+rather than an archive, because Linux has an install path the other two do not:
+`sudo dpkg -i` (or `apt install ./…`) puts it on the applications menu with its
+icon, and `dpkg-shlibdeps` computed the system dependencies so a missing GTK or
+libinput is a package error rather than a crash on launch. It runs on any
+desktop — GNOME, KDE, Wayland or X11 — and installs cleanly beside the desktop
+package, sharing nothing with it.
+
+Everything it loads lives in `/usr/lib/starling-terminal`: the engine libraries,
+`libFlutterShared`, the Swift runtime closure, the font resource bundles and
+`data/icudtl.dat`. No flutter_assets — the Swift runtime never reads them.
+
 `starling-sdk-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
 0.3.0 release candidate: framework source plus the release engine binaries
 (`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
@@ -49,7 +62,7 @@ slow, with nothing to point at.
 
 Every other binary is a GitHub Release asset rather than repo contents
 (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
-Windows zip). These five are in the tree by explicit request, each so that a
+Windows zip). These six are in the tree by explicit request, each so that a
 build is downloadable from a checkout before its release is cut.
 Do not take it as licence to add more: a binary committed here is in every
 clone forever, and removing it later means rewriting history.
@@ -125,6 +138,43 @@ Like the Windows archive, **this is not the binary the macOS numbers were
 measured on**: it carries the tab work from `393d089`, where
 `docs/perf/terminal-vs-ghostty-macos-2026-08-14-postupgrade/` predates it.
 Re-measure before quoting those figures against this archive.
+
+## The Linux terminal's provenance
+
+Built on the dev box from `release-terminal-0.1.0`, **from the released SDK
+bundle alone** — the same consumer path the macOS archive takes:
+
+    tar xzf dist/starling-sdk-linux-x86_64.tar.gz -C /tmp/sdk
+    B=/tmp/sdk/starling-sdk-linux-x86_64
+    env -u STARLING_ENGINE_OUT STARLING_APP_GTK=1 STARLING_SDK_BUNDLE=$B \
+        swift build -c release --package-path apps/TerminalApp \
+        --scratch-path $PWD/.build-gtk
+    STARLING_SDK_BUNDLE=$B build/package-terminal-gtk.sh
+
+`STARLING_SDK_BUNDLE` reaches further here than on the other two platforms,
+because a .deb ships licensing as well as code. In bundle mode the packager
+takes the engine libraries, `icudtl.dat`, the framework's BSD-3-Clause licence
+and the engine's own `NOTICES.Z` from the bundle — the notices especially, since
+they must describe the engine actually being shipped, and this repo's copy would
+be a different engine's on any machine but ours. All five were compared
+byte-for-byte against the bundle after packaging.
+
+**The binary keeps the build machine's bundle path in its RUNPATH, so the test
+that matters is the installed package with that bundle gone.** Moved aside, the
+installed terminal came up and drew a shell prompt, and `/proc/<pid>/maps`
+showed 157 mapped libraries: 17 from `/usr/lib/starling-terminal`, the rest
+system, **zero from the bundle and zero from the swiftly toolchain**. The
+launcher is what makes that hold — it exports
+`LD_LIBRARY_PATH=/usr/lib/starling-terminal`, which outranks the baked RUNPATH.
+A package that skipped this check would work on the build machine and nowhere
+else.
+
+The throughput suite (`test/bench`) was then run against the installed package
+through `STARLING_DEV_SHELL`, so it needed no synthetic input: 418 MB across the
+ten workloads in **2.6 s wall / 3.4 s CPU** at a 40x135 grid, ~220 MB RSS
+afterwards. One run on a windowed GNOME session — a health check, not a
+comparable round; the archived rounds fix the grid and run three times against a
+rival terminal.
 
 ## The SDK bundles' provenance
 
