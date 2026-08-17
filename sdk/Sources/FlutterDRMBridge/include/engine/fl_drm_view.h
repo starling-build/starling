@@ -95,6 +95,33 @@ FL_DRM_EXPORT int fl_drm_view_post_task(FlDrmView* view,
 FL_DRM_EXPORT void fl_drm_view_send_metrics(FlDrmView* view,
                                              double pixel_ratio);
 
+// ─── Injected pointer input ──────────────────────────────────────────────────
+// Drive the pointer from something that is not a physical device — the RDP
+// server today, any remote/automation source tomorrow. The event joins the
+// SAME virtual-desktop pointer state libinput feeds, so it inherits pointer
+// capture, view routing, region crossing and hardware-cursor placement; from
+// the framework's seat there is no difference between this and a real mouse.
+//
+// |x|,|y| are PRIMARY-OUTPUT PHYSICAL pixels — the space an absolute
+// libinput device maps into, and (for a client rendering the primary output
+// at its native size) the RDP client's framebuffer coordinates 1:1.
+// |buttons| is the ABSOLUTE Flutter button mask (1 primary, 2 secondary,
+// 4 middle): report state, not transitions — down/up/move/hover phases are
+// derived by diffing against the current mask. Wheel deltas are in Flutter's
+// pixel units (a notch is ~20); pass 0 when not scrolling.
+//
+// Safe from ANY thread: the call marshals onto the engine platform thread
+// through the post-task trampoline and returns immediately, so events are
+// applied in submission order and never race the libinput handlers.
+// The hardware cursor is moved to match — without which the sprite would
+// stay put, and since screen capture composites that sprite, a remote
+// viewer would watch a frozen pointer while the desktop responded normally.
+FL_DRM_EXPORT void fl_drm_view_inject_pointer_abs(FlDrmView* view,
+                                                   double x, double y,
+                                                   int64_t buttons,
+                                                   double wheel_dx,
+                                                   double wheel_dy);
+
 // Request a screenshot on the next frame. Sets the internal flag that
 // causes glReadPixels to dump a PPM file in the present callback.
 // Safe to call from any thread (uses atomic flag).

@@ -1158,6 +1158,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 }
                 screenCastService?.pumpTick()
             }
+            // RDP is the third rider, on identical terms: the floor keeps
+            // the client's view alive on an idle desktop and carries the
+            // stop through, while priming rebuilds only run until the
+            // first frame reaches the client.
+            if rdpService?.needsFramePump == true {
+                tick = true
+                if rdpService?.needsPrimingRebuilds == true {
+                    rebuild = true
+                }
+                rdpService?.pumpTick()
+            }
             #endif
             guard tick else { return }
             // The pump is a LIVENESS FLOOR, not a frame source. A present

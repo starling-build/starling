@@ -155,6 +155,9 @@ nonisolated(unsafe) var recordingService: RecordingService? = nil
 /// for the same reason as recordingService: hooks land on the portal and
 /// recorder writer threads.
 nonisolated(unsafe) var screenCastService: ScreenCastService? = nil
+/// RDP server (STARLING_RDP=1) — a global for the same reason again: its
+/// callbacks land on the listener and peer threads.
+nonisolated(unsafe) var rdpService: RdpService? = nil
 
 /// Current shell DPI — updated at runtime by Settings app. Read this instead
 /// of the FLUTTER_DRM_DPI env var for coordinate conversion.
@@ -845,16 +848,25 @@ func runDRM() -> Never {
     let recording = RecordingService()
     recordingService = recording
     screenCastService = ScreenCastService()
-    // One frame sink, two consumers: the engine runs a single capture
+    let rdp = RdpService()
+    rdpService = rdp
+    // One frame sink, three consumers: the engine runs a single capture
     // session, so each frame belongs to whichever service claimed it —
-    // a ScreenCast session routes here, everything else is a recording.
+    // a ScreenCast or RDP session routes there, everything else is a
+    // recording. The claims are mutually exclusive (each start refuses
+    // while another holds it), so the order of these tests is arbitrary.
     fl_drm_view_set_record_frame_callback(view, { _, rgba, w, h, _ in
         if ScreenCastService.captureActive {
             screenCastService?.ingest(rgba, width: Int(w), height: Int(h))
+        } else if RdpService.captureActive {
+            rdpService?.ingest(rgba, width: Int(w), height: Int(h))
         } else {
             recordingService?.ingest(rgba, width: Int(w), height: Int(h))
         }
     }, nil)
+    // The listener only comes up when STARLING_RDP is set; see
+    // docs/plans/rdp.md for why it is opt-in and LAN/dev only.
+    rdp.startIfEnabled(view: view)
     // Zero-copy sibling: dmabuf frames on the engine's PRESENTING thread —
     // ingestDmabuf queues the frame and returns; anything heavier here
     // stalls the desktop's present path.

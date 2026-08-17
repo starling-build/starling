@@ -82,6 +82,12 @@ final class ScreenCastService {
             return -1
         }
         guard fl_drm_view_recording_active() == 0 else { return -1 }
+        // The engine's one capture session may already belong to RDP.
+        guard !RdpService.captureActive else {
+            FileHandle.standardError.write(
+                Data("[ScreenCast] a remote desktop client owns the capture\n".utf8))
+            return -1
+        }
 
         lock.lock()
         guard case .idle = state else { lock.unlock(); return -1 }

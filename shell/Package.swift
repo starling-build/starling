@@ -92,6 +92,7 @@ let shellDeps: [Target.Dependency] = [
     "X11Server",
     "PortalService",
     "PipeWireCast",
+    "RdpServer",
     "NotificationService",
     "ImeBridge",
     .product(name: "StarlingRegistry", package: "StarlingRegistry"),
@@ -174,6 +175,28 @@ targets += [
         ],
         linkerSettings: [
             .linkedLibrary("pipewire-0.3"),
+        ]
+    ),
+    // RDP server (docs/plans/rdp.md). Linked, not dlopen'd, on the same
+    // reasoning as PipeWireCast: libfreerdp-server3 is in the Ubuntu
+    // archive, and dpkg-shlibdeps picks the runtime dep off the staged
+    // binary. The listener only exists when STARLING_RDP is set, so the
+    // cost of linking it is a few relocations.
+    .target(
+        name: "RdpServer",
+        path: "Sources/RdpServer",
+        publicHeadersPath: "include",
+        cSettings: [
+            .define("_GNU_SOURCE"),
+            .unsafeFlags(["-I/usr/include/freerdp3", "-I/usr/include/winpr3",
+                          // FreeRDP 3.x still declares plenty of its own
+                          // 2.x surface; we use none of it.
+                          "-Wno-deprecated-declarations"]),
+        ],
+        linkerSettings: [
+            .linkedLibrary("freerdp-server3"),
+            .linkedLibrary("freerdp3"),
+            .linkedLibrary("winpr3"),
         ]
     ),
     // Notification daemon (org.freedesktop.Notifications) using sd-bus
