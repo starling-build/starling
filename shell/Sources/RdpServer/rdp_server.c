@@ -76,6 +76,8 @@ struct RdpServer {
     // Last position the client reported in an event whose coordinates were
     // meaningful — see peer_mouse_event.
     double last_x, last_y;
+    // Monotonic id for surface frame markers.
+    uint32_t frame_id;
 };
 
 // The per-peer context FreeRDP allocates for us; it only has to carry the
@@ -760,7 +762,30 @@ int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba, uint32_t w,
     cmd.bmp.bitmapData = (BYTE*)payload;
 
     rdpUpdate* update = s->peer->context->update;
+
+    // Bracket the frame in markers when the client asked for them. Some
+    // clients treat surface bits as provisional until the END marker and
+    // present nothing without it — mstsc showed a connected, permanently
+    // black window this way, while xfreerdp had drawn every frame happily.
+    // It is also what makes frame acknowledgement (and any future flow
+    // control built on it) possible at all.
+    const int markers =
+        freerdp_settings_get_bool(s->peer->context->settings,
+                                  FreeRDP_FrameMarkerCommandEnabled);
+    SURFACE_FRAME_MARKER marker = { 0 };
+    if (markers) {
+        marker.frameId = s->frame_id;
+        marker.frameAction = SURFACECMD_FRAMEACTION_BEGIN;
+        update->SurfaceFrameMarker(update->context, &marker);
+    }
+
     int ok = update->SurfaceBits(update->context, &cmd);
+
+    if (markers) {
+        marker.frameAction = SURFACECMD_FRAMEACTION_END;
+        update->SurfaceFrameMarker(update->context, &marker);
+        s->frame_id++;
+    }
     pthread_mutex_unlock(&s->peer_lock);
 
     if (!ok) {
