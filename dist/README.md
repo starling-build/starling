@@ -4,6 +4,21 @@
 x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
 `SHA256SUMS`.
 
+`starling-terminal-macos-arm64.zip` — Starling Terminal for macOS arm64, the
+same 0.1.0 release candidate. 17.2 MB, checksum in `SHA256SUMS`. Unlike the
+Windows archive it wraps a `.app`, so it extracts to
+`Starling Terminal.app` rather than flat, and needs no directory made for it.
+
+Opening it needs no command and no arguments — verified by running the
+unpacked app under `env -i` with the SDK bundle it was built against moved
+away: the engine rides in `Contents/Frameworks`, every rpath resolves inside
+the bundle, and a Finder launch picks up the login shell. The one first-launch
+step is Gatekeeper's: the bundle is **ad-hoc signed, not notarized**
+(`spctl` rejects it once a browser has set the quarantine flag), so a
+downloaded copy wants right-click → Open, or Privacy & Security →
+**Open Anyway**, or `xattr -dr com.apple.quarantine` once. Removing that step
+means Developer ID signing plus notarization, not a build change.
+
 `starling-sdk-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
 0.3.0 release candidate: framework source plus the release engine binaries
 (`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
@@ -34,7 +49,7 @@ slow, with nothing to point at.
 
 Every other binary is a GitHub Release asset rather than repo contents
 (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
-Windows zip). These four are in the tree by explicit request, each so that a
+Windows zip). These five are in the tree by explicit request, each so that a
 build is downloadable from a checkout before its release is cut.
 Do not take it as licence to add more: a binary committed here is in every
 clone forever, and removing it later means rewriting history.
@@ -86,6 +101,30 @@ own tools tolerate it, so the mistake is invisible until someone unzips on
 Linux or macOS and gets one long flat filename. The staging script asserts
 against it — 0 backslash entries, `data/icudtl.dat` present — and refuses to
 write an archive that fails either check.
+
+## The macOS terminal's provenance
+
+Built on the Mac from `release-terminal-0.1.0`, **from the released SDK
+bundle alone** — the consumer path, not a privileged in-repo one:
+
+    tar xzf dist/starling-sdk-macos-arm64.tar.gz -C /tmp/sdk
+    STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
+        build/macos-app.sh TerminalApp --zip
+
+Both halves matter. `STARLING_SDK_BUNDLE` redirects the app's path dependency
+*and* the `-L`/rpath into the bundle's own `engine/lib`; the script then takes
+flutter_assets from `engine/share` instead of this repo's `sdk/Resources`, so
+staging never reaches back into a tree a consumer does not have. The build plan
+was checked for it: 46 references to the unpacked bundle, zero to
+`starling-engine` or to `sdk/`. The archive is renamed on the way in —
+`macos-app.sh` emits `Starling-Terminal-0.1.0-macos-arm64.zip`, this directory
+keeps every artifact at `<product>-<platform>-<arch>` so a version bump
+replaces a file instead of accumulating one.
+
+Like the Windows archive, **this is not the binary the macOS numbers were
+measured on**: it carries the tab work from `393d089`, where
+`docs/perf/terminal-vs-ghostty-macos-2026-08-14-postupgrade/` predates it.
+Re-measure before quoting those figures against this archive.
 
 ## The SDK bundles' provenance
 
@@ -162,10 +201,11 @@ terminal zip, which extracts flat.
 ## Refreshing them
 
 Rebuild as above, copy the artifact here, and regenerate the checksums —
-one file, all four lines, because writing it with one filename is how the
+one file, all five lines, because writing it with one filename is how the
 Windows zip's line got dropped once already:
 
     sha256sum starling-terminal-windows-x86_64.zip \
+              starling-terminal-macos-arm64.zip \
               starling-sdk-macos-arm64.tar.gz \
               starling-sdk-linux-x86_64.tar.gz \
               starling-sdk-windows-x86_64.zip > SHA256SUMS
