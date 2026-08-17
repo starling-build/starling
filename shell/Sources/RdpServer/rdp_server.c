@@ -673,10 +673,36 @@ int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba, uint32_t w,
     }
 
     rdpSettings* settings = s->peer->context->settings;
-    UINT16 codec_id = 0;
-    const BYTE* payload = NULL;
-    UINT32 payload_len = 0;
+    rdpUpdate* update = s->peer->context->update;
 
+    // Bracket the frame. Some clients treat surface bits as provisional
+    // until the END marker, and it is what frame acknowledgement is built
+    // on. Weston brackets its raw path the same way.
+    const int markers =
+        freerdp_settings_get_bool(settings, FreeRDP_FrameMarkerCommandEnabled);
+    SURFACE_FRAME_MARKER marker = { 0 };
+    if (markers) {
+        marker.frameId = s->frame_id;
+        marker.frameAction = SURFACECMD_FRAMEACTION_BEGIN;
+        update->SurfaceFrameMarker(update->context, &marker);
+    }
+
+    SURFACE_BITS_COMMAND cmd = { 0 };
+    // skipCompression: the payload is ALREADY encoded (or deliberately
+    // raw). Without it FreeRDP may compress it again on the way out, and
+    // the client then decodes rubbish — weston sets this on both codec
+    // paths for the same reason.
+    cmd.skipCompression = TRUE;
+    cmd.bmp.bpp = 32;
+    cmd.bmp.flags = 0;
+    cmd.bmp.width = (UINT16)w;
+    cmd.bmp.height = (UINT16)h;
+    cmd.destLeft = 0;
+    cmd.destTop = 0;
+    cmd.destRight = w;
+    cmd.destBottom = h;
+
+    int ok = 0;
     switch (s->codec) {
         case CODEC_RFX: {
             Stream_SetPosition(s->stream, 0);
@@ -687,10 +713,12 @@ int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba, uint32_t w,
                 fprintf(stderr, "[Rdp] rfx_compose_message failed\n");
                 return 0;
             }
-            codec_id = (UINT16)freerdp_settings_get_uint32(
+            cmd.cmdType = CMDTYPE_STREAM_SURFACE_BITS;
+            cmd.bmp.codecID = (UINT16)freerdp_settings_get_uint32(
                 settings, FreeRDP_RemoteFxCodecId);
-            payload = Stream_Buffer(s->stream);
-            payload_len = (UINT32)Stream_GetPosition(s->stream);
+            cmd.bmp.bitmapDataLength = (UINT32)Stream_GetPosition(s->stream);
+            cmd.bmp.bitmapData = Stream_Buffer(s->stream);
+            ok = update->SurfaceBits(update->context, &cmd);
             break;
         }
         case CODEC_NSC: {
@@ -701,85 +729,77 @@ int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba, uint32_t w,
                 fprintf(stderr, "[Rdp] nsc_compose_message failed\n");
                 return 0;
             }
-            codec_id = (UINT16)freerdp_settings_get_uint32(
-                settings, FreeRDP_NSCodecId);
-            payload = Stream_Buffer(s->stream);
-            payload_len = (UINT32)Stream_GetPosition(s->stream);
+            // NSC goes as SET, not STREAM — weston makes the same
+            // distinction, and a client entitled to be strict about it will
+            // be.
+            cmd.cmdType = CMDTYPE_SET_SURFACE_BITS;
+            cmd.bmp.codecID =
+                (UINT16)freerdp_settings_get_uint32(settings, FreeRDP_NSCodecId);
+            cmd.bmp.bitmapDataLength = (UINT32)Stream_GetPosition(s->stream);
+            cmd.bmp.bitmapData = Stream_Buffer(s->stream);
+            ok = update->SurfaceBits(update->context, &cmd);
             break;
         }
         case CODEC_RAW:
         default: {
-            // No codec: the pixels go as they are. Expensive — a 1080p frame
-            // is 8 MB every time — so this is the floor, not a target.
-            //
-            // It is also the one path with no encoder to tell our layout to,
-            // and it differs from the codecs on BOTH axes:
-            //   - colour: uncompressed 32bpp is BGRX on the wire, our frames
-            //     are RGBX. Wrong, and the desktop arrives with red and blue
-            //     exchanged.
-            //   - row order: uncompressed bitmap data is BOTTOM-UP, while
-            //     RemoteFX takes the top-down frame as-is. Wrong, and the
-            //     desktop arrives upside down — which is exactly how this
-            //     was found.
-            // Both are handled in the one pass we are already making.
-            const size_t stride = (size_t)w * 4;
-            const size_t need = stride * h;
-            if (Stream_Capacity(s->stream) < need) {
+            // Uncompressed pixels differ from the codecs on three counts,
+            // and all three are silent failures:
+            //   - colour: 32bpp on the wire is BGRX, our frames are RGBX;
+            //   - row order: bottom-up, where RemoteFX takes top-down;
+            //   - SIZE: one whole frame is megabytes and a client will not
+            //     accept a surface command larger than its own
+            //     MultifragMaxRequestSize. It has to be cut into horizontal
+            //     bands that fit — which is what weston does, and skipping
+            //     it is why a full-frame raw update can arrive as nothing
+            //     at all.
+            const uint32_t maxreq = freerdp_settings_get_uint32(
+                settings, FreeRDP_MultifragMaxRequestSize);
+            const uint32_t row_bytes = w * 4;
+            uint32_t band = maxreq > (row_bytes + 16)
+                                ? (maxreq - 16) / row_bytes
+                                : 1;
+            if (band == 0) {
+                band = 1;
+            }
+            if (band > h) {
+                band = h;
+            }
+
+            cmd.cmdType = CMDTYPE_SET_SURFACE_BITS;
+            cmd.bmp.codecID = RDP_CODEC_ID_NONE;
+            cmd.skipCompression = TRUE;
+
+            BYTE* scratch = Stream_Buffer(s->stream);
+            if (Stream_Capacity(s->stream) < (size_t)band * row_bytes) {
                 pthread_mutex_unlock(&s->peer_lock);
                 fprintf(stderr, "[Rdp] raw scratch too small\n");
                 return 0;
             }
-            BYTE* dst = Stream_Buffer(s->stream);
-            for (uint32_t y = 0; y < h; y++) {
-                const uint8_t* src_row = rgba + (size_t)y * stride;
-                BYTE* dst_row = dst + (size_t)(h - 1 - y) * stride;
-                for (size_t x = 0; x < stride; x += 4) {
-                    dst_row[x + 0] = src_row[x + 2];
-                    dst_row[x + 1] = src_row[x + 1];
-                    dst_row[x + 2] = src_row[x + 0];
-                    dst_row[x + 3] = src_row[x + 3];
+
+            ok = 1;
+            for (uint32_t top = 0; top < h && ok; top += band) {
+                const uint32_t rows = (h - top < band) ? (h - top) : band;
+                // Bottom-up within the band, BGRX as we go.
+                for (uint32_t y = 0; y < rows; y++) {
+                    const uint8_t* src = rgba + (size_t)(top + y) * row_bytes;
+                    BYTE* dst = scratch + (size_t)(rows - 1 - y) * row_bytes;
+                    for (uint32_t x = 0; x < row_bytes; x += 4) {
+                        dst[x + 0] = src[x + 2];
+                        dst[x + 1] = src[x + 1];
+                        dst[x + 2] = src[x + 0];
+                        dst[x + 3] = src[x + 3];
+                    }
                 }
+                cmd.destTop = top;
+                cmd.destBottom = top + rows;
+                cmd.bmp.height = (UINT16)rows;
+                cmd.bmp.bitmapDataLength = rows * row_bytes;
+                cmd.bmp.bitmapData = scratch;
+                ok = update->SurfaceBits(update->context, &cmd);
             }
-            codec_id = RDP_CODEC_ID_NONE;
-            payload = dst;
-            payload_len = (UINT32)need;
             break;
         }
     }
-
-    SURFACE_BITS_COMMAND cmd = { 0 };
-    cmd.cmdType = CMDTYPE_STREAM_SURFACE_BITS;
-    cmd.destLeft = 0;
-    cmd.destTop = 0;
-    cmd.destRight = w;
-    cmd.destBottom = h;
-    cmd.bmp.bpp = 32;
-    cmd.bmp.flags = 0;
-    cmd.bmp.codecID = codec_id;
-    cmd.bmp.width = (UINT16)w;
-    cmd.bmp.height = (UINT16)h;
-    cmd.bmp.bitmapDataLength = payload_len;
-    cmd.bmp.bitmapData = (BYTE*)payload;
-
-    rdpUpdate* update = s->peer->context->update;
-
-    // Bracket the frame in markers when the client asked for them. Some
-    // clients treat surface bits as provisional until the END marker and
-    // present nothing without it — mstsc showed a connected, permanently
-    // black window this way, while xfreerdp had drawn every frame happily.
-    // It is also what makes frame acknowledgement (and any future flow
-    // control built on it) possible at all.
-    const int markers =
-        freerdp_settings_get_bool(s->peer->context->settings,
-                                  FreeRDP_FrameMarkerCommandEnabled);
-    SURFACE_FRAME_MARKER marker = { 0 };
-    if (markers) {
-        marker.frameId = s->frame_id;
-        marker.frameAction = SURFACECMD_FRAMEACTION_BEGIN;
-        update->SurfaceFrameMarker(update->context, &marker);
-    }
-
-    int ok = update->SurfaceBits(update->context, &cmd);
 
     if (markers) {
         marker.frameAction = SURFACECMD_FRAMEACTION_END;
