@@ -197,6 +197,9 @@ targets += [
             .linkedLibrary("freerdp-server3"),
             .linkedLibrary("freerdp3"),
             .linkedLibrary("winpr3"),
+            // rdp_egl.c: the surfaceless render target for display mode.
+            .linkedLibrary("EGL"),
+            .linkedLibrary("GLESv2"),
         ]
     ),
     // Notification daemon (org.freedesktop.Notifications) using sd-bus

@@ -76,7 +76,7 @@ final class RdpService {
         else { return }
 
         let port = Int32(env["STARLING_RDP_PORT"].flatMap { Int($0) } ?? 3389)
-        guard let (cert, key) = resolveCertificate(env: env) else {
+        guard let (cert, key) = RdpCertificate.resolve(env: env) else {
             warn("no certificate — RDP disabled")
             return
         }
@@ -109,7 +109,9 @@ final class RdpService {
         // Unretained: the service outlives the server, which is stopped
         // before it could ever be freed.
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        guard let s = rdp_server_start(nil, port, cert, key, w, h,
+        // 0: share mode forces the client to the physical output's size —
+        // the desktop is already being scanned out at it.
+        guard let s = rdp_server_start(nil, port, cert, key, w, h, 0,
                                        &cbs, selfPtr) else {
             warn("listener failed to start")
             return
@@ -267,66 +269,6 @@ final class RdpService {
     private static var maxFps: Int32 {
         let env = ProcessInfo.processInfo.environment
         return Int32(env["STARLING_RDP_FPS"].flatMap { Int($0) } ?? 15)
-    }
-
-    /// Resolve the TLS material, generating a self-signed pair on first
-    /// use. Returns nil when neither a configured nor a generated pair is
-    /// available — the listener then stays down rather than falling back to
-    /// an unencrypted mode, which this server does not have.
-    private func resolveCertificate(env: [String: String])
-        -> (cert: String, key: String)? {
-        if let c = env["STARLING_RDP_CERT"], let k = env["STARLING_RDP_KEY"],
-           !c.isEmpty, !k.isEmpty {
-            return (c, k)
-        }
-        let dir = "\(LoginUser.configDir)/rdp"
-        let cert = "\(dir)/server.crt"
-        let key = "\(dir)/server.key"
-        let fm = FileManager.default
-        if fm.fileExists(atPath: cert), fm.fileExists(atPath: key) {
-            return (cert, key)
-        }
-
-        do {
-            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true,
-                                   attributes: [.posixPermissions: 0o700])
-        } catch {
-            warn("cannot create \(dir): \(error)")
-            return nil
-        }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/openssl")
-        p.arguments = ["req", "-x509", "-newkey", "rsa:2048", "-nodes",
-                       "-days", "3650", "-subj", "/CN=starling",
-                       "-keyout", key, "-out", cert]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do {
-            try p.run()
-            p.waitUntilExit()
-        } catch {
-            warn("openssl failed: \(error)")
-            return nil
-        }
-        guard p.terminationStatus == 0 else {
-            warn("openssl exited \(p.terminationStatus)")
-            return nil
-        }
-        try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: key)
-        // Dev mode runs the shell as root; the packaged session does not.
-        // Without this the generated pair is unreadable to the very session
-        // that ships, and the failure looks like "RDP works on my box".
-        if getuid() == 0 {
-            let uid = LoginUser.uid
-            let gid = getpwuid(uid)?.pointee.pw_gid ?? uid
-            for path in [dir, cert, key] {
-                try? fm.setAttributes([.ownerAccountID: uid,
-                                       .groupOwnerAccountID: gid],
-                                      ofItemAtPath: path)
-            }
-        }
-        warn("generated self-signed certificate in \(dir)")
-        return (cert, key)
     }
 
     private func warn(_ msg: String) {

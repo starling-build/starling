@@ -1068,6 +1068,18 @@ func runHeadless() -> Never {
 
 // ─── Windowed entry point ────────────────────────────────────────────────────
 
+// --rdp is checked BEFORE --drm deliberately. Every launcher in the tree
+// appends --drm because that is the normal mode, so an explicit --rdp has to
+// outrank it — otherwise asking for display mode silently gets you a DRM
+// desktop, which on a box that HAS a display looks like it worked.
+//
+// The RDP connection IS the display here: no DRM, no seat, no libinput. This
+// is the mode that runs where /dev/dri does not exist (WSL, containers,
+// cloud VMs). See docs/plans/rdp-wsl.md.
+if CommandLine.arguments.contains("--rdp") {
+    runRdpDisplay()
+}
+
 // Check for --drm flag (DRM/KMS direct rendering)
 if CommandLine.arguments.contains("--drm") {
     runDRM()
@@ -1079,6 +1091,6 @@ if CommandLine.arguments.contains("--headless") {
 }
 
 // The windowed X11/GLFW dev path has been removed — the shell is DRM-only
-// (plus --headless). runDRM()/runHeadless() above never return.
-fatalError("[DesktopShellApp] requires --drm (or --headless); windowed mode is not supported")
+// (plus --rdp and --headless). Those three never return.
+fatalError("[DesktopShellApp] requires --drm, --rdp or --headless; windowed mode is not supported")
 #endif  // os(Linux)

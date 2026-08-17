@@ -47,18 +47,27 @@ typedef struct {
 // Start listening. |bind_addr| may be NULL for all interfaces. |cert_path|
 // and |key_path| are PEM files and are required — there is no unencrypted
 // mode. Returns NULL on failure (port in use, unreadable cert, no TLS).
+//
+// |honor_client_size| picks who wins the size negotiation, and the two modes
+// want opposite answers. Share mode (0) forces the client to the physical
+// output's size, because the desktop is already being scanned out at it.
+// Display mode (1) keeps whatever the client asks for, because there is no
+// physical output and the client's window IS the screen — the negotiated
+// size then arrives via on_activated and sizes everything downstream.
 RdpServer* rdp_server_start(const char* bind_addr, int port,
                             const char* cert_path, const char* key_path,
                             uint32_t desktop_w, uint32_t desktop_h,
+                            int honor_client_size,
                             const RdpServerCallbacks* cbs, void* ud);
 
 // Stop listening, drop any peer, join both threads. Safe with NULL.
 void rdp_server_stop(RdpServer* s);
 
-// Hand over one full frame: top-down, 4 bytes per pixel, R first (the
-// engine's capture format). Encodes and sends synchronously; returns 0 if
-// there is no active peer or the encode failed. Dimensions must match what
-// was advertised at start — a mismatch is dropped rather than scaled.
+// Hand over one full frame: top-down, 4 bytes per pixel, R first (both the
+// DRM capture format and what glReadPixels returns). Encodes and sends
+// synchronously; returns 0 if there is no active peer or the encode failed.
+// Dimensions must match the negotiated size — a mismatch is dropped rather
+// than scaled.
 int rdp_server_push_frame(RdpServer* s, const uint8_t* rgba,
                           uint32_t w, uint32_t h);
 

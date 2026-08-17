@@ -41,6 +41,7 @@ struct RdpServer {
     void* ud;
 
     uint32_t desktop_w, desktop_h;
+    int honor_client_size;  // display mode: the client's size wins
     char* cert_path;
     char* key_path;
 
@@ -98,10 +99,39 @@ static BOOL peer_post_connect(freerdp_peer* peer) {
     RdpServer* s = ctx->server;
     rdpSettings* settings = peer->context->settings;
 
-    // The server wins the size negotiation: we send the primary output at
-    // its native size and let the client scale or scroll. Honouring the
-    // client's request would mean resizing the desktop, which is the
-    // Display Control feature this version does not have.
+    if (s->honor_client_size) {
+        // Display mode: there is no physical output, so the client's
+        // requested size simply becomes the desktop. Adopt it and let it
+        // size the render target, the window metrics and the encoder.
+        uint32_t cw =
+            freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth);
+        uint32_t ch =
+            freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight);
+        // RemoteFX works in 64x64 tiles; a ragged edge is the codec's
+        // problem, but a zero or absurd size is ours.
+        if (cw >= 320 && ch >= 240 && cw <= 8192 && ch <= 8192) {
+            s->desktop_w = cw;
+            s->desktop_h = ch;
+        } else {
+            fprintf(stderr,
+                    "[Rdp] client asked for %ux%u — refusing, keeping %ux%u\n",
+                    cw, ch, s->desktop_w, s->desktop_h);
+            if (!freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth,
+                                             s->desktop_w) ||
+                !freerdp_settings_set_uint32(settings, FreeRDP_DesktopHeight,
+                                             s->desktop_h)) {
+                return FALSE;
+            }
+        }
+        if (!freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, 32)) {
+            return FALSE;
+        }
+        return TRUE;  // nothing to resize: we took what was offered
+    }
+
+    // Share mode: the server wins. We send the primary output at its native
+    // size and let the client scale or scroll — honouring the client would
+    // mean resizing a desktop that is being scanned out to a real panel.
     if (!freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth,
                                      s->desktop_w) ||
         !freerdp_settings_set_uint32(settings, FreeRDP_DesktopHeight,
@@ -449,6 +479,7 @@ static void* listen_thread_main(void* arg) {
 RdpServer* rdp_server_start(const char* bind_addr, int port,
                             const char* cert_path, const char* key_path,
                             uint32_t desktop_w, uint32_t desktop_h,
+                            int honor_client_size,
                             const RdpServerCallbacks* cbs, void* ud) {
     if (!cert_path || !key_path || !cbs || desktop_w == 0 || desktop_h == 0) {
         return NULL;
@@ -469,6 +500,7 @@ RdpServer* rdp_server_start(const char* bind_addr, int port,
     s->ud = ud;
     s->desktop_w = desktop_w;
     s->desktop_h = desktop_h;
+    s->honor_client_size = honor_client_size;
     s->cert_path = strdup(cert_path);
     s->key_path = strdup(key_path);
     pthread_mutex_init(&s->peer_lock, NULL);
