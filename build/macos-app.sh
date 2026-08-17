@@ -45,7 +45,20 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-ENGINE_OUT="${STARLING_ENGINE_OUT:-$REPO/engine/src/out/host_release_arm64}"
+# STARLING_SDK_BUNDLE: build and stage from an unpacked SDK bundle alone —
+# the release path, where the app is assembled exactly the way an external
+# consumer would build it. Everything then comes from the bundle: the
+# framework sources (the app manifest redirects its path dependency), the
+# engine binaries (engine/lib), and flutter_assets (engine/share). Staging a
+# release must not reach back into this repo's sdk/, which a consumer does
+# not have — the same rule stage-windows.ps1 enforces. Unset, every path
+# below behaves exactly as before.
+BUNDLE="${STARLING_SDK_BUNDLE:-}"
+if [ -n "$BUNDLE" ]; then
+    ENGINE_OUT="${STARLING_ENGINE_OUT:-$BUNDLE/engine/lib}"
+else
+    ENGINE_OUT="${STARLING_ENGINE_OUT:-$REPO/engine/src/out/host_release_arm64}"
+fi
 if [ ! -f "$ENGINE_OUT/FlutterMacOS.framework/Versions/A/FlutterMacOS" ]; then
     echo "error: no macOS engine at $ENGINE_OUT" >&2
     echo "       build it in the engine repo:" >&2
@@ -60,9 +73,18 @@ PKG="$REPO/apps/$APP"
 [ -d "$PKG" ] || { echo "error: no app package at $PKG" >&2; exit 1; }
 
 if [ "$BUILD" = 1 ]; then
-    echo "==> building $APP (release, $(basename "$ENGINE_OUT"))"
-    STARLING_ENGINE_OUT="$ENGINE_OUT" \
+    if [ -n "$BUNDLE" ]; then
+        # Deliberately NOT passing STARLING_ENGINE_OUT: the manifest derives
+        # the bundle's engine/lib from STARLING_SDK_BUNDLE itself, and this is
+        # the path that proves it does. Passing the same directory explicitly
+        # would mask a manifest that silently fell back to an engine checkout.
+        echo "==> building $APP (release, from SDK bundle $BUNDLE)"
         swift build -c release --package-path "$PKG"
+    else
+        echo "==> building $APP (release, $(basename "$ENGINE_OUT"))"
+        STARLING_ENGINE_OUT="$ENGINE_OUT" \
+            swift build -c release --package-path "$PKG"
+    fi
 fi
 
 BUILT="$PKG/.build/release"
@@ -89,7 +111,14 @@ done
 # Resources/ — anything else under MacOS/ must be signed code. So the data
 # lives in Resources/ and MacOS/data is a sealed symlink to it.
 cp "$ENGINE_OUT/FlutterMacOS.framework/Versions/A/Resources/icudtl.dat" "$C/Resources/data/"
-cp -R "$REPO/sdk/Resources/flutter_assets" "$C/Resources/data/flutter_assets"
+# Bundle mode takes the assets the bundle ships; a consumer has no sdk/ tree.
+if [ -n "$BUNDLE" ]; then
+    ASSETS_SRC="$BUNDLE/engine/share/flutter_assets"
+    [ -d "$ASSETS_SRC" ] || { echo "error: no flutter_assets in $BUNDLE/engine/share" >&2; exit 1; }
+else
+    ASSETS_SRC="$REPO/sdk/Resources/flutter_assets"
+fi
+cp -R "$ASSETS_SRC" "$C/Resources/data/flutter_assets"
 rm -f "$C/Resources/data/flutter_assets/.last_build_id"
 ln -s ../Resources/data "$C/MacOS/data"
 # cp -R keeps the framework's Versions/Current symlink structure intact.

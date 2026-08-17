@@ -66,6 +66,12 @@ let iosMode = env("STARLING_IOS", default: "")
 let iosBuild = !iosMode.isEmpty
 let engineOutDir: String = {
     if let v = Context.environment["STARLING_ENGINE_OUT"], !v.isEmpty { return v }
+    // A bundle build links the bundle's own engine — the same rule the
+    // Linux/Windows branch above applies, for the same reason: this Mac has an
+    // engine checkout, so a "bundle" build that defaulted to the probe below
+    // would link against the checkout and pass, proving nothing about what the
+    // bundle contains. (iOS excepted: a desktop bundle carries no iOS engine.)
+    if !iosBuild, !sdkBundle.isEmpty { return sdkBundle + "/engine/lib" }
     let candidates = iosBuild
         ? [appPackageDir + "/../../engine/src/out/"
             + (iosMode == "device" ? "ios_debug_arm64" : "ios_debug_sim_arm64")]
