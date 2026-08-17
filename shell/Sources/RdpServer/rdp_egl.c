@@ -185,9 +185,19 @@ int rdp_egl_make_current(RdpEgl* e) {
         fprintf(stderr, "[RdpEgl] make_current failed (0x%x)\n", eglGetError());
         return 0;
     }
-    // First current: the FBO can only be built now.
-    if (!e->target_built && !build_target(e)) {
-        return 0;
+    // First current: the FBO can only be built now, and this is the first
+    // moment GL_RENDERER can be asked. Log it — "is this session on the GPU
+    // or on llvmpipe" is the first question anyone debugging performance
+    // has, and in WSL the answer is llvmpipe unless GALLIUM_DRIVER=d3d12 is
+    // set, with nothing else to hint at it.
+    if (!e->target_built) {
+        const char* r = (const char*)glGetString(GL_RENDERER);
+        const char* v = (const char*)glGetString(GL_VERSION);
+        fprintf(stderr, "[RdpEgl] renderer: %s | %s\n", r ? r : "?",
+                v ? v : "?");
+        if (!build_target(e)) {
+            return 0;
+        }
     }
     return 1;
 }

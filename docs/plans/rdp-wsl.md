@@ -217,6 +217,30 @@ works; and it runs both with and without `GALLIUM_DRIVER=d3d12` (llvmpipe is
 the floor, d3d12 the fast path). Estimate: **4–5 days**, zero engine
 rebuilds.
 
+**W0 landed and was verified in WSL on 2026-08-16.** On the physical Windows
+box, Ubuntu-26.04 under WSL2, with `/dev/dri` absent and seatd stopped:
+`DesktopShellApp --rdp` starts, `xfreerdp` under WSLg's X11 shows the
+desktop at 1280x800, and a click on the dock opens the launcher. Both
+renderers work and render identically —
+
+```
+[RdpEgl] renderer: llvmpipe (LLVM 21.1.8, 256 bits) | OpenGL ES 3.2
+[RdpEgl] renderer: D3D12 (AMD Radeon 780M Graphics) | OpenGL ES 3.1   # GALLIUM_DRIVER=d3d12
+```
+
+— so the session logs which one it got, because nothing else in WSL hints at
+it. The wallpaper is the vector fallback and client windows would be blank:
+both are W1's service wiring, not faults. Packaging needed no changes;
+`dpkg-shlibdeps` picked up libfreerdp-server3-3, libegl1 and libgles2 off
+the staged binary by itself.
+
+Two traps met while getting there, both already documented elsewhere in the
+tree and both worth re-reading before the next round: every launcher appends
+`--drm`, so `--rdp` must be tested first or display mode silently becomes a
+DRM desktop; and `apt-get install` of an unchanged version number is a
+silent no-op, so a rebuilt .deb must go in with `dpkg -i` and be checked by
+md5 against the local binary.
+
 ### W1 — a usable desktop
 
 1. ~~Software external textures~~ — **deleted by the GL measurement.** On
