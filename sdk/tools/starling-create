@@ -115,9 +115,17 @@ fi
 # bundle cannot carry — GTK pulls in a large part of the desktop — so name them
 # now rather than letting the app die at startup on a missing .so.
 if [ "$PLATFORM" = linux ]; then
+    # One snapshot, matched by the shell. `ldconfig -p | grep -q "$lib"` is the
+    # obvious spelling and is a race under `set -o pipefail`: -q exits at the
+    # first match, ldconfig dies of SIGPIPE writing the rest, and the pipeline
+    # reports failure — so a library that IS installed is reported missing. It
+    # fired on 2 runs in 8 here and told a user with GTK installed to install
+    # GTK, in the tool's very first output. Same trap
+    # build/package-terminal-gtk.sh documents against readelf.
+    LDCACHE="$(ldconfig -p 2>/dev/null || true)"
     MISSING=""
     for lib in libgtk-3.so.0 libEGL.so.1 libGLESv2.so.2; do
-        ldconfig -p 2>/dev/null | grep -q "$lib" || MISSING="$MISSING $lib"
+        case "$LDCACHE" in *"$lib"*) ;; *) MISSING="$MISSING $lib" ;; esac
     done
     if [ -n "$MISSING" ]; then
         say "warning: these runtime libraries are missing:$MISSING"
