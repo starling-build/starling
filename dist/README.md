@@ -1,10 +1,10 @@
 # dist — prebuilt downloads carried in the tree
 
-`starling-terminal-windows-x86_64.zip` — Starling Terminal for Windows,
+`starling-terminal-0.1.0-windows-x86_64.zip` — Starling Terminal for Windows,
 x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
 `SHA256SUMS`.
 
-`starling-terminal-macos-arm64.zip` — Starling Terminal for macOS arm64, the
+`starling-terminal-0.1.0-macos-arm64.zip` — Starling Terminal for macOS arm64, the
 same 0.1.0 release candidate. 17.2 MB, checksum in `SHA256SUMS`. Unlike the
 Windows archive it wraps a `.app`, so it extracts to
 `Starling Terminal.app` rather than flat, and needs no directory made for it.
@@ -19,7 +19,7 @@ downloaded copy wants right-click → Open, or Privacy & Security →
 **Open Anyway**, or `xattr -dr com.apple.quarantine` once. Removing that step
 means Developer ID signing plus notarization, not a build change.
 
-`starling-terminal-linux-x86_64.deb` — Starling Terminal for Linux x86_64, the
+`starling-terminal_0.1.0_amd64.deb` — Starling Terminal for Linux x86_64, the
 same 0.1.0 release candidate. 52 MB, checksum in `SHA256SUMS`. A **.deb**
 rather than an archive, because Linux has an install path the other two do not:
 `sudo dpkg -i` (or `apt install ./…`) puts it on the applications menu with its
@@ -32,18 +32,18 @@ Everything it loads lives in `/usr/lib/starling-terminal`: the engine libraries,
 `libFlutterShared`, the Swift runtime closure, the font resource bundles and
 `data/icudtl.dat`. No flutter_assets — the Swift runtime never reads them.
 
-`starling-sdk-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
+`starling-sdk-0.3.0-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
 0.3.0 release candidate: framework source plus the release engine binaries
 (`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
 one tree a consumer depends on by path. 14 MB, checksum in `SHA256SUMS`.
 
-`starling-sdk-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the same
+`starling-sdk-0.3.0-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the same
 0.3.0 release candidate and the same engine commit: framework source, the
 three release engine libraries (`libflutter_engine.so`,
 `libflutter_linux_gtk.so`, `libflutter_linux_drm.so`), `icudtl.dat` and
 flutter_assets. 23 MB, checksum in `SHA256SUMS`.
 
-`starling-sdk-windows-x86_64.zip` — the same SDK for Windows x86_64, the same
+`starling-sdk-0.3.0-windows-x86_64.zip` — the same SDK for Windows x86_64, the same
 0.3.0 release candidate and the same engine commit: framework source, both
 release engine DLLs **and both import libraries** (`flutter_engine.dll`,
 `flutter_engine.dll.lib`, `flutter_windows.dll`, `flutter_windows.dll.lib`),
@@ -90,7 +90,7 @@ terminal is now produced exactly the way an external consumer produces one, so
 every release exercises the bundle it ships with.
 
     # unpack the SDK release artifact; nothing else is on PATH or in the env
-    Expand-Archive dist\starling-sdk-windows-x86_64.zip -DestinationPath C:\dist\sdk-only
+    Expand-Archive dist\starling-sdk-0.3.0-windows-x86_64.zip -DestinationPath C:\dist\sdk-only
     $env:STARLING_SDK_BUNDLE = "C:\dist\sdk-only\starling-sdk-windows-x86_64"
 
     sdk\tools\build-windows.ps1 -PackagePath apps\TerminalApp `
@@ -138,7 +138,7 @@ write an archive that fails either check.
 Built on the Mac from `release-terminal-0.1.0`, **from the released SDK
 bundle alone** — the consumer path, not a privileged in-repo one:
 
-    tar xzf dist/starling-sdk-macos-arm64.tar.gz -C /tmp/sdk
+    tar xzf dist/starling-sdk-0.3.0-macos-arm64.tar.gz -C /tmp/sdk
     STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
         build/macos-app.sh TerminalApp --zip
 
@@ -162,7 +162,7 @@ Re-measure before quoting those figures against this archive.
 Built on the dev box from `release-terminal-0.1.0`, **from the released SDK
 bundle alone** — the same consumer path the macOS archive takes:
 
-    tar xzf dist/starling-sdk-linux-x86_64.tar.gz -C /tmp/sdk
+    tar xzf dist/starling-sdk-0.3.0-linux-x86_64.tar.gz -C /tmp/sdk
     B=/tmp/sdk/starling-sdk-linux-x86_64
     env -u STARLING_ENGINE_OUT STARLING_APP_GTK=1 STARLING_SDK_BUNDLE=$B \
         swift build -c release --package-path apps/TerminalApp \
@@ -268,15 +268,22 @@ terminal zip, which extracts flat.
 
 ## Refreshing them
 
+The names carry versions, so a file downloaded from a release says what it is
+without being renamed. The DIRECTORY inside each SDK archive does not
+(`starling-sdk-macos-arm64/`) — that is what `starling-create` keys its cache
+by, so a cache entry is "the SDK for this platform" rather than one directory
+per version.
+
 Rebuild as above, copy the artifact here, and regenerate the checksums —
-one file, all five lines, because writing it with one filename is how the
+one file, all six lines, because writing it with one filename is how the
 Windows zip's line got dropped once already:
 
-    sha256sum starling-terminal-windows-x86_64.zip \
-              starling-terminal-macos-arm64.zip \
-              starling-sdk-macos-arm64.tar.gz \
-              starling-sdk-linux-x86_64.tar.gz \
-              starling-sdk-windows-x86_64.zip > SHA256SUMS
+    sha256sum starling-sdk-0.3.0-linux-x86_64.tar.gz \
+              starling-sdk-0.3.0-macos-arm64.tar.gz \
+              starling-sdk-0.3.0-windows-x86_64.zip \
+              starling-terminal_0.1.0_amd64.deb \
+              starling-terminal-0.1.0-macos-arm64.zip \
+              starling-terminal-0.1.0-windows-x86_64.zip > SHA256SUMS
 
 (`shasum -a 256` on the Mac — same format, same file. On Windows,
 `Get-FileHash -Algorithm SHA256` and lower-case the hash; write the file with

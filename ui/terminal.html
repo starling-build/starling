@@ -474,11 +474,6 @@
   <div class="wrap narrow prose">
     <div class="kicker">Install</div>
     <h2>Get it on your machine.</h2>
-    <p>Version 0.1.0, from the
-       <a href="https://github.com/starling-build/starling/releases/tag/terminal-v0.1.0">GitHub
-       release</a>: a <code>.deb</code> for any Linux desktop and a
-       <code>Terminal.app</code> for Apple Silicon Macs. One file each — no
-       account, no installer wizard.</p>
   </div>
 
   <div class="wrap narrow inst-list">
@@ -499,8 +494,8 @@ sudo apt install ./starling-terminal_0.1.0_amd64.deb</code></pre>
     <div class="inst">
       <div class="inst-head"><h3>macOS</h3>
         <span>Apple Silicon &middot; macOS 14 or newer</span></div>
-<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/Starling-Terminal-0.1.0-macos-arm64.zip
-ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
+<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-terminal-0.1.0-macos-arm64.zip
+ditto -xk starling-terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
       <p class="note">Or unzip it and drag <strong>Starling Terminal.app</strong>
         into Applications yourself. The bundle is signed but not notarized, so
         macOS holds the first launch: approve it under System Settings &rarr;
@@ -511,14 +506,15 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
 
     <div class="inst">
       <div class="inst-head"><h3>Windows</h3>
-        <span>x86_64 &middot; from source, for now</span></div>
-      <p class="body">The Windows build is real — a native Win32 window that
-        outruns Windows Terminal on every test above — but 0.1.0 does not
-        package it. It builds from a
-        <a href="https://github.com/starling-build/starling">repo checkout</a>
-        with the SDK's Windows tooling: <code>build-windows.ps1</code> to build,
-        then <code>stage-windows.ps1</code> for a folder you can carry to
-        another machine. A downloadable build is next.</p>
+        <span>x86_64 &middot; Windows 10 or 11</span></div>
+<pre><code>curl.exe -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-terminal-0.1.0-windows-x86_64.zip
+Expand-Archive starling-terminal-0.1.0-windows-x86_64.zip -DestinationPath StarlingTerminal
+.\StarlingTerminal\TerminalApp.exe</code></pre>
+      <p class="note">A native Win32 window, no installer and nothing to put on
+        <code>PATH</code>. Give it a folder of its own: the archive extracts
+        <strong>flat</strong>, and all 52 files have to stay together — Windows
+        resolves imports from the executable's own directory, and the bundled
+        ConPTY console host sits beside it.</p>
     </div>
   </div>
 </section>
@@ -903,28 +899,34 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
       The <a href="sdk.html">Starling SDK</a> has a terminal widget — shell,
       escape sequences, fonts, scrollback and selection included — so you can
       write your own terminal app on top of it. Download one file, run it, and
-      you have a terminal of your own:
+      you have a terminal of your own, on <strong>Linux, macOS or
+      Windows</strong>:
     </p>
   </div>
 
   <div class="wrap narrow">
     <div class="code-col">
       <div class="code-head">terminal</div>
-<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-create
+<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.0/starling-create
 chmod +x starling-create
 ./starling-create myterm
 <span class="k">cd</span> myterm &amp;&amp; swift run -c release</code></pre>
     </div>
     <p class="note">
-      <code>starling-create</code> is an asset on the release above — the same
-      one the terminal itself ships from. It checks your toolchain, fetches the
-      SDK from that tag — the framework and the engine binaries it links
-      against, 23 MB — and writes the SwiftPM project around it. No repo to
-      clone, no engine checkout, no Flutter install; a Swift toolchain is the
-      only prerequisite. The SDK is cached once and shared, so the second
-      project costs no download, and <code>--template app</code> scaffolds a
-      plain window instead of a terminal. What it writes is this, and this is
-      the whole app:
+      <strong>Those four lines are the same on Linux, macOS and Windows</strong>
+      — on Windows in Git bash, which is where a <code>curl</code> instruction
+      lands anyway. <code>starling-create</code> is an asset on the release
+      above, the same one the terminal itself ships from. It checks your
+      toolchain, fetches the SDK bundle for the machine it is run on — the
+      framework plus the engine binaries it links against, 14 MB on macOS,
+      17 MB on Windows, 23 MB on Linux — and writes the SwiftPM project
+      around it. No repo to clone, no engine checkout, no Flutter install; a
+      Swift toolchain is the only prerequisite. The SDK is cached once under
+      <code>~/.starling/sdk</code> and shared, so the second project costs no
+      download; <code>--template app</code> scaffolds a plain window instead of
+      a terminal, and <code>--sdk</code> takes a URL or a local archive when you
+      want a bundle other than the release's. What it writes is this, and this
+      is the whole app:
     </p>
 
     <div class="code-col">
@@ -940,7 +942,9 @@ runExampleApp(title: <span class="s">"Terminal"</span>, width: <span class="s">9
 }</code></pre>
     </div>
     <p class="note">
-      That is the same widget the films above run on. The workspace there is it
+      That is the same widget the films above run on, and the same one the
+      shipped terminal is built from — the release archives are assembled
+      against this SDK bundle, not against a private tree. The workspace is it
       with geometry around it — splits, frames and a cover flow, and no terminal
       code of its own.
     </p>

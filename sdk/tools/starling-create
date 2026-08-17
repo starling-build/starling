@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # starling-create — start a Starling app from nothing.
 #
-#   curl -fLO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-create
+#   curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.0/starling-create
 #   chmod +x starling-create
 #   ./starling-create myterm && cd myterm && swift run -c release
 #
-# One file, shipped as an asset on the Starling Terminal release — the same
-# release that carries the terminal itself — so the tool and the SDK bundle it
-# fetches are versioned together and come from one tag. It checks your
+# One file, shipped as an asset on the Starling SDK release — the same release
+# that carries the bundles it fetches, so the tool and its SDK are versioned
+# together and come from one tag. It checks your
 # toolchain, downloads the SDK — the Flutter-to-Swift framework plus the engine
 # binaries it links against — and writes a SwiftPM project wired to it. There
 # is no repo to clone, no engine checkout, no Flutter install and no system
@@ -36,10 +36,12 @@
 #   STARLING_SDK_HOME   cache location, default ~/.starling/sdk
 set -euo pipefail
 
-# Where the SDK comes from. ONE line to bump when cutting a release: a tool
-# downloaded from a tag should install that tag's SDK rather than drift to
-# whatever is newest. --sdk overrides it with any URL, or a local archive.
-SDK_BASE_URL="https://github.com/starling-build/starling/releases/download/terminal-v0.1.0"
+# Where the SDK comes from. TWO lines to bump when cutting a release -- the tag
+# and the version in the asset name, which move together: a tool downloaded
+# from a release should install that release's SDK rather than drift to
+# whatever is newest. --sdk overrides both with any URL, or a local archive.
+SDK_VERSION="0.3.0"
+SDK_BASE_URL="https://github.com/starling-build/starling/releases/download/sdk-v$SDK_VERSION"
 GH_REPO="starling-build/starling"
 SDK_URL="${STARLING_SDK_URL:-}"
 NAME=""
@@ -99,11 +101,17 @@ case "$(uname -s)" in
        Use the repo checkout: https://github.com/$GH_REPO" ;;
 esac
 ARCH="$(uname -m)"
+# Two names, deliberately. BUNDLE is the directory: what make-bundle.sh puts
+# inside the archive, what the cache is keyed by, and what the unpack asserts on
+# -- all unversioned, so a cache entry is "the SDK for this platform". ASSET is
+# the published file, which carries the version so a download in someone's
+# ~/Downloads says what it is. Conflating them means either an unversioned
+# release asset or a cache that grows a directory per version.
 BUNDLE="starling-sdk-$PLATFORM-$ARCH"
 
 # The Windows bundle is a .zip and the other two are tarballs, so the extension
 # is part of the artifact's name everywhere it is used: the default download URL
-# and the unpack. The marker file is what proves a cached directory is a real
+# (via $ASSET) and the unpack. The marker file is what proves a cached directory is a real
 # bundle rather than a half-unpacked one.
 if [ "$PLATFORM" = windows ]; then
     EXT=zip
@@ -139,7 +147,8 @@ fi
 # --- the SDK -----------------------------------------------------------------
 SDK_HOME="${STARLING_SDK_HOME:-$HOME/.starling/sdk}"
 SDK_DIR="$SDK_HOME/$BUNDLE"
-SDK_URL="${SDK_URL:-$SDK_BASE_URL/$BUNDLE.$EXT}"
+ASSET="starling-sdk-$SDK_VERSION-$PLATFORM-$ARCH.$EXT"
+SDK_URL="${SDK_URL:-$SDK_BASE_URL/$ASSET}"
 # What the cache was filled from. It is keyed by platform rather than by
 # version, so without this a run with a different --sdk would find a populated
 # directory and silently keep the first SDK.
@@ -158,7 +167,7 @@ fetch_sdk() {
     else
         say "==> downloading the Starling SDK"
         say "    $SDK_URL"
-        tarball="$work/$BUNDLE.$EXT"
+        tarball="$work/$ASSET"
         curl -fL --progress-bar -o "$tarball" "$SDK_URL" || die "could not fetch
        $SDK_URL
        Check https://github.com/$GH_REPO/releases for a bundle matching

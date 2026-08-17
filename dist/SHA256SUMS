@@ -1,6 +1,6 @@
-ef19288703adaa3dd63895e70d821d377ebc435e74232ccce0579aa1be89bf1b  starling-terminal-windows-x86_64.zip
-a0e2755cb4cda47e2724b6a40455b8c6a76c851639b10f567ea0cb7e5e110919  starling-terminal-macos-arm64.zip
-447fb6fab1255007df753ce3864efb292a3f09743b1f019fe7c519ea36771328  starling-terminal-linux-x86_64.deb
-36ba5646ff525ee262c92c3db2b5919c749db8d3ac29f3d4bbc02c22a5690b90  starling-sdk-macos-arm64.tar.gz
-b7241ddf0f4a9f3750d2ff728108180fd314c4375383502e7fadcf4f623d068c  starling-sdk-linux-x86_64.tar.gz
-7658b95e1d2ce9a525df74b5c9a97f569766375adf0a4e87a3e8be91854a4e84  starling-sdk-windows-x86_64.zip
+b7241ddf0f4a9f3750d2ff728108180fd314c4375383502e7fadcf4f623d068c  starling-sdk-0.3.0-linux-x86_64.tar.gz
+36ba5646ff525ee262c92c3db2b5919c749db8d3ac29f3d4bbc02c22a5690b90  starling-sdk-0.3.0-macos-arm64.tar.gz
+7658b95e1d2ce9a525df74b5c9a97f569766375adf0a4e87a3e8be91854a4e84  starling-sdk-0.3.0-windows-x86_64.zip
+447fb6fab1255007df753ce3864efb292a3f09743b1f019fe7c519ea36771328  starling-terminal_0.1.0_amd64.deb
+a0e2755cb4cda47e2724b6a40455b8c6a76c851639b10f567ea0cb7e5e110919  starling-terminal-0.1.0-macos-arm64.zip
+ef19288703adaa3dd63895e70d821d377ebc435e74232ccce0579aa1be89bf1b  starling-terminal-0.1.0-windows-x86_64.zip
