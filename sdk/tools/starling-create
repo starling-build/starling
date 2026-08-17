@@ -387,16 +387,28 @@ IGNORE
 # Quoted delimiters keep backticks and backslashes literal -- Windows paths are
 # full of the latter -- and @MODULE@ is substituted after, so nothing in the
 # text has to be escaped for the shell.
+#
+# Written to FILES, not captured into variables. The obvious spelling --
+# VAR="$(cat <<'NOTE' | sed ...)" -- is a SYNTAX ERROR in bash 3.2, which is
+# what macOS ships as /bin/bash: a here-document inside a command substitution
+# has its quotes parsed by the outer $( ), so the first apostrophe in the prose
+# ("the executable's own directory", "someone else's machine") opens a quoted
+# string that never closes. bash 5 parses it correctly, so this ran on Linux
+# and Windows and died on every Mac with `SDK_NOTE: unbound variable`, an
+# empty README and exit 1. Redirecting a plain heredoc into sed keeps the
+# heredoc out of a substitution, so prose can contain anything.
+NOTE_SDK="$NAME/.starling-sdk-note"
+NOTE_SHIP="$NAME/.starling-ship-note"
+
 if [ "$PLATFORM" = windows ]; then
-    SDK_NOTE="$(cat <<'NOTE' | sed "s|@SDKDIR@|$SDK_REF|g"
+    sed "s|@SDKDIR@|$SDK_REF|g" > "$NOTE_SDK" <<'NOTE'
 `Package.swift` names the shared SDK cache directly (@SDKDIR@) — the
 Flutter-to-Swift framework plus the engine binaries it links against. Git for
 Windows cannot create the symlink the other platforms get, so the path is
 written into the manifest instead. Anyone cloning this project re-creates the
 cache with:
 NOTE
-)"
-    SHIP_NOTE="$(cat <<'NOTE' | sed "s|@MODULE@|$MODULE|g"
+    sed "s|@MODULE@|$MODULE|g" > "$NOTE_SHIP" <<'NOTE'
 Windows resolves imports from the executable's own directory, so deployment is
 a copy and everything must land in ONE directory:
 
@@ -417,15 +429,13 @@ toolchain — so copy those beside the .exe as well, from its
 them it still works: it falls back to the inbox console host, silently, at
 roughly three times the CPU on the read path.
 NOTE
-)"
 else
-    SDK_NOTE="$(cat <<'NOTE' | sed "s|@SDKHOME@|$SDK_HOME|g"
+    sed "s|@SDKHOME@|$SDK_HOME|g" > "$NOTE_SDK" <<'NOTE'
 `sdk` is a symlink into the shared SDK cache (@SDKHOME@) — the
 Flutter-to-Swift framework plus the engine binaries it links against. It is
 gitignored, so anyone cloning this project re-creates it with:
 NOTE
-)"
-    SHIP_NOTE="$(cat <<'NOTE' | sed "s|@MODULE@|$MODULE|g"
+    sed "s|@MODULE@|$MODULE|g" > "$NOTE_SHIP" <<'NOTE'
 The rpath points into the cache, which is useless on someone else's machine.
 SwiftPM also puts `$ORIGIN` in the rpath, so deployment is a copy:
 
@@ -440,7 +450,6 @@ Skip the library copy and it dies at startup on
 `libflutter_engine.so: cannot open shared object file` — at run time, not
 build time.
 NOTE
-)"
 fi
 
 cat > "$NAME/README.md" <<README
@@ -452,7 +461,7 @@ Built with \`starling-create\`. Run it:
 swift run -c release
 \`\`\`
 
-$SDK_NOTE
+$(cat "$NOTE_SDK")
 
 \`\`\`bash
 curl -fLO $SDK_BASE_URL/starling-create
@@ -462,8 +471,9 @@ chmod +x starling-create
 
 ## Shipping it
 
-$SHIP_NOTE
+$(cat "$NOTE_SHIP")
 README
+rm -f "$NOTE_SDK" "$NOTE_SHIP"
 
 say ""
 say "    $NAME/"
