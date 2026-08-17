@@ -29,7 +29,13 @@ param(
     #
     # Budget, from this box's measured per-rep times: suite ~3.7 min, DOOM
     # ~2.0, bigcat ~0.7, onset ~0.3, per-leg launch and settle ~1.3.
-    [switch]$Short
+    [switch]$Short,
+    # Stream with the console on UTF-8 (chcp 65001) instead of whatever code
+    # page the session inherited. The corpora are UTF-8 bytes, so without this
+    # the console host reinterprets them and the unicode workloads measure
+    # throughput on mojibake -- which is what every archived Windows round
+    # did. Opt-in, because numbers are only comparable within one setting.
+    [switch]$Utf8
 )
 if ($Short) {
     if (-not $PSBoundParameters.ContainsKey('Frames')) { $Frames = 10000 }
@@ -128,6 +134,9 @@ function Run-Leg($test, $kind, $attempt) {
         'bigcat' { $runner_ps = 'bigcat500-win.ps1';          $sargs = "-Label $label -Reps $(if ($Short) { 2 } else { 3 })"; $result = "$BenchDir\bigcat500-$label.txt"; $doneKey = 'grid_after'; $timeout = 3000 }
         'doom'   { $runner_ps = 'doomfire-long.ps1';          $sargs = "-Label $label -Reps 3 -Frames $Frames"; $result = "$BenchDir\doom-$label.txt"; $doneKey = 'grid_after'; $timeout = 2400 }
     }
+    # One place, so a new test cannot forget it and quietly run the other mode.
+    if ($Utf8) { $sargs = "$sargs -Utf8" }
+
     Kill-Terms
     Remove-Item $result -Force -EA SilentlyContinue
     Remove-Item "$BenchDir\meta-$label.txt", "$BenchDir\meta-calib-$label.txt" -Force -EA SilentlyContinue
@@ -194,7 +203,7 @@ function Run-Leg($test, $kind, $attempt) {
 }
 
 # --- go ---------------------------------------------------------------------
-Log "BENCH-LONG START frames=$Frames grid=$GRID short=$([bool]$Short) onsetblocks=$OnsetBlocks"
+Log "BENCH-LONG START frames=$Frames grid=$GRID short=$([bool]$Short) onsetblocks=$OnsetBlocks utf8=$([bool]$Utf8)"
 Log "workstation locked: $([bool](Get-Process LogonUI -EA SilentlyContinue))"
 if (-not $script:WT_EXE -or -not (Test-Path $script:WT_EXE)) {
     Log "FATAL: Windows Terminal Preview not installed -- no rival to measure"

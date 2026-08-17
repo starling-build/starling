@@ -15,10 +15,13 @@
 param(
     [string]$Label = 'term',
     [int]$Blocks = 20,
+    # Put the console on UTF-8 before streaming. See Set-Utf8Console.
+    [switch]$Utf8,
     [string]$BenchDir = 'C:\bench'
 )
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'bench-lib.ps1')
+if ($Utf8) { Set-Utf8Console }
 
 Start-Sleep -Seconds 3
 $term = Find-Terminal
@@ -54,3 +57,4 @@ if ($rows.Count -ge 6) {
 }
 Add-Content -Encoding ascii $out "onset_done"
 Start-Sleep 900
+

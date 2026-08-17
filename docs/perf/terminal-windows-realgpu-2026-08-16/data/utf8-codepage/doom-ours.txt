@@ -1,0 +1,9 @@
+# ours grid=40x120 pid=16696 frames=150000
+BENCHFPS frames=150000 seconds=313.270 fps=478.82
+  cpu_s 373.88
+BENCHFPS frames=150000 seconds=310.366 fps=483.30
+  cpu_s 376.75
+BENCHFPS frames=150000 seconds=311.104 fps=482.15
+  cpu_s 380.56
+rss_kb 69828
+grid_after 40x120

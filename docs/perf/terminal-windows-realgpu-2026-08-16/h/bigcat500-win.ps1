@@ -8,10 +8,13 @@
 param(
     [string]$Label = 'term',
     [int]$Reps = 3,
+    # Put the console on UTF-8 before streaming. See Set-Utf8Console.
+    [switch]$Utf8,
     [string]$BenchDir = 'C:\bench'
 )
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'bench-lib.ps1')
+if ($Utf8) { Set-Utf8Console }
 
 Start-Sleep -Seconds 3
 $term = Find-Terminal
@@ -45,3 +48,4 @@ foreach ($kind in @('ascii', 'unicode')) {
 Add-Content -Encoding ascii $out ("rss_kb " + (Get-TermRssKb $term.Pid))
 Add-Content -Encoding ascii $out ("grid_after " + (Get-Grid))
 Start-Sleep 900
+

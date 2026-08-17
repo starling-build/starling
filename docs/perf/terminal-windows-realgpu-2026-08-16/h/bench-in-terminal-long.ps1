@@ -25,10 +25,13 @@ param(
     # round on this box is 1h45m and most of that is the suite; the short one
     # is ~7 minutes a side and still an order of magnitude above timer noise.
     [switch]$Short,
+    # Put the console on UTF-8 before streaming. See Set-Utf8Console.
+    [switch]$Utf8,
     [string]$BenchDir = 'C:\bench'
 )
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'bench-lib.ps1')
+if ($Utf8) { Set-Utf8Console }
 
 # name -> reps, targeting >=120 s on the SLOWER side.
 #
@@ -152,4 +155,5 @@ for ($run = 1; $run -le $Runs; $run++) {
 
 # Hold the terminal open; the orchestrator kills it once the done-key lands.
 Start-Sleep 900
+
 

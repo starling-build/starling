@@ -1,0 +1,14 @@
+# wt grid=40x120 pid=4504 cpuref=0.404
+# plan 01_light_cells=437 02_dense_cells=1334 03_sgr_fg=105 04_sgr_truecolor=139 05_unicode=300 06_cursor_motion=2000 07_alt_screen=586 08_scroll_region=123 09_long_lines=1250 10_binary=12
+01_light_cells 170.127 306.45 437
+02_dense_cells 129.608 234.81 1334
+03_sgr_fg 188.828 369.16 105
+04_sgr_truecolor 215.366 418.83 139
+05_unicode 145.999 255.97 300
+06_cursor_motion 203.026 378.70 2000
+07_alt_screen 222.308 333.16 586
+08_scroll_region 222.716 436.34 123
+09_long_lines 136.021 240.56 1250
+10_binary 177.559 208.23 12
+rss_kb 1050704
+grid_after 40x120

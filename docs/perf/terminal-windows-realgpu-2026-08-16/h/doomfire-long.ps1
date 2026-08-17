@@ -15,6 +15,11 @@ param(
     [string]$Label = 'term',
     [int]$Reps = 3,
     [int]$Frames = 150000,
+    # Accepted for symmetry with the other runners and deliberately unused:
+    # DOOM-fire-zig calls SetConsoleOutputCP(CP_UTF8) itself at startup, so
+    # this leg is already UTF-8 in both modes and setting it here would only
+    # obscure that.
+    [switch]$Utf8,
     [string]$BenchDir = 'C:\bench'
 )
 $ErrorActionPreference = 'Continue'
@@ -45,3 +50,4 @@ for ($r = 1; $r -le $Reps; $r++) {
 Add-Content -Encoding ascii $out ("rss_kb " + (Get-TermRssKb $term.Pid))
 Add-Content -Encoding ascii $out ("grid_after " + (Get-Grid))
 Start-Sleep 900
+

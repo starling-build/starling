@@ -53,20 +53,23 @@ take proved by filming an Explorer window for 95 seconds.
   script kills itself. Exit 255, two lines of log, no film. Same trap as
   `pkill -f` matching its own `bash -c` line.
 
-## One deliberate deviation from the measured round
+## The code page, which the film is what found
 
-`race.ps1` sets the console to UTF-8 (`chcp 65001`) before streaming; the
-round in `../report.md` does not, and neither does any archived Windows round.
+`race.ps1` sets the console to UTF-8 (`chcp 65001`) before streaming. It was
+added here first, for a cosmetic reason, and turned out not to be cosmetic.
 
-Without it the corpus — which is UTF-8 bytes — is reinterpreted by the console
-host on its legacy code page, and the unicode test draws `µùÑµ£¼Ð¬` where it
-should draw 日本語テキスト. Both terminals receive the identical stream either
-way, so the race is fair with or without it, but a film of two terminals
-racing to render mojibake is a film of the wrong thing.
+The corpora are UTF-8 bytes. Without `chcp 65001` the console host
+reinterprets every one of them on its inherited legacy code page, and the
+unicode test draws `µùÑµ£¼Ð¬` where it should draw 日本語テキスト. Both
+terminals receive the identical stream either way, so the race is fair with or
+without it — but a film of two terminals racing to render mojibake is a film
+of the wrong thing, and that is what the first clean take showed.
 
-It is not a cosmetic difference in what is being measured: with the code page
-corrected, the unicode leg goes from 22.33 s to 17.86 s for Windows Terminal
-and from 16.52 s to 10.22 s for us, so our margin widens from 1.35x to 1.75x.
-**Every archived Windows `unicode` number, this round's included, is
-mojibake throughput rather than CJK glyph rendering.** See the note in
-`../report.md`.
+It is not a small difference in what is being measured. With the code page
+corrected the unicode leg goes from 22.33 s to 17.86 s for Windows Terminal
+and from 16.52 s to 10.22 s for us, widening our margin from 1.35x to 1.75x.
+
+**No archived Windows round ever set it**, so every Windows `unicode` figure in
+the series is mojibake throughput rather than CJK glyph rendering. The round
+has since been re-measured under `chcp 65001`, and that is now the headline
+protocol — see "Two protocols" in `../report.md`.

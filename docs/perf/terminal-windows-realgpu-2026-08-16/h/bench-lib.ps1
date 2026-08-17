@@ -128,6 +128,21 @@ function Write-Corpus([string]$Path) {
     }
 }
 
+# --- what the terminal is actually being asked to draw ------------------------
+# The corpora are UTF-8 bytes and Write-Corpus streams them raw. With the
+# console on its inherited legacy code page the host reinterprets every one of
+# them before the terminal sees it, so 05_unicode and the unicode cat draw
+# `µùÑµ£¼Ð¬` instead of 日本語テキスト -- fair to both terminals, but throughput
+# on reinterpreted Latin-1 rather than CJK glyph rendering. Found by filming
+# the head-to-head, not by measuring it.
+#
+# Opt-in rather than default, because every archived Windows round ran without
+# it and the numbers are only comparable within one setting.
+function Set-Utf8Console {
+    chcp 65001 > $null
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+}
+
 # --- is the machine in the same state it was last time? ------------------------
 # A fixed integer loop, timed. It touches no I/O and no terminal, so it moves
 # only when the machine's compute throughput moves -- power state, thermal
