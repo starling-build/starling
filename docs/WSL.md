@@ -228,3 +228,65 @@ Quoting note for anyone driving this from PowerShell: nested quotes through
 `wsl -u root -- sh -c "…"` are a reliable way to lose an afternoon. Write the
 script to a file, strip CRs, and run that — `sed 's/\r$//' /mnt/c/dist/x.sh >
 /tmp/x.sh; bash /tmp/x.sh`.
+
+## Two things WSL does not provide, and the session must
+
+Display mode runs the desktop here (see `docs/plans/rdp-wsl.md`), and a full
+end-to-end run — install the `.deb`, connect `mstsc`, install Chrome from the
+App Store, launch it — needs both of these. Neither is a product bug: they are
+services a normal login gives you and WSL does not.
+
+- **`XDG_RUNTIME_DIR` does not exist.** There is no logind, so nothing creates
+  `/run/user/<uid>`, and `wsl --shutdown` wipes `/run` on every restart.
+  Without it the Wayland compositor cannot write its lockfile and binds **no
+  socket at all** — the log fills with `unable to open lockfile
+  /run/user/1000/wayland-N.lock check permissions`, once per candidate name,
+  and there is no `listening on wayland-N` line. The desktop still comes up
+  over RDP and first-party apps still draw, because they are memfd/dma-buf
+  children rather than Wayland clients — so the failure shows up only as
+  "Chrome does nothing", with `Failed to connect to Wayland display` in the
+  app's own output. Create it before starting the shell:
+
+      install -d -o starling -g starling -m 700 /run/user/1000
+
+- **polkit can never authorize the App Store.** The store installs through
+  `pkexec app-install`, and `org.starling.app-install.policy` grants
+  `allow_active` — which requires an *active logind session*. WSL has none, so
+  pkexec answers `Not authorized` and the Install button fails. Grant that one
+  action directly:
+
+      # /etc/polkit-1/rules.d/49-starling-wsl.rules
+      polkit.addRule(function(action, subject) {
+          if (action.id == "org.starling.app-install" &&
+              subject.user == "starling") { return polkit.Result.YES; }
+      });
+
+  Do not work around it by running the desktop as root instead: pkexec then
+  succeeds, but Chrome refuses to start at all (`Running as root without
+  --no-sandbox is not supported`), so the install works and the launch cannot.
+  Unprivileged shell plus this rule is the combination that works.
+
+## Driving a recorded run from the Windows side
+
+Four traps, each of which cost a take:
+
+- **A DPI-unaware capture gets a quarter of the screen.** The panel is 4K at
+  200%, so `Screen.PrimaryScreen.Bounds` reports 1920x1080 and
+  `CopyFromScreen` grabs the top-left quadrant of a 3840x2160 desktop. Call
+  `SetProcessDPIAware()` first; for `ffmpeg`'s `gdigrab` (same `BitBlt`) mark
+  the binary system-DPI-aware via the `AppCompatFlags\Layers` registry value.
+- **`mstsc` full-screen negotiates the panel's *physical* resolution** —
+  3840x2160 here, not the `desktopwidth` in the `.rdp`. Pair it with
+  `STARLING_RDP_SCALE=2` so the session is a HiDPI 1920x1080 logical desktop.
+  And prefer *windowed* (`screen mode id:i:1`) a little shorter than the
+  screen: full-screen puts our dock on the screen's bottom edge, where a click
+  reveals and hits the Windows taskbar instead.
+- **Injected clicks need a hover that round-trips first.** A `SetCursorPos`
+  straight onto a dock icon followed 450 ms later by `mouse_event` is ignored —
+  the dock hit-tests through hover state. Hover, wait ~1.4 s, then click.
+- **Nothing may steal foreground once the client is connected.** Every
+  `wsl.exe` launch takes focus; `mstsc` then suppresses output and the session
+  looks frozen — clicks are still delivered and logged, but nothing repaints.
+  Do all WSL work *before* connecting. (Our `peer_suppress_output` ignores the
+  `allow` flag and there is no force-composite on resume; that is the open W1
+  item in `docs/plans/rdp-wsl.md`.)
