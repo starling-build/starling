@@ -83,12 +83,19 @@ void dmabuf_destroy_egl_image(void* egl_display, void* egl_image);
 
 // ─── DMA-BUF metadata ──────────────────────────────────────────────────────
 
-/// Metadata sent alongside the DMA-BUF fd.
+/// The buffer is a memfd of plain linear pixels, not a DMA-BUF: the child
+/// had no DRM device to allocate from (WSL, a container, any box without
+/// /dev/dri) and fell back to rendering on the CPU side of the fence. The
+/// parent maps it and uploads instead of importing an EGLImage.
+#define DMABUF_META_FLAG_CPU 0x1u
+
+/// Metadata sent alongside the buffer fd.
 struct DmaBufMeta {
     int32_t width;
     int32_t height;
     int32_t stride;
     uint32_t fourcc;
+    uint32_t flags;  /* DMABUF_META_FLAG_* */
 };
 
 // ─── Parent → child input events ────────────────────────────────────────────
@@ -160,6 +167,13 @@ struct DmaBufInputEvent {
 /// Returns EGLDisplay, or NULL on failure.
 void* dmabuf_egl_create_display(struct gbm_device* gbm_dev);
 
+/// EGL display with no GBM device behind it, for a child with no /dev/dri.
+/// Rendering still happens on whatever Mesa driver is available (llvmpipe,
+/// or d3d12 under WSL) — what is missing is a way to EXPORT the result, so
+/// the caller reads it back and ships it through a memfd instead.
+/// Returns NULL when the surfaceless platform is unavailable.
+void* dmabuf_egl_create_display_surfaceless(void);
+
 /// Initialize EGL display. Returns 1 on success, 0 on failure.
 int dmabuf_egl_initialize(void* egl_display);
 
@@ -213,6 +227,19 @@ void dmabuf_egl_destroy_surface(void* egl_display, void* egl_surface);
 uint32_t dmabuf_create_plain_fbo(int width, int height,
                                  uint32_t* out_color_rb,
                                  uint32_t* out_stencil_rb);
+
+/// An anonymous shared-memory file of `size` bytes, for the CPU frame path.
+/// Returns -1 on failure. memfd rather than a tmpfs file because it needs no
+/// path, no cleanup, and travels over SCM_RIGHTS exactly like a DMA-BUF.
+int dmabuf_create_memfd(size_t size);
+
+/// Read `fbo` back into `dst` as RGBA8, top-down.
+///
+/// GL hands pixels back bottom-up, so this flips as it goes: the parent
+/// uploads what it is given, and a buffer that disagrees on row order shows
+/// up as an app rendered upside down inside a correct window frame.
+/// `dst` must hold width*height*4 bytes. Returns 1 on success.
+int dmabuf_read_fbo_pixels(uint32_t fbo, int width, int height, void* dst);
 
 /// Delete a plain FBO and its renderbuffers (0s are no-ops).
 void dmabuf_destroy_plain_fbo(uint32_t fbo, uint32_t color_rb,

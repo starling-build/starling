@@ -94,11 +94,14 @@ private struct PendingDmaBufResize: @unchecked Sendable {
 private struct PendingDmaBufLaunch: @unchecked Sendable {
     let pid: pid_t
     let sock: ChildSocket         // connected client socket for frame signals
-    let dmaFd: Int32              // DMA-BUF fd received from child
+    let dmaFd: Int32              // DMA-BUF fd, or a memfd when `cpu`
     let width: Int
     let height: Int
     let stride: Int
     let fourcc: UInt32
+    /// The child had no DRM device and sent linear pixels in a memfd
+    /// instead. Its frames are mapped and uploaded rather than imported.
+    let cpu: Bool
     let onReady: (Int64) -> Void
     let onTerminated: () -> Void
     let launchState: AtomicBox<(texId: Int64, earlyFrame: Bool)>
@@ -124,6 +127,7 @@ class LinuxProcessAppManager {
 
     /// Pending DMA-BUF frame signals (texture IDs — no pixel copy needed).
     private let pendingDmaBufFrames = AtomicBox<[Int64]>([])
+    private var cpuFrameLogged = 0
 
     /// Pending DMA-BUF resizes from child processes.
     private let pendingDmaBufResizes = AtomicBox<[PendingDmaBufResize]>([])
@@ -252,7 +256,7 @@ class LinuxProcessAppManager {
                     return s.earlyFrame
                 }
 
-                let entry = ProcessAppEntry(
+                var entry = ProcessAppEntry(
                     pid: launch.pid,
                     textureId: texId,
                     width: launch.width,
@@ -273,16 +277,34 @@ class LinuxProcessAppManager {
                 sendScreensaver(textureId: texId, seconds: currentScreensaverIdle)
                 sendDisplays(textureId: texId)
 
-                // Import DMA-BUF as EGLImage → GL texture (zero-copy)
-                textureRegistry.importDmaBuf(
-                    engine: engine,
-                    id: texId,
-                    fd: launch.dmaFd,
-                    width: launch.width,
-                    height: launch.height,
-                    stride: launch.stride,
-                    fourcc: launch.fourcc
-                )
+                if launch.cpu {
+                    // No DRM device on the child's side: its frames arrive
+                    // as linear pixels in a memfd. Map it once — the child
+                    // renders into the same buffer for its whole life — and
+                    // upload on each frame signal below.
+                    let size = launch.stride * launch.height
+                    let map = mmap(nil, size, PROT_READ, MAP_SHARED,
+                                   launch.dmaFd, 0)
+                    if map == MAP_FAILED {
+                        FileHandle.standardError.write(Data(
+                            "[ProcessApp] mmap of child memfd failed: \(errno)\n".utf8))
+                    } else {
+                        entry.cpuMap = map
+                        entry.cpuMapSize = size
+                        apps[texId] = entry
+                    }
+                } else {
+                    // Import DMA-BUF as EGLImage → GL texture (zero-copy)
+                    textureRegistry.importDmaBuf(
+                        engine: engine,
+                        id: texId,
+                        fd: launch.dmaFd,
+                        width: launch.width,
+                        height: launch.height,
+                        stride: launch.stride,
+                        fourcc: launch.fourcc
+                    )
+                }
 
                 launch.onReady(texId)
 
@@ -333,6 +355,23 @@ class LinuxProcessAppManager {
         let dmaBufFrameTexIds = pendingDmaBufFrames.take([])
         if !dmaBufFrameTexIds.isEmpty {
             for texId in dmaBufFrameTexIds {
+                // A CPU child's pixels are only in its memfd; the texture
+                // has to be re-uploaded from the mapping every frame. (The
+                // dma-buf path imports once and the GPU sees the writes.)
+                if let e = apps[texId], let map = e.cpuMap {
+                    cpuFrameLogged += 1
+                    if cpuFrameLogged <= 3 {
+                        FileHandle.standardError.write(Data(
+                            "[ProcessApp] CPU frame #\(cpuFrameLogged) tex=\(texId) \(e.width)x\(e.height)\n".utf8))
+                    }
+                    textureRegistry.updatePixelData(
+                        engine: engine, id: texId, data: map,
+                        width: e.width, height: e.height)
+                } else if apps[texId] != nil, cpuFrameLogged == 0 {
+                    cpuFrameLogged = -1
+                    FileHandle.standardError.write(Data(
+                        "[ProcessApp] frame for tex=\(texId) but no cpuMap (dma-buf app)\n".utf8))
+                }
                 FlutterEngineMarkExternalTextureFrameAvailable(engine, texId)
                 if let cb = firstFrameCallbacks.removeValue(forKey: texId) {
                     cb()
@@ -645,7 +684,7 @@ class LinuxProcessAppManager {
             }
 
             // Receive DMA-BUF fd + metadata from child
-            var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0)
+            var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0, flags: 0)
             let receivedFd = dmabuf_recv_fd(clientSock, &meta,
                                             MemoryLayout<DmaBufMeta>.size)
             guard receivedFd >= 0 else {
@@ -667,6 +706,7 @@ class LinuxProcessAppManager {
                 height: Int(meta.height),
                 stride: Int(meta.stride),
                 fourcc: meta.fourcc,
+                cpu: (meta.flags & UInt32(DMABUF_META_FLAG_CPU)) != 0,
                 onReady: sendableOnReady,
                 onTerminated: sendableOnTerminated,
                 launchState: launchState
@@ -697,7 +737,7 @@ class LinuxProcessAppManager {
 
                 if receivedFd >= 0 && n >= MemoryLayout<DmaBufMeta>.size {
                     // Resize response: data contains DmaBufMeta, fd is the new DMA-BUF
-                    var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0)
+                    var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0, flags: 0)
                     memcpy(&meta, &buf, MemoryLayout<DmaBufMeta>.size)
 
                     if texId != 0 {
@@ -1014,6 +1054,11 @@ private struct ProcessAppEntry {
     let sock: ChildSocket
     var dmaBufStride: Int = 0
     var dmaBufFourcc: UInt32 = 0
+    /// CPU children only: the mapped memfd their frames land in, and its
+    /// size. Non-nil is what marks this app as one whose frames must be
+    /// uploaded per signal rather than imported once.
+    var cpuMap: UnsafeMutableRawPointer? = nil
+    var cpuMapSize: Int = 0
 }
 
 #endif

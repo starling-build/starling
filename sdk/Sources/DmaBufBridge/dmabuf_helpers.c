@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// memfd_create needs _GNU_SOURCE, and it must be defined before the first
+// libc header is pulled in — hence above the include below rather than in
+// the target's cSettings, where it would be easy to lose.
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "include/DmaBufBridge.h"
 
 #include <EGL/egl.h>
@@ -12,6 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 
@@ -446,6 +455,76 @@ void* dmabuf_egl_create_display(struct gbm_device* gbm_dev) {
     EGLDisplay display = eglGetDisplay((EGLNativeDisplayType)gbm_dev);
     if (display == EGL_NO_DISPLAY) {
         fprintf(stderr, "[DmaBufBridge] eglGetDisplay failed\n");
+        return NULL;
+    }
+    return (void*)display;
+}
+
+int dmabuf_create_memfd(size_t size) {
+    int fd = memfd_create("starling-app-frame", MFD_CLOEXEC);
+    if (fd < 0) {
+        fprintf(stderr, "[DmaBufBridge] memfd_create failed: %s\n",
+                strerror(errno));
+        return -1;
+    }
+    if (ftruncate(fd, (off_t)size) != 0) {
+        fprintf(stderr, "[DmaBufBridge] ftruncate(%zu) failed: %s\n", size,
+                strerror(errno));
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+int dmabuf_read_fbo_pixels(uint32_t fbo, int width, int height, void* dst) {
+    if (!dst || width <= 0 || height <= 0) {
+        return 0;
+    }
+    const size_t stride = (size_t)width * 4;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, dst);
+
+    /* GL is bottom-up; the parent's upload path is top-down. Swap rows in
+     * place rather than allocating a second frame-sized buffer per frame. */
+    unsigned char* rows = (unsigned char*)dst;
+    unsigned char* tmp = (unsigned char*)malloc(stride);
+    if (!tmp) {
+        return 0;
+    }
+    for (int y = 0; y < height / 2; y++) {
+        unsigned char* top = rows + (size_t)y * stride;
+        unsigned char* bot = rows + (size_t)(height - 1 - y) * stride;
+        memcpy(tmp, top, stride);
+        memcpy(top, bot, stride);
+        memcpy(bot, tmp, stride);
+    }
+    free(tmp);
+    return 1;
+}
+
+void* dmabuf_egl_create_display_surfaceless(void) {
+#ifndef EGL_PLATFORM_SURFACELESS_MESA
+#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
+#endif
+    const char* exts = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+    if (!exts || !strstr(exts, "EGL_MESA_platform_surfaceless")) {
+        fprintf(stderr,
+                "[DmaBufBridge] EGL_MESA_platform_surfaceless unavailable\n");
+        return NULL;
+    }
+    PFNEGLGETPLATFORMDISPLAYEXTPROC_ getPlatformDisplay =
+        (PFNEGLGETPLATFORMDISPLAYEXTPROC_)eglGetProcAddress(
+            "eglGetPlatformDisplayEXT");
+    if (!getPlatformDisplay) {
+        fprintf(stderr, "[DmaBufBridge] no eglGetPlatformDisplayEXT\n");
+        return NULL;
+    }
+    EGLDisplay display = getPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA,
+                                            EGL_DEFAULT_DISPLAY, NULL);
+    if (display == EGL_NO_DISPLAY) {
+        fprintf(stderr, "[DmaBufBridge] surfaceless eglGetPlatformDisplay "
+                        "failed\n");
         return NULL;
     }
     return (void*)display;
