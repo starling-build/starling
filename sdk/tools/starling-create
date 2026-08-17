@@ -23,7 +23,12 @@
 #
 # The SDK is cached once per release under ~/.starling/sdk and shared by every
 # project, so the second project costs no download. The project gets an `sdk`
-# symlink into that cache, which is what its Package.swift depends on by path.
+# symlink into that cache, which is what its Package.swift depends on by path —
+# except on Windows, where Git bash cannot make one and the manifest names the
+# cache directly instead.
+#
+# Linux, macOS and Windows. On Windows run it from Git bash, which is where a
+# `curl | bash` instruction lands anyway; the bundle it fetches is the .zip.
 #
 # Overrides, for working offline or against an unreleased build:
 #   STARLING_SDK_TARBALL   a local bundle tarball (sdk/tools/make-bundle.sh)
@@ -81,14 +86,30 @@ command -v swift >/dev/null 2>&1 || die "no swift toolchain on PATH.
        Install one from https://swift.org/install (6.0 or newer)."
 command -v curl >/dev/null 2>&1 || die "curl is needed to fetch the SDK."
 
+# MINGW/MSYS/CYGWIN is Git for Windows' bash, which is what a Windows user has
+# when they run this file. WSL reports Linux and is Linux — it wants the Linux
+# bundle and gets it, correctly, from the case above.
 case "$(uname -s)" in
-    Linux)  PLATFORM=linux ;;
-    Darwin) PLATFORM=macos ;;
+    Linux)                PLATFORM=linux ;;
+    Darwin)               PLATFORM=macos ;;
+    MINGW*|MSYS*|CYGWIN*) PLATFORM=windows ;;
     *) die "unsupported platform $(uname -s).
-       On Windows, use the repo checkout: https://github.com/$GH_REPO" ;;
+       Use the repo checkout: https://github.com/$GH_REPO" ;;
 esac
 ARCH="$(uname -m)"
 BUNDLE="starling-sdk-$PLATFORM-$ARCH"
+
+# The Windows bundle is a .zip and the other two are tarballs, so the extension
+# is part of the artifact's name everywhere it is used: the download URL, the
+# SHA256SUMS lookup, and the unpack. The marker file is what proves a cached
+# directory is a real bundle rather than a half-unpacked one.
+if [ "$PLATFORM" = windows ]; then
+    EXT=zip
+    ENGINE_MARKER=engine/lib/flutter_engine.dll
+else
+    EXT=tar.gz
+    ENGINE_MARKER=engine/lib/libflutter_engine.so
+fi
 
 # The runtime libraries the windowed host loads. They are the one thing the
 # bundle cannot carry — GTK pulls in a large part of the desktop — so name them
@@ -124,9 +145,9 @@ fetch_sdk() {
     else
         local base="https://github.com/$GH_REPO/releases/download/$RELEASE"
         say "==> downloading the Starling SDK ($BUNDLE, $RELEASE)"
-        tarball="$work/$BUNDLE.tar.gz"
-        curl -fL --progress-bar -o "$tarball" "$base/$BUNDLE.tar.gz" || die "could not fetch
-       $base/$BUNDLE.tar.gz
+        tarball="$work/$BUNDLE.$EXT"
+        curl -fL --progress-bar -o "$tarball" "$base/$BUNDLE.$EXT" || die "could not fetch
+       $base/$BUNDLE.$EXT
        Check https://github.com/$GH_REPO/releases for a bundle matching
        $PLATFORM/$ARCH, and pass --release if it is on a different tag."
 
@@ -134,11 +155,11 @@ fetch_sdk() {
         # not a reason to refuse, but one that mismatches is.
         if curl -fsL -o "$work/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null; then
             local want got
-            want="$(awk -v a="$BUNDLE.tar.gz" '$2 ~ a {print $1}' "$work/SHA256SUMS" | head -1)"
+            want="$(awk -v a="$BUNDLE.$EXT" '$2 ~ a {print $1}' "$work/SHA256SUMS" | head -1)"
             if [ -n "$want" ]; then
                 got="$(shasum -a 256 "$tarball" 2>/dev/null | cut -d' ' -f1)"
                 [ -n "$got" ] || got="$(sha256sum "$tarball" | cut -d' ' -f1)"
-                [ "$want" = "$got" ] || die "checksum mismatch for $BUNDLE.tar.gz
+                [ "$want" = "$got" ] || die "checksum mismatch for $BUNDLE.$EXT
        expected $want
        got      $got"
                 say "    checksum verified"
@@ -147,8 +168,21 @@ fetch_sdk() {
     fi
 
     say "==> unpacking into $SDK_DIR"
-    tar -xzf "$tarball" -C "$work"
-    [ -d "$work/$BUNDLE" ] || die "$BUNDLE.tar.gz did not contain $BUNDLE/"
+    if [ "$EXT" = zip ]; then
+        # Git for Windows carries no unzip(1). PowerShell is always there, and
+        # needs Windows paths, so hand it converted ones rather than the MSYS
+        # spellings that everything else here uses.
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$tarball" -d "$work"
+        else
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \
+                "Expand-Archive -LiteralPath '$(cygpath -w "$tarball")' -DestinationPath '$(cygpath -w "$work")' -Force" \
+                || die "could not unpack $BUNDLE.$EXT"
+        fi
+    else
+        tar -xzf "$tarball" -C "$work"
+    fi
+    [ -d "$work/$BUNDLE" ] || die "$BUNDLE.$EXT did not contain $BUNDLE/"
     rm -rf "$SDK_DIR.partial"
     mv "$work/$BUNDLE" "$SDK_DIR.partial"
     # Move into place last, so an interrupted run never leaves a half-unpacked
@@ -157,7 +191,7 @@ fetch_sdk() {
     mv "$SDK_DIR.partial" "$SDK_DIR"
 }
 
-if [ -d "$SDK_DIR" ] && { [ -f "$SDK_DIR/engine/lib/libflutter_engine.so" ] ||
+if [ -d "$SDK_DIR" ] && { [ -f "$SDK_DIR/$ENGINE_MARKER" ] ||
                           [ -d "$SDK_DIR/engine/lib/FlutterMacOS.framework" ]; }; then
     say "==> SDK already cached at $SDK_DIR"
 else
@@ -177,22 +211,46 @@ fi
 
 say "==> writing $NAME/ ($TEMPLATE)"
 mkdir -p "$NAME/Sources/$MODULE"
-ln -sfn "$SDK_DIR" "$NAME/sdk"
+# How the project refers to the SDK. Everywhere but Windows that is an `sdk`
+# symlink into the shared cache, so the project stays relocatable and tiny.
+# Git for Windows has no usable symlink without Developer Mode -- `ln -s`
+# silently DEEP COPIES instead, which would put a 100+ MB copy of the SDK in
+# every project and leave it stale when the cache updates. So on Windows the
+# manifest names the cache directly, in the forward-slash spelling Windows
+# accepts and a Swift string literal needs no escaping for.
+if [ "$PLATFORM" = windows ]; then
+    SDK_REF="$(cygpath -m "$SDK_DIR" 2>/dev/null || printf '%s' "$SDK_DIR")"
+    SDK_SHOWN="Package.swift -> $SDK_REF"
+else
+    ln -sfn "$SDK_DIR" "$NAME/sdk"
+    SDK_REF="sdk"
+    SDK_SHOWN="sdk -> $SDK_DIR"
+fi
 
 cat > "$NAME/Package.swift" <<PACKAGE
 // swift-tools-version: 6.0
 import PackageDescription
 import Foundation
 
-// ./sdk is a symlink into the shared SDK cache (~/.starling/sdk), holding the
-// framework and the engine binaries it links against.
+// Where the SDK is: the framework and the engine binaries it links against.
+// On Linux and macOS ./sdk is a symlink into the shared cache
+// (~/.starling/sdk). On Windows it is that cache path spelled out, because Git
+// bash cannot create a symlink there without Developer Mode.
 //
 // A path dependency rather than .package(url:from:) is inherent, not a
 // shortcut: locating the bundled engine needs -L/-rpath, which SwiftPM
 // classifies as unsafe flags and permits for path dependencies only. You do
 // not add the engine library here and you do not set a library path — the
 // SDK's own linker settings do both, and bake the rpath into this executable.
-let sdk = "sdk"
+// Two constants, not one, because they are two different things: where the
+// package IS, and what it is CALLED in \`package:\` references. SwiftPM derives
+// a path dependency's identity from its last path component, so with the
+// symlink spelling ("sdk") the two coincide and one constant hides the
+// difference -- until Windows names an absolute path here and every
+// \`package: sdk\` stops resolving, with "unknown package ...; valid packages
+// are: starling-sdk-windows-x86_64-<tag>". Naming the dependency pins it.
+let sdkPath = "$SDK_REF"
+let sdkName = "sdk"
 
 // Ubuntu 26.04 (glibc 2.43 + libstdc++ 15) needs two flags on any C++-interop
 // target, and swiftSettings are NOT inherited from a dependency — so the SDK
@@ -231,22 +289,22 @@ let package = Package(
     // to link the SDK's macOS-14 products. Linux ignores it.
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(path: sdk),
+        .package(name: sdkName, path: sdkPath),
     ],
     targets: [
         .executableTarget(
             name: "$MODULE",
             dependencies: [
                 // The framework: widgets, rendering, gestures — and TerminalView.
-                .product(name: "Flutter", package: sdk),
+                .product(name: "Flutter", package: sdkName),
                 // The windowed host: opens the window, starts the engine in
                 // Swift mode, mounts the widget. runExampleApp lives here.
-                .product(name: "ExampleHost", package: sdk),
+                .product(name: "ExampleHost", package: sdkName),
                 // The dart:ui types — Offset, Size, Rect, Paint, Canvas.
                 // Separate from Flutter, which does not re-export them.
-                .product(name: "FlutterSwiftBridge", package: sdk),
+                .product(name: "FlutterSwiftBridge", package: sdkName),
                 // Glyphs, for anything with an Icon in it.
-                .product(name: "CupertinoIcons", package: sdk),
+                .product(name: "CupertinoIcons", package: sdkName),
             ],
             path: "Sources/$MODULE",
             swiftSettings: appSettings
@@ -324,6 +382,67 @@ cat > "$NAME/.gitignore" <<'IGNORE'
 sdk
 IGNORE
 
+# The README's two platform-shaped paragraphs: how this project finds the SDK,
+# and what shipping it means. Built here because a heredoc cannot hold an `if`.
+# Quoted delimiters keep backticks and backslashes literal -- Windows paths are
+# full of the latter -- and @MODULE@ is substituted after, so nothing in the
+# text has to be escaped for the shell.
+if [ "$PLATFORM" = windows ]; then
+    SDK_NOTE="$(cat <<'NOTE' | sed "s|@SDKDIR@|$SDK_REF|g"
+`Package.swift` names the shared SDK cache directly (@SDKDIR@) — the
+Flutter-to-Swift framework plus the engine binaries it links against. Git for
+Windows cannot create the symlink the other platforms get, so the path is
+written into the manifest instead. Anyone cloning this project re-creates the
+cache with:
+NOTE
+)"
+    SHIP_NOTE="$(cat <<'NOTE' | sed "s|@MODULE@|$MODULE|g"
+Windows resolves imports from the executable's own directory, so deployment is
+a copy and everything must land in ONE directory:
+
+```cmd
+mkdir dist
+copy .build\release\@MODULE@.exe dist\
+copy sdk\engine\lib\*.dll        dist\
+xcopy /E /I sdk\engine\share     dist\data
+copy sdk\Vendor\conpty\*         dist\
+```
+
+The Swift runtime DLLs are deliberately NOT in the SDK — they belong to your
+toolchain — so copy those beside the .exe as well, from its
+`Runtimes\<version>\usr\bin`. Miss any DLL and the app dies with
+`STATUS_DLL_NOT_FOUND` (0xC0000135) before `main`, with no message at all.
+
+`conpty.dll` and `OpenConsole.exe` matter only if you use TerminalView. Without
+them it still works: it falls back to the inbox console host, silently, at
+roughly three times the CPU on the read path.
+NOTE
+)"
+else
+    SDK_NOTE="$(cat <<'NOTE' | sed "s|@SDKHOME@|$SDK_HOME|g"
+`sdk` is a symlink into the shared SDK cache (@SDKHOME@) — the
+Flutter-to-Swift framework plus the engine binaries it links against. It is
+gitignored, so anyone cloning this project re-creates it with:
+NOTE
+)"
+    SHIP_NOTE="$(cat <<'NOTE' | sed "s|@MODULE@|$MODULE|g"
+The rpath points into the cache, which is useless on someone else's machine.
+SwiftPM also puts `$ORIGIN` in the rpath, so deployment is a copy:
+
+```bash
+mkdir -p dist
+cp .build/release/@MODULE@  dist/
+cp sdk/engine/lib/*.so      dist/     # sits beside the binary
+cp -r sdk/engine/share      dist/     # icudtl.dat + flutter_assets
+```
+
+Skip the library copy and it dies at startup on
+`libflutter_engine.so: cannot open shared object file` — at run time, not
+build time.
+NOTE
+)"
+fi
+
 cat > "$NAME/README.md" <<README
 # $NAME
 
@@ -333,9 +452,7 @@ Built with \`starling-create\`. Run it:
 swift run -c release
 \`\`\`
 
-\`sdk\` is a symlink into the shared SDK cache ($SDK_HOME) — the
-Flutter-to-Swift framework plus the engine binaries it links against. It is
-gitignored, so anyone cloning this project re-creates it with:
+$SDK_NOTE
 
 \`\`\`bash
 curl -fLO https://github.com/$GH_REPO/releases/download/$RELEASE/starling-create
@@ -345,31 +462,38 @@ chmod +x starling-create
 
 ## Shipping it
 
-The rpath points into the cache, which is useless on someone else's machine.
-SwiftPM also puts \`\$ORIGIN\` in the rpath, so deployment is a copy:
-
-\`\`\`bash
-mkdir -p dist
-cp .build/release/$MODULE  dist/
-cp sdk/engine/lib/*.so     dist/     # sits beside the binary
-cp -r sdk/engine/share     dist/     # icudtl.dat + flutter_assets
-\`\`\`
-
-Skip the library copy and it dies at startup on
-\`libflutter_engine.so: cannot open shared object file\` — at run time, not
-build time.
+$SHIP_NOTE
 README
 
 say ""
 say "    $NAME/"
 say "      Package.swift"
 say "      Sources/$MODULE/main.swift"
-say "      sdk -> $SDK_DIR"
+say "      $SDK_SHOWN"
 say ""
 
 if [ "$RUN" = 1 ]; then
     say "==> building and running (release)"
-    ( cd "$NAME" && swift run -c release )
+    if [ "$PLATFORM" = windows ]; then
+        # `swift run` builds fine here and then dies before main(): Windows
+        # resolves imports from the executable's own directory, and SwiftPM
+        # puts nothing there but the .exe. So stage the engine beside it and
+        # run it directly -- the same layout the README's dist\ step describes,
+        # which is why the first run teaches the deployment rule rather than
+        # hiding it. Each copy is an `if`, not an `&&` chain: under `set -e` a
+        # chain ending in a false test takes the whole script down.
+        ( cd "$NAME" && swift build -c release )
+        BIN="$NAME/.build/release"
+        cp "$SDK_DIR"/engine/lib/*.dll "$BIN"/
+        mkdir -p "$BIN/data"
+        cp -r "$SDK_DIR"/engine/share/. "$BIN/data"/
+        if [ -d "$SDK_DIR/Vendor/conpty" ]; then
+            cp "$SDK_DIR"/Vendor/conpty/* "$BIN"/
+        fi
+        ( cd "$BIN" && "./$MODULE.exe" )
+    else
+        ( cd "$NAME" && swift run -c release )
+    fi
 else
     say "Next:"
     say ""
