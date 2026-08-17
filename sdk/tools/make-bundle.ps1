@@ -95,14 +95,51 @@ foreach ($f in $engineFiles) {
 # vendored bridge headers describe that binary's ABI. The checker is a shell
 # script, so this needs the bash that Git for Windows installs; when there is
 # none, warn rather than fail - the check is a safety net, not the build.
-$bash = Get-Command bash -ErrorAction SilentlyContinue
+# Find Git for Windows' bash SPECIFICALLY, not whatever answers to "bash".
+# On any machine with WSL installed, Get-Command bash returns
+# C:\WINDOWS\system32\bash.exe -- the WSL launcher, whose filesystem has no
+# C:\ at all (the same path is /mnt/c/... in there). It then fails with
+# "No such file or directory" and the Write-Error below reports that as
+# vendored-header drift, which sends you looking at headers for what is
+# really a wrong-interpreter problem.
+$bash = $null
+$gitCmd = Get-Command git -ErrorAction SilentlyContinue
+if ($gitCmd) {
+    $cand = Join-Path (Split-Path (Split-Path $gitCmd.Source -Parent) -Parent) 'bin\bash.exe'
+    if (Test-Path $cand) { $bash = $cand }
+}
+if (-not $bash) {
+    foreach ($c in @("$env:ProgramFiles\Git\bin\bash.exe", "${env:ProgramFiles(x86)}\Git\bin\bash.exe")) {
+        if (Test-Path $c) { $bash = $c; break }
+    }
+}
 if ($bash) {
-    & $bash.Source "$sdk/tools/sync-vendored-headers.sh" --check 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
+    # Forward slashes, because bash reads each backslash in an argument as an
+    # escape: the native path arrives as C:Usersstarlingdevstarlingsdk/tools/...
+    $checker = ($sdk -replace '\\', '/') + '/tools/sync-vendored-headers.sh'
+    # Tell it which engine, rather than letting it guess. Its fallbacks are an
+    # `engine` symlink beside the package and a starling-engine clone beside
+    # the package -- neither exists on Windows, where bootstrap.sh has not run
+    # and the engine is a sibling of the *repo*. We already know the answer:
+    # $EngineOut is <root>/engine/src/out/<config>, so the engine root it wants
+    # (the directory holding src/) is three levels up.
+    $engineRoot = Split-Path (Split-Path (Split-Path $EngineOut -Parent) -Parent) -Parent
+    $checkOut = & $bash $checker --check ($engineRoot -replace '\\', '/') 2>&1
+    $checkCode = $LASTEXITCODE
+    # Only exit 1 means drift. Anything else means the checker did not run, and
+    # reporting that as drift is actively misleading -- it has sent three
+    # separate investigations at the headers when the real causes were a
+    # wrong bash, a CRLF checkout, and swiftc missing from PATH (the script
+    # reads the toolchain's resource dir via `swiftc -print-target-info`).
+    if ($checkCode -eq 1) {
+        $checkOut | ForEach-Object { Write-Host "  $_" }
         Write-Error "vendored headers have drifted from the engine tree; run tools/sync-vendored-headers.sh and rebuild before bundling"
+    } elseif ($checkCode -ne 0) {
+        $checkOut | ForEach-Object { Write-Host "  $_" }
+        Write-Error "the vendored-header check could not run (exit $checkCode); it needs Git bash and swiftc on PATH -- this is not a drift report"
     }
 } else {
-    Write-Warning "no bash found - skipping the vendored-header drift check"
+    Write-Warning "no Git for Windows bash found - skipping the vendored-header drift check"
 }
 
 if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
