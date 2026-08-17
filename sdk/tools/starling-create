@@ -17,11 +17,13 @@
 #
 #     --template terminal|app   what to scaffold (default: terminal)
 #     --run                     build and run it when the project is written
-#     --release <tag>           release to fetch the SDK from (default: $RELEASE)
+#     --sdk <url|file>          the SDK bundle to install — a URL to download,
+#                               or an archive already on disk. Defaults to the
+#                               release this tool ships on.
 #     --force                   overwrite an existing directory
 #     -h, --help
 #
-# The SDK is cached once per release under ~/.starling/sdk and shared by every
+# The SDK is cached under ~/.starling/sdk and shared by every
 # project, so the second project costs no download. The project gets an `sdk`
 # symlink into that cache, which is what its Package.swift depends on by path —
 # except on Windows, where Git bash cannot make one and the manifest names the
@@ -30,16 +32,16 @@
 # Linux, macOS and Windows. On Windows run it from Git bash, which is where a
 # `curl | bash` instruction lands anyway; the bundle it fetches is the .zip.
 #
-# Overrides, for working offline or against an unreleased build:
-#   STARLING_SDK_TARBALL   a local bundle tarball (sdk/tools/make-bundle.sh)
-#   STARLING_SDK_HOME      cache location, default ~/.starling/sdk
+#   STARLING_SDK_URL    same as --sdk
+#   STARLING_SDK_HOME   cache location, default ~/.starling/sdk
 set -euo pipefail
 
-# The release this tool ships on, and therefore the one it pulls the SDK from:
-# a tool downloaded from a tag should install that tag, not drift to whatever
-# is newest. Bump both together when cutting a release.
-RELEASE="${STARLING_RELEASE:-terminal-v0.1.0}"
+# Where the SDK comes from. ONE line to bump when cutting a release: a tool
+# downloaded from a tag should install that tag's SDK rather than drift to
+# whatever is newest. --sdk overrides it with any URL, or a local archive.
+SDK_BASE_URL="https://github.com/starling-build/starling/releases/download/terminal-v0.1.0"
 GH_REPO="starling-build/starling"
+SDK_URL="${STARLING_SDK_URL:-}"
 NAME=""
 TEMPLATE=terminal
 RUN=0
@@ -56,8 +58,8 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --template)    TEMPLATE="${2:-}"; shift 2 ;;
         --template=*)  TEMPLATE="${1#*=}"; shift ;;
-        --release)     RELEASE="${2:-}"; shift 2 ;;
-        --release=*)   RELEASE="${1#*=}"; shift ;;
+        --sdk)         SDK_URL="${2:-}"; shift 2 ;;
+        --sdk=*)       SDK_URL="${1#*=}"; shift ;;
         --run)         RUN=1; shift ;;
         --force)       FORCE=1; shift ;;
         -h|--help)     usage ;;
@@ -100,9 +102,9 @@ ARCH="$(uname -m)"
 BUNDLE="starling-sdk-$PLATFORM-$ARCH"
 
 # The Windows bundle is a .zip and the other two are tarballs, so the extension
-# is part of the artifact's name everywhere it is used: the download URL, the
-# SHA256SUMS lookup, and the unpack. The marker file is what proves a cached
-# directory is a real bundle rather than a half-unpacked one.
+# is part of the artifact's name everywhere it is used: the default download URL
+# and the unpack. The marker file is what proves a cached directory is a real
+# bundle rather than a half-unpacked one.
 if [ "$PLATFORM" = windows ]; then
     EXT=zip
     ENGINE_MARKER=engine/lib/flutter_engine.dll
@@ -136,7 +138,12 @@ fi
 
 # --- the SDK -----------------------------------------------------------------
 SDK_HOME="${STARLING_SDK_HOME:-$HOME/.starling/sdk}"
-SDK_DIR="$SDK_HOME/$BUNDLE-$RELEASE"
+SDK_DIR="$SDK_HOME/$BUNDLE"
+SDK_URL="${SDK_URL:-$SDK_BASE_URL/$BUNDLE.$EXT}"
+# What the cache was filled from. It is keyed by platform rather than by
+# version, so without this a run with a different --sdk would find a populated
+# directory and silently keep the first SDK.
+SDK_STAMP="$SDK_DIR/.source"
 
 fetch_sdk() {
     mkdir -p "$SDK_HOME"
@@ -145,34 +152,17 @@ fetch_sdk() {
     trap "rm -rf '$work'" RETURN
 
     local tarball
-    if [ -n "${STARLING_SDK_TARBALL:-}" ]; then
-        [ -f "$STARLING_SDK_TARBALL" ] ||
-            die "STARLING_SDK_TARBALL=$STARLING_SDK_TARBALL does not exist"
-        say "==> using local bundle $STARLING_SDK_TARBALL"
-        tarball="$STARLING_SDK_TARBALL"
+    if [ -f "$SDK_URL" ]; then
+        say "==> using $SDK_URL"
+        tarball="$SDK_URL"
     else
-        local base="https://github.com/$GH_REPO/releases/download/$RELEASE"
-        say "==> downloading the Starling SDK ($BUNDLE, $RELEASE)"
+        say "==> downloading the Starling SDK"
+        say "    $SDK_URL"
         tarball="$work/$BUNDLE.$EXT"
-        curl -fL --progress-bar -o "$tarball" "$base/$BUNDLE.$EXT" || die "could not fetch
-       $base/$BUNDLE.$EXT
+        curl -fL --progress-bar -o "$tarball" "$SDK_URL" || die "could not fetch
+       $SDK_URL
        Check https://github.com/$GH_REPO/releases for a bundle matching
-       $PLATFORM/$ARCH, and pass --release if it is on a different tag."
-
-        # Verify when the release publishes sums; a checksum we cannot reach is
-        # not a reason to refuse, but one that mismatches is.
-        if curl -fsL -o "$work/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null; then
-            local want got
-            want="$(awk -v a="$BUNDLE.$EXT" '$2 ~ a {print $1}' "$work/SHA256SUMS" | head -1)"
-            if [ -n "$want" ]; then
-                got="$(shasum -a 256 "$tarball" 2>/dev/null | cut -d' ' -f1)"
-                [ -n "$got" ] || got="$(sha256sum "$tarball" | cut -d' ' -f1)"
-                [ "$want" = "$got" ] || die "checksum mismatch for $BUNDLE.$EXT
-       expected $want
-       got      $got"
-                say "    checksum verified"
-            fi
-        fi
+       $PLATFORM/$ARCH, or pass --sdk with a URL or a local archive."
     fi
 
     say "==> unpacking into $SDK_DIR"
@@ -197,10 +187,12 @@ fetch_sdk() {
     # tree that the next run would happily treat as a cache hit.
     rm -rf "$SDK_DIR"
     mv "$SDK_DIR.partial" "$SDK_DIR"
+    printf '%s\n' "$SDK_URL" > "$SDK_STAMP"
 }
 
 if [ -d "$SDK_DIR" ] && { [ -f "$SDK_DIR/$ENGINE_MARKER" ] ||
-                          [ -d "$SDK_DIR/engine/lib/FlutterMacOS.framework" ]; }; then
+                          [ -d "$SDK_DIR/engine/lib/FlutterMacOS.framework" ]; } &&
+   [ "$(cat "$SDK_STAMP" 2>/dev/null)" = "$SDK_URL" ]; then
     say "==> SDK already cached at $SDK_DIR"
 else
     fetch_sdk
@@ -463,9 +455,9 @@ swift run -c release
 $SDK_NOTE
 
 \`\`\`bash
-curl -fLO https://github.com/$GH_REPO/releases/download/$RELEASE/starling-create
+curl -fLO $SDK_BASE_URL/starling-create
 chmod +x starling-create
-./starling-create --release $RELEASE $NAME
+./starling-create --sdk $SDK_URL $NAME
 \`\`\`
 
 ## Shipping it
