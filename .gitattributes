@@ -1,0 +1,42 @@
+# Line endings.
+#
+# Git for Windows installs with core.autocrlf=true, so without this file every
+# shell script in the tree is checked out with CRLF on a Windows clone — and
+# bash cannot run those. The failure is not a message about line endings: the
+# script dies with **exit 127 and no output at all**, which whatever invoked it
+# then reports as its own kind of failure. That cost real time here —
+# sdk/tools/make-bundle.ps1 ran the vendored-header checker, got 127, and
+# announced "vendored headers have drifted from the engine tree", sending the
+# investigation at the headers rather than at the newline.
+#
+# Everything in this repo that a shell or a shebang reads must therefore be
+# pinned to LF. The scripts are authored on Linux and stored LF; this only
+# governs what lands in a Windows working tree.
+*.sh            text eol=lf
+*.py            text eol=lf
+
+# Shebang scripts with no extension.
+sdk/tools/starling-create        text eol=lf
+build/session/starling-session   text eol=lf
+
+# The .desktop, polkit policy and udev rules the session installs verbatim are
+# read by Linux services; keep them LF as well.
+*.desktop       text eol=lf
+*.policy        text eol=lf
+*.rules         text eol=lf
+*.conf          text eol=lf
+
+# PowerShell is the other direction: Windows PowerShell 5.1 fails to terminate
+# a here-string in an LF-only file, and the parse error it emits points at a
+# brace hundreds of lines away. sdk/tools/*.ps1 avoid here-strings for exactly
+# this reason, but pinning CRLF removes the trap for anything added later.
+*.ps1           text eol=crlf
+
+# Binaries: never touched.
+*.zip           binary
+*.tar.gz        binary
+*.deb           binary
+*.png           binary
+*.jpg           binary
+*.mp4           binary
+*.dat           binary
