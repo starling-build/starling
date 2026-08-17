@@ -303,8 +303,30 @@ are done; the rest of the list stands.
   because the C side records its event-loop thread on first dispatch and DRM
   only gets that for free through the engine's GCD integration.
 
-Still open in W1: first-party child apps (they allocate a `gbm_bo` and have
-no fallback), RDP pointer PDUs for real cursor shapes, the NSC/raw codec
+- **First-party child apps** — Settings, Terminal and the App Store all open,
+  draw and take input with no DRM device anywhere, through the CPU/memfd
+  path. Three defects sat between "the fallback allocates" and "the app
+  draws", and only the first was in the new code:
+  - The child sets `O_NONBLOCK` on its parent socket **once, after the
+    configure handshake**, not inside the GBM branch. Left in the branch, a
+    CPU-fallback child kept a blocking socket and parked in `read` on the
+    first thing the parent pushes at connect (theme) — before its first
+    frame. The engine was healthy the whole time; the event loop simply
+    never ran again, which reads exactly like "the app starts and never
+    presents".
+  - `dmabuf_read_fbo_pixels` must NOT flip rows. The contract is
+    byte-identical to what the dma-buf path exports (the window composites
+    with `flipTextureY` false, and the broker mmaps the same fd for capture),
+    and `glReadPixels` already produces that layout. Flipping "because GL is
+    bottom-up" renders every first-party app upside down.
+  - `apps/FlutterDemoApp` carries its own `DmaBufRenderer` and needed the new
+    `DmaBufMeta.flags` field. A stale `.build-shared` hid the compile error
+    *and* served a shell binary predating the CPU branch, which is what made
+    the parent look like it was importing the memfd as a dma-buf. When the
+    CPU path misbehaves in a way the code cannot explain, reset the scratch
+    (CLAUDE.md, "Build / runtime") before theorising.
+
+Still open in W1: RDP pointer PDUs for real cursor shapes, the NSC/raw codec
 ladder for mstsc, and the portal/notification services.
 
 ### W2 — GPU — **folded into W0; the probe came back green**

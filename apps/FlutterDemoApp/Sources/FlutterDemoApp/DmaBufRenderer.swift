@@ -134,7 +134,8 @@ class DmaBufRenderer {
             width: Int32(width),
             height: Int32(height),
             stride: stride,
-            fourcc: formatABGR8888
+            fourcc: formatABGR8888,
+            flags: 0  // a real GBM buffer — never the CPU/memfd path
         )
         let sendResult = dmabuf_send_fd(sock, dmaBufFd, &meta,
                                         MemoryLayout<DmaBufMeta>.size)

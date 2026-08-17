@@ -480,26 +480,18 @@ int dmabuf_read_fbo_pixels(uint32_t fbo, int width, int height, void* dst) {
     if (!dst || width <= 0 || height <= 0) {
         return 0;
     }
-    const size_t stride = (size_t)width * 4;
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    /* Row order is deliberately left alone. The contract this buffer has to
+     * meet is not "top-down" in the abstract — it is "byte-for-byte what the
+     * dma-buf path hands the parent", because everything downstream treats
+     * the two identically: the window composites the texture with
+     * flipTextureY false, and the agent broker mmaps this same fd for
+     * per-window capture. glReadPixels walks the FBO from GL y=0 up, which
+     * is the attachment's first memory row, so the untouched readback IS
+     * that layout. An in-place row swap here "to correct for GL being
+     * bottom-up" renders every first-party app upside down. */
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, dst);
-
-    /* GL is bottom-up; the parent's upload path is top-down. Swap rows in
-     * place rather than allocating a second frame-sized buffer per frame. */
-    unsigned char* rows = (unsigned char*)dst;
-    unsigned char* tmp = (unsigned char*)malloc(stride);
-    if (!tmp) {
-        return 0;
-    }
-    for (int y = 0; y < height / 2; y++) {
-        unsigned char* top = rows + (size_t)y * stride;
-        unsigned char* bot = rows + (size_t)(height - 1 - y) * stride;
-        memcpy(tmp, top, stride);
-        memcpy(top, bot, stride);
-        memcpy(bot, tmp, stride);
-    }
-    free(tmp);
     return 1;
 }
 

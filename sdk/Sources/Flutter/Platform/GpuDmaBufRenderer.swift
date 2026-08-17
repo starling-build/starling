@@ -887,6 +887,18 @@ public class GpuDmaBufRenderer {
             print("[GpuDmaBufRenderer] Configured by parent: \(logicalW)x\(logicalH)")
         }
 
+        // The configure above is the last blocking read on this socket; from
+        // here the event loop drains it with poll + read-until-EAGAIN, which
+        // needs O_NONBLOCK. It belongs HERE, at the seam every render path
+        // shares, not inside one of them: it used to sit in the GBM branch,
+        // so a child that fell back to CPU frames kept a blocking socket and
+        // parked in `read` on the first message the parent pushed (theme, at
+        // connect) — before it had ever rendered. That reads as "the app
+        // starts and never presents a frame", with the engine perfectly
+        // healthy and the pipeline simply never pumped again.
+        let sockFlags = fcntl(sock, F_GETFL)
+        _ = fcntl(sock, F_SETFL, sockFlags | O_NONBLOCK)
+
         // 3. Read device pixel ratio from environment (set by parent's DRM shell)
         let dpiEnv = ProcessInfo.processInfo.environment["FLUTTER_DRM_DPI"]
         var dpi = dpiEnv.flatMap { Double($0) } ?? 1.0
@@ -1140,9 +1152,8 @@ public class GpuDmaBufRenderer {
         // 16. Clear current context
         dmabuf_egl_clear_current(display)
 
-        // Set socket to non-blocking for input event reads in poll loop
-        let sockFlags = fcntl(sock, F_GETFL)
-        _ = fcntl(sock, F_SETFL, sockFlags | O_NONBLOCK)
+        // (The socket went non-blocking right after the configure handshake,
+        // where both render paths pass through.)
 
         // 17. Send DMA-BUF fd + metadata to parent
         var meta = DmaBufMeta(
@@ -1686,9 +1697,10 @@ public class GpuDmaBufRenderer {
             guard let userData = userData else { return false }
             let s = Unmanaged<GpuRendererState>.fromOpaque(userData).takeUnretainedValue()
             if s.cpuMode {
-                // Read the frame back into the memfd the parent mapped.
-                // dmabuf_read_fbo_pixels flips it top-down on the way out,
-                // because the parent uploads what it is handed.
+                // Read the frame back into the memfd the parent mapped, in
+                // the FBO's own row order — the same layout the dma-buf path
+                // exports, which is what the parent and the broker both
+                // assume (see dmabuf_read_fbo_pixels).
                 if let map = s.cpuMap {
                     _ = dmabuf_read_fbo_pixels(s.cpuFbo, Int32(s.bufferWidth),
                                                Int32(s.bufferHeight), map)
