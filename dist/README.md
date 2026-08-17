@@ -9,9 +9,15 @@ x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
 (`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
 one tree a consumer depends on by path. 14 MB, checksum in `SHA256SUMS`.
 
+`starling-sdk-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the same
+0.3.0 release candidate and the same engine commit: framework source, the
+three release engine libraries (`libflutter_engine.so`,
+`libflutter_linux_gtk.so`, `libflutter_linux_drm.so`), `icudtl.dat` and
+flutter_assets. 23 MB, checksum in `SHA256SUMS`.
+
 Every other binary is a GitHub Release asset rather than repo contents
 (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
-Windows zip). These two are in the tree by explicit request, each so that a
+Windows zip). These three are in the tree by explicit request, each so that a
 build is downloadable from a checkout before its release is cut.
 Do not take it as licence to add more: a binary committed here is in every
 clone forever, and removing it later means rewriting history.
@@ -54,25 +60,61 @@ Linux or macOS and gets one long flat filename. The staging script asserts
 against it — 0 backslash entries, `data/icudtl.dat` present — and refuses to
 write an archive that fails either check.
 
-## The SDK bundle's provenance
+## The SDK bundles' provenance
 
-Built on the Mac from `release-sdk-0.3.0` (engine `ea78543`,
-`host_release_arm64`), verified by unpacking to a clean directory, building
-the whole package as a path-dependency consumer, and launching an example —
-the engine starts from the bundle's own `engine/lib`:
+The macOS one was built on the Mac from `release-sdk-0.3.0` (engine
+`ea78543`, `host_release_arm64`), verified by unpacking to a clean directory,
+building the whole package as a path-dependency consumer, and launching an
+example — the engine starts from the bundle's own `engine/lib`:
 
     sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
 
-It unpacks into a named `starling-sdk-macos-arm64/` directory (unlike the
-terminal zip, which extracts flat).
+The Linux one is the same branch and the same engine commit, built on the dev
+box against `host_release`, and verified the same way — a path-dependency
+consumer compiled the whole framework, `readelf -d` showed both engine
+libraries resolving out of the bundle's `engine/lib` with nothing set in the
+environment, and a `CounterApp` built inside the unpacked bundle came up on
+the desktop session and drew text:
+
+    FLUTTER_SWIFT_ENGINE_OUT=<a private copy of the release binaries> \
+        sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
+
+**Build the engine at the release commit into a directory nobody else writes,
+and check the tarball rather than the out directory.** The engine checkout is
+shared — one clone, several worktrees, and whoever else is working on the box
+— so an out directory verified at 21:45 is someone else's branch at 21:48:
+that is not a hypothetical, it is what happened here, and the bundle built
+afterwards carried an unreleased `fl_drm_view_inject_pointer_abs` with
+nothing in it to say so. Two things make the check hold:
+
+    # take the sources back without moving HEAD under anyone
+    git checkout <release-commit> -- engine/src/flutter/shell/platform/linux_drm/
+    ninja -C engine/src/out/host_release libflutter_engine.so \
+        libflutter_linux_drm.so libflutter_linux_gtk.so
+    cp -p engine/src/out/host_release/{libflutter_engine.so,libflutter_linux_drm.so,\
+libflutter_linux_gtk.so,icudtl.dat} <private dir>      # snapshot, then restore
+    git checkout HEAD -- engine/src/flutter/shell/platform/linux_drm/ && ninja -C …
+
+and then `nm -D` on the copies **inside the finished tarball**, not on the
+shared out directory. Check `libflutter_engine.so` too, not just the DRM
+embedder: our `libflutter_engine.so` links the linux_drm sources as well
+(41 `fl_drm` symbols in it), so a drm-only diff shows up in both libraries and
+looking at one of them understates what shipped.
+
+Both unpack into a named directory (`starling-sdk-linux-x86_64/`,
+`starling-sdk-macos-arm64/`), unlike the terminal zip, which extracts flat.
 
 ## Refreshing them
 
 Rebuild as above, copy the artifact here, and regenerate the checksums —
-one file, both lines:
+one file, all three lines, because writing it with one filename is how the
+Windows zip's line got dropped once already:
 
-    shasum -a 256 starling-terminal-windows-x86_64.zip \
-                  starling-sdk-macos-arm64.tar.gz > SHA256SUMS
+    sha256sum starling-terminal-windows-x86_64.zip \
+              starling-sdk-macos-arm64.tar.gz \
+              starling-sdk-linux-x86_64.tar.gz > SHA256SUMS
+
+(`shasum -a 256` on the Mac — same format, same file.)
 
 Replace files rather than adding versions; each version committed costs its
 full size in permanent history.
