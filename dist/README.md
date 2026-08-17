@@ -19,10 +19,18 @@ flutter_assets. 23 MB, checksum in `SHA256SUMS`.
 0.3.0 release candidate and the same engine commit: framework source, both
 release engine DLLs **and both import libraries** (`flutter_engine.dll`,
 `flutter_engine.dll.lib`, `flutter_windows.dll`, `flutter_windows.dll.lib`),
-`icudtl.dat` and flutter_assets. 16.5 MB, checksum in `SHA256SUMS`. The import
+`icudtl.dat` and flutter_assets. 17.1 MB, checksum in `SHA256SUMS`. The import
 libraries are why this bundle can replace an engine checkout and the staged
 terminal zip cannot: on Windows the link needs the `.dll.lib`, and that archive
 ships only the DLLs.
+
+It also carries `Vendor/conpty/` — `conpty.dll` and `OpenConsole.exe` — which
+the macOS and Linux bundles have no equivalent of, because a pty there is
+`forkpty` from libc. Windows has no such call, and the terminal widget loads
+that DLL from beside the executable; with no copy to load it falls back to the
+inbox `conhost.exe`, correctly and silently, at roughly three times the CPU on
+the read path. An SDK that omitted them would build terminals that work and are
+slow, with nothing to point at.
 
 Every other binary is a GitHub Release asset rather than repo contents
 (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and

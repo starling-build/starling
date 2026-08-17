@@ -161,6 +161,27 @@ foreach ($item in @('Package.swift', 'Sources', 'Examples', 'Tests', 'tools', 'L
 Get-ChildItem -Path $dest -Directory -Recurse -Filter '.build' -Force -EA SilentlyContinue |
     ForEach-Object { Remove-Item -Recurse -Force $_.FullName }
 
+# --- conpty (the console host the terminal widget wants) --------------------
+# Not source, and not the engine, but the bundle is incomplete without it. The
+# terminal widget LoadLibraryW's conpty.dll from beside the executable and,
+# finding none, falls back to the inbox conhost.exe -- correct, silent, and
+# 7.27 CPU-seconds against OpenConsole's 2.23 for the same stream
+# (docs/perf/terminal-windows-readpath-2026-08-11). So a bundle without these
+# builds a terminal that works and is slow, with nothing to say why. Vendor/ is
+# gitignored, so fetch when the working tree has not already.
+$vendor = Join-Path $sdk 'Vendor\conpty'
+if (-not (Test-Path (Join-Path $vendor 'conpty.dll'))) {
+    Write-Host '==> conpty not vendored yet, fetching'
+    & (Join-Path $PSScriptRoot 'fetch-conpty.ps1') -Dest $vendor
+}
+New-Item -ItemType Directory -Force -Path "$dest\Vendor" | Out-Null
+Copy-Item -Recurse -Force $vendor -Destination "$dest\Vendor"
+foreach ($f in @('conpty.dll', 'OpenConsole.exe')) {
+    if (-not (Test-Path (Join-Path "$dest\Vendor\conpty" $f))) {
+        Write-Error "$f did not reach the bundle; the terminal would silently take the conhost path"
+    }
+}
+
 # --- engine binaries --------------------------------------------------------
 foreach ($f in $engineFiles) {
     Copy-Item (Join-Path $EngineOut $f) -Destination "$dest\engine\lib\"
@@ -271,6 +292,20 @@ $readmeLines = @(
     '                                    each with its .lib import library',
     '    engine/share/icudtl.dat         ICU data, needed to start an engine',
     '    engine/share/flutter_assets/    default asset bundle',
+    '    Vendor/conpty/                  conpty.dll + OpenConsole.exe, for the',
+    '                                    terminal widget - see below',
+    '',
+    '## If you use the terminal widget, ship Vendor/conpty beside your .exe',
+    '',
+    'Both files, together: conpty.dll finds OpenConsole.exe relative to its own',
+    'module. tools\stage-windows.ps1 does this for you.',
+    '',
+    'Nothing breaks if you skip it, which is the trap. The widget loads',
+    'conpty.dll from beside the executable and, finding none, falls back to the',
+    'inbox conhost.exe - correct output, no warning, and roughly three times the',
+    'CPU on the read path (7.27 CPU-seconds against 2.23 for the same stream).',
+    'A terminal that is merely slow is the failure mode, so there is nothing to',
+    'debug unless you know to look.',
     '',
     '## Overrides',
     '',
