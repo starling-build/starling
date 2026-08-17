@@ -55,20 +55,30 @@ archives a staged tree rather than a package.)
 
 ## Provenance
 
-Built on the win11 VM from `release-terminal-0.1.0`, release configuration,
-against `engine/src/out/host_release`:
+Built on the real Windows box (not the win11 VM this time) from
+`release-terminal-0.1.0` at `382298a`, release configuration, against a
+`host_release` engine built from `starling` at `ea78543d95e`:
 
-    sdk\tools\build-windows.ps1 -PackagePath ..\apps\TerminalApp `
+    sdk\tools\build-windows.ps1 -PackagePath apps\TerminalApp `
         -Product TerminalApp -Configuration release
-    sdk\tools\stage-windows.ps1 -PackagePath ..\apps\TerminalApp `
+    sdk\tools\stage-windows.ps1 -PackagePath apps\TerminalApp `
         -Product TerminalApp -Configuration release -Zip `
         -Out C:\dist\starling-terminal-windows-x86_64 `
-        -EngineOut C:\src\starling-engine\engine\src\out\host_release
+        -EngineOut C:\Users\starling\dev\starling-engine\engine\src\out\host_release
 
-The executable is stamped 2026-08-15 08:56:26 — the shipping configuration
-(ConPTY pipe buffer at the system default, reader/parser thread boost off),
-which is the binary every number in
-`docs/perf/terminal-windows-race-regime-2026-08-15/` was measured on.
+Toolchain: Swift 6.2.3, MSVC 14.44.35207, Windows SDK 10.0.22621 — the same
+pairing the VM used, chosen deliberately over the newer Swift and SDK on offer
+so the binary is comparable to the one it replaces. What a Windows build host
+needs from nothing is in `docs/BUILDING.md`.
+
+The executable is stamped 2026-08-16 22:21:24 and carries the tab work from
+`393d089` (several shells in one window), which the previous archive predated.
+
+**It is not the binary the Windows numbers were measured on.** Everything in
+`docs/perf/terminal-windows-race-regime-2026-08-15/` and
+`docs/perf/terminal-windows-realgpu-2026-08-16/` was measured on the
+2026-08-15 08:56:26 executable, one commit range and one engine older than
+this. Re-measure before quoting those figures against this archive.
 
 `-Zip` is the only supported way to build this archive. `Compress-Archive`
 writes entry names with backslashes, which the ZIP spec forbids; Windows'

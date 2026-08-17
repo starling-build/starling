@@ -488,6 +488,104 @@ rm -rf ~/.cache/clang
 
 ---
 
+## A Windows build host, from nothing
+
+Everything above builds the Linux desktop. The Windows terminal
+(`dist/starling-terminal-windows-x86_64.zip`) needs its own host, and a Windows
+box with nothing installed hits **five** separate walls before the engine
+compiles. Each one surfaces only when the build reaches it, so they cost five
+round trips rather than one. Budget ~45 minutes of build after the installs, and
+~10 GB for the engine checkout plus its `out/`.
+
+Toolchain versions are not a free choice: use **Swift 6.2.3, MSVC 14.44, Windows
+SDK 10.0.22621**. Newer Swift and SDKs are on offer and were deliberately not
+taken — `sdk/tools/build-windows.ps1`'s cold-cache retry is keyed to that exact
+pairing, and a shipped binary should stay comparable to the one it replaces.
+
+1. **VS Build Tools with the C++ workload.** `winget install
+   Microsoft.VisualStudio.2022.BuildTools` installs the shell, but its
+   `--override` carrying the workload is silently not honoured — you get a VS
+   with no compiler. Verify `VC\Tools\MSVC` is non-empty rather than trusting
+   the exit code, and add the workload through the installer directly:
+
+       setup.exe modify --installPath "...\2022\BuildTools" \
+           --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended \
+           --quiet --norestart
+
+   Launch that with `Start-Process -Wait -PassThru`. `setup.exe` is a
+   GUI-subsystem binary, so PowerShell does not wait on it and `$LASTEXITCODE`
+   comes back **empty** — which reads exactly like a command that ran and
+   succeeded.
+
+2. **Build Tools is invisible to Chromium's VS detection.**
+   `build/vs_toolchain.py`'s `DetectVisualStudioPath()` searches only for
+   Enterprise, Professional, Community and Preview, so `gclient`'s hooks die
+   with `Visual Studio Version 2022 (from GYP_MSVS_VERSION) not found` on a
+   perfectly good install. It checks a `vs<year>_install` variable *before* that
+   list, so set
+
+       $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"     # use local VS, not Google's package
+       $env:GYP_MSVS_VERSION = "2022"
+       $env:vs2022_install = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+       $env:GYP_MSVS_OVERRIDE_PATH = $env:vs2022_install
+
+   for both `gclient sync` and the `gn`/`ninja` run — `setup_toolchain.py`
+   shares that detection code.
+
+3. **Windows SDK 10.0.22621, specifically.** `build/toolchain/win/setup_toolchain.py`
+   hardcodes `SDK_VERSION = '10.0.22621.0'` and passes it to `vcvarsall`
+   deliberately, "to avoid accidentally building with a new and untested SDK".
+   A box carrying only the current SDK fails with `Path
+   ...\include\10.0.22621.0\um ... does not exist`. Add
+   `Microsoft.VisualStudio.Component.Windows11SDK.22621`.
+
+4. **Debugging Tools for Windows.** gn's `copy_dlls` step wants
+   `Windows Kits\10\Debuggers\x64\dbghelp.dll`, which no VS component installs —
+   it is an SDK *feature*. The SDK bootstrapper is already cached; find the one
+   matching 22621 and add just that feature:
+
+       Get-ChildItem "C:\ProgramData\Package Cache" -Recurse -Filter winsdksetup.exe
+       winsdksetup.exe /features OptionId.WindowsDesktopDebuggers /quiet /norestart
+
+5. **ATL.** `flutter/third_party/accessibility` includes `<atlbase.h>`, so
+   without it ninja builds ~1970 objects and *then* fails. Add
+   `Microsoft.VisualStudio.Component.VC.ATL`. **Re-run `gn`, not just `ninja`:**
+   the toolchain environment block is captured at gn time, so a newly installed
+   include directory never reaches an existing `environment.x64`.
+
+Then Swift itself, where two environment facts produce misleading failures:
+
+- **`swift.exe` needs both its `Toolchains\...\usr\bin` and `Runtimes\...\usr\bin`
+  on PATH.** With only the first it exits **53 and prints nothing at all**.
+- **`SDKROOT` is written to the *User* environment by the installer**, so any
+  shell that was already open never sees it — and every compile, including
+  SwiftPM's own manifest compile, fails with `unable to load standard library
+  for target 'x86_64-unknown-windows-msvc'`. Read it back explicitly:
+  `[Environment]::GetEnvironmentVariable('SDKROOT','User')`.
+
+With all of that in place, and `vcvars64.bat` sourced into the session:
+
+```powershell
+# engine (~17 min, 4710 steps)
+cd <engine>\engine\src
+vpython3 flutter\tools\gn --runtime-mode=release --no-lto --no-backtrace --no-rbe
+ninja -C out\host_release flutter_engine flutter_windows
+
+# app (~7.5 min) and the distributable tree
+$env:FLUTTER_SWIFT_ENGINE_OUT = "<engine>\engine\src\out\host_release"
+sdk\tools\build-windows.ps1 -PackagePath apps\TerminalApp -Product TerminalApp -Configuration release
+sdk\tools\stage-windows.ps1 -PackagePath apps\TerminalApp -Product TerminalApp `
+    -Configuration release -Zip -Out C:\dist\starling-terminal-windows-x86_64 `
+    -EngineOut $env:FLUTTER_SWIFT_ENGINE_OUT
+```
+
+The engine's four Windows artifacts are `flutter_engine.dll`,
+`flutter_windows.dll` and **both `.dll.lib` import libraries** — the link needs
+the import libraries, which is why a released SDK bundle can substitute for an
+engine checkout here but the staged app zip cannot: it ships only the DLLs.
+
+---
+
 ## Traps
 
 - **depot_tools must be on PATH** for `gn`/`gclient`/`ninja`, including for
