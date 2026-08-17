@@ -5,8 +5,11 @@
 // twenty-line consumer the widget plan promised (docs/plans/
 // terminal-widget.md). Everything terminal-shaped — the C emulator core,
 // the PTY, the painter, input translation, fonts — lives in the framework
-// now; this file owns only the session's lifecycle. It stays the perf and
+// now; this file owns only which terminal is on screen. It stays the perf and
 // conformance testbed: the bench harness drives this binary.
+//
+// On the desktop that is a list of them — see TerminalTabs.swift, which owns
+// the sessions and their lifecycle.
 //
 // On iOS the session cannot be local — there is no fork and no exec there —
 // so the app opens an ssh connection to another machine instead, and this
@@ -22,7 +25,9 @@ class TerminalApp: StatefulWidget {
 }
 
 class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
+    #if os(iOS)
     private let session = TerminalSession()
+    #endif
 
     override func initState() {
         super.initState()
@@ -46,16 +51,14 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
                 }
             }
         }
-        #else
-        session.startShell()
         #endif
     }
 
     override func dispose() {
         #if os(iOS)
         ssh?.disconnect()
-        #endif
         session.terminate()
+        #endif
         super.dispose()
     }
 
@@ -110,8 +113,11 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
         return terminal()
     }
     #else
+    /// The desktop terminal is tabbed — several shells in one window, the bar
+    /// hidden until there is a second one. The session lifecycle moves with
+    /// it (TerminalTabs.swift): there is no one session here to own.
     override func build(_ context: any BuildContext) -> Widget {
-        return TerminalView(session: session)
+        return TerminalTabsView()
     }
     #endif
 }
