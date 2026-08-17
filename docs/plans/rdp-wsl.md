@@ -285,6 +285,28 @@ welded to `fl_drm_view_recording_*`; a present-callback tee is future work),
 no Display Control resize, single client, TLS-no-NLA posture unchanged.
 Estimate: **~2 weeks**.
 
+**W1 progress, verified in WSL 2026-08-16.** Keyboard and client compositing
+are done; the rest of the list stands.
+
+- **Keyboard** — RDP set-1 scancode → evdev → HID → xkb → engine. Typing
+  "term" into the launcher filters the grid to Terminal. The HID↔evdev
+  switch pair became one `HidEvdev` table with both directions derived from
+  it, so the exact-inverse property the docs warn about is now structural
+  rather than maintained by hand.
+- **Client windows composite** — `weston-simple-shm` opens a real window,
+  title bar and traffic lights included, with `/dev/dri` absent. This is
+  where building on GL paid: external textures resolve through the existing
+  registry, and the engine-side software resolver was never needed.
+- Two invariants display mode must arrange for itself, both now in place:
+  clients are paced off the RDP push (`handlePresent`) or they stall after
+  one buffer; and every compositor call funnels through the main queue,
+  because the C side records its event-loop thread on first dispatch and DRM
+  only gets that for free through the engine's GCD integration.
+
+Still open in W1: first-party child apps (they allocate a `gbm_bo` and have
+no fallback), RDP pointer PDUs for real cursor shapes, the NSC/raw codec
+ladder for mstsc, and the portal/notification services.
+
 ### W2 — GPU — **folded into W0; the probe came back green**
 
 Kept for the record: this was scoped as a separate milestone gated on a probe.
