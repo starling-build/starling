@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Starling Terminal — a cross-platform terminal, built for speed</title>
-<meta name="description" content="A terminal workspace: tiling or floating, on Linux, Windows and macOS. Faster than the ghostty nightly on Linux and macOS at a fraction of the CPU, and a widget you can build your own terminal app from in twenty lines of Swift.">
-<meta property="og:title" content="Starling Terminal — a cross-platform terminal, built for speed">
-<meta property="og:description" content="Tiling or floating, on Linux, Windows and macOS. Faster than the ghostty nightly on Linux and macOS, zero conformance errors, and twenty lines of Swift to build your own.">
+<title>Starling Terminal — a cross-platform terminal, built for speed and efficiency</title>
+<meta name="description" content="A cross-platform terminal for Linux, Windows and macOS. Measured faster than ghostty on Linux and macOS and Windows Terminal on Windows, at about half the CPU, and a widget you can build your own terminal app from in twenty lines of Swift.">
+<meta property="og:title" content="Starling Terminal — a cross-platform terminal, built for speed and efficiency">
+<meta property="og:description" content="A cross-platform terminal for Linux, Windows and macOS. Measured faster than ghostty and Windows Terminal, zero conformance errors, and twenty lines of Swift to build your own.">
 <meta property="og:type" content="article">
 <meta property="og:image" content="https://starling.build/img/terminal-tiling.jpg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
@@ -155,7 +155,8 @@
   .point p { font-size: 15.5px; color: var(--ink-dim); }
   .os { display: flex; gap: 8px; margin-bottom: 2px; }
   .os span { font-size: 13px; color: var(--ink-dim); border: 1px solid var(--line);
-             border-radius: 7px; padding: 4px 10px; background: var(--bg-sunk); }
+             border-radius: 7px; padding: 4px 10px; background: var(--bg-sunk);
+             white-space: nowrap; }
   .os span.soon { color: var(--ink-faint); border-style: dashed; }
 
   /* ---------- install ---------- */
@@ -378,12 +379,12 @@
   <div class="wrap hero-inner">
     <div class="eyebrow"><span class="badge">New</span></div>
     <h1>Starling <span class="accent">Terminal</span></h1>
-    <p class="tagline">A cross-platform terminal, built for speed.</p>
+    <p class="tagline">A cross-platform terminal, built for speed and efficiency.</p>
     <p class="lede">
-      Linux, Windows and macOS. Tiling or floating, from one toggle — and faster
-      than the ghostty nightly on both Linux and macOS, at about half the CPU.
-      Below: both terminals on one machine, matched font and grid, three tests,
-      one take.
+      Linux, Windows and macOS — iOS coming soon. Measured faster than
+      ghostty on Linux and macOS, and Windows Terminal on Windows, at about
+      half the CPU. Below: each pair on one machine, matched
+      grids, three tests, one take.
     </p>
     <div class="btn-row">
       <a class="btn primary" href="#install">Install the terminal</a>
@@ -393,22 +394,28 @@
 
   <div class="wrap race">
     <div class="plat">
-      <span class="active" data-src="video/terminal-race-linux.mp4"
+      <span class="active" data-src="video/terminal-race-windows.mp4"
+            data-poster="img/terminal-race-windows-poster.jpg"
+            data-title="Starling vs Windows Terminal, head to head"
+            data-cap="a 2 GB ascii cat, a 1 GB unicode cat, DOOM-Fire for 6,000 frames, both at a verified 50×100 on real hardware — Starling finishes all three in 39.4 s, Windows Terminal in 52.4 s">Windows</span>
+      <span data-src="video/terminal-race-linux.mp4"
             data-poster="img/terminal-race-linux-poster.jpg"
+            data-title="Starling vs ghostty, head to head"
             data-cap="a 1.26 GB ascii cat, a 1.29 GB unicode cat, DOOM-Fire for 10,200 frames — Starling finishes all three in 39.6 s, ghostty in 57.0 s">Linux</span>
       <span data-src="video/terminal-race-macos.mp4"
             data-poster="img/terminal-race-macos-poster.jpg"
+            data-title="Starling vs ghostty, head to head"
             data-cap="500 MB ascii and unicode cats, then DOOM-Fire for 15,000 frames, on macOS 26.6.1 — contending for the same cores the two finish in a photo-finish; the measured solo rounds below are the record">macOS</span>
-      <span class="soon">Windows — soon</span>
     </div>
     <div class="frame">
-      <video id="race-video" src="video/terminal-race-linux.mp4"
-             poster="img/terminal-race-linux-poster.jpg"
+      <video id="race-video" src="video/terminal-race-windows.mp4"
+             poster="img/terminal-race-windows-poster.jpg"
              autoplay loop muted playsinline controls></video>
     </div>
-    <div class="shot-label"><b>Starling vs ghostty, head to head</b>
-      <span id="race-cap">a 1.26 GB ascii cat, a 1.29 GB unicode cat, DOOM-Fire for
-      10,200 frames — Starling finishes all three in 39.6 s, ghostty in 57.0 s</span></div>
+    <div class="shot-label"><b id="race-title">Starling vs Windows Terminal, head to head</b>
+      <span id="race-cap">a 2 GB ascii cat, a 1 GB unicode cat, DOOM-Fire for
+      6,000 frames, both at a verified 50×100 on real hardware — Starling finishes
+      all three in 39.4 s, Windows Terminal in 52.4 s</span></div>
   </div>
 </div>
 
@@ -416,6 +423,7 @@
 (function () {
   var v = document.getElementById('race-video');
   var cap = document.getElementById('race-cap');
+  var title = document.getElementById('race-title');
   var tabs = document.querySelectorAll('.plat [data-src]');
   tabs.forEach(function (t) {
     t.addEventListener('click', function () {
@@ -425,6 +433,7 @@
       v.pause();
       v.poster = t.dataset.poster;
       v.src = t.dataset.src;
+      title.textContent = t.dataset.title;
       cap.textContent = t.dataset.cap;
       v.load();
       v.play();
@@ -437,17 +446,18 @@
 <section>
   <div class="wrap points">
     <div class="point">
-      <div class="os"><span>Linux</span><span>Windows</span><span>macOS</span></div>
+      <div class="os"><span>Linux</span><span>Windows</span><span>macOS</span><span class="soon">iOS — soon</span></div>
       <h3>Runs where you work</h3>
-      <p>Wayland or X11 on Linux; a native window on Windows, where it runs on par
-         with Windows Terminal; and now a Cocoa window on macOS.</p>
+      <p>Wayland or X11 on Linux, a native Win32 window on Windows, a Cocoa
+         window on macOS — the same terminal, and the same speed, on each.
+         iOS is next.</p>
     </div>
     <div class="point">
-      <div class="big">1.38&times;</div>
-      <h3>Faster than ghostty</h3>
-      <p>Across ten workloads at steady state against the ghostty nightly on
-         Linux, and 1.28&times; on macOS — matched grid and font, while ghostty
-         burns about twice the CPU.</p>
+      <div class="big">1.28&ndash;1.41&times;</div>
+      <h3>Faster on all three</h3>
+      <p>Ten workloads at steady state: 1.41&times; Windows Terminal on Windows,
+         1.38&times; ghostty on Linux, 1.28&times; ghostty on macOS — matched
+         grid and font, at about half the CPU each time.</p>
     </div>
     <div class="point">
       <div class="big">0 <small>vs 40</small></div>
@@ -503,8 +513,8 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
       <div class="inst-head"><h3>Windows</h3>
         <span>x86_64 &middot; from source, for now</span></div>
       <p class="body">The Windows build is real — a native Win32 window that
-        runs on par with Windows Terminal — but 0.1.0 does not package it. It
-        builds from a
+        outruns Windows Terminal on every test above — but 0.1.0 does not
+        package it. It builds from a
         <a href="https://github.com/starling-build/starling">repo checkout</a>
         with the SDK's Windows tooling: <code>build-windows.ps1</code> to build,
         then <code>stage-windows.ps1</code> for a folder you can carry to
@@ -518,31 +528,15 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
   <div class="wrap narrow prose">
     <div class="kicker">Performance</div>
     <h2>Measured against ghostty on Linux and macOS, Windows Terminal on Windows.</h2>
-    <p>Both platforms run ghostty's current nightly, configured onto our Roboto Mono
-       at our cell metrics, at the same verified 47&times;201 grid — so cell for cell,
-       both terminals raster the same pixels. (The one wrinkle: ghostty's Linux legs
-       came up 47&times;202 every time — an extra blank column that only DOOM-Fire
-       fills, so its Linux fire fps reads up to 0.5% low.) And every test runs at
-       <strong>steady state</strong>: each workload repeated until the slower side
-       sustains one to two minutes, the cats 500 MB, DOOM-Fire run to 150,000
-       frames — no cold starts, no ten-second sprints. Linux is a Ryzen 7 8845HS on GNOME/Wayland; macOS is a
-       MacBook Pro (M1 Pro), our build on a full release engine. Every bar below is
-       a multiple of ghostty's pace, on a log scale so a 2&times; win and a 2&times;
-       loss have equal length: <strong>amber, rightward — Starling is ahead</strong>;
-       grey, leftward — ghostty is. Every raw second sits in the tables at the end
-       of the section.</p>
-    <p>Windows races a different terminal — <strong>Windows Terminal
-       1.24.11911.0</strong>, the one that ships — so read that column against
-       it rather than against ghostty. Same protocol: ten workloads at steady
-       state, both sides at a verified 39&times;120, ours and Windows Terminal
-       run back to back on an idle 8-core Windows 11 box with power throttling
-       disabled on both. It is the newest of the three and the least settled:
-       the same machine moved Windows Terminal's own legs up to 12% between two
-       sittings, so only the within-session ratios below are load-bearing.</p>
+    <p>Thirteen tests — ten workloads, two 500 MB cats, DOOM-Fire — against
+       the fastest terminal on each platform. Matched fonts, grids verified on
+       both sides, every test at steady state. <strong>Amber, rightward —
+       Starling is ahead</strong>; grey, leftward — the other terminal is.
+       The setup and every raw number are below the charts.</p>
   </div>
 
   <div class="wrap narrow">
-    <p class="dim-head">Speed — thirteen tests at steady state, both platforms</p>
+    <p class="dim-head">Speed — thirteen tests at steady state, three platforms</p>
     <div class="chart-card">
       <div class="chart-key">
         <span class="k"><i class="sw s"></i>Starling ahead</span>
@@ -556,76 +550,76 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
         <div class="rlabel">Light cells</div>
         <div class="rtrack" title="Linux — 101.2 s vs ghostty 102.0 s"><i class="bar w" style="left:25.64%;width:0.39%"></i><em class="v" style="left:calc(26.03% + 7px)">1.01&times;</em></div>
         <div class="rtrack" title="macOS — 53.9 s vs ghostty 96.9 s"><i class="bar w" style="left:25.64%;width:29.44%"></i><em class="v" style="left:calc(55.08% + 7px)">1.80&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 98.3 s vs Windows Terminal 120.7 s"><i class="bar w" style="left:25.64%;width:10.29%"></i><em class="v" style="left:calc(35.93% + 7px)">1.23&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 142.7 s vs Windows Terminal 170.1 s"><i class="bar w" style="left:25.64%;width:8.82%"></i><em class="v" style="left:calc(34.46% + 7px)">1.19&times;</em></div>
 
         <div class="rlabel">Dense cells</div>
         <div class="rtrack" title="Linux — 86.8 s vs ghostty 86.2 s"><i class="bar l" style="left:25.29%;width:0.35%"></i><em class="v" style="left:calc(25.64% + 7px)">0.99&times;</em></div>
         <div class="rtrack" title="macOS — 92.0 s vs ghostty 96.7 s"><i class="bar w" style="left:25.64%;width:2.50%"></i><em class="v" style="left:calc(28.14% + 7px)">1.05&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 110.0 s vs Windows Terminal 110.5 s"><i class="bar w" style="left:25.64%;width:0.24%"></i><em class="v" style="left:calc(25.88% + 7px)">1.00&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 97.3 s vs Windows Terminal 129.6 s"><i class="bar w" style="left:25.64%;width:14.39%"></i><em class="v" style="left:calc(40.03% + 7px)">1.33&times;</em></div>
 
         <div class="rlabel">Coloured text</div>
         <div class="rtrack" title="Linux — 34.0 s vs ghostty 108.3 s"><i class="bar w" style="left:25.64%;width:58.15%"></i><em class="v" style="left:calc(83.79% + 7px)">3.19&times;</em></div>
         <div class="rtrack" title="macOS — 76.9 s vs ghostty 112.4 s"><i class="bar w" style="left:25.64%;width:19.05%"></i><em class="v" style="left:calc(44.69% + 7px)">1.46&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 120.8 s vs Windows Terminal 123.0 s"><i class="bar w" style="left:25.64%;width:0.91%"></i><em class="v" style="left:calc(26.55% + 7px)">1.02&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 179.7 s vs Windows Terminal 188.8 s"><i class="bar w" style="left:25.64%;width:2.48%"></i><em class="v" style="left:calc(28.12% + 7px)">1.05&times;</em></div>
 
         <div class="rlabel">Truecolour</div>
         <div class="rtrack" title="Linux — 54.2 s vs ghostty 122.8 s"><i class="bar w" style="left:25.64%;width:41.05%"></i><em class="v" style="left:calc(66.69% + 7px)">2.27&times;</em></div>
         <div class="rtrack" title="macOS — 81.1 s vs ghostty 106.5 s"><i class="bar w" style="left:25.64%;width:13.67%"></i><em class="v" style="left:calc(39.31% + 7px)">1.31&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 121.8 s vs Windows Terminal 123.2 s"><i class="bar w" style="left:25.64%;width:0.57%"></i><em class="v" style="left:calc(26.21% + 7px)">1.01&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 163.5 s vs Windows Terminal 215.4 s"><i class="bar w" style="left:25.64%;width:13.84%"></i><em class="v" style="left:calc(39.48% + 7px)">1.32&times;</em></div>
 
         <div class="rlabel">Unicode</div>
         <div class="rtrack" title="Linux — 97.1 s vs ghostty 107.3 s"><i class="bar w" style="left:25.64%;width:5.01%"></i><em class="v" style="left:calc(30.65% + 7px)">1.10&times;</em></div>
         <div class="rtrack" title="macOS — 81.9 s vs ghostty 98.3 s"><i class="bar w" style="left:25.64%;width:9.16%"></i><em class="v" style="left:calc(34.80% + 7px)">1.20&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 113.7 s vs Windows Terminal 114.9 s"><i class="bar w" style="left:25.64%;width:0.55%"></i><em class="v" style="left:calc(26.19% + 7px)">1.01&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 96.6 s vs Windows Terminal 146.0 s"><i class="bar w" style="left:25.64%;width:20.73%"></i><em class="v" style="left:calc(46.37% + 7px)">1.51&times;</em></div>
 
         <div class="rlabel">Cursor motion</div>
         <div class="rtrack" title="Linux — 49.9 s vs ghostty 74.3 s"><i class="bar w" style="left:25.64%;width:19.98%"></i><em class="v" style="left:calc(45.62% + 7px)">1.49&times;</em></div>
         <div class="rtrack" title="macOS — 70.4 s vs ghostty 71.2 s"><i class="bar w" style="left:25.64%;width:0.57%"></i><em class="v" style="left:calc(26.21% + 7px)">1.01&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 127.5 s vs Windows Terminal 131.0 s"><i class="bar w" style="left:25.64%;width:1.35%"></i><em class="v" style="left:calc(26.99% + 7px)">1.03&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 177.4 s vs Windows Terminal 203.0 s"><i class="bar w" style="left:25.64%;width:6.77%"></i><em class="v" style="left:calc(32.41% + 7px)">1.14&times;</em></div>
 
         <div class="rlabel">Alt screen</div>
         <div class="rtrack" title="Linux — 80.8 s vs ghostty 85.9 s"><i class="bar w" style="left:25.64%;width:3.07%"></i><em class="v" style="left:calc(28.71% + 7px)">1.06&times;</em></div>
         <div class="rtrack" title="macOS — 88.8 s vs ghostty 88.4 s"><i class="bar l" style="left:25.41%;width:0.23%"></i><em class="v" style="left:calc(25.64% + 7px)">1.00&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 102.7 s vs Windows Terminal 128.5 s"><i class="bar w" style="left:25.64%;width:11.24%"></i><em class="v" style="left:calc(36.88% + 7px)">1.25&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 118.6 s vs Windows Terminal 222.3 s"><i class="bar w" style="left:25.64%;width:31.53%"></i><em class="v" style="left:calc(57.17% + 7px)">1.87&times;</em></div>
 
         <div class="rlabel">Scroll region</div>
         <div class="rtrack" title="Linux — 80.4 s vs ghostty 78.5 s"><i class="bar l" style="left:24.44%;width:1.20%"></i><em class="v" style="left:calc(25.64% + 7px)">0.98&times;</em></div>
         <div class="rtrack" title="macOS — 90.3 s vs ghostty 96.6 s"><i class="bar w" style="left:25.64%;width:3.38%"></i><em class="v" style="left:calc(29.02% + 7px)">1.07&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 116.9 s vs Windows Terminal 132.9 s"><i class="bar w" style="left:25.64%;width:6.43%"></i><em class="v" style="left:calc(32.07% + 7px)">1.14&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 167.0 s vs Windows Terminal 222.7 s"><i class="bar w" style="left:25.64%;width:14.45%"></i><em class="v" style="left:calc(40.09% + 7px)">1.33&times;</em></div>
 
         <div class="rlabel">Long lines</div>
         <div class="rtrack" title="Linux — 85.0 s vs ghostty 84.3 s"><i class="bar l" style="left:25.22%;width:0.42%"></i><em class="v" style="left:calc(25.64% + 7px)">0.99&times;</em></div>
         <div class="rtrack" title="macOS — 93.7 s vs ghostty 97.3 s"><i class="bar w" style="left:25.64%;width:1.89%"></i><em class="v" style="left:calc(27.53% + 7px)">1.04&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 125.8 s vs Windows Terminal 128.0 s"><i class="bar w" style="left:25.64%;width:0.89%"></i><em class="v" style="left:calc(26.53% + 7px)">1.02&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 102.7 s vs Windows Terminal 136.0 s"><i class="bar w" style="left:25.64%;width:14.10%"></i><em class="v" style="left:calc(39.74% + 7px)">1.32&times;</em></div>
 
         <div class="rlabel">Binary dump</div>
         <div class="rtrack" title="Linux — 26.7 s vs ghostty 109.9 s"><i class="bar w" style="left:25.64%;width:71.01%"></i><em class="v in" style="left:96.65%">4.12&times;</em></div>
         <div class="rtrack" title="macOS — 31.8 s vs ghostty 110.1 s"><i class="bar w" style="left:25.64%;width:62.33%"></i><em class="v in" style="left:87.97%">3.46&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 26.7 s vs Windows Terminal 127.9 s"><i class="bar w" style="left:25.64%;width:74.36%"></i><em class="v in" style="left:100.00%">4.78&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 40.9 s vs Windows Terminal 177.6 s"><i class="bar w" style="left:25.64%;width:73.70%"></i><em class="v in" style="left:99.34%">4.34&times;</em></div>
 
         <div class="rgroup">Cats and DOOM-Fire — 500 MB, 150,000 frames</div>
 
         <div class="rlabel">ascii cat</div>
         <div class="rtrack" title="Linux — 2.97 s vs ghostty 2.79 s"><i class="bar l" style="left:22.50%;width:3.14%"></i><em class="v" style="left:calc(25.64% + 7px)">0.94&times;</em></div>
         <div class="rtrack" title="macOS — 1.82 s vs ghostty 2.01 s"><i class="bar w" style="left:25.64%;width:4.98%"></i><em class="v" style="left:calc(30.62% + 7px)">1.11&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 2.31 s vs Windows Terminal 2.25 s"><i class="bar l" style="left:24.32%;width:1.32%"></i><em class="v" style="left:calc(25.64% + 7px)">0.97&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 1.98 s vs Windows Terminal 2.71 s"><i class="bar w" style="left:25.64%;width:15.75%"></i><em class="v" style="left:calc(41.39% + 7px)">1.37&times;</em></div>
 
         <div class="rlabel">unicode cat</div>
         <div class="rtrack" title="Linux — 2.88 s vs ghostty 5.15 s"><i class="bar w" style="left:25.64%;width:29.17%"></i><em class="v" style="left:calc(54.81% + 7px)">1.79&times;</em></div>
         <div class="rtrack" title="macOS — 1.76 s vs ghostty 2.45 s"><i class="bar w" style="left:25.64%;width:16.60%"></i><em class="v" style="left:calc(42.24% + 7px)">1.39&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 5.3 s vs Windows Terminal 5.06 s"><i class="bar l" style="left:23.31%;width:2.33%"></i><em class="v" style="left:calc(25.64% + 7px)">0.95&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 4.40 s vs Windows Terminal 6.46 s"><i class="bar w" style="left:25.64%;width:19.27%"></i><em class="v" style="left:calc(44.91% + 7px)">1.47&times;</em></div>
 
         <div class="rlabel">DOOM-Fire</div>
         <div class="rtrack" title="Linux — 1610 fps vs ghostty 830 fps"><i class="bar w" style="left:25.64%;width:33.25%"></i><em class="v" style="left:calc(58.89% + 7px)">1.94&times;</em></div>
         <div class="rtrack" title="macOS — 1119 fps vs ghostty 1071 fps"><i class="bar w" style="left:25.64%;width:2.20%"></i><em class="v" style="left:calc(27.84% + 7px)">1.05&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 732 fps vs Windows Terminal 738 fps"><i class="bar l" style="left:25.28%;width:0.36%"></i><em class="v" style="left:calc(25.64% + 7px)">0.99&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 482 fps vs Windows Terminal 390 fps"><i class="bar w" style="left:25.64%;width:10.63%"></i><em class="v" style="left:calc(36.27% + 7px)">1.24&times;</em></div>
 
         <div class="rgroup"></div>
 
         <div class="rlabel tot">All ten workloads</div>
         <div class="rtrack" title="Linux — 696 s vs ghostty 960 s"><i class="bar w" style="left:25.64%;width:16.12%"></i><em class="v tot" style="left:calc(41.76% + 7px)">1.38&times;</em></div>
         <div class="rtrack" title="macOS — 761 s vs ghostty 974 s"><i class="bar w" style="left:25.64%;width:12.41%"></i><em class="v tot" style="left:calc(38.05% + 7px)">1.28&times;</em></div>
-        <div class="rtrack" title="Windows &mdash; 1064.2 s vs Windows Terminal 1240.6 s"><i class="bar w" style="left:25.64%;width:7.70%"></i><em class="v tot" style="left:calc(33.34% + 7px)">1.17&times;</em></div>
+        <div class="rtrack" title="Windows &mdash; 1286.3 s vs Windows Terminal 1811.6 s"><i class="bar w" style="left:25.64%;width:17.19%"></i><em class="v tot" style="left:calc(42.83% + 7px)">1.41&times;</em></div>
 
         <div></div>
         <div class="raxis"><span class="mn" style="left:11.2%">0.75&times;</span><span style="left:25.64%">1&times;</span><span class="mn" style="left:45.99%">1.5&times;</span><span style="left:60.43%">2&times;</span><span class="mn" style="left:80.78%">3&times;</span><span class="mn" style="left:95.22%">4&times;</span></div>
@@ -638,10 +632,12 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
       wins in ten-second bursts (light and dense cells, 0.85&times; and 0.69&times;
       short-range) converge to parity here, but ghostty also gains nothing back:
       its Linux unicode throughput halves at scale (184 to 97 MB/s) while ours
-      sheds only a quarter (228 to 173 MB/s). The one test it keeps by more than
-      noise is the Linux ascii cat, by ~6% — its
+      sheds only a quarter (228 to 173 MB/s). Across all three platforms and all
+      thirty-nine cells above, the one test the other side keeps by more than
+      noise is the Linux ascii cat, by ~6% — ghostty's
       <code>io_uring</code> read path gets under the <code>read(2)</code> floor
-      ours sits on. macOS has no io_uring, and the cat flips to us.</p>
+      ours sits on. macOS has no io_uring, and the cat flips to us; on Windows
+      every test is a win.</p>
 
     <p class="dim-head">The cost — CPU and memory for the same work</p>
     <div class="cost-grid">
@@ -649,14 +645,14 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
         <div class="card-title">CPU to run the suite</div>
         <div class="card-sub">process CPU-seconds, ten workloads at steady state</div>
         <div class="cpu-plat"><b>Linux</b><span>ghostty burns 1.87&times;</span></div>
-        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:34.3%"></i><em class="v" style="left:calc(34.3% + 7px)">1030 s</em></div></div>
-        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:64.3%"></i><em class="v" style="left:calc(64.3% + 7px)">1930 s</em></div></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:29.4%"></i><em class="v" style="left:calc(29.4% + 7px)">1030 s</em></div></div>
+        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:55.1%"></i><em class="v" style="left:calc(55.1% + 7px)">1930 s</em></div></div>
         <div class="cpu-plat"><b>macOS</b><span>ghostty burns 2.25&times;</span></div>
-        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:36.0%"></i><em class="v" style="left:calc(36.0% + 7px)">1081 s</em></div></div>
-        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:81.2%"></i><em class="v" style="left:calc(81.2% + 7px)">2436 s</em></div></div>
-        <div class="cpu-plat"><b>Windows</b><span>Windows Terminal burns 1.74&times;</span></div>
-        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:52.2%"></i><em class="v" style="left:calc(52.2% + 7px)">1566 s</em></div></div>
-        <div class="cpu-row"><span class="who">Windows Terminal</span><div class="track"><i class="bar g" style="left:0;width:91.0%"></i><em class="v" style="left:calc(91.0% + 7px)">2729 s</em></div></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:30.9%"></i><em class="v" style="left:calc(30.9% + 7px)">1081 s</em></div></div>
+        <div class="cpu-row"><span class="who">ghostty</span><div class="track"><i class="bar g" style="left:0;width:69.6%"></i><em class="v" style="left:calc(69.6% + 7px)">2436 s</em></div></div>
+        <div class="cpu-plat"><b>Windows</b><span>Windows Terminal burns 2.01&times;</span></div>
+        <div class="cpu-row"><span class="who">Starling</span><div class="track"><i class="bar s" style="left:0;width:45.2%"></i><em class="v" style="left:calc(45.2% + 7px)">1581 s</em></div></div>
+        <div class="cpu-row"><span class="who">Windows Terminal</span><div class="track"><i class="bar g" style="left:0;width:90.9%"></i><em class="v" style="left:calc(90.9% + 7px)">3182 s</em></div></div>
         <p class="card-foot">The wall wins are not bought with cores. In ten-second
           bursts the gap is wider still: 2.17&times; and 3.37&times;.</p>
       </div>
@@ -689,19 +685,19 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
         <div class="card-title">Memory — macOS</div>
         <div class="card-sub">resident set, MB, as load accumulates</div>
         <svg class="mem-svg" viewBox="0 0 300 146" role="img"
-             aria-label="macOS resident set: Starling flat at 127 MB from 30 GB of suite through the 500 MB cats; ghostty grows from 151 to 172 MB">
+             aria-label="macOS resident set: Starling flat at 121 MB from 30 GB of suite through the 500 MB cats; ghostty grows from 155 to 177 MB">
           <line x1="24" y1="10" x2="24" y2="114" stroke="#182135"/>
           <line x1="276" y1="10" x2="276" y2="114" stroke="#182135"/>
-          <polyline points="24,48.9 276,19.5" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <polyline points="24,82.6 276,82.6" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <circle cx="24" cy="48.9" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
-          <circle cx="276" cy="19.5" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
-          <circle cx="24" cy="82.6" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <circle cx="276" cy="82.6" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
-          <text x="24" y="40" font-size="11" fill="#97a3b8">ghostty &middot; 151</text>
-          <text x="24" y="99" font-size="11" fill="#97a3b8">Starling &middot; 127</text>
-          <text x="276" y="99" font-size="11" fill="#97a3b8" text-anchor="end">127 MB</text>
-          <text x="276" y="12" font-size="11" fill="#97a3b8" text-anchor="end">172 MB</text>
+          <polyline points="24,43.3 276,12.5" fill="none" stroke="#6b7690" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="24,90.9 276,90.9" fill="none" stroke="#f0a02a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="24" cy="43.3" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="12.5" r="4.5" fill="#6b7690" stroke="#070a11" stroke-width="2"/>
+          <circle cx="24" cy="90.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <circle cx="276" cy="90.9" r="4.5" fill="#f0a02a" stroke="#070a11" stroke-width="2"/>
+          <text x="24" y="34" font-size="11" fill="#97a3b8">ghostty &middot; 155</text>
+          <text x="24" y="107" font-size="11" fill="#97a3b8">Starling &middot; 121</text>
+          <text x="276" y="107" font-size="11" fill="#97a3b8" text-anchor="end">121 MB</text>
+          <text x="276" y="31" font-size="11" fill="#97a3b8" text-anchor="end">177 MB</text>
           <text x="24" y="136" font-size="10.5" fill="#64708a">after 30 GB of suite</text>
           <text x="276" y="136" font-size="10.5" fill="#64708a" text-anchor="end">after the cats</text>
         </svg>
@@ -709,26 +705,46 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
     </div>
     <p class="note">On Windows the CPU figures include the console host, which does a
       large share of the work there and would flatter us if left out; the memory gap is
-      the widest of the three platforms &mdash; <strong>32 MB against 1,035 MB</strong>
-      after the same ten workloads. CPU-seconds are otherwise charged to the terminal's
-      own process, read around
-      each workload. Memory is flat on our side of both platforms — the same resident
-      set no matter how much has been drawn — while ghostty's grows with load; only
-      the light Linux legs leave it below us.</p>
+      the widest of the three platforms &mdash; <strong>73 MB against 1,026 MB</strong>
+      after the same ten workloads, a figure Windows Terminal reproduces across
+      machines. CPU-seconds are otherwise charged to the terminal's own process, read
+      around each workload. Memory is flat on our side of all three platforms — the
+      same resident set no matter how much has been drawn — while the other side's
+      grows with load; only the light Linux legs leave ghostty below us.</p>
 
+    <p class="dim-head">The setup</p>
+    <p class="note">
+      <strong>Who:</strong> the ghostty nightly on Linux and macOS, configured
+      onto our Roboto Mono at our cell metrics so both terminals raster the
+      same pixels; Windows Terminal Preview 1.25 on Windows, in its own process
+      (the stable build hands new windows to whatever Windows Terminal is
+      already running).
+      <strong>Where:</strong> Linux — Ryzen 7 8845HS, GNOME/Wayland; macOS —
+      MacBook Pro on macOS 26.6.1; Windows — a Ryzen 7 8845HS laptop with a
+      Radeon 780M, the first Windows round on real hardware rather than a VM.
+      Grids verified on both sides before every leg: 47&times;201 on Linux and
+      macOS, 40&times;120 on Windows.
+      <strong>How:</strong> every test at steady state — each workload repeated
+      until the slower side sustains one to two minutes (~159 GB of
+      escape-sequence traffic per terminal on Linux, ~30 GB on macOS), the cats
+      exact 500,000,000-byte corpora, DOOM-Fire run to 150,000 frames three
+      times over. Both sides measured back to back on one machine; bars are
+      multiples of the other terminal's pace on a log scale, so a 2&times; win
+      and a 2&times; loss have equal length.
+    </p>
     <p class="dim-head">The rounds behind the numbers</p>
     <p class="note">
-      Each workload is repeated until the slower side runs one to two minutes —
-      ~159 GB of escape-sequence traffic per terminal on Linux, ~30 GB on macOS —
-      the cats are exact 500,000,000-byte corpora, and DOOM-Fire runs its 150,000
-      frames three times over, every leg grid-verified. The Linux legs ran on a
-      30 Hz display, so raw walls compare within a platform; the ratios carry. The
-      macOS legs run this week's paced pty reader, and the macOS numbers are the
-      rerun taken after the macOS 26.6.1 upgrade — which moved nothing beyond run
-      noise against the same-day pre-upgrade round. Every number is a pair measured
-      back to back on one machine, and the raw runs are checked in at
+      The Linux and Windows legs ran on 30 Hz displays, so raw walls compare
+      within a platform; the ratios carry. The macOS numbers are the rerun taken
+      after the macOS 26.6.1 upgrade — which moved nothing beyond run noise
+      against the same-day pre-upgrade round. The Windows round runs the console
+      on the UTF-8 code page, so the unicode workloads draw real CJK text rather
+      than the mojibake every earlier VM round was unknowingly measuring, and a
+      fixed compute loop timed inside every leg proves both sides saw the
+      machine in the same state; the archived VM rounds remain, but they measure
+      the legacy code page. The raw runs are checked in at
       <a href="https://github.com/starling-build/starling/tree/main/docs/perf">docs/perf</a>
-      (Windows: <code>-windows-fresh-2026-08-15</code>; Linux:
+      (Windows: <code>-windows-realgpu-2026-08-16</code>; Linux:
       <code>-2026-08-14-long</code>; macOS:
       <code>-macos-2026-08-14-postupgrade</code>, confirmed against
       <code>-macos-2026-08-14-long</code>; short range:
@@ -790,11 +806,15 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
               <tr><td>Linux, after the suite</td><td>225 MB</td><td>209 MB</td><td class="loss">+16 MB</td></tr>
               <tr><td>Linux, after 159 GB of suite</td><td>225 MB</td><td>212 MB</td><td class="loss">+13 MB</td></tr>
               <tr><td>Linux, after two 500 MB cats</td><td>225 MB</td><td>256 MB</td><td class="win">&minus;31 MB</td></tr>
-              <tr><td>macOS, after 30 GB of suite</td><td>127 MB</td><td>151 MB</td><td class="win">&minus;24 MB</td></tr>
-              <tr><td>macOS, after two 500 MB cats</td><td>127 MB</td><td>172 MB</td><td class="win">&minus;45 MB</td></tr>
+              <tr><td>macOS, after 30 GB of suite</td><td>121 MB</td><td>155 MB</td><td class="win">&minus;34 MB</td></tr>
+              <tr><td>macOS, after two 500 MB cats</td><td>121 MB</td><td>177 MB</td><td class="win">&minus;56 MB</td></tr>
             </tbody>
           </table>
         </div>
+        <p class="note">The macOS rows are the 08-13 long round, the one macOS
+          round that sampled RSS at both points. The current build measures
+          130 MB against ghostty's 155 after the suite — the paced reader's
+          8 MB ring and thread stacks — and stays flat the same way.</p>
 
         <p class="dim-head">Steady state — every test run for minutes, not seconds</p>
         <div class="tablewrap">
@@ -807,21 +827,21 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
                   <th class="sep">Starling</th><th>Win Terminal</th><th>Speedup</th></tr>
             </thead>
             <tbody>
-              <tr><td>Light cells</td><td class="sep">101.2 s</td><td>102.0 s</td><td>1.01&times;</td><td class="sep">53.9 s</td><td>96.9 s</td><td class="win">1.80&times;</td><td class="sep">98.3 s</td><td>120.7 s</td><td class="win">1.23&times;</td></tr>
-              <tr><td>Dense cells</td><td class="sep">86.8 s</td><td>86.2 s</td><td>0.99&times;</td><td class="sep">92.0 s</td><td>96.7 s</td><td class="win">1.05&times;</td><td class="sep">110.0 s</td><td>110.5 s</td><td>1.00&times;</td></tr>
-              <tr><td>Coloured text</td><td class="sep">34.0 s</td><td>108.3 s</td><td class="win">3.19&times;</td><td class="sep">76.9 s</td><td>112.4 s</td><td class="win">1.46&times;</td><td class="sep">120.8 s</td><td>123.0 s</td><td class="win">1.02&times;</td></tr>
-              <tr><td>Truecolour</td><td class="sep">54.2 s</td><td>122.8 s</td><td class="win">2.27&times;</td><td class="sep">81.1 s</td><td>106.5 s</td><td class="win">1.31&times;</td><td class="sep">121.8 s</td><td>123.2 s</td><td>1.01&times;</td></tr>
-              <tr><td>Unicode</td><td class="sep">97.1 s</td><td>107.3 s</td><td class="win">1.10&times;</td><td class="sep">81.9 s</td><td>98.3 s</td><td class="win">1.20&times;</td><td class="sep">113.7 s</td><td>114.9 s</td><td>1.01&times;</td></tr>
-              <tr><td>Cursor motion</td><td class="sep">49.9 s</td><td>74.3 s</td><td class="win">1.49&times;</td><td class="sep">70.4 s</td><td>71.2 s</td><td>1.01&times;</td><td class="sep">127.5 s</td><td>131.0 s</td><td class="win">1.03&times;</td></tr>
-              <tr><td>Alt screen</td><td class="sep">80.8 s</td><td>85.9 s</td><td class="win">1.06&times;</td><td class="sep">88.8 s</td><td>88.4 s</td><td>1.00&times;</td><td class="sep">102.7 s</td><td>128.5 s</td><td class="win">1.25&times;</td></tr>
-              <tr><td>Scroll region</td><td class="sep">80.4 s</td><td>78.5 s</td><td class="loss">0.98&times;</td><td class="sep">90.3 s</td><td>96.6 s</td><td class="win">1.07&times;</td><td class="sep">116.9 s</td><td>132.9 s</td><td class="win">1.14&times;</td></tr>
-              <tr><td>Long lines</td><td class="sep">85.0 s</td><td>84.3 s</td><td>0.99&times;</td><td class="sep">93.7 s</td><td>97.3 s</td><td class="win">1.04&times;</td><td class="sep">125.8 s</td><td>128.0 s</td><td class="win">1.02&times;</td></tr>
-              <tr><td>Binary dump</td><td class="sep">26.7 s</td><td>109.9 s</td><td class="win">4.12&times;</td><td class="sep">31.8 s</td><td>110.1 s</td><td class="win">3.46&times;</td><td class="sep">26.7 s</td><td>127.9 s</td><td class="win">4.78&times;</td></tr>
-              <tr class="total"><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td><td class="sep">1064 s</td><td>1241 s</td><td class="win">1.17&times;</td></tr>
-              <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">1081 s</td><td>2436 s</td><td class="win">2.25&times;</td><td class="sep">1566 s</td><td>2729 s</td><td class="win">1.74&times;</td></tr>
-              <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.82 s</td><td>2.01 s</td><td class="win">1.11&times;</td><td class="sep">2.31 s</td><td>2.25 s</td><td class="loss">0.97&times;</td></tr>
-              <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">1.76 s</td><td>2.45 s</td><td class="win">1.39&times;</td><td class="sep">5.30 s</td><td>5.06 s</td><td class="loss">0.95&times;</td></tr>
-              <tr><td>DOOM-Fire, 150,000 frames</td><td class="sep">1610 fps</td><td>830 fps</td><td class="win">1.94&times;</td><td class="sep">1119 fps</td><td>1071 fps</td><td class="win">1.05&times;</td><td class="sep">733 fps</td><td>738 fps</td><td>0.99&times;</td></tr>
+              <tr><td>Light cells</td><td class="sep">101.2 s</td><td>102.0 s</td><td>1.01&times;</td><td class="sep">53.9 s</td><td>96.9 s</td><td class="win">1.80&times;</td><td class="sep">142.7 s</td><td>170.1 s</td><td class="win">1.19&times;</td></tr>
+              <tr><td>Dense cells</td><td class="sep">86.8 s</td><td>86.2 s</td><td>0.99&times;</td><td class="sep">92.0 s</td><td>96.7 s</td><td class="win">1.05&times;</td><td class="sep">97.3 s</td><td>129.6 s</td><td class="win">1.33&times;</td></tr>
+              <tr><td>Coloured text</td><td class="sep">34.0 s</td><td>108.3 s</td><td class="win">3.19&times;</td><td class="sep">76.9 s</td><td>112.4 s</td><td class="win">1.46&times;</td><td class="sep">179.7 s</td><td>188.8 s</td><td class="win">1.05&times;</td></tr>
+              <tr><td>Truecolour</td><td class="sep">54.2 s</td><td>122.8 s</td><td class="win">2.27&times;</td><td class="sep">81.1 s</td><td>106.5 s</td><td class="win">1.31&times;</td><td class="sep">163.5 s</td><td>215.4 s</td><td class="win">1.32&times;</td></tr>
+              <tr><td>Unicode</td><td class="sep">97.1 s</td><td>107.3 s</td><td class="win">1.10&times;</td><td class="sep">81.9 s</td><td>98.3 s</td><td class="win">1.20&times;</td><td class="sep">96.6 s</td><td>146.0 s</td><td class="win">1.51&times;</td></tr>
+              <tr><td>Cursor motion</td><td class="sep">49.9 s</td><td>74.3 s</td><td class="win">1.49&times;</td><td class="sep">70.4 s</td><td>71.2 s</td><td>1.01&times;</td><td class="sep">177.4 s</td><td>203.0 s</td><td class="win">1.14&times;</td></tr>
+              <tr><td>Alt screen</td><td class="sep">80.8 s</td><td>85.9 s</td><td class="win">1.06&times;</td><td class="sep">88.8 s</td><td>88.4 s</td><td>1.00&times;</td><td class="sep">118.6 s</td><td>222.3 s</td><td class="win">1.87&times;</td></tr>
+              <tr><td>Scroll region</td><td class="sep">80.4 s</td><td>78.5 s</td><td class="loss">0.98&times;</td><td class="sep">90.3 s</td><td>96.6 s</td><td class="win">1.07&times;</td><td class="sep">167.0 s</td><td>222.7 s</td><td class="win">1.33&times;</td></tr>
+              <tr><td>Long lines</td><td class="sep">85.0 s</td><td>84.3 s</td><td>0.99&times;</td><td class="sep">93.7 s</td><td>97.3 s</td><td class="win">1.04&times;</td><td class="sep">102.7 s</td><td>136.0 s</td><td class="win">1.32&times;</td></tr>
+              <tr><td>Binary dump</td><td class="sep">26.7 s</td><td>109.9 s</td><td class="win">4.12&times;</td><td class="sep">31.8 s</td><td>110.1 s</td><td class="win">3.46&times;</td><td class="sep">40.9 s</td><td>177.6 s</td><td class="win">4.34&times;</td></tr>
+              <tr class="total"><td>All ten workloads, wall</td><td class="sep">696 s</td><td>960 s</td><td class="win">1.38&times;</td><td class="sep">761 s</td><td>974 s</td><td class="win">1.28&times;</td><td class="sep">1286 s</td><td>1812 s</td><td class="win">1.41&times;</td></tr>
+              <tr><td>All ten workloads, CPU</td><td class="sep">1030 s</td><td>1930 s</td><td class="win">1.87&times;</td><td class="sep">1081 s</td><td>2436 s</td><td class="win">2.25&times;</td><td class="sep">1581 s</td><td>3182 s</td><td class="win">2.01&times;</td></tr>
+              <tr><td>ascii cat, 500 MB</td><td class="sep">2.97 s</td><td>2.79 s</td><td class="loss">0.94&times;</td><td class="sep">1.82 s</td><td>2.01 s</td><td class="win">1.11&times;</td><td class="sep">1.98 s</td><td>2.71 s</td><td class="win">1.37&times;</td></tr>
+              <tr><td>unicode cat, 500 MB</td><td class="sep">2.88 s</td><td>5.15 s</td><td class="win">1.79&times;</td><td class="sep">1.76 s</td><td>2.45 s</td><td class="win">1.39&times;</td><td class="sep">4.40 s</td><td>6.46 s</td><td class="win">1.47&times;</td></tr>
+              <tr><td>DOOM-Fire, 150,000 frames</td><td class="sep">1610 fps</td><td>830 fps</td><td class="win">1.94&times;</td><td class="sep">1119 fps</td><td>1071 fps</td><td class="win">1.05&times;</td><td class="sep">482 fps</td><td>390 fps</td><td class="win">1.24&times;</td></tr>
             </tbody>
           </table>
         </div>
@@ -878,11 +898,12 @@ ditto -xk Starling-Terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
 <section>
   <div class="wrap narrow prose">
     <div class="kicker">Build your own</div>
-    <h2>It is a widget. Take it.</h2>
+    <h2>Build your own terminal app with the SDK.</h2>
     <p>
-      The terminal ships in the <a href="sdk.html">Starling SDK</a>, so your app can
-      have one too — shell, escape sequences, fonts, scrollback and selection
-      included. Download one file, run it, and you have a terminal of your own:
+      The <a href="sdk.html">Starling SDK</a> has a terminal widget — shell,
+      escape sequences, fonts, scrollback and selection included — so you can
+      write your own terminal app on top of it. Download one file, run it, and
+      you have a terminal of your own:
     </p>
   </div>
 
