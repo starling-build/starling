@@ -31,9 +31,21 @@ let appPackageDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().
 // host at runtime, so the default binary behaves exactly as before.
 let gtkHost = !env("STARLING_APP_GTK", default: "").isEmpty
 
+// An unpacked SDK bundle to build against instead of this repo's sdk/ — the
+// release path, where the app is built exactly the way an external consumer
+// builds it. Empty (the default) means the in-repo framework and an engine
+// checkout, which is every dev build.
+let sdkBundle = env("STARLING_SDK_BUNDLE", default: "")
+
 #if os(Linux) || os(Windows)
+// When building against a bundle the engine is *in* the bundle, so pointing -L
+// at an engine checkout would defeat the point — and would silently succeed on
+// a machine that happens to have one, linking a release against something the
+// bundle does not contain. STARLING_ENGINE_OUT still overrides both.
 let engineOutDir = env("STARLING_ENGINE_OUT",
-                       default: appPackageDir + "/../../engine/src/out/host_debug")
+                       default: sdkBundle.isEmpty
+                           ? appPackageDir + "/../../engine/src/out/host_debug"
+                           : sdkBundle + "/engine/lib")
 #else
 // Two out-directory spellings on macOS, because flutter/tools/gn appends the
 // CPU only when it is not the default: an Apple Silicon build (--mac-cpu
@@ -248,8 +260,20 @@ let package = Package(
     // nothing else — and an ssh client is not framework material. It stays a
     // property of this one app until something else wants it.
     dependencies: {
+        // Dev builds compile the framework out of this repo; a release build can
+        // instead point at an unpacked SDK bundle, which is what an external
+        // consumer gets and therefore the thing worth releasing against. The
+        // bundle declares the same package name (FlutterSwift), so nothing in
+        // the target list changes -- only where the sources and the engine come
+        // from. It has to be a *path*: locating the bundled engine needs -L,
+        // which SwiftPM classes as .unsafeFlags and forbids for a dependency
+        // resolved by URL+version, so unpack the archive and name the directory.
+        //
+        // An env var rather than a #if, for the reason STARLING_IOS is one: a
+        // manifest is compiled and run on the host.
         var deps: [Package.Dependency] = [
-            .package(name: "FlutterSwift", path: "../../sdk"),
+            .package(name: "FlutterSwift",
+                     path: sdkBundle.isEmpty ? "../../sdk" : sdkBundle),
         ]
         // `iosBuild` exists only under the macOS guard above — a manifest is
         // compiled on the host, and using it bare here broke `swift build`

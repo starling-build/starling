@@ -48,11 +48,33 @@ if (-not (Test-Path (Join-Path $build "$Product.exe"))) {
 if (-not $Out) { $Out = Join-Path $pkg "dist\$Product" }
 
 # --- engine -----------------------------------------------------------------
+# Two layouts, because a release build takes its engine from an SDK bundle
+# rather than an engine checkout:
+#
+#   engine checkout   out\host_release\{flutter_engine.dll, icudtl.dat, ...}
+#   SDK bundle        engine\lib\*.dll  +  engine\share\{icudtl.dat, flutter_assets}
+#
+# The bundle splits link-time from run-time data, so icudtl.dat is a directory
+# away from the DLLs and the old check rejected a perfectly good bundle with
+# "set -EngineOut to an engine out dir containing icudtl.dat". Detect the split
+# instead of demanding the flat shape.
 if (-not $EngineOut) { $EngineOut = $env:STARLING_ENGINE_OUT }
 if (-not $EngineOut) { $EngineOut = $env:FLUTTER_SWIFT_ENGINE_OUT }
-if (-not $EngineOut -or -not (Test-Path (Join-Path $EngineOut 'icudtl.dat'))) {
-    throw "stage-windows: set -EngineOut (or STARLING_ENGINE_OUT) to an engine out dir containing icudtl.dat"
+if (-not $EngineOut) {
+    throw "stage-windows: set -EngineOut (or STARLING_ENGINE_OUT) to an engine out dir, or an SDK bundle's engine\lib"
 }
+$engineShare = Join-Path (Split-Path -Parent $EngineOut) 'share'
+$bundleLayout = Test-Path (Join-Path $engineShare 'icudtl.dat')
+if (-not $bundleLayout -and -not (Test-Path (Join-Path $EngineOut 'icudtl.dat'))) {
+    throw "stage-windows: no icudtl.dat in $EngineOut, nor in $engineShare (bundle layout)"
+}
+# Where the run-time data actually is, under whichever layout.
+$dataSrc = if ($bundleLayout) { $engineShare } else { $EngineOut }
+# In bundle mode the bundle is also where flutter_assets and conpty come from --
+# staging a release against a bundle must not reach back into a source tree that
+# may not exist, and on a build box that does have one would silently mix the
+# two. The bundle root is engine\lib\..\..
+$bundleRoot = if ($bundleLayout) { Split-Path -Parent (Split-Path -Parent $EngineOut) } else { '' }
 
 # --- swift runtime ----------------------------------------------------------
 # Not on any default search path, so the whole bin\ goes beside the exe. It
@@ -71,8 +93,15 @@ if (-not $SwiftRuntime -or -not (Test-Path $SwiftRuntime)) {
     throw "stage-windows: could not find the Swift runtime bin -- pass -SwiftRuntime"
 }
 
-# --- conpty (fetched, not committed) ----------------------------------------
-$vendor = Join-Path $sdk 'Vendor\conpty'
+# --- conpty -----------------------------------------------------------------
+# A bundle carries its own copy, so a release stage needs no network and cannot
+# pick up a different build than the SDK it came from. Outside bundle mode it is
+# fetched into the source tree, where it is gitignored.
+$vendor = if ($bundleLayout -and (Test-Path (Join-Path $bundleRoot 'Vendor\conpty\conpty.dll'))) {
+    Join-Path $bundleRoot 'Vendor\conpty'
+} else {
+    Join-Path $sdk 'Vendor\conpty'
+}
 if (-not (Test-Path (Join-Path $vendor 'conpty.dll'))) {
     Write-Host '==> conpty not vendored yet, fetching'
     & (Join-Path $PSScriptRoot 'fetch-conpty.ps1') -Dest $vendor
@@ -96,8 +125,11 @@ Copy-Item (Join-Path $vendor 'OpenConsole.exe') $Out -Force
 
 $data = Join-Path $Out 'data'
 New-Item -ItemType Directory -Path $data -Force | Out-Null
-Copy-Item (Join-Path $EngineOut 'icudtl.dat') $data -Force
-$assets = Join-Path $sdk 'Resources\flutter_assets'
+Copy-Item (Join-Path $dataSrc 'icudtl.dat') $data -Force
+# In bundle mode the assets ship beside icudtl.dat; otherwise they come from the
+# framework's vendored copy in the source tree.
+$assets = if ($bundleLayout) { Join-Path $dataSrc 'flutter_assets' }
+          else { Join-Path $sdk 'Resources\flutter_assets' }
 if (-not (Test-Path $assets)) { throw "stage-windows: no flutter_assets at $assets" }
 Copy-Item $assets $data -Recurse -Force
 

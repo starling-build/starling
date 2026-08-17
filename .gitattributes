@@ -15,6 +15,12 @@
 *.sh            text eol=lf
 *.py            text eol=lf
 
+# Checksum manifests. sha256sum -c reads the filename to end-of-line, so a CRLF
+# checkout makes every entry name end in \r and each line fails with
+# "No such file or directory" -- against files that are sitting right there.
+# The repo blob is LF either way; this is about what a Windows working tree gets.
+SHA256SUMS      text eol=lf
+
 # Shebang scripts with no extension.
 sdk/tools/starling-create        text eol=lf
 build/session/starling-session   text eol=lf
