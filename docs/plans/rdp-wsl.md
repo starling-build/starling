@@ -305,8 +305,11 @@ are done; the rest of the list stands.
 
 - **First-party child apps** — Settings, Terminal and the App Store all open,
   draw and take input with no DRM device anywhere, through the CPU/memfd
-  path. Three defects sat between "the fallback allocates" and "the app
-  draws", and only the first was in the new code:
+  path. Verified in WSL itself on 2026-08-17 (llvmpipe, `/dev/dri` absent,
+  nothing forced): the Terminal round-trips `uname -r` typed over RDP as
+  `6.18.33.2-microsoft-standard-WSL2`, and Settings' own General pane names
+  that kernel. Three defects sat between "the fallback allocates" and "the
+  app draws", and only the first was in the new code:
   - The child sets `O_NONBLOCK` on its parent socket **once, after the
     configure handshake**, not inside the GBM branch. Left in the branch, a
     CPU-fallback child kept a blocking socket and parked in `read` on the
@@ -420,11 +423,29 @@ the software resolver), else W1 stands as the WSL answer. Estimate: **probe
    This file (docs/plans/rdp-wsl.md) owns display mode. Neither absorbs the
    other — they share code, not a mode.
 
-## Test plan (win11-gpu's WSL, xfreerdp harness)
+## Test plan (the WSL box, xfreerdp harness)
 
-Loop: `virsh start win11-gpu` → guest 192.168.122.209 → stage the .deb via
-`python3 -m http.server` + `curl.exe` → `wsl -d Ubuntu-26.04 -u root` →
-install → scripts staged as files, CRs stripped.
+**The target is a physical Windows machine, `starling@192.168.68.60`** — not
+the `win11-gpu` libvirt VM, which has no WSL installed at all (both
+`Microsoft-Windows-Subsystem-Linux` and `VirtualMachinePlatform` read
+`Disabled`). A session that reads "win11-gpu's WSL" here and boots the VM
+loses an hour finding that out.
+
+Loop: `scp` the .deb and the driving scripts to `C:/dist/` → `ssh
+starling@192.168.68.60 'wsl -d Ubuntu-26.04 -u root -- bash -lc "…"'` →
+`dpkg -i --force-all /mnt/c/dist/starling_0.3.0_amd64.deb` → start
+`DesktopShellApp --rdp` on `STARLING_RDP_PORT=3390`. Strip CRs on arrival
+(`sed -i 's/\r$//'`).
+
+Drive it from **inside** WSL through WSLg's own X server rather than from
+Windows: `DISPLAY=:0`, `xfreerdp /v:127.0.0.1:3390`, then `xdotool` for
+clicks and `import -window <freerdp window>` for captures, copied out via
+`/mnt/c/dist/`. This is the same harness the dev box uses and it needs no
+scheduled tasks. `mstsc.exe` still has to be driven the other way — an
+interactive scheduled task (`schtasks /create … /it /ru starling`), because
+the QEMU-agent/SSH session has no desktop — and its window is *windowed and
+scrolled* at 1280x800, so a screenshot of it shows only the top-left corner
+of the desktop and an app window can be entirely off-frame.
 
 - **W0 acceptance** (scriptable end-to-end inside WSL, no Windows-side
   client needed): `systemctl stop seatd || true`; `ls /dev/dri` must fail;
