@@ -23,6 +23,10 @@ final class RdpDisplayService {
     var onSizeNegotiated: ((UInt32, UInt32) -> Void)?
     /// Pointer reports, on the main queue.
     var onPointer: ((Double, Double, Int64, Double, Double) -> Void)?
+    /// Key events (RDP scancode, extended flag, down), on the main queue.
+    var onKey: ((UInt32, Bool, Bool) -> Void)?
+    /// Client lock-key state, on the main queue.
+    var onKeySync: ((UInt32) -> Void)?
     /// Client left, on the main queue.
     var onClientGone: (() -> Void)?
 
@@ -76,6 +80,18 @@ final class RdpDisplayService {
                 Unmanaged<RdpDisplayService>.fromOpaque(ud)
                     .takeUnretainedValue()
                     .pointer(x: x, y: y, buttons: buttons, wdx: wdx, wdy: wdy)
+            },
+            on_key: { ud, scancode, extended, down in
+                guard let ud else { return }
+                Unmanaged<RdpDisplayService>.fromOpaque(ud)
+                    .takeUnretainedValue()
+                    .key(scancode: scancode, extended: extended != 0,
+                         down: down != 0)
+            },
+            on_key_sync: { ud, flags in
+                guard let ud else { return }
+                Unmanaged<RdpDisplayService>.fromOpaque(ud)
+                    .takeUnretainedValue().keySync(flags)
             })
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
@@ -124,6 +140,20 @@ final class RdpDisplayService {
         let gone: () -> Void = { [weak self] in self?.onClientGone?() }
         DispatchQueue.main.async(
             execute: unsafeBitCast(gone, to: (@Sendable () -> Void).self))
+    }
+
+    private func key(scancode: UInt32, extended: Bool, down: Bool) {
+        let deliver: () -> Void = { [weak self] in
+            self?.onKey?(scancode, extended, down)
+        }
+        DispatchQueue.main.async(
+            execute: unsafeBitCast(deliver, to: (@Sendable () -> Void).self))
+    }
+
+    private func keySync(_ flags: UInt32) {
+        let deliver: () -> Void = { [weak self] in self?.onKeySync?(flags) }
+        DispatchQueue.main.async(
+            execute: unsafeBitCast(deliver, to: (@Sendable () -> Void).self))
     }
 
     private func pointer(x: Double, y: Double, buttons: Int64,

@@ -276,10 +276,24 @@ static BOOL peer_extended_mouse_event(rdpInput* input, UINT16 flags, UINT16 x,
 }
 
 static BOOL peer_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code) {
-    (void)input;
-    (void)flags;
-    (void)code;
-    return TRUE;  // keyboard is a later increment
+    StarlingPeerContext* ctx = (StarlingPeerContext*)input->context;
+    RdpServer* s = ctx->server;
+    static int seen = 0;
+    if (++seen <= 8) {
+        fprintf(stderr,
+                "[Rdp] key from client: flags=0x%04x code=0x%02x "
+                "(active=%d handler=%d)\n",
+                flags, code, s->peer_active, s->cbs.on_key != NULL);
+    }
+    if (!s->peer_active || !s->cbs.on_key) {
+        return TRUE;
+    }
+    // KBD_FLAGS_RELEASE (0x8000) marks the up edge; KBD_FLAGS_EXTENDED
+    // (0x0100) is the 0xE0 prefix that separates, say, Right Ctrl from Left.
+    const int down = (flags & 0x8000) == 0;
+    const int extended = (flags & 0x0100) != 0;
+    s->cbs.on_key(s->ud, (uint32_t)code, extended, down);
+    return TRUE;
 }
 
 static BOOL peer_unicode_keyboard_event(rdpInput* input, UINT16 flags,
@@ -291,8 +305,14 @@ static BOOL peer_unicode_keyboard_event(rdpInput* input, UINT16 flags,
 }
 
 static BOOL peer_synchronize_event(rdpInput* input, UINT32 flags) {
-    (void)input;
-    (void)flags;
+    StarlingPeerContext* ctx = (StarlingPeerContext*)input->context;
+    RdpServer* s = ctx->server;
+    // Sent at connect and after a client-side focus change: without it the
+    // session never learns the client's Caps/Num state and silently
+    // disagrees with the keyboard the user is looking at.
+    if (s->cbs.on_key_sync) {
+        s->cbs.on_key_sync(s->ud, flags);
+    }
     return TRUE;
 }
 

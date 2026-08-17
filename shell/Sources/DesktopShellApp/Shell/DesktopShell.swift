@@ -1493,7 +1493,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     private func _setupWaylandCallbacks() {
         #if os(Linux)
-        guard let wayland = waylandIntegration else { return }
+        // Wayland-specific callbacks need the integration; the key
+        // routing below does NOT — display mode (--rdp) has no Wayland
+        // server yet and still has a keyboard, and an early return here
+        // left pd.onKeyData unset, so every key vanished silently.
+        if let wayland = waylandIntegration {
 
         wayland.onNewWindow = { [weak self] (surfaceId: UInt32, textureId: Int, title: String, clientId: UInt64) -> String in
             guard let self = self else { return "" }
@@ -1902,6 +1906,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             wayland.sendExitFullscreen(surfaceId: surfId, width: contentW, height: contentH)
         }
 
+        }  // end Wayland-specific callbacks
+
         // Forward keyboard events to the focused Wayland or X11 client.
         let pd = PlatformDispatcher.instance
         let routeKey: (KeyData) -> Bool = { [weak self] keyData in
@@ -2178,7 +2184,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // Text-input enter rides keyboard enter, which is
                     // normally lazy (first forwarded key) — force it so the
                     // client enables its text input before we compose.
-                    wayland.ensureKeyboardFocus()
+                    waylandIntegration?.ensureKeyboardFocus()
                 }
                 // A half-typed composition must not follow focus to another
                 // window (or survive its target's death) — reset it.
@@ -2197,7 +2203,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // Deliver to the FOCUSED window's surface, not wherever the
                     // pointer happens to be. appId is "wayland-<surfaceId>".
                     let surface = UInt32(win.appId.dropFirst("wayland-".count)) ?? 0
-                    wayland.sendKeyEvent(
+                    waylandIntegration?.sendKeyEvent(
                         physical: keyData.physical,
                         logical: keyData.logical,
                         isDown: isDown,

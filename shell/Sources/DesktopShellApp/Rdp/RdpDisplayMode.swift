@@ -28,6 +28,7 @@ import SwiftRuntime
 nonisolated(unsafe) var rdpEgl: OpaquePointer? = nil
 nonisolated(unsafe) var rdpDisplayService: RdpDisplayService? = nil
 nonisolated(unsafe) private var rdpPointer: RdpPointer? = nil
+nonisolated(unsafe) private var rdpKeyboard: RdpKeyboard? = nil
 nonisolated(unsafe) private var rdpEngine: OpaquePointer? = nil
 
 /// Size a client negotiated but the raster thread has not applied yet. The
@@ -71,6 +72,8 @@ func runRdpDisplay() -> Never {
     rdpDisplayService = service
     let pointer = RdpPointer()
     rdpPointer = pointer
+    let keyboard = RdpKeyboard()
+    rdpKeyboard = keyboard
 
     guard service.start(defaultWidth: width, defaultHeight: height) else {
         FileHandle.standardError.write(Data(
@@ -179,6 +182,7 @@ func runRdpDisplay() -> Never {
     }
     rdpEngine = engine
     pointer.attach(engine: engine)
+    keyboard.attach(engine: engine)
 
     sendRdpMetrics(engine: engine, width: width, height: height, scale: scale)
 
@@ -200,8 +204,17 @@ func runRdpDisplay() -> Never {
         rdpPointer?.handle(x: x, y: y, buttons: buttons,
                            wheelDX: wdx, wheelDY: wdy)
     }
+    service.onKey = { scancode, extended, down in
+        rdpKeyboard?.handle(scancode: scancode, extended: extended, down: down)
+    }
+    service.onKeySync = { flags in
+        rdpKeyboard?.sync(toggleFlags: flags)
+    }
     service.onClientGone = {
+        // Release both devices: a client that disappears mid-drag or
+        // mid-chord must not leave a button or a modifier stuck down.
         rdpPointer?.reset()
+        rdpKeyboard?.releaseAll()
     }
 
     PlatformDispatcher.instance.scheduleFrame()

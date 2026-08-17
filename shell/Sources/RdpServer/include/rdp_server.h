@@ -42,6 +42,14 @@ typedef struct {
     // transition-flavoured input model.
     void (*on_pointer)(void* ud, double x, double y, int64_t buttons,
                        double wheel_dx, double wheel_dy);
+    // A key, as RDP sends it: PC/AT set-1 |scancode|, its 0xE0 |extended|
+    // prefix, and |down|. Translation to the engine's representation is the
+    // caller's (see rdp_keyboard.h) — this only carries the wire values.
+    // May be NULL; share mode leaves it so, having a real keyboard already.
+    void (*on_key)(void* ud, uint32_t scancode, int extended, int down);
+    // Client's lock-key state (MS-RDPBCGR synchronize): bit 0 scroll,
+    // 1 num, 2 caps. May be NULL.
+    void (*on_key_sync)(void* ud, uint32_t toggle_flags);
 } RdpServerCallbacks;
 
 // Start listening. |bind_addr| may be NULL for all interfaces. |cert_path|

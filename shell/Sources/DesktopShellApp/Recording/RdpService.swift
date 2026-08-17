@@ -104,7 +104,13 @@ final class RdpService {
                     .takeUnretainedValue()
                     .onPointer(x: x, y: y, buttons: buttons,
                                wheelDX: wdx, wheelDY: wdy)
-            })
+            },
+            // Share mode mirrors a machine that has its own keyboard, and
+            // the remote one would land on the same seat as the local user's
+            // — deliberately not wired. Display mode is where RDP keys are
+            // the only keys there are.
+            on_key: nil,
+            on_key_sync: nil)
 
         // Unretained: the service outlives the server, which is stopped
         // before it could ever be freed.

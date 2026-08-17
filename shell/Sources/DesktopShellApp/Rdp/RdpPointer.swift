@@ -84,11 +84,34 @@ final class RdpPointer {
     private var lastX: Double = 0
     private var lastY: Double = 0
 
+    private var logged = 0
+
     private func send(_ engine: OpaquePointer, phase: FlutterPointerPhase,
                       x: Double, y: Double, buttons: Int64,
                       scrollX: Double = 0, scrollY: Double = 0) {
         lastX = x
         lastY = y
+        // First events plus every button transition, mirroring the engine's
+        // [Input] logging: enough to tell "the client never sent it" from
+        // "we sent it and nothing happened", which is otherwise guesswork.
+        logged += 1
+        if logged <= 20 || phase == kDown || phase == kUp {
+            let name: String
+            switch phase {
+            case kAdd: name = "add"
+            case kRemove: name = "remove"
+            case kHover: name = "hover"
+            case kDown: name = "DOWN"
+            case kUp: name = "UP"
+            case kMove: name = "move"
+            default: name = "?"
+            }
+            let scroll = (scrollX != 0 || scrollY != 0)
+                ? " scroll=\(Int(scrollX)),\(Int(scrollY))" : ""
+            let line = "[RdpPtr] #\(logged) \(name) (\(Int(x)),\(Int(y)))"
+                + " buttons=\(buttons)\(scroll)\n"
+            FileHandle.standardError.write(Data(line.utf8))
+        }
         var event = FlutterPointerEvent()
         event.struct_size = MemoryLayout<FlutterPointerEvent>.size
         event.phase = phase
