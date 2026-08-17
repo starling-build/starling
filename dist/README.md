@@ -15,9 +15,18 @@ three release engine libraries (`libflutter_engine.so`,
 `libflutter_linux_gtk.so`, `libflutter_linux_drm.so`), `icudtl.dat` and
 flutter_assets. 23 MB, checksum in `SHA256SUMS`.
 
+`starling-sdk-windows-x86_64.zip` — the same SDK for Windows x86_64, the same
+0.3.0 release candidate and the same engine commit: framework source, both
+release engine DLLs **and both import libraries** (`flutter_engine.dll`,
+`flutter_engine.dll.lib`, `flutter_windows.dll`, `flutter_windows.dll.lib`),
+`icudtl.dat` and flutter_assets. 16.5 MB, checksum in `SHA256SUMS`. The import
+libraries are why this bundle can replace an engine checkout and the staged
+terminal zip cannot: on Windows the link needs the `.dll.lib`, and that archive
+ships only the DLLs.
+
 Every other binary is a GitHub Release asset rather than repo contents
 (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
-Windows zip). These three are in the tree by explicit request, each so that a
+Windows zip). These four are in the tree by explicit request, each so that a
 build is downloadable from a checkout before its release is cut.
 Do not take it as licence to add more: a binary committed here is in every
 clone forever, and removing it later means rewriting history.
@@ -101,20 +110,42 @@ embedder: our `libflutter_engine.so` links the linux_drm sources as well
 (41 `fl_drm` symbols in it), so a drm-only diff shows up in both libraries and
 looking at one of them understates what shipped.
 
-Both unpack into a named directory (`starling-sdk-linux-x86_64/`,
-`starling-sdk-macos-arm64/`), unlike the terminal zip, which extracts flat.
+The Windows one was built on the Windows box from `release-sdk-0.3.0` against a
+`host_release` engine built from the paired engine branch — which is the same
+`ea78543` the other two carry, so all three bundles ship one engine commit. The
+engine checkout on that box is not shared with anyone, and its tree was clean at
+`ea78543` when the DLLs were linked, so the snapshot dance above was not needed
+here. `sync-vendored-headers.sh --check` passed against that engine, which is
+the header-ABI half of the same guarantee:
+
+    sdk\tools\make-bundle.ps1 -Configuration release `
+        -EngineOut <engine>\engine\src\out\host_release `
+        -OutDir <repo>\.stage-sdk
+
+Getting that check to run on Windows at all took three fixes (`3147f5d`) — it
+had been silently skipped on the VM, which has no bash. Note the toolchain that
+built these DLLs is Swift 6.2.3 / MSVC 14.44 / Windows SDK 10.0.22621, and that
+a consumer needs its own Swift toolchain: the runtime DLLs deliberately do not
+travel in the bundle.
+
+All three unpack into a named directory (`starling-sdk-linux-x86_64/`,
+`starling-sdk-macos-arm64/`, `starling-sdk-windows-x86_64/`), unlike the
+terminal zip, which extracts flat.
 
 ## Refreshing them
 
 Rebuild as above, copy the artifact here, and regenerate the checksums —
-one file, all three lines, because writing it with one filename is how the
+one file, all four lines, because writing it with one filename is how the
 Windows zip's line got dropped once already:
 
     sha256sum starling-terminal-windows-x86_64.zip \
               starling-sdk-macos-arm64.tar.gz \
-              starling-sdk-linux-x86_64.tar.gz > SHA256SUMS
+              starling-sdk-linux-x86_64.tar.gz \
+              starling-sdk-windows-x86_64.zip > SHA256SUMS
 
-(`shasum -a 256` on the Mac — same format, same file.)
+(`shasum -a 256` on the Mac — same format, same file. On Windows,
+`Get-FileHash -Algorithm SHA256` and lower-case the hash; write the file with
+`[IO.File]::WriteAllText` and LF, since `Out-File` will give it CRLF.)
 
 Replace files rather than adding versions; each version committed costs its
 full size in permanent history.
