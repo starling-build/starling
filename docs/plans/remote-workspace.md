@@ -132,15 +132,40 @@ workspace, not per session, so it survives every session in it dying.
      protocol has no frame that kills a session. The pane leaves the layout
      and the session keeps running, where `--list` still finds it. A frame
      that ends one belongs with milestone 5.
-4. **Several sessions over one connection — measure before building.** The
-   cheap path needs no protocol change: ssh already multiplexes channels, so
-   N attaches over one `ControlMaster` is N streams, one authentication, one
-   TCP connection, today. The expensive path is a session id on every `DATA`
-   and `INPUT` frame so one client connection carries all panes. Do the cheap
-   one, measure per-channel cost (a `--stdio` bridge process per pane on the
-   server, and reconnect latency for N panes), and only pay for in-protocol
-   multiplexing if the numbers say so. Record the number either way, the way
-   milestone 4 of the parent plan recorded its 0.3 s.
+4. **Several sessions over one connection — measured; the cheap path stays.**
+   The cheap path needs no protocol change: ssh already multiplexes channels,
+   so N attaches over one `ControlMaster` is N streams, one authentication,
+   one TCP connection, today. The expensive path is a session id on every
+   `DATA` and `INPUT` frame so one client connection carries all panes.
+
+   What N panes cost the far machine, measured on a Mac (2026-08-18, local
+   bridges, no ssh in the path):
+
+   | panes | attach | bridge RSS each | daemon RSS |
+   | --- | --- | --- | --- |
+   | 1 | 0.02 s | 1.34 MB | 1.5 MB |
+   | 3 | 0.01 s | 1.34 MB | 1.8 MB |
+   | 6 | 0.01 s | 1.34 MB | 2.3 MB |
+   | 12 | 0.02 s | 1.34 MB | 3.3 MB |
+
+   So a pane costs about **1.3 MB of bridge process and 165 KB of daemon**
+   while it is idle — six panes is ~8 MB of processes, sixty would be ~80 MB,
+   which is the "server process count" risk quantified and the shape the plan
+   guessed. In-protocol multiplexing would save exactly that 1.3 MB per pane
+   and one ssh channel each; at six panes it buys nothing worth a protocol
+   change, and the number to watch is the process count rather than the bytes.
+
+   The surprise is where the memory actually is. A session's 8 MB ring is
+   `malloc`ed and only faulted in as it is written, so an idle pane costs
+   nothing like 8 MB — but a session that has PRODUCED 12 MB takes the daemon
+   from 1.4 MB to 18.9 MB, of which 8 MB is the ring it has now filled. The
+   cost of a workspace is therefore set by how noisy its panes are, not by how
+   many there are.
+
+   **Unmeasured, and needing a real link:** ssh channel setup per pane, and
+   reconnect latency for N panes when a tunnel bounces. Both need key-based
+   ssh to a host, which this machine does not have to itself; the numbers
+   above are the floor those two add to.
 5. **Coming back to it.** Milestone 3 proved the arrangement survives; this is
    the milestone that makes *arriving* feel right, which is the whole point of
    the feature and the part a person actually experiences. Three pieces, in
@@ -293,7 +318,9 @@ workspace, not per session, so it survives every session in it dying.
   herd on every tunnel bounce.
 - **Server process count.** One `--stdio` bridge per pane is the price of the
   cheap path in milestone 4. Fine at six panes, questionable at sixty; that
-  is exactly what the measurement is for.
+  is exactly what the measurement was for, and it came back **1.34 MB per
+  bridge** — 8 MB at six panes, 80 MB at sixty. The bytes are not the problem
+  at any plausible size; the process count is what to watch.
 - **Scope creep toward tmux**, again. The parent plan's risk list ends with
   this and it is still the one to watch: status bars, pane numbering overlays
   and copy-mode are all things we do not need because we have a real UI.
