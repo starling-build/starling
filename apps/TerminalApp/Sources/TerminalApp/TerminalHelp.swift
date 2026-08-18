@@ -89,8 +89,11 @@ enum TerminalHelp {
             HelpBinding("click", "focus a pane; drag a gap to resize"),
         ]),
         HelpSection(title: "workspaces", rows: [
+            // "letter O" earns its place: ⌘O and ⌘0 are a glyph apart in a
+            // monospace face, ⌘1…⌘9 right above it are digits, and ⌘0 is bound
+            // to nothing — so guessing wrong looks exactly like a dead chord.
             HelpBinding("Ctrl+Shift+O", mac: "⌘O",
-                        "go to a workspace, here or on another machine"),
+                        "go to a workspace, here or elsewhere (letter O)"),
             HelpBinding("—", "type name, or host/name — ⏎ opens or creates"),
             HelpBinding("—", "launching with no arguments reopens the last"),
         ]),

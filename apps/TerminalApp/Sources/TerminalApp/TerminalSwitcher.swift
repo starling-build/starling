@@ -356,7 +356,12 @@ extension _TerminalTabsState {
         ]
 
         if let unreachable = _switcher.unreachable {
-            children.append(_line("    \(unreachable) did not answer",
+            // Name the likely cause. "did not answer" alone reads as "this
+            // feature is broken" when the answer is almost always that the
+            // daemon is not installed on that machine — which is a thing the
+            // person can go and fix, and could not guess from silence.
+            children.append(_line("    \(unreachable) did not answer — "
+                                  + "is starling-termd there?",
                                   SwitcherChrome.hint, 12))
         } else if _switcher.busy {
             children.append(_line("    looking…", SwitcherChrome.hint, 12))
