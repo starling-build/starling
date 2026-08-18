@@ -1422,6 +1422,15 @@ public class GpuDmaBufRenderer {
         writeControlEvent(&event)
     }
 
+    /// Ask the shell to turn remote desktop (RDP share mode) on or off
+    /// (Settings › Sharing). The shell answers with the settled state, so a
+    /// start that fails leaves the switch showing off rather than lying.
+    public func sendRdpChange(enabled: Bool) {
+        var event = DmaBufInputEvent(x: enabled ? 1 : 0, y: 0, buttons: 0,
+                                     type: DMABUF_CONTROL_SET_RDP, phase: 0)
+        writeControlEvent(&event)
+    }
+
     /// Ask the shell to make `outputId` the primary display (Settings ›
     /// Displays). The id is the one the shell reported in `DisplayInfo`.
     public func sendPrimaryDisplayChange(outputId: Int) {
@@ -1448,7 +1457,7 @@ public class GpuDmaBufRenderer {
         didSet {
             guard let cb = onThemeChanged, let dark = pendingThemeDark else { return }
             pendingThemeDark = nil
-            deliverThemeChange(cb, dark)
+            deliverBoolChange(cb, dark)
         }
     }
 
@@ -1465,7 +1474,7 @@ public class GpuDmaBufRenderer {
     fileprivate static func receiveThemePush(_ dark: Bool) {
         lastPushedThemeIsDark = dark
         if let cb = onThemeChanged {
-            deliverThemeChange(cb, dark)
+            deliverBoolChange(cb, dark)
         } else {
             pendingThemeDark = dark
         }
@@ -1477,7 +1486,7 @@ public class GpuDmaBufRenderer {
         didSet {
             guard let cb = onLayoutChanged, let tiling = pendingLayoutTiling else { return }
             pendingLayoutTiling = nil
-            deliverThemeChange(cb, tiling)
+            deliverBoolChange(cb, tiling)
         }
     }
 
@@ -1489,7 +1498,7 @@ public class GpuDmaBufRenderer {
     fileprivate static func receiveLayoutPush(_ tiling: Bool) {
         lastPushedLayoutIsTiling = tiling
         if let cb = onLayoutChanged {
-            deliverThemeChange(cb, tiling)
+            deliverBoolChange(cb, tiling)
         } else {
             pendingLayoutTiling = tiling
         }
@@ -1541,6 +1550,32 @@ public class GpuDmaBufRenderer {
             deliverIntChange(cb, seconds)
         } else {
             pendingScreensaver = seconds
+        }
+    }
+
+    // Remote-desktop push — same latch/replay contract as the theme. What
+    // arrives is the state the shell's listener settled on, which is not
+    // always what was asked for: a start that fails reports back false.
+
+    public nonisolated(unsafe) static var onRdpChanged: ((Bool) -> Void)? = nil {
+        didSet {
+            guard let cb = onRdpChanged, let on = pendingRdp else { return }
+            pendingRdp = nil
+            deliverBoolChange(cb, on)
+        }
+    }
+
+    /// Whether the shell last reported remote desktop as on, or nil.
+    public private(set) nonisolated(unsafe) static var lastPushedRdpEnabled: Bool? = nil
+
+    private nonisolated(unsafe) static var pendingRdp: Bool? = nil
+
+    fileprivate static func receiveRdpPush(_ enabled: Bool) {
+        lastPushedRdpEnabled = enabled
+        if let cb = onRdpChanged {
+            deliverBoolChange(cb, enabled)
+        } else {
+            pendingRdp = enabled
         }
     }
 
@@ -1629,8 +1664,10 @@ public class GpuDmaBufRenderer {
     }
 
     /// App UI state is main-thread only; hop before touching it.
-    private static func deliverThemeChange(_ cb: @escaping (Bool) -> Void, _ dark: Bool) {
-        let call: () -> Void = { cb(dark) }
+    /// Hop a Bool push to the main queue. Shared by every boolean setting
+    /// the shell pushes down (appearance, remote desktop).
+    private static func deliverBoolChange(_ cb: @escaping (Bool) -> Void, _ value: Bool) {
+        let call: () -> Void = { cb(value) }
         DispatchQueue.main.async(
             execute: unsafeBitCast(call, to: (@Sendable () -> Void).self))
     }
@@ -2178,6 +2215,11 @@ public class GpuDmaBufRenderer {
 
                     if inputEvent.type == DMABUF_CONTROL_SET_SCREENSAVER {
                         GpuDmaBufRenderer.receiveScreensaverPush(Int(inputEvent.x))
+                        continue
+                    }
+
+                    if inputEvent.type == DMABUF_CONTROL_SET_RDP {
+                        GpuDmaBufRenderer.receiveRdpPush(inputEvent.x > 0.5)
                         continue
                     }
 

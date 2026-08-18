@@ -143,6 +143,11 @@ struct DmaBufMeta {
  * low byte first, NUL-padded. Connector names run to 32 bytes ("Virtual-1",
  * "HDMI-A-1"), which does not fit one payload. */
 #define DMABUF_DISPLAY_NAME     0x0e
+/* Remote desktop (RDP share mode), either direction: x = 1 enabled, 0
+ * disabled. The child asks; the parent answers with the state the listener
+ * actually settled on, so a refused or failed start never leaves the switch
+ * showing "on". */
+#define DMABUF_CONTROL_SET_RDP  0x0f
 
 /// Configure message sent from parent to child before the child creates its
 /// buffer. Tells the child the content area dimensions (logical pixels).

@@ -742,6 +742,11 @@ func runDRM() -> Never {
         _shellState?._setPrimaryDisplay(outputId: outputId)
     }
 
+    // Remote-desktop switch (SettingsApp's Sharing pane).
+    processManager.onRdpChangeRequested = { enabled in
+        _shellState?._setRdpEnabled(enabled)
+    }
+
     // Seed the list every child is told at connect. Sent again on any change.
     publishDisplaysToChildren()
 
@@ -864,9 +869,13 @@ func runDRM() -> Never {
             recordingService?.ingest(rgba, width: Int(w), height: Int(h))
         }
     }, nil)
-    // The listener only comes up when STARLING_RDP is set; see
-    // docs/plans/rdp.md for why it is opt-in and LAN/dev only.
+    // STARLING_RDP raises the listener at boot; Settings › Sharing raises and
+    // drops it afterwards, and its choice is restored once the shell is
+    // mounted. Off unless asked for either way — share mode is TLS without
+    // NLA, so reaching the port is the whole of the authentication.
+    // See docs/plans/rdp.md.
     rdp.startIfEnabled(view: view)
+    rdp.onStatusChanged = { _shellState?._broadcastRdpStatus() }
     // Zero-copy sibling: dmabuf frames on the engine's PRESENTING thread —
     // ingestDmabuf queues the frame and returns; anything heavier here
     // stalls the desktop's present path.

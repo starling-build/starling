@@ -181,6 +181,17 @@ class LinuxProcessAppManager {
 
     private let pendingScreensaverRequests = AtomicBox<[Int]>([])
 
+    /// Fired on the platform thread when a child (SettingsApp's Sharing
+    /// pane) asks to turn remote desktop on or off.
+    var onRdpChangeRequested: ((Bool) -> Void)?
+
+    /// Remote desktop as the shell last settled it, pushed to children at
+    /// connect and re-broadcast on every change (kept in sync by
+    /// `broadcastRdp`).
+    nonisolated(unsafe) var currentRdpEnabled: Bool = false
+
+    private let pendingRdpRequests = AtomicBox<[Bool]>([])
+
     /// Fired on the platform thread when a child (SettingsApp's Displays pane)
     /// asks to make an output the primary display.
     var onPrimaryDisplayChangeRequested: ((Int) -> Void)?
@@ -275,6 +286,7 @@ class LinuxProcessAppManager {
                 sendLayout(textureId: texId, tiling: currentLayoutIsTiling)
                 sendWallpaper(textureId: texId, preset: currentWallpaper)
                 sendScreensaver(textureId: texId, seconds: currentScreensaverIdle)
+                sendRdp(textureId: texId)
                 sendDisplays(textureId: texId)
 
                 if launch.cpu {
@@ -422,6 +434,13 @@ class LinuxProcessAppManager {
         if !primaryDisplayRequests.isEmpty {
             if let lastOutputId = primaryDisplayRequests.last {
                 onPrimaryDisplayChangeRequested?(lastOutputId)
+            }
+        }
+
+        let rdpRequests = pendingRdpRequests.take([])
+        if !rdpRequests.isEmpty {
+            if let lastEnabled = rdpRequests.last {
+                onRdpChangeRequested?(lastEnabled)
             }
         }
 
@@ -653,6 +672,7 @@ class LinuxProcessAppManager {
         let pendingWallpaperRequests = self.pendingWallpaperRequests
         let pendingScreensaverRequests = self.pendingScreensaverRequests
         let pendingPrimaryDisplayRequests = self.pendingPrimaryDisplayRequests
+        let pendingRdpRequests = self.pendingRdpRequests
         let pendingCaretUpdates = self.pendingCaretUpdates
         let pendingTerminations = self.pendingTerminations
         let capturedEngine = unsafeBitCast(engine, to: Int.self)
@@ -771,6 +791,9 @@ class LinuxProcessAppManager {
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     } else if event.type == DMABUF_CONTROL_SET_PRIMARY_DISPLAY {
                         pendingPrimaryDisplayRequests.withLock { $0.append(Int(event.x)) }
+                        FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
+                    } else if event.type == DMABUF_CONTROL_SET_RDP {
+                        pendingRdpRequests.withLock { $0.append(event.x > 0.5) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     } else if event.type == DMABUF_CARET {
                         let bits = UInt64(bitPattern: event.buttons)
@@ -910,6 +933,24 @@ class LinuxProcessAppManager {
         currentScreensaverIdle = seconds
         for texId in apps.keys {
             sendScreensaver(textureId: texId, seconds: seconds)
+        }
+    }
+
+    /// Pushes the settled remote-desktop state to one child.
+    func sendRdp(textureId: Int64) {
+        guard let entry = apps[textureId] else { return }
+        var event = DmaBufInputEvent(
+            x: currentRdpEnabled ? 1 : 0, y: 0, buttons: 0,
+            type: Int32(DMABUF_CONTROL_SET_RDP), phase: 0)
+        entry.sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
+
+    /// Remote-desktop change: push to every child so the Sharing switch shows
+    /// what actually happened rather than what was clicked.
+    func broadcastRdp(enabled: Bool) {
+        currentRdpEnabled = enabled
+        for texId in apps.keys {
+            sendRdp(textureId: texId)
         }
     }
 

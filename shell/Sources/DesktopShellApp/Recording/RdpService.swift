@@ -68,17 +68,52 @@ final class RdpService {
 
     // MARK: Listener lifecycle (main queue)
 
-    /// Stand up the listener if `STARLING_RDP` is set. Returns silently
-    /// when the feature is off — this is called unconditionally at startup.
+    /// The view to capture, remembered so the listener can be raised and
+    /// dropped long after startup — Settings › Sharing toggles it at will.
+    private var view: OpaquePointer?
+
+    /// Fired on the main queue whenever the listener comes up or goes down.
+    /// The Sharing switch is driven from this rather than from what the user
+    /// clicked, so a failed start reports back as off.
+    var onStatusChanged: (() -> Void)?
+
+    /// The port the listener uses, running or not.
+    private var port: Int32 {
+        Int32(ProcessInfo.processInfo.environment["STARLING_RDP_PORT"]
+                .flatMap { Int($0) } ?? 3389)
+    }
+
+    /// True while the listener is up.
+    var isRunning: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return server != nil
+    }
+
+    /// Remember the view and raise the listener if `STARLING_RDP` says so.
+    /// Called unconditionally at startup; the env var is the dev/session
+    /// override, the Settings switch is the user-facing one.
     func startIfEnabled(view: OpaquePointer) {
+        self.view = view
         let env = ProcessInfo.processInfo.environment
         guard let flag = env["STARLING_RDP"], flag == "1" || flag == "true"
         else { return }
+        _ = start()
+    }
 
-        let port = Int32(env["STARLING_RDP_PORT"].flatMap { Int($0) } ?? 3389)
+    /// Raise the listener now. Returns false if it could not come up, which
+    /// is what keeps the Sharing switch honest.
+    @discardableResult
+    func start() -> Bool {
+        guard let view = view ?? drmViewHandle else {
+            warn("no DRM view — remote desktop unavailable in this mode")
+            return false
+        }
+        if isRunning { return true }
+        let env = ProcessInfo.processInfo.environment
+        let port = self.port
         guard let (cert, key) = RdpCertificate.resolve(env: env) else {
             warn("no certificate — RDP disabled")
-            return
+            return false
         }
 
         // Advertise the primary output at its native size; capture runs at
@@ -120,13 +155,15 @@ final class RdpService {
         guard let s = rdp_server_start(nil, port, cert, key, w, h, 0,
                                        &cbs, selfPtr) else {
             warn("listener failed to start")
-            return
+            return false
         }
         lock.lock()
         server = s
         desktopW = w
         desktopH = h
         lock.unlock()
+        notifyStatus()
+        return true
     }
 
     func stop() {
@@ -135,6 +172,15 @@ final class RdpService {
         server = nil
         lock.unlock()
         if let s { rdp_server_stop(s) }
+        notifyStatus()
+    }
+
+    /// Hand the current state to whoever is showing it. Callable from any
+    /// thread — the peer callbacks run on their own.
+    func notifyStatus() {
+        guard let cb = onStatusChanged else { return }
+        let send = unsafeBitCast(cb, to: (@Sendable () -> Void).self)
+        DispatchQueue.main.async { send() }
     }
 
     // MARK: Peer callbacks (RdpServer threads)

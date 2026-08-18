@@ -49,6 +49,12 @@ class _ThemedSettingsRootState: State<StatefulWidget> {
         GpuDmaBufRenderer.onDisplaysChanged = { displays in
             settingsBlocShared?.add(.displaysApplied(displays))
         }
+        // Remote desktop: the shell reports the listener's real state, so the
+        // Sharing switch follows a failed start and a session-wide
+        // STARLING_RDP as well as its own click.
+        GpuDmaBufRenderer.onRdpChanged = { enabled in
+            settingsBlocShared?.add(.rdpApplied(enabled))
+        }
         #endif
     }
 

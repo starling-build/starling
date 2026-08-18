@@ -929,6 +929,66 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         LoginUser.configDir + "/screensaver"
     }
 
+    // MARK: Remote desktop (Settings › Sharing)
+
+    private static var _remoteDesktopFile: String {
+        LoginUser.configDir + "/remote-desktop"
+    }
+
+    /// Turn remote desktop on or off and persist the choice. The switch
+    /// reports what the listener actually did, not what was asked for: a
+    /// start can fail (no certificate, port taken), and a switch that sprang
+    /// back to "on" over a dead listener would be worse than the failure.
+    ///
+    /// Off by default, and deliberately: share mode is TLS without NLA, so
+    /// anyone who can reach the port can drive this desktop. The pane says
+    /// so; see docs/plans/rdp.md.
+    func _setRdpEnabled(_ enabled: Bool) {
+        #if os(Linux)
+        guard let rdp = rdpService else { return }
+        let settled: Bool
+        if enabled {
+            settled = rdp.start()
+        } else {
+            rdp.stop()
+            settled = false
+        }
+        if settled == enabled {
+            try? FileManager.default.createDirectory(
+                atPath: (Self._remoteDesktopFile as NSString).deletingLastPathComponent,
+                withIntermediateDirectories: true)
+            try? String(settled ? "1" : "0").write(
+                toFile: Self._remoteDesktopFile, atomically: true, encoding: .utf8)
+        }
+        _broadcastRdpStatus()
+        #endif
+    }
+
+    /// Push the listener's real state to every child, so the Sharing switch
+    /// follows a failed start and a session-wide STARLING_RDP alike.
+    func _broadcastRdpStatus() {
+        #if os(Linux)
+        guard let rdp = rdpService else { return }
+        linuxProcessAppManager?.broadcastRdp(enabled: rdp.isRunning)
+        #endif
+    }
+
+    /// Restore the persisted remote-desktop choice at startup. `STARLING_RDP`
+    /// has already had its say by now (RdpService.startIfEnabled), and stays
+    /// the override: it turns the listener on regardless of the stored value.
+    func _restoreRdpSetting() {
+        #if os(Linux)
+        guard let rdp = rdpService else { return }
+        if !rdp.isRunning,
+           let s = try? String(contentsOfFile: Self._remoteDesktopFile,
+                               encoding: .utf8),
+           s.trimmingCharacters(in: .whitespacesAndNewlines) == "1" {
+            _ = rdp.start()
+        }
+        _broadcastRdpStatus()
+        #endif
+    }
+
     /// Restore the persisted idle timeout and start the clock. The env
     /// override exists so tooling and demos can ask for a short timeout
     /// without writing to the user's config.
@@ -1245,6 +1305,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
         _startIdleDetection()
         _armScreensaverTestTimer()
+        _restoreRdpSetting()
     }
 
     /// Resolve a data file (wallpaper, icons, shaders) across installed and
