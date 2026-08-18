@@ -638,11 +638,21 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         #endif
 
         // Shift+PageUp / Shift+PageDown page through scrollback.
-        if _shiftDown && (keyData.logical == 0xFF55 || keyData.logical == 0xFF56) {
+        //
+        // Both id schemes, and it took a while to notice this one was missing
+        // the second: the DRM embedder sends X11 keysyms, everything else
+        // sends Flutter logical ids, so matching only 0xFF55/0xFF56 meant
+        // scrollback paging worked on the desktop and silently did nothing on
+        // the Mac, GTK and Windows hosts. Note the pair is not in the same
+        // ORDER in the two schemes — 0xFF55 is up, and it is 0x…0308 that is
+        // up on the other side, with 0307 the down.
+        let pgUp = keyData.logical == 0xFF55 || keyData.logical == 0x1_0000_0308
+        let pgDown = keyData.logical == 0xFF56 || keyData.logical == 0x1_0000_0307
+        if _shiftDown && (pgUp || pgDown) {
             _lock.lock()
             let page = max(1, emulator.rows - 1)
             let limit = emulator.scrollbackCount
-            if keyData.logical == 0xFF55 {
+            if pgUp {
                 _viewOffset = min(_viewOffset + page, limit)
             } else {
                 _viewOffset = max(_viewOffset - page, 0)

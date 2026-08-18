@@ -155,14 +155,19 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// the token in `dispose` is what stops the loop rescheduling forever.
     private var _statusTick = 0
     private var _lastStatus: [ObjectIdentifier: PaneStatus] = [:]
+    /// Whether the keyboard reference is up. See TerminalHelp.swift.
+    var _helpOpen = false
 
     /// Modifier state, watched rather than read off the event: the embedders
     /// report modifiers as their own key events, not as flags on the letter.
     /// Kept here rather than in the TerminalView because the view is
     /// remounted on every tab switch and would forget a held key.
-    private var _ctrlDown = false
-    private var _shiftDown = false
-    private var _metaDown = false
+    // Not private, for the same reason `_switcher` is not: TerminalHelp.swift
+    // is an extension on this state in another file, and deciding whether a
+    // keystroke is the help chord means reading the modifiers this tracks.
+    var _ctrlDown = false
+    var _shiftDown = false
+    var _metaDown = false
 
     override func initState() {
         super.initState()
@@ -627,6 +632,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// Returning true swallows the key — the shell never sees it — so this
     /// takes as little as it can:
     ///
+    ///   - Ctrl+Shift+/ / ⌘/          this list, on screen (TerminalHelp)
     ///   - Ctrl+T / ⌘T                 new tab
     ///   - Ctrl+Shift+D / ⌘D           split the pane left|right
     ///   - Ctrl+Shift+E / ⌘⇧D          split the pane top/bottom
@@ -667,7 +673,15 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         // split. It comes AFTER the modifier cases above, which must keep
         // falling through so the state stays right underneath it.
         if _switcher.open { return _switcherKey(keyData) }
+        // Same rule as the switcher, one sheet down: while help is up it owns
+        // the keyboard, and it comes after the modifier cases above so the
+        // state underneath stays right.
+        if _helpOpen { return _helpKey(keyData) }
         guard down else { return false }
+
+        // ⌘/ — or Ctrl+Shift+/ — before every other chord, so the way OUT of
+        // not knowing the chords is itself reachable without knowing them.
+        if _isHelpChord(keyData) { _openHelp(); return true }
 
         let isT = keyData.logical == 0x54 || keyData.logical == 0x74
         let isW = keyData.logical == 0x57 || keyData.logical == 0x77
@@ -795,6 +809,11 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                 // question about which of these you want to be looking at.
                 _switcher.open
                     ? _switcherOverlay(Size(window.width, window.height))
+                    : SizedBox(width: 0, height: 0),
+                // And help over that again — it is the sheet you reach for
+                // when you do not know what the others are.
+                _helpOpen
+                    ? _helpOverlay(Size(window.width, window.height))
                     : SizedBox(width: 0, height: 0),
             ])
         )
