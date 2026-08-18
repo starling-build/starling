@@ -175,6 +175,46 @@ widget above it is unchanged — same grid, same keys, same resize.
 `$STARLING_TERMD` the server-side path, for sites where neither is on the
 default PATH.
 
+### A particular private key
+
+The client runs `ssh <host> …` with the destination exactly as you typed it and
+adds no identity option of its own, so **`~/.ssh/config` is the answer** and
+needs nothing from this program:
+
+```
+Host prod-1
+    HostName    10.0.0.7
+    User        deploy
+    IdentityFile ~/.ssh/id_prod
+    IdentitiesOnly yes
+```
+
+The switcher reads that file too — `Host` entries (minus `*`/`?` patterns) are
+offered as destinations — so a host configured there is also a host you can
+find without remembering its address.
+
+Where editing `ssh_config` is not wanted, point `$STARLING_SSH` at a wrapper.
+It must be an **executable**, not a command string: it is used as `argv[0]` and
+the client appends its own flags after it, so `STARLING_SSH="ssh -i key"` is
+looked up as a program with that literal name and fails.
+
+```sh
+#!/bin/sh
+exec /usr/bin/ssh -i "$HOME/.ssh/id_prod" -o IdentitiesOnly=yes "$@"
+```
+
+**The connection is made with `BatchMode=yes`, which is why a key that works in
+your shell can still fail here.** BatchMode disables every prompt, so:
+
+- a **passphrase-protected key** must already be in the agent — `ssh-add
+  ~/.ssh/id_prod` — because nothing can ask you for it;
+- the host must already be in `known_hosts`, since the first-connection
+  `Are you sure you want to continue connecting?` cannot be answered either.
+
+Both failures look the same from inside the app: the host does not answer.
+`ssh -o BatchMode=yes <host> starling-termd --list` reproduces it in a shell,
+with ssh's own diagnostics.
+
 ### Many panes on one host
 
 A workspace pane is its own ssh connection, and that costs about **300 ms of
