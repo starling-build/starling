@@ -232,6 +232,45 @@ struct WorkspaceTest {
           ws5.link == .live(workspace: id1), "\(ws5.link)")
     ws5.stop()
 
+    // --- the ssh command is a command line, not a program ------------------
+    // A host can name how it is reached (HostConfig.swift, ~/.ssh/config).
+    // That value used to be argv[0] alone, so "use this key" needed a wrapper
+    // script on disk; these are the cases that made it worth splitting.
+    check("a bare program is one word",
+          termdSplitCommand("ssh") == ["ssh"])
+    check("flags come through as their own words",
+          termdSplitCommand("ssh -i /k/id -o IdentitiesOnly=yes")
+              == ["ssh", "-i", "/k/id", "-o", "IdentitiesOnly=yes"])
+    check("runs of whitespace collapse",
+          termdSplitCommand("  ssh   -T  ") == ["ssh", "-T"])
+    check("a quoted path keeps its spaces",
+          termdSplitCommand("\"/opt/my ssh/bin/ssh\" -T")
+              == ["/opt/my ssh/bin/ssh", "-T"])
+    check("single quotes work the same",
+          termdSplitCommand("'/opt/my ssh/ssh' -i '/k/my key'")
+              == ["/opt/my ssh/ssh", "-i", "/k/my key"])
+    check("an empty command is no words at all",
+          termdSplitCommand("   ").isEmpty)
+    // ~ is expanded because a key path almost always starts with one and
+    // there is no shell in the way to do it.
+    let home = ProcessInfo.processInfo.environment["HOME"] ?? ""
+    check("a leading ~ becomes $HOME",
+          termdSplitCommand("ssh -i ~/.ssh/id_prod")
+              == ["ssh", "-i", home + "/.ssh/id_prod"],
+          "\(termdSplitCommand("ssh -i ~/.ssh/id_prod"))")
+    check("a ~ inside a word is left alone",
+          termdSplitCommand("ssh -o Foo=a~b") == ["ssh", "-o", "Foo=a~b"])
+    // And the whole point: the split feeds argv, with our own flags after it.
+    let argv = termdArgv(host: "h", sshPath: "ssh -i /k/id",
+                         serverPath: "starling-termd")
+    check("the configured words lead the argv",
+          Array(argv.prefix(3)) == ["ssh", "-i", "/k/id"], "\(argv)")
+    check("and our flags follow them",
+          argv.contains("BatchMode=yes") && argv.last == "--stdio", "\(argv)")
+    check("a local host still skips ssh entirely",
+          termdArgv(host: "local", sshPath: "ssh -i /k/id",
+                    serverPath: "termd") == ["termd", "--stdio"])
+
     print("")
     if failures.isEmpty {
         print("all workspace checks passed")

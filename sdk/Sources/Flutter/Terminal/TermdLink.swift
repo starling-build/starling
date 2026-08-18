@@ -74,10 +74,68 @@ func termdArgv(host: String, sshPath: String, serverPath: String) -> [String] {
     if host.isEmpty || host == "local" {
         return [serverPath, "--stdio"]
     }
+    // The ssh setting is a COMMAND LINE, not a program name. It used to be
+    // argv[0] alone, which meant "use this key" could only be expressed by
+    // writing a wrapper script to disk — `ssh -i key` was looked up as a
+    // program with a space in its name and failed. Splitting here is what lets
+    // a host be reached by `ssh -i ~/.ssh/id_prod`, `ssh -F other_config`, or
+    // any other ssh-compatible front end, with nothing to install.
+    //
+    // What follows is appended to whatever the setting names, so that command
+    // has to accept ssh's flags. A front end that does not (`gcloud compute
+    // ssh`, say) still wants a wrapper that swallows them.
+    var argv = termdSplitCommand(sshPath)
+    if argv.isEmpty { argv = ["ssh"] }
     // -T: no tty on the ssh channel. The stream must be the session's bytes
     // and nothing else — a pty in the middle would mangle them.
-    return [sshPath, "-T", "-o", "BatchMode=yes",
-            "-o", "ServerAliveInterval=15", host, serverPath, "--stdio"]
+    argv.append(contentsOf: ["-T", "-o", "BatchMode=yes",
+                             "-o", "ServerAliveInterval=15",
+                             host, serverPath, "--stdio"])
+    return argv
+}
+
+/// Splits a command line into argv words, honouring single and double quotes
+/// so a path with a space in it survives.
+///
+/// Deliberately NOT a shell: no variable expansion, no globbing, no operators,
+/// no backslash escapes. Someone setting this is naming a program and its
+/// flags, and a config value that could run `; rm -rf` because it was pasted
+/// carelessly is a worse deal than one that cannot express an exotic path.
+/// `~` is the one convenience, since an ssh key path almost always starts with
+/// it and no shell is present to expand it.
+func termdSplitCommand(_ text: String) -> [String] {
+    var words: [String] = []
+    var word = ""
+    var quote: Character? = nil
+    var any = false                 // distinguishes "" from no word at all
+
+    func flush() {
+        if any || !word.isEmpty { words.append(word) }
+        word = ""
+        any = false
+    }
+
+    for ch in text {
+        if let q = quote {
+            if ch == q { quote = nil } else { word.append(ch) }
+        } else if ch == "\"" || ch == "'" {
+            quote = ch
+            any = true
+        } else if ch == " " || ch == "\t" {
+            if any || !word.isEmpty { flush() }
+        } else {
+            word.append(ch)
+        }
+    }
+    flush()
+
+    let home = ProcessInfo.processInfo.environment["HOME"] ?? ""
+    guard !home.isEmpty else { return words }
+    return words.map { w in
+        if w == "~" { return home }
+        if w.hasPrefix("~/") { return home + String(w.dropFirst(1)) }
+        return w
+    }
 }
 
 /// Paces outbound dials to one host, so that N panes do not arrive at one

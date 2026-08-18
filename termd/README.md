@@ -193,15 +193,39 @@ The switcher reads that file too — `Host` entries (minus `*`/`?` patterns) are
 offered as destinations — so a host configured there is also a host you can
 find without remembering its address.
 
-Where editing `ssh_config` is not wanted, point `$STARLING_SSH` at a wrapper.
-It must be an **executable**, not a command string: it is used as `argv[0]` and
-the client appends its own flags after it, so `STARLING_SSH="ssh -i key"` is
-looked up as a program with that literal name and fails.
+### Naming the command itself
+
+`ssh_config` cannot say *which program* to run, and an environment variable
+does not survive being launched from Finder or a dock — the app comes up with
+no shell above it, so `$STARLING_SSH` is simply absent. For either case, name
+the command per host in `~/.config/starling-terminal/hosts`:
+
+```
+# host        command that reaches it
+prod-1        ssh -i ~/.ssh/id_prod -o IdentitiesOnly=yes
+lab           /usr/local/bin/ssh-through-jump
+old-box       ssh -o HostKeyAlgorithms=+ssh-rsa
+```
+
+One host per line, exact match, `#` comments; the rest of the line is the
+command. It is **a command line, not a program name** — flags are fine, quotes
+keep spaces together, and a leading `~` is expanded, since there is no shell
+here to do it. The same command is used to list a host in the switcher and to
+open its workspace, so the picker cannot show one thing and the connection do
+another.
+
+The client appends its own arguments after yours (`-T -o BatchMode=yes …`,
+then the host and the remote command), **so the command has to accept ssh's
+flags.** A front end that does not — `gcloud compute ssh`, say — still wants a
+small wrapper that swallows them:
 
 ```sh
 #!/bin/sh
 exec /usr/bin/ssh -i "$HOME/.ssh/id_prod" -o IdentitiesOnly=yes "$@"
 ```
+
+`$STARLING_SSH` still overrides the command globally, for scripts and for a
+launch from a shell; a `hosts` entry is more specific and wins over it.
 
 **The connection is made with `BatchMode=yes`, which is why a key that works in
 your shell can still fail here.** BatchMode disables every prompt, so:

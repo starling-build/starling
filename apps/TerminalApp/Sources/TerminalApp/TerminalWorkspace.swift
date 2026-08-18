@@ -125,7 +125,12 @@ final class TerminalWorkspace: @unchecked Sendable {
 
     init(spec: WorkspaceSpec) {
         self.spec = spec
-        self.link = RemoteWorkspace(name: spec.name, host: spec.host)
+        // How this host is reached, if the person said (HostConfig.swift).
+        // Passed rather than left to the environment because a GUI launch has
+        // no environment worth speaking of — the app comes up from Finder or a
+        // dock with no shell above it, so `STARLING_SSH` is simply absent.
+        self.link = RemoteWorkspace(name: spec.name, host: spec.host,
+                                    sshPath: HostConfig.ssh(for: spec.host))
     }
 
     /// Connect, and hand back what the far side was holding. `nil` means a
@@ -171,7 +176,8 @@ final class TerminalWorkspace: @unchecked Sendable {
         let remote = RemoteTerminal(session: pane.session,
                                     host: spec.host,
                                     attach: (session ?? 0) == 0 ? nil : session,
-                                    command: reopenCommand(in: cwd))
+                                    command: reopenCommand(in: cwd),
+                                    sshPath: HostConfig.ssh(for: spec.host))
         // The blob's directory is right for the FIRST open — the pane has no
         // screen of its own yet, so there is nothing better to know. From then
         // on the pane's own emulator is the better answer, and it is asked at

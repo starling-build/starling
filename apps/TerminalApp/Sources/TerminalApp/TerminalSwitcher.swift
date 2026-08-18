@@ -196,7 +196,12 @@ extension _TerminalTabsState {
         _switcher.listedHost = host
         _switcher.busy = true
         _switcher.unreachable = nil
-        TermdDirectory.list(host: host) { [weak self] listing in
+        // The same command the workspace itself will be reached by. Listing a
+        // host with the stock `ssh` and then opening it with the configured
+        // one would make the picker lie: it would show nothing for a host that
+        // works perfectly.
+        TermdDirectory.list(host: host,
+                            sshPath: HostConfig.ssh(for: host)) { [weak self] listing in
             DispatchQueue.main.async {
                 guard let self = self, self._switcher.open,
                       self._switcher.host == host
