@@ -35,6 +35,7 @@ import Foundation
 Win32WindowedHost.install()
 
 let wantsDock = CommandLine.arguments.contains("--dock")
+let wantsLauncher = CommandLine.arguments.contains("--launcher")
 
 // Span the primary monitor. Reading the geometry rather than assuming 1920
 // is the point — a panel sized to the wrong screen is the first thing that
@@ -48,7 +49,22 @@ print("[WinShell] monitors: \(Win32Display.monitors())")
 // takesFocus stays at its default of false for both: clicking a taskbar
 // button or a dock icon must not take the keyboard off the window the click
 // is about to raise.
-if wantsDock {
+if wantsLauncher {
+    // An overlay, not a panel: it is not an edge and it reserves nothing. It
+    // also comes up HIDDEN — see Launcher.swift for why it runs at all while
+    // invisible.
+    // --plain: a diagnostic escape hatch. The overlay restyle happens before
+    // the tree mounts, so when the launcher comes up blank this is how you
+    // find out whether the restyle is what stopped it.
+    if !CommandLine.arguments.contains("--plain") {
+        Win32WindowedHost.overlay = OverlayPlacement(opacity: 0.97)
+    }
+    runStarlingApp(title: "Starling Launcher",
+                   width: Int(screen?.logicalWidth ?? 1280),
+                   height: Int(screen?.logicalHeight ?? 800)) {
+        StarlingLauncher()
+    }
+} else if wantsDock {
     // transparent: the dock is a slab floating over the wallpaper, so the
     // strip around it has to be a hole rather than a black band.
     Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,

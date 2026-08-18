@@ -97,7 +97,19 @@ int32_t flwin32_shortcut_target(const char* shortcut_path,
                  * shows. */
                 if (SUCCEEDED(link->lpVtbl->GetPath(link, target, MAX_PATH, NULL,
                                                     SLGP_RAWPATH))) {
-                    result = wide_copy_out(target, out, out_size);
+                    /* SLGP_RAWPATH means literally raw: a great many Windows
+                     * shortcuts store "%windir%\\system32\\charmap.exe"
+                     * rather than a resolved path, and every one of those
+                     * fails to open, fails to yield an icon, and fails to
+                     * match a running window's executable -- silently, and
+                     * only for the built-in tools, which is what makes it
+                     * look like a font or a rendering problem rather than a
+                     * path one. */
+                    wchar_t expanded[MAX_PATH];
+                    DWORD n = ExpandEnvironmentStringsW(target, expanded, MAX_PATH);
+                    result = wide_copy_out(
+                        (n > 0 && n <= MAX_PATH) ? expanded : target,
+                        out, out_size);
                 }
             }
             file->lpVtbl->Release(file);

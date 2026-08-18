@@ -62,6 +62,14 @@ struct FlWin32Host {
   int panel_monitor;
   int panel_takes_focus;
   int panel_transparent;
+  // Overlay mode: a full-screen surface that is hidden until something asks
+  // for it — the launcher, and later Mission Control.
+  int overlay_active;
+  int overlay_monitor;
+  int overlay_shown;
+  RECT overlay_rect;
+  void (*toggle_callback)(void* user);
+  void* toggle_user;
   // External textures we handed the engine, so their pixel buffers can be
   // freed on unregister. Swift only ever sees the int64 id.
   struct HostTextureSlot* textures;
@@ -74,12 +82,24 @@ struct FlWin32Host {
 // this window class.
 #define WM_STARLING_APPBAR (WM_USER + 0x51)
 
+// A system-wide message id, the documented way for unrelated processes to
+// talk without a socket or a pipe: every process that registers the same
+// STRING gets the same id back, and it survives being broadcast. The bar and
+// the launcher are separate processes (one widget root per process), so this
+// is how a click on the bar opens the launcher.
+static UINT starling_toggle_message(void) {
+  static UINT id = 0;
+  if (id == 0) id = RegisterWindowMessageW(L"StarlingShellToggleOverlay");
+  return id;
+}
+
 static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
 
 // Defined with the rest of the shell-chrome code at the end of this file;
 // host_wnd_proc has to call both and comes first.
 static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
+static void overlay_park(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
 // DispatchQueue.main.async blocks run on the Win32 message thread. Same
@@ -122,6 +142,23 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
             host->controller, hwnd, message, wparam, lparam, &result)) {
       return result;
     }
+  }
+
+  if (host != NULL && message == starling_toggle_message()) {
+    // The toggle is handled HERE, in C, and not by the widget tree — because
+    // while the overlay is hidden there IS no widget tree.
+    //
+    // A hidden window is never asked for a frame, and this framework builds
+    // its tree on the first frame request rather than at runApp. So a
+    // launcher that comes up hidden has never run initState, has registered
+    // nothing, and cannot be the thing that decides to show itself. The host
+    // owns the visibility; the tree finds out afterwards, through the
+    // callback, and mounts on the frame that showing it produces.
+    if (host->overlay_active) {
+      flwin32_host_set_visible(host, flwin32_host_is_visible(host) ? 0 : 1);
+    }
+    if (host->toggle_callback != NULL) host->toggle_callback(host->toggle_user);
+    return 0;
   }
 
   switch (message) {
@@ -1023,4 +1060,156 @@ void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id) {
         registrar, texture_id, host_texture_free, texture);
     return;
   }
+}
+
+// ── overlays: a full-screen surface that is usually not there ───────────────
+//
+// The launcher, and later Mission Control. Different from a panel in every
+// way that matters: it covers the whole monitor rather than an edge, it
+// reserves nothing, it TAKES focus (a launcher you cannot type into is a
+// picture of a launcher), and it spends most of its life hidden.
+//
+// Hidden, not dead. Starting an engine costs a second or so, which is fine
+// for an app and unacceptable for something the user expects to appear the
+// instant they ask. So the process stays up with its window hidden, and
+// showing it is a ShowWindow.
+
+
+void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha) {
+  if (host == NULL || host->window == NULL) return;
+  host->overlay_active = 1;
+  host->overlay_monitor = monitor;
+
+  RECT area;
+  MonitorPick pick = {0};
+  pick.want = monitor;
+  if (monitor >= 0) EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  if (pick.found) {
+    area = pick.rect;
+  } else {
+    MONITORINFO mi = {sizeof(MONITORINFO)};
+    if (!GetMonitorInfoW(
+            MonitorFromWindow(host->window, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+      return;
+    }
+    area = mi.rcMonitor;
+  }
+
+  // WS_VISIBLE in the style, exactly as the panel path sets it, and NOT an
+  // oversight to tidy away: a restyle that leaves it out stops the embedder
+  // scheduling frames, so the tree never builds, initState never runs and the
+  // surface comes up as the window class's white brush. The panel path had it
+  // from the start, which is why the bar and the dock never showed this.
+  SetWindowLongPtrW(host->window, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
+  // TOOLWINDOW keeps it out of Alt+Tab; no NOACTIVATE, because this one wants
+  // the keyboard. LAYERED is what gives the whole surface a uniform alpha —
+  // the frosted-panel look, without a blur we have no cheap way to do.
+  ex |= WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED;
+  ex &= ~(LONG_PTR)WS_EX_NOACTIVATE;
+  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex);
+  if (alpha < 0) alpha = 255;
+  if (alpha > 255) alpha = 255;
+  SetLayeredWindowAttributes(host->window, 0, (BYTE)alpha, LWA_ALPHA);
+
+  host->overlay_rect = area;
+  overlay_park(host);
+}
+
+// Parking, and why it looks so odd.
+//
+// An overlay spends most of its life not on screen, and the obvious ways to
+// arrange that both BREAK IT: SW_HIDE stops the embedder scheduling frames,
+// and so does moving the window entirely off-screen, because a swap chain
+// with nothing visible presents as occluded. Either way no frame is ever
+// requested — and this framework builds its widget tree on the FIRST FRAME
+// REQUEST, not at runApp. A launcher parked either of those ways has never
+// run initState: no catalog, no icons, nothing registered. It then comes up
+// as the window class's white brush, which reads as a rendering bug and is
+// really "the tree does not exist".
+//
+// So it is parked as a 1x1 window in the corner of its monitor, at the bottom
+// of the z-order and click-through. That is genuinely on screen, so frames
+// keep coming and the tree stays alive with its icons ready; it is one pixel
+// under the menu bar, so nobody can see it; and showing it is a resize, which
+// is why it appears instantly.
+static void overlay_park(FlWin32Host* host) {
+  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
+  // TRANSPARENT while parked: one pixel is not much to click on, but it is
+  // the corner of the screen, which is exactly where a pointer ends up.
+  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
+  SetWindowPos(host->window, HWND_BOTTOM,
+               host->overlay_rect.left, host->overlay_rect.top, 1, 1,
+               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+  host->overlay_shown = 0;
+}
+
+int32_t flwin32_host_is_visible(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return 0;
+  // An overlay is always "visible" to Windows — it is parked, not hidden —
+  // so its own flag is the only truthful answer.
+  if (host->overlay_active) return host->overlay_shown;
+  return IsWindowVisible(host->window) ? 1 : 0;
+}
+
+void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
+  if (host == NULL || host->window == NULL) return;
+  if (!host->overlay_active) {
+    ShowWindow(host->window, visible ? SW_SHOW : SW_HIDE);
+    return;
+  }
+
+  if (!visible) {
+    overlay_park(host);
+    return;
+  }
+
+  // Re-derive the geometry on the way up: the monitor may have changed size,
+  // or gone, since the last time this was shown. Only the rectangle — going
+  // through set_overlay again would re-park it.
+  MonitorPick pick = {0};
+  pick.want = host->overlay_monitor;
+  if (host->overlay_monitor >= 0) {
+    EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  }
+  if (pick.found) {
+    host->overlay_rect = pick.rect;
+  } else {
+    MONITORINFO mi = {sizeof(MONITORINFO)};
+    POINT origin = {0, 0};
+    if (GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+      host->overlay_rect = mi.rcMonitor;
+    }
+  }
+
+  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
+  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex & ~(LONG_PTR)WS_EX_TRANSPARENT);
+  SetWindowPos(host->window, HWND_TOPMOST,
+               host->overlay_rect.left, host->overlay_rect.top,
+               host->overlay_rect.right - host->overlay_rect.left,
+               host->overlay_rect.bottom - host->overlay_rect.top,
+               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+  host->overlay_shown = 1;
+  // Through the window manager's own activate, which owns the
+  // AttachThreadInput dance: the process asking for this is usually the BAR,
+  // not us, so we are not the foreground process and a bare
+  // SetForegroundWindow would be refused.
+  flwin32_wm_activate((uint64_t)(uintptr_t)host->window);
+}
+
+void flwin32_host_on_toggle(FlWin32Host* host,
+                            void (*callback)(void* user),
+                            void* user) {
+  if (host == NULL) return;
+  host->toggle_callback = callback;
+  host->toggle_user = user;
+}
+
+void flwin32_shell_broadcast_toggle(void) {
+  // HWND_BROADCAST reaches every top-level window in the session, and only
+  // the process that registered the same string recognises the id. PostMessage
+  // rather than Send: a broadcast Send blocks on every hung window on the
+  // desktop, which is the whole shell's responsiveness bet on other people's
+  // apps.
+  PostMessageW(HWND_BROADCAST, starling_toggle_message(), 0, 0);
 }

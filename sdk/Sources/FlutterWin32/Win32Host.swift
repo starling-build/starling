@@ -49,6 +49,11 @@ public final class Win32Host {
 
     /// Shows the window and runs the Win32 message loop. Returns when the
     /// window is closed.
+    ///
+    /// An overlay is shown too — it is parked off-screen rather than hidden,
+    /// because a hidden window is never sent a frame and this framework
+    /// builds its tree on the first frame request. See the comment in
+    /// flwin32_host_set_overlay.
     public func run() {
         flwin32_host_show(host)
         flwin32_host_run(host)
@@ -58,6 +63,34 @@ public final class Win32Host {
     public func setFullscreen(_ fullscreen: Bool) {
         flwin32_host_set_fullscreen(host, fullscreen ? 1 : 0)
     }
+
+    /// Comes up as a full-screen overlay — the launcher, and later Mission
+    /// Control — hidden until `setVisible(true)`.
+    ///
+    /// Hidden rather than not running: starting an engine costs about a
+    /// second, which is fine for an app and wrong for something the user
+    /// expects the instant they ask for it.
+    public func setOverlay(monitor: Int? = nil, opacity: Double = 0.96) {
+        flwin32_host_set_overlay(host, Int32(monitor ?? -1),
+                                 Int32((opacity * 255).rounded()))
+    }
+
+    public func setVisible(_ visible: Bool) {
+        flwin32_host_set_visible(host, visible ? 1 : 0)
+    }
+
+    public var isVisible: Bool { flwin32_host_is_visible(host) != 0 }
+
+    /// Called when any Starling surface broadcasts a toggle. Runs on the UI
+    /// thread, inside the message loop.
+    public func onToggle(_ handler: @escaping () -> Void) {
+        Win32Host.toggleHandler = handler
+        flwin32_host_on_toggle(host, { _ in Win32Host.toggleHandler?() }, nil)
+    }
+
+    /// Global for the same reason the window-manager hook is: there is one UI
+    /// thread and one window per process.
+    nonisolated(unsafe) private static var toggleHandler: (() -> Void)?
 
     /// Registers `window`'s application icon with the engine as an external
     /// texture and returns its id for a `TextureWidget`, or nil when the

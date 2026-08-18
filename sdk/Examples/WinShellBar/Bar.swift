@@ -322,13 +322,18 @@ final class StarlingBarState: State<StatefulWidget> {
             child: ColoredBox(color: Color(0xF01B1D22)) {
                 Padding(padding: EdgeInsets(left: 14, top: 0, right: 14, bottom: 0)) {
                     Row(crossAxisAlignment: .center) {
-                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
-                            MacosIcon(icon: CupertinoIcons.sparkles, color: Color(0xFF7FB0FF), size: 16)
-                            Text("Starling",
-                                 style: TextStyle(color: Color(0xFFFFFFFF),
-                                                  fontSize: 13,
-                                                  fontWeight: .w600))
-                        }
+                        // The Starling button opens the launcher, which is
+                        // a different PROCESS — one widget root per process —
+                        // so the click becomes a broadcast rather than a call.
+                        GestureDetector(
+                            onTap: { Win32Shell.toggleOverlay() },
+                            child: Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
+                                MacosIcon(icon: CupertinoIcons.sparkles, color: Color(0xFF7FB0FF), size: 16)
+                                Text("Starling",
+                                     style: TextStyle(color: Color(0xFFFFFFFF),
+                                                      fontSize: 13,
+                                                      fontWeight: .w600))
+                            })
                         Expanded {
                             Padding(padding: EdgeInsets(left: 18, top: 0, right: 18, bottom: 0)) {
                                 Row(mainAxisSize: .min, crossAxisAlignment: .center) {

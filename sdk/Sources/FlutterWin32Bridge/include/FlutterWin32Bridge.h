@@ -90,6 +90,28 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// ── overlays ────────────────────────────────────────────────────────────────
+//
+// A full-screen surface that is usually not there: the launcher, and later
+// Mission Control. Unlike a panel it covers the monitor, reserves nothing,
+// TAKES focus, and spends most of its life hidden — hidden rather than not
+// running, because starting an engine takes about a second and a launcher has
+// to appear the instant it is asked for.
+//
+// `alpha` is the whole surface's opacity, 0-255; -1 keeps the current one.
+void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha);
+void flwin32_host_set_visible(FlWin32Host* host, int32_t visible);
+int32_t flwin32_host_is_visible(FlWin32Host* host);
+
+// Cross-process toggle. The bar and the launcher are separate processes (the
+// framework mounts one widget root per process), so a click on the bar
+// reaches the launcher as a broadcast of a registered window message — the
+// documented way for unrelated processes to talk with no socket or pipe.
+void flwin32_host_on_toggle(FlWin32Host* host,
+                            void (*callback)(void* user),
+                            void* user);
+void flwin32_shell_broadcast_toggle(void);
+
 int32_t flwin32_monitor_count(void);
 int32_t flwin32_monitor_rect(int32_t index,
                              int32_t* x,

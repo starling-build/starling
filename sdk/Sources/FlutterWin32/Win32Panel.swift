@@ -115,4 +115,37 @@ public struct PanelPlacement: Sendable {
         self.transparent = transparent
     }
 }
+
+/// Where a full-screen overlay sits. Handed to `Win32WindowedHost.overlay`
+/// before `runStarlingApp`, for the same reason `PanelPlacement` is: the
+/// window it restyles does not exist until the host boots, and a tree laid
+/// out against the pre-restyle size renders its first frame at the wrong
+/// geometry.
+public struct OverlayPlacement: Sendable {
+    /// Index into `Win32Display.monitors()`, or nil for the primary.
+    public let monitor: Int?
+    /// The whole surface's opacity. Uniform rather than per-pixel — the
+    /// engine's swap chain is opaque — which is what gives the frosted-panel
+    /// look without a blur we have no cheap way to do.
+    public let opacity: Double
+
+    public init(monitor: Int? = nil, opacity: Double = 0.96) {
+        self.monitor = monitor
+        self.opacity = opacity
+    }
+}
+
+/// Toggling a surface that lives in another process.
+///
+/// The framework mounts one widget root per process and the Win32 host owns
+/// one window, so Starling's surfaces on Windows are separate processes — the
+/// bar, the dock, the launcher. A registered window message broadcast is the
+/// documented way for unrelated processes to talk with no socket and no pipe:
+/// every process that registers the same string gets the same id back.
+public enum Win32Shell {
+    /// Asks every Starling overlay in the session to show or hide itself.
+    public static func toggleOverlay() {
+        flwin32_shell_broadcast_toggle()
+    }
+}
 #endif
