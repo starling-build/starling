@@ -171,6 +171,16 @@ PLIST
 # (or clears quarantine); pass a "Developer ID Application: …" identity in
 # STARLING_MACOS_IDENTITY to produce something notarizable.
 IDENTITY="${STARLING_MACOS_IDENTITY:--}"
+
+# Strip extended attributes BEFORE sealing, or the archive breaks the seal it
+# just made. Everything copied in here picks up `com.apple.provenance` from
+# the system (40 files did), `ditto -c -k` stores xattrs as AppleDouble, and a
+# plain `unzip` on the far end materializes those as real `._Foo` files INSIDE
+# the bundle. codesign then reports "a sealed resource is missing or invalid /
+# file added: …/._FlutterMacOS" — an app that verified perfectly on the machine
+# that built it and is invalid everywhere else.
+xattr -cr "$OUT" 2>/dev/null || true
+
 codesign --force --sign "$IDENTITY" --timestamp=none \
     "$C/Frameworks/libswift_bridge.dylib"
 codesign --force --sign "$IDENTITY" --timestamp=none \
@@ -185,8 +195,30 @@ if [ "$ZIP" = 1 ]; then
     rm -f "$ZIPOUT"
     # ditto's zip keeps symlinks and metadata, which `zip -r` would flatten —
     # a framework with a materialized Versions/Current fails codesign on the
-    # receiving end.
-    ditto -c -k --keepParent "$OUT" "$ZIPOUT"
+    # receiving end. --sequesterRsrc is the other half: it puts any AppleDouble
+    # metadata under a `__MACOSX/` directory beside the app instead of inline,
+    # so an `unzip` that does not understand it drops harmless files NEXT TO
+    # the bundle rather than inside it.
+    ditto -c -k --sequesterRsrc --keepParent "$OUT" "$ZIPOUT"
+
+    # Verify what is SHIPPED, not what was built. The check above runs against
+    # the staged bundle and passed even while every archive this script wrote
+    # was arriving broken — the damage is done by the round trip, so the only
+    # check that can see it is one on the far side of it. Unpacked with plain
+    # `unzip`, deliberately: that is what a recipient has, and `ditto -x` would
+    # quietly repair the very thing being tested for.
+    _v=$(mktemp -d)
+    if unzip -q "$ZIPOUT" -d "$_v" && \
+       codesign --verify --deep --strict "$_v/$(basename "$OUT")" 2>/dev/null; then
+        echo "==> archive verifies after a plain unzip"
+    else
+        echo "!!! the archive's signature does NOT survive unzip:" >&2
+        codesign --verify --deep --strict "$_v/$(basename "$OUT")" 2>&1 \
+            | head -5 >&2
+        rm -rf "$_v"
+        exit 1
+    fi
+    rm -rf "$_v"
     echo "==> $ZIPOUT"
 fi
 
