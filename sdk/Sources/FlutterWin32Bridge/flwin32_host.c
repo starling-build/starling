@@ -51,6 +51,7 @@ struct FlWin32Host {
   int appbar_registered;
   int appbar_edge;
   int appbar_thickness;
+  int appbar_overhang;
   // Panel placement, kept in the terms the CALLER gave it: a screen edge, a
   // thickness in logical points, and a monitor. Physical pixels are derived
   // from these every time, because the number that matters changes under us —
@@ -59,6 +60,7 @@ struct FlWin32Host {
   int panel_active;
   int panel_edge;
   int panel_thickness_pt;
+  int panel_overhang_pt;
   int panel_monitor;
   int panel_takes_focus;
   int panel_transparent;
@@ -100,6 +102,7 @@ static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
 static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
+static void apply_colour_key(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
 // DispatchQueue.main.async blocks run on the Win32 message thread. Same
@@ -745,31 +748,46 @@ static void panel_apply_placement(FlWin32Host* host) {
       USER_DEFAULT_SCREEN_DPI;
   if (thickness < 1) thickness = 1;
 
+  // The OVERHANG is the difference between the strip the panel reserves and
+  // the window it actually occupies: the window extends this much further in
+  // from the edge, and reserves none of it.
+  //
+  // It exists because a dock needs to draw ABOVE itself — a hover label, a
+  // right-click menu — and a window is a hard clip. Without it those would be
+  // cut off at the edge of the strip. The overhang is transparent (the
+  // panel's colour key), so it is invisible and clicks fall straight through
+  // it to whatever is behind, right up until a menu paints there.
+  int32_t overhang =
+      (host->panel_overhang_pt * dpi + USER_DEFAULT_SCREEN_DPI / 2) /
+      USER_DEFAULT_SCREEN_DPI;
+  if (overhang < 0) overhang = 0;
+  int32_t span = thickness + overhang;
+
   int32_t x, y, w, h;
   switch (host->panel_edge) {
     case 1:  // bottom
       x = area.left;
-      y = area.bottom - thickness;
+      y = area.bottom - span;
       w = area.right - area.left;
-      h = thickness;
+      h = span;
       break;
     case 2:  // left
       x = area.left;
       y = area.top;
-      w = thickness;
+      w = span;
       h = area.bottom - area.top;
       break;
     case 3:  // right
-      x = area.right - thickness;
+      x = area.right - span;
       y = area.top;
-      w = thickness;
+      w = span;
       h = area.bottom - area.top;
       break;
     default:  // top
       x = area.left;
       y = area.top;
       w = area.right - area.left;
-      h = thickness;
+      h = span;
       break;
   }
 
@@ -811,11 +829,15 @@ static void panel_apply_placement(FlWin32Host* host) {
   // The cost is that pure black is now unpaintable in a transparent panel.
   // Every Starling surface is a near-black (0x1B1D22), so nothing real is
   // lost — but a panel that wants true black has to say transparent: false.
-  if (host->panel_transparent) {
-    SetLayeredWindowAttributes(host->window, RGB(0, 0, 0), 255, LWA_COLORKEY);
-  }
   SetWindowPos(host->window, HWND_TOPMOST, x, y, w, h,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+  // AFTER the move, and again after the appbar moves it: SWP_FRAMECHANGED
+  // re-runs the non-client calculation, and the colour key does not reliably
+  // survive it. The symptom is not "no transparency" — the strip that was
+  // sized before the call still keys out, and only the part added afterwards
+  // paints solid black, which reads as a layout bug rather than a lost
+  // attribute.
+  apply_colour_key(host);
 
   // Remember the placement in the shell's OWN terms, translated to the ABE_*
   // the appbar API speaks. Kept even when no appbar is registered, so
@@ -826,7 +848,11 @@ static void panel_apply_placement(FlWin32Host* host) {
     case 3:  host->appbar_edge = ABE_RIGHT;  break;
     default: host->appbar_edge = ABE_TOP;    break;
   }
+  // The RESERVED thickness, not the window's — reserving the overhang too
+  // would push every maximized window in by the height of a menu that is not
+  // being shown.
   host->appbar_thickness = thickness;
+  host->appbar_overhang = overhang;
   // Already an appbar (a monitor change, or a second call): re-reserve at the
   // new geometry rather than leaving the old strip reserved.
   if (host->appbar_registered) appbar_apply_position(host);
@@ -837,11 +863,13 @@ void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t thickness,
                             int32_t monitor,
                             int32_t takes_focus,
-                            int32_t transparent) {
+                            int32_t transparent,
+                            int32_t overhang) {
   if (host == NULL || host->window == NULL) return;
   host->panel_active = 1;
   host->panel_edge = edge;
   host->panel_thickness_pt = thickness;
+  host->panel_overhang_pt = overhang;
   host->panel_monitor = monitor;
   host->panel_takes_focus = takes_focus ? 1 : 0;
   host->panel_transparent = transparent ? 1 : 0;
@@ -861,6 +889,13 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // ABM_SETPOS commits the answer, and only then do we move the window to
 // match. Skipping QUERYPOS puts the bar on top of the taskbar; skipping the
 // final move leaves the reservation and the window in different places.
+
+// Re-establishes the panel's transparency. Called after every geometry
+// change, because SWP_FRAMECHANGED can drop it.
+static void apply_colour_key(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL || !host->panel_transparent) return;
+  SetLayeredWindowAttributes(host->window, RGB(0, 0, 0), 255, LWA_COLORKEY);
+}
 
 static void appbar_apply_position(FlWin32Host* host) {
   if (host == NULL || !host->appbar_registered) return;
@@ -895,8 +930,22 @@ static void appbar_apply_position(FlWin32Host* host) {
   }
 
   SHAppBarMessage(ABM_SETPOS, &abd);
-  MoveWindow(host->window, abd.rc.left, abd.rc.top,
-             abd.rc.right - abd.rc.left, abd.rc.bottom - abd.rc.top, TRUE);
+
+  // The window is the reserved strip PLUS the overhang, and this is the place
+  // that gets it wrong if you forget: ABM_SETPOS answers with the RESERVED
+  // rectangle, and moving the window straight onto it silently throws the
+  // overhang away — the dock keeps working and its hover label and menu are
+  // clipped out of existence, with nothing to suggest the appbar did it.
+  RECT frame = abd.rc;
+  switch (host->appbar_edge) {
+    case ABE_BOTTOM: frame.top -= host->appbar_overhang; break;
+    case ABE_LEFT:   frame.right += host->appbar_overhang; break;
+    case ABE_RIGHT:  frame.left -= host->appbar_overhang; break;
+    default:         frame.bottom += host->appbar_overhang; break;
+  }
+  MoveWindow(host->window, frame.left, frame.top,
+             frame.right - frame.left, frame.bottom - frame.top, TRUE);
+  apply_colour_key(host);
 }
 
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable) {

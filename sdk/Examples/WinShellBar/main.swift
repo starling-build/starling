@@ -66,10 +66,15 @@ if wantsLauncher {
     }
 } else if wantsDock {
     // transparent: the dock is a slab floating over the wallpaper, so the
-    // strip around it has to be a hole rather than a black band.
+    // strip around it has to be a hole rather than a black band. overhang:
+    // the window extends above the reserved strip so the hover label and the
+    // right-click menu have somewhere to draw — a window is a hard clip, and
+    // both are taller than the dock.
     Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,
-                                             reserveSpace: true, transparent: true)
-    runStarlingApp(title: "Starling Dock", width: panelWidth, height: kDockHeight) {
+                                             reserveSpace: true, transparent: true,
+                                             overhang: kDockOverhang)
+    runStarlingApp(title: "Starling Dock", width: panelWidth,
+                   height: kDockHeight + kDockOverhang) {
         StarlingDock()
     }
 } else {

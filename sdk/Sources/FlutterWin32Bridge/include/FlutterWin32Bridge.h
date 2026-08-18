@@ -78,12 +78,18 @@ void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen);
 // lets clicks there fall through — how a dock floats over the wallpaper
 // instead of sitting in a black strip. It costs the ability to paint true
 // black in that panel.
+//
+// `overhang` (logical points) makes the WINDOW extend that much further in
+// from the edge than the strip it reserves. A dock needs it to draw above
+// itself — a hover label, a right-click menu — because a window is a hard
+// clip. It is transparent and click-through until something paints there.
 void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t edge,
                             int32_t thickness,
                             int32_t monitor,
                             int32_t takes_focus,
-                            int32_t transparent);
+                            int32_t transparent,
+                            int32_t overhang);
 
 // Register (or remove) the window as an appbar, so Windows reserves the strip
 // and maximized windows stop at it. Call after flwin32_host_set_panel, which

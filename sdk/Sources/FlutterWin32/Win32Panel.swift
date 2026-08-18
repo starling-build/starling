@@ -103,16 +103,25 @@ public struct PanelPlacement: Sendable {
     /// costs the ability to paint true black here. Every Starling surface is
     /// a near-black, so nothing real is lost.
     public let transparent: Bool
+    /// Extra points the WINDOW occupies beyond the strip it reserves,
+    /// extending in from the edge.
+    ///
+    /// A dock needs this to draw above itself — a hover label, a right-click
+    /// menu — because a window is a hard clip and anything taller than the
+    /// strip would be cut off. The overhang reserves nothing, is transparent,
+    /// and is click-through until something paints in it.
+    public let overhang: Int
 
     public init(edge: PanelEdge, thickness: Int, monitor: Int? = nil,
                 reserveSpace: Bool = false, takesFocus: Bool = false,
-                transparent: Bool = false) {
+                transparent: Bool = false, overhang: Int = 0) {
         self.edge = edge
         self.thickness = thickness
         self.monitor = monitor
         self.reserveSpace = reserveSpace
         self.takesFocus = takesFocus
         self.transparent = transparent
+        self.overhang = overhang
     }
 }
 
