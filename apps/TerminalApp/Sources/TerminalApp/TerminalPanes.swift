@@ -1,0 +1,188 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// The split tree — milestone 1 of docs/plans/remote-workspace.md.
+//
+// Lifted from sdk/Examples/TerminalTiling, which proved the shape: a binary
+// tree whose leaves are panes and whose branches are splits at a RATIO. The
+// ratio is what makes window resize and seam drag the same operation applied
+// at different levels — nothing here stores pixels, so a resized window
+// redistributes every pane proportionally with no re-tiling pass.
+//
+// Model only. The widgets that draw it live in TerminalTabs.swift, because
+// they need the state object's `setState`.
+
+import Flutter
+import FlutterSwiftBridge
+import Foundation
+
+#if !os(iOS)
+
+/// Which way a split divides its box.
+enum SplitAxis {
+    /// Children side by side, divided by a vertical seam.
+    case row
+    /// Children stacked, divided by a horizontal seam.
+    case column
+}
+
+/// A rectangle in logical pixels. Not `Rect` — the bridge already has one.
+struct PaneBox {
+    var x: Double
+    var y: Double
+    var w: Double
+    var h: Double
+}
+
+/// One terminal inside a tab: a session, and an identity that survives the
+/// tree being reshaped around it.
+final class TerminalPane {
+    /// Never reused. Everything acts on the pane object or this id, never a
+    /// position in the tree — a split rewrites the tree under the caller.
+    let id: Int
+    let session: TerminalSession
+
+    init(id: Int, cols: Int, rows: Int) {
+        self.id = id
+        self.session = TerminalSession(cols: cols, rows: rows)
+    }
+}
+
+/// A node in the layout: a pane (leaf), or a split of two children.
+final class PaneNode {
+    var pane: TerminalPane?
+    var axis: SplitAxis = .row
+    var ratio: Double = 0.5
+    var first: PaneNode?
+    var second: PaneNode?
+    weak var parent: PaneNode?
+
+    init(pane: TerminalPane) { self.pane = pane }
+    init() {}
+
+    var isLeaf: Bool { pane != nil }
+
+    func forEachLeaf(_ body: (PaneNode) -> Void) {
+        if isLeaf { body(self); return }
+        first?.forEachLeaf(body)
+        second?.forEachLeaf(body)
+    }
+
+    /// Every pane in tree order — the order a "next pane" walk follows.
+    var panes: [TerminalPane] {
+        var out: [TerminalPane] = []
+        forEachLeaf { if let p = $0.pane { out.append(p) } }
+        return out
+    }
+
+    func node(for id: Int) -> PaneNode? {
+        var found: PaneNode?
+        forEachLeaf { if found == nil, $0.pane?.id == id { found = $0 } }
+        return found
+    }
+}
+
+// MARK: - Layout
+
+/// Seam thickness in logical pixels — thin enough to read as a divider, thick
+/// enough to grab. The tiling example's value, which was arrived at by
+/// dragging it.
+let paneSeamW: Double = 6
+
+/// A pane may not be squeezed below this; the clamp is what stops a drag
+/// collapsing one side to nothing.
+let paneMinSize: Double = 60
+
+/// Resolve the tree into boxes. Returns the leaves to draw, the seams to make
+/// draggable, and every node's own box — the last is what a seam drag needs,
+/// because a nested split's ratio belongs to ITS box, not the window's.
+func resolvePanes(_ root: PaneNode, in box: PaneBox)
+    -> (leaves: [(PaneNode, PaneBox)],
+        seams: [(PaneNode, PaneBox)],
+        boxes: [ObjectIdentifier: PaneBox]) {
+    var leaves: [(PaneNode, PaneBox)] = []
+    var seams: [(PaneNode, PaneBox)] = []
+    var boxes: [ObjectIdentifier: PaneBox] = [:]
+
+    func walk(_ node: PaneNode, _ b: PaneBox) {
+        boxes[ObjectIdentifier(node)] = b
+        guard !node.isLeaf, let first = node.first, let second = node.second else {
+            leaves.append((node, b))
+            return
+        }
+        let s = paneSeamW
+        if node.axis == .row {
+            let usable = max(0, b.w - s)
+            let firstW = usable * node.ratio
+            walk(first, PaneBox(x: b.x, y: b.y, w: firstW, h: b.h))
+            seams.append((node, PaneBox(x: b.x + firstW, y: b.y, w: s, h: b.h)))
+            walk(second, PaneBox(x: b.x + firstW + s, y: b.y,
+                                 w: usable - firstW, h: b.h))
+        } else {
+            let usable = max(0, b.h - s)
+            let firstH = usable * node.ratio
+            walk(first, PaneBox(x: b.x, y: b.y, w: b.w, h: firstH))
+            seams.append((node, PaneBox(x: b.x, y: b.y + firstH, w: b.w, h: s)))
+            walk(second, PaneBox(x: b.x, y: b.y + firstH + s,
+                                 w: b.w, h: usable - firstH))
+        }
+    }
+    walk(root, box)
+    return (leaves, seams, boxes)
+}
+
+// MARK: - Mutation
+
+/// Split a leaf in two, keeping its pane and adding `fresh` beside it.
+///
+/// The node becomes the split and grows two children rather than being
+/// replaced, so every reference the caller holds — and the parent pointer
+/// above it — stays valid.
+func splitPane(_ node: PaneNode, axis: SplitAxis, with fresh: TerminalPane) {
+    guard let pane = node.pane else { return }
+    let keep = PaneNode(pane: pane)
+    let added = PaneNode(pane: fresh)
+    node.pane = nil
+    node.axis = axis
+    node.ratio = 0.5
+    node.first = keep
+    node.second = added
+    keep.parent = node
+    added.parent = node
+}
+
+/// Remove a leaf; its sibling takes the space back.
+///
+/// Returns false when the node is the whole tree — the caller decides what
+/// closing the last pane means (here: close the tab).
+@discardableResult
+func closePane(_ node: PaneNode) -> Bool {
+    guard let parent = node.parent,
+          let sibling = (parent.first === node) ? parent.second : parent.first
+    else { return false }
+    // The parent BECOMES the sibling in place, so the sibling's own subtree
+    // keeps its shape and its ratios. Replacing the parent instead would
+    // orphan every grandchild's parent pointer.
+    parent.pane = sibling.pane
+    parent.axis = sibling.axis
+    parent.ratio = sibling.ratio
+    parent.first = sibling.first
+    parent.second = sibling.second
+    parent.first?.parent = parent
+    parent.second?.parent = parent
+    return true
+}
+
+/// Move a seam. `delta` is the pointer's travel along the split's axis.
+func dragSeam(_ node: PaneNode, delta: Double, own: PaneBox) {
+    let usable = node.axis == .row
+        ? max(1, own.w - paneSeamW)
+        : max(1, own.h - paneSeamW)
+    // Clamped so neither side can be squeezed away — and min/max around 0.5
+    // so a box too small for two minimums still yields a usable even split.
+    let lo = min(0.5, paneMinSize / usable)
+    let hi = max(0.5, 1 - paneMinSize / usable)
+    node.ratio = min(max(node.ratio + delta / usable, lo), hi)
+}
+
+#endif  // !os(iOS)

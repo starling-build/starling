@@ -38,7 +38,7 @@ import Foundation
 // tab between.
 #if !os(iOS)
 
-/// One tab: a shell session, plus an identity that survives the list moving
+/// One tab: a tree of panes, plus an identity that survives the list moving
 /// under it.
 final class TerminalTab {
     /// Never reused. Everything that acts on a tab does so through the object
@@ -46,11 +46,29 @@ final class TerminalTab {
     /// click on the tab body behind it arrives afterwards, by which time the
     /// indices have shifted.
     let id: Int
-    let session: TerminalSession
+    /// The split tree. A tab starts as a single leaf and grows from there;
+    /// see TerminalPanes.swift.
+    var root: PaneNode
+    /// Which pane owns the keyboard. Held as an id rather than a node,
+    /// because a split rewrites nodes under it.
+    var activePaneId: Int
+    /// Bumped when focus is moved by CODE rather than by a click, which is
+    /// the only case that needs help: `TerminalView.autofocus` is read at
+    /// mount, so a pane that was already on screen and inactive never asks
+    /// for the keyboard when it becomes active. Folding this into the key
+    /// remounts exactly that pane, and remounting is what runs autofocus.
+    /// A click needs none of this — the view's own Listener takes focus.
+    var focusEpoch = 0
 
-    init(id: Int, cols: Int, rows: Int) {
+    init(id: Int, pane: TerminalPane) {
         self.id = id
-        self.session = TerminalSession(cols: cols, rows: rows)
+        self.root = PaneNode(pane: pane)
+        self.activePaneId = pane.id
+    }
+
+    var panes: [TerminalPane] { root.panes }
+    var activePane: TerminalPane? {
+        panes.first { $0.id == activePaneId } ?? panes.first
     }
 }
 
@@ -59,6 +77,12 @@ final class TerminalTab {
 /// the bar carries it too or the window looks like two materials.
 private enum TabChrome {
     static let height: Double = 28
+    /// The seam between panes, and the ring around the one with the keyboard.
+    /// Both are quiet on purpose: a terminal is a rectangle of text and a
+    /// loud border competes with it.
+    static let seam: Int = 0xFF_0E1013
+    static let seamHot: Int = 0xFF_3A4152
+    static let activePaneEdge: Int = 0x66_66AAFF
     /// The active tab is the terminal's own background, so the two read as
     /// one surface; everything else is darker.
     static let activeTab: Int = 0xD9_1E2127
@@ -83,6 +107,14 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     private var tabs: [TerminalTab] = []
     private var active = 0
     private var nextId = 1
+    private var nextPaneId = 1
+
+    /// The seam being dragged, and the last pointer position, so a move is a
+    /// delta rather than an absolute. Node boxes come from the last layout —
+    /// a nested split's ratio belongs to ITS box, not the window's.
+    private var _dragSeam: PaneNode?
+    private var _lastPointer: Offset?
+    private var _boxes: [ObjectIdentifier: PaneBox] = [:]
 
     /// Modifier state, watched rather than read off the event: the embedders
     /// report modifiers as their own key events, not as flags on the letter.
@@ -98,31 +130,39 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     override func dispose() {
-        for tab in tabs { tab.session.terminate() }
+        for tab in tabs { for pane in tab.panes { pane.session.terminate() } }
         tabs = []
         super.dispose()
     }
 
     // MARK: - The list
 
-    /// A new tab, sized to the one it is opening beside.
+    /// A new pane, sized to the one it is opening beside.
     ///
     /// A fresh `TerminalSession` is 80x24 and the view resizes it on mount,
     /// which means the shell would print its first prompt at 80 columns and
     /// then be told the real width — one SIGWINCH and one redraw for nothing.
-    /// The active tab already knows the answer.
-    @discardableResult
-    private func _open() -> TerminalTab {
+    /// Whatever is on screen already knows a closer answer. It is only an
+    /// estimate for a split (the new pane gets half a box), and that is fine:
+    /// being one resize closer still beats starting at 80.
+    private func _newPane() -> TerminalPane {
         var cols = 80, rows = 24
-        if let current = tabs.indices.contains(active) ? tabs[active] : nil {
+        if let current = tabs.indices.contains(active) ? tabs[active].activePane : nil {
             current.session.lock.lock()
             (cols, rows) = (current.session.emulator.cols,
                             current.session.emulator.rows)
             current.session.lock.unlock()
         }
-        let tab = TerminalTab(id: nextId, cols: cols, rows: rows)
+        let pane = TerminalPane(id: nextPaneId, cols: cols, rows: rows)
+        nextPaneId += 1
+        pane.session.startShell()
+        return pane
+    }
+
+    @discardableResult
+    private func _open() -> TerminalTab {
+        let tab = TerminalTab(id: nextId, pane: _newPane())
         nextId += 1
-        tab.session.startShell()
         tabs.append(tab)
         active = tabs.count - 1
         return tab
@@ -139,13 +179,53 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         else { return }
         setState {
             tabs.remove(at: index)
-            tab.session.terminate()
+            for pane in tab.panes { pane.session.terminate() }
             // Closing the active tab hands the slot to the one that took its
             // place (the last tab falls back to the new last); closing one
             // ABOVE it just shifts the index down.
             if index < active { active -= 1 }
             active = min(active, tabs.count - 1)
         }
+    }
+
+    // MARK: - Panes
+
+    /// Split the focused pane. The new one takes the keyboard, which is what
+    /// every terminal with splits does and what the hand expects.
+    private func _split(_ axis: SplitAxis) {
+        guard let tab = tabs.indices.contains(active) ? tabs[active] : nil,
+              let node = tab.root.node(for: tab.activePaneId) ?? tab.root.node(for: tab.panes.first?.id ?? -1)
+        else { return }
+        let fresh = _newPane()
+        setState {
+            splitPane(node, axis: axis, with: fresh)
+            tab.activePaneId = fresh.id
+        }
+    }
+
+    /// Close the focused pane. The last pane in a tab closes the tab instead —
+    /// a tab with nothing in it is not a state worth having.
+    private func _closePane() {
+        guard let tab = tabs.indices.contains(active) ? tabs[active] : nil,
+              let pane = tab.activePane,
+              let node = tab.root.node(for: pane.id)
+        else { return }
+        guard closePane(node) else { _close(tab); return }
+        setState {
+            pane.session.terminate()
+            // Focus lands on whatever now occupies the space. The closing
+            // pane's focus node is disposed, so without this nothing holds
+            // the keyboard at all and the survivor looks dead.
+            tab.activePaneId = tab.panes.first?.id ?? 0
+            tab.focusEpoch += 1
+        }
+    }
+
+    private func _focusPane(_ pane: TerminalPane) {
+        guard let tab = tabs.indices.contains(active) ? tabs[active] : nil,
+              tab.activePaneId != pane.id
+        else { return }
+        setState { tab.activePaneId = pane.id }
     }
 
     private func _select(_ tab: TerminalTab) {
@@ -161,8 +241,11 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// Returning true swallows the key — the shell never sees it — so this
     /// takes as little as it can:
     ///
-    ///   - Ctrl+T / ⌘T          new tab
-    ///   - Ctrl+Shift+W / ⌘W    close the current tab
+    ///   - Ctrl+T / ⌘T                 new tab
+    ///   - Ctrl+Shift+D / ⌘D           split the pane left|right
+    ///   - Ctrl+Shift+E / ⌘⇧D          split the pane top/bottom
+    ///   - Ctrl+Shift+W / ⌘W           close the pane, or the tab if it is
+    ///                                 the last pane in it
     ///
     /// Ctrl+T is `transpose-chars` in every shell's emacs-mode line editor and
     /// is now gone; that is the price of the chord asked for. Close is
@@ -191,23 +274,26 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
 
         let isT = keyData.logical == 0x54 || keyData.logical == 0x74
         let isW = keyData.logical == 0x57 || keyData.logical == 0x77
+        let isD = keyData.logical == 0x44 || keyData.logical == 0x64
+        let isE = keyData.logical == 0x45 || keyData.logical == 0x65
 
         if _ctrlDown && !_metaDown {
             if isT && !_shiftDown { _newTab(); return true }
-            if isW && _shiftDown {
-                if tabs.indices.contains(active) { _close(tabs[active]) }
-                return true
+            if _shiftDown {
+                if isW { _closePane(); return true }
+                if isD { _split(.row); return true }
+                if isE { _split(.column); return true }
             }
         }
         #if os(macOS)
         // The native chords, beside the Ctrl ones every platform gets — the
-        // same pairing TerminalView already makes for copy/paste/find.
+        // same pairing TerminalView already makes for copy/paste/find. Cmd+D
+        // and Cmd+Shift+D are iTerm's split pair, which is the muscle memory
+        // most Mac terminal users already have.
         if _metaDown && !_ctrlDown {
             if isT { _newTab(); return true }
-            if isW {
-                if tabs.indices.contains(active) { _close(tabs[active]) }
-                return true
-            }
+            if isW { _closePane(); return true }
+            if isD { _split(_shiftDown ? .column : .row); return true }
         }
         #endif
         return false
@@ -252,15 +338,129 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                     SizedBox(
                         key: tab.map { ValueKey($0.id) },
                         width: body.width, height: body.height,
-                        child: tab.map {
-                            TerminalView(
-                                session: $0.session,
-                                size: body,
-                                keyFilter: { [self] key in _appChord(key) }
-                            )
-                        }
+                        child: tab.map { _panes($0, in: body) }
                     ),
                 ]
+            )
+        )
+    }
+
+    // MARK: - Panes on screen
+
+    /// The tab's split tree, resolved and drawn.
+    ///
+    /// Every pane is told its BOX (`TerminalView.size`) — the view otherwise
+    /// sizes its grid from the whole window, which is right for a terminal
+    /// that IS the window and wrong for every pane in a split: the shell
+    /// would be told a size it does not have.
+    private func _panes(_ tab: TerminalTab, in body: Size) -> Widget {
+        let (leaves, seams, boxes) =
+            resolvePanes(tab.root, in: PaneBox(x: 0, y: 0, w: body.width, h: body.height))
+        _boxes = boxes
+        let single = leaves.count == 1
+
+        var layers: [Widget] = []
+        for (node, box) in leaves {
+            guard let pane = node.pane else { continue }
+            layers.append(_pane(pane, box: box, tab: tab, single: single))
+        }
+        for (node, box) in seams {
+            layers.append(_seam(node, box: box))
+        }
+        return Stack(children: layers)
+    }
+
+    private func _pane(_ pane: TerminalPane, box: PaneBox,
+                       tab: TerminalTab, single: Bool) -> Widget {
+        let isActive = pane.id == tab.activePaneId
+        return Positioned(
+            // Keyed by pane, not by position: without it the framework matches
+            // Stack children positionally after a split and hands a mounted
+            // terminal another pane's session — the same grid, the wrong
+            // shell. `_TerminalViewState` captures its session once.
+            key: ValueKey(pane.id &* 1000 &+ (isActive ? tab.focusEpoch : 0)),
+            left: box.x, top: box.y,
+            child: SizedBox(
+                width: box.w, height: box.h,
+                child: Listener(
+                    // Translucent: the click focuses the pane here AND still
+                    // reaches the terminal below, which places the cursor and
+                    // takes the keyboard through its own focus node. One click
+                    // does both, so no remount is needed to move focus.
+                    onPointerDown: { [self] _ in _focusPane(pane) },
+                    behavior: .translucent,
+                    child: DecoratedBox(
+                        // The ring only appears once there is more than one
+                        // pane — a single pane has nothing to distinguish it
+                        // from, and a border around the whole window is noise.
+                        decoration: BoxDecoration(
+                            border: single || !isActive ? nil
+                                : Border.all(color: Color(TabChrome.activePaneEdge),
+                                             width: 1)
+                        ),
+                        child: TerminalView(
+                            session: pane.session,
+                            size: Size(box.w, box.h),
+                            autofocus: isActive,
+                            keyFilter: { [self] key in _appChord(key) }
+                        )
+                    )
+                )
+            )
+        )
+    }
+
+    /// A draggable divider. The ratio it moves belongs to the split's own box,
+    /// so a nested split resizes within its parent rather than against it.
+    private func _seam(_ node: PaneNode, box: PaneBox) -> Widget {
+        let dragging = _dragSeam === node
+        return Positioned(
+            left: box.x, top: box.y,
+            child: SizedBox(
+                width: box.w, height: box.h,
+                child: Listener(
+                    onPointerDown: { [self] event in
+                        _dragSeam = node
+                        _lastPointer = event.position
+                        setState {}
+                    },
+                    onPointerMove: { [self] event in
+                        guard _dragSeam === node, let last = _lastPointer,
+                              let own = _boxes[ObjectIdentifier(node)]
+                        else { return }
+                        let delta = node.axis == .row
+                            ? event.position.dx - last.dx
+                            : event.position.dy - last.dy
+                        _lastPointer = event.position
+                        setState { dragSeam(node, delta: delta, own: own) }
+                    },
+                    onPointerUp: { [self] _ in
+                        _dragSeam = nil
+                        _lastPointer = nil
+                        setState {}
+                    },
+                    onPointerCancel: { [self] _ in
+                        _dragSeam = nil
+                        _lastPointer = nil
+                        setState {}
+                    },
+                    behavior: .opaque,
+                    // A 2pt line centred in a 6pt grab area: thin enough to
+                    // read as a divider, fat enough to hit. And a sized
+                    // ColoredBox rather than a bare DecoratedBox — the latter
+                    // has no child to take its size from and paints nothing,
+                    // which looked like a working seam because the gap between
+                    // two panes is visible on its own.
+                    child: Center(
+                        child: SizedBox(
+                            width: node.axis == .row ? 2 : box.w,
+                            height: node.axis == .row ? box.h : 2,
+                            child: ColoredBox(
+                                color: Color(dragging ? TabChrome.seamHot
+                                                      : TabChrome.seam))
+                        )
+                    )
+                )
             )
         )
     }
