@@ -21,6 +21,15 @@ explains why every session's pty gets its own reader thread rather than
 joining the socket wait, which is a Windows constraint the POSIX build
 adopts so there is only one control flow to reason about.
 
+The POSIX build also runs on **macOS**, where it is what a local workspace
+talks to on the machine the terminal is developed on. Two things differ and
+both are in `plat_posix.c`: `forkpty` comes from `<util.h>` rather than
+`<pty.h>`, and starting the daemon on demand has to find this binary with
+`_NSGetExecutablePath`, because there is no `/proc/self/exe` to exec. That
+second one failed *silently* for as long as it was unfixed — every `--stdio`
+bridge died with `could not start or reach the daemon` on a machine where
+nothing was wrong.
+
 ```bash
 make                     # ./starling-termd
 make static              # one binary to scp to a server with no toolchain

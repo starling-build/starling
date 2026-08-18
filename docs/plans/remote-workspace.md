@@ -80,25 +80,58 @@ Plus one field on the existing `OPEN`: an optional `ws_id` so a new session is
 born into a workspace. `ATTACH` is unchanged — you still attach to a session,
 because the client is what assembles a workspace out of several attaches.
 
+*(What shipped is `WS_ADD` instead of that `OPEN` field, and a `WS_INFO`
+reply to every write — see milestone 2 below for why.)*
+
 The blob is capped (16 KB is generous for a layout tree) and stored per
 workspace, not per session, so it survives every session in it dying.
 
 ## Milestones (each lands green: `test/run.sh` plus its own test)
 
-1. **Splits in the shipped terminal.** Lift the split tree out of
-   `sdk/Examples/TerminalTiling` into the app: a pane tree, draggable seams,
-   focus follows click. Local only, no termd, no protocol. Ships useful on
-   its own — this is the milestone that makes the terminal competitive with
-   ghostty's splits regardless of the rest.
-2. **Workspaces in the daemon.** The four frames above plus `OPEN`'s `ws_id`.
-   Test drives it over a socketpair the way the existing protocol test does:
-   create a workspace, open three sessions into it, set a blob, drop the
-   connection, reconnect, list, read the blob back byte-identical, and check
-   that killing one session leaves the workspace and the blob intact.
-3. **Attach a workspace, not a session.** `remote:host/ws:dev` in the
-   launcher: one command, N attaches, layout restored from the blob, focus
-   where it was. The client writes the blob on every layout change, debounced.
-   This is the milestone where a tmux user gets their workflow back.
+1. **Splits in the shipped terminal. — DONE.** The pane tree lifted out of
+   `sdk/Examples/TerminalTiling` into the app: `TerminalPanes.swift` is the
+   model, the widgets are in `TerminalTabs.swift`. Draggable seams, focus
+   follows click, `Ctrl+Shift+D`/`⌘D` and `Ctrl+Shift+E`/`⌘⇧D` to split,
+   `Ctrl+Shift+W`/`⌘W` to close the pane or the tab if it is the last one.
+   Local only, no termd, no protocol.
+2. **Workspaces in the daemon. — DONE.** Five frames rather than four —
+   `WS_CREATE`, `WS_ADD`, `WS_SET_META`, `WS_GET_META`, `WS_LIST`, with
+   `WS_INFO` as the reply to every write — and *no* `ws_id` on `OPEN`, which
+   is the one thing this differs from the sketch above: `OPEN`'s payload ends
+   with "command (rest)" and has no room to grow at the end, so joining a
+   session to a workspace is its own additive frame and needs no version bump.
+3. **Attach a workspace, not a session. — DONE.** `--workspace
+   remote:host/ws:dev` (or `STARLING_WORKSPACE`) opens a tab that is N
+   attaches, the tree rebuilt from the blob, the ratios where they were left
+   and the keyboard in the pane that had it. Every change to the arrangement —
+   split, close, focus, a seam coming to rest — is written back, debounced
+   0.4 s inside `RemoteWorkspace` so a drag is one write and not a hundred,
+   and flushed on the way out.
+   - `RemoteWorkspace` (sdk) is the control link: its own connection, no
+     session on it, because a workspace outlives every pane in it and so
+     must the thing that holds its identity.
+   - `TermdLink.swift` is the child transport both links share, and it grew a
+     Darwin branch (`posix_spawn` with `POSIX_SPAWN_CLOEXEC_DEFAULT`; Swift's
+     Darwin overlay makes `fork()` unavailable outright), so `RemoteTerminal`
+     now builds on macOS too.
+   - A pane whose stored session id is gone opens a fresh one rather than
+     dying (`reopenIfSessionGone`). The arrangement is what was promised to
+     survive; a dead rectangle in the middle of it keeps none of that promise.
+   - **Verified live**: three panes on a local daemon, a seam dragged well off
+     centre, the app killed outright — no clean exit — and relaunched: same
+     tree, same ratio, same three shells with their scrollback replayed. Then
+     the daemon killed under the running app: every pane reported the link
+     lost, opened a fresh session, kept its place in the tree, and the blob
+     was rewritten with the new ids — so the NEXT relaunch reattached to those
+     silently.
+   - **Not yet the launcher the plan pictures.** The entry point is a launch
+     argument, so a workspace cannot yet be opened from inside a running
+     terminal. Lifting `TerminalTiling`'s launcher is the obvious next piece,
+     and it calls the same `_openWorkspace`.
+   - **Closing a remote pane detaches; it does not end the shell.** The
+     protocol has no frame that kills a session. The pane leaves the layout
+     and the session keeps running, where `--list` still finds it. A frame
+     that ends one belongs with milestone 5.
 4. **Several sessions over one connection — measure before building.** The
    cheap path needs no protocol change: ssh already multiplexes channels, so
    N attaches over one `ControlMaster` is N streams, one authentication, one

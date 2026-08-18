@@ -29,6 +29,11 @@
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
+// _NSGetExecutablePath: Darwin's answer to /proc/self/exe, which it has no
+// equivalent of. See plat_spawn_daemon.
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -302,6 +307,20 @@ void plat_sleep_ms(int ms) {
 }
 
 int plat_spawn_daemon(int idle_seconds) {
+    // Our own path, resolved BEFORE the fork: the child may only make
+    // async-signal-safe calls, and on Darwin finding this is a library call.
+    // Linux hands it over as a symlink it can exec directly; Darwin has no
+    // /proc at all, and an execl of "/proc/self/exe" there fails silently —
+    // every --stdio bridge then dies with "could not start or reach the
+    // daemon" on a machine where nothing is wrong.
+    char self[4096];
+#ifdef __APPLE__
+    uint32_t self_len = (uint32_t)sizeof(self);
+    if (_NSGetExecutablePath(self, &self_len) != 0) return -1;
+#else
+    snprintf(self, sizeof(self), "/proc/self/exe");
+#endif
+
     pid_t pid = fork();
     if (pid < 0) return -1;
     if (pid != 0) return 0;
@@ -316,7 +335,7 @@ int plat_spawn_daemon(int idle_seconds) {
     }
     char idle[32];
     snprintf(idle, sizeof(idle), "%d", idle_seconds);
-    execl("/proc/self/exe", "starling-termd", "--serve", "--idle-exit", idle,
+    execl(self, "starling-termd", "--serve", "--idle-exit", idle,
           (char *)NULL);
     _exit(127);
 }

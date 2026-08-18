@@ -116,6 +116,27 @@ step "unit tests: termd (remote sessions)"
      || { python3 "$REPO/termd/test-termd.py" 2>&1 | grep -E "FAIL"; false; }) \
      || fails=$((fails + 1))
 
+# The client half of a workspace (docs/plans/remote-workspace.md), against a
+# real daemon on a private socket — the test above proves termd's half over a
+# socketpair, and this one is the only place the Swift framing, the child
+# transport and the daemon are all made to agree at once. Compiled standalone
+# like the layout codec above, which is why RemoteWorkspace.swift and
+# TermdLink.swift pull in nothing but Foundation.
+step "unit tests: workspaces (the client's half)"
+WS_DIR=$(mktemp -d /tmp/starling-wstest.XXXXXX)
+(swiftc -O -o "$WS_DIR/workspace-test" "$REPO/test/workspace/workspace-test.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/TermdLink.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/RemoteWorkspace.swift" \
+     "$REPO/apps/TerminalApp/Sources/TerminalApp/PaneLayout.swift" 2>/dev/null \
+     && STARLING_TERMD_SOCKET="$WS_DIR/sock" "$WS_DIR/workspace-test" \
+            "$REPO/termd/starling-termd" | tail -1 \
+            | grep -q "all workspace checks passed" \
+     && echo "  ✔ workspaces: an arrangement outlives the connection that wrote it" \
+     || { STARLING_TERMD_SOCKET="$WS_DIR/sock" "$WS_DIR/workspace-test" \
+              "$REPO/termd/starling-termd" 2>&1 | grep -E "FAIL"; false; }) \
+     || fails=$((fails + 1))
+rm -rf "$WS_DIR"
+
 step "unit tests: registry"
 (cd "$REPO/registry" && as_user "$SWIFT" test 2>&1 \
     | grep -vE "libxml2.so.2: no version information" \

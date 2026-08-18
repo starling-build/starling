@@ -59,6 +59,10 @@ final class TerminalTab {
     /// remounts exactly that pane, and remounting is what runs autofocus.
     /// A click needs none of this — the view's own Listener takes focus.
     var focusEpoch = 0
+    /// nil for an ordinary tab. Non-nil means every pane in it is a session on
+    /// another machine and the arrangement is stored there too — see
+    /// TerminalWorkspace.swift.
+    var workspace: TerminalWorkspace?
 
     init(id: Int, pane: TerminalPane) {
         self.id = id
@@ -126,11 +130,23 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
 
     override func initState() {
         super.initState()
-        _open()
+        // `--workspace remote:host/ws:dev` opens the arrangement stored on
+        // that machine instead of a local shell (TerminalWorkspace.swift).
+        if let spec = WorkspaceSpec.fromLaunch() {
+            _openWorkspace(spec)
+        } else {
+            _open()
+        }
     }
 
     override func dispose() {
-        for tab in tabs { for pane in tab.panes { pane.session.terminate() } }
+        // The workspace goes first: closing it flushes a layout change that
+        // may be seconds old, and it is the only state here that outlives the
+        // process.
+        for tab in tabs {
+            tab.workspace?.close()
+            for pane in tab.panes { pane.session.terminate() }
+        }
         tabs = []
         super.dispose()
     }
@@ -145,7 +161,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// Whatever is on screen already knows a closer answer. It is only an
     /// estimate for a split (the new pane gets half a box), and that is fine:
     /// being one resize closer still beats starting at 80.
-    private func _newPane() -> TerminalPane {
+    private func _blankPane() -> TerminalPane {
         var cols = 80, rows = 24
         if let current = tabs.indices.contains(active) ? tabs[active].activePane : nil {
             current.session.lock.lock()
@@ -155,13 +171,25 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         }
         let pane = TerminalPane(id: nextPaneId, cols: cols, rows: rows)
         nextPaneId += 1
-        pane.session.startShell()
+        return pane
+    }
+
+    /// A pane with something running in it: a local shell, or — in a workspace
+    /// tab — a session on the far machine, which the workspace then joins so
+    /// the next attach finds it.
+    private func _newPane(in tab: TerminalTab?) -> TerminalPane {
+        let pane = _blankPane()
+        if let workspace = tab?.workspace {
+            workspace.attach(pane, session: nil)
+        } else {
+            pane.session.startShell()
+        }
         return pane
     }
 
     @discardableResult
     private func _open() -> TerminalTab {
-        let tab = TerminalTab(id: nextId, pane: _newPane())
+        let tab = TerminalTab(id: nextId, pane: _newPane(in: nil))
         nextId += 1
         tabs.append(tab)
         active = tabs.count - 1
@@ -172,6 +200,89 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         setState { _open() }
     }
 
+    // MARK: - Workspaces
+
+    /// Open a tab onto a workspace: N sessions on another machine, arranged
+    /// the way they were left. See docs/plans/remote-workspace.md.
+    ///
+    /// The tab appears immediately, with one pane saying what it is waiting
+    /// for. What replaces it depends on what the far side was holding — an
+    /// arrangement, or nothing at all — and that answer arrives over the link,
+    /// so it lands in `_restore` rather than here.
+    private func _openWorkspace(_ spec: WorkspaceSpec) {
+        let workspace = TerminalWorkspace(spec: spec)
+        let pane = _blankPane()
+        let tab = TerminalTab(id: nextId, pane: pane)
+        nextId += 1
+        tab.workspace = workspace
+        tabs.append(tab)
+        active = tabs.count - 1
+
+        // Through the emulator, like every other line the transport writes:
+        // an empty black rectangle is indistinguishable from a hung one.
+        let where_ = spec.host == "local" ? "this machine" : spec.host
+        pane.session.feed(Array(
+            "\u{1B}[38;5;244m[workspace \"\(spec.name)\" on \(where_) — connecting…]\u{1B}[0m\r\n".utf8))
+
+        // Fires when a pane learns its session id, which is a change to what
+        // the blob must say.
+        workspace.onChange = { [weak self, weak tab] in
+            guard let self = self, let tab = tab else { return }
+            workspace.record(tab)
+            self.setState {}
+        }
+        // The tab is found again by id rather than captured: this closure
+        // crosses a thread boundary (it is called after a hop to the UI
+        // thread), and a tab is not a value that may cross one.
+        let tabId = tab.id
+        workspace.start { [weak self] layout in
+            guard let self = self,
+                  let tab = self.tabs.first(where: { $0.id == tabId })
+            else { return }
+            self._restore(tab, layout)
+        }
+    }
+
+    /// The arrangement the far side was holding becomes this tab's tree.
+    ///
+    /// A workspace nobody has arranged yet restores nothing, and the pane that
+    /// was already on screen becomes its first session — so "open a workspace
+    /// that does not exist" and "open one that does" are the same command,
+    /// exactly as a named session already is.
+    private func _restore(_ tab: TerminalTab, _ layout: PaneLayout?) {
+        guard let workspace = tab.workspace else { return }
+        guard let layout = layout else {
+            if let pane = tab.panes.first {
+                workspace.attach(pane, session: nil)
+                workspace.record(tab)
+            }
+            setState {}
+            return
+        }
+
+        // The placeholder is replaced wholesale rather than reused: which
+        // session it would hold depends on where it lands in the restored
+        // tree, and there is no answer that is not arbitrary.
+        let placeholders = tab.panes
+        var restored: [TerminalPane] = []
+        let root = buildPaneTree(layout.root) { session in
+            let pane = _blankPane()
+            workspace.attach(pane, session: session)
+            restored.append(pane)
+            return pane
+        }
+        setState {
+            tab.root = root
+            // Focus where it was. Clamped rather than trusted: the blob is
+            // storage, and an index into a tree it does not itself hold.
+            let index = min(max(0, layout.activeLeaf), max(0, restored.count - 1))
+            tab.activePaneId = restored.indices.contains(index)
+                ? restored[index].id : (restored.first?.id ?? 0)
+            tab.focusEpoch += 1
+        }
+        for pane in placeholders { pane.session.terminate() }
+    }
+
     /// Closing the last tab is a no-op: there would be nothing left to look
     /// at, and this app is its window.
     private func _close(_ tab: TerminalTab) {
@@ -179,6 +290,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         else { return }
         setState {
             tabs.remove(at: index)
+            tab.workspace?.close()
             for pane in tab.panes { pane.session.terminate() }
             // Closing the active tab hands the slot to the one that took its
             // place (the last tab falls back to the new last); closing one
@@ -196,11 +308,12 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         guard let tab = tabs.indices.contains(active) ? tabs[active] : nil,
               let node = tab.root.node(for: tab.activePaneId) ?? tab.root.node(for: tab.panes.first?.id ?? -1)
         else { return }
-        let fresh = _newPane()
+        let fresh = _newPane(in: tab)
         setState {
             splitPane(node, axis: axis, with: fresh)
             tab.activePaneId = fresh.id
         }
+        tab.workspace?.record(tab)
     }
 
     /// Close the focused pane. The last pane in a tab closes the tab instead —
@@ -212,6 +325,11 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         else { return }
         guard closePane(node) else { _close(tab); return }
         setState {
+            // In a workspace this drops the link, not the shell: the protocol
+            // has no frame that ends a session, and detaching is what the
+            // design promises everywhere else. It leaves the workspace's
+            // layout, and `--list` on the far machine still finds it.
+            tab.workspace?.detach(pane)
             pane.session.terminate()
             // Focus lands on whatever now occupies the space. The closing
             // pane's focus node is disposed, so without this nothing holds
@@ -219,6 +337,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             tab.activePaneId = tab.panes.first?.id ?? 0
             tab.focusEpoch += 1
         }
+        tab.workspace?.record(tab)
     }
 
     private func _focusPane(_ pane: TerminalPane) {
@@ -226,6 +345,10 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
               tab.activePaneId != pane.id
         else { return }
         setState { tab.activePaneId = pane.id }
+        // Which pane had the keyboard is part of the arrangement — coming
+        // back to a workspace typing into a different pane than the one you
+        // left is exactly the kind of small wrongness this is for.
+        tab.workspace?.record(tab)
     }
 
     private func _select(_ tab: TerminalTab) {
@@ -438,6 +561,12 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                         _dragSeam = nil
                         _lastPointer = nil
                         setState {}
+                        // Once, at the end. The ratio moved a hundred times on
+                        // the way here and only where it came to rest is the
+                        // arrangement.
+                        if let tab = tabs.indices.contains(active) ? tabs[active] : nil {
+                            tab.workspace?.record(tab)
+                        }
                     },
                     onPointerCancel: { [self] _ in
                         _dragSeam = nil
@@ -505,7 +634,10 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                             left: 0, top: 0, right: 0, bottom: 0,
                             child: Center(
                                 child: Text(
-                                    "Terminal \(ordinal)",
+                                    // A workspace tab is named by the thing it
+                                    // is: "dev" is what was typed to open it
+                                    // and what will be typed to find it again.
+                                    tab.workspace?.spec.name ?? "Terminal \(ordinal)",
                                     style: TextStyle(
                                         color: Color(active ? TabChrome.activeText
                                                             : TabChrome.text),
