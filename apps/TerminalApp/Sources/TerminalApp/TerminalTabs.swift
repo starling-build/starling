@@ -108,10 +108,15 @@ final class TerminalTabsView: StatefulWidget {
 
 final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
 
-    private var tabs: [TerminalTab] = []
-    private var active = 0
+    // Not private: TerminalSwitcher.swift is an extension on this state, and
+    // the switcher is the thing that decides which tab you are looking at.
+    var tabs: [TerminalTab] = []
+    var active = 0
     private var nextId = 1
     private var nextPaneId = 1
+
+    /// The go-to palette (TerminalSwitcher.swift), closed almost always.
+    let _switcher = SwitcherState()
 
     /// The seam being dragged, and the last pointer position, so a move is a
     /// delta rather than an absolute. Node boxes come from the last layout —
@@ -132,7 +137,12 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         super.initState()
         // `--workspace remote:host/ws:dev` opens the arrangement stored on
         // that machine instead of a local shell (TerminalWorkspace.swift).
-        if let spec = WorkspaceSpec.fromLaunch() {
+        // With nothing on the command line, the last workspace this client
+        // opened comes back — which is the point of storing an arrangement at
+        // all, and what makes "close the lid, open the laptop" work without
+        // anybody typing a destination twice. ⌘T is still a local shell, and
+        // ⌘O still goes anywhere else.
+        if let spec = WorkspaceSpec.fromLaunch() ?? WorkspaceMemory.last() {
             _openWorkspace(spec)
         } else {
             _open()
@@ -213,7 +223,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// for. What replaces it depends on what the far side was holding — an
     /// arrangement, or nothing at all — and that answer arrives over the link,
     /// so it lands in `_restore` rather than here.
-    private func _openWorkspace(_ spec: WorkspaceSpec) {
+    func _openWorkspace(_ spec: WorkspaceSpec) {
         let workspace = TerminalWorkspace(spec: spec)
         let pane = _blankPane()
         let tab = TerminalTab(id: nextId, pane: pane)
@@ -374,6 +384,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     ///   - Ctrl+Shift+E / ⌘⇧D          split the pane top/bottom
     ///   - Ctrl+Shift+W / ⌘W           close the pane, or the tab if it is
     ///                                 the last pane in it
+    ///   - Ctrl+Shift+O / ⌘O           go to a workspace (TerminalSwitcher)
     ///
     /// Ctrl+T is `transpose-chars` in every shell's emacs-mode line editor and
     /// is now gone; that is the price of the chord asked for. Close is
@@ -398,12 +409,18 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         default:
             break
         }
+        // An open switcher owns the keyboard, and takes it before any chord
+        // below: while it is up, `d` is a letter in a hostname and not a
+        // split. It comes AFTER the modifier cases above, which must keep
+        // falling through so the state stays right underneath it.
+        if _switcher.open { return _switcherKey(keyData) }
         guard down else { return false }
 
         let isT = keyData.logical == 0x54 || keyData.logical == 0x74
         let isW = keyData.logical == 0x57 || keyData.logical == 0x77
         let isD = keyData.logical == 0x44 || keyData.logical == 0x64
         let isE = keyData.logical == 0x45 || keyData.logical == 0x65
+        let isO = keyData.logical == 0x4F || keyData.logical == 0x6F
 
         if _ctrlDown && !_metaDown {
             if isT && !_shiftDown { _newTab(); return true }
@@ -411,6 +428,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                 if isW { _closePane(); return true }
                 if isD { _split(.row); return true }
                 if isE { _split(.column); return true }
+                if isO { _openSwitcher(); return true }
             }
         }
         #if os(macOS)
@@ -422,6 +440,10 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             if isT { _newTab(); return true }
             if isW { _closePane(); return true }
             if isD { _split(_shiftDown ? .column : .row); return true }
+            // ⌘O is "open" everywhere on this platform, and no terminal
+            // claims it — unlike ⌘K, which iTerm and Terminal.app both use
+            // for clearing the buffer.
+            if isO { _openSwitcher(); return true }
         }
         #endif
         return false
@@ -451,25 +473,34 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         let body = Size(window.width, max(1, window.height - barH))
         let tab = tabs.indices.contains(active) ? tabs[active] : nil
 
+        let chrome = Column(
+            crossAxisAlignment: .stretch,
+            children: [
+                // Always emitted, zero-height when hidden: the children
+                // then keep their positions across the 1↔2 tab boundary
+                // and the terminal below is never re-matched by index.
+                SizedBox(
+                    width: window.width, height: barH,
+                    child: showBar ? _bar(width: window.width) : nil
+                ),
+                SizedBox(
+                    key: tab.map { ValueKey($0.id) },
+                    width: body.width, height: body.height,
+                    child: tab.map { _panes($0, in: body) }
+                ),
+            ]
+        )
+
         return Directionality(
             textDirection: .ltr,
-            child: Column(
-                crossAxisAlignment: .stretch,
-                children: [
-                    // Always emitted, zero-height when hidden: the children
-                    // then keep their positions across the 1↔2 tab boundary
-                    // and the terminal below is never re-matched by index.
-                    SizedBox(
-                        width: window.width, height: barH,
-                        child: showBar ? _bar(width: window.width) : nil
-                    ),
-                    SizedBox(
-                        key: tab.map { ValueKey($0.id) },
-                        width: body.width, height: body.height,
-                        child: tab.map { _panes($0, in: body) }
-                    ),
-                ]
-            )
+            child: Stack(children: [
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: chrome),
+                // Over everything, including the tab bar: the switcher is a
+                // question about which of these you want to be looking at.
+                _switcher.open
+                    ? _switcherOverlay(Size(window.width, window.height))
+                    : SizedBox(width: 0, height: 0),
+            ])
         )
     }
 

@@ -145,13 +145,20 @@ workspace, not per session, so it survives every session in it dying.
    the milestone that makes *arriving* feel right, which is the whole point of
    the feature and the part a person actually experiences. Three pieces, in
    this order:
-   - **Discovery, and a default.** `WS_LIST` exists in the daemon and the
-     client speaks none of it. A picker lists what is on a host — workspaces,
-     what is in them, and the sessions that belong to no workspace — and the
-     app remembers the last one, so relaunching where you left off needs no
-     argument and arriving on a new machine needs only the host. This retires
-     milestone 3's launch-argument entry point.
-   - **Bounded replay.** A fresh attach asks from offset 0, so the daemon
+   - **Discovery, and a default. — DONE.** `⌘O` / `Ctrl+Shift+O` opens a
+     switcher: one line to type a destination (`name`, or `host/name`) and
+     under it the workspaces that host actually has, from `WS_LIST` through
+     `TermdDirectory`. Enter on a row opens it, Enter on something typed
+     creates it — a named workspace is attach-or-create on the daemon, so the
+     picker needs no second verb for "new". The destination is remembered
+     (`~/.local/state/starling-terminal-workspaces`) and a launch with no
+     arguments reopens the last one, which is what makes closing the lid and
+     opening it somewhere else need no typing at all. `⌘T` is still a local
+     shell; the launch argument still works and now only exists for scripts.
+     Loose sessions — the ones in no workspace — are listed by the daemon and
+     not yet shown, because the app has no way to open one: that is
+     milestone 7's, alongside a frame that can end one.
+   - **Bounded replay. — DONE.** A fresh attach asks from offset 0, so the daemon
      replays everything its ring still holds: up to 8 MB *per pane*. Six panes
      on a hotel connection is minutes of nothing. `ATTACH`'s payload is
      `id, from_seq, cols, rows` and the daemon checks `len < 16`, so a trailing
@@ -164,12 +171,20 @@ workspace, not per session, so it survives every session in it dying.
      scrollback is worth the wait); a workspace pane asks for a screenful or
      two, and only on its first attach — a reconnect resumes from a real
      offset, where a cap would silently discard what was missed.
-   - **Where the pane was.** When the daemon restarts, panes come back as
-     fresh shells in `$HOME` — same rectangles, wrong contents. This needs no
-     protocol change: the client's own emulator can keep the **OSC 7** the
-     shell already emits, the blob carries it per leaf, and the pane reopens
-     with `cd '<dir>' && exec "$STARLING_SHELL"` through `OPEN`'s existing
-     command field.
+   - **Where the pane was. — DONE.** When the daemon restarts, panes came back
+     as fresh shells in `$HOME` — same rectangles, wrong contents. No protocol
+     change was needed: the client's own emulator keeps the **OSC 7** the
+     shell already emits (the core parsed OSC into a buffer nothing read), the
+     blob carries it per leaf, and the pane reopens with
+     `cd '<dir>' && exec "$STARLING_SHELL"` through `OPEN`'s existing command
+     field — composed only for a daemon whose HELLO_OK says its commands reach
+     a POSIX shell, since on a Windows daemon that string is a pane that exits
+     before it draws.
+     **The limit worth fixing next:** macOS's zsh only emits OSC 7 for Apple
+     Terminal, so a pane there reports nothing unless the user adds a `precmd`
+     hook. The daemon owns the pty and could read the child's cwd directly
+     (`/proc/<pid>/cwd`, `proc_pidinfo`) for every shell, with no integration
+     at all — a daemon change rather than a client one, and the honest fix.
 6. **More than one client at once — and a policy, not an accident.** Attaching
    from a second machine works today, and two things then go wrong. `RESIZE` is
    last-writer-wins, so a laptop and a phone SIGWINCH the shell back and forth
