@@ -4,10 +4,36 @@
 x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
 `SHA256SUMS`.
 
-`starling-terminal-0.1.0-macos-arm64.zip` — Starling Terminal for macOS arm64, the
-same 0.1.0 release candidate. 17.2 MB, checksum in `SHA256SUMS`. Unlike the
-Windows archive it wraps a `.app`, so it extracts to
-`Starling Terminal.app` rather than flat, and needs no directory made for it.
+`starling-terminal-0.1.1-macos-arm64.zip` — Starling Terminal for macOS arm64.
+16 MB, checksum in `SHA256SUMS`. Unlike the Windows archive it wraps a `.app`,
+so it extracts to `Starling Terminal.app` rather than flat, and needs no
+directory made for it.
+
+**0.1.1 is 0.1.0 plus two fixes, both of which made the shipped macOS archive
+work only on the machine that built it.** No feature changed; Linux and Windows
+are unaffected and stay at 0.1.0, which is why the version here is one ahead of
+the other two rather than all three moving together.
+
+- **It crashed at startup on every other Mac.** SwiftPM generates
+  `Bundle.module` with two candidates: the app bundle's own directory, and an
+  absolute path into the build directory that produced the binary. Inside a
+  `.app` the first misses — resource bundles are staged under
+  `Contents/Resources/` — and the second hit only where it was built. Anywhere
+  else, `resource_bundle_accessor.swift:12: could not load resource bundle`, on
+  the first font load. The sources search for their bundles now, and
+  `build/macos-app.sh` fails the build if a build-directory path survives into
+  the executable.
+- **Its signature did not survive a plain `unzip`.** `ditto -c -k` without
+  `--sequesterRsrc` stores extended attributes as AppleDouble, which
+  command-line `unzip` materializes as `._Foo` files *inside* the bundle,
+  breaking the seal. The 0.1.0 install recipe said `ditto -xk`, which handles
+  AppleDouble correctly — so the release notes' own instructions hid it. The
+  build sequesters that metadata now and verifies the archive after a plain
+  `unzip` rather than the bundle it just built.
+
+The 0.1.0 macOS archive is **removed rather than kept beside this one**: it
+carries both bugs, and an archive that crashes on arrival is not worth the
+history it would cost.
 
 Opening it needs no command and no arguments — verified by running the
 unpacked app under `env -i` with the SDK bundle it was built against moved
@@ -135,8 +161,24 @@ write an archive that fails either check.
 
 ## The macOS terminal's provenance
 
-Built on the Mac from `release-terminal-0.1.0`, **from the released SDK
-bundle alone** — the consumer path, not a privileged in-repo one:
+**0.1.1 breaks with the consumer path, deliberately, and this is the one thing
+to know before cutting the next one.** 0.1.0 was built from the released SDK
+bundle alone — the recipe below — and that is still the right way. It cannot be
+used here: the fix is in the FRAMEWORK's own sources, and
+`starling-sdk-0.3.0-macos-arm64.tar.gz` carries a copy of `TerminalView.swift`
+that predates it. Building 0.1.1 the consumer way would have faithfully
+reproduced the crash it exists to fix, and said nothing while doing it.
+
+So 0.1.1 was built against this repo's `sdk/`:
+
+    STARLING_APP_VERSION=0.1.1 build/macos-app.sh TerminalApp --zip
+
+which proves the terminal works and does NOT prove the bundle can build it.
+**The 0.3.0 SDK bundle ships the bug**, so anything built from it has the
+crash; restoring the consumer path means cutting an SDK release with the fix
+in it, and the next terminal release should be built from that.
+
+The recipe 0.1.0 used, for when there is a fixed bundle to use it with:
 
     tar xzf dist/starling-sdk-0.3.0-macos-arm64.tar.gz -C /tmp/sdk
     STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
@@ -148,7 +190,7 @@ flutter_assets from `engine/share` instead of this repo's `sdk/Resources`, so
 staging never reaches back into a tree a consumer does not have. The build plan
 was checked for it: 46 references to the unpacked bundle, zero to
 `starling-engine` or to `sdk/`. The archive is renamed on the way in —
-`macos-app.sh` emits `Starling-Terminal-0.1.0-macos-arm64.zip`, this directory
+`macos-app.sh` emits `Starling-Terminal-<ver>-macos-arm64.zip`, this directory
 keeps every artifact at `<product>-<platform>-<arch>` so a version bump
 replaces a file instead of accumulating one.
 
@@ -275,15 +317,15 @@ by, so a cache entry is "the SDK for this platform" rather than one directory
 per version.
 
 Rebuild as above, copy the artifact here, and regenerate the checksums —
-one file, all six lines, because writing it with one filename is how the
-Windows zip's line got dropped once already:
+one file, every line at once, because writing it with one filename is how
+the Windows zip's line got dropped once already:
 
     sha256sum starling-sdk-0.3.0-linux-x86_64.tar.gz \
               starling-sdk-0.3.0-macos-arm64.tar.gz \
               starling-sdk-0.3.0-windows-x86_64.zip \
               starling-terminal_0.1.0_amd64.deb \
-              starling-terminal-0.1.0-macos-arm64.zip \
-              starling-terminal-0.1.0-windows-x86_64.zip > SHA256SUMS
+              starling-terminal-0.1.0-windows-x86_64.zip \
+              starling-terminal-0.1.1-macos-arm64.zip > SHA256SUMS
 
 (`shasum -a 256` on the Mac — same format, same file. On Windows,
 `Get-FileHash -Algorithm SHA256` and lower-case the hash; write the file with
