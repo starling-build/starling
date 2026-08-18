@@ -393,6 +393,9 @@ products += [
     .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
     // The same widget, tiled: a split tree of terminals with draggable seams.
     .executable(name: "TerminalTiling", targets: ["TerminalTiling"]),
+    // Shell chrome: a status bar pinned to the top of the primary monitor.
+    // Phase 0 of the Windows desktop port — see Examples/WinShellBar.
+    .executable(name: "WinShellBar", targets: ["WinShellBar"]),
 ]
 #endif
 
@@ -976,6 +979,27 @@ targets += [
             "FlutterSwiftBridge",
         ],
         path: "Examples/TerminalTiling",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
+]
+#endif
+
+// Windows shell chrome (Examples/WinShellBar). Depends on FlutterWin32
+// directly rather than through ExampleHost: it needs the panel placement and
+// the monitor list, which are Win32-host concepts ExampleHost deliberately
+// does not re-export. Its own append, for the time-budget reason above.
+#if os(Windows)
+targets += [
+    .executableTarget(
+        name: "WinShellBar",
+        dependencies: [
+            "Flutter",
+            "FlutterSwiftBridge",
+            "FlutterWin32",
+            "CupertinoIcons",
+        ],
+        path: "Examples/WinShellBar",
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
         linkerSettings: engineLinkSettings
     ),

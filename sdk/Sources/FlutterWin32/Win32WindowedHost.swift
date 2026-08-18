@@ -21,6 +21,12 @@ public enum Win32WindowedHost {
     /// The running host, kept so it outlives install()'s closures.
     nonisolated(unsafe) private static var host: Win32Host? = nil
 
+    /// Set before `runStarlingApp` to come up as shell chrome — a bar or a
+    /// dock — instead of an ordinary window. It cannot be a parameter of
+    /// `runStarlingApp`, which is host-neutral by design and has no business
+    /// knowing what a screen edge is.
+    nonisolated(unsafe) public static var panel: PanelPlacement? = nil
+
     /// Point runStarlingApp/startPeriodicTimer at the Win32 host. Call once,
     /// before runStarlingApp.
     public static func install() {
@@ -44,6 +50,10 @@ public enum Win32WindowedHost {
                 """)
             }
             host = h
+            // Before the tree mounts: the restyle changes the client size,
+            // and a tree laid out against the pre-panel size would render one
+            // frame at the wrong geometry.
+            if let placement = panel { h.setPanel(placement) }
             h.mountWidget(root)
             h.run()
         }

@@ -475,3 +475,140 @@ void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen) {
   }
   host->fullscreen = fullscreen ? 1 : 0;
 }
+
+// ── shell chrome: panel windows and monitor geometry ────────────────────────
+//
+// What a desktop shell needs from a window and an ordinary app does not: no
+// decoration, always on top, and pinned to an edge of a named monitor. The
+// engine's embedder has no opinion about any of it — it owns the view and the
+// swap chain, and is happy inside whatever HWND we hand it — so this is pure
+// Win32 restyling applied after flwin32_host_create.
+//
+// This is the Windows counterpart of wlr-layer-shell, and the comparison is
+// worth keeping in mind: layer shell asks the COMPOSITOR to place and reserve
+// space, while here we place ourselves and (later) ask the shell to reserve
+// via SHAppBarMessage. Reserving is deliberately not done yet — an appbar has
+// a message-callback contract (ABM_NEW/ABM_QUERYPOS/ABM_SETPOS on every
+// resolution and taskbar change) that wants its own change.
+
+typedef struct {
+  int32_t want;   // index to find, or -1 to count
+  int32_t seen;
+  RECT rect;
+  int32_t primary;
+  int32_t found;
+} MonitorPick;
+
+static BOOL CALLBACK monitor_pick_cb(HMONITOR monitor,
+                                     HDC dc,
+                                     LPRECT clip,
+                                     LPARAM data) {
+  (void)dc;
+  (void)clip;
+  MonitorPick* pick = (MonitorPick*)data;
+  MONITORINFO mi = {sizeof(MONITORINFO)};
+  if (!GetMonitorInfoW(monitor, &mi)) return TRUE;
+  if (pick->want >= 0 && pick->seen == pick->want) {
+    pick->rect = mi.rcMonitor;
+    pick->primary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
+    pick->found = 1;
+    return FALSE;  // stop; we have the one we were asked for
+  }
+  pick->seen++;
+  return TRUE;
+}
+
+int32_t flwin32_monitor_count(void) {
+  MonitorPick pick = {0};
+  pick.want = -1;
+  EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  return pick.seen;
+}
+
+int32_t flwin32_monitor_rect(int32_t index,
+                             int32_t* x,
+                             int32_t* y,
+                             int32_t* width,
+                             int32_t* height,
+                             int32_t* primary) {
+  MonitorPick pick = {0};
+  pick.want = index;
+  EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  if (!pick.found) return 0;
+  if (x != NULL) *x = pick.rect.left;
+  if (y != NULL) *y = pick.rect.top;
+  if (width != NULL) *width = pick.rect.right - pick.rect.left;
+  if (height != NULL) *height = pick.rect.bottom - pick.rect.top;
+  if (primary != NULL) *primary = pick.primary;
+  return 1;
+}
+
+void flwin32_host_set_panel(FlWin32Host* host,
+                            int32_t edge,
+                            int32_t thickness,
+                            int32_t monitor) {
+  if (host == NULL || host->window == NULL) return;
+
+  RECT area;
+  MonitorPick pick = {0};
+  pick.want = monitor;
+  if (monitor >= 0) {
+    EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  }
+  if (pick.found) {
+    area = pick.rect;
+  } else {
+    // No monitor asked for, or an index that no longer exists — a monitor can
+    // be unplugged between the caller reading the list and acting on it, and
+    // a bar that vanishes is worse than a bar on the wrong screen.
+    MONITORINFO mi = {sizeof(MONITORINFO)};
+    if (!GetMonitorInfoW(
+            MonitorFromWindow(host->window, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+      return;
+    }
+    area = mi.rcMonitor;
+  }
+
+  int32_t x, y, w, h;
+  switch (edge) {
+    case 1:  // bottom
+      x = area.left;
+      y = area.bottom - thickness;
+      w = area.right - area.left;
+      h = thickness;
+      break;
+    case 2:  // left
+      x = area.left;
+      y = area.top;
+      w = thickness;
+      h = area.bottom - area.top;
+      break;
+    case 3:  // right
+      x = area.right - thickness;
+      y = area.top;
+      w = thickness;
+      h = area.bottom - area.top;
+      break;
+    default:  // top
+      x = area.left;
+      y = area.top;
+      w = area.right - area.left;
+      h = thickness;
+      break;
+  }
+
+  // WS_POPUP rather than clearing bits off WS_OVERLAPPEDWINDOW: the client
+  // area then IS the window, so the engine's view fills it exactly and the
+  // Flutter tree's (0,0) is the screen corner. AdjustWindowRect is not needed
+  // and must not be used — it would inset the bar by a frame that is no
+  // longer there.
+  SetWindowLongPtrW(host->window, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+  // TOOLWINDOW keeps the bar out of Alt+Tab and off the taskbar, which is
+  // what makes it read as chrome rather than as an app. TOPMOST is the
+  // z-order half; SetWindowPos below is what actually applies it.
+  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
+  SetWindowLongPtrW(host->window, GWL_EXSTYLE,
+                    ex | WS_EX_TOOLWINDOW | WS_EX_TOPMOST);
+  SetWindowPos(host->window, HWND_TOPMOST, x, y, w, h,
+               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+}

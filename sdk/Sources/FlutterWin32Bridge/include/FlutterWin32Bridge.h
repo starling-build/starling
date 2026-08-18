@@ -61,6 +61,22 @@ void flwin32_host_run(FlWin32Host* host);
 // Fullscreens or restores the window.
 void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen);
 
+// Shell chrome. `edge` is 0=top 1=bottom 2=left 3=right; `thickness` is in
+// PHYSICAL pixels (the engine applies the monitor's DPI to the tree inside);
+// `monitor` is an index into flwin32_monitor_rect, or -1 for the primary.
+void flwin32_host_set_panel(FlWin32Host* host,
+                            int32_t edge,
+                            int32_t thickness,
+                            int32_t monitor);
+
+int32_t flwin32_monitor_count(void);
+int32_t flwin32_monitor_rect(int32_t index,
+                             int32_t* x,
+                             int32_t* y,
+                             int32_t* width,
+                             int32_t* height,
+                             int32_t* primary);
+
 // Clipboard. Text is UTF-8 on this boundary and converted to/from UTF-16
 // inside, so the Swift side never handles wide strings.
 //

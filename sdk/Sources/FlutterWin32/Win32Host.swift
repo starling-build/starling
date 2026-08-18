@@ -57,5 +57,15 @@ public final class Win32Host {
     public func setFullscreen(_ fullscreen: Bool) {
         flwin32_host_set_fullscreen(host, fullscreen ? 1 : 0)
     }
+
+    /// Restyles the window into shell chrome: undecorated, always on top, and
+    /// pinned to a screen edge. Call before `run()` — it is a restyle of an
+    /// existing HWND, so the engine's view follows the new client area, but
+    /// doing it mid-run makes the first frames arrive at the old size.
+    public func setPanel(_ placement: PanelPlacement) {
+        flwin32_host_set_panel(host, placement.edge.rawValue,
+                               Int32(placement.thickness),
+                               Int32(placement.monitor ?? -1))
+    }
 }
 #endif
