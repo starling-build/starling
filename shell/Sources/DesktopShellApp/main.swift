@@ -155,6 +155,9 @@ nonisolated(unsafe) var recordingService: RecordingService? = nil
 /// for the same reason as recordingService: hooks land on the portal and
 /// recorder writer threads.
 nonisolated(unsafe) var screenCastService: ScreenCastService? = nil
+/// RDP server (STARLING_RDP=1) — a global for the same reason again: its
+/// callbacks land on the listener and peer threads.
+nonisolated(unsafe) var rdpService: RdpService? = nil
 
 /// Current shell DPI — updated at runtime by Settings app. Read this instead
 /// of the FLUTTER_DRM_DPI env var for coordinate conversion.
@@ -739,6 +742,11 @@ func runDRM() -> Never {
         _shellState?._setPrimaryDisplay(outputId: outputId)
     }
 
+    // Remote-desktop switch (SettingsApp's Sharing pane).
+    processManager.onRdpChangeRequested = { enabled in
+        _shellState?._setRdpEnabled(enabled)
+    }
+
     // Seed the list every child is told at connect. Sent again on any change.
     publishDisplaysToChildren()
 
@@ -845,16 +853,29 @@ func runDRM() -> Never {
     let recording = RecordingService()
     recordingService = recording
     screenCastService = ScreenCastService()
-    // One frame sink, two consumers: the engine runs a single capture
+    let rdp = RdpService()
+    rdpService = rdp
+    // One frame sink, three consumers: the engine runs a single capture
     // session, so each frame belongs to whichever service claimed it —
-    // a ScreenCast session routes here, everything else is a recording.
+    // a ScreenCast or RDP session routes there, everything else is a
+    // recording. The claims are mutually exclusive (each start refuses
+    // while another holds it), so the order of these tests is arbitrary.
     fl_drm_view_set_record_frame_callback(view, { _, rgba, w, h, _ in
         if ScreenCastService.captureActive {
             screenCastService?.ingest(rgba, width: Int(w), height: Int(h))
+        } else if RdpService.captureActive {
+            rdpService?.ingest(rgba, width: Int(w), height: Int(h))
         } else {
             recordingService?.ingest(rgba, width: Int(w), height: Int(h))
         }
     }, nil)
+    // STARLING_RDP raises the listener at boot; Settings › Sharing raises and
+    // drops it afterwards, and its choice is restored once the shell is
+    // mounted. Off unless asked for either way — share mode is TLS without
+    // NLA, so reaching the port is the whole of the authentication.
+    // See docs/plans/rdp.md.
+    rdp.startIfEnabled(view: view)
+    rdp.onStatusChanged = { _shellState?._broadcastRdpStatus() }
     // Zero-copy sibling: dmabuf frames on the engine's PRESENTING thread —
     // ingestDmabuf queues the frame and returns; anything heavier here
     // stalls the desktop's present path.
@@ -1056,6 +1077,18 @@ func runHeadless() -> Never {
 
 // ─── Windowed entry point ────────────────────────────────────────────────────
 
+// --rdp is checked BEFORE --drm deliberately. Every launcher in the tree
+// appends --drm because that is the normal mode, so an explicit --rdp has to
+// outrank it — otherwise asking for display mode silently gets you a DRM
+// desktop, which on a box that HAS a display looks like it worked.
+//
+// The RDP connection IS the display here: no DRM, no seat, no libinput. This
+// is the mode that runs where /dev/dri does not exist (WSL, containers,
+// cloud VMs). See docs/plans/rdp-wsl.md.
+if CommandLine.arguments.contains("--rdp") {
+    runRdpDisplay()
+}
+
 // Check for --drm flag (DRM/KMS direct rendering)
 if CommandLine.arguments.contains("--drm") {
     runDRM()
@@ -1067,6 +1100,6 @@ if CommandLine.arguments.contains("--headless") {
 }
 
 // The windowed X11/GLFW dev path has been removed — the shell is DRM-only
-// (plus --headless). runDRM()/runHeadless() above never return.
-fatalError("[DesktopShellApp] requires --drm (or --headless); windowed mode is not supported")
+// (plus --rdp and --headless). Those three never return.
+fatalError("[DesktopShellApp] requires --drm, --rdp or --headless; windowed mode is not supported")
 #endif  // os(Linux)

@@ -457,6 +457,11 @@ final class RecordingService {
             onFinished?(nil, "screen sharing is using the capture")
             return
         }
+        // …and so does a connected RDP client, for the same reason.
+        guard !RdpService.captureActive else {
+            onFinished?(nil, "a remote desktop client is using the capture")
+            return
+        }
         guard let view = drmViewHandle else {
             onFinished?(nil, "no display")
             return

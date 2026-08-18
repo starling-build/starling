@@ -143,7 +143,10 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                     self._sidebarItem(index: 7, icon: CupertinoIcons.battery_100,
                                                       tile: Color(0xFF63A56E), label: "Power", selected: s.selectedIndex),
                                     SizedBox(height: 2),
-                                    self._sidebarItem(index: 8, icon: CupertinoIcons.info_circle_fill,
+                                    self._sidebarItem(index: 8, icon: CupertinoIcons.antenna_radiowaves_left_right,
+                                                      tile: Color(0xFFB07BC4), label: "Sharing", selected: s.selectedIndex),
+                                    SizedBox(height: 2),
+                                    self._sidebarItem(index: 9, icon: CupertinoIcons.info_circle_fill,
                                                       tile: Color(0xFF4FA4B4), label: "About", selected: s.selectedIndex),
                                 ]
                             )
@@ -252,7 +255,8 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         case 5: return "Default Apps"
         case 6: return "Appearance"
         case 7: return "Power"
-        case 8: return "About"
+        case 8: return "Sharing"
+        case 9: return "About"
         default: return "Settings"
         }
     }
@@ -267,7 +271,8 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         case 5: return _buildDefaultAppsPage()
         case 6: return _buildAppearancePage()
         case 7: return _buildPowerPage()
-        case 8: return _buildAboutPage()
+        case 8: return _buildSharingPage()
+        case 9: return _buildAboutPage()
         default: return SizedBox(shrink: ())
         }
     }
@@ -1127,6 +1132,61 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             return "\(minutes / 60) h \(String(format: "%02d", minutes % 60)) min"
         }
         return "\(minutes) min"
+    }
+
+    // MARK: - Sharing Page (remote desktop)
+
+    /// Remote desktop over RDP. The switch reflects the shell's report of the
+    /// listener, not the click: turning it on can fail (no certificate, port
+    /// in use) and the switch springs back rather than lying about it.
+    private func _buildSharingPage() -> Widget {
+        let s = bloc.state
+        #if os(Linux)
+        let enabled = s.rdpEnabled
+        #else
+        let enabled = false
+        #endif
+        _ = s
+
+        let rows: [Widget] = [
+            _settingsRowWithTrailing(
+                "Remote Desktop",
+                "Let another computer see and control this desktop over RDP",
+                MacosSwitch(
+                    value: enabled,
+                    onChanged: { [self] (val: Bool) in bloc.add(.toggleRdp(val)) }
+                )
+            ),
+        ]
+
+        return Padding(
+            padding: EdgeInsets(all: 24),
+            child: SingleChildScrollView(
+                child: Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                        _sectionHeader("Sharing"),
+                        SizedBox(height: 12),
+                        _macosGroupBox(rows),
+                        SizedBox(height: 12),
+                        // Said plainly, and on screen rather than only in the
+                        // docs: the connection is encrypted but not
+                        // authenticated, so the port IS the credential.
+                        Padding(
+                            padding: EdgeInsets(horizontal: 4),
+                            child: Text(
+                                "Anyone who can reach this machine on the network "
+                                + "can connect — there is no password. The "
+                                + "connection is encrypted, but access is not "
+                                + "restricted. Leave this off on untrusted networks.",
+                                style: TextStyle(color: pal.textSecondary,
+                                                 fontSize: 11)
+                            )
+                        ),
+                    ]
+                )
+            )
+        )
     }
 
     private func _buildPowerPage() -> Widget {

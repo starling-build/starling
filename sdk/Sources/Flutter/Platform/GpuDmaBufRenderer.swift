@@ -118,6 +118,20 @@ public final class GpuRendererState: @unchecked Sendable {
     nonisolated(unsafe) var swapFbo: UInt32 = 0
     nonisolated(unsafe) var swapFboColorRb: UInt32 = 0
     nonisolated(unsafe) var swapFboStencilRb: UInt32 = 0
+    // CPU mode: no DRM device exists at all (WSL, containers, any box
+    // without /dev/dri), so there is nothing to export. The engine renders
+    // into an ordinary FBO on a surfaceless context and present() reads it
+    // back into a memfd the parent has mapped. Slower than either GPU path
+    // by a full frame copy — and the only one that runs where the others
+    // cannot start.
+    nonisolated(unsafe) var cpuMode: Bool = false
+    nonisolated(unsafe) var presentCount: Int = 0
+    nonisolated(unsafe) var cpuMap: UnsafeMutableRawPointer? = nil
+    nonisolated(unsafe) var cpuMapSize: Int = 0
+    nonisolated(unsafe) var cpuFbo: UInt32 = 0
+    nonisolated(unsafe) var cpuFboColorRb: UInt32 = 0
+    nonisolated(unsafe) var cpuFboStencilRb: UInt32 = 0
+
     /// Front buffers still locked: the newest (being sent/sampled) and the
     /// previous (the parent may sample it until it processes the newest).
     nonisolated(unsafe) var lockedBos: [OpaquePointer] = []
@@ -656,7 +670,7 @@ public class GpuDmaBufRenderer {
 
     // GBM state
     private let renderFd: Int32
-    private let gbmDevice: OpaquePointer         // gbm_device*
+    private let gbmDevice: OpaquePointer?        // gbm_device*, nil in CPU mode
     private let gbmBo: OpaquePointer?            // gbm_bo* (nil in swapchain mode)
     private let dmaFd: Int32                     // DMA-BUF fd (-1 in swapchain mode)
     private let stride: Int32                    // Row stride in bytes
@@ -873,6 +887,18 @@ public class GpuDmaBufRenderer {
             print("[GpuDmaBufRenderer] Configured by parent: \(logicalW)x\(logicalH)")
         }
 
+        // The configure above is the last blocking read on this socket; from
+        // here the event loop drains it with poll + read-until-EAGAIN, which
+        // needs O_NONBLOCK. It belongs HERE, at the seam every render path
+        // shares, not inside one of them: it used to sit in the GBM branch,
+        // so a child that fell back to CPU frames kept a blocking socket and
+        // parked in `read` on the first message the parent pushed (theme, at
+        // connect) — before it had ever rendered. That reads as "the app
+        // starts and never presents a frame", with the engine perfectly
+        // healthy and the pipeline simply never pumped again.
+        let sockFlags = fcntl(sock, F_GETFL)
+        _ = fcntl(sock, F_SETFL, sockFlags | O_NONBLOCK)
+
         // 3. Read device pixel ratio from environment (set by parent's DRM shell)
         let dpiEnv = ProcessInfo.processInfo.environment["FLUTTER_DRM_DPI"]
         var dpi = dpiEnv.flatMap { Double($0) } ?? 1.0
@@ -909,10 +935,34 @@ public class GpuDmaBufRenderer {
         // shell renders on the primary node either way (it holds it via
         // libseat), so the fallback lands both halves on the same device.
         guard let picked = Self.openDrmDevice(width: self.width, height: self.height) else {
+            // No DRM device anywhere. That is not necessarily a broken box —
+            // WSL has no /dev/dri at all, and neither do many containers — so
+            // fall back to rendering on a surfaceless context and shipping
+            // the pixels through a memfd. Everything above this point (the
+            // socket, the handshake) is already done and is reused.
             FileHandle.standardError.write(Data((
-                "[GpuDmaBufRenderer] no usable DRM device — tried " +
-                Self.drmCandidates().joined(separator: ", ") + "\n"
+                "[GpuDmaBufRenderer] no usable DRM device (tried " +
+                Self.drmCandidates().joined(separator: ", ") +
+                ") — falling back to CPU frames\n"
             ).utf8))
+            if let cpu = Self.makeCpuState(sock: sock, width: self.width,
+                                           height: self.height) {
+                renderFd = -1
+                gbmDevice = nil
+                gbmBo = nil
+                dmaFd = -1
+                stride = Int32(self.width * 4)
+                eglDisplay = cpu.display
+                eglConfig = cpu.config
+                mainContext = cpu.mainContext
+                resourceContext = cpu.resourceContext
+                fboName = cpu.fbo
+                fboEglImage = nil
+                state = cpu.state
+                return
+            }
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] CPU fallback failed too\n".utf8))
             Glibc.close(sock)
             return nil
         }
@@ -1102,16 +1152,16 @@ public class GpuDmaBufRenderer {
         // 16. Clear current context
         dmabuf_egl_clear_current(display)
 
-        // Set socket to non-blocking for input event reads in poll loop
-        let sockFlags = fcntl(sock, F_GETFL)
-        _ = fcntl(sock, F_SETFL, sockFlags | O_NONBLOCK)
+        // (The socket went non-blocking right after the configure handshake,
+        // where both render paths pass through.)
 
         // 17. Send DMA-BUF fd + metadata to parent
         var meta = DmaBufMeta(
             width: Int32(self.width),
             height: Int32(self.height),
             stride: sendStride,
-            fourcc: sendFourcc
+            fourcc: sendFourcc,
+            flags: 0
         )
         let sendResult = dmabuf_send_fd(sock, sendFd, &meta,
                                         MemoryLayout<DmaBufMeta>.size)
@@ -1157,6 +1207,105 @@ public class GpuDmaBufRenderer {
         }
     }
 
+    /// Stand up the no-DRM render path: a surfaceless EGL context, an
+    /// ordinary FBO, and a memfd the parent maps and we read frames into.
+    /// Populates `state` exactly as the GPU paths do, so every callback
+    /// downstream only has to check `cpuMode`.
+    ///
+    /// What init must assign for a CPU-mode renderer.
+    private struct CpuSetup {
+        let state: GpuRendererState
+        let display: UnsafeMutableRawPointer
+        let config: UnsafeMutableRawPointer
+        let mainContext: UnsafeMutableRawPointer
+        let resourceContext: UnsafeMutableRawPointer
+        let fbo: UInt32
+    }
+
+    /// Returns nil if even this cannot be built — there is no fourth path.
+    /// Static because init calls it before the stored properties exist.
+    private static func makeCpuState(sock: Int32, width: Int,
+                                     height: Int) -> CpuSetup? {
+        guard let display = dmabuf_egl_create_display_surfaceless() else {
+            return nil
+        }
+        guard dmabuf_egl_initialize(display) != 0,
+              let config = dmabuf_egl_choose_config(display) else {
+            return nil
+        }
+        guard let mainCtx = dmabuf_egl_create_context(display, config, nil) else {
+            return nil
+        }
+        // Shares with the main context so the engine's async texture uploads
+        // land somewhere the renderer can see, as on the GPU paths.
+        let resCtx = dmabuf_egl_create_context(display, config, mainCtx)
+        guard dmabuf_egl_make_current(display, mainCtx) != 0 else {
+            return nil
+        }
+
+        var colorRb: UInt32 = 0
+        var stencilRb: UInt32 = 0
+        let fbo = dmabuf_create_plain_fbo(Int32(width), Int32(height),
+                                          &colorRb, &stencilRb)
+        guard fbo != 0 else {
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] CPU mode: FBO creation failed\n".utf8))
+            return nil
+        }
+
+        let stride = width * 4
+        let size = stride * height
+        let memFd = dmabuf_create_memfd(size)
+        guard memFd >= 0 else { return nil }
+        let map = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, memFd, 0)
+        guard map != MAP_FAILED, let map else {
+            Glibc.close(memFd)
+            return nil
+        }
+
+        var meta = DmaBufMeta(
+            width: Int32(width), height: Int32(height),
+            stride: Int32(stride), fourcc: Self.bufferFormat,
+            flags: UInt32(DMABUF_META_FLAG_CPU)
+        )
+        guard dmabuf_send_fd(sock, memFd, &meta,
+                             MemoryLayout<DmaBufMeta>.size) == 0 else {
+            munmap(map, size)
+            Glibc.close(memFd)
+            return nil
+        }
+        // The parent holds its own dup from SCM_RIGHTS; ours stays open for
+        // the life of the mapping.
+
+        // Release the context: the engine's raster thread binds it through
+        // the make_current callback, and EGL refuses a context that is still
+        // current on another thread. Leaving it bound here fails the child's
+        // surface creation with "Could not make the context current" — the
+        // GPU paths clear it for the same reason.
+        _ = dmabuf_egl_clear_current(display)
+
+        FileHandle.standardError.write(Data(
+            "[GpuDmaBufRenderer] CPU frames: \(width)x\(height) via memfd\n".utf8))
+
+        let st = GpuRendererState()
+        st.eglDisplay = display
+        st.mainContext = mainCtx
+        st.resourceContext = resCtx
+        st.socketFd = sock
+        st.bufferWidth = width
+        st.bufferHeight = height
+        st.cpuMode = true
+        st.cpuMap = map
+        st.cpuMapSize = size
+        st.cpuFbo = fbo
+        st.cpuFboColorRb = colorRb
+        st.cpuFboStencilRb = stencilRb
+        st.fboName = fbo
+        return CpuSetup(state: st, display: display, config: config,
+                        mainContext: mainCtx,
+                        resourceContext: resCtx ?? mainCtx, fbo: fbo)
+    }
+
     deinit {
         running = false
         if let eng = engine {
@@ -1183,7 +1332,7 @@ public class GpuDmaBufRenderer {
         Glibc.close(socketFd)
         if state.dmaFd >= 0 { Glibc.close(state.dmaFd) }
         if let bo = state.gbmBo { gbm_bo_destroy(bo) }
-        gbm_device_destroy(gbmDevice)
+        if let dev = gbmDevice { gbm_device_destroy(dev) }
         Glibc.close(renderFd)
     }
 
@@ -1273,6 +1422,15 @@ public class GpuDmaBufRenderer {
         writeControlEvent(&event)
     }
 
+    /// Ask the shell to turn remote desktop (RDP share mode) on or off
+    /// (Settings › Sharing). The shell answers with the settled state, so a
+    /// start that fails leaves the switch showing off rather than lying.
+    public func sendRdpChange(enabled: Bool) {
+        var event = DmaBufInputEvent(x: enabled ? 1 : 0, y: 0, buttons: 0,
+                                     type: DMABUF_CONTROL_SET_RDP, phase: 0)
+        writeControlEvent(&event)
+    }
+
     /// Ask the shell to make `outputId` the primary display (Settings ›
     /// Displays). The id is the one the shell reported in `DisplayInfo`.
     public func sendPrimaryDisplayChange(outputId: Int) {
@@ -1299,7 +1457,7 @@ public class GpuDmaBufRenderer {
         didSet {
             guard let cb = onThemeChanged, let dark = pendingThemeDark else { return }
             pendingThemeDark = nil
-            deliverThemeChange(cb, dark)
+            deliverBoolChange(cb, dark)
         }
     }
 
@@ -1316,7 +1474,7 @@ public class GpuDmaBufRenderer {
     fileprivate static func receiveThemePush(_ dark: Bool) {
         lastPushedThemeIsDark = dark
         if let cb = onThemeChanged {
-            deliverThemeChange(cb, dark)
+            deliverBoolChange(cb, dark)
         } else {
             pendingThemeDark = dark
         }
@@ -1328,7 +1486,7 @@ public class GpuDmaBufRenderer {
         didSet {
             guard let cb = onLayoutChanged, let tiling = pendingLayoutTiling else { return }
             pendingLayoutTiling = nil
-            deliverThemeChange(cb, tiling)
+            deliverBoolChange(cb, tiling)
         }
     }
 
@@ -1340,7 +1498,7 @@ public class GpuDmaBufRenderer {
     fileprivate static func receiveLayoutPush(_ tiling: Bool) {
         lastPushedLayoutIsTiling = tiling
         if let cb = onLayoutChanged {
-            deliverThemeChange(cb, tiling)
+            deliverBoolChange(cb, tiling)
         } else {
             pendingLayoutTiling = tiling
         }
@@ -1392,6 +1550,32 @@ public class GpuDmaBufRenderer {
             deliverIntChange(cb, seconds)
         } else {
             pendingScreensaver = seconds
+        }
+    }
+
+    // Remote-desktop push — same latch/replay contract as the theme. What
+    // arrives is the state the shell's listener settled on, which is not
+    // always what was asked for: a start that fails reports back false.
+
+    public nonisolated(unsafe) static var onRdpChanged: ((Bool) -> Void)? = nil {
+        didSet {
+            guard let cb = onRdpChanged, let on = pendingRdp else { return }
+            pendingRdp = nil
+            deliverBoolChange(cb, on)
+        }
+    }
+
+    /// Whether the shell last reported remote desktop as on, or nil.
+    public private(set) nonisolated(unsafe) static var lastPushedRdpEnabled: Bool? = nil
+
+    private nonisolated(unsafe) static var pendingRdp: Bool? = nil
+
+    fileprivate static func receiveRdpPush(_ enabled: Bool) {
+        lastPushedRdpEnabled = enabled
+        if let cb = onRdpChanged {
+            deliverBoolChange(cb, enabled)
+        } else {
+            pendingRdp = enabled
         }
     }
 
@@ -1480,8 +1664,10 @@ public class GpuDmaBufRenderer {
     }
 
     /// App UI state is main-thread only; hop before touching it.
-    private static func deliverThemeChange(_ cb: @escaping (Bool) -> Void, _ dark: Bool) {
-        let call: () -> Void = { cb(dark) }
+    /// Hop a Bool push to the main queue. Shared by every boolean setting
+    /// the shell pushes down (appearance, remote desktop).
+    private static func deliverBoolChange(_ cb: @escaping (Bool) -> Void, _ value: Bool) {
+        let call: () -> Void = { cb(value) }
         DispatchQueue.main.async(
             execute: unsafeBitCast(call, to: (@Sendable () -> Void).self))
     }
@@ -1547,7 +1733,16 @@ public class GpuDmaBufRenderer {
         rendererConfig.open_gl.present = { userData -> Bool in
             guard let userData = userData else { return false }
             let s = Unmanaged<GpuRendererState>.fromOpaque(userData).takeUnretainedValue()
-            if s.swapchain {
+            if s.cpuMode {
+                // Read the frame back into the memfd the parent mapped, in
+                // the FBO's own row order — the same layout the dma-buf path
+                // exports, which is what the parent and the broker both
+                // assume (see dmabuf_read_fbo_pixels).
+                if let map = s.cpuMap {
+                    _ = dmabuf_read_fbo_pixels(s.cpuFbo, Int32(s.bufferWidth),
+                                               Int32(s.bufferHeight), map)
+                }
+            } else if s.swapchain {
                 // Release older fronts BEFORE the swap: the gbm_surface has a
                 // small fixed pool (3 on NVIDIA), and holding two locked
                 // buffers through eglSwapBuffers starves it — the swap blocks
@@ -1599,7 +1794,8 @@ public class GpuDmaBufRenderer {
                         var meta = DmaBufMeta(width: Int32(s.bufferWidth),
                                               height: Int32(s.bufferHeight),
                                               stride: Int32(gbm_bo_get_stride(front)),
-                                              fourcc: s.swapFourcc)
+                                              fourcc: s.swapFourcc,
+                                              flags: 0)
                         // On EAGAIN lastSentBo stays put, so the next present
                         // retries rather than stranding the parent on a stale
                         // buffer.
@@ -1613,6 +1809,12 @@ public class GpuDmaBufRenderer {
                 // Submit GPU commands (non-blocking). DMA-BUF implicit sync
                 // ensures the parent's texture read waits for our write to complete.
                 dmabuf_gl_flush()
+            }
+            // Temporary: prove the child's engine reaches present at all.
+            s.presentCount += 1
+            if s.presentCount <= 3 {
+                FileHandle.standardError.write(Data(
+                    "[GpuDmaBufRenderer] present #\(s.presentCount) cpu=\(s.cpuMode)\n".utf8))
             }
             // Signal parent that a new frame is ready (single byte 'F')
             var signal: UInt8 = 0x46
@@ -1632,6 +1834,13 @@ public class GpuDmaBufRenderer {
             // wrapping the new larger FBO, producing blurry upscaled rendering.
             let reqW = frameInfo?.pointee.size.width ?? 0
             let reqH = frameInfo?.pointee.size.height ?? 0
+
+            // CPU mode renders into a plain FBO that present() reads back.
+            // Resizes are not handled yet: the app keeps its launch size,
+            // which is what the shell gives a first-party window anyway.
+            if s.cpuMode {
+                return s.cpuFbo
+            }
 
             // Swapchain mode renders into the plain FBO that present() blits
             // to the window surface; a resize rebuilds surface + FBO together.
@@ -1713,7 +1922,8 @@ public class GpuDmaBufRenderer {
             // 6. Send new DMA-BUF fd + metadata to parent
             var meta = DmaBufMeta(
                 width: Int32(newW), height: Int32(newH),
-                stride: newStride, fourcc: formatABGR8888
+                stride: newStride, fourcc: formatABGR8888,
+                flags: 0
             )
             _ = dmabuf_send_fd(s.socketFd, newDmaFd, &meta,
                                MemoryLayout<DmaBufMeta>.size)
@@ -1837,7 +2047,7 @@ public class GpuDmaBufRenderer {
         }
         engine = eng
         state.engine = eng
-        print("[GpuDmaBufRenderer] Engine initialized (OpenGL)")
+        FileHandle.standardError.write(Data("[GpuDmaBufRenderer] Engine initialized (OpenGL)\n".utf8))
 
         // 6. Run the engine
         let runResult = FlutterEngineRunInitializedSwift(eng)
@@ -1845,7 +2055,7 @@ public class GpuDmaBufRenderer {
             print("[GpuDmaBufRenderer] FlutterEngineRunInitializedSwift failed")
             return
         }
-        print("[GpuDmaBufRenderer] Engine running")
+        FileHandle.standardError.write(Data("[GpuDmaBufRenderer] Engine running\n".utf8))
 
         // 7. Send initial window metrics
         var metrics = FlutterWindowMetricsEvent()
@@ -1858,7 +2068,7 @@ public class GpuDmaBufRenderer {
 
         // 8. Schedule first frame
         PlatformDispatcher.instance.scheduleFrame()
-        print("[GpuDmaBufRenderer] First frame scheduled, entering event loop")
+        FileHandle.standardError.write(Data("[GpuDmaBufRenderer] First frame scheduled, entering event loop\n".utf8))
 
         // 9. GCD main queue integration — drain DispatchQueue.main so
         // @MainActor / async-await continuations fire on the main thread.
@@ -2005,6 +2215,11 @@ public class GpuDmaBufRenderer {
 
                     if inputEvent.type == DMABUF_CONTROL_SET_SCREENSAVER {
                         GpuDmaBufRenderer.receiveScreensaverPush(Int(inputEvent.x))
+                        continue
+                    }
+
+                    if inputEvent.type == DMABUF_CONTROL_SET_RDP {
+                        GpuDmaBufRenderer.receiveRdpPush(inputEvent.x > 0.5)
                         continue
                     }
 

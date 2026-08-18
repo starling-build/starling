@@ -22,7 +22,7 @@ nonisolated(unsafe) var settingsBlocShared: SettingsBloc?
 func initialPaneIndex() -> Int {
     let panes = ["general": 0, "network": 1, "displays": 2, "sound": 3,
                  "datetime": 4, "defaultapps": 5, "appearance": 6,
-                 "power": 7, "about": 8]
+                 "power": 7, "sharing": 8, "about": 9]
     for arg in CommandLine.arguments.dropFirst() {
         if arg.hasPrefix("--pane="),
            let idx = panes[String(arg.dropFirst("--pane=".count)).lowercased()] {
@@ -74,6 +74,9 @@ struct SettingsState {
     /// Screensaver idle timeout in seconds (0 = never) — the shell owns it
     /// and pushes at connect.
     var screensaverIdle: Int = GpuDmaBufRenderer.lastPushedScreensaver ?? 600
+    /// Remote desktop, as the shell reports it — never as the switch was
+    /// last clicked. A start that fails leaves this false.
+    var rdpEnabled: Bool = GpuDmaBufRenderer.lastPushedRdpEnabled ?? false
     #else
     var darkMode: Bool = true
     var tilingWM: Bool = false
@@ -159,6 +162,10 @@ enum SettingsEvent {
     case selectScreensaverIdle(Int)
     /// Idle timeout pushed by the shell (no echo back).
     case screensaverApplied(Int)
+
+    // Sharing (remote desktop)
+    case toggleRdp(Bool)
+    case rdpApplied(Bool)
 
     // Power
     case refreshBattery
@@ -259,6 +266,13 @@ final class SettingsBloc: @unchecked Sendable {
             _applyScreensaver(value)
         case .screensaverApplied(let value):
             state.screensaverIdle = value
+        case .toggleRdp(let value):
+            // Deliberately NOT optimistic: the shell answers with what the
+            // listener actually did, and a switch that flicked on and back
+            // off is the honest report of a failed start.
+            _applyRdp(value)
+        case .rdpApplied(let enabled):
+            state.rdpEnabled = enabled
         case .refreshBattery:
             _refreshBattery()
         case .changeBrightness(let percent):
@@ -501,6 +515,15 @@ final class SettingsBloc: @unchecked Sendable {
         GpuDmaBufRenderer.current?.sendScreensaverChange(seconds: seconds)
         #endif
     }
+
+    // MARK: - Sharing (remote desktop)
+
+    private func _applyRdp(_ enabled: Bool) {
+        #if os(Linux)
+        GpuDmaBufRenderer.current?.sendRdpChange(enabled: enabled)
+        #endif
+    }
+
 
     // MARK: - Battery
 

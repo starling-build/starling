@@ -94,11 +94,14 @@ private struct PendingDmaBufResize: @unchecked Sendable {
 private struct PendingDmaBufLaunch: @unchecked Sendable {
     let pid: pid_t
     let sock: ChildSocket         // connected client socket for frame signals
-    let dmaFd: Int32              // DMA-BUF fd received from child
+    let dmaFd: Int32              // DMA-BUF fd, or a memfd when `cpu`
     let width: Int
     let height: Int
     let stride: Int
     let fourcc: UInt32
+    /// The child had no DRM device and sent linear pixels in a memfd
+    /// instead. Its frames are mapped and uploaded rather than imported.
+    let cpu: Bool
     let onReady: (Int64) -> Void
     let onTerminated: () -> Void
     let launchState: AtomicBox<(texId: Int64, earlyFrame: Bool)>
@@ -124,6 +127,7 @@ class LinuxProcessAppManager {
 
     /// Pending DMA-BUF frame signals (texture IDs — no pixel copy needed).
     private let pendingDmaBufFrames = AtomicBox<[Int64]>([])
+    private var cpuFrameLogged = 0
 
     /// Pending DMA-BUF resizes from child processes.
     private let pendingDmaBufResizes = AtomicBox<[PendingDmaBufResize]>([])
@@ -176,6 +180,17 @@ class LinuxProcessAppManager {
         Int(_DesktopShellState.kDefaultIdleSeconds)
 
     private let pendingScreensaverRequests = AtomicBox<[Int]>([])
+
+    /// Fired on the platform thread when a child (SettingsApp's Sharing
+    /// pane) asks to turn remote desktop on or off.
+    var onRdpChangeRequested: ((Bool) -> Void)?
+
+    /// Remote desktop as the shell last settled it, pushed to children at
+    /// connect and re-broadcast on every change (kept in sync by
+    /// `broadcastRdp`).
+    nonisolated(unsafe) var currentRdpEnabled: Bool = false
+
+    private let pendingRdpRequests = AtomicBox<[Bool]>([])
 
     /// Fired on the platform thread when a child (SettingsApp's Displays pane)
     /// asks to make an output the primary display.
@@ -252,7 +267,7 @@ class LinuxProcessAppManager {
                     return s.earlyFrame
                 }
 
-                let entry = ProcessAppEntry(
+                var entry = ProcessAppEntry(
                     pid: launch.pid,
                     textureId: texId,
                     width: launch.width,
@@ -271,18 +286,37 @@ class LinuxProcessAppManager {
                 sendLayout(textureId: texId, tiling: currentLayoutIsTiling)
                 sendWallpaper(textureId: texId, preset: currentWallpaper)
                 sendScreensaver(textureId: texId, seconds: currentScreensaverIdle)
+                sendRdp(textureId: texId)
                 sendDisplays(textureId: texId)
 
-                // Import DMA-BUF as EGLImage → GL texture (zero-copy)
-                textureRegistry.importDmaBuf(
-                    engine: engine,
-                    id: texId,
-                    fd: launch.dmaFd,
-                    width: launch.width,
-                    height: launch.height,
-                    stride: launch.stride,
-                    fourcc: launch.fourcc
-                )
+                if launch.cpu {
+                    // No DRM device on the child's side: its frames arrive
+                    // as linear pixels in a memfd. Map it once — the child
+                    // renders into the same buffer for its whole life — and
+                    // upload on each frame signal below.
+                    let size = launch.stride * launch.height
+                    let map = mmap(nil, size, PROT_READ, MAP_SHARED,
+                                   launch.dmaFd, 0)
+                    if map == MAP_FAILED {
+                        FileHandle.standardError.write(Data(
+                            "[ProcessApp] mmap of child memfd failed: \(errno)\n".utf8))
+                    } else {
+                        entry.cpuMap = map
+                        entry.cpuMapSize = size
+                        apps[texId] = entry
+                    }
+                } else {
+                    // Import DMA-BUF as EGLImage → GL texture (zero-copy)
+                    textureRegistry.importDmaBuf(
+                        engine: engine,
+                        id: texId,
+                        fd: launch.dmaFd,
+                        width: launch.width,
+                        height: launch.height,
+                        stride: launch.stride,
+                        fourcc: launch.fourcc
+                    )
+                }
 
                 launch.onReady(texId)
 
@@ -333,6 +367,23 @@ class LinuxProcessAppManager {
         let dmaBufFrameTexIds = pendingDmaBufFrames.take([])
         if !dmaBufFrameTexIds.isEmpty {
             for texId in dmaBufFrameTexIds {
+                // A CPU child's pixels are only in its memfd; the texture
+                // has to be re-uploaded from the mapping every frame. (The
+                // dma-buf path imports once and the GPU sees the writes.)
+                if let e = apps[texId], let map = e.cpuMap {
+                    cpuFrameLogged += 1
+                    if cpuFrameLogged <= 3 {
+                        FileHandle.standardError.write(Data(
+                            "[ProcessApp] CPU frame #\(cpuFrameLogged) tex=\(texId) \(e.width)x\(e.height)\n".utf8))
+                    }
+                    textureRegistry.updatePixelData(
+                        engine: engine, id: texId, data: map,
+                        width: e.width, height: e.height)
+                } else if apps[texId] != nil, cpuFrameLogged == 0 {
+                    cpuFrameLogged = -1
+                    FileHandle.standardError.write(Data(
+                        "[ProcessApp] frame for tex=\(texId) but no cpuMap (dma-buf app)\n".utf8))
+                }
                 FlutterEngineMarkExternalTextureFrameAvailable(engine, texId)
                 if let cb = firstFrameCallbacks.removeValue(forKey: texId) {
                     cb()
@@ -383,6 +434,13 @@ class LinuxProcessAppManager {
         if !primaryDisplayRequests.isEmpty {
             if let lastOutputId = primaryDisplayRequests.last {
                 onPrimaryDisplayChangeRequested?(lastOutputId)
+            }
+        }
+
+        let rdpRequests = pendingRdpRequests.take([])
+        if !rdpRequests.isEmpty {
+            if let lastEnabled = rdpRequests.last {
+                onRdpChangeRequested?(lastEnabled)
             }
         }
 
@@ -614,6 +672,7 @@ class LinuxProcessAppManager {
         let pendingWallpaperRequests = self.pendingWallpaperRequests
         let pendingScreensaverRequests = self.pendingScreensaverRequests
         let pendingPrimaryDisplayRequests = self.pendingPrimaryDisplayRequests
+        let pendingRdpRequests = self.pendingRdpRequests
         let pendingCaretUpdates = self.pendingCaretUpdates
         let pendingTerminations = self.pendingTerminations
         let capturedEngine = unsafeBitCast(engine, to: Int.self)
@@ -645,7 +704,7 @@ class LinuxProcessAppManager {
             }
 
             // Receive DMA-BUF fd + metadata from child
-            var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0)
+            var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0, flags: 0)
             let receivedFd = dmabuf_recv_fd(clientSock, &meta,
                                             MemoryLayout<DmaBufMeta>.size)
             guard receivedFd >= 0 else {
@@ -667,6 +726,7 @@ class LinuxProcessAppManager {
                 height: Int(meta.height),
                 stride: Int(meta.stride),
                 fourcc: meta.fourcc,
+                cpu: (meta.flags & UInt32(DMABUF_META_FLAG_CPU)) != 0,
                 onReady: sendableOnReady,
                 onTerminated: sendableOnTerminated,
                 launchState: launchState
@@ -697,7 +757,7 @@ class LinuxProcessAppManager {
 
                 if receivedFd >= 0 && n >= MemoryLayout<DmaBufMeta>.size {
                     // Resize response: data contains DmaBufMeta, fd is the new DMA-BUF
-                    var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0)
+                    var meta = DmaBufMeta(width: 0, height: 0, stride: 0, fourcc: 0, flags: 0)
                     memcpy(&meta, &buf, MemoryLayout<DmaBufMeta>.size)
 
                     if texId != 0 {
@@ -731,6 +791,9 @@ class LinuxProcessAppManager {
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     } else if event.type == DMABUF_CONTROL_SET_PRIMARY_DISPLAY {
                         pendingPrimaryDisplayRequests.withLock { $0.append(Int(event.x)) }
+                        FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
+                    } else if event.type == DMABUF_CONTROL_SET_RDP {
+                        pendingRdpRequests.withLock { $0.append(event.x > 0.5) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     } else if event.type == DMABUF_CARET {
                         let bits = UInt64(bitPattern: event.buttons)
@@ -870,6 +933,24 @@ class LinuxProcessAppManager {
         currentScreensaverIdle = seconds
         for texId in apps.keys {
             sendScreensaver(textureId: texId, seconds: seconds)
+        }
+    }
+
+    /// Pushes the settled remote-desktop state to one child.
+    func sendRdp(textureId: Int64) {
+        guard let entry = apps[textureId] else { return }
+        var event = DmaBufInputEvent(
+            x: currentRdpEnabled ? 1 : 0, y: 0, buttons: 0,
+            type: Int32(DMABUF_CONTROL_SET_RDP), phase: 0)
+        entry.sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
+
+    /// Remote-desktop change: push to every child so the Sharing switch shows
+    /// what actually happened rather than what was clicked.
+    func broadcastRdp(enabled: Bool) {
+        currentRdpEnabled = enabled
+        for texId in apps.keys {
+            sendRdp(textureId: texId)
         }
     }
 
@@ -1014,6 +1095,11 @@ private struct ProcessAppEntry {
     let sock: ChildSocket
     var dmaBufStride: Int = 0
     var dmaBufFourcc: UInt32 = 0
+    /// CPU children only: the mapped memfd their frames land in, and its
+    /// size. Non-nil is what marks this app as one whose frames must be
+    /// uploaded per signal rather than imported once.
+    var cpuMap: UnsafeMutableRawPointer? = nil
+    var cpuMapSize: Int = 0
 }
 
 #endif

@@ -929,6 +929,66 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         LoginUser.configDir + "/screensaver"
     }
 
+    // MARK: Remote desktop (Settings › Sharing)
+
+    private static var _remoteDesktopFile: String {
+        LoginUser.configDir + "/remote-desktop"
+    }
+
+    /// Turn remote desktop on or off and persist the choice. The switch
+    /// reports what the listener actually did, not what was asked for: a
+    /// start can fail (no certificate, port taken), and a switch that sprang
+    /// back to "on" over a dead listener would be worse than the failure.
+    ///
+    /// Off by default, and deliberately: share mode is TLS without NLA, so
+    /// anyone who can reach the port can drive this desktop. The pane says
+    /// so; see docs/plans/rdp.md.
+    func _setRdpEnabled(_ enabled: Bool) {
+        #if os(Linux)
+        guard let rdp = rdpService else { return }
+        let settled: Bool
+        if enabled {
+            settled = rdp.start()
+        } else {
+            rdp.stop()
+            settled = false
+        }
+        if settled == enabled {
+            try? FileManager.default.createDirectory(
+                atPath: (Self._remoteDesktopFile as NSString).deletingLastPathComponent,
+                withIntermediateDirectories: true)
+            try? String(settled ? "1" : "0").write(
+                toFile: Self._remoteDesktopFile, atomically: true, encoding: .utf8)
+        }
+        _broadcastRdpStatus()
+        #endif
+    }
+
+    /// Push the listener's real state to every child, so the Sharing switch
+    /// follows a failed start and a session-wide STARLING_RDP alike.
+    func _broadcastRdpStatus() {
+        #if os(Linux)
+        guard let rdp = rdpService else { return }
+        linuxProcessAppManager?.broadcastRdp(enabled: rdp.isRunning)
+        #endif
+    }
+
+    /// Restore the persisted remote-desktop choice at startup. `STARLING_RDP`
+    /// has already had its say by now (RdpService.startIfEnabled), and stays
+    /// the override: it turns the listener on regardless of the stored value.
+    func _restoreRdpSetting() {
+        #if os(Linux)
+        guard let rdp = rdpService else { return }
+        if !rdp.isRunning,
+           let s = try? String(contentsOfFile: Self._remoteDesktopFile,
+                               encoding: .utf8),
+           s.trimmingCharacters(in: .whitespacesAndNewlines) == "1" {
+            _ = rdp.start()
+        }
+        _broadcastRdpStatus()
+        #endif
+    }
+
     /// Restore the persisted idle timeout and start the clock. The env
     /// override exists so tooling and demos can ask for a short timeout
     /// without writing to the user's config.
@@ -1158,6 +1218,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 }
                 screenCastService?.pumpTick()
             }
+            // RDP is the third rider, on identical terms: the floor keeps
+            // the client's view alive on an idle desktop and carries the
+            // stop through, while priming rebuilds only run until the
+            // first frame reaches the client.
+            if rdpService?.needsFramePump == true {
+                tick = true
+                if rdpService?.needsPrimingRebuilds == true {
+                    rebuild = true
+                }
+                rdpService?.pumpTick()
+            }
             #endif
             guard tick else { return }
             // The pump is a LIVENESS FLOOR, not a frame source. A present
@@ -1234,6 +1305,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
         _startIdleDetection()
         _armScreensaverTestTimer()
+        _restoreRdpSetting()
     }
 
     /// Resolve a data file (wallpaper, icons, shaders) across installed and
@@ -1482,7 +1554,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     private func _setupWaylandCallbacks() {
         #if os(Linux)
-        guard let wayland = waylandIntegration else { return }
+        // Wayland-specific callbacks need the integration; the key
+        // routing below does NOT — display mode (--rdp) has no Wayland
+        // server yet and still has a keyboard, and an early return here
+        // left pd.onKeyData unset, so every key vanished silently.
+        if let wayland = waylandIntegration {
 
         wayland.onNewWindow = { [weak self] (surfaceId: UInt32, textureId: Int, title: String, clientId: UInt64) -> String in
             guard let self = self else { return "" }
@@ -1891,6 +1967,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             wayland.sendExitFullscreen(surfaceId: surfId, width: contentW, height: contentH)
         }
 
+        }  // end Wayland-specific callbacks
+
         // Forward keyboard events to the focused Wayland or X11 client.
         let pd = PlatformDispatcher.instance
         let routeKey: (KeyData) -> Bool = { [weak self] keyData in
@@ -2167,7 +2245,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // Text-input enter rides keyboard enter, which is
                     // normally lazy (first forwarded key) — force it so the
                     // client enables its text input before we compose.
-                    wayland.ensureKeyboardFocus()
+                    waylandIntegration?.ensureKeyboardFocus()
                 }
                 // A half-typed composition must not follow focus to another
                 // window (or survive its target's death) — reset it.
@@ -2186,7 +2264,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // Deliver to the FOCUSED window's surface, not wherever the
                     // pointer happens to be. appId is "wayland-<surfaceId>".
                     let surface = UInt32(win.appId.dropFirst("wayland-".count)) ?? 0
-                    wayland.sendKeyEvent(
+                    waylandIntegration?.sendKeyEvent(
                         physical: keyData.physical,
                         logical: keyData.logical,
                         isDown: isDown,

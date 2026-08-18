@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// memfd_create needs _GNU_SOURCE, and it must be defined before the first
+// libc header is pulled in — hence above the include below rather than in
+// the target's cSettings, where it would be easy to lose.
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "include/DmaBufBridge.h"
 
 #include <EGL/egl.h>
@@ -12,6 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 
@@ -446,6 +455,68 @@ void* dmabuf_egl_create_display(struct gbm_device* gbm_dev) {
     EGLDisplay display = eglGetDisplay((EGLNativeDisplayType)gbm_dev);
     if (display == EGL_NO_DISPLAY) {
         fprintf(stderr, "[DmaBufBridge] eglGetDisplay failed\n");
+        return NULL;
+    }
+    return (void*)display;
+}
+
+int dmabuf_create_memfd(size_t size) {
+    int fd = memfd_create("starling-app-frame", MFD_CLOEXEC);
+    if (fd < 0) {
+        fprintf(stderr, "[DmaBufBridge] memfd_create failed: %s\n",
+                strerror(errno));
+        return -1;
+    }
+    if (ftruncate(fd, (off_t)size) != 0) {
+        fprintf(stderr, "[DmaBufBridge] ftruncate(%zu) failed: %s\n", size,
+                strerror(errno));
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+int dmabuf_read_fbo_pixels(uint32_t fbo, int width, int height, void* dst) {
+    if (!dst || width <= 0 || height <= 0) {
+        return 0;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    /* Row order is deliberately left alone. The contract this buffer has to
+     * meet is not "top-down" in the abstract — it is "byte-for-byte what the
+     * dma-buf path hands the parent", because everything downstream treats
+     * the two identically: the window composites the texture with
+     * flipTextureY false, and the agent broker mmaps this same fd for
+     * per-window capture. glReadPixels walks the FBO from GL y=0 up, which
+     * is the attachment's first memory row, so the untouched readback IS
+     * that layout. An in-place row swap here "to correct for GL being
+     * bottom-up" renders every first-party app upside down. */
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, dst);
+    return 1;
+}
+
+void* dmabuf_egl_create_display_surfaceless(void) {
+#ifndef EGL_PLATFORM_SURFACELESS_MESA
+#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
+#endif
+    const char* exts = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+    if (!exts || !strstr(exts, "EGL_MESA_platform_surfaceless")) {
+        fprintf(stderr,
+                "[DmaBufBridge] EGL_MESA_platform_surfaceless unavailable\n");
+        return NULL;
+    }
+    PFNEGLGETPLATFORMDISPLAYEXTPROC_ getPlatformDisplay =
+        (PFNEGLGETPLATFORMDISPLAYEXTPROC_)eglGetProcAddress(
+            "eglGetPlatformDisplayEXT");
+    if (!getPlatformDisplay) {
+        fprintf(stderr, "[DmaBufBridge] no eglGetPlatformDisplayEXT\n");
+        return NULL;
+    }
+    EGLDisplay display = getPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA,
+                                            EGL_DEFAULT_DISPLAY, NULL);
+    if (display == EGL_NO_DISPLAY) {
+        fprintf(stderr, "[DmaBufBridge] surfaceless eglGetPlatformDisplay "
+                        "failed\n");
         return NULL;
     }
     return (void*)display;
