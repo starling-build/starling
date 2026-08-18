@@ -296,7 +296,7 @@ enum TermdFrame: UInt8 {
     // Workspaces — docs/plans/remote-workspace.md.
     case wsCreate = 17, wsInfo = 18, wsList = 19, wsListReply = 20
     case wsAdd = 21, wsSetMeta = 22, wsGetMeta = 23, wsMeta = 24
-    case sessionCwd = 25, sessionCwdReply = 26
+    case sessionCwd = 25, sessionCwdReply = 26, kill = 27
 }
 
 /// What the far side says it can be asked for (HELLO_OK's trailing byte).

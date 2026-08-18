@@ -22,12 +22,11 @@
 // The daemon never learns what any of that means. It holds a name, a set of
 // sessions and some bytes.
 //
-// What closing a remote pane does NOT do is kill the shell behind it — the
-// protocol has no frame for that, and detaching is what the design promises
-// everywhere else. The session keeps running and drops out of the layout;
-// `starling-termd --list` on the far machine still finds it. A frame that
-// ends a session belongs with milestone 5, beside detaching a whole
-// workspace at once.
+// Closing a PANE ends the shell behind it (`KILL`); closing a tab or the
+// window detaches and leaves everything running. Both are what a person
+// means: a pane you closed is gone from the arrangement for good, so a shell
+// left behind it is one no client will ever show again, while a workspace is
+// the durable thing you are meant to come back to.
 
 import Flutter
 import Foundation
@@ -117,6 +116,13 @@ final class TerminalWorkspace: @unchecked Sendable {
     /// learned its session id. Set by the tabs state; called on the UI thread.
     var onChange: (() -> Void)?
 
+    /// A pane's shell ENDED — someone typed `exit`, or the far side killed it.
+    /// The pane id; called on the UI thread.
+    ///
+    /// Only for a clean end. A link that died for a protocol reason keeps its
+    /// pane, because the pane is where the red line explaining it is written.
+    var onPaneEnded: ((Int) -> Void)?
+
     init(spec: WorkspaceSpec) {
         self.spec = spec
         self.link = RemoteWorkspace(name: spec.name, host: spec.host)
@@ -190,6 +196,17 @@ final class TerminalWorkspace: @unchecked Sendable {
         // The id, not the pane: what crosses the hop below has to be a value.
         let paneId = pane.id
         remote.onLink = { state in
+            // A link that closed CLEANLY is a shell that ended — someone typed
+            // `exit`, or the far side killed it — and the pane goes with it,
+            // the way it does in every terminal. A link that closed with a
+            // reason has just written that reason into this pane, so the pane
+            // stays to show it.
+            if case .closed(let reason) = state, reason == nil {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onPaneEnded?(paneId)
+                }
+                return
+            }
             guard case .live(let id) = state else { return }
             // The capture list belongs on the closure that HOPS: a `self`
             // captured before the hop is one the compiler has to assume is
@@ -236,11 +253,28 @@ final class TerminalWorkspace: @unchecked Sendable {
         return "cd '\(quoted)' && exec \"$STARLING_SHELL\""
     }
 
-    /// Drop a pane's link. The session on the far side keeps running — see
-    /// the header.
+    /// Drop a pane's link. The session on the far side keeps running.
+    ///
+    /// This is what happens when a pane goes away for a reason that is not a
+    /// person closing it: another client rearranged the workspace, or this
+    /// client is shutting down. The session stays because the workspace does.
     func detach(_ pane: TerminalPane) {
         remotes.removeValue(forKey: pane.id)?.stop()
         lastSession.removeValue(forKey: pane.id)
+    }
+
+    /// Close a pane: END its session, then drop the link.
+    ///
+    /// The distinction this file's header used to have to apologise for.
+    /// Closing a PANE removes it from the arrangement for good, so leaving its
+    /// shell running would leave something no client will ever show again —
+    /// while closing a TAB, or the window, is detaching, because the workspace
+    /// is the durable thing and you are meant to come back to it.
+    func close(_ pane: TerminalPane) {
+        if let session = lastSession[pane.id] ?? remotes[pane.id]?.remoteId {
+            link.kill(session: session)
+        }
+        detach(pane)
     }
 
     /// The far-side session behind a pane, or 0 for one that has not landed

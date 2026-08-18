@@ -181,6 +181,21 @@ public final class RemoteWorkspace: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// End a session: hang up its pty on the far side and forget it.
+    ///
+    /// The opposite of everything else here. Detaching is what this protocol
+    /// is built around and what happens when a client goes away; this is what
+    /// a person means by closing a pane, and without it every closed pane
+    /// leaves a shell running that nothing will ever show again.
+    public func kill(session: UInt32) {
+        guard session != 0 else { return }
+        lock.lock()
+        added.remove(session)
+        cwds.removeValue(forKey: session)
+        lock.unlock()
+        send(.kill, TermdWire.u32(session))
+    }
+
     /// Join a session to the workspace. Idempotent here as well as in the
     /// daemon, because every pane calls it on every reconnect.
     public func add(session: UInt32) {

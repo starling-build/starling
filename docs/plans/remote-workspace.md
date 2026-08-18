@@ -223,10 +223,34 @@ workspace, not per session, so it survives every session in it dying.
    the other with the same session behind it, and clicking into the small
    window sized both shells to 36x24 while clicking into the large one put
    them back to 66x40.
-7. **Later, separable:** detach/reattach of a whole workspace as one
-   operation, workspace names in `--list`, a frame that ENDS a session (today
-   closing a remote pane only detaches, so orphans accumulate where nobody
-   sees them), and genuinely shared editing of one workspace by two people.
+7. **A session that can end, and a lifecycle that says so. — DONE.**
+   Closing a remote pane only detached, so every closed pane left a shell that
+   nothing would ever show again. `KILL` is the verb that was missing —
+   deliberately a different one from `DETACH`, which is what this daemon is
+   built around: **closing a PANE ends its shell; closing a tab or the window
+   detaches**, because a pane is gone from the arrangement for good while a
+   workspace is the thing you come back to.
+
+   Two things fell out of writing it, both older than this plan:
+   - **`TERMD_EXIT` had never been sent.** The frame is in the protocol from
+     v0 and the attach CLI has always handled it, but nothing emitted it: a
+     client whose shell exited simply stopped receiving bytes and sat there,
+     because "no more output" and "over" look the same on a stream. The daemon
+     now sends it, and a pane whose shell ends closes itself the way a local
+     one does.
+   - **Nothing ever reaped a dead session.** `session_close` existed and was
+     never called; a session whose shell exited kept its slot forever, so a
+     table of sixty-four filled with corpses and the daemon began refusing to
+     open sessions on an idle machine. A dead session still keeps its ring —
+     reattaching to read the last words is the point — but the oldest one now
+     makes way when a live one needs the slot. Killing a session also drops it
+     from every workspace's membership, which was the same leak seen from the
+     other side.
+8. **Later, separable:** loose sessions in the switcher (the daemon lists
+   them, `TermdDirectory.Listing.loose` separates them out, and the app has no
+   way to open one yet), detach/reattach of a whole workspace as one
+   operation, workspace names in `--list`, and genuinely shared editing of one
+   workspace by two people.
 
 ## Design decisions to hold
 

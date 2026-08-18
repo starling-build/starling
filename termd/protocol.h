@@ -120,6 +120,13 @@ enum termd_type {
                            //   other's. A connection starts watching by
                            //   naming a workspace in any WS_ frame.
 
+    TERMD_KILL = 27,       // → id u32 — END this session: hang up its pty,
+                           //   tell every client attached (EXIT), and forget
+                           //   it. DETACH is the other verb and the one this
+                           //   daemon is built around; this is what a person
+                           //   means by closing a pane, and without it every
+                           //   closed pane left a shell running that nothing
+                           //   would ever show again.
     TERMD_SESSION_CWD = 25,// → id u32 — where is this session's shell?
     TERMD_SESSION_CWD_REPLY = 26,
                            // ← id u32, path (rest, may be empty when the

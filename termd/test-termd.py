@@ -23,6 +23,7 @@ HDR = 8
 (WS_CREATE, WS_INFO, WS_LIST, WS_LIST_REPLY, WS_ADD, WS_SET_META,
  WS_GET_META, WS_META) = range(17, 25)
 (SESSION_CWD, SESSION_CWD_REPLY) = range(25, 27)
+KILL = 27
 VERSION = 2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -679,6 +680,86 @@ def main():
         check("asking about a session that is not there is an error",
               kind == ERROR, f"frame {kind}")
         cw.close()
+
+        # Ending a session, which is the other thing a person can mean and had
+        # no verb until now: DETACH leaves the shell running (the point of the
+        # daemon), and every closed pane used to leak one.
+        kl = Client(sock_path)
+        kl.hello()
+        kl.send(WS_CREATE, struct.pack("<H", len(b"kill-ws")) + b"kill-ws")
+        _, payload = kl.recv(WS_INFO)
+        kill_ws = struct.unpack("<I", payload[:4])[0]
+        kl.send(OPEN, open_payload(command=""))
+        _, payload = kl.recv(ATTACHED)
+        doomed = struct.unpack("<I", payload[:4])[0]
+        kl.send(WS_ADD, struct.pack("<II", kill_ws, doomed))
+        kl.recv(WS_INFO)
+        time.sleep(BOOT)
+
+        kl.send(KILL, struct.pack("<I", doomed))
+        kind, payload = kl.recv(EXIT, timeout=3.0)
+        check("killing a session tells the client attached to it",
+              kind == EXIT and struct.unpack("<I", payload[:4])[0] == doomed,
+              f"frame {kind}")
+
+        kl.send(LIST)
+        _, payload = kl.recv(LIST_REPLY)
+        check("a killed session is gone, not merely dead",
+              doomed not in [e[0] for e in list_entries(payload)],
+              repr(list_entries(payload)))
+
+        kl.send(WS_LIST)
+        _, payload = kl.recv(WS_LIST_REPLY)
+        entry = [e for e in ws_entries(payload) if e[0] == kill_ws]
+        check("…and it leaves the workspace's membership with it",
+              len(entry) == 1 and doomed not in entry[0][2], repr(entry))
+
+        kl.send(KILL, struct.pack("<I", doomed))
+        kind, _ = kl.recv(ERROR, timeout=2.0)
+        check("killing it twice is an error, not a crash", kind == ERROR,
+              f"frame {kind}")
+
+        # And the same message when a shell exits ON ITS OWN. This frame has
+        # been in the protocol since v0 with nothing ever sending it, so a
+        # client whose shell ended just stopped receiving bytes and sat there:
+        # "no more output" and "over" look identical on a stream.
+        ex = Client(sock_path)
+        ex.hello()
+        ex.send(OPEN, open_payload(command=""))
+        _, payload = ex.recv(ATTACHED)
+        ending = struct.unpack("<I", payload[:4])[0]
+        time.sleep(BOOT)
+        ex.send(INPUT, b"exit\r\n" if WINDOWS else b"exit\n")
+        kind, payload = ex.recv(EXIT, timeout=BOOT + 3.0)
+        check("a shell that exits says so to whoever is attached",
+              kind == EXIT and struct.unpack("<I", payload[:4])[0] == ending,
+              f"frame {kind}")
+        ex.close()
+        kl.close()
+
+        # A dead session keeps its slot so its last words can still be read —
+        # but not at the expense of a live one. Seventy sessions that exit
+        # immediately would fill a table of sixty-four and, before the oldest
+        # dead one made way, the daemon answered "could not open a session" on
+        # a machine with nothing running.
+        ev = Client(sock_path)
+        ev.hello()
+        refused = 0
+        for _ in range(70):
+            ev.send(OPEN, open_payload(command="true" if not WINDOWS
+                                       else "cmd.exe /c exit"))
+            kind, _ = ev.recv(timeout=3.0)
+            if kind != ATTACHED:
+                refused += 1
+            ev.send(DETACH)
+        check("a full table evicts the oldest dead session rather than refusing",
+              refused == 0, f"{refused} of 70 refused")
+        ev.send(LIST)
+        _, payload = ev.recv(LIST_REPLY)
+        check("…and stays within its bounds while doing it",
+              len(list_entries(payload)) <= 64,
+              str(len(list_entries(payload))))
+        ev.close()
 
         # A wrong version is refused rather than half-spoken.
         e = Client(sock_path)

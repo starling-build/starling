@@ -218,6 +218,15 @@ struct reader_arg {
 };
 
 static void session_reader(void *arg);
+static void session_close(struct session *s);
+// Defined further down with the rest of the client plumbing. Declared here
+// because ending a session reaches the other way for once — from the session
+// side into the outbox of every client watching it.
+static void put_u32(uint8_t *p, uint32_t v);
+static void client_out(struct client *c, uint8_t type, const uint8_t *payload,
+                       size_t len);
+static void client_pump(struct client *c);
+static void client_flush(struct client *c);
 
 // Called with g_lock held.
 static struct session *session_open(uint16_t cols, uint16_t rows,
@@ -225,6 +234,25 @@ static struct session *session_open(uint16_t cols, uint16_t rows,
     struct session *s = NULL;
     for (int i = 0; i < MAX_SESSIONS; i++)
         if (!g_sessions[i].used) { s = &g_sessions[i]; break; }
+    // Full: a session whose shell has exited keeps its slot and its ring on
+    // purpose — reattaching to read the last words is the point — but it must
+    // not keep them at the expense of a live one. So the OLDEST dead session
+    // makes way, and only then. Without this the table silently fills with
+    // corpses and the daemon starts answering "could not open a session" on a
+    // machine with nothing running.
+    if (!s) {
+        struct session *oldest = NULL;
+        for (int i = 0; i < MAX_SESSIONS; i++) {
+            struct session *d = &g_sessions[i];
+            if (!d->used || d->alive) continue;
+            if (!oldest || d->id < oldest->id) oldest = d;
+        }
+        if (oldest) {
+            logf_("session %u evicted to make room", oldest->id);
+            session_close(oldest);
+            s = oldest;
+        }
+    }
     if (!s) return NULL;
 
     memset(s, 0, sizeof(*s));
@@ -274,9 +302,48 @@ static struct session *session_open(uint16_t cols, uint16_t rows,
 }
 
 // Called with g_lock held.
+// Everything this session's last bytes are owed: the EXIT frame, and then
+// nothing more — the clients are left attached to an id that is about to stop
+// existing, so they are detached here too.
+//
+// Their remaining output has already been pumped by the caller; a client that
+// has fallen behind loses what it had not read, which is the same bargain a
+// closed pipe makes everywhere else.
+static void session_exit_clients(const struct session *s) {
+    uint8_t body[8];
+    put_u32(body, s->id);
+    put_u32(body + 4, (uint32_t)s->status);
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        struct client *c = &g_clients[i];
+        if (!c->used || c->dead || c->session != s->id) continue;
+        client_pump(c);                  // whatever is still owed, first
+        client_out(c, TERMD_EXIT, body, sizeof(body));
+        client_flush(c);
+        c->session = 0;
+    }
+}
+
+// A session id in a workspace's membership outlives the session itself, and
+// ids are never reused, so a workspace someone works in all week fills its
+// list with the dead and eventually answers "workspace full" to a live one.
+// Membership is daemon bookkeeping — a set of ids, not an arrangement — so
+// pruning it here breaks no promise about the blob, which is untouched.
+static void ws_forget_session(uint32_t id) {
+    for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) {
+        struct workspace *w = &g_workspaces[i];
+        if (!w->used) continue;
+        uint16_t out = 0;
+        for (uint16_t k = 0; k < w->nsessions; k++)
+            if (w->sessions[k] != id) w->sessions[out++] = w->sessions[k];
+        w->nsessions = out;
+    }
+}
+
 static void session_close(struct session *s) {
     if (!s->used) return;
     logf_("session %u closed", s->id);
+    session_exit_clients(s);
+    ws_forget_session(s->id);
     // Shut down but do not free: the reader thread may be parked inside
     // plat_pty_read on this very handle. The shutdown is what wakes it, and
     // it frees the pty itself on the way out.
@@ -682,6 +749,22 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         return;
     }
 
+    case TERMD_KILL: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short kill"); return; }
+        uint32_t id = get_u32(p);
+        struct session *s = session_by_id(id);
+        if (!s) { client_error(c, TERMD_ERR_NO_SESSION, "no such session"); return; }
+        // Deliberate: this is a person closing a pane, not a client going
+        // away. Detaching is what happens when a client vanishes and it is
+        // the reason this daemon exists; ending a session is the other thing
+        // a person means, and until now there was no way to say it — every
+        // closed pane left a shell running that nothing would ever show
+        // again.
+        logf_("session %u killed by request", id);
+        session_close(s);
+        return;
+    }
+
     case TERMD_SESSION_CWD: {
         if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short session_cwd"); return; }
         uint32_t id = get_u32(p);
@@ -845,6 +928,13 @@ static void session_reader(void *arg) {
         s->alive = 0;
         s->pty = NULL;
         logf_("session %u child exited", ra->id);
+        // …and TELL the clients watching it. This frame has been in the
+        // protocol since v0 and nothing ever sent it: a client whose shell
+        // exited simply stopped receiving bytes, and sat there showing a dead
+        // screen forever, because "no more output" and "over" look identical
+        // on a stream. The attach CLI has always handled it; every other
+        // client's EXIT path was unreachable code.
+        session_exit_clients(s);
     }
     plat_mutex_unlock(g_lock);
 

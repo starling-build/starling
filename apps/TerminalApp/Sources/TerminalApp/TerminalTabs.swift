@@ -245,6 +245,16 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             workspace.record(tab)
             self.setState {}
         }
+        // A shell that exits takes its pane with it, the way it does in every
+        // terminal — including this one's local panes. It could only sit there
+        // dead before, because nothing ever told us: the daemon never sent
+        // EXIT until now.
+        workspace.onPaneEnded = { [weak self, weak tab] paneId in
+            guard let self = self, let tab = tab,
+                  let pane = tab.panes.first(where: { $0.id == paneId })
+            else { return }
+            self._removePane(tab, pane, endSession: false)
+        }
         // The tab is found again by id rather than captured: this closure
         // crosses a thread boundary (it is called after a hop to the UI
         // thread), and a tab is not a value that may cross one.
@@ -395,16 +405,37 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// a tab with nothing in it is not a state worth having.
     private func _closePane() {
         guard let tab = tabs.indices.contains(active) ? tabs[active] : nil,
-              let pane = tab.activePane,
-              let node = tab.root.node(for: pane.id)
+              let pane = tab.activePane
         else { return }
-        guard closePane(node) else { _close(tab); return }
+        // Asked for by a person, so the shell goes with the pane.
+        _removePane(tab, pane, endSession: true)
+    }
+
+    /// Take a pane out of its tab, from either direction: someone closed it,
+    /// or its shell ended underneath.
+    ///
+    /// `endSession` is the whole difference. A pane a person closed takes its
+    /// remote shell with it — the pane is gone from the arrangement, so a
+    /// shell left behind is one nothing will ever show again. A pane whose
+    /// shell ALREADY ended has nothing left to kill, and saying so anyway
+    /// would be an error frame about a session that no longer exists.
+    private func _removePane(_ tab: TerminalTab, _ pane: TerminalPane,
+                             endSession: Bool) {
+        guard let node = tab.root.node(for: pane.id) else { return }
+        guard closePane(node) else {
+            // The last pane in the tab. Closing the tab detaches the rest of
+            // the workspace, but this pane still ends if that is what was
+            // asked for.
+            if endSession { tab.workspace?.close(pane) }
+            _close(tab)
+            return
+        }
         setState {
-            // In a workspace this drops the link, not the shell: the protocol
-            // has no frame that ends a session, and detaching is what the
-            // design promises everywhere else. It leaves the workspace's
-            // layout, and `--list` on the far machine still finds it.
-            tab.workspace?.detach(pane)
+            if endSession {
+                tab.workspace?.close(pane)
+            } else {
+                tab.workspace?.detach(pane)
+            }
             pane.session.terminate()
             // Focus lands on whatever now occupies the space. The closing
             // pane's focus node is disposed, so without this nothing holds
