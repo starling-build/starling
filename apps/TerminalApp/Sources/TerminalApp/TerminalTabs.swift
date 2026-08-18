@@ -95,6 +95,13 @@ private enum TabChrome {
     static let activeText: Int = 0xFF_E8E8E8
     static let text: Int = 0xFF_9AA0A6
     static let button: Int = 0xFF_9AA0A6
+    /// Pane status (OSC 133). Amber for working, green for finished cleanly,
+    /// red for a non-zero exit — the macOS traffic-light order, which is the
+    /// one reading people already have.
+    static let statusRunning: Int = 0xFF_E5A44B
+    static let statusOK: Int = 0xFF_5FBF6B
+    static let statusFailed: Int = 0xFF_E5695B
+    static let statusDot: Double = 7
 }
 
 // MARK: - The tabbed terminal
@@ -124,6 +131,10 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     private var _dragSeam: PaneNode?
     private var _lastPointer: Offset?
     private var _boxes: [ObjectIdentifier: PaneBox] = [:]
+    /// The status poll's generation token, and what it last painted. Bumping
+    /// the token in `dispose` is what stops the loop rescheduling forever.
+    private var _statusTick = 0
+    private var _lastStatus: [ObjectIdentifier: PaneStatus] = [:]
 
     /// Modifier state, watched rather than read off the event: the embedders
     /// report modifiers as their own key events, not as flags on the letter.
@@ -147,9 +158,49 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         } else {
             _open()
         }
+        _tickStatus()
+    }
+
+    /// Repaints the status dots, and only when one has actually changed.
+    ///
+    /// The dots come from OSC 133, which arrives in the byte stream and moves
+    /// no state this widget owns — so nothing would otherwise rebuild. A poll
+    /// is the honest mechanism, and the guard is what makes it cheap: without
+    /// comparing first, this would `setState` the whole tab tree four times a
+    /// second forever, which on a terminal is not a cosmetic cost.
+    ///
+    /// `Foundation.Timer` is unavailable here — it never fires on the DRM
+    /// embedder — so this is the sanctioned `asyncAfter` + generation token.
+    private func _tickStatus() {
+        let mine = _statusTick
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self = self, mine == self._statusTick else { return }
+
+            // The pane you are looking at has no news for you: keep its seen
+            // mark current so it is never badged for something you watched
+            // finish. Only the ACTIVE tab counts — a pane on a tab that is not
+            // on screen has not been seen at all.
+            if let tab = self.tabs.indices.contains(self.active) ? self.tabs[self.active] : nil,
+               let focused = tab.panes.first(where: { $0.id == tab.activePaneId }) {
+                focused.markSeen()
+            }
+
+            var now: [ObjectIdentifier: PaneStatus] = [:]
+            for tab in self.tabs {
+                for pane in tab.panes { now[ObjectIdentifier(pane)] = pane.status }
+            }
+            if now != self._lastStatus {
+                self._lastStatus = now
+                self.setState {}
+            }
+            self._tickStatus()
+        }
     }
 
     override func dispose() {
+        // Orphans the pending status poll, which holds `self` weakly but would
+        // otherwise keep rescheduling itself against a dead widget.
+        _statusTick &+= 1
         // The workspace goes first: closing it flushes a layout change that
         // may be seconds old, and it is the only state here that outlives the
         // process.
@@ -495,6 +546,10 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         // return below, because clicking the pane you are already in is
         // exactly how someone fixes a screen sized for another machine.
         tab.workspace?.assertSizes(tab)
+        // Clicking into a pane clears its badge now rather than up to a poll
+        // later — the dot vanishing under the cursor is the feedback that the
+        // click landed.
+        pane.markSeen()
         guard tab.activePaneId != pane.id else { return }
         setState { tab.activePaneId = pane.id }
         // Which pane had the keyboard is part of the arrangement — coming
@@ -666,7 +721,52 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         for (node, box) in seams {
             layers.append(_seam(node, box: box))
         }
+        // Above the panes and below the seams' drag targets: a dot is a label,
+        // never something to hit.
+        for (node, box) in leaves {
+            guard let pane = node.pane else { continue }
+            if let dot = _statusDot(pane, box: box, tab: tab) { layers.append(dot) }
+        }
         return Stack(children: layers)
+    }
+
+    /// The pane's OSC 133 status, as one dot in its top-right corner.
+    ///
+    /// Nothing is drawn for a pane at a prompt, or for one whose shell says
+    /// nothing at all — which is most shells until someone turns on shell
+    /// integration. A dot on every pane would carry no information; the point
+    /// is to find the one that is still working, or the one that finished
+    /// while you were reading another.
+    ///
+    /// The focused pane is never badged for a FINISHED command, because you
+    /// are looking at it — `markSeen` runs for it every tick. It is still
+    /// badged while running, which is the case where you want to know that the
+    /// thing you started is still going.
+    private func _statusDot(_ pane: TerminalPane, box: PaneBox,
+                            tab: TerminalTab) -> Widget? {
+        let color: Int
+        switch pane.status {
+        case .quiet: return nil
+        case .running: color = TabChrome.statusRunning
+        case .finished(let ok):
+            color = ok ? TabChrome.statusOK : TabChrome.statusFailed
+        }
+        let d = TabChrome.statusDot
+        let inset: Double = 6
+        return Positioned(
+            left: box.x + box.w - d - inset, top: box.y + inset,
+            child: IgnorePointer(
+                child: SizedBox(
+                    width: d, height: d,
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: Color(color),
+                            borderRadius: BorderRadius.circular(d / 2)
+                        )
+                    )
+                )
+            )
+        )
     }
 
     private func _pane(_ pane: TerminalPane, box: PaneBox,
@@ -829,6 +929,27 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                         tabs.count > 1
                             ? Positioned(left: 6, top: 5, child: _closeButton(tab))
                             : SizedBox(width: 0, height: 0),
+                        // The tab's own dot, on the right. A background tab is
+                        // the case this whole feature is for: its panes are not
+                        // on screen at all, so without this the only way to
+                        // find the one that finished is to visit each in turn.
+                        _tabStatus(tab).map { color in
+                            Positioned(
+                                top: (TabChrome.height - TabChrome.statusDot) / 2,
+                                right: 8,
+                                child: SizedBox(
+                                    width: TabChrome.statusDot,
+                                    height: TabChrome.statusDot,
+                                    child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                            color: Color(color),
+                                            borderRadius: BorderRadius.circular(
+                                                TabChrome.statusDot / 2)
+                                        )
+                                    )
+                                )
+                            ) as Widget
+                        } ?? SizedBox(width: 0, height: 0),
                         // A hairline instead of a Border: only the trailing
                         // edge is wanted, and the bar's own colour draws it.
                         Positioned(
@@ -844,6 +965,26 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                 )
             )
         )
+    }
+
+    /// One colour for a whole tab, or nil for nothing to say.
+    ///
+    /// A failure outranks a success and a success outranks work in progress:
+    /// the dot is a summary, and the thing you most need to know about a tab
+    /// you are not looking at is that something in it went wrong. Red for one
+    /// failed pane among five that succeeded is the right summary; amber
+    /// because a sixth is still going is not.
+    private func _tabStatus(_ tab: TerminalTab) -> Int? {
+        var running = false, ok = false
+        for pane in tab.panes {
+            switch pane.status {
+            case .quiet: continue
+            case .running: running = true
+            case .finished(let good): if good { ok = true } else { return TabChrome.statusFailed }
+            }
+        }
+        if ok { return TabChrome.statusOK }
+        return running ? TabChrome.statusRunning : nil
     }
 
     private func _closeButton(_ tab: TerminalTab) -> Widget {

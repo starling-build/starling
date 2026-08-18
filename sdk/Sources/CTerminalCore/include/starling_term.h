@@ -108,6 +108,28 @@ uint64_t starling_term_generation(const StarlingTerm *t);
 // treat empty as "no idea", never as "/".
 const char *starling_term_cwd(const StarlingTerm *t);
 
+// Where the shell is in the prompt/command cycle, from OSC 133. UNKNOWN is
+// the answer for every shell that does not emit the marks, which is most of
+// them out of the box — it means "no idea", and a UI must not draw it as
+// "idle" or every pane in the world looks finished.
+typedef enum {
+    STARLING_TERM_CMD_UNKNOWN = 0,
+    STARLING_TERM_CMD_PROMPT  = 1,   // at a prompt, waiting for a human
+    STARLING_TERM_CMD_RUNNING = 2,   // a command is running
+    STARLING_TERM_CMD_DONE    = 3,   // the last command finished
+} StarlingTermCommandState;
+
+int starling_term_command_state(const StarlingTerm *t);
+
+// The last command's exit code, or -1 if the shell did not report one (and
+// whenever the state is not DONE). 0 is success and is NOT the same as -1.
+int starling_term_command_exit(const StarlingTerm *t);
+
+// How many commands have finished. Only ever increases, and only counts a
+// command that was seen to START — so a reader that remembers the value it
+// last showed the user can tell a stale badge from a fresh one.
+uint64_t starling_term_command_done_count(const StarlingTerm *t);
+
 // Copies exactly `cols` cells of one line into `out`, normalising width the way
 // the Swift `_fitLine` did (scrollback rows can predate a resize).
 // `abs_index` spans scrollback first, then the live grid:

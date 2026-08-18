@@ -42,10 +42,57 @@ final class TerminalPane {
     let id: Int
     let session: TerminalSession
 
+    /// How many commands had finished here the last time the user was looking
+    /// at this pane. What turns "a command finished" into "a command finished
+    /// and you have not seen it" — the distinction that makes a status dot
+    /// worth having, since a pane you are staring at needs no badge.
+    var seenFinished: UInt64 = 0
+
     init(id: Int, cols: Int, rows: Int) {
         self.id = id
         self.session = TerminalSession(cols: cols, rows: rows)
     }
+
+    /// What this pane wants to say from across the window.
+    ///
+    /// Only ever `running` or `finished` — a pane at a prompt, or one whose
+    /// shell emits no OSC 133 at all, says nothing. Marking the quiet ones
+    /// would put a dot on every pane in the window and mean nothing at all;
+    /// the point is to be able to find the one that needs you.
+    var status: PaneStatus {
+        session.lock.lock()
+        let state = session.emulator.commandState
+        let exit = session.emulator.commandExit
+        let finished = session.emulator.commandsFinished
+        session.lock.unlock()
+
+        switch state {
+        case .running:
+            return .running
+        case .done where finished > seenFinished:
+            // No exit code reported is not a failure. Shells that send a bare
+            // `D` are common, and painting those red would cry wolf.
+            return .finished(ok: (exit ?? 0) == 0)
+        default:
+            return .quiet
+        }
+    }
+
+    /// The user is looking at this pane; nothing here is news any more.
+    func markSeen() {
+        session.lock.lock()
+        let finished = session.emulator.commandsFinished
+        session.lock.unlock()
+        seenFinished = finished
+    }
+}
+
+/// What a pane reports, from OSC 133 and nothing else — no screen scraping,
+/// no per-program regexes. See `TerminalEmulator.CommandState`.
+enum PaneStatus: Equatable {
+    case quiet
+    case running
+    case finished(ok: Bool)
 }
 
 /// A node in the layout: a pane (leaf), or a split of two children.

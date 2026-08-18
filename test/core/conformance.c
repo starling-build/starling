@@ -287,6 +287,75 @@ static void test_osc_cwd(void) {
     starling_term_free(t);
 }
 
+/* OSC 133 — the shell integration marks that say whether a pane is waiting
+ * for you or working. What matters here is not that A/B/C/D set a state (they
+ * obviously do) but the three ways a naive reading badges a pane wrongly: an
+ * exit code of 0 confused with "no exit code", a D that no C preceded, and a
+ * shell that says nothing at all being reported as idle. */
+static void test_osc_command(void) {
+    StarlingTerm *t = fresh(20, 4);
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_UNKNOWN,
+          "a shell that has said nothing is UNKNOWN, not idle");
+    CHECK(starling_term_command_exit(t) == -1, "and has no exit code");
+    CHECK(starling_term_command_done_count(t) == 0, "and has finished nothing");
+
+    feed(t, "\x1b]133;A\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_PROMPT,
+          "OSC 133;A is a prompt");
+    feed(t, "\x1b]133;B\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_PROMPT,
+          "OSC 133;B is also a prompt");
+
+    feed(t, "\x1b]133;C\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_RUNNING,
+          "OSC 133;C is a command running");
+    CHECK(starling_term_command_done_count(t) == 0, "which has not finished yet");
+
+    feed(t, "\x1b]133;D;0\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_DONE,
+          "OSC 133;D finishes it");
+    CHECK(starling_term_command_exit(t) == 0, "exit 0 is success, not \"no code\"");
+    CHECK(starling_term_command_done_count(t) == 1, "and it counts as one command");
+
+    /* A failure, and the ST spelling. */
+    feed(t, "\x1b]133;C\x1b\\");
+    feed(t, "\x1b]133;D;127\x1b\\");
+    CHECK(starling_term_command_exit(t) == 127, "a real exit code is kept");
+    CHECK(starling_term_command_done_count(t) == 2, "and counted");
+
+    /* D with no code at all: finished, but nothing to say about how. */
+    feed(t, "\x1b]133;C\x07");
+    feed(t, "\x1b]133;D\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_DONE, "a bare D finishes");
+    CHECK(starling_term_command_exit(t) == -1, "with no exit code");
+    CHECK(starling_term_command_done_count(t) == 3, "still a command that ran");
+
+    /* Shells emit D at startup and after a bare Enter. Counting those badges
+     * a pane in which nobody has run anything. */
+    uint64_t before = starling_term_command_done_count(t);
+    feed(t, "\x1b]133;D;0\x07");
+    CHECK(starling_term_command_done_count(t) == before,
+          "a D with no C before it is not a command");
+
+    /* Parameters after the letter are other people's business, not ours. */
+    feed(t, "\x1b]133;A;aid=7;cl=m\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_PROMPT,
+          "trailing parameters do not confuse A");
+
+    /* Prefix traps, the same shape as OSC 70 vs OSC 7. */
+    feed(t, "\x1b]133;C\x07");
+    feed(t, "\x1b]1337;File=name\x07");
+    CHECK(starling_term_command_state(t) == STARLING_TERM_CMD_RUNNING,
+          "OSC 1337 is not OSC 133");
+
+    /* And it consumes itself. */
+    feed(t, "\x1b]133;D;0\x07" "AB");
+    CHECK(cell_at(t, 0, 0).scalar == 'A' && cell_at(t, 0, 1).scalar == 'B',
+          "the sequence is consumed, not printed");
+
+    starling_term_free(t);
+}
+
 int main(void) {
     test_widths();
     test_wide_wrap_and_pairs();
@@ -295,6 +364,7 @@ int main(void) {
     test_identity();
     test_resize();
     test_osc_cwd();
+    test_osc_command();
     if (fails) { printf("%d FAILED\n", fails); return 1; }
     printf("all passed\n");
     return 0;

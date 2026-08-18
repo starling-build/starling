@@ -211,6 +211,15 @@ struct StarlingTerm {
        notification from 9, a hyperlink from 8) lands the same way: one more
        branch in finish_osc and one more accessor. */
     char cwd[OSC_MAX];
+    /* OSC 133 shell integration: where the shell is in the prompt/command
+       cycle. See osc_take_command below. `cmd_done` counts commands that have
+       FINISHED, so a reader can tell "this pane is still showing the same
+       finished command" from "another one finished while I was away" —
+       which is the whole difference between a badge that clears and one that
+       lies. */
+    int      cmd_state;                /* StarlingTermCommandState */
+    int      cmd_exit;
+    uint64_t cmd_done;
 
     uint8_t utf8_pending[4];
     int     utf8_pending_len;
@@ -408,6 +417,9 @@ StarlingTerm *starling_term_new(int cols, int rows) {
     t->last_col = -1;
     t->blank_bg = 0xFFFFFFFFu;
     t->blank_cols = -1;
+    /* calloc gives cmd_state UNKNOWN, which is right; -1 is "no exit code",
+       which 0 would wrongly read as success. */
+    t->cmd_exit = -1;
     /* Every width span starts as the one scalar_width answers without
        consulting a table. Seeding matters as well as helping: a calloc'd
        entry is the interval [0,0] claiming width 0, and U+0000 would hit it. */
@@ -469,6 +481,9 @@ int starling_term_mouse_sgr(const StarlingTerm *t) { return t->mouse_sgr; }
 int starling_term_scrollback_count(const StarlingTerm *t) { return t->sb_len; }
 uint64_t starling_term_generation(const StarlingTerm *t) { return t->generation; }
 const char *starling_term_cwd(const StarlingTerm *t) { return t->cwd; }
+int starling_term_command_state(const StarlingTerm *t) { return t->cmd_state; }
+int starling_term_command_exit(const StarlingTerm *t) { return t->cmd_exit; }
+uint64_t starling_term_command_done_count(const StarlingTerm *t) { return t->cmd_done; }
 
 void starling_term_copy_line(const StarlingTerm *t, int abs_index, Cell *out) {
     const Row *r;
@@ -1549,11 +1564,69 @@ static void osc_take_cwd(StarlingTerm *t, const char *url, int len) {
     memcpy(t->cwd, out, (size_t)w + 1);
 }
 
+/* OSC 133 — the "shell integration" marks, as FinalTerm defined them and
+   iTerm2, kitty and ghostty all speak:
+
+     ESC ] 133 ; A ST      a fresh prompt is being drawn
+     ESC ] 133 ; B ST      the prompt has ended; what follows is typed input
+     ESC ] 133 ; C ST      the command is now running; what follows is output
+     ESC ] 133 ; D ST      it finished, exit code unknown
+     ESC ] 133 ; D ; 1 ST  it finished, and this is the exit code
+
+   That is enough to say whether a pane is WAITING FOR YOU or WORKING, which
+   is the thing you actually want to know when six of them are on screen. It
+   is a report from the shell rather than a guess from the pixels: no
+   screen-scraping, no per-program regexes, nothing to keep up to date.
+
+   A and B both mean "at a prompt". They are distinct to a shell that wants to
+   re-draw its input line, and identical to us.
+
+   Any of these may carry extra `;key=value` parameters (aid, cl, and others
+   by convention); everything after the first letter is skipped unless it is
+   D's exit code. A shell that emits none of this leaves the state `unknown`
+   forever, which is the honest answer and must not be drawn as "idle". */
+static void osc_take_command(StarlingTerm *t, const char *p, int len) {
+    if (len < 1) return;
+    switch (p[0]) {
+    case 'A': case 'B':
+        t->cmd_state = STARLING_TERM_CMD_PROMPT;
+        t->cmd_exit = -1;
+        break;
+    case 'C':
+        t->cmd_state = STARLING_TERM_CMD_RUNNING;
+        t->cmd_exit = -1;
+        break;
+    case 'D': {
+        /* Only count a command as finishing if one was running. Shells emit
+           D at startup and after a bare Enter, and counting those would badge
+           a pane nobody has run anything in. */
+        int was_running = (t->cmd_state == STARLING_TERM_CMD_RUNNING);
+        t->cmd_state = STARLING_TERM_CMD_DONE;
+        t->cmd_exit = -1;
+        if (len > 2 && p[1] == ';') {
+            int v = 0, any = 0;
+            for (int i = 2; i < len && p[i] >= '0' && p[i] <= '9'; i++) {
+                v = v * 10 + (p[i] - '0');
+                any = 1;
+                if (v > 65535) { any = 0; break; }
+            }
+            if (any) t->cmd_exit = v;
+        }
+        if (was_running) t->cmd_done++;
+        break;
+    }
+    default:
+        break;                          /* an OSC 133 we do not know */
+    }
+}
+
 static void finish_osc(StarlingTerm *t) {
     t->osc[t->osc_len] = 0;
     /* `<number> ; <payload>`. Anything else is not addressed to us. */
     if (t->osc_len > 2 && t->osc[0] == '7' && t->osc[1] == ';') {
         osc_take_cwd(t, t->osc + 2, t->osc_len - 2);
+    } else if (t->osc_len > 4 && !strncmp(t->osc, "133;", 4)) {
+        osc_take_command(t, t->osc + 4, t->osc_len - 4);
     }
     t->state = ST_GROUND;
     t->osc_len = 0;
