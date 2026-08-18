@@ -185,4 +185,48 @@ func dragSeam(_ node: PaneNode, delta: Double, own: PaneBox) {
     node.ratio = min(max(node.ratio + delta / usable, lo), hi)
 }
 
+// MARK: - Layout blob
+
+// The bridge between the tree the UI uses and the tree the wire carries
+// (PaneLayout.swift). Kept here rather than in the codec so PaneLayout stays
+// dependency-free and testable on its own — the whole reason it imports
+// nothing.
+
+extension PaneNode {
+    /// The tree as the wire sees it. `sessionId` maps a pane to its far-side
+    /// session; a pane with no remote behind it encodes as 0.
+    func layoutNode(sessionId: (TerminalPane) -> UInt32) -> LayoutNode {
+        if let pane = pane { return .leaf(session: sessionId(pane)) }
+        guard let first = first, let second = second else {
+            return .leaf(session: 0)
+        }
+        return .split(axis: axis == .row ? .row : .column,
+                      ratio: ratio,
+                      first: first.layoutNode(sessionId: sessionId),
+                      second: second.layoutNode(sessionId: sessionId))
+    }
+}
+
+/// Rebuild a tree from a decoded layout, taking panes from `makePane` in leaf
+/// order — the same order `PaneLayout.leaves` reports, so a caller that
+/// resolved sessions from that list hands them back in the order they map.
+func buildPaneTree(_ node: LayoutNode,
+                   makePane: (UInt32) -> TerminalPane) -> PaneNode {
+    switch node {
+    case .leaf(let session):
+        return PaneNode(pane: makePane(session))
+    case .split(let axis, let ratio, let first, let second):
+        let parent = PaneNode()
+        parent.axis = axis == .row ? .row : .column
+        parent.ratio = ratio
+        let a = buildPaneTree(first, makePane: makePane)
+        let b = buildPaneTree(second, makePane: makePane)
+        parent.first = a
+        parent.second = b
+        a.parent = parent
+        b.parent = parent
+        return parent
+    }
+}
+
 #endif  // !os(iOS)
