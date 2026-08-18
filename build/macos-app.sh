@@ -20,8 +20,14 @@
 #     Resources/data/icudtl.dat
 #     Resources/data/flutter_assets
 #     Resources/FlutterSwift_*.bundle SwiftPM resource bundles (the terminal's
-#                                     fonts): Bundle.module falls back to
-#                                     Bundle.main.resourceURL inside a .app
+#                                     fonts). This line used to claim
+#                                     Bundle.module falls back to
+#                                     Bundle.main.resourceURL inside a .app.
+#                                     It does not — it falls back to an
+#                                     absolute path into the BUILD directory,
+#                                     so the app ran here and nowhere else.
+#                                     The sources search for the bundle now;
+#                                     the guard below stops it coming back.
 #     Resources/<Name>.icns           from build/macos/<Name>.icns if present
 #
 # The engine defaults to host_release_arm64 — the shipped app links the
@@ -180,6 +186,21 @@ IDENTITY="${STARLING_MACOS_IDENTITY:--}"
 # file added: …/._FlutterMacOS" — an app that verified perfectly on the machine
 # that built it and is invalid everywhere else.
 xattr -cr "$OUT" 2>/dev/null || true
+
+# A binary that names this machine will only run on this machine. SwiftPM's
+# generated `Bundle.module` bakes an ABSOLUTE path to the build directory in as
+# its fallback, and inside a .app that fallback is the only candidate that
+# resolves — so the app worked here and died on every other Mac with
+# `resource_bundle_accessor.swift:12: could not load resource bundle`. The
+# sources now search for their bundles instead (TerminalFontLoader._fontBundle,
+# CupertinoIcons.fontData), and this is the check that keeps it that way: no
+# build-directory path may survive into a shipped executable.
+if strings "$C/MacOS/$APP" 2>/dev/null | grep -q "$REPO.*\.bundle"; then
+    echo "!!! $APP has a build-directory path baked into it:" >&2
+    strings "$C/MacOS/$APP" | grep "$REPO.*\.bundle" | sort -u | head -5 >&2
+    echo "!!! that path exists only on this machine — see _fontBundle" >&2
+    exit 1
+fi
 
 codesign --force --sign "$IDENTITY" --timestamp=none \
     "$C/Frameworks/libswift_bridge.dylib"
