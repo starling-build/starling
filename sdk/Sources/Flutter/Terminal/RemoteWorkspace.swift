@@ -58,9 +58,27 @@ public final class RemoteWorkspace: @unchecked Sendable {
     /// which is the safe answer: it means "send no command you invented".
     public var serverUsesPosixShell: Bool {
         lock.lock(); defer { lock.unlock() }
-        return caps & 0x01 != 0
+        return caps.contains(.posixShell)
     }
-    private var caps: UInt8 = 0
+    private var caps: TermdCaps = []
+
+    /// Where the daemon last said a session's shell is.
+    ///
+    /// Polled, and only when the far side advertised that it can answer. This
+    /// is the fallback under the client's own OSC 7 reading, and the one that
+    /// works for shells that emit nothing — which on macOS is every zsh that
+    /// is not talking to Apple Terminal.
+    public func cwd(for session: UInt32) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        return cwds[session]
+    }
+    private var cwds: [UInt32: String] = [:]
+    private var lastCwdPoll = Date.distantPast
+
+    /// How often the daemon is asked. A `cd` is a human-speed event and the
+    /// answer is only ever needed when a pane is being rebuilt, so this is a
+    /// handful of tiny frames a minute, not a watch.
+    private static let cwdPollInterval: TimeInterval = 5
 
     /// Fires on the link's thread once the workspace is resolved AND its
     /// stored blob has been read back — everything the client needs to
@@ -285,6 +303,8 @@ public final class RemoteWorkspace: @unchecked Sendable {
             lock.unlock()
             if let blob = blob, let id = id { sendSetMeta(id, blob) }
 
+            pollCwds()
+
             if Date().timeIntervalSince(lastPing) > 10 {
                 send(.ping, [])
                 lastPing = Date()
@@ -309,7 +329,7 @@ public final class RemoteWorkspace: @unchecked Sendable {
                 // A daemon that predates the caps byte sends four; assume
                 // nothing of one that says nothing.
                 lock.lock()
-                caps = body.count >= 5 ? body[4] : 0
+                caps = TermdCaps(rawValue: body.count >= 5 ? body[4] : 0)
                 lock.unlock()
 
             case TermdFrame.wsInfo.rawValue:
@@ -361,6 +381,17 @@ public final class RemoteWorkspace: @unchecked Sendable {
                 if let rewrite = rewrite { sendSetMeta(id, rewrite) }
                 if let adopt = adopt { onLayoutChanged?(adopt) }
 
+            case TermdFrame.sessionCwdReply.rawValue:
+                guard body.count >= 4 else { break }
+                let id = TermdWire.readU32(body, 0)
+                let path = String(decoding: body[4...], as: UTF8.self)
+                lock.lock()
+                // An empty answer means the daemon looked and could not say —
+                // a shell that has exited, a platform that cannot. Keeping the
+                // last known directory beats forgetting where a pane was.
+                if path.hasPrefix("/") { cwds[id] = path }
+                lock.unlock()
+
             case TermdFrame.ping.rawValue:
                 send(.pong, body)
             case TermdFrame.pong.rawValue:
@@ -391,12 +422,30 @@ public final class RemoteWorkspace: @unchecked Sendable {
 
     // MARK: - Plumbing
 
+    /// Ask the daemon where each of this workspace's sessions is.
+    ///
+    /// Only when it said it can answer: an unknown frame comes back as an
+    /// ERROR, and the control link treats those as fatal for good reason.
+    private func pollCwds() {
+        lock.lock()
+        guard caps.contains(.sessionCwd),
+              Date().timeIntervalSince(lastCwdPoll) >= Self.cwdPollInterval
+        else { lock.unlock(); return }
+        lastCwdPoll = Date()
+        let sessions = added
+        lock.unlock()
+        for session in sessions { send(.sessionCwd, TermdWire.u32(session)) }
+    }
+
     private func drainAdds() {
         lock.lock()
         guard let id = workspaceId else { lock.unlock(); return }
         let sessions = pendingAdds
         pendingAdds.removeAll()
         for s in sessions { added.insert(s) }
+        // A session that just joined has never been asked where it is; don't
+        // make its first answer wait out the poll interval.
+        if !sessions.isEmpty { lastCwdPoll = .distantPast }
         lock.unlock()
         for session in sessions {
             var p = TermdWire.u32(id)

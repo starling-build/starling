@@ -30,8 +30,10 @@
 #include <sys/prctl.h>
 #endif
 // _NSGetExecutablePath: Darwin's answer to /proc/self/exe, which it has no
-// equivalent of. See plat_spawn_daemon.
+// equivalent of (see plat_spawn_daemon), and libproc for the same reason one
+// step further — no /proc means no /proc/<pid>/cwd either (plat_pty_cwd).
 #ifdef __APPLE__
+#include <libproc.h>
 #include <mach-o/dyld.h>
 #endif
 #include <sys/stat.h>
@@ -230,6 +232,31 @@ void plat_pty_resize(plat_pty *p, uint16_t cols, uint16_t rows) {
     ioctl(p->master, TIOCSWINSZ, &ws);
 }
 
+int plat_pty_cwd(plat_pty *p, char *out, size_t len) {
+    if (!p || p->child <= 0 || p->exited || len < 2) return 0;
+#ifdef __APPLE__
+    // Darwin has no /proc. proc_pidinfo lives in libSystem, so this needs no
+    // extra library — pvi_cdir is the process's current directory.
+    struct proc_vnodepathinfo vpi;
+    memset(&vpi, 0, sizeof(vpi));
+    int n = proc_pidinfo(p->child, PROC_PIDVNODEPATHINFO, 0, &vpi, sizeof(vpi));
+    if (n != (int)sizeof(vpi)) return 0;
+    if (!vpi.pvi_cdir.vip_path[0]) return 0;
+    snprintf(out, len, "%s", vpi.pvi_cdir.vip_path);
+    return 1;
+#else
+    char link[64];
+    snprintf(link, sizeof(link), "/proc/%d/cwd", (int)p->child);
+    ssize_t n = readlink(link, out, len - 1);
+    if (n <= 0) return 0;
+    out[n] = 0;
+    // A deleted directory reads back as "/old/path (deleted)", which is not a
+    // path anything can be reopened in.
+    if (n > 10 && !strcmp(out + n - 10, " (deleted)")) return 0;
+    return 1;
+#endif
+}
+
 int plat_pty_exited(plat_pty *p, int *status) {
     if (!p) return 1;
     if (p->exited) {
@@ -314,6 +341,8 @@ void plat_sleep_ms(int ms) {
 }
 
 int plat_posix_shell(void) { return 1; }
+
+int plat_cwd_supported(void) { return 1; }
 
 int plat_spawn_daemon(int idle_seconds) {
     // Our own path, resolved BEFORE the fork: the child may only make

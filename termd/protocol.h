@@ -46,6 +46,12 @@
 // draws. The daemon knows which it is; the client cannot guess.
 #define TERMD_CAP_POSIX_SHELL 0x01u
 
+// Bit 1: the daemon can report a session's working directory
+// (TERMD_SESSION_CWD). It cannot on Windows, where reading another process's
+// current directory means injecting into it, so a client asks only when this
+// is set — an unknown frame is answered with an ERROR, not silence.
+#define TERMD_CAP_SESSION_CWD 0x02u
+
 enum termd_type {
     TERMD_HELLO = 1,       // → version u16, name
     TERMD_HELLO_OK = 2,    // ← version u16, session count u16,
@@ -105,7 +111,7 @@ enum termd_type {
     TERMD_WS_ADD = 21,     // → ws_id u32, session u32
     TERMD_WS_SET_META = 22,// → ws_id u32, blob (rest)
     TERMD_WS_GET_META = 23,// → ws_id u32
-    TERMD_WS_META = 24     // ← ws_id u32, blob (rest). Answers WS_GET_META,
+    TERMD_WS_META = 24,    // ← ws_id u32, blob (rest). Answers WS_GET_META,
                            //   and is also sent UNASKED to every other
                            //   connection watching that workspace whenever
                            //   one of them stores a new arrangement. Without
@@ -113,6 +119,22 @@ enum termd_type {
                            //   drawing their own tree and writing it over the
                            //   other's. A connection starts watching by
                            //   naming a workspace in any WS_ frame.
+
+    TERMD_SESSION_CWD = 25,// → id u32 — where is this session's shell?
+    TERMD_SESSION_CWD_REPLY = 26,
+                           // ← id u32, path (rest, may be empty when the
+                           //   daemon could not read it). Only ask when
+                           //   HELLO_OK advertised TERMD_CAP_SESSION_CWD:
+                           //   an unknown frame is an ERROR, not silence.
+                           //
+                           //   The client stores this in its layout blob so a
+                           //   pane can be reopened where it was. It could
+                           //   read OSC 7 from the byte stream instead — and
+                           //   does, preferring it, since it needs no round
+                           //   trip — but a great many shells never emit one:
+                           //   macOS ships zsh sending it to Apple Terminal
+                           //   alone. The daemon owns the pty, so it can just
+                           //   ask the kernel, and that works for every shell.
 };
 
 enum termd_error {

@@ -437,6 +437,17 @@ void plat_sleep_ms(int ms) { Sleep((DWORD)ms); }
 
 int plat_posix_shell(void) { return 0; }
 
+int plat_cwd_supported(void) { return 0; }
+
+// Not implemented here. Reading another process's current directory on Windows
+// means injecting into it or walking undocumented PEB structures — neither is
+// worth it for a convenience, and the daemon says so in HELLO_OK's caps rather
+// than answering with a guess.
+int plat_pty_cwd(plat_pty *p, char *out, size_t len) {
+    (void)p; (void)out; (void)len;
+    return 0;
+}
+
 int plat_spawn_daemon(int idle_seconds) {
     wchar_t self[MAX_PATH];
     DWORD n = GetModuleFileNameW(NULL, self, MAX_PATH);

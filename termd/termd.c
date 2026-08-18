@@ -432,7 +432,8 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         // session's command reaches a POSIX shell, which is what decides
         // whether `cd '<dir>' && exec "$STARLING_SHELL"` is a command or a
         // pane that dies on sight.
-        reply[4] = plat_posix_shell() ? TERMD_CAP_POSIX_SHELL : 0;
+        reply[4] = (plat_posix_shell() ? TERMD_CAP_POSIX_SHELL : 0)
+                 | (plat_cwd_supported() ? TERMD_CAP_SESSION_CWD : 0);
         client_out(c, TERMD_HELLO_OK, reply, sizeof(reply));
         break;
     }
@@ -678,6 +679,24 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         }
         client_out(c, TERMD_WS_LIST_REPLY, buf, off);
         free(buf);
+        return;
+    }
+
+    case TERMD_SESSION_CWD: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short session_cwd"); return; }
+        uint32_t id = get_u32(p);
+        struct session *s = session_by_id(id);
+        if (!s) { client_error(c, TERMD_ERR_NO_SESSION, "no such session"); return; }
+        // An empty path is a legitimate answer — the shell may have exited, or
+        // the platform may not be able to look — and the client falls back to
+        // whatever it knew. A missing REPLY would leave it waiting instead.
+        char cwd[1024];
+        cwd[0] = 0;
+        if (s->alive) plat_pty_cwd(s->pty, cwd, sizeof(cwd));
+        uint8_t hdr[4];
+        put_u32(hdr, id);
+        client_out_two(c, TERMD_SESSION_CWD_REPLY, hdr, 4,
+                       (const uint8_t *)cwd, strlen(cwd));
         return;
     }
 

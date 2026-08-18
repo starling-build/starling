@@ -102,6 +102,12 @@ final class TerminalWorkspace: @unchecked Sendable {
     /// session has not been asked for yet.
     private var remotes: [Int: RemoteTerminal] = [:]
 
+    /// The last session a pane actually held, which is NOT the same as the one
+    /// its link reports. A link that is reopening has already cleared its id —
+    /// that is what reopening means — and the question being asked at exactly
+    /// that moment is "where was this pane", which only the old id can answer.
+    private var lastSession: [Int: UInt32] = [:]
+
     /// Backlog a pane asks for on its first attach. 256 KB is several screens
     /// of a wide terminal — enough that scrolling up a little still finds
     /// something — against 8 MB of ring per pane if this is left off.
@@ -167,7 +173,11 @@ final class TerminalWorkspace: @unchecked Sendable {
         // vanishing is exactly the case where "where was I" changed since.
         remote.commandForOpen = { [weak self, weak pane] in
             guard let self = self, let pane = pane else { return nil }
-            return self.reopenCommand(in: Self.paneCwd(pane) ?? cwd)
+            // The session this pane HAD. `sessionId` is already nil here — a
+            // link that is reopening cleared its id first — so the remembered
+            // one is the only thing that can say where this pane was.
+            let was = self.lastSession[pane.id] ?? session ?? 0
+            return self.reopenCommand(in: self.paneCwd(pane, session: was) ?? cwd)
         }
         // Enough to rebuild the screen and a few scrollbacks of context, and
         // not the whole ring: N panes attach at once here, and 8 MB each is
@@ -177,6 +187,8 @@ final class TerminalWorkspace: @unchecked Sendable {
         // wrote them. Restoring the arrangement is the promise; a pane that
         // refuses to come back because its shell is gone keeps none of it.
         remote.reopenIfSessionGone = true
+        // The id, not the pane: what crosses the hop below has to be a value.
+        let paneId = pane.id
         remote.onLink = { state in
             guard case .live(let id) = state else { return }
             // The capture list belongs on the closure that HOPS: a `self`
@@ -184,6 +196,7 @@ final class TerminalWorkspace: @unchecked Sendable {
             // still being used on the link's thread.
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
+                self.lastSession[paneId] = id
                 // Idempotent on both sides — every reconnect says this again.
                 self.link.add(session: id)
                 // The id may be NEW (a fresh session, or one reopened after
@@ -227,6 +240,7 @@ final class TerminalWorkspace: @unchecked Sendable {
     /// the header.
     func detach(_ pane: TerminalPane) {
         remotes.removeValue(forKey: pane.id)?.stop()
+        lastSession.removeValue(forKey: pane.id)
     }
 
     /// The far-side session behind a pane, or 0 for one that has not landed
@@ -272,24 +286,30 @@ final class TerminalWorkspace: @unchecked Sendable {
         let active = panes.firstIndex { $0.id == tab.activePaneId } ?? 0
         let layout = PaneLayout(
             root: tab.root.layoutNode { [weak self] pane in
-                LeafInfo(session: self?.sessionId(pane) ?? 0,
-                         cwd: Self.paneCwd(pane))
+                let session = self?.sessionId(pane) ?? 0
+                return LeafInfo(session: session,
+                                cwd: self?.paneCwd(pane, session: session))
             },
             activeLeaf: active)
         link.setLayout(layout.encoded())
     }
 
-    /// Where a pane's shell last said it was.
+    /// Where a pane's shell is, by the best answer available.
     ///
-    /// Read from OUR emulator, which is the only one in the system: the bytes
-    /// that told it are the same bytes the far side wrote, so this is the
-    /// remote machine's directory even though nothing asked the remote machine
-    /// anything. Shells that emit no OSC 7 report nil and their panes reopen
-    /// in the default directory, as they always did.
-    private static func paneCwd(_ pane: TerminalPane) -> String? {
+    /// **OSC 7 first**, read from OUR emulator — the only one in the system,
+    /// so the bytes that told it are the bytes the far side wrote. It needs no
+    /// round trip and it is never stale.
+    ///
+    /// **The daemon second**, which owns the pty and can ask the kernel. This
+    /// is what covers the shells that emit nothing, and there are many: macOS
+    /// ships zsh sending OSC 7 to Apple Terminal alone, so without this the
+    /// whole feature is silent on the desktop it was developed on.
+    private func paneCwd(_ pane: TerminalPane, session: UInt32) -> String? {
         pane.session.lock.lock()
-        defer { pane.session.lock.unlock() }
-        return pane.session.emulator.cwd
+        let reported = pane.session.emulator.cwd
+        pane.session.lock.unlock()
+        if let reported = reported { return reported }
+        return session == 0 ? nil : link.cwd(for: session)
     }
 
     /// Close the whole workspace: every pane's link, then the control link,

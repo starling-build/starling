@@ -180,11 +180,17 @@ workspace, not per session, so it survives every session in it dying.
      field — composed only for a daemon whose HELLO_OK says its commands reach
      a POSIX shell, since on a Windows daemon that string is a pane that exits
      before it draws.
-     **The limit worth fixing next:** macOS's zsh only emits OSC 7 for Apple
-     Terminal, so a pane there reports nothing unless the user adds a `precmd`
-     hook. The daemon owns the pty and could read the child's cwd directly
-     (`/proc/<pid>/cwd`, `proc_pidinfo`) for every shell, with no integration
-     at all — a daemon change rather than a client one, and the honest fix.
+     **And the shells that say nothing — DONE.** OSC 7 is an opt-in that a
+     great many shells do not take: macOS ships zsh emitting it for Apple
+     Terminal alone, so on the desktop this was developed on the feature was
+     silent. `SESSION_CWD` asks the daemon instead, which owns the pty and can
+     ask the kernel (`/proc/<pid>/cwd`, `proc_pidinfo` on Darwin, nothing on
+     Windows — hence a second capability bit rather than a guess). The client
+     still prefers its own OSC 7 reading, which needs no round trip and is
+     never stale, and polls the daemon every 5 s as the fallback under it.
+     Verified with a plain macOS zsh and no hook of any kind: two panes cd'd
+     to `/usr/share/man` and `/Library/Fonts`, daemon killed, both reopened
+     there.
 6. **More than one client at once — a policy, not an accident. — DONE.**
    Attaching from a second machine always worked (`ATTACH` has never rejected
    a second client, and each keeps its own byte cursor); what was missing was

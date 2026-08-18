@@ -22,6 +22,7 @@ HDR = 8
  RESIZE, ACK, EXIT, DETACH, ERROR, PING, PONG) = range(1, 17)
 (WS_CREATE, WS_INFO, WS_LIST, WS_LIST_REPLY, WS_ADD, WS_SET_META,
  WS_GET_META, WS_META) = range(17, 25)
+(SESSION_CWD, SESSION_CWD_REPLY) = range(25, 27)
 VERSION = 2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -207,6 +208,14 @@ class Client:
         self.send(HELLO, struct.pack("<H", VERSION))
         kind, payload = self.recv(HELLO_OK)
         return kind == HELLO_OK
+
+    def hello_caps(self):
+        """Handshake, returning the capability byte (None if too old to send one)."""
+        self.send(HELLO, struct.pack("<H", VERSION))
+        kind, payload = self.recv(HELLO_OK)
+        if kind != HELLO_OK:
+            return None
+        return payload[4] if len(payload) >= 5 else None
 
     def collect(self, seconds=1.0, until=None):
         """Every DATA byte that arrives within a window, plus the next offset.
@@ -643,6 +652,33 @@ def main():
         quiet.close()
         w3.close()
         w2.close()
+
+        # Where a session's shell is, asked of the daemon rather than of the
+        # shell. This is what covers every shell that emits no OSC 7 — macOS
+        # ships zsh sending it to Apple Terminal alone — and the daemon can
+        # answer because it owns the pty.
+        cw = Client(sock_path)
+        caps = cw.hello_caps()
+        cw.send(OPEN, open_payload(command=""))
+        _, payload = cw.recv(ATTACHED)
+        cwd_sid = struct.unpack("<I", payload[:4])[0]
+        time.sleep(BOOT)
+        cw.send(INPUT, b"cd /usr/share/man\n")
+        time.sleep(BOOT)
+        cw.send(SESSION_CWD, struct.pack("<I", cwd_sid))
+        kind, payload = cw.recv(SESSION_CWD_REPLY, timeout=3.0)
+        path = payload[4:].decode("utf-8", "replace") if kind == SESSION_CWD_REPLY else ""
+        check("the daemon reports where a session's shell is",
+              kind == SESSION_CWD_REPLY and path == "/usr/share/man",
+              f"frame {kind}, {path!r}")
+        check("…and says so in its capabilities",
+              caps is not None and (caps & 0x02) != 0, f"caps {caps}")
+
+        cw.send(SESSION_CWD, struct.pack("<I", 999999))
+        kind, _ = cw.recv(ERROR, timeout=2.0)
+        check("asking about a session that is not there is an error",
+              kind == ERROR, f"frame {kind}")
+        cw.close()
 
         # A wrong version is refused rather than half-spoken.
         e = Client(sock_path)
