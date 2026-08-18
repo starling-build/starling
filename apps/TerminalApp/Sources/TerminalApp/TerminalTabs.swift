@@ -81,20 +81,40 @@ final class TerminalTab {
 /// the bar carries it too or the window looks like two materials.
 private enum TabChrome {
     static let height: Double = 28
-    /// The seam between panes, and the ring around the one with the keyboard.
-    /// Both are quiet on purpose: a terminal is a rectangle of text and a
-    /// loud border competes with it.
-    static let seam: Int = 0xFF_0E1013
-    static let seamHot: Int = 0xFF_3A4152
-    static let activePaneEdge: Int = 0x66_66AAFF
-    /// The active tab is the terminal's own background, so the two read as
-    /// one surface; everything else is darker.
-    static let activeTab: Int = 0xD9_1E2127
-    static let bar: Int = 0xD9_15171A
-    static let separator: Int = 0xFF_0E1013
-    static let activeText: Int = 0xFF_E8E8E8
-    static let text: Int = 0xFF_9AA0A6
-    static let button: Int = 0xFF_9AA0A6
+
+    /// The surface panes FLOAT ON: the tab bar, and the gaps between panes.
+    /// Deeper than a pane, so a pane reads as raised above it rather than as a
+    /// region carved out of it.
+    ///
+    /// It carries the same `0xD9` alpha the terminal has always had, because
+    /// the desktop composites the wallpaper behind this window — an opaque
+    /// backdrop would quietly turn a translucent window solid, and the gaps
+    /// are exactly where that would show most.
+    static let backdrop: Int = 0xD9_16142A
+
+    /// A pane's own background. Must stay in step with
+    /// `TerminalTheme.starlingDark.background` in the sdk, which is what the
+    /// grid itself paints: if the two drift, every pane gets a mismatched
+    /// hairline where the chrome ends and the text begins.
+    static let surface: Int = 0xD9_231F3D
+
+    /// The ring around the pane with the keyboard, and the seam while it is
+    /// dragged. Both are quiet on purpose: a terminal is a rectangle of text
+    /// and a loud border competes with it.
+    static let activePaneEdge: Int = 0x66_8AA0FF
+    static let seamHot: Int = 0xFF_4A4470
+    /// How much of a pane's corner is rounded off. Only ever applied when
+    /// there is more than one pane — see `_pane`.
+    static let paneRadius: Double = 6
+
+    /// The active tab is the pane's own background, so the two read as one
+    /// surface; everything else is the backdrop.
+    static let activeTab: Int = surface
+    static let bar: Int = backdrop
+    static let separator: Int = 0xFF_100E1F
+    static let activeText: Int = 0xFF_EDEBF7
+    static let text: Int = 0xFF_9C97BC
+    static let button: Int = 0xFF_9C97BC
     /// Pane status (OSC 133). Amber for working, green for finished cleanly,
     /// red for a non-zero exit — the macOS traffic-light order, which is the
     /// one reading people already have.
@@ -789,12 +809,29 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// that IS the window and wrong for every pane in a split: the shell
     /// would be told a size it does not have.
     private func _panes(_ tab: TerminalTab, in body: Size) -> Widget {
-        let (leaves, seams, boxes) =
-            resolvePanes(tab.root, in: PaneBox(x: 0, y: 0, w: body.width, h: body.height))
+        // A lone pane fills the window edge to edge; only a SPLIT one is held
+        // off the edges. Floating a single pane would cost text area and a
+        // border around the whole window is noise — the same reason the active
+        // ring below only appears once there is something to distinguish from.
+        let single = tab.root.pane != nil
+        let m = single ? 0 : paneSeamW
+        let (leaves, seams, boxes) = resolvePanes(
+            tab.root,
+            in: PaneBox(x: m, y: m,
+                        w: max(1, body.width - 2 * m),
+                        h: max(1, body.height - 2 * m)))
         _boxes = boxes
-        let single = leaves.count == 1
 
         var layers: [Widget] = []
+        // What shows in the gaps. Only when there is a gap: a single pane
+        // covers this completely, so painting it would be a full-window fill
+        // per frame for nothing.
+        if !single {
+            layers.append(Positioned(
+                left: 0, top: 0, right: 0, bottom: 0,
+                child: ColoredBox(color: Color(TabChrome.backdrop))
+            ))
+        }
         for (node, box) in leaves {
             guard let pane = node.pane else { continue }
             layers.append(_pane(pane, box: box, tab: tab, single: single))
@@ -876,17 +913,42 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                         decoration: BoxDecoration(
                             border: single || !isActive ? nil
                                 : Border.all(color: Color(TabChrome.activePaneEdge),
-                                             width: 1)
+                                             width: 1),
+                            borderRadius: single ? nil
+                                : BorderRadius.circular(TabChrome.paneRadius)
                         ),
-                        child: TerminalView(
-                            session: pane.session,
-                            size: Size(box.w, box.h),
-                            autofocus: isActive,
-                            keyFilter: { [self] key in _appChord(key) }
-                        )
+                        // Rounded only while floating, and the clip is what
+                        // rounds it: the grid paints its own opaque background
+                        // over its whole box, so a radius on the decoration
+                        // alone leaves square corners of terminal sitting
+                        // proud of the rounded chrome behind them.
+                        //
+                        // A single pane skips the clip entirely rather than
+                        // passing radius 0 — this is a layer in the compositor
+                        // on every frame of a surface that repaints
+                        // constantly, and the common case should not pay for
+                        // a corner it does not have.
+                        child: single
+                            ? _grid(pane, box: box, isActive: isActive)
+                            : ClipRRect(
+                                borderRadius:
+                                    BorderRadius.circular(TabChrome.paneRadius),
+                                child: _grid(pane, box: box, isActive: isActive)
+                            )
                     )
                 )
             )
+        )
+    }
+
+    /// The grid itself. Pulled out of `_pane` only so the clipped and
+    /// unclipped spellings above cannot drift apart.
+    private func _grid(_ pane: TerminalPane, box: PaneBox, isActive: Bool) -> Widget {
+        TerminalView(
+            session: pane.session,
+            size: Size(box.w, box.h),
+            autofocus: isActive,
+            keyFilter: { [self] key in _appChord(key) }
         )
     }
 
@@ -930,20 +992,25 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                         _lastPointer = nil
                         setState {}
                     },
+                    // Opaque, so the whole gap is the grab area even though
+                    // nothing is painted in it at rest.
                     behavior: .opaque,
-                    // A 2pt line centred in a 6pt grab area: thin enough to
-                    // read as a divider, fat enough to hit. And a sized
-                    // ColoredBox rather than a bare DecoratedBox — the latter
-                    // has no child to take its size from and paints nothing,
-                    // which looked like a working seam because the gap between
-                    // two panes is visible on its own.
-                    child: Center(
+                    // NOTHING at rest: the gap is the divider now — backdrop
+                    // showing between two panes that float above it — and a
+                    // line drawn down the middle of it would be a second
+                    // divider inside the first.
+                    //
+                    // While dragging, a line, so the thing being moved is
+                    // visible under the pointer. A sized ColoredBox rather
+                    // than a bare DecoratedBox: the latter has no child to
+                    // take its size from and paints nothing, which used to
+                    // look like a working seam only because the gap either
+                    // side of it was visible on its own.
+                    child: !dragging ? SizedBox(width: 0, height: 0) : Center(
                         child: SizedBox(
                             width: node.axis == .row ? 2 : box.w,
                             height: node.axis == .row ? box.h : 2,
-                            child: ColoredBox(
-                                color: Color(dragging ? TabChrome.seamHot
-                                                      : TabChrome.seam))
+                            child: ColoredBox(color: Color(TabChrome.seamHot))
                         )
                     )
                 )

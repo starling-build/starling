@@ -29,10 +29,16 @@ public struct TerminalTheme: Sendable {
     /// of `background`.
     var reverseBackground: UInt32 { background | 0xFF00_0000 }
 
-    public init(background: UInt32 = 0xD91E2127,
-                defaultForeground: UInt32 = 0xFFD4D4D4,
-                cursorOverlay: UInt32 = 0x99D4D4D4,
-                selection: UInt32 = 0x4066AAFF) {
+    // The default background is deliberately the same value as the terminal
+    // app's `TabChrome.surface`: the app paints pane chrome around this grid,
+    // and any drift between the two shows as a hairline of the wrong colour
+    // at every pane edge. The alpha is what lets the desktop composite a
+    // wallpaper behind the window, and every colour here that sits behind
+    // text must keep it.
+    public init(background: UInt32 = 0xD9231F3D,
+                defaultForeground: UInt32 = 0xFFD9D5EA,
+                cursorOverlay: UInt32 = 0x99D9D5EA,
+                selection: UInt32 = 0x408AA0FF) {
         self.background = background
         self.defaultForeground = defaultForeground
         self.cursorOverlay = cursorOverlay

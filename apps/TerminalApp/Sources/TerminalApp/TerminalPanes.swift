@@ -131,10 +131,14 @@ final class PaneNode {
 
 // MARK: - Layout
 
-/// Seam thickness in logical pixels — thin enough to read as a divider, thick
-/// enough to grab. The tiling example's value, which was arrived at by
-/// dragging it.
-let paneSeamW: Double = 6
+/// The space held between two panes, in logical pixels — and, since the seam
+/// stopped painting a bar, the GAP you actually see: the window backdrop
+/// showing between panes that float above it.
+///
+/// It is still the seam's grab area, so it has to stay thick enough to hit
+/// with a pointer. 10 is wide enough to read as deliberate separation rather
+/// than a rendering seam, and still an easy target.
+let paneSeamW: Double = 10
 
 /// A pane may not be squeezed below this; the clamp is what stops a drag
 /// collapsing one side to nothing.

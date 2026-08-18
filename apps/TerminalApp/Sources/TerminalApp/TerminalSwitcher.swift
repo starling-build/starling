@@ -150,14 +150,17 @@ enum WorkspaceMemory {
 /// The switcher's own palette. Quieter than the terminal it sits over, and
 /// opaque: this is a surface to read, not a glass one.
 private enum SwitcherChrome {
-    static let scrim: Int = 0x99_000000
-    static let panel: Int = 0xF2_1E2127
-    static let edge: Int = 0xFF_3A4152
-    static let input: Int = 0xFF_E8E8E8
-    static let hint: Int = 0xFF_8A9099
-    static let item: Int = 0xFF_C8CDD4
-    static let pick: Int = 0xFF_66AAFF
-    static let pickBg: Int = 0x33_66AAFF
+    static let scrim: Int = 0x99_0B0A16
+    /// Lifted a step ABOVE a pane rather than matched to it, which is what
+    /// makes it read as a sheet over the terminal instead of another panel
+    /// beside it. Still near-opaque: this is a surface to read.
+    static let panel: Int = 0xF2_2B2749
+    static let edge: Int = 0xFF_46406B
+    static let input: Int = 0xFF_EDEBF7
+    static let hint: Int = 0xFF_8C87AB
+    static let item: Int = 0xFF_C9C4E0
+    static let pick: Int = 0xFF_8AA0FF
+    static let pickBg: Int = 0x33_8AA0FF
     static let row: Double = 26
 }
 
