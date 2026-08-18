@@ -8,8 +8,10 @@ x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
 arm64, a **preview of the `remote-workspace` branch**, not a release. 17 MB,
 checksum in `SHA256SUMS`. It carries what 0.1.0 does not: splits, remote
 workspaces with a stored arrangement, the switcher, pane status from OSC 133,
-tab keybindings, and the floating-pane look. Same `.app` shape and the same
-Gatekeeper caveat as the 0.1.0 archive below.
+tab keybindings, the floating-pane look, and **⌘/ for the keyboard reference**
+— which is the fastest way to see the rest of that list without reading this
+file. Same `.app` shape and the same Gatekeeper caveat as the 0.1.0 archive
+below.
 
 It sits BESIDE the 0.1.0 release candidate rather than replacing it, which is
 a deliberate exception to the "replace, don't accumulate" rule at the bottom of
@@ -236,7 +238,7 @@ rival terminal.
 
 ## The 0.2.0-dev preview's provenance
 
-Built on the Mac from `remote-workspace` at `56f2089`, against this repo's
+Built on the Mac from `remote-workspace` at `17b9bd4`, against this repo's
 `sdk/` rather than a released bundle — see the entry at the top for why, and
 for what that costs in assurance:
 
@@ -250,10 +252,11 @@ from the 0.1.0 archive. Ad-hoc signed and not notarized, so the same
 right-click → Open applies.
 
 It was also checked for staleness before shipping, which is worth stating
-because a `.app` gives no clue: the executable carries four `command_state` /
-`command_done_count` symbols, the OSC 133 accessors added on this branch. A
-build against a stale SDK scratch would have none, and would have looked
-identical.
+because a `.app` gives no clue: the executable carries six `_helpOverlay` /
+`_isHelpChord` symbols and the OSC 133 accessors from `CTerminalCore`, and
+`strings` finds the help text itself (`split left | right`, `esc closes`). A
+build against a stale SDK scratch would have none of it and would have looked
+identical. Opening ⌘/ in the unpacked copy was the last check.
 
 **No numbers were measured on this binary**, and it is a branch preview rather
 than a release candidate — do not quote it against the archived perf rounds.
