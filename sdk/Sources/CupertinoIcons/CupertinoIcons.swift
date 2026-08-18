@@ -27,10 +27,32 @@ public enum CupertinoIcons {
     private nonisolated(unsafe) static var _registered = false
 
     /// Returns the raw CupertinoIcons.ttf font data for loading into the engine.
+    ///
+    /// **`Bundle.module` is deliberately not used**, and the fallback below is
+    /// why the distinction is easy to miss: SwiftPM's generated accessor is a
+    /// `static let` that calls `fatalError` when neither of its two candidates
+    /// resolves, so merely REACHING it crashes — the search underneath never
+    /// runs. Its second candidate is an absolute path into the build directory
+    /// that produced the binary, so it resolves on the machine that built the
+    /// app and nowhere else. See the long note in TerminalView's
+    /// `_fontBundle`; this is the same bug one target over, and it would have
+    /// crashed the moment the first one was fixed.
     public static func fontData() -> Data {
-        if let url = Bundle.module.url(forResource: "CupertinoIcons", withExtension: "ttf"),
-           let data = try? Data(contentsOf: url) {
-            return data
+        var roots: [URL] = []
+        if let resources = Bundle.main.resourceURL { roots.append(resources) }
+        roots.append(Bundle.main.bundleURL)
+        roots.append(Bundle.main.bundleURL.appendingPathComponent("Contents/Resources"))
+        if let exe = Bundle.main.executableURL?.deletingLastPathComponent() {
+            roots.append(exe)
+        }
+        for root in roots {
+            let candidate = root
+                .appendingPathComponent("FlutterSwift_CupertinoIcons.bundle")
+            if let bundle = Bundle(url: candidate),
+               let url = bundle.url(forResource: "CupertinoIcons", withExtension: "ttf"),
+               let data = try? Data(contentsOf: url) {
+                return data
+            }
         }
         // Fallback: search relative to executable
         let execPath = ProcessInfo.processInfo.arguments[0]

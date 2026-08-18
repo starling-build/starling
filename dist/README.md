@@ -14,6 +14,29 @@ file. Same `.app` shape as the 0.1.0 archive below, and the same Gatekeeper
 caveat, but **its signature survives a plain `unzip`** where 0.1.0's does not
 (see that entry).
 
+### It used to crash on every Mac but the build machine
+
+Worth stating plainly, because the archives before 2026-08-18 have it and this
+one does not. SwiftPM generates `Bundle.module` with two candidates: the app
+bundle's own directory, and **an absolute path into the build directory that
+produced the binary**. Inside a `.app` the first misses — the resource bundle
+is staged under `Contents/Resources/`, where app resources belong — and the
+second hit only on the machine that ran the build. Anywhere else, both miss:
+
+    Flutter/resource_bundle_accessor.swift:12: Fatal error:
+    could not load resource bundle: from …/Starling Terminal.app/FlutterSwift_Flutter.bundle
+    or /Users/<builder>/…/apps/TerminalApp/.build/…/FlutterSwift_Flutter.bundle
+
+on the first font load, which is startup. The sources search for their bundles
+now (`TerminalFontLoader._fontBundle`, `CupertinoIcons.fontData`), and
+`build/macos-app.sh` **fails the build if any build-directory path survives
+into the executable** — `strings` on the binary is the whole test, and it is
+the check that would have caught this years earlier than a user did.
+
+The lesson for verifying future archives: running the unpacked app on the build
+machine proves nothing about this class of bug, because the paths it depends on
+are still there. Hide them, or check the binary for them.
+
 ### Gatekeeper, and what "known developers only" actually blocks
 
 This bundle is **ad-hoc signed**: valid, self-consistent, and from nobody.
@@ -279,7 +302,7 @@ rival terminal.
 
 ## The 0.2.0-dev preview's provenance
 
-Built on the Mac from `remote-workspace` at `b9e14a0`, against this repo's
+Built on the Mac from `remote-workspace` at `3543acc`, against this repo's
 `sdk/` rather than a released bundle — see the entry at the top for why, and
 for what that costs in assurance:
 
