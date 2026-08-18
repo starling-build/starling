@@ -188,24 +188,46 @@ final class StarlingBarState: State<StatefulWidget> {
 
     // MARK: - Actions
 
-    /// Lays every non-minimized window out in a grid over the work area.
+    /// Lays every non-minimized window out in a grid — one grid PER MONITOR,
+    /// over that monitor's work area.
+    ///
+    /// Grouping by the monitor a window is already on matters as soon as
+    /// there are two: tiling everything into the primary would drag every
+    /// window off the second screen, which is what "tile" means on a
+    /// one-monitor desktop and never what it means on two.
     ///
     /// The work area, not the monitor rectangle: it is already the screen
-    /// minus explorer's taskbar and minus OUR appbar strip, so the tiling
+    /// minus explorer's taskbar and minus our own appbar strip, so the tiling
     /// lands under the bar without this code knowing the bar exists.
     private func tileAll() {
         let visible = windows.filter { !$0.isMinimized }
-        guard !visible.isEmpty, let area = Win32WindowManager.workArea()
-        else { return }
+        guard !visible.isEmpty else { return }
+
+        var byMonitor: [Int: [Win32Window]] = [:]
+        for window in visible {
+            // A window Windows will not place on any monitor still has to go
+            // somewhere; the primary is where it would have been dragged.
+            byMonitor[window.monitor ?? 0, default: []].append(window)
+        }
+        let scales = Dictionary(uniqueKeysWithValues:
+            Win32Display.monitors().map { ($0.index, $0.scale) })
+        for monitor in byMonitor.keys.sorted() {
+            tile(byMonitor[monitor]!, on: monitor, scale: scales[monitor] ?? 1.0)
+        }
+        queueRefresh()
+    }
+
+    private func tile(_ group: [Win32Window], on monitor: Int, scale: Double) {
+        guard let area = Win32WindowManager.workArea(monitor: monitor) else { return }
 
         // Window rectangles are physical pixels — they are other people's
         // windows on other people's monitors, and there is no single logical
-        // space spanning a mixed-DPI desktop.
-        let scale = Win32Display.primary()?.scale ?? 1.0
+        // space spanning a mixed-DPI desktop. So the gap is scaled here, per
+        // monitor, rather than once for the whole desktop.
         let gap = Int((Double(kTileGap) * scale).rounded())
 
-        let columns = Int(ceil(Double(visible.count).squareRoot()))
-        let rows = Int(ceil(Double(visible.count) / Double(columns)))
+        let columns = Int(ceil(Double(group.count).squareRoot()))
+        let rows = Int(ceil(Double(group.count) / Double(columns)))
         let cellHeight = (area.height - gap * (rows + 1)) / rows
 
         var index = 0
@@ -214,11 +236,11 @@ final class StarlingBarState: State<StatefulWidget> {
             // full width, rather than leaving a hole where a cell would have
             // been. Three windows tile as two over one, not two over one and
             // a gap.
-            let inRow = min(columns, visible.count - index)
+            let inRow = min(columns, group.count - index)
             let cellWidth = (area.width - gap * (inRow + 1)) / inRow
             for column in 0..<inRow {
-                let w = visible[index]
-                Win32WindowManager.move(w.handle, to: Win32Rect(
+                let window = group[index]
+                Win32WindowManager.move(window.handle, to: Win32Rect(
                     x: area.x + gap + column * (cellWidth + gap),
                     y: area.y + gap + row * (cellHeight + gap),
                     width: cellWidth,
@@ -226,7 +248,6 @@ final class StarlingBarState: State<StatefulWidget> {
                 index += 1
             }
         }
-        queueRefresh()
     }
 
     // MARK: - Build

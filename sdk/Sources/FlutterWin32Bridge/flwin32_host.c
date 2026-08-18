@@ -187,6 +187,18 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       }
       return 0;
 
+    case WM_DISPLAYCHANGE:
+      // A monitor was plugged, unplugged, or changed resolution. A panel is
+      // anchored to a monitor's edge, so its rectangle is now wrong in a way
+      // nothing else will correct: WM_DPICHANGED does not fire for a mode
+      // change at the same scale, and the appbar's ABN_POSCHANGED only
+      // arrives if a reservation already exists. Re-derive, which also moves
+      // the bar back onto a monitor that came and went.
+      if (host != NULL && host->panel_active) {
+        panel_apply_placement(host);
+      }
+      break;
+
     case WM_MOUSEACTIVATE:
       // Chrome that does not steal the keyboard. WS_EX_NOACTIVATE already
       // stops the click from activating us, but say it here too: this is the
