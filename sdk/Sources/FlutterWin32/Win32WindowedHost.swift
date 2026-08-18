@@ -18,8 +18,12 @@ import WinSDK
 
 public enum Win32WindowedHost {
 
-    /// The running host, kept so it outlives install()'s closures.
-    nonisolated(unsafe) private static var host: Win32Host? = nil
+    /// The running host, kept so it outlives install()'s closures — and
+    /// readable, because things a widget tree needs from the host (an icon
+    /// texture, the panel geometry) have no other way to reach it. nil until
+    /// `runStarlingApp` has built it, which is after the tree's first build
+    /// but before its first frame.
+    nonisolated(unsafe) public private(set) static var host: Win32Host? = nil
 
     /// Set before `runStarlingApp` to come up as shell chrome — a bar or a
     /// dock — instead of an ordinary window. It cannot be a parameter of

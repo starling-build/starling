@@ -61,6 +61,11 @@ struct FlWin32Host {
   int panel_thickness_pt;
   int panel_monitor;
   int panel_takes_focus;
+  // External textures we handed the engine, so their pixel buffers can be
+  // freed on unregister. Swift only ever sees the int64 id.
+  struct HostTextureSlot* textures;
+  int texture_count;
+  int texture_capacity;
 };
 
 // Private callback message for the appbar. Windows sends notifications
@@ -846,4 +851,123 @@ int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable) {
   host->appbar_registered = 1;
   appbar_apply_position(host);
   return 1;
+}
+
+// ── external textures: an app icon the widget tree can draw ─────────────────
+//
+// The engine's pixel-buffer texture is a PULL: it calls back on the render
+// thread asking for the current buffer, rather than being handed frames. An
+// icon never changes, so the callback returns the same buffer forever and the
+// only real work is keeping it alive exactly as long as the texture — which
+// is what the slot table below is for. Freeing on unregister rather than in
+// the per-frame release_callback is deliberate: the buffer is not per-frame,
+// and a release_callback that freed it would free it after the first paint.
+
+typedef struct {
+  uint8_t* pixels;
+  FlutterDesktopPixelBuffer buffer;
+} HostTexture;
+
+struct HostTextureSlot {
+  int64_t id;
+  HostTexture* texture;
+};
+
+static const FlutterDesktopPixelBuffer* host_texture_callback(size_t width,
+                                                              size_t height,
+                                                              void* user) {
+  // The engine passes the size it INTENDS to draw at; a pixel-buffer texture
+  // answers with what it has and lets the compositor scale.
+  (void)width;
+  (void)height;
+  HostTexture* texture = (HostTexture*)user;
+  return texture != NULL ? &texture->buffer : NULL;
+}
+
+static void host_texture_free(void* user) {
+  HostTexture* texture = (HostTexture*)user;
+  if (texture == NULL) return;
+  flwin32_icon_free(texture->pixels);
+  free(texture);
+}
+
+static FlutterDesktopTextureRegistrarRef host_texture_registrar(
+    FlWin32Host* host) {
+  if (host == NULL || host->controller == NULL) return NULL;
+  FlutterDesktopEngineRef engine =
+      FlutterDesktopViewControllerGetEngine(host->controller);
+  if (engine == NULL) return NULL;
+  return FlutterDesktopEngineGetTextureRegistrar(engine);
+}
+
+int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
+                                           uint64_t window,
+                                           int32_t size) {
+  FlutterDesktopTextureRegistrarRef registrar = host_texture_registrar(host);
+  if (registrar == NULL) return -1;
+
+  uint8_t* pixels = NULL;
+  int32_t width = 0, height = 0;
+  if (!flwin32_icon_rasterize(window, size, &pixels, &width, &height)) {
+    return -1;
+  }
+
+  HostTexture* texture = (HostTexture*)calloc(1, sizeof(HostTexture));
+  if (texture == NULL) {
+    flwin32_icon_free(pixels);
+    return -1;
+  }
+  texture->pixels = pixels;
+  texture->buffer.buffer = pixels;
+  texture->buffer.width = (size_t)width;
+  texture->buffer.height = (size_t)height;
+
+  FlutterDesktopTextureInfo info;
+  memset(&info, 0, sizeof(info));
+  info.type = kFlutterDesktopPixelBufferTexture;
+  info.pixel_buffer_config.callback = host_texture_callback;
+  info.pixel_buffer_config.user_data = texture;
+
+  int64_t id =
+      FlutterDesktopTextureRegistrarRegisterExternalTexture(registrar, &info);
+  if (id <= 0) {
+    host_texture_free(texture);
+    return -1;
+  }
+
+  if (host->texture_count == host->texture_capacity) {
+    int grown = host->texture_capacity == 0 ? 8 : host->texture_capacity * 2;
+    struct HostTextureSlot* slots = (struct HostTextureSlot*)realloc(
+        host->textures, (size_t)grown * sizeof(struct HostTextureSlot));
+    if (slots == NULL) {
+      // Registered but untracked: leak the buffer rather than free something
+      // the engine is about to call back into.
+      return id;
+    }
+    host->textures = slots;
+    host->texture_capacity = grown;
+  }
+  host->textures[host->texture_count].id = id;
+  host->textures[host->texture_count].texture = texture;
+  host->texture_count++;
+
+  // Without this the texture is registered and never painted: the engine only
+  // pulls a buffer once it has been told there is one.
+  FlutterDesktopTextureRegistrarMarkExternalTextureFrameAvailable(registrar, id);
+  return id;
+}
+
+void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id) {
+  FlutterDesktopTextureRegistrarRef registrar = host_texture_registrar(host);
+  if (registrar == NULL) return;
+
+  for (int i = 0; i < host->texture_count; i++) {
+    if (host->textures[i].id != texture_id) continue;
+    HostTexture* texture = host->textures[i].texture;
+    host->textures[i] = host->textures[host->texture_count - 1];
+    host->texture_count--;
+    FlutterDesktopTextureRegistrarUnregisterExternalTexture(
+        registrar, texture_id, host_texture_free, texture);
+    return;
+  }
 }

@@ -14,7 +14,7 @@
 import FlutterWin32Bridge
 
 /// Which screen edge a panel is pinned to.
-public enum PanelEdge: Int32 {
+public enum PanelEdge: Int32, Sendable {
     case top = 0
     case bottom = 1
     case left = 2

@@ -59,6 +59,25 @@ public final class Win32Host {
         flwin32_host_set_fullscreen(host, fullscreen ? 1 : 0)
     }
 
+    /// Registers `window`'s application icon with the engine as an external
+    /// texture and returns its id for a `TextureWidget`, or nil when the
+    /// window has no icon to give.
+    ///
+    /// One texture per icon, not per window: they are never freed
+    /// automatically, so a caller that registers one per window in a list has
+    /// to unregister them as windows close. `Win32Window.executablePath` is
+    /// the natural cache key — same exe, same icon.
+    public func registerIconTexture(window handle: UInt64, size: Int = 32) -> Int? {
+        let id = flwin32_host_register_icon_texture(host, handle, Int32(size))
+        return id > 0 ? Int(id) : nil
+    }
+
+    /// Releases a texture from `registerIconTexture`. Safe to call with an id
+    /// that is already gone.
+    public func unregisterTexture(_ id: Int) {
+        flwin32_host_unregister_texture(host, Int64(id))
+    }
+
     /// Restyles the window into shell chrome: undecorated, always on top, and
     /// pinned to a screen edge. Call before `run()` — it is a restyle of an
     /// existing HWND, so the engine's view follows the new client area, but

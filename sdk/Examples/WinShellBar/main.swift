@@ -64,6 +64,15 @@ final class StarlingBarState: State<StatefulWidget> {
     /// otherwise walk every top-level window in the session.
     private var refreshQueued = false
 
+    /// Engine texture ids for the apps' own icons, keyed by executable rather
+    /// than by window: five Explorer windows are one icon, and a texture per
+    /// window would rasterize the same PNG five times and leak four of them
+    /// every time a window closed.
+    private var iconTextures: [String: Int] = [:]
+    /// Keys we have already failed on. Without this, a window whose icon
+    /// cannot be resolved is re-rasterized on every single refresh.
+    private var iconAttempted: Set<String> = []
+
     override func initState() {
         super.initState()
         // Without this every MacosIcon draws as a tofu box: the icon glyphs
@@ -72,6 +81,7 @@ final class StarlingBarState: State<StatefulWidget> {
         CupertinoIcons.registerFont()
 
         windows = Win32WindowManager.windows()
+        syncIcons(windows)
 
         // Hooks attach to the calling THREAD, so this has to happen here —
         // inside the tree's initState, which runs on the UI thread the
@@ -96,7 +106,45 @@ final class StarlingBarState: State<StatefulWidget> {
 
     override func dispose() {
         Win32WindowManager.stopObserving()
+        for id in iconTextures.values { Win32WindowedHost.host?.unregisterTexture(id) }
+        iconTextures.removeAll()
         super.dispose()
+    }
+
+    // MARK: - Icons
+
+    /// What an icon is cached under. The executable, so windows of the same
+    /// app share one texture; the handle only for a window whose process
+    /// would not open (a service, or a higher integrity level), where sharing
+    /// would be wrong anyway.
+    private func iconKey(_ window: Win32Window) -> String {
+        window.executablePath.isEmpty
+            ? "hwnd:\(window.handle)" : window.executablePath.lowercased()
+    }
+
+    /// Registers a texture for anything new, and releases the textures of
+    /// apps that have no windows left. Called from the refresh, so an app
+    /// closing gives its icon back rather than holding it for the session.
+    private func syncIcons(_ windows: [Win32Window]) {
+        var live: Set<String> = []
+        for window in windows {
+            let key = iconKey(window)
+            live.insert(key)
+            guard iconTextures[key] == nil, !iconAttempted.contains(key) else { continue }
+            iconAttempted.insert(key)
+            // 32px for a 16pt slot: the icon is downscaled rather than
+            // stretched, which is the difference between a crisp glyph and a
+            // blurry one on a 100% display.
+            if let id = Win32WindowedHost.host?.registerIconTexture(
+                window: window.handle, size: 32) {
+                iconTextures[key] = id
+            }
+        }
+        for (key, id) in iconTextures where !live.contains(key) {
+            Win32WindowedHost.host?.unregisterTexture(id)
+            iconTextures.removeValue(forKey: key)
+            iconAttempted.remove(key)
+        }
     }
 
     // MARK: - The window list
@@ -111,6 +159,7 @@ final class StarlingBarState: State<StatefulWidget> {
             guard let self else { return }
             refreshQueued = false
             let fresh = Win32WindowManager.windows()
+            syncIcons(fresh)
             setState { self.windows = self.merge(fresh) }
         }
     }
@@ -188,11 +237,10 @@ final class StarlingBarState: State<StatefulWidget> {
         return f.string(from: now)
     }
 
-    /// A glyph per app, chosen from the executable name rather than the
-    /// title. Windows has no `app_id`, and a title is a document — the
-    /// desktop's own notes make the same point about `untitled – Main.java`.
-    /// The real answer is the app's own icon, which needs
-    /// `ExtractIconEx` + a texture; this is the placeholder until then.
+    /// The fallback glyph, for an app whose own icon would not resolve —
+    /// chosen from the executable name rather than the title, because Windows
+    /// has no `app_id` and a title is a document (the desktop's own notes
+    /// make the same point about `untitled – Main.java`).
     private func glyph(for window: Win32Window) -> IconData {
         switch window.appName.lowercased() {
         case "chrome", "msedge", "firefox", "brave": return CupertinoIcons.globe
@@ -235,7 +283,24 @@ final class StarlingBarState: State<StatefulWidget> {
                         SizedBox(width: kButtonWidth, height: 30) {
                             Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0)) {
                                 Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 7) {
-                                    MacosIcon(icon: glyph(for: window), color: ink, size: 13)
+                                    if let texture = iconTextures[iconKey(window)] {
+                                        // Drawn at full strength even when the
+                                        // window is minimized. An Opacity of
+                                        // 0.45 over this made the icon vanish
+                                        // outright rather than dim — anything
+                                        // below 1.0 pushes the tree through a
+                                        // saveLayer, and an external texture
+                                        // does not survive one on this
+                                        // embedder. The dimmed label and the
+                                        // darker button fill carry the state
+                                        // instead, which is what they were
+                                        // already doing.
+                                        SizedBox(width: 16, height: 16) {
+                                            TextureWidget(textureId: texture)
+                                        }
+                                    } else {
+                                        MacosIcon(icon: glyph(for: window), color: ink, size: 13)
+                                    }
                                     Expanded {
                                         Text(window.title,
                                              style: TextStyle(color: ink, fontSize: 12),

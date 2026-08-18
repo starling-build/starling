@@ -220,6 +220,38 @@ typedef void (*FlWin32WmEventCallback)(int32_t event,
 int32_t flwin32_wm_watch(FlWin32WmEventCallback callback, void* user);
 void flwin32_wm_unwatch(void);
 
+// ── app icons ───────────────────────────────────────────────────────────────
+//
+// The other half of a dock: the app's OWN icon rather than a glyph guessed
+// from its executable name. Windows keeps it inside the window or inside the
+// exe and hands it out as an HICON — a GDI object, not an image — so it has
+// to be rasterized.
+
+// Rasterizes `window`'s icon to premultiplied RGBA at `size` x `size`.
+// Returns 1 and sets `*out_pixels` to a buffer the caller owns (release it
+// with flwin32_icon_free), or 0 when the window has no icon to give.
+int32_t flwin32_icon_rasterize(uint64_t window,
+                               int32_t size,
+                               uint8_t** out_pixels,
+                               int32_t* out_width,
+                               int32_t* out_height);
+void flwin32_icon_free(uint8_t* pixels);
+
+// Rasterizes the icon and registers it with the engine as an external
+// texture, so a `TextureWidget` can draw it. Returns the texture id, or -1.
+// The pixels are held for the texture's lifetime and released when it is
+// unregistered — the engine's own release_callback is not used, because the
+// buffer is not per-frame.
+int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
+                                           uint64_t window,
+                                           int32_t size);
+
+// Unregisters a texture from flwin32_host_register_icon_texture and frees its
+// pixels. Unregistration is asynchronous inside the engine; the free happens
+// in its completion callback, so the buffer outlives any frame still in
+// flight.
+void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id);
+
 #ifdef __cplusplus
 }
 #endif
