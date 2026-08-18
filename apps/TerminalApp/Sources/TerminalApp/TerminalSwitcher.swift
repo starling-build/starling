@@ -30,9 +30,24 @@ import Foundation
 
 /// One row: a place to go, and what is there.
 struct SwitcherRow {
-    let spec: WorkspaceSpec
+    let target: SwitcherTarget
     let title: String
     let detail: String
+}
+
+/// What choosing a row does.
+enum SwitcherTarget {
+    /// Open that workspace, or create it if the name is new.
+    case workspace(WorkspaceSpec)
+    /// Take a session that belongs to no workspace and put it in one — the
+    /// one on screen if there is one, otherwise a workspace of its own.
+    ///
+    /// A session is not a thing this app can open on its own: what it draws is
+    /// always a workspace, because that is what an arrangement is stored
+    /// against. Someone who ran `starling-termd build` on the far machine
+    /// should still be able to reach it, and this is what "reaching it" has to
+    /// mean here — adoption, not a second kind of tab.
+    case session(host: String, id: UInt32, name: String)
 }
 
 /// Everything the switcher knows while it is open.
@@ -186,17 +201,35 @@ extension _TerminalTabsState {
                 self.setState {
                     self._switcher.busy = false
                     self._switcher.unreachable = listing == nil ? host : nil
-                    self._switcher.rows = (listing?.workspaces ?? [])
+                    var rows = (listing?.workspaces ?? [])
                         .sorted { $0.name.lowercased() < $1.name.lowercased() }
-                        .map { ws in
+                        .map { ws -> SwitcherRow in
                             let panes = ws.sessions.count
+                            let spec = WorkspaceSpec("remote:\(host)/ws:\(ws.name)")
+                                ?? WorkspaceSpec("ws:\(ws.name)")!
                             return SwitcherRow(
-                                spec: WorkspaceSpec("remote:\(host)/ws:\(ws.name)")
-                                    ?? WorkspaceSpec("ws:\(ws.name)")!,
+                                target: .workspace(spec),
                                 title: ws.name,
                                 detail: panes == 1 ? "1 session"
                                                    : "\(panes) sessions")
                         }
+                    // Then what is running on that machine outside any
+                    // workspace: a `starling-termd build` someone started over
+                    // ssh, or what is left of a workspace that stopped
+                    // mentioning it. Below the workspaces, because the
+                    // workspace is the thing you usually want.
+                    rows += (listing?.loose ?? [])
+                        .sorted { $0.id < $1.id }
+                        .map { session in
+                            SwitcherRow(
+                                target: .session(host: host, id: session.id,
+                                                 name: session.name),
+                                title: session.name.isEmpty
+                                    ? "session \(session.id)" : session.name,
+                                detail: session.alive ? "loose · \(session.cols)×\(session.rows)"
+                                                      : "loose · ended")
+                        }
+                    self._switcher.rows = rows
                     self._switcher.index = 0
                 }
             }
@@ -225,11 +258,13 @@ extension _TerminalTabsState {
             _closeSwitcher()
             return true
         case 0xFF0D, 0xFF8D, 0x1_0000_000D, 0x1_0000_020D:      // Enter
-            let chosen = _switcher.index > 0 && _switcher.index <= matches.count
-                ? matches[_switcher.index - 1].spec
-                : WorkspaceSpec("remote:\(_switcher.host)/ws:\(_switcher.name)")
+            let chosen: SwitcherTarget? =
+                _switcher.index > 0 && _switcher.index <= matches.count
+                    ? matches[_switcher.index - 1].target
+                    : WorkspaceSpec("remote:\(_switcher.host)/ws:\(_switcher.name)")
+                        .map { SwitcherTarget.workspace($0) }
             _closeSwitcher()
-            if let spec = chosen { _goTo(spec) }
+            if let chosen = chosen { _goTo(chosen) }
             return true
         case 0xFF08, 0x1_0000_0008:                             // Backspace
             if !_switcher.text.isEmpty {
@@ -264,17 +299,40 @@ extension _TerminalTabsState {
         return true
     }
 
-    /// Open a destination, and remember it as the one to come back to.
-    func _goTo(_ spec: WorkspaceSpec) {
+    /// Act on a chosen row.
+    func _goTo(_ target: SwitcherTarget) {
+        switch target {
+        case .workspace(let spec):
+            _open(spec)
+        case .session(let host, let id, let name):
+            // Into the workspace on screen, when it is one on the same
+            // machine: "bring that session in here" is what someone looking at
+            // a workspace means. Otherwise the session gets a workspace of its
+            // own, named after it, which is also how it stops being loose.
+            let current = tabs.indices.contains(active) ? tabs[active] : nil
+            if let tab = current, let workspace = tab.workspace,
+               workspace.spec.host == host {
+                _adoptSession(tab, session: id)
+                return
+            }
+            let label = name.isEmpty ? "session-\(id)" : name
+            guard let spec = WorkspaceSpec("remote:\(host)/ws:\(label)") else { return }
+            _open(spec, adopting: id)
+        }
+    }
+
+    /// Open a workspace, and remember it as the one to come back to.
+    private func _open(_ spec: WorkspaceSpec, adopting session: UInt32? = nil) {
         WorkspaceMemory.remember(spec)
         // Already open? Show it rather than attaching a second client to the
-        // same sessions — which works, but means two panes fighting over one
-        // pty's size until milestone 6 says who wins.
+        // same sessions — which works (milestone 6 says who wins) but is not
+        // what someone picking it from a list is asking for.
         if let existing = tabs.firstIndex(where: { $0.workspace?.spec == spec }) {
             setState { active = existing }
+            if let session = session { _adoptSession(tabs[existing], session: session) }
             return
         }
-        setState { _openWorkspace(spec) }
+        setState { _openWorkspace(spec, adopting: session) }
     }
 
     // MARK: - Drawing
@@ -357,7 +415,7 @@ extension _TerminalTabsState {
         return Listener(
             onPointerDown: { [self] _ in
                 _closeSwitcher()
-                _goTo(row.spec)
+                _goTo(row.target)
             },
             behavior: .opaque,
             child: SizedBox(

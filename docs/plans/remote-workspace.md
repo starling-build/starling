@@ -246,9 +246,17 @@ workspace, not per session, so it survives every session in it dying.
      makes way when a live one needs the slot. Killing a session also drops it
      from every workspace's membership, which was the same leak seen from the
      other side.
-8. **Later, separable:** loose sessions in the switcher (the daemon lists
-   them, `TermdDirectory.Listing.loose` separates them out, and the app has no
-   way to open one yet), detach/reattach of a whole workspace as one
+8. **Sessions that belong to nothing. — DONE.** Someone runs
+   `starling-termd build` over ssh, and until now this terminal could not
+   reach it: the daemon listed it and the app had no way in, because what this
+   app draws is always a workspace — that is what an arrangement is stored
+   against. So the switcher shows loose sessions under the workspaces and
+   choosing one ADOPTS it: into the workspace on screen when there is one on
+   that machine ("bring that session in here"), otherwise into a workspace
+   named after it. Either way it stops being loose — the pane's link `WS_ADD`s
+   it and the next arrangement written includes it — and nothing is opened on
+   the far side, because this is an ATTACH to something already running.
+9. **Later, separable:** detach/reattach of a whole workspace as one
    operation, workspace names in `--list`, and genuinely shared editing of one
    workspace by two people.
 

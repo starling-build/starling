@@ -223,7 +223,31 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// for. What replaces it depends on what the far side was holding — an
     /// arrangement, or nothing at all — and that answer arrives over the link,
     /// so it lands in `_restore` rather than here.
-    func _openWorkspace(_ spec: WorkspaceSpec) {
+    /// Put a session that belonged to no workspace into this one, as a new
+    /// pane beside the focused one.
+    ///
+    /// It stops being loose the moment its pane comes up: the pane's link
+    /// WS_ADDs it, and the arrangement recorded a moment later is what brings
+    /// it back next time. Nothing is opened on the far side — this is an
+    /// ATTACH to something that was already running.
+    func _adoptSession(_ tab: TerminalTab, session: UInt32) {
+        guard let workspace = tab.workspace,
+              let node = tab.root.node(for: tab.activePaneId)
+                  ?? tab.root.node(for: tab.panes.first?.id ?? -1)
+        else { return }
+        let pane = _blankPane()
+        workspace.attach(pane, session: session)
+        setState {
+            splitPane(node, axis: .row, with: pane)
+            tab.activePaneId = pane.id
+        }
+        workspace.record(tab)
+    }
+
+    /// Open a tab onto a workspace. `adopting` names a session that is already
+    /// running and belongs to no workspace: a workspace with nothing stored
+    /// takes it as its first pane rather than opening a fresh shell.
+    func _openWorkspace(_ spec: WorkspaceSpec, adopting adopt: UInt32? = nil) {
         let workspace = TerminalWorkspace(spec: spec)
         let pane = _blankPane()
         let tab = TerminalTab(id: nextId, pane: pane)
@@ -264,7 +288,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                 guard let self = self,
                       let tab = self.tabs.first(where: { $0.id == tabId })
                 else { return }
-                self._restore(tab, layout)
+                self._restore(tab, layout, adopting: adopt)
             },
             onRearranged: { [weak self] layout in
                 guard let self = self,
@@ -280,15 +304,32 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// was already on screen becomes its first session — so "open a workspace
     /// that does not exist" and "open one that does" are the same command,
     /// exactly as a named session already is.
-    private func _restore(_ tab: TerminalTab, _ layout: PaneLayout?) {
+    private func _restore(_ tab: TerminalTab, _ layout: PaneLayout?,
+                          adopting adopt: UInt32? = nil) {
         guard let workspace = tab.workspace else { return }
         guard let layout = layout else {
             if let pane = tab.panes.first {
-                workspace.attach(pane, session: nil)
+                // `adopt` is a session already running on that machine, chosen
+                // from the switcher: the new workspace takes it rather than
+                // opening a shell beside it and leaving it loose.
+                workspace.attach(pane, session: adopt)
                 workspace.record(tab)
             }
             setState {}
             return
+        }
+        // A workspace that HAS an arrangement gets the adopted session added
+        // to it, once the panes it already knows about are up.
+        if let adopt = adopt {
+            // By id, like everything else that crosses this hop: a tab is not
+            // a value that may.
+            let tabId = tab.id
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self,
+                      let tab = self.tabs.first(where: { $0.id == tabId })
+                else { return }
+                self._adoptSession(tab, session: adopt)
+            }
         }
 
         // The placeholder is replaced wholesale rather than reused: which
