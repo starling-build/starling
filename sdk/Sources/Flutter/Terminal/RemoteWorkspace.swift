@@ -257,12 +257,19 @@ public final class RemoteWorkspace: @unchecked Sendable {
 
             attempt += 1
             setLink(.reconnecting(attempt: attempt))
-            Thread.sleep(forTimeInterval: min(8.0, pow(2.0, Double(min(attempt, 3))) * 0.25))
+            Thread.sleep(forTimeInterval: TermdDialPacer.backoff(attempt: attempt))
         }
     }
 
     private func spawn() -> Bool {
         let argv = termdArgv(host: host, sshPath: sshPath, serverPath: serverPath)
+        // The control link queues with its panes rather than beside them: it
+        // dials the same host, at the same moment, for the same reason.
+        TermdDialPacer.shared.awaitTurn(host: host)
+        lock.lock()
+        let done = stopped
+        lock.unlock()
+        if done { return false }
         guard let link = ChildLink.spawn(argv) else { return false }
         lock.lock()
         child = link

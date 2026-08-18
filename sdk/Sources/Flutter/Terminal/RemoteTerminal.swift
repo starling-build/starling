@@ -183,8 +183,7 @@ public final class RemoteTerminal: @unchecked Sendable {
             // terminal itself rather than leaving a frozen screen.
             note("\r\n\u{1B}[38;5;244m[link lost — reconnecting…]\u{1B}[0m\r\n")
             setLink(.reconnecting(attempt: attempt))
-            let backoff = min(8.0, pow(2.0, Double(min(attempt, 3))) * 0.25)
-            Thread.sleep(forTimeInterval: backoff)
+            Thread.sleep(forTimeInterval: TermdDialPacer.backoff(attempt: attempt))
         }
     }
 
@@ -193,6 +192,15 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// local persistent session and a remote one the same feature.
     private func spawn() -> Bool {
         let argv = termdArgv(host: host, sshPath: sshPath, serverPath: serverPath)
+        // Wait for this host's turn. Every pane of a workspace dials the same
+        // machine the instant a tunnel drops, and unpaced that is N handshakes
+        // in one millisecond — see TermdDialPacer.
+        TermdDialPacer.shared.awaitTurn(host: host)
+        lock.lock()
+        let done = stopped
+        lock.unlock()
+        // Waiting for a slot takes real time, and stop() can land inside it.
+        if done { return false }
         guard let link = ChildLink.spawn(argv) else { return false }
         lock.lock()
         child = link

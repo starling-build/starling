@@ -80,6 +80,80 @@ func termdArgv(host: String, sshPath: String, serverPath: String) -> [String] {
             "-o", "ServerAliveInterval=15", host, serverPath, "--stdio"]
 }
 
+/// Paces outbound dials to one host, so that N panes do not arrive at one
+/// sshd as N simultaneous handshakes.
+///
+/// This is the "N panes, N reconnect storms" risk in
+/// docs/plans/remote-workspace.md, and it is not theoretical. Every pane holds
+/// its own backoff, they are all handed the same `attempt` by the same tunnel
+/// dropping, so they all wake in the same millisecond — measured against a
+/// stock Ubuntu box, the peak was exactly N ssh processes for every N tried.
+/// At twelve panes that trips sshd's default `MaxStartups 10:30:100`, which
+/// begins refusing UNAUTHENTICATED connections at ten and answers the loser
+/// with `kex_exchange_identification: Connection reset by peer` — a pane that
+/// simply fails to come back while its neighbours do.
+///
+/// So dials to a host queue. The first few go at once, because a workspace
+/// opening should still feel immediate; after that they are spaced, which
+/// keeps the number of connections inside sshd's unauthenticated window small
+/// enough that it never starts dropping them. A slot is claimed under the
+/// lock and waited for outside it, so the pacer can never hold up a link that
+/// is not dialing.
+///
+/// It paces rather than limits concurrency: there is no "in flight" to
+/// release, so no dial that dies in an unusual way can wedge the queue for
+/// every other pane. The cost is bounded and known — the Nth pane of a burst
+/// waits `(N - burst) * spacing` — where a concurrency gate's cost is however
+/// long the slowest handshake decides to take.
+final class TermdDialPacer: @unchecked Sendable {
+    static let shared = TermdDialPacer()
+
+    /// Minimum spacing between two dials to the same host.
+    private static let spacing: TimeInterval = 0.1
+    /// How many may go with no wait at all. Four leaves headroom under
+    /// `MaxStartups`'s ten for whatever else is reaching that machine —
+    /// this terminal is not the only thing on the network.
+    private static let burst = 4
+
+    private let lock = NSLock()
+    /// The next unclaimed slot per host. Allowed to sit in the past: that is
+    /// what makes an idle host's first few dials free.
+    private var nextSlot: [String: Date] = [:]
+
+    /// Blocks the calling thread until this dial's turn. Every link has its
+    /// own thread and already sleeps there for backoff, so this costs nothing
+    /// but the wait it exists to impose.
+    func awaitTurn(host: String) {
+        // "local" spawns the daemon directly — no ssh, no sshd, nothing to
+        // be refused by. Pacing it would only slow the tests down.
+        if host.isEmpty || host == "local" { return }
+
+        let now = Date()
+        let credit = now.addingTimeInterval(-Double(Self.burst) * Self.spacing)
+        lock.lock()
+        var slot = nextSlot[host] ?? credit
+        // A host nobody has dialed in a while gets its full burst back,
+        // rather than staying paced forever because of one old storm.
+        if slot < credit { slot = credit }
+        nextSlot[host] = slot.addingTimeInterval(Self.spacing)
+        lock.unlock()
+
+        let wait = slot.timeIntervalSince(now)
+        if wait > 0 { Thread.sleep(forTimeInterval: wait) }
+    }
+
+    /// Backoff for `attempt`, jittered.
+    ///
+    /// The pacer already decides the ORDER a storm dials in; the jitter keeps
+    /// the panes from computing the same wake instant and then queueing in the
+    /// same order every single round, which is what makes one unlucky pane the
+    /// last to reconnect every time.
+    static func backoff(attempt: Int) -> TimeInterval {
+        let base = min(8.0, pow(2.0, Double(min(attempt, 3))) * 0.25)
+        return base * Double.random(in: 0.85...1.15)
+    }
+}
+
 /// The environment a termd client is reached through, defaults included.
 struct TermdPaths {
     let ssh: String
