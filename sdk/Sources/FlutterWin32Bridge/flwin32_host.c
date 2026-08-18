@@ -28,6 +28,7 @@
 #endif
 
 #include <windows.h>
+#include <shellapi.h>  // SHAppBarMessage, APPBARDATA
 
 // Direct inclusion of the vendored embedder headers, the same way the GTK
 // bridge includes flutter_linux. Their cross-references are quoted-relative,
@@ -42,9 +43,25 @@ struct FlWin32Host {
   FlutterDesktopViewControllerRef controller;
   int fullscreen;
   WINDOWPLACEMENT saved_placement;  // to restore from fullscreen
+  // Appbar registration: what makes Windows RESERVE the strip, so maximized
+  // windows stop at the bar instead of going under it. The placement is kept
+  // because the reservation has to be recomputed from scratch every time the
+  // desktop changes shape (see WM_STARLING_APPBAR).
+  int appbar_registered;
+  int appbar_edge;
+  int appbar_thickness;
 };
 
+// Private callback message for the appbar. Windows sends notifications
+// (ABN_*) to this id on our window; the value only has to be unique within
+// this window class.
+#define WM_STARLING_APPBAR (WM_USER + 0x51)
+
 static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
+
+// Defined with the rest of the appbar code at the end of this file;
+// host_wnd_proc has to call it and comes first.
+static void appbar_apply_position(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
 // DispatchQueue.main.async blocks run on the Win32 message thread. Same
@@ -90,6 +107,29 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
   }
 
   switch (message) {
+    case WM_STARLING_APPBAR:
+      // Windows telling us the desktop changed shape under us.
+      switch ((UINT)wparam) {
+        case ABN_POSCHANGED:
+          // Another appbar appeared/moved/resized, or the resolution
+          // changed. The reservation is not sticky — recompute it.
+          appbar_apply_position(host);
+          break;
+        case ABN_FULLSCREENAPP:
+          // A fullscreen app opened (lparam != 0) or closed. A topmost bar
+          // would otherwise sit over a game or a video; drop out of the
+          // topmost band for the duration and come back after.
+          if (host != NULL) {
+            SetWindowPos(host->window,
+                         lparam != 0 ? HWND_BOTTOM : HWND_TOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+          }
+          break;
+        default:
+          break;
+      }
+      return 0;
+
     case WM_SIZE:
       // Keep the engine's child window filling the frame.
       if (host != NULL && host->child != NULL) {
@@ -139,6 +179,16 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       return 0;
 
     case WM_DESTROY:
+      // Unregister the appbar FIRST. Leaving a registration behind means
+      // Windows keeps the strip reserved after we are gone: every maximized
+      // window stays short of an edge with nothing on it, until a shell
+      // restart.
+      if (host != NULL && host->appbar_registered) {
+        APPBARDATA abd = {sizeof(APPBARDATA)};
+        abd.hWnd = hwnd;
+        SHAppBarMessage(ABM_REMOVE, &abd);
+        host->appbar_registered = 0;
+      }
       PostQuitMessage(0);
       return 0;
 
@@ -611,4 +661,92 @@ void flwin32_host_set_panel(FlWin32Host* host,
                     ex | WS_EX_TOOLWINDOW | WS_EX_TOPMOST);
   SetWindowPos(host->window, HWND_TOPMOST, x, y, w, h,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+
+  // Remember the placement in the shell's OWN terms, translated to the ABE_*
+  // the appbar API speaks. Kept even when no appbar is registered, so
+  // flwin32_host_set_appbar can be called later without repeating itself.
+  switch (edge) {
+    case 1:  host->appbar_edge = ABE_BOTTOM; break;
+    case 2:  host->appbar_edge = ABE_LEFT;   break;
+    case 3:  host->appbar_edge = ABE_RIGHT;  break;
+    default: host->appbar_edge = ABE_TOP;    break;
+  }
+  host->appbar_thickness = (edge == 2 || edge == 3) ? w : h;
+  // Already an appbar (a monitor change, or a second call): re-reserve at the
+  // new geometry rather than leaving the old strip reserved.
+  if (host->appbar_registered) appbar_apply_position(host);
+}
+
+// ── appbar: asking Windows to reserve the strip ─────────────────────────────
+//
+// A topmost window is only an OVERLAY — maximize anything and it goes
+// underneath. An appbar is the documented way to make the strip part of the
+// desktop's work area, and it is the Windows analogue of layer shell's
+// exclusive zone.
+//
+// The protocol is a conversation, not a setting, and all three steps are
+// required every time: ABM_QUERYPOS asks "if I want this rectangle, what do I
+// actually get" (Windows moves it clear of the taskbar and any other appbar),
+// ABM_SETPOS commits the answer, and only then do we move the window to
+// match. Skipping QUERYPOS puts the bar on top of the taskbar; skipping the
+// final move leaves the reservation and the window in different places.
+
+static void appbar_apply_position(FlWin32Host* host) {
+  if (host == NULL || !host->appbar_registered) return;
+
+  // The monitor the bar is currently on — recomputed rather than remembered,
+  // because this runs again on every resolution change and monitor hotplug.
+  MONITORINFO mi = {sizeof(MONITORINFO)};
+  if (!GetMonitorInfoW(MonitorFromWindow(host->window, MONITOR_DEFAULTTOPRIMARY),
+                       &mi)) {
+    return;
+  }
+
+  APPBARDATA abd = {sizeof(APPBARDATA)};
+  abd.hWnd = host->window;
+  abd.uEdge = (UINT)host->appbar_edge;
+  abd.rc = mi.rcMonitor;
+  switch (host->appbar_edge) {
+    case ABE_BOTTOM: abd.rc.top = abd.rc.bottom - host->appbar_thickness; break;
+    case ABE_LEFT:   abd.rc.right = abd.rc.left + host->appbar_thickness; break;
+    case ABE_RIGHT:  abd.rc.left = abd.rc.right - host->appbar_thickness; break;
+    default:         abd.rc.bottom = abd.rc.top + host->appbar_thickness; break;
+  }
+
+  SHAppBarMessage(ABM_QUERYPOS, &abd);
+  // QUERYPOS only slides the edge we are anchored to; re-apply the thickness
+  // along that axis or the bar grows to whatever slab was left over.
+  switch (host->appbar_edge) {
+    case ABE_BOTTOM: abd.rc.top = abd.rc.bottom - host->appbar_thickness; break;
+    case ABE_LEFT:   abd.rc.right = abd.rc.left + host->appbar_thickness; break;
+    case ABE_RIGHT:  abd.rc.left = abd.rc.right - host->appbar_thickness; break;
+    default:         abd.rc.bottom = abd.rc.top + host->appbar_thickness; break;
+  }
+
+  SHAppBarMessage(ABM_SETPOS, &abd);
+  MoveWindow(host->window, abd.rc.left, abd.rc.top,
+             abd.rc.right - abd.rc.left, abd.rc.bottom - abd.rc.top, TRUE);
+}
+
+int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable) {
+  if (host == NULL || host->window == NULL) return 0;
+
+  if (!enable) {
+    if (host->appbar_registered) {
+      APPBARDATA abd = {sizeof(APPBARDATA)};
+      abd.hWnd = host->window;
+      SHAppBarMessage(ABM_REMOVE, &abd);
+      host->appbar_registered = 0;
+    }
+    return 1;
+  }
+  if (host->appbar_registered) return 1;
+
+  APPBARDATA abd = {sizeof(APPBARDATA)};
+  abd.hWnd = host->window;
+  abd.uCallbackMessage = WM_STARLING_APPBAR;
+  if (!SHAppBarMessage(ABM_NEW, &abd)) return 0;
+  host->appbar_registered = 1;
+  appbar_apply_position(host);
+  return 1;
 }

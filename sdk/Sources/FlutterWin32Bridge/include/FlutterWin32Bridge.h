@@ -69,6 +69,11 @@ void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t thickness,
                             int32_t monitor);
 
+// Register (or remove) the window as an appbar, so Windows reserves the strip
+// and maximized windows stop at it. Call after flwin32_host_set_panel, which
+// is where the edge and thickness come from. Returns non-zero on success.
+int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
+
 int32_t flwin32_monitor_count(void);
 int32_t flwin32_monitor_rect(int32_t index,
                              int32_t* x,

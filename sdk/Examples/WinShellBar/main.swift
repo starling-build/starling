@@ -15,11 +15,9 @@
 //   4. a live clock, i.e. the periodic timer reaching the UI thread through
 //      the Win32 message loop rather than a GTK main context
 //
-// What it deliberately does NOT do is reserve space. A real bar registers as
-// an appbar (SHAppBarMessage) so maximized windows stop above it; that has a
-// message-callback contract of its own and belongs in its own change. Until
-// then a maximized window will sit *under* this bar, which is the expected
-// result, not a bug.
+// It also registers as an appbar, so Windows RESERVES the strip and maximized
+// windows stop below it rather than sliding underneath — the fifth thing this
+// has to prove, and the one that separates shell chrome from an overlay.
 //
 //   swift build -c release --product WinShellBar
 
@@ -104,7 +102,8 @@ let screen = Win32Display.primary()
 let barWidth = screen?.width ?? 1280
 print("[WinShellBar] monitors: \(Win32Display.monitors())")
 
-Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight)
+Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
+                                         reserveSpace: true)
 runStarlingApp(title: "Starling Bar", width: barWidth, height: kBarHeight) {
     StarlingBar()
 }

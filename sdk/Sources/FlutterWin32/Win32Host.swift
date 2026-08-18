@@ -17,6 +17,7 @@ import Flutter
 import FlutterSwiftBridge
 import SwiftRuntime
 import FlutterWin32Bridge
+import Foundation
 
 public final class Win32Host {
 
@@ -66,6 +67,15 @@ public final class Win32Host {
         flwin32_host_set_panel(host, placement.edge.rawValue,
                                Int32(placement.thickness),
                                Int32(placement.monitor ?? -1))
+        // After set_panel, never before: the appbar reserves the geometry the
+        // panel was just given, and registering first would reserve the
+        // window's pre-panel rectangle.
+        if placement.reserveSpace {
+            if flwin32_host_set_appbar(host, 1) == 0 {
+                FileHandle.standardError.write(Data(
+                    "[Win32Host] appbar registration refused; the bar will overlay\n".utf8))
+            }
+        }
     }
 }
 #endif

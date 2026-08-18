@@ -69,11 +69,18 @@ public struct PanelPlacement: Sendable {
     public let thickness: Int
     /// Index into `Win32Display.monitors()`, or nil for the primary.
     public let monitor: Int?
+    /// Ask Windows to RESERVE the strip (register as an appbar), so maximized
+    /// windows stop at the bar instead of going under it. Without this the
+    /// panel is only an overlay — which is the right answer for a HUD and the
+    /// wrong one for shell chrome.
+    public let reserveSpace: Bool
 
-    public init(edge: PanelEdge, thickness: Int, monitor: Int? = nil) {
+    public init(edge: PanelEdge, thickness: Int, monitor: Int? = nil,
+                reserveSpace: Bool = false) {
         self.edge = edge
         self.thickness = thickness
         self.monitor = monitor
+        self.reserveSpace = reserveSpace
     }
 }
 #endif
