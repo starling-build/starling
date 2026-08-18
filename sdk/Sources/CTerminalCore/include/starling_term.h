@@ -103,6 +103,11 @@ int      starling_term_mouse_sgr(const StarlingTerm *t);
 int      starling_term_scrollback_count(const StarlingTerm *t);
 uint64_t starling_term_generation(const StarlingTerm *t);
 
+// Where the shell last said it is (OSC 7), or "" if it has never said. Owned
+// by the terminal and valid until the next feed. Many shells never emit it —
+// treat empty as "no idea", never as "/".
+const char *starling_term_cwd(const StarlingTerm *t);
+
 // Copies exactly `cols` cells of one line into `out`, normalising width the way
 // the Swift `_fitLine` did (scrollback rows can predate a resize).
 // `abs_index` spans scrollback first, then the live grid:

@@ -102,6 +102,11 @@ final class TerminalWorkspace: @unchecked Sendable {
     /// session has not been asked for yet.
     private var remotes: [Int: RemoteTerminal] = [:]
 
+    /// Backlog a pane asks for on its first attach. 256 KB is several screens
+    /// of a wide terminal — enough that scrolling up a little still finds
+    /// something — against 8 MB of ring per pane if this is left off.
+    static let paneReplayBytes: UInt32 = 256 * 1024
+
     /// The arrangement changed in a way that must be recorded, or a pane
     /// learned its session id. Set by the tabs state; called on the UI thread.
     var onChange: (() -> Void)?
@@ -124,13 +129,33 @@ final class TerminalWorkspace: @unchecked Sendable {
 
     /// Give a pane a session: the one the blob named, or a new one when
     /// `session` is nil or 0.
-    func attach(_ pane: TerminalPane, session: UInt32?) {
+    ///
+    /// `cwd` is where the blob says that pane's shell was. It is used only
+    /// when a session has to be OPENed — restoring the arrangement after the
+    /// daemon itself restarted, which is the case where the panes come back
+    /// but their shells do not. An attach that finds its session ignores it,
+    /// because that shell has its own idea of where it is and is right.
+    func attach(_ pane: TerminalPane, session: UInt32?, cwd: String? = nil) {
         // No size is passed: the view resizes the session on mount and the
         // link turns that into a RESIZE frame, so the far end is told the
         // pane's real size rather than the one it was guessed at here.
         let remote = RemoteTerminal(session: pane.session,
                                     host: spec.host,
-                                    attach: (session ?? 0) == 0 ? nil : session)
+                                    attach: (session ?? 0) == 0 ? nil : session,
+                                    command: reopenCommand(in: cwd))
+        // The blob's directory is right for the FIRST open — the pane has no
+        // screen of its own yet, so there is nothing better to know. From then
+        // on the pane's own emulator is the better answer, and it is asked at
+        // the moment an OPEN is sent rather than remembered here: a session
+        // vanishing is exactly the case where "where was I" changed since.
+        remote.commandForOpen = { [weak self, weak pane] in
+            guard let self = self, let pane = pane else { return nil }
+            return self.reopenCommand(in: Self.paneCwd(pane) ?? cwd)
+        }
+        // Enough to rebuild the screen and a few scrollbacks of context, and
+        // not the whole ring: N panes attach at once here, and 8 MB each is
+        // minutes of nothing on the link this feature exists for.
+        remote.maxReplayBytes = Self.paneReplayBytes
         // The blob's ids come from a daemon that may have restarted since it
         // wrote them. Restoring the arrangement is the promise; a pane that
         // refuses to come back because its shell is gone keeps none of it.
@@ -154,6 +179,33 @@ final class TerminalWorkspace: @unchecked Sendable {
         remote.start()
     }
 
+    /// What a reopened pane runs, so it comes back where it was.
+    ///
+    /// `OPEN` already carries a command and the daemon runs it with the
+    /// shell's `-c`, so this needs no protocol change: step into the
+    /// directory, then BECOME the shell, which leaves a pane indistinguishable
+    /// from one opened normally — same process, no wrapper, and `exit` still
+    /// ends the session. `$STARLING_SHELL` is exported by the daemon beside
+    /// the pty precisely so this names the same shell a plain OPEN would have
+    /// run, rather than guessing from `$SHELL` (which the daemon may itself
+    /// have overridden).
+    ///
+    /// `&&`, not `;`: a directory that no longer exists on the far machine
+    /// should not silently hand back a shell in `$HOME` pretending to be the
+    /// pane you left. The session ends, visibly, and the next OPEN has no cwd.
+    private func reopenCommand(in cwd: String?) -> String? {
+        // Composed only for a daemon that says it runs commands through a
+        // POSIX shell (HELLO_OK's caps byte). A Windows daemon, or one too old
+        // to say, gets no command at all and its pane opens where it always
+        // did — a pane in the wrong directory beats a pane that exits.
+        guard link.serverUsesPosixShell else { return nil }
+        guard let cwd = cwd, cwd.hasPrefix("/") else { return nil }
+        // POSIX single-quoting: everything is literal inside quotes except a
+        // quote itself, which has to leave and come back.
+        let quoted = cwd.replacingOccurrences(of: "'", with: "'\\''")
+        return "cd '\(quoted)' && exec \"$STARLING_SHELL\""
+    }
+
     /// Drop a pane's link. The session on the far side keeps running — see
     /// the header.
     func detach(_ pane: TerminalPane) {
@@ -173,9 +225,25 @@ final class TerminalWorkspace: @unchecked Sendable {
         let panes = tab.root.panes
         let active = panes.firstIndex { $0.id == tab.activePaneId } ?? 0
         let layout = PaneLayout(
-            root: tab.root.layoutNode { [weak self] in self?.sessionId($0) ?? 0 },
+            root: tab.root.layoutNode { [weak self] pane in
+                LeafInfo(session: self?.sessionId(pane) ?? 0,
+                         cwd: Self.paneCwd(pane))
+            },
             activeLeaf: active)
         link.setLayout(layout.encoded())
+    }
+
+    /// Where a pane's shell last said it was.
+    ///
+    /// Read from OUR emulator, which is the only one in the system: the bytes
+    /// that told it are the same bytes the far side wrote, so this is the
+    /// remote machine's directory even though nothing asked the remote machine
+    /// anything. Shells that emit no OSC 7 report nil and their panes reopen
+    /// in the default directory, as they always did.
+    private static func paneCwd(_ pane: TerminalPane) -> String? {
+        pane.session.lock.lock()
+        defer { pane.session.lock.unlock() }
+        return pane.session.emulator.cwd
     }
 
     /// Close the whole workspace: every pane's link, then the control link,

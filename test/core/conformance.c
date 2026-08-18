@@ -233,6 +233,60 @@ static void test_resize(void) {
     starling_term_free(t);
 }
 
+/* ---- OSC 7: where the shell says it is ----------------------------------- */
+
+/* The first OSC payload the parser keeps rather than discards, and the thing
+ * that lets a restored pane come back in its own directory instead of $HOME.
+ * Every case below is one a shell actually emits — including the ones that
+ * must be REFUSED, because a bad answer here reopens a pane somewhere the
+ * person never was. */
+static void test_osc_cwd(void) {
+    StarlingTerm *t = fresh(20, 4);
+    CHECK(starling_term_cwd(t)[0] == 0, "cwd starts empty, not \"/\"");
+
+    feed(t, "\x1b]7;file://host/home/dev/starling\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/home/dev/starling"),
+          "OSC 7 with BEL sets the directory");
+
+    /* ST-terminated is the other spelling, and the one zsh sends. */
+    feed(t, "\x1b]7;file://host/tmp\x1b\\");
+    CHECK(!strcmp(starling_term_cwd(t), "/tmp"), "OSC 7 with ST sets it too");
+
+    /* Percent escapes: a space in a path is the common one. */
+    feed(t, "\x1b]7;file://host/home/dev/my%20work\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/home/dev/my work"),
+          "percent escapes are decoded");
+
+    /* An empty host is legal and common (file:///path). */
+    feed(t, "\x1b]7;file:///srv\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/srv"), "an empty host still yields a path");
+
+    /* Anything that is not a path leaves the last good answer alone: a pane
+     * reopened in the wrong directory is worse than one reopened in $HOME. */
+    feed(t, "\x1b]7;file://host\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/srv"), "a URL with no path is ignored");
+    feed(t, "\x1b]7;relative/path\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/srv"), "a relative path is ignored");
+    feed(t, "\x1b]7;file://host/bad%00path\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/srv"), "an escaped control byte is refused");
+
+    /* Other OSC numbers are not OSC 7 — including the ones that start with a
+     * 7, which is what a sloppy prefix test would fall for. */
+    feed(t, "\x1b]70;file://host/wrong\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/srv"), "OSC 70 is not OSC 7");
+    feed(t, "\x1b]0;a title\x07");
+    CHECK(!strcmp(starling_term_cwd(t), "/srv"), "a title does not move the directory");
+
+    /* And the sequence still consumes itself: none of it may reach the grid. */
+    /* The BEL is split off its own string literal: "\x07A" is one hex escape
+       for 0x7A, which is the letter z. */
+    feed(t, "\x1b]7;file://host/x\x07" "AB");
+    CHECK(cell_at(t, 0, 0).scalar == 'A' && cell_at(t, 0, 1).scalar == 'B',
+          "the sequence is consumed, not printed");
+
+    starling_term_free(t);
+}
+
 int main(void) {
     test_widths();
     test_wide_wrap_and_pairs();
@@ -240,6 +294,7 @@ int main(void) {
     test_clusters();
     test_identity();
     test_resize();
+    test_osc_cwd();
     if (fails) { printf("%d FAILED\n", fails); return 1; }
     printf("all passed\n");
     return 0;

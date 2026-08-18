@@ -193,17 +193,18 @@ func dragSeam(_ node: PaneNode, delta: Double, own: PaneBox) {
 // nothing.
 
 extension PaneNode {
-    /// The tree as the wire sees it. `sessionId` maps a pane to its far-side
-    /// session; a pane with no remote behind it encodes as 0.
-    func layoutNode(sessionId: (TerminalPane) -> UInt32) -> LayoutNode {
-        if let pane = pane { return .leaf(session: sessionId(pane)) }
+    /// The tree as the wire sees it. `describe` maps a pane to what the blob
+    /// should say about it — its far-side session (0 for a pane with no
+    /// remote behind it) and where its shell last said it was.
+    func layoutNode(describe: (TerminalPane) -> LeafInfo) -> LayoutNode {
+        if let pane = pane { return .leaf(describe(pane)) }
         guard let first = first, let second = second else {
             return .leaf(session: 0)
         }
         return .split(axis: axis == .row ? .row : .column,
                       ratio: ratio,
-                      first: first.layoutNode(sessionId: sessionId),
-                      second: second.layoutNode(sessionId: sessionId))
+                      first: first.layoutNode(describe: describe),
+                      second: second.layoutNode(describe: describe))
     }
 }
 
@@ -211,10 +212,10 @@ extension PaneNode {
 /// order — the same order `PaneLayout.leaves` reports, so a caller that
 /// resolved sessions from that list hands them back in the order they map.
 func buildPaneTree(_ node: LayoutNode,
-                   makePane: (UInt32) -> TerminalPane) -> PaneNode {
+                   makePane: (LeafInfo) -> TerminalPane) -> PaneNode {
     switch node {
-    case .leaf(let session):
-        return PaneNode(pane: makePane(session))
+    case .leaf(let info):
+        return PaneNode(pane: makePane(info))
     case .split(let axis, let ratio, let first, let second):
         let parent = PaneNode()
         parent.axis = axis == .row ? .row : .column

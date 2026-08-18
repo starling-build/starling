@@ -141,10 +141,49 @@ workspace, not per session, so it survives every session in it dying.
    server, and reconnect latency for N panes), and only pay for in-protocol
    multiplexing if the numbers say so. Record the number either way, the way
    milestone 4 of the parent plan recorded its 0.3 s.
-5. **Later, separable:** detach/reattach of a whole workspace as one
-   operation, workspace names in `--list`, and sharing a workspace between two
-   clients (the daemon already permits two clients on one session — `ATTACH`
-   does not reject a second — so this is client work, not protocol).
+5. **Coming back to it.** Milestone 3 proved the arrangement survives; this is
+   the milestone that makes *arriving* feel right, which is the whole point of
+   the feature and the part a person actually experiences. Three pieces, in
+   this order:
+   - **Discovery, and a default.** `WS_LIST` exists in the daemon and the
+     client speaks none of it. A picker lists what is on a host — workspaces,
+     what is in them, and the sessions that belong to no workspace — and the
+     app remembers the last one, so relaunching where you left off needs no
+     argument and arriving on a new machine needs only the host. This retires
+     milestone 3's launch-argument entry point.
+   - **Bounded replay.** A fresh attach asks from offset 0, so the daemon
+     replays everything its ring still holds: up to 8 MB *per pane*. Six panes
+     on a hotel connection is minutes of nothing. `ATTACH`'s payload is
+     `id, from_seq, cols, rows` and the daemon checks `len < 16`, so a trailing
+     `max_replay u32` is purely additive — "the last N bytes, not all of it".
+     `ATTACHED` already reports where the stream truly starts and the client
+     takes its word, so a bounded attach begins cleanly rather than reporting
+     history it deliberately declined; the `[N bytes of history dropped]` note
+     stays for what it was always for, a live client falling far enough behind
+     that the ring rolls past it. A single remote session stays unbounded (its
+     scrollback is worth the wait); a workspace pane asks for a screenful or
+     two, and only on its first attach — a reconnect resumes from a real
+     offset, where a cap would silently discard what was missed.
+   - **Where the pane was.** When the daemon restarts, panes come back as
+     fresh shells in `$HOME` — same rectangles, wrong contents. This needs no
+     protocol change: the client's own emulator can keep the **OSC 7** the
+     shell already emits, the blob carries it per leaf, and the pane reopens
+     with `cd '<dir>' && exec "$STARLING_SHELL"` through `OPEN`'s existing
+     command field.
+6. **More than one client at once — and a policy, not an accident.** Attaching
+   from a second machine works today, and two things then go wrong. `RESIZE` is
+   last-writer-wins, so a laptop and a phone SIGWINCH the shell back and forth
+   between two geometries; the pty can only have one size, which is the price
+   of not rendering on the server, so the daemon has to pick — smallest live
+   client, the way tmux does, using the client table it already keeps. And
+   `WS_SET_META` answers only its writer, so a split on one machine never
+   reaches the other and the two flap, overwriting each other's tree; the fix
+   is broadcasting `WS_META` to the other clients that have read that
+   workspace. Both are additive.
+7. **Later, separable:** detach/reattach of a whole workspace as one
+   operation, workspace names in `--list`, a frame that ENDS a session (today
+   closing a remote pane only detaches, so orphans accumulate where nobody
+   sees them), and genuinely shared editing of one workspace by two people.
 
 ## Design decisions to hold
 
@@ -161,6 +200,13 @@ workspace, not per session, so it survives every session in it dying.
 5. **The blob is the client's private format**, versioned inside itself. An
    older client attaching to a workspace written by a newer one must degrade
    to "here are the sessions, arranged by default" rather than fail.
+   The corollary, learned the moment milestone 5 wanted to add a field: a
+   decoder that refuses everything it does not fully understand makes every
+   future field cost an older client its whole layout — and "an older client
+   on the other machine" is exactly the case this feature is for. So a leaf
+   carries **length-prefixed room it does not have to understand**, and a
+   reader skips what it does not know instead of refusing it. Version 2 is
+   where that room was added; there should never need to be a version 3.
 
 ## Risks
 

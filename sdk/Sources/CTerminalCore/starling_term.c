@@ -202,6 +202,15 @@ struct StarlingTerm {
 
     char osc[OSC_MAX];
     int  osc_len;
+    /* The working directory the shell last reported (OSC 7), decoded from its
+       file:// URL. Empty until one arrives, and plenty of shells never send
+       one — so a reader must treat "" as "no idea", never as "/".
+
+       This is the first OSC payload the parser keeps rather than discards.
+       Everything the sequence family carries (a title from 0/2, a
+       notification from 9, a hyperlink from 8) lands the same way: one more
+       branch in finish_osc and one more accessor. */
+    char cwd[OSC_MAX];
 
     uint8_t utf8_pending[4];
     int     utf8_pending_len;
@@ -459,6 +468,7 @@ int starling_term_mouse_tracking(const StarlingTerm *t) { return t->mouse_tracki
 int starling_term_mouse_sgr(const StarlingTerm *t) { return t->mouse_sgr; }
 int starling_term_scrollback_count(const StarlingTerm *t) { return t->sb_len; }
 uint64_t starling_term_generation(const StarlingTerm *t) { return t->generation; }
+const char *starling_term_cwd(const StarlingTerm *t) { return t->cwd; }
 
 void starling_term_copy_line(const StarlingTerm *t, int abs_index, Cell *out) {
     const Row *r;
@@ -1494,7 +1504,60 @@ static void process_csi(StarlingTerm *t, uint8_t b) {
     }
 }
 
-static void finish_osc(StarlingTerm *t) { t->state = ST_GROUND; t->osc_len = 0; }
+/* OSC 7 — `ESC ] 7 ; file://<host>/<path> ST` — is how a shell says where it
+   is, emitted from its prompt hook on every directory change. It is what lets
+   a pane be reopened where it was rather than in $HOME, which is the whole
+   difference between restoring an arrangement and restoring its shape.
+
+   The host is deliberately ignored: for a remote session the URL names the
+   machine the shell runs on, and that is already the machine we would reopen
+   it on. A path is taken only if it is absolute; percent escapes are decoded
+   in place, which can only shrink it. */
+static void osc_take_cwd(StarlingTerm *t, const char *url, int len) {
+    const char *slash = NULL;
+    if (len > 7 && !strncmp(url, "file://", 7)) {
+        /* Skip the authority: the first '/' after it starts the path. */
+        for (int i = 7; i < len; i++) if (url[i] == '/') { slash = url + i; break; }
+    } else if (len > 0 && url[0] == '/') {
+        slash = url;                     /* a bare path: not the standard, but sent */
+    }
+    if (!slash) return;
+    int n = len - (int)(slash - url);
+    if (n <= 0 || n >= OSC_MAX) return;
+
+    char out[OSC_MAX];
+    int w = 0;
+    for (int i = 0; i < n; i++) {
+        if (slash[i] == '%' && i + 2 < n) {
+            int hi = -1, lo = -1;
+            for (int k = 0; k < 16; k++) {
+                if ("0123456789abcdef"[k] == (slash[i + 1] | 0x20)) hi = k;
+                if ("0123456789abcdef"[k] == (slash[i + 2] | 0x20)) lo = k;
+            }
+            if (hi >= 0 && lo >= 0) {
+                int byte = hi * 16 + lo;
+                /* A NUL or a control byte in a path is not a path. */
+                if (byte < 0x20) return;
+                out[w++] = (char)byte;
+                i += 2;
+                continue;
+            }
+        }
+        out[w++] = slash[i];
+    }
+    out[w] = 0;
+    memcpy(t->cwd, out, (size_t)w + 1);
+}
+
+static void finish_osc(StarlingTerm *t) {
+    t->osc[t->osc_len] = 0;
+    /* `<number> ; <payload>`. Anything else is not addressed to us. */
+    if (t->osc_len > 2 && t->osc[0] == '7' && t->osc[1] == ';') {
+        osc_take_cwd(t, t->osc + 2, t->osc_len - 2);
+    }
+    t->state = ST_GROUND;
+    t->osc_len = 0;
+}
 
 static void process_byte(StarlingTerm *t, uint8_t b) {
     switch (t->state) {

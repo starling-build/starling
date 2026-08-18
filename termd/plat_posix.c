@@ -171,6 +171,13 @@ plat_pty *plat_pty_open(uint16_t cols, uint16_t rows, const char *command) {
         setenv("TERM", "xterm-256color", 1);
         setenv("COLORTERM", "truecolor", 1);
         const char *sh = shell_path();
+        // The shell this session would run with no command, named so a
+        // command CAN run it: a client reopening a pane in its old directory
+        // sends `cd '<dir>' && exec "$STARLING_SHELL"`, and $SHELL is the
+        // wrong answer there — it is the user's preference, while this is
+        // what the daemon actually resolved (STARLING_DEV_SHELL can override
+        // it, and neither may be set at all).
+        setenv("STARLING_SHELL", sh, 1);
         if (command && *command) {
             execl(sh, sh, "-c", command, (char *)NULL);
         } else {
@@ -305,6 +312,8 @@ void plat_sleep_ms(int ms) {
     ts.tv_nsec = (long)(ms % 1000) * 1000000L;
     nanosleep(&ts, NULL);
 }
+
+int plat_posix_shell(void) { return 1; }
 
 int plat_spawn_daemon(int idle_seconds) {
     // Our own path, resolved BEFORE the fork: the child may only make

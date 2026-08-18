@@ -63,6 +63,25 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// the arrangement is the entire promise (see TerminalWorkspace.swift).
     public var reopenIfSessionGone = false
 
+    /// Cap the backlog an ATTACH replays, in bytes. 0 (the default) means
+    /// everything the far side still holds, which is what rebuilds a
+    /// session's scrollback and is worth the wait for ONE session.
+    ///
+    /// A workspace is the case that isn't: six panes attaching at once, each
+    /// entitled to 8 MB, is minutes of blank screen on a slow link when what
+    /// the person wants is to see where they were. See
+    /// TerminalWorkspace.swift, which sets it.
+    public var maxReplayBytes: UInt32 = 0
+
+    /// Consulted at the moment an OPEN is sent, and preferred over the fixed
+    /// `command` this was built with. Called on the transport's thread.
+    ///
+    /// A pane that outlives the session it was attached to is reopened from
+    /// here (see `reopenIfSessionGone`), and what it should run depends on
+    /// where that pane had got to — which nothing knows when the pane is
+    /// built. Anything reading app state from it must take its own lock.
+    public var commandForOpen: (() -> String?)?
+
     /// The ssh destination this transport talks to, for a caller that wants
     /// to rebuild it (a reconnect button) without remembering it.
     public var hostName: String { host }
@@ -193,6 +212,12 @@ public final class RemoteTerminal: @unchecked Sendable {
             p.append(contentsOf: RemoteTerminal.u64(from))
             p.append(contentsOf: RemoteTerminal.u16(UInt16(clamping: c)))
             p.append(contentsOf: RemoteTerminal.u16(UInt16(clamping: r)))
+            // Only on the FIRST attach. A reconnect resumes from a real
+            // offset and asking for a cap there would silently discard what
+            // was missed while the link was down.
+            if maxReplayBytes > 0 && from == 0 {
+                p.append(contentsOf: RemoteTerminal.u32(maxReplayBytes))
+            }
             send(.attach, p)
         } else {
             sendOpen()
@@ -206,8 +231,17 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// no id left to attach by.
     private func sendOpen() {
         lock.lock()
-        let (c, r, cmd) = (cols, rows, command)
+        let (c, r, fixed) = (cols, rows, command)
+        let ask = commandForOpen
         lock.unlock()
+        // Asked for NOW, not remembered from construction. The case this
+        // exists for — the session behind a pane vanished and one is being
+        // opened in its place — happens long after the pane was built, and
+        // what it should run (the directory that pane is in) is only known at
+        // that moment. Holding the string instead means reopening a pane with
+        // whatever was true when it was first created, which for a pane that
+        // was created empty is nothing at all.
+        let cmd = ask?() ?? fixed
         let n = Array((name ?? "").utf8.prefix(RemoteTerminal.maxNameBytes))
         var p = RemoteTerminal.u16(UInt16(clamping: c))
         p.append(contentsOf: RemoteTerminal.u16(UInt16(clamping: r)))

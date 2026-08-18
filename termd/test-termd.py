@@ -315,6 +315,36 @@ def main():
         check("replay from zero starts at zero", first_seq == 0, str(first_seq))
         c.close()
 
+        # …and a client that asks for a CAP gets the tail instead. This is what
+        # keeps a six-pane workspace from replaying eight megabytes per pane on
+        # a slow link. The field is trailing, so the frames above — which do not
+        # send it — must keep meaning exactly what they meant before.
+        cap = Client(sock_path)
+        cap.hello()
+        cap.send(ATTACH, struct.pack("<IQHHI", sid, 0, 80, 24, 8))
+        kind, payload = cap.recv(ATTACHED)
+        capped_from = struct.unpack("<IQ", payload[:12])[1] if kind == ATTACHED else 0
+        check("a capped attach starts near the end, not at zero",
+              kind == ATTACHED and capped_from >= next_off, str(capped_from))
+        short, first_seq, _ = cap.collect(STEP * 1.5)
+        check("a capped attach replays only the tail", b"FIRST" not in short,
+              repr(short[:120]))
+        check("a capped attach is honest about where it starts",
+              first_seq == capped_from or not short,
+              f"{first_seq} != {capped_from}")
+        cap.close()
+
+        # A cap larger than the history is not a truncation — it means "all of
+        # it", the same as leaving the field out.
+        big = Client(sock_path)
+        big.hello()
+        big.send(ATTACH, struct.pack("<IQHHI", sid, 0, 80, 24, 1 << 30))
+        big.recv(ATTACHED)
+        everything, first_seq, _ = big.collect(STEP * 3, until=b"SECOND")
+        check("a cap wider than the ring still replays everything",
+              b"FIRST" in everything and first_seq == 0, str(first_seq))
+        big.close()
+
         # Input reaches the shell, and its echo comes back on the same stream.
         d = Client(sock_path)
         d.hello()

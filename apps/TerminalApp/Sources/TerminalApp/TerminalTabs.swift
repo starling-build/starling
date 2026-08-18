@@ -144,6 +144,10 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         // may be seconds old, and it is the only state here that outlives the
         // process.
         for tab in tabs {
+            // One last record before the flush, so what is stored is where the
+            // panes actually got to rather than where they were at the last
+            // split. A `cd` moves no seam and would otherwise never be written.
+            tab.workspace?.record(tab)
             tab.workspace?.close()
             for pane in tab.panes { pane.session.terminate() }
         }
@@ -265,9 +269,9 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         // tree, and there is no answer that is not arbitrary.
         let placeholders = tab.panes
         var restored: [TerminalPane] = []
-        let root = buildPaneTree(layout.root) { session in
+        let root = buildPaneTree(layout.root) { leaf in
             let pane = _blankPane()
-            workspace.attach(pane, session: session)
+            workspace.attach(pane, session: leaf.session, cwd: leaf.cwd)
             restored.append(pane)
             return pane
         }
@@ -288,6 +292,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     private func _close(_ tab: TerminalTab) {
         guard tabs.count > 1, let index = tabs.firstIndex(where: { $0 === tab })
         else { return }
+        tab.workspace?.record(tab)
         setState {
             tabs.remove(at: index)
             tab.workspace?.close()

@@ -35,9 +35,21 @@
 #define TERMD_MAX_BLOB (16u * 1024u)
 #define TERMD_MAX_WORKSPACES 32
 
+// What a daemon can be asked for, reported as a trailing byte on HELLO_OK. A
+// client that sees a SHORT hello reply is talking to a daemon that predates
+// the byte and must assume nothing.
+//
+// Bit 0: a session's `command` is run by a POSIX shell. It is the client that
+// composes those commands — reopening a pane in its old directory is
+// `cd '<dir>' && exec "$STARLING_SHELL"` — and on a daemon whose shell is
+// cmd.exe that string is not a command, it is a pane that exits before it
+// draws. The daemon knows which it is; the client cannot guess.
+#define TERMD_CAP_POSIX_SHELL 0x01u
+
 enum termd_type {
     TERMD_HELLO = 1,       // → version u16, name
-    TERMD_HELLO_OK = 2,    // ← version u16, session count u16
+    TERMD_HELLO_OK = 2,    // ← version u16, session count u16,
+                           //   caps u8 (OPTIONAL, trailing — see TERMD_CAP_*)
     TERMD_LIST = 3,        // →
     TERMD_LIST_REPLY = 4,  // ← count u16, then count × { id u32, cols u16,
                            //   rows u16, alive u8, seq u64, name_len u16,
@@ -50,7 +62,13 @@ enum termd_type {
                            //   shell, and answers ATTACHED either way. That is
                            //   what makes a name a durable handle: a client
                            //   that lost its id reconnects with the name alone.
-    TERMD_ATTACH = 6,      // → id u32, from_seq u64, cols u16, rows u16
+    TERMD_ATTACH = 6,      // → id u32, from_seq u64, cols u16, rows u16,
+                           //   max_replay u32 (OPTIONAL, trailing): send at
+                           //   most this many bytes of backlog — the tail, not
+                           //   the whole ring. 0 or absent means everything
+                           //   still held. Trailing so a client that predates
+                           //   it is unchanged, and no version bump: a shorter
+                           //   payload is the old meaning exactly.
     TERMD_ATTACHED = 7,    // ← id u32, from_seq u64 (what will actually be sent)
     TERMD_DATA = 8,        // ← seq u64, bytes
     TERMD_INPUT = 9,       // → bytes

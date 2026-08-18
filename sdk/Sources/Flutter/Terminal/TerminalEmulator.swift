@@ -133,6 +133,18 @@ public final class TerminalEmulator {
     public var bracketedPaste: Bool { starling_term_bracketed_paste(_t) != 0 }
     public var generation: UInt64 { starling_term_generation(_t) }
 
+    /// Where the shell last said it is (OSC 7), or nil if it never has.
+    ///
+    /// Plenty of shells emit nothing — bash without a prompt hook, anything
+    /// inside a TUI — so nil is the ordinary answer and means "no idea",
+    /// which is not the same as "/". What reads this stores it so a pane can
+    /// be reopened where it was; see TerminalWorkspace.swift.
+    public var cwd: String? {
+        guard let c = starling_term_cwd(_t) else { return nil }
+        let text = String(cString: c)
+        return text.isEmpty ? nil : text
+    }
+
     /// Readable because the scrollback belongs to the PRIMARY buffer: while a
     /// full-screen app owns the screen there is nothing of its own to scroll
     /// back through, and walking the primary's history would replace the app

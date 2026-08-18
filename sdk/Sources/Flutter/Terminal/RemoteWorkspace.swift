@@ -51,6 +51,17 @@ public final class RemoteWorkspace: @unchecked Sendable {
     /// The far-side workspace id, once WS_CREATE has answered.
     public private(set) var workspaceId: UInt32?
 
+    /// True when the daemon runs a session's command through a POSIX shell —
+    /// which is what says whether a client may compose one. Known from
+    /// HELLO_OK, so it is settled long before `onRestore` fires and a caller
+    /// reading it there is never guessing. False for a daemon too old to say,
+    /// which is the safe answer: it means "send no command you invented".
+    public var serverUsesPosixShell: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return caps & 0x01 != 0
+    }
+    private var caps: UInt8 = 0
+
     /// Fires on the link's thread once the workspace is resolved AND its
     /// stored blob has been read back — everything the client needs to
     /// rebuild the arrangement, in one callback so a caller cannot act on
@@ -277,7 +288,11 @@ public final class RemoteWorkspace: @unchecked Sendable {
 
             switch type {
             case TermdFrame.helloOk.rawValue:
-                break
+                // A daemon that predates the caps byte sends four; assume
+                // nothing of one that says nothing.
+                lock.lock()
+                caps = body.count >= 5 ? body[4] : 0
+                lock.unlock()
 
             case TermdFrame.wsInfo.rawValue:
                 guard body.count >= 6 else { break }

@@ -392,9 +392,15 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         }
         uint16_t count = 0;
         for (int i = 0; i < MAX_SESSIONS; i++) if (g_sessions[i].used) count++;
-        uint8_t reply[4];
+        uint8_t reply[5];
         put_u16(reply, TERMD_PROTOCOL_VERSION);
         put_u16(reply + 2, count);
+        // What this daemon can be ASKED for, trailing so a client that
+        // predates the byte reads the same four it always did. Bit 0 says a
+        // session's command reaches a POSIX shell, which is what decides
+        // whether `cd '<dir>' && exec "$STARLING_SHELL"` is a command or a
+        // pane that dies on sight.
+        reply[4] = plat_posix_shell() ? TERMD_CAP_POSIX_SHELL : 0;
         client_out(c, TERMD_HELLO_OK, reply, sizeof(reply));
         break;
     }
@@ -481,6 +487,17 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         uint64_t oldest = s->head - s->filled;
         if (from < oldest) from = oldest;
         if (from > s->head) from = s->head;
+        // An optional trailing cap: "the last N bytes, not all of it". A
+        // workspace attaching six panes at once over a slow link asks for a
+        // screenful rather than eight megabytes each; a single session leaves
+        // it out and gets everything, which is what rebuilds its scrollback.
+        // Trailing rather than inserted, so a client that predates it still
+        // parses — and ATTACHED already reports the true start, so the gap
+        // this opens is announced by the same path as a rolled ring.
+        if (len >= 20) {
+            uint32_t cap = get_u32(p + 16);
+            if (cap && s->head - from > cap) from = s->head - cap;
+        }
         c->session = id;
         c->sent = from;
         c->acked = from;

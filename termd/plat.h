@@ -150,4 +150,12 @@ int  plat_tty_size(uint16_t *cols, uint16_t *rows);
 // at the bridge would take the daemon and every session with it.
 int plat_spawn_daemon(int idle_seconds);
 
+// Nonzero when a session's `command` is run by a POSIX shell — which decides
+// what a CLIENT may put in one. A client that wants a pane reopened in a
+// directory sends `cd '<dir>' && exec "$STARLING_SHELL"`; on a daemon whose
+// shell is cmd.exe that is not a command, it is a pane that dies on sight. So
+// the daemon says which it is in HELLO_OK and the client asks for what the far
+// side can actually run. termd.c holds no #ifdef; this is why.
+int plat_posix_shell(void);
+
 #endif  // TERMD_PLAT_H

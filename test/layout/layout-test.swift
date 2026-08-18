@@ -45,7 +45,7 @@ struct LayoutTest {
           String(describing: PaneLayout.decode(blob)))
 
     check("leaves keep tree order and their session ids",
-          layout.leaves == [12, 13, 14, 0], "\(layout.leaves)")
+          layout.sessions == [12, 13, 14, 0], "\(layout.sessions)")
 
     check("the focused pane survives", PaneLayout.decode(blob)?.activeLeaf == 2)
 
@@ -60,6 +60,48 @@ struct LayoutTest {
     let single = PaneLayout(root: .leaf(session: 0))
     check("a single pane round-trips",
           PaneLayout.decode(single.encoded()) == single)
+
+    // --- leaves that carry more than a session (format version 2) -------------
+    // The extension region is what keeps a later field from costing an older
+    // client its whole layout, so what matters is not that cwd round-trips —
+    // it is that a reader can walk past what it does not know.
+    let withCwd = PaneLayout(
+        root: .split(axis: .row, ratio: 0.5,
+                     first: .leaf(LeafInfo(session: 3, cwd: "/home/dev/starling")),
+                     second: .leaf(LeafInfo(session: 4, cwd: "/tmp/a b'c"))),
+        activeLeaf: 1)
+    let cwdBlob = withCwd.encoded()
+    check("a leaf's directory round-trips", PaneLayout.decode(cwdBlob) == withCwd,
+          String(describing: PaneLayout.decode(cwdBlob)))
+    check("a quote in a path survives",
+          PaneLayout.decode(cwdBlob)?.leaves[1].cwd == "/tmp/a b'c")
+    check("a relative path is refused at construction",
+          LeafInfo(session: 1, cwd: "relative/path").cwd == nil)
+
+    // A version-1 blob is a tree of bare sessions — still read, because the
+    // client on the other machine may be the older one.
+    let v1: [UInt8] = [0x53, 0x50, 1, 0x02, 0x00,
+                       0x01, 0x00, 0x88, 0x13,          // split, row, 0.5
+                       0x00, 0x07, 0, 0, 0,             // leaf, session 7
+                       0x00, 0x08, 0, 0, 0]             // leaf, session 8
+    check("a version 1 blob still decodes",
+          PaneLayout.decode(v1)?.sessions == [7, 8], String(describing: PaneLayout.decode(v1)))
+    check("a version 1 leaf simply has no directory",
+          PaneLayout.decode(v1)?.leaves.allSatisfy { $0.cwd == nil } == true)
+
+    // The point of the region: an unknown record type is stepped over, and
+    // everything around it still decodes.
+    var unknown: [UInt8] = [0x53, 0x50, 2, 0x00, 0x00,
+                            0x00, 0x05, 0, 0, 0]        // leaf, session 5
+    let payload = Array("whatever a later client stores".utf8)
+    var ext: [UInt8] = [0x7F, UInt8(payload.count & 0xff), UInt8(payload.count >> 8)]
+    ext.append(contentsOf: payload)
+    unknown.append(UInt8(ext.count & 0xff))
+    unknown.append(UInt8(ext.count >> 8))
+    unknown.append(contentsOf: ext)
+    check("a field this client does not know is skipped, not fatal",
+          PaneLayout.decode(unknown)?.sessions == [5],
+          String(describing: PaneLayout.decode(unknown)))
 
     // --- degrade, never fail (plan decision 5) --------------------------------
     var future = blob

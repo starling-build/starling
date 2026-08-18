@@ -435,6 +435,8 @@ int plat_thread_spawn(void (*fn)(void *), void *arg) {
 
 void plat_sleep_ms(int ms) { Sleep((DWORD)ms); }
 
+int plat_posix_shell(void) { return 0; }
+
 int plat_spawn_daemon(int idle_seconds) {
     wchar_t self[MAX_PATH];
     DWORD n = GetModuleFileNameW(NULL, self, MAX_PATH);
