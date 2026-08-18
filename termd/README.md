@@ -175,6 +175,32 @@ widget above it is unchanged — same grid, same keys, same resize.
 `$STARLING_TERMD` the server-side path, for sites where neither is on the
 default PATH.
 
+### Many panes on one host
+
+A workspace pane is its own ssh connection, and that costs about **300 ms of
+handshake each** — paid in parallel, so six panes open in roughly the time one
+does. Turning on ssh's own multiplexing makes each pane cost about **40 ms**
+instead, which is worth having for a workspace you open often:
+
+```
+# ~/.ssh/config
+Host prod-1
+    ControlMaster auto
+    ControlPath   ~/.ssh/cm-%r@%h:%p
+    ControlPersist 60
+```
+
+**Do not do this for a workspace of more than about eight panes.** `ControlMaster`
+puts every pane down one connection, and sshd's `MaxSessions` — 10 by default —
+caps the channels inside a single connection. Pane eleven is refused with
+`Session open refused by peer`, which reads like the pane is broken rather than
+like a limit was reached. Raise `MaxSessions` on the server or leave
+multiplexing off; without it there is no such ceiling, because each pane brings
+its own connection.
+
+This is why the option is a suggestion here rather than something the client
+passes on its own.
+
 If the link drops, the pane says so in its own scrollback and reconnects
 with backoff, resuming at the byte offset it had reached:
 
@@ -183,3 +209,11 @@ tick-11
 [link lost — reconnecting…]
 tick-12
 ```
+
+When a whole workspace loses its tunnel, every pane notices in the same
+millisecond and would otherwise dial out together. sshd counts connections
+that have not finished authenticating and starts refusing them at ten
+(`MaxStartups 10:30:100`), so the client spaces its dials per host — four at
+once, then one every 100 ms. The last pane of a large workspace therefore
+comes back a second or so after the first, which is the price of all of them
+coming back at all.

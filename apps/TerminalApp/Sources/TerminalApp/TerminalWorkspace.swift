@@ -69,9 +69,9 @@ struct WorkspaceSpec: Equatable {
     ///
     /// `--workspace remote:host/ws:dev`, or `STARLING_WORKSPACE` for a shell
     /// that cannot pass argv (the desktop's app records, a `.desktop` Exec
-    /// line someone would rather not edit). This is the entry point the plan
-    /// asks for; it is not yet the launcher the plan pictures, and the day one
-    /// exists it calls the same `_openWorkspace`.
+    /// line someone would rather not edit). The switcher (`⌘O`) is how a
+    /// person reaches a workspace now, and it calls the same `_openWorkspace`;
+    /// this path remains for scripts and for launching straight into one.
     static func fromLaunch() -> WorkspaceSpec? {
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--workspace"), i + 1 < args.count,
