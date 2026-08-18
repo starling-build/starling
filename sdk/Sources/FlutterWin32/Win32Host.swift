@@ -72,6 +72,14 @@ public final class Win32Host {
         return id > 0 ? Int(id) : nil
     }
 
+    /// The same for a file — an executable, or a Start Menu `.lnk`, whose icon
+    /// is a property of the shortcut. This is how the dock draws an app that
+    /// is not running and so has no window to ask.
+    public func registerIconTexture(path: String, size: Int = 48) -> Int? {
+        let id = flwin32_host_register_icon_texture_path(host, path, Int32(size))
+        return id > 0 ? Int(id) : nil
+    }
+
     /// Releases a texture from `registerIconTexture`. Safe to call with an id
     /// that is already gone.
     public func unregisterTexture(_ id: Int) {
@@ -86,7 +94,8 @@ public final class Win32Host {
         flwin32_host_set_panel(host, placement.edge.rawValue,
                                Int32(placement.thickness),
                                Int32(placement.monitor ?? -1),
-                               placement.takesFocus ? 1 : 0)
+                               placement.takesFocus ? 1 : 0,
+                               placement.transparent ? 1 : 0)
         // After set_panel, never before: the appbar reserves the geometry the
         // panel was just given, and registering first would reserve the
         // window's pre-panel rectangle.

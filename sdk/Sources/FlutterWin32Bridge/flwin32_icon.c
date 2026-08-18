@@ -134,18 +134,16 @@ static HBITMAP draw_icon_dib(HICON icon, int size, UINT flags, void** out_bits) 
     return dib;
 }
 
-int32_t flwin32_icon_rasterize(uint64_t window,
-                               int32_t size,
-                               uint8_t** out_pixels,
-                               int32_t* out_width,
-                               int32_t* out_height) {
-    HWND hwnd = (HWND)(uintptr_t)window;
-    if (hwnd == NULL || !IsWindow(hwnd) || out_pixels == NULL) return 0;
+/* The shared core: an HICON to premultiplied RGBA. `owned` says whether this
+ * function should destroy the icon when it is done with it. */
+static int32_t rasterize(HICON icon,
+                         int owned,
+                         int32_t size,
+                         uint8_t** out_pixels,
+                         int32_t* out_width,
+                         int32_t* out_height) {
+    if (icon == NULL || out_pixels == NULL) return 0;
     if (size <= 0 || size > 512) size = 32;
-
-    int owned = 0;
-    HICON icon = icon_for_window(hwnd, &owned);
-    if (icon == NULL) return 0;
 
     void* colour_bits = NULL;
     HBITMAP colour = draw_icon_dib(icon, size, DI_NORMAL, &colour_bits);
@@ -210,6 +208,45 @@ int32_t flwin32_icon_rasterize(uint64_t window,
     if (out_width != NULL) *out_width = size;
     if (out_height != NULL) *out_height = size;
     return 1;
+}
+
+int32_t flwin32_icon_rasterize(uint64_t window,
+                               int32_t size,
+                               uint8_t** out_pixels,
+                               int32_t* out_width,
+                               int32_t* out_height) {
+    HWND hwnd = (HWND)(uintptr_t)window;
+    if (hwnd == NULL || !IsWindow(hwnd)) return 0;
+    int owned = 0;
+    HICON icon = icon_for_window(hwnd, &owned);
+    return rasterize(icon, owned, size, out_pixels, out_width, out_height);
+}
+
+int32_t flwin32_icon_rasterize_path(const char* path,
+                                    int32_t size,
+                                    uint8_t** out_pixels,
+                                    int32_t* out_width,
+                                    int32_t* out_height) {
+    if (path == NULL) return 0;
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+
+    /* SHGetFileInfoW rather than ExtractIconEx: the path is usually a .lnk,
+     * and a shortcut's icon is a property of the shortcut (it may point at a
+     * different file, or carry an overlay) rather than of whatever it starts.
+     * This is the icon Explorer draws for that entry. */
+    SHFILEINFOW info;
+    memset(&info, 0, sizeof(info));
+    UINT flags = SHGFI_ICON | (size > 24 ? SHGFI_LARGEICON : SHGFI_SMALLICON);
+    DWORD_PTR ok = SHGetFileInfoW(wide, 0, &info, sizeof(info), flags);
+    free(wide);
+    if (ok == 0 || info.hIcon == NULL) return 0;
+
+    /* SHGetFileInfo's icon is the caller's to destroy. */
+    return rasterize(info.hIcon, 1, size, out_pixels, out_width, out_height);
 }
 
 void flwin32_icon_free(uint8_t* pixels) {

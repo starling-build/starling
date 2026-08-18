@@ -1,420 +1,67 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Starling shell chrome on Windows — the desktop port's prototype bar.
+// Starling shell chrome on Windows — the desktop port's prototype shell.
 //
-// Phase 0 proved the five things a bar needs from the HOST rather than from
+// Phase 0 proved the five things a panel needs from the HOST rather than from
 // the UI: an undecorated topmost edge-anchored window (WS_POPUP +
-// WS_EX_TOOLWINDOW | WS_EX_TOPMOST), monitor geometry, the Starling look
-// through the Win32 embedder, a periodic timer reaching the UI thread through
-// the message loop, and an appbar reservation so maximized windows stop below
-// the strip instead of sliding under it.
+// WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE), monitor geometry, the
+// Starling look through the Win32 embedder, a periodic timer reaching the UI
+// thread through the message loop, and an appbar reservation so maximized
+// windows stop at the strip instead of sliding under it.
 //
-// Phase 1 is this file's current job: WINDOW MANAGEMENT. DWM cannot be
-// replaced, so a Starling shell on Windows never owns anyone's pixels — it
-// owns their geometry. The bar therefore lists the windows that exist, says
-// which has focus, raises one on click, and tiles them all across the work
-// area. That is the whole of what the desktop's `WindowManager.swift` asks a
-// platform for, exercised end to end through `Win32WindowManager`.
+// Phase 1 is window management, because DWM cannot be replaced: a Starling
+// shell on Windows never owns anyone's pixels, it owns their GEOMETRY. What
+// grew on top of that is a shell rather than a demo — a menu bar with a live
+// taskbar (Bar.swift) and a dock over the Start Menu's own app catalog
+// (Dock.swift).
+//
+// ONE SURFACE PER PROCESS. The Flutter framework mounts a single root and the
+// Win32 host owns a single window, so the bar and the dock are two runs of
+// this binary rather than two windows of one — the same shape the Linux shell
+// uses for its per-output shells:
+//
+//   WinShellBar.exe            the menu bar, top edge
+//   WinShellBar.exe --dock     the dock, bottom edge
 //
 //   swift build -c release --product WinShellBar
 
 #if os(Windows)
-// MacosIcon, not Icon: the desktop is macOS-shaped by standing direction
-// (see the shell's CLAUDE.md), and the shell's own status bar uses it.
-import CupertinoIcons
 import Flutter
 import FlutterSwiftBridge
 import FlutterWin32
 import Foundation
 
-/// Bar height in LOGICAL POINTS. The host multiplies by the monitor's scale
-/// and redoes it on a scale change, so this is 44px on the 100% VM and 88px
-/// on a 200% laptop panel with the widget tree seeing 44 either way.
-let kBarHeight = 44
-
-/// Width of one window button, and how many fit before the rest collapse into
-/// a "+N" tail. Deliberately a constant rather than a measured layout: the
-/// bar is one row and the alternative is a scroll view nobody can use with a
-/// pointer that has no wheel focus there.
-let kButtonWidth = 168.0
-let kMaxButtons = 7
-
-/// Gap between tiled windows, in logical points — scaled to pixels at use,
-/// because window geometry is the one place this file speaks physical. It is
-/// applied on every edge, so adjacent windows are two gaps apart, the same
-/// convention the Linux shell's tiler uses.
-let kTileGap = 8
-
-final class StarlingBar: StatefulWidget {
-    override func createState() -> State<StatefulWidget> { StarlingBarState() }
-}
-
-final class StarlingBarState: State<StatefulWidget> {
-    private var now = Date()
-    private var timer: AnyObject?
-
-    /// The windows, in a STABLE order — see `merge`. `Win32WindowManager`
-    /// hands them back in z-order, which is right for Alt+Tab and wrong for a
-    /// taskbar: buttons would swap places under the pointer every time focus
-    /// moved, so clicking the same window twice would hit two different ones.
-    private var windows: [Win32Window] = []
-    /// Set while a refresh is already queued: a single new window fires
-    /// CREATE, SHOW, FOREGROUND and NAMECHANGE in a burst, and each one would
-    /// otherwise walk every top-level window in the session.
-    private var refreshQueued = false
-
-    /// Engine texture ids for the apps' own icons, keyed by executable rather
-    /// than by window: five Explorer windows are one icon, and a texture per
-    /// window would rasterize the same PNG five times and leak four of them
-    /// every time a window closed.
-    private var iconTextures: [String: Int] = [:]
-    /// Keys we have already failed on. Without this, a window whose icon
-    /// cannot be resolved is re-rasterized on every single refresh.
-    private var iconAttempted: Set<String> = []
-
-    override func initState() {
-        super.initState()
-        // Without this every MacosIcon draws as a tofu box: the icon glyphs
-        // live in CupertinoIcons.ttf, which is a SwiftPM resource loaded at
-        // runtime, not something the engine's flutter_assets carries.
-        CupertinoIcons.registerFont()
-
-        windows = Win32WindowManager.windows()
-        syncIcons(windows)
-
-        // Hooks attach to the calling THREAD, so this has to happen here —
-        // inside the tree's initState, which runs on the UI thread the
-        // message loop owns — and not beside runStarlingApp.
-        let watching = Win32WindowManager.observe { [weak self] _ in
-            self?.queueRefresh()
-        }
-        if !watching {
-            FileHandle.standardError.write(Data(
-                "[WinShellBar] SetWinEventHook refused; the window list will not follow changes\n".utf8))
-        }
-
-        // Through hostPeriodicTimerInstall rather than Foundation.Timer: on
-        // the DRM embedder a Foundation timer never fires at all (see the
-        // desktop's CLAUDE.md), and going through the host keeps every
-        // backend honest about which loop the UI thread is really running.
-        timer = startPeriodicTimer(seconds: 1.0) { [weak self] in
-            guard let self else { return }
-            setState { self.now = Date() }
-        }
-    }
-
-    override func dispose() {
-        Win32WindowManager.stopObserving()
-        for id in iconTextures.values { Win32WindowedHost.host?.unregisterTexture(id) }
-        iconTextures.removeAll()
-        super.dispose()
-    }
-
-    // MARK: - Icons
-
-    /// What an icon is cached under. The executable, so windows of the same
-    /// app share one texture; the handle only for a window whose process
-    /// would not open (a service, or a higher integrity level), where sharing
-    /// would be wrong anyway.
-    private func iconKey(_ window: Win32Window) -> String {
-        window.executablePath.isEmpty
-            ? "hwnd:\(window.handle)" : window.executablePath.lowercased()
-    }
-
-    /// Registers a texture for anything new, and releases the textures of
-    /// apps that have no windows left. Called from the refresh, so an app
-    /// closing gives its icon back rather than holding it for the session.
-    private func syncIcons(_ windows: [Win32Window]) {
-        var live: Set<String> = []
-        for window in windows {
-            let key = iconKey(window)
-            live.insert(key)
-            guard iconTextures[key] == nil, !iconAttempted.contains(key) else { continue }
-            iconAttempted.insert(key)
-            // 32px for a 16pt slot: the icon is downscaled rather than
-            // stretched, which is the difference between a crisp glyph and a
-            // blurry one on a 100% display.
-            if let id = Win32WindowedHost.host?.registerIconTexture(
-                window: window.handle, size: 32) {
-                iconTextures[key] = id
-            }
-        }
-        for (key, id) in iconTextures where !live.contains(key) {
-            Win32WindowedHost.host?.unregisterTexture(id)
-            iconTextures.removeValue(forKey: key)
-            iconAttempted.remove(key)
-        }
-    }
-
-    // MARK: - The window list
-
-    private func queueRefresh() {
-        guard !refreshQueued else { return }
-        refreshQueued = true
-        // The Win32 host drains the GCD main queue from its message loop, so
-        // this lands back on this same thread once the current burst of
-        // events has been dispatched.
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            refreshQueued = false
-            let fresh = Win32WindowManager.windows()
-            syncIcons(fresh)
-            setState { self.windows = self.merge(fresh) }
-        }
-    }
-
-    /// Keeps a window where it already was and appends the newcomers, so a
-    /// button never moves out from under the pointer. Windows that went away
-    /// simply fall out — they are absent from `fresh`.
-    private func merge(_ fresh: [Win32Window]) -> [Win32Window] {
-        var byHandle: [UInt64: Win32Window] = [:]
-        for w in fresh { byHandle[w.handle] = w }
-
-        var ordered: [Win32Window] = []
-        ordered.reserveCapacity(fresh.count)
-        var placed = Set<UInt64>()
-        for old in windows {
-            if let still = byHandle[old.handle] {
-                ordered.append(still)
-                placed.insert(old.handle)
-            }
-        }
-        for w in fresh where !placed.contains(w.handle) {
-            ordered.append(w)
-        }
-        return ordered
-    }
-
-    // MARK: - Actions
-
-    /// Lays every non-minimized window out in a grid — one grid PER MONITOR,
-    /// over that monitor's work area.
-    ///
-    /// Grouping by the monitor a window is already on matters as soon as
-    /// there are two: tiling everything into the primary would drag every
-    /// window off the second screen, which is what "tile" means on a
-    /// one-monitor desktop and never what it means on two.
-    ///
-    /// The work area, not the monitor rectangle: it is already the screen
-    /// minus explorer's taskbar and minus our own appbar strip, so the tiling
-    /// lands under the bar without this code knowing the bar exists.
-    private func tileAll() {
-        let visible = windows.filter { !$0.isMinimized }
-        guard !visible.isEmpty else { return }
-
-        var byMonitor: [Int: [Win32Window]] = [:]
-        for window in visible {
-            // A window Windows will not place on any monitor still has to go
-            // somewhere; the primary is where it would have been dragged.
-            byMonitor[window.monitor ?? 0, default: []].append(window)
-        }
-        let scales = Dictionary(uniqueKeysWithValues:
-            Win32Display.monitors().map { ($0.index, $0.scale) })
-        for monitor in byMonitor.keys.sorted() {
-            tile(byMonitor[monitor]!, on: monitor, scale: scales[monitor] ?? 1.0)
-        }
-        queueRefresh()
-    }
-
-    private func tile(_ group: [Win32Window], on monitor: Int, scale: Double) {
-        guard let area = Win32WindowManager.workArea(monitor: monitor) else { return }
-
-        // Window rectangles are physical pixels — they are other people's
-        // windows on other people's monitors, and there is no single logical
-        // space spanning a mixed-DPI desktop. So the gap is scaled here, per
-        // monitor, rather than once for the whole desktop.
-        let gap = Int((Double(kTileGap) * scale).rounded())
-
-        let columns = Int(ceil(Double(group.count).squareRoot()))
-        let rows = Int(ceil(Double(group.count) / Double(columns)))
-        let cellHeight = (area.height - gap * (rows + 1)) / rows
-
-        var index = 0
-        for row in 0..<rows {
-            // The last row takes whatever is left and stretches across the
-            // full width, rather than leaving a hole where a cell would have
-            // been. Three windows tile as two over one, not two over one and
-            // a gap.
-            let inRow = min(columns, group.count - index)
-            let cellWidth = (area.width - gap * (inRow + 1)) / inRow
-            for column in 0..<inRow {
-                let window = group[index]
-                Win32WindowManager.move(window.handle, to: Win32Rect(
-                    x: area.x + gap + column * (cellWidth + gap),
-                    y: area.y + gap + row * (cellHeight + gap),
-                    width: cellWidth,
-                    height: cellHeight))
-                index += 1
-            }
-        }
-    }
-
-    // MARK: - Build
-
-    private func clockText() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "h:mm  EEE d MMM"
-        return f.string(from: now)
-    }
-
-    /// The fallback glyph, for an app whose own icon would not resolve —
-    /// chosen from the executable name rather than the title, because Windows
-    /// has no `app_id` and a title is a document (the desktop's own notes
-    /// make the same point about `untitled – Main.java`).
-    private func glyph(for window: Win32Window) -> IconData {
-        switch window.appName.lowercased() {
-        case "chrome", "msedge", "firefox", "brave": return CupertinoIcons.globe
-        case "explorer": return CupertinoIcons.folder
-        case "code", "devenv", "notepad", "idea64": return CupertinoIcons.doc_text
-        case "windowsterminal", "cmd", "powershell", "pwsh", "conhost":
-            return CupertinoIcons.chevron_left_slash_chevron_right
-        default: return CupertinoIcons.app_badge
-        }
-    }
-
-    private func windowButton(_ window: Win32Window) -> Widget {
-        // ColoredBox inside ClipRRect rather than a BoxDecoration: the fill
-        // is flat and the only thing wanted from the decoration would be the
-        // radius, which the clip already gives.
-        let fill = window.isForeground ? Color(0x33FFFFFF)
-            : window.isMinimized ? Color(0x0AFFFFFF) : Color(0x18FFFFFF)
-        let ink = window.isMinimized ? Color(0xFF8E96A3) : Color(0xFFE6EAF0)
-
-        return GestureDetector(
-            // Clicking the focused window's own button minimizes it, the way
-            // every taskbar since Windows 95 has behaved.
-            onTap: {
-                if window.isForeground {
-                    Win32WindowManager.minimize(window.handle)
-                } else {
-                    Win32WindowManager.activate(window.handle)
-                }
-                self.queueRefresh()
-            },
-            // Middle-click closes. Secondary (right) would want a MacosMenu,
-            // which is the next thing this bar grows.
-            onTertiaryTapUp: { _ in
-                Win32WindowManager.close(window.handle)
-                self.queueRefresh()
-            },
-            child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 0)) {
-                ClipRRect(borderRadius: BorderRadius.circular(6)) {
-                    ColoredBox(color: fill) {
-                        SizedBox(width: kButtonWidth, height: 30) {
-                            Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0)) {
-                                Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 7) {
-                                    if let texture = iconTextures[iconKey(window)] {
-                                        // Drawn at full strength even when the
-                                        // window is minimized. An Opacity of
-                                        // 0.45 over this made the icon vanish
-                                        // outright rather than dim — anything
-                                        // below 1.0 pushes the tree through a
-                                        // saveLayer, and an external texture
-                                        // does not survive one on this
-                                        // embedder. The dimmed label and the
-                                        // darker button fill carry the state
-                                        // instead, which is what they were
-                                        // already doing.
-                                        SizedBox(width: 16, height: 16) {
-                                            TextureWidget(textureId: texture)
-                                        }
-                                    } else {
-                                        MacosIcon(icon: glyph(for: window), color: ink, size: 13)
-                                    }
-                                    Expanded {
-                                        Text(window.title,
-                                             style: TextStyle(color: ink, fontSize: 12),
-                                             overflow: .ellipsis,
-                                             maxLines: 1)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            })
-    }
-
-    private func barButton(_ icon: IconData, _ action: @escaping () -> Void) -> Widget {
-        GestureDetector(
-            onTap: action,
-            child: Padding(padding: EdgeInsets(left: 2, top: 0, right: 2, bottom: 0)) {
-                ClipRRect(borderRadius: BorderRadius.circular(6)) {
-                    ColoredBox(color: Color(0x18FFFFFF)) {
-                        SizedBox(width: 30, height: 30) {
-                            Center {
-                                MacosIcon(icon: icon, color: Color(0xFFD5DAE3), size: 15)
-                            }
-                        }
-                    }
-                }
-            })
-    }
-
-    override func build(_ context: any BuildContext) -> Widget {
-        let shown = Array(windows.prefix(kMaxButtons))
-        let hidden = windows.count - shown.count
-
-        // The desktop's own menu-bar palette: near-black with a hairline
-        // under it, so it reads as chrome against any wallpaper.
-        // Directionality is an inherited widget and has no trailing-closure
-        // overload — the ported `child:` spelling is the only one for it.
-        return Directionality(
-            textDirection: .ltr,
-            child: ColoredBox(color: Color(0xF01B1D22)) {
-                Padding(padding: EdgeInsets(left: 14, top: 0, right: 14, bottom: 0)) {
-                    Row(crossAxisAlignment: .center) {
-                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
-                            MacosIcon(icon: CupertinoIcons.sparkles, color: Color(0xFF7FB0FF), size: 16)
-                            Text("Starling",
-                                 style: TextStyle(color: Color(0xFFFFFFFF),
-                                                  fontSize: 13,
-                                                  fontWeight: .w600))
-                        }
-                        Expanded {
-                            Padding(padding: EdgeInsets(left: 18, top: 0, right: 18, bottom: 0)) {
-                                Row(mainAxisSize: .min, crossAxisAlignment: .center) {
-                                    for window in shown { windowButton(window) }
-                                    if hidden > 0 {
-                                        Text("+\(hidden)",
-                                             style: TextStyle(color: Color(0xFF8E96A3), fontSize: 12))
-                                    }
-                                }
-                            }
-                        }
-                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 4) {
-                            barButton(CupertinoIcons.square_grid_2x2) { self.tileAll() }
-                            MacosIcon(icon: CupertinoIcons.wifi, color: Color(0xFFD5DAE3), size: 15)
-                            MacosIcon(icon: CupertinoIcons.battery_full, color: Color(0xFFD5DAE3), size: 17)
-                            Padding(padding: EdgeInsets(left: 6, top: 0, right: 0, bottom: 0)) {
-                                Text(clockText(),
-                                     style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
-                            }
-                        }
-                    }
-                }
-            })
-    }
-}
-
 Win32WindowedHost.install()
 
-// Span the primary monitor. Reading the geometry rather than assuming 1920
-// is the point — a bar sized to the wrong screen is the first thing that goes
-// wrong on a laptop plus an external. Logical, because runStarlingApp's size
-// is a client size in points; the panel restyle overrides it a moment later
-// with the real edge geometry anyway.
-let screen = Win32Display.primary()
-let barWidth = Int(screen?.logicalWidth ?? 1280)
-print("[WinShellBar] monitors: \(Win32Display.monitors())")
+let wantsDock = CommandLine.arguments.contains("--dock")
 
-// takesFocus stays at its default of false: clicking a taskbar button must
-// not take the keyboard off the window the click is about to raise.
-Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
-                                         reserveSpace: true)
-runStarlingApp(title: "Starling Bar", width: barWidth, height: kBarHeight) {
-    StarlingBar()
+// Span the primary monitor. Reading the geometry rather than assuming 1920
+// is the point — a panel sized to the wrong screen is the first thing that
+// goes wrong on a laptop plus an external. Logical, because runStarlingApp's
+// size is a client size in points; the panel restyle overrides it a moment
+// later with the real edge geometry anyway.
+let screen = Win32Display.primary()
+let panelWidth = Int(screen?.logicalWidth ?? 1280)
+print("[WinShell] monitors: \(Win32Display.monitors())")
+
+// takesFocus stays at its default of false for both: clicking a taskbar
+// button or a dock icon must not take the keyboard off the window the click
+// is about to raise.
+if wantsDock {
+    // transparent: the dock is a slab floating over the wallpaper, so the
+    // strip around it has to be a hole rather than a black band.
+    Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,
+                                             reserveSpace: true, transparent: true)
+    runStarlingApp(title: "Starling Dock", width: panelWidth, height: kDockHeight) {
+        StarlingDock()
+    }
+} else {
+    Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
+                                             reserveSpace: true)
+    runStarlingApp(title: "Starling Bar", width: panelWidth, height: kBarHeight) {
+        StarlingBar()
+    }
 }
 
 #else

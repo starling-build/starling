@@ -94,14 +94,25 @@ public struct PanelPlacement: Sendable {
     /// Turn it on only for a panel that has a text field of its own — a
     /// launcher, a search bar.
     public let takesFocus: Bool
+    /// Whether pure black in the tree is a hole rather than a colour.
+    ///
+    /// A dock is a slab floating over the wallpaper, so its window is the
+    /// full strip and most of that has to disappear; a menu bar fills its
+    /// strip and does not want this. The engine's swap chain is opaque, so
+    /// this is a colour key rather than per-pixel alpha — which is why it
+    /// costs the ability to paint true black here. Every Starling surface is
+    /// a near-black, so nothing real is lost.
+    public let transparent: Bool
 
     public init(edge: PanelEdge, thickness: Int, monitor: Int? = nil,
-                reserveSpace: Bool = false, takesFocus: Bool = false) {
+                reserveSpace: Bool = false, takesFocus: Bool = false,
+                transparent: Bool = false) {
         self.edge = edge
         self.thickness = thickness
         self.monitor = monitor
         self.reserveSpace = reserveSpace
         self.takesFocus = takesFocus
+        self.transparent = transparent
     }
 }
 #endif

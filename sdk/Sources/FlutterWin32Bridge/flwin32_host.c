@@ -61,6 +61,7 @@ struct FlWin32Host {
   int panel_thickness_pt;
   int panel_monitor;
   int panel_takes_focus;
+  int panel_transparent;
   // External textures we handed the engine, so their pixel buffers can be
   // freed on unregister. Swift only ever sees the int64 id.
   struct HostTextureSlot* textures;
@@ -758,7 +759,24 @@ static void panel_apply_placement(FlWin32Host* host) {
   } else {
     ex |= WS_EX_NOACTIVATE;
   }
+  if (host->panel_transparent) ex |= WS_EX_LAYERED;
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex);
+
+  // Transparency by COLOUR KEY, and pure black is the key.
+  //
+  // A dock is a slab floating over the wallpaper, not a bar welded to the
+  // edge — so the panel window is the full strip and most of it has to
+  // disappear. The engine's swap chain is opaque, so per-pixel alpha is not
+  // on offer; LWA_COLORKEY is, and it costs nothing. Anything the tree paints
+  // as 0x00000000 vanishes, and clicks there fall through to whatever is
+  // behind, which is what an empty stretch of dock strip should do.
+  //
+  // The cost is that pure black is now unpaintable in a transparent panel.
+  // Every Starling surface is a near-black (0x1B1D22), so nothing real is
+  // lost — but a panel that wants true black has to say transparent: false.
+  if (host->panel_transparent) {
+    SetLayeredWindowAttributes(host->window, RGB(0, 0, 0), 255, LWA_COLORKEY);
+  }
   SetWindowPos(host->window, HWND_TOPMOST, x, y, w, h,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
 
@@ -781,13 +799,15 @@ void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t edge,
                             int32_t thickness,
                             int32_t monitor,
-                            int32_t takes_focus) {
+                            int32_t takes_focus,
+                            int32_t transparent) {
   if (host == NULL || host->window == NULL) return;
   host->panel_active = 1;
   host->panel_edge = edge;
   host->panel_thickness_pt = thickness;
   host->panel_monitor = monitor;
   host->panel_takes_focus = takes_focus ? 1 : 0;
+  host->panel_transparent = transparent ? 1 : 0;
   panel_apply_placement(host);
 }
 
@@ -912,15 +932,14 @@ static FlutterDesktopTextureRegistrarRef host_texture_registrar(
   return FlutterDesktopEngineGetTextureRegistrar(engine);
 }
 
-int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
-                                           uint64_t window,
-                                           int32_t size) {
+// Both icon entry points land here; only the rasterize call differs.
+static int64_t register_pixels(FlWin32Host* host,
+                               uint8_t* pixels,
+                               int32_t width,
+                               int32_t height) {
   FlutterDesktopTextureRegistrarRef registrar = host_texture_registrar(host);
-  if (registrar == NULL) return -1;
-
-  uint8_t* pixels = NULL;
-  int32_t width = 0, height = 0;
-  if (!flwin32_icon_rasterize(window, size, &pixels, &width, &height)) {
+  if (registrar == NULL) {
+    flwin32_icon_free(pixels);
     return -1;
   }
 
@@ -967,6 +986,28 @@ int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
   // pulls a buffer once it has been told there is one.
   FlutterDesktopTextureRegistrarMarkExternalTextureFrameAvailable(registrar, id);
   return id;
+}
+
+int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
+                                           uint64_t window,
+                                           int32_t size) {
+  if (host == NULL) return -1;
+  uint8_t* pixels = NULL;
+  int32_t width = 0, height = 0;
+  if (!flwin32_icon_rasterize(window, size, &pixels, &width, &height)) return -1;
+  return register_pixels(host, pixels, width, height);
+}
+
+int64_t flwin32_host_register_icon_texture_path(FlWin32Host* host,
+                                                const char* path,
+                                                int32_t size) {
+  if (host == NULL) return -1;
+  uint8_t* pixels = NULL;
+  int32_t width = 0, height = 0;
+  if (!flwin32_icon_rasterize_path(path, size, &pixels, &width, &height)) {
+    return -1;
+  }
+  return register_pixels(host, pixels, width, height);
 }
 
 void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id) {

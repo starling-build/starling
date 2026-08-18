@@ -73,11 +73,17 @@ void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen);
 // `takes_focus` = 0 gives the window WS_EX_NOACTIVATE, which is what makes it
 // chrome: clicking it does not move the keyboard away from whatever the user
 // was typing in. Pass non-zero only for a panel that has a text field.
+//
+// `transparent` makes anything the tree paints as pure black disappear, and
+// lets clicks there fall through — how a dock floats over the wallpaper
+// instead of sitting in a black strip. It costs the ability to paint true
+// black in that panel.
 void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t edge,
                             int32_t thickness,
                             int32_t monitor,
-                            int32_t takes_focus);
+                            int32_t takes_focus,
+                            int32_t transparent);
 
 // Register (or remove) the window as an appbar, so Windows reserves the strip
 // and maximized windows stop at it. Call after flwin32_host_set_panel, which
@@ -235,6 +241,13 @@ int32_t flwin32_icon_rasterize(uint64_t window,
                                uint8_t** out_pixels,
                                int32_t* out_width,
                                int32_t* out_height);
+// The same, for a file — an .exe, or (usually) a Start Menu .lnk, whose icon
+// is a property of the shortcut rather than of what it starts.
+int32_t flwin32_icon_rasterize_path(const char* path,
+                                    int32_t size,
+                                    uint8_t** out_pixels,
+                                    int32_t* out_width,
+                                    int32_t* out_height);
 void flwin32_icon_free(uint8_t* pixels);
 
 // Rasterizes the icon and registers it with the engine as an external
@@ -250,7 +263,40 @@ int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
 // pixels. Unregistration is asynchronous inside the engine; the free happens
 // in its completion callback, so the buffer outlives any frame still in
 // flight.
+int64_t flwin32_host_register_icon_texture_path(FlWin32Host* host,
+                                                const char* path,
+                                                int32_t size);
+
 void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id);
+
+// ── installed applications ──────────────────────────────────────────────────
+//
+// Windows has no app registry the way Starling does on Linux. What it has is
+// the START MENU: a tree of .lnk shortcuts in a machine-wide folder and a
+// per-user one. That is the catalog Explorer itself reads, and the one the
+// dock and the launcher enumerate.
+
+// Resolves a .lnk to the path it starts. UTF-8 out, the usual convention:
+// bytes written including the terminator, 0 when it is not a shortcut we can
+// read, -1 when `out` is too small.
+//
+// A .lnk is a structured binary file, not a symlink; IShellLink is the only
+// supported way to read one, and the target may be an item-ID list rather
+// than a path, which nothing but the shell can resolve.
+int32_t flwin32_shortcut_target(const char* shortcut_path,
+                                char* out,
+                                int32_t out_size);
+
+// The Start Menu program folders: 0 = machine-wide, 1 = this user's. Both are
+// needed — an app installed for all users is only in the first, and one
+// installed for the current user only in the second, which on a modern
+// Windows is most of them.
+int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size);
+
+// Starts an app, document or URL through the shell (ShellExecuteW), which is
+// the only thing that knows how to open a .lnk. `arguments` may be NULL.
+// Returns non-zero on success.
+int32_t flwin32_launch(const char* path, const char* arguments);
 
 #ifdef __cplusplus
 }
