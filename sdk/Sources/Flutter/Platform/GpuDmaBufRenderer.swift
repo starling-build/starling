@@ -2223,6 +2223,14 @@ public class GpuDmaBufRenderer {
                         continue
                     }
 
+                    // Window activation. Not routed through the single-slot
+                    // onXChanged callbacks above: the framework listens to
+                    // this one too (TerminalView), so it fans out instead.
+                    if inputEvent.type == DMABUF_CONTROL_SET_ACTIVE {
+                        WindowActivation.set(inputEvent.x > 0.5)
+                        continue
+                    }
+
                     if inputEvent.type == DMABUF_DISPLAY_NAME {
                         GpuDmaBufRenderer.receiveDisplayNameChunk(
                             inputEvent.buttons, index: Int(inputEvent.x))

@@ -1105,6 +1105,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         #if os(Linux)
         linuxProcessAppManager?.currentWallpaper = wallpaperPreset.rawValue
         #endif
+        #if os(Linux)
+        // Focus moves: tell the child that lost it and the child that gained
+        // it. Nothing else reaches a first-party app with this news — it is
+        // only ever handed input while it is the focused window — so without
+        // this a terminal behind another window went on blinking its cursor.
+        // The window id is resolved to a texture here rather than in the
+        // manager, which knows nothing about windows.
+        windowManager.onFocusedWindowChanged = { [weak self] _, gained in
+            guard let self, let mgr = linuxProcessAppManager else { return }
+            let texture = gained.flatMap { id in
+                self.windowManager.windows.first(where: { $0.id == id })?.textureId
+            }
+            mgr.setActiveWindow(textureId: texture.map(Int64.init))
+        }
+        #endif
         windowManager.onWindowsChanged = { [weak self] in
             guard let self else { return }
             self.windowManager.retileAll(

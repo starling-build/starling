@@ -190,6 +190,11 @@ class LinuxProcessAppManager {
     /// `broadcastRdp`).
     nonisolated(unsafe) var currentRdpEnabled: Bool = false
 
+    /// The texture of the window the desktop currently has focused, pushed to
+    /// children at connect so one launched into the BACKGROUND starts out
+    /// knowing (kept in sync by `setActiveWindow`). nil = none focused.
+    nonisolated(unsafe) var currentActiveTextureId: Int64? = nil
+
     private let pendingRdpRequests = AtomicBox<[Bool]>([])
 
     /// Fired on the platform thread when a child (SettingsApp's Displays pane)
@@ -288,6 +293,8 @@ class LinuxProcessAppManager {
                 sendScreensaver(textureId: texId, seconds: currentScreensaverIdle)
                 sendRdp(textureId: texId)
                 sendDisplays(textureId: texId)
+                sendActive(textureId: texId,
+                           active: texId == currentActiveTextureId)
 
                 if launch.cpu {
                     // No DRM device on the child's side: its frames arrive
@@ -883,6 +890,34 @@ class LinuxProcessAppManager {
         for texId in apps.keys {
             sendTheme(textureId: texId, dark: dark)
         }
+    }
+
+    /// Tells one child whether its window is the focused one.
+    ///
+    /// A child cannot infer this: the shell only routes input to the focused
+    /// window, so "no keys lately" reads the same as an idle user. Anything
+    /// that has to go quiet behind another window needs telling — see
+    /// DMABUF_CONTROL_SET_ACTIVE.
+    func sendActive(textureId: Int64, active: Bool) {
+        guard let entry = apps[textureId] else { return }
+        var event = DmaBufInputEvent(x: active ? 1 : 0, y: 0, buttons: 0,
+                                     type: Int32(DMABUF_CONTROL_SET_ACTIVE),
+                                     phase: 0)
+        entry.sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
+
+    /// Focus moved: deactivate whoever held it, activate whoever has it now.
+    ///
+    /// Both halves matter, and the old one especially — a child told only
+    /// about gaining focus never learns it lost it, which is the whole bug
+    /// this exists for. Sending to a texture that has gone away is a no-op,
+    /// so a window closing needs no special case.
+    func setActiveWindow(textureId: Int64?) {
+        let previous = currentActiveTextureId
+        guard previous != textureId else { return }
+        currentActiveTextureId = textureId
+        if let previous { sendActive(textureId: previous, active: false) }
+        if let textureId { sendActive(textureId: textureId, active: true) }
     }
 
     /// Pushes the window-manager layout to one child (true = tiling).

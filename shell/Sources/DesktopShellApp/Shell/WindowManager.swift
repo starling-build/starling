@@ -243,7 +243,21 @@ final class AgentInfo {
 /// All mutations should be called from the shell's setState block.
 class WindowManagerState {
     var windows: [WindowInfo] = []
-    var focusedWindowId: String? = nil
+    /// The focused window, with a `didSet` because focus is assigned from a
+    /// dozen places (raise, close, space switch, the workspace rail, the
+    /// tiler) and a child that has to be TOLD it is no longer active cannot
+    /// afford to be forgotten at one of them. Observing the property catches
+    /// every writer, including the ones outside this file.
+    var focusedWindowId: String? = nil {
+        didSet {
+            guard oldValue != focusedWindowId else { return }
+            onFocusedWindowChanged?(oldValue, focusedWindowId)
+        }
+    }
+
+    /// Fired when focus moves, with (lost, gained). Either may be nil — nil
+    /// gained means the desktop itself has focus, which is not a window.
+    var onFocusedWindowChanged: ((String?, String?) -> Void)? = nil
     private var nextZIndex: Int = 1
     private var nextWindowId: Int = 1
 

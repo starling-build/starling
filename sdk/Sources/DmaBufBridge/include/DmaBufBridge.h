@@ -148,6 +148,15 @@ struct DmaBufMeta {
  * actually settled on, so a refused or failed start never leaves the switch
  * showing "on". */
 #define DMABUF_CONTROL_SET_RDP  0x0f
+/* Window activation (parent->child): x = 1 this child's window is the one
+ * the desktop has focused, 0 it is not. Sent on every focus change and once
+ * at connect, so a window launched into the background starts out knowing.
+ *
+ * A child cannot work this out for itself: it is only ever handed input while
+ * it IS focused, so "no keys lately" is indistinguishable from an idle user.
+ * Anything that must go quiet behind another window -- a blinking cursor, a
+ * caret report anchoring the shell's IME panel -- needs this. */
+#define DMABUF_CONTROL_SET_ACTIVE 0x10
 
 /// Configure message sent from parent to child before the child creates its
 /// buffer. Tells the child the content area dimensions (logical pixels).

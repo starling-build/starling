@@ -341,6 +341,15 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private var _blinkHeldSolidUntil: Double = 0
     /// macOS Terminal's cadence, near enough.
     private static let blinkPeriod: Double = 0.6
+    /// True while the desktop has this app's WINDOW focused — a different
+    /// question from `focusNode.hasFocus`, which a single-surface app answers
+    /// yes to forever. Both gate the blink: without this one the cursor went
+    /// on blinking behind whatever window the user had switched to, since
+    /// nothing about the focus node changes when the shell focuses someone
+    /// else. See WindowActivation, which also explains why hosts that do not
+    /// report activation keep the old behaviour.
+    private var _windowActive = WindowActivation.isActive
+    private var _activationToken = 0
 
     /// Scrollback view offset in lines (0 = live screen). Shift+PageUp/Down,
     /// the mouse wheel, or a touchpad pan.
@@ -408,7 +417,23 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
         focusNode.onFocusChange = { [weak self] focused in
             guard let self else { return }
-            if focused { self._restartBlink() } else { self._stopBlink() }
+            if focused && self._windowActive { self._restartBlink() }
+            else { self._stopBlink() }
+            self.setState {}
+        }
+        _activationToken = WindowActivation.addListener { [weak self] active in
+            guard let self, self._windowActive != active else { return }
+            self._windowActive = active
+            // Stop the loop rather than let it tick unseen: an unfocused
+            // window still composites, so a live blink is not merely wrong to
+            // look at — it rebuilds every visible row twice a second for
+            // nobody. _stopBlink leaves the phase ON, which is what draws the
+            // held outline below.
+            if active {
+                if self.focusNode.hasFocus { self._restartBlink() }
+            } else {
+                self._stopBlink()
+            }
             self.setState {}
         }
         if w.autofocus { focusNode.requestFocus() }
@@ -450,6 +475,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 owner: self, x: 0, y: 0, width: 0, height: 0, visible: false)
         }
         #endif
+        WindowActivation.removeListener(_activationToken)
         focusNode.dispose()
         super.dispose()
     }
@@ -513,7 +539,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     private func _blinkActivity() {
         _blinkHeldSolidUntil = Self._now() + Self.blinkPeriod
         if !_blinkOn { _blinkOn = true; setState {} }
-        if !_blinkTicking && focusNode.hasFocus { _restartBlink() }
+        if !_blinkTicking && focusNode.hasFocus && _windowActive { _restartBlink() }
     }
 
     private func _restartBlink() {
@@ -540,7 +566,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             // No cursor on screen (unfocused, or the child exited): stop
             // rather than rebuild an idle pane every period. Focus return
             // and _blinkActivity restart the loop.
-            guard self.focusNode.hasFocus, !self._exited else {
+            guard self.focusNode.hasFocus, self._windowActive, !self._exited else {
                 self._blinkTicking = false
                 self._blinkOn = true
                 return
@@ -1204,7 +1230,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // Report the cursor cell to the shell — anchors the IME candidate
         // panel next to the terminal cursor. Only while the terminal owns
         // focus (one shared anchor per app); one-shot clear on focus loss.
-        if focusNode.hasFocus {
+        if focusNode.hasFocus && _windowActive {
             GpuDmaBufRenderer.current?.sendCaret(
                 owner: self,
                 x: padding + Double(cursorCol) * cellW,
@@ -1222,7 +1248,15 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // Block cursor: a translucent overlay so it is visible regardless of
         // what the text shaper does with trailing spaces. The IME caret above
         // deliberately does not blink — only the drawn block does.
-        if showCursor && _blinkOn {
+        //
+        // Filled and blinking while the window is active; a hollow outline,
+        // held still, while it is not. Every terminal worth copying says
+        // "the caret is here, the keyboard is elsewhere" that way, and it
+        // beats hiding the cursor outright, which loses the position. The
+        // `!_windowActive` arm of the test is belt and braces — _stopBlink
+        // leaves the phase ON — so that a future edit to the blink loop
+        // cannot make an unfocused terminal drop its cursor silently.
+        if showCursor && (_blinkOn || !_windowActive) {
             layers.append(
                 Positioned(
                     left: padding + Double(cursorCol) * cellW,
@@ -1231,7 +1265,14 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                         width: cellW,
                         height: cellH,
                         child: DecoratedBox(
-                            decoration: BoxDecoration(color: Color(Int(theme.cursorOverlay)))
+                            decoration: _windowActive
+                                ? BoxDecoration(color: Color(Int(theme.cursorOverlay)))
+                                // Full alpha, where the filled block is 0x99:
+                                // the block can afford transparency because it
+                                // has area, a one-pixel rule at 60% is a smudge.
+                                : BoxDecoration(border: Border.all(
+                                    color: Color(Int(theme.cursorOverlay | 0xFF00_0000)),
+                                    width: 1))
                         )
                     )
                 )
