@@ -61,13 +61,23 @@ void flwin32_host_run(FlWin32Host* host);
 // Fullscreens or restores the window.
 void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen);
 
-// Shell chrome. `edge` is 0=top 1=bottom 2=left 3=right; `thickness` is in
-// PHYSICAL pixels (the engine applies the monitor's DPI to the tree inside);
-// `monitor` is an index into flwin32_monitor_rect, or -1 for the primary.
+// Shell chrome. `edge` is 0=top 1=bottom 2=left 3=right; `monitor` is an
+// index into flwin32_monitor_rect, or -1 for the primary.
+//
+// `thickness` is in LOGICAL POINTS, not pixels: it is multiplied by the
+// target monitor's scale here, and re-derived on every WM_DPICHANGED. A bar
+// asking for 44 is 44px at 100% and 88px at 200%, and its widget tree sees
+// 44 either way. Pixels would have been the smaller change and are wrong on
+// exactly the machines this has to look right on.
+//
+// `takes_focus` = 0 gives the window WS_EX_NOACTIVATE, which is what makes it
+// chrome: clicking it does not move the keyboard away from whatever the user
+// was typing in. Pass non-zero only for a panel that has a text field.
 void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t edge,
                             int32_t thickness,
-                            int32_t monitor);
+                            int32_t monitor,
+                            int32_t takes_focus);
 
 // Register (or remove) the window as an appbar, so Windows reserves the strip
 // and maximized windows stop at it. Call after flwin32_host_set_panel, which
@@ -81,6 +91,9 @@ int32_t flwin32_monitor_rect(int32_t index,
                              int32_t* width,
                              int32_t* height,
                              int32_t* primary);
+// The monitor's DPI, where 96 is 100%. Falls back to 96 rather than failing:
+// a wrong scale draws a bar at the wrong size, no scale at all draws nothing.
+int32_t flwin32_monitor_dpi(int32_t index);
 
 // Clipboard. Text is UTF-8 on this boundary and converted to/from UTF-16
 // inside, so the Swift side never handles wide strings.

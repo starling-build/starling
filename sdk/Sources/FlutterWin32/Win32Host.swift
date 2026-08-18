@@ -66,7 +66,8 @@ public final class Win32Host {
     public func setPanel(_ placement: PanelPlacement) {
         flwin32_host_set_panel(host, placement.edge.rawValue,
                                Int32(placement.thickness),
-                               Int32(placement.monitor ?? -1))
+                               Int32(placement.monitor ?? -1),
+                               placement.takesFocus ? 1 : 0)
         // After set_panel, never before: the appbar reserves the geometry the
         // panel was just given, and registering first would reserve the
         // window's pre-panel rectangle.

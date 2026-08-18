@@ -657,6 +657,8 @@ targets += [
             // a #pragma comment(lib) for it — belt and braces, because a
             // missing dwmapi shows up only at link time, after a cold build.
             .linkedLibrary("dwmapi"),
+            // GetDpiForMonitor, for the panel's points-to-pixels conversion.
+            .linkedLibrary("shcore"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.

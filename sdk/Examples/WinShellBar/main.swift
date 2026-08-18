@@ -28,9 +28,9 @@ import FlutterSwiftBridge
 import FlutterWin32
 import Foundation
 
-/// Bar height in physical pixels. The VM this is tested on runs 1280x800 at
-/// 100%, so physical and logical coincide there; on a 200% display this wants
-/// doubling, which is the DPI work still outstanding.
+/// Bar height in LOGICAL POINTS. The host multiplies by the monitor's scale
+/// and redoes it on a scale change, so this is 44px on the 100% VM and 88px
+/// on a 200% laptop panel with the widget tree seeing 44 either way.
 let kBarHeight = 44
 
 /// Width of one window button, and how many fit before the rest collapse into
@@ -40,9 +40,10 @@ let kBarHeight = 44
 let kButtonWidth = 168.0
 let kMaxButtons = 7
 
-/// Gap between tiled windows, in pixels. Applied on every edge, so adjacent
-/// windows are two gaps apart — the same convention the Linux shell's tiler
-/// uses.
+/// Gap between tiled windows, in logical points — scaled to pixels at use,
+/// because window geometry is the one place this file speaks physical. It is
+/// applied on every edge, so adjacent windows are two gaps apart, the same
+/// convention the Linux shell's tiler uses.
 let kTileGap = 8
 
 final class StarlingBar: StatefulWidget {
@@ -148,10 +149,15 @@ final class StarlingBarState: State<StatefulWidget> {
         guard !visible.isEmpty, let area = Win32WindowManager.workArea()
         else { return }
 
+        // Window rectangles are physical pixels — they are other people's
+        // windows on other people's monitors, and there is no single logical
+        // space spanning a mixed-DPI desktop.
+        let scale = Win32Display.primary()?.scale ?? 1.0
+        let gap = Int((Double(kTileGap) * scale).rounded())
+
         let columns = Int(ceil(Double(visible.count).squareRoot()))
         let rows = Int(ceil(Double(visible.count) / Double(columns)))
-        let cellHeight =
-            (area.height - kTileGap * (rows + 1)) / rows
+        let cellHeight = (area.height - gap * (rows + 1)) / rows
 
         var index = 0
         for row in 0..<rows {
@@ -160,12 +166,12 @@ final class StarlingBarState: State<StatefulWidget> {
             // been. Three windows tile as two over one, not two over one and
             // a gap.
             let inRow = min(columns, visible.count - index)
-            let cellWidth = (area.width - kTileGap * (inRow + 1)) / inRow
+            let cellWidth = (area.width - gap * (inRow + 1)) / inRow
             for column in 0..<inRow {
                 let w = visible[index]
                 Win32WindowManager.move(w.handle, to: Win32Rect(
-                    x: area.x + kTileGap + column * (cellWidth + kTileGap),
-                    y: area.y + kTileGap + row * (cellHeight + kTileGap),
+                    x: area.x + gap + column * (cellWidth + gap),
+                    y: area.y + gap + row * (cellHeight + gap),
                     width: cellWidth,
                     height: cellHeight))
                 index += 1
@@ -310,11 +316,15 @@ Win32WindowedHost.install()
 
 // Span the primary monitor. Reading the geometry rather than assuming 1920
 // is the point — a bar sized to the wrong screen is the first thing that goes
-// wrong on a laptop plus an external.
+// wrong on a laptop plus an external. Logical, because runStarlingApp's size
+// is a client size in points; the panel restyle overrides it a moment later
+// with the real edge geometry anyway.
 let screen = Win32Display.primary()
-let barWidth = screen?.width ?? 1280
+let barWidth = Int(screen?.logicalWidth ?? 1280)
 print("[WinShellBar] monitors: \(Win32Display.monitors())")
 
+// takesFocus stays at its default of false: clicking a taskbar button must
+// not take the keyboard off the window the click is about to raise.
 Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
                                          reserveSpace: true)
 runStarlingApp(title: "Starling Bar", width: barWidth, height: kBarHeight) {

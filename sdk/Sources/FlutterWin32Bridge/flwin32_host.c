@@ -29,6 +29,7 @@
 
 #include <windows.h>
 #include <shellapi.h>  // SHAppBarMessage, APPBARDATA
+#include <shellscalingapi.h>  // GetDpiForMonitor
 
 // Direct inclusion of the vendored embedder headers, the same way the GTK
 // bridge includes flutter_linux. Their cross-references are quoted-relative,
@@ -50,6 +51,16 @@ struct FlWin32Host {
   int appbar_registered;
   int appbar_edge;
   int appbar_thickness;
+  // Panel placement, kept in the terms the CALLER gave it: a screen edge, a
+  // thickness in logical points, and a monitor. Physical pixels are derived
+  // from these every time, because the number that matters changes under us —
+  // a display scale change, or the bar's monitor being replugged at another
+  // DPI, both leave any remembered pixel count wrong.
+  int panel_active;
+  int panel_edge;
+  int panel_thickness_pt;
+  int panel_monitor;
+  int panel_takes_focus;
 };
 
 // Private callback message for the appbar. Windows sends notifications
@@ -59,9 +70,10 @@ struct FlWin32Host {
 
 static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
 
-// Defined with the rest of the appbar code at the end of this file;
-// host_wnd_proc has to call it and comes first.
+// Defined with the rest of the shell-chrome code at the end of this file;
+// host_wnd_proc has to call both and comes first.
 static void appbar_apply_position(FlWin32Host* host);
+static void panel_apply_placement(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
 // DispatchQueue.main.async blocks run on the Win32 message thread. Same
@@ -151,6 +163,16 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       // covers the wrong area. Flutter's own Win32 runner does exactly this;
       // the WM_SIZE that follows carries the new client size down to the
       // engine's child.
+      //
+      // A PANEL is the exception: the suggested rectangle is the old one
+      // scaled, which for edge-anchored chrome is not what we want at all —
+      // a top bar would keep its old width in the new scale and stop short
+      // of the screen edge. Re-derive from the monitor instead, which also
+      // picks up the new points-to-pixels ratio for the thickness.
+      if (host != NULL && host->panel_active) {
+        panel_apply_placement(host);
+        return 0;
+      }
       if (lparam != 0) {
         const RECT* suggested = (const RECT*)lparam;
         SetWindowPos(hwnd, NULL, suggested->left, suggested->top,
@@ -159,6 +181,17 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
                      SWP_NOZORDER | SWP_NOACTIVATE);
       }
       return 0;
+
+    case WM_MOUSEACTIVATE:
+      // Chrome that does not steal the keyboard. WS_EX_NOACTIVATE already
+      // stops the click from activating us, but say it here too: this is the
+      // message the shell sends before the click is dispatched, and answering
+      // MA_NOACTIVATE is what every real taskbar does. The click still
+      // arrives — only the activation is refused.
+      if (host != NULL && host->panel_active && !host->panel_takes_focus) {
+        return MA_NOACTIVATE;
+      }
+      break;
 
     case WM_SETFOCUS:
       // Hand keyboard focus down to the engine's view. Activating the frame
@@ -545,6 +578,7 @@ typedef struct {
   int32_t want;   // index to find, or -1 to count
   int32_t seen;
   RECT rect;
+  HMONITOR hmonitor;
   int32_t primary;
   int32_t found;
 } MonitorPick;
@@ -560,6 +594,7 @@ static BOOL CALLBACK monitor_pick_cb(HMONITOR monitor,
   if (!GetMonitorInfoW(monitor, &mi)) return TRUE;
   if (pick->want >= 0 && pick->seen == pick->want) {
     pick->rect = mi.rcMonitor;
+    pick->hmonitor = monitor;
     pick->primary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
     pick->found = 1;
     return FALSE;  // stop; we have the one we were asked for
@@ -593,16 +628,42 @@ int32_t flwin32_monitor_rect(int32_t index,
   return 1;
 }
 
-void flwin32_host_set_panel(FlWin32Host* host,
-                            int32_t edge,
-                            int32_t thickness,
-                            int32_t monitor) {
+// The monitor's scale, as a DPI where 96 is 100%. GetDpiForMonitor rather
+// than GetDpiForWindow: a panel has to know the scale of a monitor it is not
+// on yet, and the two disagree for exactly the length of the move.
+int32_t flwin32_monitor_dpi(int32_t index) {
+  MonitorPick pick = {0};
+  pick.want = index;
+  HMONITOR monitor = NULL;
+  if (index >= 0) {
+    pick.hmonitor = NULL;
+    EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+    if (pick.found) monitor = pick.hmonitor;
+  }
+  if (monitor == NULL) {
+    POINT origin = {0, 0};
+    monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+  }
+  if (monitor == NULL) return USER_DEFAULT_SCREEN_DPI;
+
+  UINT dpi_x = 0, dpi_y = 0;
+  if (FAILED(GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y)) ||
+      dpi_x == 0) {
+    return USER_DEFAULT_SCREEN_DPI;
+  }
+  return (int32_t)dpi_x;
+}
+
+// Places the panel from the state on the host. Called on every set_panel, and
+// again on every WM_DPICHANGED — see the comment there for why a panel cannot
+// take Windows' suggested rectangle.
+static void panel_apply_placement(FlWin32Host* host) {
   if (host == NULL || host->window == NULL) return;
 
   RECT area;
   MonitorPick pick = {0};
-  pick.want = monitor;
-  if (monitor >= 0) {
+  pick.want = host->panel_monitor;
+  if (host->panel_monitor >= 0) {
     EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
   }
   if (pick.found) {
@@ -619,8 +680,18 @@ void flwin32_host_set_panel(FlWin32Host* host,
     area = mi.rcMonitor;
   }
 
+  // Points to pixels, at the scale of the monitor the bar is going TO. This
+  // is the whole reason the thickness is stored in points: a 44pt bar is 44px
+  // at 100% and 88px at 200%, and hardcoding either one gives a bar that is
+  // half-height on one of the two machines this has to run on.
+  int32_t dpi = flwin32_monitor_dpi(host->panel_monitor);
+  int32_t thickness =
+      (host->panel_thickness_pt * dpi + USER_DEFAULT_SCREEN_DPI / 2) /
+      USER_DEFAULT_SCREEN_DPI;
+  if (thickness < 1) thickness = 1;
+
   int32_t x, y, w, h;
-  switch (edge) {
+  switch (host->panel_edge) {
     case 1:  // bottom
       x = area.left;
       y = area.bottom - thickness;
@@ -656,25 +727,51 @@ void flwin32_host_set_panel(FlWin32Host* host,
   // TOOLWINDOW keeps the bar out of Alt+Tab and off the taskbar, which is
   // what makes it read as chrome rather than as an app. TOPMOST is the
   // z-order half; SetWindowPos below is what actually applies it.
+  //
+  // NOACTIVATE is the difference between chrome and an app window: without
+  // it, clicking a taskbar button takes the keyboard away from the very
+  // window the click is about to raise, and the user's caret goes with it.
+  // It also makes flwin32_wm_activate's AttachThreadInput path load-bearing
+  // rather than decorative — we are no longer the foreground process when we
+  // ask for the foreground to move.
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
-  SetWindowLongPtrW(host->window, GWL_EXSTYLE,
-                    ex | WS_EX_TOOLWINDOW | WS_EX_TOPMOST);
+  ex |= WS_EX_TOOLWINDOW | WS_EX_TOPMOST;
+  if (host->panel_takes_focus) {
+    ex &= ~(LONG_PTR)WS_EX_NOACTIVATE;
+  } else {
+    ex |= WS_EX_NOACTIVATE;
+  }
+  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex);
   SetWindowPos(host->window, HWND_TOPMOST, x, y, w, h,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
 
   // Remember the placement in the shell's OWN terms, translated to the ABE_*
   // the appbar API speaks. Kept even when no appbar is registered, so
   // flwin32_host_set_appbar can be called later without repeating itself.
-  switch (edge) {
+  switch (host->panel_edge) {
     case 1:  host->appbar_edge = ABE_BOTTOM; break;
     case 2:  host->appbar_edge = ABE_LEFT;   break;
     case 3:  host->appbar_edge = ABE_RIGHT;  break;
     default: host->appbar_edge = ABE_TOP;    break;
   }
-  host->appbar_thickness = (edge == 2 || edge == 3) ? w : h;
+  host->appbar_thickness = thickness;
   // Already an appbar (a monitor change, or a second call): re-reserve at the
   // new geometry rather than leaving the old strip reserved.
   if (host->appbar_registered) appbar_apply_position(host);
+}
+
+void flwin32_host_set_panel(FlWin32Host* host,
+                            int32_t edge,
+                            int32_t thickness,
+                            int32_t monitor,
+                            int32_t takes_focus) {
+  if (host == NULL || host->window == NULL) return;
+  host->panel_active = 1;
+  host->panel_edge = edge;
+  host->panel_thickness_pt = thickness;
+  host->panel_monitor = monitor;
+  host->panel_takes_focus = takes_focus ? 1 : 0;
+  panel_apply_placement(host);
 }
 
 // ── appbar: asking Windows to reserve the strip ─────────────────────────────
