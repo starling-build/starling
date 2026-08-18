@@ -97,6 +97,116 @@ int32_t flwin32_clipboard_set_text(const char* text);
 // -1 if `out` is too small (retry with a larger buffer).
 int32_t flwin32_clipboard_get_text(char* out, int32_t out_size);
 
+// ── window management ───────────────────────────────────────────────────────
+//
+// Starling on Windows cannot own other people's pixels — DWM is not
+// replaceable — so it manages their windows instead: enumerate them, move
+// them, raise them, and watch them come and go. This is the half of the port
+// that stands in for the compositor, and everything below is plain user32.
+//
+// The window LIST is a snapshot object rather than a callback or an array of
+// structs: enumerating twice (once to count, once to fill) races against
+// windows opening, and a struct carrying fixed-size char arrays imports into
+// Swift as tuples. So enumerate once, hold the result, read scalars and
+// strings out of it by index, release it.
+
+typedef struct FlWin32WindowList FlWin32WindowList;
+
+// Scalars for one window in a snapshot. Strings come out separately, through
+// flwin32_wm_title / _class / _exe.
+typedef struct {
+  uint64_t handle;  // the HWND, opaque on this side of the boundary
+  uint32_t pid;
+  // The VISIBLE frame, in virtual-desktop pixels: DWM's extended frame
+  // bounds, not GetWindowRect, which on Windows 10+ includes an invisible
+  // resize border ~7px wide on each side. A tiler that uses the raw rect
+  // leaves gaps it cannot explain.
+  int32_t x;
+  int32_t y;
+  int32_t width;
+  int32_t height;
+  int32_t monitor;  // index into flwin32_monitor_rect, or -1
+  int32_t minimized;
+  int32_t maximized;
+  int32_t foreground;
+} FlWin32WindowInfo;
+
+// Enumerates the manageable top-level windows — what a taskbar would show.
+// Never NULL unless allocation failed. Release with flwin32_wm_release.
+FlWin32WindowList* flwin32_wm_snapshot(void);
+int32_t flwin32_wm_count(FlWin32WindowList* list);
+int32_t flwin32_wm_info(FlWin32WindowList* list,
+                        int32_t index,
+                        FlWin32WindowInfo* out);
+// UTF-8 out, same convention as flwin32_clipboard_get_text: bytes written
+// including the terminator, or -1 if `out` is too small.
+int32_t flwin32_wm_title(FlWin32WindowList* list,
+                         int32_t index,
+                         char* out,
+                         int32_t out_size);
+int32_t flwin32_wm_class(FlWin32WindowList* list,
+                         int32_t index,
+                         char* out,
+                         int32_t out_size);
+int32_t flwin32_wm_exe(FlWin32WindowList* list,
+                       int32_t index,
+                       char* out,
+                       int32_t out_size);
+void flwin32_wm_release(FlWin32WindowList* list);
+
+// Raises `handle` and gives it the keyboard. Returns non-zero on success.
+int32_t flwin32_wm_activate(uint64_t handle);
+
+// Moves and resizes so the VISIBLE frame lands on the given rectangle — the
+// DWM correction described above is applied here, so callers can hand this
+// the rectangle they actually want covered. Un-maximizes first; a maximized
+// window ignores SetWindowPos.
+int32_t flwin32_wm_move(uint64_t handle,
+                        int32_t x,
+                        int32_t y,
+                        int32_t width,
+                        int32_t height);
+
+// 0 = restore, 1 = minimize, 2 = maximize.
+int32_t flwin32_wm_set_state(uint64_t handle, int32_t state);
+
+// Asks the window to close (WM_CLOSE), the way clicking its X does — the
+// app may refuse or prompt. Never TerminateProcess.
+int32_t flwin32_wm_close(uint64_t handle);
+
+uint64_t flwin32_wm_foreground(void);
+
+// The work area of a monitor: its rectangle minus the taskbar and any
+// appbars, i.e. where a tiler should lay windows out. `monitor` is an index
+// into flwin32_monitor_rect, or -1 for the primary.
+int32_t flwin32_wm_work_area(int32_t monitor,
+                             int32_t* x,
+                             int32_t* y,
+                             int32_t* width,
+                             int32_t* height);
+
+// Window-list changes. The event ids:
+#define FLWIN32_WM_EVENT_ADDED 1       // a manageable window appeared
+#define FLWIN32_WM_EVENT_REMOVED 2     // destroyed or hidden
+#define FLWIN32_WM_EVENT_FOREGROUND 3  // focus moved (handle = the new one)
+#define FLWIN32_WM_EVENT_TITLE 4       // title changed
+#define FLWIN32_WM_EVENT_MOVED 5       // a user drag/resize finished
+#define FLWIN32_WM_EVENT_MINIMIZED 6   // minimized or restored
+
+typedef void (*FlWin32WmEventCallback)(int32_t event,
+                                       uint64_t handle,
+                                       void* user);
+
+// Installs the WinEvent hooks. Delivery is on the thread that calls this,
+// through its message loop — so call it from the UI thread, after the host
+// exists, and the callback arrives where the widget tree lives.
+//
+// Deliberately NOT hooked: EVENT_OBJECT_LOCATIONCHANGE, which fires per
+// mouse-move for the whole drag and would rebuild the tree hundreds of times
+// a second. MOVESIZEEND is the useful edge.
+int32_t flwin32_wm_watch(FlWin32WmEventCallback callback, void* user);
+void flwin32_wm_unwatch(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -652,6 +652,11 @@ targets += [
             .unsafeFlags([
                 "-L\(engineOutDir)", "-lflutter_windows.dll",
             ]),
+            // DwmGetWindowAttribute, for the window manager's cloak test and
+            // its extended-frame-bounds correction. flwin32_wm.c also carries
+            // a #pragma comment(lib) for it — belt and braces, because a
+            // missing dwmapi shows up only at link time, after a cold build.
+            .linkedLibrary("dwmapi"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.
