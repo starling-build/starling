@@ -84,6 +84,26 @@ func termdArgv(host: String, sshPath: String, serverPath: String) -> [String] {
     // What follows is appended to whatever the setting names, so that command
     // has to accept ssh's flags. A front end that does not (`gcloud compute
     // ssh`, say) still wants a wrapper that swallows them.
+    // A HOST WITH SPACES IN IT IS A COMMAND, typed whole — `ssh -i ~/k box`
+    // rather than a bare `box`. It replaces the ssh setting entirely, because
+    // the person has just named the program as well as its flags, and putting
+    // `sshPath` in front of it too would run ssh twice.
+    //
+    // The destination is the LAST word. That is not a guess about the string,
+    // it is ssh's own grammar — `ssh [options] destination [command]` — and we
+    // supply the remote command ourselves, so whatever they typed ends at the
+    // destination. Splitting there is what lets our flags go in front of it,
+    // where ssh requires its options to be: appended after the destination
+    // they would be read as part of the remote command instead.
+    let typed = termdSplitCommand(host)
+    if typed.count >= 2, let destination = typed.last {
+        var argv = Array(typed.dropLast())
+        argv.append(contentsOf: ["-T", "-o", "BatchMode=yes",
+                                 "-o", "ServerAliveInterval=15",
+                                 destination, serverPath, "--stdio"])
+        return argv
+    }
+
     var argv = termdSplitCommand(sshPath)
     if argv.isEmpty { argv = ["ssh"] }
     // -T: no tty on the ssh channel. The stream must be the session's bytes

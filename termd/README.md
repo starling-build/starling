@@ -193,12 +193,39 @@ The switcher reads that file too — `Host` entries (minus `*`/`?` patterns) are
 offered as destinations — so a host configured there is also a host you can
 find without remembering its address.
 
+### Typing the command
+
+The quickest answer, and the one that needs nothing set up: **type the ssh
+command into the switcher** (`⌘O`), ending it with `/ws:` and the workspace
+name.
+
+```
+ssh -i ~/.ssh/id_prod deploy@10.0.0.7/ws:dev
+```
+
+A destination with spaces in it *is* a command: it replaces `ssh` entirely, and
+its **last word is the destination** — that is ssh's own grammar,
+`ssh [options] destination [command]`, and the remote command is ours to supply.
+The client's flags are inserted in front of that last word, where ssh requires
+its options to be.
+
+`/ws:` is the marker because a command is full of slashes and `~/.ssh/id_prod`
+would otherwise be read as the end of a hostname. A plain `host/name` still
+works and needs no marker.
+
+What you typed is remembered like any other destination, so the next launch
+reopens it with the same command; the tab is named by the workspace, not by the
+command.
+
 ### Naming the command itself
 
-`ssh_config` cannot say *which program* to run, and an environment variable
-does not survive being launched from Finder or a dock — the app comes up with
-no shell above it, so `$STARLING_SSH` is simply absent. For either case, name
-the command per host in `~/.config/starling-terminal/hosts`:
+Typing it every time is fine once — it is remembered — but it makes the
+destination long, and the switcher then shows a command where a machine name
+would read better. To keep `prod-1/dev` as the thing you type and still choose
+the command behind it, name it per host in
+`~/.config/starling-terminal/hosts`. (This is also the answer when
+`$STARLING_SSH` will not do: an environment variable does not survive being
+launched from Finder or a dock, where the app comes up with no shell above it.)
 
 ```
 # host        command that reaches it

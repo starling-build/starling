@@ -68,19 +68,35 @@ final class SwitcherState {
 
     /// The host part of what is typed. Everything before the first slash; the
     /// machine you are already on when there is none.
+    /// Where the destination ends and the workspace name begins.
+    ///
+    /// Normally the first slash — `prod-1/dev` — because a hostname cannot
+    /// contain one. But a destination may be a whole ssh command, typed as it
+    /// would be in a shell (`ssh -i ~/.ssh/id_prod deploy@box`), and those are
+    /// full of slashes. So when the text carries an explicit `/ws:` marker,
+    /// that wins and the last one is used: the command may contain anything,
+    /// and only the marker says where it stops.
+    private var cut: (host: String, name: String)? {
+        if let marker = text.range(of: "/ws:", options: .backwards) {
+            return (String(text[..<marker.lowerBound])
+                        .trimmingCharacters(in: .whitespaces),
+                    String(text[marker.upperBound...])
+                        .trimmingCharacters(in: .whitespaces))
+        }
+        guard let slash = text.firstIndex(of: "/") else { return nil }
+        return (String(text[..<slash]).trimmingCharacters(in: .whitespaces),
+                String(text[text.index(after: slash)...])
+                    .trimmingCharacters(in: .whitespaces))
+    }
+
     var host: String {
-        guard let slash = text.firstIndex(of: "/") else { return "local" }
-        let h = String(text[..<slash]).trimmingCharacters(in: .whitespaces)
+        guard let h = cut?.host else { return "local" }
         return h.isEmpty ? "local" : h
     }
 
-    /// The workspace name part: everything after the first slash.
+    /// The workspace name part.
     var name: String {
-        guard let slash = text.firstIndex(of: "/") else {
-            return text.trimmingCharacters(in: .whitespaces)
-        }
-        return String(text[text.index(after: slash)...])
-            .trimmingCharacters(in: .whitespaces)
+        cut?.name ?? text.trimmingCharacters(in: .whitespaces)
     }
 }
 
@@ -382,6 +398,14 @@ extension _TerminalTabsState {
             }
         }
         children.append(SizedBox(width: width, height: 10))
+        // The syntax, while there is nothing typed to obscure. A destination
+        // can be a whole ssh command, and nobody would guess that from a
+        // prompt that has only ever been shown hostnames.
+        if _switcher.text.isEmpty {
+            children.append(_line("    host/name · or  ssh -i ~/key box/ws:name",
+                                  SwitcherChrome.hint, 11))
+            children.append(SizedBox(width: width, height: 4))
+        }
         children.append(_line("    ↑↓ choose · ⏎ open · esc cancel",
                               SwitcherChrome.hint, 11))
 

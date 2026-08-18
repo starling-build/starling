@@ -271,6 +271,28 @@ struct WorkspaceTest {
           termdArgv(host: "local", sshPath: "ssh -i /k/id",
                     serverPath: "termd") == ["termd", "--stdio"])
 
+    // --- a destination that IS a command -----------------------------------
+    // Typed whole in the switcher: `ssh -i ~/k box/ws:dev`. The last word is
+    // the destination — ssh's own grammar, since we supply the remote command
+    // — and our flags have to land in FRONT of it or ssh reads them as part
+    // of that command.
+    let typed = termdArgv(host: "ssh -i /k/id deploy@box",
+                          sshPath: "ssh", serverPath: "starling-termd")
+    check("a spaced destination is used as the whole command",
+          Array(typed.prefix(3)) == ["ssh", "-i", "/k/id"], "\(typed)")
+    check("its last word becomes the ssh destination, after our flags",
+          typed.dropLast(2).last == "deploy@box"
+              && typed.contains("BatchMode=yes"), "\(typed)")
+    check("and ssh is not run twice",
+          typed.filter { $0 == "ssh" }.count == 1, "\(typed)")
+    check("the remote command still comes last",
+          Array(typed.suffix(2)) == ["starling-termd", "--stdio"], "\(typed)")
+    // A plain hostname is unchanged — no spaces, so none of the above applies.
+    check("a bare host is untouched by all that",
+          termdArgv(host: "box", sshPath: "ssh", serverPath: "t")
+              == ["ssh", "-T", "-o", "BatchMode=yes",
+                  "-o", "ServerAliveInterval=15", "box", "t", "--stdio"])
+
     print("")
     if failures.isEmpty {
         print("all workspace checks passed")

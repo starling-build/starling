@@ -51,9 +51,17 @@ struct WorkspaceSpec: Equatable {
             rest = String(rest.dropFirst("remote:".count))
         }
         var host = "local"
-        // The FIRST slash: a hostname cannot contain one, and everything after
-        // it is the workspace part.
-        if let slash = rest.firstIndex(of: "/") {
+        // The LAST `/ws:`, not the first slash. A destination used to be a
+        // hostname, which cannot contain a slash — but it may now be a whole
+        // ssh command (`ssh -i ~/.ssh/id_prod box`), and those are full of
+        // them. Splitting at the first slash put the marker inside a key path
+        // and rejected the spec outright. `/ws:` is the marker the format
+        // already carried; this just stops treating it as decoration.
+        if let marker = rest.range(of: "/ws:", options: .backwards) {
+            host = String(rest[..<marker.lowerBound])
+                .trimmingCharacters(in: .whitespaces)
+            rest = String(rest[marker.lowerBound...].dropFirst())
+        } else if let slash = rest.firstIndex(of: "/") {
             host = String(rest[..<slash]).trimmingCharacters(in: .whitespaces)
             rest = String(rest[rest.index(after: slash)...])
         }

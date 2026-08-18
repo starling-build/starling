@@ -95,6 +95,8 @@ enum TerminalHelp {
             HelpBinding("Ctrl+Shift+O", mac: "⌘O",
                         "go to a workspace, here or elsewhere (letter O)"),
             HelpBinding("—", "type name, or host/name — ⏎ opens or creates"),
+            HelpBinding("—", "or the ssh command itself, ending at /ws:"),
+            HelpBinding("—", "   ssh -i ~/.ssh/id_prod deploy@box/ws:dev"),
             HelpBinding("—", "launching with no arguments reopens the last"),
         ]),
         HelpSection(title: "the text", rows: [
