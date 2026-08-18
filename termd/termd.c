@@ -101,9 +101,24 @@ struct client {
     int closing;   // we are done with it, but its last frame must still go
 };
 
+// A workspace: a name, the sessions in it, and a blob the daemon stores and
+// never reads. See protocol.h — the whole point is that adding a layout
+// feature later touches the client and not this file.
+struct workspace {
+    int used;
+    uint32_t id;
+    char name[TERMD_MAX_NAME];
+    uint32_t sessions[MAX_SESSIONS];
+    uint16_t nsessions;
+    uint8_t *blob;
+    uint32_t blob_len;
+};
+
 static struct session g_sessions[MAX_SESSIONS];
 static struct client g_clients[MAX_CLIENTS];
+static struct workspace g_workspaces[TERMD_MAX_WORKSPACES];
 static uint32_t g_next_id = 1;
+static uint32_t g_next_ws_id = 1;
 
 // Guards both tables. Held by the main loop whenever it is not parked in
 // plat_poll, and by every reader thread while it appends and pumps. The
@@ -121,6 +136,21 @@ static struct session *session_by_name(const char *name) {
     for (int i = 0; i < MAX_SESSIONS; i++)
         if (g_sessions[i].used && !strcmp(g_sessions[i].name, name))
             return &g_sessions[i];
+    return NULL;
+}
+
+static struct workspace *ws_by_id(uint32_t id) {
+    for (int i = 0; i < TERMD_MAX_WORKSPACES; i++)
+        if (g_workspaces[i].used && g_workspaces[i].id == id)
+            return &g_workspaces[i];
+    return NULL;
+}
+
+static struct workspace *ws_by_name(const char *name) {
+    if (!name || !*name) return NULL;
+    for (int i = 0; i < TERMD_MAX_WORKSPACES; i++)
+        if (g_workspaces[i].used && !strcmp(g_workspaces[i].name, name))
+            return &g_workspaces[i];
     return NULL;
 }
 
@@ -290,6 +320,43 @@ static void client_out(struct client *c, uint8_t type, const uint8_t *payload,
     c->out_len += TERMD_HEADER_LEN + len;
 }
 
+// Two payload pieces in one frame, so a blob is not copied into a scratch
+// buffer only to be copied again into the out queue.
+static void client_out_two(struct client *c, uint8_t type,
+                           const uint8_t *a, size_t alen,
+                           const uint8_t *b, size_t blen) {
+    if (c->dead) return;
+    size_t len = alen + blen;
+    size_t need = c->out_len + TERMD_HEADER_LEN + len;
+    if (need > c->out_cap) {
+        size_t cap = c->out_cap ? c->out_cap : 65536;
+        while (cap < need) cap *= 2;
+        uint8_t *grown = realloc(c->out, cap);
+        if (!grown) { c->dead = 1; return; }
+        c->out = grown;
+        c->out_cap = cap;
+    }
+    uint8_t *p = c->out + c->out_len;
+    p[0] = type;
+    p[1] = 0;
+    put_u16(p + 2, 0);
+    put_u32(p + 4, (uint32_t)len);
+    if (alen) memcpy(p + TERMD_HEADER_LEN, a, alen);
+    if (blen) memcpy(p + TERMD_HEADER_LEN + alen, b, blen);
+    c->out_len += TERMD_HEADER_LEN + len;
+}
+
+// The reply to every workspace WRITE: the client learns the id (which it may
+// not have known, on an idempotent create) and that the write landed.
+static void ws_send_info(struct client *c, const struct workspace *w) {
+    uint8_t buf[6 + TERMD_MAX_NAME];
+    size_t nlen = strlen(w->name);
+    put_u32(buf, w->id);
+    put_u16(buf + 4, (uint16_t)nlen);
+    memcpy(buf + 6, w->name, nlen);
+    client_out(c, TERMD_WS_INFO, buf, 6 + nlen);
+}
+
 static void client_error(struct client *c, uint16_t code, const char *msg) {
     uint8_t buf[256];
     size_t n = strlen(msg);
@@ -457,6 +524,113 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
     case TERMD_DETACH:
         c->session = 0;
         break;
+    // --- workspaces -----------------------------------------------------
+    // Five frames, all thin, and none of them looks inside the blob. The
+    // reply to a write is WS_INFO rather than silence, so a client knows the
+    // daemon took it.
+    case TERMD_WS_CREATE: {
+        char name[TERMD_MAX_NAME] = {0};
+        if (len >= 2) {
+            uint16_t nlen = get_u16(p);
+            if (nlen > len - 2) nlen = (uint16_t)(len - 2);
+            name_sanitize(name, p + 2, nlen);
+        }
+        if (!*name) { client_error(c, TERMD_ERR_BAD_FRAME, "workspace needs a name"); return; }
+        // Idempotent by name, exactly like a named OPEN: a client that lost
+        // its id reconnects with the name alone and gets the same workspace
+        // rather than a second one beside it.
+        struct workspace *w = ws_by_name(name);
+        if (!w) {
+            for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) {
+                if (!g_workspaces[i].used) { w = &g_workspaces[i]; break; }
+            }
+            if (!w) { client_error(c, TERMD_ERR_TOO_MANY, "too many workspaces"); return; }
+            memset(w, 0, sizeof(*w));
+            w->used = 1;
+            w->id = g_next_ws_id++;
+            snprintf(w->name, sizeof(w->name), "%s", name);
+            logf_("workspace %u created \"%s\"", w->id, w->name);
+        }
+        ws_send_info(c, w);
+        return;
+    }
+
+    case TERMD_WS_ADD: {
+        if (len < 8) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_add"); return; }
+        struct workspace *w = ws_by_id(get_u32(p));
+        if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
+        uint32_t sid = get_u32(p + 4);
+        if (!session_by_id(sid)) { client_error(c, TERMD_ERR_NO_SESSION, "no such session"); return; }
+        int already = 0;
+        for (uint16_t i = 0; i < w->nsessions; i++) if (w->sessions[i] == sid) already = 1;
+        if (!already) {
+            if (w->nsessions >= MAX_SESSIONS) {
+                client_error(c, TERMD_ERR_TOO_MANY, "workspace full"); return;
+            }
+            w->sessions[w->nsessions++] = sid;
+        }
+        ws_send_info(c, w);
+        return;
+    }
+
+    case TERMD_WS_SET_META: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_set_meta"); return; }
+        struct workspace *w = ws_by_id(get_u32(p));
+        if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
+        size_t blen = len - 4;
+        if (blen > TERMD_MAX_BLOB) { client_error(c, TERMD_ERR_BAD_FRAME, "blob too large"); return; }
+        uint8_t *fresh = NULL;
+        if (blen) {
+            fresh = malloc(blen);
+            if (!fresh) { client_error(c, TERMD_ERR_BAD_FRAME, "out of memory"); return; }
+            memcpy(fresh, p + 4, blen);
+        }
+        free(w->blob);
+        w->blob = fresh;
+        w->blob_len = (uint32_t)blen;
+        ws_send_info(c, w);
+        return;
+    }
+
+    case TERMD_WS_GET_META: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_get_meta"); return; }
+        struct workspace *w = ws_by_id(get_u32(p));
+        if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
+        uint8_t hdr[4];
+        put_u32(hdr, w->id);
+        // Two pieces rather than one buffer: a blob is up to 16 KB and there
+        // is no reason to copy it again on the way out.
+        client_out_two(c, TERMD_WS_META, hdr, 4, w->blob, w->blob_len);
+        return;
+    }
+
+    case TERMD_WS_LIST: {
+        uint16_t count = 0;
+        for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) if (g_workspaces[i].used) count++;
+        size_t cap = 2 + (size_t)TERMD_MAX_WORKSPACES
+                   * (12 + MAX_SESSIONS * 4 + TERMD_MAX_NAME);
+        uint8_t *buf = malloc(cap);
+        if (!buf) { client_error(c, TERMD_ERR_BAD_FRAME, "out of memory"); return; }
+        size_t off = 0;
+        put_u16(buf, count); off = 2;
+        for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) {
+            struct workspace *w = &g_workspaces[i];
+            if (!w->used) continue;
+            put_u32(buf + off, w->id); off += 4;
+            put_u32(buf + off, w->blob_len); off += 4;
+            put_u16(buf + off, w->nsessions); off += 2;
+            for (uint16_t k = 0; k < w->nsessions; k++) {
+                put_u32(buf + off, w->sessions[k]); off += 4;
+            }
+            size_t nlen = strlen(w->name);
+            put_u16(buf + off, (uint16_t)nlen); off += 2;
+            memcpy(buf + off, w->name, nlen); off += nlen;
+        }
+        client_out(c, TERMD_WS_LIST_REPLY, buf, off);
+        free(buf);
+        return;
+    }
+
     case TERMD_PING:
         client_out(c, TERMD_PONG, p, len);
         break;

@@ -29,6 +29,12 @@
 // apart from dropping control characters and trimming edge whitespace.
 #define TERMD_MAX_NAME 64
 
+// A layout blob is a client's private format and the daemon only stores it.
+// The cap is generous for a tree of pane ratios and mean about anything else,
+// which is the point: it is a layout, not a place to keep state.
+#define TERMD_MAX_BLOB (16u * 1024u)
+#define TERMD_MAX_WORKSPACES 32
+
 enum termd_type {
     TERMD_HELLO = 1,       // → version u16, name
     TERMD_HELLO_OK = 2,    // ← version u16, session count u16
@@ -55,6 +61,33 @@ enum termd_type {
     TERMD_ERROR = 14,      // ← code u16, message
     TERMD_PING = 15,       // ↔ (either side; the other answers PONG)
     TERMD_PONG = 16,       // ↔
+
+    // Workspaces (v1 of docs/plans/remote-workspace.md). A workspace is a
+    // NAME, a set of sessions, and an opaque blob. The daemon stores the blob
+    // and hands it back; it never parses it. Split ratios, focus and pane
+    // titles live inside it, so a new layout feature is a client change rather
+    // than a protocol one — and the daemon needs no idea what a pane is.
+    //
+    // Sessions are joined to a workspace by a separate frame rather than a
+    // field on OPEN: OPEN's payload ends with "command (rest)", so it has no
+    // room to grow at the end, and putting the id in the middle would break
+    // every client that predates it. WS_ADD is additive and needs no version
+    // bump. Session ids are never reused (g_next_id only increments), so a
+    // membership list cannot come to mean a different session later.
+    TERMD_WS_CREATE = 17,  // → name_len u16, name  — idempotent by name, like
+                           //   a named OPEN: asking twice returns the same id
+    TERMD_WS_INFO = 18,    // ← ws_id u32, name_len u16, name  (also the reply
+                           //   to WS_ADD and WS_SET_META, so a client knows
+                           //   the write landed)
+    TERMD_WS_LIST = 19,    // →
+    TERMD_WS_LIST_REPLY = 20,
+                           // ← count u16, then count × { ws_id u32,
+                           //   blob_len u32, nsessions u16,
+                           //   sessions[nsessions] u32, name_len u16, name }
+    TERMD_WS_ADD = 21,     // → ws_id u32, session u32
+    TERMD_WS_SET_META = 22,// → ws_id u32, blob (rest)
+    TERMD_WS_GET_META = 23,// → ws_id u32
+    TERMD_WS_META = 24     // ← ws_id u32, blob (rest)
 };
 
 enum termd_error {
@@ -62,6 +95,8 @@ enum termd_error {
     TERMD_ERR_BAD_FRAME = 2,
     TERMD_ERR_VERSION = 3,
     TERMD_ERR_OPEN_FAILED = 4,
+    TERMD_ERR_NO_WORKSPACE = 5,
+    TERMD_ERR_TOO_MANY = 6,
 };
 
 #endif  // STARLING_TERMD_PROTOCOL_H

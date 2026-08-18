@@ -20,6 +20,8 @@ import os, queue, socket, struct, subprocess, sys, tempfile, threading, time
 HDR = 8
 (HELLO, HELLO_OK, LIST, LIST_REPLY, OPEN, ATTACH, ATTACHED, DATA, INPUT,
  RESIZE, ACK, EXIT, DETACH, ERROR, PING, PONG) = range(1, 17)
+(WS_CREATE, WS_INFO, WS_LIST, WS_LIST_REPLY, WS_ADD, WS_SET_META,
+ WS_GET_META, WS_META) = range(17, 25)
 VERSION = 2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -88,6 +90,23 @@ def open_payload(cols=80, rows=24, name="", command=""):
     """An OPEN body: the name is length-prefixed so the command can be free."""
     n = name.encode()
     return struct.pack("<HHH", cols, rows, len(n)) + n + command.encode()
+
+
+def ws_entries(payload):
+    """WS_LIST_REPLY → [(ws_id, blob_len, [session ids], name)]."""
+    count = struct.unpack("<H", payload[:2])[0]
+    out, off = [], 2
+    for _ in range(count):
+        wid, blob_len, nses = struct.unpack("<IIH", payload[off:off + 10])
+        off += 10
+        sessions = list(struct.unpack("<" + "I" * nses, payload[off:off + 4 * nses]))
+        off += 4 * nses
+        nlen = struct.unpack("<H", payload[off:off + 2])[0]
+        off += 2
+        name = payload[off:off + nlen].decode("utf-8", "replace")
+        off += nlen
+        out.append((wid, blob_len, sessions, name))
+    return out
 
 
 def list_entries(payload):
@@ -478,6 +497,86 @@ def main():
         check("a session inherits no multiplexer markers", MUX_CLEAN in mux,
               repr(mux[-120:]))
         m.close()
+
+        # --- workspaces ---------------------------------------------------
+        # The daemon stores an arrangement it never parses. These checks are
+        # the whole of milestone 2 in docs/plans/remote-workspace.md: create,
+        # fill, write a blob, LOSE THE CONNECTION, come back and find it
+        # byte-identical.
+        BLOB = bytes(range(256)) * 3 + b"\x00\xff{\"panes\": [0.5, 0.5]}"
+
+        w = Client(sock_path)
+        w.hello()
+        w.send(WS_CREATE, struct.pack("<H", 3) + b"dev")
+        kind, payload = w.recv(WS_INFO)
+        ws_id = struct.unpack("<I", payload[:4])[0]
+        check("a workspace is created", kind == WS_INFO and ws_id > 0,
+              f"frame {kind}")
+
+        # Idempotent by name, like a named OPEN — a client that lost the id
+        # must not end up with a second workspace beside the first.
+        w.send(WS_CREATE, struct.pack("<H", 3) + b"dev")
+        _, payload = w.recv(WS_INFO)
+        check("creating the same workspace twice returns the same id",
+              struct.unpack("<I", payload[:4])[0] == ws_id)
+
+        sids = []
+        for _ in range(3):
+            w.send(OPEN, open_payload())
+            _, payload = w.recv(ATTACHED)
+            sid = struct.unpack("<I", payload[:4])[0]
+            sids.append(sid)
+            w.send(WS_ADD, struct.pack("<II", ws_id, sid))
+            w.recv(WS_INFO)
+            w.send(DETACH)
+        check("three sessions join the workspace", len(set(sids)) == 3)
+
+        w.send(WS_SET_META, struct.pack("<I", ws_id) + BLOB)
+        w.recv(WS_INFO)
+        # The connection dies here. This is the whole point: arrangement has
+        # to outlive the client that arranged it.
+        w.close()
+
+        w2 = Client(sock_path)
+        w2.hello()
+        w2.send(WS_GET_META, struct.pack("<I", ws_id))
+        kind, payload = w2.recv(WS_META)
+        got = payload[4:]
+        check("the layout blob survives the connection and is byte-identical",
+              kind == WS_META and got == BLOB,
+              f"{len(got)} bytes, wanted {len(BLOB)}")
+
+        w2.send(WS_LIST)
+        _, payload = w2.recv(WS_LIST_REPLY)
+        entries = [e for e in ws_entries(payload) if e[0] == ws_id]
+        check("the workspace lists its name, sessions and blob length",
+              len(entries) == 1 and entries[0][3] == "dev"
+              and sorted(entries[0][2]) == sorted(sids)
+              and entries[0][1] == len(BLOB),
+              repr(entries))
+
+        # A session dying must not take the workspace or the blob with it —
+        # the arrangement is the durable thing, the shells are not.
+        k = Client(sock_path)
+        k.hello()
+        k.send(ATTACH, struct.pack("<IQHH", sids[0], 0, 80, 24))
+        k.recv(ATTACHED)
+        k.send(INPUT, b"exit\n")
+        time.sleep(BOOT)
+        k.close()
+
+        w2.send(WS_LIST)
+        _, payload = w2.recv(WS_LIST_REPLY)
+        entries = [e for e in ws_entries(payload) if e[0] == ws_id]
+        check("a dead session leaves the workspace and its blob intact",
+              len(entries) == 1 and entries[0][1] == len(BLOB),
+              repr(entries))
+
+        w2.send(WS_GET_META, struct.pack("<I", 999))
+        kind, payload = w2.recv(ERROR)
+        check("an unknown workspace is an error, not an empty blob",
+              kind == ERROR, f"frame {kind}")
+        w2.close()
 
         # A wrong version is refused rather than half-spoken.
         e = Client(sock_path)
