@@ -10,8 +10,34 @@ checksum in `SHA256SUMS`. It carries what 0.1.0 does not: splits, remote
 workspaces with a stored arrangement, the switcher, pane status from OSC 133,
 tab keybindings, the floating-pane look, and **⌘/ for the keyboard reference**
 — which is the fastest way to see the rest of that list without reading this
-file. Same `.app` shape and the same Gatekeeper caveat as the 0.1.0 archive
-below.
+file. Same `.app` shape as the 0.1.0 archive below, and the same Gatekeeper
+caveat, but **its signature survives a plain `unzip`** where 0.1.0's does not
+(see that entry).
+
+### Gatekeeper, and what "known developers only" actually blocks
+
+This bundle is **ad-hoc signed**: valid, self-consistent, and from nobody.
+`codesign --verify --deep --strict` passes; `spctl -a -t exec` says `rejected`,
+and will keep saying it however the archive is built. Under *App Store and
+identified developers* that matters only where macOS applies it — **on the
+quarantine flag**, which a browser sets on a download and nothing else does:
+
+- **Cloned, `scp`'d, or unzipped in a terminal** — no quarantine, launches with
+  no prompt. Checked here.
+- **Downloaded in a browser** — quarantined, and refused on first launch. Use
+  right-click → **Open**, or Privacy & Security → **Open Anyway**, or clear it
+  once, which is the whole of the workaround:
+
+      xattr -dr com.apple.quarantine "Starling Terminal.app"
+
+None of that requires weakening the machine's setting, and none of it is a
+build change. **Making it launch like any other app means a "Developer ID
+Application" certificate and notarization** — a paid Apple Developer
+membership; an "Apple Development" certificate is for running on your own
+devices and cannot be notarized. `build/macos-app.sh` already takes the signing
+half through `STARLING_MACOS_IDENTITY`; the `notarytool submit` / `stapler
+staple` half is not written, because there is no certificate here to test it
+against.
 
 It sits BESIDE the 0.1.0 release candidate rather than replacing it, which is
 a deliberate exception to the "replace, don't accumulate" rule at the bottom of
@@ -50,6 +76,21 @@ rather than misbehaving.
 same 0.1.0 release candidate. 17.2 MB, checksum in `SHA256SUMS`. Unlike the
 Windows archive it wraps a `.app`, so it extracts to
 `Starling Terminal.app` rather than flat, and needs no directory made for it.
+
+**Its signature does not survive a plain `unzip`, and 0.2.0-dev's does.**
+`ditto -c -k` without `--sequesterRsrc` stores each file's extended attributes
+(everything here picks up `com.apple.provenance`) as AppleDouble, and command
+-line `unzip` materializes those as real `._Foo` files *inside* the bundle —
+63 of them, including `Contents/_CodeSignature/._CodeResources`. codesign then
+says `a sealed resource is missing or invalid`. Finder's Archive Utility
+understands AppleDouble and unpacks it correctly, so this is invisible to
+anyone who double-clicks and fatal to anyone who does not. `build/macos-app.sh`
+now strips xattrs before sealing, sequesters what is left into `__MACOSX/`, and
+**verifies the archive after a plain unzip rather than the bundle it built** —
+which is why this went unnoticed: the old check ran on the staged tree, on the
+near side of the round trip that does the damage. This archive predates that
+fix and still has it; unpack it with `ditto -x -k` (or Finder) if the signature
+matters, and it is fixed in whatever replaces it.
 
 Opening it needs no command and no arguments — verified by running the
 unpacked app under `env -i` with the SDK bundle it was built against moved
@@ -238,7 +279,7 @@ rival terminal.
 
 ## The 0.2.0-dev preview's provenance
 
-Built on the Mac from `remote-workspace` at `17b9bd4`, against this repo's
+Built on the Mac from `remote-workspace` at `b9e14a0`, against this repo's
 `sdk/` rather than a released bundle — see the entry at the top for why, and
 for what that costs in assurance:
 
