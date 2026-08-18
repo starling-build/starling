@@ -135,8 +135,13 @@ workspace, not per session, so it survives every session in it dying.
 4. **Several sessions over one connection — measured; the cheap path stays.**
    The cheap path needs no protocol change: ssh already multiplexes channels,
    so N attaches over one `ControlMaster` is N streams, one authentication,
-   one TCP connection, today. The expensive path is a session id on every
+   one TCP connection. The expensive path is a session id on every
    `DATA` and `INPUT` frame so one client connection carries all panes.
+
+   *(That paragraph said "today", and that word was wrong — see "what a real
+   link costs" below. `termdArgv` passes no `ControlMaster` options, so unless
+   the person running this has put them in their own `ssh_config`, every pane
+   is a full TCP connection and a full authentication of its own.)*
 
    What N panes cost the far machine, measured on a Mac (2026-08-18, local
    bridges, no ssh in the path):
@@ -162,10 +167,59 @@ workspace, not per session, so it survives every session in it dying.
    cost of a workspace is therefore set by how noisy its panes are, not by how
    many there are.
 
-   **Unmeasured, and needing a real link:** ssh channel setup per pane, and
-   reconnect latency for N panes when a tunnel bounces. Both need key-based
-   ssh to a host, which this machine does not have to itself; the numbers
-   above are the floor those two add to.
+   **What a real link costs — measured 2026-08-18** over key-based ssh from
+   this Mac to a stock Ubuntu box on the LAN, by `test/workspace/link-bench.swift`,
+   which drives the real `RemoteTerminal` (its spawn, its framing, its backoff)
+   and substitutes only the emulator. Both numbers the plan left open, and one
+   it did not think to ask:
+
+   | panes | setup p50 | setup p50, `ControlMaster` | reconnect p50 | dials in one 250 ms window |
+   | --- | --- | --- | --- | --- |
+   | 1 | 235 ms | — (builds the master) | 820 ms | 1 |
+   | 3 | 343 ms | 26 ms | 821 ms | 3 |
+   | 6 | 306 ms | 73 ms | 942 ms | 6 |
+   | 12 | 381 ms | 41 ms | 994 ms | 12 |
+
+   **ssh channel setup is ~300 ms per pane and they pay it in parallel**, so a
+   six-pane workspace opens in about the time one pane takes. Multiplexing is
+   worth roughly **8x on setup** once a master exists — 300 ms becomes 40 —
+   which is a much bigger win than the memory numbers above suggested, and it
+   is not switched on.
+
+   **Reconnect is ~0.8-1.0 s for any N**, of which 250 ms is the jittered
+   backoff and the rest is a fresh handshake. That is the good news.
+
+   The bad news is the last column, and it is what the risk list called a
+   thundering herd. Every pane holds its own backoff and they are all handed
+   the same `attempt` by the same tunnel dropping, so **every pane dialed
+   inside the same millisecond** — measured spread 0.0 ms, at every N tried.
+   A stock sshd's `MaxStartups 10:30:100` begins refusing unauthenticated
+   connections at ten, and at 24 panes it did: two of them came back
+   `kex_exchange_identification: Connection reset by peer`, which is a pane
+   that fails to return while its neighbours do. `TermdDialPacer` now spaces
+   dials per host, and the same 24 panes reconnect with **6 in the window and
+   no refusals** — the bound is `burst + window/spacing`, so it does not grow
+   with N at all:
+
+   | 24 panes | busiest 250 ms | spread | setup p50 | refusals |
+   | --- | --- | --- | --- | --- |
+   | unpaced | 24 | 676 ms | 808 ms | 2 |
+   | paced | 6 | 1943 ms | 1349 ms | 0 |
+
+   The cost is real and bounded: the Nth pane of a burst waits
+   `(N - 4) x 100 ms`, so 24 panes take 2.4 s to all come up rather than 1.1 s.
+   That is the right trade — a workspace that opens half a second slower beats
+   one where two panes are simply missing.
+
+   **`ControlMaster` is still not switched on by default, and the measurement
+   is why.** It caps out: `MaxSessions` (default 10) is a limit on channels
+   *within* one connection, so panes past the tenth are refused with
+   `Session open refused by peer` — a hard wall exactly where a big workspace
+   wants to be, and a more confusing failure than a slow start. Concurrent
+   first dials also race to create the master ("ControlSocket ... already
+   exists, disabling multiplexing") and quietly fall back to their own
+   connections. It is a good thing to put in `ssh_config` for a workspace of
+   six; it is not a good thing to impose on everyone from inside `termdArgv`.
 5. **Coming back to it.** Milestone 3 proved the arrangement survives; this is
    the milestone that makes *arriving* feel right, which is the whole point of
    the feature and the part a person actually experiences. Three pieces, in
@@ -313,9 +367,14 @@ workspace, not per session, so it survives every session in it dying.
 - **Layout blob skew** between client versions. Mitigated by decision 5, and
   the test in milestone 2 should include reading a blob whose version byte is
   from the future.
-- **N panes, N reconnect storms.** A dropped link with six panes means six
-  backoff timers. They should share one, or the far end sees a thundering
-  herd on every tunnel bounce.
+- **N panes, N reconnect storms — real, measured, and now paced.** A dropped
+  link with six panes meant six backoff timers, and because one tunnel drops
+  them all at the same `attempt`, they fired within 0.0 ms of each other. At
+  24 panes a stock sshd refused two of them outright (`MaxStartups 10:30:100`).
+  `TermdDialPacer` in `TermdLink.swift` spaces dials per host — four at once,
+  then one every 100 ms — which holds the busiest 250 ms to six dials no
+  matter how many panes there are. The backoff is jittered as well, so the
+  same pane is not last in the queue every round. See milestone 4.
 - **Server process count.** One `--stdio` bridge per pane is the price of the
   cheap path in milestone 4. Fine at six panes, questionable at sixty; that
   is exactly what the measurement was for, and it came back **1.34 MB per
