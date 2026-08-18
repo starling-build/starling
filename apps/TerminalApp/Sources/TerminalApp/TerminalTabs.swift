@@ -567,6 +567,39 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         tab.workspace?.assertSizes(tab)
     }
 
+    /// Nth tab, zero-based. Out of range does nothing rather than clamping:
+    /// ⌘4 in a window with three tabs is a mistake, and landing on the third
+    /// would be a silent wrong answer.
+    private func _selectIndex(_ index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        _select(tabs[index])
+    }
+
+    /// 1…9 from a key id, in either spelling, or nil for anything else.
+    ///
+    /// A digit key usually arrives as its own ASCII value — but not when a
+    /// modifier means it produces no character. Holding ⌘ on the Cocoa host
+    /// turns ⌘2 into `0x2_0000_0232`: Flutter's synthesized plane, with the
+    /// key's LABEL in the low byte. Testing only for `0x31...0x39` therefore
+    /// matches on Linux and never on the Mac, where the digit is typed into
+    /// the shell instead — which is exactly how this was found.
+    private func _digitKey(_ logical: Int64) -> Int? {
+        if logical >= 0x31 && logical <= 0x39 { return Int(logical - 0x30) }
+        if logical >= 0x2_0000_0231 && logical <= 0x2_0000_0239 {
+            return Int(logical - 0x2_0000_0230)
+        }
+        return nil
+    }
+
+    /// Next or previous tab, wrapping. Wrapping is what every terminal and
+    /// browser does, and it is what makes Ctrl+PageDown usable as "keep
+    /// going" rather than something that stops at the end.
+    private func _cycleTab(_ delta: Int) {
+        guard tabs.count > 1 else { return }
+        let n = tabs.count
+        _selectIndex(((active + delta) % n + n) % n)
+    }
+
     // MARK: - Chords
 
     /// First refusal on every key, handed to the terminal on screen.
@@ -580,6 +613,11 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     ///   - Ctrl+Shift+W / ⌘W           close the pane, or the tab if it is
     ///                                 the last pane in it
     ///   - Ctrl+Shift+O / ⌘O           go to a workspace (TerminalSwitcher)
+    ///   - Ctrl+PageUp/PageDown        previous / next tab, wrapping
+    ///   - Ctrl+Tab / Ctrl+Shift+Tab   next / previous tab (bare Ctrl+Tab
+    ///                                 does not reach us on macOS — below)
+    ///   - ⌘1…⌘8, ⌘9                   that tab, and the last one
+    ///   - ⌘⇧[ / ⌘⇧]                   previous / next tab
     ///
     /// Ctrl+T is `transpose-chars` in every shell's emacs-mode line editor and
     /// is now gone; that is the price of the chord asked for. Close is
@@ -617,7 +655,31 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         let isE = keyData.logical == 0x45 || keyData.logical == 0x65
         let isO = keyData.logical == 0x4F || keyData.logical == 0x6F
 
+        // Two id schemes again: X11 keysyms from the DRM embedder, Flutter
+        // logical ids everywhere else. Note pageUp/pageDown are NOT in the
+        // same order in the two tables — 0xFF55 is up and 0x1_0000_0308 is
+        // up, but the Flutter pair reads 0307=down, 0308=up.
+        let isPageUp = keyData.logical == 0xFF55 || keyData.logical == 0x1_0000_0308
+        let isPageDown = keyData.logical == 0xFF56 || keyData.logical == 0x1_0000_0307
+        let isTab = keyData.logical == 0xFF09 || keyData.logical == 0x1_0000_0009
+
+        // Tab navigation, on every platform. Ctrl+PageUp/PageDown is what
+        // gnome-terminal and konsole use, and it collides with nothing: the
+        // scrollback pager next door is SHIFT+PageUp.
+        //
+        // Ctrl+Tab is the other spelling people have in their fingers, and it
+        // is bound here — but **the macOS Cocoa host reports logical id 0 for
+        // bare Ctrl+Tab**, with no way to tell it from any other key that has
+        // no logical id, so it cannot be claimed there. (Ctrl+Shift+Tab comes
+        // through correctly as 0x1_0000_0009 even on that host, which is why
+        // the pair is asymmetric rather than simply absent.) Matching 0 to
+        // recover it would swallow every unlabelled key in the terminal, which
+        // is a far worse trade than one missing chord on the one platform that
+        // also has ⌘1…⌘9 and ⌘⇧[/].
         if _ctrlDown && !_metaDown {
+            if isPageUp { _cycleTab(-1); return true }
+            if isPageDown { _cycleTab(1); return true }
+            if isTab { _cycleTab(_shiftDown ? -1 : 1); return true }
             if isT && !_shiftDown { _newTab(); return true }
             if _shiftDown {
                 if isW { _closePane(); return true }
@@ -632,6 +694,25 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         // and Cmd+Shift+D are iTerm's split pair, which is the muscle memory
         // most Mac terminal users already have.
         if _metaDown && !_ctrlDown {
+            // ⌘1…⌘8 jump, and ⌘9 is the LAST tab rather than the ninth —
+            // Safari's rule, which Terminal.app and iTerm both follow, and
+            // which is more useful than a ninth tab nobody has.
+            if let digit = _digitKey(keyData.logical) {
+                _selectIndex(digit == 9 ? tabs.count - 1 : digit - 1)
+                return true
+            }
+            // ⌘⇧[ / ⌘⇧] — Terminal.app's and Chrome's pair. Both the bare
+            // bracket and the shifted brace are accepted because which one
+            // arrives depends on whether the embedder reports the key's label
+            // or the character it produced, and that has differed before.
+            if _shiftDown {
+                if keyData.logical == 0x5B || keyData.logical == 0x7B {
+                    _cycleTab(-1); return true
+                }
+                if keyData.logical == 0x5D || keyData.logical == 0x7D {
+                    _cycleTab(1); return true
+                }
+            }
             if isT { _newTab(); return true }
             if isW { _closePane(); return true }
             if isD { _split(_shiftDown ? .column : .row); return true }
