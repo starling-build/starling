@@ -120,6 +120,49 @@ int32_t flwin32_shortcut_target(const char* shortcut_path,
     return result;
 }
 
+int32_t flwin32_shortcut_icon(const char* shortcut_path,
+                              char* out,
+                              int32_t out_size,
+                              int32_t* index) {
+    if (shortcut_path == NULL) return 0;
+    ensure_com();
+    if (index != NULL) *index = 0;
+
+    wchar_t* wpath = utf8_to_wide(shortcut_path);
+    if (wpath == NULL) return 0;
+
+    IShellLinkW* link = NULL;
+    int32_t result = 0;
+    if (SUCCEEDED(CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+                                   &IID_IShellLinkW, (void**)&link))) {
+        IPersistFile* file = NULL;
+        if (SUCCEEDED(link->lpVtbl->QueryInterface(link, &IID_IPersistFile,
+                                                   (void**)&file))) {
+            if (SUCCEEDED(file->lpVtbl->Load(file, wpath, STGM_READ))) {
+                wchar_t icon[MAX_PATH];
+                int icon_index = 0;
+                icon[0] = L'\0';
+                if (SUCCEEDED(link->lpVtbl->GetIconLocation(link, icon, MAX_PATH,
+                                                            &icon_index)) &&
+                    icon[0] != L'\0') {
+                    /* Same expansion as the target: these are stored raw too,
+                     * and "%SystemRoot%\\system32\\imageres.dll" opens as
+                     * nothing at all. */
+                    wchar_t expanded[MAX_PATH];
+                    DWORD n = ExpandEnvironmentStringsW(icon, expanded, MAX_PATH);
+                    result = wide_copy_out(
+                        (n > 0 && n <= MAX_PATH) ? expanded : icon, out, out_size);
+                    if (index != NULL) *index = (int32_t)icon_index;
+                }
+            }
+            file->lpVtbl->Release(file);
+        }
+        link->lpVtbl->Release(link);
+    }
+    free(wpath);
+    return result;
+}
+
 int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size) {
     /* 0 = the machine-wide Start Menu programs, 1 = this user's. Two folders,
      * not one: an app installed for all users lands in the first and one

@@ -340,6 +340,15 @@ int32_t flwin32_shortcut_target(const char* shortcut_path,
 // needed — an app installed for all users is only in the first, and one
 // installed for the current user only in the second, which on a modern
 // Windows is most of them.
+// The icon a shortcut DECLARES — a file path and an index into it, which is
+// what most .lnk files carry. Worth asking before the shell's own answer:
+// SHGetFileInfo on a shortcut composes the little overlay arrow into the
+// icon, and in a dock that badge means nothing.
+int32_t flwin32_shortcut_icon(const char* shortcut_path,
+                              char* out,
+                              int32_t out_size,
+                              int32_t* index);
+
 int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size);
 
 // Starts an app, document or URL through the shell (ShellExecuteW), which is

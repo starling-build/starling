@@ -84,6 +84,15 @@ struct FlWin32Host {
 // this window class.
 #define WM_STARLING_APPBAR (WM_USER + 0x51)
 
+// Escape, while an overlay is on screen.
+//
+// A global hotkey rather than a key handler in the tree: keyboard messages go
+// to the engine's CHILD window, so the top-level procedure never sees them,
+// and the framework's own focus plumbing is not somewhere to be relying on
+// for "the launcher must always close". Registered only while the overlay is
+// up, so Escape belongs to everyone else the rest of the time.
+#define kOverlayEscapeHotkey 0xA51
+
 // A system-wide message id, the documented way for unrelated processes to
 // talk without a socket or a pipe: every process that registers the same
 // STRING gets the same id back, and it survives being broadcast. The bar and
@@ -227,6 +236,14 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
                      SWP_NOZORDER | SWP_NOACTIVATE);
       }
       return 0;
+
+    case WM_HOTKEY:
+      if (host != NULL && wparam == kOverlayEscapeHotkey) {
+        flwin32_host_set_visible(host, 0);
+        if (host->toggle_callback != NULL) host->toggle_callback(host->toggle_user);
+        return 0;
+      }
+      break;
 
     case WM_DISPLAYCHANGE:
       // A monitor was plugged, unplugged, or changed resolution. A panel is
@@ -1183,6 +1200,7 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
 // under the menu bar, so nobody can see it; and showing it is a resize, which
 // is why it appears instantly.
 static void overlay_park(FlWin32Host* host) {
+  UnregisterHotKey(host->window, kOverlayEscapeHotkey);
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
   // TRANSPARENT while parked: one pixel is not much to click on, but it is
   // the corner of the screen, which is exactly where a pointer ends up.
@@ -1239,6 +1257,7 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
                host->overlay_rect.bottom - host->overlay_rect.top,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
   host->overlay_shown = 1;
+  RegisterHotKey(host->window, kOverlayEscapeHotkey, 0, VK_ESCAPE);
   // Through the window manager's own activate, which owns the
   // AttachThreadInput dance: the process asking for this is usually the BAR,
   // not us, so we are not the foreground process and a bare

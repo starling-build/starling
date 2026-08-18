@@ -238,6 +238,42 @@ int32_t flwin32_icon_rasterize_path(const char* path,
      * and a shortcut's icon is a property of the shortcut (it may point at a
      * different file, or carry an overlay) rather than of whatever it starts.
      * This is the icon Explorer draws for that entry. */
+    /* A .lnk gets one more chance first: the shortcut's DECLARED icon.
+     *
+     * SHGetFileInfoW on a shortcut returns the shell's composed icon, which
+     * has the little curved ARROW baked into it -- in Explorer that badge
+     * means "this is a shortcut", and in a dock it means nothing and every
+     * entry wears one. Most shortcuts name an icon file and index outright
+     * (File Explorer's points into imageres.dll), and ExtractIconEx on that
+     * gives the artwork with no overlay. */
+    size_t length = strlen(path);
+    if (length > 4 && _stricmp(path + length - 4, ".lnk") == 0) {
+        char icon_path[1024];
+        int32_t icon_index = 0;
+        if (flwin32_shortcut_icon(path, icon_path, 1024, &icon_index) > 0) {
+            int n2 = MultiByteToWideChar(CP_UTF8, 0, icon_path, -1, NULL, 0);
+            if (n2 > 0) {
+                wchar_t* wicon = (wchar_t*)calloc((size_t)n2, sizeof(wchar_t));
+                if (wicon != NULL) {
+                    MultiByteToWideChar(CP_UTF8, 0, icon_path, -1, wicon, n2);
+                    HICON large = NULL, small_icon = NULL;
+                    UINT got = ExtractIconExW(wicon, icon_index, &large,
+                                              &small_icon, 1);
+                    free(wicon);
+                    if (got > 0 && (large != NULL || small_icon != NULL)) {
+                        HICON chosen = large != NULL ? large : small_icon;
+                        if (large != NULL && small_icon != NULL) {
+                            DestroyIcon(small_icon);
+                        }
+                        free(wide);
+                        return rasterize(chosen, 1, size, out_pixels,
+                                         out_width, out_height);
+                    }
+                }
+            }
+        }
+    }
+
     SHFILEINFOW info;
     memset(&info, 0, sizeof(info));
     UINT flags = SHGFI_ICON | (size > 24 ? SHGFI_LARGEICON : SHGFI_SMALLICON);

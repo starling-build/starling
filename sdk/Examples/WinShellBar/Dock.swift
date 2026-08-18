@@ -291,17 +291,22 @@ final class StarlingDockState: State<StatefulWidget> {
                                 }
                             }
                         }
-                        // The running indicator: present for a running app,
-                        // brighter for the focused one. A dot rather than a
-                        // highlight behind the icon, so the app's own artwork
-                        // stays the thing the eye lands on.
+                        // The running indicator: one dot per window, up to
+                        // three, brighter when the app has focus. A dot
+                        // rather than a highlight behind the icon, so the
+                        // app's own artwork stays the thing the eye lands on
+                        // — and counting them is how a glance tells four
+                        // documents from one.
                         SizedBox(height: 7) {
                             Center {
-                                ClipRRect(borderRadius: BorderRadius.circular(2.5)) {
-                                    ColoredBox(color: item.isForeground ? Color(0xFFFFFFFF)
-                                        : item.isRunning ? Color(0x99FFFFFF)
-                                        : Color(0x00000000)) {
-                                        SizedBox(width: 5, height: 5)
+                                Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 3) {
+                                    for _ in 0..<min(item.windows.count, 3) {
+                                        ClipRRect(borderRadius: BorderRadius.circular(2.5)) {
+                                            ColoredBox(color: item.isForeground
+                                                ? Color(0xFFFFFFFF) : Color(0x99FFFFFF)) {
+                                                SizedBox(width: 5, height: 5)
+                                            }
+                                        }
                                     }
                                 }
                             }
