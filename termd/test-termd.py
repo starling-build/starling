@@ -606,6 +606,42 @@ def main():
         kind, payload = w2.recv(ERROR)
         check("an unknown workspace is an error, not an empty blob",
               kind == ERROR, f"frame {kind}")
+
+        # Two clients on one workspace. Whoever writes last wins, and the
+        # others are TOLD — without that they keep drawing the arrangement
+        # they had and write it back over this one on their next change.
+        # w2 is already watching (it asked for the blob above).
+        w3 = Client(sock_path)
+        w3.hello()
+        w3.send(WS_CREATE, struct.pack("<H", len(b"dev")) + b"dev")
+        w3.recv(WS_INFO)
+        MOVED = BLOB + b"\x99"
+        w3.send(WS_SET_META, struct.pack("<I", ws_id) + MOVED)
+
+        kind, payload = w3.recv(WS_INFO, timeout=2.0)
+        check("the client that wrote gets its acknowledgement",
+              kind == WS_INFO, f"frame {kind}")
+        kind, payload = w2.recv(WS_META, timeout=2.0)
+        check("the other client is told, unasked",
+              kind == WS_META and payload[4:] == MOVED,
+              f"frame {kind}, {len(payload) - 4} bytes")
+
+        # …and the writer is not told its own news, or two clients would
+        # answer each other forever.
+        kind, _ = w3.recv(WS_META, timeout=0.6)
+        check("the writer is not sent its own arrangement back", kind is None,
+              f"frame {kind}")
+
+        # A connection that never named the workspace hears nothing about it.
+        quiet = Client(sock_path)
+        quiet.hello()
+        w3.send(WS_SET_META, struct.pack("<I", ws_id) + BLOB)
+        w3.recv(WS_INFO)
+        kind, _ = quiet.recv(WS_META, timeout=0.6)
+        check("a connection not watching hears nothing", kind is None,
+              f"frame {kind}")
+        quiet.close()
+        w3.close()
         w2.close()
 
         # A wrong version is refused rather than half-spoken.

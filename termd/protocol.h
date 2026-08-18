@@ -105,7 +105,14 @@ enum termd_type {
     TERMD_WS_ADD = 21,     // → ws_id u32, session u32
     TERMD_WS_SET_META = 22,// → ws_id u32, blob (rest)
     TERMD_WS_GET_META = 23,// → ws_id u32
-    TERMD_WS_META = 24     // ← ws_id u32, blob (rest)
+    TERMD_WS_META = 24     // ← ws_id u32, blob (rest). Answers WS_GET_META,
+                           //   and is also sent UNASKED to every other
+                           //   connection watching that workspace whenever
+                           //   one of them stores a new arrangement. Without
+                           //   it, two clients on one workspace each keep
+                           //   drawing their own tree and writing it over the
+                           //   other's. A connection starts watching by
+                           //   naming a workspace in any WS_ frame.
 };
 
 enum termd_error {

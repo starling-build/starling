@@ -193,6 +193,36 @@ struct WorkspaceTest {
     check("an oversized layout is refused by the client, not the daemon",
           blob5 == future, "\(blob5.count) bytes")
 
+    // --- two clients on one workspace ------------------------------------
+    // Milestone 6: last writer wins, and the loser is told. Without the
+    // telling, the second client keeps its own tree and writes it back over
+    // the first's on its next change — which is the flap this exists to stop.
+    let watcher = Box()
+    let ws6 = RemoteWorkspace(name: "wstest", host: "local", serverPath: termd)
+    ws6.onRestore = { _ in }
+    ws6.onLayoutChanged = { blob in watcher.blob = blob }
+    ws6.start()
+    _ = waitUntil(8, { ws6.workspaceId != nil })
+
+    let theirs = PaneLayout(root: .split(axis: .column, ratio: 0.25,
+                                         first: .leaf(session: 21),
+                                         second: .leaf(session: 22)),
+                            activeLeaf: 1).encoded()
+    ws5.setLayout(theirs)
+    ws5.flush()
+    check("a second client is told when the first rearranges",
+          waitUntil(5, { watcher.blob == theirs }),
+          "\(watcher.blob?.count ?? -1) bytes")
+
+    // And it ADOPTS: the arrangement it was told about is now what it would
+    // write itself, so nobody trades the same tree back and forth.
+    watcher.blob = nil
+    ws6.setLayout(theirs)
+    ws6.flush()
+    check("adopting means not writing it straight back",
+          watcher.blob == nil, "\(watcher.blob?.count ?? -1) bytes")
+    ws6.stop()
+
     // --- a session that is not there -------------------------------------
     // A pane can exit between its ATTACHED and the WS_ADD that joins it. That
     // is ordinary, and it must not take the workspace's link down with it.

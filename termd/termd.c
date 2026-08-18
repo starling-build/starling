@@ -87,6 +87,13 @@ struct client {
     int used;
     sock_t fd;
     uint32_t session;   // 0 = not attached
+    // The workspace this connection is watching, 0 for none. Set by any
+    // workspace frame it sends, and the whole reason it exists is the
+    // broadcast: when one client stores a new arrangement, the others are
+    // told rather than left drawing the old one until they next attach.
+    // One per CONNECTION, not per client program — a client showing two
+    // workspaces holds two connections, because each is one control link.
+    uint32_t ws_watch;
     uint64_t sent;      // next byte offset to send
     uint64_t acked;
     // Inbound framing state
@@ -346,6 +353,31 @@ static void client_out_two(struct client *c, uint8_t type,
     c->out_len += TERMD_HEADER_LEN + len;
 }
 
+// The stored arrangement, to one client.
+static void ws_send_meta(struct client *c, const struct workspace *w) {
+    uint8_t hdr[4];
+    put_u32(hdr, w->id);
+    // Two pieces rather than one buffer: a blob is up to 16 KB and there is
+    // no reason to copy it again on the way out.
+    client_out_two(c, TERMD_WS_META, hdr, 4, w->blob, w->blob_len);
+}
+
+// …and to everyone else watching it.
+//
+// Two clients on one workspace is not an error — the daemon has never
+// rejected a second ATTACH — but without this each would keep writing its own
+// tree over the other's and the two would flap. The daemon still does not
+// look inside the blob; it forwards the bytes it was handed, which is the
+// same promise it has always made.
+static void ws_broadcast_meta(const struct workspace *w, const struct client *from) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        struct client *c = &g_clients[i];
+        if (!c->used || c == from || c->dead || c->closing) continue;
+        if (c->ws_watch != w->id) continue;
+        ws_send_meta(c, w);
+    }
+}
+
 // The reply to every workspace WRITE: the client learns the id (which it may
 // not have known, on an idempotent create) and that the write landed.
 static void ws_send_info(struct client *c, const struct workspace *w) {
@@ -568,6 +600,7 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
             snprintf(w->name, sizeof(w->name), "%s", name);
             logf_("workspace %u created \"%s\"", w->id, w->name);
         }
+        c->ws_watch = w->id;
         ws_send_info(c, w);
         return;
     }
@@ -586,6 +619,7 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
             }
             w->sessions[w->nsessions++] = sid;
         }
+        c->ws_watch = w->id;
         ws_send_info(c, w);
         return;
     }
@@ -605,7 +639,9 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         free(w->blob);
         w->blob = fresh;
         w->blob_len = (uint32_t)blen;
+        c->ws_watch = w->id;
         ws_send_info(c, w);
+        ws_broadcast_meta(w, c);
         return;
     }
 
@@ -613,11 +649,8 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_get_meta"); return; }
         struct workspace *w = ws_by_id(get_u32(p));
         if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
-        uint8_t hdr[4];
-        put_u32(hdr, w->id);
-        // Two pieces rather than one buffer: a blob is up to 16 KB and there
-        // is no reason to copy it again on the way out.
-        client_out_two(c, TERMD_WS_META, hdr, 4, w->blob, w->blob_len);
+        c->ws_watch = w->id;
+        ws_send_meta(c, w);
         return;
     }
 

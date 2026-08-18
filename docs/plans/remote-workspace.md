@@ -185,16 +185,38 @@ workspace, not per session, so it survives every session in it dying.
      hook. The daemon owns the pty and could read the child's cwd directly
      (`/proc/<pid>/cwd`, `proc_pidinfo`) for every shell, with no integration
      at all — a daemon change rather than a client one, and the honest fix.
-6. **More than one client at once — and a policy, not an accident.** Attaching
-   from a second machine works today, and two things then go wrong. `RESIZE` is
-   last-writer-wins, so a laptop and a phone SIGWINCH the shell back and forth
-   between two geometries; the pty can only have one size, which is the price
-   of not rendering on the server, so the daemon has to pick — smallest live
-   client, the way tmux does, using the client table it already keeps. And
-   `WS_SET_META` answers only its writer, so a split on one machine never
-   reaches the other and the two flap, overwriting each other's tree; the fix
-   is broadcasting `WS_META` to the other clients that have read that
-   workspace. Both are additive.
+6. **More than one client at once — a policy, not an accident. — DONE.**
+   Attaching from a second machine always worked (`ATTACH` has never rejected
+   a second client, and each keeps its own byte cursor); what was missing was
+   an answer to the two things that then collide.
+
+   **The pty's size: last writer wins.** One pty has one size and that is the
+   price of not rendering on the server, so somebody loses. The daemon already
+   took the last `RESIZE` it was given; what makes that the right rule rather
+   than an accident is the client half — **engaging with a window re-asserts
+   every one of its panes** (`TerminalWorkspace.assertSizes`, on pane click and
+   on tab select), so "last writer" means "the machine in your hands" and not
+   "whichever attached most recently". Between engagements the other client
+   draws a grid the shell does not know about: its text was wrapped for
+   somebody else. That is visible rather than corrupting, one click fixes it,
+   and the alternative — smallest-client-wins — makes the laptop letterbox
+   itself to the phone permanently, which is worse for the case this feature
+   is actually for.
+
+   **The arrangement: last writer wins, and the loser is told.**
+   `WS_SET_META` now broadcasts `WS_META` to every other connection watching
+   that workspace (a connection starts watching by naming one in any `WS_`
+   frame). The client that receives it ADOPTS — its `lastSent` moves to the
+   blob it was handed — so it does not write its own tree back and the two
+   cannot trade the same arrangement forever. Applying it is a **merge, not a
+   rebuild**: a pane already attached to a session the new tree still mentions
+   is kept exactly as it is, so a split appearing on the other machine costs
+   one new pane rather than every pane's screen.
+
+   Verified live with two clients on one workspace: a split in one appeared in
+   the other with the same session behind it, and clicking into the small
+   window sized both shells to 36x24 while clicking into the large one put
+   them back to 66x40.
 7. **Later, separable:** detach/reattach of a whole workspace as one
    operation, workspace names in `--list`, a frame that ENDS a session (today
    closing a remote pane only detaches, so orphans accumulate where nobody

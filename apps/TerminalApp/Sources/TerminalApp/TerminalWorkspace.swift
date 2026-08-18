@@ -119,12 +119,29 @@ final class TerminalWorkspace: @unchecked Sendable {
     /// Connect, and hand back what the far side was holding. `nil` means a
     /// workspace nobody has arranged yet — a first launch, or a name typed
     /// for the first time — and the caller opens a single pane instead.
-    func start(onRestore: @escaping @Sendable (PaneLayout?) -> Void) {
+    func start(onRestore: @escaping @Sendable (PaneLayout?) -> Void,
+               onRearranged: @escaping @Sendable (PaneLayout) -> Void) {
         link.onRestore = { blob in
             // Off the link's thread before any of this reaches the tree.
             DispatchQueue.main.async { onRestore(PaneLayout.decode(blob)) }
         }
+        link.onLayoutChanged = { blob in
+            guard let layout = PaneLayout.decode(blob) else { return }
+            DispatchQueue.main.async { onRearranged(layout) }
+        }
         link.start()
+    }
+
+    /// True while another client's arrangement is being applied, so the
+    /// changes that causes are not written straight back as if they were ours.
+    /// The daemon would forward that to the other client, which would apply it
+    /// and write back, and two clients would trade the same tree forever.
+    private(set) var adopting = false
+
+    func adopt(_ body: () -> Void) {
+        adopting = true
+        body()
+        adopting = false
     }
 
     /// Give a pane a session: the one the blob named, or a new one when
@@ -219,9 +236,38 @@ final class TerminalWorkspace: @unchecked Sendable {
         remotes[pane.id]?.remoteId ?? 0
     }
 
+    /// Tell the far side this pane's size again.
+    ///
+    /// A pty has one size and two clients can be attached, so somebody has to
+    /// lose: the daemon takes the last RESIZE it is given and that is the
+    /// policy. What makes it the RIGHT policy is this — the client someone is
+    /// actually using re-asserts when they engage with a pane, so "last
+    /// writer" means "the machine in your hands" rather than "whichever
+    /// happened to attach most recently".
+    ///
+    /// Between engagements the other client draws at a size the shell does not
+    /// know about: its grid is its own, the text inside it was wrapped for
+    /// somebody else's. That is the cost of one pty and no server-side
+    /// rendering, it is visible rather than corrupting, and one click fixes it.
+    /// Every pane in the tab, not just the one that was clicked: the person
+    /// engaged with this WINDOW, and a window whose focused pane is sized for
+    /// it while the pane beside it is still sized for another machine is a
+    /// worse answer than either client winning outright.
+    func assertSizes(_ tab: TerminalTab) {
+        for pane in tab.root.panes {
+            guard remotes[pane.id] != nil else { continue }
+            pane.session.lock.lock()
+            let (cols, rows) = (pane.session.emulator.cols,
+                                pane.session.emulator.rows)
+            pane.session.lock.unlock()
+            pane.session.resizeProcess(cols: cols, rows: rows)
+        }
+    }
+
     /// Record the tab's arrangement. Cheap to call — RemoteWorkspace holds it
     /// and writes the last one after a pause.
     func record(_ tab: TerminalTab) {
+        guard !adopting else { return }
         let panes = tab.root.panes
         let active = panes.firstIndex { $0.id == tab.activePaneId } ?? 0
         let layout = PaneLayout(

@@ -72,6 +72,16 @@ public final class RemoteWorkspace: @unchecked Sendable {
     /// Fires on the link's thread whenever `link` changes.
     public var onLink: ((Link) -> Void)?
 
+    /// Another client rearranged this workspace. Fires on the link's thread,
+    /// with the arrangement it stored.
+    ///
+    /// The daemon sends WS_META unasked to every other connection watching a
+    /// workspace, so this is how a second machine finds out that a pane was
+    /// split on the first. A client that ignores it is not broken — it will
+    /// simply keep drawing what it had, and overwrite the other's tree on its
+    /// next change, which is exactly what this exists to stop.
+    public var onLayoutChanged: (([UInt8]) -> Void)?
+
     private let host: String
     private let sshPath: String
     private let serverPath: String
@@ -93,6 +103,11 @@ public final class RemoteWorkspace: @unchecked Sendable {
     private var attempt = 0
     private var lastPong = Date()
     private var restored = false
+    /// True from a re-established connection until its WS_META lands — which
+    /// is what separates "the daemon is telling me what it had while I was
+    /// away" from "another client just changed this". The first is answered by
+    /// re-asserting our arrangement, the second by adopting theirs.
+    private var reconnecting = false
 
     /// How long a layout change is held before it is written. Long enough
     /// that a drag is one write rather than a hundred, short enough that
@@ -218,6 +233,9 @@ public final class RemoteWorkspace: @unchecked Sendable {
         guard let link = ChildLink.spawn(argv) else { return false }
         lock.lock()
         child = link
+        // Every connection after the first is a reconnect, and the WS_META it
+        // asks for means something different from an unasked one.
+        reconnecting = restored
         lock.unlock()
 
         var hello = TermdWire.u16(UInt16(TermdWire.version))
@@ -318,20 +336,30 @@ public final class RemoteWorkspace: @unchecked Sendable {
                 let firstRestore = !restored
                 restored = true
                 var rewrite: [UInt8]?
+                var adopt: [UInt8]?
                 if firstRestore {
                     // What the daemon holds IS what this client will draw, so
                     // it must not be written straight back.
                     if !blob.isEmpty { lastSent = blob }
-                } else if let mine = lastSent, mine != blob {
-                    // A reconnect, onto a daemon holding an older arrangement
-                    // than the one on screen — a split made while the link was
-                    // down. The client is the authority on layout; the daemon
-                    // is where it is kept.
-                    rewrite = mine
+                } else if reconnecting {
+                    // A reconnect, onto a daemon that may hold an older
+                    // arrangement than the one on screen — a split made while
+                    // the link was down. Here the client is the authority.
+                    if let mine = lastSent, mine != blob { rewrite = mine }
+                } else if lastSent != blob {
+                    // Unasked, on a live link: another client rearranged the
+                    // workspace. Here the OTHER end is the authority, and
+                    // `lastSent` moves with it — otherwise this client would
+                    // write its own tree back on its next change and the two
+                    // would flap forever.
+                    lastSent = blob
+                    adopt = blob
                 }
+                reconnecting = false
                 lock.unlock()
                 if firstRestore { onRestore?(blob) }
                 if let rewrite = rewrite { sendSetMeta(id, rewrite) }
+                if let adopt = adopt { onLayoutChanged?(adopt) }
 
             case TermdFrame.ping.rawValue:
                 send(.pong, body)

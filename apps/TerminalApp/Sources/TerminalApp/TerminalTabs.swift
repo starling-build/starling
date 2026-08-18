@@ -249,12 +249,19 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         // crosses a thread boundary (it is called after a hop to the UI
         // thread), and a tab is not a value that may cross one.
         let tabId = tab.id
-        workspace.start { [weak self] layout in
-            guard let self = self,
-                  let tab = self.tabs.first(where: { $0.id == tabId })
-            else { return }
-            self._restore(tab, layout)
-        }
+        workspace.start(
+            onRestore: { [weak self] layout in
+                guard let self = self,
+                      let tab = self.tabs.first(where: { $0.id == tabId })
+                else { return }
+                self._restore(tab, layout)
+            },
+            onRearranged: { [weak self] layout in
+                guard let self = self,
+                      let tab = self.tabs.first(where: { $0.id == tabId })
+                else { return }
+                self._adopt(tab, layout)
+            })
     }
 
     /// The arrangement the far side was holding becomes this tab's tree.
@@ -295,6 +302,59 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             tab.focusEpoch += 1
         }
         for pane in placeholders { pane.session.terminate() }
+    }
+
+    /// Another client rearranged this workspace: take their tree.
+    ///
+    /// A MERGE, not a rebuild. Every pane already attached to a session the
+    /// new arrangement still mentions is kept exactly as it is — same
+    /// emulator, same scrollback, same link — and only the shape around it
+    /// changes. Rebuilding instead would drop every pane's screen and
+    /// reattach, which on a slow link is the difference between a split
+    /// appearing and the whole window blinking.
+    ///
+    /// Last writer wins, which is the same rule as the pty's size: whoever
+    /// most recently said something is right, and the other end conforms.
+    private func _adopt(_ tab: TerminalTab, _ layout: PaneLayout) {
+        guard let workspace = tab.workspace else { return }
+        var spare = tab.root.panes
+        var kept: [TerminalPane] = []
+
+        let root = buildPaneTree(layout.root) { leaf in
+            if leaf.session != 0,
+               let index = spare.firstIndex(where: {
+                   workspace.sessionId($0) == leaf.session
+               }) {
+                let pane = spare.remove(at: index)
+                kept.append(pane)
+                return pane
+            }
+            // A pane the other client opened. Ours attaches to the same
+            // far-side session, so both draw the same bytes.
+            let pane = _blankPane()
+            workspace.attach(pane, session: leaf.session, cwd: leaf.cwd)
+            kept.append(pane)
+            return pane
+        }
+
+        workspace.adopt {
+            setState {
+                tab.root = root
+                let index = min(max(0, layout.activeLeaf), max(0, kept.count - 1))
+                // Focus is theirs too, but only as a starting point: moving it
+                // is a local act and the next click here wins it back.
+                tab.activePaneId = kept.indices.contains(index)
+                    ? kept[index].id : (kept.first?.id ?? tab.activePaneId)
+                tab.focusEpoch += 1
+            }
+        }
+
+        // Panes the other client closed. Their sessions keep running — closing
+        // a pane detaches — so this drops the link and the local screen only.
+        for pane in spare {
+            workspace.detach(pane)
+            pane.session.terminate()
+        }
     }
 
     /// Closing the last tab is a no-op: there would be nothing left to look
@@ -356,9 +416,14 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _focusPane(_ pane: TerminalPane) {
-        guard let tab = tabs.indices.contains(active) ? tabs[active] : nil,
-              tab.activePaneId != pane.id
+        guard let tab = tabs.indices.contains(active) ? tabs[active] : nil
         else { return }
+        // Engaging with a pane makes this client the one whose size the far
+        // side follows — see TerminalWorkspace.assertSizes. Before the early
+        // return below, because clicking the pane you are already in is
+        // exactly how someone fixes a screen sized for another machine.
+        tab.workspace?.assertSizes(tab)
+        guard tab.activePaneId != pane.id else { return }
         setState { tab.activePaneId = pane.id }
         // Which pane had the keyboard is part of the arrangement — coming
         // back to a workspace typing into a different pane than the one you
@@ -370,6 +435,9 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         guard let index = tabs.firstIndex(where: { $0 === tab }), index != active
         else { return }
         setState { active = index }
+        // Bringing a workspace to the front is engaging with it, exactly as
+        // clicking one of its panes is.
+        tab.workspace?.assertSizes(tab)
     }
 
     // MARK: - Chords
