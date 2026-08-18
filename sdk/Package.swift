@@ -659,6 +659,10 @@ targets += [
             .linkedLibrary("dwmapi"),
             // GetDpiForMonitor, for the panel's points-to-pixels conversion.
             .linkedLibrary("shcore"),
+            // The status bar's three readings: wifi signal, adapter state,
+            // and the audio endpoint's volume.
+            .linkedLibrary("wlanapi"),
+            .linkedLibrary("iphlpapi"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.

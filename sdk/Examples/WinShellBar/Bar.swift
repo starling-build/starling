@@ -3,11 +3,15 @@
 
 // The bar: Starling's menu bar on Windows, and the taskbar inside it.
 //
-// It lists the windows that exist, says which has focus, raises one on click,
-// minimizes the focused one on a second click, closes on middle-click, and
-// tiles them all across the work area — every path through
-// `Win32WindowManager`, which is what the desktop's own `WindowManager.swift`
-// will sit on when it moves across.
+// It lists the apps that are running, says which has focus, raises one on
+// click, cycles a multi-window app, minimizes on a second click, closes on
+// middle-click, and tiles everything across the work area — every path
+// through `Win32WindowManager`, which is what the desktop's own
+// `WindowManager.swift` will sit on when it moves across.
+//
+// The right-hand cluster is read from the system (`Win32Status`), not drawn:
+// a bar with a fixed wifi glyph and a fixed battery glyph is a picture of a
+// status bar.
 
 #if os(Windows)
 // MacosIcon, not Icon: the desktop is macOS-shaped by standing direction
@@ -23,11 +27,9 @@ import Foundation
 /// on a 200% laptop panel with the widget tree seeing 44 either way.
 let kBarHeight = 44
 
-/// Width of one window button, and how many fit before the rest collapse into
-/// a "+N" tail. Deliberately a constant rather than a measured layout: the
-/// bar is one row and the alternative is a scroll view nobody can use with a
-/// pointer that has no wheel focus there.
-let kButtonWidth = 168.0
+/// Width of one taskbar button, and how many fit before the rest collapse
+/// into a "+N" tail.
+let kButtonWidth = 176.0
 let kMaxButtons = 7
 
 /// Gap between tiled windows, in logical points — scaled to pixels at use,
@@ -35,6 +37,31 @@ let kMaxButtons = 7
 /// applied on every edge, so adjacent windows are two gaps apart, the same
 /// convention the Linux shell's tiler uses.
 let kTileGap = 8
+
+/// One taskbar entry: an app, with every window it has.
+///
+/// Per APP, not per window. A taskbar with one button per window fills up
+/// with four identical "Untitled - Notepad" entries and makes the user read
+/// titles to find the thing they want; every real taskbar groups, and so does
+/// the Starling dock, so the two now agree about what an entry means.
+struct TaskGroup {
+    let key: String
+    let name: String
+    let windows: [Win32Window]
+
+    var isForeground: Bool { windows.contains { $0.isForeground } }
+    /// Only counts as minimized when ALL of them are — an app with one window
+    /// minimized and another on screen is not away.
+    var isMinimized: Bool { windows.allSatisfy { $0.isMinimized } }
+
+    /// What the button says: the window's own title when there is one window,
+    /// the app plus a count when there are more. A title is a document, and
+    /// four documents want the app's name above them.
+    var label: String {
+        if windows.count == 1 { return windows[0].title }
+        return "\(name)  ·  \(windows.count)"
+    }
+}
 
 final class StarlingBar: StatefulWidget {
     override func createState() -> State<StatefulWidget> { StarlingBarState() }
@@ -44,19 +71,22 @@ final class StarlingBarState: State<StatefulWidget> {
     private var now = Date()
     private var timer: AnyObject?
 
-    /// The windows, in a STABLE order — see `merge`. `Win32WindowManager`
-    /// hands them back in z-order, which is right for Alt+Tab and wrong for a
-    /// taskbar: buttons would swap places under the pointer every time focus
-    /// moved, so clicking the same window twice would hit two different ones.
-    private var windows: [Win32Window] = []
-    /// Set while a refresh is already queued: a single new window fires
-    /// CREATE, SHOW, FOREGROUND and NAMECHANGE in a burst, and each one would
-    /// otherwise walk every top-level window in the session.
-    private var refreshQueued = false
-
     /// Shared with the dock: one texture per app, released when the app's
     /// last window closes.
     private let icons = IconCache()
+
+    private var groups: [TaskGroup] = []
+    /// The order groups appear in, kept across refreshes. `windows()` returns
+    /// z-order, which is right for Alt+Tab and wrong for a taskbar: buttons
+    /// would swap places under the pointer every time focus moved, so
+    /// clicking the same app twice would hit two different ones.
+    private var groupOrder: [String] = []
+    private var refreshQueued = false
+
+    // The status cluster, re-read on the same tick as the clock.
+    private var network = Win32Network(kind: .none, signal: 0, ssid: "")
+    private var power = Win32Power(hasBattery: false, percent: nil, isCharging: true)
+    private var volume: Win32Volume?
 
     override func initState() {
         super.initState()
@@ -65,8 +95,8 @@ final class StarlingBarState: State<StatefulWidget> {
         // runtime, not something the engine's flutter_assets carries.
         CupertinoIcons.registerFont()
 
-        windows = Win32WindowManager.windows()
-        syncIcons(windows)
+        rebuild(Win32WindowManager.windows())
+        readStatus()
 
         // Hooks attach to the calling THREAD, so this has to happen here —
         // inside the tree's initState, which runs on the UI thread the
@@ -85,7 +115,10 @@ final class StarlingBarState: State<StatefulWidget> {
         // backend honest about which loop the UI thread is really running.
         timer = startPeriodicTimer(seconds: 1.0) { [weak self] in
             guard let self else { return }
-            setState { self.now = Date() }
+            setState {
+                self.now = Date()
+                self.readStatus()
+            }
         }
     }
 
@@ -95,21 +128,18 @@ final class StarlingBarState: State<StatefulWidget> {
         super.dispose()
     }
 
-    // MARK: - Icons
+    // MARK: - Status
 
-    /// Registers a texture for anything new and releases the textures of apps
-    /// with no windows left, so an app closing gives its icon back rather
-    /// than holding it for the session.
-    private func syncIcons(_ windows: [Win32Window]) {
-        var live: Set<String> = []
-        for window in windows {
-            live.insert(IconCache.key(for: window))
-            icons.ensure(window: window, size: 32)
-        }
-        icons.retain(only: live)
+    /// Polled, not subscribed. Each of the three has its own notification
+    /// mechanism, they deliver on three different threads, and a status bar
+    /// that updates a second late is indistinguishable from one that does not.
+    private func readStatus() {
+        network = Win32Status.network()
+        power = Win32Status.power()
+        volume = Win32Status.volume()
     }
 
-    // MARK: - The window list
+    // MARK: - The task list
 
     private func queueRefresh() {
         guard !refreshQueued else { return }
@@ -121,34 +151,56 @@ final class StarlingBarState: State<StatefulWidget> {
             guard let self else { return }
             refreshQueued = false
             let fresh = Win32WindowManager.windows()
-            syncIcons(fresh)
-            setState { self.windows = self.merge(fresh) }
+            setState { self.rebuild(fresh) }
         }
     }
 
-    /// Keeps a window where it already was and appends the newcomers, so a
-    /// button never moves out from under the pointer. Windows that went away
-    /// simply fall out — they are absent from `fresh`.
-    private func merge(_ fresh: [Win32Window]) -> [Win32Window] {
-        var byHandle: [UInt64: Win32Window] = [:]
-        for w in fresh { byHandle[w.handle] = w }
+    private func rebuild(_ windows: [Win32Window]) {
+        var byApp: [String: [Win32Window]] = [:]
+        var names: [String: String] = [:]
+        var live: Set<String> = []
+        for window in windows {
+            let key = IconCache.key(for: window)
+            byApp[key, default: []].append(window)
+            if names[key] == nil { names[key] = window.appName }
+            live.insert(key)
+            icons.ensure(window: window, size: 32)
+        }
+        icons.retain(only: live)
 
-        var ordered: [Win32Window] = []
-        ordered.reserveCapacity(fresh.count)
-        var placed = Set<UInt64>()
-        for old in windows {
-            if let still = byHandle[old.handle] {
-                ordered.append(still)
-                placed.insert(old.handle)
-            }
+        // Keep known apps where they were, append the newcomers, drop the
+        // ones that closed.
+        groupOrder = groupOrder.filter { live.contains($0) }
+        for key in windows.map({ IconCache.key(for: $0) }) where !groupOrder.contains(key) {
+            groupOrder.append(key)
         }
-        for w in fresh where !placed.contains(w.handle) {
-            ordered.append(w)
+        groups = groupOrder.compactMap { key in
+            guard let windows = byApp[key] else { return nil }
+            return TaskGroup(key: key, name: names[key] ?? "", windows: windows)
         }
-        return ordered
     }
 
     // MARK: - Actions
+
+    /// A taskbar button's whole behaviour. Not focused: raise it. Focused with
+    /// one window: put it away. Focused with several: move to the next one,
+    /// which is how a grouped button stays useful instead of being a toggle
+    /// you have to click twice to get past.
+    private func activate(_ group: TaskGroup) {
+        if let focused = group.windows.first(where: { $0.isForeground }) {
+            if group.windows.count == 1 {
+                Win32WindowManager.minimize(focused.handle)
+            } else {
+                let index = group.windows.firstIndex(where: { $0.handle == focused.handle }) ?? 0
+                let next = group.windows[(index + 1) % group.windows.count]
+                Win32WindowManager.activate(next.handle)
+            }
+        } else {
+            let target = group.windows.first(where: { !$0.isMinimized }) ?? group.windows[0]
+            Win32WindowManager.activate(target.handle)
+        }
+        queueRefresh()
+    }
 
     /// Lays every non-minimized window out in a grid — one grid PER MONITOR,
     /// over that monitor's work area.
@@ -162,7 +214,7 @@ final class StarlingBarState: State<StatefulWidget> {
     /// minus explorer's taskbar and minus our own appbar strip, so the tiling
     /// lands under the bar without this code knowing the bar exists.
     private func tileAll() {
-        let visible = windows.filter { !$0.isMinimized }
+        let visible = groups.flatMap { $0.windows }.filter { !$0.isMinimized }
         guard !visible.isEmpty else { return }
 
         var byMonitor: [Int: [Win32Window]] = [:]
@@ -224,8 +276,8 @@ final class StarlingBarState: State<StatefulWidget> {
     /// chosen from the executable name rather than the title, because Windows
     /// has no `app_id` and a title is a document (the desktop's own notes
     /// make the same point about `untitled – Main.java`).
-    private func glyph(for window: Win32Window) -> IconData {
-        switch window.appName.lowercased() {
+    private func glyph(for name: String) -> IconData {
+        switch name.lowercased() {
         case "chrome", "msedge", "firefox", "brave": return CupertinoIcons.globe
         case "explorer": return CupertinoIcons.folder
         case "code", "devenv", "notepad", "idea64": return CupertinoIcons.doc_text
@@ -235,29 +287,24 @@ final class StarlingBarState: State<StatefulWidget> {
         }
     }
 
-    private func windowButton(_ window: Win32Window) -> Widget {
+    private func taskButton(_ group: TaskGroup) -> Widget {
         // ColoredBox inside ClipRRect rather than a BoxDecoration: the fill
         // is flat and the only thing wanted from the decoration would be the
         // radius, which the clip already gives.
-        let fill = window.isForeground ? Color(0x33FFFFFF)
-            : window.isMinimized ? Color(0x0AFFFFFF) : Color(0x18FFFFFF)
-        let ink = window.isMinimized ? Color(0xFF8E96A3) : Color(0xFFE6EAF0)
+        let fill = group.isForeground ? Color(0x33FFFFFF)
+            : group.isMinimized ? Color(0x0AFFFFFF) : Color(0x18FFFFFF)
+        let ink = group.isMinimized ? Color(0xFF8E96A3) : Color(0xFFE6EAF0)
 
         return GestureDetector(
-            // Clicking the focused window's own button minimizes it, the way
-            // every taskbar since Windows 95 has behaved.
-            onTap: {
-                if window.isForeground {
-                    Win32WindowManager.minimize(window.handle)
-                } else {
-                    Win32WindowManager.activate(window.handle)
-                }
-                self.queueRefresh()
-            },
-            // Middle-click closes. Secondary (right) would want a MacosMenu,
-            // which is the next thing this bar grows.
+            onTap: { self.activate(group) },
+            // Middle-click closes the frontmost window of the app, not the
+            // app: closing four documents on one click is not something to
+            // do by accident. Secondary (right) would want a MacosMenu, which
+            // is the next thing this bar grows.
             onTertiaryTapUp: { _ in
-                Win32WindowManager.close(window.handle)
+                let target = group.windows.first(where: { $0.isForeground })
+                    ?? group.windows[0]
+                Win32WindowManager.close(target.handle)
                 self.queueRefresh()
             },
             child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 0)) {
@@ -266,21 +313,21 @@ final class StarlingBarState: State<StatefulWidget> {
                         SizedBox(width: kButtonWidth, height: 30) {
                             Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0)) {
                                 Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 7) {
-                                    // Drawn at full strength even when the
-                                    // window is minimized. An Opacity of 0.45
-                                    // over this made the icon vanish outright
+                                    // Drawn at full strength even when the app
+                                    // is minimized. An Opacity of 0.45 over
+                                    // this made the icon vanish outright
                                     // rather than dim — anything below 1.0
                                     // pushes the tree through a saveLayer, and
                                     // an external texture does not survive one
                                     // on this embedder. The dimmed label and
                                     // the darker fill carry the state instead.
-                                    if let icon = icons.view(IconCache.key(for: window), side: 16) {
+                                    if let icon = icons.view(group.key, side: 16) {
                                         icon
                                     } else {
-                                        MacosIcon(icon: glyph(for: window), color: ink, size: 13)
+                                        MacosIcon(icon: glyph(for: group.name), color: ink, size: 13)
                                     }
                                     Expanded {
-                                        Text(window.title,
+                                        Text(group.label,
                                              style: TextStyle(color: ink, fontSize: 12),
                                              overflow: .ellipsis,
                                              maxLines: 1)
@@ -309,9 +356,67 @@ final class StarlingBarState: State<StatefulWidget> {
             })
     }
 
+    // MARK: - The status cluster
+
+    /// Wi-Fi with a slash when nothing is connected, and the aerial glyph for
+    /// Ethernet — a wifi symbol on a desk machine is a lie the user cannot
+    /// correct. Signal is shown as a colour rather than as bars: the icon
+    /// font has one wifi glyph, and a faded one reads as weak without
+    /// inventing a bar chart.
+    private func networkIcon() -> Widget {
+        let icon: IconData
+        let colour: Color
+        switch network.kind {
+        case .none:
+            icon = CupertinoIcons.wifi_slash
+            colour = Color(0xFF6E7683)
+        case .ethernet:
+            icon = CupertinoIcons.antenna_radiowaves_left_right
+            colour = Color(0xFFD5DAE3)
+        case .wifi:
+            icon = CupertinoIcons.wifi
+            colour = network.signal >= 60 ? Color(0xFFD5DAE3)
+                : network.signal >= 30 ? Color(0xFFB0B7C3) : Color(0xFF7F8794)
+        }
+        return MacosIcon(icon: icon, color: colour, size: 15)
+    }
+
+    private func volumeIcon() -> Widget? {
+        guard let volume else { return nil }
+        let icon: IconData = volume.isMuted ? CupertinoIcons.speaker_slash
+            : volume.percent == 0 ? CupertinoIcons.speaker
+            : volume.percent < 34 ? CupertinoIcons.speaker_1
+            : volume.percent < 67 ? CupertinoIcons.speaker_2
+            : CupertinoIcons.speaker_3
+        return MacosIcon(icon: icon,
+                         color: volume.isMuted ? Color(0xFF6E7683) : Color(0xFFD5DAE3),
+                         size: 15)
+    }
+
+    /// Nothing at all on a desktop. An empty battery outline on a machine
+    /// with no battery is worse than no icon: it reads as "flat".
+    private func batteryWidgets() -> [Widget] {
+        guard power.hasBattery else { return [] }
+        let icon: IconData = power.isCharging ? CupertinoIcons.battery_charging
+            : (power.percent ?? 100) <= 10 ? CupertinoIcons.battery_empty
+            : (power.percent ?? 100) <= 40 ? CupertinoIcons.battery_25
+            : CupertinoIcons.battery_full
+        var out: [Widget] = [
+            MacosIcon(icon: icon,
+                      color: (power.percent ?? 100) <= 10 && !power.isCharging
+                          ? Color(0xFFFF6B6B) : Color(0xFFD5DAE3),
+                      size: 17)
+        ]
+        if let percent = power.percent {
+            out.append(Text("\(percent)%",
+                            style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12)))
+        }
+        return out
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
-        let shown = Array(windows.prefix(kMaxButtons))
-        let hidden = windows.count - shown.count
+        let shown = Array(groups.prefix(kMaxButtons))
+        let hidden = groups.count - shown.count
 
         // The desktop's own menu-bar palette: near-black with a hairline
         // under it, so it reads as chrome against any wallpaper.
@@ -337,7 +442,7 @@ final class StarlingBarState: State<StatefulWidget> {
                         Expanded {
                             Padding(padding: EdgeInsets(left: 18, top: 0, right: 18, bottom: 0)) {
                                 Row(mainAxisSize: .min, crossAxisAlignment: .center) {
-                                    for window in shown { windowButton(window) }
+                                    for group in shown { taskButton(group) }
                                     if hidden > 0 {
                                         Text("+\(hidden)",
                                              style: TextStyle(color: Color(0xFF8E96A3), fontSize: 12))
@@ -345,11 +450,12 @@ final class StarlingBarState: State<StatefulWidget> {
                                 }
                             }
                         }
-                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 4) {
+                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
                             barButton(CupertinoIcons.square_grid_2x2) { self.tileAll() }
-                            MacosIcon(icon: CupertinoIcons.wifi, color: Color(0xFFD5DAE3), size: 15)
-                            MacosIcon(icon: CupertinoIcons.battery_full, color: Color(0xFFD5DAE3), size: 17)
-                            Padding(padding: EdgeInsets(left: 6, top: 0, right: 0, bottom: 0)) {
+                            if let speaker = volumeIcon() { speaker }
+                            networkIcon()
+                            for widget in batteryWidgets() { widget }
+                            Padding(padding: EdgeInsets(left: 4, top: 0, right: 0, bottom: 0)) {
                                 Text(clockText(),
                                      style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
                             }

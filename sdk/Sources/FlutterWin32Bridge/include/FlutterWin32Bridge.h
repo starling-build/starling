@@ -291,6 +291,27 @@ int64_t flwin32_host_register_icon_texture_path(FlWin32Host* host,
 
 void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id);
 
+// ── system status ───────────────────────────────────────────────────────────
+//
+// What a status bar is supposed to show, read from the system rather than
+// drawn as decoration. Each comes from a different place and none of them is
+// the obvious one — see flwin32_status.c.
+
+// Battery. `present` is 0 on a desktop; `percent` is -1 when Windows will not
+// say; `charging` means "on mains", which is what a bar should show even for
+// a full battery. Returns non-zero if the status could be read at all.
+int32_t flwin32_power_status(int32_t* present, int32_t* percent, int32_t* charging);
+
+// Network. `kind` is 0 none, 1 ethernet, 2 wifi; `signal` is 0-100 and only
+// meaningful for wifi; `ssid` is UTF-8 and may be empty.
+int32_t flwin32_network_status(int32_t* kind,
+                               int32_t* signal,
+                               char* ssid,
+                               int32_t ssid_size);
+
+// The default output device's volume, 0-100, and whether it is muted.
+int32_t flwin32_volume_status(int32_t* percent, int32_t* muted);
+
 // ── installed applications ──────────────────────────────────────────────────
 //
 // Windows has no app registry the way Starling does on Linux. What it has is
