@@ -480,8 +480,8 @@
     <div class="inst">
       <div class="inst-head"><h3>Linux</h3>
         <span>x86_64 &middot; GNOME, KDE or any desktop &middot; Wayland or X11</span></div>
-<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-terminal_0.1.0_amd64.deb
-sudo apt install ./starling-terminal_0.1.0_amd64.deb</code></pre>
+<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.1/starling-terminal_0.1.1_amd64.deb
+sudo apt install ./starling-terminal_0.1.1_amd64.deb</code></pre>
       <p class="note">Everything the terminal loads — engine, Swift runtime,
         fonts — rides inside the package under
         <code>/usr/lib/starling-terminal</code>; <code>apt</code> resolves the
@@ -494,8 +494,8 @@ sudo apt install ./starling-terminal_0.1.0_amd64.deb</code></pre>
     <div class="inst">
       <div class="inst-head"><h3>macOS</h3>
         <span>Apple Silicon &middot; macOS 14 or newer</span></div>
-<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-terminal-0.1.0-macos-arm64.zip
-ditto -xk starling-terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
+<pre><code>curl -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.1/starling-terminal-0.1.1-macos-arm64.zip
+ditto -xk starling-terminal-0.1.1-macos-arm64.zip /Applications</code></pre>
       <p class="note">Or unzip it and drag <strong>Starling Terminal.app</strong>
         into Applications yourself. The bundle is signed but not notarized, so
         macOS holds the first launch: approve it under System Settings &rarr;
@@ -507,8 +507,8 @@ ditto -xk starling-terminal-0.1.0-macos-arm64.zip /Applications</code></pre>
     <div class="inst">
       <div class="inst-head"><h3>Windows</h3>
         <span>x86_64 &middot; Windows 10 or 11</span></div>
-<pre><code>curl.exe -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.0/starling-terminal-0.1.0-windows-x86_64.zip
-Expand-Archive starling-terminal-0.1.0-windows-x86_64.zip -DestinationPath StarlingTerminal
+<pre><code>curl.exe -LO https://github.com/starling-build/starling/releases/download/terminal-v0.1.1/starling-terminal-0.1.1-windows-x86_64.zip
+Expand-Archive starling-terminal-0.1.1-windows-x86_64.zip -DestinationPath StarlingTerminal
 .\StarlingTerminal\TerminalApp.exe</code></pre>
       <p class="note">A native Win32 window, no installer and nothing to put on
         <code>PATH</code>. Give it a folder of its own: the archive extracts
@@ -907,7 +907,7 @@ Expand-Archive starling-terminal-0.1.0-windows-x86_64.zip -DestinationPath Starl
   <div class="wrap narrow">
     <div class="code-col">
       <div class="code-head">terminal</div>
-<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.0/starling-create
+<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.1/starling-create
 chmod +x starling-create
 ./starling-create myterm
 <span class="k">cd</span> myterm &amp;&amp; swift run -c release</code></pre>
