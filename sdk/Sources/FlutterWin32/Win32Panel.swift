@@ -156,5 +156,35 @@ public enum Win32Shell {
     public static func toggleOverlay() {
         flwin32_shell_broadcast_toggle()
     }
+
+    /// Explorer's own taskbar — hidden, so that Starling's bar and dock are
+    /// the only shell chrome on the screen rather than a second set beside
+    /// Windows'.
+    ///
+    /// This is not "replacing the shell": explorer.exe keeps running, keeps
+    /// owning the desktop and the tray plumbing and every shell dialog, and
+    /// its taskbar comes back on request. Swapping `Winlogon\Shell` is the
+    /// real replacement and a much later phase — it takes the desktop with
+    /// it, so a crash leaves the user with nothing.
+    ///
+    /// Idempotent, and worth re-asserting on a timer: explorer puts its
+    /// taskbar back on a display change and whenever it restarts.
+    @discardableResult
+    public static func hideNativeTaskbar() -> Bool {
+        flwin32_explorer_taskbar_hide() != 0
+    }
+
+    /// Puts it back, with the appbar state the user had before the first
+    /// hide. Runs from `atexit` on the ordinary exit path too — a machine
+    /// left with no taskbar and no Starling cannot be recovered from the
+    /// desktop, so this must not depend on the shell shutting down tidily.
+    @discardableResult
+    public static func showNativeTaskbar() -> Bool {
+        flwin32_explorer_taskbar_show() != 0
+    }
+
+    public static var nativeTaskbarIsVisible: Bool {
+        flwin32_explorer_taskbar_visible() != 0
+    }
 }
 #endif

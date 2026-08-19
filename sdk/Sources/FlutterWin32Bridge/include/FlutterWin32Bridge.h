@@ -362,6 +362,30 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size);
 // Returns non-zero on success.
 int32_t flwin32_launch(const char* path, const char* arguments);
 
+// -- Explorer's own shell chrome ---------------------------------------------
+//
+// Starling is a SECOND taskbar until this runs. Hiding Explorer's costs
+// nothing that cannot be given back: explorer.exe keeps running and keeps
+// owning the desktop, the tray plumbing and shell dialogs, and the taskbar
+// comes back on request. What it does NOT give back is the notification
+// tray's icons, which live in the taskbar window and go with it until the
+// shell hosts them itself.
+//
+// Two operations, both required -- SW_HIDE on the taskbar windows for the
+// visible half, ABS_AUTOHIDE for the reserved half. See flwin32_explorer.c.
+//
+// Idempotent and cheap: call it again on a timer, because explorer re-shows
+// its taskbar on a display change and after it restarts. Returns non-zero
+// when no taskbar is visible afterwards.
+int32_t flwin32_explorer_taskbar_hide(void);
+
+// Puts it back, with the appbar state the user had before the first hide.
+// Called from atexit for the ordinary exit path; `--restore-taskbar` exists
+// for the path atexit cannot cover, which is this process being killed.
+int32_t flwin32_explorer_taskbar_show(void);
+
+int32_t flwin32_explorer_taskbar_visible(void);
+
 #ifdef __cplusplus
 }
 #endif

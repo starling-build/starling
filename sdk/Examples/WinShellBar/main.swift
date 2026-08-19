@@ -23,6 +23,13 @@
 //
 //   WinShellBar.exe            the menu bar, top edge
 //   WinShellBar.exe --dock     the dock, bottom edge
+//   WinShellBar.exe --launcher the launcher, hidden until asked for
+//
+// The bar also HIDES Explorer's taskbar (--keep-taskbar opts out,
+// --restore-taskbar puts it back and exits), because two taskbars is not a
+// desktop. explorer.exe itself keeps running: it still owns the wallpaper,
+// the desktop icons, drag-and-drop and every shell dialog, none of which we
+// are ready to take over and none of which the user sees as "the taskbar".
 //
 //   swift build -c release --product WinShellBar
 
@@ -42,6 +49,20 @@ let wantsDock = CommandLine.arguments.contains("--dock")
 let wantsPlain = CommandLine.arguments.contains("--plain")
 let wantsAppbar = !CommandLine.arguments.contains("--no-appbar")
 let wantsLauncher = CommandLine.arguments.contains("--launcher")
+// Explorer's taskbar. Starling is a SECOND taskbar until this happens — its
+// dock sits at the bottom edge, which is where Windows already put one, and
+// the appbar API dutifully stacks ours on top of theirs. Hiding it is what
+// makes this a shell rather than a widget.
+//
+// `--restore-taskbar` does nothing else and exits, so it can be run from
+// anywhere to recover a machine whose Starling was killed rather than closed
+// (atexit covers the tidy path, and nothing covers taskkill /f).
+let wantsKeepTaskbar = CommandLine.arguments.contains("--keep-taskbar")
+if CommandLine.arguments.contains("--restore-taskbar") {
+    Win32Shell.showNativeTaskbar()
+    print("[WinShell] Explorer's taskbar restored")
+    exit(0)
+}
 
 // Span the primary monitor. Reading the geometry rather than assuming 1920
 // is the point — a panel sized to the wrong screen is the first thing that
@@ -97,12 +118,26 @@ if wantsLauncher {
         StarlingDock()
     }
 } else {
+    // The bar owns the takeover, and does it BEFORE registering its own
+    // appbar: ABM_QUERYPOS moves a new appbar clear of every existing one, so
+    // reserving first and hiding second leaves our strips offset by a taskbar
+    // that is no longer there.
+    if !wantsKeepTaskbar && !wantsPlain {
+        let hidden = Win32Shell.hideNativeTaskbar()
+        print("[WinShell] Explorer taskbar hidden: \(hidden)")
+    }
+    // transparent + overhang for the same reason the dock has them: the menus
+    // drop BELOW the strip, and a window is a hard clip. Everything the tree
+    // paints as pure black in the overhang is a hole, so the bar looks like a
+    // 44pt strip and is a 384pt window.
     if !wantsPlain {
         Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
-                                                 reserveSpace: wantsAppbar)
+                                                 reserveSpace: wantsAppbar,
+                                                 transparent: true,
+                                                 overhang: kBarOverhang)
     }
     runStarlingApp(title: "Starling Bar", width: panelWidth,
-                   height: Int(Double(kBarHeight) * panelScale)) {
+                   height: Int(Double(kBarHeight + kBarOverhang) * panelScale)) {
         StarlingBar()
     }
 }

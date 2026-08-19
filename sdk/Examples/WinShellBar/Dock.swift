@@ -44,6 +44,17 @@ let kDockPadding = 10.0
 /// update is worse than one that keeps a near match.
 let kDefaultPins = ["file explorer", "terminal", "notepad", "paint", "edge", "settings"]
 
+/// The launcher's tile. A reserved key rather than a separate widget, so it
+/// flows through the same hit-testing arithmetic, the same hover label and
+/// the same layout as every other tile — a dock with one special-cased tile
+/// on the left is where the geometry starts drifting.
+///
+/// It lives here, not on the menu bar, because that is where a launcher goes
+/// on a macOS-shaped desktop: the top strip belongs to the focused app, and
+/// the thing you press to start something belongs beside the things you have
+/// already started.
+let kLauncherKey = "\u{1}starling-launcher"
+
 /// One dock entry: an installed app, a running app, or both.
 struct DockItem {
     let key: String
@@ -188,7 +199,8 @@ final class StarlingDockState: State<StatefulWidget> {
             }
         }
         icons.retain(only: claimed)
-        items = built
+        items = [DockItem(key: kLauncherKey, name: "Launcher", app: nil,
+                          windows: [], isPinned: true)] + built
         if let open = menuOpen, open >= items.count { menuOpen = nil }
         if let over = hovered, over >= items.count { hovered = nil }
     }
@@ -201,6 +213,12 @@ final class StarlingDockState: State<StatefulWidget> {
     /// faster than Alt+Tab for the app you keep coming back to.
     private func activate(_ item: DockItem) {
         menuOpen = nil
+        // The launcher is a different PROCESS — one widget root per process —
+        // so pressing it is a broadcast, not a call.
+        guard item.key != kLauncherKey else {
+            Win32Shell.toggleOverlay()
+            return
+        }
         guard let window = item.windows.first(where: { $0.isForeground })
                 ?? item.windows.first else {
             if let app = item.app { Win32AppCatalog.launch(app) }
@@ -281,7 +299,18 @@ final class StarlingDockState: State<StatefulWidget> {
                 onTap: { self.activate(item) },
                 child: Padding(padding: EdgeInsets(left: 5, top: 0, right: 5, bottom: 0)) {
                     Column(mainAxisSize: .min, crossAxisAlignment: .center) {
-                        if let icon = icons.view(item.key, side: kDockIcon) {
+                        if item.key == kLauncherKey {
+                            SizedBox(width: kDockIcon, height: kDockIcon) {
+                                ClipRRect(borderRadius: BorderRadius.circular(10)) {
+                                    ColoredBox(color: Color(0xFF2B3550)) {
+                                        Center {
+                                            MacosIcon(icon: CupertinoIcons.square_grid_2x2,
+                                                      color: Color(0xFF9EC2FF), size: 26)
+                                        }
+                                    }
+                                }
+                            }
+                        } else if let icon = icons.view(item.key, side: kDockIcon) {
                             icon
                         } else {
                             SizedBox(width: kDockIcon, height: kDockIcon) {
@@ -350,6 +379,8 @@ final class StarlingDockState: State<StatefulWidget> {
     /// The right-click menu, also in the overhang.
     private func menu(_ index: Int) -> Widget {
         let item = items[index]
+        // Nothing to pin, close, or launch a second copy of.
+        guard item.key != kLauncherKey else { return SizedBox(width: 0, height: 0) }
         return Positioned(
             left: max(4, tileCentre(index) - 84),
             bottom: Double(kDockHeight) + 6,
