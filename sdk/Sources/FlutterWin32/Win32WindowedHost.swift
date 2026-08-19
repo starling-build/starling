@@ -49,13 +49,16 @@ public enum Win32WindowedHost {
         // wrong by exactly the scale factor.
         flwin32_process_init()
         flwin32_attach_parent_console()
+        flwin32_trace("install(): first Swift code")
         // The system clipboard, so copy/paste reaches the rest of Windows
         // rather than staying inside the process.
         Clipboard.provider = Win32ClipboardProvider()
         windowedHostBoot = { title, width, height, root in
             setbuf(stdout, nil)
             print("[\(title)] Starting (Win32 host)")
+            flwin32_trace("runStarlingApp: begin")
             ensureEngineData()
+            flwin32_trace("ensureEngineData: done")
             guard let h = Win32Host(width: width, height: height, title: title) else {
                 fatalError("""
                 [\(title)] Could not create a window or start the engine — \
@@ -71,7 +74,9 @@ public enum Win32WindowedHost {
             if let placement = overlay {
                 h.setOverlay(monitor: placement.monitor, opacity: placement.opacity)
             }
+            flwin32_trace("mountWidget: begin")
             h.mountWidget(root)
+            flwin32_trace("mountWidget: done")
             h.run()
         }
         hostPeriodicTimerInstall = { seconds, tick in

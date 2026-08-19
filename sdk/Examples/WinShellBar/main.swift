@@ -118,6 +118,11 @@ if wantsLauncher {
     if !wantsPlain {
         Win32WindowedHost.overlay = OverlayPlacement(monitor: wantsMonitor, opacity: 0.97)
     }
+    // Read the Start Menu and rasterize its icons NOW, off the widget
+    // lifecycle: a parked overlay is not sent frames, so its tree does not
+    // mount until it is first shown, and everything initState did was landing
+    // on the keypress that asked for it. See LauncherPreload.
+    LauncherPreload.shared.begin()
     runStarlingApp(title: "Starling Launcher",
                    width: Int(screen?.width ?? 1280),
                    height: Int(screen?.height ?? 800)) {

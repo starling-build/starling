@@ -102,6 +102,13 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// ── startup tracing ─────────────────────────────────────────────────────────
+
+// Milliseconds since the PROCESS was created, so the figure includes image
+// loading. Enabled by STARLING_TRACE=1; flwin32_trace is a no-op otherwise.
+double flwin32_uptime_ms(void);
+void flwin32_trace(const char* label);
+
 // ── overlays ────────────────────────────────────────────────────────────────
 //
 // A full-screen surface that is usually not there: the launcher, and later

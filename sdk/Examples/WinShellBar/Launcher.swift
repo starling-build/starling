@@ -17,6 +17,7 @@ import CupertinoIcons
 import Flutter
 import FlutterSwiftBridge
 import FlutterWin32
+import FlutterWin32Bridge
 import Foundation
 
 let kLauncherIcon = 56.0
@@ -25,12 +26,85 @@ let kLauncherCell = 132.0
 /// column is not flush against the screen edge.
 let kLauncherMargin = 80.0
 
+/// Everything the launcher needs, prepared while nobody is waiting for it.
+///
+/// This exists because the obvious place to do it -- the state's `initState`
+/// -- turned out not to run until the launcher was first SHOWN, which is the
+/// one moment it must not be doing 500ms of work.
+///
+/// The overlay parks as a 1x1 window rather than hiding, on the theory that a
+/// window which is genuinely on screen keeps being sent frames, so the tree
+/// mounts at startup and stands ready. Measured on a real GPU, that is not
+/// what happens: a launcher parked for 54 SECONDS had still never built its
+/// tree, and `initState` ran for the first time on the toggle -- 158ms
+/// walking the Start Menu through COM and 354ms rasterizing 79 icons, with
+/// the user watching a blank screen for every millisecond of it. (In a
+/// session with no GPU, where everything falls back to software, it does
+/// mount at startup, which is how the theory survived this long.)
+///
+/// So the work is hung off PROCESS start instead of off the widget lifecycle,
+/// where it does not depend on anything being composited:
+///
+///   - the catalog on its own thread, because it is pure Win32 and COM is
+///     initialized per call, so its ~158ms overlaps engine creation and costs
+///     nothing at all;
+///   - the icons on the main queue, which the host drains from its message
+///     loop, because registering a texture needs the engine to exist.
+///
+/// The tree still mounts on first show. It just has nothing left to do by
+/// then except lay out and paint.
+final class LauncherPreload {
+    static let shared = LauncherPreload()
+
+    let icons = IconCache()
+    private let lock = NSLock()
+    private var loadedApps: [Win32App] = []
+    private var catalogReady = false
+
+    var apps: [Win32App] {
+        lock.lock()
+        defer { lock.unlock() }
+        return loadedApps
+    }
+
+    /// Call once, before `runStarlingApp`.
+    func begin() {
+        flwin32_trace("preload: catalog thread starting")
+        Thread.detachNewThread {
+            let found = Win32AppCatalog.apps()
+            self.lock.lock()
+            self.loadedApps = found
+            self.catalogReady = true
+            self.lock.unlock()
+            flwin32_trace("preload: catalog done (background)")
+        }
+        DispatchQueue.main.async { self.warmIcons() }
+    }
+
+    /// Rasterize and register every icon up front. Re-queues itself if the
+    /// catalog thread has not finished: the message loop starts about 330ms
+    /// in and the catalog takes about 158ms, so this is nearly always ready
+    /// on the first attempt -- but "nearly" is not a thing to build on.
+    private func warmIcons() {
+        lock.lock()
+        let ready = catalogReady
+        let list = loadedApps
+        lock.unlock()
+        guard ready else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { self.warmIcons() }
+            return
+        }
+        for app in list { icons.ensure(app: app, size: 64) }
+        flwin32_trace("preload: icons done")
+    }
+}
+
 final class StarlingLauncher: StatefulWidget {
     override func createState() -> State<StatefulWidget> { StarlingLauncherState() }
 }
 
 final class StarlingLauncherState: State<StatefulWidget> {
-    private let icons = IconCache()
+    private let icons = LauncherPreload.shared.icons
     private var apps: [Win32App] = []
     private var query = ""
     private let search = TextEditingController()
@@ -42,13 +116,17 @@ final class StarlingLauncherState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        flwin32_trace("launcher initState: begin")
         CupertinoIcons.registerFont()
-        apps = Win32AppCatalog.apps()
+        // Both of these were built here and are now built at process start;
+        // see LauncherPreload for what that cost when it happened on the
+        // first keypress instead.
+        apps = LauncherPreload.shared.apps
         print("[WinShellLauncher] \(apps.count) apps")
-        // Every icon up front. A few hundred rasterizations is a second of
-        // work, and it happens while nobody is looking — which is the whole
-        // reason this process starts hidden instead of on demand.
+        // The icons are already rasterized and registered — LauncherPreload
+        // did it at process start. This catches anything installed since.
         for app in apps { icons.ensure(app: app, size: 64) }
+        flwin32_trace("launcher initState: done")
 
         // A notification, not a request: the HOST does the showing, because
         // while this overlay is hidden there is no tree to ask — a hidden
@@ -61,7 +139,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
     }
 
     override func dispose() {
-        icons.releaseAll()
+        // NOT icons.releaseAll(): the cache belongs to LauncherPreload and
+        // outlives this state, so releasing here would throw away the very
+        // thing that was prepared at startup.
         super.dispose()
     }
 
@@ -199,7 +279,13 @@ final class StarlingLauncherState: State<StatefulWidget> {
             })
     }
 
+    private var tracedFirstBuild = false
+
     override func build(_ context: any BuildContext) -> Widget {
+        if !tracedFirstBuild {
+            tracedFirstBuild = true
+            flwin32_trace("launcher: first build()")
+        }
         let list = matches
         return Directionality(
             textDirection: .ltr,

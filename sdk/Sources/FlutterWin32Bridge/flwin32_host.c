@@ -36,6 +36,45 @@
 // so no include path is needed.
 #include "flutter_windows/flutter_windows.h"
 
+// Startup tracing, on STARLING_TRACE=1.
+//
+// Timed from PROCESS CREATION rather than from any point in main, because the
+// image load is a real part of "how long until the launcher is there" and is
+// invisible to every clock started inside the program: this executable is
+// ~42MB and drags flutter_engine.dll (12MB), _FoundationICU.dll (35MB) and the
+// Swift runtime in behind it.
+static int trace_enabled(void) {
+  static int state = -1;
+  if (state < 0) {
+    wchar_t buf[8];
+    DWORD n = GetEnvironmentVariableW(L"STARLING_TRACE", buf, 8);
+    state = (n > 0 && buf[0] != L'0') ? 1 : 0;
+  }
+  return state;
+}
+
+double flwin32_uptime_ms(void) {
+  FILETIME created, exited, kernel, user;
+  if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) {
+    return 0.0;
+  }
+  FILETIME now;
+  GetSystemTimeAsFileTime(&now);
+  ULARGE_INTEGER a, b;
+  a.LowPart = created.dwLowDateTime;
+  a.HighPart = created.dwHighDateTime;
+  b.LowPart = now.dwLowDateTime;
+  b.HighPart = now.dwHighDateTime;
+  return (double)(b.QuadPart - a.QuadPart) / 10000.0;  // 100ns ticks -> ms
+}
+
+void flwin32_trace(const char* label) {
+  if (!trace_enabled()) return;
+  fprintf(stderr, "[trace] %8.1f ms  %s\n", flwin32_uptime_ms(),
+          label != NULL ? label : "");
+  fflush(stderr);
+}
+
 // The engine's own Win32 embedder owns the child window; ours is only the
 // top-level frame that hosts it, so the state here is small.
 struct FlWin32Host {
@@ -69,8 +108,7 @@ struct FlWin32Host {
   int overlay_active;
   int overlay_monitor;
   int overlay_shown;
-  int overlay_alpha;    // the configured opacity, restored after a warm-up
-  int overlay_warming;  // full-size and fully transparent, pre-paying a resize
+  int overlay_alpha;  // the configured opacity; parking drops it to zero
   RECT overlay_rect;
   void (*toggle_callback)(void* user);
   void* toggle_user;
@@ -115,8 +153,6 @@ static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
 static void overlay_rederive(FlWin32Host* host);
 static void install_child_cursor_proc(HWND child);
-static void overlay_warm_start(FlWin32Host* host);
-static void overlay_warm_finish(FlWin32Host* host);
 static void apply_colour_key(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
@@ -126,12 +162,6 @@ static void apply_colour_key(FlWin32Host* host);
 #define kDrainTimerId 1
 #define kDrainTimerMs 8
 
-// The overlay warm-up, in two shots: grow to full size once at startup, then
-// park again. See overlay_warm_start for why.
-#define kOverlayWarmTimerId 2
-#define kOverlayWarmDelayMs 1200
-#define kOverlayCoolTimerId 3
-#define kOverlayCoolDelayMs 2000
 
 static void drain_gcd_main_queue(void) {
   static void (*drain)(void*) = NULL;
@@ -337,16 +367,6 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
         drain_gcd_main_queue();
         return 0;
       }
-      if (wparam == kOverlayWarmTimerId) {
-        KillTimer(hwnd, kOverlayWarmTimerId);
-        if (host != NULL) overlay_warm_start(host);
-        return 0;
-      }
-      if (wparam == kOverlayCoolTimerId) {
-        KillTimer(hwnd, kOverlayCoolTimerId);
-        if (host != NULL) overlay_warm_finish(host);
-        return 0;
-      }
       break;
 
     default:
@@ -378,6 +398,7 @@ FlWin32Host* flwin32_host_create(const char* title,
                                  const void* runtime_controller) {
   HINSTANCE instance = GetModuleHandleW(NULL);
   flwin32_process_init();
+  flwin32_trace("host_create: begin");
 
   WNDCLASSEXW wc = {0};
   wc.cbSize = sizeof(WNDCLASSEXW);
@@ -440,7 +461,9 @@ FlWin32Host* flwin32_host_create(const char* title,
   // say so explicitly — the enum's Default is documented as changing.
   properties.ui_thread_policy = RunOnPlatformThread;
 
+  flwin32_trace("FlutterDesktopEngineCreate: begin");
   FlutterDesktopEngineRef engine = FlutterDesktopEngineCreate(&properties);
+  flwin32_trace("FlutterDesktopEngineCreate: end");
   if (engine == NULL) {
     fprintf(stderr, "[FlWin32Host] FlutterDesktopEngineCreate failed\n");
     DestroyWindow(window);
@@ -453,6 +476,7 @@ FlWin32Host* flwin32_host_create(const char* title,
 
   RECT client;
   GetClientRect(window, &client);
+  flwin32_trace("FlutterDesktopViewControllerCreate: begin");
   FlutterDesktopViewControllerRef controller = FlutterDesktopViewControllerCreate(
       client.right - client.left, client.bottom - client.top, engine);
   if (controller == NULL) {
@@ -486,6 +510,7 @@ FlWin32Host* flwin32_host_create(const char* title,
   install_child_cursor_proc(host->child);
 
   SetWindowLongPtrW(window, GWLP_USERDATA, (LONG_PTR)host);
+  flwin32_trace("host_create: end");
   return host;
 }
 
@@ -666,6 +691,34 @@ void flwin32_host_show(FlWin32Host* host) {
 }
 
 void flwin32_host_run(FlWin32Host* host) {
+  // Kick the first frame, so the widget tree mounts NOW rather than whenever
+  // the window next happens to change size.
+  //
+  // The tree builds on the first frame request, and the only thing that asks
+  // for one is a window-metrics event. The embedder sends metrics once, from
+  // inside FlutterDesktopViewControllerCreate -- which is before the root
+  // widget has been attached, so it lands on an empty engine and nothing
+  // builds. After that, metrics come only from WM_SIZE.
+  //
+  // For an ordinary window that is invisible: it gets resized on its way to
+  // the screen. For an overlay parked at its final size it never happens at
+  // all, and the launcher stayed unmounted until something resized it -- which
+  // is what the old 1x1 park did, at 161ms of synchronous 4K surface resize.
+  //
+  // A same-size WM_SIZE is the whole fix. OnWindowSizeChanged compares the
+  // requested size against the surface's and takes the blocking raster-thread
+  // path only when they differ (SurfaceWillUpdate); when they match it sends
+  // the metrics and returns. So this delivers the frame request and costs
+  // nothing.
+  if (host != NULL && host->child != NULL) {
+    RECT client;
+    if (GetClientRect(host->child, &client)) {
+      SendMessageW(host->child, WM_SIZE, SIZE_RESTORED,
+                   MAKELPARAM(client.right - client.left,
+                              client.bottom - client.top));
+    }
+  }
+  flwin32_trace("message loop: begin");
   if (host == NULL) {
     return;
   }
@@ -1230,6 +1283,11 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
                                               WPARAM wparam, LPARAM lparam) {
   WNDPROC original = (WNDPROC)GetPropW(hwnd, kChildProcProp);
 
+  if (message == WM_PAINT) {
+    static int first = 1;
+    if (first) { first = 0; flwin32_trace("child window: first WM_PAINT"); }
+  }
+
   if (message == WM_SETCURSOR && LOWORD(lparam) == HTCLIENT) {
     SetCursor(LoadCursorW(NULL, IDC_ARROW));
     return TRUE;
@@ -1317,30 +1375,41 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
 
   host->overlay_rect = area;
   overlay_park(host);
-  // One-shot, after the tree has had time to mount at the parked size.
-  SetTimer(host->window, kOverlayWarmTimerId, kOverlayWarmDelayMs, NULL);
 }
 
-// Parking, and why it looks so odd.
+// Parking: on screen at full size, and completely transparent.
 //
-// An overlay spends most of its life not on screen, and the obvious ways to
-// arrange that both BREAK IT: SW_HIDE stops the embedder scheduling frames,
-// and so does moving the window entirely off-screen, because a swap chain
-// with nothing visible presents as occluded. Either way no frame is ever
-// requested — and this framework builds its widget tree on the FIRST FRAME
-// REQUEST, not at runApp. A launcher parked either of those ways has never
-// run initState: no catalog, no icons, nothing registered. It then comes up
-// blank, in the window class's brush, which reads as a rendering bug and is
-// really "the tree does not exist".
+// Three ways to keep a surface off screen, and only one of them works here.
 //
-// So it is parked as a 1x1 window in the corner of its monitor, at the bottom
-// of the z-order and click-through. That is genuinely on screen, so frames
-// keep coming and the tree stays alive with its icons ready; it is one pixel
-// under the menu bar, so nobody can see it; and showing it is a resize, which
-// is why it appears instantly.
+// SW_HIDE and parking OFF-SCREEN both stop the embedder scheduling frames,
+// and this framework builds its widget tree on the first FRAME REQUEST rather
+// than at runApp -- so a launcher parked either way has never run initState
+// and comes up blank. (Asking for a frame explicitly with
+// FlutterDesktopViewControllerForceRedraw does not rescue it: measured, a
+// hidden view stays unmounted.)
+//
+// This was therefore parked as a 1x1 window in the corner. That is genuinely
+// on screen, but a one-pixel surface turns out to be no better: a launcher
+// parked at 1x1 for 54 SECONDS had still never mounted its tree. What it did
+// do was make showing the launcher a resize from 1x1 to 3840x2160 -- and the
+// Windows embedder resizes its surface SYNCHRONOUSLY on WM_SIZE, so that one
+// SetWindowPos cost 161ms of the 167ms it took to open.
+//
+// So: FULL SIZE, on screen, at layer alpha ZERO and click-through. Nothing to
+// see and nothing to click, but a real full-size surface that is composited,
+// so frames flow and the tree mounts at STARTUP. Showing it is then an alpha
+// change and a z-order raise -- no resize, nothing synchronous, nothing to
+// build. The window is created at the monitor's size in the first place
+// (runStarlingApp is handed the screen geometry), so it is never resized at
+// any point in its life.
+//
+// The cost is one permanently composited full-screen layer. It is fully
+// transparent and sits at the bottom of the z-order, and DWM only recomposites
+// on change, so on an idle desktop it is not redrawing anything.
+
 // The overlay's rectangle, recomputed from the monitor it was placed on.
 //
-// Only the rectangle — going through flwin32_host_set_overlay again would
+// Only the rectangle -- going through flwin32_host_set_overlay again would
 // re-park it, and this runs both on the way up and while the surface is
 // already on screen.
 static void overlay_rederive(FlWin32Host* host) {
@@ -1363,62 +1432,21 @@ static void overlay_rederive(FlWin32Host* host) {
 static void overlay_park(FlWin32Host* host) {
   UnregisterHotKey(host->window, kOverlayEscapeHotkey);
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
-  // TRANSPARENT while parked: one pixel is not much to click on, but it is
-  // the corner of the screen, which is exactly where a pointer ends up.
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
-  SetWindowPos(host->window, HWND_BOTTOM,
-               host->overlay_rect.left, host->overlay_rect.top, 1, 1,
-               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
-  host->overlay_shown = 0;
-}
-
-// The FIRST open was half a second of nothing, and only the first.
-//
-// Measured on a 3840x2160 display: the blank between asking for the launcher
-// and seeing tiles was ~570ms on the first open of a freshly started shell and
-// ~56ms on every open after it. That shape says one-time cost, not slow code
-// -- growing 1x1 -> 3840x2160 reallocates the swap chain at 4K and lays the
-// whole grid out at a size it has never been laid out at, and both are paid
-// once and then cached.
-//
-// So pay it at startup instead, where nobody is waiting: grow the parked
-// overlay to its full size with the layer alpha at ZERO, let it render, and
-// park it again. Fully transparent and still click-through, so there is
-// nothing to see and nothing to click on; and it happens a beat after launch
-// rather than immediately, so it cannot interfere with the first mount --
-// which is the one thing about this window that must not be disturbed.
-//
-// If a fully transparent window turns out not to be sent frames on some
-// machine, this degrades to exactly the behaviour it replaces: the cost moves
-// back to the first real open. That is why it is written as an optimisation
-// with no correctness stake in it.
-static void overlay_warm_start(FlWin32Host* host) {
-  if (!host->overlay_active || host->overlay_shown) return;
-  host->overlay_warming = 1;
+  // Alpha first, THEN drop it down the z-order: the other order shows the
+  // surface at full opacity for however long the two calls take.
   SetLayeredWindowAttributes(host->window, 0, 0, LWA_ALPHA);
   SetWindowPos(host->window, HWND_BOTTOM,
                host->overlay_rect.left, host->overlay_rect.top,
                host->overlay_rect.right - host->overlay_rect.left,
                host->overlay_rect.bottom - host->overlay_rect.top,
-               SWP_NOACTIVATE);
-  SetTimer(host->window, kOverlayCoolTimerId, kOverlayCoolDelayMs, NULL);
-}
-
-static void overlay_warm_finish(FlWin32Host* host) {
-  if (!host->overlay_warming) return;
-  host->overlay_warming = 0;
-  // A real open during the warm-up wins: it has already restored the alpha and
-  // sized the window, so parking here would close a launcher the user asked
-  // for.
-  if (host->overlay_shown) return;
-  SetLayeredWindowAttributes(host->window, 0, (BYTE)host->overlay_alpha,
-                             LWA_ALPHA);
-  overlay_park(host);
+               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+  host->overlay_shown = 0;
 }
 
 int32_t flwin32_host_is_visible(FlWin32Host* host) {
   if (host == NULL || host->window == NULL) return 0;
-  // An overlay is always "visible" to Windows — it is parked, not hidden —
+  // A parked overlay is hidden, and a shown one may still be mid-transition,
   // so its own flag is the only truthful answer.
   if (host->overlay_active) return host->overlay_shown;
   return IsWindowVisible(host->window) ? 1 : 0;
@@ -1436,28 +1464,36 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
     return;
   }
 
-  // Cancel a warm-up in flight and put the configured opacity back: the
-  // warm-up leaves the window full size at alpha 0, which would otherwise
-  // show as the launcher opening completely invisible.
-  if (host->overlay_warming) {
-    KillTimer(host->window, kOverlayCoolTimerId);
-    host->overlay_warming = 0;
-  }
-  SetLayeredWindowAttributes(host->window, 0, (BYTE)host->overlay_alpha,
-                             LWA_ALPHA);
-
+  flwin32_trace("set_visible(1): begin");
   // Re-derive the geometry on the way up: the monitor may have changed size,
   // or gone, since the last time this was shown.
   overlay_rederive(host);
 
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex & ~(LONG_PTR)WS_EX_TRANSPARENT);
+  // Opacity back before the raise, for the same reason the park drops it
+  // after: whichever of the two happens first must not be the visible one.
+  SetLayeredWindowAttributes(host->window, 0, (BYTE)host->overlay_alpha,
+                             LWA_ALPHA);
   SetWindowPos(host->window, HWND_TOPMOST,
                host->overlay_rect.left, host->overlay_rect.top,
                host->overlay_rect.right - host->overlay_rect.left,
                host->overlay_rect.bottom - host->overlay_rect.top,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
   host->overlay_shown = 1;
+  flwin32_trace("set_visible(1): window shown");
+  // Ask for a frame explicitly.
+  //
+  // Nothing else will. The window is shown at the size it already had, so
+  // there is no WM_SIZE and no resize-driven render; and a window coming back
+  // from SW_HIDE gets no WM_PAINT of its own either, because its client area
+  // was never invalidated. Without this the launcher appears and stays blank
+  // -- which is exactly what the old 1x1 park was working around, at the cost
+  // of a 161ms synchronous 4K resize on every first open. This is the same
+  // path WM_PAINT would have taken (OnPaint -> OnWindowRepaint -> ForceRedraw),
+  // just asked for directly.
+  FlutterDesktopViewControllerForceRedraw(host->controller);
+  flwin32_trace("set_visible(1): redraw requested");
   RegisterHotKey(host->window, kOverlayEscapeHotkey, 0, VK_ESCAPE);
   // Through the window manager's own activate, which owns the
   // AttachThreadInput dance: the process asking for this is usually the BAR,
