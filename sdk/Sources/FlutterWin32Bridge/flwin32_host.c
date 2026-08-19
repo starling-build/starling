@@ -1536,10 +1536,11 @@ static void overlay_rederive(FlWin32Host* host) {
 }
 
 static void overlay_park(FlWin32Host* host) {
+  flwin32_trace("overlay_park");
   UnregisterHotKey(host->window, kOverlayEscapeHotkey);
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
-  // EXPERIMENT: genuinely hidden, still at full size.
+  // Hidden, and still at its full size, so showing it is never a resize.
   SetWindowPos(host->window, HWND_BOTTOM,
                host->overlay_rect.left, host->overlay_rect.top,
                host->overlay_rect.right - host->overlay_rect.left,

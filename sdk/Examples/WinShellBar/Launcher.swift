@@ -43,6 +43,11 @@ let kLauncherCell = 104.0
 /// column is not flush against the panel's edge.
 let kLauncherMargin = 48.0
 
+/// The power menu's row height and width, shared by the drawing and the
+/// arithmetic hit test.
+let kPowerRowH = 38.0
+let kPowerMenuW = 190.0
+
 /// The single source of truth for the launcher.
 struct LauncherState {
     /// Everything installed, from the Start Menu.
@@ -153,6 +158,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// View state: the text field's own controller. Everything else the
     /// launcher draws comes from `bloc.state`.
     private let search = TextEditingController()
+    /// Whether the power menu is down. View state: it is about this pointer,
+    /// not about the machine.
+    private var powerOpen = false
 
     override func initState() {
         super.initState()
@@ -316,6 +324,120 @@ final class StarlingLauncherState: State<StatefulWidget> {
             })
     }
 
+    // MARK: - Power
+    //
+    // Hit-tested ARITHMETICALLY from the root Listener, not by the
+    // GestureDetector the button is drawn with. A GestureDetector works for
+    // the app tiles, which sit in the grid's Column — it does NOT fire for a
+    // `Positioned` child of a `Stack` in this framework, and the failure is
+    // silent: the button draws, the press lands nowhere, and nothing happens.
+    // The dock reached the same conclusion for the same reason and drives its
+    // whole surface from one Listener.
+    //
+    // Both rectangles come from here so the drawing and the hit test cannot
+    // drift apart.
+
+
+
+
+    private func choosePower(_ action: Win32Session.Action) {
+        setState { powerOpen = false }
+        // Out of the way first: whatever happens next, the launcher should not
+        // be the last thing on screen during it.
+        Win32WindowedHost.host?.setVisible(false)
+        Task.detached { Win32Session.perform(action) }
+    }
+
+    /// The power button, bottom-right, where Windows' own Start menu puts it.
+    ///
+    /// It opens a MENU rather than doing anything. That is not politeness, it
+    /// is the confirmation: a single click that ends the session — with
+    /// whatever is unsaved in whatever is open — is not something to put one
+    /// pointer-slip away from the app grid.
+    private func powerButton() -> Widget {
+        GestureDetector(
+            onTap: { self.setState { self.powerOpen.toggle() } },
+            child: SizedBox(width: 40, height: 40) {
+                Center {
+                    ClipRRect(borderRadius: BorderRadius.circular(20)) {
+                        ColoredBox(color: powerOpen ? Color(0x22FFFFFF)
+                                                    : Color(0x00000000)) {
+                            SizedBox(width: 40, height: 40) {
+                                Center {
+                                    MacosIcon(icon: CupertinoIcons.power,
+                                              color: Color(0xFFD5DAE3), size: 20)
+                                }
+                            }
+                        }
+                    }
+                }
+        })
+    }
+
+    /// Least destructive first, so the pointer travels furthest to reach the
+    /// one that throws the most away. Restart and Shut down are dropped
+    /// entirely on an account that may not power the machine off, rather than
+    /// offered and then refused.
+    private var powerActions: [Win32Session.Action] {
+        Win32Session.Action.allCases.filter {
+            !$0.needsPowerPrivilege || Win32Session.canPowerOff
+        }
+    }
+
+    private func pagerRow(_ list: [Win32App]) -> Widget {
+        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 14) {
+            if pageCount > 1 { pageButton("‹", to: bloc.state.page - 1) }
+            Text(!bloc.state.catalogReady ? "Loading apps"
+                    : list.isEmpty ? "No apps match \"\(bloc.state.query)\""
+                    : pageCount > 1
+                        ? "\(list.count) apps  ·  page \(bloc.state.page + 1) of \(pageCount)"
+                        : "\(list.count) apps",
+                 style: TextStyle(color: Color(0xFF6E7683), fontSize: 12))
+            if pageCount > 1 { pageButton("›", to: bloc.state.page + 1) }
+        }
+    }
+
+    /// The actions, in place of the pager. Least destructive first, so the
+    /// pointer travels furthest to reach the one that throws the most away.
+    private func powerActionRow() -> Widget {
+        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
+            for action in powerActions { powerRow(action, 34) }
+        }
+    }
+
+
+    private func powerRow(_ action: Win32Session.Action, _ height: Double) -> Widget {
+        GestureDetector(
+            onTap: { self.choosePower(action) },
+            child: SizedBox(height: height) {
+                ClipRRect(borderRadius: BorderRadius.circular(8)) {
+                    ColoredBox(color: action == .shutDown ? Color(0x33FF6B6B)
+                                                          : Color(0x1AFFFFFF)) {
+                        Padding(padding: EdgeInsets(horizontal: 12, vertical: 0)) {
+                            Row(mainAxisSize: .min, crossAxisAlignment: .center,
+                                spacing: 8) {
+                                MacosIcon(icon: powerGlyph(action),
+                                          color: Color(0xFFD5DAE3), size: 15)
+                                Text(action.label,
+                                     style: TextStyle(color: Color(0xFFE8ECF3),
+                                                      fontSize: 13))
+                            }
+                        }
+                    }
+                }
+            })
+    }
+
+    private func powerGlyph(_ action: Win32Session.Action) -> IconData {
+        switch action {
+        case .lock: return CupertinoIcons.lock_fill
+        case .signOut: return CupertinoIcons.square_arrow_right
+        case .sleep: return CupertinoIcons.moon_fill
+        case .restart: return CupertinoIcons.arrow_clockwise
+        case .shutDown: return CupertinoIcons.power
+        }
+    }
+
     /// Shown while the Start Menu walk is still running on its own thread.
     private func loading() -> Widget {
         SizedBox(height: Double(rowsPerPage) * kLauncherCell) {
@@ -409,15 +531,28 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // reach by scrolling is a page most people never find,
                     // and taps are the one pointer route this framework
                     // delivers without argument.
-                    Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 14) {
-                        if pageCount > 1 { pageButton("‹", to: bloc.state.page - 1) }
-                        Text(!bloc.state.catalogReady ? "Loading apps"
-                                : list.isEmpty ? "No apps match \"\(bloc.state.query)\""
-                                : pageCount > 1
-                                    ? "\(list.count) apps  ·  page \(bloc.state.page + 1) of \(pageCount)"
-                                    : "\(list.count) apps",
-                             style: TextStyle(color: Color(0xFF6E7683), fontSize: 12))
-                        if pageCount > 1 { pageButton("›", to: bloc.state.page + 1) }
+                    // The footer, and the power UI, in ONE row.
+                    //
+                    // The power button started life floating in the panel's
+                    // bottom-right corner, over the grid, the way Windows'
+                    // Start menu draws it. It DREW there and could not be
+                    // pressed: neither a GestureDetector inside a `Positioned`
+                    // nor `onPointerDown` on the root Listener fires in this
+                    // surface, while the same GestureDetector inside the grid's
+                    // Column works — which is what the app tiles use. So the
+                    // button lives in the Column, on the working input path,
+                    // and pressing it SWAPS this row's contents for the
+                    // actions rather than floating a menu above it.
+                    SizedBox(width: kLauncherWidth - kLauncherMargin, height: 44) {
+                        Row(crossAxisAlignment: .center) {
+                            SizedBox(width: 40, height: 44)
+                            Expanded {
+                                Center {
+                                    powerOpen ? powerActionRow() : pagerRow(list)
+                                }
+                            }
+                            powerButton()
+                        }
                     }
                 }
             }))

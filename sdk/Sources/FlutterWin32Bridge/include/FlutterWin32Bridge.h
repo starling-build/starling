@@ -102,6 +102,23 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// ── ending the session ──────────────────────────────────────────────────────
+
+#define FLWIN32_SESSION_LOCK      0
+#define FLWIN32_SESSION_SIGN_OUT  1
+#define FLWIN32_SESSION_SLEEP     2
+#define FLWIN32_SESSION_RESTART   3
+#define FLWIN32_SESSION_SHUT_DOWN 4
+
+// Whether this account may power the machine off — SE_SHUTDOWN_NAME can be
+// enabled. Every process HAS the privilege and none has it enabled, so this
+// both answers the question and does the enabling.
+int32_t flwin32_session_can_power_off(void);
+
+// Does it. Returns 0 if the call was refused; if it succeeds, the session is
+// already going away.
+int32_t flwin32_session_action(int32_t action);
+
 // ── startup tracing ─────────────────────────────────────────────────────────
 
 // Milliseconds since the PROCESS was created, so the figure includes image
