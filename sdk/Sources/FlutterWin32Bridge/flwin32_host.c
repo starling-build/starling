@@ -30,6 +30,15 @@
 #include <windows.h>
 #include <shellapi.h>  // SHAppBarMessage, APPBARDATA
 #include <shellscalingapi.h>  // GetDpiForMonitor
+#include <dwmapi.h>           // DwmSetWindowAttribute, for rounded corners
+
+// DWMWA_WINDOW_CORNER_PREFERENCE is an ENUMERATOR, not a macro, so it cannot
+// be tested with #ifndef — a fallback definition guarded that way is compiled
+// unconditionally and collides with the SDK's. The Windows 11 SDK is a
+// requirement of this tree anyway, and on Windows 10 the call fails at
+// runtime and leaves the corners square, which is the right outcome.
+
+#pragma comment(lib, "dwmapi.lib")
 
 // Direct inclusion of the vendored embedder headers, the same way the GTK
 // bridge includes flutter_linux. Their cross-references are quoted-relative,
@@ -109,6 +118,10 @@ struct FlWin32Host {
   int overlay_monitor;
   int overlay_shown;
   int overlay_alpha;  // the configured opacity; parking drops it to zero
+  // A sized overlay is a floating panel above the dock; 0 means full screen.
+  int overlay_width_pt;
+  int overlay_height_pt;
+  int overlay_margin_pt;
   RECT overlay_rect;
   void (*toggle_callback)(void* user);
   void* toggle_user;
@@ -152,6 +165,7 @@ static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
 static void overlay_rederive(FlWin32Host* host);
+static int overlay_area(FlWin32Host* host, RECT* out);
 static void install_child_cursor_proc(HWND child);
 static void apply_colour_key(FlWin32Host* host);
 
@@ -361,6 +375,23 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       }
       PostQuitMessage(0);
       return 0;
+
+    case WM_ACTIVATE:
+      // A floating launcher closes when you click away from it. That is what
+      // every menu on the system does, and with a panel there is now an
+      // "away" to click — the full-screen version had none, so this had
+      // nothing to do and did not exist.
+      //
+      // Only for a SIZED overlay, and only on the way down: a full-screen
+      // overlay covers everything anyway, and the dock must not vanish when
+      // the user clicks the window it just raised.
+      if (host != NULL && host->overlay_active && host->overlay_shown
+          && host->overlay_width_pt > 0 && LOWORD(wparam) == WA_INACTIVE) {
+        overlay_park(host);
+        if (host->toggle_callback != NULL) host->toggle_callback(host->toggle_user);
+        return 0;
+      }
+      break;
 
     case WM_TIMER:
       if (wparam == kDrainTimerId) {
@@ -1356,25 +1387,31 @@ static void install_child_cursor_proc(HWND child) {
 // showing it is a ShowWindow.
 
 
-void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha) {
+void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha,
+                              int32_t width_pt, int32_t height_pt,
+                              int32_t margin_pt) {
   if (host == NULL || host->window == NULL) return;
   host->overlay_active = 1;
   host->overlay_monitor = monitor;
 
-  RECT area;
-  MonitorPick pick = {0};
-  pick.want = monitor;
-  if (monitor >= 0) EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
-  if (pick.found) {
-    area = pick.rect;
-  } else {
-    MONITORINFO mi = {sizeof(MONITORINFO)};
-    if (!GetMonitorInfoW(
-            MonitorFromWindow(host->window, MONITOR_DEFAULTTOPRIMARY), &mi)) {
-      return;
-    }
-    area = mi.rcMonitor;
+  host->overlay_width_pt = width_pt;
+  host->overlay_height_pt = height_pt;
+  host->overlay_margin_pt = margin_pt;
+
+  // Rounded corners on a floating panel, square on a full-screen one.
+  //
+  // DWM does the rounding, which is the only way to get it: the swap chain is
+  // opaque and the window is layered with a uniform alpha, so we cannot cut
+  // the corners out ourselves without per-pixel alpha we do not have. Best
+  // effort — the attribute is Windows 11 and simply fails on 10.
+  if (width_pt > 0 && height_pt > 0) {
+    DWM_WINDOW_CORNER_PREFERENCE corner = DWMWCP_ROUND;
+    DwmSetWindowAttribute(host->window, DWMWA_WINDOW_CORNER_PREFERENCE,
+                          &corner, sizeof(corner));
   }
+
+  RECT area;
+  if (!overlay_area(host, &area)) return;
 
   // WS_VISIBLE in the style, exactly as the panel path sets it, and NOT an
   // oversight to tidy away: a restyle that leaves it out stops the embedder
@@ -1433,21 +1470,69 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
 // Only the rectangle -- going through flwin32_host_set_overlay again would
 // re-park it, and this runs both on the way up and while the surface is
 // already on screen.
-static void overlay_rederive(FlWin32Host* host) {
+// Where the overlay sits: the whole monitor, or a floating panel above the
+// dock.
+//
+// A sized overlay is anchored to the WORK AREA rather than the monitor, and
+// that is the whole trick — the dock registers itself as an appbar, so the
+// work area already stops where the dock starts. Anchoring here means the
+// panel sits above the dock with no arithmetic about how tall the dock is and
+// nothing to keep in step when that changes.
+//
+// Points, not pixels: the caller says 720x640 and this multiplies by the
+// monitor's scale, so the panel is the same physical size on a 4K laptop
+// panel as on a 1080p external.
+static int overlay_area(FlWin32Host* host, RECT* out) {
+  MONITORINFO mi = {sizeof(MONITORINFO)};
   MonitorPick pick = {0};
   pick.want = host->overlay_monitor;
   if (host->overlay_monitor >= 0) {
     EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
   }
+  HMONITOR mon;
   if (pick.found) {
-    host->overlay_rect = pick.rect;
-    return;
+    POINT centre = {(pick.rect.left + pick.rect.right) / 2,
+                    (pick.rect.top + pick.rect.bottom) / 2};
+    mon = MonitorFromPoint(centre, MONITOR_DEFAULTTOPRIMARY);
+  } else {
+    mon = MonitorFromWindow(host->window, MONITOR_DEFAULTTOPRIMARY);
   }
-  MONITORINFO mi = {sizeof(MONITORINFO)};
-  POINT origin = {0, 0};
-  if (GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) {
-    host->overlay_rect = mi.rcMonitor;
+  if (!GetMonitorInfoW(mon, &mi)) return 0;
+
+  // Unsized: the whole monitor, as before.
+  if (host->overlay_width_pt <= 0 || host->overlay_height_pt <= 0) {
+    *out = pick.found ? pick.rect : mi.rcMonitor;
+    return 1;
   }
+
+  UINT dpi_x = 0, dpi_y = 0;
+  double scale = 1.0;
+  if (SUCCEEDED(GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y))
+      && dpi_x != 0) {
+    scale = (double)dpi_x / (double)USER_DEFAULT_SCREEN_DPI;
+  }
+  LONG w = (LONG)(host->overlay_width_pt * scale);
+  LONG h = (LONG)(host->overlay_height_pt * scale);
+  LONG margin = (LONG)(host->overlay_margin_pt * scale);
+
+  RECT work = mi.rcWork;
+  LONG avail_w = work.right - work.left;
+  LONG avail_h = work.bottom - work.top;
+  if (w > avail_w) w = avail_w;
+  if (h > avail_h - margin) h = avail_h - margin;
+
+  // Centred horizontally, sitting just above the bottom of the work area —
+  // where Windows 11 puts its own Start menu, and where the dock is.
+  out->left = work.left + (avail_w - w) / 2;
+  out->right = out->left + w;
+  out->bottom = work.bottom - margin;
+  out->top = out->bottom - h;
+  return 1;
+}
+
+static void overlay_rederive(FlWin32Host* host) {
+  RECT area;
+  if (overlay_area(host, &area)) host->overlay_rect = area;
 }
 
 static void overlay_park(FlWin32Host* host) {

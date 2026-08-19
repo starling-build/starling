@@ -125,7 +125,7 @@ public struct PanelPlacement: Sendable {
     }
 }
 
-/// Where a full-screen overlay sits. Handed to `Win32WindowedHost.overlay`
+/// Where an overlay sits: the whole screen, or a floating panel. Handed to `Win32WindowedHost.overlay`
 /// before `runStarlingApp`, for the same reason `PanelPlacement` is: the
 /// window it restyles does not exist until the host boots, and a tree laid
 /// out against the pre-restyle size renders its first frame at the wrong
@@ -137,10 +137,23 @@ public struct OverlayPlacement: Sendable {
     /// engine's swap chain is opaque — which is what gives the frosted-panel
     /// look without a blur we have no cheap way to do.
     public let opacity: Double
+    /// The panel's size in POINTS, or nil to cover the whole monitor.
+    ///
+    /// Windows' own Start menu is a floating panel rather than a takeover, and
+    /// a launcher that blacks out the screen to show twelve icons is the
+    /// macOS habit imported without the macOS reason for it.
+    public let size: (width: Double, height: Double)?
+    /// Points between the panel's bottom edge and the bottom of the work
+    /// area. The work area already excludes the dock.
+    public let bottomMargin: Double
 
-    public init(monitor: Int? = nil, opacity: Double = 0.96) {
+    public init(monitor: Int? = nil, opacity: Double = 0.96,
+                size: (width: Double, height: Double)? = nil,
+                bottomMargin: Double = 12) {
         self.monitor = monitor
         self.opacity = opacity
+        self.size = size
+        self.bottomMargin = bottomMargin
     }
 }
 

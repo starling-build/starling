@@ -72,7 +72,10 @@ public enum Win32WindowedHost {
             // frame at the wrong geometry.
             if let placement = panel { h.setPanel(placement) }
             if let placement = overlay {
-                h.setOverlay(monitor: placement.monitor, opacity: placement.opacity)
+                h.setOverlay(monitor: placement.monitor,
+                             opacity: placement.opacity,
+                             size: placement.size,
+                             bottomMargin: placement.bottomMargin)
             }
             flwin32_trace("mountWidget: begin")
             h.mountWidget(root)

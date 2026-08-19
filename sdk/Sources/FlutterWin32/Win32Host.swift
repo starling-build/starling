@@ -70,9 +70,14 @@ public final class Win32Host {
     /// Hidden rather than not running: starting an engine costs about a
     /// second, which is fine for an app and wrong for something the user
     /// expects the instant they ask for it.
-    public func setOverlay(monitor: Int? = nil, opacity: Double = 0.96) {
+    public func setOverlay(monitor: Int?, opacity: Double,
+                           size: (width: Double, height: Double)? = nil,
+                           bottomMargin: Double = 12) {
         flwin32_host_set_overlay(host, Int32(monitor ?? -1),
-                                 Int32((opacity * 255).rounded()))
+                                 Int32((opacity * 255).rounded()),
+                                 Int32(size?.width ?? 0),
+                                 Int32(size?.height ?? 0),
+                                 Int32(bottomMargin))
     }
 
     public func setVisible(_ visible: Bool) {

@@ -118,7 +118,13 @@ void flwin32_trace(const char* label);
 // to appear the instant it is asked for.
 //
 // `alpha` is the whole surface's opacity, 0-255; -1 keeps the current one.
-void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha);
+// A full-screen overlay when width/height are 0, otherwise a floating panel
+// of that size IN POINTS, centred horizontally and sitting `margin_pt` above
+// the bottom of the monitor's WORK AREA — which the dock's appbar already
+// shortened, so the panel clears the dock without knowing how tall it is.
+void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha,
+                              int32_t width_pt, int32_t height_pt,
+                              int32_t margin_pt);
 void flwin32_host_set_visible(FlWin32Host* host, int32_t visible);
 int32_t flwin32_host_is_visible(FlWin32Host* host);
 

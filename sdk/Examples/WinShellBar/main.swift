@@ -116,16 +116,22 @@ if wantsLauncher {
     // the tree mounts, so when the launcher comes up blank this is how you
     // find out whether the restyle is what stopped it.
     if !wantsPlain {
-        Win32WindowedHost.overlay = OverlayPlacement(monitor: wantsMonitor, opacity: 0.97)
+        Win32WindowedHost.overlay = OverlayPlacement(
+            monitor: wantsMonitor, opacity: 0.97,
+            size: (width: kLauncherWidth, height: kLauncherHeight),
+            bottomMargin: kLauncherGap)
     }
     // Read the Start Menu and rasterize its icons NOW, off the widget
     // lifecycle: a parked overlay is not sent frames, so its tree does not
     // mount until it is first shown, and everything initState did was landing
     // on the keypress that asked for it. See LauncherPreload.
     launcherBloc.add(.start)
+    // PHYSICAL pixels, and the same size the restyle will give it: a window
+    // that is not already its final size when the first frame is due does not
+    // mount its tree (see flwin32_host.c's parking notes).
     runStarlingApp(title: "Starling Launcher",
-                   width: Int(screen?.width ?? 1280),
-                   height: Int(screen?.height ?? 800)) {
+                   width: Int(kLauncherWidth * panelScale),
+                   height: Int(kLauncherHeight * panelScale)) {
         StarlingLauncher()
     }
 } else {

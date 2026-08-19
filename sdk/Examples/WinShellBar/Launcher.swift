@@ -21,11 +21,27 @@ import FlutterWin32Bridge
 import Observation
 import Foundation
 
-let kLauncherIcon = 56.0
-let kLauncherCell = 132.0
+/// The panel's size in points, and how far it floats above the dock.
+///
+/// A FLOATING PANEL, not a full-screen takeover. Blacking out the whole
+/// display to offer a grid of icons is the macOS habit — Launchpad does it
+/// because macOS has no Start button and the gesture arrives from anywhere.
+/// Windows has a corner the user is already pointing at, and its own Start
+/// menu is a panel above the taskbar; covering their work to show them a list
+/// of programs is a bigger interruption than the task deserves.
+///
+/// Sized so the grid comes out at 7 columns by 5 rows — 35 apps a page, so a
+/// 79-app Start Menu is three pages. 740pt is also, not by coincidence, the
+/// height of Windows' own Start menu.
+let kLauncherWidth = 780.0
+let kLauncherHeight = 740.0
+let kLauncherGap = 12.0
+
+let kLauncherIcon = 48.0
+let kLauncherCell = 104.0
 /// Points kept clear at the left and right of the grid, so the outermost
-/// column is not flush against the screen edge.
-let kLauncherMargin = 80.0
+/// column is not flush against the panel's edge.
+let kLauncherMargin = 48.0
 
 /// The single source of truth for the launcher.
 struct LauncherState {
@@ -191,8 +207,14 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// bottom of the grid simply fell off, and because the page size was the
     /// same constant, paging never triggered to reveal it either. Deriving
     /// both from the height fixes the overflow and makes the paging real.
+    /// Against the PANEL, not the screen.
+    ///
+    /// These read `ShellScreen` when the launcher covered the monitor, which
+    /// was right then and is wrong now: the panel is a fixed size, so the grid
+    /// is the same on every display and there is nothing to re-derive when one
+    /// changes. 210pt is the search field, the gaps around it and the pager.
     private var rowsPerPage: Int {
-        max(1, Int((ShellScreen.logicalHeight - 210) / kLauncherCell))
+        max(1, Int((kLauncherHeight - 210) / kLauncherCell))
     }
 
     /// And how many columns, for the same reason from the other direction.
@@ -203,7 +225,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// side of it, and the pager insisting there are more pages of apps that
     /// the screen plainly has room for.
     private var columnsPerPage: Int {
-        max(1, Int((ShellScreen.logicalWidth - kLauncherMargin) / kLauncherCell))
+        max(1, Int((kLauncherWidth - kLauncherMargin) / kLauncherCell))
     }
 
     private var perPage: Int { columnsPerPage * rowsPerPage }
@@ -346,7 +368,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                 },
                 child: ColoredBox(color: Color(0xFF14161A)) {
                 Column(mainAxisAlignment: .center, crossAxisAlignment: .center) {
-                    SizedBox(width: 460, height: 34) {
+                    SizedBox(width: kLauncherWidth - 140, height: 34) {
                         MacosTextField(
                             controller: search,
                             placeholder: "Search",
@@ -382,11 +404,11 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // delivers without argument.
                     Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 14) {
                         if pageCount > 1 { pageButton("‹", to: bloc.state.page - 1) }
-                        Text(!bloc.state.catalogReady ? "Loading bloc.state.apps"
-                                : list.isEmpty ? "No bloc.state.apps match \"\(bloc.state.query)\""
+                        Text(!bloc.state.catalogReady ? "Loading apps"
+                                : list.isEmpty ? "No apps match \"\(bloc.state.query)\""
                                 : pageCount > 1
-                                    ? "\(list.count) bloc.state.apps  ·  bloc.state.page \(bloc.state.page + 1) of \(pageCount)"
-                                    : "\(list.count) bloc.state.apps",
+                                    ? "\(list.count) apps  ·  page \(bloc.state.page + 1) of \(pageCount)"
+                                    : "\(list.count) apps",
                              style: TextStyle(color: Color(0xFF6E7683), fontSize: 12))
                         if pageCount > 1 { pageButton("›", to: bloc.state.page + 1) }
                     }
