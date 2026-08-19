@@ -126,6 +126,53 @@ public enum TerminalFontLoader {
     ]
     private nonisolated(unsafe) static var _registered = false
 
+    /// Where the bundled fonts are, searched rather than assumed.
+    ///
+    /// **Deliberately not `Bundle.module`.** SwiftPM generates that accessor
+    /// with exactly two candidates: `Bundle.main.bundleURL/<name>.bundle`,
+    /// and an ABSOLUTE PATH INTO THE BUILD DIRECTORY THAT PRODUCED THE BINARY.
+    /// Inside a macOS `.app` the first misses — `Bundle.main.bundleURL` is the
+    /// `.app` itself and the resource bundle is staged under
+    /// `Contents/Resources/`, where every other app resource belongs — and the
+    /// second HITS on the machine that did the build, because the build
+    /// directory is still sitting there. So `Bundle.module` resolves for the
+    /// developer and fatals for everybody else:
+    ///
+    ///     Flutter/resource_bundle_accessor.swift:12
+    ///     fatal error: could not load resource bundle
+    ///
+    /// on the first font load, which is startup. A shipped `.app` did exactly
+    /// that, and no amount of testing on the build machine could have shown
+    /// it — the giveaway is `strings` on the executable finding somebody
+    /// else's home directory.
+    ///
+    /// The candidates below are every place the bundle legitimately sits:
+    /// `Contents/Resources` for a macOS app, the executable's own directory
+    /// for the Linux and Windows layouts (where SwiftPM's `bundleURL` guess is
+    /// right), and the build directory last, so a `swift run` from a checkout
+    /// still works.
+    private static func _fontBundle(_ name: String) -> Bundle? {
+        var roots: [URL] = []
+        if let resources = Bundle.main.resourceURL { roots.append(resources) }
+        roots.append(Bundle.main.bundleURL)
+        roots.append(Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Resources"))
+        if let exe = Bundle.main.executableURL?.deletingLastPathComponent() {
+            roots.append(exe)
+        }
+        for root in roots {
+            let candidate = root.appendingPathComponent("\(name).bundle")
+            if let bundle = Bundle(url: candidate) { return bundle }
+        }
+        return nil
+    }
+
+    /// The framework's own resource bundle, or nil if this build has none
+    /// beside it. Nil rather than a crash: a terminal with the system's fonts
+    /// and none of ours is degraded, and a terminal that refuses to start is
+    /// not usable at all.
+    private static let _resources: Bundle? = _fontBundle("FlutterSwift_Flutter")
+
     @discardableResult
     public static func register() -> Bool {
         guard !_registered else { return true }
@@ -141,7 +188,7 @@ public enum TerminalFontLoader {
                                ("DejaVuSansMono-Regular", fallbackFamily),
                                ("DejaVuSansMono-Bold", fallbackFamily),
                                ("DejaVuSans", symbolFallbackFamily)] {
-            guard let url = Bundle.module.url(forResource: name, withExtension: "ttf")
+            guard let url = _resources?.url(forResource: name, withExtension: "ttf")
             else { continue }
             let success = flutter.swift_bridge.LoadFontFromFile(url.path, family)
             ok = ok || success
