@@ -32,10 +32,34 @@ Everything it loads lives in `/usr/lib/starling-terminal`: the engine libraries,
 `libFlutterShared`, the Swift runtime closure, the font resource bundles and
 `data/icudtl.dat`. No flutter_assets — the Swift runtime never reads them.
 
-`starling-sdk-0.3.0-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
-0.3.0 release candidate: framework source plus the release engine binaries
-(`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
-one tree a consumer depends on by path. 14 MB, checksum in `SHA256SUMS`.
+`starling-sdk-0.3.1-macos-arm64.tar.gz` — the Starling SDK for macOS arm64:
+framework source plus the release engine binaries (`FlutterMacOS.framework`,
+`libswift_bridge.dylib`) and flutter_assets, in one tree a consumer depends on
+by path. 14 MB, checksum in `SHA256SUMS`.
+
+**0.3.1 is one source fix on top of `terminal-v0.1.0`** — the commit the
+shipped terminal was built from, which is the tree this has to fix — and the
+**same engine as 0.3.0, byte for byte**: both binaries were compared against
+the ones inside the 0.3.0 tarball and are identical.
+
+0.3.0 shipped a `TerminalView.swift` and `CupertinoIcons.swift` that reached
+the framework's fonts through SwiftPM's `Bundle.module`, whose fallback
+candidate is **an absolute path into whatever build directory compiled it**.
+Inside a `.app` that is the only candidate that resolves, so an app built on
+0.3.0 runs on the machine that built it and dies at startup everywhere else
+with `resource_bundle_accessor.swift:12: could not load resource bundle`.
+Because this bundle ships source rather than a compiled library, every consumer
+recompiled the bug into their own binary with their own path baked in.
+
+Demonstrated rather than asserted: `CounterApp` built as a path-dependency
+consumer from an unpacked 0.3.0 carries **two** such paths; from this bundle it
+carries **none**. Compiling is not the test — a 0.3.0 consumer compiles
+perfectly and crashes on somebody else's machine.
+
+Linux and Windows stay at 0.3.0 and are not reissued: `Bundle.module`'s first
+candidate is correct in their layouts, where a bare executable's `bundleURL` is
+the directory holding the resource bundle, so the fallback is never reached and
+the bug cannot bite. That is why one platform is a version ahead here.
 
 `starling-sdk-0.3.0-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the same
 0.3.0 release candidate and the same engine commit: framework source, the
@@ -138,7 +162,7 @@ write an archive that fails either check.
 Built on the Mac from `release-terminal-0.1.0`, **from the released SDK
 bundle alone** — the consumer path, not a privileged in-repo one:
 
-    tar xzf dist/starling-sdk-0.3.0-macos-arm64.tar.gz -C /tmp/sdk
+    tar xzf dist/starling-sdk-0.3.1-macos-arm64.tar.gz -C /tmp/sdk
     STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
         build/macos-app.sh TerminalApp --zip
 
@@ -196,12 +220,28 @@ rival terminal.
 
 ## The SDK bundles' provenance
 
-The macOS one was built on the Mac from `release-sdk-0.3.0` (engine
-`ea78543`, `host_release_arm64`), verified by unpacking to a clean directory,
-building the whole package as a path-dependency consumer, and launching an
-example — the engine starts from the bundle's own `engine/lib`:
+The macOS one (0.3.1) was built on the Mac from `release-sdk-0.3.1`, which is
+**`terminal-v0.1.0` plus the one source fix** — based there rather than on
+`main` or on the `sdk-v0.3.0` tag because the terminal 0.1.0 people actually
+have was built from that commit, so that is the tree an SDK patch has to
+correct. Basing it on main would have swept in every unrelated change since and
+made "0.3.0 plus one fix" untrue.
 
     sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
+
+**The engine claim is checked, not assumed.** Both engine binaries in the new
+tarball were compared byte for byte against the ones inside
+`starling-sdk-0.3.0-macos-arm64.tar.gz` and are identical — a stronger
+statement than naming a commit, because the out-directory is shared and can be
+rebuilt by somebody else's branch underneath you (the failure warned about
+below).
+
+Verified the way the bug it fixes demanded: unpacked to a clean directory, then
+`CounterApp` built as a path-dependency consumer with `STARLING_ENGINE_OUT`,
+`FLUTTER_SWIFT_ENGINE_OUT` and `STARLING_SDK_BUNDLE` all cleared, so the link
+had only the bundle's own `engine/lib` to resolve against. The check on the
+result is one `strings` call: built from **0.3.0** the binary carries two
+absolute build-directory paths, built from this bundle it carries none.
 
 The Linux one is the same branch and the same engine commit, built on the dev
 box against `host_release`, and verified the same way — a path-dependency
@@ -279,7 +319,7 @@ one file, all six lines, because writing it with one filename is how the
 Windows zip's line got dropped once already:
 
     sha256sum starling-sdk-0.3.0-linux-x86_64.tar.gz \
-              starling-sdk-0.3.0-macos-arm64.tar.gz \
+              starling-sdk-0.3.1-macos-arm64.tar.gz \
               starling-sdk-0.3.0-windows-x86_64.zip \
               starling-terminal_0.1.0_amd64.deb \
               starling-terminal-0.1.0-macos-arm64.zip \
