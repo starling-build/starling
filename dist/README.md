@@ -202,35 +202,41 @@ write an archive that fails either check.
 
 ## The macOS terminal's provenance
 
-**0.1.1 breaks with the consumer path, deliberately, and this is the one thing
-to know before cutting the next one.** 0.1.0 was built from the released SDK
-bundle alone — the recipe below — and that is still the right way. It cannot be
-used here: the fix is in the FRAMEWORK's own sources, and
-`starling-sdk-0.3.0-macos-arm64.tar.gz` carries a copy of `TerminalView.swift`
-that predates it. Building 0.1.1 the consumer way would have faithfully
-reproduced the crash it exists to fix, and said nothing while doing it.
+**0.1.1 is built the consumer way, from the SDK bundle beside it in this
+directory** — `starling-sdk-0.3.1-macos-arm64.tar.gz`, which is why that
+bundle and this archive are on the same branch. It was briefly not: the fix
+lives in the FRAMEWORK's sources, and the 0.3.0 bundle carried a
+`TerminalView.swift` that predated it, so building 0.1.1 from 0.3.0 would have
+faithfully reproduced the crash it exists to fix and said nothing while doing
+it. The first 0.1.1 archive was therefore built against this repo's own `sdk/`
+and shipped with that stated as a weakness. SDK 0.3.1 removed the reason, and
+this archive is the rebuild.
 
-So 0.1.1 was built against this repo's `sdk/`:
+The check that the build really was a consumer's is the build plan, not the
+command line: it carried **45 references to the unpacked bundle and zero to
+`starling-engine` or to this repo's `sdk/`**. With `STARLING_ENGINE_OUT` or
+`FLUTTER_SWIFT_ENGINE_OUT` set, the manifest's own `-L` finds an engine
+checkout and the build passes while proving nothing, so both were cleared.
 
-    STARLING_APP_VERSION=0.1.1 build/macos-app.sh TerminalApp --zip
+The engine inside the `.app` is the bundle's, compared by **Mach-O UUID**
+rather than by hash — the app re-signs `FlutterMacOS.framework` and
+`libswift_bridge.dylib` on the way in, so their bytes differ from the bundle's
+copies while the code is identical. Comparing hashes there reports a false
+mismatch, which is exactly what it did the first time.
 
-which proves the terminal works and does NOT prove the bundle can build it.
-**The 0.3.0 SDK bundle ships the bug**, so anything built from it has the
-crash; restoring the consumer path means cutting an SDK release with the fix
-in it, and the next terminal release should be built from that.
-
-The recipe 0.1.0 used, for when there is a fixed bundle to use it with:
+The recipe:
 
     tar xzf dist/starling-sdk-0.3.1-macos-arm64.tar.gz -C /tmp/sdk
-    STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
-        build/macos-app.sh TerminalApp --zip
+    env -u STARLING_ENGINE_OUT -u FLUTTER_SWIFT_ENGINE_OUT \
+        STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
+        STARLING_APP_VERSION=0.1.1 build/macos-app.sh TerminalApp --zip
 
 Both halves matter. `STARLING_SDK_BUNDLE` redirects the app's path dependency
 *and* the `-L`/rpath into the bundle's own `engine/lib`; the script then takes
 flutter_assets from `engine/share` instead of this repo's `sdk/Resources`, so
 staging never reaches back into a tree a consumer does not have. The build plan
-was checked for it: 46 references to the unpacked bundle, zero to
-`starling-engine` or to `sdk/`. The archive is renamed on the way in —
+was checked for it, as recorded above: 45 references to the unpacked bundle,
+zero to `starling-engine` or to `sdk/`. The archive is renamed on the way in —
 `macos-app.sh` emits `Starling-Terminal-<ver>-macos-arm64.zip`, this directory
 keeps every artifact at `<product>-<platform>-<arch>` so a version bump
 replaces a file instead of accumulating one.
