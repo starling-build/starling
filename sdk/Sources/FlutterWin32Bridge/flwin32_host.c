@@ -69,6 +69,8 @@ struct FlWin32Host {
   int overlay_active;
   int overlay_monitor;
   int overlay_shown;
+  int overlay_alpha;    // the configured opacity, restored after a warm-up
+  int overlay_warming;  // full-size and fully transparent, pre-paying a resize
   RECT overlay_rect;
   void (*toggle_callback)(void* user);
   void* toggle_user;
@@ -113,6 +115,8 @@ static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
 static void overlay_rederive(FlWin32Host* host);
 static void install_child_cursor_proc(HWND child);
+static void overlay_warm_start(FlWin32Host* host);
+static void overlay_warm_finish(FlWin32Host* host);
 static void apply_colour_key(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
@@ -121,6 +125,13 @@ static void apply_colour_key(FlWin32Host* host);
 // symbol is a libdispatch implementation detail with no public header.
 #define kDrainTimerId 1
 #define kDrainTimerMs 8
+
+// The overlay warm-up, in two shots: grow to full size once at startup, then
+// park again. See overlay_warm_start for why.
+#define kOverlayWarmTimerId 2
+#define kOverlayWarmDelayMs 1200
+#define kOverlayCoolTimerId 3
+#define kOverlayCoolDelayMs 2000
 
 static void drain_gcd_main_queue(void) {
   static void (*drain)(void*) = NULL;
@@ -326,6 +337,16 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
         drain_gcd_main_queue();
         return 0;
       }
+      if (wparam == kOverlayWarmTimerId) {
+        KillTimer(hwnd, kOverlayWarmTimerId);
+        if (host != NULL) overlay_warm_start(host);
+        return 0;
+      }
+      if (wparam == kOverlayCoolTimerId) {
+        KillTimer(hwnd, kOverlayCoolTimerId);
+        if (host != NULL) overlay_warm_finish(host);
+        return 0;
+      }
       break;
 
     default:
@@ -364,7 +385,25 @@ FlWin32Host* flwin32_host_create(const char* title,
   wc.lpfnWndProc = host_wnd_proc;
   wc.hInstance = instance;
   wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-  wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+  // BLACK, not COLOR_WINDOW, and this is user-visible.
+  //
+  // The class brush is what Windows paints over any part of the window that
+  // becomes valid before the engine has presented a frame for it, and the
+  // overlay path hits that on every open: the launcher parks as 1x1 and is
+  // shown by resizing to the whole screen, so at 3840x2160 there is a real
+  // gap while the swap chain is rebuilt and the grid is laid out again. With
+  // COLOR_WINDOW that gap was a full-screen WHITE FLASH before the apps
+  // appeared. Black is the colour both surfaces are actually built on, so the
+  // same gap now reads as the overlay arriving rather than as a fault -- and
+  // on the dock, whose transparency is a colour key on pure black, an erase
+  // in the key colour is a hole instead of an opaque white band.
+  //
+  // It costs one diagnostic: "the surface came up as the class's white brush"
+  // was the tell for "the tree never mounted" (see the overlay parking notes
+  // below). That failure is now a BLANK BLACK surface. It is still perfectly
+  // visible -- a launcher with no tiles, a dock with no icons -- but it no
+  // longer announces itself in white.
+  wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
   wc.lpszClassName = kWindowClass;
   // Ignore "already registered" — a second host in one process is fine.
   RegisterClassExW(&wc);
@@ -1261,7 +1300,7 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
   // WS_VISIBLE in the style, exactly as the panel path sets it, and NOT an
   // oversight to tidy away: a restyle that leaves it out stops the embedder
   // scheduling frames, so the tree never builds, initState never runs and the
-  // surface comes up as the window class's white brush. The panel path had it
+  // surface comes up blank, in the window class's brush. The panel path had it
   // from the start, which is why the bar and the dock never showed this.
   SetWindowLongPtrW(host->window, GWL_STYLE, WS_POPUP | WS_VISIBLE);
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
@@ -1273,10 +1312,13 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex);
   if (alpha < 0) alpha = 255;
   if (alpha > 255) alpha = 255;
+  host->overlay_alpha = alpha;
   SetLayeredWindowAttributes(host->window, 0, (BYTE)alpha, LWA_ALPHA);
 
   host->overlay_rect = area;
   overlay_park(host);
+  // One-shot, after the tree has had time to mount at the parked size.
+  SetTimer(host->window, kOverlayWarmTimerId, kOverlayWarmDelayMs, NULL);
 }
 
 // Parking, and why it looks so odd.
@@ -1288,7 +1330,7 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
 // requested — and this framework builds its widget tree on the FIRST FRAME
 // REQUEST, not at runApp. A launcher parked either of those ways has never
 // run initState: no catalog, no icons, nothing registered. It then comes up
-// as the window class's white brush, which reads as a rendering bug and is
+// blank, in the window class's brush, which reads as a rendering bug and is
 // really "the tree does not exist".
 //
 // So it is parked as a 1x1 window in the corner of its monitor, at the bottom
@@ -1330,6 +1372,50 @@ static void overlay_park(FlWin32Host* host) {
   host->overlay_shown = 0;
 }
 
+// The FIRST open was half a second of nothing, and only the first.
+//
+// Measured on a 3840x2160 display: the blank between asking for the launcher
+// and seeing tiles was ~570ms on the first open of a freshly started shell and
+// ~56ms on every open after it. That shape says one-time cost, not slow code
+// -- growing 1x1 -> 3840x2160 reallocates the swap chain at 4K and lays the
+// whole grid out at a size it has never been laid out at, and both are paid
+// once and then cached.
+//
+// So pay it at startup instead, where nobody is waiting: grow the parked
+// overlay to its full size with the layer alpha at ZERO, let it render, and
+// park it again. Fully transparent and still click-through, so there is
+// nothing to see and nothing to click on; and it happens a beat after launch
+// rather than immediately, so it cannot interfere with the first mount --
+// which is the one thing about this window that must not be disturbed.
+//
+// If a fully transparent window turns out not to be sent frames on some
+// machine, this degrades to exactly the behaviour it replaces: the cost moves
+// back to the first real open. That is why it is written as an optimisation
+// with no correctness stake in it.
+static void overlay_warm_start(FlWin32Host* host) {
+  if (!host->overlay_active || host->overlay_shown) return;
+  host->overlay_warming = 1;
+  SetLayeredWindowAttributes(host->window, 0, 0, LWA_ALPHA);
+  SetWindowPos(host->window, HWND_BOTTOM,
+               host->overlay_rect.left, host->overlay_rect.top,
+               host->overlay_rect.right - host->overlay_rect.left,
+               host->overlay_rect.bottom - host->overlay_rect.top,
+               SWP_NOACTIVATE);
+  SetTimer(host->window, kOverlayCoolTimerId, kOverlayCoolDelayMs, NULL);
+}
+
+static void overlay_warm_finish(FlWin32Host* host) {
+  if (!host->overlay_warming) return;
+  host->overlay_warming = 0;
+  // A real open during the warm-up wins: it has already restored the alpha and
+  // sized the window, so parking here would close a launcher the user asked
+  // for.
+  if (host->overlay_shown) return;
+  SetLayeredWindowAttributes(host->window, 0, (BYTE)host->overlay_alpha,
+                             LWA_ALPHA);
+  overlay_park(host);
+}
+
 int32_t flwin32_host_is_visible(FlWin32Host* host) {
   if (host == NULL || host->window == NULL) return 0;
   // An overlay is always "visible" to Windows — it is parked, not hidden —
@@ -1349,6 +1435,16 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
     overlay_park(host);
     return;
   }
+
+  // Cancel a warm-up in flight and put the configured opacity back: the
+  // warm-up leaves the window full size at alpha 0, which would otherwise
+  // show as the launcher opening completely invisible.
+  if (host->overlay_warming) {
+    KillTimer(host->window, kOverlayCoolTimerId);
+    host->overlay_warming = 0;
+  }
+  SetLayeredWindowAttributes(host->window, 0, (BYTE)host->overlay_alpha,
+                             LWA_ALPHA);
 
   // Re-derive the geometry on the way up: the monitor may have changed size,
   // or gone, since the last time this was shown.
