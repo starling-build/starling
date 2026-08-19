@@ -112,6 +112,7 @@ static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
 static void overlay_rederive(FlWin32Host* host);
+static void install_child_cursor_proc(HWND child);
 static void apply_colour_key(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
@@ -443,6 +444,7 @@ FlWin32Host* flwin32_host_create(const char* title,
   SetParent(host->child, window);
   MoveWindow(host->child, client.left, client.top, client.right - client.left,
              client.bottom - client.top, TRUE);
+  install_child_cursor_proc(host->child);
 
   SetWindowLongPtrW(window, GWLP_USERDATA, (LONG_PTR)host);
   return host;
@@ -1158,6 +1160,68 @@ void flwin32_host_unregister_texture(FlWin32Host* host, int64_t texture_id) {
     FlutterDesktopTextureRegistrarUnregisterExternalTexture(
         registrar, texture_id, host_texture_free, texture);
     return;
+  }
+}
+
+// ── the cursor over the view ───────────────────────────────────────────────
+//
+// Nobody sets the cursor, so it keeps whatever shape it had on the way in.
+//
+// The engine's FLUTTERVIEW class registers IDC_ARROW like any other, but its
+// wndproc answers WM_SETCURSOR over the client area with a bare `return TRUE`
+// and no SetCursor at all — deliberately, and the comment there says why: it
+// is stopping DefWindowProc from applying the class cursor, because in real
+// Flutter the DART framework owns the pointer and pushes a cursor over the
+// `flutter/mousecursor` channel on every mouse-tracker update.
+//
+// This port has no Dart VM and does not yet drive that channel (the same gap
+// that leaves MouseRegion.onEnter/onExit silent), so the SetCursor at the end
+// of that chain is never reached by anyone. The cursor therefore holds the
+// shape it happened to have when it crossed into our window — and for a shell
+// surface launched at login that is the busy ring, which then spins over the
+// dock forever. It looks like a hung process and measures as a responsive one.
+//
+// So the frame puts the class cursor back: subclass the view and answer
+// WM_SETCURSOR the way DefWindowProc would have. This is the DEFAULT, not a
+// policy — when the mouse tracker is ported, the cursor it chooses should be
+// set here rather than by reinstating the engine's silence.
+static const wchar_t kChildProcProp[] = L"StarlingChildWndProc";
+
+static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
+                                              WPARAM wparam, LPARAM lparam) {
+  WNDPROC original = (WNDPROC)GetPropW(hwnd, kChildProcProp);
+
+  if (message == WM_SETCURSOR && LOWORD(lparam) == HTCLIENT) {
+    SetCursor(LoadCursorW(NULL, IDC_ARROW));
+    return TRUE;
+  }
+
+  // Undo the subclass while the window still exists: WM_NCDESTROY is the last
+  // message it receives, and a property left behind outlives the HWND.
+  if (message == WM_NCDESTROY) {
+    if (original != NULL) {
+      SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)original);
+    }
+    RemovePropW(hwnd, kChildProcProp);
+  }
+
+  return original != NULL
+             ? CallWindowProcW(original, hwnd, message, wparam, lparam)
+             : DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+// Subclass by GWLP_WNDPROC with the original kept in a window PROPERTY rather
+// than a static: the embedder already owns the child's GWLP_USERDATA (it
+// stores its FlutterWindow* there), and a static would tie this to one host
+// per process, which is a constraint the rest of this file does not have.
+static void install_child_cursor_proc(HWND child) {
+  if (child == NULL || GetPropW(child, kChildProcProp) != NULL) return;
+  WNDPROC original =
+      (WNDPROC)SetWindowLongPtrW(child, GWLP_WNDPROC, (LONG_PTR)child_cursor_wnd_proc);
+  if (original == NULL) return;
+  if (!SetPropW(child, kChildProcProp, (HANDLE)original)) {
+    // Could not record the original, so do not leave ours in its place.
+    SetWindowLongPtrW(child, GWLP_WNDPROC, (LONG_PTR)original);
   }
 }
 
