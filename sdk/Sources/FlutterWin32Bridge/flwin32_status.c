@@ -30,6 +30,7 @@
  * those constants is exactly the kind of thing that goes stale.
  */
 
+/* dxva2 for the monitor's backlight over DDC/CI. */
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -50,6 +51,8 @@
 #include <wlanapi.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
+#include <highlevelmonitorconfigurationapi.h>  /* Get/SetMonitorBrightness */
+#include <physicalmonitorenumerationapi.h>       /* PHYSICAL_MONITOR */
 #include <objbase.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +76,7 @@ static const IID kIID_IAudioEndpointVolume = {
 #pragma comment(lib, "wlanapi.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "dxva2.lib")
 
 /* ------------------------------------------------------------------ power */
 
@@ -95,6 +99,89 @@ int32_t flwin32_power_status(int32_t* present, int32_t* percent, int32_t* chargi
      * charging but should still show the bolt. */
     if (charging) *charging = (status.ACLineStatus == 1) ? 1 : 0;
     return 1;
+}
+
+/* ------------------------------------------------------------- brightness */
+
+/* DDC/CI, which is the monitor's own backlight over an I2C channel in the
+ * video cable -- the same thing the buttons on the front of the monitor do.
+ *
+ * Not the laptop path: WmiMonitorBrightnessMethods only covers an internal
+ * panel, and this is a desktop with a Dell over DisplayPort. dxva2 covers
+ * both, because Windows routes an internal panel through it too.
+ *
+ * SLOW, and that matters more than it looks. Every call here is a round trip
+ * to the monitor's firmware -- tens to hundreds of milliseconds, and entirely
+ * outside our control. It must never be called from the thread that draws,
+ * which is why the shell reads it once at startup and after a change rather
+ * than on the status tick: polling a monitor over I2C once a second is rude
+ * to the hardware as well as to the frame budget.
+ *
+ * Handles are opened and destroyed per call rather than cached. A cached
+ * physical monitor handle goes stale on a mode change, a cable swap or a
+ * monitor sleeping, and the failure is a silent no-op. */
+
+static int with_first_monitor(int (*use)(HANDLE, void*), void* user) {
+    POINT origin = {0, 0};
+    HMONITOR monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+    if (monitor == NULL) return 0;
+
+    DWORD count = 0;
+    if (!GetNumberOfPhysicalMonitorsFromHMONITOR(monitor, &count) || count == 0) {
+        return 0;
+    }
+    PHYSICAL_MONITOR* monitors =
+        (PHYSICAL_MONITOR*)calloc(count, sizeof(PHYSICAL_MONITOR));
+    if (monitors == NULL) return 0;
+
+    int result = 0;
+    if (GetPhysicalMonitorsFromHMONITOR(monitor, count, monitors)) {
+        /* The first one that answers. A machine with two monitors has two
+         * backlights and no single "the" brightness; the primary is the one
+         * the user means, and is where the control centre is drawn. */
+        for (DWORD i = 0; i < count; i++) {
+            if (use(monitors[i].hPhysicalMonitor, user)) { result = 1; break; }
+        }
+        DestroyPhysicalMonitors(count, monitors);
+    }
+    free(monitors);
+    return result;
+}
+
+struct BrightnessRead { int32_t percent; };
+
+static int read_brightness(HANDLE monitor, void* user) {
+    struct BrightnessRead* out = (struct BrightnessRead*)user;
+    DWORD minimum = 0, current = 0, maximum = 0;
+    if (!GetMonitorBrightness(monitor, &minimum, &current, &maximum)) return 0;
+    if (maximum <= minimum) return 0;
+    /* Reported in the monitor's own units, which are not required to be
+     * 0-100 -- normalise, or a monitor with a 0-255 range reads as 30%. */
+    out->percent = (int32_t)(((double)(current - minimum) * 100.0)
+                             / (double)(maximum - minimum) + 0.5);
+    return 1;
+}
+
+int32_t flwin32_brightness_get(int32_t* percent) {
+    struct BrightnessRead out = {0};
+    if (!with_first_monitor(read_brightness, &out)) return 0;
+    if (percent) *percent = out.percent;
+    return 1;
+}
+
+static int write_brightness(HANDLE monitor, void* user) {
+    int32_t wanted = *(int32_t*)user;
+    DWORD minimum = 0, current = 0, maximum = 0;
+    if (!GetMonitorBrightness(monitor, &minimum, &current, &maximum)) return 0;
+    if (maximum <= minimum) return 0;
+    if (wanted < 0) wanted = 0;
+    if (wanted > 100) wanted = 100;
+    DWORD value = minimum + (DWORD)(((double)(maximum - minimum) * wanted) / 100.0 + 0.5);
+    return SetMonitorBrightness(monitor, value) ? 1 : 0;
+}
+
+int32_t flwin32_brightness_set(int32_t percent) {
+    return with_first_monitor(write_brightness, &percent) ? 1 : 0;
 }
 
 /* ---------------------------------------------------------------- network */

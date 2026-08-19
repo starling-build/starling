@@ -48,6 +48,9 @@ struct DockState {
     var network = Win32Network(kind: .none, signal: 0, ssid: "")
     var power = Win32Power(hasBattery: false, percent: nil, isCharging: true)
     var volume: Win32Volume?
+    /// The monitor's backlight, or nil when no monitor answers DDC/CI — in
+    /// which case the control centre does not draw the control at all.
+    var brightness: Int?
     var darkMode = false
     /// Set by the Wi-Fi tile so the panel answers the click immediately — the
     /// radio takes a moment to settle and the next poll is a second away,
@@ -85,6 +88,7 @@ final class DockBloc: @unchecked Sendable {
         case closeAll(DockItem)
 
         case setVolume(Int)
+        case setBrightness(Int)
         case toggleMute
         case toggleWifi
         case toggleDarkMode
@@ -173,6 +177,13 @@ final class DockBloc: @unchecked Sendable {
             }
             _queueRefresh()
 
+        case .setBrightness(let percent):
+            // Optimistic so the slider tracks the drag. NOT re-read after:
+            // every read is an I2C round trip to the monitor, and a drag
+            // would queue dozens of them behind each other.
+            state.brightness = percent
+            Task.detached { Win32Control.setBrightness(percent) }
+
         case .setVolume(let percent):
             // Optimistic so the slider tracks the drag; the next poll re-reads
             // what the mixer actually accepted.
@@ -231,6 +242,14 @@ final class DockBloc: @unchecked Sendable {
 
         _rebuild()
         _readStatus()
+
+        // Once, not on the tick. Reading the backlight is an I2C round trip
+        // to the monitor's firmware; asking every second would be rude to the
+        // hardware and buys nothing, because nothing changes it but us.
+        Task.detached { [weak self] in
+            let level = Win32Status.brightness()
+            await MainActor.run { self?.state.brightness = level }
+        }
     }
 
     /// Reads the system status off the UI thread and publishes it back.

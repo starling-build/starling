@@ -89,6 +89,19 @@ public enum Win32Status {
                           isCharging: charging != 0)
     }
 
+    /// The primary monitor's backlight, 0-100, or nil when no monitor
+    /// answers DDC/CI — which is common, and means the control should not be
+    /// offered at all.
+    ///
+    /// **Slow.** An I2C round trip to the monitor's firmware, tens to
+    /// hundreds of milliseconds. Read it once and after a change, never on a
+    /// tick, and never on the thread that draws.
+    public static func brightness() -> Int? {
+        var percent: Int32 = 0
+        guard flwin32_brightness_get(&percent) != 0 else { return nil }
+        return Int(percent)
+    }
+
     public static func network() -> Win32Network {
         var kind: Int32 = 0, signal: Int32 = 0, hasWifi: Int32 = 0
         var buffer = [CChar](repeating: 0, count: 128)
@@ -114,6 +127,13 @@ public enum Win32Status {
 /// and a status widget that can reach a setter by autocomplete is how a
 /// readout ends up changing the thing it is meant to be reporting.
 public enum Win32Control {
+
+    /// Sets the primary monitor's backlight. **Slow** — an I2C round trip to
+    /// the monitor's firmware; see `Win32Status.brightness()`.
+    @discardableResult
+    public static func setBrightness(_ percent: Int) -> Bool {
+        flwin32_brightness_set(Int32(percent)) != 0
+    }
 
     /// 0–100, on the same scalar scale the reader reports, so a slider set to
     /// what the readout said does not move the volume.

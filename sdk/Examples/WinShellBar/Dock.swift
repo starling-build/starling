@@ -74,7 +74,9 @@ let kCcTileH = 62.0
 let kCcSliderH = 40.0
 let kCcRowH = 32.0
 let kCcWidth = kCcTileW * 2 + kCcGap + kCcPad * 2
-let kCcHeight = kCcPad * 2 + kCcTileH * 2 + kCcGap + kCcSliderH + kCcRowH + kCcGap
+/// The panel without a brightness slider. `ccHeight` adds one when the
+/// monitor has a backlight we can reach.
+let kCcHeightBase = kCcPad * 2 + kCcTileH * 2 + kCcGap + kCcSliderH + kCcRowH + kCcGap
 /// How far the panel sits from the right edge and above the strip.
 let kCcInset = 12.0
 
@@ -147,6 +149,9 @@ final class StarlingDockState: State<StatefulWidget> {
     /// currently dragging its volume slider.
     private var controlCentreOpen = false
     private var draggingVolume = false
+    /// Which slider a drag started on, if any — the two tracks are the same
+    /// shape and a drag must stay with the one it began in.
+    private var draggingBrightness = false
 
     private var timer: AnyObject?
 
@@ -226,13 +231,23 @@ final class StarlingDockState: State<StatefulWidget> {
     private var ccFrame: CcRect {
         let height = Double(kDockHeight + kDockOverhang)
         return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
-                      y: height - Double(kDockHeight) - kCcInset - kCcHeight,
-                      w: kCcWidth, h: kCcHeight)
+                      y: height - Double(kDockHeight) - kCcInset - ccHeight,
+                      w: kCcWidth, h: ccHeight)
     }
 
     /// The four tiles, then the slider track, then the wide bottom row — in
     /// the order they are drawn.
-    private func ccRects() -> (tiles: [CcRect], slider: CcRect, row: CcRect) {
+    /// Whether the panel offers a brightness slider at all — only when a
+    /// monitor answered DDC/CI. Plenty do not, and a slider that cannot move
+    /// anything is worse than no slider.
+    private var hasBrightness: Bool { bloc.state.brightness != nil }
+
+    private var ccHeight: Double {
+        kCcHeightBase + (hasBrightness ? kCcSliderH : 0)
+    }
+
+    private func ccRects() -> (tiles: [CcRect], slider: CcRect,
+                               brightness: CcRect?, row: CcRect) {
         let f = ccFrame
         // Two across, then the odd one out spanning the row — a half tile
         // beside a hole reads as something failed to load.
@@ -244,12 +259,18 @@ final class StarlingDockState: State<StatefulWidget> {
                    w: kCcWidth - kCcPad * 2, h: kCcTileH),
         ]
         let afterTiles = f.y + kCcPad + kCcTileH * 2 + kCcGap * 2
-        // The track starts clear of the speaker glyph at its left.
-        let slider = CcRect(x: f.x + kCcPad + 28, y: afterTiles,
-                            w: kCcWidth - kCcPad * 2 - 28, h: kCcSliderH)
-        let row = CcRect(x: f.x + kCcPad, y: afterTiles + kCcSliderH,
+        // Both tracks start clear of the glyph at their left.
+        let trackX = f.x + kCcPad + 28
+        let trackW = kCcWidth - kCcPad * 2 - 28
+        // Brightness above sound, the order Windows' own Quick Settings uses.
+        let brightness = hasBrightness
+            ? CcRect(x: trackX, y: afterTiles, w: trackW, h: kCcSliderH)
+            : nil
+        let slider = CcRect(x: trackX, y: afterTiles + (hasBrightness ? kCcSliderH : 0),
+                            w: trackW, h: kCcSliderH)
+        let row = CcRect(x: f.x + kCcPad, y: slider.y + kCcSliderH,
                          w: kCcWidth - kCcPad * 2, h: kCcRowH)
-        return (tiles, slider, row)
+        return (tiles, slider, brightness, row)
     }
 
     /// Where the status readout is, and therefore what opens the panel.
@@ -281,10 +302,16 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     private func ccSetVolumeFrom(_ x: Double) {
-        let track = ccRects().slider
-        let fraction = min(1, max(0, (x - track.x) / track.w))
-        let percent = Int((fraction * 100).rounded())
-        bloc.add(.setVolume(percent))
+        bloc.add(.setVolume(ccPercent(x, ccRects().slider)))
+    }
+
+    private func ccSetBrightnessFrom(_ x: Double) {
+        guard let track = ccRects().brightness else { return }
+        bloc.add(.setBrightness(ccPercent(x, track)))
+    }
+
+    private func ccPercent(_ x: Double, _ track: CcRect) -> Int {
+        Int((min(1, max(0, (x - track.x) / track.w)) * 100).rounded())
     }
 
     private func ccTile(_ index: Int, icon: IconData, label: String,
@@ -321,19 +348,40 @@ final class StarlingDockState: State<StatefulWidget> {
     /// the fill and the knob are three boxes and the drag is two lines in the
     /// root Listener. It also keeps the slider's geometry in `ccRects`, where
     /// the hit test can see it.
+    /// The brightness track, when there is a backlight to move.
+    private func ccBrightnessSlider() -> Widget? {
+        guard let rect = ccRects().brightness,
+              let percent = bloc.state.brightness else { return nil }
+        return ccTrack(rect, percent: Double(percent),
+                       icon: CupertinoIcons.sun_max_fill,
+                       fill: Color(0xFFE8B84B))
+    }
+
     private func ccSlider() -> Widget {
         let rect = ccRects().slider
         let percent = Double(bloc.state.volume?.percent ?? 0)
+        return ccTrack(rect, percent: percent,
+                       icon: (bloc.state.volume?.isMuted ?? false)
+                           ? CupertinoIcons.speaker_slash : CupertinoIcons.speaker_2,
+                       fill: Color(0xFF4C8DF6))
+    }
+
+    /// One slider, drawn. Both tracks are the same three boxes; only the
+    /// glyph, the fill colour and the value differ.
+    ///
+    /// Boxes rather than a `MacosSlider` for the reason the whole panel is
+    /// arithmetic: widget-level input is unreliable here, so the drag comes
+    /// off the root Listener and the drawing has to agree with a rectangle
+    /// `ccRects` already decided.
+    private func ccTrack(_ rect: CcRect, percent: Double,
+                         icon: IconData, fill: Color) -> Widget {
         let fraction = min(1, max(0, percent / 100))
         let knob = (rect.w - 14) * fraction
         return Positioned(left: kCcPad, top: rect.y - ccFrame.y) {
             SizedBox(width: kCcWidth - kCcPad * 2, height: rect.h) {
                 Stack(alignment: Alignment.centerLeft) {
                     Align(alignment: Alignment.centerLeft) {
-                        MacosIcon(icon: (bloc.state.volume?.isMuted ?? false)
-                                      ? CupertinoIcons.speaker_slash
-                                      : CupertinoIcons.speaker_2,
-                                  color: Color(0xFFD5DAE3), size: 16)
+                        MacosIcon(icon: icon, color: Color(0xFFD5DAE3), size: 16)
                     }
                     Positioned(left: 28, top: rect.h / 2 - 3, width: rect.w, height: 6) {
                         ClipRRect(borderRadius: BorderRadius.circular(3)) {
@@ -343,7 +391,7 @@ final class StarlingDockState: State<StatefulWidget> {
                     Positioned(left: 28, top: rect.h / 2 - 3,
                                width: max(6, knob + 7), height: 6) {
                         ClipRRect(borderRadius: BorderRadius.circular(3)) {
-                            ColoredBox(color: Color(0xFF4C8DF6)) { SizedBox(expand: ()) }
+                            ColoredBox(color: fill) { SizedBox(expand: ()) }
                         }
                     }
                     Positioned(left: 28 + knob, top: rect.h / 2 - 7, width: 14, height: 14) {
@@ -388,6 +436,13 @@ final class StarlingDockState: State<StatefulWidget> {
     /// still letting a dock tile take the same click.
     private func handleControlCentre(_ x: Double, _ y: Double) -> Bool {
         let rects = ccRects()
+        if let brightness = rects.brightness, brightness.contains(x, y) {
+            setState {
+                draggingBrightness = true
+                ccSetBrightnessFrom(x)
+            }
+            return true
+        }
         if rects.slider.contains(x, y) {
             setState {
                 draggingVolume = true
@@ -442,6 +497,7 @@ final class StarlingDockState: State<StatefulWidget> {
                                    available: bloc.state.volume != nil)
                             ccTile(2, icon: CupertinoIcons.moon_fill, label: "Dark Mode",
                                    active: bloc.state.darkMode)
+                            if let brightness = ccBrightnessSlider() { brightness }
                             ccSlider()
                             ccBottomRow()
                         }
@@ -821,12 +877,18 @@ final class StarlingDockState: State<StatefulWidget> {
                     // The slider's drag, in one line. A pan recognizer would
                     // be the widget-level answer and is exactly what does not
                     // arrive reliably in this surface.
-                    guard self.draggingVolume else { return }
-                    self.setState { self.ccSetVolumeFrom(e.position.dx) }
+                    if self.draggingBrightness {
+                        self.setState { self.ccSetBrightnessFrom(e.position.dx) }
+                    } else if self.draggingVolume {
+                        self.setState { self.ccSetVolumeFrom(e.position.dx) }
+                    }
                 },
                 onPointerUp: { _ in
-                    guard self.draggingVolume else { return }
-                    self.setState { self.draggingVolume = false }
+                    guard self.draggingVolume || self.draggingBrightness else { return }
+                    self.setState {
+                        self.draggingVolume = false
+                        self.draggingBrightness = false
+                    }
                 },
                 onPointerHover: { e in
                     let index = self.pointerTile(e.position.dx, e.position.dy)

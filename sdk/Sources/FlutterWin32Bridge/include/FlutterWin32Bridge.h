@@ -337,6 +337,13 @@ int32_t flwin32_power_status(int32_t* present, int32_t* percent, int32_t* chargi
 
 // Network. `kind` is 0 none, 1 ethernet, 2 wifi; `signal` is 0-100 and only
 // meaningful for wifi; `ssid` is UTF-8 and may be empty.
+// The primary monitor's backlight, over DDC/CI. Returns 0 when no monitor
+// answers — plenty do not, and a control that cannot change anything should
+// not be drawn. SLOW (an I2C round trip to the monitor's firmware): never
+// call either of these from the UI thread.
+int32_t flwin32_brightness_get(int32_t* percent);
+int32_t flwin32_brightness_set(int32_t percent);
+
 int32_t flwin32_network_status(int32_t* kind,
                                int32_t* signal,
                                char* ssid,
