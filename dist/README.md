@@ -56,16 +56,22 @@ consumer from an unpacked 0.3.0 carries **two** such paths; from this bundle it
 carries **none**. Compiling is not the test — a 0.3.0 consumer compiles
 perfectly and crashes on somebody else's machine.
 
-Linux and Windows stay at 0.3.0 and are not reissued: `Bundle.module`'s first
-candidate is correct in their layouts, where a bare executable's `bundleURL` is
-the directory holding the resource bundle, so the fallback is never reached and
-the bug cannot bite. That is why one platform is a version ahead here.
+The bug cannot bite on Linux or Windows: `Bundle.module`'s first candidate is
+correct in their layouts, where a bare executable's `bundleURL` is the directory
+holding the resource bundle, so the fallback is never reached.
 
-`starling-sdk-0.3.0-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the same
-0.3.0 release candidate and the same engine commit: framework source, the
-three release engine libraries (`libflutter_engine.so`,
-`libflutter_linux_gtk.so`, `libflutter_linux_drm.so`), `icudtl.dat` and
-flutter_assets. 23 MB, checksum in `SHA256SUMS`.
+`starling-sdk-0.3.1-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the
+same branch and the same engine commit: framework source, the three release
+engine libraries (`libflutter_engine.so`, `libflutter_linux_gtk.so`,
+`libflutter_linux_drm.so`), `icudtl.dat` and flutter_assets. 23 MB, checksum in
+`SHA256SUMS`. It **replaces** the 0.3.0 Linux tarball, which was in this
+directory until now and remains a `sdk-v0.3.0` release asset.
+
+It reissues a fix that changes nothing on this platform, on purpose: the search
+runs here too, it simply never had to. Shipping it means "which SDK version am I
+on" has one answer instead of one per platform. Windows stays at 0.3.0 because
+nobody rebuilt it, not because it would differ — that is the version skew left
+in this directory, and it is the only one.
 
 `starling-sdk-0.3.0-windows-x86_64.zip` — the same SDK for Windows x86_64, the same
 0.3.0 release candidate and the same engine commit: framework source, both
@@ -186,7 +192,9 @@ Re-measure before quoting those figures against this archive.
 Built on the dev box from `release-terminal-0.1.0`, **from the released SDK
 bundle alone** — the same consumer path the macOS archive takes:
 
-    tar xzf dist/starling-sdk-0.3.0-linux-x86_64.tar.gz -C /tmp/sdk
+    # 0.3.0, the version current when this was built; it is a sdk-v0.3.0
+    # release asset now that 0.3.1 has replaced it in this directory
+    tar xzf starling-sdk-0.3.0-linux-x86_64.tar.gz -C /tmp/sdk
     B=/tmp/sdk/starling-sdk-linux-x86_64
     env -u STARLING_ENGINE_OUT STARLING_APP_GTK=1 STARLING_SDK_BUNDLE=$B \
         swift build -c release --package-path apps/TerminalApp \
@@ -243,15 +251,23 @@ had only the bundle's own `engine/lib` to resolve against. The check on the
 result is one `strings` call: built from **0.3.0** the binary carries two
 absolute build-directory paths, built from this bundle it carries none.
 
-The Linux one is the same branch and the same engine commit, built on the dev
-box against `host_release`, and verified the same way — a path-dependency
-consumer compiled the whole framework, `readelf -d` showed both engine
-libraries resolving out of the bundle's `engine/lib` with nothing set in the
-environment, and a `CounterApp` built inside the unpacked bundle came up on
-the desktop session and drew text:
+The Linux one (0.3.1) is the same branch and the same engine commit, built on
+the dev box and verified the same way — a path-dependency consumer compiled the
+whole framework, `readelf -d` showed both engine libraries resolving out of the
+bundle's `engine/lib` with nothing set in the environment, and it carries zero
+build-directory paths where a 0.3.0 consumer carries two:
 
     FLUTTER_SWIFT_ENGINE_OUT=<a private copy of the release binaries> \
         sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
+
+**Its engine did not come from `host_release`, and could not have.** All four
+files were taken out of the published `starling-sdk-0.3.0-linux-x86_64.tar.gz`
+and compared byte for byte with what shipped: identical. Read straight from the
+shared out directory they would not have been — that copy of
+`libflutter_engine.so` had been relinked from `starling`, three commits past the
+release, and carries `fl_drm_view_inject_pointer_abs`. The reissued tarball has
+zero matches for it. This is the same failure the paragraph below warns about,
+caught the second time by taking the binaries from the artifact instead.
 
 **Build the engine at the release commit into a directory nobody else writes,
 and check the tarball rather than the out directory.** The engine checkout is
@@ -318,7 +334,7 @@ Rebuild as above, copy the artifact here, and regenerate the checksums —
 one file, all six lines, because writing it with one filename is how the
 Windows zip's line got dropped once already:
 
-    sha256sum starling-sdk-0.3.0-linux-x86_64.tar.gz \
+    sha256sum starling-sdk-0.3.1-linux-x86_64.tar.gz \
               starling-sdk-0.3.1-macos-arm64.tar.gz \
               starling-sdk-0.3.0-windows-x86_64.zip \
               starling-terminal_0.1.0_amd64.deb \
