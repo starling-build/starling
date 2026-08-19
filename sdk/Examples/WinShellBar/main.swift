@@ -35,6 +35,12 @@ import Foundation
 Win32WindowedHost.install()
 
 let wantsDock = CommandLine.arguments.contains("--dock")
+// Diagnostics. `--plain` skips the panel/overlay restyle entirely and comes
+// up as an ordinary window; `--no-appbar` keeps the restyle but does not
+// reserve the strip. Between them they bisect "the surface came up blank"
+// into restyle-vs-reservation without a rebuild.
+let wantsPlain = CommandLine.arguments.contains("--plain")
+let wantsAppbar = !CommandLine.arguments.contains("--no-appbar")
 let wantsLauncher = CommandLine.arguments.contains("--launcher")
 
 // Span the primary monitor. Reading the geometry rather than assuming 1920
@@ -43,7 +49,17 @@ let wantsLauncher = CommandLine.arguments.contains("--launcher")
 // size is a client size in points; the panel restyle overrides it a moment
 // later with the real edge geometry anyway.
 let screen = Win32Display.primary()
-let panelWidth = Int(screen?.logicalWidth ?? 1280)
+// PHYSICAL pixels, not logical.
+//
+// runStarlingApp's size becomes the window's client size in pixels, and the
+// engine's view is created for it. The panel restyle then resizes the window
+// to the strip — and on a 200% display that is a resize from 1920x44 to
+// 3840x88 BEFORE the first frame, which is exactly when the tree has not
+// mounted yet. Creating it at the size it is going to be means there is no
+// resize to survive. (On the 100% VM the two happened to be equal, which is
+// why this never showed up there.)
+let panelWidth = Int(screen?.width ?? 1280)
+let panelScale = screen?.scale ?? 1.0
 print("[WinShell] monitors: \(Win32Display.monitors())")
 
 // takesFocus stays at its default of false for both: clicking a taskbar
@@ -56,12 +72,12 @@ if wantsLauncher {
     // --plain: a diagnostic escape hatch. The overlay restyle happens before
     // the tree mounts, so when the launcher comes up blank this is how you
     // find out whether the restyle is what stopped it.
-    if !CommandLine.arguments.contains("--plain") {
+    if !wantsPlain {
         Win32WindowedHost.overlay = OverlayPlacement(opacity: 0.97)
     }
     runStarlingApp(title: "Starling Launcher",
-                   width: Int(screen?.logicalWidth ?? 1280),
-                   height: Int(screen?.logicalHeight ?? 800)) {
+                   width: Int(screen?.width ?? 1280),
+                   height: Int(screen?.height ?? 800)) {
         StarlingLauncher()
     }
 } else if wantsDock {
@@ -70,17 +86,23 @@ if wantsLauncher {
     // the window extends above the reserved strip so the hover label and the
     // right-click menu have somewhere to draw — a window is a hard clip, and
     // both are taller than the dock.
-    Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,
-                                             reserveSpace: true, transparent: true,
-                                             overhang: kDockOverhang)
+    if !wantsPlain {
+        Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,
+                                                 reserveSpace: wantsAppbar,
+                                                 transparent: true,
+                                                 overhang: kDockOverhang)
+    }
     runStarlingApp(title: "Starling Dock", width: panelWidth,
-                   height: kDockHeight + kDockOverhang) {
+                   height: Int(Double(kDockHeight + kDockOverhang) * panelScale)) {
         StarlingDock()
     }
 } else {
-    Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
-                                             reserveSpace: true)
-    runStarlingApp(title: "Starling Bar", width: panelWidth, height: kBarHeight) {
+    if !wantsPlain {
+        Win32WindowedHost.panel = PanelPlacement(edge: .top, thickness: kBarHeight,
+                                                 reserveSpace: wantsAppbar)
+    }
+    runStarlingApp(title: "Starling Bar", width: panelWidth,
+                   height: Int(Double(kBarHeight) * panelScale)) {
         StarlingBar()
     }
 }

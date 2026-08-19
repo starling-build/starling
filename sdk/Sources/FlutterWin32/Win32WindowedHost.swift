@@ -43,6 +43,11 @@ public enum Win32WindowedHost {
         // GUI-subsystem so Explorer does not open a console window behind it,
         // and this hands the logging back to whoever launched it from a shell.
         // A no-op under Explorer, which is where the silence is wanted.
+        // FIRST, before anything reads the display: until DPI awareness is
+        // set the process is told a virtualized screen size, so a shell that
+        // asks how wide the monitor is before making a window gets an answer
+        // wrong by exactly the scale factor.
+        flwin32_process_init()
         flwin32_attach_parent_console()
         // The system clipboard, so copy/paste reaches the rest of Windows
         // rather than staying inside the process.

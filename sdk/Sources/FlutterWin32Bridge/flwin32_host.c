@@ -335,11 +335,7 @@ FlWin32Host* flwin32_host_create(const char* title,
                                  int32_t height,
                                  const void* runtime_controller) {
   HINSTANCE instance = GetModuleHandleW(NULL);
-
-  // Per-monitor DPI so the engine sees a truthful pixel ratio. Best effort:
-  // a manifest may have set awareness already, in which case this fails and
-  // the existing setting stands.
-  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+  flwin32_process_init();
 
   WNDCLASSEXW wc = {0};
   wc.cbSize = sizeof(WNDCLASSEXW);
@@ -542,6 +538,23 @@ static void redirect_std_to_log_file(void) {
   // And the Win32-level handles, for anything that asks GetStdHandle.
   SetStdHandle(STD_OUTPUT_HANDLE, (HANDLE)_get_osfhandle(1));
   SetStdHandle(STD_ERROR_HANDLE, (HANDLE)_get_osfhandle(2));
+}
+
+void flwin32_process_init(void) {
+  // Per-monitor DPI, and as EARLY as possible.
+  //
+  // Until this runs, the process is DPI-UNAWARE and Windows virtualizes
+  // everything it is told about the display: on a 4K screen at 200% it
+  // reports 1920x1080 and 96 dpi, and every one of those numbers is wrong by
+  // exactly the scale factor. Setting it inside host_create was too late —
+  // anything that read the monitor list first (a shell asking how wide the
+  // screen is, before it makes a window) got the virtualized answer, and the
+  // symptom is not a crash but a plausible-looking wrong number.
+  //
+  // Best effort: a manifest may have set awareness already, in which case
+  // this fails and the existing setting stands. Idempotent, so host_create
+  // calls it again for anyone who never called install().
+  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 }
 
 void flwin32_attach_parent_console(void) {

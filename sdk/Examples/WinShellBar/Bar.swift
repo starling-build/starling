@@ -97,6 +97,7 @@ final class StarlingBarState: State<StatefulWidget> {
 
         rebuild(Win32WindowManager.windows())
         readStatus()
+        print("[WinShellBar] \(groups.count) apps in the taskbar")
 
         // Hooks attach to the calling THREAD, so this has to happen here —
         // inside the tree's initState, which runs on the UI thread the

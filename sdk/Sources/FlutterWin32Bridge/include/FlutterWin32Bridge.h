@@ -49,6 +49,12 @@ FlWin32Host* flwin32_host_create(const char* title,
 //
 // Call once, before anything prints. Safe to call from a console-subsystem
 // build, where it returns immediately.
+// Process-wide setup that must happen before ANYTHING asks Windows about the
+// display: per-monitor DPI awareness. Until it runs, a 4K screen at 200%
+// reports itself as 1920x1080 at 96 dpi and every derived number is wrong by
+// the scale factor — plausibly, not obviously. Call once, first.
+void flwin32_process_init(void);
+
 void flwin32_attach_parent_console(void);
 
 // Shows the window.
