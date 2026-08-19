@@ -128,6 +128,7 @@ final class StarlingSettingsState: State<StatefulWidget> {
                 if let notice = bloc.state.notice { noticeRow(notice) }
                 switch bloc.state.pane {
                 case .system: systemPane()
+                case .network: networkPane()
                 case .display: displayPane()
                 case .sound: soundPane()
                 case .personalisation: personalisationPane()
@@ -164,6 +165,70 @@ final class StarlingSettingsState: State<StatefulWidget> {
                                   + "\(gigabytes(m.availableRam)) available")
                 infoRow("Graphics", m.gpuName)
                 infoRow("Power plan", m.powerScheme)
+            }
+        }
+    }
+
+    // MARK: Network
+
+    /// Wired first, which is what `Win32Adapters.all()` already sorts for —
+    /// the page is about the cable, and a machine with several virtual
+    /// adapters should not bury it.
+    ///
+    /// READ ONLY, deliberately. Changing an address, the DNS servers or an
+    /// adapter's state all need administrator rights: the calls fail with
+    /// access denied for a normal user, and controls that raise a UAC prompt
+    /// — or quietly do nothing — are worse than an honest readout and a way
+    /// through to Windows.
+    private func networkPane() -> Widget {
+        guard !bloc.state.adapters.isEmpty else { return loading() }
+        return Column(crossAxisAlignment: .stretch) {
+            for adapter in bloc.state.adapters { adapterCard(adapter) }
+            button("Open Windows network settings") {
+                self.bloc.add(.openNetworkSettings)
+            }
+            SizedBox(height: 8)
+            Text("Addresses and adapter state are changed in Windows — those "
+                 + "need administrator rights.",
+                 style: TextStyle(color: Color(0xFF6E7683), fontSize: 12))
+        }
+    }
+
+    private func adapterCard(_ adapter: Win32Adapter) -> Widget {
+        Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12)) {
+            card {
+                Column(crossAxisAlignment: .stretch) {
+                    Row(crossAxisAlignment: .center, spacing: 9) {
+                        MacosIcon(icon: adapter.kind == .wifi
+                                      ? CupertinoIcons.wifi
+                                      : CupertinoIcons.antenna_radiowaves_left_right,
+                                  color: adapter.isUp ? Color(0xFF6FCF97)
+                                                      : Color(0xFF6E7683),
+                                  size: 15)
+                        Text(adapter.name,
+                             style: TextStyle(color: Color(0xFFF2F5FA), fontSize: 14,
+                                              fontWeight: .w600), maxLines: 1)
+                        Expanded { SizedBox(height: 1) }
+                        Text(adapter.isUp ? "Connected" : "Disconnected",
+                             style: TextStyle(color: adapter.isUp
+                                                  ? Color(0xFF6FCF97) : Color(0xFF8B93A1),
+                                              fontSize: 12))
+                    }
+                    SizedBox(height: 10)
+                    infoRow("Adapter", adapter.description)
+                    // A disconnected adapter still reports the address it
+                    // gave itself — 169.254.x is not a network, and showing
+                    // it beside "Disconnected" without comment invites the
+                    // wrong conclusion.
+                    if adapter.isUp {
+                        infoRow("IPv4 address", adapter.ipv4)
+                        infoRow("Gateway", adapter.gateway)
+                        infoRow("DNS servers", adapter.dns)
+                        infoRow("Link speed", adapter.speedText)
+                        infoRow("Assigned by", adapter.usesDHCP ? "DHCP" : "Manually")
+                    }
+                    infoRow("Physical address", adapter.mac)
+                }
             }
         }
     }

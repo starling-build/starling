@@ -118,6 +118,12 @@ if CommandLine.arguments.contains("--print-machine") {
               + "\(drive.free / 1_073_741_824)GB free")
     }
     print("wallpaper=\(Win32SystemInfo.wallpaper())")
+    for adapter in Win32Adapters.all() {
+        print("adapter \(adapter.name) [\(adapter.kind)] up=\(adapter.isUp) "
+              + "speed=\(adapter.speedText) ip=\(adapter.ipv4) "
+              + "gw=\(adapter.gateway) dns=\(adapter.dns) "
+              + "mac=\(adapter.mac) dhcp=\(adapter.usesDHCP)")
+    }
     exit(0)
 }
 

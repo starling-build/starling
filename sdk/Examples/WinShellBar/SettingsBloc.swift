@@ -25,6 +25,7 @@ import Observation
 /// Which pane is showing. The order the sidebar lists them in.
 enum SettingsPane: Int, CaseIterable {
     case system = 0
+    case network
     case display
     case sound
     case personalisation
@@ -33,6 +34,7 @@ enum SettingsPane: Int, CaseIterable {
     var title: String {
         switch self {
         case .system: return "System"
+        case .network: return "Network"
         case .display: return "Display"
         case .sound: return "Sound"
         case .personalisation: return "Personalisation"
@@ -43,6 +45,7 @@ enum SettingsPane: Int, CaseIterable {
     var icon: IconData {
         switch self {
         case .system: return CupertinoIcons.desktopcomputer
+        case .network: return CupertinoIcons.antenna_radiowaves_left_right
         case .display: return CupertinoIcons.rectangle_on_rectangle
         case .sound: return CupertinoIcons.speaker_2_fill
         case .personalisation: return CupertinoIcons.paintbrush_fill
@@ -54,6 +57,7 @@ enum SettingsPane: Int, CaseIterable {
     var tint: Color {
         switch self {
         case .system: return Color(0xFF737B89)
+        case .network: return Color(0xFF5C8FD6)
         case .display: return Color(0xFF4880C8)
         case .sound: return Color(0xFFC9884E)
         case .personalisation: return Color(0xFF7B8FD0)
@@ -75,6 +79,7 @@ struct SettingsState {
     var darkMode = false
     var drives: [Win32Drive] = []
     var wallpaper = ""
+    var adapters: [Win32Adapter] = []
 
     /// What the last write did, shown verbatim. A display mode the adapter
     /// refuses is the one thing here that fails often enough to need saying.
@@ -95,12 +100,14 @@ final class SettingsBloc: @unchecked Sendable {
         case toggleDarkMode
         case setDisplayMode(Win32DisplayMode)
         case pickWallpaper
+        /// Windows' own Ethernet page, for the changes that need elevation.
+        case openNetworkSettings
 
         // Completions.
         case loaded(machine: Win32MachineInfo, modes: [Win32DisplayMode],
                     current: Win32DisplayMode?, brightness: Int?,
                     volume: Win32Volume?, dark: Bool, drives: [Win32Drive],
-                    wallpaper: String)
+                    wallpaper: String, adapters: [Win32Adapter])
         case notice(String?)
     }
 
@@ -114,7 +121,8 @@ final class SettingsBloc: @unchecked Sendable {
             state.pane = pane
 
         case .loaded(let machine, let modes, let current, let brightness,
-                     let volume, let dark, let drives, let wallpaper):
+                     let volume, let dark, let drives, let wallpaper,
+                     let adapters):
             state.machine = machine
             state.modes = modes
             state.currentMode = current
@@ -123,6 +131,7 @@ final class SettingsBloc: @unchecked Sendable {
             state.darkMode = dark
             state.drives = drives
             state.wallpaper = wallpaper
+            state.adapters = adapters
 
         case .notice(let text):
             state.notice = text
@@ -159,6 +168,9 @@ final class SettingsBloc: @unchecked Sendable {
                 }
             }
 
+        case .openNetworkSettings:
+            Task.detached { Win32Adapters.openWindowsSettings() }
+
         case .pickWallpaper:
             Task.detached { [weak self] in
                 guard let path = Win32Dialog.openImage() else { return }
@@ -188,11 +200,12 @@ final class SettingsBloc: @unchecked Sendable {
             let dark = Win32Control.isDarkMode
             let drives = Win32SystemInfo.drives()
             let wallpaper = Win32SystemInfo.wallpaper()
+            let adapters = Win32Adapters.all()
             await MainActor.run {
                 self?.add(.loaded(machine: machine, modes: modes,
                                   current: current, brightness: brightness,
                                   volume: volume, dark: dark, drives: drives,
-                                  wallpaper: wallpaper))
+                                  wallpaper: wallpaper, adapters: adapters))
             }
         }
     }

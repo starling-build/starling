@@ -106,6 +106,28 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// ── network adapters, for the Settings app ──────────────────────────────────
+//
+// The whole enumeration, unlike flwin32_network_status which answers "am I
+// online" from the first thing that is up. Reads only: changing an address or
+// an adapter's state needs administrator rights, so the page hands those to
+// Windows rather than putting up controls that fail.
+
+int32_t flwin32_adapter_count(void);
+
+// kind: 0 other, 1 ethernet, 2 wifi. speed is bits/second.
+int32_t flwin32_adapter_info(int32_t index,
+                             char* name, int32_t name_size,
+                             char* description, int32_t description_size,
+                             char* ipv4, int32_t ipv4_size,
+                             char* gateway, int32_t gateway_size,
+                             char* dns, int32_t dns_size,
+                             char* mac, int32_t mac_size,
+                             int32_t* kind, int32_t* up,
+                             int64_t* speed, int32_t* dhcp);
+
+int32_t flwin32_open_network_settings(void);
+
 // ── files ───────────────────────────────────────────────────────────────────
 
 // A known folder by index: 0 profile, 1 desktop, 2 documents, 3 downloads,
