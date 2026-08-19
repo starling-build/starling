@@ -125,6 +125,27 @@ Then confirm the fix took, which takes one command:
 Empty output is the fix. Anything printed is a path that exists only on your
 machine, and the app will trap at startup wherever that path does not exist.
 
+## Respun, without moving the version
+
+The first cut of 0.3.1 broke what it was fixing, on the two platforms it was
+not fixing. The replacement for `Bundle.module` searched for `<name>.bundle`,
+which is the Darwin spelling; SwiftPM stages `<name>.resources` on Linux and
+Windows, which is why the accessor it replaced was `#if os(macOS)`-d in the
+first place. Nothing crashed — the new code returns nil rather than trapping,
+by design — so a terminal built on those bundles simply came up with none of
+its fonts, drawing the system's proportional face on monospace cell metrics.
+It was caught by looking at a screenshot, not by any check.
+
+Fixed in `b400add`: both search sites try `.bundle` then `.resources`.
+
+**The version number does not move**, which is only defensible because the
+release was minutes old and nobody had it. The published `SHA256SUMS` is
+replaced in the same pass, so no checksum anyone could have recorded disagrees
+with what the release now carries. If you did download an 0.3.1 bundle in that
+window, take it again — the Linux and Windows archives changed, and the macOS
+one is respun for source consistency only, since `.bundle` is correct there and
+its behaviour never differed.
+
 ## Verification
 
 Built from `release-sdk-0.3.1` — that branch in this repo and in

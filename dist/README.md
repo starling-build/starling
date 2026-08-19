@@ -360,6 +360,17 @@ embedder: our `libflutter_engine.so` links the linux_drm sources as well
 (41 `fl_drm` symbols in it), so a drm-only diff shows up in both libraries and
 looking at one of them understates what shipped.
 
+**All three 0.3.1 bundles are respun for the font-search fix (`b400add`), and
+the version number does not move.** 0.3.1 shipped a resource-bundle search that
+looked for `<name>.bundle`, the Darwin spelling, where SwiftPM stages
+`<name>.resources` on Linux and Windows — so a terminal built on those two
+bundles came up with no bundled fonts, drawing the system's proportional face on
+monospace cells. Keeping the number is deliberate and only defensible because
+the release was minutes old with nobody on it: the published `SHA256SUMS` is
+replaced in the same pass, so no checksum anyone recorded can disagree with what
+the release carries. The macOS bundle is respun for source consistency alone —
+`.bundle` is correct there and its behaviour never changed.
+
 The Windows one (0.3.1) was rebuilt on the Windows box from `release-sdk-0.3.1`
 against a `host_release` engine at `ea78543` — the same commit the other two
 carry, and the same commit `release-sdk-0.3.1` in starling-engine points at, so
