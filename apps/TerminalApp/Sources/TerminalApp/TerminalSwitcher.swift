@@ -33,6 +33,18 @@ struct SwitcherRow {
     let target: SwitcherTarget
     let title: String
     let detail: String
+
+    /// This row written the way a person would type it — what a copy puts on
+    /// the clipboard, so it can be pasted back into a switcher on another
+    /// machine, or into a message, and still mean this place.
+    ///
+    /// nil for a loose session, which is not a destination anyone can type:
+    /// choosing one adopts it, and which workspace it lands in depends on what
+    /// is already on screen (see `_goTo`).
+    var typed: String? {
+        guard case .workspace(let spec) = target else { return nil }
+        return spec.host == "local" ? spec.name : "\(spec.host)/ws:\(spec.name)"
+    }
 }
 
 /// What choosing a row does.
@@ -97,6 +109,33 @@ final class SwitcherState {
     /// The workspace name part.
     var name: String {
         cut?.name ?? text.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The longest a typed line may get. Paste obeys the same ceiling typing
+    /// does, rather than being the one way to overflow the field.
+    static let limit = 128
+
+    /// What a paste contributes to the line: one line of printable text, cut
+    /// to whatever room is left.
+    ///
+    /// A destination is a single line, and the clipboard rarely is — the
+    /// hostname someone copied came out of a terminal, a config file or a
+    /// browser, and arrives with a newline on the end at best. So the first
+    /// line with anything on it wins and the rest is dropped: joining the
+    /// lines of a shell transcript would produce something that is not a
+    /// destination in any spelling, and pasting a stray `\n` into a field
+    /// whose Enter *opens a workspace* would be worse than either.
+    ///
+    /// C0 goes the same way. Nothing unprintable belongs in a hostname, a key
+    /// path or an ssh flag, and a tab or an escape landing mid-prompt would
+    /// draw as a hole nobody could account for.
+    static func pasteable(_ text: String, room: Int) -> String {
+        guard room > 0 else { return "" }
+        let line = text.split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
+        let printable = String(String.UnicodeScalarView(
+            line.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7F }))
+        return String(printable.trimmingCharacters(in: .whitespaces).prefix(room))
     }
 }
 
@@ -312,10 +351,38 @@ extension _TerminalTabsState {
             break
         }
 
-        if let character = keyData.character,
+        // Paste and copy, in the same chords the grid underneath uses — to the
+        // hand holding them this is still the terminal, and a sheet that took
+        // the keyboard should not also take away the one chord everybody
+        // reaches for when a hostname is already on the clipboard.
+        //
+        // They are matched BEFORE the character fallback below, which is what
+        // used to happen to them: ⌘V arrived carrying the character "v" and
+        // was typed into the destination, so the field filled with letters
+        // while nothing pasted.
+        var clipboardChord = _ctrlDown && _shiftDown
+        #if os(macOS)
+        clipboardChord = clipboardChord || (_metaDown && !_ctrlDown)
+        #endif
+        if clipboardChord {
+            if keyData.logical == 0x56 || keyData.logical == 0x76 {   // V/v
+                _switcherPaste()
+                return true
+            }
+            if keyData.logical == 0x43 || keyData.logical == 0x63 {   // C/c
+                _switcherCopy()
+                return true
+            }
+        }
+
+        // A chord that reached here is one this sheet does not bind, and its
+        // letter is not text the person meant to type: without the modifier
+        // test, ⌘T put a "t" in the middle of a hostname.
+        if !_ctrlDown && !_metaDown,
+           let character = keyData.character,
            let scalar = character.unicodeScalars.first,
            scalar.value >= 0x20, scalar.value != 0x7F,
-           _switcher.text.count < 128 {
+           _switcher.text.count < SwitcherState.limit {
             setState {
                 _switcher.text += character
                 _switcher.index = 0
@@ -324,6 +391,43 @@ extension _TerminalTabsState {
             return true
         }
         return true
+    }
+
+    // MARK: - The clipboard
+
+    /// Paste onto the end of the line.
+    ///
+    /// Asynchronous, because the clipboard may be owned by another process
+    /// that has to be asked for it — the same reason `TerminalView._paste` is.
+    /// The completion lands on the UI thread, but by then the sheet may be
+    /// gone, so it re-checks before touching anything.
+    private func _switcherPaste() {
+        Clipboard.getData(Clipboard.kTextPlain) { [weak self] data in
+            guard let self = self, self._switcher.open,
+                  let text = data?.text else { return }
+            let add = SwitcherState.pasteable(
+                text, room: SwitcherState.limit - self._switcher.text.count)
+            guard !add.isEmpty else { return }
+            self.setState {
+                self._switcher.text += add
+                self._switcher.index = 0
+            }
+            // The host part may have just changed — pasting a whole
+            // `box/ws:dev` over an empty line is the ordinary case.
+            self._switcherRefresh()
+        }
+    }
+
+    /// Copy the destination being pointed at: the highlighted row, or the
+    /// typed line when the typed line *is* the choice (index 0, and Enter
+    /// there creates what was typed).
+    private func _switcherCopy() {
+        let matches = _switcherMatches
+        let row = _switcher.index > 0 && _switcher.index <= matches.count
+            ? matches[_switcher.index - 1] : nil
+        let text = row?.typed ?? _switcher.text.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        Clipboard.setData(ClipboardData(text: text))
     }
 
     /// Act on a chosen row.
@@ -367,9 +471,6 @@ extension _TerminalTabsState {
     func _switcherOverlay(_ body: Size) -> Widget {
         let matches = _switcherMatches
         let width = min(560, max(280, body.width - 80))
-        let listed = min(matches.count, 8)
-        let height = 96 + Double(listed) * SwitcherChrome.row
-            + (matches.isEmpty ? 24 : 0)
 
         var children: [Widget] = [
             SizedBox(width: width, height: 14),
@@ -409,11 +510,30 @@ extension _TerminalTabsState {
                                   SwitcherChrome.hint, 11))
             children.append(SizedBox(width: width, height: 4))
         }
-        children.append(_line("    ↑↓ choose · ⏎ open · esc cancel",
+        // The clipboard chord is on this line rather than in the help sheet
+        // (⌘/) because it is only true *here*: paste is a thing the terminal
+        // does everywhere, and that it also fills this field is the part
+        // nobody would think to try.
+        #if os(macOS)
+        let pasteChord = "⌘V"
+        #else
+        let pasteChord = "Ctrl+Shift+V"
+        #endif
+        children.append(_line("    ↑↓ choose · ⏎ open · \(pasteChord) paste · esc cancel",
                               SwitcherChrome.hint, 11))
+        // The bottom margin, matching the 14 at the top. It used to be the
+        // slack left over in a fixed height; sizing to the content means it
+        // has to be said.
+        children.append(SizedBox(width: width, height: 14))
 
+        // Height comes from the content, not from a formula. It used to be
+        // `96 + rows × 26`, which is the same number until the typed line
+        // wraps — and paste is what makes that ordinary, since a destination
+        // worth pasting is usually a whole ssh command. Past the formula's
+        // guess the hint and the footer were drawn below the panel, on the
+        // bare scrim. The help sheet next door has always sized this way.
         let panel = SizedBox(
-            width: width, height: height,
+            width: width,
             child: DecoratedBox(
                 decoration: BoxDecoration(
                     color: Color(SwitcherChrome.panel),
