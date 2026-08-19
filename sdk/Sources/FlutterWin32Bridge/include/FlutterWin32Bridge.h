@@ -324,6 +324,24 @@ int32_t flwin32_network_status(int32_t* kind,
 // The default output device's volume, 0-100, and whether it is muted.
 int32_t flwin32_volume_status(int32_t* percent, int32_t* muted);
 
+// -- and the control centre's half: changing what the three above read ------
+
+// The same endpoint the reader uses, on the same scalar scale.
+int32_t flwin32_volume_set(int32_t percent);
+int32_t flwin32_volume_set_muted(int32_t muted);
+
+// The Wi-Fi RADIO, which is the softer of the two switches behind "turn the
+// network off" and the only one the interactive user owns -- disabling the
+// ADAPTER needs administrator rights. Symmetric: what turns it off turns it
+// back on, or the toggle is a trap. Returns non-zero if any interface took
+// the change; 0 on a machine with no Wi-Fi at all.
+int32_t flwin32_wifi_set_radio(int32_t on);
+
+// Windows' own light/dark setting. Two registry values plus a broadcast --
+// see flwin32_status.c for why one of each is not enough.
+int32_t flwin32_dark_mode(void);
+int32_t flwin32_set_dark_mode(int32_t dark);
+
 // ── installed applications ──────────────────────────────────────────────────
 //
 // Windows has no app registry the way Starling does on Linux. What it has is

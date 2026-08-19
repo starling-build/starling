@@ -99,4 +99,47 @@ public enum Win32Status {
         return Win32Volume(percent: Int(percent), isMuted: muted != 0)
     }
 }
+
+/// Changing what `Win32Status` reads — the control centre's half.
+///
+/// Deliberately a separate type. A status bar reads; a control centre writes;
+/// and a status widget that can reach a setter by autocomplete is how a
+/// readout ends up changing the thing it is meant to be reporting.
+public enum Win32Control {
+
+    /// 0–100, on the same scalar scale the reader reports, so a slider set to
+    /// what the readout said does not move the volume.
+    @discardableResult
+    public static func setVolume(_ percent: Int) -> Bool {
+        flwin32_volume_set(Int32(percent)) != 0
+    }
+
+    @discardableResult
+    public static func setMuted(_ muted: Bool) -> Bool {
+        flwin32_volume_set_muted(muted ? 1 : 0) != 0
+    }
+
+    /// The Wi-Fi radio — the softer of the two switches behind "turn the
+    /// network off", and the only one an unelevated shell owns. Disabling the
+    /// adapter is an administrator action, and a shell that raises a UAC
+    /// prompt to turn Wi-Fi off is not one anybody wants.
+    ///
+    /// Returns false on a machine with no Wi-Fi at all, which is how the
+    /// control centre knows to draw the tile as unavailable rather than as
+    /// off.
+    @discardableResult
+    public static func setWifiRadio(_ on: Bool) -> Bool {
+        flwin32_wifi_set_radio(on ? 1 : 0) != 0
+    }
+
+    /// Windows' own light/dark setting, which running apps pick up
+    /// immediately — it is a real system toggle, not a repaint of our own
+    /// chrome.
+    public static var isDarkMode: Bool { flwin32_dark_mode() != 0 }
+
+    @discardableResult
+    public static func setDarkMode(_ dark: Bool) -> Bool {
+        flwin32_set_dark_mode(dark ? 1 : 0) != 0
+    }
+}
 #endif

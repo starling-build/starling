@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /*
- * flwin32_status.c -- what a status bar is supposed to show.
+ * flwin32_status.c -- what a status bar is supposed to show, and what a
+ * control centre is supposed to change.
  *
  * Network, power and volume, read from the system rather than drawn as
  * decoration. A menu bar with a fixed wifi glyph and a fixed battery glyph is
@@ -22,6 +23,11 @@
  *    is no Win32 call for the modern per-device volume -- waveOutGetVolume
  *    still exists and still compiles and reports something unrelated to what
  *    the user's volume slider says.
+ *
+ * The setters at the bottom are the control centre's half. They live here
+ * rather than in a file of their own so that the audio endpoint's three GUIDs
+ * and its open-activate-release dance are written once: a second copy of
+ * those constants is exactly the kind of thing that goes stale.
  */
 
 #ifndef UNICODE
@@ -230,4 +236,157 @@ int32_t flwin32_volume_status(int32_t* percent, int32_t* muted) {
     if (device != NULL) device->lpVtbl->Release(device);
     if (enumerator != NULL) enumerator->lpVtbl->Release(enumerator);
     return ok;
+}
+
+/* -- the control centre's half: setting what the status bar reads --------- */
+
+/* Open the default render endpoint's volume interface. The three-step
+ * enumerator/device/activate dance is identical for reading and writing, so
+ * it is written once and both paths borrow it. Caller releases everything it
+ * is handed; on failure nothing is left to release. */
+static int volume_open(IMMDeviceEnumerator** enumerator,
+                       IMMDevice** device,
+                       IAudioEndpointVolume** volume) {
+    *enumerator = NULL;
+    *device = NULL;
+    *volume = NULL;
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(CoCreateInstance(&kCLSID_MMDeviceEnumerator, NULL,
+                                CLSCTX_INPROC_SERVER, &kIID_IMMDeviceEnumerator,
+                                (void**)enumerator))) {
+        return 0;
+    }
+    if (FAILED((*enumerator)->lpVtbl->GetDefaultAudioEndpoint(
+            *enumerator, eRender, eConsole, device))) {
+        (*enumerator)->lpVtbl->Release(*enumerator);
+        *enumerator = NULL;
+        return 0;
+    }
+    if (FAILED((*device)->lpVtbl->Activate(*device, &kIID_IAudioEndpointVolume,
+                                           CLSCTX_INPROC_SERVER, NULL,
+                                           (void**)volume))) {
+        (*device)->lpVtbl->Release(*device);
+        (*enumerator)->lpVtbl->Release(*enumerator);
+        *device = NULL;
+        *enumerator = NULL;
+        return 0;
+    }
+    return 1;
+}
+
+static void volume_close(IMMDeviceEnumerator* enumerator,
+                         IMMDevice* device,
+                         IAudioEndpointVolume* volume) {
+    if (volume != NULL) volume->lpVtbl->Release(volume);
+    if (device != NULL) device->lpVtbl->Release(device);
+    if (enumerator != NULL) enumerator->lpVtbl->Release(enumerator);
+}
+
+int32_t flwin32_volume_set(int32_t percent) {
+    IMMDeviceEnumerator* enumerator;
+    IMMDevice* device;
+    IAudioEndpointVolume* volume;
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    if (!volume_open(&enumerator, &device, &volume)) return 0;
+    /* Scalar, matching the reader: the dB setter is linear in nothing the
+     * user can see, so a slider driven through it moves wrong. */
+    HRESULT hr = volume->lpVtbl->SetMasterVolumeLevelScalar(
+        volume, (float)percent / 100.0f, NULL);
+    volume_close(enumerator, device, volume);
+    return SUCCEEDED(hr) ? 1 : 0;
+}
+
+int32_t flwin32_volume_set_muted(int32_t muted) {
+    IMMDeviceEnumerator* enumerator;
+    IMMDevice* device;
+    IAudioEndpointVolume* volume;
+    if (!volume_open(&enumerator, &device, &volume)) return 0;
+    HRESULT hr = volume->lpVtbl->SetMute(volume, muted ? TRUE : FALSE, NULL);
+    volume_close(enumerator, device, volume);
+    return SUCCEEDED(hr) ? 1 : 0;
+}
+
+/* The Wi-Fi RADIO, not the adapter.
+ *
+ * "Disable the network" has two spellings on Windows and only one of them is
+ * ours to use. Disabling the ADAPTER (what Device Manager and
+ * Disable-NetAdapter do) needs administrator rights, and a shell that raises
+ * a UAC prompt to turn Wi-Fi off is not a shell anyone wants. The radio is
+ * the softer switch behind the same idea -- it is what Airplane Mode flips --
+ * and the interactive user owns it.
+ *
+ * Symmetric on purpose: whatever turns it off has to be able to turn it back
+ * on, or the control centre is a trap. */
+int32_t flwin32_wifi_set_radio(int32_t on) {
+    HANDLE wlan = NULL;
+    DWORD negotiated = 0;
+    int32_t ok = 0;
+    if (WlanOpenHandle(2, NULL, &negotiated, &wlan) != ERROR_SUCCESS) return 0;
+
+    WLAN_INTERFACE_INFO_LIST* interfaces = NULL;
+    if (WlanEnumInterfaces(wlan, NULL, &interfaces) == ERROR_SUCCESS &&
+        interfaces != NULL) {
+        for (DWORD i = 0; i < interfaces->dwNumberOfItems; i++) {
+            WLAN_PHY_RADIO_STATE state;
+            ZeroMemory(&state, sizeof(state));
+            state.dwPhyIndex = 0;
+            state.dot11SoftwareRadioState =
+                on ? dot11_radio_state_on : dot11_radio_state_off;
+            /* The HARDWARE radio state is read-only -- a physical switch --
+             * so only the software one is set here, which is what every
+             * on-screen Wi-Fi toggle sets. */
+            if (WlanSetInterface(wlan, &interfaces->InterfaceInfo[i].InterfaceGuid,
+                                 wlan_intf_opcode_radio_state,
+                                 (DWORD)sizeof(state), &state,
+                                 NULL) == ERROR_SUCCESS) {
+                ok = 1;
+            }
+        }
+        WlanFreeMemory(interfaces);
+    }
+    WlanCloseHandle(wlan, NULL);
+    return ok;
+}
+
+/* Windows' own light/dark setting, which is a registry value plus a
+ * broadcast. Two values, not one: `AppsUseLightTheme` is what applications
+ * read and `SystemUsesLightTheme` is what the shell furniture reads, and
+ * setting only the first leaves a light taskbar over dark apps. The
+ * WM_SETTINGCHANGE with "ImmersiveColorSet" is what makes running apps
+ * notice -- without it nothing changes until the next login. */
+static const wchar_t* const kPersonalizeKey =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+
+int32_t flwin32_dark_mode(void) {
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kPersonalizeKey, L"AppsUseLightTheme",
+                     RRF_RT_REG_DWORD, NULL, &value, &size) != ERROR_SUCCESS) {
+        return 0;
+    }
+    return value == 0 ? 1 : 0;
+}
+
+int32_t flwin32_set_dark_mode(int32_t dark) {
+    HKEY key = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, kPersonalizeKey, 0, NULL, 0,
+                        KEY_SET_VALUE, NULL, &key, NULL) != ERROR_SUCCESS) {
+        return 0;
+    }
+    DWORD light = dark ? 0 : 1;
+    LSTATUS a = RegSetValueExW(key, L"AppsUseLightTheme", 0, REG_DWORD,
+                               (const BYTE*)&light, sizeof(light));
+    LSTATUS b = RegSetValueExW(key, L"SystemUsesLightTheme", 0, REG_DWORD,
+                               (const BYTE*)&light, sizeof(light));
+    RegCloseKey(key);
+    if (a != ERROR_SUCCESS || b != ERROR_SUCCESS) return 0;
+
+    /* SendMessageTimeout, not Send: a broadcast that waits is a broadcast
+     * held up by the first hung window on the desktop. */
+    DWORD_PTR result = 0;
+    SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0,
+                        (LPARAM)L"ImmersiveColorSet",
+                        SMTO_ABORTIFHUNG, 200, &result);
+    return 1;
 }

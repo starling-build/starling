@@ -67,6 +67,28 @@ if CommandLine.arguments.contains("--restore-taskbar") {
     exit(0)
 }
 
+// `--print-status` prints what the status readout reads and exits.
+//
+// It is the oracle for the control centre: the panel's job is to CHANGE these
+// values, and the only way to know a toggle did anything is to ask the system
+// again from outside the running shell. This process links the same readers
+// the dock does, so there is nothing to reimplement — and the readers
+// themselves were checked against the system independently, by pressing the
+// keyboard's mute key and pulling the network adapter and watching them
+// follow.
+if CommandLine.arguments.contains("--print-status") {
+    let volume = Win32Status.volume()
+    let network = Win32Status.network()
+    let power = Win32Status.power()
+    print("volume=\(volume.map { String($0.percent) } ?? "n/a")",
+          "muted=\(volume.map { String($0.isMuted) } ?? "n/a")",
+          "network=\(network.kind) signal=\(network.signal) ssid=\(network.ssid)",
+          "battery=\(power.hasBattery) percent=\(power.percent.map(String.init) ?? "n/a")",
+          "dark=\(Win32Control.isDarkMode)",
+          separator: "  ")
+    exit(0)
+}
+
 // Span the chosen monitor. Reading the geometry rather than assuming 1920 is
 // the point — a panel sized to the wrong screen is the first thing that goes
 // wrong on a laptop plus an external.

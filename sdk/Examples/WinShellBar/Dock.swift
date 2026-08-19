@@ -44,16 +44,39 @@ import Foundation
 let kDockHeight = 56
 let kDockIcon = 34.0
 
-/// How far the dock's WINDOW extends above the strip it reserves. The label
-/// and the menu draw in here; a window is a hard clip, so without it they
-/// would be cut off at the top of the strip. It reserves nothing and is
-/// transparent, so it is invisible and click-through until something paints.
-let kDockOverhang = 190
+/// How far the dock's WINDOW extends above the strip it reserves. The hover
+/// label, the right-click menu and the control centre all draw in here; a
+/// window is a hard clip, so without it they would be cut off at the top of
+/// the strip. It reserves nothing and is transparent, so it is invisible and
+/// click-through until something paints. Tall enough for the control centre,
+/// which is the largest thing that opens here.
+let kDockOverhang = 300
 
 /// Geometry the flyout arithmetic needs. The tile is a fixed size, so where
 /// each one sits is arithmetic rather than a layout query — which is what
 /// lets a label be positioned over an icon without measuring anything.
 let kDockTile = kDockIcon + 14.0
+
+/// The control centre, in logical points. The tile grid is two columns wide
+/// and the panel is sized from it rather than the other way round, so a
+/// change to the tile size cannot leave the panel the wrong width.
+let kCcPad = 10.0
+let kCcGap = 8.0
+let kCcTileW = 138.0
+let kCcTileH = 62.0
+let kCcSliderH = 40.0
+let kCcRowH = 32.0
+let kCcWidth = kCcTileW * 2 + kCcGap + kCcPad * 2
+let kCcHeight = kCcPad * 2 + kCcTileH * 2 + kCcGap + kCcSliderH + kCcRowH + kCcGap
+/// How far the panel sits from the right edge and above the strip.
+let kCcInset = 12.0
+
+/// Width of the status cluster. FIXED, and imposed with a SizedBox, for the
+/// same reason the dock's tiles are a fixed size: the click that opens the
+/// control centre is hit-tested by arithmetic from a root Listener, and an
+/// estimate that drifts from the layout opens the panel from the wrong place
+/// — or from nowhere.
+let kStatusWidth = 210.0
 
 /// Gap between tiled windows, in logical points — scaled to pixels at use,
 /// because window geometry is the one place this file speaks physical. It is
@@ -131,9 +154,19 @@ final class StarlingDockState: State<StatefulWidget> {
     private var network = Win32Network(kind: .none, signal: 0, ssid: "")
     private var power = Win32Power(hasBattery: false, percent: nil, isCharging: true)
     private var volume: Win32Volume?
-    /// Set from the launcher tile's menu: while it is on, the re-assert below
-    /// stands down so "Show Windows Taskbar" stays shown.
+    /// Set from the control centre: while it is on, the re-assert below stands
+    /// down so "Show Windows Taskbar" stays shown.
     private var nativeTaskbarWanted = false
+
+    /// Whether the control centre is down, and whether the pointer is
+    /// currently dragging its volume slider.
+    private var controlCentreOpen = false
+    private var draggingVolume = false
+    private var darkMode = Win32Control.isDarkMode
+    /// Set by the Wi-Fi tile so the panel answers the click immediately —
+    /// the radio takes a moment to settle and the next poll is a second
+    /// away, which without this reads as a dead button.
+    private var wifiWanted: Bool?
 
     override func initState() {
         super.initState()
@@ -176,6 +209,13 @@ final class StarlingDockState: State<StatefulWidget> {
         network = Win32Status.network()
         power = Win32Status.power()
         volume = Win32Status.volume()
+        // The poll is the truth. Drop the optimistic Wi-Fi answer as soon as
+        // it agrees, so a radio that refused the change corrects itself
+        // instead of leaving the tile lying about it.
+        if let wanted = wifiWanted, (network.kind == .wifi) == wanted { wifiWanted = nil }
+        // Read rather than remembered: the user can change the theme in
+        // Windows' own Settings and the tile has to follow.
+        darkMode = Win32Control.isDarkMode
     }
 
     // MARK: - Pins, on disk
@@ -379,6 +419,271 @@ final class StarlingDockState: State<StatefulWidget> {
         }
     }
 
+    // MARK: - The control centre
+    //
+    // Clicking the status readout opens the panel that changes what it is
+    // reading — the same bargain the desktop's own control centre makes, and
+    // the reason the readout is worth clicking at all.
+    //
+    // Every rectangle in here is arithmetic, computed once by `ccRects` and
+    // used by BOTH the drawing and the hit-testing. That is not a style
+    // choice: this framework's widget-level input callbacks are unreliable
+    // here (MouseRegion.onEnter and onSecondaryTap never fire, see
+    // `pointerTile`), so the panel is driven from a root Listener, and a
+    // layout that positioned its tiles independently of the hit test would
+    // drift the two apart with nothing to show for it but dead buttons.
+
+    /// One control-centre control: where it is, and what it does.
+    private struct CcRect {
+        let x: Double
+        let y: Double
+        let w: Double
+        let h: Double
+        func contains(_ px: Double, _ py: Double) -> Bool {
+            px >= x && px <= x + w && py >= y && py <= y + h
+        }
+    }
+
+    /// The panel's own frame, in the dock window's coordinates.
+    private var ccFrame: CcRect {
+        let height = Double(kDockHeight + kDockOverhang)
+        return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
+                      y: height - Double(kDockHeight) - kCcInset - kCcHeight,
+                      w: kCcWidth, h: kCcHeight)
+    }
+
+    /// The four tiles, then the slider track, then the wide bottom row — in
+    /// the order they are drawn.
+    private func ccRects() -> (tiles: [CcRect], slider: CcRect, row: CcRect) {
+        let f = ccFrame
+        var tiles: [CcRect] = []
+        for index in 0..<4 {
+            tiles.append(CcRect(
+                x: f.x + kCcPad + Double(index % 2) * (kCcTileW + kCcGap),
+                y: f.y + kCcPad + Double(index / 2) * (kCcTileH + kCcGap),
+                w: kCcTileW, h: kCcTileH))
+        }
+        let afterTiles = f.y + kCcPad + kCcTileH * 2 + kCcGap * 2
+        // The track starts clear of the speaker glyph at its left.
+        let slider = CcRect(x: f.x + kCcPad + 28, y: afterTiles,
+                            w: kCcWidth - kCcPad * 2 - 28, h: kCcSliderH)
+        let row = CcRect(x: f.x + kCcPad, y: afterTiles + kCcSliderH,
+                         w: kCcWidth - kCcPad * 2, h: kCcRowH)
+        return (tiles, slider, row)
+    }
+
+    /// Where the status readout is, and therefore what opens the panel.
+    private var ccOpener: CcRect {
+        let height = Double(kDockHeight + kDockOverhang)
+        return CcRect(x: ShellScreen.logicalWidth - kStatusWidth,
+                      y: height - Double(kDockHeight),
+                      w: kStatusWidth, h: Double(kDockHeight))
+    }
+
+    /// Wi-Fi, Sound, Dark Mode, Tile Windows.
+    ///
+    /// Not the desktop's six: three of those (Record, Record App, Tiling as a
+    /// mode) have no counterpart here yet, and a tile that does nothing is
+    /// worse than a tile that is missing.
+    private func ccTapped(_ index: Int) {
+        switch index {
+        case 0:
+            let on = !wifiIsOn
+            // Optimistic, then corrected by the next poll — see wifiWanted.
+            wifiWanted = on
+            if !Win32Control.setWifiRadio(on) { wifiWanted = nil }
+        case 1:
+            let muted = !(volume?.isMuted ?? false)
+            Win32Control.setMuted(muted)
+            volume = Win32Volume(percent: volume?.percent ?? 0, isMuted: muted)
+        case 2:
+            darkMode.toggle()
+            Win32Control.setDarkMode(darkMode)
+        default:
+            controlCentreOpen = false
+            tileAll()
+        }
+    }
+
+    /// What the Wi-Fi tile should show. The poll is the truth; `wifiWanted`
+    /// covers the second between the click and the radio settling.
+    private var wifiIsOn: Bool { wifiWanted ?? (network.kind == .wifi) }
+
+    private func ccSetVolumeFrom(_ x: Double) {
+        let track = ccRects().slider
+        let fraction = min(1, max(0, (x - track.x) / track.w))
+        let percent = Int((fraction * 100).rounded())
+        volume = Win32Volume(percent: percent, isMuted: percent == 0)
+        Win32Control.setVolume(percent)
+    }
+
+    private func ccTile(_ index: Int, icon: IconData, label: String,
+                        active: Bool, available: Bool = true) -> Widget {
+        let rect = ccRects().tiles[index]
+        let fill = !available ? Color(0x14FFFFFF)
+            : active ? Color(0xFF2F6FE0) : Color(0x1FFFFFFF)
+        let ink = available ? Color(0xFFF2F5FA) : Color(0xFF6E7683)
+        return Positioned(left: rect.x - ccFrame.x, top: rect.y - ccFrame.y) {
+            SizedBox(width: rect.w, height: rect.h) {
+                ClipRRect(borderRadius: BorderRadius.circular(10)) {
+                    ColoredBox(color: fill) {
+                        Padding(padding: EdgeInsets(left: 12, top: 0, right: 10, bottom: 0)) {
+                            Row(crossAxisAlignment: .center, spacing: 10) {
+                                MacosIcon(icon: icon, color: ink, size: 19)
+                                Expanded {
+                                    Text(label,
+                                         style: TextStyle(color: ink, fontSize: 12,
+                                                          fontWeight: .w500),
+                                         overflow: .ellipsis, maxLines: 1)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The volume slider, drawn rather than composed.
+    ///
+    /// A `MacosSlider` would want a pan recognizer, and recognizers are
+    /// exactly what does not arrive reliably in this surface — so the track,
+    /// the fill and the knob are three boxes and the drag is two lines in the
+    /// root Listener. It also keeps the slider's geometry in `ccRects`, where
+    /// the hit test can see it.
+    private func ccSlider() -> Widget {
+        let rect = ccRects().slider
+        let percent = Double(volume?.percent ?? 0)
+        let fraction = min(1, max(0, percent / 100))
+        let knob = (rect.w - 14) * fraction
+        return Positioned(left: kCcPad, top: rect.y - ccFrame.y) {
+            SizedBox(width: kCcWidth - kCcPad * 2, height: rect.h) {
+                Stack(alignment: Alignment.centerLeft) {
+                    Align(alignment: Alignment.centerLeft) {
+                        MacosIcon(icon: (volume?.isMuted ?? false)
+                                      ? CupertinoIcons.speaker_slash
+                                      : CupertinoIcons.speaker_2,
+                                  color: Color(0xFFD5DAE3), size: 16)
+                    }
+                    Positioned(left: 28, top: rect.h / 2 - 3, width: rect.w, height: 6) {
+                        ClipRRect(borderRadius: BorderRadius.circular(3)) {
+                            ColoredBox(color: Color(0x33FFFFFF)) { SizedBox(expand: ()) }
+                        }
+                    }
+                    Positioned(left: 28, top: rect.h / 2 - 3,
+                               width: max(6, knob + 7), height: 6) {
+                        ClipRRect(borderRadius: BorderRadius.circular(3)) {
+                            ColoredBox(color: Color(0xFF4C8DF6)) { SizedBox(expand: ()) }
+                        }
+                    }
+                    Positioned(left: 28 + knob, top: rect.h / 2 - 7, width: 14, height: 14) {
+                        ClipRRect(borderRadius: BorderRadius.circular(7)) {
+                            ColoredBox(color: Color(0xFFF2F5FA)) { SizedBox(expand: ()) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func ccBottomRow() -> Widget {
+        let rect = ccRects().row
+        return Positioned(left: kCcPad, top: rect.y - ccFrame.y) {
+            SizedBox(width: rect.w, height: rect.h) {
+                ClipRRect(borderRadius: BorderRadius.circular(8)) {
+                    ColoredBox(color: Color(0x14FFFFFF)) {
+                        Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0)) {
+                            Row(crossAxisAlignment: .center, spacing: 10) {
+                                MacosIcon(icon: CupertinoIcons.rectangle_grid_2x2,
+                                          color: Color(0xFFD5DAE3), size: 15)
+                                Expanded {
+                                    Text(nativeTaskbarWanted
+                                             ? "Hide the Windows taskbar"
+                                             : "Show the Windows taskbar",
+                                         style: TextStyle(color: Color(0xFFD5DAE3), fontSize: 12),
+                                         overflow: .ellipsis, maxLines: 1)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A press while the panel is open. Returns true if the panel consumed it.
+    ///
+    /// Consuming matters: a press that lands on the panel must not also reach
+    /// whatever is behind it, and a press outside must close the panel while
+    /// still letting a dock tile take the same click.
+    private func handleControlCentre(_ x: Double, _ y: Double) -> Bool {
+        let rects = ccRects()
+        if rects.slider.contains(x, y) {
+            setState {
+                draggingVolume = true
+                ccSetVolumeFrom(x)
+            }
+            return true
+        }
+        if rects.row.contains(x, y) {
+            setState {
+                nativeTaskbarWanted.toggle()
+                controlCentreOpen = false
+            }
+            if nativeTaskbarWanted {
+                Win32Shell.showNativeTaskbar()
+            } else {
+                Win32Shell.hideNativeTaskbar()
+            }
+            return true
+        }
+        for (index, tile) in rects.tiles.enumerated() where tile.contains(x, y) {
+            setState { ccTapped(index) }
+            return true
+        }
+        // Inside the panel but on nothing: swallow it, so a click on the
+        // panel's own background does not close it.
+        if ccFrame.contains(x, y) { return true }
+        // Outside: close, and let the press carry on to whatever it hit.
+        setState { controlCentreOpen = false }
+        return false
+    }
+
+    private func controlCentre() -> Widget {
+        let frame = ccFrame
+        let height = Double(kDockHeight + kDockOverhang)
+        return Positioned(left: frame.x, bottom: height - (frame.y + frame.h)) {
+            SizedBox(width: frame.w, height: frame.h) {
+                ClipRRect(borderRadius: BorderRadius.circular(14)) {
+                    ColoredBox(color: Color(0xF41F2229)) {
+                        Stack(alignment: Alignment.topLeft) {
+                            ccTile(0,
+                                   icon: wifiIsOn ? CupertinoIcons.wifi : CupertinoIcons.wifi_slash,
+                                   label: network.kind == .ethernet && wifiWanted == nil
+                                       ? "Ethernet" : (wifiIsOn ? "Wi-Fi" : "Wi-Fi off"),
+                                   active: wifiIsOn || network.kind == .ethernet,
+                                   // No radio to switch: the tile says so
+                                   // rather than pretending to be off.
+                                   available: network.kind == .wifi || wifiWanted != nil)
+                            ccTile(1,
+                                   icon: (volume?.isMuted ?? false)
+                                       ? CupertinoIcons.speaker_slash : CupertinoIcons.speaker_2,
+                                   label: (volume?.isMuted ?? false) ? "Muted" : "Sound",
+                                   active: !(volume?.isMuted ?? false),
+                                   available: volume != nil)
+                            ccTile(2, icon: CupertinoIcons.moon_fill, label: "Dark Mode",
+                                   active: darkMode)
+                            ccTile(3, icon: CupertinoIcons.square_grid_2x2,
+                                   label: "Tile Windows", active: false)
+                            ccSlider()
+                            ccBottomRow()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - The status cluster
     //
     // Read from the system (`Win32Status`), not drawn: a shell with a fixed
@@ -453,8 +758,12 @@ final class StarlingDockState: State<StatefulWidget> {
     /// rather than in a slab of its own: the strip is opaque and full width,
     /// so there is nothing for a second slab to separate it from.
     private func statusCluster() -> Widget {
+        // A fixed width, imposed rather than measured — `ccOpener` hit-tests
+        // against this same number, and a readout that laid itself out to its
+        // content would drift away from the rectangle that opens the panel.
+        SizedBox(width: kStatusWidth, height: Double(kDockHeight)) {
         Padding(padding: EdgeInsets(left: 0, top: 0, right: 16, bottom: 0)) {
-            Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 9) {
+            Row(mainAxisAlignment: .end, crossAxisAlignment: .center, spacing: 9) {
                 if let speaker = volumeIcon() { speaker }
                 networkIcon()
                 for widget in batteryWidgets() { widget }
@@ -463,6 +772,7 @@ final class StarlingDockState: State<StatefulWidget> {
                          style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
                 }
             }
+        }
         }
     }
 
@@ -599,6 +909,10 @@ final class StarlingDockState: State<StatefulWidget> {
     /// The right-click menu, also in the overhang.
     private func menu(_ index: Int) -> Widget {
         let item = items[index]
+        // Nothing to pin, close, or open a second copy of. The shell's own
+        // actions used to hang here for want of anywhere better; they live in
+        // the control centre now, which is where a system toggle belongs.
+        guard item.key != kLauncherKey else { return SizedBox(width: 0, height: 0) }
         return Positioned(
             left: max(4, tileCentre(index) - 84),
             bottom: Double(kDockHeight) + 6,
@@ -621,29 +935,6 @@ final class StarlingDockState: State<StatefulWidget> {
                                                                   fontWeight: .w600),
                                                  overflow: .ellipsis,
                                                  maxLines: 1)
-                                        }
-                                    }
-                                }
-                                // The launcher tile is where the shell's own
-                                // actions live now that there is no menu bar
-                                // to hang them off. It has nothing to pin,
-                                // close, or open a second copy of.
-                                if item.key == kLauncherKey {
-                                    menuRow("Tile Windows") {
-                                        self.setState { self.menuOpen = nil }
-                                        self.tileAll()
-                                    }
-                                    menuRow(nativeTaskbarWanted
-                                                ? "Hide Windows Taskbar"
-                                                : "Show Windows Taskbar") {
-                                        self.setState {
-                                            self.menuOpen = nil
-                                            self.nativeTaskbarWanted.toggle()
-                                        }
-                                        if self.nativeTaskbarWanted {
-                                            Win32Shell.showNativeTaskbar()
-                                        } else {
-                                            Win32Shell.hideNativeTaskbar()
                                         }
                                     }
                                 }
@@ -685,14 +976,35 @@ final class StarlingDockState: State<StatefulWidget> {
             textDirection: .ltr,
             child: Listener(
                 onPointerDown: { e in
+                    let x = e.position.dx, y = e.position.dy
                     // 2 is the secondary button. A press, not a release: the
                     // press is what arrives reliably here, and a menu that
                     // opens on press is what every desktop does anyway.
-                    guard e.buttons == 2 else { return }
-                    let index = self.pointerTile(e.position.dx, e.position.dy)
-                    self.setState {
-                        self.menuOpen = (self.menuOpen == index) ? nil : index
+                    if e.buttons == 2 {
+                        let index = self.pointerTile(x, y)
+                        self.setState {
+                            self.menuOpen = (self.menuOpen == index) ? nil : index
+                        }
+                        return
                     }
+                    if self.controlCentreOpen, self.handleControlCentre(x, y) { return }
+                    if self.ccOpener.contains(x, y) {
+                        self.setState {
+                            self.controlCentreOpen.toggle()
+                            self.menuOpen = nil
+                        }
+                    }
+                },
+                onPointerMove: { e in
+                    // The slider's drag, in one line. A pan recognizer would
+                    // be the widget-level answer and is exactly what does not
+                    // arrive reliably in this surface.
+                    guard self.draggingVolume else { return }
+                    self.setState { self.ccSetVolumeFrom(e.position.dx) }
+                },
+                onPointerUp: { _ in
+                    guard self.draggingVolume else { return }
+                    self.setState { self.draggingVolume = false }
                 },
                 onPointerHover: { e in
                     let index = self.pointerTile(e.position.dx, e.position.dy)
@@ -729,6 +1041,16 @@ final class StarlingDockState: State<StatefulWidget> {
                     // part of that window.
                     Positioned(left: 0, right: 0, bottom: Double(kDockHeight), height: 1) {
                         ColoredBox(color: Color(0x24FFFFFF)) { SizedBox(expand: ()) }
+                    }
+                    // ALWAYS emitted, empty when the panel is down: a Stack
+                    // that GAINS a child does not always composite the new one
+                    // until something else remounts the subtree, which reads
+                    // as a button that did nothing. A constant child count
+                    // sidesteps the question.
+                    if controlCentreOpen {
+                        controlCentre()
+                    } else {
+                        Positioned(left: 0, bottom: 0) { SizedBox(width: 0, height: 0) }
                     }
                     // A menu wins over a label: the pointer is inside the tile
                     // for both, and two flyouts stacked on one icon is noise.
