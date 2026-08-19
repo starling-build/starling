@@ -57,10 +57,18 @@ means Developer ID signing plus notarization, not a build change.
 `starling-terminal_0.1.1_amd64.deb` — Starling Terminal for Linux x86_64,
 rebuilt for 0.1.1 against the 0.3.1 SDK bundle beside it. 52 MB, checksum in
 `SHA256SUMS`. It replaces the 0.1.0 .deb, which remains a `terminal-v0.1.0`
-release asset. **Nothing behaves differently**: the resource-bundle fix it
-carries only ever mattered inside a macOS `.app`, and the engine is the one
-0.1.0 shipped, byte for byte. The version moves so "which build am I on" has
-one answer across platforms, and so `dpkg -i` treats it as the upgrade it is. A **.deb**
+release asset. The engine is the one 0.1.0 shipped, byte for byte, and the
+version moves so "which build am I on" has one answer across platforms and so
+`dpkg -i` treats it as the upgrade it is.
+
+**Rebuilt on the respun SDK bundle**, and this is not paperwork. The first cut
+of this .deb was built on the 0.3.1 bundle that searched for `<name>.bundle`,
+so it shipped with none of its own fonts — Roboto Mono and DejaVu Sans Mono
+never loaded, which is the box-drawing and braille every TUI frame is made of,
+on top of cell metrics measured from a face that was not there. It started and
+drew text, so nothing failed. What found it was `strace`: 2611 opens and not
+one of them a bundled font. The rebuild opens all five, checked the same way
+and again after installing with the SDK bundle moved off the machine. A **.deb**
 rather than an archive, because Linux has an install path the other two do not:
 `sudo dpkg -i` (or `apt install ./…`) puts it on the applications menu with its
 icon, and `dpkg-shlibdeps` computed the system dependencies so a missing GTK or
