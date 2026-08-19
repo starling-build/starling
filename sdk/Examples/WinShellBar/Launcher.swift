@@ -49,6 +49,32 @@ let kPowerRowH = 38.0
 let kPowerMenuW = 190.0
 
 /// The single source of truth for the launcher.
+/// One group of apps in the launcher.
+///
+/// The grouping is REAL DATA, not something invented: a Start Menu shortcut
+/// lives in a folder — "Accessories", "Git", "Python 3.12" — and that folder
+/// is what every Windows installer has been putting its apps into for thirty
+/// years. Windows 10's own All Apps list grouped by it too. So the default
+/// grouping needs no input from anyone, and the user renames a group only
+/// when the installer's own name is wrong.
+struct LauncherGroup: Equatable {
+    /// The Start Menu folder, and the key everything is stored against. Empty
+    /// for shortcuts at the top level.
+    let key: String
+    /// What the launcher shows: the user's name for it, or the folder's.
+    let name: String
+    let apps: [Win32App]
+    let collapsed: Bool
+}
+
+/// A row of the launcher's scrolling list: a group's heading, or one row of
+/// its tiles. Flattened like this so the list can be LAZY — a machine with
+/// three hundred apps builds only what is on screen.
+enum LauncherRow {
+    case header(LauncherGroup)
+    case apps([Win32App])
+}
+
 struct LauncherState {
     /// Everything installed, from the Start Menu.
     var apps: [Win32App] = []
@@ -57,6 +83,12 @@ struct LauncherState {
     var catalogReady = false
     /// The search box's text.
     var query = ""
+    /// Custom group names, keyed by the Start Menu folder they replace.
+    var names: [String: String] = [:]
+    /// Folders the user has collapsed.
+    var collapsed: Set<String> = []
+    /// The group whose name is being edited, if any.
+    var renaming: String?
     /// Which page of the grid is showing.
     var page = 0
     /// Bumped when an icon texture lands — see DockState.iconRevision.
@@ -82,6 +114,13 @@ final class LauncherBloc: @unchecked Sendable {
         case start
         case search(String)
         case goToPage(Int)
+        /// Fold a group away, or open it again.
+        case toggleGroup(String)
+        /// Start renaming a group, or stop.
+        case beginRename(String?)
+        /// Give a group a name of the user's own. An empty name puts the
+        /// installer's folder name back rather than leaving a blank heading.
+        case renameGroup(key: String, name: String)
         case launch(Win32App)
         /// The launcher was just shown: open on a clean query.
         case opened
@@ -107,6 +146,27 @@ final class LauncherBloc: @unchecked Sendable {
             state.page = 0
         case .goToPage(let page):
             state.page = page
+
+        case .toggleGroup(let key):
+            if state.collapsed.contains(key) {
+                state.collapsed.remove(key)
+            } else {
+                state.collapsed.insert(key)
+            }
+            _saveGroups()
+
+        case .beginRename(let key):
+            state.renaming = key
+
+        case .renameGroup(let key, let name):
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                state.names.removeValue(forKey: key)
+            } else {
+                state.names[key] = trimmed
+            }
+            state.renaming = nil
+            _saveGroups()
         case .opened:
             // Always open on an empty query: a launcher that remembers the
             // last search is one that shows you the wrong four apps every
@@ -127,7 +187,71 @@ final class LauncherBloc: @unchecked Sendable {
         }
     }
 
+    /// The apps as groups: the user's names where they gave one, the Start
+    /// Menu's folder otherwise, and everything loose at the top level in a
+    /// group of its own at the end.
+    ///
+    /// Alphabetical, because a launcher is scanned rather than read and a
+    /// list that reorders itself by app count moves things under the pointer
+    /// every time something is installed.
+    var groups: [LauncherGroup] {
+        var byKey: [String: [Win32App]] = [:]
+        for app in state.apps { byKey[app.category, default: []].append(app) }
+
+        return byKey.map { key, apps in
+            LauncherGroup(key: key,
+                          name: state.names[key] ?? (key.isEmpty ? "Other" : key),
+                          apps: apps.sorted {
+                              $0.name.localizedCaseInsensitiveCompare($1.name)
+                                  == .orderedAscending
+                          },
+                          collapsed: state.collapsed.contains(key))
+        }.sorted {
+            // Loose apps last: they are the leftovers, not a category.
+            if $0.key.isEmpty != $1.key.isEmpty { return !$0.key.isEmpty }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    @ObservationIgnored private var groupsPath: String {
+        let base = ProcessInfo.processInfo.environment["APPDATA"]
+            ?? NSTemporaryDirectory()
+        return base + "\\Starling\\launcher-groups.txt"
+    }
+
+    /// `folder<TAB>name<TAB>collapsed`, one per line. Only groups the user has
+    /// touched are written — the rest come from the Start Menu every time, so
+    /// a newly installed app lands in its own folder's group with no help.
+    private func _loadGroups() {
+        guard let text = try? String(contentsOfFile: groupsPath, encoding: .utf8)
+        else { return }
+        for line in text.split(whereSeparator: { $0 == "\r\n" || $0 == "\n" }) {
+            let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
+            guard parts.count >= 3 else { continue }
+            let key = String(parts[0])
+            if !parts[1].isEmpty { state.names[key] = String(parts[1]) }
+            if parts[2] == "1" { state.collapsed.insert(key) }
+        }
+    }
+
+    private func _saveGroups() {
+        var keys = Set(state.names.keys)
+        keys.formUnion(state.collapsed)
+        let lines = keys.sorted().map { key in
+            "\(key)\t\(state.names[key] ?? "")\t\(state.collapsed.contains(key) ? "1" : "0")"
+        }
+        let path = groupsPath
+        let text = lines.joined(separator: "\r\n")
+        Task.detached {
+            let dir = (path as NSString).deletingLastPathComponent
+            try? FileManager.default.createDirectory(atPath: dir,
+                                                     withIntermediateDirectories: true)
+            try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
     private func _start() {
+        _loadGroups()
         icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
         // Its own thread, because COM is initialized per call in
         // flwin32_apps.c and this overlaps engine creation, so its ~175ms
@@ -158,6 +282,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// View state: the text field's own controller. Everything else the
     /// launcher draws comes from `bloc.state`.
     private let search = TextEditingController()
+    /// The grouped list's scroll position.
+    private let scroll = ScrollController()
     /// Whether the power menu is down. View state: it is about this pointer,
     /// not about the machine.
     private var powerOpen = false
@@ -438,6 +564,108 @@ final class StarlingLauncherState: State<StatefulWidget> {
         }
     }
 
+    /// Searching flattens the groups: a query is a question about apps, not
+    /// about how they are filed, and answering it with headings would put the
+    /// four matches on three separate rows.
+    private func body() -> Widget {
+        guard bloc.state.query.isEmpty else { return grid(matches) }
+
+        let rows = groupRows()
+        return ListView(
+            controller: scroll,
+            itemCount: rows.count,
+            itemBuilder: { [weak self] _, index in self?.groupRow(rows, index) })
+    }
+
+    /// Groups flattened into rows, so the list can be lazy.
+    private func groupRows() -> [LauncherRow] {
+        var rows: [LauncherRow] = []
+        let columns = columnsPerPage
+        for group in bloc.groups {
+            rows.append(.header(group))
+            guard !group.collapsed else { continue }
+            var index = 0
+            while index < group.apps.count {
+                let end = min(index + columns, group.apps.count)
+                rows.append(.apps(Array(group.apps[index..<end])))
+                index = end
+            }
+        }
+        return rows
+    }
+
+    private func groupRow(_ rows: [LauncherRow], _ index: Int) -> Widget {
+        guard index < rows.count else { return SizedBox(height: 0) }
+        switch rows[index] {
+        case .header(let group): return groupHeader(group)
+        case .apps(let apps):
+            return SizedBox(height: kLauncherCell) {
+                Row(mainAxisAlignment: .start, crossAxisAlignment: .center) {
+                    for app in apps { tile(app) }
+                }
+            }
+        }
+    }
+
+    /// A group's heading: its name, how many apps are in it, and the two
+    /// things you can do to it.
+    ///
+    /// Tapping the heading folds the group away. Tapping the pencil renames
+    /// it — in place, with a field that takes the keyboard as it appears,
+    /// because a launcher that opens a dialog to rename a heading has lost
+    /// the plot.
+    private func groupHeader(_ group: LauncherGroup) -> Widget {
+        SizedBox(height: 44) {
+            Padding(padding: EdgeInsets(left: 8, top: 10, right: 8, bottom: 4)) {
+                bloc.state.renaming == group.key
+                    ? renameField(group)
+                    : Row(crossAxisAlignment: .center, spacing: 8) {
+                        GestureDetector(
+                            onTap: { self.bloc.add(.toggleGroup(group.key)) },
+                            child: Row(mainAxisSize: .min, crossAxisAlignment: .center,
+                                       spacing: 7) {
+                                MacosIcon(icon: group.collapsed
+                                              ? CupertinoIcons.chevron_right
+                                              : CupertinoIcons.chevron_down,
+                                          color: Color(0xFF8B93A1), size: 12)
+                                Text(group.name,
+                                     style: TextStyle(color: Color(0xFFE6EAF0),
+                                                      fontSize: 13, fontWeight: .w600))
+                                Text("\(group.apps.count)",
+                                     style: TextStyle(color: Color(0xFF6E7683),
+                                                      fontSize: 12))
+                            })
+                        // Pushed to the RIGHT EDGE rather than sitting after
+                        // the name: a target whose position depends on how
+                        // long the group is called is a target you have to
+                        // look for every time, and it lands within a few
+                        // pixels of the first app tile for a short name.
+                        Expanded { SizedBox(height: 1) }
+                        GestureDetector(
+                            onTap: { self.bloc.add(.beginRename(group.key)) },
+                            child: Padding(padding: EdgeInsets(horizontal: 10, vertical: 4)) {
+                                MacosIcon(icon: CupertinoIcons.pencil,
+                                          color: Color(0xFF6E7683), size: 13)
+                            })
+                    }
+            }
+        }
+    }
+
+    private func renameField(_ group: LauncherGroup) -> Widget {
+        let controller = TextEditingController()
+        controller.text = group.name
+        return SizedBox(width: 280, height: 28) {
+            MacosTextField(
+                controller: controller,
+                placeholder: group.key.isEmpty ? "Other" : group.key,
+                onSubmitted: { text in
+                    self.bloc.add(.renameGroup(key: group.key, name: text))
+                },
+                autofocus: true)
+        }
+    }
+
     /// Shown while the Start Menu walk is still running on its own thread.
     private func loading() -> Widget {
         SizedBox(height: Double(rowsPerPage) * kLauncherCell) {
@@ -519,12 +747,11 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // window — small, but real on a cold machine — where the
                     // launcher is up and the Start Menu walk has not finished.
                     // An empty grid reads as "you have no apps"; this reads as
-                    // what it is. The alternative, blocking until the catalog
-                    // is ready, is the thing this whole change exists to stop.
+                    // what it is.
                     if !bloc.state.catalogReady {
                         loading()
                     } else {
-                        grid(list)
+                        Expanded { body() }
                     }
                     SizedBox(height: 24)
                     // Tap targets as well as the wheel: a page you can only
