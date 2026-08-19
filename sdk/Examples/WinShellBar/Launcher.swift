@@ -19,9 +19,11 @@ import FlutterSwiftBridge
 import FlutterWin32
 import Foundation
 
-let kLauncherColumns = 7
 let kLauncherIcon = 56.0
 let kLauncherCell = 132.0
+/// Points kept clear at the left and right of the grid, so the outermost
+/// column is not flush against the screen edge.
+let kLauncherMargin = 80.0
 
 final class StarlingLauncher: StatefulWidget {
     override func createState() -> State<StatefulWidget> { StarlingLauncherState() }
@@ -95,11 +97,21 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// same constant, paging never triggered to reveal it either. Deriving
     /// both from the height fixes the overflow and makes the paging real.
     private var rowsPerPage: Int {
-        let height = Double(Win32Display.primary()?.logicalHeight ?? 800)
-        return max(1, Int((height - 210) / kLauncherCell))
+        max(1, Int((ShellScreen.logicalHeight - 210) / kLauncherCell))
     }
 
-    private var perPage: Int { kLauncherColumns * rowsPerPage }
+    /// And how many columns, for the same reason from the other direction.
+    ///
+    /// This was a fixed seven, which fits a 1024pt screen by luck. On the
+    /// 3840x2160 laptop panel at 200% — 1920pt logical — seven columns is a
+    /// 924pt island of icons with five hundred points of dead space either
+    /// side of it, and the pager insisting there are more pages of apps that
+    /// the screen plainly has room for.
+    private var columnsPerPage: Int {
+        max(1, Int((ShellScreen.logicalWidth - kLauncherMargin) / kLauncherCell))
+    }
+
+    private var perPage: Int { columnsPerPage * rowsPerPage }
 
     private var pageCount: Int {
         max(1, (matches.count + perPage - 1) / perPage)
@@ -151,15 +163,20 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// children would not rebuild when the query changes (a trap the desktop's
     /// own notes call out).
     private func grid(_ list: [Win32App]) -> Widget {
+        // Rechecked here, and read ONCE: every row has to be cut to the same
+        // width, so a monitor changing between the first row and the last
+        // would otherwise give a ragged grid.
+        ShellScreen.refresh()
+        let columns = columnsPerPage
         let start = min(page * perPage, max(0, list.count - 1))
         let end = min(start + perPage, list.count)
         var rows: [Widget] = []
         var index = start
         while index < end {
-            let row = Array(list[index..<min(index + kLauncherColumns, end)])
+            let row = Array(list[index..<min(index + columns, end)])
             rows.append(Row(mainAxisAlignment: .center, mainAxisSize: .min,
                             children: row.map { tile($0) }))
-            index += kLauncherColumns
+            index += columns
         }
         return Column(mainAxisSize: .min, crossAxisAlignment: .center,
                       children: rows)

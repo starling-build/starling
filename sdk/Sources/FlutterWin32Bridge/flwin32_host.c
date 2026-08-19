@@ -111,6 +111,7 @@ static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
 static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
+static void overlay_rederive(FlWin32Host* host);
 static void apply_colour_key(FlWin32Host* host);
 
 // Timer draining libdispatch's main queue so @MainActor code and
@@ -254,6 +255,25 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       // the bar back onto a monitor that came and went.
       if (host != NULL && host->panel_active) {
         panel_apply_placement(host);
+      }
+      // An overlay covers a whole monitor, so a mode change leaves it the
+      // wrong size in the most visible way there is. The SHOW path already
+      // re-derives, which covers a launcher that was hidden through the
+      // change; this is the other half — one that was on screen while it
+      // happened, which otherwise sits there as a window-sized rectangle in
+      // the corner of a bigger desktop. A parked overlay is re-parked rather
+      // than left at coordinates that may no longer be on any monitor.
+      if (host != NULL && host->overlay_active) {
+        overlay_rederive(host);
+        if (host->overlay_shown) {
+          SetWindowPos(host->window, HWND_TOPMOST,
+                       host->overlay_rect.left, host->overlay_rect.top,
+                       host->overlay_rect.right - host->overlay_rect.left,
+                       host->overlay_rect.bottom - host->overlay_rect.top,
+                       SWP_NOACTIVATE);
+        } else {
+          overlay_park(host);
+        }
       }
       break;
 
@@ -1212,6 +1232,28 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha)
 // keep coming and the tree stays alive with its icons ready; it is one pixel
 // under the menu bar, so nobody can see it; and showing it is a resize, which
 // is why it appears instantly.
+// The overlay's rectangle, recomputed from the monitor it was placed on.
+//
+// Only the rectangle — going through flwin32_host_set_overlay again would
+// re-park it, and this runs both on the way up and while the surface is
+// already on screen.
+static void overlay_rederive(FlWin32Host* host) {
+  MonitorPick pick = {0};
+  pick.want = host->overlay_monitor;
+  if (host->overlay_monitor >= 0) {
+    EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  }
+  if (pick.found) {
+    host->overlay_rect = pick.rect;
+    return;
+  }
+  MONITORINFO mi = {sizeof(MONITORINFO)};
+  POINT origin = {0, 0};
+  if (GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+    host->overlay_rect = mi.rcMonitor;
+  }
+}
+
 static void overlay_park(FlWin32Host* host) {
   UnregisterHotKey(host->window, kOverlayEscapeHotkey);
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
@@ -1245,22 +1287,8 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
   }
 
   // Re-derive the geometry on the way up: the monitor may have changed size,
-  // or gone, since the last time this was shown. Only the rectangle — going
-  // through set_overlay again would re-park it.
-  MonitorPick pick = {0};
-  pick.want = host->overlay_monitor;
-  if (host->overlay_monitor >= 0) {
-    EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
-  }
-  if (pick.found) {
-    host->overlay_rect = pick.rect;
-  } else {
-    MONITORINFO mi = {sizeof(MONITORINFO)};
-    POINT origin = {0, 0};
-    if (GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) {
-      host->overlay_rect = mi.rcMonitor;
-    }
-  }
+  // or gone, since the last time this was shown.
+  overlay_rederive(host);
 
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex & ~(LONG_PTR)WS_EX_TRANSPARENT);

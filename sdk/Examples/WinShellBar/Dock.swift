@@ -492,9 +492,13 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     /// Where the centred row of tiles starts, in the panel's own coordinates.
+    ///
+    /// `ShellScreen`, not `Win32Display.primary()`: the width has to be the
+    /// width of the screen this bar is ON, and it has to follow a resolution
+    /// change — the host re-places the strip on WM_DISPLAYCHANGE and the
+    /// icons have to be centred on the new one.
     private func rowLeft() -> Double {
-        let width = Double(Win32Display.primary()?.logicalWidth ?? 1280)
-        return (width - Double(items.count) * kDockTile) / 2
+        (ShellScreen.logicalWidth - Double(items.count) * kDockTile) / 2
     }
 
     /// Where a tile's centre sits. The tile is a fixed size and the row is
@@ -668,6 +672,11 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        // Rechecked here, where the width is about to be used: a resolution
+        // change moves the strip under us and the centring is arithmetic off
+        // that width. This build runs once a second anyway, for the clock,
+        // so `pointerTile` is never reading a stale screen for long.
+        ShellScreen.refresh()
         // The window is the strip PLUS the overhang. The strip is an opaque
         // bar across the bottom; the overhang above it is painted pure black,
         // which the panel's colour key turns into a hole — invisible and

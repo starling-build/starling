@@ -30,6 +30,7 @@
 //
 //   WinShellBar.exe             the dock, bottom edge
 //   WinShellBar.exe --launcher  the launcher, hidden until asked for
+//   ... --monitor N             put either on a screen other than the primary
 //
 //   swift build -c release --product WinShellBar
 
@@ -49,6 +50,14 @@ let wantsPlain = CommandLine.arguments.contains("--plain")
 let wantsAppbar = !CommandLine.arguments.contains("--no-appbar")
 let wantsLauncher = CommandLine.arguments.contains("--launcher")
 
+// `--monitor N` indexes Win32Display.monitors(); absent means the primary.
+// One value, given to BOTH the placement that puts the window on a screen and
+// the tree that lays itself out against that screen — see ShellScreen for
+// what went wrong when those were decided separately.
+let wantsMonitor: Int? = CommandLine.arguments.firstIndex(of: "--monitor")
+    .flatMap { i in i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) : nil }
+ShellScreen.use(monitor: wantsMonitor)
+
 // `--restore-taskbar` does nothing else and exits, so it can be run from
 // anywhere to recover a machine whose Starling was killed rather than closed
 // (atexit covers the tidy path, and nothing covers taskkill /f).
@@ -58,10 +67,10 @@ if CommandLine.arguments.contains("--restore-taskbar") {
     exit(0)
 }
 
-// Span the primary monitor. Reading the geometry rather than assuming 1920
-// is the point — a panel sized to the wrong screen is the first thing that
-// goes wrong on a laptop plus an external.
-let screen = Win32Display.primary()
+// Span the chosen monitor. Reading the geometry rather than assuming 1920 is
+// the point — a panel sized to the wrong screen is the first thing that goes
+// wrong on a laptop plus an external.
+let screen = ShellScreen.monitor
 // PHYSICAL pixels, not logical.
 //
 // runStarlingApp's size becomes the window's client size in pixels, and the
@@ -85,7 +94,7 @@ if wantsLauncher {
     // the tree mounts, so when the launcher comes up blank this is how you
     // find out whether the restyle is what stopped it.
     if !wantsPlain {
-        Win32WindowedHost.overlay = OverlayPlacement(opacity: 0.97)
+        Win32WindowedHost.overlay = OverlayPlacement(monitor: wantsMonitor, opacity: 0.97)
     }
     runStarlingApp(title: "Starling Launcher",
                    width: Int(screen?.width ?? 1280),
@@ -108,6 +117,7 @@ if wantsLauncher {
     // both are taller than the dock.
     if !wantsPlain {
         Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,
+                                                 monitor: wantsMonitor,
                                                  reserveSpace: wantsAppbar,
                                                  transparent: true,
                                                  overhang: kDockOverhang)
