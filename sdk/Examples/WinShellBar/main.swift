@@ -83,6 +83,9 @@ if CommandLine.arguments.contains("--print-status") {
     print("volume=\(volume.map { String($0.percent) } ?? "n/a")",
           "muted=\(volume.map { String($0.isMuted) } ?? "n/a")",
           "network=\(network.kind) signal=\(network.signal) ssid=\(network.ssid)",
+          // Whether the machine HAS Wi-Fi, which is what decides if the status
+          // bar draws a signal meter at all.
+          "wifiAdapter=\(network.hasWifiAdapter)",
           "battery=\(power.hasBattery) percent=\(power.percent.map(String.init) ?? "n/a")",
           "dark=\(Win32Control.isDarkMode)",
           separator: "  ")

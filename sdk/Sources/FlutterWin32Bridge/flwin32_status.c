@@ -140,7 +140,8 @@ static int ethernet_connected(void) {
 int32_t flwin32_network_status(int32_t* kind,
                                int32_t* signal,
                                char* ssid,
-                               int32_t ssid_size) {
+                               int32_t ssid_size,
+                               int32_t* has_wifi) {
     if (kind) *kind = 0;
     if (signal) *signal = 0;
     if (ssid != NULL && ssid_size > 0) ssid[0] = '\0';
@@ -149,10 +150,18 @@ int32_t flwin32_network_status(int32_t* kind,
      * on Wi-Fi also has adapters that would satisfy the Ethernet test. */
     HANDLE wlan = NULL;
     DWORD negotiated = 0;
+    if (has_wifi) *has_wifi = 0;
     if (WlanOpenHandle(2, NULL, &negotiated, &wlan) == ERROR_SUCCESS) {
         WLAN_INTERFACE_INFO_LIST* interfaces = NULL;
         if (WlanEnumInterfaces(wlan, NULL, &interfaces) == ERROR_SUCCESS &&
             interfaces != NULL) {
+            /* Whether the machine HAS Wi-Fi, which is a different question
+             * from whether it is on one. A desktop with only Ethernet has no
+             * WLAN interface at all, and a status bar should not show it an
+             * empty signal meter for hardware it does not have. A laptop with
+             * the radio switched off does have the interface, and four unlit
+             * bars is exactly the right thing to show there. */
+            if (has_wifi) *has_wifi = interfaces->dwNumberOfItems > 0 ? 1 : 0;
             for (DWORD i = 0; i < interfaces->dwNumberOfItems; i++) {
                 WLAN_INTERFACE_INFO* info = &interfaces->InterfaceInfo[i];
                 if (info->isState != wlan_interface_state_connected) continue;

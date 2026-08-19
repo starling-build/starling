@@ -96,6 +96,9 @@ let keepsNativeTaskbar =
 /// name, because the exact wording moves between Windows releases ("Command
 /// Prompt" vs "Terminal") and a dock that silently loses an entry after an
 /// update is worse than one that keeps a near match.
+/// The four Wi-Fi bars, shortest first.
+let kBarHeights: [Double] = [5, 8, 11, 15]
+
 let kDefaultPins = ["file explorer", "terminal", "notepad", "paint", "edge", "settings"]
 
 /// The launcher's tile. A reserved key rather than a separate widget, so it
@@ -424,9 +427,13 @@ final class StarlingDockState: State<StatefulWidget> {
                                    label: bloc.state.network.kind == .ethernet && bloc.state.wifiWanted == nil
                                        ? "Ethernet" : (bloc.state.wifiIsOn ? "Wi-Fi" : "Wi-Fi off"),
                                    active: bloc.state.wifiIsOn || bloc.state.network.kind == .ethernet,
-                                   // No radio to switch: the tile says so
-                                   // rather than pretending to be off.
-                                   available: bloc.state.network.kind == .wifi || bloc.state.wifiWanted != nil)
+                                   // Whether the machine HAS a radio, not
+                                   // whether it is on one. Keyed off the
+                                   // connection before, which meant that
+                                   // switching Wi-Fi off made the tile
+                                   // unavailable — and so there was no way
+                                   // left to switch it back on.
+                                   available: bloc.state.network.hasWifiAdapter)
                             ccTile(1,
                                    icon: (bloc.state.volume?.isMuted ?? false)
                                        ? CupertinoIcons.speaker_slash : CupertinoIcons.speaker_2,
@@ -462,61 +469,102 @@ final class StarlingDockState: State<StatefulWidget> {
     /// correct. Signal is shown as a colour rather than as bars: the icon
     /// font has one wifi glyph, and a faded one reads as weak without
     /// inventing a bar chart.
-    private func networkIcon() -> Widget {
-        let icon: IconData
-        let colour: Color
-        switch bloc.state.network.kind {
-        case .none:
-            icon = CupertinoIcons.wifi_slash
-            colour = Color(0xFF6E7683)
-        case .ethernet:
-            icon = CupertinoIcons.antenna_radiowaves_left_right
-            colour = Color(0xFFD5DAE3)
-        case .wifi:
-            icon = CupertinoIcons.wifi
-            colour = bloc.state.network.signal >= 60 ? Color(0xFFD5DAE3)
-                : bloc.state.network.signal >= 30 ? Color(0xFFB0B7C3) : Color(0xFF7F8794)
+    /// The network readout: four ascending bars for Wi-Fi, a glyph for a
+    /// cable.
+    ///
+    /// Bars rather than the arc glyph because an arc has one shape and a
+    /// number to convey — you can tell "connected" from it but not "barely".
+    /// Four bars read at a glance and are what every phone and every other
+    /// desktop uses for the same job.
+    ///
+    /// Ethernet keeps a glyph: bars mean signal strength, and a cable does
+    /// not have any. Drawing four full bars for it would be a lie that
+    /// happens to look tidy.
+    private func networkIcon() -> Widget? {
+        let network = bloc.state.network
+        guard network.kind != .ethernet else {
+            return MacosIcon(icon: CupertinoIcons.antenna_radiowaves_left_right,
+                             color: Color(0xFFD5DAE3), size: 15)
         }
-        return MacosIcon(icon: icon, color: colour, size: 15)
-    }
-
-    private func volumeIcon() -> Widget? {
-        guard let volume = bloc.state.volume else { return nil }
-        let icon: IconData = volume.isMuted ? CupertinoIcons.speaker_slash
-            : volume.percent == 0 ? CupertinoIcons.speaker
-            : volume.percent < 34 ? CupertinoIcons.speaker_1
-            : volume.percent < 67 ? CupertinoIcons.speaker_2
-            : CupertinoIcons.speaker_3
-        return MacosIcon(icon: icon,
-                         color: volume.isMuted ? Color(0xFF6E7683) : Color(0xFFD5DAE3),
-                         size: 15)
+        // Nothing at all on a machine with no Wi-Fi. An empty signal meter on
+        // a desktop is a readout about hardware that is not there — the same
+        // reason the battery draws nothing rather than an empty cell.
+        guard network.hasWifiAdapter else { return nil }
+        let signal = network.kind == .none ? 0 : network.signal
+        // Quarters, so a bar lights when the signal is genuinely into that
+        // band rather than at the boundary of it.
+        let lit = signal >= 75 ? 4 : signal >= 50 ? 3 : signal >= 25 ? 2 : signal > 0 ? 1 : 0
+        return SizedBox(width: 18, height: 15) {
+            Stack(alignment: Alignment.bottomLeft) {
+                for i in 0..<4 {
+                    Positioned(left: Double(i) * 5, top: 15 - kBarHeights[i],
+                               width: 3, height: kBarHeights[i]) {
+                        ClipRRect(borderRadius: BorderRadius.circular(1.5)) {
+                            ColoredBox(color: i < lit ? Color(0xFFD5DAE3)
+                                                      : Color(0x30FFFFFF)) {
+                                SizedBox(expand: ())
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Nothing at all on a desktop. An empty battery outline on a machine
     /// with no battery is worse than no icon: it reads as "flat".
     private func batteryWidgets() -> [Widget] {
         guard bloc.state.power.hasBattery else { return [] }
-        let icon: IconData = bloc.state.power.isCharging ? CupertinoIcons.battery_charging
-            : (bloc.state.power.percent ?? 100) <= 10 ? CupertinoIcons.battery_empty
-            : (bloc.state.power.percent ?? 100) <= 40 ? CupertinoIcons.battery_25
-            : CupertinoIcons.battery_full
-        var out: [Widget] = [
-            MacosIcon(icon: icon,
-                      color: (bloc.state.power.percent ?? 100) <= 10 && !bloc.state.power.isCharging
-                          ? Color(0xFFFF6B6B) : Color(0xFFD5DAE3),
-                      size: 17)
-        ]
-        if let percent = bloc.state.power.percent {
-            out.append(Text("\(percent)%",
-                            style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12)))
+        let percent = bloc.state.power.percent ?? 100
+        let charging = bloc.state.power.isCharging
+        let fraction = min(1.0, max(0.0, Double(percent) / 100))
+        // Red only when it is BOTH low and not being fixed: a machine at 8%
+        // on the charger is not a warning, and colouring it as one teaches
+        // people to ignore the colour.
+        let fill = charging ? Color(0xFF5FD07A)
+            : percent <= 10 ? Color(0xFFFF6B6B)
+            : percent <= 25 ? Color(0xFFF0B24A)
+            : Color(0xFFD5DAE3)
+
+        // Drawn rather than a glyph, for the reason the Wi-Fi bars are: the
+        // battery glyphs come in four steps, so a level is rounded to the
+        // nearest quarter before it is ever shown. A bar can just be the
+        // number.
+        let meter = SizedBox(width: 30, height: 15) {
+            Stack(alignment: Alignment.centerLeft) {
+                // The shell of the battery.
+                Positioned(left: 0, top: 1, width: 25, height: 13) {
+                    ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                        ColoredBox(color: Color(0x30FFFFFF)) { SizedBox(expand: ()) }
+                    }
+                }
+                // The charge in it. Never narrower than a sliver, so an
+                // almost-flat battery still reads as a battery.
+                Positioned(left: 2, top: 3, width: max(3, 21 * fraction), height: 9) {
+                    ClipRRect(borderRadius: BorderRadius.circular(2.5)) {
+                        ColoredBox(color: fill) { SizedBox(expand: ()) }
+                    }
+                }
+                // The terminal nub, which is what makes the shape a battery
+                // rather than a progress bar.
+                Positioned(left: 26, top: 5, width: 3, height: 5) {
+                    ClipRRect(borderRadius: BorderRadius.circular(1.5)) {
+                        ColoredBox(color: Color(0x50FFFFFF)) { SizedBox(expand: ()) }
+                    }
+                }
+                if charging {
+                    Positioned(left: 8, top: 0, width: 11, height: 15) {
+                        MacosIcon(icon: CupertinoIcons.bolt_fill,
+                                  color: Color(0xFF14161A), size: 11)
+                    }
+                }
+            }
         }
-        return out
+        return [meter,
+                Text("\(percent)%",
+                     style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12))]
     }
 
-    /// The status readout, at the right end of the bar — where Windows keeps
-    /// its clock and where a user will look for one. Plain on the strip now
-    /// rather than in a slab of its own: the strip is opaque and full width,
-    /// so there is nothing for a second slab to separate it from.
     private func statusCluster() -> Widget {
         // A fixed width, imposed rather than measured — `ccOpener` hit-tests
         // against this same number, and a readout that laid itself out to its
@@ -524,8 +572,7 @@ final class StarlingDockState: State<StatefulWidget> {
         SizedBox(width: kStatusWidth, height: Double(kDockHeight)) {
         Padding(padding: EdgeInsets(left: 0, top: 0, right: 16, bottom: 0)) {
             Row(mainAxisAlignment: .end, crossAxisAlignment: .center, spacing: 9) {
-                if let speaker = volumeIcon() { speaker }
-                networkIcon()
+                if let network = networkIcon() { network }
                 for widget in batteryWidgets() { widget }
                 Padding(padding: EdgeInsets(left: 4, top: 0, right: 0, bottom: 0)) {
                     Text(clockText(),

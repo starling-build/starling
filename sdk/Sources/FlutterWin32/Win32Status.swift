@@ -42,12 +42,19 @@ public struct Win32Network: Sendable, Equatable {
     /// text, and a hidden network has none to give.
     public let ssid: String
 
+    /// Whether this machine has a Wi-Fi interface at all — not whether it is
+    /// using one. A desktop has none and should be shown no signal meter; a
+    /// laptop with the radio off has one, and an empty meter is the truth.
+    public let hasWifiAdapter: Bool
+
     public var isConnected: Bool { kind != .none }
 
-    public init(kind: Win32NetworkKind, signal: Int, ssid: String) {
+    public init(kind: Win32NetworkKind, signal: Int, ssid: String,
+                hasWifiAdapter: Bool = false) {
         self.kind = kind
         self.signal = signal
         self.ssid = ssid
+        self.hasWifiAdapter = hasWifiAdapter
     }
 }
 
@@ -83,14 +90,15 @@ public enum Win32Status {
     }
 
     public static func network() -> Win32Network {
-        var kind: Int32 = 0, signal: Int32 = 0
+        var kind: Int32 = 0, signal: Int32 = 0, hasWifi: Int32 = 0
         var buffer = [CChar](repeating: 0, count: 128)
         _ = buffer.withUnsafeMutableBufferPointer {
-            flwin32_network_status(&kind, &signal, $0.baseAddress, 128)
+            flwin32_network_status(&kind, &signal, $0.baseAddress, 128, &hasWifi)
         }
         let which: Win32NetworkKind = kind == 2 ? .wifi : kind == 1 ? .ethernet : .none
         return Win32Network(kind: which, signal: Int(signal),
-                            ssid: String(cString: buffer))
+                            ssid: String(cString: buffer),
+                            hasWifiAdapter: hasWifi != 0)
     }
 
     public static func volume() -> Win32Volume? {

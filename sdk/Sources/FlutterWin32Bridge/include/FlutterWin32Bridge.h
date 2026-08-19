@@ -340,7 +340,13 @@ int32_t flwin32_power_status(int32_t* present, int32_t* percent, int32_t* chargi
 int32_t flwin32_network_status(int32_t* kind,
                                int32_t* signal,
                                char* ssid,
-                               int32_t ssid_size);
+                               int32_t ssid_size,
+                               // 1 when the machine has a WLAN interface at
+                               // all, which is not the same as being on one:
+                               // a desktop has none, a laptop with the radio
+                               // off has one. The status bar shows a signal
+                               // meter only in the second case.
+                               int32_t* has_wifi);
 
 // The default output device's volume, 0-100, and whether it is muted.
 int32_t flwin32_volume_status(int32_t* percent, int32_t* muted);
