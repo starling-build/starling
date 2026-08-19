@@ -57,7 +57,14 @@ let kDockIcon = 34.0
 /// the strip. It reserves nothing and is transparent, so it is invisible and
 /// click-through until something paints. Tall enough for the control centre,
 /// which is the largest thing that opens here.
-let kDockOverhang = 300
+/// How far the window extends past the strip, for labels, menus and the
+/// control centre to draw in.
+///
+/// Deep enough for the WIDEST of them, which is the control centre: on a
+/// vertical dock the panel opens across the overhang rather than along the
+/// screen, so 300pt left it clipped by the window's own edge — the inset plus
+/// kCcWidth is 316. A window is a hard clip and there is no warning.
+let kDockOverhang = 340
 
 /// Geometry the flyout arithmetic needs. The tile is a fixed size, so where
 /// each one sits is arithmetic rather than a layout query — which is what
@@ -516,8 +523,17 @@ final class StarlingDockState: State<StatefulWidget> {
 
     private func controlCentre() -> Widget {
         let frame = ccFrame
-        let height = Double(kDockHeight + kDockOverhang)
-        return Positioned(left: frame.x, bottom: height - (frame.y + frame.h)) {
+        // left/TOP, not left/bottom. `bottom:` had to be derived from the
+        // window's height, and that was written as the strip plus the
+        // overhang — true only while the dock was always a horizontal bar. On
+        // a vertical dock the window is as tall as the SCREEN, so the panel
+        // was positioned several hundred points below the window and never
+        // appeared at all: the readout looked like a dead button.
+        //
+        // `ccFrame` is already in window coordinates for every edge, so
+        // placing by its top-left needs no window height and cannot disagree
+        // with the hit test that uses the same rectangle.
+        return Positioned(left: frame.x, top: frame.y) {
             SizedBox(width: frame.w, height: frame.h) {
                 ClipRRect(borderRadius: BorderRadius.circular(14)) {
                     ColoredBox(color: Color(0xF41F2229)) {
