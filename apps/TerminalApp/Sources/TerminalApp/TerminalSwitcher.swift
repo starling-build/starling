@@ -125,7 +125,10 @@ enum WorkspaceMemory {
         }
     }
 
-    /// The one to reopen when the app is launched with nothing to go on.
+    /// The most recent destination — what the switcher prefills its line with.
+    /// A launch does NOT reopen it: starting the terminal gives a local shell
+    /// and reaching a workspace is something a person asks for (see
+    /// `initState` in TerminalTabs.swift).
     static func last() -> WorkspaceSpec? { recent().first }
 
     static func remember(_ spec: WorkspaceSpec) {

@@ -171,14 +171,23 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
 
     override func initState() {
         super.initState()
-        // `--workspace remote:host/ws:dev` opens the arrangement stored on
-        // that machine instead of a local shell (TerminalWorkspace.swift).
-        // With nothing on the command line, the last workspace this client
-        // opened comes back — which is the point of storing an arrangement at
-        // all, and what makes "close the lid, open the laptop" work without
-        // anybody typing a destination twice. ⌘T is still a local shell, and
-        // ⌘O still goes anywhere else.
-        if let spec = WorkspaceSpec.fromLaunch() ?? WorkspaceMemory.last() {
+        // A launch is a LOCAL SHELL. `--workspace remote:host/ws:dev` (or
+        // STARLING_WORKSPACE) asks for an arrangement instead, and ⌘O reaches
+        // one at any moment — but nothing dials a machine merely because the
+        // app started.
+        //
+        // This used to reopen the last workspace, on the "close the lid, open
+        // the laptop" argument. That argument is real and it is still served,
+        // one keystroke away; what it got wrong is which case is ordinary.
+        // Opening a terminal is the most ordinary thing there is, and having it
+        // attach to wherever you happened to be last — over ssh, to a host that
+        // may be asleep, behind a different network, or simply not what you
+        // wanted this time — is a surprise nobody asked the local case to
+        // carry. tmux draws the line in the same place: a bare `tmux` is a new
+        // session and attaching is a verb you type. The destination is still
+        // remembered and the switcher still prefills it, so coming back is ⌘O
+        // and Enter rather than a typed destination.
+        if let spec = WorkspaceSpec.fromLaunch() {
             _openWorkspace(spec)
         } else {
             _open()

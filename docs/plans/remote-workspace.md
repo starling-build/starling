@@ -230,10 +230,14 @@ workspace, not per session, so it survives every session in it dying.
      `TermdDirectory`. Enter on a row opens it, Enter on something typed
      creates it — a named workspace is attach-or-create on the daemon, so the
      picker needs no second verb for "new". The destination is remembered
-     (`~/.local/state/starling-terminal-workspaces`) and a launch with no
-     arguments reopens the last one, which is what makes closing the lid and
-     opening it somewhere else need no typing at all. `⌘T` is still a local
-     shell; the launch argument still works and now only exists for scripts.
+     (`~/.local/state/starling-terminal-workspaces`) and the switcher prefills
+     it, so closing the lid and opening it somewhere else costs `⌘O` and Enter.
+     A launch with no arguments is a **local shell**, not the last workspace:
+     it reopened the last one for a while, and living with it showed the
+     argument had picked the wrong default — starting a terminal is the
+     ordinary case, and dialing a possibly-sleeping host on every launch is not
+     what it should mean. `⌘T` is still a local shell; the launch argument
+     still works and now only exists for scripts.
      Loose sessions — the ones in no workspace — are listed by the daemon and
      not yet shown, because the app has no way to open one: that is
      milestone 7's, alongside a frame that can end one.

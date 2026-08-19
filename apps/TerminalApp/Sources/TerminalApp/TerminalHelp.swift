@@ -97,7 +97,7 @@ enum TerminalHelp {
             HelpBinding("—", "type name, or host/name — ⏎ opens or creates"),
             HelpBinding("—", "or the ssh command itself, ending at /ws:"),
             HelpBinding("—", "   ssh -i ~/.ssh/id_prod deploy@box/ws:dev"),
-            HelpBinding("—", "launching with no arguments reopens the last"),
+            HelpBinding("—", "a launch is a local shell — ⌘O to reach one"),
         ]),
         HelpSection(title: "the text", rows: [
             HelpBinding("Ctrl+Shift+C", mac: "⌘C", "copy the selection"),
