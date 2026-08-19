@@ -48,27 +48,28 @@ REL_URL="https://github.com/$GH_REPO/releases/download"
 
 # --- the release table -- the lines to bump when cutting a release ------------
 # ONE VERSION PER PLATFORM, because a release does not have to move all three.
-# 0.3.1 is the case that forced this: it fixed a macOS-only resource-bundle bug,
-# reissued macOS and Windows, and deliberately left Linux at 0.3.0 rather than
-# make every Linux consumer re-download 23 MB of identical bytes.
-#
-# A single SDK_VERSION cannot express that, and got it wrong in the quiet
-# direction: it composed a URL for an asset that does not exist, so the tool
-# 404s at the download rather than misbehaving somewhere visible.
+# All three read the same today and the table looks redundant; 0.3.1 is why it
+# is not. That release fixed a macOS-only resource-bundle bug and was macOS-only
+# for most of its life, then macOS and Windows, and only ended up on all three
+# because each platform's build box got to it in turn. At every point before the
+# last one, a single SDK_VERSION would have composed a URL for an asset that was
+# never going to exist -- and it fails in the quiet direction, a 404 at the
+# download rather than anything visible in the tree.
 #
 # The tag is derived, not listed, and that is the invariant worth keeping: a
-# bundle is published on the release named by its own version, so
-# starling-sdk-0.3.0-linux-x86_64.tar.gz is on sdk-v0.3.0 and stays reachable
-# there for as long as Linux is not reissued. Bump the platforms a release
-# actually rebuilds and leave the rest alone.
-SDK_VERSION_linux="0.3.0"
+# bundle is published on the release named by its own version, so a platform
+# that is NOT rebuilt keeps being served from the tag that first published it.
+# Bump the platforms a release actually rebuilds and leave the rest alone.
+SDK_VERSION_linux="0.3.1"
 SDK_VERSION_macos="0.3.1"
 SDK_VERSION_windows="0.3.1"
 
 # The release THIS FILE ships on, which is a separate question -- the tool is one
 # asset on one release, whatever mix of bundles that release reissued. It names
-# the tool's own download URL and nothing else, so on Linux today the two differ:
-# the tool comes from sdk-v0.3.1 and the bundle it fetches from sdk-v0.3.0.
+# the tool's own download URL and nothing else. The two agree while the table is
+# uniform; the moment a platform is left behind they do not, and the generated
+# project README would otherwise tell that platform's users to fetch
+# starling-create from an older tag, meaning an older copy of this file.
 TOOL_VERSION="0.3.1"
 TOOL_BASE_URL="$REL_URL/sdk-v$TOOL_VERSION"
 SDK_URL="${STARLING_SDK_URL:-}"
