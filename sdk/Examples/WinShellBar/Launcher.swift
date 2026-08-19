@@ -18,6 +18,7 @@ import Flutter
 import FlutterSwiftBridge
 import FlutterWin32
 import FlutterWin32Bridge
+import Observation
 import Foundation
 
 let kLauncherIcon = 56.0
@@ -26,134 +27,120 @@ let kLauncherCell = 132.0
 /// column is not flush against the screen edge.
 let kLauncherMargin = 80.0
 
-/// Everything the launcher needs, prepared while nobody is waiting for it.
-///
-/// This exists because the obvious place to do it -- the state's `initState`
-/// -- turned out not to run until the launcher was first SHOWN, which is the
-/// one moment it must not be doing 500ms of work.
-///
-/// The overlay parks as a 1x1 window rather than hiding, on the theory that a
-/// window which is genuinely on screen keeps being sent frames, so the tree
-/// mounts at startup and stands ready. Measured on a real GPU, that is not
-/// what happens: a launcher parked for 54 SECONDS had still never built its
-/// tree, and `initState` ran for the first time on the toggle -- 158ms
-/// walking the Start Menu through COM and 354ms rasterizing 79 icons, with
-/// the user watching a blank screen for every millisecond of it. (In a
-/// session with no GPU, where everything falls back to software, it does
-/// mount at startup, which is how the theory survived this long.)
-///
-/// So the work is hung off PROCESS start instead of off the widget lifecycle,
-/// where it does not depend on anything being composited:
-///
-///   - the catalog on its own thread, because it is pure Win32 and COM is
-///     initialized per call, so its ~158ms overlaps engine creation and costs
-///     nothing at all;
-///   - the icons on the main queue, which the host drains from its message
-///     loop, because registering a texture needs the engine to exist.
-///
-/// The tree still mounts on first show. It just has nothing left to do by
-/// then except lay out and paint.
-final class LauncherPreload {
-    static let shared = LauncherPreload()
+/// The single source of truth for the launcher.
+struct LauncherState {
+    /// Everything installed, from the Start Menu.
+    var apps: [Win32App] = []
+    /// Whether the walk has finished. Until it has the UI says so, rather
+    /// than showing an empty grid that reads as "you have no apps".
+    var catalogReady = false
+    /// The search box's text.
+    var query = ""
+    /// Which page of the grid is showing.
+    var page = 0
+    /// Bumped when an icon texture lands — see DockState.iconRevision.
+    var iconRevision = 0
+}
 
-    let icons = IconCache()
-    private let lock = NSLock()
-    private var loadedApps: [Win32App] = []
-    private var loaded = false
+/// The launcher's state, and everything slow that produces it.
+///
+/// Same shape as the dock's — see DockBloc for the reasoning. What is specific
+/// here is WHEN the work happens: the obvious home for it, the state's
+/// `initState`, does not run until the launcher is first SHOWN, because a
+/// parked overlay is not sent frames and this framework builds its tree on the
+/// first frame request. Measured, that meant 158ms of Start Menu walking and
+/// 354ms of icon rasterizing on the keypress that asked for the launcher.
+///
+/// So it hangs off PROCESS start instead — `add(.start)` from main.swift —
+/// where nothing is waiting on it.
+@Observable
+final class LauncherBloc: @unchecked Sendable {
 
-    /// Called on the main thread when the catalog lands, so a launcher that
-    /// mounted first stops showing its loading state. Usually the catalog wins
-    /// the race — it finishes around 200ms and the tree mounts around 340ms —
-    /// but "usually" is not something to leave a permanent spinner on.
-    var onCatalogReady: (() -> Void)?
+    enum Event {
+        /// Begin loading. Sent from main.swift, before the tree exists.
+        case start
+        case search(String)
+        case goToPage(Int)
+        case launch(Win32App)
+        /// The launcher was just shown: open on a clean query.
+        case opened
 
-    /// Whether the Start Menu walk has finished. The UI shows a loading state
-    /// until it has, rather than an empty grid or a blocked thread.
-    var catalogReady: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return loaded
+        // Completions.
+        case catalogLoaded([Win32App])
+        case iconsChanged
     }
 
-    var apps: [Win32App] {
-        lock.lock()
-        defer { lock.unlock() }
-        return loadedApps
-    }
+    private(set) var state = LauncherState()
 
-    /// Call once, before `runStarlingApp`.
-    func begin() {
-        flwin32_trace("preload: catalog thread starting")
-        Thread.detachNewThread {
-            let found = Win32AppCatalog.apps()
-            self.lock.lock()
-            self.loadedApps = found
-            self.loaded = true
-            self.lock.unlock()
-            flwin32_trace("preload: catalog done (background)")
-            DispatchQueue.main.async { self.onCatalogReady?() }
+    @ObservationIgnored let icons = IconCache()
+
+    func add(_ event: Event) {
+        switch event {
+        case .start:
+            _start()
+        case .search(let text):
+            state.query = text
+            // Back to page one on every keystroke: the results changed
+            // underneath, so the page number is about a list that no longer
+            // exists.
+            state.page = 0
+        case .goToPage(let page):
+            state.page = page
+        case .opened:
+            // Always open on an empty query: a launcher that remembers the
+            // last search is one that shows you the wrong four apps every
+            // time you open it.
+            state.query = ""
+            state.page = 0
+        case .launch(let app):
+            // Off the UI thread: the fast path is 8ms but the `.lnk` fallback
+            // measured 484ms, and this thread has frames to draw.
+            Task.detached { Win32AppCatalog.launch(app) }
+        case .catalogLoaded(let apps):
+            state.apps = apps
+            state.catalogReady = true
+            print("[WinShellLauncher] \(apps.count) apps")
+            _warmIcons(apps)
+        case .iconsChanged:
+            state.iconRevision &+= 1
         }
-        DispatchQueue.main.async { self.warmIcons() }
     }
 
-    /// Rasterize and register every icon up front. Re-queues itself if the
-    /// catalog thread has not finished: the message loop starts about 330ms
-    /// in and the catalog takes about 158ms, so this is nearly always ready
-    /// on the first attempt -- but "nearly" is not a thing to build on.
-    private func warmIcons() {
-        lock.lock()
-        let ready = loaded
-        let list = loadedApps
-        lock.unlock()
-        guard ready else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { self.warmIcons() }
-            return
+    private func _start() {
+        icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
+        // Its own thread, because COM is initialized per call in
+        // flwin32_apps.c and this overlaps engine creation, so its ~175ms
+        // costs nothing at all.
+        Task.detached { [weak self] in
+            let apps = Win32AppCatalog.apps()
+            await MainActor.run { self?.add(.catalogLoaded(apps)) }
         }
-        for app in list { icons.ensure(app: app, size: 64) }
-        flwin32_trace("preload: icons dispatched")
+    }
+
+    /// Rasterize every icon up front. They go through IconCache's own serial
+    /// queue — asking the shell for a few hundred icons at once makes it
+    /// refuse some of them.
+    private func _warmIcons(_ apps: [Win32App]) {
+        for app in apps { icons.ensure(app: app, size: 64) }
     }
 }
+
+/// The launcher's bloc. One surface per process, so one instance.
+let launcherBloc = LauncherBloc()
 
 final class StarlingLauncher: StatefulWidget {
     override func createState() -> State<StatefulWidget> { StarlingLauncherState() }
 }
 
 final class StarlingLauncherState: State<StatefulWidget> {
-    private let icons = LauncherPreload.shared.icons
-    private var apps: [Win32App] = []
-    private var query = ""
+    private let bloc = launcherBloc
+    /// View state: the text field's own controller. Everything else the
+    /// launcher draws comes from `bloc.state`.
     private let search = TextEditingController()
-    /// Which page of the grid is showing. The grid is a fixed number of rows
-    /// — six — and everything past that used to simply not exist, so on a
-    /// machine with three hundred apps you could only reach the first
-    /// forty-two without typing.
-    private var page = 0
 
     override func initState() {
         super.initState()
-        flwin32_trace("launcher initState: begin")
         CupertinoIcons.registerFont()
-        // Both of these were built here and are now built at process start;
-        // see LauncherPreload for what that cost when it happened on the
-        // first keypress instead.
-        apps = LauncherPreload.shared.apps
-        // Icons are rasterized off the UI thread, so they land AFTER this
-        // build. Without this the grid keeps whatever it drew first — which
-        // is the fallback glyph for every icon that was not ready yet, and
-        // that is most of them.
-        icons.onTextureReady = { [weak self] in
-            guard let self else { return }
-            setState {}
-        }
-        LauncherPreload.shared.onCatalogReady = { [weak self] in
-            guard let self else { return }
-            setState { self.apps = LauncherPreload.shared.apps }
-        }
-        print("[WinShellLauncher] \(apps.count) apps")
-        // The icons are already rasterized and registered — LauncherPreload
-        // did it at process start. This catches anything installed since.
-        for app in apps { icons.ensure(app: app, size: 64) }
-        flwin32_trace("launcher initState: done")
 
         // A notification, not a request: the HOST does the showing, because
         // while this overlay is hidden there is no tree to ask — a hidden
@@ -166,9 +153,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
     }
 
     override func dispose() {
-        // NOT icons.releaseAll(): the cache belongs to LauncherPreload and
-        // outlives this state, so releasing here would throw away the very
-        // thing that was prepared at startup.
+        // NOT icons.releaseAll(): the cache belongs to the bloc and outlives
+        // this state, so releasing here would throw away the very thing that
+        // was prepared at process start.
         super.dispose()
     }
 
@@ -176,29 +163,20 @@ final class StarlingLauncherState: State<StatefulWidget> {
 
     private func didToggle() {
         guard Win32WindowedHost.host?.isVisible == true else { return }
-        // Always open on an empty query: a launcher that remembers the last
-        // search is a launcher that shows you the wrong four apps every time
-        // you open it.
-        setState {
-            self.query = ""
-            self.search.text = ""
-            self.page = 0
-        }
+        search.text = ""
+        bloc.add(.opened)
     }
 
     private func launch(_ app: Win32App) {
-        flwin32_trace("launcher: launch tapped")
         // HIDE FIRST. Starting an app is not instant even on the fast path,
         // and it is a synchronous shell call on this thread — so launching
         // first left the launcher sitting on screen, frozen, until it
         // returned. Getting out of the way is the part the user is waiting
         // for; the app arriving is the part they expect to take a moment.
+        // HIDE FIRST. Getting out of the way is the part the user is waiting
+        // for; the app arriving is the part they expect to take a moment.
         Win32WindowedHost.host?.setVisible(false)
-        flwin32_trace("launcher: hidden")
-        // Off the UI thread: the fast path is 8ms but the `.lnk` fallback
-        // measured 484ms, and this thread has frames to draw.
-        StarlingDockState.launchOffThread(app)
-        flwin32_trace("launcher: launch dispatched")
+        bloc.add(.launch(app))
     }
 
     // MARK: - Model
@@ -235,9 +213,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
     }
 
     private var matches: [Win32App] {
-        guard !query.isEmpty else { return apps }
-        let needle = query.lowercased()
-        let hits = apps.filter { $0.name.lowercased().contains(needle) }
+        guard !bloc.state.query.isEmpty else { return bloc.state.apps }
+        let needle = bloc.state.query.lowercased()
+        let hits = bloc.state.apps.filter { $0.name.lowercased().contains(needle) }
         return hits.sorted { a, b in
             let aStarts = a.name.lowercased().hasPrefix(needle)
             let bStarts = b.name.lowercased().hasPrefix(needle)
@@ -253,7 +231,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
             onTap: { self.launch(app) },
             child: SizedBox(width: kLauncherCell, height: kLauncherCell) {
                 Column(mainAxisAlignment: .center, crossAxisAlignment: .center) {
-                    if let icon = icons.view(IconCache.key(for: app), side: kLauncherIcon) {
+                    if let icon = bloc.icons.view(IconCache.key(for: app), side: kLauncherIcon) {
                         icon
                     } else {
                         SizedBox(width: kLauncherIcon, height: kLauncherIcon) {
@@ -285,7 +263,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // would otherwise give a ragged grid.
         ShellScreen.refresh()
         let columns = columnsPerPage
-        let start = min(page * perPage, max(0, list.count - 1))
+        let start = min(bloc.state.page * perPage, max(0, list.count - 1))
         let end = min(start + perPage, list.count)
         var rows: [Widget] = []
         var index = start
@@ -304,7 +282,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
         return GestureDetector(
             onTap: {
                 guard enabled else { return }
-                self.setState { self.page = wanted }
+                self.bloc.add(.goToPage(wanted))
             },
             child: SizedBox(width: 26, height: 26) {
                 Center {
@@ -337,6 +315,18 @@ final class StarlingLauncherState: State<StatefulWidget> {
             tracedFirstBuild = true
             flwin32_trace("launcher: first build()")
         }
+        // Every `bloc.state` read below is registered here, so the catalog
+        // landing and each icon texture arriving rebuild the grid without the
+        // widget having to know which of them happened.
+        return withObservationTracking {
+            _buildContent()
+        } onChange: { [weak self] in
+            guard let self, self.mounted else { return }
+            self.setState {}
+        }
+    }
+
+    private func _buildContent() -> Widget {
         let list = matches
         return Directionality(
             textDirection: .ltr,
@@ -349,9 +339,10 @@ final class StarlingLauncherState: State<StatefulWidget> {
                 onPointerSignal: { event in
                     guard let scroll = event as? PointerScrollEvent else { return }
                     let step = scroll.scrollDelta.dy > 0 ? 1 : -1
-                    let wanted = max(0, min(self.pageCount - 1, self.page + step))
-                    guard wanted != self.page else { return }
-                    self.setState { self.page = wanted }
+                    let wanted = max(0, min(self.pageCount - 1,
+                                            self.bloc.state.page + step))
+                    guard wanted != self.bloc.state.page else { return }
+                    self.bloc.add(.goToPage(wanted))
                 },
                 child: ColoredBox(color: Color(0xFF14161A)) {
                 Column(mainAxisAlignment: .center, crossAxisAlignment: .center) {
@@ -364,10 +355,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                                 // results changed underneath, so the page
                                 // number is about a list that no longer
                                 // exists.
-                                self.setState {
-                                    self.query = text
-                                    self.page = 0
-                                }
+                                self.bloc.add(.search(text))
                             },
                             onSubmitted: { _ in
                                 if let first = self.matches.first { self.launch(first) }
@@ -382,7 +370,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // An empty grid reads as "you have no apps"; this reads as
                     // what it is. The alternative, blocking until the catalog
                     // is ready, is the thing this whole change exists to stop.
-                    if !LauncherPreload.shared.catalogReady {
+                    if !bloc.state.catalogReady {
                         loading()
                     } else {
                         grid(list)
@@ -393,14 +381,14 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // and taps are the one pointer route this framework
                     // delivers without argument.
                     Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 14) {
-                        if pageCount > 1 { pageButton("‹", to: page - 1) }
-                        Text(!LauncherPreload.shared.catalogReady ? "Loading apps"
-                                : list.isEmpty ? "No apps match \"\(query)\""
+                        if pageCount > 1 { pageButton("‹", to: bloc.state.page - 1) }
+                        Text(!bloc.state.catalogReady ? "Loading bloc.state.apps"
+                                : list.isEmpty ? "No bloc.state.apps match \"\(bloc.state.query)\""
                                 : pageCount > 1
-                                    ? "\(list.count) apps  ·  page \(page + 1) of \(pageCount)"
-                                    : "\(list.count) apps",
+                                    ? "\(list.count) bloc.state.apps  ·  bloc.state.page \(bloc.state.page + 1) of \(pageCount)"
+                                    : "\(list.count) bloc.state.apps",
                              style: TextStyle(color: Color(0xFF6E7683), fontSize: 12))
-                        if pageCount > 1 { pageButton("›", to: page + 1) }
+                        if pageCount > 1 { pageButton("›", to: bloc.state.page + 1) }
                     }
                 }
             }))

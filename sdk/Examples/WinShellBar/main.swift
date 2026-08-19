@@ -122,7 +122,7 @@ if wantsLauncher {
     // lifecycle: a parked overlay is not sent frames, so its tree does not
     // mount until it is first shown, and everything initState did was landing
     // on the keypress that asked for it. See LauncherPreload.
-    LauncherPreload.shared.begin()
+    launcherBloc.add(.start)
     runStarlingApp(title: "Starling Launcher",
                    width: Int(screen?.width ?? 1280),
                    height: Int(screen?.height ?? 800)) {

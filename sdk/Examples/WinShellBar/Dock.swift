@@ -40,6 +40,7 @@ import Flutter
 import FlutterSwiftBridge
 import FlutterWin32
 import FlutterWin32Bridge
+import Observation
 import Foundation
 
 /// Bar height in logical points, and the icon size inside it.
@@ -127,157 +128,46 @@ final class StarlingDock: StatefulWidget {
 }
 
 final class StarlingDockState: State<StatefulWidget> {
-    private let icons = IconCache()
-    private var items: [DockItem] = []
-    /// The Start Menu, read once. It is a few hundred COM round trips, so it
-    /// is not something to redo on a window opening; an app installed while
-    /// the dock runs appears at the next explicit rescan.
-    private var catalog: [Win32App] = []
-    private var refreshQueued = false
+    /// Everything the dock DRAWS comes from here — see DockBloc for why the
+    /// data and all the slow work that produces it live outside the widget.
+    private let bloc = dockBloc
 
-    /// Pinned apps, by the same key the icon cache uses, in the order the
-    /// user put them. Persisted — a dock that forgets what you pinned every
-    /// time you log out is a dock you stop pinning things to.
-    private var pins: [String] = []
-    /// Which tile the pointer is over, and which one has a menu open. Index
-    /// into `items`, or nil.
+    // What is left is view state: it is about this frame's pointer, it changes
+    // on every mouse move, and routing it through the bloc would be a round
+    // trip per motion event for something no other surface can see.
+
+    /// The tile the pointer is over, if any.
     private var hovered: Int?
+    /// The tile whose right-click menu is open, if any.
     private var menuOpen: Int?
-
-    // The clock and the status cluster, which used to live on the menu bar.
-    // Polled on one timer rather than subscribed: each of the three has its
-    // own notification mechanism, they deliver on three different threads,
-    // and a status readout that updates a second late is indistinguishable
-    // from one that does not.
-    private var now = Date()
-    private var timer: AnyObject?
-    private var network = Win32Network(kind: .none, signal: 0, ssid: "")
-    private var power = Win32Power(hasBattery: false, percent: nil, isCharging: true)
-    private var volume: Win32Volume?
-    /// Set from the control centre: while it is on, the re-assert below stands
-    /// down so "Show Windows Taskbar" stays shown.
-    private var nativeTaskbarWanted = false
-
     /// Whether the control centre is down, and whether the pointer is
     /// currently dragging its volume slider.
     private var controlCentreOpen = false
     private var draggingVolume = false
-    private var darkMode = Win32Control.isDarkMode
-    /// Set by the Wi-Fi tile so the panel answers the click immediately —
-    /// the radio takes a moment to settle and the next poll is a second
-    /// away, which without this reads as a dead button.
-    private var wifiWanted: Bool?
-    /// Whether `pins` holds real values yet — false until either the file was
-    /// read or the catalog arrived and the defaults were resolved against it.
-    private var pinsAreSeeded = false
+
+    private var timer: AnyObject?
 
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
-        if let stored = loadPins() {
-            pins = stored
-            pinsAreSeeded = true
+        bloc.add(.start)
+        Win32WindowManager.observe { [weak self] _ in
+            self?.bloc.add(.windowsChanged)
         }
-        icons.onTextureReady = { [weak self] in
-            guard let self else { return }
-            setState {}
-        }
-        // The Start Menu walk is a few hundred .lnk files through COM, and on
-        // this thread it measured 1408ms — a dock that is not on screen for a
-        // second and a half after login. Off it goes; the dock draws its
-        // running windows meanwhile and gains the pinned apps when it lands.
-        flwin32_trace("dock initState: catalog dispatched")
-        Task.detached {
-            let apps = Win32AppCatalog.apps()
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                flwin32_trace("dock: catalog arrived")
-                setState {
-                    self.catalog = apps
-                    // The defaults could not be resolved before this point —
-                    // they are looked up BY NAME in the catalog.
-                    if !self.pinsAreSeeded {
-                        self.pins = self.defaultPins()
-                        self.pinsAreSeeded = true
-                    }
-                    print("[WinShellDock] \(apps.count) apps in the Start Menu, \(self.pins.count) pinned")
-                    self.rebuild()
-                }
-            }
-        }
-        rebuild()
-        readStatus()
-        Win32WindowManager.observe { [weak self] _ in self?.queueRefresh() }
 
         // Through hostPeriodicTimerInstall rather than Foundation.Timer: on
         // the DRM embedder a Foundation timer never fires at all (see the
         // desktop's CLAUDE.md), and going through the host keeps every
         // backend honest about which loop the UI thread is really running.
         timer = startPeriodicTimer(seconds: 1.0) { [weak self] in
-            guard let self else { return }
-            // Explorer puts its taskbar back on its own — a display change, a
-            // Settings round-trip, or explorer restarting after a crash all
-            // do it, and none of them tell us. The EVENT_OBJECT_SHOW hook
-            // catches the fast case; this catches a new explorer pid.
-            flwin32_trace("dock tick: begin")
-            if !keepsNativeTaskbar && !self.nativeTaskbarWanted
-                && Win32Shell.nativeTaskbarIsVisible {
-                Win32Shell.hideNativeTaskbar()
-            }
-            flwin32_trace("dock tick: taskbar check done")
-            setState {
-                self.now = Date()
-                self.readStatus()
-            }
-            flwin32_trace("dock tick: end")
+            self?.bloc.add(.tick)
         }
     }
 
     override func dispose() {
         Win32WindowManager.stopObserving()
-        icons.releaseAll()
+        
         super.dispose()
-    }
-
-    /// Reads the system status OFF the UI thread and publishes it back.
-    ///
-    /// Small here — 4-9ms a tick on this machine — but it is COM and it is the
-    /// WLAN API, on a timer, on the thread that draws. On a machine with a
-    /// wireless adapter `WlanQueryInterface` is not bounded by anything we
-    /// control, and a dock that stutters once a second is the result.
-    private func readStatus() {
-        Task.detached {
-            flwin32_trace("dock readStatus: begin (off thread)")
-            let network = Win32Status.network()
-            let power = Win32Status.power()
-            let volume = Win32Status.volume()
-            // Read rather than remembered: the user can change the theme in
-            // Windows' own Settings and the tile has to follow. A registry
-            // read, so it belongs on this side of the line too.
-            let dark = Win32Control.isDarkMode
-            flwin32_trace("dock readStatus: done (off thread)")
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                setState {
-                    self.applyStatus(network: network, power: power,
-                                     volume: volume, dark: dark)
-                }
-            }
-        }
-    }
-
-    private func applyStatus(network: Win32Network,
-                             power: Win32Power,
-                             volume: Win32Volume?,
-                             dark: Bool) {
-        self.network = network
-        self.power = power
-        self.volume = volume
-        self.darkMode = dark
-        // The poll is the truth. Drop the optimistic Wi-Fi answer as soon as
-        // it agrees, so a radio that refused the change corrects itself
-        // instead of leaving the tile lying about it.
-        if let wanted = wifiWanted, (network.kind == .wifi) == wanted { wifiWanted = nil }
     }
 
     // MARK: - Pins, on disk
@@ -291,134 +181,9 @@ final class StarlingDockState: State<StatefulWidget> {
         return base + "\\Starling\\dock.txt"
     }
 
-    /// The stored pins, or nil when there is no file yet.
-    ///
-    /// Nil rather than "the defaults", because the defaults are resolved
-    /// against the CATALOG — and the catalog is now read off the UI thread and
-    /// arrives after this runs. Returning the defaults here would resolve them
-    /// against an empty catalog and seed nothing at all, which is a dock with
-    /// no icons on a new machine and no clue why.
-    private func loadPins() -> [String]? {
-        guard let text = try? String(contentsOfFile: pinsPath, encoding: .utf8) else {
-            return nil
-        }
-        return text.split(whereSeparator: { $0 == "\r\n" || $0 == "\n" })
-            .map(String.init)
-            .filter { !$0.isEmpty }
-    }
-
-    /// First run: what to pin, resolved against what is actually installed, so
-    /// the dock is never empty on a new machine. Needs the catalog, so it is
-    /// called when the catalog lands.
-    private func defaultPins() -> [String] {
-        kDefaultPins.compactMap { wanted in
-            catalog.first(where: { $0.name.lowercased().contains(wanted) })
-                .map { IconCache.key(for: $0) }
-        }
-    }
-
-    private func savePins() {
-        let directory = (pinsPath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(
-            atPath: directory, withIntermediateDirectories: true)
-        try? pins.joined(separator: "\r\n").write(
-            toFile: pinsPath, atomically: true, encoding: .utf8)
-    }
-
     // MARK: - Model
 
-    private func queueRefresh() {
-        guard !refreshQueued else { return }
-        refreshQueued = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            refreshQueued = false
-            setState { self.rebuild() }
-        }
-    }
-
-    /// Pinned apps first, in the order the user pinned them, then whatever
-    /// else is running. Deliberately stable: an entry must not move out from
-    /// under the pointer when an unrelated window opens.
-    private func rebuild() {
-        flwin32_trace("dock rebuild: begin")
-        let windows = Win32WindowManager.windows()
-        flwin32_trace("dock rebuild: window enumeration done")
-        var byExe: [String: [Win32Window]] = [:]
-        for window in windows {
-            byExe[IconCache.key(for: window), default: []].append(window)
-        }
-
-        var built: [DockItem] = []
-        var claimed: Set<String> = []
-
-        for key in pins {
-            guard !claimed.contains(key) else { continue }
-            claimed.insert(key)
-            let app = catalog.first(where: { IconCache.key(for: $0) == key })
-            let windows = byExe[key] ?? []
-            // A pin whose app is neither installed nor running is a stale
-            // entry — usually an app that was uninstalled. Keep it out of the
-            // dock rather than drawing a permanent blank tile.
-            guard app != nil || !windows.isEmpty else { continue }
-            built.append(DockItem(key: key, name: app?.name ?? windows[0].appName,
-                                  app: app, windows: windows, isPinned: true))
-        }
-
-        for window in windows {
-            let key = IconCache.key(for: window)
-            guard !claimed.contains(key) else { continue }
-            claimed.insert(key)
-            let app = catalog.first(where: { IconCache.key(for: $0) == key })
-            built.append(DockItem(key: key, name: app?.name ?? window.appName,
-                                  app: app, windows: byExe[key] ?? [],
-                                  isPinned: false))
-        }
-
-        // A running app's own window icon beats the Start Menu's: a browser's
-        // window icon is the profile or the site, which is what the user is
-        // actually looking at.
-        for item in built {
-            if let window = item.windows.first {
-                icons.ensure(window: window, size: 48)
-            } else if let app = item.app {
-                icons.ensure(app: app)
-            }
-        }
-        flwin32_trace("dock rebuild: icons done")
-        icons.retain(only: claimed)
-        items = [DockItem(key: kLauncherKey, name: "Launcher", app: nil,
-                          windows: [], isPinned: true)] + built
-        if let open = menuOpen, open >= items.count { menuOpen = nil }
-        if let over = hovered, over >= items.count { hovered = nil }
-    }
-
     // MARK: - Actions
-
-    /// The dock's whole interaction model, in one place. Not running: start
-    /// it. Running but not focused: raise it. Focused: put it away — which is
-    /// what a dock icon does everywhere else and is the reason a dock is
-    /// faster than Alt+Tab for the app you keep coming back to.
-    private func activate(_ item: DockItem) {
-        menuOpen = nil
-        // The launcher is a different PROCESS — one widget root per process —
-        // so pressing it is a broadcast, not a call.
-        guard item.key != kLauncherKey else {
-            Win32Shell.toggleOverlay()
-            return
-        }
-        guard let window = item.windows.first(where: { $0.isForeground })
-                ?? item.windows.first else {
-            if let app = item.app { Self.launchOffThread(app) }
-            return
-        }
-        if window.isForeground {
-            Win32WindowManager.minimize(window.handle)
-        } else {
-            Win32WindowManager.activate(window.handle)
-        }
-        queueRefresh()
-    }
 
     /// Starts an app without holding the UI thread.
     ///
@@ -427,25 +192,6 @@ final class StarlingDockState: State<StatefulWidget> {
     /// the click that starts an app is the worst possible moment for it.
     static func launchOffThread(_ app: Win32App) {
         Task.detached { Win32AppCatalog.launch(app) }
-    }
-
-    private func togglePin(_ item: DockItem) {
-        if let at = pins.firstIndex(of: item.key) {
-            pins.remove(at: at)
-        } else {
-            pins.append(item.key)
-        }
-        savePins()
-        setState {
-            self.menuOpen = nil
-            self.rebuild()
-        }
-    }
-
-    private func closeAll(_ item: DockItem) {
-        for window in item.windows { Win32WindowManager.close(window.handle) }
-        setState { self.menuOpen = nil }
-        queueRefresh()
     }
 
     // MARK: - The control centre
@@ -523,30 +269,19 @@ final class StarlingDockState: State<StatefulWidget> {
     private func ccTapped(_ index: Int) {
         switch index {
         case 0:
-            let on = !wifiIsOn
-            // Optimistic, then corrected by the next poll — see wifiWanted.
-            wifiWanted = on
-            if !Win32Control.setWifiRadio(on) { wifiWanted = nil }
+            bloc.add(.toggleWifi)
         case 1:
-            let muted = !(volume?.isMuted ?? false)
-            Win32Control.setMuted(muted)
-            volume = Win32Volume(percent: volume?.percent ?? 0, isMuted: muted)
+            bloc.add(.toggleMute)
         default:
-            darkMode.toggle()
-            Win32Control.setDarkMode(darkMode)
+            bloc.add(.toggleDarkMode)
         }
     }
-
-    /// What the Wi-Fi tile should show. The poll is the truth; `wifiWanted`
-    /// covers the second between the click and the radio settling.
-    private var wifiIsOn: Bool { wifiWanted ?? (network.kind == .wifi) }
 
     private func ccSetVolumeFrom(_ x: Double) {
         let track = ccRects().slider
         let fraction = min(1, max(0, (x - track.x) / track.w))
         let percent = Int((fraction * 100).rounded())
-        volume = Win32Volume(percent: percent, isMuted: percent == 0)
-        Win32Control.setVolume(percent)
+        bloc.add(.setVolume(percent))
     }
 
     private func ccTile(_ index: Int, icon: IconData, label: String,
@@ -585,14 +320,14 @@ final class StarlingDockState: State<StatefulWidget> {
     /// the hit test can see it.
     private func ccSlider() -> Widget {
         let rect = ccRects().slider
-        let percent = Double(volume?.percent ?? 0)
+        let percent = Double(bloc.state.volume?.percent ?? 0)
         let fraction = min(1, max(0, percent / 100))
         let knob = (rect.w - 14) * fraction
         return Positioned(left: kCcPad, top: rect.y - ccFrame.y) {
             SizedBox(width: kCcWidth - kCcPad * 2, height: rect.h) {
                 Stack(alignment: Alignment.centerLeft) {
                     Align(alignment: Alignment.centerLeft) {
-                        MacosIcon(icon: (volume?.isMuted ?? false)
+                        MacosIcon(icon: (bloc.state.volume?.isMuted ?? false)
                                       ? CupertinoIcons.speaker_slash
                                       : CupertinoIcons.speaker_2,
                                   color: Color(0xFFD5DAE3), size: 16)
@@ -629,7 +364,7 @@ final class StarlingDockState: State<StatefulWidget> {
                                 MacosIcon(icon: CupertinoIcons.rectangle_grid_2x2,
                                           color: Color(0xFFD5DAE3), size: 15)
                                 Expanded {
-                                    Text(nativeTaskbarWanted
+                                    Text(bloc.state.nativeTaskbarWanted
                                              ? "Hide the Windows taskbar"
                                              : "Show the Windows taskbar",
                                          style: TextStyle(color: Color(0xFFD5DAE3), fontSize: 12),
@@ -659,13 +394,8 @@ final class StarlingDockState: State<StatefulWidget> {
         }
         if rects.row.contains(x, y) {
             setState {
-                nativeTaskbarWanted.toggle()
+                bloc.add(.setNativeTaskbar(!bloc.state.nativeTaskbarWanted))
                 controlCentreOpen = false
-            }
-            if nativeTaskbarWanted {
-                Win32Shell.showNativeTaskbar()
-            } else {
-                Win32Shell.hideNativeTaskbar()
             }
             return true
         }
@@ -690,21 +420,21 @@ final class StarlingDockState: State<StatefulWidget> {
                     ColoredBox(color: Color(0xF41F2229)) {
                         Stack(alignment: Alignment.topLeft) {
                             ccTile(0,
-                                   icon: wifiIsOn ? CupertinoIcons.wifi : CupertinoIcons.wifi_slash,
-                                   label: network.kind == .ethernet && wifiWanted == nil
-                                       ? "Ethernet" : (wifiIsOn ? "Wi-Fi" : "Wi-Fi off"),
-                                   active: wifiIsOn || network.kind == .ethernet,
+                                   icon: bloc.state.wifiIsOn ? CupertinoIcons.wifi : CupertinoIcons.wifi_slash,
+                                   label: bloc.state.network.kind == .ethernet && bloc.state.wifiWanted == nil
+                                       ? "Ethernet" : (bloc.state.wifiIsOn ? "Wi-Fi" : "Wi-Fi off"),
+                                   active: bloc.state.wifiIsOn || bloc.state.network.kind == .ethernet,
                                    // No radio to switch: the tile says so
                                    // rather than pretending to be off.
-                                   available: network.kind == .wifi || wifiWanted != nil)
+                                   available: bloc.state.network.kind == .wifi || bloc.state.wifiWanted != nil)
                             ccTile(1,
-                                   icon: (volume?.isMuted ?? false)
+                                   icon: (bloc.state.volume?.isMuted ?? false)
                                        ? CupertinoIcons.speaker_slash : CupertinoIcons.speaker_2,
-                                   label: (volume?.isMuted ?? false) ? "Muted" : "Sound",
-                                   active: !(volume?.isMuted ?? false),
-                                   available: volume != nil)
+                                   label: (bloc.state.volume?.isMuted ?? false) ? "Muted" : "Sound",
+                                   active: !(bloc.state.volume?.isMuted ?? false),
+                                   available: bloc.state.volume != nil)
                             ccTile(2, icon: CupertinoIcons.moon_fill, label: "Dark Mode",
-                                   active: darkMode)
+                                   active: bloc.state.darkMode)
                             ccSlider()
                             ccBottomRow()
                         }
@@ -724,7 +454,7 @@ final class StarlingDockState: State<StatefulWidget> {
     private func clockText() -> String {
         let f = DateFormatter()
         f.dateFormat = "h:mm  EEE d MMM"
-        return f.string(from: now)
+        return f.string(from: bloc.state.now)
     }
 
     /// Wi-Fi with a slash when nothing is connected, and the aerial glyph for
@@ -735,7 +465,7 @@ final class StarlingDockState: State<StatefulWidget> {
     private func networkIcon() -> Widget {
         let icon: IconData
         let colour: Color
-        switch network.kind {
+        switch bloc.state.network.kind {
         case .none:
             icon = CupertinoIcons.wifi_slash
             colour = Color(0xFF6E7683)
@@ -744,14 +474,14 @@ final class StarlingDockState: State<StatefulWidget> {
             colour = Color(0xFFD5DAE3)
         case .wifi:
             icon = CupertinoIcons.wifi
-            colour = network.signal >= 60 ? Color(0xFFD5DAE3)
-                : network.signal >= 30 ? Color(0xFFB0B7C3) : Color(0xFF7F8794)
+            colour = bloc.state.network.signal >= 60 ? Color(0xFFD5DAE3)
+                : bloc.state.network.signal >= 30 ? Color(0xFFB0B7C3) : Color(0xFF7F8794)
         }
         return MacosIcon(icon: icon, color: colour, size: 15)
     }
 
     private func volumeIcon() -> Widget? {
-        guard let volume else { return nil }
+        guard let volume = bloc.state.volume else { return nil }
         let icon: IconData = volume.isMuted ? CupertinoIcons.speaker_slash
             : volume.percent == 0 ? CupertinoIcons.speaker
             : volume.percent < 34 ? CupertinoIcons.speaker_1
@@ -765,18 +495,18 @@ final class StarlingDockState: State<StatefulWidget> {
     /// Nothing at all on a desktop. An empty battery outline on a machine
     /// with no battery is worse than no icon: it reads as "flat".
     private func batteryWidgets() -> [Widget] {
-        guard power.hasBattery else { return [] }
-        let icon: IconData = power.isCharging ? CupertinoIcons.battery_charging
-            : (power.percent ?? 100) <= 10 ? CupertinoIcons.battery_empty
-            : (power.percent ?? 100) <= 40 ? CupertinoIcons.battery_25
+        guard bloc.state.power.hasBattery else { return [] }
+        let icon: IconData = bloc.state.power.isCharging ? CupertinoIcons.battery_charging
+            : (bloc.state.power.percent ?? 100) <= 10 ? CupertinoIcons.battery_empty
+            : (bloc.state.power.percent ?? 100) <= 40 ? CupertinoIcons.battery_25
             : CupertinoIcons.battery_full
         var out: [Widget] = [
             MacosIcon(icon: icon,
-                      color: (power.percent ?? 100) <= 10 && !power.isCharging
+                      color: (bloc.state.power.percent ?? 100) <= 10 && !bloc.state.power.isCharging
                           ? Color(0xFFFF6B6B) : Color(0xFFD5DAE3),
                       size: 17)
         ]
-        if let percent = power.percent {
+        if let percent = bloc.state.power.percent {
             out.append(Text("\(percent)%",
                             style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12)))
         }
@@ -819,7 +549,7 @@ final class StarlingDockState: State<StatefulWidget> {
     /// tile is a fixed size and the row is centred, so doing it here costs
     /// four lines and no layout query.
     private func pointerTile(_ x: Double, _ y: Double) -> Int? {
-        guard !items.isEmpty else { return nil }
+        guard !bloc.state.items.isEmpty else { return nil }
         // The strip is the bottom kDockHeight of the window; everything above
         // it is the overhang, which is a hole.
         let stripTop = Double(kDockOverhang)
@@ -827,7 +557,7 @@ final class StarlingDockState: State<StatefulWidget> {
 
         let left = rowLeft()
         let index = Int((x - left) / kDockTile)
-        guard x >= left, index >= 0, index < items.count else { return nil }
+        guard x >= left, index >= 0, index < bloc.state.items.count else { return nil }
         return index
     }
 
@@ -838,7 +568,7 @@ final class StarlingDockState: State<StatefulWidget> {
     /// change — the host re-places the strip on WM_DISPLAYCHANGE and the
     /// icons have to be centred on the new one.
     private func rowLeft() -> Double {
-        (ShellScreen.logicalWidth - Double(items.count) * kDockTile) / 2
+        (ShellScreen.logicalWidth - Double(bloc.state.items.count) * kDockTile) / 2
     }
 
     /// Where a tile's centre sits. The tile is a fixed size and the row is
@@ -856,7 +586,7 @@ final class StarlingDockState: State<StatefulWidget> {
         // menu are driven from a Listener at the root instead — see the note
         // on `pointerTile`.
         GestureDetector(
-                onTap: { self.activate(item) },
+                onTap: { self.setState { self.menuOpen = nil }; self.bloc.add(.activate(item)) },
                 child: Padding(padding: EdgeInsets(left: 7, top: 0, right: 7, bottom: 0)) {
                     Column(mainAxisSize: .min, crossAxisAlignment: .center) {
                         if item.key == kLauncherKey {
@@ -870,7 +600,7 @@ final class StarlingDockState: State<StatefulWidget> {
                                     }
                                 }
                             }
-                        } else if let icon = icons.view(item.key, side: kDockIcon) {
+                        } else if let icon = bloc.icons.view(item.key, side: kDockIcon) {
                             icon
                         } else {
                             SizedBox(width: kDockIcon, height: kDockIcon) {
@@ -906,7 +636,7 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// The hover label. Drawn in the overhang, above the strip.
     private func label(_ index: Int) -> Widget {
-        let item = items[index]
+        let item = bloc.state.items[index]
         // Rough, because the text is not measured: enough to keep a long name
         // roughly centred over its icon rather than hanging off one side.
         let width = Double(item.name.count) * 6.6 + 20
@@ -938,7 +668,7 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// The right-click menu, also in the overhang.
     private func menu(_ index: Int) -> Widget {
-        let item = items[index]
+        let item = bloc.state.items[index]
         // Nothing to pin, close, or open a second copy of. The shell's own
         // actions used to hang here for want of anywhere better; they live in
         // the control centre now, which is where a system toggle belongs.
@@ -970,13 +700,15 @@ final class StarlingDockState: State<StatefulWidget> {
                                 }
                                 if item.app != nil {
                                     menuRow(item.isPinned ? "Remove from Dock" : "Keep in Dock") {
-                                        self.togglePin(item)
+                                        self.setState { self.menuOpen = nil }
+                                        self.bloc.add(.togglePin(item))
                                     }
                                 }
                                 if item.isRunning, item.key != kLauncherKey {
                                     menuRow(item.windows.count > 1
                                                 ? "Close \(item.windows.count) windows" : "Close") {
-                                        self.closeAll(item)
+                                        self.setState { self.menuOpen = nil }
+                                        self.bloc.add(.closeAll(item))
                                     }
                                 }
                                 if let app = item.app {
@@ -993,6 +725,19 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        // Every read of `bloc.state` below is registered here, so anything the
+        // bloc publishes — the catalog landing, a status tick, an icon texture
+        // arriving on its own queue — rebuilds this surface without the widget
+        // knowing which of them it was.
+        return withObservationTracking {
+            _buildContent()
+        } onChange: { [weak self] in
+            guard let self, self.mounted else { return }
+            self.setState {}
+        }
+    }
+
+    private func _buildContent() -> Widget {
         // Rechecked here, where the width is about to be used: a resolution
         // change moves the strip under us and the centring is arithmetic off
         // that width. This build runs once a second anyway, for the clock,
@@ -1055,7 +800,7 @@ final class StarlingDockState: State<StatefulWidget> {
                                 // arithmetic rather than a layout query.
                                 Align(alignment: Alignment.center) {
                                     Row(mainAxisSize: .min, crossAxisAlignment: .center) {
-                                        for (index, item) in items.enumerated() {
+                                        for (index, item) in bloc.state.items.enumerated() {
                                             tile(item, index)
                                         }
                                     }
