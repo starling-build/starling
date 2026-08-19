@@ -215,6 +215,9 @@ int32_t flwin32_icon_rasterize(uint64_t window,
                                uint8_t** out_pixels,
                                int32_t* out_width,
                                int32_t* out_height) {
+    /* This can run on any thread now, and the shell paths below need an
+     * apartment on whichever one it is. */
+    flwin32_com_ensure();
     HWND hwnd = (HWND)(uintptr_t)window;
     if (hwnd == NULL || !IsWindow(hwnd)) return 0;
     int owned = 0;
@@ -227,6 +230,9 @@ int32_t flwin32_icon_rasterize_path(const char* path,
                                     uint8_t** out_pixels,
                                     int32_t* out_width,
                                     int32_t* out_height) {
+    /* This can run on any thread now, and the shell paths below need an
+     * apartment on whichever one it is. */
+    flwin32_com_ensure();
     if (path == NULL) return 0;
     int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
     if (n <= 0) return 0;

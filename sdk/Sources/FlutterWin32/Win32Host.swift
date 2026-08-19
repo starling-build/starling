@@ -113,6 +113,18 @@ public final class Win32Host {
         return id > 0 ? Int(id) : nil
     }
 
+    /// Registers pixels produced by `Win32Icon.rasterize` as a texture.
+    ///
+    /// **Platform thread only.** This is the half that talks to the engine;
+    /// the expensive half is `Win32Icon.rasterize`, which is deliberately a
+    /// free function so it can be called from a `Task.detached`.
+    public func registerPixels(_ bitmap: Win32Icon.Bitmap) -> Int? {
+        let id = flwin32_host_register_pixels(host, bitmap.pixels,
+                                              Int32(bitmap.width),
+                                              Int32(bitmap.height))
+        return id > 0 ? Int(id) : nil
+    }
+
     /// Releases a texture from `registerIconTexture`. Safe to call with an id
     /// that is already gone.
     public func unregisterTexture(_ id: Int) {

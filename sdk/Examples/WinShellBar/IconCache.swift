@@ -14,6 +14,12 @@ import FlutterWin32
 import Foundation
 
 final class IconCache {
+    /// Called on the main thread when a texture has arrived, so the surface
+    /// that asked for it can rebuild. Rasterizing happens off the UI thread
+    /// now, so `view(_:side:)` returns nil for a frame or two and the tile
+    /// draws its fallback glyph until this fires.
+    var onTextureReady: (() -> Void)?
+
     private var textures: [String: Int] = [:]
     /// Keys we have already failed on. Without this, an app whose icon cannot
     /// be resolved is re-rasterized on every refresh, which for a Start Menu
@@ -45,10 +51,8 @@ final class IconCache {
         let key = Self.key(for: window)
         guard textures[key] == nil, !attempted.contains(key) else { return }
         attempted.insert(key)
-        if let id = Win32WindowedHost.host?.registerIconTexture(
-            window: window.handle, size: size) {
-            textures[key] = id
-        }
+        let handle = window.handle
+        rasterize(key: key) { Win32Icon.rasterize(window: handle, size: size) }
     }
 
     /// Rasterizes for an app that is not running, from the executable the
@@ -65,9 +69,66 @@ final class IconCache {
         guard textures[key] == nil, !attempted.contains(key) else { return }
         attempted.insert(key)
         let source = app.target.isEmpty ? app.shortcutPath : app.target
-        if let id = Win32WindowedHost.host?.registerIconTexture(
-            path: source, size: size) {
-            textures[key] = id
+        rasterize(key: key) { Win32Icon.rasterize(path: source, size: size) }
+    }
+
+    /// Rasterize off the UI thread, register on it.
+    ///
+    /// The expensive half is the shell asking for an HICON and drawing it into
+    /// a DIB — 79 of them measured 607ms, which is a third of a second of a
+    /// frozen dock if it happens where the frames are drawn. The engine half
+    /// has to be on the platform thread, so it goes back there and no further.
+    ///
+    /// `attempted` is marked before dispatching, so a rebuild that runs while
+    /// this is in flight does not queue the same icon twice.
+    /// ONE serial queue, not a task per icon.
+    ///
+    /// `Task.detached` per icon puts all 79 onto the cooperative pool at once,
+    /// and the shell does not enjoy being asked for 79 icons simultaneously:
+    /// measured, 15 of them came back empty and drew a generic glyph, while
+    /// the same 79 done one after another all succeeded. Icon extraction is
+    /// also genuinely serial work — it is one shell, one icon cache — so
+    /// queueing it costs nothing and removes the contention.
+    private static let queue = DispatchQueue(label: "starling.icons.rasterize",
+                                             qos: .userInitiated)
+
+    private func rasterize(key: String, _ make: @escaping @Sendable () -> Win32Icon.Bitmap?) {
+        Self.queue.async {
+            guard let bitmap = make() else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    // Nobody left to own it, so it must not be leaked.
+                    bitmap.discard()
+                    return
+                }
+                guard self.textures[key] == nil else {
+                    bitmap.discard()
+                    return
+                }
+                guard let id = Win32WindowedHost.host?.registerPixels(bitmap) else {
+                    return
+                }
+                self.textures[key] = id
+                self.scheduleReady()
+            }
+        }
+    }
+
+    /// Coalesces the "a texture landed" notification.
+    ///
+    /// The launcher registers 79 of them within a few hundred milliseconds of
+    /// startup, and one rebuild each would be 79 rebuilds of a 79-tile grid.
+    /// One per turn of the main queue is enough — every texture that arrived
+    /// in that window is picked up by the same rebuild.
+    private var readyScheduled = false
+
+    private func scheduleReady() {
+        guard !readyScheduled else { return }
+        readyScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            readyScheduled = false
+            onTextureReady?()
         }
     }
 

@@ -59,7 +59,21 @@ final class LauncherPreload {
     let icons = IconCache()
     private let lock = NSLock()
     private var loadedApps: [Win32App] = []
-    private var catalogReady = false
+    private var loaded = false
+
+    /// Called on the main thread when the catalog lands, so a launcher that
+    /// mounted first stops showing its loading state. Usually the catalog wins
+    /// the race — it finishes around 200ms and the tree mounts around 340ms —
+    /// but "usually" is not something to leave a permanent spinner on.
+    var onCatalogReady: (() -> Void)?
+
+    /// Whether the Start Menu walk has finished. The UI shows a loading state
+    /// until it has, rather than an empty grid or a blocked thread.
+    var catalogReady: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return loaded
+    }
 
     var apps: [Win32App] {
         lock.lock()
@@ -74,9 +88,10 @@ final class LauncherPreload {
             let found = Win32AppCatalog.apps()
             self.lock.lock()
             self.loadedApps = found
-            self.catalogReady = true
+            self.loaded = true
             self.lock.unlock()
             flwin32_trace("preload: catalog done (background)")
+            DispatchQueue.main.async { self.onCatalogReady?() }
         }
         DispatchQueue.main.async { self.warmIcons() }
     }
@@ -87,7 +102,7 @@ final class LauncherPreload {
     /// on the first attempt -- but "nearly" is not a thing to build on.
     private func warmIcons() {
         lock.lock()
-        let ready = catalogReady
+        let ready = loaded
         let list = loadedApps
         lock.unlock()
         guard ready else {
@@ -95,7 +110,7 @@ final class LauncherPreload {
             return
         }
         for app in list { icons.ensure(app: app, size: 64) }
-        flwin32_trace("preload: icons done")
+        flwin32_trace("preload: icons dispatched")
     }
 }
 
@@ -122,6 +137,18 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // see LauncherPreload for what that cost when it happened on the
         // first keypress instead.
         apps = LauncherPreload.shared.apps
+        // Icons are rasterized off the UI thread, so they land AFTER this
+        // build. Without this the grid keeps whatever it drew first — which
+        // is the fallback glyph for every icon that was not ready yet, and
+        // that is most of them.
+        icons.onTextureReady = { [weak self] in
+            guard let self else { return }
+            setState {}
+        }
+        LauncherPreload.shared.onCatalogReady = { [weak self] in
+            guard let self else { return }
+            setState { self.apps = LauncherPreload.shared.apps }
+        }
         print("[WinShellLauncher] \(apps.count) apps")
         // The icons are already rasterized and registered — LauncherPreload
         // did it at process start. This catches anything installed since.
@@ -168,8 +195,10 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // for; the app arriving is the part they expect to take a moment.
         Win32WindowedHost.host?.setVisible(false)
         flwin32_trace("launcher: hidden")
-        Win32AppCatalog.launch(app)
-        flwin32_trace("launcher: launch returned")
+        // Off the UI thread: the fast path is 8ms but the `.lnk` fallback
+        // measured 484ms, and this thread has frames to draw.
+        StarlingDockState.launchOffThread(app)
+        flwin32_trace("launcher: launch dispatched")
     }
 
     // MARK: - Model
@@ -287,6 +316,20 @@ final class StarlingLauncherState: State<StatefulWidget> {
             })
     }
 
+    /// Shown while the Start Menu walk is still running on its own thread.
+    private func loading() -> Widget {
+        SizedBox(height: Double(rowsPerPage) * kLauncherCell) {
+            Column(mainAxisAlignment: .center, crossAxisAlignment: .center) {
+                SizedBox(width: 240) {
+                    MacosProgressIndicator()
+                }
+                SizedBox(height: 18)
+                Text("Reading the Start Menu",
+                     style: TextStyle(color: Color(0xFF6E7683), fontSize: 13))
+            }
+        }
+    }
+
     private var tracedFirstBuild = false
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -331,7 +374,19 @@ final class StarlingLauncherState: State<StatefulWidget> {
                             })
                     }
                     SizedBox(height: 34)
-                    grid(list)
+                    // Nothing to show YET is different from nothing to show.
+                    //
+                    // The catalog is read off the UI thread, so there is a
+                    // window — small, but real on a cold machine — where the
+                    // launcher is up and the Start Menu walk has not finished.
+                    // An empty grid reads as "you have no apps"; this reads as
+                    // what it is. The alternative, blocking until the catalog
+                    // is ready, is the thing this whole change exists to stop.
+                    if !LauncherPreload.shared.catalogReady {
+                        loading()
+                    } else {
+                        grid(list)
+                    }
                     SizedBox(height: 24)
                     // Tap targets as well as the wheel: a page you can only
                     // reach by scrolling is a page most people never find,
@@ -339,7 +394,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // delivers without argument.
                     Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 14) {
                         if pageCount > 1 { pageButton("‹", to: page - 1) }
-                        Text(list.isEmpty ? "No apps match \"\(query)\""
+                        Text(!LauncherPreload.shared.catalogReady ? "Loading apps"
+                                : list.isEmpty ? "No apps match \"\(query)\""
                                 : pageCount > 1
                                     ? "\(list.count) apps  ·  page \(page + 1) of \(pageCount)"
                                     : "\(list.count) apps",

@@ -1,0 +1,65 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Rasterizing an app's icon, off the UI thread.
+//
+// Making an icon into something the engine can draw is two jobs with opposite
+// rules, and they used to be one call:
+//
+//   1. RASTERIZE — ask the shell for the HICON and draw it into a DIB. Pure
+//      GDI and shell, safe on any thread, and slow: 79 Start Menu icons
+//      measured 607ms, which is what it was costing the launcher's UI thread
+//      at startup.
+//   2. REGISTER — hand the pixels to the engine's texture registrar. Fast,
+//      and belongs to the platform thread.
+//
+// This is (1), as a free function with no host in sight, so it can be called
+// from a `Task.detached`. `Win32Host.registerPixels` is (2).
+
+#if os(Windows)
+import FlutterWin32Bridge
+import Foundation
+
+public enum Win32Icon {
+
+    /// Rasterized pixels, owned by whoever holds this.
+    ///
+    /// The buffer is C-allocated. Passing it to `Win32Host.registerPixels`
+    /// hands ownership over — after that the texture frees it. Anything that
+    /// rasterizes and then decides not to register must call `discard()`, or
+    /// the bitmap leaks.
+    public struct Bitmap: @unchecked Sendable {
+        public let pixels: UnsafeMutablePointer<UInt8>
+        public let width: Int
+        public let height: Int
+
+        public func discard() { flwin32_icon_free(pixels) }
+    }
+
+    /// The icon for a file — an executable, or a `.lnk` whose icon is a
+    /// property of the shortcut. **Safe on any thread.**
+    public static func rasterize(path: String, size: Int = 48) -> Bitmap? {
+        var pixels: UnsafeMutablePointer<UInt8>? = nil
+        var width: Int32 = 0
+        var height: Int32 = 0
+        guard flwin32_icon_rasterize_path(path, Int32(size), &pixels,
+                                          &width, &height) != 0,
+              let pixels, width > 0, height > 0 else { return nil }
+        return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
+    }
+
+    /// The icon a live window reports. **Safe on any thread**, though it
+    /// sends a message to the owning window with a timeout, so it is not
+    /// instant when that window is busy — another reason not to do it on the
+    /// thread drawing the shell.
+    public static func rasterize(window handle: UInt64, size: Int = 32) -> Bitmap? {
+        var pixels: UnsafeMutablePointer<UInt8>? = nil
+        var width: Int32 = 0
+        var height: Int32 = 0
+        guard flwin32_icon_rasterize(handle, Int32(size), &pixels,
+                                     &width, &height) != 0,
+              let pixels, width > 0, height > 0 else { return nil }
+        return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
+    }
+}
+#endif

@@ -39,6 +39,7 @@ import CupertinoIcons
 import Flutter
 import FlutterSwiftBridge
 import FlutterWin32
+import FlutterWin32Bridge
 import Foundation
 
 /// Bar height in logical points, and the icon size inside it.
@@ -166,13 +167,44 @@ final class StarlingDockState: State<StatefulWidget> {
     /// the radio takes a moment to settle and the next poll is a second
     /// away, which without this reads as a dead button.
     private var wifiWanted: Bool?
+    /// Whether `pins` holds real values yet — false until either the file was
+    /// read or the catalog arrived and the defaults were resolved against it.
+    private var pinsAreSeeded = false
 
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
-        catalog = Win32AppCatalog.apps()
-        pins = loadPins()
-        print("[WinShellDock] \(catalog.count) apps in the Start Menu, \(pins.count) pinned")
+        if let stored = loadPins() {
+            pins = stored
+            pinsAreSeeded = true
+        }
+        icons.onTextureReady = { [weak self] in
+            guard let self else { return }
+            setState {}
+        }
+        // The Start Menu walk is a few hundred .lnk files through COM, and on
+        // this thread it measured 1408ms — a dock that is not on screen for a
+        // second and a half after login. Off it goes; the dock draws its
+        // running windows meanwhile and gains the pinned apps when it lands.
+        flwin32_trace("dock initState: catalog dispatched")
+        Task.detached {
+            let apps = Win32AppCatalog.apps()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                flwin32_trace("dock: catalog arrived")
+                setState {
+                    self.catalog = apps
+                    // The defaults could not be resolved before this point —
+                    // they are looked up BY NAME in the catalog.
+                    if !self.pinsAreSeeded {
+                        self.pins = self.defaultPins()
+                        self.pinsAreSeeded = true
+                    }
+                    print("[WinShellDock] \(apps.count) apps in the Start Menu, \(self.pins.count) pinned")
+                    self.rebuild()
+                }
+            }
+        }
         rebuild()
         readStatus()
         Win32WindowManager.observe { [weak self] _ in self?.queueRefresh() }
@@ -187,14 +219,17 @@ final class StarlingDockState: State<StatefulWidget> {
             // Settings round-trip, or explorer restarting after a crash all
             // do it, and none of them tell us. The EVENT_OBJECT_SHOW hook
             // catches the fast case; this catches a new explorer pid.
+            flwin32_trace("dock tick: begin")
             if !keepsNativeTaskbar && !self.nativeTaskbarWanted
                 && Win32Shell.nativeTaskbarIsVisible {
                 Win32Shell.hideNativeTaskbar()
             }
+            flwin32_trace("dock tick: taskbar check done")
             setState {
                 self.now = Date()
                 self.readStatus()
             }
+            flwin32_trace("dock tick: end")
         }
     }
 
@@ -204,17 +239,45 @@ final class StarlingDockState: State<StatefulWidget> {
         super.dispose()
     }
 
+    /// Reads the system status OFF the UI thread and publishes it back.
+    ///
+    /// Small here — 4-9ms a tick on this machine — but it is COM and it is the
+    /// WLAN API, on a timer, on the thread that draws. On a machine with a
+    /// wireless adapter `WlanQueryInterface` is not bounded by anything we
+    /// control, and a dock that stutters once a second is the result.
     private func readStatus() {
-        network = Win32Status.network()
-        power = Win32Status.power()
-        volume = Win32Status.volume()
+        Task.detached {
+            flwin32_trace("dock readStatus: begin (off thread)")
+            let network = Win32Status.network()
+            let power = Win32Status.power()
+            let volume = Win32Status.volume()
+            // Read rather than remembered: the user can change the theme in
+            // Windows' own Settings and the tile has to follow. A registry
+            // read, so it belongs on this side of the line too.
+            let dark = Win32Control.isDarkMode
+            flwin32_trace("dock readStatus: done (off thread)")
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                setState {
+                    self.applyStatus(network: network, power: power,
+                                     volume: volume, dark: dark)
+                }
+            }
+        }
+    }
+
+    private func applyStatus(network: Win32Network,
+                             power: Win32Power,
+                             volume: Win32Volume?,
+                             dark: Bool) {
+        self.network = network
+        self.power = power
+        self.volume = volume
+        self.darkMode = dark
         // The poll is the truth. Drop the optimistic Wi-Fi answer as soon as
         // it agrees, so a radio that refused the change corrects itself
         // instead of leaving the tile lying about it.
         if let wanted = wifiWanted, (network.kind == .wifi) == wanted { wifiWanted = nil }
-        // Read rather than remembered: the user can change the theme in
-        // Windows' own Settings and the tile has to follow.
-        darkMode = Win32Control.isDarkMode
     }
 
     // MARK: - Pins, on disk
@@ -228,18 +291,30 @@ final class StarlingDockState: State<StatefulWidget> {
         return base + "\\Starling\\dock.txt"
     }
 
-    private func loadPins() -> [String] {
+    /// The stored pins, or nil when there is no file yet.
+    ///
+    /// Nil rather than "the defaults", because the defaults are resolved
+    /// against the CATALOG — and the catalog is now read off the UI thread and
+    /// arrives after this runs. Returning the defaults here would resolve them
+    /// against an empty catalog and seed nothing at all, which is a dock with
+    /// no icons on a new machine and no clue why.
+    private func loadPins() -> [String]? {
         guard let text = try? String(contentsOfFile: pinsPath, encoding: .utf8) else {
-            // First run: seed from the defaults, resolved against what is
-            // actually installed, so the dock is never empty on a new machine.
-            return kDefaultPins.compactMap { wanted in
-                catalog.first(where: { $0.name.lowercased().contains(wanted) })
-                    .map { IconCache.key(for: $0) }
-            }
+            return nil
         }
         return text.split(whereSeparator: { $0 == "\r\n" || $0 == "\n" })
             .map(String.init)
             .filter { !$0.isEmpty }
+    }
+
+    /// First run: what to pin, resolved against what is actually installed, so
+    /// the dock is never empty on a new machine. Needs the catalog, so it is
+    /// called when the catalog lands.
+    private func defaultPins() -> [String] {
+        kDefaultPins.compactMap { wanted in
+            catalog.first(where: { $0.name.lowercased().contains(wanted) })
+                .map { IconCache.key(for: $0) }
+        }
     }
 
     private func savePins() {
@@ -266,7 +341,9 @@ final class StarlingDockState: State<StatefulWidget> {
     /// else is running. Deliberately stable: an entry must not move out from
     /// under the pointer when an unrelated window opens.
     private func rebuild() {
+        flwin32_trace("dock rebuild: begin")
         let windows = Win32WindowManager.windows()
+        flwin32_trace("dock rebuild: window enumeration done")
         var byExe: [String: [Win32Window]] = [:]
         for window in windows {
             byExe[IconCache.key(for: window), default: []].append(window)
@@ -308,6 +385,7 @@ final class StarlingDockState: State<StatefulWidget> {
                 icons.ensure(app: app)
             }
         }
+        flwin32_trace("dock rebuild: icons done")
         icons.retain(only: claimed)
         items = [DockItem(key: kLauncherKey, name: "Launcher", app: nil,
                           windows: [], isPinned: true)] + built
@@ -331,7 +409,7 @@ final class StarlingDockState: State<StatefulWidget> {
         }
         guard let window = item.windows.first(where: { $0.isForeground })
                 ?? item.windows.first else {
-            if let app = item.app { Win32AppCatalog.launch(app) }
+            if let app = item.app { Self.launchOffThread(app) }
             return
         }
         if window.isForeground {
@@ -340,6 +418,15 @@ final class StarlingDockState: State<StatefulWidget> {
             Win32WindowManager.activate(window.handle)
         }
         queueRefresh()
+    }
+
+    /// Starts an app without holding the UI thread.
+    ///
+    /// The fast path is 8ms and the `.lnk` fallback measured 484ms on its
+    /// first use in a process — and a dock that freezes for half a second on
+    /// the click that starts an app is the worst possible moment for it.
+    static func launchOffThread(_ app: Win32App) {
+        Task.detached { Win32AppCatalog.launch(app) }
     }
 
     private func togglePin(_ item: DockItem) {

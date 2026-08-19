@@ -627,6 +627,7 @@ static void redirect_std_to_log_file(void) {
 }
 
 void flwin32_process_init(void) {
+  flwin32_com_mark_ui_thread();
   // Per-monitor DPI, and as EARLY as possible.
   //
   // Until this runs, the process is DPI-UNAWARE and Windows virtualizes
@@ -1216,6 +1217,26 @@ static int64_t register_pixels(FlWin32Host* host,
   // pulls a buffer once it has been told there is one.
   FlutterDesktopTextureRegistrarMarkExternalTextureFrameAvailable(registrar, id);
   return id;
+}
+
+// Register pixels that were rasterized SOMEWHERE ELSE.
+//
+// The two halves of making an icon have very different rules: rasterizing is
+// GDI and the shell, thread-safe and slow (measured 607ms for the launcher's
+// 79 icons); registering is the engine's texture registrar and belongs to the
+// platform thread. Keeping them in one call forced both onto the UI thread.
+//
+// Takes ownership of `pixels` either way: on success the texture frees it, on
+// failure this does.
+int64_t flwin32_host_register_pixels(FlWin32Host* host,
+                                     uint8_t* pixels,
+                                     int32_t width,
+                                     int32_t height) {
+  if (host == NULL || pixels == NULL) {
+    flwin32_icon_free(pixels);
+    return -1;
+  }
+  return register_pixels(host, pixels, width, height);
 }
 
 int64_t flwin32_host_register_icon_texture(FlWin32Host* host,

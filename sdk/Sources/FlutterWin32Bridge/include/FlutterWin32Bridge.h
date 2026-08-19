@@ -296,6 +296,14 @@ void flwin32_icon_free(uint8_t* pixels);
 // The pixels are held for the texture's lifetime and released when it is
 // unregistered — the engine's own release_callback is not used, because the
 // buffer is not per-frame.
+// Registers pixels rasterized elsewhere (flwin32_icon_rasterize*). Takes
+// ownership of the buffer. PLATFORM THREAD ONLY — the rasterizing half is
+// what is safe to do off it.
+int64_t flwin32_host_register_pixels(FlWin32Host* host,
+                                     uint8_t* pixels,
+                                     int32_t width,
+                                     int32_t height);
+
 int64_t flwin32_host_register_icon_texture(FlWin32Host* host,
                                            uint64_t window,
                                            int32_t size);
@@ -363,6 +371,15 @@ int32_t flwin32_set_dark_mode(int32_t dark);
 // A .lnk is a structured binary file, not a symlink; IShellLink is the only
 // supported way to read one, and the target may be an item-ID list rather
 // than a path, which nothing but the shell can resolve.
+// Initializes COM on the CALLING thread, once per thread. Anything here that
+// reaches the shell needs it, and an apartment belongs to a thread — so a
+// background thread doing icon or shortcut work must call this itself.
+void flwin32_com_ensure(void);
+
+// Records the calling thread as the UI thread, so flwin32_com_ensure gives it
+// an STA and every other thread an MTA. Called from flwin32_process_init.
+void flwin32_com_mark_ui_thread(void);
+
 // Target, arguments and working directory of a .lnk, in one load.
 int32_t flwin32_shortcut_info(const char* shortcut_path,
                               char* target, int32_t target_size,

@@ -61,16 +61,46 @@ static wchar_t* utf8_to_wide(const char* utf8) {
     return out;
 }
 
-/* COM on this thread, once. The UI thread is an STA as far as the shell is
- * concerned, and re-initializing it per call would be both wasteful and, if
- * the apartment ever disagreed, a failure that only shows up on the second
- * call. */
-static void ensure_com(void) {
-    static int done = 0;
+/* COM on this thread, once PER THREAD.
+ *
+ * The flag is thread-local and that is the whole point. It used to be a plain
+ * static, which was correct exactly as long as every caller was the UI thread.
+ * The moment icon rasterization moved to a background thread, the flag was
+ * already set by the UI thread, CoInitializeEx was skipped, and every call
+ * needing the shell failed on a thread with no apartment -- CoCreateInstance
+ * for IShellLink returns an error, so the shortcut's own icon could not be
+ * read and roughly half the Start Menu quietly fell back to a generic glyph.
+ * No crash, no message: just the wrong picture.
+ *
+ * An apartment is a property of a THREAD, so the bookkeeping has to be too. */
+static DWORD g_ui_thread = 0;
+
+void flwin32_com_mark_ui_thread(void) { g_ui_thread = GetCurrentThreadId(); }
+
+void flwin32_com_ensure(void) {
+    static __declspec(thread) int done = 0;
     if (done) return;
     done = 1;
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    /* STA on the UI thread, MTA everywhere else, and the distinction is not
+     * academic.
+     *
+     * A single-threaded apartment only works if its thread pumps messages:
+     * that is how COM marshals calls into it. The UI thread does, because it
+     * IS a message loop. A worker from Swift's cooperative pool does not, and
+     * never will. Initialized STA there, everything that needs the shell to
+     * marshal anything fails -- measured, 15 of 79 Start Menu icons came back
+     * empty and drew a generic glyph, silently and only for the entries whose
+     * icon has to be resolved rather than read straight out of an exe.
+     *
+     * MTA on those threads lets COM host apartment-model objects itself. */
+    if (GetCurrentThreadId() == g_ui_thread) {
+        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    } else {
+        CoInitializeEx(NULL, COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+    }
 }
+
+static void ensure_com(void) { flwin32_com_ensure(); }
 
 int32_t flwin32_shortcut_target(const char* shortcut_path,
                                 char* out,
