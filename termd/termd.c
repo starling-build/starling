@@ -87,6 +87,13 @@ struct client {
     int used;
     sock_t fd;
     uint32_t session;   // 0 = not attached
+    // The workspace this connection is watching, 0 for none. Set by any
+    // workspace frame it sends, and the whole reason it exists is the
+    // broadcast: when one client stores a new arrangement, the others are
+    // told rather than left drawing the old one until they next attach.
+    // One per CONNECTION, not per client program — a client showing two
+    // workspaces holds two connections, because each is one control link.
+    uint32_t ws_watch;
     uint64_t sent;      // next byte offset to send
     uint64_t acked;
     // Inbound framing state
@@ -101,9 +108,24 @@ struct client {
     int closing;   // we are done with it, but its last frame must still go
 };
 
+// A workspace: a name, the sessions in it, and a blob the daemon stores and
+// never reads. See protocol.h — the whole point is that adding a layout
+// feature later touches the client and not this file.
+struct workspace {
+    int used;
+    uint32_t id;
+    char name[TERMD_MAX_NAME];
+    uint32_t sessions[MAX_SESSIONS];
+    uint16_t nsessions;
+    uint8_t *blob;
+    uint32_t blob_len;
+};
+
 static struct session g_sessions[MAX_SESSIONS];
 static struct client g_clients[MAX_CLIENTS];
+static struct workspace g_workspaces[TERMD_MAX_WORKSPACES];
 static uint32_t g_next_id = 1;
+static uint32_t g_next_ws_id = 1;
 
 // Guards both tables. Held by the main loop whenever it is not parked in
 // plat_poll, and by every reader thread while it appends and pumps. The
@@ -121,6 +143,21 @@ static struct session *session_by_name(const char *name) {
     for (int i = 0; i < MAX_SESSIONS; i++)
         if (g_sessions[i].used && !strcmp(g_sessions[i].name, name))
             return &g_sessions[i];
+    return NULL;
+}
+
+static struct workspace *ws_by_id(uint32_t id) {
+    for (int i = 0; i < TERMD_MAX_WORKSPACES; i++)
+        if (g_workspaces[i].used && g_workspaces[i].id == id)
+            return &g_workspaces[i];
+    return NULL;
+}
+
+static struct workspace *ws_by_name(const char *name) {
+    if (!name || !*name) return NULL;
+    for (int i = 0; i < TERMD_MAX_WORKSPACES; i++)
+        if (g_workspaces[i].used && !strcmp(g_workspaces[i].name, name))
+            return &g_workspaces[i];
     return NULL;
 }
 
@@ -181,6 +218,15 @@ struct reader_arg {
 };
 
 static void session_reader(void *arg);
+static void session_close(struct session *s);
+// Defined further down with the rest of the client plumbing. Declared here
+// because ending a session reaches the other way for once — from the session
+// side into the outbox of every client watching it.
+static void put_u32(uint8_t *p, uint32_t v);
+static void client_out(struct client *c, uint8_t type, const uint8_t *payload,
+                       size_t len);
+static void client_pump(struct client *c);
+static void client_flush(struct client *c);
 
 // Called with g_lock held.
 static struct session *session_open(uint16_t cols, uint16_t rows,
@@ -188,6 +234,25 @@ static struct session *session_open(uint16_t cols, uint16_t rows,
     struct session *s = NULL;
     for (int i = 0; i < MAX_SESSIONS; i++)
         if (!g_sessions[i].used) { s = &g_sessions[i]; break; }
+    // Full: a session whose shell has exited keeps its slot and its ring on
+    // purpose — reattaching to read the last words is the point — but it must
+    // not keep them at the expense of a live one. So the OLDEST dead session
+    // makes way, and only then. Without this the table silently fills with
+    // corpses and the daemon starts answering "could not open a session" on a
+    // machine with nothing running.
+    if (!s) {
+        struct session *oldest = NULL;
+        for (int i = 0; i < MAX_SESSIONS; i++) {
+            struct session *d = &g_sessions[i];
+            if (!d->used || d->alive) continue;
+            if (!oldest || d->id < oldest->id) oldest = d;
+        }
+        if (oldest) {
+            logf_("session %u evicted to make room", oldest->id);
+            session_close(oldest);
+            s = oldest;
+        }
+    }
     if (!s) return NULL;
 
     memset(s, 0, sizeof(*s));
@@ -237,9 +302,48 @@ static struct session *session_open(uint16_t cols, uint16_t rows,
 }
 
 // Called with g_lock held.
+// Everything this session's last bytes are owed: the EXIT frame, and then
+// nothing more — the clients are left attached to an id that is about to stop
+// existing, so they are detached here too.
+//
+// Their remaining output has already been pumped by the caller; a client that
+// has fallen behind loses what it had not read, which is the same bargain a
+// closed pipe makes everywhere else.
+static void session_exit_clients(const struct session *s) {
+    uint8_t body[8];
+    put_u32(body, s->id);
+    put_u32(body + 4, (uint32_t)s->status);
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        struct client *c = &g_clients[i];
+        if (!c->used || c->dead || c->session != s->id) continue;
+        client_pump(c);                  // whatever is still owed, first
+        client_out(c, TERMD_EXIT, body, sizeof(body));
+        client_flush(c);
+        c->session = 0;
+    }
+}
+
+// A session id in a workspace's membership outlives the session itself, and
+// ids are never reused, so a workspace someone works in all week fills its
+// list with the dead and eventually answers "workspace full" to a live one.
+// Membership is daemon bookkeeping — a set of ids, not an arrangement — so
+// pruning it here breaks no promise about the blob, which is untouched.
+static void ws_forget_session(uint32_t id) {
+    for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) {
+        struct workspace *w = &g_workspaces[i];
+        if (!w->used) continue;
+        uint16_t out = 0;
+        for (uint16_t k = 0; k < w->nsessions; k++)
+            if (w->sessions[k] != id) w->sessions[out++] = w->sessions[k];
+        w->nsessions = out;
+    }
+}
+
 static void session_close(struct session *s) {
     if (!s->used) return;
     logf_("session %u closed", s->id);
+    session_exit_clients(s);
+    ws_forget_session(s->id);
     // Shut down but do not free: the reader thread may be parked inside
     // plat_pty_read on this very handle. The shutdown is what wakes it, and
     // it frees the pty itself on the way out.
@@ -290,6 +394,68 @@ static void client_out(struct client *c, uint8_t type, const uint8_t *payload,
     c->out_len += TERMD_HEADER_LEN + len;
 }
 
+// Two payload pieces in one frame, so a blob is not copied into a scratch
+// buffer only to be copied again into the out queue.
+static void client_out_two(struct client *c, uint8_t type,
+                           const uint8_t *a, size_t alen,
+                           const uint8_t *b, size_t blen) {
+    if (c->dead) return;
+    size_t len = alen + blen;
+    size_t need = c->out_len + TERMD_HEADER_LEN + len;
+    if (need > c->out_cap) {
+        size_t cap = c->out_cap ? c->out_cap : 65536;
+        while (cap < need) cap *= 2;
+        uint8_t *grown = realloc(c->out, cap);
+        if (!grown) { c->dead = 1; return; }
+        c->out = grown;
+        c->out_cap = cap;
+    }
+    uint8_t *p = c->out + c->out_len;
+    p[0] = type;
+    p[1] = 0;
+    put_u16(p + 2, 0);
+    put_u32(p + 4, (uint32_t)len);
+    if (alen) memcpy(p + TERMD_HEADER_LEN, a, alen);
+    if (blen) memcpy(p + TERMD_HEADER_LEN + alen, b, blen);
+    c->out_len += TERMD_HEADER_LEN + len;
+}
+
+// The stored arrangement, to one client.
+static void ws_send_meta(struct client *c, const struct workspace *w) {
+    uint8_t hdr[4];
+    put_u32(hdr, w->id);
+    // Two pieces rather than one buffer: a blob is up to 16 KB and there is
+    // no reason to copy it again on the way out.
+    client_out_two(c, TERMD_WS_META, hdr, 4, w->blob, w->blob_len);
+}
+
+// …and to everyone else watching it.
+//
+// Two clients on one workspace is not an error — the daemon has never
+// rejected a second ATTACH — but without this each would keep writing its own
+// tree over the other's and the two would flap. The daemon still does not
+// look inside the blob; it forwards the bytes it was handed, which is the
+// same promise it has always made.
+static void ws_broadcast_meta(const struct workspace *w, const struct client *from) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        struct client *c = &g_clients[i];
+        if (!c->used || c == from || c->dead || c->closing) continue;
+        if (c->ws_watch != w->id) continue;
+        ws_send_meta(c, w);
+    }
+}
+
+// The reply to every workspace WRITE: the client learns the id (which it may
+// not have known, on an idempotent create) and that the write landed.
+static void ws_send_info(struct client *c, const struct workspace *w) {
+    uint8_t buf[6 + TERMD_MAX_NAME];
+    size_t nlen = strlen(w->name);
+    put_u32(buf, w->id);
+    put_u16(buf + 4, (uint16_t)nlen);
+    memcpy(buf + 6, w->name, nlen);
+    client_out(c, TERMD_WS_INFO, buf, 6 + nlen);
+}
+
 static void client_error(struct client *c, uint16_t code, const char *msg) {
     uint8_t buf[256];
     size_t n = strlen(msg);
@@ -325,9 +491,16 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         }
         uint16_t count = 0;
         for (int i = 0; i < MAX_SESSIONS; i++) if (g_sessions[i].used) count++;
-        uint8_t reply[4];
+        uint8_t reply[5];
         put_u16(reply, TERMD_PROTOCOL_VERSION);
         put_u16(reply + 2, count);
+        // What this daemon can be ASKED for, trailing so a client that
+        // predates the byte reads the same four it always did. Bit 0 says a
+        // session's command reaches a POSIX shell, which is what decides
+        // whether `cd '<dir>' && exec "$STARLING_SHELL"` is a command or a
+        // pane that dies on sight.
+        reply[4] = (plat_posix_shell() ? TERMD_CAP_POSIX_SHELL : 0)
+                 | (plat_cwd_supported() ? TERMD_CAP_SESSION_CWD : 0);
         client_out(c, TERMD_HELLO_OK, reply, sizeof(reply));
         break;
     }
@@ -414,6 +587,17 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
         uint64_t oldest = s->head - s->filled;
         if (from < oldest) from = oldest;
         if (from > s->head) from = s->head;
+        // An optional trailing cap: "the last N bytes, not all of it". A
+        // workspace attaching six panes at once over a slow link asks for a
+        // screenful rather than eight megabytes each; a single session leaves
+        // it out and gets everything, which is what rebuilds its scrollback.
+        // Trailing rather than inserted, so a client that predates it still
+        // parses — and ATTACHED already reports the true start, so the gap
+        // this opens is announced by the same path as a rolled ring.
+        if (len >= 20) {
+            uint32_t cap = get_u32(p + 16);
+            if (cap && s->head - from > cap) from = s->head - cap;
+        }
         c->session = id;
         c->sent = from;
         c->acked = from;
@@ -457,6 +641,148 @@ static void handle_frame(struct client *c, uint8_t type, const uint8_t *p,
     case TERMD_DETACH:
         c->session = 0;
         break;
+    // --- workspaces -----------------------------------------------------
+    // Five frames, all thin, and none of them looks inside the blob. The
+    // reply to a write is WS_INFO rather than silence, so a client knows the
+    // daemon took it.
+    case TERMD_WS_CREATE: {
+        char name[TERMD_MAX_NAME] = {0};
+        if (len >= 2) {
+            uint16_t nlen = get_u16(p);
+            if (nlen > len - 2) nlen = (uint16_t)(len - 2);
+            name_sanitize(name, p + 2, nlen);
+        }
+        if (!*name) { client_error(c, TERMD_ERR_BAD_FRAME, "workspace needs a name"); return; }
+        // Idempotent by name, exactly like a named OPEN: a client that lost
+        // its id reconnects with the name alone and gets the same workspace
+        // rather than a second one beside it.
+        struct workspace *w = ws_by_name(name);
+        if (!w) {
+            for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) {
+                if (!g_workspaces[i].used) { w = &g_workspaces[i]; break; }
+            }
+            if (!w) { client_error(c, TERMD_ERR_TOO_MANY, "too many workspaces"); return; }
+            memset(w, 0, sizeof(*w));
+            w->used = 1;
+            w->id = g_next_ws_id++;
+            snprintf(w->name, sizeof(w->name), "%s", name);
+            logf_("workspace %u created \"%s\"", w->id, w->name);
+        }
+        c->ws_watch = w->id;
+        ws_send_info(c, w);
+        return;
+    }
+
+    case TERMD_WS_ADD: {
+        if (len < 8) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_add"); return; }
+        struct workspace *w = ws_by_id(get_u32(p));
+        if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
+        uint32_t sid = get_u32(p + 4);
+        if (!session_by_id(sid)) { client_error(c, TERMD_ERR_NO_SESSION, "no such session"); return; }
+        int already = 0;
+        for (uint16_t i = 0; i < w->nsessions; i++) if (w->sessions[i] == sid) already = 1;
+        if (!already) {
+            if (w->nsessions >= MAX_SESSIONS) {
+                client_error(c, TERMD_ERR_TOO_MANY, "workspace full"); return;
+            }
+            w->sessions[w->nsessions++] = sid;
+        }
+        c->ws_watch = w->id;
+        ws_send_info(c, w);
+        return;
+    }
+
+    case TERMD_WS_SET_META: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_set_meta"); return; }
+        struct workspace *w = ws_by_id(get_u32(p));
+        if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
+        size_t blen = len - 4;
+        if (blen > TERMD_MAX_BLOB) { client_error(c, TERMD_ERR_BAD_FRAME, "blob too large"); return; }
+        uint8_t *fresh = NULL;
+        if (blen) {
+            fresh = malloc(blen);
+            if (!fresh) { client_error(c, TERMD_ERR_BAD_FRAME, "out of memory"); return; }
+            memcpy(fresh, p + 4, blen);
+        }
+        free(w->blob);
+        w->blob = fresh;
+        w->blob_len = (uint32_t)blen;
+        c->ws_watch = w->id;
+        ws_send_info(c, w);
+        ws_broadcast_meta(w, c);
+        return;
+    }
+
+    case TERMD_WS_GET_META: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short ws_get_meta"); return; }
+        struct workspace *w = ws_by_id(get_u32(p));
+        if (!w) { client_error(c, TERMD_ERR_NO_WORKSPACE, "no such workspace"); return; }
+        c->ws_watch = w->id;
+        ws_send_meta(c, w);
+        return;
+    }
+
+    case TERMD_WS_LIST: {
+        uint16_t count = 0;
+        for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) if (g_workspaces[i].used) count++;
+        size_t cap = 2 + (size_t)TERMD_MAX_WORKSPACES
+                   * (12 + MAX_SESSIONS * 4 + TERMD_MAX_NAME);
+        uint8_t *buf = malloc(cap);
+        if (!buf) { client_error(c, TERMD_ERR_BAD_FRAME, "out of memory"); return; }
+        size_t off = 0;
+        put_u16(buf, count); off = 2;
+        for (int i = 0; i < TERMD_MAX_WORKSPACES; i++) {
+            struct workspace *w = &g_workspaces[i];
+            if (!w->used) continue;
+            put_u32(buf + off, w->id); off += 4;
+            put_u32(buf + off, w->blob_len); off += 4;
+            put_u16(buf + off, w->nsessions); off += 2;
+            for (uint16_t k = 0; k < w->nsessions; k++) {
+                put_u32(buf + off, w->sessions[k]); off += 4;
+            }
+            size_t nlen = strlen(w->name);
+            put_u16(buf + off, (uint16_t)nlen); off += 2;
+            memcpy(buf + off, w->name, nlen); off += nlen;
+        }
+        client_out(c, TERMD_WS_LIST_REPLY, buf, off);
+        free(buf);
+        return;
+    }
+
+    case TERMD_KILL: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short kill"); return; }
+        uint32_t id = get_u32(p);
+        struct session *s = session_by_id(id);
+        if (!s) { client_error(c, TERMD_ERR_NO_SESSION, "no such session"); return; }
+        // Deliberate: this is a person closing a pane, not a client going
+        // away. Detaching is what happens when a client vanishes and it is
+        // the reason this daemon exists; ending a session is the other thing
+        // a person means, and until now there was no way to say it — every
+        // closed pane left a shell running that nothing would ever show
+        // again.
+        logf_("session %u killed by request", id);
+        session_close(s);
+        return;
+    }
+
+    case TERMD_SESSION_CWD: {
+        if (len < 4) { client_error(c, TERMD_ERR_BAD_FRAME, "short session_cwd"); return; }
+        uint32_t id = get_u32(p);
+        struct session *s = session_by_id(id);
+        if (!s) { client_error(c, TERMD_ERR_NO_SESSION, "no such session"); return; }
+        // An empty path is a legitimate answer — the shell may have exited, or
+        // the platform may not be able to look — and the client falls back to
+        // whatever it knew. A missing REPLY would leave it waiting instead.
+        char cwd[1024];
+        cwd[0] = 0;
+        if (s->alive) plat_pty_cwd(s->pty, cwd, sizeof(cwd));
+        uint8_t hdr[4];
+        put_u32(hdr, id);
+        client_out_two(c, TERMD_SESSION_CWD_REPLY, hdr, 4,
+                       (const uint8_t *)cwd, strlen(cwd));
+        return;
+    }
+
     case TERMD_PING:
         client_out(c, TERMD_PONG, p, len);
         break;
@@ -602,6 +928,13 @@ static void session_reader(void *arg) {
         s->alive = 0;
         s->pty = NULL;
         logf_("session %u child exited", ra->id);
+        // …and TELL the clients watching it. This frame has been in the
+        // protocol since v0 and nothing ever sent it: a client whose shell
+        // exited simply stopped receiving bytes, and sat there showing a dead
+        // screen forever, because "no more output" and "over" look identical
+        // on a stream. The attach CLI has always handled it; every other
+        // client's EXIT path was unreachable code.
+        session_exit_clients(s);
     }
     plat_mutex_unlock(g_lock);
 

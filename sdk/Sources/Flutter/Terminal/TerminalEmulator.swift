@@ -133,6 +133,48 @@ public final class TerminalEmulator {
     public var bracketedPaste: Bool { starling_term_bracketed_paste(_t) != 0 }
     public var generation: UInt64 { starling_term_generation(_t) }
 
+    /// Where the shell last said it is (OSC 7), or nil if it never has.
+    ///
+    /// Plenty of shells emit nothing — bash without a prompt hook, anything
+    /// inside a TUI — so nil is the ordinary answer and means "no idea",
+    /// which is not the same as "/". What reads this stores it so a pane can
+    /// be reopened where it was; see TerminalWorkspace.swift.
+    public var cwd: String? {
+        guard let c = starling_term_cwd(_t) else { return nil }
+        let text = String(cString: c)
+        return text.isEmpty ? nil : text
+    }
+
+    /// Where the shell is in the prompt/command cycle, from OSC 133.
+    ///
+    /// This is a report, not a guess: the shell says when a prompt is drawn and
+    /// when a command starts and ends, so nothing here reads the screen or
+    /// knows what any program is called. `unknown` is the answer for a shell
+    /// with no integration configured, which is most of them out of the box —
+    /// it must not be drawn as "idle", or every pane looks finished.
+    public enum CommandState: Int, Sendable {
+        case unknown = 0
+        case prompt = 1     // waiting for a human
+        case running = 2    // a command is running
+        case done = 3       // the last one finished
+    }
+
+    public var commandState: CommandState {
+        CommandState(rawValue: Int(starling_term_command_state(_t))) ?? .unknown
+    }
+
+    /// The last command's exit code, or nil if the shell did not say. `0` is
+    /// success and is not the same answer as nil.
+    public var commandExit: Int? {
+        let v = Int(starling_term_command_exit(_t))
+        return v < 0 ? nil : v
+    }
+
+    /// How many commands have finished in this session. Only increases, and
+    /// only counts commands seen to start — so something that remembers the
+    /// value it last showed can tell a fresh result from one already seen.
+    public var commandsFinished: UInt64 { starling_term_command_done_count(_t) }
+
     /// Readable because the scrollback belongs to the PRIMARY buffer: while a
     /// full-screen app owns the screen there is nothing of its own to scroll
     /// back through, and walking the primary's history would replace the app

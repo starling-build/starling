@@ -29,10 +29,16 @@ public struct TerminalTheme: Sendable {
     /// of `background`.
     var reverseBackground: UInt32 { background | 0xFF00_0000 }
 
-    public init(background: UInt32 = 0xD91E2127,
-                defaultForeground: UInt32 = 0xFFD4D4D4,
-                cursorOverlay: UInt32 = 0x99D4D4D4,
-                selection: UInt32 = 0x4066AAFF) {
+    // The default background is deliberately the same value as the terminal
+    // app's `TabChrome.surface`: the app paints pane chrome around this grid,
+    // and any drift between the two shows as a hairline of the wrong colour
+    // at every pane edge. The alpha is what lets the desktop composite a
+    // wallpaper behind the window, and every colour here that sits behind
+    // text must keep it.
+    public init(background: UInt32 = 0xD9171922,
+                defaultForeground: UInt32 = 0xFFD5D9E2,
+                cursorOverlay: UInt32 = 0x99D5D9E2,
+                selection: UInt32 = 0x408AA0FF) {
         self.background = background
         self.defaultForeground = defaultForeground
         self.cursorOverlay = cursorOverlay
@@ -692,11 +698,21 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         #endif
 
         // Shift+PageUp / Shift+PageDown page through scrollback.
-        if _shiftDown && (keyData.logical == 0xFF55 || keyData.logical == 0xFF56) {
+        //
+        // Both id schemes, and it took a while to notice this one was missing
+        // the second: the DRM embedder sends X11 keysyms, everything else
+        // sends Flutter logical ids, so matching only 0xFF55/0xFF56 meant
+        // scrollback paging worked on the desktop and silently did nothing on
+        // the Mac, GTK and Windows hosts. Note the pair is not in the same
+        // ORDER in the two schemes — 0xFF55 is up, and it is 0x…0308 that is
+        // up on the other side, with 0307 the down.
+        let pgUp = keyData.logical == 0xFF55 || keyData.logical == 0x1_0000_0308
+        let pgDown = keyData.logical == 0xFF56 || keyData.logical == 0x1_0000_0307
+        if _shiftDown && (pgUp || pgDown) {
             _lock.lock()
             let page = max(1, emulator.rows - 1)
             let limit = emulator.scrollbackCount
-            if keyData.logical == 0xFF55 {
+            if pgUp {
                 _viewOffset = min(_viewOffset + page, limit)
             } else {
                 _viewOffset = max(_viewOffset - page, 0)

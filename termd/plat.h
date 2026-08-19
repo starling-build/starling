@@ -150,4 +150,26 @@ int  plat_tty_size(uint16_t *cols, uint16_t *rows);
 // at the bridge would take the daemon and every session with it.
 int plat_spawn_daemon(int idle_seconds);
 
+// The working directory of the process on the other end of this pty, written
+// NUL-terminated into `out`. Returns 1 when it could be read.
+//
+// The daemon owns the pty, so it can simply ask the kernel — which is the only
+// way to know for a shell that reports nothing. The alternative is OSC 7, and
+// that is an opt-in a great many shells do not take: macOS ships zsh emitting
+// it only for Apple Terminal, so a client relying on it alone silently learns
+// nothing on the most common desktop it runs on.
+int plat_pty_cwd(plat_pty *p, char *out, size_t len);
+
+// Whether the above can work at all here, asked without a pty in hand because
+// HELLO_OK has to advertise it before any session exists.
+int plat_cwd_supported(void);
+
+// Nonzero when a session's `command` is run by a POSIX shell — which decides
+// what a CLIENT may put in one. A client that wants a pane reopened in a
+// directory sends `cd '<dir>' && exec "$STARLING_SHELL"`; on a daemon whose
+// shell is cmd.exe that is not a command, it is a pane that dies on sight. So
+// the daemon says which it is in HELLO_OK and the client asks for what the far
+// side can actually run. termd.c holds no #ifdef; this is why.
+int plat_posix_shell(void);
+
 #endif  // TERMD_PLAT_H

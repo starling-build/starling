@@ -29,6 +29,13 @@
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
+// _NSGetExecutablePath: Darwin's answer to /proc/self/exe, which it has no
+// equivalent of (see plat_spawn_daemon), and libproc for the same reason one
+// step further — no /proc means no /proc/<pid>/cwd either (plat_pty_cwd).
+#ifdef __APPLE__
+#include <libproc.h>
+#include <mach-o/dyld.h>
+#endif
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -166,6 +173,13 @@ plat_pty *plat_pty_open(uint16_t cols, uint16_t rows, const char *command) {
         setenv("TERM", "xterm-256color", 1);
         setenv("COLORTERM", "truecolor", 1);
         const char *sh = shell_path();
+        // The shell this session would run with no command, named so a
+        // command CAN run it: a client reopening a pane in its old directory
+        // sends `cd '<dir>' && exec "$STARLING_SHELL"`, and $SHELL is the
+        // wrong answer there — it is the user's preference, while this is
+        // what the daemon actually resolved (STARLING_DEV_SHELL can override
+        // it, and neither may be set at all).
+        setenv("STARLING_SHELL", sh, 1);
         if (command && *command) {
             execl(sh, sh, "-c", command, (char *)NULL);
         } else {
@@ -216,6 +230,31 @@ void plat_pty_resize(plat_pty *p, uint16_t cols, uint16_t rows) {
     ws.ws_row = rows;
     ws.ws_col = cols;
     ioctl(p->master, TIOCSWINSZ, &ws);
+}
+
+int plat_pty_cwd(plat_pty *p, char *out, size_t len) {
+    if (!p || p->child <= 0 || p->exited || len < 2) return 0;
+#ifdef __APPLE__
+    // Darwin has no /proc. proc_pidinfo lives in libSystem, so this needs no
+    // extra library — pvi_cdir is the process's current directory.
+    struct proc_vnodepathinfo vpi;
+    memset(&vpi, 0, sizeof(vpi));
+    int n = proc_pidinfo(p->child, PROC_PIDVNODEPATHINFO, 0, &vpi, sizeof(vpi));
+    if (n != (int)sizeof(vpi)) return 0;
+    if (!vpi.pvi_cdir.vip_path[0]) return 0;
+    snprintf(out, len, "%s", vpi.pvi_cdir.vip_path);
+    return 1;
+#else
+    char link[64];
+    snprintf(link, sizeof(link), "/proc/%d/cwd", (int)p->child);
+    ssize_t n = readlink(link, out, len - 1);
+    if (n <= 0) return 0;
+    out[n] = 0;
+    // A deleted directory reads back as "/old/path (deleted)", which is not a
+    // path anything can be reopened in.
+    if (n > 10 && !strcmp(out + n - 10, " (deleted)")) return 0;
+    return 1;
+#endif
 }
 
 int plat_pty_exited(plat_pty *p, int *status) {
@@ -301,7 +340,25 @@ void plat_sleep_ms(int ms) {
     nanosleep(&ts, NULL);
 }
 
+int plat_posix_shell(void) { return 1; }
+
+int plat_cwd_supported(void) { return 1; }
+
 int plat_spawn_daemon(int idle_seconds) {
+    // Our own path, resolved BEFORE the fork: the child may only make
+    // async-signal-safe calls, and on Darwin finding this is a library call.
+    // Linux hands it over as a symlink it can exec directly; Darwin has no
+    // /proc at all, and an execl of "/proc/self/exe" there fails silently —
+    // every --stdio bridge then dies with "could not start or reach the
+    // daemon" on a machine where nothing is wrong.
+    char self[4096];
+#ifdef __APPLE__
+    uint32_t self_len = (uint32_t)sizeof(self);
+    if (_NSGetExecutablePath(self, &self_len) != 0) return -1;
+#else
+    snprintf(self, sizeof(self), "/proc/self/exe");
+#endif
+
     pid_t pid = fork();
     if (pid < 0) return -1;
     if (pid != 0) return 0;
@@ -316,7 +373,7 @@ int plat_spawn_daemon(int idle_seconds) {
     }
     char idle[32];
     snprintf(idle, sizeof(idle), "%d", idle_seconds);
-    execl("/proc/self/exe", "starling-termd", "--serve", "--idle-exit", idle,
+    execl(self, "starling-termd", "--serve", "--idle-exit", idle,
           (char *)NULL);
     _exit(127);
 }

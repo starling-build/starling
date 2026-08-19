@@ -21,6 +21,15 @@ explains why every session's pty gets its own reader thread rather than
 joining the socket wait, which is a Windows constraint the POSIX build
 adopts so there is only one control flow to reason about.
 
+The POSIX build also runs on **macOS**, where it is what a local workspace
+talks to on the machine the terminal is developed on. Two things differ and
+both are in `plat_posix.c`: `forkpty` comes from `<util.h>` rather than
+`<pty.h>`, and starting the daemon on demand has to find this binary with
+`_NSGetExecutablePath`, because there is no `/proc/self/exe` to exec. That
+second one failed *silently* for as long as it was unfixed — every `--stdio`
+bridge died with `could not start or reach the daemon` on a machine where
+nothing was wrong.
+
 ```bash
 make                     # ./starling-termd
 make static              # one binary to scp to a server with no toolchain
@@ -166,6 +175,123 @@ widget above it is unchanged — same grid, same keys, same resize.
 `$STARLING_TERMD` the server-side path, for sites where neither is on the
 default PATH.
 
+### A particular private key
+
+The client runs `ssh <host> …` with the destination exactly as you typed it and
+adds no identity option of its own, so **`~/.ssh/config` is the answer** and
+needs nothing from this program:
+
+```
+Host prod-1
+    HostName    10.0.0.7
+    User        deploy
+    IdentityFile ~/.ssh/id_prod
+    IdentitiesOnly yes
+```
+
+The switcher reads that file too — `Host` entries (minus `*`/`?` patterns) are
+offered as destinations — so a host configured there is also a host you can
+find without remembering its address.
+
+### Typing the command
+
+The quickest answer, and the one that needs nothing set up: **type the ssh
+command into the switcher** (`⌘O`), ending it with `/ws:` and the workspace
+name.
+
+```
+ssh -i ~/.ssh/id_prod deploy@10.0.0.7/ws:dev
+```
+
+A destination with spaces in it *is* a command: it replaces `ssh` entirely, and
+its **last word is the destination** — that is ssh's own grammar,
+`ssh [options] destination [command]`, and the remote command is ours to supply.
+The client's flags are inserted in front of that last word, where ssh requires
+its options to be.
+
+`/ws:` is the marker because a command is full of slashes and `~/.ssh/id_prod`
+would otherwise be read as the end of a hostname. A plain `host/name` still
+works and needs no marker.
+
+What you typed is remembered like any other destination, so the next launch
+reopens it with the same command; the tab is named by the workspace, not by the
+command.
+
+### Naming the command itself
+
+Typing it every time is fine once — it is remembered — but it makes the
+destination long, and the switcher then shows a command where a machine name
+would read better. To keep `prod-1/dev` as the thing you type and still choose
+the command behind it, name it per host in
+`~/.config/starling-terminal/hosts`. (This is also the answer when
+`$STARLING_SSH` will not do: an environment variable does not survive being
+launched from Finder or a dock, where the app comes up with no shell above it.)
+
+```
+# host        command that reaches it
+prod-1        ssh -i ~/.ssh/id_prod -o IdentitiesOnly=yes
+lab           /usr/local/bin/ssh-through-jump
+old-box       ssh -o HostKeyAlgorithms=+ssh-rsa
+```
+
+One host per line, exact match, `#` comments; the rest of the line is the
+command. It is **a command line, not a program name** — flags are fine, quotes
+keep spaces together, and a leading `~` is expanded, since there is no shell
+here to do it. The same command is used to list a host in the switcher and to
+open its workspace, so the picker cannot show one thing and the connection do
+another.
+
+The client appends its own arguments after yours (`-T -o BatchMode=yes …`,
+then the host and the remote command), **so the command has to accept ssh's
+flags.** A front end that does not — `gcloud compute ssh`, say — still wants a
+small wrapper that swallows them:
+
+```sh
+#!/bin/sh
+exec /usr/bin/ssh -i "$HOME/.ssh/id_prod" -o IdentitiesOnly=yes "$@"
+```
+
+`$STARLING_SSH` still overrides the command globally, for scripts and for a
+launch from a shell; a `hosts` entry is more specific and wins over it.
+
+**The connection is made with `BatchMode=yes`, which is why a key that works in
+your shell can still fail here.** BatchMode disables every prompt, so:
+
+- a **passphrase-protected key** must already be in the agent — `ssh-add
+  ~/.ssh/id_prod` — because nothing can ask you for it;
+- the host must already be in `known_hosts`, since the first-connection
+  `Are you sure you want to continue connecting?` cannot be answered either.
+
+Both failures look the same from inside the app: the host does not answer.
+`ssh -o BatchMode=yes <host> starling-termd --list` reproduces it in a shell,
+with ssh's own diagnostics.
+
+### Many panes on one host
+
+A workspace pane is its own ssh connection, and that costs about **300 ms of
+handshake each** — paid in parallel, so six panes open in roughly the time one
+does. Turning on ssh's own multiplexing makes each pane cost about **40 ms**
+instead, which is worth having for a workspace you open often:
+
+```
+# ~/.ssh/config
+Host prod-1
+    ControlMaster auto
+    ControlPath   ~/.ssh/cm-%r@%h:%p
+    ControlPersist 60
+```
+
+**Do not do this for a workspace of more than about eight panes.** `ControlMaster`
+puts every pane down one connection, and sshd's `MaxSessions` — 10 by default —
+caps the channels inside a single connection. Pane eleven is refused with
+`Session open refused by peer`, which reads like the pane is broken rather than
+like a limit was reached. Raise `MaxSessions` on the server or leave
+multiplexing off; without it there is no such ceiling, because each pane brings
+its own connection.
+
+This is why the option is a suggestion here rather than something the client
+passes on its own.
+
 If the link drops, the pane says so in its own scrollback and reconnects
 with backoff, resuming at the byte offset it had reached:
 
@@ -174,3 +300,11 @@ tick-11
 [link lost — reconnecting…]
 tick-12
 ```
+
+When a whole workspace loses its tunnel, every pane notices in the same
+millisecond and would otherwise dial out together. sshd counts connections
+that have not finished authenticating and starts refusing them at ten
+(`MaxStartups 10:30:100`), so the client spaces its dials per host — four at
+once, then one every 100 ms. The last pane of a large workspace therefore
+comes back a second or so after the first, which is the price of all of them
+coming back at all.

@@ -202,6 +202,24 @@ struct StarlingTerm {
 
     char osc[OSC_MAX];
     int  osc_len;
+    /* The working directory the shell last reported (OSC 7), decoded from its
+       file:// URL. Empty until one arrives, and plenty of shells never send
+       one — so a reader must treat "" as "no idea", never as "/".
+
+       This is the first OSC payload the parser keeps rather than discards.
+       Everything the sequence family carries (a title from 0/2, a
+       notification from 9, a hyperlink from 8) lands the same way: one more
+       branch in finish_osc and one more accessor. */
+    char cwd[OSC_MAX];
+    /* OSC 133 shell integration: where the shell is in the prompt/command
+       cycle. See osc_take_command below. `cmd_done` counts commands that have
+       FINISHED, so a reader can tell "this pane is still showing the same
+       finished command" from "another one finished while I was away" —
+       which is the whole difference between a badge that clears and one that
+       lies. */
+    int      cmd_state;                /* StarlingTermCommandState */
+    int      cmd_exit;
+    uint64_t cmd_done;
 
     uint8_t utf8_pending[4];
     int     utf8_pending_len;
@@ -399,6 +417,9 @@ StarlingTerm *starling_term_new(int cols, int rows) {
     t->last_col = -1;
     t->blank_bg = 0xFFFFFFFFu;
     t->blank_cols = -1;
+    /* calloc gives cmd_state UNKNOWN, which is right; -1 is "no exit code",
+       which 0 would wrongly read as success. */
+    t->cmd_exit = -1;
     /* Every width span starts as the one scalar_width answers without
        consulting a table. Seeding matters as well as helping: a calloc'd
        entry is the interval [0,0] claiming width 0, and U+0000 would hit it. */
@@ -459,6 +480,10 @@ int starling_term_mouse_tracking(const StarlingTerm *t) { return t->mouse_tracki
 int starling_term_mouse_sgr(const StarlingTerm *t) { return t->mouse_sgr; }
 int starling_term_scrollback_count(const StarlingTerm *t) { return t->sb_len; }
 uint64_t starling_term_generation(const StarlingTerm *t) { return t->generation; }
+const char *starling_term_cwd(const StarlingTerm *t) { return t->cwd; }
+int starling_term_command_state(const StarlingTerm *t) { return t->cmd_state; }
+int starling_term_command_exit(const StarlingTerm *t) { return t->cmd_exit; }
+uint64_t starling_term_command_done_count(const StarlingTerm *t) { return t->cmd_done; }
 
 void starling_term_copy_line(const StarlingTerm *t, int abs_index, Cell *out) {
     const Row *r;
@@ -1494,7 +1519,118 @@ static void process_csi(StarlingTerm *t, uint8_t b) {
     }
 }
 
-static void finish_osc(StarlingTerm *t) { t->state = ST_GROUND; t->osc_len = 0; }
+/* OSC 7 — `ESC ] 7 ; file://<host>/<path> ST` — is how a shell says where it
+   is, emitted from its prompt hook on every directory change. It is what lets
+   a pane be reopened where it was rather than in $HOME, which is the whole
+   difference between restoring an arrangement and restoring its shape.
+
+   The host is deliberately ignored: for a remote session the URL names the
+   machine the shell runs on, and that is already the machine we would reopen
+   it on. A path is taken only if it is absolute; percent escapes are decoded
+   in place, which can only shrink it. */
+static void osc_take_cwd(StarlingTerm *t, const char *url, int len) {
+    const char *slash = NULL;
+    if (len > 7 && !strncmp(url, "file://", 7)) {
+        /* Skip the authority: the first '/' after it starts the path. */
+        for (int i = 7; i < len; i++) if (url[i] == '/') { slash = url + i; break; }
+    } else if (len > 0 && url[0] == '/') {
+        slash = url;                     /* a bare path: not the standard, but sent */
+    }
+    if (!slash) return;
+    int n = len - (int)(slash - url);
+    if (n <= 0 || n >= OSC_MAX) return;
+
+    char out[OSC_MAX];
+    int w = 0;
+    for (int i = 0; i < n; i++) {
+        if (slash[i] == '%' && i + 2 < n) {
+            int hi = -1, lo = -1;
+            for (int k = 0; k < 16; k++) {
+                if ("0123456789abcdef"[k] == (slash[i + 1] | 0x20)) hi = k;
+                if ("0123456789abcdef"[k] == (slash[i + 2] | 0x20)) lo = k;
+            }
+            if (hi >= 0 && lo >= 0) {
+                int byte = hi * 16 + lo;
+                /* A NUL or a control byte in a path is not a path. */
+                if (byte < 0x20) return;
+                out[w++] = (char)byte;
+                i += 2;
+                continue;
+            }
+        }
+        out[w++] = slash[i];
+    }
+    out[w] = 0;
+    memcpy(t->cwd, out, (size_t)w + 1);
+}
+
+/* OSC 133 — the "shell integration" marks, as FinalTerm defined them and
+   iTerm2, kitty and ghostty all speak:
+
+     ESC ] 133 ; A ST      a fresh prompt is being drawn
+     ESC ] 133 ; B ST      the prompt has ended; what follows is typed input
+     ESC ] 133 ; C ST      the command is now running; what follows is output
+     ESC ] 133 ; D ST      it finished, exit code unknown
+     ESC ] 133 ; D ; 1 ST  it finished, and this is the exit code
+
+   That is enough to say whether a pane is WAITING FOR YOU or WORKING, which
+   is the thing you actually want to know when six of them are on screen. It
+   is a report from the shell rather than a guess from the pixels: no
+   screen-scraping, no per-program regexes, nothing to keep up to date.
+
+   A and B both mean "at a prompt". They are distinct to a shell that wants to
+   re-draw its input line, and identical to us.
+
+   Any of these may carry extra `;key=value` parameters (aid, cl, and others
+   by convention); everything after the first letter is skipped unless it is
+   D's exit code. A shell that emits none of this leaves the state `unknown`
+   forever, which is the honest answer and must not be drawn as "idle". */
+static void osc_take_command(StarlingTerm *t, const char *p, int len) {
+    if (len < 1) return;
+    switch (p[0]) {
+    case 'A': case 'B':
+        t->cmd_state = STARLING_TERM_CMD_PROMPT;
+        t->cmd_exit = -1;
+        break;
+    case 'C':
+        t->cmd_state = STARLING_TERM_CMD_RUNNING;
+        t->cmd_exit = -1;
+        break;
+    case 'D': {
+        /* Only count a command as finishing if one was running. Shells emit
+           D at startup and after a bare Enter, and counting those would badge
+           a pane nobody has run anything in. */
+        int was_running = (t->cmd_state == STARLING_TERM_CMD_RUNNING);
+        t->cmd_state = STARLING_TERM_CMD_DONE;
+        t->cmd_exit = -1;
+        if (len > 2 && p[1] == ';') {
+            int v = 0, any = 0;
+            for (int i = 2; i < len && p[i] >= '0' && p[i] <= '9'; i++) {
+                v = v * 10 + (p[i] - '0');
+                any = 1;
+                if (v > 65535) { any = 0; break; }
+            }
+            if (any) t->cmd_exit = v;
+        }
+        if (was_running) t->cmd_done++;
+        break;
+    }
+    default:
+        break;                          /* an OSC 133 we do not know */
+    }
+}
+
+static void finish_osc(StarlingTerm *t) {
+    t->osc[t->osc_len] = 0;
+    /* `<number> ; <payload>`. Anything else is not addressed to us. */
+    if (t->osc_len > 2 && t->osc[0] == '7' && t->osc[1] == ';') {
+        osc_take_cwd(t, t->osc + 2, t->osc_len - 2);
+    } else if (t->osc_len > 4 && !strncmp(t->osc, "133;", 4)) {
+        osc_take_command(t, t->osc + 4, t->osc_len - 4);
+    }
+    t->state = ST_GROUND;
+    t->osc_len = 0;
+}
 
 static void process_byte(StarlingTerm *t, uint8_t b) {
     switch (t->state) {

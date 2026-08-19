@@ -20,6 +20,10 @@ import os, queue, socket, struct, subprocess, sys, tempfile, threading, time
 HDR = 8
 (HELLO, HELLO_OK, LIST, LIST_REPLY, OPEN, ATTACH, ATTACHED, DATA, INPUT,
  RESIZE, ACK, EXIT, DETACH, ERROR, PING, PONG) = range(1, 17)
+(WS_CREATE, WS_INFO, WS_LIST, WS_LIST_REPLY, WS_ADD, WS_SET_META,
+ WS_GET_META, WS_META) = range(17, 25)
+(SESSION_CWD, SESSION_CWD_REPLY) = range(25, 27)
+KILL = 27
 VERSION = 2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -88,6 +92,23 @@ def open_payload(cols=80, rows=24, name="", command=""):
     """An OPEN body: the name is length-prefixed so the command can be free."""
     n = name.encode()
     return struct.pack("<HHH", cols, rows, len(n)) + n + command.encode()
+
+
+def ws_entries(payload):
+    """WS_LIST_REPLY → [(ws_id, blob_len, [session ids], name)]."""
+    count = struct.unpack("<H", payload[:2])[0]
+    out, off = [], 2
+    for _ in range(count):
+        wid, blob_len, nses = struct.unpack("<IIH", payload[off:off + 10])
+        off += 10
+        sessions = list(struct.unpack("<" + "I" * nses, payload[off:off + 4 * nses]))
+        off += 4 * nses
+        nlen = struct.unpack("<H", payload[off:off + 2])[0]
+        off += 2
+        name = payload[off:off + nlen].decode("utf-8", "replace")
+        off += nlen
+        out.append((wid, blob_len, sessions, name))
+    return out
 
 
 def list_entries(payload):
@@ -188,6 +209,14 @@ class Client:
         self.send(HELLO, struct.pack("<H", VERSION))
         kind, payload = self.recv(HELLO_OK)
         return kind == HELLO_OK
+
+    def hello_caps(self):
+        """Handshake, returning the capability byte (None if too old to send one)."""
+        self.send(HELLO, struct.pack("<H", VERSION))
+        kind, payload = self.recv(HELLO_OK)
+        if kind != HELLO_OK:
+            return None
+        return payload[4] if len(payload) >= 5 else None
 
     def collect(self, seconds=1.0, until=None):
         """Every DATA byte that arrives within a window, plus the next offset.
@@ -295,6 +324,36 @@ def main():
               and b"SECOND" in whole, repr(whole[:160]))
         check("replay from zero starts at zero", first_seq == 0, str(first_seq))
         c.close()
+
+        # …and a client that asks for a CAP gets the tail instead. This is what
+        # keeps a six-pane workspace from replaying eight megabytes per pane on
+        # a slow link. The field is trailing, so the frames above — which do not
+        # send it — must keep meaning exactly what they meant before.
+        cap = Client(sock_path)
+        cap.hello()
+        cap.send(ATTACH, struct.pack("<IQHHI", sid, 0, 80, 24, 8))
+        kind, payload = cap.recv(ATTACHED)
+        capped_from = struct.unpack("<IQ", payload[:12])[1] if kind == ATTACHED else 0
+        check("a capped attach starts near the end, not at zero",
+              kind == ATTACHED and capped_from >= next_off, str(capped_from))
+        short, first_seq, _ = cap.collect(STEP * 1.5)
+        check("a capped attach replays only the tail", b"FIRST" not in short,
+              repr(short[:120]))
+        check("a capped attach is honest about where it starts",
+              first_seq == capped_from or not short,
+              f"{first_seq} != {capped_from}")
+        cap.close()
+
+        # A cap larger than the history is not a truncation — it means "all of
+        # it", the same as leaving the field out.
+        big = Client(sock_path)
+        big.hello()
+        big.send(ATTACH, struct.pack("<IQHHI", sid, 0, 80, 24, 1 << 30))
+        big.recv(ATTACHED)
+        everything, first_seq, _ = big.collect(STEP * 3, until=b"SECOND")
+        check("a cap wider than the ring still replays everything",
+              b"FIRST" in everything and first_seq == 0, str(first_seq))
+        big.close()
 
         # Input reaches the shell, and its echo comes back on the same stream.
         d = Client(sock_path)
@@ -478,6 +537,229 @@ def main():
         check("a session inherits no multiplexer markers", MUX_CLEAN in mux,
               repr(mux[-120:]))
         m.close()
+
+        # --- workspaces ---------------------------------------------------
+        # The daemon stores an arrangement it never parses. These checks are
+        # the whole of milestone 2 in docs/plans/remote-workspace.md: create,
+        # fill, write a blob, LOSE THE CONNECTION, come back and find it
+        # byte-identical.
+        BLOB = bytes(range(256)) * 3 + b"\x00\xff{\"panes\": [0.5, 0.5]}"
+
+        w = Client(sock_path)
+        w.hello()
+        w.send(WS_CREATE, struct.pack("<H", 3) + b"dev")
+        kind, payload = w.recv(WS_INFO)
+        ws_id = struct.unpack("<I", payload[:4])[0]
+        check("a workspace is created", kind == WS_INFO and ws_id > 0,
+              f"frame {kind}")
+
+        # Idempotent by name, like a named OPEN — a client that lost the id
+        # must not end up with a second workspace beside the first.
+        w.send(WS_CREATE, struct.pack("<H", 3) + b"dev")
+        _, payload = w.recv(WS_INFO)
+        check("creating the same workspace twice returns the same id",
+              struct.unpack("<I", payload[:4])[0] == ws_id)
+
+        sids = []
+        for _ in range(3):
+            w.send(OPEN, open_payload())
+            _, payload = w.recv(ATTACHED)
+            sid = struct.unpack("<I", payload[:4])[0]
+            sids.append(sid)
+            w.send(WS_ADD, struct.pack("<II", ws_id, sid))
+            w.recv(WS_INFO)
+            w.send(DETACH)
+        check("three sessions join the workspace", len(set(sids)) == 3)
+
+        w.send(WS_SET_META, struct.pack("<I", ws_id) + BLOB)
+        w.recv(WS_INFO)
+        # The connection dies here. This is the whole point: arrangement has
+        # to outlive the client that arranged it.
+        w.close()
+
+        w2 = Client(sock_path)
+        w2.hello()
+        w2.send(WS_GET_META, struct.pack("<I", ws_id))
+        kind, payload = w2.recv(WS_META)
+        got = payload[4:]
+        check("the layout blob survives the connection and is byte-identical",
+              kind == WS_META and got == BLOB,
+              f"{len(got)} bytes, wanted {len(BLOB)}")
+
+        w2.send(WS_LIST)
+        _, payload = w2.recv(WS_LIST_REPLY)
+        entries = [e for e in ws_entries(payload) if e[0] == ws_id]
+        check("the workspace lists its name, sessions and blob length",
+              len(entries) == 1 and entries[0][3] == "dev"
+              and sorted(entries[0][2]) == sorted(sids)
+              and entries[0][1] == len(BLOB),
+              repr(entries))
+
+        # A session dying must not take the workspace or the blob with it —
+        # the arrangement is the durable thing, the shells are not.
+        k = Client(sock_path)
+        k.hello()
+        k.send(ATTACH, struct.pack("<IQHH", sids[0], 0, 80, 24))
+        k.recv(ATTACHED)
+        k.send(INPUT, b"exit\n")
+        time.sleep(BOOT)
+        k.close()
+
+        w2.send(WS_LIST)
+        _, payload = w2.recv(WS_LIST_REPLY)
+        entries = [e for e in ws_entries(payload) if e[0] == ws_id]
+        check("a dead session leaves the workspace and its blob intact",
+              len(entries) == 1 and entries[0][1] == len(BLOB),
+              repr(entries))
+
+        w2.send(WS_GET_META, struct.pack("<I", 999))
+        kind, payload = w2.recv(ERROR)
+        check("an unknown workspace is an error, not an empty blob",
+              kind == ERROR, f"frame {kind}")
+
+        # Two clients on one workspace. Whoever writes last wins, and the
+        # others are TOLD — without that they keep drawing the arrangement
+        # they had and write it back over this one on their next change.
+        # w2 is already watching (it asked for the blob above).
+        w3 = Client(sock_path)
+        w3.hello()
+        w3.send(WS_CREATE, struct.pack("<H", len(b"dev")) + b"dev")
+        w3.recv(WS_INFO)
+        MOVED = BLOB + b"\x99"
+        w3.send(WS_SET_META, struct.pack("<I", ws_id) + MOVED)
+
+        kind, payload = w3.recv(WS_INFO, timeout=2.0)
+        check("the client that wrote gets its acknowledgement",
+              kind == WS_INFO, f"frame {kind}")
+        kind, payload = w2.recv(WS_META, timeout=2.0)
+        check("the other client is told, unasked",
+              kind == WS_META and payload[4:] == MOVED,
+              f"frame {kind}, {len(payload) - 4} bytes")
+
+        # …and the writer is not told its own news, or two clients would
+        # answer each other forever.
+        kind, _ = w3.recv(WS_META, timeout=0.6)
+        check("the writer is not sent its own arrangement back", kind is None,
+              f"frame {kind}")
+
+        # A connection that never named the workspace hears nothing about it.
+        quiet = Client(sock_path)
+        quiet.hello()
+        w3.send(WS_SET_META, struct.pack("<I", ws_id) + BLOB)
+        w3.recv(WS_INFO)
+        kind, _ = quiet.recv(WS_META, timeout=0.6)
+        check("a connection not watching hears nothing", kind is None,
+              f"frame {kind}")
+        quiet.close()
+        w3.close()
+        w2.close()
+
+        # Where a session's shell is, asked of the daemon rather than of the
+        # shell. This is what covers every shell that emits no OSC 7 — macOS
+        # ships zsh sending it to Apple Terminal alone — and the daemon can
+        # answer because it owns the pty.
+        cw = Client(sock_path)
+        caps = cw.hello_caps()
+        cw.send(OPEN, open_payload(command=""))
+        _, payload = cw.recv(ATTACHED)
+        cwd_sid = struct.unpack("<I", payload[:4])[0]
+        time.sleep(BOOT)
+        cw.send(INPUT, b"cd /usr/share/man\n")
+        time.sleep(BOOT)
+        cw.send(SESSION_CWD, struct.pack("<I", cwd_sid))
+        kind, payload = cw.recv(SESSION_CWD_REPLY, timeout=3.0)
+        path = payload[4:].decode("utf-8", "replace") if kind == SESSION_CWD_REPLY else ""
+        check("the daemon reports where a session's shell is",
+              kind == SESSION_CWD_REPLY and path == "/usr/share/man",
+              f"frame {kind}, {path!r}")
+        check("…and says so in its capabilities",
+              caps is not None and (caps & 0x02) != 0, f"caps {caps}")
+
+        cw.send(SESSION_CWD, struct.pack("<I", 999999))
+        kind, _ = cw.recv(ERROR, timeout=2.0)
+        check("asking about a session that is not there is an error",
+              kind == ERROR, f"frame {kind}")
+        cw.close()
+
+        # Ending a session, which is the other thing a person can mean and had
+        # no verb until now: DETACH leaves the shell running (the point of the
+        # daemon), and every closed pane used to leak one.
+        kl = Client(sock_path)
+        kl.hello()
+        kl.send(WS_CREATE, struct.pack("<H", len(b"kill-ws")) + b"kill-ws")
+        _, payload = kl.recv(WS_INFO)
+        kill_ws = struct.unpack("<I", payload[:4])[0]
+        kl.send(OPEN, open_payload(command=""))
+        _, payload = kl.recv(ATTACHED)
+        doomed = struct.unpack("<I", payload[:4])[0]
+        kl.send(WS_ADD, struct.pack("<II", kill_ws, doomed))
+        kl.recv(WS_INFO)
+        time.sleep(BOOT)
+
+        kl.send(KILL, struct.pack("<I", doomed))
+        kind, payload = kl.recv(EXIT, timeout=3.0)
+        check("killing a session tells the client attached to it",
+              kind == EXIT and struct.unpack("<I", payload[:4])[0] == doomed,
+              f"frame {kind}")
+
+        kl.send(LIST)
+        _, payload = kl.recv(LIST_REPLY)
+        check("a killed session is gone, not merely dead",
+              doomed not in [e[0] for e in list_entries(payload)],
+              repr(list_entries(payload)))
+
+        kl.send(WS_LIST)
+        _, payload = kl.recv(WS_LIST_REPLY)
+        entry = [e for e in ws_entries(payload) if e[0] == kill_ws]
+        check("…and it leaves the workspace's membership with it",
+              len(entry) == 1 and doomed not in entry[0][2], repr(entry))
+
+        kl.send(KILL, struct.pack("<I", doomed))
+        kind, _ = kl.recv(ERROR, timeout=2.0)
+        check("killing it twice is an error, not a crash", kind == ERROR,
+              f"frame {kind}")
+
+        # And the same message when a shell exits ON ITS OWN. This frame has
+        # been in the protocol since v0 with nothing ever sending it, so a
+        # client whose shell ended just stopped receiving bytes and sat there:
+        # "no more output" and "over" look identical on a stream.
+        ex = Client(sock_path)
+        ex.hello()
+        ex.send(OPEN, open_payload(command=""))
+        _, payload = ex.recv(ATTACHED)
+        ending = struct.unpack("<I", payload[:4])[0]
+        time.sleep(BOOT)
+        ex.send(INPUT, b"exit\r\n" if WINDOWS else b"exit\n")
+        kind, payload = ex.recv(EXIT, timeout=BOOT + 3.0)
+        check("a shell that exits says so to whoever is attached",
+              kind == EXIT and struct.unpack("<I", payload[:4])[0] == ending,
+              f"frame {kind}")
+        ex.close()
+        kl.close()
+
+        # A dead session keeps its slot so its last words can still be read —
+        # but not at the expense of a live one. Seventy sessions that exit
+        # immediately would fill a table of sixty-four and, before the oldest
+        # dead one made way, the daemon answered "could not open a session" on
+        # a machine with nothing running.
+        ev = Client(sock_path)
+        ev.hello()
+        refused = 0
+        for _ in range(70):
+            ev.send(OPEN, open_payload(command="true" if not WINDOWS
+                                       else "cmd.exe /c exit"))
+            kind, _ = ev.recv(timeout=3.0)
+            if kind != ATTACHED:
+                refused += 1
+            ev.send(DETACH)
+        check("a full table evicts the oldest dead session rather than refusing",
+              refused == 0, f"{refused} of 70 refused")
+        ev.send(LIST)
+        _, payload = ev.recv(LIST_REPLY)
+        check("…and stays within its bounds while doing it",
+              len(list_entries(payload)) <= 64,
+              str(len(list_entries(payload))))
+        ev.close()
 
         # A wrong version is refused rather than half-spoken.
         e = Client(sock_path)

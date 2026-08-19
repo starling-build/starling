@@ -44,6 +44,94 @@ The 0.1.0 macOS archive is **removed rather than kept beside this one**: it
 carries both bugs, and an archive that crashes on arrival is not worth the
 history it would cost.
 
+`starling-terminal-0.2.0-dev-macos-arm64.zip` — Starling Terminal for macOS
+arm64, a **preview of the `remote-workspace` branch**, not a release. 17 MB,
+checksum in `SHA256SUMS`. It carries what 0.1.0 does not: splits, remote
+workspaces with a stored arrangement, the switcher, pane status from OSC 133,
+tab keybindings, the floating-pane look, and **⌘/ for the keyboard reference**
+— which is the fastest way to see the rest of that list without reading this
+file. Same `.app` shape as the 0.1.0 archive below, and the same Gatekeeper
+caveat, but **its signature survives a plain `unzip`** where 0.1.0's does not
+(see that entry).
+
+### Gatekeeper, and what "known developers only" actually blocks
+
+This bundle is **ad-hoc signed**: valid, self-consistent, and from nobody.
+`codesign --verify --deep --strict` passes; `spctl -a -t exec` says `rejected`,
+and will keep saying it however the archive is built. Under *App Store and
+identified developers* that matters only where macOS applies it — **on the
+quarantine flag**, which a browser sets on a download and nothing else does:
+
+- **Cloned, `scp`'d, or unzipped in a terminal** — no quarantine, launches with
+  no prompt. Checked here.
+- **Downloaded in a browser** — quarantined, and refused on first launch. Use
+  right-click → **Open**, or Privacy & Security → **Open Anyway**, or clear it
+  once, which is the whole of the workaround:
+
+      xattr -dr com.apple.quarantine "Starling Terminal.app"
+
+None of that requires weakening the machine's setting, and none of it is a
+build change. **Making it launch like any other app means a "Developer ID
+Application" certificate and notarization** — a paid Apple Developer
+membership; an "Apple Development" certificate is for running on your own
+devices and cannot be notarized. `build/macos-app.sh` already takes the signing
+half through `STARLING_MACOS_IDENTITY`; the `notarytool submit` / `stapler
+staple` half is not written, because there is no certificate here to test it
+against.
+
+It sits BESIDE the 0.1.0 release candidate rather than replacing it, which is
+a deliberate exception to the "replace, don't accumulate" rule at the bottom of
+this file. The rule assumes the new artifact supersedes the old one; this one
+does not — 0.1.0 is a cut release that the Windows and Linux archives here are
+also part of, and overwriting the macOS third of it would leave two thirds of a
+release beside a branch build with nothing to say so. Delete this file when
+0.2.0 is actually cut, and the rule resumes.
+
+**Its provenance is weaker than everything else here, on purpose.** The three
+0.1.0 terminals were built from the released SDK bundle — the consumer path.
+This one is built against the repo's own `sdk/`, because the branch changes the
+framework (the OSC 133 accessors in `CTerminalCore`, `TermdDialPacer`, the
+palette) and the 0.3.0 bundle predates all of it. Building it the consumer way
+would have produced an archive missing the very features it exists to preview,
+and it would have done so silently. So this archive proves the branch works; it
+does NOT prove the bundle can build the branch. That check comes back when
+0.2.0 cuts a matching SDK.
+
+`starling-termd-0.1.0-linux-x86_64` — the session daemon for Linux x86_64.
+895 KB, checksum in `SHA256SUMS`. **A bare executable, not an archive**: it is
+statically linked against nothing but libc, so `scp` it to a server and run it.
+That is the whole point of `make static` in `termd/Makefile` — the far end of a
+remote workspace is frequently a machine with no toolchain, and this is the one
+file it needs.
+
+    scp dist/starling-termd-0.1.0-linux-x86_64 server:/usr/local/bin/starling-termd
+    ssh server starling-termd --list
+
+Versioned 0.1.0 to match the terminal it serves, though the number that governs
+compatibility is the wire version in `termd/protocol.h` (currently **2**) —
+a client and daemon disagreeing on that fail the `HELLO` with a clear error
+rather than misbehaving.
+
+`starling-terminal-0.1.0-macos-arm64.zip` — Starling Terminal for macOS arm64, the
+same 0.1.0 release candidate. 17.2 MB, checksum in `SHA256SUMS`. Unlike the
+Windows archive it wraps a `.app`, so it extracts to
+`Starling Terminal.app` rather than flat, and needs no directory made for it.
+
+**Its signature does not survive a plain `unzip`, and 0.2.0-dev's does.**
+`ditto -c -k` without `--sequesterRsrc` stores each file's extended attributes
+(everything here picks up `com.apple.provenance`) as AppleDouble, and command
+-line `unzip` materializes those as real `._Foo` files *inside* the bundle —
+63 of them, including `Contents/_CodeSignature/._CodeResources`. codesign then
+says `a sealed resource is missing or invalid`. Finder's Archive Utility
+understands AppleDouble and unpacks it correctly, so this is invisible to
+anyone who double-clicks and fatal to anyone who does not. `build/macos-app.sh`
+now strips xattrs before sealing, sequesters what is left into `__MACOSX/`, and
+**verifies the archive after a plain unzip rather than the bundle it built** —
+which is why this went unnoticed: the old check ran on the staged tree, on the
+near side of the round trip that does the damage. This archive predates that
+fix and still has it; unpack it with `ditto -x -k` (or Finder) if the signature
+matters, and it is fixed in whatever replaces it.
+
 Opening it needs no command and no arguments — verified by running the
 unpacked app under `env -i` with the SDK bundle it was built against moved
 away: the engine rides in `Contents/Frameworks`, every rpath resolves inside
@@ -145,7 +233,7 @@ slow, with nothing to point at.
 
 Every other binary is a GitHub Release asset rather than repo contents
 (`v0.3.0` carries the .deb, `sdk-v0.2.0` the SDK's Linux tarball and
-Windows zip). These six are in the tree by explicit request, each so that a
+Windows zip). These eight are in the tree by explicit request, each so that a
 build is downloadable from a checkout before its release is cut.
 Do not take it as licence to add more: a binary committed here is in every
 clone forever, and removing it later means rewriting history.
@@ -322,6 +410,52 @@ afterwards. One run on a windowed GNOME session — a health check, not a
 comparable round; the archived rounds fix the grid and run three times against a
 rival terminal.
 
+## The 0.2.0-dev preview's provenance
+
+Built on the Mac from `remote-workspace` at `3543acc`, against this repo's
+`sdk/` rather than a released bundle — see the entry at the top for why, and
+for what that costs in assurance:
+
+    STARLING_APP_VERSION=0.2.0-dev build/macos-app.sh TerminalApp --zip
+
+Checked the way the release archives are: unpacked to an empty directory and
+launched from there under `env -i` with only `HOME`, `SHELL` and a minimal
+`PATH` — it came up, split into panes, and drew shells. The engine rides in
+`Contents/Frameworks` and every rpath resolves inside the bundle, unchanged
+from the 0.1.0 archive. Ad-hoc signed and not notarized, so the same
+right-click → Open applies.
+
+It was also checked for staleness before shipping, which is worth stating
+because a `.app` gives no clue: the executable carries six `_helpOverlay` /
+`_isHelpChord` symbols and the OSC 133 accessors from `CTerminalCore`, and
+`strings` finds the help text itself (`split left | right`, `esc closes`). A
+build against a stale SDK scratch would have none of it and would have looked
+identical. Opening ⌘/ in the unpacked copy was the last check.
+
+**No numbers were measured on this binary**, and it is a branch preview rather
+than a release candidate — do not quote it against the archived perf rounds.
+
+## The Linux termd's provenance
+
+Built on a Ubuntu x86_64 box (`starling@lenovo`, kernel 7.0, gcc) from the
+same `56f2089`, and it is the binary that was tested there rather than a
+rebuild of it — `dist/starling-termd-0.1.0-linux-x86_64` and the tested file
+share the checksum `c07b8167…`:
+
+    make -C termd clean && make -C termd static && strip termd/starling-termd
+    python3 termd/test-termd.py        # the full protocol suite, on that host
+
+The suite passes on the target platform, which is the check that matters for
+this artifact: it exercises sessions outliving their client, `KILL` and the
+lifecycle, workspace membership, ring eviction and the version gate, all
+against this exact executable. `file` reports it statically linked, so the
+server it lands on needs no libc version, no toolchain and no Swift.
+
+It is the only artifact here built on the machine it targets. The other Linux
+binary in this directory (the .deb) was built on the dev box, which is also
+Ubuntu; termd is built wherever a Linux host is available because it depends
+on nothing that could differ.
+
 ## The SDK bundles' provenance
 
 The macOS one (0.3.1) was built on the Mac from `release-sdk-0.3.1`, which is
@@ -473,15 +607,20 @@ by, so a cache entry is "the SDK for this platform" rather than one directory
 per version.
 
 Rebuild as above, copy the artifact here, and regenerate the checksums —
-one file, every line at once, because writing it with one filename is how
-the Windows zip's line got dropped once already:
+one file, all eight lines, because writing it with one filename is how the
+Windows zip's line got dropped once already:
 
     sha256sum starling-sdk-0.3.1-linux-x86_64.tar.gz \
               starling-sdk-0.3.1-macos-arm64.tar.gz \
               starling-sdk-0.3.1-windows-x86_64.zip \
+              starling-termd-0.1.0-linux-x86_64 \
               starling-terminal_0.1.1_amd64.deb \
-              starling-terminal-0.1.0-windows-x86_64.zip \
-              starling-terminal-0.1.1-macos-arm64.zip > SHA256SUMS
+              starling-terminal-0.1.1-macos-arm64.zip \
+              starling-terminal-0.1.1-windows-x86_64.zip \
+              starling-terminal-0.2.0-dev-macos-arm64.zip > SHA256SUMS
+
+`shasum -a 256 -c SHA256SUMS` re-checks every line afterwards, which is worth
+doing: a wrong hash here is indistinguishable from a corrupted download.
 
 (`shasum -a 256` on the Mac — same format, same file. On Windows,
 `Get-FileHash -Algorithm SHA256` and lower-case the hash; write the file with
