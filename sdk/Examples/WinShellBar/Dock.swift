@@ -22,7 +22,12 @@
 // opaque, so nothing about the bar is see-through.
 //
 // Clicking a tile raises its app, or starts it; right-clicking pins or unpins
-// it; hovering names it; a running indicator sits under each.
+// it; hovering names it; a running indicator sits under each. Clicking the
+// status readout at the right opens the control centre.
+//
+// What it deliberately does NOT do is arrange anybody's windows. Moving other
+// people's windows is the one real power a shell has on Windows, and Windows
+// already has Snap; a grid nobody asked for is not worth spending it on.
 //
 // Where the apps come from is the interesting part. The Linux shell reads
 // Starling's own registry; Windows has none, so `Win32AppCatalog` reads the
@@ -77,12 +82,6 @@ let kCcInset = 12.0
 /// estimate that drifts from the layout opens the panel from the wrong place
 /// — or from nowhere.
 let kStatusWidth = 210.0
-
-/// Gap between tiled windows, in logical points — scaled to pixels at use,
-/// because window geometry is the one place this file speaks physical. It is
-/// applied on every edge, so adjacent windows are two gaps apart, the same
-/// convention the Linux shell's tiler uses.
-let kTileGap = 8
 
 /// Whether Explorer's taskbar is left alone. `--plain` is a bisect flag and
 /// has no business changing the desktop underneath it.
@@ -362,63 +361,6 @@ final class StarlingDockState: State<StatefulWidget> {
         queueRefresh()
     }
 
-    /// Lay every visible window out on a grid, per monitor.
-    ///
-    /// Per MONITOR, not per desktop: grouping everything into one grid drags
-    /// every window onto the primary, which is a destructive answer to "tidy
-    /// these up". Moved here from the menu bar, and reachable from the
-    /// launcher tile's menu.
-    private func tileAll() {
-        let visible = items.flatMap { $0.windows }.filter { !$0.isMinimized }
-        guard !visible.isEmpty else { return }
-
-        var byMonitor: [Int: [Win32Window]] = [:]
-        for window in visible {
-            // A window Windows will not place on any monitor still has to go
-            // somewhere; the primary is where it would have been dragged.
-            byMonitor[window.monitor ?? 0, default: []].append(window)
-        }
-        let scales = Dictionary(uniqueKeysWithValues:
-            Win32Display.monitors().map { ($0.index, $0.scale) })
-        for monitor in byMonitor.keys.sorted() {
-            tile(byMonitor[monitor]!, on: monitor, scale: scales[monitor] ?? 1.0)
-        }
-        queueRefresh()
-    }
-
-    private func tile(_ group: [Win32Window], on monitor: Int, scale: Double) {
-        guard let area = Win32WindowManager.workArea(monitor: monitor) else { return }
-
-        // Window rectangles are physical pixels — they are other people's
-        // windows on other people's monitors, and there is no single logical
-        // space spanning a mixed-DPI desktop. So the gap is scaled here, per
-        // monitor, rather than once for the whole desktop.
-        let gap = Int((Double(kTileGap) * scale).rounded())
-
-        let columns = Int(ceil(Double(group.count).squareRoot()))
-        let rows = Int(ceil(Double(group.count) / Double(columns)))
-        let cellHeight = (area.height - gap * (rows + 1)) / rows
-
-        var index = 0
-        for row in 0..<rows {
-            // The last row takes whatever is left and stretches across the
-            // full width, rather than leaving a hole where a cell would have
-            // been. Three windows tile as two over one, not two over one and
-            // a gap.
-            let inRow = min(columns, group.count - index)
-            let cellWidth = (area.width - gap * (inRow + 1)) / inRow
-            for column in 0..<inRow {
-                let window = group[index]
-                Win32WindowManager.move(window.handle, to: Win32Rect(
-                    x: area.x + gap + column * (cellWidth + gap),
-                    y: area.y + gap + row * (cellHeight + gap),
-                    width: cellWidth,
-                    height: cellHeight))
-                index += 1
-            }
-        }
-    }
-
     // MARK: - The control centre
     //
     // Clicking the status readout opens the panel that changes what it is
@@ -456,13 +398,15 @@ final class StarlingDockState: State<StatefulWidget> {
     /// the order they are drawn.
     private func ccRects() -> (tiles: [CcRect], slider: CcRect, row: CcRect) {
         let f = ccFrame
-        var tiles: [CcRect] = []
-        for index in 0..<4 {
-            tiles.append(CcRect(
-                x: f.x + kCcPad + Double(index % 2) * (kCcTileW + kCcGap),
-                y: f.y + kCcPad + Double(index / 2) * (kCcTileH + kCcGap),
-                w: kCcTileW, h: kCcTileH))
-        }
+        // Two across, then the odd one out spanning the row — a half tile
+        // beside a hole reads as something failed to load.
+        let tiles: [CcRect] = [
+            CcRect(x: f.x + kCcPad, y: f.y + kCcPad, w: kCcTileW, h: kCcTileH),
+            CcRect(x: f.x + kCcPad + kCcTileW + kCcGap, y: f.y + kCcPad,
+                   w: kCcTileW, h: kCcTileH),
+            CcRect(x: f.x + kCcPad, y: f.y + kCcPad + kCcTileH + kCcGap,
+                   w: kCcWidth - kCcPad * 2, h: kCcTileH),
+        ]
         let afterTiles = f.y + kCcPad + kCcTileH * 2 + kCcGap * 2
         // The track starts clear of the speaker glyph at its left.
         let slider = CcRect(x: f.x + kCcPad + 28, y: afterTiles,
@@ -480,11 +424,15 @@ final class StarlingDockState: State<StatefulWidget> {
                       w: kStatusWidth, h: Double(kDockHeight))
     }
 
-    /// Wi-Fi, Sound, Dark Mode, Tile Windows.
+    /// Wi-Fi, Sound, Dark Mode.
     ///
-    /// Not the desktop's six: three of those (Record, Record App, Tiling as a
-    /// mode) have no counterpart here yet, and a tile that does nothing is
-    /// worse than a tile that is missing.
+    /// Not the desktop's six. Record and Record App have no counterpart here
+    /// yet, and tiling is deliberately gone: Windows already has Snap and its
+    /// own arrangement commands, and a shell that shoves everyone's windows
+    /// onto a grid is doing something the user did not ask for with the one
+    /// power it has over other people's applications. A tile that does
+    /// nothing is worse than a tile that is missing, and so is one that does
+    /// something unasked.
     private func ccTapped(_ index: Int) {
         switch index {
         case 0:
@@ -496,12 +444,9 @@ final class StarlingDockState: State<StatefulWidget> {
             let muted = !(volume?.isMuted ?? false)
             Win32Control.setMuted(muted)
             volume = Win32Volume(percent: volume?.percent ?? 0, isMuted: muted)
-        case 2:
+        default:
             darkMode.toggle()
             Win32Control.setDarkMode(darkMode)
-        default:
-            controlCentreOpen = false
-            tileAll()
         }
     }
 
@@ -673,8 +618,6 @@ final class StarlingDockState: State<StatefulWidget> {
                                    available: volume != nil)
                             ccTile(2, icon: CupertinoIcons.moon_fill, label: "Dark Mode",
                                    active: darkMode)
-                            ccTile(3, icon: CupertinoIcons.square_grid_2x2,
-                                   label: "Tile Windows", active: false)
                             ccSlider()
                             ccBottomRow()
                         }
