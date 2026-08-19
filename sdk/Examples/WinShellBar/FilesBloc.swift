@@ -33,6 +33,11 @@ struct FilesState {
     /// The row the pointer last pressed, for the selection highlight.
     var selected: String?
     var error: String?
+    /// What opens the selected file, and what Explorer calls its type —
+    /// looked up when the selection changes, not per row: the association
+    /// database is a registry walk and a listing has thousands of rows.
+    var selectedApp: String?
+    var selectedType: String?
     /// Bumped when an icon lands — icons rasterize off the UI thread and
     /// arrive after the rows that want them (see DockState.iconRevision).
     var iconRevision = 0
@@ -49,6 +54,9 @@ final class FilesBloc: @unchecked Sendable {
         /// A row was activated: enter a folder, or hand a file to the shell.
         case activate(Win32FileEntry)
         case select(String?)
+        case selectionInfo(app: String?, type: String?)
+        /// The shell's own "Open with" dialog for the selection.
+        case openWith
         case goUp
         case goBack
         case refresh
@@ -118,6 +126,41 @@ final class FilesBloc: @unchecked Sendable {
 
         case .select(let path):
             state.selected = path
+            state.selectedApp = nil
+            state.selectedType = nil
+            guard let path,
+                  let entry = state.entries.first(where: { $0.path == path }),
+                  !entry.isDirectory else { return }
+            Task.detached { [weak self] in
+                let app = Win32Files.defaultApp(for: path)
+                let type = Win32Files.typeName(for: path)
+                await MainActor.run {
+                    // Only if it is still the selected row: clicking down a
+                    // list faster than the registry answers would otherwise
+                    // leave the footer describing a file two rows back.
+                    guard self?.state.selected == path else { return }
+                    self?.add(.selectionInfo(app: app, type: type))
+                }
+            }
+
+        case .selectionInfo(let app, let type):
+            state.selectedApp = app
+            state.selectedType = type
+
+        case .openWith:
+            guard let path = state.selected else { return }
+            // BLOCKS on the user, so it cannot be on the drawing thread. And
+            // the association may have changed by the time it returns, which
+            // is the entire point of the dialog — so re-read after.
+            Task.detached { [weak self] in
+                Win32Files.openWith(path)
+                let app = Win32Files.defaultApp(for: path)
+                let type = Win32Files.typeName(for: path)
+                await MainActor.run {
+                    guard self?.state.selected == path else { return }
+                    self?.add(.selectionInfo(app: app, type: type))
+                }
+            }
 
         case .openInExplorer:
             let path = state.directory

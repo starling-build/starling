@@ -117,6 +117,15 @@ int32_t flwin32_known_path(int32_t which, char* out, int32_t out_size);
 // the association database without touching the disk.
 int32_t flwin32_file_type_name(const char* path, char* out, int32_t out_size);
 
+// The friendly name of whatever opens this file — "Notepad", "Paint". Empty
+// when the type has no handler.
+int32_t flwin32_default_app_name(const char* path, char* out, int32_t out_size);
+
+// The shell's own "Open with" dialog, which is the ONLY supported way for the
+// default handler to change: since Windows 8 an application cannot write the
+// association itself. BLOCKS — background thread only.
+int32_t flwin32_open_with_dialog(const char* path);
+
 // Hands the folder to Windows' own Explorer.
 int32_t flwin32_open_in_explorer(const char* path);
 

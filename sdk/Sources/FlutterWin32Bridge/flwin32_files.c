@@ -31,6 +31,7 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <shellapi.h>
+#include <shlwapi.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -38,6 +39,7 @@
 
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shlwapi.lib")
 
 static int32_t wide_out(const wchar_t* w, char* out, int32_t out_size) {
     if (w == NULL || out == NULL || out_size <= 0) return 0;
@@ -106,4 +108,84 @@ int32_t flwin32_open_in_explorer(const char* path) {
     HINSTANCE rc = ShellExecuteW(NULL, L"explore", wide, NULL, NULL, SW_SHOWNORMAL);
     free(wide);
     return ((INT_PTR)rc > 32) ? 1 : 0;
+}
+
+/* ----------------------------------------------------- file associations */
+
+/*
+ * What opens a file, and letting the user change it.
+ *
+ * The limit worth knowing before reading further: on Windows 8 and later an
+ * application CANNOT set the default handler for a file type. The choice
+ * lives in HKCU\...\FileExts\<ext>\UserChoice, and that key is protected by
+ * a hash over the extension, the user's SID and a timestamp -- writing it
+ * without the hash is ignored, and computing the hash means reimplementing an
+ * undocumented algorithm that Microsoft changes. Every "set default browser"
+ * tool that still works does it by asking the USER through the shell's own
+ * UI.
+ *
+ * So this offers the two things that ARE supported: read what the default is,
+ * and put up the shell's own "Open with" dialog, which is where the user can
+ * make something the default with a checkbox. The same line the audio
+ * default-device switcher is on: Windows does not offer it, so we do not fake
+ * it.
+ */
+
+/* The friendly name of whatever currently opens this file -- "Notepad",
+ * "Microsoft Edge". Empty when nothing is associated, which is a real answer
+ * and the caller says so. */
+int32_t flwin32_default_app_name(const char* path, char* out, int32_t out_size) {
+    if (path == NULL) return 0;
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+
+    const wchar_t* dot = wcsrchr(wide, L'.');
+    int32_t written = 0;
+    if (dot != NULL && dot[1] != L'\0') {
+        wchar_t name[512];
+        DWORD size = 512;
+        /* ASSOCSTR_FRIENDLYAPPNAME resolves through the UserChoice the user
+         * actually made, which is the point -- ASSOCSTR_EXECUTABLE gives a
+         * path, and on a Store app that path is a stub nobody recognises. */
+        if (AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_FRIENDLYAPPNAME, dot, NULL,
+                              name, &size) == S_OK) {
+            written = wide_out(name, out, out_size);
+        }
+    }
+    free(wide);
+    return written;
+}
+
+/* The shell's own "How do you want to open this file?" dialog.
+ *
+ * SHOpenWithDialog rather than ShellExecuteEx with the "openas" verb: the
+ * verb form opens the same dialog but goes through association lookup first
+ * and does nothing at all for a file type that has no handler -- which is
+ * precisely when the user needs the dialog.
+ *
+ * BLOCKS until the user answers. Background thread only. */
+int32_t flwin32_open_with_dialog(const char* path) {
+    if (path == NULL) return 0;
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+
+    OPENASINFO info;
+    ZeroMemory(&info, sizeof(info));
+    info.pcszFile = wide;
+    info.pcszClass = NULL;
+    /* EXEC so the file opens once chosen, and ALLOW_REGISTRATION so the
+     * dialog offers "Always use this app" -- which is the ONLY supported way
+     * for the default to change, and the whole reason this dialog is here. */
+    info.oaifInFlags = OAIF_EXEC | OAIF_ALLOW_REGISTRATION;
+
+    HRESULT hr = SHOpenWithDialog(NULL, &info);
+    free(wide);
+    /* Cancelled is not a failure: the user answered, and the answer was no. */
+    return (hr == S_OK || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) ? 1 : 0;
 }

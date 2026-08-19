@@ -130,6 +130,34 @@ public enum Win32Files {
         return parent.count == 2 ? parent + "\\" : parent
     }
 
+    /// What currently opens this file — "Notepad", "Microsoft Edge" — or nil
+    /// when the type has no handler at all.
+    public static func defaultApp(for path: String) -> String? {
+        var buffer = [CChar](repeating: 0, count: 512)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_default_app_name(path, $0.baseAddress, 512)
+        }
+        guard n > 0 else { return nil }
+        let name = String(cString: buffer)
+        return name.isEmpty ? nil : name
+    }
+
+    /// Puts up the shell's "Open with" dialog.
+    ///
+    /// This is the ONLY supported way for a file association to change.
+    /// Since Windows 8 an application cannot set the default handler itself:
+    /// the choice lives in a `UserChoice` key protected by a hash over the
+    /// extension, the user's SID and a timestamp, and writing it without that
+    /// hash is ignored. Everything that still changes defaults does it by
+    /// asking the user through this dialog — which offers "always use this
+    /// app" — or by sending them to Windows' Settings.
+    ///
+    /// **Blocks** until the user answers.
+    @discardableResult
+    public static func openWith(_ path: String) -> Bool {
+        flwin32_open_with_dialog(path) != 0
+    }
+
     @discardableResult
     public static func openInExplorer(_ path: String) -> Bool {
         flwin32_open_in_explorer(path) != 0
