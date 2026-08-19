@@ -90,19 +90,19 @@ private enum TabChrome {
     /// the desktop composites the wallpaper behind this window — an opaque
     /// backdrop would quietly turn a translucent window solid, and the gaps
     /// are exactly where that would show most.
-    static let backdrop: Int = 0xD9_16142A
+    static let backdrop: Int = 0xD9_0E1017
 
     /// A pane's own background. Must stay in step with
     /// `TerminalTheme.starlingDark.background` in the sdk, which is what the
     /// grid itself paints: if the two drift, every pane gets a mismatched
     /// hairline where the chrome ends and the text begins.
-    static let surface: Int = 0xD9_231F3D
+    static let surface: Int = 0xD9_171922
 
     /// The ring around the pane with the keyboard, and the seam while it is
     /// dragged. Both are quiet on purpose: a terminal is a rectangle of text
     /// and a loud border competes with it.
     static let activePaneEdge: Int = 0x66_8AA0FF
-    static let seamHot: Int = 0xFF_4A4470
+    static let seamHot: Int = 0xFF_373D4B
     /// How much of a pane's corner is rounded off. Only ever applied when
     /// there is more than one pane — see `_pane`.
     static let paneRadius: Double = 6
@@ -111,10 +111,10 @@ private enum TabChrome {
     /// surface; everything else is the backdrop.
     static let activeTab: Int = surface
     static let bar: Int = backdrop
-    static let separator: Int = 0xFF_100E1F
-    static let activeText: Int = 0xFF_EDEBF7
-    static let text: Int = 0xFF_9C97BC
-    static let button: Int = 0xFF_9C97BC
+    static let separator: Int = 0xFF_0A0B10
+    static let activeText: Int = 0xFF_E9EBF0
+    static let text: Int = 0xFF_949AA8
+    static let button: Int = 0xFF_949AA8
     /// Pane status (OSC 133). Amber for working, green for finished cleanly,
     /// red for a non-zero exit — the macOS traffic-light order, which is the
     /// one reading people already have.

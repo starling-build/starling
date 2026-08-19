@@ -122,14 +122,14 @@ enum TerminalHelp {
 /// The help overlay's palette — the switcher's, because it is the same kind
 /// of surface and two sheets over one terminal should not disagree.
 private enum HelpChrome {
-    static let scrim: Int = 0x99_0B0A16
-    static let panel: Int = 0xF2_2B2749
-    static let edge: Int = 0xFF_46406B
-    static let title: Int = 0xFF_EDEBF7
+    static let scrim: Int = 0x99_06070B
+    static let panel: Int = 0xF2_1E212B
+    static let edge: Int = 0xFF_333947
+    static let title: Int = 0xFF_E9EBF0
     static let section: Int = 0xFF_8AA0FF
-    static let chord: Int = 0xFF_EDEBF7
-    static let what: Int = 0xFF_C9C4E0
-    static let hint: Int = 0xFF_8C87AB
+    static let chord: Int = 0xFF_E9EBF0
+    static let what: Int = 0xFF_C3C8D3
+    static let hint: Int = 0xFF_858B99
     static let row: Double = 19
     static let sectionGap: Double = 12
     /// Where the description starts, so every chord column lines up. In

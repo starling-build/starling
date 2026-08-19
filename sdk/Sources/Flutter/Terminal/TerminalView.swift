@@ -35,9 +35,9 @@ public struct TerminalTheme: Sendable {
     // at every pane edge. The alpha is what lets the desktop composite a
     // wallpaper behind the window, and every colour here that sits behind
     // text must keep it.
-    public init(background: UInt32 = 0xD9231F3D,
-                defaultForeground: UInt32 = 0xFFD9D5EA,
-                cursorOverlay: UInt32 = 0x99D9D5EA,
+    public init(background: UInt32 = 0xD9171922,
+                defaultForeground: UInt32 = 0xFFD5D9E2,
+                cursorOverlay: UInt32 = 0x99D5D9E2,
                 selection: UInt32 = 0x408AA0FF) {
         self.background = background
         self.defaultForeground = defaultForeground
