@@ -1433,14 +1433,12 @@ static void overlay_park(FlWin32Host* host) {
   UnregisterHotKey(host->window, kOverlayEscapeHotkey);
   LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
   SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
-  // Alpha first, THEN drop it down the z-order: the other order shows the
-  // surface at full opacity for however long the two calls take.
-  SetLayeredWindowAttributes(host->window, 0, 0, LWA_ALPHA);
+  // EXPERIMENT: genuinely hidden, still at full size.
   SetWindowPos(host->window, HWND_BOTTOM,
                host->overlay_rect.left, host->overlay_rect.top,
                host->overlay_rect.right - host->overlay_rect.left,
                host->overlay_rect.bottom - host->overlay_rect.top,
-               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+               SWP_FRAMECHANGED | SWP_HIDEWINDOW | SWP_NOACTIVATE);
   host->overlay_shown = 0;
 }
 
