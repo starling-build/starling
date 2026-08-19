@@ -155,10 +155,20 @@ step "unit tests: audio"
     | grep -vE "libxml2.so.2: no version information" \
     | grep -E "Test run with|error:|failed") || fails=$((fails + 1))
 
+# The one shared package that cannot even COMPILE off Linux: CVaapiEncoder
+# includes <va/va.h>, and VA-API exists where a Linux GPU stack does. Guarded
+# on the header the way the clipboard bridge below is, and for the same
+# reason — a suite that reports FAIL for a dependency the platform does not
+# have is a suite people learn to read past, and the next real failure goes
+# with it. The build tier (--build) is where a Linux box proves it compiles.
 step "unit tests: record"
-(cd "$REPO/record" && as_user "$SWIFT" test 2>&1 \
-    | grep -vE "libxml2.so.2: no version information" \
-    | grep -E "Test run with|error:|failed") || fails=$((fails + 1))
+if [ -f /usr/include/va/va.h ]; then
+    (cd "$REPO/record" && as_user "$SWIFT" test 2>&1 \
+        | grep -vE "libxml2.so.2: no version information" \
+        | grep -E "Test run with|error:|failed") || fails=$((fails + 1))
+else
+    echo "  SKIPPED — no VA-API headers (apt install libva-dev)"
+fi
 
 step "unit tests: clipboard bridge"
 # The bridge's bounded pipe I/O — the part that keeps a slow or wedged peer

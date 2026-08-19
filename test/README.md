@@ -13,6 +13,15 @@ sudo test/net-sim.sh up      simulated network, for the network checks
 Run the default tier on every change. It needs no compositor, no GPU, no
 network, and no build.
 
+**It also runs on the Mac**, where the terminal and the SDK are developed, and
+it has to come back PASS there or it stops being read. Two steps skip on a
+platform that cannot host them — `record` wants VA-API headers, the clipboard
+bridge wants Wayland ones — and each says so on the line where it skips. The
+glyph gate does *not* skip: it follows the `#if os(macOS)` in
+`TerminalView.register()` and checks the families the terminal names through
+CoreText, which is why ❌ resolves there without a Noto file in sight. A step
+that cannot run says SKIPPED; a step that runs says what it found.
+
 ## Simulated network
 
 `test/net-sim.sh up` builds a network lab, wireless and wired, so the network

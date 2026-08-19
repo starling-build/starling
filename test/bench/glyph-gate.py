@@ -32,6 +32,15 @@ full-screen program draws its interface out of.
 Exit 0 when every codepoint resolves, 1 when any does not — and 1, loudly, if
 it cannot find the fonts at all. A gate that passes because it checked nothing
 is worse than no gate, so "I found no faces" is a failure, never a skip.
+
+The DRM embedder is what the first paragraph describes. On macOS the same
+terminal draws through CoreText, which does fall back on its own — so the set
+below is what the terminal *asks for*, and anything CoreText finds beyond it
+is headroom this gate does not count. That distinction is the whole reason
+this file has a platform split: on Linux the terminal LOADS two Noto files by
+path, on macOS it NAMES four families and loads nothing, and reading only the
+first list made a Mac report ❌ as unpaintable while the screen showed it in
+red.
 """
 
 import glob
@@ -60,21 +69,124 @@ def loaded_faces():
         src = open(LOADER, encoding="utf8").read()
     except OSError as e:
         die(f"cannot read {LOADER}: {e}")
-    block = re.search(r"systemFallbacks:.*?=\s*\[(.*?)\n\s*\]", src, re.S)
+    if sys.platform == "darwin":
+        return faces + _mac_named_faces(src)
+    return faces + _linux_loaded_faces(src)
+
+
+def _block(src, name):
+    """The Swift array literal called `name`, or a hard failure. Parsed rather
+    than restated, so the gate follows the list the terminal actually uses."""
+    block = re.search(name + r"\s*(?::[^=]*)?=\s*\[(.*?)\n\s*\]", src, re.S)
     if not block:
-        die("could not find `systemFallbacks` in TerminalView.swift — if it "
-            "moved or was renamed, fix this gate rather than deleting it")
-    paths = re.findall(r'\("([^"]+)",\s*"[^"]*"\)', block.group(1))
+        die(f"could not find `{name}` in TerminalView.swift — if it moved or "
+            "was renamed, fix this gate rather than deleting it")
+    return block.group(1)
+
+
+def _linux_loaded_faces(src):
+    """`systemFallbacks` — files the terminal mmaps by path (the `#else` half
+    of `register()`). Absent ones are noted: the terminal will not load them
+    either, so the gate must not pretend it did."""
+    paths = re.findall(r'\("([^"]+)",\s*"[^"]*"\)', _block(src, "systemFallbacks"))
     if not paths:
         die("`systemFallbacks` parsed as empty — the gate would then be "
             "checking only the bundled faces and passing vacuously")
-
     present = [p for p in paths if os.path.exists(p)]
     for p in paths:
         if p not in present:
             print(f"  note: {p} is not installed on this machine — the "
                   f"terminal will not load it either")
-    return faces + present
+    return present
+
+
+def _mac_named_faces(src):
+    """`systemFamilyNames` — families the terminal NAMES and never loads (the
+    `#if os(macOS)` half of `register()`), because Apple Color Emoji alone is
+    192 MB that CoreText already has resident.
+
+    A name is not a file, and this gate reads cmaps, so each one is resolved
+    the way CoreText would: by asking the faces installed on this machine what
+    family they say they are. A hardcoded path table was the alternative and
+    it rots silently the first time Apple renames a file — while this only has
+    to know the directories fonts live in."""
+    names = re.findall(r'"([^"]+)"', _block(src, "systemFamilyNames"))
+    if not names:
+        die("`systemFamilyNames` parsed as empty — the gate would then be "
+            "checking only the bundled faces and passing vacuously")
+    found = _resolve_families(names)
+    for name in names:
+        if name not in found:
+            print(f"  note: no installed face claims the family “{name}” — "
+                  f"the terminal will not paint with it either")
+    return sorted(set(found.values()))
+
+
+MAC_FONT_DIRS = ["/System/Library/Fonts",
+                 "/System/Library/Fonts/Supplemental",
+                 "/Library/Fonts",
+                 os.path.expanduser("~/Library/Fonts")]
+
+
+def _resolve_families(names):
+    """{family name: file} for the names installed here, found by reading the
+    `name` table of every system face. Seeks rather than whole reads: this
+    walks a few hundred files, one of which is 192 MB."""
+    want, hits = set(names), {}
+    for directory in MAC_FONT_DIRS:
+        for path in sorted(glob.glob(os.path.join(directory, "*.tt[cf]"))
+                           + glob.glob(os.path.join(directory, "*.otf"))):
+            if not want - hits.keys():
+                return hits
+            try:
+                claimed = _family_names(path)
+            except (OSError, struct.error, IndexError):
+                continue          # a face we cannot parse is not a face we use
+            for family in claimed & want:
+                hits.setdefault(family, path)
+    return hits
+
+
+def _family_names(path):
+    """Every family name a face declares — name ids 1 (family) and 16
+    (typographic family), which is the pair CoreText matches a family against.
+    """
+    with open(path, "rb") as fh:
+        def at(off, n):
+            fh.seek(off)
+            return fh.read(n)
+
+        head = at(0, 12)
+        bases = [0]
+        if head[:4] == b"ttcf":                  # a collection: every font in it
+            count = struct.unpack(">I", head[8:12])[0]
+            bases = list(struct.unpack(f">{count}I", at(12, count * 4)))
+
+        found = set()
+        for base in bases:
+            count = struct.unpack(">H", at(base + 4, 2))[0]
+            entries = at(base + 12, count * 16)
+            table = None
+            for i in range(count):
+                rec = entries[i * 16:(i + 1) * 16]
+                if rec[:4] == b"name":
+                    table = struct.unpack(">I", rec[8:12])[0]
+            if table is None:
+                continue
+            n, strings = struct.unpack(">HH", at(table + 2, 4))
+            records = at(table + 6, n * 12)
+            for i in range(n):
+                pid, _, _, nid, ln, off = struct.unpack(
+                    ">6H", records[i * 12:(i + 1) * 12])
+                if nid not in (1, 16):
+                    continue
+                raw = at(table + strings + off, ln)
+                try:
+                    found.add(raw.decode("utf-16-be") if pid == 3
+                              else raw.decode("latin1"))
+                except UnicodeDecodeError:
+                    continue
+        return found
 
 
 # ── cmap ────────────────────────────────────────────────────────────────────
