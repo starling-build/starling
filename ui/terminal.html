@@ -915,8 +915,9 @@ chmod +x starling-create
     <p class="note">
       <strong>Those four lines are the same on Linux, macOS and Windows</strong>
       — on Windows in Git bash, which is where a <code>curl</code> instruction
-      lands anyway. <code>starling-create</code> is an asset on the release
-      above, the same one the terminal itself ships from. It checks your
+      lands anyway. <code>starling-create</code> is an asset on the SDK
+      release above — a different release from the terminal's, which is why
+      the tag says <code>sdk-</code>. It checks your
       toolchain, fetches the SDK bundle for the machine it is run on — the
       framework plus the engine binaries it links against, 14 MB on macOS,
       17 MB on Windows, 23 MB on Linux — and writes the SwiftPM project

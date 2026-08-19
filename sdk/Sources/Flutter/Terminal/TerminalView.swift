@@ -160,9 +160,22 @@ public enum TerminalFontLoader {
         if let exe = Bundle.main.executableURL?.deletingLastPathComponent() {
             roots.append(exe)
         }
+        // BOTH SUFFIXES, and this is not belt-and-braces. SwiftPM names the
+        // staged directory `<package>_<target>.bundle` on Darwin and
+        // `<package>_<target>.resources` everywhere else; `Bundle.module`'s
+        // generated accessor is `#if os(macOS)`-d for exactly that reason.
+        // Searching only for `.bundle` therefore finds nothing on Linux and
+        // Windows -- and because this function returns nil rather than
+        // trapping, the terminal comes up drawing with the system's
+        // proportional font on monospace cell metrics instead of failing. It
+        // looks like a rendering bug, not a missing file. That shipped: the
+        // release that replaced `Bundle.module` here fixed macOS and broke the
+        // other two, and was caught by looking at a screenshot.
         for root in roots {
-            let candidate = root.appendingPathComponent("\(name).bundle")
-            if let bundle = Bundle(url: candidate) { return bundle }
+            for suffix in ["bundle", "resources"] {
+                let candidate = root.appendingPathComponent("\(name).\(suffix)")
+                if let bundle = Bundle(url: candidate) { return bundle }
+            }
         }
         return nil
     }
