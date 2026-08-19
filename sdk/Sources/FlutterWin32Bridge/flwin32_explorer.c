@@ -230,3 +230,28 @@ int32_t flwin32_explorer_taskbar_visible(void) {
   }
   return 0;
 }
+
+/* ------------------------------------------------------- Starling settings */
+
+/* Opens the Settings surface, or raises the one already open.
+ *
+ * A second run of this same executable, which is how every Starling surface on
+ * Windows works -- one widget root per process. GetModuleFileNameW rather than
+ * a recorded path: the shell runs from a staging tree during development and
+ * from a package afterwards, and hardcoding either is wrong somewhere.
+ *
+ * Raising an existing window rather than starting a second process is not
+ * politeness: two Settings windows would each hold their own idea of the
+ * display mode and the volume, and the second one to be touched would win. */
+void flwin32_shell_open_settings(void) {
+    HWND existing = FindWindowW(L"FlutterSwiftWin32Host", L"Starling Settings");
+    if (existing != NULL) {
+        if (IsIconic(existing)) ShowWindow(existing, SW_RESTORE);
+        SetForegroundWindow(existing);
+        return;
+    }
+
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
+    ShellExecuteW(NULL, L"open", exe, L"--settings", NULL, SW_SHOWNORMAL);
+}

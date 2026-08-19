@@ -170,6 +170,20 @@ public enum Win32Shell {
         flwin32_shell_broadcast_toggle()
     }
 
+    /// Opens Starling's own Settings window.
+    ///
+    /// Another run of this binary, like the launcher: the framework mounts one
+    /// widget root per process, so a second surface is a second process. It is
+    /// found by asking for THIS executable rather than a recorded path — the
+    /// shell may be running from a staging tree, a package, or a build
+    /// directory, and only one of those is ever right.
+    ///
+    /// Already open? Windows brings the existing window forward rather than
+    /// this making a second one — see `flwin32_shell_open_settings`.
+    public static func openSettings() {
+        flwin32_shell_open_settings()
+    }
+
     /// Explorer's own taskbar — hidden, so that Starling's bar and dock are
     /// the only shell chrome on the screen rather than a second set beside
     /// Windows'.

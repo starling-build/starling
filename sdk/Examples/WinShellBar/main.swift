@@ -49,6 +49,7 @@ Win32WindowedHost.install()
 let wantsPlain = CommandLine.arguments.contains("--plain")
 let wantsAppbar = !CommandLine.arguments.contains("--no-appbar")
 let wantsLauncher = CommandLine.arguments.contains("--launcher")
+let wantsSettings = CommandLine.arguments.contains("--settings")
 
 // `--monitor N` indexes Win32Display.monitors(); absent means the primary.
 // One value, given to BOTH the placement that puts the window on a screen and
@@ -92,6 +93,33 @@ if CommandLine.arguments.contains("--print-status") {
     exit(0)
 }
 
+// `--print-machine` prints what the Settings app reports and exits — the
+// oracle for that pane, the same bargain `--print-status` makes for the
+// control centre: the only honest way to know a readout is right is to ask
+// the system from outside the process that draws it.
+if CommandLine.arguments.contains("--print-machine") {
+    let m = Win32SystemInfo.machine()
+    print("os=\(m.osName) build=\(m.osBuild)")
+    print("device=\(m.deviceName)")
+    print("cpu=\(m.cpuName) cores=\(m.cpuCores)")
+    print("ram=\(m.totalRam / 1_048_576)MB available=\(m.availableRam / 1_048_576)MB")
+    print("gpu=\(m.gpuName)")
+    print("power=\(m.powerScheme)")
+    if let mode = Win32SystemInfo.currentDisplayMode() {
+        print("display=\(mode.width)x\(mode.height)@\(mode.refresh)")
+    }
+    let modes = Win32SystemInfo.displayModes()
+    print("modes=\(modes.count): "
+          + modes.prefix(6).map { "\($0.width)x\($0.height)@\($0.refresh)" }
+              .joined(separator: " "))
+    for drive in Win32SystemInfo.drives() {
+        print("drive \(drive.letter): \(drive.total / 1_073_741_824)GB total, "
+              + "\(drive.free / 1_073_741_824)GB free")
+    }
+    print("wallpaper=\(Win32SystemInfo.wallpaper())")
+    exit(0)
+}
+
 // Span the chosen monitor. Reading the geometry rather than assuming 1920 is
 // the point — a panel sized to the wrong screen is the first thing that goes
 // wrong on a laptop plus an external.
@@ -111,7 +139,16 @@ print("[WinShell] monitors: \(Win32Display.monitors())")
 
 // takesFocus stays at its default of false for both: clicking a dock icon
 // must not take the keyboard off the window the click is about to raise.
-if wantsLauncher {
+if wantsSettings {
+    // An ORDINARY WINDOW: no panel, no overlay, no restyle. Settings is an
+    // app — it belongs in Alt+Tab, and the user should be able to move and
+    // close it like anything else.
+    runStarlingApp(title: "Starling Settings",
+                   width: Int(980 * panelScale),
+                   height: Int(680 * panelScale)) {
+        StarlingSettings()
+    }
+} else if wantsLauncher {
     // An overlay, not a panel: it is not an edge and it reserves nothing. It
     // also comes up HIDDEN — see Launcher.swift for why it runs at all while
     // invisible.

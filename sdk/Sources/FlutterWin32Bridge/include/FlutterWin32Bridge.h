@@ -106,6 +106,43 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// Opens Starling's Settings surface, or raises the one already open.
+void flwin32_shell_open_settings(void);
+
+// ── system information, for the Settings app ────────────────────────────────
+//
+// Reads are cheap but not free (registry, WMI-free adapter enumeration); the
+// display and wallpaper WRITES talk to the whole desktop. None of it belongs
+// on the UI thread.
+
+int32_t flwin32_os_name(char* out, int32_t out_size);
+int32_t flwin32_os_build(char* out, int32_t out_size);
+int32_t flwin32_device_name(char* out, int32_t out_size);
+int32_t flwin32_cpu_name(char* out, int32_t out_size);
+int32_t flwin32_cpu_cores(void);
+int64_t flwin32_total_ram(void);
+int64_t flwin32_available_ram(void);
+int32_t flwin32_gpu_name(char* out, int32_t out_size);
+
+int32_t flwin32_display_current(int32_t* width, int32_t* height, int32_t* refresh);
+// Distinct width/height/refresh triples into `out` (3 ints each). Returns the
+// count.
+int32_t flwin32_display_modes(int32_t* out, int32_t max_modes);
+int32_t flwin32_display_set(int32_t width, int32_t height, int32_t refresh);
+
+// Fixed drives: letters as "C\0D\0...", plus total and free bytes.
+int32_t flwin32_drives(char* letters, int32_t letters_size,
+                       int64_t* totals, int64_t* frees, int32_t max_drives);
+
+int32_t flwin32_power_scheme(char* out, int32_t out_size);
+
+// The shell's open dialog, for picking a wallpaper. BLOCKS until answered —
+// never from the UI thread.
+int32_t flwin32_pick_image(char* out, int32_t out_size);
+
+int32_t flwin32_set_wallpaper(const char* path);
+int32_t flwin32_get_wallpaper(char* out, int32_t out_size);
+
 // ── ending the session ──────────────────────────────────────────────────────
 
 #define FLWIN32_SESSION_LOCK      0

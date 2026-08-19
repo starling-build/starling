@@ -1002,7 +1002,12 @@ final class StarlingDockState: State<StatefulWidget> {
         // a shell command attached to something that may not be on screen is a
         // command you cannot reach.
         guard item.key != kLauncherKey else {
-            var rows = kDockEdges.map { choice in
+            // Settings first: it is the thing people come to this menu for
+            // that is not about the menu itself.
+            var rows = [DockMenuRow(label: "     Settings") {
+                Task.detached { Win32Shell.openSettings() }
+            }]
+            rows += kDockEdges.map { choice in
                 DockMenuRow(label: (bloc.state.edge == choice.edge ? "\u{2713}  " : "     ")
                                 + choice.label) { self.bloc.add(.setEdge(choice.edge)) }
             }
