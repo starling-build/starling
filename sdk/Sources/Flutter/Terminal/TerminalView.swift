@@ -101,6 +101,14 @@ public enum TerminalFontLoader {
     /// Every text style in the terminal carries this, so a glyph missing from
     /// the primary family is looked up here instead of dropping out.
     public private(set) nonisolated(unsafe) static var fallback = [fallbackFamily]
+    /// What `register()` actually got, for the rendering report (⌘⇧R).
+    ///
+    /// "Which fonts does that machine have" cannot be answered from outside
+    /// the process, and the answer decides whether a missing glyph is a font
+    /// gap or a painting bug. A build whose resource bundle went missing
+    /// registers NOTHING and draws with whatever the platform falls back to —
+    /// which looks like a rendering fault and is a packaging one.
+    public private(set) nonisolated(unsafe) static var loadedFaces: [String] = []
     /// On Linux the engine has NO system font fallback: a glyph missing from
     /// every loaded family paints NOTHING — `cat` of CJK or emoji text
     /// rendered as blank gaps while the cursor advanced correctly over the
@@ -211,14 +219,17 @@ public enum TerminalFontLoader {
             else { continue }
             let success = flutter.swift_bridge.LoadFontFromFile(url.path, family)
             ok = ok || success
+            if success { loadedFaces.append("\(name) → \(family)") }
             if family == symbolFallbackFamily { symbolsLoaded = success }
         }
         #if os(macOS)
         fallback.append(contentsOf: systemFamilyNames)
+        loadedFaces.append(contentsOf: systemFamilyNames.map { "\($0) (named, CoreText resolves)" })
         #else
         for (path, family) in systemFallbacks {
             if flutter.swift_bridge.LoadFontFromFile(path, family) {
                 fallback.append(family)
+                loadedFaces.append("\(path) → \(family)")
             }
         }
         #endif
@@ -676,6 +687,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 _openSearch()
                 return true
             }
+            if keyData.logical == 0x52 || keyData.logical == 0x72 {  // R/r
+                _writeReport()
+                return true
+            }
         }
 
         #if os(macOS)
@@ -692,6 +707,10 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             }
             if keyData.logical == 0x46 || keyData.logical == 0x66 {  // F/f
                 _openSearch()
+                return true
+            }
+            if _shiftDown, keyData.logical == 0x52 || keyData.logical == 0x72 {
+                _writeReport()                                       // ⌘⇧R
                 return true
             }
         }
@@ -891,6 +910,66 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         }
     }
 
+    // MARK: - Reporting a rendering bug
+
+    /// Ctrl+Shift+R (⌘⇧R): write down everything a maintainer would have to
+    /// ask for, at the moment the wrong thing is on screen.
+    ///
+    /// Rendering is the one class of bug a person cannot describe: from where
+    /// they sit the letters are simply wrong, and every fact that would place
+    /// the fault is inside this process. So the terminal answers for itself —
+    /// see TerminalReport.swift for what goes in and why the pair of files is
+    /// the whole idea.
+    private func _writeReport() {
+        _lock.lock()
+        let viewOffset = min(_viewOffset, emulator.scrollbackCount)
+        let grid = emulator.visibleLines(offset: viewOffset)
+        let cols = emulator.cols
+        let rows = emulator.rows
+        let cursorRow = emulator.cursorRow
+        let cursorCol = emulator.cursorCol
+        let scrollback = emulator.scrollbackCount
+        let generation = emulator.generation
+        _lock.unlock()
+
+        let logical = _viewLogicalSize()
+        let scale = PlatformDispatcher.instance.implicitView?.devicePixelRatio ?? 1
+        let atlas = _atlasForCurrentMetrics()
+        let scene = TerminalReport.Scene(
+            grid: grid, cols: cols, rows: rows,
+            cursorRow: cursorRow, cursorCol: cursorCol,
+            viewOffset: viewOffset, scrollback: scrollback, exited: _exited,
+            theme: theme, family: font.family,
+            requestedSize: w.font.size, shapedSize: _fontSize,
+            fallback: _fontFallback,
+            cellW: cellW, cellH: cellH, scale: scale,
+            viewWidth: logical.width, viewHeight: logical.height,
+            painter: Self._useAtlas
+                ? (TerminalGridPainter.paragraphMode
+                     ? "cached paragraphs (STARLING_TERM_ATLAS=2)"
+                     : "atlas — the default")
+                : "Text path (STARLING_TERM_ATLAS=0)",
+            atlas: "\(atlas.slotCount) slot(s), image \(atlas.imageSize), "
+                 + "exact blit \(atlas.exactBlit ? "yes" : "no — resampled")",
+            // The painter records the frame. On the Text path it is not what
+            // drew the screen, and the report must not pretend otherwise.
+            paintedIsScreen: Self._useAtlas)
+
+        let path = TerminalReport.write(scene) { [self] png in
+            let size = Size(Double(cols) * cellW, Double(grid.count) * cellH)
+            return _makePainter(grid, cols: cols, generation: generation)
+                .dumpPNG(to: png, size: size, scale: scale)
+        }
+
+        // Both, deliberately. The badge is for the person who pressed the
+        // chord; the stderr line is for the maintainer who told them to press
+        // it over ssh, and survives a terminal too broken to read.
+        let said = path.map { "report written: \($0)" }
+            ?? "could not write a report — is $HOME writable?"
+        FileHandle.standardError.write(Data(("[terminal] " + said + "\n").utf8))
+        setState { _showHud(said, seconds: 5) }
+    }
+
     // MARK: - Geometry
 
     private func _measureCell(size: Double) {
@@ -1042,13 +1121,19 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         _lock.lock()
         let rows = emulator.rows
         _lock.unlock()
-        _sizeHud = "\(_fitColumns ?? emulator.cols) × \(rows)"
+        _showHud("\(_fitColumns ?? emulator.cols) × \(rows)")
+    }
+
+    /// The badge in the corner, for anything that has to be said about the
+    /// terminal rather than printed into it.
+    private func _showHud(_ text: String, seconds: Double = 1.1) {
+        _sizeHud = text
         _hudGeneration += 1
         let generation = _hudGeneration
         // asyncAfter, not Timer: Foundation.Timer never fires on the DRM
         // embedder, so a Timer-based dismissal would leave the badge on screen
         // for ever on the desktop.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
             guard let self = self, self._hudGeneration == generation else { return }
             self.setState { self._sizeHud = nil }
         }

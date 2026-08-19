@@ -106,6 +106,14 @@ enum TerminalHelp {
             HelpBinding("Shift+PageUp", "page back through scrollback"),
             HelpBinding("Shift+PageDown", "page forward"),
         ]),
+        // Last, because it is the one thing here you press when nothing else
+        // in this list is working.
+        HelpSection(title: "when it draws the wrong thing", rows: [
+            HelpBinding("Ctrl+Shift+R", mac: "⌘⇧R",
+                        "write a report — two files, in your home folder"),
+            HelpBinding("—", "the .txt is what was on screen, the .png what was drawn"),
+            HelpBinding("—", "send both; a photograph cannot say which half is wrong"),
+        ]),
     ]
 
     /// The status dots, which are the one piece of this that is not a chord
@@ -211,7 +219,6 @@ extension _TerminalTabsState {
             ))
         }
 
-        children.append(SizedBox(width: width, height: 12))
         // The one chord a reference must state is its own: somebody who found
         // this by accident has no other way to learn how to get back to it.
         #if os(macOS)
@@ -219,9 +226,19 @@ extension _TerminalTabsState {
         #else
         let opener = "Ctrl+Shift+/"
         #endif
-        children.append(_helpLine("  \(opener) opens this · esc closes",
-                                  HelpChrome.hint, 11))
-        children.append(SizedBox(width: width, height: 14))
+
+        // The list scrolls, the footer does not.
+        //
+        // This sheet outgrew the window: at the DEFAULT size it was already
+        // painting past the bottom edge, and the line it lost was its own
+        // "esc closes" — the one line a reader who opened it by accident
+        // needs. Capping the list and keeping the footer outside the cap is
+        // what makes it honest at any height, rather than correct only on a
+        // tall display. `top` is subtracted twice so the panel keeps the same
+        // margin below it as above.
+        let top = min(40, body.height / 20)
+        let footerHeight: Double = 12 + HelpChrome.row + 14
+        let listMax = max(120, body.height - top * 2 - footerHeight)
 
         let panel = SizedBox(
             width: width,
@@ -231,7 +248,19 @@ extension _TerminalTabsState {
                     border: Border.all(color: Color(HelpChrome.edge), width: 1),
                     borderRadius: BorderRadius.circular(8)
                 ),
-                child: Column(crossAxisAlignment: .start, children: children)
+                child: Column(crossAxisAlignment: .start, children: [
+                    ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: listMax),
+                        child: SingleChildScrollView(
+                            child: Column(crossAxisAlignment: .start,
+                                          children: children)
+                        )
+                    ),
+                    SizedBox(width: width, height: 12),
+                    _helpLine("  \(opener) opens this · esc closes",
+                              HelpChrome.hint, 11),
+                    SizedBox(width: width, height: 14),
+                ])
             )
         )
 
@@ -251,8 +280,7 @@ extension _TerminalTabsState {
                             mainAxisAlignment: .start,
                             crossAxisAlignment: .center,
                             children: [
-                                SizedBox(width: body.width,
-                                         height: min(40, body.height / 20)),
+                                SizedBox(width: body.width, height: top),
                                 panel,
                             ]
                         )

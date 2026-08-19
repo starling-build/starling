@@ -385,6 +385,35 @@ final class TerminalGridPainter: CustomPainter {
     /// is better than a screenshot anyway: it is exactly what the painter
     /// draws, at a known size, with nothing composited over it.
     func dumpRaw(to path: String, size: Size, scale: Double) {
+        guard let (bytes, w, h) = record(size: size, scale: scale,
+                                         format: .rawStraightRgba)
+        else { return }
+        var out = Data("RGBA \(w) \(h)\n".utf8)
+        out.append(bytes)
+        try? out.write(to: URL(fileURLWithPath: path))
+    }
+
+    /// The same frame as a PNG, for the rendering report (⌘⇧R).
+    ///
+    /// PNG rather than the raw form above because this one is written for a
+    /// person to look at and attach to a bug report — a headerful RGBA blob
+    /// needs a tool before anyone can see it, and the point of the report is
+    /// that a reporter can check what they are sending. Returns whether it
+    /// landed; the report says so either way, since a frame that cannot be
+    /// recorded is itself worth knowing about.
+    @discardableResult
+    func dumpPNG(to path: String, size: Size, scale: Double) -> Bool {
+        guard let (bytes, _, _) = record(size: size, scale: scale, format: .png)
+        else { return false }
+        return (try? bytes.write(to: URL(fileURLWithPath: path))) != nil
+    }
+
+    /// Paint the grid into an offscreen image and encode it. The background is
+    /// painted first and forced opaque: the theme's is translucent so the
+    /// desktop can show through, and a report whose pixels are half-transparent
+    /// tells you nothing about what the screen looked like.
+    private func record(size: Size, scale: Double,
+                        format: ImageByteFormat) -> (Data, Int, Int)? {
         let recorder = NativePictureRecorder()
         let canvas = NativeCanvas(recorder: recorder)
         canvas.scale(scale, scale)
@@ -396,11 +425,9 @@ final class TerminalGridPainter: CustomPainter {
         let w = max(1, Int((size.width * scale).rounded()))
         let h = max(1, Int((size.height * scale).rounded()))
         guard let image = picture.toImageSync(width: w, height: h),
-              let bytes = try? image.toByteData(format: .rawStraightRgba)
-        else { return }
-        var out = Data("RGBA \(w) \(h)\n".utf8)
-        out.append(bytes)
-        try? out.write(to: URL(fileURLWithPath: path))
+              let bytes = try? image.toByteData(format: format)
+        else { return nil }
+        return (bytes, w, h)
     }
 
     // MARK: - Per-cell fallback
