@@ -160,8 +160,16 @@ final class StarlingLauncherState: State<StatefulWidget> {
     }
 
     private func launch(_ app: Win32App) {
-        Win32AppCatalog.launch(app)
+        flwin32_trace("launcher: launch tapped")
+        // HIDE FIRST. Starting an app is not instant even on the fast path,
+        // and it is a synchronous shell call on this thread — so launching
+        // first left the launcher sitting on screen, frozen, until it
+        // returned. Getting out of the way is the part the user is waiting
+        // for; the app arriving is the part they expect to take a moment.
         Win32WindowedHost.host?.setVisible(false)
+        flwin32_trace("launcher: hidden")
+        Win32AppCatalog.launch(app)
+        flwin32_trace("launcher: launch returned")
     }
 
     // MARK: - Model

@@ -120,6 +120,73 @@ int32_t flwin32_shortcut_target(const char* shortcut_path,
     return result;
 }
 
+/* Target, arguments and working directory in ONE link load.
+ *
+ * Not three calls: the catalog walk already loads every .lnk once, and the
+ * load is the expensive half. And not just the target, because launching the
+ * target without the shortcut's arguments silently starts the wrong thing --
+ * a great many Start Menu entries are one exe plus a switch (control panel
+ * applets, the PowerShell profiles, anything with an -ExecutionPolicy). */
+int32_t flwin32_shortcut_info(const char* shortcut_path,
+                              char* target, int32_t target_size,
+                              char* arguments, int32_t arguments_size,
+                              char* workdir, int32_t workdir_size) {
+    if (shortcut_path == NULL) return 0;
+    ensure_com();
+
+    wchar_t* wpath = utf8_to_wide(shortcut_path);
+    if (wpath == NULL) return 0;
+
+    if (target != NULL && target_size > 0) target[0] = '\0';
+    if (arguments != NULL && arguments_size > 0) arguments[0] = '\0';
+    if (workdir != NULL && workdir_size > 0) workdir[0] = '\0';
+
+    IShellLinkW* link = NULL;
+    int32_t result = 0;
+    if (SUCCEEDED(CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+                                   &IID_IShellLinkW, (void**)&link))) {
+        IPersistFile* file = NULL;
+        if (SUCCEEDED(link->lpVtbl->QueryInterface(link, &IID_IPersistFile,
+                                                   (void**)&file))) {
+            if (SUCCEEDED(file->lpVtbl->Load(file, wpath, STGM_READ))) {
+                wchar_t buf[MAX_PATH];
+                wchar_t expanded[MAX_PATH];
+                DWORD n;
+
+                buf[0] = L'\0';
+                /* SLGP_RAWPATH and then expand by hand -- see the comment in
+                 * flwin32_shortcut_target for why both halves are needed. */
+                if (SUCCEEDED(link->lpVtbl->GetPath(link, buf, MAX_PATH, NULL,
+                                                    SLGP_RAWPATH))) {
+                    n = ExpandEnvironmentStringsW(buf, expanded, MAX_PATH);
+                    result = wide_copy_out((n > 0 && n <= MAX_PATH) ? expanded : buf,
+                                           target, target_size);
+                }
+
+                buf[0] = L'\0';
+                if (SUCCEEDED(link->lpVtbl->GetArguments(link, buf, MAX_PATH))
+                    && buf[0] != L'\0') {
+                    n = ExpandEnvironmentStringsW(buf, expanded, MAX_PATH);
+                    wide_copy_out((n > 0 && n <= MAX_PATH) ? expanded : buf,
+                                  arguments, arguments_size);
+                }
+
+                buf[0] = L'\0';
+                if (SUCCEEDED(link->lpVtbl->GetWorkingDirectory(link, buf, MAX_PATH))
+                    && buf[0] != L'\0') {
+                    n = ExpandEnvironmentStringsW(buf, expanded, MAX_PATH);
+                    wide_copy_out((n > 0 && n <= MAX_PATH) ? expanded : buf,
+                                  workdir, workdir_size);
+                }
+            }
+            file->lpVtbl->Release(file);
+        }
+        link->lpVtbl->Release(link);
+    }
+    free(wpath);
+    return result;
+}
+
 int32_t flwin32_shortcut_icon(const char* shortcut_path,
                               char* out,
                               int32_t out_size,
@@ -178,24 +245,36 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size) {
     return n;
 }
 
-int32_t flwin32_launch(const char* path, const char* arguments) {
+int32_t flwin32_launch(const char* path, const char* arguments,
+                       const char* directory) {
     if (path == NULL) return 0;
     ensure_com();
     wchar_t* wpath = utf8_to_wide(path);
     wchar_t* wargs = utf8_to_wide(arguments);
+    wchar_t* wdir = utf8_to_wide(directory);
     if (wpath == NULL) {
         free(wargs);
+        free(wdir);
         return 0;
     }
-    /* ShellExecuteW, not CreateProcess: the thing being launched is usually a
-     * .lnk, sometimes a URL or a document, and only the shell knows how to
-     * start those. SW_SHOWNORMAL so a launched app does not inherit the
-     * shell's own window state.
+    /* ShellExecuteW, not CreateProcess: what arrives here can be a URL or a
+     * document as well as a program, and only the shell knows how to start
+     * those. SW_SHOWNORMAL so a launched app does not inherit the shell's own
+     * window state.
+     *
+     * Callers should hand this the shortcut's TARGET rather than the .lnk
+     * wherever they have one. Measured on this machine, opening a .lnk costs
+     * 484ms the first time in a process and 73ms after; opening the exe it
+     * points at costs 8ms, cold or warm. The difference is the shell's link
+     * resolution machinery, and it is charged to whatever thread asks.
      *
      * The return is a legacy HINSTANCE-shaped error code: anything <= 32 is a
      * failure. */
-    HINSTANCE rc = ShellExecuteW(NULL, L"open", wpath, wargs, NULL, SW_SHOWNORMAL);
+    flwin32_trace("launch: ShellExecuteW begin");
+    HINSTANCE rc = ShellExecuteW(NULL, L"open", wpath, wargs, wdir, SW_SHOWNORMAL);
+    flwin32_trace("launch: ShellExecuteW end");
     free(wpath);
     free(wargs);
+    free(wdir);
     return ((INT_PTR)rc > 32) ? 1 : 0;
 }

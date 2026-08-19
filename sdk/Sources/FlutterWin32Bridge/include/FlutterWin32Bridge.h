@@ -363,6 +363,12 @@ int32_t flwin32_set_dark_mode(int32_t dark);
 // A .lnk is a structured binary file, not a symlink; IShellLink is the only
 // supported way to read one, and the target may be an item-ID list rather
 // than a path, which nothing but the shell can resolve.
+// Target, arguments and working directory of a .lnk, in one load.
+int32_t flwin32_shortcut_info(const char* shortcut_path,
+                              char* target, int32_t target_size,
+                              char* arguments, int32_t arguments_size,
+                              char* workdir, int32_t workdir_size);
+
 int32_t flwin32_shortcut_target(const char* shortcut_path,
                                 char* out,
                                 int32_t out_size);
@@ -385,7 +391,8 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size);
 // Starts an app, document or URL through the shell (ShellExecuteW), which is
 // the only thing that knows how to open a .lnk. `arguments` may be NULL.
 // Returns non-zero on success.
-int32_t flwin32_launch(const char* path, const char* arguments);
+int32_t flwin32_launch(const char* path, const char* arguments,
+                       const char* directory);
 
 // -- Explorer's own shell chrome ---------------------------------------------
 //
