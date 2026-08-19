@@ -1,12 +1,17 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-// The dock, on Windows.
+// The dock, on Windows — and the whole of the shell's chrome.
 //
-// This is the piece that makes the port read as STARLING rather than as
-// another Windows taskbar replacement: a macOS-shaped dock along the bottom
-// edge, showing the apps you keep plus the apps you are running, with a
-// running indicator under each. Clicking one raises it, or starts it;
+// It started beside a menu bar along the top, macOS-shaped, and that was one
+// surface too many: Windows puts its shell chrome on the bottom edge, and two
+// strips to reach for is worse than one wherever they sit. So the bar is gone
+// and this covers the taskbar it replaces — the launcher where Start was, the
+// running apps in the middle, the clock and the status icons at the right.
+//
+// The tiles keep the dock's own shape rather than becoming taskbar buttons:
+// a slab of icons with a running indicator under each, the apps you keep
+// beside the apps you are running. Clicking one raises it, or starts it;
 // right-clicking pins or unpins it; hovering names it.
 //
 // Where the apps come from is the interesting part. The Linux shell reads
@@ -36,6 +41,18 @@ let kDockOverhang = 190
 /// lets a label be positioned over an icon without measuring anything.
 let kDockTile = kDockIcon + 10.0
 let kDockPadding = 10.0
+
+/// Gap between tiled windows, in logical points — scaled to pixels at use,
+/// because window geometry is the one place this file speaks physical. It is
+/// applied on every edge, so adjacent windows are two gaps apart, the same
+/// convention the Linux shell's tiler uses.
+let kTileGap = 8
+
+/// Whether Explorer's taskbar is left alone. `--plain` is a bisect flag and
+/// has no business changing the desktop underneath it.
+let keepsNativeTaskbar =
+    CommandLine.arguments.contains("--keep-taskbar")
+    || CommandLine.arguments.contains("--plain")
 
 /// What the dock keeps when nothing of that app is running, on a machine that
 /// has never been told otherwise. Matched loosely against the Start Menu
@@ -91,6 +108,20 @@ final class StarlingDockState: State<StatefulWidget> {
     private var hovered: Int?
     private var menuOpen: Int?
 
+    // The clock and the status cluster, which used to live on the menu bar.
+    // Polled on one timer rather than subscribed: each of the three has its
+    // own notification mechanism, they deliver on three different threads,
+    // and a status readout that updates a second late is indistinguishable
+    // from one that does not.
+    private var now = Date()
+    private var timer: AnyObject?
+    private var network = Win32Network(kind: .none, signal: 0, ssid: "")
+    private var power = Win32Power(hasBattery: false, percent: nil, isCharging: true)
+    private var volume: Win32Volume?
+    /// Set from the launcher tile's menu: while it is on, the re-assert below
+    /// stands down so "Show Windows Taskbar" stays shown.
+    private var nativeTaskbarWanted = false
+
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
@@ -98,13 +129,40 @@ final class StarlingDockState: State<StatefulWidget> {
         pins = loadPins()
         print("[WinShellDock] \(catalog.count) apps in the Start Menu, \(pins.count) pinned")
         rebuild()
+        readStatus()
         Win32WindowManager.observe { [weak self] _ in self?.queueRefresh() }
+
+        // Through hostPeriodicTimerInstall rather than Foundation.Timer: on
+        // the DRM embedder a Foundation timer never fires at all (see the
+        // desktop's CLAUDE.md), and going through the host keeps every
+        // backend honest about which loop the UI thread is really running.
+        timer = startPeriodicTimer(seconds: 1.0) { [weak self] in
+            guard let self else { return }
+            // Explorer puts its taskbar back on its own — a display change, a
+            // Settings round-trip, or explorer restarting after a crash all
+            // do it, and none of them tell us. The EVENT_OBJECT_SHOW hook
+            // catches the fast case; this catches a new explorer pid.
+            if !keepsNativeTaskbar && !self.nativeTaskbarWanted
+                && Win32Shell.nativeTaskbarIsVisible {
+                Win32Shell.hideNativeTaskbar()
+            }
+            setState {
+                self.now = Date()
+                self.readStatus()
+            }
+        }
     }
 
     override func dispose() {
         Win32WindowManager.stopObserving()
         icons.releaseAll()
         super.dispose()
+    }
+
+    private func readStatus() {
+        network = Win32Status.network()
+        power = Win32Status.power()
+        volume = Win32Status.volume()
     }
 
     // MARK: - Pins, on disk
@@ -251,6 +309,157 @@ final class StarlingDockState: State<StatefulWidget> {
         queueRefresh()
     }
 
+    /// Lay every visible window out on a grid, per monitor.
+    ///
+    /// Per MONITOR, not per desktop: grouping everything into one grid drags
+    /// every window onto the primary, which is a destructive answer to "tidy
+    /// these up". Moved here from the menu bar, and reachable from the
+    /// launcher tile's menu.
+    private func tileAll() {
+        let visible = items.flatMap { $0.windows }.filter { !$0.isMinimized }
+        guard !visible.isEmpty else { return }
+
+        var byMonitor: [Int: [Win32Window]] = [:]
+        for window in visible {
+            // A window Windows will not place on any monitor still has to go
+            // somewhere; the primary is where it would have been dragged.
+            byMonitor[window.monitor ?? 0, default: []].append(window)
+        }
+        let scales = Dictionary(uniqueKeysWithValues:
+            Win32Display.monitors().map { ($0.index, $0.scale) })
+        for monitor in byMonitor.keys.sorted() {
+            tile(byMonitor[monitor]!, on: monitor, scale: scales[monitor] ?? 1.0)
+        }
+        queueRefresh()
+    }
+
+    private func tile(_ group: [Win32Window], on monitor: Int, scale: Double) {
+        guard let area = Win32WindowManager.workArea(monitor: monitor) else { return }
+
+        // Window rectangles are physical pixels — they are other people's
+        // windows on other people's monitors, and there is no single logical
+        // space spanning a mixed-DPI desktop. So the gap is scaled here, per
+        // monitor, rather than once for the whole desktop.
+        let gap = Int((Double(kTileGap) * scale).rounded())
+
+        let columns = Int(ceil(Double(group.count).squareRoot()))
+        let rows = Int(ceil(Double(group.count) / Double(columns)))
+        let cellHeight = (area.height - gap * (rows + 1)) / rows
+
+        var index = 0
+        for row in 0..<rows {
+            // The last row takes whatever is left and stretches across the
+            // full width, rather than leaving a hole where a cell would have
+            // been. Three windows tile as two over one, not two over one and
+            // a gap.
+            let inRow = min(columns, group.count - index)
+            let cellWidth = (area.width - gap * (inRow + 1)) / inRow
+            for column in 0..<inRow {
+                let window = group[index]
+                Win32WindowManager.move(window.handle, to: Win32Rect(
+                    x: area.x + gap + column * (cellWidth + gap),
+                    y: area.y + gap + row * (cellHeight + gap),
+                    width: cellWidth,
+                    height: cellHeight))
+                index += 1
+            }
+        }
+    }
+
+    // MARK: - The status cluster
+    //
+    // Read from the system (`Win32Status`), not drawn: a shell with a fixed
+    // wifi glyph and a fixed battery glyph is a picture of a status bar. All
+    // three moved down here when the menu bar went away, because this is
+    // where Windows keeps them and where the user will look.
+
+    private func clockText() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm  EEE d MMM"
+        return f.string(from: now)
+    }
+
+    /// Wi-Fi with a slash when nothing is connected, and the aerial glyph for
+    /// Ethernet — a wifi symbol on a desk machine is a lie the user cannot
+    /// correct. Signal is shown as a colour rather than as bars: the icon
+    /// font has one wifi glyph, and a faded one reads as weak without
+    /// inventing a bar chart.
+    private func networkIcon() -> Widget {
+        let icon: IconData
+        let colour: Color
+        switch network.kind {
+        case .none:
+            icon = CupertinoIcons.wifi_slash
+            colour = Color(0xFF6E7683)
+        case .ethernet:
+            icon = CupertinoIcons.antenna_radiowaves_left_right
+            colour = Color(0xFFD5DAE3)
+        case .wifi:
+            icon = CupertinoIcons.wifi
+            colour = network.signal >= 60 ? Color(0xFFD5DAE3)
+                : network.signal >= 30 ? Color(0xFFB0B7C3) : Color(0xFF7F8794)
+        }
+        return MacosIcon(icon: icon, color: colour, size: 15)
+    }
+
+    private func volumeIcon() -> Widget? {
+        guard let volume else { return nil }
+        let icon: IconData = volume.isMuted ? CupertinoIcons.speaker_slash
+            : volume.percent == 0 ? CupertinoIcons.speaker
+            : volume.percent < 34 ? CupertinoIcons.speaker_1
+            : volume.percent < 67 ? CupertinoIcons.speaker_2
+            : CupertinoIcons.speaker_3
+        return MacosIcon(icon: icon,
+                         color: volume.isMuted ? Color(0xFF6E7683) : Color(0xFFD5DAE3),
+                         size: 15)
+    }
+
+    /// Nothing at all on a desktop. An empty battery outline on a machine
+    /// with no battery is worse than no icon: it reads as "flat".
+    private func batteryWidgets() -> [Widget] {
+        guard power.hasBattery else { return [] }
+        let icon: IconData = power.isCharging ? CupertinoIcons.battery_charging
+            : (power.percent ?? 100) <= 10 ? CupertinoIcons.battery_empty
+            : (power.percent ?? 100) <= 40 ? CupertinoIcons.battery_25
+            : CupertinoIcons.battery_full
+        var out: [Widget] = [
+            MacosIcon(icon: icon,
+                      color: (power.percent ?? 100) <= 10 && !power.isCharging
+                          ? Color(0xFFFF6B6B) : Color(0xFFD5DAE3),
+                      size: 17)
+        ]
+        if let percent = power.percent {
+            out.append(Text("\(percent)%",
+                            style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12)))
+        }
+        return out
+    }
+
+    /// The status readout, as its own slab at the right end — the dock's fill
+    /// and radius, so the two read as one strip without the dock having to
+    /// become a full-width bar and give up its shape.
+    private func statusSlab() -> Widget {
+        // The icon slab is 8pt clear of the edge and (kDockIcon + 19)pt tall;
+        // this pill is about 33pt, so 8 + 15 centres it against them.
+        Padding(padding: EdgeInsets(left: 0, top: 0, right: 14, bottom: 23)) {
+            ClipRRect(borderRadius: BorderRadius.circular(14)) {
+                ColoredBox(color: Color(0xE01B1D22)) {
+                    Padding(padding: EdgeInsets(left: 14, top: 8, right: 14, bottom: 8)) {
+                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
+                            if let speaker = volumeIcon() { speaker }
+                            networkIcon()
+                            for widget in batteryWidgets() { widget }
+                            Padding(padding: EdgeInsets(left: 4, top: 0, right: 0, bottom: 0)) {
+                                Text(clockText(),
+                                     style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Geometry
 
     /// Which tile a point in the panel is over, or nil.
@@ -379,8 +588,6 @@ final class StarlingDockState: State<StatefulWidget> {
     /// The right-click menu, also in the overhang.
     private func menu(_ index: Int) -> Widget {
         let item = items[index]
-        // Nothing to pin, close, or launch a second copy of.
-        guard item.key != kLauncherKey else { return SizedBox(width: 0, height: 0) }
         return Positioned(
             left: max(4, tileCentre(index) - 84),
             bottom: Double(kDockHeight) + 6,
@@ -406,12 +613,35 @@ final class StarlingDockState: State<StatefulWidget> {
                                         }
                                     }
                                 }
+                                // The launcher tile is where the shell's own
+                                // actions live now that there is no menu bar
+                                // to hang them off. It has nothing to pin,
+                                // close, or open a second copy of.
+                                if item.key == kLauncherKey {
+                                    menuRow("Tile Windows") {
+                                        self.setState { self.menuOpen = nil }
+                                        self.tileAll()
+                                    }
+                                    menuRow(nativeTaskbarWanted
+                                                ? "Hide Windows Taskbar"
+                                                : "Show Windows Taskbar") {
+                                        self.setState {
+                                            self.menuOpen = nil
+                                            self.nativeTaskbarWanted.toggle()
+                                        }
+                                        if self.nativeTaskbarWanted {
+                                            Win32Shell.showNativeTaskbar()
+                                        } else {
+                                            Win32Shell.hideNativeTaskbar()
+                                        }
+                                    }
+                                }
                                 if item.app != nil {
                                     menuRow(item.isPinned ? "Remove from Dock" : "Keep in Dock") {
                                         self.togglePin(item)
                                     }
                                 }
-                                if item.isRunning {
+                                if item.isRunning, item.key != kLauncherKey {
                                     menuRow(item.windows.count > 1
                                                 ? "Close \(item.windows.count) windows" : "Close") {
                                         self.closeAll(item)
@@ -470,6 +700,9 @@ final class StarlingDockState: State<StatefulWidget> {
                                 }
                             }
                         }
+                    }
+                    Align(alignment: Alignment.bottomRight) {
+                        statusSlab()
                     }
                     // A menu wins over a label: the pointer is inside the tile
                     // for both, and two flyouts stacked on one icon is noise.
