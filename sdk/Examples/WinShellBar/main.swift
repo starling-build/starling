@@ -38,6 +38,7 @@
 import Flutter
 import FlutterSwiftBridge
 import FlutterWin32
+import FlutterWin32Bridge
 import Foundation
 
 Win32WindowedHost.install()
@@ -98,6 +99,42 @@ if CommandLine.arguments.contains("--print-status") {
 // oracle for that pane, the same bargain `--print-status` makes for the
 // control centre: the only honest way to know a readout is right is to ask
 // the system from outside the process that draws it.
+if CommandLine.arguments.contains("--print-recent") {
+    // What Start's Recommended list would show, and why an entry was dropped.
+    // The Recent folder is full of shortcuts to shell namespaces and URIs, not
+    // only files, so "8 shortcuts, 0 entries" is a real answer and this is how
+    // to tell it apart from a reader that is simply broken.
+    var folderBuf = [CChar](repeating: 0, count: 1024)
+    let fn = folderBuf.withUnsafeMutableBufferPointer {
+        flwin32_known_path(7, $0.baseAddress, 1024)
+    }
+    let folder = fn > 0 ? String(cString: folderBuf) : "<none>"
+    print("[recent] folder: \(folder) (n=\(fn))")
+    let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
+    print("[recent] entries in folder: \(names.count)")
+    for name in names.prefix(12) where name.lowercased().hasSuffix(".lnk") {
+        let link = Win32Files.join(folder, name)
+        var target = [CChar](repeating: 0, count: 1024)
+        var args = [CChar](repeating: 0, count: 8)
+        var dir = [CChar](repeating: 0, count: 8)
+        let ok = target.withUnsafeMutableBufferPointer { t in
+            args.withUnsafeMutableBufferPointer { a in
+                dir.withUnsafeMutableBufferPointer { w in
+                    flwin32_shortcut_info(link, t.baseAddress, 1024,
+                                          a.baseAddress, 8, w.baseAddress, 8)
+                }
+            }
+        }
+        let path = String(cString: target)
+        print("[recent] lnk \(name) -> rc=\(ok) '\(path)' exists=\(FileManager.default.fileExists(atPath: path))")
+    }
+    for entry in Win32Files.recent(limit: 20) {
+        print("[recent] KEPT \(entry.name)  <-  \(entry.path)")
+    }
+    print("[recent] user: \(Win32Files.userName())")
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-machine") {
     let m = Win32SystemInfo.machine()
     print("os=\(m.osName) build=\(m.osBuild)")
@@ -170,7 +207,7 @@ if wantsFiles {
     // find out whether the restyle is what stopped it.
     if !wantsPlain {
         Win32WindowedHost.overlay = OverlayPlacement(
-            monitor: wantsMonitor, opacity: 0.97,
+            monitor: wantsMonitor, opacity: 1.0,
             size: (width: kLauncherWidth, height: kLauncherHeight),
             bottomMargin: kLauncherGap)
     }

@@ -65,6 +65,11 @@ public class FluentTextBox: StatefulWidget {
     /// The decoration applied to the text box when focused.
     public let focusedDecoration: BoxDecoration?
 
+    /// Whether the accent focus ring is drawn around the box while it has
+    /// focus. It is drawn OUTSIDE `decoration`, so a caller that has supplied
+    /// its own chrome gets two rectangles — which is why this exists.
+    public let showFocusRing: Bool
+
     /// The prefix widget displayed before the text.
     public let prefix: Widget?
 
@@ -97,6 +102,7 @@ public class FluentTextBox: StatefulWidget {
         obscuringCharacter: String = "\u{2022}",
         decoration: BoxDecoration? = nil,
         focusedDecoration: BoxDecoration? = nil,
+        showFocusRing: Bool = true,
         prefix: Widget? = nil,
         suffix: Widget? = nil,
         autofocus: Bool = false
@@ -114,6 +120,7 @@ public class FluentTextBox: StatefulWidget {
         self.obscureText = obscureText
         self.obscuringCharacter = obscuringCharacter
         self.decoration = decoration
+        self.showFocusRing = showFocusRing
         self.focusedDecoration = focusedDecoration
         self.prefix = prefix
         self.suffix = suffix
@@ -459,7 +466,19 @@ class _TextBoxState: State<StatefulWidget> {
                 }
             } else if let placeholderText = textBox.placeholderText {
                 if isFocused && !textBox.readOnly {
-                    textContent = Text(caretGlyph, style: effectiveTextStyle)
+                    // Caret AND placeholder, the way every platform's search
+                    // box behaves: focusing the field used to blank the hint,
+                    // which on a box that autofocuses meant the hint was never
+                    // readable at all.
+                    textContent = Row(
+                        mainAxisSize: .min,
+                        children: [
+                            Text(caretGlyph, style: effectiveTextStyle),
+                            Expanded(child: Text(placeholderText,
+                                                 style: placeholderStyle,
+                                                 overflow: .clip, maxLines: 1)),
+                        ]
+                    )
                 } else {
                     textContent = Text(placeholderText, style: placeholderStyle)
                 }
@@ -547,7 +566,7 @@ class _TextBoxState: State<StatefulWidget> {
 
                 return FocusBorder(
                     child: decorated,
-                    focused: isFocused
+                    focused: isFocused && textBox.showFocusRing
                 )
             },
             onPressed: isEnabled

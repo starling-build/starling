@@ -131,7 +131,7 @@ int32_t flwin32_open_network_settings(void);
 // ── files ───────────────────────────────────────────────────────────────────
 
 // A known folder by index: 0 profile, 1 desktop, 2 documents, 3 downloads,
-// 4 pictures, 5 music, 6 videos. SHGetKnownFolderPath, so a relocated folder
+// 4 pictures, 5 music, 6 videos, 7 recent. SHGetKnownFolderPath, so a relocated folder
 // is followed rather than guessed at under %USERPROFILE%.
 int32_t flwin32_known_path(int32_t which, char* out, int32_t out_size);
 
@@ -147,6 +147,10 @@ int32_t flwin32_default_app_name(const char* path, char* out, int32_t out_size);
 // default handler to change: since Windows 8 an application cannot write the
 // association itself. BLOCKS — background thread only.
 int32_t flwin32_open_with_dialog(const char* path);
+
+// The user's display name, falling back to the account name — which on a
+// local account with no display name set is the usual answer, not an error.
+int32_t flwin32_user_display_name(char* out, int32_t out_size);
 
 // Hands the folder to Windows' own Explorer.
 int32_t flwin32_open_in_explorer(const char* path);

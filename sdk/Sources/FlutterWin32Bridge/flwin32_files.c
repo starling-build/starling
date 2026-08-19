@@ -32,6 +32,8 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #include <shlwapi.h>
+#define SECURITY_WIN32
+#include <security.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,6 +42,7 @@
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "secur32.lib")
 
 static int32_t wide_out(const wchar_t* w, char* out, int32_t out_size) {
     if (w == NULL || out == NULL || out_size <= 0) return 0;
@@ -62,6 +65,11 @@ int32_t flwin32_known_path(int32_t which, char* out, int32_t out_size) {
         case 4: id = &FOLDERID_Pictures;  break;
         case 5: id = &FOLDERID_Music;     break;
         case 6: id = &FOLDERID_Videos;    break;
+        /* The Recent folder: a directory of .lnk files Windows writes every
+         * time a document is opened, which is where Start's "Recommended"
+         * gets its list. Reading it needs no hook and no telemetry — it is
+         * the shell's own record, on disk, for this user. */
+        case 7: id = &FOLDERID_Recent;    break;
         default: return 0;
     }
     PWSTR path = NULL;
@@ -188,4 +196,23 @@ int32_t flwin32_open_with_dialog(const char* path) {
     free(wide);
     /* Cancelled is not a failure: the user answered, and the answer was no. */
     return (hr == S_OK || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) ? 1 : 0;
+}
+
+/* -------------------------------------------------------------- the user */
+
+/* The display name -- "Ada Lovelace" -- falling back to the account name.
+ *
+ * GetUserNameExW(NameDisplay) is the one that knows the friendly name, and it
+ * FAILS on a machine that is not domain-joined and has a local account with
+ * no display name set, which is most home machines. The fallback is not an
+ * error path, it is the common one. */
+int32_t flwin32_user_display_name(char* out, int32_t out_size) {
+    wchar_t name[256];
+    ULONG size = 256;
+    if (GetUserNameExW(NameDisplay, name, &size) && name[0] != L'\0') {
+        return wide_out(name, out, out_size);
+    }
+    DWORD basic = 256;
+    if (GetUserNameW(name, &basic)) return wide_out(name, out, out_size);
+    return 0;
 }

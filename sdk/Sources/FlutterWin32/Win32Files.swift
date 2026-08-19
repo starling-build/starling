@@ -99,6 +99,68 @@ public enum Win32Files {
         }
     }
 
+    /// What the user opened lately, newest first.
+    ///
+    /// The shell's own Recent folder — a directory of shortcuts Windows
+    /// writes whenever a document is opened. This is where Start's
+    /// "Recommended" list comes from, and reading it needs no hook and no
+    /// telemetry: it is a folder, on disk, belonging to this user.
+    ///
+    /// Entries whose target has since been deleted are dropped rather than
+    /// offered — a list of things that no longer open is worse than a short
+    /// list.
+    public static func recent(limit: Int = 6) -> [Win32FileEntry] {
+        var buffer = [CChar](repeating: 0, count: 1024)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_known_path(7, $0.baseAddress, 1024)
+        }
+        guard n > 0 else { return [] }
+        let folder = String(cString: buffer)
+
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: folder) else { return [] }
+        var found: [(entry: Win32FileEntry, used: Date)] = []
+        for name in names where name.lowercased().hasSuffix(".lnk") {
+            let linkPath = join(folder, name)
+            guard let attributes = try? fm.attributesOfItem(atPath: linkPath),
+                  let used = attributes[.modificationDate] as? Date else { continue }
+            var target = [CChar](repeating: 0, count: 1024)
+            var arguments = [CChar](repeating: 0, count: 8)
+            var workdir = [CChar](repeating: 0, count: 8)
+            _ = target.withUnsafeMutableBufferPointer { t in
+                arguments.withUnsafeMutableBufferPointer { a in
+                    workdir.withUnsafeMutableBufferPointer { w in
+                        flwin32_shortcut_info(linkPath, t.baseAddress, 1024,
+                                              a.baseAddress, 8, w.baseAddress, 8)
+                    }
+                }
+            }
+            let path = String(cString: target)
+            var isDirectory: ObjCBool = false
+            guard !path.isEmpty,
+                  fm.fileExists(atPath: path, isDirectory: &isDirectory) else { continue }
+            let leaf = (path as NSString).lastPathComponent
+            found.append((Win32FileEntry(
+                name: leaf,
+                path: path,
+                isDirectory: isDirectory.boolValue,
+                size: 0,
+                modified: used,
+                ext: isDirectory.boolValue
+                    ? "" : (leaf as NSString).pathExtension.lowercased()), used))
+        }
+        return found.sorted { $0.used > $1.used }.prefix(limit).map { $0.entry }
+    }
+
+    /// The user's display name, for the account row.
+    public static func userName() -> String {
+        var buffer = [CChar](repeating: 0, count: 256)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_user_display_name($0.baseAddress, 256)
+        }
+        return n > 0 ? String(cString: buffer) : ""
+    }
+
     /// The drives, as places. Reuses the Settings reader — one answer to
     /// "what drives are there", not two that can disagree.
     public static func drives() -> [Win32Place] {

@@ -193,6 +193,30 @@ int32_t flwin32_shortcut_info(const char* shortcut_path,
                                            target, target_size);
                 }
 
+                /* GetPath ANSWERS SUCCESSFULLY WITH NOTHING for a shortcut
+                 * whose target is a folder or a shell namespace item, and the
+                 * Recent folder -- which is where Start's Recommended list
+                 * comes from -- is full of exactly those. Every one of its
+                 * eight shortcuts on this machine came back S_OK with an empty
+                 * string, which reads as "the reader is broken" rather than
+                 * "ask a different way".
+                 *
+                 * The different way is the link's ID LIST: a PIDL names any
+                 * shell item, and SHGetPathFromIDListW turns the ones that
+                 * have a file-system path into that path. The ones that do not
+                 * -- ms-gamingoverlay:// and the Control Panel pages -- come
+                 * back empty here too, which is the correct answer for them. */
+                if (buf[0] == L'\0') {
+                    LPITEMIDLIST pidl = NULL;
+                    if (SUCCEEDED(link->lpVtbl->GetIDList(link, &pidl))
+                        && pidl != NULL) {
+                        if (SHGetPathFromIDListW(pidl, buf) && buf[0] != L'\0') {
+                            result = wide_copy_out(buf, target, target_size);
+                        }
+                        CoTaskMemFree(pidl);
+                    }
+                }
+
                 buf[0] = L'\0';
                 if (SUCCEEDED(link->lpVtbl->GetArguments(link, buf, MAX_PATH))
                     && buf[0] != L'\0') {
