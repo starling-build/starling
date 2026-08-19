@@ -9,10 +9,20 @@
 // and this covers the taskbar it replaces — the launcher where Start was, the
 // running apps in the middle, the clock and the status icons at the right.
 //
-// The tiles keep the dock's own shape rather than becoming taskbar buttons:
-// a slab of icons with a running indicator under each, the apps you keep
-// beside the apps you are running. Clicking one raises it, or starts it;
-// right-clicking pins or unpins it; hovering names it.
+// It is a FULL-WIDTH BAR, not a floating slab. The slab was the macOS shape
+// and it left wallpaper showing on both sides of a strip that Windows fills
+// edge to edge; the icons are still centred, Windows 11 style, but the bar
+// under them now runs the width of the screen.
+//
+// The panel is still declared `transparent`, and that is no longer about the
+// look: the colour key is what makes the OVERHANG a hole. The window has to
+// extend above the strip for the hover label and the right-click menu to have
+// somewhere to draw (a window is a hard clip), and without the key that would
+// be a 190pt opaque band standing over the desktop. The strip itself is
+// opaque, so nothing about the bar is see-through.
+//
+// Clicking a tile raises its app, or starts it; right-clicking pins or unpins
+// it; hovering names it; a running indicator sits under each.
 //
 // Where the apps come from is the interesting part. The Linux shell reads
 // Starling's own registry; Windows has none, so `Win32AppCatalog` reads the
@@ -26,9 +36,13 @@ import FlutterSwiftBridge
 import FlutterWin32
 import Foundation
 
-/// Dock height in logical points, and the icon size inside it.
-let kDockHeight = 78
-let kDockIcon = 44.0
+/// Bar height in logical points, and the icon size inside it.
+///
+/// Sized against Windows' own taskbar (48pt) rather than against a macOS
+/// dock: a floating slab can afford to be tall because wallpaper surrounds
+/// it, and a solid strip across the screen cannot.
+let kDockHeight = 56
+let kDockIcon = 34.0
 
 /// How far the dock's WINDOW extends above the strip it reserves. The label
 /// and the menu draw in here; a window is a hard clip, so without it they
@@ -39,8 +53,7 @@ let kDockOverhang = 190
 /// Geometry the flyout arithmetic needs. The tile is a fixed size, so where
 /// each one sits is arithmetic rather than a layout query — which is what
 /// lets a label be positioned over an icon without measuring anything.
-let kDockTile = kDockIcon + 10.0
-let kDockPadding = 10.0
+let kDockTile = kDockIcon + 14.0
 
 /// Gap between tiled windows, in logical points — scaled to pixels at use,
 /// because window geometry is the one place this file speaks physical. It is
@@ -435,26 +448,19 @@ final class StarlingDockState: State<StatefulWidget> {
         return out
     }
 
-    /// The status readout, as its own slab at the right end — the dock's fill
-    /// and radius, so the two read as one strip without the dock having to
-    /// become a full-width bar and give up its shape.
-    private func statusSlab() -> Widget {
-        // The icon slab is 8pt clear of the edge and (kDockIcon + 19)pt tall;
-        // this pill is about 33pt, so 8 + 15 centres it against them.
-        Padding(padding: EdgeInsets(left: 0, top: 0, right: 14, bottom: 23)) {
-            ClipRRect(borderRadius: BorderRadius.circular(14)) {
-                ColoredBox(color: Color(0xE01B1D22)) {
-                    Padding(padding: EdgeInsets(left: 14, top: 8, right: 14, bottom: 8)) {
-                        Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
-                            if let speaker = volumeIcon() { speaker }
-                            networkIcon()
-                            for widget in batteryWidgets() { widget }
-                            Padding(padding: EdgeInsets(left: 4, top: 0, right: 0, bottom: 0)) {
-                                Text(clockText(),
-                                     style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
-                            }
-                        }
-                    }
+    /// The status readout, at the right end of the bar — where Windows keeps
+    /// its clock and where a user will look for one. Plain on the strip now
+    /// rather than in a slab of its own: the strip is opaque and full width,
+    /// so there is nothing for a second slab to separate it from.
+    private func statusCluster() -> Widget {
+        Padding(padding: EdgeInsets(left: 0, top: 0, right: 16, bottom: 0)) {
+            Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 9) {
+                if let speaker = volumeIcon() { speaker }
+                networkIcon()
+                for widget in batteryWidgets() { widget }
+                Padding(padding: EdgeInsets(left: 4, top: 0, right: 0, bottom: 0)) {
+                    Text(clockText(),
+                         style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
                 }
             }
         }
@@ -470,32 +476,33 @@ final class StarlingDockState: State<StatefulWidget> {
     /// fires either — even though the raw events are demonstrably arriving
     /// (a root Listener sees `hover` and sees `down buttons=2`). Recognizers
     /// and mouse-tracker annotations are the missing link, not the host. The
-    /// tile is a fixed size and the slab is centred, so doing it here costs
+    /// tile is a fixed size and the row is centred, so doing it here costs
     /// four lines and no layout query.
     private func pointerTile(_ x: Double, _ y: Double) -> Int? {
         guard !items.isEmpty else { return nil }
-        let height = Double(kDockHeight + kDockOverhang)
-        // The slab sits at the bottom, 8pt clear of the edge.
-        let slabBottom = height - 8
-        let slabTop = slabBottom - (kDockIcon + 19)
-        guard y >= slabTop, y <= slabBottom else { return nil }
+        // The strip is the bottom kDockHeight of the window; everything above
+        // it is the overhang, which is a hole.
+        let stripTop = Double(kDockOverhang)
+        guard y >= stripTop else { return nil }
 
-        let width = Double(Win32Display.primary()?.logicalWidth ?? 1280)
-        let slab = Double(items.count) * kDockTile + kDockPadding * 2
-        let left = (width - slab) / 2 + kDockPadding
+        let left = rowLeft()
         let index = Int((x - left) / kDockTile)
         guard x >= left, index >= 0, index < items.count else { return nil }
         return index
     }
 
-    /// Where a tile's centre sits, in the panel's own coordinates. The tile is
-    /// a fixed size and the slab is centred, so this is arithmetic — no
-    /// measuring, which is what lets a flyout be positioned over an icon
-    /// without a layout pass to ask where it ended up.
-    private func tileCentre(_ index: Int) -> Double {
+    /// Where the centred row of tiles starts, in the panel's own coordinates.
+    private func rowLeft() -> Double {
         let width = Double(Win32Display.primary()?.logicalWidth ?? 1280)
-        let slab = Double(items.count) * kDockTile + kDockPadding * 2
-        return (width - slab) / 2 + kDockPadding + Double(index) * kDockTile + kDockTile / 2
+        return (width - Double(items.count) * kDockTile) / 2
+    }
+
+    /// Where a tile's centre sits. The tile is a fixed size and the row is
+    /// centred, so this is arithmetic — no measuring, which is what lets a
+    /// flyout be positioned over an icon without a layout pass to ask where
+    /// it ended up.
+    private func tileCentre(_ index: Int) -> Double {
+        rowLeft() + Double(index) * kDockTile + kDockTile / 2
     }
 
     // MARK: - Build
@@ -506,7 +513,7 @@ final class StarlingDockState: State<StatefulWidget> {
         // on `pointerTile`.
         GestureDetector(
                 onTap: { self.activate(item) },
-                child: Padding(padding: EdgeInsets(left: 5, top: 0, right: 5, bottom: 0)) {
+                child: Padding(padding: EdgeInsets(left: 7, top: 0, right: 7, bottom: 0)) {
                     Column(mainAxisSize: .min, crossAxisAlignment: .center) {
                         if item.key == kLauncherKey {
                             SizedBox(width: kDockIcon, height: kDockIcon) {
@@ -514,7 +521,7 @@ final class StarlingDockState: State<StatefulWidget> {
                                     ColoredBox(color: Color(0xFF2B3550)) {
                                         Center {
                                             MacosIcon(icon: CupertinoIcons.square_grid_2x2,
-                                                      color: Color(0xFF9EC2FF), size: 26)
+                                                      color: Color(0xFF9EC2FF), size: 21)
                                         }
                                     }
                                 }
@@ -525,7 +532,7 @@ final class StarlingDockState: State<StatefulWidget> {
                             SizedBox(width: kDockIcon, height: kDockIcon) {
                                 Center {
                                     MacosIcon(icon: CupertinoIcons.app_badge,
-                                              color: Color(0xFFB8C0CC), size: 26)
+                                              color: Color(0xFFB8C0CC), size: 21)
                                 }
                             }
                         }
@@ -553,7 +560,7 @@ final class StarlingDockState: State<StatefulWidget> {
                 })
     }
 
-    /// The hover label. Drawn in the overhang, above the slab.
+    /// The hover label. Drawn in the overhang, above the strip.
     private func label(_ index: Int) -> Widget {
         let item = items[index]
         // Rough, because the text is not measured: enough to keep a long name
@@ -661,10 +668,10 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        // The window is the strip PLUS the overhang; the slab lives at the
-        // bottom of it and the flyouts draw above. Everything the tree paints
-        // as pure black is a hole (the panel's colour key), which is what
-        // makes the overhang invisible and click-through.
+        // The window is the strip PLUS the overhang. The strip is an opaque
+        // bar across the bottom; the overhang above it is painted pure black,
+        // which the panel's colour key turns into a hole — invisible and
+        // click-through until a label or a menu draws there.
         return Directionality(
             textDirection: .ltr,
             child: Listener(
@@ -685,24 +692,34 @@ final class StarlingDockState: State<StatefulWidget> {
                 },
                 child: ColoredBox(color: Color(0x00000000)) {
                 Stack(alignment: Alignment.bottomCenter) {
-                    Align(alignment: Alignment.bottomCenter) {
-                        Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8)) {
-                            ClipRRect(borderRadius: BorderRadius.circular(16)) {
-                                ColoredBox(color: Color(0xE01B1D22)) {
-                                    Padding(padding: EdgeInsets(left: kDockPadding, top: 7,
-                                                               right: kDockPadding, bottom: 5)) {
-                                        Row(mainAxisSize: .min, crossAxisAlignment: .center) {
-                                            for (index, item) in items.enumerated() {
-                                                tile(item, index)
-                                            }
+                    // The bar. Positioned rather than Aligned so it spans the
+                    // full width whatever it contains — a strip that stops
+                    // where its icons stop is the floating slab again.
+                    Positioned(left: 0, right: 0, bottom: 0, height: Double(kDockHeight)) {
+                        ColoredBox(color: Color(0xF01B1D22)) {
+                            Stack(alignment: Alignment.center) {
+                                // Centred, Windows 11 style, and centred on
+                                // the SCREEN rather than in the space left
+                                // over — which is also what makes tileCentre
+                                // arithmetic rather than a layout query.
+                                Align(alignment: Alignment.center) {
+                                    Row(mainAxisSize: .min, crossAxisAlignment: .center) {
+                                        for (index, item) in items.enumerated() {
+                                            tile(item, index)
                                         }
                                     }
+                                }
+                                Align(alignment: Alignment.centerRight) {
+                                    statusCluster()
                                 }
                             }
                         }
                     }
-                    Align(alignment: Alignment.bottomRight) {
-                        statusSlab()
+                    // A hairline along the top edge, so the bar reads as
+                    // chrome against a window pushed up to it rather than as
+                    // part of that window.
+                    Positioned(left: 0, right: 0, bottom: Double(kDockHeight), height: 1) {
+                        ColoredBox(color: Color(0x24FFFFFF)) { SizedBox(expand: ()) }
                     }
                     // A menu wins over a label: the pointer is inside the tile
                     // for both, and two flyouts stacked on one icon is noise.
