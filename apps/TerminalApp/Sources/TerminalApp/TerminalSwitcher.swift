@@ -118,24 +118,13 @@ final class SwitcherState {
     /// What a paste contributes to the line: one line of printable text, cut
     /// to whatever room is left.
     ///
-    /// A destination is a single line, and the clipboard rarely is — the
-    /// hostname someone copied came out of a terminal, a config file or a
-    /// browser, and arrives with a newline on the end at best. So the first
-    /// line with anything on it wins and the rest is dropped: joining the
-    /// lines of a shell transcript would produce something that is not a
-    /// destination in any spelling, and pasting a stray `\n` into a field
-    /// whose Enter *opens a workspace* would be worse than either.
-    ///
-    /// C0 goes the same way. Nothing unprintable belongs in a hostname, a key
-    /// path or an ssh flag, and a tab or an escape landing mid-prompt would
-    /// draw as a hole nobody could account for.
+    /// The rule lives in the SDK (`TerminalPaste.oneLine`) because the find
+    /// bar in the terminal itself needs exactly the same one, and two copies
+    /// of it would agree only until one was edited. A destination has the
+    /// stronger reason of the two: Enter here *opens a workspace*, so a stray
+    /// newline is not a character to pass through.
     static func pasteable(_ text: String, room: Int) -> String {
-        guard room > 0 else { return "" }
-        let line = text.split(whereSeparator: { $0 == "\n" || $0 == "\r" })
-            .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
-        let printable = String(String.UnicodeScalarView(
-            line.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7F }))
-        return String(printable.trimmingCharacters(in: .whitespaces).prefix(room))
+        TerminalPaste.oneLine(text, room: room)
     }
 }
 

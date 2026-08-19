@@ -70,9 +70,11 @@ why this build exists:
   display. Send both when the terminal draws the wrong thing: between them
   they say *which half* is wrong, which a photograph cannot. See the User
   Guide's "When the terminal draws the wrong thing".
-- ⌘V and ⌘C now work in the ⌘O workspace switcher, which is where a
-  destination usually arrives from — a hostname or a whole `ssh` line, off a
-  clipboard.
+- ⌘V and ⌘C now work in the two fields that had no clipboard at all: the ⌘O
+  workspace switcher, where a destination usually arrives from one (a hostname
+  or a whole `ssh` line), and the ⌘F find bar, where the search term does. In
+  the find bar ⌘C copies the **match** you are standing on rather than the
+  query — find it, then copy it, is what a person is usually doing.
 
 The app identifies itself as `0.2.0-dev` in that report, and the report also
 carries the executable's build time, so a report can always be tied back to a

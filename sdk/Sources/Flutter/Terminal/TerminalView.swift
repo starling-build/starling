@@ -1213,13 +1213,77 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             }
             return true
         }
+        // Paste and copy, in the chords this terminal already binds for them.
+        // A search term is very often something you just saw somewhere else —
+        // an error string, a hash, a path — so a find bar that cannot take a
+        // paste asks you to retype what is already on the clipboard. Matched
+        // ahead of the character fallback, which ignores modified letters and
+        // would otherwise leave both chords doing nothing at all.
+        var clipboardChord = _ctrlDown && _shiftDown
+        #if os(macOS)
+        clipboardChord = clipboardChord || (_metaDown && !_ctrlDown)
+        #endif
+        if clipboardChord {
+            if logical == 0x56 || logical == 0x76 { _pasteIntoSearch(); return true }
+            if logical == 0x43 || logical == 0x63 { _copyFromSearch(); return true }
+        }
         if !_ctrlDown, !_metaDown, let ch = keyData.character, !ch.isEmpty,
-           let s = ch.unicodeScalars.first, s.value >= 0x20 {
+           let s = ch.unicodeScalars.first, s.value >= 0x20,
+           _searchQuery.count < Self.searchQueryLimit {
             _searchQuery += ch
             _runSearch()
         }
         return true
     }
+
+    /// Paste onto the end of the query, and search again.
+    ///
+    /// Asynchronous for the same reason the grid's paste is: the clipboard may
+    /// belong to another process that has to be asked. By the time it answers
+    /// the bar may be closed, so it re-checks.
+    private func _pasteIntoSearch() {
+        Clipboard.getData(Clipboard.kTextPlain) { [weak self] data in
+            guard let self = self, self._searchActive, let text = data?.text
+            else { return }
+            let add = TerminalPaste.oneLine(
+                text, room: Self.searchQueryLimit - self._searchQuery.count)
+            guard !add.isEmpty else { return }
+            self._searchQuery += add
+            self._runSearch()
+        }
+    }
+
+    /// Copy what you are pointing at: the match you are standing on, or the
+    /// query when there is no match to stand on.
+    ///
+    /// The match rather than the query, because "find it, then copy it" is
+    /// what a person is usually doing — the query is a thing they already
+    /// have, and the match is the thing they came for.
+    private func _copyFromSearch() {
+        let text = _currentMatchText() ?? _searchQuery
+        guard !text.isEmpty else { return }
+        Clipboard.setData(ClipboardData(text: text))
+    }
+
+    /// The text of the match the bar is standing on, read out of the buffer at
+    /// the coordinates the search recorded.
+    private func _currentMatchText() -> String? {
+        guard _searchCurrent < _searchMatches.count else { return nil }
+        let m = _searchMatches[_searchCurrent]
+        _lock.lock()
+        let all = emulator.scrollback + emulator.grid
+        _lock.unlock()
+        guard m.line >= 0, m.line < all.count else { return nil }
+        let row = all[m.line]
+        let end = min(m.col + m.len, row.count)
+        guard m.col < end else { return nil }
+        return String(row[m.col ..< end].map { $0.char })
+    }
+
+    /// As long a query as the bar can show before it runs into the grid it is
+    /// searching. Typing cannot exceed it either — a paste is not the one way
+    /// to overflow the field.
+    private static let searchQueryLimit = 128
 
     private func _openSearch() {
         _searchActive = true
