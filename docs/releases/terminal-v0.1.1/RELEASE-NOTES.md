@@ -1,10 +1,11 @@
 # Starling Terminal 0.1.1 — the macOS build now runs on your Mac, not just ours
 
-A macOS-only patch. **No feature changed**, and Linux and Windows are not
-affected: their 0.1.0 downloads are current and this release does not replace
-them. If you are on either, there is nothing here for you.
+A patch release. **No feature changed.** macOS is the reason it exists; Linux
+is rebuilt alongside it so the two carry one version, and gains nothing beyond
+that — the bug could not bite there. Windows stays at 0.1.0.
 
 If you are on macOS, 0.1.0 almost certainly did not work, and this explains why.
+If you are on Linux, your 0.1.0 install was fine and 0.1.1 is a formality.
 
 ## What was wrong
 
@@ -64,24 +65,39 @@ After that it opens normally.
 
 Plain `unzip` is now safe too, which it was not in 0.1.0.
 
-## Provenance, and one thing to know before the next release
+## Provenance
 
 Built on macOS from `release-terminal-0.1.1` — the branch of that name in this
 repo and in starling-engine, which is the record of what this was built from.
 
-**It was not built from the released SDK bundle, and that is a deviation worth
-stating.** 0.1.0 was, and that remains the right path: it produces the terminal
-exactly the way an external consumer would. It could not be used here, because
-the fix is in the framework's own sources and
-`starling-sdk-0.3.0-macos-arm64.tar.gz` carries a copy that predates it —
-building 0.1.1 the consumer way would have faithfully reproduced the crash this
-release exists to fix, and said nothing while doing it.
+**From the released SDK bundle alone**, which is the path 0.1.0 used and the
+one that matters: it produces the terminal exactly the way an external consumer
+would, so every release exercises the SDK it ships beside.
 
-The consequence is that **the 0.3.0 SDK bundle still ships this bug**: anything
-built from it has the crash. Restoring the consumer path means cutting an SDK
-release carrying the fix, and the next terminal release should be built from
-that.
+    tar xzf dist/starling-sdk-0.3.1-macos-arm64.tar.gz -C /tmp/sdk
+    env -u STARLING_ENGINE_OUT -u FLUTTER_SWIFT_ENGINE_OUT \
+        STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
+        STARLING_APP_VERSION=0.1.1 build/macos-app.sh TerminalApp --zip
 
-Verified the way the bug demanded rather than the way that missed it: with
-every resource bundle hidden from both build directories, the unpacked archive
-was launched under `env -i` and drew a shell.
+There was a window where that was impossible and it is worth recording. The fix
+is in the framework's own sources, and `starling-sdk-0.3.0-macos-arm64.tar.gz`
+carried a copy that predated it — so building 0.1.1 from 0.3.0 would have
+faithfully reproduced the crash this release exists to fix, and said nothing
+while doing it. The first 0.1.1 archive was therefore built against the repo's
+own `sdk/` and shipped with that stated as a weakness. **SDK 0.3.1 removed the
+reason, and this archive is the rebuild.**
+
+Three checks, each aimed at a way this could look right and be wrong:
+
+- **Was it really a consumer build?** The build plan, not the command line, is
+  the evidence: 45 references to the unpacked bundle, zero to `starling-engine`
+  or to the repo's `sdk/`. With `STARLING_ENGINE_OUT` or
+  `FLUTTER_SWIFT_ENGINE_OUT` set, the manifest's `-L` finds a checkout and the
+  build passes while proving nothing, so both were cleared.
+- **Is the engine the bundle's?** Compared by **Mach-O UUID**, not by hash —
+  the app re-signs `FlutterMacOS.framework` and `libswift_bridge.dylib` on the
+  way in, so their bytes differ from the bundle's copies while the code is
+  identical. A hash comparison reports a false mismatch here, and did.
+- **Does it run anywhere else?** With every resource bundle hidden from both
+  build directories, the unpacked archive was launched under `env -i` and drew
+  a shell, and its signature verified after a plain `unzip`.

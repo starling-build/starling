@@ -30,7 +30,7 @@
 #   STARLING_SDK_BUNDLE=$B build/package-terminal-gtk.sh
 set -euo pipefail
 
-VER=0.1.0
+VER=0.1.1
 PKG=starling-terminal
 OUT="${1:-/tmp/starling-terminal-pkg}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
