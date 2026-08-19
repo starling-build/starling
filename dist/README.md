@@ -45,8 +45,13 @@ downloaded copy wants right-click → Open, or Privacy & Security →
 **Open Anyway**, or `xattr -dr com.apple.quarantine` once. Removing that step
 means Developer ID signing plus notarization, not a build change.
 
-`starling-terminal_0.1.0_amd64.deb` — Starling Terminal for Linux x86_64, the
-same 0.1.0 release candidate. 52 MB, checksum in `SHA256SUMS`. A **.deb**
+`starling-terminal_0.1.1_amd64.deb` — Starling Terminal for Linux x86_64,
+rebuilt for 0.1.1 against the 0.3.1 SDK bundle beside it. 52 MB, checksum in
+`SHA256SUMS`. It replaces the 0.1.0 .deb, which remains a `terminal-v0.1.0`
+release asset. **Nothing behaves differently**: the resource-bundle fix it
+carries only ever mattered inside a macOS `.app`, and the engine is the one
+0.1.0 shipped, byte for byte. The version moves so "which build am I on" has
+one answer across platforms, and so `dpkg -i` treats it as the upgrade it is. A **.deb**
 rather than an archive, because Linux has an install path the other two do not:
 `sudo dpkg -i` (or `apt install ./…`) puts it on the applications menu with its
 icon, and `dpkg-shlibdeps` computed the system dependencies so a missing GTK or
@@ -248,17 +253,22 @@ Re-measure before quoting those figures against this archive.
 
 ## The Linux terminal's provenance
 
-Built on the dev box from `release-terminal-0.1.0`, **from the released SDK
+Built on the dev box from `release-terminal-0.1.1`, **from the released SDK
 bundle alone** — the same consumer path the macOS archive takes:
 
-    # 0.3.0, the version current when this was built; it is a sdk-v0.3.0
-    # release asset now that 0.3.1 has replaced it in this directory
-    tar xzf starling-sdk-0.3.0-linux-x86_64.tar.gz -C /tmp/sdk
+    tar xzf starling-sdk-0.3.1-linux-x86_64.tar.gz -C /tmp/sdk
     B=/tmp/sdk/starling-sdk-linux-x86_64
     env -u STARLING_ENGINE_OUT STARLING_APP_GTK=1 STARLING_SDK_BUNDLE=$B \
         swift build -c release --package-path apps/TerminalApp \
         --scratch-path $PWD/.build-gtk
     STARLING_SDK_BUNDLE=$B build/package-terminal-gtk.sh
+
+**Its engine came out of the bundle, and the bundle's came out of the published
+0.3.0 tarball** — not from the shared `host_release`, which by then had been
+relinked three commits past the release commit and carries
+`fl_drm_view_inject_pointer_abs`. `libflutter_engine.so`,
+`libflutter_linux_gtk.so` and `data/icudtl.dat` in the .deb are byte identical
+to the bundle's, and neither has a single match for that symbol.
 
 `STARLING_SDK_BUNDLE` reaches further here than on the other two platforms,
 because a .deb ships licensing as well as code. In bundle mode the packager
@@ -431,7 +441,7 @@ the Windows zip's line got dropped once already:
     sha256sum starling-sdk-0.3.1-linux-x86_64.tar.gz \
               starling-sdk-0.3.1-macos-arm64.tar.gz \
               starling-sdk-0.3.1-windows-x86_64.zip \
-              starling-terminal_0.1.0_amd64.deb \
+              starling-terminal_0.1.1_amd64.deb \
               starling-terminal-0.1.0-windows-x86_64.zip \
               starling-terminal-0.1.1-macos-arm64.zip > SHA256SUMS
 
