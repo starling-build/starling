@@ -89,6 +89,10 @@ void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen);
 // from the edge than the strip it reserves. A dock needs it to draw above
 // itself — a hover label, a right-click menu — because a window is a hard
 // clip. It is transparent and click-through until something paints there.
+// Moves an existing panel to another edge at runtime. The window changes
+// shape, so the tree is expected to lay itself out differently.
+void flwin32_host_move_panel(FlWin32Host* host, int32_t edge);
+
 void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t edge,
                             int32_t thickness,

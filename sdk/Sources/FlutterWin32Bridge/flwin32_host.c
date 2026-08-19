@@ -1034,6 +1034,24 @@ static void panel_apply_placement(FlWin32Host* host) {
   if (host->appbar_registered) appbar_apply_position(host);
 }
 
+// Moves an existing panel to another edge, at runtime.
+//
+// Everything that makes a panel a panel is already re-derived by
+// panel_apply_placement — the window geometry, the colour key, and the appbar
+// reservation, which it re-registers at the new edge rather than leaving the
+// old strip reserved. So a move is the edge plus that call.
+//
+// The tree relayouts on its own: the window changes shape, which is a WM_SIZE,
+// which is a metrics event. A bottom bar and a left bar are not the same shape
+// at all — one is the screen's width by 56pt, the other 56pt by its height —
+// so this is a real resize and the surface is expected to lay itself out
+// differently on the other side of it.
+void flwin32_host_move_panel(FlWin32Host* host, int32_t edge) {
+  if (host == NULL || !host->panel_active) return;
+  host->panel_edge = edge;
+  panel_apply_placement(host);
+}
+
 void flwin32_host_set_panel(FlWin32Host* host,
                             int32_t edge,
                             int32_t thickness,

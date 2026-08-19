@@ -140,6 +140,15 @@ public final class Win32Host {
     /// pinned to a screen edge. Call before `run()` — it is a restyle of an
     /// existing HWND, so the engine's view follows the new client area, but
     /// doing it mid-run makes the first frames arrive at the old size.
+    /// Moves an existing panel to another edge, at runtime.
+    ///
+    /// Unlike `setPanel`, this one IS meant to be called mid-run: the window
+    /// changes shape and the tree lays itself out again on the other side of
+    /// the resize, which is the point.
+    public func movePanel(to edge: PanelEdge) {
+        flwin32_host_move_panel(host, edge.rawValue)
+    }
+
     public func setPanel(_ placement: PanelPlacement) {
         flwin32_host_set_panel(host, placement.edge.rawValue,
                                Int32(placement.thickness),

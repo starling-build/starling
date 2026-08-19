@@ -59,6 +59,15 @@ struct DockState {
     /// Whether the user has asked for Explorer's taskbar back.
     var nativeTaskbarWanted = false
 
+    /// Which screen edge the dock is on. Bottom by default, like the taskbar
+    /// it replaces; left is the other one people actually use, because a
+    /// wide screen has width to spare and height it does not.
+    var edge: PanelEdge = .bottom
+
+    /// A dock on the left or right is a COLUMN of icons, not a row, and every
+    /// piece of arithmetic in the surface keys off this.
+    var isVertical: Bool { edge == .left || edge == .right }
+
     /// Bumped when an icon texture lands. Icons are rasterized off the UI
     /// thread and arrive after the tiles that want them are already drawn, so
     /// something observable has to change or the dock keeps its fallback
@@ -93,6 +102,10 @@ final class DockBloc: @unchecked Sendable {
         case toggleWifi
         case toggleDarkMode
         case setNativeTaskbar(Bool)
+        /// Move the dock to another screen edge.
+        case setEdge(PanelEdge)
+        /// Put Explorer's taskbar back and quit — the dock removes itself.
+        case removeDock
 
         // Completions, dispatched by the bloc's own background work. They are
         // events like any other so that every mutation goes through `add`.
@@ -207,6 +220,23 @@ final class DockBloc: @unchecked Sendable {
             let dark = !state.darkMode
             state.darkMode = dark
             Task.detached { Win32Control.setDarkMode(dark) }
+        case .setEdge(let edge):
+            guard edge != state.edge else { return }
+            state.edge = edge
+            _saveEdge(edge)
+            // The host reshapes the window; the tree lays itself out again on
+            // the WM_SIZE that follows.
+            Win32WindowedHost.host?.movePanel(to: edge)
+
+        case .removeDock:
+            // "Remove the dock" means give the desktop back the way it was:
+            // Explorer's taskbar returns and this process goes away. Not a
+            // hide — a hidden dock with no way to reach it is a machine with
+            // no shell chrome at all.
+            Win32Shell.showNativeTaskbar()
+            print("[WinShellDock] removed; Explorer's taskbar restored")
+            exit(0)
+
         case .setNativeTaskbar(let wanted):
             state.nativeTaskbarWanted = wanted
             Task.detached {
@@ -223,6 +253,8 @@ final class DockBloc: @unchecked Sendable {
 
     private func _start() {
         icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
+
+        state.edge = _loadEdge()
 
         // The pins file, if there is one. The DEFAULTS need the catalog and
         // are seeded in `.catalogLoaded`.
@@ -395,6 +427,44 @@ final class DockBloc: @unchecked Sendable {
         kDefaultPins.compactMap { wanted in
             catalog.first(where: { $0.name.lowercased().contains(wanted) })
                 .map { IconCache.key(for: $0) }
+        }
+    }
+
+    @ObservationIgnored private var edgePath: String {
+        let base = ProcessInfo.processInfo.environment["APPDATA"]
+            ?? NSTemporaryDirectory()
+        return base + "\\Starling\\dock-edge.txt"
+    }
+
+    /// Beside the pins, and for the same reason: where the dock sits is a
+    /// choice the user made, not a default to re-impose every login.
+    ///
+    /// STATIC, and read by main.swift before the window is made. The tree and
+    /// the window have to agree about which edge this is from the very first
+    /// frame: the bloc loading it on its own left the tree drawing a vertical
+    /// strip inside a window still shaped like a bottom bar — a narrow column
+    /// of icons stranded in the bottom-left corner, with the space still
+    /// reserved along the bottom.
+    static func loadEdge() -> PanelEdge {
+        let base = ProcessInfo.processInfo.environment["APPDATA"]
+            ?? NSTemporaryDirectory()
+        let path = base + "\\Starling\\dock-edge.txt"
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8),
+              let raw = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let edge = PanelEdge(rawValue: raw) else { return .bottom }
+        return edge
+    }
+
+    private func _loadEdge() -> PanelEdge { Self.loadEdge() }
+
+    private func _saveEdge(_ edge: PanelEdge) {
+        let path = edgePath
+        Task.detached {
+            let dir = (path as NSString).deletingLastPathComponent
+            try? FileManager.default.createDirectory(atPath: dir,
+                                                     withIntermediateDirectories: true)
+            try? String(edge.rawValue).write(toFile: path, atomically: true,
+                                             encoding: .utf8)
         }
     }
 

@@ -86,6 +86,8 @@ let kCcInset = 12.0
 /// estimate that drifts from the layout opens the panel from the wrong place
 /// — or from nowhere.
 let kStatusWidth = 210.0
+/// The same readout down a column: icons stacked over a two-line clock.
+let kStatusHeight = 132.0
 
 /// Whether Explorer's taskbar is left alone. `--plain` is a bisect flag and
 /// has no business changing the desktop underneath it.
@@ -98,6 +100,22 @@ let keepsNativeTaskbar =
 /// name, because the exact wording moves between Windows releases ("Command
 /// Prompt" vs "Terminal") and a dock that silently loses an entry after an
 /// update is worse than one that keeps a near match.
+/// One row of a tile's menu: what it says, and what it does.
+struct DockMenuRow {
+    let label: String
+    let action: () -> Void
+}
+
+let kMenuRowH = 30.0
+
+/// Where the dock can go, in the order the menu offers it.
+let kDockEdges: [(edge: PanelEdge, label: String)] = [
+    (.bottom, "Dock at the bottom"),
+    (.left, "Dock on the left"),
+    (.right, "Dock on the right"),
+    (.top, "Dock at the top"),
+]
+
 /// The four Wi-Fi bars, shortest first.
 let kBarHeights: [Double] = [5, 8, 11, 15]
 
@@ -228,11 +246,26 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     /// The panel's own frame, in the dock window's coordinates.
+    /// Beside the readout that opens it, on the inward side of the strip.
     private var ccFrame: CcRect {
-        let height = Double(kDockHeight + kDockOverhang)
-        return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
-                      y: height - Double(kDockHeight) - kCcInset - ccHeight,
-                      w: kCcWidth, h: ccHeight)
+        switch bloc.state.edge {
+        case .bottom:
+            return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
+                          y: stripOffset - kCcInset - ccHeight,
+                          w: kCcWidth, h: ccHeight)
+        case .top:
+            return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
+                          y: Double(kDockHeight) + kCcInset,
+                          w: kCcWidth, h: ccHeight)
+        case .left:
+            return CcRect(x: Double(kDockHeight) + kCcInset,
+                          y: ShellScreen.logicalHeight - kCcInset - ccHeight,
+                          w: kCcWidth, h: ccHeight)
+        case .right:
+            return CcRect(x: stripOffset - kCcInset - kCcWidth,
+                          y: ShellScreen.logicalHeight - kCcInset - ccHeight,
+                          w: kCcWidth, h: ccHeight)
+        }
     }
 
     /// The four tiles, then the slider track, then the wide bottom row — in
@@ -274,11 +307,23 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     /// Where the status readout is, and therefore what opens the panel.
+    /// The status readout's own rectangle — pressing it opens the panel.
     private var ccOpener: CcRect {
-        let height = Double(kDockHeight + kDockOverhang)
-        return CcRect(x: ShellScreen.logicalWidth - kStatusWidth,
-                      y: height - Double(kDockHeight),
-                      w: kStatusWidth, h: Double(kDockHeight))
+        switch bloc.state.edge {
+        case .bottom:
+            return CcRect(x: ShellScreen.logicalWidth - kStatusWidth,
+                          y: stripOffset, w: kStatusWidth, h: Double(kDockHeight))
+        case .top:
+            return CcRect(x: ShellScreen.logicalWidth - kStatusWidth, y: 0,
+                          w: kStatusWidth, h: Double(kDockHeight))
+        case .left:
+            return CcRect(x: 0, y: ShellScreen.logicalHeight - kStatusHeight,
+                          w: Double(kDockHeight), h: kStatusHeight)
+        case .right:
+            return CcRect(x: stripOffset,
+                          y: ShellScreen.logicalHeight - kStatusHeight,
+                          w: Double(kDockHeight), h: kStatusHeight)
+        }
     }
 
     /// Wi-Fi, Sound, Dark Mode.
@@ -514,6 +559,18 @@ final class StarlingDockState: State<StatefulWidget> {
     // three moved down here when the menu bar went away, because this is
     // where Windows keeps them and where the user will look.
 
+    private func clockTimeText() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "H:mm"
+        return f.string(from: bloc.state.now)
+    }
+
+    private func clockDateText() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "d MMM"
+        return f.string(from: bloc.state.now)
+    }
+
     private func clockText() -> String {
         let f = DateFormatter()
         f.dateFormat = "h:mm  EEE d MMM"
@@ -622,10 +679,11 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     private func statusCluster() -> Widget {
-        // A fixed width, imposed rather than measured — `ccOpener` hit-tests
+        // A fixed extent, imposed rather than measured — `ccOpener` hit-tests
         // against this same number, and a readout that laid itself out to its
         // content would drift away from the rectangle that opens the panel.
-        SizedBox(width: kStatusWidth, height: Double(kDockHeight)) {
+        if vertical { return verticalStatusCluster() }
+        return SizedBox(width: kStatusWidth, height: Double(kDockHeight)) {
         Padding(padding: EdgeInsets(left: 0, top: 0, right: 16, bottom: 0)) {
             Row(mainAxisAlignment: .end, crossAxisAlignment: .center, spacing: 9) {
                 if let network = networkIcon() { network }
@@ -636,6 +694,24 @@ final class StarlingDockState: State<StatefulWidget> {
                 }
             }
         }
+        }
+    }
+
+    /// The same readout down a column: the icons stacked, and the clock split
+    /// over two lines because 56pt of width will not hold "12:21 Wed 19 Aug".
+    private func verticalStatusCluster() -> Widget {
+        SizedBox(width: Double(kDockHeight), height: kStatusHeight) {
+            Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 10)) {
+                Column(mainAxisAlignment: .end, crossAxisAlignment: .center,
+                       spacing: 7) {
+                    if let network = networkIcon() { network }
+                    for widget in batteryWidgets() { widget }
+                    Text(clockTimeText(),
+                         style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
+                    Text(clockDateText(),
+                         style: TextStyle(color: Color(0xFF9AA3B0), fontSize: 10))
+                }
+            }
         }
     }
 
@@ -653,14 +729,22 @@ final class StarlingDockState: State<StatefulWidget> {
     /// four lines and no layout query.
     private func pointerTile(_ x: Double, _ y: Double) -> Int? {
         guard !bloc.state.items.isEmpty else { return nil }
-        // The strip is the bottom kDockHeight of the window; everything above
-        // it is the overhang, which is a hole.
-        let stripTop = Double(kDockOverhang)
-        guard y >= stripTop else { return nil }
+        // The window is the strip PLUS the overhang, and the overhang is a
+        // hole — a press there is not on the dock at all. Which side of the
+        // window the strip occupies depends on the edge.
+        let along: Double
+        let across: Double
+        switch bloc.state.edge {
+        case .bottom: along = x; across = y - Double(kDockOverhang)
+        case .top:    along = x; across = Double(kDockHeight) - y
+        case .left:   along = y; across = Double(kDockHeight) - x
+        case .right:  along = y; across = x - Double(kDockOverhang)
+        }
+        guard across >= 0, across <= Double(kDockHeight) else { return nil }
 
-        let left = rowLeft()
-        let index = Int((x - left) / kDockTile)
-        guard x >= left, index >= 0, index < bloc.state.items.count else { return nil }
+        let start = rowLeft()
+        let index = Int((along - start) / kDockTile)
+        guard along >= start, index >= 0, index < bloc.state.items.count else { return nil }
         return index
     }
 
@@ -670,8 +754,34 @@ final class StarlingDockState: State<StatefulWidget> {
     /// width of the screen this bar is ON, and it has to follow a resolution
     /// change — the host re-places the strip on WM_DISPLAYCHANGE and the
     /// icons have to be centred on the new one.
+    /// The window's own thickness in points: the strip plus the overhang.
+    private var windowThickness: Double { Double(kDockHeight + kDockOverhang) }
+
+    /// Where the strip starts within the window, across the axis. The
+    /// overhang is on the far side of the strip from the screen edge, so it
+    /// leads on a bottom or right dock and trails on a top or left one.
+    private var stripOffset: Double {
+        switch bloc.state.edge {
+        case .bottom, .right: return Double(kDockOverhang)
+        case .top, .left: return 0
+        }
+    }
+
+    /// True when the dock is a column down a side rather than a bar along an
+    /// edge. Everything below asks this rather than assuming a horizontal
+    /// strip, which is what the whole surface used to do.
+    private var vertical: Bool { bloc.state.isVertical }
+
+    /// How long the dock is along its own axis — the screen's width for a
+    /// bar, its height for a column.
+    private var axisLength: Double {
+        vertical ? ShellScreen.logicalHeight : ShellScreen.logicalWidth
+    }
+
+    /// Where the row (or column) of icons starts, so the icons are centred on
+    /// the SCREEN rather than on whatever is left over beside the clock.
     private func rowLeft() -> Double {
-        (ShellScreen.logicalWidth - Double(bloc.state.items.count) * kDockTile) / 2
+        (axisLength - Double(bloc.state.items.count) * kDockTile) / 2
     }
 
     /// Where a tile's centre sits. The tile is a fixed size and the row is
@@ -683,6 +793,43 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     // MARK: - Build
+
+    private func hairline() -> Widget {
+        ColoredBox(color: Color(0x24FFFFFF)) { SizedBox(expand: ()) }
+    }
+
+    /// The strip's contents: the icons centred on the screen, and the status
+    /// readout at the far end. A Row along an edge, a Column down a side.
+    private func barBody() -> Widget {
+        ColoredBox(color: Color(0xF01B1D22)) {
+            Stack(alignment: Alignment.center) {
+                // Centred, Windows 11 style, and centred on the SCREEN rather
+                // than in the space left over — which is also what makes
+                // tileCentre arithmetic rather than a layout query.
+                Align(alignment: Alignment.center) {
+                    if vertical {
+                        Column(mainAxisSize: .min, crossAxisAlignment: .center) {
+                            for (index, item) in bloc.state.items.enumerated() {
+                                tile(item, index)
+                            }
+                        }
+                    } else {
+                        Row(mainAxisSize: .min, crossAxisAlignment: .center) {
+                            for (index, item) in bloc.state.items.enumerated() {
+                                tile(item, index)
+                            }
+                        }
+                    }
+                }
+                // The far end from where the eye starts: the right of a bar,
+                // the bottom of a column.
+                Align(alignment: vertical ? Alignment.bottomCenter
+                                          : Alignment.centerRight) {
+                    statusCluster()
+                }
+            }
+        }
+    }
 
     private func tile(_ item: DockItem, _ index: Int) -> Widget {
         // Only the primary tap lives on the tile. Hover and the right-click
@@ -743,10 +890,8 @@ final class StarlingDockState: State<StatefulWidget> {
         // Rough, because the text is not measured: enough to keep a long name
         // roughly centred over its icon rather than hanging off one side.
         let width = Double(item.name.count) * 6.6 + 20
-        return Positioned(
-            left: max(4, tileCentre(index) - width / 2),
-            bottom: Double(kDockHeight) + 6,
-            child: ClipRRect(borderRadius: BorderRadius.circular(6)) {
+        return flyout(index, width: width, height: 26,
+                      child: ClipRRect(borderRadius: BorderRadius.circular(6)) {
                 ColoredBox(color: Color(0xF01B1D22)) {
                     Padding(padding: EdgeInsets(left: 10, top: 5, right: 10, bottom: 5)) {
                         Text(item.name,
@@ -757,74 +902,148 @@ final class StarlingDockState: State<StatefulWidget> {
             })
     }
 
-    private func menuRow(_ text: String, _ action: @escaping () -> Void) -> Widget {
-        GestureDetector(
-            onTap: action,
-            child: SizedBox(width: 168, height: 30) {
-                Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0)) {
-                    Align(alignment: Alignment.centerLeft) {
-                        Text(text, style: TextStyle(color: Color(0xFFE6EAF0), fontSize: 12))
-                    }
+    /// Where a flyout for this tile goes — its top-left corner, in the same
+    /// window coordinates a pointer event arrives in.
+    ///
+    /// ONE formula, used by the drawing AND the hit test, for the reason the
+    /// control centre works that way: widget-level input is unreliable in this
+    /// surface, so a menu is driven from the root Listener, and two
+    /// independent layouts would drift into dead rows.
+    ///
+    /// This is also what the OVERHANG is for — the window extends past the
+    /// strip so there is somewhere to draw, and a flyout on a left dock goes
+    /// to the right of it exactly as one on a bottom dock goes above.
+    private func flyoutOrigin(_ index: Int, width: Double, height: Double)
+        -> (x: Double, y: Double) {
+        let centre = tileCentre(index)
+        let windowW = vertical ? windowThickness : ShellScreen.logicalWidth
+        let windowH = vertical ? ShellScreen.logicalHeight : windowThickness
+        switch bloc.state.edge {
+        case .bottom:
+            return (max(4, centre - width / 2),
+                    windowH - Double(kDockHeight) - 6 - height)
+        case .top:
+            return (max(4, centre - width / 2), Double(kDockHeight) + 6)
+        case .left:
+            return (Double(kDockHeight) + 6, max(4, centre - 16))
+        case .right:
+            return (windowW - Double(kDockHeight) - 6 - width,
+                    max(4, centre - 16))
+        }
+    }
+
+    private func flyout(_ index: Int, width: Double, height: Double,
+                        child: Widget) -> Widget {
+        let origin = flyoutOrigin(index, width: width, height: height)
+        return Positioned(left: origin.x, top: origin.y, child: child)
+    }
+
+    /// A press while a tile menu is open. True when the menu consumed it.
+    private func handleTileMenu(_ x: Double, _ y: Double) -> Bool {
+        guard let index = menuOpen else { return false }
+        let rows = menuRows(index)
+        guard !rows.isEmpty else { return false }
+        let width = bloc.state.items[index].key == kLauncherKey ? 200.0 : 168.0
+        let height = Double(rows.count) * kMenuRowH + 12
+        let origin = flyoutOrigin(index, width: width, height: height)
+        guard x >= origin.x, x < origin.x + width,
+              y >= origin.y, y < origin.y + height else {
+            // Outside: close it, and let the press carry on to whatever it hit.
+            setState { menuOpen = nil }
+            return false
+        }
+        let row = Int((y - origin.y - 6) / kMenuRowH)
+        if row >= 0 && row < rows.count {
+            setState { menuOpen = nil }
+            rows[row].action()
+        }
+        return true
+    }
+
+    /// Drawing only. The press is `handleTileMenu`'s, off the root Listener:
+    /// a GestureDetector inside a Positioned in a Stack does not fire in this
+    /// surface, and a menu whose rows quietly do nothing is worse than none.
+    private func menuRow(_ text: String, _ width: Double) -> Widget {
+        SizedBox(width: width, height: kMenuRowH) {
+            Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0)) {
+                Align(alignment: Alignment.centerLeft) {
+                    Text(text, style: TextStyle(color: Color(0xFFE6EAF0), fontSize: 12))
                 }
-            })
+            }
+        }
     }
 
     /// The right-click menu, also in the overhang.
-    private func menu(_ index: Int) -> Widget {
+    /// What a tile's menu offers. ONE list, used to draw the menu and to hit
+    /// test it — see `flyoutOrigin` for why they must not be worked out twice.
+    private func menuRows(_ index: Int) -> [DockMenuRow] {
+        guard index < bloc.state.items.count else { return [] }
         let item = bloc.state.items[index]
-        // Nothing to pin, close, or open a second copy of. The shell's own
-        // actions used to hang here for want of anywhere better; they live in
-        // the control centre now, which is where a system toggle belongs.
-        guard item.key != kLauncherKey else { return SizedBox(width: 0, height: 0) }
-        return Positioned(
-            left: max(4, tileCentre(index) - 84),
-            bottom: Double(kDockHeight) + 6,
-            // A fixed width, and .start rather than .stretch: a Positioned
-            // child in a Stack is laid out LOOSE, so its width constraint is
-            // infinity, and a stretching Column in infinite width lays out to
-            // nothing at all — the menu simply never appears, with no error
-            // and no clue that layout is what refused it.
-            child: SizedBox(width: 168) {
-                ClipRRect(borderRadius: BorderRadius.circular(8)) {
-                    ColoredBox(color: Color(0xF41F2229)) {
-                        Padding(padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 6)) {
-                            Column(mainAxisSize: .min, crossAxisAlignment: .start) {
-                                SizedBox(height: 22) {
-                                    Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0)) {
-                                        Align(alignment: Alignment.centerLeft) {
-                                            Text(item.name,
-                                                 style: TextStyle(color: Color(0xFF8E96A3),
-                                                                  fontSize: 11,
-                                                                  fontWeight: .w600),
-                                                 overflow: .ellipsis,
-                                                 maxLines: 1)
-                                        }
-                                    }
-                                }
-                                if item.app != nil {
-                                    menuRow(item.isPinned ? "Remove from Dock" : "Keep in Dock") {
-                                        self.setState { self.menuOpen = nil }
-                                        self.bloc.add(.togglePin(item))
-                                    }
-                                }
-                                if item.isRunning, item.key != kLauncherKey {
-                                    menuRow(item.windows.count > 1
-                                                ? "Close \(item.windows.count) windows" : "Close") {
-                                        self.setState { self.menuOpen = nil }
-                                        self.bloc.add(.closeAll(item))
-                                    }
-                                }
-                                if let app = item.app {
-                                    menuRow("New window") {
-                                        Win32AppCatalog.launch(app)
-                                        self.setState { self.menuOpen = nil }
-                                    }
-                                }
-                            }
+
+        // The launcher tile carries the DOCK's own menu: where it lives, and
+        // whether it lives at all. It hangs there because it is the one tile
+        // always present — the app tiles come and go with what is running, and
+        // a shell command attached to something that may not be on screen is a
+        // command you cannot reach.
+        guard item.key != kLauncherKey else {
+            var rows = kDockEdges.map { choice in
+                DockMenuRow(label: (bloc.state.edge == choice.edge ? "\u{2713}  " : "     ")
+                                + choice.label) { self.bloc.add(.setEdge(choice.edge)) }
+            }
+            rows.append(DockMenuRow(
+                label: bloc.state.nativeTaskbarWanted
+                    ? "     Hide the Windows taskbar"
+                    : "     Show the Windows taskbar") {
+                self.bloc.add(.setNativeTaskbar(!self.bloc.state.nativeTaskbarWanted))
+            })
+            rows.append(DockMenuRow(label: "     Remove the dock") {
+                self.bloc.add(.removeDock)
+            })
+            return rows
+        }
+
+        var rows: [DockMenuRow] = [
+            DockMenuRow(label: item.isPinned ? "Unpin from dock" : "Pin to dock") {
+                self.bloc.add(.togglePin(item))
+            }
+        ]
+        if item.isRunning {
+            rows.append(DockMenuRow(
+                label: item.windows.count > 1
+                    ? "Close \(item.windows.count) windows" : "Close") {
+                self.bloc.add(.closeAll(item))
+            })
+        }
+        if let app = item.app {
+            rows.append(DockMenuRow(label: "New window") {
+                Task.detached { Win32AppCatalog.launch(app) }
+            })
+        }
+        return rows
+    }
+
+    private func menu(_ index: Int) -> Widget {
+        let rows = menuRows(index)
+        guard !rows.isEmpty else { return SizedBox(width: 0, height: 0) }
+        let width = bloc.state.items[index].key == kLauncherKey ? 200.0 : 168.0
+        let height = Double(rows.count) * kMenuRowH + 12
+        // A fixed width, and .start rather than .stretch: a Positioned child
+        // in a Stack is laid out LOOSE, so its width constraint is infinity,
+        // and a stretching Column in infinite width lays out to nothing at all
+        // — the menu simply never appears, with no error and no clue that
+        // layout is what refused it.
+        return flyout(index, width: width, height: height,
+                      child: SizedBox(width: width, height: height) {
+            ClipRRect(borderRadius: BorderRadius.circular(8)) {
+                ColoredBox(color: Color(0xF41F2229)) {
+                    Padding(padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 6)) {
+                        Column(mainAxisSize: .min, crossAxisAlignment: .start) {
+                            for row in rows { menuRow(row.label, width) }
                         }
                     }
                 }
-            })
+            }
+        })
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -865,6 +1084,7 @@ final class StarlingDockState: State<StatefulWidget> {
                         }
                         return
                     }
+                    if self.menuOpen != nil, self.handleTileMenu(x, y) { return }
                     if self.controlCentreOpen, self.handleControlCentre(x, y) { return }
                     if self.ccOpener.contains(x, y) {
                         self.setState {
@@ -898,33 +1118,38 @@ final class StarlingDockState: State<StatefulWidget> {
                 child: ColoredBox(color: Color(0x00000000)) {
                 Stack(alignment: Alignment.bottomCenter) {
                     // The bar. Positioned rather than Aligned so it spans the
-                    // full width whatever it contains — a strip that stops
+                    // whole edge whatever it contains — a strip that stops
                     // where its icons stop is the floating slab again.
-                    Positioned(left: 0, right: 0, bottom: 0, height: Double(kDockHeight)) {
-                        ColoredBox(color: Color(0xF01B1D22)) {
-                            Stack(alignment: Alignment.center) {
-                                // Centred, Windows 11 style, and centred on
-                                // the SCREEN rather than in the space left
-                                // over — which is also what makes tileCentre
-                                // arithmetic rather than a layout query.
-                                Align(alignment: Alignment.center) {
-                                    Row(mainAxisSize: .min, crossAxisAlignment: .center) {
-                                        for (index, item) in bloc.state.items.enumerated() {
-                                            tile(item, index)
-                                        }
-                                    }
-                                }
-                                Align(alignment: Alignment.centerRight) {
-                                    statusCluster()
-                                }
-                            }
-                        }
+                    switch bloc.state.edge {
+                    case .bottom:
+                        Positioned(left: 0, right: 0, bottom: 0,
+                                   height: Double(kDockHeight)) { barBody() }
+                    case .top:
+                        Positioned(left: 0, top: 0, right: 0,
+                                   height: Double(kDockHeight)) { barBody() }
+                    case .left:
+                        Positioned(left: 0, top: 0, bottom: 0,
+                                   width: Double(kDockHeight)) { barBody() }
+                    case .right:
+                        Positioned(top: 0, right: 0, bottom: 0,
+                                   width: Double(kDockHeight)) { barBody() }
                     }
-                    // A hairline along the top edge, so the bar reads as
-                    // chrome against a window pushed up to it rather than as
-                    // part of that window.
-                    Positioned(left: 0, right: 0, bottom: Double(kDockHeight), height: 1) {
-                        ColoredBox(color: Color(0x24FFFFFF)) { SizedBox(expand: ()) }
+                    // A hairline along the strip's inner edge, so the bar
+                    // reads as chrome against a window pushed up to it rather
+                    // than as part of that window.
+                    switch bloc.state.edge {
+                    case .bottom:
+                        Positioned(left: 0, right: 0, bottom: Double(kDockHeight),
+                                   height: 1) { hairline() }
+                    case .top:
+                        Positioned(left: 0, top: Double(kDockHeight), right: 0,
+                                   height: 1) { hairline() }
+                    case .left:
+                        Positioned(left: Double(kDockHeight), top: 0, bottom: 0,
+                                   width: 1) { hairline() }
+                    case .right:
+                        Positioned(top: 0, right: Double(kDockHeight), bottom: 0,
+                                   width: 1) { hairline() }
                     }
                     // ALWAYS emitted, empty when the panel is down: a Stack
                     // that GAINS a child does not always composite the new one

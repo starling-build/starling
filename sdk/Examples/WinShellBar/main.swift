@@ -152,7 +152,11 @@ if wantsLauncher {
     // right-click menu have somewhere to draw — a window is a hard clip, and
     // both are taller than the dock.
     if !wantsPlain {
-        Win32WindowedHost.panel = PanelPlacement(edge: .bottom, thickness: kDockHeight,
+        // The edge the user last chose, read before the window is made: the
+        // tree and the window must agree from the first frame, or the dock
+        // draws itself as a column inside a bar-shaped window.
+        Win32WindowedHost.panel = PanelPlacement(edge: DockBloc.loadEdge(),
+                                                 thickness: kDockHeight,
                                                  monitor: wantsMonitor,
                                                  reserveSpace: wantsAppbar,
                                                  transparent: true,
