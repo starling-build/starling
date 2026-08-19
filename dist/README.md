@@ -45,14 +45,32 @@ carries both bugs, and an archive that crashes on arrival is not worth the
 history it would cost.
 
 `starling-terminal-0.2.0-dev-macos-arm64.zip` — Starling Terminal for macOS
-arm64, a **preview of the `remote-workspace` branch**, not a release. 17 MB,
-checksum in `SHA256SUMS`. It carries what 0.1.0 does not: splits, remote
-workspaces with a stored arrangement, the switcher, pane status from OSC 133,
-tab keybindings, the floating-pane look, and **⌘/ for the keyboard reference**
-— which is the fastest way to see the rest of that list without reading this
-file. Same `.app` shape as the 0.1.0 archive below, and the same Gatekeeper
-caveat, but **its signature survives a plain `unzip`** where 0.1.0's does not
-(see that entry).
+arm64, a **preview of mainline**, not a release. 17 MB, checksum in
+`SHA256SUMS`. It carries what 0.1.0 does not: splits, remote workspaces with a
+stored arrangement, the switcher, pane status from OSC 133, tab keybindings,
+the floating-pane look, and **⌘/ for the keyboard reference** — which is the
+fastest way to see the rest of that list without reading this file. Same `.app`
+shape as the 0.1.0 archive below, and the same Gatekeeper caveat, but **its
+signature survives a plain `unzip`** where 0.1.0's does not (see that entry).
+
+Rebuilt 2026-08-19 from `main` (the `remote-workspace` branch it previewed has
+since merged). Two things are new since the last refresh, and one of them is
+why this build exists:
+
+- **⌘⇧R writes a rendering report** — two files at the top of your home
+  folder, a `.txt` of what the terminal believed was on screen (plus fonts,
+  cell metrics and which glyph path drew them) and a `.png` of that same frame
+  as it was painted, recorded inside the app rather than captured from the
+  display. Send both when the terminal draws the wrong thing: between them
+  they say *which half* is wrong, which a photograph cannot. See the User
+  Guide's "When the terminal draws the wrong thing".
+- ⌘V and ⌘C now work in the ⌘O workspace switcher, which is where a
+  destination usually arrives from — a hostname or a whole `ssh` line, off a
+  clipboard.
+
+The app identifies itself as `0.2.0-dev` in that report, and the report also
+carries the executable's build time, so a report can always be tied back to a
+particular archive.
 
 ### Gatekeeper, and what "known developers only" actually blocks
 
