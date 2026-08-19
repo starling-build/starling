@@ -100,6 +100,9 @@ enum TerminalHelp {
             HelpBinding("—", "a launch is a local shell — ⌘O to reach one"),
         ]),
         HelpSection(title: "the text", rows: [
+            HelpBinding("Ctrl+Shift+=", mac: "⌘+", "bigger type"),
+            HelpBinding("Ctrl+Shift+-", mac: "⌘−", "smaller type"),
+            HelpBinding("Ctrl+Shift+0", mac: "⌘0", "back to 13 pt"),
             HelpBinding("Ctrl+Shift+C", mac: "⌘C", "copy the selection"),
             HelpBinding("Ctrl+Shift+V", mac: "⌘V", "paste"),
             HelpBinding("Ctrl+Shift+F", mac: "⌘F", "find in scrollback"),

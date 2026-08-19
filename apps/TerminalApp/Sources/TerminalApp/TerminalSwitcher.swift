@@ -139,6 +139,37 @@ final class SwitcherState {
     }
 }
 
+/// The type size, remembered between launches.
+///
+/// A file rather than UserDefaults for the same reason `WorkspaceMemory` below
+/// is one: this app runs on Linux too, where UserDefaults has no home worth
+/// relying on. One line, one number — small enough that a person can read it,
+/// change it, or delete it to get the default back, which is the cheapest
+/// settings UI there is until there is a real one.
+enum TerminalFontMemory {
+    static let standard: Double = 13
+
+    private static var path: String {
+        realUserHomeDirectory() + "/.local/state/starling-terminal-font"
+    }
+
+    static func load() -> Double {
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8),
+              let size = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              size >= 6, size <= 40
+        else { return standard }
+        return size
+    }
+
+    static func save(_ size: Double) {
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true)
+        try? String(format: "%g\n", size)
+            .write(toFile: path, atomically: true, encoding: .utf8)
+    }
+}
+
 /// Where the client remembers what it was doing, so the next launch does not
 /// have to be told again.
 ///

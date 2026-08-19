@@ -505,6 +505,14 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         if old.font.size != w.font.size || old.font.family != w.font.family {
             _measureCell(size: w.font.size)
             _fittedWidth = 0
+            // The same badge a resize shows, for the same reason: the grid
+            // just changed shape under the text, and the number that decided
+            // it is worth one second on screen. Only for a size a person
+            // asked for — a family change is not something they chose from
+            // the keyboard.
+            if old.font.size != w.font.size {
+                _showHud(String(format: "%g pt", w.font.size))
+            }
         }
         if old.fitColumns != w.fitColumns {
             _fitColumns = w.fitColumns

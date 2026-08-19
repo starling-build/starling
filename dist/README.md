@@ -54,8 +54,14 @@ shape as the 0.1.0 archive below, and the same Gatekeeper caveat, but **its
 signature survives a plain `unzip`** where 0.1.0's does not (see that entry).
 
 Rebuilt 2026-08-19 from `main` (the `remote-workspace` branch it previewed has
-since merged). Two things are new since the last refresh, and one of them is
+since merged). Three things are new since the last refresh, and one of them is
 why this build exists:
+
+- **⌘+ / ⌘− change the type size**, ⌘0 returns to 13 pt, and the size is
+  remembered in `~/.local/state/starling-terminal-font` — one line you can
+  edit or delete. `Ctrl+Shift+=` / `Ctrl+Shift+-` / `Ctrl+Shift+0` do the same
+  on every platform. The grid re-fits around the new cell, so the window keeps
+  its size and the column count moves.
 
 - **⌘⇧R writes a rendering report** — two files at the top of your home
   folder, a `.txt` of what the terminal believed was on screen (plus fonts,

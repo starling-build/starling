@@ -169,6 +169,12 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     var _shiftDown = false
     var _metaDown = false
 
+    /// Point size for every pane, moved by ⌘+ / ⌘− and remembered between
+    /// launches. One size for the window rather than per pane: a split is two
+    /// views of one piece of work, and a terminal that made you set the size
+    /// twice after every split would be answering a question nobody asked.
+    var _fontSize = TerminalFontMemory.load()
+
     override func initState() {
         super.initState()
         // A launch is a LOCAL SHELL. `--workspace remote:host/ws:dev` (or
@@ -617,6 +623,52 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// key's LABEL in the low byte. Testing only for `0x31...0x39` therefore
     /// matches on Linux and never on the Mac, where the digit is typed into
     /// the shell instead — which is exactly how this was found.
+    // MARK: - Type size
+
+    /// Grow or shrink the type, and remember it.
+    ///
+    /// A point at a time, which is what every terminal does and what the cell
+    /// grid can actually express: the cell is measured from the font, so each
+    /// step is a whole column and row count, and finer steps would mostly
+    /// round to the same grid. The bounds are the range where a monospace
+    /// grid stays a grid — below 6 the stem of an `l` and the dot of an `i`
+    /// stop being distinguishable at 1x, and above 40 a default window holds
+    /// fewer than 40 columns, which is narrower than the programs people run
+    /// in one.
+    private func _bumpFont(_ delta: Double) {
+        _setFont(_fontSize + delta)
+    }
+
+    private func _setFont(_ size: Double) {
+        let clamped = min(40, max(6, size))
+        guard clamped != _fontSize else { return }
+        setState { _fontSize = clamped }
+        TerminalFontMemory.save(clamped)
+        // The badge is the TerminalView's: it already shows one for a grid
+        // that changed size, which is the same news in the other direction.
+    }
+
+    /// The zoom keys, in both id schemes.
+    ///
+    /// X11 keysyms from the DRM embedder are the ASCII ones. The Cocoa host
+    /// sends a plane-2 id with the key's LABEL in the low byte for any chord
+    /// that produces no character — the same rule that makes ⌘1 arrive as
+    /// 0x2_0000_0231 rather than 0x31 — so each key is matched in both forms,
+    /// shifted and not.
+    private func _isZoomIn(_ logical: Int64) -> Bool {
+        logical == 0x3D || logical == 0x2B                 // = +
+            || logical == 0x2_0000_023D || logical == 0x2_0000_022B
+    }
+
+    private func _isZoomOut(_ logical: Int64) -> Bool {
+        logical == 0x2D || logical == 0x5F                 // - _
+            || logical == 0x2_0000_022D || logical == 0x2_0000_025F
+    }
+
+    private func _isZoomReset(_ logical: Int64) -> Bool {
+        logical == 0x30 || logical == 0x2_0000_0230        // 0
+    }
+
     private func _digitKey(_ logical: Int64) -> Int? {
         if logical >= 0x31 && logical <= 0x39 { return Int(logical - 0x30) }
         if logical >= 0x2_0000_0231 && logical <= 0x2_0000_0239 {
@@ -730,6 +782,16 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                 if isE { _split(.column); return true }
                 if isO { _openSwitcher(); return true }
             }
+            // Type size, on the keys every terminal and browser uses for it.
+            //
+            // Both spellings of each, because whether the shifted or the
+            // unshifted label arrives depends on the embedder — the same
+            // reason ⌘⇧[ accepts the brace below. Ctrl+Shift is the
+            // cross-platform prefix here, so `+` (which IS shift-equals) and
+            // a bare `=` mean the same thing.
+            if _isZoomIn(keyData.logical) { _bumpFont(1); return true }
+            if _isZoomOut(keyData.logical) { _bumpFont(-1); return true }
+            if _isZoomReset(keyData.logical) { _setFont(13); return true }
         }
         #if os(macOS)
         // The native chords, beside the Ctrl ones every platform gets — the
@@ -740,6 +802,11 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             // ⌘1…⌘8 jump, and ⌘9 is the LAST tab rather than the ninth —
             // Safari's rule, which Terminal.app and iTerm both follow, and
             // which is more useful than a ninth tab nobody has.
+            // Before the digits: ⌘0 is "actual size" here, as it is in every
+            // browser, and `_digitKey` deliberately stops at 1 so it can be.
+            if _isZoomIn(keyData.logical) { _bumpFont(1); return true }
+            if _isZoomOut(keyData.logical) { _bumpFont(-1); return true }
+            if _isZoomReset(keyData.logical) { _setFont(13); return true }
             if let digit = _digitKey(keyData.logical) {
                 _selectIndex(digit == 9 ? tabs.count - 1 : digit - 1)
                 return true
@@ -974,6 +1041,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     private func _grid(_ pane: TerminalPane, box: PaneBox, isActive: Bool) -> Widget {
         TerminalView(
             session: pane.session,
+            font: TerminalFont(size: _fontSize),
             size: Size(box.w, box.h),
             autofocus: isActive,
             keyFilter: { [self] key in _appChord(key) }
