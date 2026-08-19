@@ -58,19 +58,54 @@ Everything it loads lives in `/usr/lib/starling-terminal`: the engine libraries,
 `libFlutterShared`, the Swift runtime closure, the font resource bundles and
 `data/icudtl.dat`. No flutter_assets — the Swift runtime never reads them.
 
-`starling-sdk-0.3.0-macos-arm64.tar.gz` — the Starling SDK for macOS arm64, the
-0.3.0 release candidate: framework source plus the release engine binaries
-(`FlutterMacOS.framework`, `libswift_bridge.dylib`) and flutter_assets, in
-one tree a consumer depends on by path. 14 MB, checksum in `SHA256SUMS`.
+`starling-sdk-0.3.1-macos-arm64.tar.gz` — the Starling SDK for macOS arm64:
+framework source plus the release engine binaries (`FlutterMacOS.framework`,
+`libswift_bridge.dylib`) and flutter_assets, in one tree a consumer depends on
+by path. 14 MB, checksum in `SHA256SUMS`.
 
-`starling-sdk-0.3.0-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the same
-0.3.0 release candidate and the same engine commit: framework source, the
-three release engine libraries (`libflutter_engine.so`,
-`libflutter_linux_gtk.so`, `libflutter_linux_drm.so`), `icudtl.dat` and
-flutter_assets. 23 MB, checksum in `SHA256SUMS`.
+**0.3.1 is one source fix on top of `terminal-v0.1.0`** — the commit the
+shipped terminal was built from, which is the tree this has to fix — and the
+**same engine as 0.3.0, byte for byte**: both binaries were compared against
+the ones inside the 0.3.0 tarball and are identical.
 
-`starling-sdk-0.3.0-windows-x86_64.zip` — the same SDK for Windows x86_64, the same
-0.3.0 release candidate and the same engine commit: framework source, both
+0.3.0 shipped a `TerminalView.swift` and `CupertinoIcons.swift` that reached
+the framework's fonts through SwiftPM's `Bundle.module`, whose fallback
+candidate is **an absolute path into whatever build directory compiled it**.
+Inside a `.app` that is the only candidate that resolves, so an app built on
+0.3.0 runs on the machine that built it and dies at startup everywhere else
+with `resource_bundle_accessor.swift:12: could not load resource bundle`.
+Because this bundle ships source rather than a compiled library, every consumer
+recompiled the bug into their own binary with their own path baked in.
+
+Demonstrated rather than asserted: `CounterApp` built as a path-dependency
+consumer from an unpacked 0.3.0 carries **two** such paths; from this bundle it
+carries **none**. Compiling is not the test — a 0.3.0 consumer compiles
+perfectly and crashes on somebody else's machine.
+
+The bug cannot bite on Linux or Windows: `Bundle.module`'s first candidate is
+correct in their layouts, where a bare executable's `bundleURL` is the directory
+holding the resource bundle, so the fallback is never reached. **Both are
+reissued at 0.3.1 anyway**, and neither reissue is a fix for its own platform.
+The reason is that these bundles ship *source*: leaving a platform at 0.3.0
+publishes the same framework in two different states, and "which SDK version am
+I on" then needs a per-platform answer every time it is asked. All three now
+carry one version, which is worth more than the re-download it cost.
+
+`starling-sdk-0.3.1-linux-x86_64.tar.gz` — the same SDK for Linux x86_64, the
+same branch and the same engine commit: framework source, the three release
+engine libraries (`libflutter_engine.so`, `libflutter_linux_gtk.so`,
+`libflutter_linux_drm.so`), `icudtl.dat` and flutter_assets. 23 MB, checksum in
+`SHA256SUMS`. It **replaces** the 0.3.0 Linux tarball, which was in this
+directory until now and remains a `sdk-v0.3.0` release asset.
+
+It reissues a fix that changes nothing on this platform, on purpose: the search
+runs here too, it simply never had to. Shipping it means "which SDK version am I
+on" has one answer instead of one per platform. The Windows zip below was cut on
+the Windows box for the same reason and in the same window, so this directory
+carries no version skew at all.
+
+`starling-sdk-0.3.1-windows-x86_64.zip` — the same SDK for Windows x86_64, the
+same 0.3.1 source and the same engine commit: framework source, both
 release engine DLLs **and both import libraries** (`flutter_engine.dll`,
 `flutter_engine.dll.lib`, `flutter_windows.dll`, `flutter_windows.dll.lib`),
 `icudtl.dat` and flutter_assets. 17.1 MB, checksum in `SHA256SUMS`. The import
@@ -117,6 +152,12 @@ every release exercises the bundle it ships with.
 
     # unpack the SDK release artifact; nothing else is on PATH or in the env
     Expand-Archive dist\starling-sdk-0.3.0-windows-x86_64.zip -DestinationPath C:\dist\sdk-only
+    # ^ the artifact this tree carried then. 0.3.1 replaced it in place; this
+    #   terminal was linked against the 0.3.0 zip and is not rebuilt for it,
+    #   because the only FRAMEWORK difference between the two is the
+    #   resource-bundle lookup, and the Windows layout never reaches the path
+    #   that changed. (0.3.1's other two changed files are in tools/, which
+    #   nothing links.)
     $env:STARLING_SDK_BUNDLE = "C:\dist\sdk-only\starling-sdk-windows-x86_64"
 
     sdk\tools\build-windows.ps1 -PackagePath apps\TerminalApp `
@@ -180,7 +221,7 @@ in it, and the next terminal release should be built from that.
 
 The recipe 0.1.0 used, for when there is a fixed bundle to use it with:
 
-    tar xzf dist/starling-sdk-0.3.0-macos-arm64.tar.gz -C /tmp/sdk
+    tar xzf dist/starling-sdk-0.3.1-macos-arm64.tar.gz -C /tmp/sdk
     STARLING_SDK_BUNDLE=/tmp/sdk/starling-sdk-macos-arm64 \
         build/macos-app.sh TerminalApp --zip
 
@@ -204,7 +245,9 @@ Re-measure before quoting those figures against this archive.
 Built on the dev box from `release-terminal-0.1.0`, **from the released SDK
 bundle alone** — the same consumer path the macOS archive takes:
 
-    tar xzf dist/starling-sdk-0.3.0-linux-x86_64.tar.gz -C /tmp/sdk
+    # 0.3.0, the version current when this was built; it is a sdk-v0.3.0
+    # release asset now that 0.3.1 has replaced it in this directory
+    tar xzf starling-sdk-0.3.0-linux-x86_64.tar.gz -C /tmp/sdk
     B=/tmp/sdk/starling-sdk-linux-x86_64
     env -u STARLING_ENGINE_OUT STARLING_APP_GTK=1 STARLING_SDK_BUNDLE=$B \
         swift build -c release --package-path apps/TerminalApp \
@@ -238,22 +281,46 @@ rival terminal.
 
 ## The SDK bundles' provenance
 
-The macOS one was built on the Mac from `release-sdk-0.3.0` (engine
-`ea78543`, `host_release_arm64`), verified by unpacking to a clean directory,
-building the whole package as a path-dependency consumer, and launching an
-example — the engine starts from the bundle's own `engine/lib`:
+The macOS one (0.3.1) was built on the Mac from `release-sdk-0.3.1`, which is
+**`terminal-v0.1.0` plus the one source fix** — based there rather than on
+`main` or on the `sdk-v0.3.0` tag because the terminal 0.1.0 people actually
+have was built from that commit, so that is the tree an SDK patch has to
+correct. Basing it on main would have swept in every unrelated change since and
+made "0.3.0 plus one fix" untrue.
 
     sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
 
-The Linux one is the same branch and the same engine commit, built on the dev
-box against `host_release`, and verified the same way — a path-dependency
-consumer compiled the whole framework, `readelf -d` showed both engine
-libraries resolving out of the bundle's `engine/lib` with nothing set in the
-environment, and a `CounterApp` built inside the unpacked bundle came up on
-the desktop session and drew text:
+**The engine claim is checked, not assumed.** Both engine binaries in the new
+tarball were compared byte for byte against the ones inside
+`starling-sdk-0.3.0-macos-arm64.tar.gz` and are identical — a stronger
+statement than naming a commit, because the out-directory is shared and can be
+rebuilt by somebody else's branch underneath you (the failure warned about
+below).
+
+Verified the way the bug it fixes demanded: unpacked to a clean directory, then
+`CounterApp` built as a path-dependency consumer with `STARLING_ENGINE_OUT`,
+`FLUTTER_SWIFT_ENGINE_OUT` and `STARLING_SDK_BUNDLE` all cleared, so the link
+had only the bundle's own `engine/lib` to resolve against. The check on the
+result is one `strings` call: built from **0.3.0** the binary carries two
+absolute build-directory paths, built from this bundle it carries none.
+
+The Linux one (0.3.1) is the same branch and the same engine commit, built on
+the dev box and verified the same way — a path-dependency consumer compiled the
+whole framework, `readelf -d` showed both engine libraries resolving out of the
+bundle's `engine/lib` with nothing set in the environment, and it carries zero
+build-directory paths where a 0.3.0 consumer carries two:
 
     FLUTTER_SWIFT_ENGINE_OUT=<a private copy of the release binaries> \
         sdk/tools/make-bundle.sh --release "$PWD/.stage-sdk"
+
+**Its engine did not come from `host_release`, and could not have.** All four
+files were taken out of the published `starling-sdk-0.3.0-linux-x86_64.tar.gz`
+and compared byte for byte with what shipped: identical. Read straight from the
+shared out directory they would not have been — that copy of
+`libflutter_engine.so` had been relinked from `starling`, three commits past the
+release, and carries `fl_drm_view_inject_pointer_abs`. The reissued tarball has
+zero matches for it. This is the same failure the paragraph below warns about,
+caught the second time by taking the binaries from the artifact instead.
 
 **Build the engine at the release commit into a directory nobody else writes,
 and check the tarball rather than the out directory.** The engine checkout is
@@ -277,26 +344,61 @@ embedder: our `libflutter_engine.so` links the linux_drm sources as well
 (41 `fl_drm` symbols in it), so a drm-only diff shows up in both libraries and
 looking at one of them understates what shipped.
 
-The Windows one was built on the Windows box from `release-sdk-0.3.0` against a
-`host_release` engine built from the paired engine branch — which is the same
-`ea78543` the other two carry, so all three bundles ship one engine commit. The
-engine checkout on that box is not shared with anyone, and its tree was clean at
-`ea78543` when the DLLs were linked, so the snapshot dance above was not needed
-here. `sync-vendored-headers.sh --check` passed against that engine, which is
-the header-ABI half of the same guarantee:
+The Windows one (0.3.1) was rebuilt on the Windows box from `release-sdk-0.3.1`
+against a `host_release` engine at `ea78543` — the same commit the other two
+carry, and the same commit `release-sdk-0.3.1` in starling-engine points at, so
+all three bundles still ship one engine. The engine checkout on that box is not
+shared with anyone and its tree was clean at `ea78543`, so the snapshot dance
+above was not needed here. `sync-vendored-headers.sh --check` passed against
+that engine, which is the header-ABI half of the same guarantee:
 
     sdk\tools\make-bundle.ps1 -Configuration release `
         -EngineOut <engine>\engine\src\out\host_release `
         -OutDir <repo>\.stage-sdk
 
+**The engine claim is checked here too, and it is the stronger check**: all five
+engine artifacts in this zip — both DLLs, both import libraries and
+`icudtl.dat` — were compared byte for byte against the ones inside
+`starling-sdk-0.3.0-windows-x86_64.zip` and are identical. `diff -rq` between
+the two unpacked zips then names the whole difference, which is **four files**:
+`TerminalView.swift` and `CupertinoIcons.swift` (the fix) plus
+`tools/starling-create` and `tools/stage-windows.ps1`, which the 0.3.0 zip
+predates — the scaffolder's Windows support and versioned asset names, and
+`stage-windows.ps1` accepting a bundle's split `engine\lib` / `engine\share`
+layout. That is a property of the artifacts rather than a claim about a branch.
+
 Verified the way the other two were: unpacked to a clean directory and built
 with nothing in the environment pointing at an engine checkout
-(`FLUTTER_SWIFT_ENGINE_OUT` and `STARLING_ENGINE_OUT` both cleared), so the
-link had only the bundle's own `engine/lib` to resolve against.
-`tools\build-windows.ps1 -PackagePath . -Configuration release` compiled the
-whole framework and both example executables — `CounterApp.exe` and
-`TerminalTiling.exe` — in 515 s with no errors. A bundle missing an import
-library fails that at link time, which is the failure this catches.
+(`FLUTTER_SWIFT_ENGINE_OUT`, `STARLING_ENGINE_OUT` and `STARLING_SDK_BUNDLE`
+all cleared), so the link had only the bundle's own `engine/lib` to resolve
+against. `tools\build-windows.ps1 -PackagePath . -Configuration release`
+compiled the whole framework and all three example executables —
+`CounterApp.exe`, `TerminalDemo.exe` and `TerminalTiling.exe` — in 360 s with
+no errors. A bundle missing an import library fails that at link time, which is
+the failure this catches. The 0.3.1-specific check ran on the results as well:
+none of the three carries a `.build`-directory resource-bundle path, which is
+what the macOS fix is about and is now true of the Windows binaries by
+construction rather than by luck.
+
+The zip was then re-cut once, to pick up `starling-create`'s per-platform
+release table (a split release — macOS and Windows at 0.3.1, Linux at 0.3.0 —
+is not something one `SDK_VERSION` can address). `diff -rq` between the two
+cuts names one file, `tools/starling-create`, so every Swift source the
+verification above compiled is byte for byte the same in the artifact that
+shipped. The macOS and Linux tarballs still carry the older copy of that
+script and are not re-cut for it: the copy in a bundle's `tools/` is a
+convenience snapshot, and the canonical one is the release asset.
+
+**Unpack it somewhere with a short path.** The first attempt at that clean
+build was made under a deep scratch directory and died in SwiftPM with
+`Error Domain=NSCocoaErrorDomain Code=514 "The file name is invalid"` and
+`Win32Error(code: 206)` — `ERROR_FILENAME_EXCED_RANGE`, i.e. MAX_PATH, hit
+while creating `…/FlutterSwiftPackageDiscoveredTests.build/include`. It reads
+as a corrupt-bundle error and is nothing of the kind; the same zip built
+cleanly from `C:\sv`. Relatedly, the build ends with a `Win32Error(code: 1314)`
+warning about the `.build\release` symlink — that is Windows refusing symlink
+creation without Developer Mode, not a build failure, and the executables are
+under `.build\x86_64-unknown-windows-msvc\release\`.
 
 Getting the drift check to run on Windows at all took three fixes (`3147f5d`) —
 it had been silently skipped on the VM, which has no bash. Note the toolchain that
@@ -320,9 +422,9 @@ Rebuild as above, copy the artifact here, and regenerate the checksums —
 one file, every line at once, because writing it with one filename is how
 the Windows zip's line got dropped once already:
 
-    sha256sum starling-sdk-0.3.0-linux-x86_64.tar.gz \
-              starling-sdk-0.3.0-macos-arm64.tar.gz \
-              starling-sdk-0.3.0-windows-x86_64.zip \
+    sha256sum starling-sdk-0.3.1-linux-x86_64.tar.gz \
+              starling-sdk-0.3.1-macos-arm64.tar.gz \
+              starling-sdk-0.3.1-windows-x86_64.zip \
               starling-terminal_0.1.0_amd64.deb \
               starling-terminal-0.1.0-windows-x86_64.zip \
               starling-terminal-0.1.1-macos-arm64.zip > SHA256SUMS
