@@ -71,6 +71,15 @@ public class FluentTextBox: StatefulWidget {
     /// The suffix widget displayed after the text.
     public let suffix: Widget?
 
+    /// Takes the keyboard as soon as it is mounted.
+    ///
+    /// A field only receives keys while its focus node is focused, and the
+    /// only thing that focused one was a tap. That is fine for a form and
+    /// wrong for anything that opens ready to be typed into — a launcher, a
+    /// search overlay, a dialog with one field. Those came up looking
+    /// perfectly normal and swallowed every keystroke.
+    public let autofocus: Bool
+
     /// Creates a Fluent UI text box.
     public init(
         key: (any Key)? = nil,
@@ -89,7 +98,8 @@ public class FluentTextBox: StatefulWidget {
         decoration: BoxDecoration? = nil,
         focusedDecoration: BoxDecoration? = nil,
         prefix: Widget? = nil,
-        suffix: Widget? = nil
+        suffix: Widget? = nil,
+        autofocus: Bool = false
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -107,6 +117,7 @@ public class FluentTextBox: StatefulWidget {
         self.focusedDecoration = focusedDecoration
         self.prefix = prefix
         self.suffix = suffix
+        self.autofocus = autofocus
         super.init(key: key)
     }
 
@@ -185,6 +196,7 @@ class _TextBoxState: State<StatefulWidget> {
         _focusNode.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
         }
+        if textBox.autofocus { _focusNode.requestFocus() }
     }
 
     override func dispose() {

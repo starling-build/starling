@@ -22,6 +22,8 @@ public class MacosTextField: StatefulWidget {
     /// The editing underneath is unchanged; only what is painted differs.
     public let obscureText: Bool
     public let obscuringCharacter: String
+    /// Takes the keyboard as soon as it is mounted — see `FluentTextBox`.
+    public let autofocus: Bool
 
     public init(
         key: (any Key)? = nil,
@@ -38,7 +40,8 @@ public class MacosTextField: StatefulWidget {
         padding: EdgeInsets = EdgeInsets(horizontal: 6, vertical: 4),
         decoration: BoxDecoration? = nil,
         obscureText: Bool = false,
-        obscuringCharacter: String = "\u{2022}"
+        obscuringCharacter: String = "\u{2022}",
+        autofocus: Bool = false
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -54,6 +57,7 @@ public class MacosTextField: StatefulWidget {
         self.decoration = decoration
         self.obscureText = obscureText
         self.obscuringCharacter = obscuringCharacter
+        self.autofocus = autofocus
         super.init(key: key)
     }
 
@@ -123,7 +127,8 @@ class _MacosTextFieldState: State<StatefulWidget> {
                 decoration: bgDecoration,
                 focusedDecoration: focusedDecoration,
                 prefix: field.prefix,
-                suffix: field.suffix
+                suffix: field.suffix,
+                autofocus: field.autofocus
             )
         )
     }

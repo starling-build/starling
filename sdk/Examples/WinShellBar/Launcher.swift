@@ -372,7 +372,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                         MacosTextField(
                             controller: search,
                             placeholder: "Search",
-                                            onChanged: { text in
+                            onChanged: { text in
                                 // Back to page one on every keystroke: the
                                 // results changed underneath, so the page
                                 // number is about a list that no longer
@@ -381,7 +381,14 @@ final class StarlingLauncherState: State<StatefulWidget> {
                             },
                             onSubmitted: { _ in
                                 if let first = self.matches.first { self.launch(first) }
-                            })
+                            },
+                            // The launcher opens ready to be typed into, the
+                            // way Windows' own Start menu does. Without this
+                            // the field only takes keys once it has been
+                            // clicked, and typing straight after opening —
+                            // which is how anyone uses a launcher — did
+                            // nothing at all.
+                            autofocus: true)
                     }
                     SizedBox(height: 34)
                     // Nothing to show YET is different from nothing to show.
