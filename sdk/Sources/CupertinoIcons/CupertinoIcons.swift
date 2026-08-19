@@ -45,22 +45,35 @@ public enum CupertinoIcons {
         if let exe = Bundle.main.executableURL?.deletingLastPathComponent() {
             roots.append(exe)
         }
+        // `.bundle` is the Darwin name and `.resources` the name SwiftPM uses
+        // on Linux and Windows -- see the note in TerminalView's `_fontBundle`.
+        // Searching one suffix silently yields an empty Data() here, which is
+        // every icon in the app drawn as nothing.
         for root in roots {
-            let candidate = root
-                .appendingPathComponent("FlutterSwift_CupertinoIcons.bundle")
-            if let bundle = Bundle(url: candidate),
-               let url = bundle.url(forResource: "CupertinoIcons", withExtension: "ttf"),
-               let data = try? Data(contentsOf: url) {
-                return data
+            for suffix in ["bundle", "resources"] {
+                let candidate = root
+                    .appendingPathComponent("FlutterSwift_CupertinoIcons.\(suffix)")
+                if let bundle = Bundle(url: candidate),
+                   let url = bundle.url(forResource: "CupertinoIcons", withExtension: "ttf"),
+                   let data = try? Data(contentsOf: url) {
+                    return data
+                }
             }
         }
-        // Fallback: search relative to executable
+        // Last resort: straight off disk beside the executable, for a layout
+        // Bundle() refuses to open at all. The package prefix is
+        // `FlutterSwift_`, matching the loop above -- this list said
+        // `FlutterSwiftBridge_` for as long as it has existed, which is a
+        // directory that is never produced, so it has never once returned data.
         let execPath = ProcessInfo.processInfo.arguments[0]
         let execDir = (execPath as NSString).deletingLastPathComponent
-        let searchPaths = [
-            "\(execDir)/FlutterSwiftBridge_CupertinoIcons.resources/CupertinoIcons.ttf",
-            "\(execDir)/../FlutterSwiftBridge_CupertinoIcons.resources/CupertinoIcons.ttf",
-        ]
+        var searchPaths: [String] = []
+        for dir in [execDir, "\(execDir)/.."] {
+            for suffix in ["bundle", "resources"] {
+                searchPaths.append(
+                    "\(dir)/FlutterSwift_CupertinoIcons.\(suffix)/CupertinoIcons.ttf")
+            }
+        }
         for path in searchPaths {
             if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
                 return data
