@@ -1,8 +1,17 @@
 # dist — prebuilt downloads carried in the tree
 
-`starling-terminal-0.1.0-windows-x86_64.zip` — Starling Terminal for Windows,
-x86_64, the 0.1.0 release candidate. 47.2 MB, 52 entries, checksum in
-`SHA256SUMS`.
+`starling-terminal-0.1.1-windows-x86_64.zip` — Starling Terminal for Windows,
+x86_64, rebuilt for 0.1.1 on the respun 0.3.1 SDK bundle beside it. 47.2 MB,
+52 entries, checksum in `SHA256SUMS`. It replaces the 0.1.0 archive, which
+remains a `terminal-v0.1.0` release asset.
+
+**Nothing behaves differently from 0.1.0 here**, and unlike the other two
+platforms that took some proving. Neither 0.1.1 fix can bite on Windows — the
+resource-bundle fallback is never reached in this layout, and there is no code
+signature to break — so this archive exists to put all three platforms on one
+version and one SDK. What it did catch is that the *first* 0.3.1 bundle broke
+font loading here, which is why this was built on the respun one; the check is
+below, and it is a screenshot.
 
 `starling-terminal-0.1.1-macos-arm64.zip` — Starling Terminal for macOS arm64.
 16 MB, checksum in `SHA256SUMS`. Unlike the Windows archive it wraps a `.app`,
@@ -10,9 +19,9 @@ so it extracts to `Starling Terminal.app` rather than flat, and needs no
 directory made for it.
 
 **0.1.1 is 0.1.0 plus two fixes, both of which made the shipped macOS archive
-work only on the machine that built it.** No feature changed; Linux and Windows
-are unaffected and stay at 0.1.0, which is why the version here is one ahead of
-the other two rather than all three moving together.
+work only on the machine that built it.** No feature changed. Linux and Windows
+could not hit either bug and are rebuilt anyway, so all three archives now carry
+one version and one SDK — there is no version skew left in this directory.
 
 - **It crashed at startup on every other Mac.** SwiftPM generates
   `Bundle.module` with two candidates: the app bundle's own directory, and an
@@ -156,30 +165,40 @@ terminal is now produced exactly the way an external consumer produces one, so
 every release exercises the bundle it ships with.
 
     # unpack the SDK release artifact; nothing else is on PATH or in the env
-    Expand-Archive dist\starling-sdk-0.3.0-windows-x86_64.zip -DestinationPath C:\dist\sdk-only
-    # ^ the artifact this tree carried then. 0.3.1 replaced it in place; this
-    #   terminal was linked against the 0.3.0 zip and is not rebuilt for it,
-    #   because the only FRAMEWORK difference between the two is the
-    #   resource-bundle lookup, and the Windows layout never reaches the path
-    #   that changed. (0.3.1's other two changed files are in tools/, which
-    #   nothing links.)
-    $env:STARLING_SDK_BUNDLE = "C:\dist\sdk-only\starling-sdk-windows-x86_64"
+    Expand-Archive dist\starling-sdk-0.3.1-windows-x86_64.zip -DestinationPath C:\sdk031f
+    $env:STARLING_SDK_BUNDLE = "C:\sdk031f\starling-sdk-windows-x86_64"
 
     sdk\tools\build-windows.ps1 -PackagePath apps\TerminalApp `
         -Product TerminalApp -Configuration release
     sdk\tools\stage-windows.ps1 -PackagePath apps\TerminalApp `
         -Product TerminalApp -Configuration release -Zip `
-        -Out C:\dist\sdkbuilt\starling-terminal-windows-x86_64 `
+        -Out C:\dist\rel\starling-terminal-windows-x86_64 `
         -EngineOut $env:STARLING_SDK_BUNDLE\engine\lib
+
+That is the zip in this directory, checked rather than assumed: its sha256 was
+compared against the `SHA256SUMS` line beside it (`bffea87b`) before unpacking,
+so what the terminal links is provably the artifact the SDK release ships and
+not a local bundle that happens to be lying around.
 
 `FLUTTER_SWIFT_ENGINE_OUT` and `STARLING_ENGINE_OUT` must be unset for this to
 mean anything. With either set — or with `STARLING_SDK_BUNDLE` unset on a box
 that has an engine checkout — the manifest's own `-L` finds the checkout and
-the build passes while proving nothing. The check is the build plan: it carried
-58 references to the unpacked bundle and zero to `starling-engine` or to
-`sdk/`. The engine, `icudtl.dat`, flutter_assets and `conpty.dll` +
-`OpenConsole.exe` in this archive all came out of that bundle
-(`7658b95e`, engine `ea78543`).
+the build passes while proving nothing. The check is the build plan
+(`apps/TerminalApp/.build/release.yaml`): **830 references to the unpacked
+bundle, zero to `starling-engine`, zero to this repo's `sdk/`**. Both engine
+DLLs and `data/icudtl.dat` in the staged tree were then compared byte for byte
+with the bundle's copies: identical. `conpty.dll` and `OpenConsole.exe` came out
+of its `Vendor/conpty` the same way (engine `ea78543`, unchanged since 0.3.0).
+
+**And it was run, which is the check that mattered.** The first 0.3.1 bundle
+produced a terminal that started, drew, and spawned a shell while rendering
+every glyph in the system's proportional font on monospace cells — the
+framework's font search looked for `<name>.bundle` when this platform stages
+`<name>.resources`, and that search returns nil rather than trapping. No error,
+no log line, nothing in the archive to inspect: it is visible only in a
+screenshot, beside a correct one. Compare against the 0.1.0 archive if this is
+ever in doubt — the tell is whether `Copyright (C) Microsoft Corporation` has
+even advances, and whether the line wraps mid-word at the cell boundary.
 
 Toolchain: Swift 6.2.3, MSVC 14.44.35207, Windows SDK 10.0.22621 — the same
 pairing the VM used, chosen deliberately over the newer Swift and SDK on offer

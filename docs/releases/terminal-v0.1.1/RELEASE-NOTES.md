@@ -1,11 +1,20 @@
 # Starling Terminal 0.1.1 — the macOS build now runs on your Mac, not just ours
 
 A patch release. **No feature changed.** macOS is the reason it exists; Linux
-is rebuilt alongside it so the two carry one version, and gains nothing beyond
-that — the bug could not bite there. Windows stays at 0.1.0.
+and Windows are rebuilt alongside it so all three carry one version and one SDK,
+and gain nothing beyond that — neither bug could bite on those two.
 
 If you are on macOS, 0.1.0 almost certainly did not work, and this explains why.
-If you are on Linux, your 0.1.0 install was fine and 0.1.1 is a formality.
+If you are on Linux or Windows, your 0.1.0 install was fine and 0.1.1 is a
+formality.
+
+One thing did come out of rebuilding Windows, and it is the reason these three
+archives are built on the *respun* 0.3.1 SDK rather than the first cut of it.
+That first cut searched for its resource bundles under the macOS name on every
+platform, so a Windows build of this terminal came up with none of its fonts —
+drawing the system's proportional face on monospace cells, with no error
+anywhere to say so. Caught in a screenshot, fixed in the SDK, and every archive
+here rebuilt on the fixed bundle.
 
 ## What was wrong
 
