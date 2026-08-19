@@ -106,8 +106,25 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// ── files ───────────────────────────────────────────────────────────────────
+
+// A known folder by index: 0 profile, 1 desktop, 2 documents, 3 downloads,
+// 4 pictures, 5 music, 6 videos. SHGetKnownFolderPath, so a relocated folder
+// is followed rather than guessed at under %USERPROFILE%.
+int32_t flwin32_known_path(int32_t which, char* out, int32_t out_size);
+
+// What Explorer's Type column says for this path's extension. Answers from
+// the association database without touching the disk.
+int32_t flwin32_file_type_name(const char* path, char* out, int32_t out_size);
+
+// Hands the folder to Windows' own Explorer.
+int32_t flwin32_open_in_explorer(const char* path);
+
 // Opens Starling's Settings surface, or raises the one already open.
 void flwin32_shell_open_settings(void);
+
+// Opens Starling's file explorer, or raises the one already open.
+void flwin32_shell_open_files(void);
 
 // ── system information, for the Settings app ────────────────────────────────
 //

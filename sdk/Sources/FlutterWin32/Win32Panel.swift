@@ -184,6 +184,12 @@ public enum Win32Shell {
         flwin32_shell_open_settings()
     }
 
+    /// Opens Starling's file explorer, or raises the one already open. Same
+    /// bargain as `openSettings`.
+    public static func openFiles() {
+        flwin32_shell_open_files()
+    }
+
     /// Explorer's own taskbar — hidden, so that Starling's bar and dock are
     /// the only shell chrome on the screen rather than a second set beside
     /// Windows'.

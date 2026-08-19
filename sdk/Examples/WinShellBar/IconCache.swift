@@ -72,6 +72,16 @@ final class IconCache {
         rasterize(key: key) { Win32Icon.rasterize(path: source, size: size) }
     }
 
+    /// Rasterizes for an arbitrary key and path — the file explorer's case,
+    /// where the key is a TYPE (a directory, or an extension) and the path is
+    /// merely the first file seen of that type. Every `.png` in a folder
+    /// shares one texture; a thousand files do not mean a thousand icons.
+    func ensure(key: String, path: String, size: Int = 32) {
+        guard textures[key] == nil, !attempted.contains(key) else { return }
+        attempted.insert(key)
+        rasterize(key: key) { Win32Icon.rasterize(path: path, size: size) }
+    }
+
     /// Rasterize off the UI thread, register on it.
     ///
     /// The expensive half is the shell asking for an HICON and drawing it into

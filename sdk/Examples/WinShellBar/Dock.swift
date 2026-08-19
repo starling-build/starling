@@ -1004,9 +1004,14 @@ final class StarlingDockState: State<StatefulWidget> {
         guard item.key != kLauncherKey else {
             // Settings first: it is the thing people come to this menu for
             // that is not about the menu itself.
-            var rows = [DockMenuRow(label: "     Settings") {
-                Task.detached { Win32Shell.openSettings() }
-            }]
+            var rows = [
+                DockMenuRow(label: "     Files") {
+                    Task.detached { Win32Shell.openFiles() }
+                },
+                DockMenuRow(label: "     Settings") {
+                    Task.detached { Win32Shell.openSettings() }
+                },
+            ]
             rows += kDockEdges.map { choice in
                 DockMenuRow(label: (bloc.state.edge == choice.edge ? "\u{2713}  " : "     ")
                                 + choice.label) { self.bloc.add(.setEdge(choice.edge)) }

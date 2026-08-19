@@ -50,6 +50,7 @@ let wantsPlain = CommandLine.arguments.contains("--plain")
 let wantsAppbar = !CommandLine.arguments.contains("--no-appbar")
 let wantsLauncher = CommandLine.arguments.contains("--launcher")
 let wantsSettings = CommandLine.arguments.contains("--settings")
+let wantsFiles = CommandLine.arguments.contains("--files")
 
 // `--monitor N` indexes Win32Display.monitors(); absent means the primary.
 // One value, given to BOTH the placement that puts the window on a screen and
@@ -139,7 +140,13 @@ print("[WinShell] monitors: \(Win32Display.monitors())")
 
 // takesFocus stays at its default of false for both: clicking a dock icon
 // must not take the keyboard off the window the click is about to raise.
-if wantsSettings {
+if wantsFiles {
+    runStarlingApp(title: "Starling Files",
+                   width: Int(1040 * panelScale),
+                   height: Int(680 * panelScale)) {
+        StarlingFiles()
+    }
+} else if wantsSettings {
     // An ORDINARY WINDOW: no panel, no overlay, no restyle. Settings is an
     // app — it belongs in Alt+Tab, and the user should be able to move and
     // close it like anything else.

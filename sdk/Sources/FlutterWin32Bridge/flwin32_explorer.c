@@ -243,8 +243,8 @@ int32_t flwin32_explorer_taskbar_visible(void) {
  * Raising an existing window rather than starting a second process is not
  * politeness: two Settings windows would each hold their own idea of the
  * display mode and the volume, and the second one to be touched would win. */
-void flwin32_shell_open_settings(void) {
-    HWND existing = FindWindowW(L"FlutterSwiftWin32Host", L"Starling Settings");
+static void open_surface(const wchar_t* title, const wchar_t* argument) {
+    HWND existing = FindWindowW(L"FlutterSwiftWin32Host", title);
     if (existing != NULL) {
         if (IsIconic(existing)) ShowWindow(existing, SW_RESTORE);
         SetForegroundWindow(existing);
@@ -253,5 +253,13 @@ void flwin32_shell_open_settings(void) {
 
     wchar_t exe[MAX_PATH];
     if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
-    ShellExecuteW(NULL, L"open", exe, L"--settings", NULL, SW_SHOWNORMAL);
+    ShellExecuteW(NULL, L"open", exe, argument, NULL, SW_SHOWNORMAL);
+}
+
+void flwin32_shell_open_settings(void) {
+    open_surface(L"Starling Settings", L"--settings");
+}
+
+void flwin32_shell_open_files(void) {
+    open_surface(L"Starling Files", L"--files");
 }
