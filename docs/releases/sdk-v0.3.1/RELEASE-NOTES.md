@@ -2,8 +2,8 @@
 
 One source fix, cut on top of **`terminal-v0.1.0`** — the commit the shipped
 terminal was built from. The engine is unchanged, byte for byte the same
-binaries 0.3.0 carries, and no API moved. Linux and Windows are not reissued
-and stay at 0.3.0, for a reason below.
+binaries 0.3.0 carries, and no API moved. macOS and Windows ship at 0.3.1;
+Linux is not reissued and stays at 0.3.0, for a reason below.
 
 If you have shipped a macOS `.app` built on 0.3.0, it very likely crashes for
 everyone except you, and this is the release that fixes it.
@@ -49,13 +49,33 @@ moment the first was fixed. Its hand-written "fallback: search relative to
 executable" could never run: reaching `Bundle.module` to discover it had failed
 is itself the trap.
 
-## Why macOS only
+## Why macOS and Windows, and not Linux
 
-`Bundle.module`'s first candidate is *correct* on Linux and Windows, where a
-bare executable's `Bundle.main.bundleURL` is the directory the executable sits
-in — which is exactly where the resource bundle is staged. The fallback is
-never reached there, so the bug cannot bite, and reissuing those bundles would
-move a version number for no one's benefit.
+The bug is a macOS one. `Bundle.module`'s first candidate is *correct* on Linux
+and Windows, where a bare executable's `Bundle.main.bundleURL` is the directory
+the executable sits in — which is exactly where the resource bundle is staged.
+The fallback is never reached there, so nothing on those two platforms was ever
+broken by it.
+
+The Windows bundle is still reissued at 0.3.1, because the two files this
+release changes are files a Windows consumer compiles as well: the bundles ship
+source, so leaving Windows at 0.3.0 would mean two published bundles with the
+same framework in two different states. That is a bookkeeping cost paid by
+everyone who reads them and bought nothing.
+
+Diffing the two unpacked zips says exactly what moved, and it is **four files,
+not two**. `TerminalView.swift` and `CupertinoIcons.swift` are the fix.
+`tools/starling-create` and `tools/stage-windows.ps1` came along because the
+0.3.0 zip was cut before them: the scaffolder learned Windows and versioned
+asset names, and `stage-windows.ps1` learned to stage against an SDK bundle's
+split `engine\lib` / `engine\share` layout instead of demanding a flat engine
+out-directory. Everything else — every other source file, and all five engine
+artifacts — is byte for byte what 0.3.0 shipped.
+
+Linux stays at 0.3.0 on the same reasoning read the other way: it is the one
+bundle nobody has to think about, and moving its version would cost every
+consumer a 23 MB re-download for a difference they cannot observe. The three
+bundles are therefore deliberately not all one version.
 
 ## Upgrading
 
@@ -63,6 +83,12 @@ Repoint your path dependency at the unpacked 0.3.1 tree; nothing else changes.
 No API moved, so a rebuild is the whole upgrade.
 
     tar xzf starling-sdk-0.3.1-macos-arm64.tar.gz -C /opt
+
+On Windows, the same repoint against the 0.3.1 zip. The directory inside it is
+still `starling-sdk-windows-x86_64`, unversioned, so a path dependency written
+against 0.3.0 needs no edit at all — unpack over it:
+
+    Expand-Archive starling-sdk-0.3.1-windows-x86_64.zip -DestinationPath C:\
 
 Then confirm the fix took, which takes one command:
 
@@ -91,3 +117,17 @@ had only the bundle's own `engine/lib` to resolve against. Built from **0.3.0**
 that binary carries two absolute build-directory paths; built from **0.3.1** it
 carries none. Compiling successfully is not the test — a 0.3.0 consumer
 compiles perfectly and crashes on somebody else's machine.
+
+The Windows zip got the same treatment on the Windows box, and its engine claim
+is the stronger of the two: all five engine artifacts in it — `flutter_engine.dll`,
+`flutter_windows.dll`, both `.dll.lib` import libraries and `icudtl.dat` — were
+compared byte for byte against the ones inside
+`starling-sdk-0.3.0-windows-x86_64.zip` and are identical, so the two bundles
+differ only in the four files listed above. It was unpacked to a clean
+directory and built with `FLUTTER_SWIFT_ENGINE_OUT`, `STARLING_ENGINE_OUT` and
+`STARLING_SDK_BUNDLE` all cleared: `tools\build-windows.ps1` compiled the whole
+framework and all three example executables — `CounterApp.exe`,
+`TerminalDemo.exe`, `TerminalTiling.exe` — in 360 s, none of which carries a
+`.build`-directory resource-bundle path. The vendored-header drift check ran
+(it needs Git bash and `swiftc` on PATH, and is silently skipped without them)
+and passed against the same `ea78543` engine.
