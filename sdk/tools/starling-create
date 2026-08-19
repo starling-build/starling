@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # starling-create — start a Starling app from nothing.
 #
-#   curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.0/starling-create
+#   curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.1/starling-create
 #   chmod +x starling-create
 #   ./starling-create myterm && cd myterm && swift run -c release
 #
-# One file, shipped as an asset on the Starling SDK release — the same release
-# that carries the bundles it fetches, so the tool and its SDK are versioned
-# together and come from one tag. It checks your
-# toolchain, downloads the SDK — the Flutter-to-Swift framework plus the engine
-# binaries it links against — and writes a SwiftPM project wired to it. There
-# is no repo to clone, no engine checkout, no Flutter install and no system
-# Flutter anywhere in that.
+# One file, shipped as an asset on the Starling SDK release. It fetches each
+# bundle from the release whose tag matches that bundle's own version, which is
+# usually the release this tool came from and is not always: a platform whose
+# bundle did not change is not reissued, so it keeps being served from the tag
+# that first published it (the release table is at the top of the file).
+#
+# It checks your toolchain, downloads the SDK — the Flutter-to-Swift framework
+# plus the engine binaries it links against — and writes a SwiftPM project
+# wired to it. There is no repo to clone, no engine checkout, no Flutter
+# install and no system Flutter anywhere in that.
 #
 #   ./starling-create [name] [options]
 #
@@ -36,13 +39,38 @@
 #   STARLING_SDK_HOME   cache location, default ~/.starling/sdk
 set -euo pipefail
 
-# Where the SDK comes from. TWO lines to bump when cutting a release -- the tag
-# and the version in the asset name, which move together: a tool downloaded
-# from a release should install that release's SDK rather than drift to
-# whatever is newest. --sdk overrides both with any URL, or a local archive.
-SDK_VERSION="0.3.0"
-SDK_BASE_URL="https://github.com/starling-build/starling/releases/download/sdk-v$SDK_VERSION"
+# Where the SDK comes from. A tool downloaded from a release should install that
+# release's SDK rather than drift to whatever is newest, so these are baked in
+# rather than resolved at run time. --sdk overrides all of it with any URL, or a
+# local archive.
 GH_REPO="starling-build/starling"
+REL_URL="https://github.com/$GH_REPO/releases/download"
+
+# --- the release table -- the lines to bump when cutting a release ------------
+# ONE VERSION PER PLATFORM, because a release does not have to move all three.
+# 0.3.1 is the case that forced this: it fixed a macOS-only resource-bundle bug,
+# reissued macOS and Windows, and deliberately left Linux at 0.3.0 rather than
+# make every Linux consumer re-download 23 MB of identical bytes.
+#
+# A single SDK_VERSION cannot express that, and got it wrong in the quiet
+# direction: it composed a URL for an asset that does not exist, so the tool
+# 404s at the download rather than misbehaving somewhere visible.
+#
+# The tag is derived, not listed, and that is the invariant worth keeping: a
+# bundle is published on the release named by its own version, so
+# starling-sdk-0.3.0-linux-x86_64.tar.gz is on sdk-v0.3.0 and stays reachable
+# there for as long as Linux is not reissued. Bump the platforms a release
+# actually rebuilds and leave the rest alone.
+SDK_VERSION_linux="0.3.0"
+SDK_VERSION_macos="0.3.1"
+SDK_VERSION_windows="0.3.1"
+
+# The release THIS FILE ships on, which is a separate question -- the tool is one
+# asset on one release, whatever mix of bundles that release reissued. It names
+# the tool's own download URL and nothing else, so on Linux today the two differ:
+# the tool comes from sdk-v0.3.1 and the bundle it fetches from sdk-v0.3.0.
+TOOL_VERSION="0.3.1"
+TOOL_BASE_URL="$REL_URL/sdk-v$TOOL_VERSION"
 SDK_URL="${STARLING_SDK_URL:-}"
 NAME=""
 TEMPLATE=terminal
@@ -101,6 +129,13 @@ case "$(uname -s)" in
        Use the repo checkout: https://github.com/$GH_REPO" ;;
 esac
 ARCH="$(uname -m)"
+
+# Read this platform's row out of the release table. `${!name}` is indirection
+# and works in bash 3.2, which is the bash macOS ships and the reason there is
+# no associative array here.
+_sdk_version_var="SDK_VERSION_$PLATFORM"
+SDK_VERSION="${!_sdk_version_var}"
+SDK_BASE_URL="$REL_URL/sdk-v$SDK_VERSION"
 # Two names, deliberately. BUNDLE is the directory: what make-bundle.sh puts
 # inside the archive, what the cache is keyed by, and what the unpack asserts on
 # -- all unversioned, so a cache entry is "the SDK for this platform". ASSET is
@@ -473,7 +508,7 @@ swift run -c release
 $(cat "$NOTE_SDK")
 
 \`\`\`bash
-curl -fLO $SDK_BASE_URL/starling-create
+curl -fLO $TOOL_BASE_URL/starling-create
 chmod +x starling-create
 ./starling-create --sdk $SDK_URL $NAME
 \`\`\`

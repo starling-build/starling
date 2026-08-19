@@ -77,6 +77,33 @@ bundle nobody has to think about, and moving its version would cost every
 consumer a 23 MB re-download for a difference they cannot observe. The three
 bundles are therefore deliberately not all one version.
 
+## `starling-create` had to learn that
+
+A split release is not something the scaffolder could express. It carried one
+`SDK_VERSION` feeding both the tag and the asset name, so with macOS and Windows
+at 0.3.1 it would have composed
+`sdk-v0.3.1/starling-sdk-0.3.1-linux-x86_64.tar.gz` for every Linux user — an
+asset that does not exist and never will. The failure is a 404 at the download,
+which is at least loud, but it is a release that cannot be installed on a third
+of its platforms.
+
+It now holds one version per platform and **derives the tag from it**, which
+keeps the invariant that matters: a bundle is served from the release named by
+its own version. Linux resolves to `sdk-v0.3.0`, where its unchanged tarball has
+been all along; macOS and Windows resolve to `sdk-v0.3.1`. The release a *user*
+downloads the tool from is tracked separately, because that is a different
+question — the tool is one asset on one release whatever mix of bundles that
+release reissued.
+
+Checked by composing all three URLs and asking GitHub: Linux answers **200**
+today, and the two 0.3.1 assets answer **404** against the tag this release has
+not created yet, which is the shape you want to see before cutting it.
+
+The copy of the tool inside each bundle's `tools/` is a convenience snapshot;
+the canonical one is the release asset. The macOS and Linux tarballs were built
+before this change and carry the older copy, and are not re-cut for it — the
+Windows zip carries the new one only because it was being cut anyway.
+
 ## Upgrading
 
 Repoint your path dependency at the unpacked 0.3.1 tree; nothing else changes.

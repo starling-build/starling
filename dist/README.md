@@ -325,6 +325,15 @@ none of the three carries a `.build`-directory resource-bundle path, which is
 what the macOS fix is about and is now true of the Windows binaries by
 construction rather than by luck.
 
+The zip was then re-cut once, to pick up `starling-create`'s per-platform
+release table (a split release — macOS and Windows at 0.3.1, Linux at 0.3.0 —
+is not something one `SDK_VERSION` can address). `diff -rq` between the two
+cuts names one file, `tools/starling-create`, so every Swift source the
+verification above compiled is byte for byte the same in the artifact that
+shipped. The macOS and Linux tarballs still carry the older copy of that
+script and are not re-cut for it: the copy in a bundle's `tools/` is a
+convenience snapshot, and the canonical one is the release asset.
+
 **Unpack it somewhere with a short path.** The first attempt at that clean
 build was made under a deep scratch directory and died in SwiftPM with
 `Error Domain=NSCocoaErrorDomain Code=514 "The file name is invalid"` and

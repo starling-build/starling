@@ -907,7 +907,7 @@ Expand-Archive starling-terminal-0.1.0-windows-x86_64.zip -DestinationPath Starl
   <div class="wrap narrow">
     <div class="code-col">
       <div class="code-head">terminal</div>
-<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.0/starling-create
+<pre><code>curl -fLO https://github.com/starling-build/starling/releases/download/sdk-v0.3.1/starling-create
 chmod +x starling-create
 ./starling-create myterm
 <span class="k">cd</span> myterm &amp;&amp; swift run -c release</code></pre>
@@ -915,8 +915,9 @@ chmod +x starling-create
     <p class="note">
       <strong>Those four lines are the same on Linux, macOS and Windows</strong>
       — on Windows in Git bash, which is where a <code>curl</code> instruction
-      lands anyway. <code>starling-create</code> is an asset on the release
-      above, the same one the terminal itself ships from. It checks your
+      lands anyway. <code>starling-create</code> is an asset on the SDK
+      release above — a different release from the terminal's, which is why
+      the tag says <code>sdk-</code>. It checks your
       toolchain, fetches the SDK bundle for the machine it is run on — the
       framework plus the engine binaries it links against, 14 MB on macOS,
       17 MB on Windows, 23 MB on Linux — and writes the SwiftPM project
