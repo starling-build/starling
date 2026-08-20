@@ -258,6 +258,20 @@ int32_t flwin32_shellmenu_handler_costs(const char* path,
                                         FlWin32HandlerCost* out,
                                         int32_t max);
 
+// THE VERBS THAT COST NOTHING TO FIND: the static registry ones
+// (`HKCR\<class>\shell\<verb>\command`), read directly rather than waited for.
+// Open, Edit, Print, "Open Git Bash here" and "Open with Visual Studio" are
+// all of this kind; none of them instantiates anything. The expensive half of
+// a menu is the COM handlers, which this deliberately does not touch.
+typedef struct FlWin32StaticVerb {
+    char verb[64];    // the key name -- "open", "runas", "AnyCode"
+    char label[128];  // MUIVerb resolved where there is one
+    char source[64];  // which class it came from, for ordering
+} FlWin32StaticVerb;
+
+int32_t flwin32_static_verbs(const char* path, FlWin32StaticVerb* out,
+                             int32_t max);
+
 // Ends the session and releases the handlers. Safe while the query is still
 // running; blocks until the thread is gone.
 void flwin32_shellmenu_close(FlWin32ShellMenu* menu);

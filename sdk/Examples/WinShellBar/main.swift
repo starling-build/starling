@@ -319,6 +319,41 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-handlers") {
     exit(0)
 }
 
+// `--menu-static <path>` prints the static registry verbs for a path and how
+// long reading them took.
+//
+// The question behind it: a menu could draw the cheap verbs at once and let
+// the COM handlers fill in behind them, which is only worth building if the
+// cheap half is both fast to read and worth reading. This says what it costs
+// and what it yields, per item type, before anything is built on it.
+if let index = CommandLine.arguments.firstIndex(of: "--menu-static") {
+    let path = index + 1 < CommandLine.arguments.count
+        ? CommandLine.arguments[index + 1] : ""
+    guard !path.isEmpty else {
+        print("[menu-static] expected a path")
+        exit(2)
+    }
+    var buffer = [FlWin32StaticVerb](repeating: FlWin32StaticVerb(), count: 64)
+    let started = Date()
+    let n = buffer.withUnsafeMutableBufferPointer {
+        flwin32_static_verbs(path, $0.baseAddress, 64)
+    }
+    let elapsed = Date().timeIntervalSince(started) * 1000
+    func text<T>(_ tuple: T) -> String {
+        var copy = tuple
+        return withUnsafeBytes(of: &copy) { bytes in
+            String(cString: bytes.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+    }
+    print(String(format: "[menu-static] %@: %d verbs in %.1fms",
+                 path, Int(n), elapsed))
+    for raw in buffer.prefix(Int(n)) {
+        var raw = raw
+        print("  \(text(raw.label))   [\(text(raw.verb)) from \(text(raw.source))]")
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-modes") {
     for mode in Win32SystemInfo.displayModes() {
         print("\(mode.width)x\(mode.height)@\(mode.refresh)")
