@@ -91,6 +91,10 @@ struct MenuRow {
     /// Which of the session's two menus issued `shellId` and `token`. They
     /// number their verbs independently, so the id alone is not enough.
     var tier: Win32ShellMenuTier = .full
+    /// The row rearranges the menu rather than choosing from it -- "Show
+    /// more options". A press runs its action and leaves the menu open,
+    /// where every other row's press dismisses first.
+    var keepsOpen = false
     var action: (() -> Void)? = nil
 }
 
@@ -144,6 +148,13 @@ final class ShellMenuModel {
     /// something a tier assembled by hand out of the registry could promise.
     private(set) var shellRows: [Win32ShellVerb] = []
     private(set) var shellTier: Win32ShellMenuTier = .fast
+
+    /// Whether "Show more options" has been taken. The menu opens as
+    /// Windows 11's MODERN menu -- the curated set -- and this flips it to
+    /// the full legacy set. Unlike Windows, the flip is instant: the full
+    /// set is already assembled (it is the same shell query), so there is no
+    /// second 250ms query behind the click.
+    private(set) var expanded = false
 
     /// The open submenu, if any.
     private(set) var subAt: MenuPoint?
@@ -276,6 +287,7 @@ final class ShellMenuModel {
         shell = session
         shellRows = []
         shellTier = .fast
+        expanded = false
         subToken = 0
         subRows = []
         subAt = nil
@@ -300,6 +312,7 @@ final class ShellMenuModel {
         pillHover = nil
         shellRows = []
         shellTier = .fast
+        expanded = false
         subAt = nil
         subToken = 0
         subRows = []
@@ -314,28 +327,28 @@ final class ShellMenuModel {
 
     /// What the finished menu is expected to come to.
     ///
-    /// MEASURED, not guessed: on this machine a file's menu comes to 542pt
-    /// (the icon row, our three verbs, twelve shell rows and four rules) and
-    /// a folder's to 613pt. An earlier cut reserved 439 and was wrong about
-    /// every menu -- which showed up as the panel sitting 38pt above the
-    /// click, because the clamp then had to move what the reservation had not
-    /// made room for.
-    ///
     /// It decides ONE thing: whether the menu opens downward from the pointer
     /// or upward from it. Over-reserving costs a menu that flips up when it
     /// would just about have fitted downward; under-reserving costs a menu
     /// that opens downward and is then shoved back up the moment the verbs
     /// arrive, which is the jump this whole arrangement exists to avoid. So
-    /// it errs high.
+    /// it errs high -- for the MODERN menu, which is what opens now: the icon
+    /// row, our verbs, the curated shell rows and "Show more options" come to
+    /// eleven rows and four rules on a folder here. The EXPANDED menu is
+    /// deliberately not reserved for: the expansion is the user's own click,
+    /// and the panel moving to fit then is Windows' behaviour too -- its
+    /// legacy menu opens wherever it fits, not where the modern one stood.
     private var reservedHeight: Double {
-        kMenuPanelPad * 2 + kMenuPillRow + kMenuSepH * 6 + kMenuRow * 14
+        kMenuPanelPad * 2 + kMenuPillRow + kMenuSepH * 4 + kMenuRow * 11
     }
 
     // MARK: - The rows
 
-    /// Our verbs, then the shell's. Our three are the ones that are live from
-    /// the first frame and they never move; everything after the separator
-    /// arrives later.
+    /// Our verbs, then the shell's -- shaped like Windows 11's menu: the
+    /// MODERN set first (the curated verbs and the IExplorerCommand rows),
+    /// with everything else behind "Show more options", which swaps in the
+    /// full legacy set in place. Our verbs are the ones live from the first
+    /// frame and they never move; the shell's arrive later.
     ///
     /// Taken as parameters rather than read off the state, so the opening
     /// click can size a panel that does not exist yet -- it needs the width
@@ -372,10 +385,23 @@ final class ShellMenuModel {
             }))
         }
 
-        let shell = shellList(shellVerbs)
-        if !shell.isEmpty {
+        if expanded {
+            let shell = shellList(shellVerbs)
+            if !shell.isEmpty {
+                rows.append(MenuRow(isSeparator: true))
+                rows.append(contentsOf: shell)
+            }
+        } else {
+            let modern = modernList(shellVerbs)
+            if !modern.isEmpty {
+                rows.append(MenuRow(isSeparator: true))
+                rows.append(contentsOf: modern)
+            }
             rows.append(MenuRow(isSeparator: true))
-            rows.append(contentsOf: shell)
+            rows.append(MenuRow(title: "Show more options",
+                                glyph: CupertinoIcons.ellipsis,
+                                keepsOpen: true,
+                                action: { [weak self] in self?.showMore() }))
         }
         return rows
     }
@@ -397,17 +423,84 @@ final class ShellMenuModel {
                 continue
             }
             if !verb.verb.isEmpty && hidden.contains(verb.verb) { continue }
-            rows.append(MenuRow(title: verb.title,
-                                glyph: Self.verbGlyphs[verb.verb],
-                                isSubmenu: verb.isSubmenu,
-                                isEnabled: verb.isEnabled,
-                                isDefault: false,
-                                shellId: verb.id,
-                                token: verb.submenu,
-                                tier: shellTier))
+            rows.append(shellRow(verb))
         }
         while let last = rows.last, last.isSeparator { rows.removeLast() }
         return rows
+    }
+
+    private func shellRow(_ verb: Win32ShellVerb) -> MenuRow {
+        MenuRow(title: verb.title,
+                glyph: Self.verbGlyphs[verb.verb],
+                isSubmenu: verb.isSubmenu,
+                isEnabled: verb.isEnabled,
+                isDefault: false,
+                shellId: verb.id,
+                token: verb.submenu,
+                tier: shellTier)
+    }
+
+    /// The verbs Windows lifts into the MODERN menu, in its order there --
+    /// checked against Explorer on this machine, not remembered: Pin to
+    /// Quick access, Pin to Start, Copy as path, Properties, with the
+    /// item-flavoured pin ("Add to Favorites") in the file's slot.
+    private static let modernVerbs = [
+        "pintohome", "pintohomefile", "pintostartscreen", "copyaspath",
+        "properties",
+    ]
+
+    /// A canonical verb that is a GUID names an IExplorerCommand handler --
+    /// the modern extension surface, which is exactly what Windows promotes
+    /// into the modern menu ("Open in Terminal" is {9f156763-...}). The
+    /// legacy handlers it demotes behind "Show more options" carry word
+    /// verbs or none, so the brace is the partition, and it is
+    /// locale-independent where a label match would not be.
+    private func isModernCommand(_ verb: String) -> Bool {
+        verb.hasPrefix("{") && verb.hasSuffix("}")
+    }
+
+    /// The shell rows the modern menu shows, curated the way Windows curates
+    /// them: the allowlisted verbs in Windows' order, then the
+    /// IExplorerCommand rows in the shell's. Everything else -- the static
+    /// verbs, the classic handlers, every submenu -- waits behind "Show more
+    /// options", which is where Windows keeps them too.
+    private func modernList(_ verbs: [Win32ShellVerb]) -> [MenuRow] {
+        var rows: [MenuRow] = []
+        // The background's "New" leads its modern menu. Matched on the label
+        // as a last resort: a submenu has no canonical verb to ask for. On a
+        // non-English Windows the match misses and the row falls back behind
+        // "Show more options" -- degraded, not broken.
+        if entry == nil,
+           let new = verbs.first(where: { $0.isSubmenu && $0.title == "New" }) {
+            rows.append(shellRow(new))
+        }
+        for name in Self.modernVerbs {
+            if let verb = verbs.first(where: { !$0.isSeparator && $0.verb == name }) {
+                rows.append(shellRow(verb))
+            }
+        }
+        let commands = verbs.filter { !$0.isSeparator && isModernCommand($0.verb) }
+        if !commands.isEmpty {
+            if !rows.isEmpty { rows.append(MenuRow(isSeparator: true)) }
+            rows.append(contentsOf: commands.map(shellRow))
+        }
+        return rows
+    }
+
+    /// "Show more options": swap the curated set for the whole one, in
+    /// place. The full set is already in `shellRows` -- the curation is a
+    /// view of it, not a separate query -- so unlike Windows there is
+    /// nothing to wait for.
+    func showMore() {
+        guard !expanded else { return }
+        expanded = true
+        hover = nil
+        subAt = nil
+        subToken = 0
+        subRows = []
+        subHover = nil
+        mainCache = nil
+        subCache = nil
     }
 
     // MARK: - Geometry
@@ -542,6 +635,12 @@ final class ShellMenuModel {
             // way Windows' does, and the click the user means is the one on a
             // row inside it.
             if row.isSubmenu { return }
+            // "Show more options" rearranges the menu instead of choosing
+            // from it -- run it and keep the panel open.
+            if row.keepsOpen {
+                if row.isEnabled { row.action?() }
+                return
+            }
             if row.isEnabled {
                 action = row.action
                 shellId = row.shellId
