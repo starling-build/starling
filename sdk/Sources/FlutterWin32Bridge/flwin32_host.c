@@ -77,10 +77,24 @@ double flwin32_uptime_ms(void) {
   return (double)(b.QuadPart - a.QuadPart) / 10000.0;  // 100ns ticks -> ms
 }
 
+// The performance counter, in milliseconds, on the SAME timebase every
+// process on the machine shares.
+//
+// Process uptime cannot answer "how long did this take to get here from
+// another process" — the two clocks start at different moments. QPC can, and
+// it is what lets a posted message be split into delivery, our own work, and
+// what the compositor does with it afterwards.
+double flwin32_qpc_ms(void) {
+  LARGE_INTEGER freq, now;
+  if (!QueryPerformanceFrequency(&freq) || freq.QuadPart == 0) return 0.0;
+  QueryPerformanceCounter(&now);
+  return (double)now.QuadPart * 1000.0 / (double)freq.QuadPart;
+}
+
 void flwin32_trace(const char* label) {
   if (!trace_enabled()) return;
-  fprintf(stderr, "[trace] %8.1f ms  %s\n", flwin32_uptime_ms(),
-          label != NULL ? label : "");
+  fprintf(stderr, "[trace] %8.1f ms  qpc=%.3f  %s\n", flwin32_uptime_ms(),
+          flwin32_qpc_ms(), label != NULL ? label : "");
   fflush(stderr);
 }
 
@@ -223,10 +237,12 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
     // nothing, and cannot be the thing that decides to show itself. The host
     // owns the visibility; the tree finds out afterwards, through the
     // callback, and mounts on the frame that showing it produces.
+    flwin32_trace("toggle: message received");
     if (host->overlay_active) {
       flwin32_host_set_visible(host, flwin32_host_is_visible(host) ? 0 : 1);
     }
     if (host->toggle_callback != NULL) host->toggle_callback(host->toggle_user);
+    flwin32_trace("toggle: callback returned");
     return 0;
   }
 
@@ -1556,14 +1572,30 @@ static void overlay_rederive(FlWin32Host* host) {
 static void overlay_park(FlWin32Host* host) {
   flwin32_trace("overlay_park");
   UnregisterHotKey(host->window, kOverlayEscapeHotkey);
-  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
-  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex | WS_EX_TRANSPARENT);
-  // Hidden, and still at its full size, so showing it is never a resize.
-  SetWindowPos(host->window, HWND_BOTTOM,
+  // NO STYLE CHANGE, and no SWP_FRAMECHANGED.
+  //
+  // This used to set WS_EX_TRANSPARENT on the way down and clear it on the way
+  // up, which made sense when parking meant "still on screen, fully
+  // transparent" — a click-through window. Parking hides the window now, and a
+  // hidden window cannot be clicked whatever its styles say, so the pair was
+  // doing nothing except making the show path change styles and ask for a
+  // frame recalculation. Measured: showing this window with a bare
+  // SetWindowPos puts pixels up in ONE frame; showing it with the style
+  // change, the alpha re-apply and SWP_FRAMECHANGED took TWO.
+  // Parked TOPMOST and at its final rectangle, not at the bottom.
+  //
+  // Everything the show path does not have to do is a millisecond it does not
+  // have to spend, and it has very few to spend: measured against this
+  // compositor, a window shown within ~4ms of a composition appears on the
+  // next one, and a window shown later waits a whole extra frame. Position,
+  // size and z-order are settled HERE, while nobody is waiting, so showing is
+  // a bare ShowWindow.
+  overlay_rederive(host);
+  SetWindowPos(host->window, HWND_TOPMOST,
                host->overlay_rect.left, host->overlay_rect.top,
                host->overlay_rect.right - host->overlay_rect.left,
                host->overlay_rect.bottom - host->overlay_rect.top,
-               SWP_FRAMECHANGED | SWP_HIDEWINDOW | SWP_NOACTIVATE);
+               SWP_HIDEWINDOW | SWP_NOACTIVATE);
   host->overlay_shown = 0;
 }
 
@@ -1588,23 +1620,20 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
   }
 
   flwin32_trace("set_visible(1): begin");
-  // Re-derive the geometry on the way up: the monitor may have changed size,
-  // or gone, since the last time this was shown.
-  overlay_rederive(host);
-
-  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
-  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex & ~(LONG_PTR)WS_EX_TRANSPARENT);
-  // Opacity back before the raise, for the same reason the park drops it
-  // after: whichever of the two happens first must not be the visible one.
-  SetLayeredWindowAttributes(host->window, 0, (BYTE)host->overlay_alpha,
-                             LWA_ALPHA);
-  SetWindowPos(host->window, HWND_TOPMOST,
-               host->overlay_rect.left, host->overlay_rect.top,
-               host->overlay_rect.right - host->overlay_rect.left,
-               host->overlay_rect.bottom - host->overlay_rect.top,
-               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+  // NOTHING BUT THE SHOW.
+  //
+  // The geometry, the z-order, the styles and the alpha were all settled when
+  // it was parked. What is left is one call that changes one bit, because the
+  // window has to be visible before the composition deadline a few
+  // milliseconds after the last vblank — miss it and the user waits an entire
+  // extra frame for pixels that were ready before they asked.
+  //
+  // The monitor CAN have changed while it was parked. That is handled where it
+  // belongs: WM_DISPLAYCHANGE and the appbar callback both re-park, which
+  // re-derives.
+  ShowWindow(host->window, SW_SHOWNA);
   host->overlay_shown = 1;
-  flwin32_trace("set_visible(1): window shown");
+  flwin32_trace("set_visible(1): SetWindowPos returned");
   // Ask for a frame explicitly.
   //
   // Nothing else will. The window is shown at the size it already had, so
@@ -1616,13 +1645,27 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
   // path WM_PAINT would have taken (OnPaint -> OnWindowRepaint -> ForceRedraw),
   // just asked for directly.
   FlutterDesktopViewControllerForceRedraw(host->controller);
-  flwin32_trace("set_visible(1): redraw requested");
+  flwin32_trace("set_visible(1): ForceRedraw returned");
   RegisterHotKey(host->window, kOverlayEscapeHotkey, 0, VK_ESCAPE);
   // Through the window manager's own activate, which owns the
   // AttachThreadInput dance: the process asking for this is usually the BAR,
   // not us, so we are not the foreground process and a bare
   // SetForegroundWindow would be refused.
   flwin32_wm_activate((uint64_t)(uintptr_t)host->window);
+  flwin32_trace("set_visible(1): activate returned");
+}
+
+// Rasterize now, whether or not anyone can see it.
+//
+// This is what lets the overlay do its resetting on the way DOWN: the tree is
+// put back to its opening state while the window is hidden, and this pushes
+// that through the engine, so SHOWING it is a window becoming visible and
+// nothing else. The alternative -- resetting when it is shown -- puts a build
+// and a rasterize between the user's keypress and the pixels, which measured
+// as a whole extra frame.
+void flwin32_host_request_redraw(FlWin32Host* host) {
+  if (host == NULL || host->controller == NULL) return;
+  FlutterDesktopViewControllerForceRedraw(host->controller);
 }
 
 void flwin32_host_on_toggle(FlWin32Host* host,

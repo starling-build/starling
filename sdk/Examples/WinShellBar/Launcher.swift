@@ -183,6 +183,7 @@ final class LauncherBloc: @unchecked Sendable {
         case launch(Win32App)
         /// The launcher was just shown: open on a clean query.
         case opened
+        case closed
 
         // Completions.
         case catalogLoaded([Win32App])
@@ -257,11 +258,26 @@ final class LauncherBloc: @unchecked Sendable {
             state.renaming = nil
             _saveGroups()
         case .opened:
-            // Always open on an empty query: a launcher that remembers the
-            // last search is one that shows you the wrong four apps every
-            // time you open it.
+            // Nothing to do here any more, and that is the point — see
+            // `.closed`. Kept because "the surface was opened" is a real event
+            // and the next thing that wants to happen on it belongs here.
+            break
+
+        case .closed:
+            // THE RESET HAPPENS ON THE WAY DOWN.
+            //
+            // Always open on an empty query, in the pinned view, not in
+            // pinning mode: a launcher that remembers the last search shows
+            // you the wrong four apps every time you open it. Doing that when
+            // it is SHOWN, though, puts a build and a rasterize between the
+            // keypress and the pixels — traced at 14ms to the build alone,
+            // and a whole extra frame on screen. Doing it when it is hidden
+            // costs the user nothing, because nobody is looking.
             state.query = ""
             state.page = 0
+            state.showingAll = false
+            state.editingPins = false
+            state.renaming = nil
         case .launch(let app):
             // Off the UI thread: the fast path is 8ms but the `.lnk` fallback
             // measured 484ms, and this thread has frames to draw.
@@ -504,9 +520,26 @@ final class StarlingLauncherState: State<StatefulWidget> {
     // MARK: - Showing and hiding
 
     private func didToggle() {
-        guard Win32WindowedHost.host?.isVisible == true else { return }
+        flwin32_trace("launcher: didToggle begin")
+        if Win32WindowedHost.host?.isVisible == true {
+            bloc.add(.opened)
+            flwin32_trace("launcher: didToggle end (shown)")
+            return
+        }
+        // Hidden: put it back the way it should come up, and push that through
+        // the engine now, so the next open is a window becoming visible and
+        // nothing else.
+        //
+        // The redraw is deferred by a frame because the reset only marks the
+        // tree dirty — the build happens on the engine's next frame, and
+        // asking to rasterize before that would push the OLD tree through.
         search.text = ""
-        bloc.add(.opened)
+        bloc.add(.closed)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            Win32WindowedHost.host?.requestRedraw()
+            flwin32_trace("launcher: hidden redraw pushed")
+        }
+        flwin32_trace("launcher: didToggle end (hidden)")
     }
 
     private func launch(_ app: Win32App) {

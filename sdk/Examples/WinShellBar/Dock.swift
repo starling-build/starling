@@ -851,8 +851,25 @@ final class StarlingDockState: State<StatefulWidget> {
         // Only the primary tap lives on the tile. Hover and the right-click
         // menu are driven from a Listener at the root instead — see the note
         // on `pointerTile`.
-        GestureDetector(
-                onTap: { self.setState { self.menuOpen = nil }; self.bloc.add(.activate(item)) },
+        //
+        // THE LAUNCHER OPENS ON PRESS, everything else on release.
+        //
+        // That is what Windows' own taskbar does with Start, and it is worth
+        // more than anything left in the drawing path: the launcher's pixels
+        // arrive two frames after the toggle is posted, ~34ms, of which our
+        // own code is about one — but a click is not a moment, it is a press
+        // and a release with a person in between, and that gap is tens of
+        // milliseconds. Opening on the press spends it usefully. Every other
+        // tile keeps release, because launching or raising an app on the way
+        // DOWN would fire on a press the user was about to drag out of.
+        let launcher = item.key == kLauncherKey
+        return GestureDetector(
+                onTapDown: launcher
+                    ? { _ in self.setState { self.menuOpen = nil }; self.bloc.add(.activate(item)) }
+                    : nil,
+                onTap: launcher
+                    ? nil
+                    : { self.setState { self.menuOpen = nil }; self.bloc.add(.activate(item)) },
                 child: Padding(padding: EdgeInsets(left: 7, top: 0, right: 7, bottom: 0)) {
                     Column(mainAxisSize: .min, crossAxisAlignment: .center) {
                         if item.key == kLauncherKey {

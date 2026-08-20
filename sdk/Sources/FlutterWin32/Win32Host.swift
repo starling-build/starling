@@ -86,6 +86,16 @@ public final class Win32Host {
 
     public var isVisible: Bool { flwin32_host_is_visible(host) != 0 }
 
+    /// Rasterize now, visible or not.
+    ///
+    /// For a surface that resets itself on the way DOWN: the tree is put back
+    /// to its opening state while hidden, and this pushes that through the
+    /// engine, so showing it later is a window becoming visible and nothing
+    /// else.
+    public func requestRedraw() {
+        flwin32_host_request_redraw(host)
+    }
+
     /// Called when any Starling surface broadcasts a toggle. Runs on the UI
     /// thread, inside the message loop.
     public func onToggle(_ handler: @escaping () -> Void) {

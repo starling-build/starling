@@ -217,6 +217,10 @@ int32_t flwin32_session_action(int32_t action);
 // Milliseconds since the PROCESS was created, so the figure includes image
 // loading. Enabled by STARLING_TRACE=1; flwin32_trace is a no-op otherwise.
 double flwin32_uptime_ms(void);
+// The performance counter in milliseconds — the one clock every process on
+// the machine agrees on, so a posted message can be timed across processes.
+double flwin32_qpc_ms(void);
+
 void flwin32_trace(const char* label);
 
 // ── overlays ────────────────────────────────────────────────────────────────
@@ -242,6 +246,10 @@ int32_t flwin32_host_is_visible(FlWin32Host* host);
 // framework mounts one widget root per process), so a click on the bar
 // reaches the launcher as a broadcast of a registered window message — the
 // documented way for unrelated processes to talk with no socket or pipe.
+// Rasterize now, visible or not — so a hidden overlay can be brought up to
+// date before it is shown.
+void flwin32_host_request_redraw(FlWin32Host* host);
+
 void flwin32_host_on_toggle(FlWin32Host* host,
                             void (*callback)(void* user),
                             void* user);
