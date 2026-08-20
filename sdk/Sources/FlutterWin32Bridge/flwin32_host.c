@@ -733,6 +733,20 @@ void flwin32_host_show(FlWin32Host* host) {
   if (host == NULL) {
     return;
   }
+  // AN OVERLAY THAT PARKED ITSELF STAYS PARKED.
+  //
+  // flwin32_host_set_overlay ends by parking, and parking used to mean "on
+  // screen but transparent and click-through" -- so showing the window here
+  // was harmless, and this function could be unconditional. Parking HIDES the
+  // window now, and an unconditional show puts the launcher on the screen at
+  // login and leaves it there until something toggles it: a Start menu nobody
+  // opened, covering the desktop from the moment the session starts.
+  //
+  // The first show after this costs a tree mount, which is the bargain the
+  // park was always making -- see the note in set_visible.
+  if (host->overlay_active && !host->overlay_shown) {
+    return;
+  }
   ShowWindow(host->window, SW_SHOW);
   UpdateWindow(host->window);
   SetFocus(host->child);

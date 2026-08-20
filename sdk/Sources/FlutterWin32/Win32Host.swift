@@ -50,10 +50,11 @@ public final class Win32Host {
     /// Shows the window and runs the Win32 message loop. Returns when the
     /// window is closed.
     ///
-    /// An overlay is shown too — it is parked off-screen rather than hidden,
-    /// because a hidden window is never sent a frame and this framework
-    /// builds its tree on the first frame request. See the comment in
-    /// flwin32_host_set_overlay.
+    /// An overlay is NOT shown: it parked itself hidden when it was set up
+    /// and stays that way until something asks for it. It used to park on
+    /// screen and transparent, which is why this once showed everything
+    /// unconditionally — and why, once parking started hiding, the launcher
+    /// came up on screen at login and stayed there. See flwin32_host_show.
     public func run() {
         flwin32_host_show(host)
         flwin32_host_run(host)
