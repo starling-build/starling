@@ -610,6 +610,11 @@ let panelWidth = Int(screen?.width ?? 1280)
 let panelScale = screen?.scale ?? 1.0
 print("[WinShell] monitors: \(Win32Display.monitors())")
 
+// The palette follows the system's APPS theme, decided before any window
+// exists so no frame is ever painted in the wrong one. Read once: theme
+// changes land on the next launch (see Win11.light).
+Win11.light = Win32SystemInfo.appsUseLightTheme()
+
 // takesFocus stays at its default of false for both: clicking a dock icon
 // must not take the keyboard off the window the click is about to raise.
 if wantsFiles {

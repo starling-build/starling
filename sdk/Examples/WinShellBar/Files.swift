@@ -52,28 +52,40 @@ let kFilesColModified = 170.0
 let kFilesColType = 130.0
 let kFilesColSize = 90.0
 
-/// Windows 11 dark, sampled from Explorer rather than invented, so the two
-/// sitting side by side do not disagree about what "dark" is.
+/// Windows 11, sampled from Explorer rather than invented, so the two
+/// sitting side by side do not disagree about what either theme is. Dark was
+/// sampled from dark Explorer; light from light Explorer over the same
+/// folder (menu #FCFCFC, list #FFFFFF, chrome mica #F3F3F3).
 enum Win11 {
-    static let windowBg = Color(0xFF202020)
-    static let surface = Color(0xFF272727)
-    static let navPane = Color(0xFF202020)
-    static let listBg = Color(0xFF272727)
-    static let stroke = Color(0xFF383838)
-    static let text = Color(0xFFFFFFFF)
-    static let textDim = Color(0xFFC5C5C5)
-    static let textFaint = Color(0xFF8A8A8A)
-    static let disabled = Color(0xFF5A5A5A)
-    static let accent = Color(0xFF4CC2FF)
-    static let selection = Color(0x332F9CF4)
-    static let hoverFill = Color(0x14FFFFFF)
-    static let fieldFill = Color(0xFF2D2D2D)
+    /// Which palette, set ONCE at startup (main.swift) from the system's
+    /// AppsUseLightTheme -- the apps theme Explorer's own chrome follows.
+    /// Not reactive: Windows apps restyle on WM_SETTINGCHANGE, which nothing
+    /// here listens for yet, so a theme flipped mid-session shows up on the
+    /// next launch.
+    static var light = false
+
+    static var windowBg: Color { light ? Color(0xFFF3F3F3) : Color(0xFF202020) }
+    static var surface: Color { light ? Color(0xFFFFFFFF) : Color(0xFF272727) }
+    static var navPane: Color { light ? Color(0xFFF3F3F3) : Color(0xFF202020) }
+    static var listBg: Color { light ? Color(0xFFFFFFFF) : Color(0xFF272727) }
+    static var stroke: Color { light ? Color(0xFFE5E5E5) : Color(0xFF383838) }
+    static var text: Color { light ? Color(0xFF1B1B1B) : Color(0xFFFFFFFF) }
+    static var textDim: Color { light ? Color(0xFF5F5F5F) : Color(0xFFC5C5C5) }
+    static var textFaint: Color { light ? Color(0xFF8F8F8F) : Color(0xFF8A8A8A) }
+    static var disabled: Color { light ? Color(0xFFA6A6A6) : Color(0xFF5A5A5A) }
+    static var accent: Color { light ? Color(0xFF005FB8) : Color(0xFF4CC2FF) }
+    static var selection: Color { light ? Color(0x330078D4) : Color(0x332F9CF4) }
+    static var hoverFill: Color { light ? Color(0x0A000000) : Color(0x14FFFFFF) }
+    static var fieldFill: Color { light ? Color(0xFFFFFFFF) : Color(0xFF2D2D2D) }
     /// The context menu, sampled from Explorer's own: a near-opaque slab with
-    /// a lighter hairline around it, not the app's window colours.
-    static let menuBg = Color(0xFA2C2C2C)
-    static let menuBorder = Color(0xFF454545)
-    static let menuHover = Color(0xFF383838)
-    static let menuSep = Color(0xFF3D3D3D)
+    /// a hairline around it, not the app's window colours.
+    static var menuBg: Color { light ? Color(0xFAFCFCFC) : Color(0xFA2C2C2C) }
+    static var menuBorder: Color { light ? Color(0xFFD4D4D4) : Color(0xFF454545) }
+    static var menuHover: Color { light ? Color(0xFFF0F0F0) : Color(0xFF383838) }
+    static var menuSep: Color { light ? Color(0xFFE4E4E4) : Color(0xFF3D3D3D) }
+    /// A menu's drop shadow: a light theme's panel casts a softer one --
+    /// dark Explorer's is visibly heavier than light Explorer's.
+    static var menuShadow: Color { light ? Color(0x2E000000) : Color(0x66000000) }
 }
 
 final class StarlingFiles: StatefulWidget {
@@ -251,9 +263,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                             Padding(padding: EdgeInsets(horizontal: 10, vertical: 0)) {
                                 Row(crossAxisAlignment: .center, spacing: 9) {
                                     MacosIcon(icon: CupertinoIcons.folder_fill,
-                                              color: Color(0xFF7FA9DE), size: 14)
+                                              color: Win11.light ? Color(0xFF4E80C9)
+                                                                 : Color(0xFF7FA9DE),
+                                              size: 14)
                                     Text(place.name,
-                                         style: TextStyle(color: Color(0xFFE6EAF0),
+                                         style: TextStyle(color: Win11.text,
                                                           fontSize: 13),
                                          maxLines: 1)
                                 }
@@ -594,11 +608,11 @@ final class StarlingFilesState: State<StatefulWidget> {
         GestureDetector(
             onTap: action,
             child: ClipRRect(borderRadius: BorderRadius.circular(6)) {
-                ColoredBox(color: Color(0x1AFFFFFF)) {
+                ColoredBox(color: Win11.hoverFill) {
                     SizedBox(height: 28) {
                         Padding(padding: EdgeInsets(horizontal: 12, vertical: 0)) {
                             Center {
-                                Text(text, style: TextStyle(color: Color(0xFFD5DAE3),
+                                Text(text, style: TextStyle(color: Win11.textDim,
                                                             fontSize: 12))
                             }
                         }

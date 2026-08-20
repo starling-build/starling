@@ -65,6 +65,14 @@ public enum Win32Dialog {
 
 public enum Win32SystemInfo {
 
+    /// Whether the user's APPS theme is light -- the value Explorer's own
+    /// chrome follows (AppsUseLightTheme), not the taskbar's separate
+    /// SystemUsesLightTheme. Read it once at startup; Windows apps restyle
+    /// on WM_SETTINGCHANGE, which nothing here listens for yet.
+    public static func appsUseLightTheme() -> Bool {
+        flwin32_apps_use_light_theme() != 0
+    }
+
     /// One pass over everything the About pane needs. **Slow** — several
     /// registry reads and an adapter enumeration.
     public static func machine() -> Win32MachineInfo {

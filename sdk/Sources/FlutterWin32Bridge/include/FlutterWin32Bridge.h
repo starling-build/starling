@@ -322,6 +322,11 @@ void flwin32_shellmenu_close(FlWin32ShellMenu* menu);
 // display and wallpaper WRITES talk to the whole desktop. None of it belongs
 // on the UI thread.
 
+// 1 when the user's APPS theme is light (AppsUseLightTheme, the value
+// Explorer's own chrome follows), 0 when dark. Absent-key default is light,
+// matching a fresh profile.
+int32_t flwin32_apps_use_light_theme(void);
+
 int32_t flwin32_os_name(char* out, int32_t out_size);
 int32_t flwin32_os_build(char* out, int32_t out_size);
 int32_t flwin32_device_name(char* out, int32_t out_size);

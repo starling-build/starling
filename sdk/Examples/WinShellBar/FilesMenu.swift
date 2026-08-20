@@ -47,7 +47,10 @@ let kMenuRadius = 8.0
 let kMenuPanelPad = 4.0
 let kMenuRow = 32.0
 let kMenuSepH = 7.0
-let kMenuPillRow = 44.0
+/// Tall enough for the icon AND its label -- Windows 11 writes "Cut",
+/// "Copy", "Share", "Delete" under the glyphs, and an unlabeled row of four
+/// pictograms was the most visible difference from the native menu.
+let kMenuPillRow = 54.0
 let kMenuIconX = 14.0
 let kMenuLabelX = 44.0
 let kMenuGlyph = 15.0
@@ -193,11 +196,13 @@ final class ShellMenuModel {
     /// top, in its order. Matched on the CANONICAL verb rather than on the
     /// label: "Copy" is `copy` in every language, and `windows.modernshare`
     /// is the Share whose label is a single word in none of them.
-    static let pillVerbs: [(verb: String, glyph: IconData)] = [
-        ("cut", CupertinoIcons.scissors),
-        ("copy", CupertinoIcons.doc_on_doc),
-        ("windows.modernshare", CupertinoIcons.share),
-        ("delete", CupertinoIcons.trash),
+    /// The label is the English fallback for the moment before the shell
+    /// answers; once it has, the row shows the shell's own localized title.
+    static let pillVerbs: [(verb: String, glyph: IconData, label: String)] = [
+        ("cut", CupertinoIcons.scissors, "Cut"),
+        ("copy", CupertinoIcons.doc_on_doc, "Copy"),
+        ("windows.modernshare", CupertinoIcons.share, "Share"),
+        ("delete", CupertinoIcons.trash, "Delete"),
     ]
 
     /// Shell verbs the list does not repeat: the four above, and the two we
@@ -211,6 +216,7 @@ final class ShellMenuModel {
     /// to a menu we are not running, and inventing a picture for "Restore
     /// previous versions" is worse than leaving the column empty.
     static let verbGlyphs: [String: IconData] = [
+        "pintohome": CupertinoIcons.pin,
         "properties": CupertinoIcons.info,
         "copyaspath": CupertinoIcons.doc_on_clipboard,
         "link": CupertinoIcons.link,
@@ -817,7 +823,7 @@ final class ContextMenuState: State<StatefulWidget> {
                     color: Win11.menuBg,
                     border: Border.all(color: Win11.menuBorder, width: 1),
                     borderRadius: BorderRadius.circular(kMenuRadius),
-                    boxShadow: [BoxShadow(color: Color(0x66000000),
+                    boxShadow: [BoxShadow(color: Win11.menuShadow,
                                           offset: Offset(0, 4), blurRadius: 12)]),
                 child: Padding(padding: EdgeInsets(horizontal: kMenuPanelPad,
                                                    vertical: kMenuPanelPad)) {
@@ -851,18 +857,27 @@ final class ContextMenuState: State<StatefulWidget> {
         return SizedBox(height: kMenuPillRow) {
             Row(crossAxisAlignment: .center) {
                 for (index, entry) in ShellMenuModel.pillVerbs.enumerated() {
-                    let live = model.pillVerb(index)?.isEnabled == true
+                    let verb = model.pillVerb(index)
+                    let live = verb?.isEnabled == true
+                    let colour = live ? Win11.text : Win11.disabled
                     SizedBox(width: cell, height: kMenuPillRow) {
                         Center {
                             ClipRRect(borderRadius: BorderRadius.circular(4)) {
                                 ColoredBox(color: model.pillHover == index && live
                                            ? Win11.menuHover : Color(0x00000000)) {
-                                    SizedBox(width: 34, height: 32) {
-                                        Center {
+                                    SizedBox(width: cell - 6, height: 46) {
+                                        Column(mainAxisAlignment: .center) {
                                             MacosIcon(icon: entry.glyph,
-                                                      color: live ? Win11.text
-                                                                  : Win11.disabled,
+                                                      color: colour,
                                                       size: kMenuGlyph)
+                                            SizedBox(height: 3)
+                                            // The shell's localized title once
+                                            // it has answered, so this says
+                                            // whatever Windows would.
+                                            Text(verb?.title ?? entry.label,
+                                                 style: TextStyle(color: colour,
+                                                                  fontSize: 10),
+                                                 overflow: .ellipsis, maxLines: 1)
                                         }
                                     }
                                 }

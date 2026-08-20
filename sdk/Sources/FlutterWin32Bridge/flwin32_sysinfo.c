@@ -80,6 +80,26 @@ static DWORD reg_dword(const wchar_t* key, const wchar_t* value) {
     return data;
 }
 
+/* -------------------------------------------------------------- app theme */
+
+/* 1 for light, 0 for dark. HKCU rather than HKLM -- the theme is per-user --
+ * and the value ABSENT means light: a fresh profile has no Personalize key
+ * at all, and Windows defaults its apps to the light theme. This is the
+ * APPS theme (AppsUseLightTheme), the value Explorer's own chrome follows,
+ * not SystemUsesLightTheme, which is only the taskbar. */
+int32_t flwin32_apps_use_light_theme(void) {
+    DWORD data = 0;
+    DWORD size = sizeof(data);
+    if (RegGetValueW(HKEY_CURRENT_USER,
+                     L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes"
+                     L"\\Personalize",
+                     L"AppsUseLightTheme", RRF_RT_REG_DWORD, NULL,
+                     &data, &size) != ERROR_SUCCESS) {
+        return 1;
+    }
+    return data != 0 ? 1 : 0;
+}
+
 /* ------------------------------------------------------------------ about */
 
 static const wchar_t* kCurrentVersion =
