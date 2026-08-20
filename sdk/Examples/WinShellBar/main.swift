@@ -99,6 +99,45 @@ if CommandLine.arguments.contains("--print-status") {
 // oracle for that pane, the same bargain `--print-status` makes for the
 // control centre: the only honest way to know a readout is right is to ask
 // the system from outside the process that draws it.
+// `--set-mode 1920x1080@60` changes the display mode and exits, and
+// `--print-modes` lists what the adapter offers.
+//
+// The Settings pane has had this writer since it was built; putting it on the
+// CLI is what lets a benchmark run at a refresh rate other than the one the
+// machine happens to be in — this monitor is 3840x2160 at 29Hz, so a frame is
+// 34ms and no screen-sampling measurement can resolve better than that.
+if CommandLine.arguments.contains("--print-modes") {
+    for mode in Win32SystemInfo.displayModes() {
+        print("\(mode.width)x\(mode.height)@\(mode.refresh)")
+    }
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--set-mode"),
+   index + 1 < CommandLine.arguments.count {
+    let spec = CommandLine.arguments[index + 1]
+    let parts = spec.split(separator: "@")
+    let size = parts.first?.split(separator: "x") ?? []
+    guard size.count == 2, let width = Int(size[0]), let height = Int(size[1]) else {
+        print("[set-mode] expected WxH@Hz, got \(spec)")
+        exit(2)
+    }
+    let refresh = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+    let wanted = Win32SystemInfo.displayModes().first {
+        $0.width == width && $0.height == height
+            && (refresh == 0 || $0.refresh == refresh)
+    }
+    guard let wanted else {
+        print("[set-mode] no such mode: \(spec)")
+        exit(3)
+    }
+    let ok = Win32SystemInfo.setDisplayMode(wanted)
+    let now = Win32SystemInfo.currentDisplayMode()
+    print("[set-mode] \(wanted.label) -> \(ok ? "ok" : "REFUSED"); now "
+          + (now.map { "\($0.width)x\($0.height)@\($0.refresh)" } ?? "unknown"))
+    exit(ok ? 0 : 1)
+}
+
 if CommandLine.arguments.contains("--print-recent") {
     // What Start's Recommended list would show, and why an entry was dropped.
     // The Recent folder is full of shortcuts to shell namespaces and URIs, not
