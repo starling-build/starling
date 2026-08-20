@@ -42,7 +42,31 @@ struct FilesState {
     /// arrive after the rows that want them (see DockState.iconRevision).
     var iconRevision = 0
 
+    /// The column the list is ordered by, and which way. Explorer's own
+    /// default: folders first, then by name ascending.
+    var sortKey: FilesSortKey = .name
+    var sortAscending = true
+    /// The search box, which filters the listing that is already in memory
+    /// rather than starting a new enumeration. Explorer searches the subtree
+    /// and we do not -- see `visible` for the honest scope of this.
+    var filter = ""
     var canGoUp: Bool { Win32Files.parent(of: directory) != nil }
+
+    /// What the list actually shows: the listing, filtered, then ordered.
+    ///
+    /// STORED, not computed. The row builder indexes this for every visible
+    /// row, and a computed property would re-filter and re-sort ten thousand
+    /// entries per row -- which is the exact cost this file manager exists to
+    /// not pay. Recomputed by `_reproject()` when the listing, the sort or the
+    /// filter changes, and at no other time.
+    fileprivate(set) var visible: [Win32FileEntry] = []
+
+}
+
+/// The four columns Explorer shows in Details view, which are the four this
+/// sorts by.
+enum FilesSortKey {
+    case name, modified, type, size
 }
 
 @Observable
@@ -59,7 +83,10 @@ final class FilesBloc: @unchecked Sendable {
         case openWith
         case goUp
         case goBack
+        case goForward
         case refresh
+        case sort(FilesSortKey)
+        case filter(String)
         case openInExplorer
 
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
@@ -75,10 +102,34 @@ final class FilesBloc: @unchecked Sendable {
     /// Where Back goes. Pushed on every navigation that is not itself a Back.
     @ObservationIgnored private var history: [String] = []
 
+    /// Where Forward goes. Filled only by Back, and emptied by any navigation
+    /// that is not a Back or a Forward -- a browser's rule, and the one that
+    /// stops Forward pointing at a branch the user has since left.
+    @ObservationIgnored private var future: [String] = []
+
+    var canGoBack: Bool { !history.isEmpty }
+    var canGoForward: Bool { !future.isEmpty }
+
+    /// `--files <path>`, when one was given. Read here rather than passed in
+    /// because the bloc is a global the widget tree reaches for, and threading
+    /// a launch argument through the tree to reach it would be worse.
+    static let requestedDirectory: String? = {
+        guard let i = CommandLine.arguments.firstIndex(of: "--files"),
+              i + 1 < CommandLine.arguments.count else { return nil }
+        let next = CommandLine.arguments[i + 1]
+        return next.hasPrefix("--") ? nil : next
+    }()
+
     func add(_ event: Event) {
         switch event {
         case .start:
             icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
+            // A directory given on the command line opens FIRST, off the back
+            // of the same detached read: the sidebar is furniture, and waiting
+            // for it before listing what the user actually asked for would put
+            // a profile-folder enumeration in front of every launch.
+            let requested = Self.requestedDirectory
+            if let requested { _list(requested) }
             Task.detached { [weak self] in
                 let places = Win32Files.places()
                 let drives = Win32Files.drives()
@@ -86,6 +137,7 @@ final class FilesBloc: @unchecked Sendable {
                     self?.add(.placesLoaded(places: places, drives: drives))
                     // Home, or the first drive on a machine with no profile
                     // folders to speak of.
+                    guard requested == nil else { return }
                     if let start = places.first ?? drives.first {
                         self?.add(.open(start.path))
                     }
@@ -99,17 +151,40 @@ final class FilesBloc: @unchecked Sendable {
         case .open(let path):
             if !state.directory.isEmpty, state.directory != path {
                 history.append(state.directory)
+                future.removeAll()
             }
             _list(path)
 
         case .goBack:
             guard let previous = history.popLast() else { return }
+            if !state.directory.isEmpty { future.append(state.directory) }
             _list(previous)
+
+        case .goForward:
+            guard let next = future.popLast() else { return }
+            if !state.directory.isEmpty { history.append(state.directory) }
+            _list(next)
 
         case .goUp:
             guard let parent = Win32Files.parent(of: state.directory) else { return }
             history.append(state.directory)
+            future.removeAll()
             _list(parent)
+
+        case .sort(let key):
+            // A second click on the column already sorted reverses it, which
+            // is the gesture every list view in Windows has.
+            if state.sortKey == key {
+                state.sortAscending.toggle()
+            } else {
+                state.sortKey = key
+                state.sortAscending = true
+            }
+            _reproject()
+
+        case .filter(let text):
+            state.filter = text
+            _reproject()
 
         case .refresh:
             _list(state.directory)
@@ -172,11 +247,59 @@ final class FilesBloc: @unchecked Sendable {
             state.error = error
             state.loading = false
             state.selected = nil
+            _reproject()
             _warmIcons(entries)
 
         case .iconsChanged:
             state.iconRevision &+= 1
         }
+    }
+
+    /// Rebuilds `state.visible` from the listing, the filter and the sort.
+    ///
+    /// Folders always sort above files whatever the column, which is what
+    /// every file manager does and what keeps a folder findable in a
+    /// directory of ten thousand things.
+    private func _reproject() {
+        var rows = state.entries
+        if !state.filter.isEmpty {
+            let needle = state.filter.lowercased()
+            rows = rows.filter { $0.name.lowercased().contains(needle) }
+        }
+        let ascending = state.sortAscending
+        let key = state.sortKey
+        rows.sort { a, b in
+            if a.isDirectory != b.isDirectory { return a.isDirectory }
+            let order: Bool
+            switch key {
+            case .name: order = a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            case .modified: order = (a.modified ?? .distantPast) < (b.modified ?? .distantPast)
+            case .size: order = a.size < b.size
+            case .type: order = FilesBloc.typeLabel(a).localizedCaseInsensitiveCompare(
+                                    FilesBloc.typeLabel(b)) == .orderedAscending
+            }
+            return ascending ? order : !order
+        }
+        state.visible = rows
+    }
+
+    /// Explorer's Type column, cached BY EXTENSION.
+    ///
+    /// `Win32Files.typeName` is a registry walk, and the reason the selection
+    /// footer looks it up once rather than per row. A column needs it for
+    /// every visible row, so the answer is cached against the extension --
+    /// every .txt in a folder of ten thousand is one lookup, not ten thousand.
+    @ObservationIgnored private static var typeCache: [String: String] = [:]
+
+    static func typeLabel(_ entry: Win32FileEntry) -> String {
+        if entry.isDirectory { return "File folder" }
+        let ext = (entry.name as NSString).pathExtension.lowercased()
+        if ext.isEmpty { return "File" }
+        if let hit = typeCache[ext] { return hit }
+        let name = Win32Files.typeName(for: entry.path)
+        let label = name.isEmpty ? ext.uppercased() + " File" : name
+        typeCache[ext] = label
+        return label
     }
 
     private func _list(_ path: String) {
