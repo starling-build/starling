@@ -326,13 +326,25 @@ final class DockBloc: @unchecked Sendable {
             // the icon does not: a sync client redraws its arrows constantly,
             // and a cache keyed on identity alone would show the first frame
             // for ever.
-            icons.ensure(trayKey: Self.trayKey(icon), icon: handle)
+            // At the PHYSICAL size the strip will draw, not a fixed 32: the
+            // app hands over one bitmap and this is the only chance to render
+            // it 1:1. 32 is exactly right on a 200% screen and a resample on
+            // a 100% one, which on icons this small is the difference between
+            // Windows' picture and a blurred copy of it.
+            icons.ensure(trayKey: Self.trayKey(icon), icon: handle,
+                         size: Int((kTrayIcon * trayScale).rounded()))
         }
         // An icon that changed its picture left its old texture behind, and
         // the sweep that frees those lives in the rebuild. A busy sync client
         // redraws every few seconds and nothing else here would ever run.
         _queueRefresh()
     }
+
+    /// The screen's scale, for rasterizing at physical pixels. Falls back to
+    /// 2 rather than 1: this shell only runs on screens it has been given a
+    /// monitor for, and guessing low would blur every icon on the machine we
+    /// actually develop against.
+    private var trayScale: Double { ShellScreen.monitor?.scale ?? 2.0 }
 
     static func trayKey(_ icon: Win32TrayIcon) -> String {
         "tray:\(icon.id):\(icon.generation)"
