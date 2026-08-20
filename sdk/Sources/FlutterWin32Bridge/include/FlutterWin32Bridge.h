@@ -161,6 +161,41 @@ void flwin32_shell_open_settings(void);
 // Opens Starling's file explorer, or raises the one already open.
 void flwin32_shell_open_files(void);
 
+// -- file operations, through the shell's own machinery ---------------------
+//
+// IFileOperation rather than the raw file APIs: the recycle bin, the
+// conflict dialog, the progress dialog and Explorer's undo stack all come
+// with it. EVERY CALL BLOCKS for as long as the operation (and any dialog
+// the user is staring at) takes -- call them on a worker, never the UI
+// thread. `owner` parents the dialogs. Returns 1 when the operation ran --
+// the user cancelling the shell's dialog counts as ran -- and 0 when the
+// setup failed. See flwin32_fileops.c.
+
+// Cheap, apartment-free: whether the clipboard holds files (CF_HDROP), so a
+// menu can enable Paste without opening anything.
+int32_t flwin32_clipboard_has_files(void);
+
+// Paste the clipboard's files into target_dir, honouring the preferred drop
+// effect: a cut MOVES and then clears the clipboard, a copy COPIES and
+// leaves it.
+int32_t flwin32_fileop_paste(const char* target_dir, uint64_t owner);
+
+// Rename one item. new_name is a NAME, not a path -- IFileOperation's
+// contract; the shell handles collisions and extension warnings.
+int32_t flwin32_fileop_rename(const char* path, const char* new_name,
+                              uint64_t owner);
+
+// Delete to the recycle bin, with the shell's confirmation.
+int32_t flwin32_fileop_delete(const char* path, uint64_t owner);
+
+// Put one item on the clipboard as a copy (is_cut = 0) or a cut (1): the
+// shell's own data object plus CFSTR_PREFERREDDROPEFFECT, flushed so it
+// survives the caller.
+int32_t flwin32_fileop_clip(const char* path, int32_t is_cut);
+
+// The item's property sheet (SHObjectProperties), for Alt+Enter.
+int32_t flwin32_fileop_properties(const char* path, uint64_t owner);
+
 // -- the shell's own context menu, asked for off the drawing thread ---------
 //
 // What Explorer puts in a right-click: the static verbs from the association

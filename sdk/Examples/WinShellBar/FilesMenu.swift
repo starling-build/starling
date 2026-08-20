@@ -56,6 +56,9 @@ let kMenuLabelX = 44.0
 let kMenuGlyph = 15.0
 let kMenuMinW = 230.0
 let kMenuMaxW = 400.0
+/// The floor when the labeled icon row is present: six cells of glyph plus
+/// label, at Windows' own proportions.
+let kMenuPillMinW = 330.0
 /// Roughly what a character of the 13pt label costs, for sizing the panel to
 /// its longest row. An estimate: there is no text metric to ask here.
 let kMenuCharW = 6.6
@@ -98,6 +101,10 @@ struct MenuRow {
     /// more options". A press runs its action and leaves the menu open,
     /// where every other row's press dismisses first.
     var keepsOpen = false
+    /// The right-aligned key hint ("Enter", "Ctrl+Shift+C"), drawn only
+    /// because the key actually works -- see handleShortcut in Files.swift.
+    /// A hint for a dead key would be worse than none.
+    var accelerator = ""
     var action: (() -> Void)? = nil
 }
 
@@ -159,6 +166,11 @@ final class ShellMenuModel {
     /// second 250ms query behind the click.
     private(set) var expanded = false
 
+    /// Whether the clipboard held files when the menu opened, for the Paste
+    /// cell. Asked once per open -- IsClipboardFormatAvailable, no clipboard
+    /// open, no COM -- not per frame.
+    private(set) var canPaste = false
+
     /// The open submenu, if any.
     private(set) var subAt: MenuPoint?
     private(set) var subRows: [Win32ShellVerb] = []
@@ -192,23 +204,36 @@ final class ShellMenuModel {
 
     // MARK: - The verbs
 
-    /// The verbs Windows lifts out of the list and into the icon row at the
-    /// top, in its order. Matched on the CANONICAL verb rather than on the
-    /// label: "Copy" is `copy` in every language, and `windows.modernshare`
-    /// is the Share whose label is a single word in none of them.
-    /// The label is the English fallback for the moment before the shell
-    /// answers; once it has, the row shows the shell's own localized title.
-    static let pillVerbs: [(verb: String, glyph: IconData, label: String)] = [
-        ("cut", CupertinoIcons.scissors, "Cut"),
-        ("copy", CupertinoIcons.doc_on_doc, "Copy"),
-        ("windows.modernshare", CupertinoIcons.share, "Share"),
-        ("delete", CupertinoIcons.trash, "Delete"),
+    /// One cell of the icon row. Most are the SHELL's verbs -- matched on
+    /// the canonical name, so "Copy" is `copy` in every language, and the
+    /// label shown is the shell's own localized title once it answers --
+    /// but Paste and Rename are OURS: no item menu carries a paste verb,
+    /// and rename is an inline edit in the listing, not a shell call. They
+    /// exist so the row reads like Windows 11's: Cut, Copy, Paste, Rename,
+    /// Share, Delete.
+    enum PillAction {
+        case shell(String)
+        case paste
+        case rename
+    }
+
+    static let pillCells: [(action: PillAction, glyph: IconData, label: String)] = [
+        (.shell("cut"), CupertinoIcons.scissors, "Cut"),
+        (.shell("copy"), CupertinoIcons.doc_on_doc, "Copy"),
+        (.paste, CupertinoIcons.doc_on_clipboard, "Paste"),
+        (.rename, CupertinoIcons.pencil, "Rename"),
+        (.shell("windows.modernshare"), CupertinoIcons.share, "Share"),
+        (.shell("delete"), CupertinoIcons.trash, "Delete"),
     ]
 
-    /// Shell verbs the list does not repeat: the four above, and the two we
+    /// Shell verbs the list does not repeat: the row above, and the two we
     /// draw ourselves at the top.
     private var hiddenVerbs: Set<String> {
-        Set(Self.pillVerbs.map(\.verb)).union(["open", "openas"])
+        var verbs: Set<String> = ["open", "openas"]
+        for cell in Self.pillCells {
+            if case .shell(let verb) = cell.action { verbs.insert(verb) }
+        }
+        return verbs
     }
 
     /// A glyph for the handful of shell verbs that have an obvious one. The
@@ -284,7 +309,7 @@ final class ShellMenuModel {
         let above = y - kMenuEdge
         let flip = below < reservedHeight && above > below
         var anchorX = x
-        let width = panelWidth(rows(for: entry, shell: []))
+        let width = panelWidth(rows(for: entry, shell: []), pill: entry != nil)
         if anchorX + width > size.width - kMenuEdge {
             anchorX = max(kMenuEdge, size.width - kMenuEdge - width)
         }
@@ -294,6 +319,7 @@ final class ShellMenuModel {
         shellRows = []
         shellTier = .fast
         expanded = false
+        canPaste = Win32FileOps.clipboardHasFiles()
         subToken = 0
         subRows = []
         subAt = nil
@@ -368,6 +394,7 @@ final class ShellMenuModel {
                                 glyph: entry.isDirectory ? CupertinoIcons.folder_open
                                                          : CupertinoIcons.doc_text,
                                 isDefault: true,
+                                accelerator: "Enter",
                                 action: { filesBloc.add(.activate(entry)) }))
             if !entry.isDirectory {
                 rows.append(MenuRow(title: "Open with…",
@@ -435,6 +462,13 @@ final class ShellMenuModel {
         return rows
     }
 
+    /// The accelerators Windows prints beside these verbs -- shown because
+    /// the window really binds them (handleShortcut in Files.swift).
+    private static let verbAccelerators: [String: String] = [
+        "copyaspath": "Ctrl+Shift+C",
+        "properties": "Alt+Enter",
+    ]
+
     private func shellRow(_ verb: Win32ShellVerb) -> MenuRow {
         MenuRow(title: verb.title,
                 glyph: Self.verbGlyphs[verb.verb],
@@ -443,7 +477,8 @@ final class ShellMenuModel {
                 isDefault: false,
                 shellId: verb.id,
                 token: verb.submenu,
-                tier: shellTier)
+                tier: shellTier,
+                accelerator: Self.verbAccelerators[verb.verb] ?? "")
     }
 
     /// The verbs Windows lifts into the MODERN menu, in its order there --
@@ -451,8 +486,8 @@ final class ShellMenuModel {
     /// Quick access, Pin to Start, Copy as path, Properties, with the
     /// item-flavoured pin ("Add to Favorites") in the file's slot.
     private static let modernVerbs = [
-        "pintohome", "pintohomefile", "pintostartscreen", "copyaspath",
-        "properties",
+        "paste", "pintohome", "pintohomefile", "pintostartscreen",
+        "copyaspath", "properties",
     ]
 
     /// A canonical verb that is a GUID names an IExplorerCommand handler --
@@ -481,6 +516,10 @@ final class ShellMenuModel {
             rows.append(shellRow(new))
         }
         for name in Self.modernVerbs {
+            // An ITEM's paste lives in the icon row, as Windows draws it;
+            // the row form is the BACKGROUND menu's (paste into the folder
+            // you are standing in).
+            if name == "paste" && entry != nil { continue }
             if let verb = verbs.first(where: { !$0.isSeparator && $0.verb == name }) {
                 rows.append(shellRow(verb))
             }
@@ -515,13 +554,19 @@ final class ShellMenuModel {
     // change into a MenuCache. Nothing here measures anything: the press
     // arrives at the root Listener, which has no idea what a row is.
 
-    private func panelWidth(_ rows: [MenuRow]) -> Double {
+    private func panelWidth(_ rows: [MenuRow], pill: Bool) -> Double {
         // Estimated from the label lengths rather than measured -- there is no
         // text metric to ask here, and a panel sized to a fixed width either
         // clips "Restore previous versions" or is comically wide for "Open".
-        let longest = rows.map(\.title.count).max() ?? 0
+        // An accelerator rides the same row, so it buys its label more room.
+        let longest = rows.map {
+            $0.title.count + ($0.accelerator.isEmpty ? 0 : $0.accelerator.count + 4)
+        }.max() ?? 0
         let wanted = kMenuLabelX + Double(longest) * kMenuCharW + 44
-        return min(kMenuMaxW, max(kMenuMinW, wanted))
+        // Six labeled icon cells need their own floor -- "Rename" under a
+        // glyph in a 38pt cell is an ellipsis, not a label.
+        let minimum = pill ? max(kMenuMinW, kMenuPillMinW) : kMenuMinW
+        return min(kMenuMaxW, max(minimum, wanted))
     }
 
     private func cache(_ rows: [MenuRow], pill: Bool) -> MenuCache {
@@ -532,7 +577,7 @@ final class ShellMenuModel {
             tops.append(y)
             y += row.isSeparator ? kMenuSepH : kMenuRow
         }
-        return MenuCache(rows: rows, pill: pill, width: panelWidth(rows),
+        return MenuCache(rows: rows, pill: pill, width: panelWidth(rows, pill: pill),
                          height: y + kMenuPanelPad, tops: tops)
     }
 
@@ -596,16 +641,33 @@ final class ShellMenuModel {
         guard x >= origin.x, x < origin.x + menu.width,
               y >= origin.y + kMenuPanelPad,
               y < origin.y + kMenuPanelPad + kMenuPillRow else { return nil }
-        let cell = (menu.width - kMenuPanelPad * 2) / Double(Self.pillVerbs.count)
+        let cell = (menu.width - kMenuPanelPad * 2) / Double(Self.pillCells.count)
         let index = Int((x - origin.x - kMenuPanelPad) / cell)
-        return index >= 0 && index < Self.pillVerbs.count ? index : nil
+        return index >= 0 && index < Self.pillCells.count ? index : nil
     }
 
-    /// The shell row behind one of the icons in the top row, or nil when the
-    /// shell has not offered that verb (or has not answered yet).
+    /// The shell row behind a shell-backed icon cell, or nil when the cell
+    /// is one of ours, or the shell has not offered the verb (or has not
+    /// answered yet).
     func pillVerb(_ index: Int) -> Win32ShellVerb? {
-        let wanted = Self.pillVerbs[index].verb
+        guard case .shell(let wanted) = Self.pillCells[index].action else {
+            return nil
+        }
         return shellRows.first { $0.verb == wanted && !$0.isSeparator }
+    }
+
+    /// Whether an icon cell is clickable right now, our cells included.
+    func pillLive(_ index: Int) -> Bool {
+        switch Self.pillCells[index].action {
+        case .shell:
+            return pillVerb(index)?.isEnabled == true
+        case .paste:
+            // Into the folder under the pointer, the way Windows' own row
+            // works -- which is also why a plain file's cell stays grey.
+            return canPaste && entry?.isDirectory == true
+        case .rename:
+            return entry != nil
+        }
     }
 
     // MARK: - Input
@@ -630,9 +692,22 @@ final class ShellMenuModel {
             }
         } else if let index = pillIndex(menu, origin: at, x, y) {
             hitAMenu = true
-            if let verb = pillVerb(index), verb.isEnabled {
-                shellId = verb.id
-                shellTierForInvoke = shellTier
+            if pillLive(index) {
+                switch Self.pillCells[index].action {
+                case .shell:
+                    if let verb = pillVerb(index) {
+                        shellId = verb.id
+                        shellTierForInvoke = shellTier
+                    }
+                case .paste:
+                    if let target = entry?.path {
+                        action = { filesBloc.add(.paste(into: target)) }
+                    }
+                case .rename:
+                    if let entry {
+                        action = { filesBloc.add(.beginRename(entry)) }
+                    }
+                }
             }
         } else if let index = rowIndex(menu, origin: at, x, y) {
             hitAMenu = true
@@ -853,12 +928,11 @@ final class ContextMenuState: State<StatefulWidget> {
     /// IFileOperation to fill this row would be building a worse copy of
     /// something already installed.
     private func pillRow(width: Double) -> Widget {
-        let cell = (width - kMenuPanelPad * 2) / Double(ShellMenuModel.pillVerbs.count)
+        let cell = (width - kMenuPanelPad * 2) / Double(ShellMenuModel.pillCells.count)
         return SizedBox(height: kMenuPillRow) {
             Row(crossAxisAlignment: .center) {
-                for (index, entry) in ShellMenuModel.pillVerbs.enumerated() {
-                    let verb = model.pillVerb(index)
-                    let live = verb?.isEnabled == true
+                for (index, entry) in ShellMenuModel.pillCells.enumerated() {
+                    let live = model.pillLive(index)
                     let colour = live ? Win11.text : Win11.disabled
                     SizedBox(width: cell, height: kMenuPillRow) {
                         Center {
@@ -871,10 +945,12 @@ final class ContextMenuState: State<StatefulWidget> {
                                                       color: colour,
                                                       size: kMenuGlyph)
                                             SizedBox(height: 3)
-                                            // The shell's localized title once
-                                            // it has answered, so this says
-                                            // whatever Windows would.
-                                            Text(verb?.title ?? entry.label,
+                                            // The shell's localized title for
+                                            // its verbs once it has answered;
+                                            // ours (Paste, Rename) carry their
+                                            // own labels.
+                                            Text(model.pillVerb(index)?.title
+                                                     ?? entry.label,
                                                  style: TextStyle(color: colour,
                                                                   fontSize: 10),
                                                  overflow: .ellipsis, maxLines: 1)
@@ -923,7 +999,9 @@ final class ContextMenuState: State<StatefulWidget> {
                                 }
                             }
                             Positioned(left: kMenuLabelX, top: 0,
-                                       right: row.isSubmenu ? 26 : 10, bottom: 0) {
+                                       right: row.isSubmenu ? 26
+                                           : (row.accelerator.isEmpty ? 10 : 100),
+                                       bottom: 0) {
                                 Align(alignment: Alignment.centerLeft) {
                                     Text(row.title,
                                          style: TextStyle(
@@ -931,6 +1009,15 @@ final class ContextMenuState: State<StatefulWidget> {
                                             fontSize: 13,
                                             fontWeight: row.isDefault ? .w600 : .w400),
                                          overflow: .ellipsis, maxLines: 1)
+                                }
+                            }
+                            if !row.accelerator.isEmpty {
+                                Positioned(top: 0, right: 12, bottom: 0) {
+                                    Center {
+                                        Text(row.accelerator,
+                                             style: TextStyle(color: Win11.textFaint,
+                                                              fontSize: 11))
+                                    }
                                 }
                             }
                             if row.isSubmenu {

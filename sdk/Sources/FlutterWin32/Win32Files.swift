@@ -229,4 +229,65 @@ public enum Win32Files {
         directory.hasSuffix("\\") ? directory + name : directory + "\\" + name
     }
 }
+
+/// The file operations behind Paste, Rename, Delete, Cut and Copy, through
+/// the shell's own IFileOperation -- recycle bin, conflict dialogs, progress,
+/// and Explorer's undo stack included. See flwin32_fileops.c.
+///
+/// Every operation BLOCKS for as long as the shell (and any dialog the user
+/// is looking at) takes, so they all run on one serial queue and call back
+/// on the main thread. Serial on purpose: two overlapping operations on the
+/// same folder is a conflict dialog factory.
+public enum Win32FileOps {
+    private static let queue = DispatchQueue(label: "starling.fileops",
+                                             qos: .userInitiated)
+
+    /// Whether a paste has anything to paste. Cheap -- no clipboard open, no
+    /// COM -- so a menu can ask at every open.
+    public static func clipboardHasFiles() -> Bool {
+        flwin32_clipboard_has_files() != 0
+    }
+
+    /// Copy (or cut) one item to the clipboard, the shell's way: its own
+    /// data object plus the preferred drop effect that tells a paste which
+    /// of the two this was.
+    public static func clip(_ path: String, cut: Bool,
+                            done: ((Bool) -> Void)? = nil) {
+        run(done) { flwin32_fileop_clip(path, cut ? 1 : 0) != 0 }
+    }
+
+    /// Paste the clipboard's files into `directory`. A cut moves and clears
+    /// the clipboard; a copy copies and leaves it.
+    public static func paste(into directory: String, owner: UInt64,
+                             done: ((Bool) -> Void)? = nil) {
+        run(done) { flwin32_fileop_paste(directory, owner) != 0 }
+    }
+
+    /// Rename in place. `name` is a name, not a path.
+    public static func rename(_ path: String, to name: String, owner: UInt64,
+                              done: ((Bool) -> Void)? = nil) {
+        run(done) { flwin32_fileop_rename(path, name, owner) != 0 }
+    }
+
+    /// Delete to the recycle bin, with the shell's confirmation.
+    public static func delete(_ path: String, owner: UInt64,
+                              done: ((Bool) -> Void)? = nil) {
+        run(done) { flwin32_fileop_delete(path, owner) != 0 }
+    }
+
+    /// The property sheet, for Alt+Enter.
+    public static func showProperties(_ path: String, owner: UInt64) {
+        run(nil) { flwin32_fileop_properties(path, owner) != 0 }
+    }
+
+    private static func run(_ done: ((Bool) -> Void)?,
+                            _ work: @escaping () -> Bool) {
+        queue.async {
+            let ok = work()
+            if let done {
+                DispatchQueue.main.async { done(ok) }
+            }
+        }
+    }
+}
 #endif

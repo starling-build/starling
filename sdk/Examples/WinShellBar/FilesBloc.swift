@@ -51,6 +51,10 @@ struct FilesState {
     /// and we do not -- see `visible` for the honest scope of this.
     var filter = ""
     var canGoUp: Bool { Win32Files.parent(of: directory) != nil }
+    /// The path being renamed inline, if any: its row draws a text field in
+    /// place of its name. One at a time by construction -- starting a rename
+    /// ends any other.
+    var renaming: String?
 
     /// What the list actually shows: the listing, filtered, then ordered.
     ///
@@ -89,12 +93,28 @@ final class FilesBloc: @unchecked Sendable {
         case filter(String)
         case openInExplorer
 
+        /// The file operations, through the shell (IFileOperation): recycle
+        /// bin, conflict dialogs, undo. Each refreshes the listing when it
+        /// finishes, because nothing here watches the directory yet.
+        case clip(Win32FileEntry, cut: Bool)
+        case paste(into: String)
+        case beginRename(Win32FileEntry)
+        case commitRename(String)
+        case cancelRename
+        case deleteEntry(Win32FileEntry)
+        case showProperties(Win32FileEntry)
+
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
         case placesLoaded(places: [Win32Place], drives: [Win32Place])
         case iconsChanged
     }
 
     private(set) var state = FilesState()
+
+    /// The window the shell's dialogs (conflict, progress, confirm) parent
+    /// to. A dialog with no owner is a window the user can lose behind the
+    /// one they asked it from.
+    static var ownerWindow: UInt64 { Win32WindowedHost.host?.windowHandle ?? 0 }
 
     /// Shared with the UI, which turns a key into a `TextureWidget`.
     @ObservationIgnored let icons = IconCache()
@@ -240,6 +260,49 @@ final class FilesBloc: @unchecked Sendable {
         case .openInExplorer:
             let path = state.directory
             Task.detached { Win32Files.openInExplorer(path) }
+
+        case .clip(let entry, let cut):
+            Win32FileOps.clip(entry.path, cut: cut)
+
+        case .paste(let directory):
+            Win32FileOps.paste(into: directory, owner: Self.ownerWindow) {
+                [weak self] ok in
+                if ok { self?.add(.refresh) }
+            }
+
+        case .beginRename(let entry):
+            state.renaming = entry.path
+            state.selected = entry.path
+
+        case .commitRename(let newName):
+            guard let path = state.renaming else { return }
+            state.renaming = nil
+            // The old name is a no-op, not an error -- Enter on an untouched
+            // field is how half of all renames end.
+            let oldName = (path as NSString).lastPathComponent
+            guard !newName.isEmpty, newName != oldName else { return }
+            Win32FileOps.rename(path, to: newName, owner: Self.ownerWindow) {
+                [weak self] ok in
+                if ok {
+                    // Keep the selection on the renamed item, under its new
+                    // name, so F2-Enter-F2 flows work.
+                    let parent = (path as NSString).deletingLastPathComponent
+                    self?.state.selected = Win32Files.join(parent, newName)
+                }
+                self?.add(.refresh)
+            }
+
+        case .cancelRename:
+            state.renaming = nil
+
+        case .deleteEntry(let entry):
+            Win32FileOps.delete(entry.path, owner: Self.ownerWindow) {
+                [weak self] ok in
+                if ok { self?.add(.refresh) }
+            }
+
+        case .showProperties(let entry):
+            Win32FileOps.showProperties(entry.path, owner: Self.ownerWindow)
 
         case .listed(let directory, let entries, let error):
             state.directory = directory

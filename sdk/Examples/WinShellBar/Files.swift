@@ -10,14 +10,12 @@
 // bar, the breadcrumb-and-search row, the four Details columns, the status
 // bar. Someone who knows Explorer should not have to learn anything.
 //
-// What is NOT here is the point of the exercise. Explorer's command bar verbs
-// — new, cut, copy, paste, rename, delete — need IFileOperation and the undo
-// and recycle-bin semantics that come with it, and none of that is written.
-// Those buttons are therefore DRAWN DISABLED rather than drawn working: the
-// layout is honest about the shape and honest about the capability, and a
-// button that silently does nothing is worse than one that says it cannot.
-// The verbs that ARE implemented — navigate, sort, filter, open, open-with,
-// hand off to Explorer — are live.
+// The file operations — cut, copy, paste, rename, delete — run through the
+// shell's own IFileOperation (flwin32_fileops.c), which is what brings the
+// recycle bin, the conflict dialogs and Explorer's undo stack along. Rename
+// is inline: the row's name becomes a text field, exactly Explorer's F2.
+// "New" remains drawn disabled — a button that silently does nothing is
+// worse than one that says it cannot — until a New-submenu story exists.
 
 #if os(Windows)
 import CupertinoIcons
@@ -115,6 +113,95 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// currently in the field.
     private let search = TextEditingController()
 
+    /// The inline rename's editor, created when a rename begins and dropped
+    /// when it ends. Held here rather than made per-build so the text
+    /// survives the rebuilds that happen while the user types.
+    private var renameController: TextEditingController?
+    private var renamePath: String?
+
+    /// Modifier state for the window shortcuts, tracked from the key stream
+    /// -- KeyData carries no modifier mask, the same bargain TerminalView
+    /// strikes. Ids are the engine's Flutter logical ids; this window only
+    /// exists on the Win32 embedder, which sends nothing else.
+    private var ctrlDown = false
+    private var shiftDown = false
+    private var altDown = false
+
+    /// Explorer's keyboard: Enter opens, Alt+Enter is properties, F2
+    /// renames, Delete recycles, Ctrl+C/X/V are the clipboard, and
+    /// Ctrl+Shift+C is Copy as path. These existing is what makes the
+    /// accelerator column in the context menu honest rather than decorative.
+    private func handleShortcut(_ keyData: KeyData) -> Bool {
+        let down = keyData.type == .down || keyData.type == .repeat
+        switch keyData.logical {
+        case 0x2_0000_0100, 0x2_0000_0101: ctrlDown = down; return false
+        case 0x2_0000_0102, 0x2_0000_0103: shiftDown = down; return false
+        case 0x2_0000_0104, 0x2_0000_0105: altDown = down; return false
+        default: break
+        }
+        guard keyData.type == .down else { return false }
+
+        // Letter chords match on the PHYSICAL (HID) id: with Ctrl held this
+        // embedder delivers the letter with logical == 0 and no character,
+        // so the logical id has nothing to say. F2 and the rest arrive with
+        // proper logical ids and are matched below.
+        if ctrlDown {
+            switch keyData.physical {
+            case 0x0007_0006: // C
+                guard let entry = selectedEntry else { return false }
+                if shiftDown {
+                    // Quoted, exactly as Explorer's Copy as path writes it.
+                    Clipboard.setData(ClipboardData(text: "\"\(entry.path)\""))
+                } else {
+                    bloc.add(.clip(entry, cut: false))
+                }
+                return true
+            case 0x0007_001B: // X
+                guard let entry = selectedEntry else { return false }
+                bloc.add(.clip(entry, cut: true))
+                return true
+            case 0x0007_0019: // V
+                bloc.add(.paste(into: bloc.state.directory))
+                return true
+            default:
+                break
+            }
+        }
+
+        switch keyData.logical {
+        case 0x1_0000_001B: // Escape: the menu first, then a rename in flight
+            if menu.isOpen {
+                menu.dismiss()
+                return true
+            }
+            if bloc.state.renaming != nil {
+                renameController = nil
+                renamePath = nil
+                bloc.add(.cancelRename)
+                return true
+            }
+            return false
+        case 0x1_0000_000D: // Enter
+            guard let entry = selectedEntry else { return false }
+            if altDown {
+                bloc.add(.showProperties(entry))
+            } else {
+                bloc.add(.activate(entry))
+            }
+            return true
+        case 0x1_0000_0802: // F2
+            guard let entry = selectedEntry else { return false }
+            bloc.add(.beginRename(entry))
+            return true
+        case 0x1_0000_007F: // Delete
+            guard let entry = selectedEntry else { return false }
+            bloc.add(.deleteEntry(entry))
+            return true
+        default:
+            return false
+        }
+    }
+
     /// The context menu, which is a surface of its own from here on.
     ///
     /// It holds its own state and draws through its own widget, so moving the
@@ -130,6 +217,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         // The listing is the only thing the menu cannot work out for itself.
         menu.target = { [weak self] x, y in self?.targetAt(x, y) }
         bloc.add(.start)
+        // Focused text fields (the search box, an inline rename) get every
+        // key first; the shortcuts see only what no field claimed. This
+        // window owns its process, so taking the process-wide hook is not
+        // stepping on anything.
+        PlatformDispatcher.instance.onKeyData = { [weak self] keyData in
+            if FocusManager.instance.dispatchKeyData(keyData) { return true }
+            return self?.handleShortcut(keyData) ?? false
+        }
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -314,17 +409,48 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     /// The command bar. Everything on it that needs IFileOperation is drawn
     /// disabled -- see this file's header.
+    /// The selected row's entry, for the command bar's enablement and
+    /// actions.
+    private var selectedEntry: Win32FileEntry? {
+        guard let path = bloc.state.selected else { return nil }
+        return bloc.state.visible.first { $0.path == path }
+    }
+
     private func commandBar() -> Widget {
         SizedBox(height: kFilesCommandBar) {
             Padding(padding: EdgeInsets(left: 10, top: 0, right: 10, bottom: 0)) {
                 Row(crossAxisAlignment: .center, spacing: 2) {
                     barButton(CupertinoIcons.add, "New", enabled: false) {}
                     barSeparator()
-                    barIcon(CupertinoIcons.scissors, enabled: false) {}
-                    barIcon(CupertinoIcons.doc_on_doc, enabled: false) {}
-                    barIcon(CupertinoIcons.doc_on_clipboard, enabled: false) {}
-                    barIcon(CupertinoIcons.pencil, enabled: false) {}
-                    barIcon(CupertinoIcons.trash, enabled: false) {}
+                    // Explorer's own enablement: cut/copy/rename/delete need
+                    // a selection, paste needs files on the clipboard. All
+                    // five run through the shell (IFileOperation / the
+                    // shell's data object) -- see FilesBloc and
+                    // flwin32_fileops.c.
+                    barIcon(CupertinoIcons.scissors, enabled: selectedEntry != nil) {
+                        if let entry = self.selectedEntry {
+                            self.bloc.add(.clip(entry, cut: true))
+                        }
+                    }
+                    barIcon(CupertinoIcons.doc_on_doc, enabled: selectedEntry != nil) {
+                        if let entry = self.selectedEntry {
+                            self.bloc.add(.clip(entry, cut: false))
+                        }
+                    }
+                    barIcon(CupertinoIcons.doc_on_clipboard,
+                            enabled: Win32FileOps.clipboardHasFiles()) {
+                        self.bloc.add(.paste(into: self.bloc.state.directory))
+                    }
+                    barIcon(CupertinoIcons.pencil, enabled: selectedEntry != nil) {
+                        if let entry = self.selectedEntry {
+                            self.bloc.add(.beginRename(entry))
+                        }
+                    }
+                    barIcon(CupertinoIcons.trash, enabled: selectedEntry != nil) {
+                        if let entry = self.selectedEntry {
+                            self.bloc.add(.deleteEntry(entry))
+                        }
+                    }
                     barSeparator()
                     barButton(CupertinoIcons.arrow_up_arrow_down, sortLabel(), enabled: true) {
                         self.cycleSort()
@@ -678,6 +804,34 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
     }
 
+    /// The inline rename editor, in the row where the name was. The
+    /// controller is created when this rename begins -- prefilled with the
+    /// current name -- and reused across rebuilds until it ends; a fresh
+    /// controller per build would reset the text under the user's fingers.
+    private func renameField(_ entry: Win32FileEntry) -> Widget {
+        if renamePath != entry.path || renameController == nil {
+            renamePath = entry.path
+            renameController = TextEditingController(text: entry.name)
+        }
+        return SizedBox(height: 24) {
+            MacosTextField(
+                controller: renameController!,
+                onSubmitted: { text in
+                    self.renameController = nil
+                    self.renamePath = nil
+                    self.bloc.add(.commitRename(
+                        text.trimmingCharacters(in: .whitespaces)))
+                },
+                style: TextStyle(color: Win11.text, fontSize: 12),
+                padding: EdgeInsets(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                    color: Win11.fieldFill,
+                    border: Border.all(color: Win11.accent, width: 1),
+                    borderRadius: BorderRadius.circular(3)),
+                autofocus: true)
+        }
+    }
+
     private func row(_ index: Int) -> Widget {
         guard index < bloc.state.visible.count else { return SizedBox(height: kFilesRow) }
         let entry = bloc.state.visible[index]
@@ -703,9 +857,13 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 }
                             }
                             Expanded {
-                                Text(entry.name,
-                                     style: TextStyle(color: Win11.text, fontSize: 12),
-                                     maxLines: 1)
+                                if bloc.state.renaming == entry.path {
+                                    renameField(entry)
+                                } else {
+                                    Text(entry.name,
+                                         style: TextStyle(color: Win11.text, fontSize: 12),
+                                         maxLines: 1)
+                                }
                             }
                             SizedBox(width: kFilesColModified) {
                                 Align(alignment: Alignment.centerRight) {
