@@ -9,11 +9,13 @@
 // that set is what makes Explorer's menu take 370ms to appear -- it is
 // synchronous, and it is done before a single row is drawn.
 //
-// So a session here is a THREAD, and this type is the way to talk to it
-// without thinking about that. `open` returns immediately; `items` calls back
-// on the main thread whenever the shell is finished; the caller draws its own
-// verbs in between. Every call into the C session is serialized onto one
-// queue, which is what the ping-pong on the other side requires.
+// So a session here is a THREAD PER TIER, and this type is the way to talk
+// to them without thinking about that. `open` returns immediately; `items`
+// calls back on the main thread whenever the shell is finished; the caller
+// draws its own verbs in between, and a verb on the cheap tier can be
+// invoked while the full query is still running. Every call into the C
+// session is serialized onto one queue, which is what the ping-pong on the
+// other side requires.
 //
 // The session owns real COM objects belonging to real third-party DLLs, so it
 // has to be closed. `close()` is safe at any point, including while the query

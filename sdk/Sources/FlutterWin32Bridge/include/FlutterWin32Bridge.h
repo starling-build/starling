@@ -167,12 +167,13 @@ void flwin32_shell_open_files(void);
 // database plus every registered IContextMenu handler -- OneDrive, Defender,
 // an archiver, "Copy as path", "Properties". Measured, assembling that set
 // costs Explorer 370ms and it draws NOTHING until the slowest handler has
-// answered. So a session here is a thread: open() returns at once, items()
-// blocks whoever asks until the shell is done, and the caller draws its own
-// verbs meanwhile. See flwin32_shellmenu.c.
+// answered. So a session here is a thread per tier: open() returns at once,
+// items() blocks whoever asks until that tier is done, and the caller draws
+// its own verbs meanwhile. See flwin32_shellmenu.c -- including why the two
+// tiers' QueryContextMenu calls are still serialized against each other.
 //
 // Every call below must come from ONE thread at a time -- they are a
-// ping-pong with the session's thread, not re-entrant.
+// ping-pong with a tier's thread, not re-entrant.
 
 // One row. `id` is what invoke() takes, or -1 for a separator or a submenu;
 // `submenu` is a token for expand(), or 0. `verb` is the canonical name

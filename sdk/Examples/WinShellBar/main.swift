@@ -241,6 +241,18 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
         print(String(format: "[menu-probe] bind %.0fms  QueryContextMenu %.0fms  "
                            + "walk %.2fms (of which GetCommandString %.2fms)",
                      split.bind, split.query, split.walk, split.verbs))
+        // Itemized like the cold list, because the warm menu is the LONGER
+        // one -- handlers still loading contribute nothing to the query that
+        // is loading them -- and "23 rows" alone cannot say which rows a
+        // regression lost.
+        for row in rows {
+            if row.isSeparator {
+                print("  --------")
+                continue
+            }
+            print("  id=\(row.id) verb=\(row.verb.isEmpty ? "-" : row.verb) "
+                  + "\"\(row.title)\"")
+        }
         warm.close()
     }
     exit(0)
