@@ -313,6 +313,65 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// folder you are standing in.
     private var hasPillRow: Bool { menuEntry != nil }
 
+    /// A menu's rows and every number derived from them.
+    ///
+    /// STORED, NOT COMPUTED -- the same lesson the listing's sort projection
+    /// learned, in the place it costs most. The rows and their rectangles
+    /// change when the menu opens, when the shell answers and when a submenu
+    /// fills in; they do not change when the pointer moves. Deriving them per
+    /// event measured 0.39ms of CPU on EVERY pointer move, menu open, even
+    /// for a move that changed nothing, because the hit test rebuilt sixteen
+    /// rows and re-measured the panel to answer "which row is this".
+    private struct MenuCache {
+        var rows: [MenuRow]
+        var pill: Bool
+        var width: Double
+        var height: Double
+        /// The top of each row in the panel's own coordinates, parallel to
+        /// `rows`.
+        var tops: [Double]
+    }
+
+    private var mainCache: MenuCache?
+    private var subMenuCache: MenuCache?
+
+    /// Thrown away whenever something the rows are made of changes. Explicit
+    /// rather than derived: `MenuRow` carries closures and cannot be compared,
+    /// and a cache that quietly kept a stale row would be worse than none.
+    private func invalidateMenu() {
+        mainCache = nil
+        subMenuCache = nil
+    }
+
+    private func build(_ rows: [MenuRow], pill: Bool) -> MenuCache {
+        var tops: [Double] = []
+        var y = kMenuPanelPad
+        if pill { y += kMenuPillRow + kMenuSepH }
+        for row in rows {
+            tops.append(y)
+            y += row.isSeparator ? kMenuSepH : kMenuRow
+        }
+        return MenuCache(rows: rows, pill: pill,
+                         width: panelWidth(rows),
+                         height: y + kMenuPanelPad,
+                         tops: tops)
+    }
+
+    /// The open menu, and the open submenu.
+    private var mainMenu: MenuCache {
+        if let cache = mainCache { return cache }
+        let cache = build(menuRowsFor(menuEntry, shell: shellRows), pill: hasPillRow)
+        mainCache = cache
+        return cache
+    }
+
+    private var subMenu: MenuCache {
+        if let cache = subMenuCache { return cache }
+        let cache = build(shellList(subRows), pill: false)
+        subMenuCache = cache
+        return cache
+    }
+
     /// The row under a point, accounting for how far the list is scrolled.
     private func rowAt(_ x: Double, _ y: Double) -> Win32FileEntry? {
         guard x >= kFilesSidebar, y >= kFilesToolbar else { return nil }
@@ -338,7 +397,10 @@ final class StarlingFilesState: State<StatefulWidget> {
             // Nothing to reposition: the panel is anchored to the corner the
             // pointer is at, and menuOrigin re-derives the other corner from
             // whatever the menu now weighs.
-            self.setState { self.shellRows = rows }
+            self.setState {
+                self.shellRows = rows
+                self.mainCache = nil
+            }
         }
 
         // Which way it opens, decided HERE and not revisited. Windows flips a
@@ -372,6 +434,7 @@ final class StarlingFilesState: State<StatefulWidget> {
             menuEntry = entry
             menuAt = (anchorX, y)
             menuFlipped = flip
+            invalidateMenu()
         }
     }
 
@@ -388,11 +451,11 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// honest -- the real answer is a popup WINDOW, the way Windows' menu is
     /// one, so that it is not clipped by the window it was opened from. That
     /// is a second surface, and a bigger change than this.
-    private func menuOrigin(_ rows: [MenuRow]) -> (x: Double, y: Double)? {
+    private func menuOrigin(_ menu: MenuCache) -> (x: Double, y: Double)? {
         guard let anchor = menuAt else { return nil }
         let size = Win32WindowedHost.host?.clientSize
             ?? (width: kFilesWidth, height: kFilesHeight)
-        let height = panelHeight(rows, pill: hasPillRow)
+        let height = menu.height
         var y = menuFlipped ? anchor.y - height : anchor.y
         if y + height > size.height - kMenuEdge {
             y = size.height - kMenuEdge - height
@@ -423,8 +486,6 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// Our verbs, then the shell's. Our three are the ones that are live from
     /// the first frame and they never move; everything after the separator
     /// arrives later.
-    private var menuRows: [MenuRow] { menuRowsFor(menuEntry, shell: shellRows) }
-
     /// Taken as parameters rather than read off the state, so the opening
     /// click can size a panel that does not exist yet -- it needs the width
     /// to clamp the anchor sideways, and at that moment the shell has
@@ -499,10 +560,9 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     // MARK: - Menu geometry
     //
-    // One set of numbers for the drawing and the hit test. Every rectangle in
-    // this menu comes out of these three functions and nothing measures
-    // anything: the press arrives at the root Listener, which has no idea
-    // what a row is.
+    // One set of numbers for the drawing and the hit test, built once per
+    // change into a MenuCache. Nothing here measures anything: the press
+    // arrives at the root Listener, which has no idea what a row is.
 
     private func panelWidth(_ rows: [MenuRow]) -> Double {
         // Estimated from the label lengths rather than measured -- there is no
@@ -513,54 +573,27 @@ final class StarlingFilesState: State<StatefulWidget> {
         return min(kMenuMaxW, max(kMenuMinW, wanted))
     }
 
-    /// `pill` is whether the panel carries the icon row: the menu proper
-    /// does, a submenu never does. A parameter rather than a look at
-    /// `menuEntry`, because both panels are laid out by these same functions
-    /// and a submenu offset by a row it does not have puts every one of its
-    /// rectangles 51pt below what is drawn.
-    private func panelHeight(_ rows: [MenuRow], pill: Bool) -> Double {
-        var height = kMenuPanelPad * 2
-        if pill { height += kMenuPillRow + kMenuSepH }
-        for row in rows { height += row.isSeparator ? kMenuSepH : kMenuRow }
-        return height
-    }
-
-    /// The top of each row, in the panel's own coordinates.
-    private func rowTops(_ rows: [MenuRow], pill: Bool) -> [Double] {
-        var tops: [Double] = []
-        var y = kMenuPanelPad
-        if pill { y += kMenuPillRow + kMenuSepH }
-        for row in rows {
-            tops.append(y)
-            y += row.isSeparator ? kMenuSepH : kMenuRow
-        }
-        return tops
-    }
-
     /// Which row a point in a panel is over, given where the panel starts.
-    private func rowIndex(_ rows: [MenuRow], origin: (x: Double, y: Double),
-                          pill: Bool, _ x: Double, _ y: Double) -> Int? {
-        let width = panelWidth(rows)
-        guard x >= origin.x, x < origin.x + width else { return nil }
-        let tops = rowTops(rows, pill: pill)
-        for (index, top) in tops.enumerated() {
-            let height = rows[index].isSeparator ? kMenuSepH : kMenuRow
+    private func rowIndex(_ menu: MenuCache, origin: (x: Double, y: Double),
+                          _ x: Double, _ y: Double) -> Int? {
+        guard x >= origin.x, x < origin.x + menu.width else { return nil }
+        for (index, top) in menu.tops.enumerated() {
+            let height = menu.rows[index].isSeparator ? kMenuSepH : kMenuRow
             if y >= origin.y + top && y < origin.y + top + height {
-                return rows[index].isSeparator ? nil : index
+                return menu.rows[index].isSeparator ? nil : index
             }
         }
         return nil
     }
 
     /// Which icon in the top row a point is over, if any.
-    private func pillIndex(_ rows: [MenuRow], origin: (x: Double, y: Double),
+    private func pillIndex(_ menu: MenuCache, origin: (x: Double, y: Double),
                            _ x: Double, _ y: Double) -> Int? {
-        guard hasPillRow else { return nil }
-        let width = panelWidth(rows)
-        guard x >= origin.x, x < origin.x + width,
+        guard menu.pill else { return nil }
+        guard x >= origin.x, x < origin.x + menu.width,
               y >= origin.y + kMenuPanelPad,
               y < origin.y + kMenuPanelPad + kMenuPillRow else { return nil }
-        let cell = (width - kMenuPanelPad * 2) / Double(Self.pillVerbs.count)
+        let cell = (menu.width - kMenuPanelPad * 2) / Double(Self.pillVerbs.count)
         let index = Int((x - origin.x - kMenuPanelPad) / cell)
         return index >= 0 && index < Self.pillVerbs.count ? index : nil
     }
@@ -577,23 +610,23 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// A press while the menu is open. Always dismisses; the questions are
     /// what it ran on the way out, and whether it opens another one.
     private func handleMenu(_ x: Double, _ y: Double, buttons: Int) {
-        let rows = menuRows
-        guard let at = menuOrigin(rows) else { return }
-        let subs = shellList(subRows)
+        let menu = mainMenu
+        guard let at = menuOrigin(menu) else { return }
+        let subs = subMenu
 
         var action: (() -> Void)?
         var shellId: Int32 = -1
         var hitAMenu = false
 
-        if let origin = subAt, let index = rowIndex(subs, origin: origin, pill: false, x, y) {
+        if let origin = subAt, let index = rowIndex(subs, origin: origin, x, y) {
             hitAMenu = true
-            if subs[index].isEnabled { shellId = subs[index].shellId }
-        } else if let index = pillIndex(rows, origin: at, x, y) {
+            if subs.rows[index].isEnabled { shellId = subs.rows[index].shellId }
+        } else if let index = pillIndex(menu, origin: at, x, y) {
             hitAMenu = true
             if let verb = pillVerb(index), verb.isEnabled { shellId = verb.id }
-        } else if let index = rowIndex(rows, origin: at, pill: hasPillRow, x, y) {
+        } else if let index = rowIndex(menu, origin: at, x, y) {
             hitAMenu = true
-            let row = rows[index]
+            let row = menu.rows[index]
             // A submenu row does nothing on a press: it opened on hover, the
             // way Windows' does, and the click the user means is the one on a
             // row inside it.
@@ -625,28 +658,34 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// and so does this. Also the row highlight, which is the only feedback
     /// an arithmetic menu can give that it knows where the pointer is.
     private func hoverMenu(_ x: Double, _ y: Double) {
-        let rows = menuRows
-        guard let at = menuOrigin(rows) else { return }
-        let subs = shellList(subRows)
+        let menu = mainMenu
+        guard let at = menuOrigin(menu) else { return }
+        let subs = subMenu
 
-        if let origin = subAt, let index = rowIndex(subs, origin: origin, pill: false, x, y) {
+        if let origin = subAt, let index = rowIndex(subs, origin: origin, x, y) {
             if subHover != index { setState { subHover = index } }
             return
         }
-        let over = rowIndex(rows, origin: at, pill: hasPillRow, x, y)
-        let pill = pillIndex(rows, origin: at, x, y)
+        let over = rowIndex(menu, origin: at, x, y)
+        let pill = pillIndex(menu, origin: at, x, y)
         let hovered = pill != nil ? nil : over
         // The icon row highlights like any other row. This used to be
         // computed and dropped on the floor, so the four icons were the one
         // part of the menu that never acknowledged the pointer.
         if pillHover != pill { setState { pillHover = pill } }
 
-        if let index = over, rows[index].isSubmenu, rows[index].token != subToken {
-            openSubmenu(rows[index], at: at, top: rowTops(rows, pill: hasPillRow)[index],
-                        width: panelWidth(rows))
-        } else if over != nil && subAt != nil
-                    && !(rows[over!].isSubmenu && rows[over!].token == subToken) {
-            setState { subAt = nil; subToken = 0; subRows = [] }
+        if let index = over, menu.rows[index].isSubmenu,
+           menu.rows[index].token != subToken {
+            openSubmenu(menu.rows[index], at: at, top: menu.tops[index],
+                        width: menu.width)
+        } else if let index = over, subAt != nil,
+                  !(menu.rows[index].isSubmenu && menu.rows[index].token == subToken) {
+            setState {
+                subAt = nil
+                subToken = 0
+                subRows = []
+                subMenuCache = nil
+            }
         }
         if menuHover != hovered || subHover != nil {
             setState { menuHover = hovered; subHover = nil }
@@ -666,6 +705,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         setState {
             subToken = token
             subRows = []
+            subMenuCache = nil
             subHover = nil
             // Overlapping the parent by a hair, as Windows' submenus do, so
             // the pointer can cross between them without falling through the
@@ -677,20 +717,21 @@ final class StarlingFilesState: State<StatefulWidget> {
                   self.subToken == token else { return }
             self.setState {
                 self.subRows = rows
+                self.subMenuCache = nil
                 // The child hangs off the parent's right edge and may run off
                 // the window's; flip it to the parent's left, which is what
                 // Windows does with the same problem.
                 let size = Win32WindowedHost.host?.clientSize
                     ?? (width: kFilesWidth, height: kFilesHeight)
-                let childRows = self.shellList(rows)
-                let childWidth = self.panelWidth(childRows)
+                // Built once, here, out of the rows that have just landed --
+                // the same cache the hit test and the drawing then read.
+                let child = self.subMenu
                 if var at = self.subAt {
-                    if at.x + childWidth > size.width - kMenuEdge {
-                        at.x = max(kMenuEdge, origin.x - childWidth + 4)
+                    if at.x + child.width > size.width - kMenuEdge {
+                        at.x = max(kMenuEdge, origin.x - child.width + 4)
                     }
-                    let childHeight = self.panelHeight(childRows, pill: false)
-                    if at.y + childHeight > size.height - kMenuEdge {
-                        at.y = max(kMenuEdge, size.height - kMenuEdge - childHeight)
+                    if at.y + child.height > size.height - kMenuEdge {
+                        at.y = max(kMenuEdge, size.height - kMenuEdge - child.height)
                     }
                     self.subAt = at
                 }
@@ -712,6 +753,7 @@ final class StarlingFilesState: State<StatefulWidget> {
             subToken = 0
             subRows = []
             subHover = nil
+            invalidateMenu()
         }
         // Closed even when nothing was invoked -- the session is holding
         // other people's COM objects open, and the menu being dismissed
@@ -722,29 +764,32 @@ final class StarlingFilesState: State<StatefulWidget> {
     // MARK: - Menu drawing
 
     private func contextMenu() -> Widget {
-        let rows = menuRows
-        guard let at = menuOrigin(rows) else { return SizedBox(width: 0, height: 0) }
+        let menu = mainMenu
+        guard let at = menuOrigin(menu) else { return SizedBox(width: 0, height: 0) }
         return Positioned(left: at.x, top: at.y) {
-            menuPanel(rows, hover: menuHover, pill: hasPillRow)
+            menuPanel(menu, hover: menuHover)
         }
     }
 
     private func submenuPanel() -> Widget {
         guard let at = subAt else { return SizedBox(width: 0, height: 0) }
-        let rows = shellList(subRows)
+        let menu = subMenu
+        let rows = menu.rows
         // Nothing to show yet: the handler is still filling it in. Drawing an
         // empty panel for those few hundred milliseconds is worse than
         // drawing none -- it reads as "this submenu is empty".
         guard !rows.isEmpty else { return SizedBox(width: 0, height: 0) }
         return Positioned(left: at.x, top: at.y) {
-            menuPanel(rows, hover: subHover, pill: false)
+            menuPanel(menu, hover: subHover)
         }
     }
 
     /// The panel itself: Windows 11's rounded, bordered, near-opaque slab.
-    private func menuPanel(_ rows: [MenuRow], hover: Int?, pill: Bool) -> Widget {
-        let width = panelWidth(rows)
-        return SizedBox(width: width, height: panelHeight(rows, pill: pill)) {
+    private func menuPanel(_ menu: MenuCache, hover: Int?) -> Widget {
+        let width = menu.width
+        let rows = menu.rows
+        let pill = menu.pill
+        return SizedBox(width: width, height: menu.height) {
             DecoratedBox(
                 decoration: BoxDecoration(
                     color: Win11.menuBg,
