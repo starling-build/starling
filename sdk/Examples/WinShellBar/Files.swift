@@ -10,12 +10,12 @@
 // bar, the breadcrumb-and-search row, the four Details columns, the status
 // bar. Someone who knows Explorer should not have to learn anything.
 //
-// The file operations — cut, copy, paste, rename, delete — run through the
-// shell's own IFileOperation (flwin32_fileops.c), which is what brings the
-// recycle bin, the conflict dialogs and Explorer's undo stack along. Rename
-// is inline: the row's name becomes a text field, exactly Explorer's F2.
-// "New" remains drawn disabled — a button that silently does nothing is
-// worse than one that says it cannot — until a New-submenu story exists.
+// The file operations — new folder, cut, copy, paste, rename, delete — run
+// through the shell's own IFileOperation (flwin32_fileops.c), which is what
+// brings the recycle bin, the conflict dialogs and Explorer's undo stack
+// along. Rename is inline — the row's name becomes a text field, exactly
+// Explorer's F2 — and New creates the folder already in that field, exactly
+// Explorer's gesture.
 
 #if os(Windows)
 import CupertinoIcons
@@ -420,7 +420,13 @@ final class StarlingFilesState: State<StatefulWidget> {
         SizedBox(height: kFilesCommandBar) {
             Padding(padding: EdgeInsets(left: 10, top: 0, right: 10, bottom: 0)) {
                 Row(crossAxisAlignment: .center, spacing: 2) {
-                    barButton(CupertinoIcons.add, "New", enabled: false) {}
+                    // Explorer's New, as a plain click: a folder, born into
+                    // its rename field. (Explorer's is a dropdown with the
+                    // ShellNew templates; the folder is the one everybody
+                    // means.)
+                    barButton(CupertinoIcons.add, "New", enabled: true) {
+                        self.bloc.add(.newFolder)
+                    }
                     barSeparator()
                     // Explorer's own enablement: cut/copy/rename/delete need
                     // a selection, paste needs files on the clipboard. All

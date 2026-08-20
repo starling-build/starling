@@ -103,6 +103,10 @@ final class FilesBloc: @unchecked Sendable {
         case cancelRename
         case deleteEntry(Win32FileEntry)
         case showProperties(Win32FileEntry)
+        /// Explorer's New: create "New folder" (uniqued) and drop straight
+        /// into an inline rename on it.
+        case newFolder
+        case compress(Win32FileEntry)
 
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
         case placesLoaded(places: [Win32Place], drives: [Win32Place])
@@ -303,6 +307,28 @@ final class FilesBloc: @unchecked Sendable {
 
         case .showProperties(let entry):
             Win32FileOps.showProperties(entry.path, owner: Self.ownerWindow)
+
+        case .newFolder:
+            let directory = state.directory
+            Win32FileOps.newFolder(in: directory, owner: Self.ownerWindow) {
+                [weak self] path in
+                guard let self else { return }
+                // Explorer's gesture in full: the folder appears already in
+                // its rename field. `renaming` survives the refresh because
+                // the listing arrives keyed by path.
+                if let path {
+                    self.state.selected = path
+                    self.state.renaming = path
+                }
+                self.add(.refresh)
+            }
+
+        case .compress(let entry):
+            Win32FileOps.compressToZip(entry.path) { [weak self] made in
+                guard let self else { return }
+                if let made { self.state.selected = made }
+                self.add(.refresh)
+            }
 
         case .listed(let directory, let entries, let error):
             state.directory = directory

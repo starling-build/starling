@@ -356,6 +356,55 @@ int32_t flwin32_fileop_clip(const char* path, int32_t is_cut) {
     return ok;
 }
 
+/* Create one folder. The NAME is the caller's problem on purpose:
+ * IFileOperation::NewItem does not auto-unique a colliding name the way
+ * Explorer's New does, and the caller needs to know the final name anyway
+ * -- Explorer follows a create immediately with an inline rename, and a
+ * rename needs a path. So the Swift side picks "New folder (2)" itself and
+ * hands the settled name down. */
+typedef struct {
+    wchar_t* dir;
+    wchar_t* name;
+    HWND owner;
+} FoNewFolderArgs;
+
+static int fo_new_folder_body(void* arg) {
+    FoNewFolderArgs* a = (FoNewFolderArgs*)arg;
+    int ok = 0;
+    IShellItem* parent = NULL;
+    IFileOperation* op = NULL;
+    if (SUCCEEDED(SHCreateItemFromParsingName(a->dir, NULL, &IID_IShellItem,
+                                              (void**)&parent))
+        && SUCCEEDED(fo_create(a->owner, &op))) {
+        if (SUCCEEDED(op->lpVtbl->NewItem(op, parent, FILE_ATTRIBUTE_DIRECTORY,
+                                          a->name, NULL, NULL))
+            && SUCCEEDED(op->lpVtbl->PerformOperations(op))) {
+            ok = 1;
+        }
+    }
+    if (op != NULL) op->lpVtbl->Release(op);
+    if (parent != NULL) parent->lpVtbl->Release(parent);
+    return ok;
+}
+
+int32_t flwin32_fileop_new_folder(const char* dir, const char* name,
+                                  uint64_t owner) {
+    if (dir == NULL || dir[0] == 0 || name == NULL || name[0] == 0) return 0;
+    FoNewFolderArgs args;
+    args.dir = fo_utf8_to_wide(dir);
+    args.name = fo_utf8_to_wide(name);
+    args.owner = (HWND)(ULONG_PTR)owner;
+    if (args.dir == NULL || args.name == NULL) {
+        free(args.dir);
+        free(args.name);
+        return 0;
+    }
+    int ok = fo_run_sta(fo_new_folder_body, &args);
+    free(args.dir);
+    free(args.name);
+    return ok;
+}
+
 /* The item's property sheet, by the shell's front door -- the same
  * SHObjectProperties the context menu uses for its properties verb, exposed
  * so Alt+Enter can reach it without a menu session. */

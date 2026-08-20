@@ -520,6 +520,15 @@ final class ShellMenuModel {
             // the row form is the BACKGROUND menu's (paste into the folder
             // you are standing in).
             if name == "paste" && entry != nil { continue }
+            // Compress sits where Windows puts its own -- between the pins
+            // and Copy as path. Ours because Windows does not offer its
+            // modern Compress handler to menu hosts; tar.exe writes the
+            // same zip (see Win32FileOps.compressToZip).
+            if name == "copyaspath", let entry {
+                rows.append(MenuRow(title: "Compress to ZIP file",
+                                    glyph: CupertinoIcons.archivebox,
+                                    action: { filesBloc.add(.compress(entry)) }))
+            }
             if let verb = verbs.first(where: { !$0.isSeparator && $0.verb == name }) {
                 rows.append(shellRow(verb))
             }

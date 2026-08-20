@@ -193,6 +193,12 @@ int32_t flwin32_fileop_delete(const char* path, uint64_t owner);
 // survives the caller.
 int32_t flwin32_fileop_clip(const char* path, int32_t is_cut);
 
+// Create one folder named `name` inside `dir`. The name must not collide:
+// NewItem does not auto-unique, and the caller wants the settled path anyway
+// (Explorer follows a create with an inline rename).
+int32_t flwin32_fileop_new_folder(const char* dir, const char* name,
+                                  uint64_t owner);
+
 // The item's property sheet (SHObjectProperties), for Alt+Enter.
 int32_t flwin32_fileop_properties(const char* path, uint64_t owner);
 

@@ -280,6 +280,67 @@ public enum Win32FileOps {
         run(nil) { flwin32_fileop_properties(path, owner) != 0 }
     }
 
+    /// Create a folder in `directory`, Explorer-named: "New folder", then
+    /// "New folder (2)" and so on. Calls back with the created PATH -- the
+    /// caller needs it, because the Explorer gesture is create-then-rename
+    /// and a rename starts from a path.
+    public static func newFolder(in directory: String, owner: UInt64,
+                                 done: @escaping (String?) -> Void) {
+        queue.async {
+            var name = "New folder"
+            var counter = 2
+            while FileManager.default.fileExists(
+                    atPath: Win32Files.join(directory, name)) {
+                name = "New folder (\(counter))"
+                counter += 1
+            }
+            let path = Win32Files.join(directory, name)
+            let ok = flwin32_fileop_new_folder(directory, name, owner) != 0
+            DispatchQueue.main.async { done(ok ? path : nil) }
+        }
+    }
+
+    /// Compress one item to a .zip beside it, named the way Explorer names
+    /// them: the item's stem plus .zip, uniqued when taken.
+    ///
+    /// Windows offers no API to its own "Compress to" handler -- it is not
+    /// among the verbs a menu host is given -- but it has shipped bsdtar as
+    /// System32\tar.exe since 2018, and `-a` picks the zip format from the
+    /// output name. Shelling out is the honest version of this: the
+    /// alternative is reimplementing an archiver.
+    public static func compressToZip(_ path: String,
+                                     done: ((String?) -> Void)? = nil) {
+        queue.async {
+            let source = URL(fileURLWithPath: path)
+            let parent = source.deletingLastPathComponent().path
+            let stem = source.deletingPathExtension().lastPathComponent
+            var zipName = stem + ".zip"
+            var counter = 2
+            while FileManager.default.fileExists(
+                    atPath: Win32Files.join(parent, zipName)) {
+                zipName = "\(stem) (\(counter)).zip"
+                counter += 1
+            }
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath:
+                "C:\\Windows\\System32\\tar.exe")
+            // -C first: the archive holds the item by NAME, not by its
+            // absolute path -- an unzip should produce "sub/", not
+            // "Users/starling/.../sub/".
+            process.arguments = ["-a", "-c", "-f", zipName,
+                                 source.lastPathComponent]
+            process.currentDirectoryURL = URL(fileURLWithPath: parent)
+            let ok = (try? process.run()) != nil
+            if ok { process.waitUntilExit() }
+            let made = ok && process.terminationStatus == 0
+            if let done {
+                DispatchQueue.main.async {
+                    done(made ? Win32Files.join(parent, zipName) : nil)
+                }
+            }
+        }
+    }
+
     private static func run(_ done: ((Bool) -> Void)?,
                             _ work: @escaping () -> Bool) {
         queue.async {
