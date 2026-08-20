@@ -152,6 +152,63 @@ if let index = CommandLine.arguments.firstIndex(of: "--thumb-probe") {
     exit(0)
 }
 
+// `--menu-probe <path>` prints the shell's context-menu verbs for a path and
+// exits; `--background` asks for the folder's menu instead of the item's, and
+// `--extended` is Shift+right-click.
+//
+// The oracle for the file explorer's context menu, and the same bargain
+// `--print-status` makes for the control centre: the menu HOSTS other
+// people's verbs, so what is in it is a property of this machine's installed
+// handlers and not of our code. Reading it from outside the running shell is
+// the only way to know whether a row is missing because we dropped it or
+// because the shell never offered it. It also times the query, which is the
+// number the whole asynchronous design exists to hide.
+if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
+    let path = index + 1 < CommandLine.arguments.count
+        ? CommandLine.arguments[index + 1] : ""
+    guard !path.isEmpty else {
+        print("[menu-probe] expected a path")
+        exit(2)
+    }
+    let background = CommandLine.arguments.contains("--background")
+    let extended = CommandLine.arguments.contains("--extended")
+    guard let session = Win32ShellMenu(path: path, background: background,
+                                       extended: extended, owner: 0) else {
+        print("[menu-probe] could not start a session for \(path)")
+        exit(1)
+    }
+    // The blocking form on purpose: this process has no frames to draw, and
+    // the whole point is to see how long the shell takes.
+    let started = Date()
+    let rows = session.itemsSync()
+    let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    print("[menu-probe] \(path)\(background ? " (background)" : "") "
+          + "-> \(rows.count) rows in \(elapsed)ms")
+    for row in rows {
+        if row.isSeparator {
+            print("  --------")
+            continue
+        }
+        let flags = [row.isEnabled ? "" : " disabled",
+                     row.isDefault ? " default" : "",
+                     row.isSubmenu ? " submenu" : ""].joined()
+        print("  id=\(row.id) verb=\(row.verb.isEmpty ? "-" : row.verb) "
+              + "\"\(row.title)\"\(flags)")
+        if row.isSubmenu {
+            let started = Date()
+            let children = session.expandSync(row.submenu)
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            print("      (\(children.count) children in \(ms)ms)")
+            for child in children.prefix(8) where !child.isSeparator {
+                print("      id=\(child.id) verb=\(child.verb.isEmpty ? "-" : child.verb) "
+                      + "\"\(child.title)\"")
+            }
+        }
+    }
+    session.close()
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-modes") {
     for mode in Win32SystemInfo.displayModes() {
         print("\(mode.width)x\(mode.height)@\(mode.refresh)")
@@ -269,9 +326,13 @@ print("[WinShell] monitors: \(Win32Display.monitors())")
 // takesFocus stays at its default of false for both: clicking a dock icon
 // must not take the keyboard off the window the click is about to raise.
 if wantsFiles {
+    // One pair of numbers for the window and for the tree, the same bargain
+    // ShellScreen makes for a panel: the menu has to know where the window's
+    // bottom edge is to flip itself up, and a tree laying out against a size
+    // the window does not have is how that goes silently wrong.
     runStarlingApp(title: "Starling Files",
-                   width: Int(1040 * panelScale),
-                   height: Int(680 * panelScale)) {
+                   width: Int(kFilesWidth * panelScale),
+                   height: Int(kFilesHeight * panelScale)) {
         StarlingFiles()
     }
 } else if wantsSettings {

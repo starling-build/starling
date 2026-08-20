@@ -103,6 +103,19 @@ public final class Win32Host {
     /// would be in the wrong coordinate space and clipped to it.
     public var windowHandle: UInt64 { flwin32_host_window(host) }
 
+    /// The client area in LOGICAL POINTS -- the units the widget tree lays
+    /// out in -- or nil if the window will not say.
+    ///
+    /// For a tree that has to place something against its own window: this
+    /// one is resizable, and a menu that runs off the bottom of it is clipped
+    /// rather than flipped, because a window is a hard clip.
+    public var clientSize: (width: Double, height: Double)? {
+        var width: Int32 = 0
+        var height: Int32 = 0
+        guard flwin32_host_client_size(host, &width, &height) != 0 else { return nil }
+        return (Double(width), Double(height))
+    }
+
     /// Called when any Starling surface broadcasts a toggle. Runs on the UI
     /// thread, inside the message loop.
     public func onToggle(_ handler: @escaping () -> Void) {

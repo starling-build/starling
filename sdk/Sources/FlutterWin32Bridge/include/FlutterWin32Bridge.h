@@ -161,6 +161,70 @@ void flwin32_shell_open_settings(void);
 // Opens Starling's file explorer, or raises the one already open.
 void flwin32_shell_open_files(void);
 
+// -- the shell's own context menu, asked for off the drawing thread ---------
+//
+// What Explorer puts in a right-click: the static verbs from the association
+// database plus every registered IContextMenu handler -- OneDrive, Defender,
+// an archiver, "Copy as path", "Properties". Measured, assembling that set
+// costs Explorer 370ms and it draws NOTHING until the slowest handler has
+// answered. So a session here is a thread: open() returns at once, items()
+// blocks whoever asks until the shell is done, and the caller draws its own
+// verbs meanwhile. See flwin32_shellmenu.c.
+//
+// Every call below must come from ONE thread at a time -- they are a
+// ping-pong with the session's thread, not re-entrant.
+
+// One row. `id` is what invoke() takes, or -1 for a separator or a submenu;
+// `submenu` is a token for expand(), or 0. `verb` is the canonical name
+// ("open", "copy", "properties") and is empty for the many handlers that do
+// not publish one -- it exists so a caller can tell that the shell's Open is
+// the Open it has already drawn itself.
+#define FLWIN32_SHELLMENU_MAX 128
+
+typedef struct FlWin32ShellVerb {
+    int32_t id;
+    int32_t submenu;
+    int32_t is_separator;
+    int32_t is_submenu;
+    int32_t is_enabled;
+    int32_t is_default;
+    char label[128];
+    char verb[64];
+} FlWin32ShellVerb;
+
+typedef struct FlWin32ShellMenu FlWin32ShellMenu;
+
+// Starts a session for one path. `background` asks for the FOLDER's menu --
+// what a right-click on empty space gets, and where "New" and "Paste" live --
+// rather than the item's. `extended` is Shift+right-click (CMF_EXTENDEDVERBS).
+// `owner` is the window any dialog a verb opens will be parented to. Returns
+// immediately; nothing is queried yet.
+FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
+                                         int32_t background,
+                                         int32_t extended,
+                                         uint64_t owner);
+
+// The top-level rows. BLOCKS until the shell has answered -- background
+// thread only, which is the entire point of the session. -1 if the menu could
+// not be built at all.
+int32_t flwin32_shellmenu_items(FlWin32ShellMenu* menu, FlWin32ShellVerb* out,
+                                int32_t max);
+
+// The rows inside a submenu, by the token from `submenu`. A submenu arrives
+// EMPTY and is populated by the WM_INITMENUPOPUP its handler is waiting for,
+// so this is not a read -- it is work, and it BLOCKS.
+int32_t flwin32_shellmenu_expand(FlWin32ShellMenu* menu, int32_t token,
+                                 FlWin32ShellVerb* out, int32_t max);
+
+// Runs a verb, on the session's thread and in its apartment. BLOCKS for as
+// long as the verb does, which for one that opens a dialog is until the
+// dialog is answered.
+int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* menu, int32_t id);
+
+// Ends the session and releases the handlers. Safe while the query is still
+// running; blocks until the thread is gone.
+void flwin32_shellmenu_close(FlWin32ShellMenu* menu);
+
 // ── system information, for the Settings app ────────────────────────────────
 //
 // Reads are cheap but not free (registry, WMI-free adapter enumeration); the
@@ -250,6 +314,12 @@ int32_t flwin32_host_is_visible(FlWin32Host* host);
 // date before it is shown.
 // The host's top-level window, for calls that need an HWND (thumbnails).
 uint64_t flwin32_host_window(FlWin32Host* host);
+
+// The client area in LOGICAL POINTS, for a tree that has to lay something out
+// against its own window rather than against the screen. 0 if it cannot be
+// read.
+int32_t flwin32_host_client_size(FlWin32Host* host, int32_t* width,
+                                 int32_t* height);
 
 void flwin32_host_request_redraw(FlWin32Host* host);
 

@@ -37,7 +37,32 @@ let kFilesCommandBar = 44.0
 let kFilesNavBar = 44.0
 let kFilesHeaderRow = 26.0
 let kFilesToolbar = kFilesTabStrip + kFilesCommandBar + kFilesNavBar + kFilesHeaderRow
-let kFilesMenuW = 180.0
+/// The window the explorer opens at, in logical points -- named because the
+/// tree needs it too: a menu that has to flip up when it would run off the
+/// bottom has to know where the bottom is. The live size is read from the
+/// window (it is resizable); this is the fallback and the size main.swift
+/// creates it at.
+let kFilesWidth = 1040.0
+let kFilesHeight = 680.0
+
+/// Windows 11's context menu, at its own metrics. A rounded panel with a row
+/// of icon verbs across the top, 32pt rows under it, and a highlight inset
+/// from the panel's edge rather than filling it.
+let kMenuRadius = 8.0
+let kMenuPanelPad = 4.0
+let kMenuRow = 32.0
+let kMenuSepH = 7.0
+let kMenuPillRow = 44.0
+let kMenuIconX = 14.0
+let kMenuLabelX = 44.0
+let kMenuGlyph = 15.0
+let kMenuMinW = 230.0
+let kMenuMaxW = 400.0
+/// Roughly what a character of the 13pt label costs, for sizing the panel to
+/// its longest row. An estimate: there is no text metric to ask here.
+let kMenuCharW = 6.6
+/// How close to the window's edge a panel may sit.
+let kMenuEdge = 6.0
 let kFilesStatusBar = 34.0
 
 /// The Details columns, at Explorer's proportions. Name takes what is left.
@@ -61,6 +86,12 @@ enum Win11 {
     static let selection = Color(0x332F9CF4)
     static let hoverFill = Color(0x14FFFFFF)
     static let fieldFill = Color(0xFF2D2D2D)
+    /// The context menu, sampled from Explorer's own: a near-opaque slab with
+    /// a lighter hairline around it, not the app's window colours.
+    static let menuBg = Color(0xFA2C2C2C)
+    static let menuBorder = Color(0xFF454545)
+    static let menuHover = Color(0xFF383838)
+    static let menuSep = Color(0xFF3D3D3D)
 }
 
 final class StarlingFiles: StatefulWidget {
@@ -92,8 +123,31 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     /// Where the context menu is, and what it is about. View state: it is
     /// this pointer's business and no other surface can see it.
+    ///
+    /// `menuAt` is the ANCHOR -- the point that was clicked, clamped
+    /// sideways so the panel fits -- and `menuFlipped` says which edge of the
+    /// panel is pinned to it. The corner the panel actually starts at is
+    /// `menuOrigin`, computed from the two, because a flipped panel's top
+    /// moves every time the shell hands over another verb.
     private var menuAt: (x: Double, y: Double)?
+    private var menuFlipped = false
     private var menuEntry: Win32FileEntry?
+    private var menuHover: Int?
+    private var pillHover: Int?
+
+    /// The shell's half of the menu: the session that is assembling the
+    /// verbs, and what it has come back with. `menuGeneration` is bumped by
+    /// every right-click, so an answer for a menu that has already been
+    /// dismissed is dropped rather than drawn into the next one.
+    private var shell: Win32ShellMenu?
+    private var shellRows: [Win32ShellVerb] = []
+    private var menuGeneration = 0
+
+    /// The open submenu, if any.
+    private var subToken: Int32 = 0
+    private var subRows: [Win32ShellVerb] = []
+    private var subAt: (x: Double, y: Double)?
+    private var subHover: Int?
 
     override func initState() {
         super.initState()
@@ -120,12 +174,20 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // reason: the press is what arrives reliably, and every
                     // desktop opens its menus on it anyway.
                     if self.menuAt != nil {
-                        self.handleMenu(e.position.dx, e.position.dy)
+                        self.handleMenu(e.position.dx, e.position.dy,
+                                        buttons: e.buttons)
                         return
                     }
                     if e.buttons == 2 {
                         self.openMenu(at: e.position.dx, e.position.dy)
                     }
+                },
+                // The highlight, and what opens a submenu — Windows opens
+                // them on hover and so does this. Only while a menu is down:
+                // this fires for every pointer move over the whole window.
+                onPointerHover: { e in
+                    guard self.menuAt != nil else { return }
+                    self.hoverMenu(e.position.dx, e.position.dy)
                 },
                 child: ColoredBox(color: Win11.windowBg) {
                 Stack(alignment: Alignment.topLeft) {
@@ -151,17 +213,105 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // Always present, empty when closed: a Stack that GAINS a
                     // child does not reliably composite it.
                     menuAt != nil ? contextMenu() : SizedBox(width: 0, height: 0)
+                    subAt != nil ? submenuPanel() : SizedBox(width: 0, height: 0)
                 }
             }))
     }
 
     // MARK: - Context menu
     //
-    // Drawn as a Positioned child of a Stack, and hit-tested ARITHMETICALLY
-    // from the root Listener rather than with GestureDetectors — a
+    // WINDOWS 11'S MENU, drawn by us and filled in by the shell.
+    //
+    // The shape is Explorer's: a rounded panel, a row of icon verbs across
+    // the top, 32pt rows under it, a highlight inset from the panel's edge
+    // rather than filling it, and a chevron on anything that opens a submenu.
+    // Someone who knows the Windows menu should not have to learn this one.
+    //
+    // What is NOT Explorer's is when it appears. Every verb below the first
+    // three comes from the SHELL -- the static verbs registered against the
+    // file type, plus every installed IContextMenu handler -- and assembling
+    // that set is what costs Explorer 370ms before it draws anything at all
+    // (1134ms for the first menu after a window opens, as OneDrive's and
+    // Defender's handler DLLs load). Measured here on one file: 756ms cold,
+    // 595ms warm, for 18 rows.
+    //
+    // So the panel draws immediately with our own verbs and the shell's land
+    // underneath when they arrive. Two consequences are deliberate:
+    //
+    //  - THE SPACE IS RESERVED BEFORE THEY DO. The origin is clamped against
+    //    `reservedHeight` rather than against the three rows we can draw at
+    //    once, so a menu opened near the bottom of the window is already
+    //    sitting where the finished menu fits and does not jump out from
+    //    under the pointer when the handlers answer.
+    //  - THE ICON ROW COMES UP DISABLED. Cut, Copy, Share and Delete are the
+    //    shell's verbs too; they are drawn greyed from the first frame and
+    //    light up in place, so nothing below them moves.
+    //
+    // Rename is missing from that row on purpose. It is not a shell verb --
+    // Explorer's own Rename comes from the folder VIEW, which is what edits
+    // the name in the list -- and the shell offers us nothing to invoke. It
+    // joins the row when the listing can rename in place.
+    //
+    // Hit-tested ARITHMETICALLY from the root Listener rather than with
+    // GestureDetectors, as everything else in this surface is: a
     // GestureDetector inside a `Positioned` does not fire in this framework,
     // and a menu whose rows quietly do nothing is worse than no menu. One
-    // geometry, used by both, so they cannot drift apart.
+    // geometry function, used by the drawing and by the hit test, so they
+    // cannot drift apart.
+
+    /// One drawn row.
+    private struct MenuRow {
+        var title = ""
+        var glyph: IconData? = nil
+        var isSeparator = false
+        var isSubmenu = false
+        var isEnabled = true
+        /// What a double-click would do. Windows draws it in semibold.
+        var isDefault = false
+        /// The shell's command id, or -1 for one of ours.
+        var shellId: Int32 = -1
+        /// The token `expand` takes, for a submenu.
+        var token: Int32 = 0
+        var action: (() -> Void)? = nil
+    }
+
+    /// The verbs Windows lifts out of the list and into the icon row at the
+    /// top, in its order. Matched on the CANONICAL verb rather than on the
+    /// label: "Copy" is `copy` in every language, and `windows.modernshare`
+    /// is the Share whose label is a single word in none of them.
+    private static let pillVerbs: [(verb: String, glyph: IconData)] = [
+        ("cut", CupertinoIcons.scissors),
+        ("copy", CupertinoIcons.doc_on_doc),
+        ("windows.modernshare", CupertinoIcons.share),
+        ("delete", CupertinoIcons.trash),
+    ]
+
+    /// Shell verbs the list does not repeat: the four above, and the two we
+    /// draw ourselves at the top.
+    private var hiddenVerbs: Set<String> {
+        Set(Self.pillVerbs.map(\.verb)).union(["open", "openas"])
+    }
+
+    /// A glyph for the handful of shell verbs that have an obvious one. The
+    /// rest draw none -- the shell hands its icons over as HBITMAPs belonging
+    /// to a menu we are not running, and inventing a picture for "Restore
+    /// previous versions" is worse than leaving the column empty.
+    private static let verbGlyphs: [String: IconData] = [
+        "properties": CupertinoIcons.info,
+        "copyaspath": CupertinoIcons.doc_on_clipboard,
+        "link": CupertinoIcons.link,
+        "print": CupertinoIcons.printer,
+        "runas": CupertinoIcons.lock,
+        "previousversions": CupertinoIcons.clock,
+        "pintostartscreen": CupertinoIcons.pin,
+        "pintohomefile": CupertinoIcons.star,
+        "edit": CupertinoIcons.pencil,
+    ]
+
+    /// Whether the menu carries the icon row. An item's does; the folder
+    /// background's does not, because none of those four verbs is about a
+    /// folder you are standing in.
+    private var hasPillRow: Bool { menuEntry != nil }
 
     /// The row under a point, accounting for how far the list is scrolled.
     private func rowAt(_ x: Double, _ y: Double) -> Win32FileEntry? {
@@ -171,63 +321,542 @@ final class StarlingFilesState: State<StatefulWidget> {
         return bloc.state.visible[index]
     }
 
+    /// Right-click. `entry` nil means the empty space below the listing,
+    /// which gets the FOLDER's menu -- New and the handlers that install
+    /// themselves on a directory background ("Open Git Bash here").
     private func openMenu(at x: Double, _ y: Double) {
-        guard let entry = rowAt(x, y) else { return }
+        guard x >= kFilesSidebar, y >= kFilesToolbar else { return }
+        let entry = rowAt(x, y)
+        let path = entry?.path ?? bloc.state.directory
+        menuGeneration &+= 1
+        let generation = menuGeneration
+
+        let session = Win32ShellMenu(path: path, background: entry == nil,
+                                     owner: Win32WindowedHost.host?.windowHandle ?? 0)
+        session?.items { [weak self] rows in
+            guard let self, self.menuGeneration == generation else { return }
+            // Nothing to reposition: the panel is anchored to the corner the
+            // pointer is at, and menuOrigin re-derives the other corner from
+            // whatever the menu now weighs.
+            self.setState { self.shellRows = rows }
+        }
+
+        // Which way it opens, decided HERE and not revisited. Windows flips a
+        // menu that will not fit below the pointer so that its BOTTOM edge
+        // sits at the pointer instead -- checked against Explorer on this
+        // machine rather than remembered. The reservation is what makes that
+        // decision possible before the verbs exist: the three rows we can
+        // draw immediately would fit almost anywhere, so choosing the
+        // direction from them would open downward on every click and then
+        // discover it had nowhere to grow.
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: kFilesWidth, height: kFilesHeight)
+        let below = size.height - kMenuEdge - y
+        let above = y - kMenuEdge
+        let flip = below < reservedHeight && above > below
+        var anchorX = x
+        let width = panelWidth(menuRowsFor(entry, shell: []))
+        if anchorX + width > size.width - kMenuEdge {
+            anchorX = max(kMenuEdge, size.width - kMenuEdge - width)
+        }
+
         setState {
-            bloc.add(.select(entry.path))
+            shell?.close()
+            shell = session
+            shellRows = []
+            subToken = 0
+            subRows = []
+            subAt = nil
+            menuHover = nil
+            subHover = nil
             menuEntry = entry
-            menuAt = (x, y)
+            menuAt = (anchorX, y)
+            menuFlipped = flip
         }
     }
 
-    private var menuRowsForEntry: [(String, () -> Void)] {
-        guard let entry = menuEntry else { return [] }
-        var rows: [(String, () -> Void)] = [
-            ("Open", { self.bloc.add(.activate(entry)) })
-        ]
-        if !entry.isDirectory {
-            rows.append(("Open with…", { self.bloc.add(.openWith) }))
+    /// The panel's top-left corner, right now.
+    ///
+    /// Computed rather than stored, and that is the whole trick: a flipped
+    /// panel is pinned by its BOTTOM edge, so its top moves upward every time
+    /// the shell hands over more verbs while the corner under the pointer
+    /// stays exactly where the user put it. An unflipped panel is pinned by
+    /// its top and grows downward, which is the same statement mirrored.
+    ///
+    /// The clamps at the end are the case neither direction can save: a menu
+    /// taller than the whole window. It then covers most of it, which is
+    /// honest -- the real answer is a popup WINDOW, the way Windows' menu is
+    /// one, so that it is not clipped by the window it was opened from. That
+    /// is a second surface, and a bigger change than this.
+    private func menuOrigin(_ rows: [MenuRow]) -> (x: Double, y: Double)? {
+        guard let anchor = menuAt else { return nil }
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: kFilesWidth, height: kFilesHeight)
+        let height = panelHeight(rows, pill: hasPillRow)
+        var y = menuFlipped ? anchor.y - height : anchor.y
+        if y + height > size.height - kMenuEdge {
+            y = size.height - kMenuEdge - height
         }
-        rows.append(("Show in Explorer", {
-            let path = entry.isDirectory ? entry.path : self.bloc.state.directory
-            Task.detached { Win32Files.openInExplorer(path) }
-        }))
+        if y < kMenuEdge { y = kMenuEdge }
+        return (anchor.x, y)
+    }
+
+    /// What the finished menu is expected to come to.
+    ///
+    /// MEASURED, not guessed: on this machine a file's menu comes to 542pt
+    /// (the icon row, our three verbs, twelve shell rows and four rules) and
+    /// a folder's to 613pt. The first cut reserved 439 and was wrong about
+    /// every menu -- which showed up as the panel sitting 38pt above the
+    /// click, because the clamp then had to move what the reservation had
+    /// not made room for.
+    ///
+    /// It decides ONE thing: whether the menu opens downward from the pointer
+    /// or upward from it. Over-reserving costs a menu that flips up when it
+    /// would just about have fitted downward; under-reserving costs a menu
+    /// that opens downward and is then shoved back up the moment the verbs
+    /// arrive, which is the jump this whole arrangement exists to avoid. So
+    /// it errs high.
+    private var reservedHeight: Double {
+        kMenuPanelPad * 2 + kMenuPillRow + kMenuSepH * 6 + kMenuRow * 14
+    }
+
+    /// Our verbs, then the shell's. Our three are the ones that are live from
+    /// the first frame and they never move; everything after the separator
+    /// arrives later.
+    private var menuRows: [MenuRow] { menuRowsFor(menuEntry, shell: shellRows) }
+
+    /// Taken as parameters rather than read off the state, so the opening
+    /// click can size a panel that does not exist yet -- it needs the width
+    /// to clamp the anchor sideways, and at that moment the shell has
+    /// answered nothing.
+    private func menuRowsFor(_ menuEntry: Win32FileEntry?,
+                             shell shellVerbs: [Win32ShellVerb]) -> [MenuRow] {
+        var rows: [MenuRow] = []
+        if let entry = menuEntry {
+            rows.append(MenuRow(title: "Open",
+                                glyph: entry.isDirectory ? CupertinoIcons.folder_open
+                                                         : CupertinoIcons.doc_text,
+                                isDefault: true,
+                                action: { self.bloc.add(.activate(entry)) }))
+            if !entry.isDirectory {
+                rows.append(MenuRow(title: "Open with…",
+                                    glyph: CupertinoIcons.square_grid_2x2,
+                                    action: { self.bloc.add(.openWith) }))
+            }
+            rows.append(MenuRow(title: "Show in Explorer",
+                                glyph: CupertinoIcons.arrow_up_right,
+                                action: {
+                let path = entry.isDirectory ? entry.path : self.bloc.state.directory
+                Task.detached { Win32Files.openInExplorer(path) }
+            }))
+        } else {
+            rows.append(MenuRow(title: "Refresh", glyph: CupertinoIcons.arrow_2_circlepath,
+                                action: { self.bloc.add(.open(self.bloc.state.directory)) }))
+            rows.append(MenuRow(title: "Show in Explorer",
+                                glyph: CupertinoIcons.arrow_up_right,
+                                action: {
+                let path = self.bloc.state.directory
+                Task.detached { Win32Files.openInExplorer(path) }
+            }))
+        }
+
+        let shell = shellList(shellVerbs)
+        if !shell.isEmpty {
+            rows.append(MenuRow(isSeparator: true))
+            rows.append(contentsOf: shell)
+        }
         return rows
     }
 
-    private func handleMenu(_ x: Double, _ y: Double) {
-        guard let at = menuAt else { return }
-        let rows = menuRowsForEntry
-        let height = Double(rows.count) * kMenuRowH + 12
-        let inside = x >= at.x && x < at.x + kFilesMenuW
-            && y >= at.y && y < at.y + height
-        let index = Int((y - at.y - 6) / kMenuRowH)
-        setState {
-            menuAt = nil
-            menuEntry = nil
+    /// The shell's rows, minus the ones drawn elsewhere, with the separators
+    /// tidied afterwards.
+    ///
+    /// The tidy pass is not cosmetic: the shell separates its handlers into
+    /// groups, and lifting Cut, Copy, Delete and Share out of them empties
+    /// two of the groups completely. Without this the menu comes out with
+    /// rules stacked against each other and a rule at the end.
+    private func shellList(_ verbs: [Win32ShellVerb]) -> [MenuRow] {
+        var rows: [MenuRow] = []
+        let hidden = hiddenVerbs
+        for verb in verbs {
+            if verb.isSeparator {
+                if rows.isEmpty || rows[rows.count - 1].isSeparator { continue }
+                rows.append(MenuRow(isSeparator: true))
+                continue
+            }
+            if !verb.verb.isEmpty && hidden.contains(verb.verb) { continue }
+            rows.append(MenuRow(title: verb.title,
+                                glyph: Self.verbGlyphs[verb.verb],
+                                isSubmenu: verb.isSubmenu,
+                                isEnabled: verb.isEnabled,
+                                isDefault: false,
+                                shellId: verb.id,
+                                token: verb.submenu))
         }
-        if inside, index >= 0, index < rows.count { rows[index].1() }
+        while let last = rows.last, last.isSeparator { rows.removeLast() }
+        return rows
     }
 
+    // MARK: - Menu geometry
+    //
+    // One set of numbers for the drawing and the hit test. Every rectangle in
+    // this menu comes out of these three functions and nothing measures
+    // anything: the press arrives at the root Listener, which has no idea
+    // what a row is.
+
+    private func panelWidth(_ rows: [MenuRow]) -> Double {
+        // Estimated from the label lengths rather than measured -- there is no
+        // text metric to ask here, and a panel sized to a fixed width either
+        // clips "Restore previous versions" or is comically wide for "Open".
+        let longest = rows.map(\.title.count).max() ?? 0
+        let wanted = kMenuLabelX + Double(longest) * kMenuCharW + 44
+        return min(kMenuMaxW, max(kMenuMinW, wanted))
+    }
+
+    /// `pill` is whether the panel carries the icon row: the menu proper
+    /// does, a submenu never does. A parameter rather than a look at
+    /// `menuEntry`, because both panels are laid out by these same functions
+    /// and a submenu offset by a row it does not have puts every one of its
+    /// rectangles 51pt below what is drawn.
+    private func panelHeight(_ rows: [MenuRow], pill: Bool) -> Double {
+        var height = kMenuPanelPad * 2
+        if pill { height += kMenuPillRow + kMenuSepH }
+        for row in rows { height += row.isSeparator ? kMenuSepH : kMenuRow }
+        return height
+    }
+
+    /// The top of each row, in the panel's own coordinates.
+    private func rowTops(_ rows: [MenuRow], pill: Bool) -> [Double] {
+        var tops: [Double] = []
+        var y = kMenuPanelPad
+        if pill { y += kMenuPillRow + kMenuSepH }
+        for row in rows {
+            tops.append(y)
+            y += row.isSeparator ? kMenuSepH : kMenuRow
+        }
+        return tops
+    }
+
+    /// Which row a point in a panel is over, given where the panel starts.
+    private func rowIndex(_ rows: [MenuRow], origin: (x: Double, y: Double),
+                          pill: Bool, _ x: Double, _ y: Double) -> Int? {
+        let width = panelWidth(rows)
+        guard x >= origin.x, x < origin.x + width else { return nil }
+        let tops = rowTops(rows, pill: pill)
+        for (index, top) in tops.enumerated() {
+            let height = rows[index].isSeparator ? kMenuSepH : kMenuRow
+            if y >= origin.y + top && y < origin.y + top + height {
+                return rows[index].isSeparator ? nil : index
+            }
+        }
+        return nil
+    }
+
+    /// Which icon in the top row a point is over, if any.
+    private func pillIndex(_ rows: [MenuRow], origin: (x: Double, y: Double),
+                           _ x: Double, _ y: Double) -> Int? {
+        guard hasPillRow else { return nil }
+        let width = panelWidth(rows)
+        guard x >= origin.x, x < origin.x + width,
+              y >= origin.y + kMenuPanelPad,
+              y < origin.y + kMenuPanelPad + kMenuPillRow else { return nil }
+        let cell = (width - kMenuPanelPad * 2) / Double(Self.pillVerbs.count)
+        let index = Int((x - origin.x - kMenuPanelPad) / cell)
+        return index >= 0 && index < Self.pillVerbs.count ? index : nil
+    }
+
+    /// The shell row behind one of the icons in the top row, or nil when the
+    /// shell has not offered that verb (or has not answered yet).
+    private func pillVerb(_ index: Int) -> Win32ShellVerb? {
+        let wanted = Self.pillVerbs[index].verb
+        return shellRows.first { $0.verb == wanted && !$0.isSeparator }
+    }
+
+    // MARK: - Menu input
+
+    /// A press while the menu is open. Always dismisses; the questions are
+    /// what it ran on the way out, and whether it opens another one.
+    private func handleMenu(_ x: Double, _ y: Double, buttons: Int) {
+        let rows = menuRows
+        guard let at = menuOrigin(rows) else { return }
+        let subs = shellList(subRows)
+
+        var action: (() -> Void)?
+        var shellId: Int32 = -1
+        var hitAMenu = false
+
+        if let origin = subAt, let index = rowIndex(subs, origin: origin, pill: false, x, y) {
+            hitAMenu = true
+            if subs[index].isEnabled { shellId = subs[index].shellId }
+        } else if let index = pillIndex(rows, origin: at, x, y) {
+            hitAMenu = true
+            if let verb = pillVerb(index), verb.isEnabled { shellId = verb.id }
+        } else if let index = rowIndex(rows, origin: at, pill: hasPillRow, x, y) {
+            hitAMenu = true
+            let row = rows[index]
+            // A submenu row does nothing on a press: it opened on hover, the
+            // way Windows' does, and the click the user means is the one on a
+            // row inside it.
+            if row.isSubmenu { return }
+            if row.isEnabled {
+                action = row.action
+                shellId = row.shellId
+            }
+        }
+
+        // Taken out of the state BEFORE the dismissal, so dismissMenu does
+        // not close the session the verb is about to run on. Both calls land
+        // on the session's own serial queue, so the close is queued behind the
+        // invoke and the handler is still alive while its verb runs.
+        let session = shell
+        shell = nil
+        dismissMenu()
+        action?()
+        if shellId >= 0 { session?.invoke(shellId) }
+        session?.close()
+
+        // A right-click somewhere else does not merely dismiss: Windows moves
+        // the menu to where the pointer now is, and so does this. Anything
+        // less means the first of two right-clicks is silently wasted.
+        if !hitAMenu && buttons == 2 { openMenu(at: x, y) }
+    }
+
+    /// Hover, which is what opens a submenu -- Windows opens them on hover
+    /// and so does this. Also the row highlight, which is the only feedback
+    /// an arithmetic menu can give that it knows where the pointer is.
+    private func hoverMenu(_ x: Double, _ y: Double) {
+        let rows = menuRows
+        guard let at = menuOrigin(rows) else { return }
+        let subs = shellList(subRows)
+
+        if let origin = subAt, let index = rowIndex(subs, origin: origin, pill: false, x, y) {
+            if subHover != index { setState { subHover = index } }
+            return
+        }
+        let over = rowIndex(rows, origin: at, pill: hasPillRow, x, y)
+        let pill = pillIndex(rows, origin: at, x, y)
+        let hovered = pill != nil ? nil : over
+        // The icon row highlights like any other row. This used to be
+        // computed and dropped on the floor, so the four icons were the one
+        // part of the menu that never acknowledged the pointer.
+        if pillHover != pill { setState { pillHover = pill } }
+
+        if let index = over, rows[index].isSubmenu, rows[index].token != subToken {
+            openSubmenu(rows[index], at: at, top: rowTops(rows, pill: hasPillRow)[index],
+                        width: panelWidth(rows))
+        } else if over != nil && subAt != nil
+                    && !(rows[over!].isSubmenu && rows[over!].token == subToken) {
+            setState { subAt = nil; subToken = 0; subRows = [] }
+        }
+        if menuHover != hovered || subHover != nil {
+            setState { menuHover = hovered; subHover = nil }
+        }
+    }
+
+    /// Fills in a submenu and hangs it off the row.
+    ///
+    /// Asynchronous for the same reason the menu itself is, and it is not a
+    /// formality: a submenu arrives EMPTY and its handler populates it only
+    /// when told to. "New" on a folder background measured 301ms to fill in.
+    private func openSubmenu(_ row: MenuRow, at origin: (x: Double, y: Double),
+                             top: Double, width: Double) {
+        let token = row.token
+        guard token != 0, let session = shell else { return }
+        let generation = menuGeneration
+        setState {
+            subToken = token
+            subRows = []
+            subHover = nil
+            // Overlapping the parent by a hair, as Windows' submenus do, so
+            // the pointer can cross between them without falling through the
+            // gap and closing the one it is heading for.
+            subAt = (origin.x + width - 4, origin.y + top - kMenuPanelPad)
+        }
+        session.expand(token) { [weak self] rows in
+            guard let self, self.menuGeneration == generation,
+                  self.subToken == token else { return }
+            self.setState {
+                self.subRows = rows
+                // The child hangs off the parent's right edge and may run off
+                // the window's; flip it to the parent's left, which is what
+                // Windows does with the same problem.
+                let size = Win32WindowedHost.host?.clientSize
+                    ?? (width: kFilesWidth, height: kFilesHeight)
+                let childRows = self.shellList(rows)
+                let childWidth = self.panelWidth(childRows)
+                if var at = self.subAt {
+                    if at.x + childWidth > size.width - kMenuEdge {
+                        at.x = max(kMenuEdge, origin.x - childWidth + 4)
+                    }
+                    let childHeight = self.panelHeight(childRows, pill: false)
+                    if at.y + childHeight > size.height - kMenuEdge {
+                        at.y = max(kMenuEdge, size.height - kMenuEdge - childHeight)
+                    }
+                    self.subAt = at
+                }
+            }
+        }
+    }
+
+    private func dismissMenu() {
+        let session = shell
+        setState {
+            menuAt = nil
+            menuFlipped = false
+            menuEntry = nil
+            menuHover = nil
+            pillHover = nil
+            shell = nil
+            shellRows = []
+            subAt = nil
+            subToken = 0
+            subRows = []
+            subHover = nil
+        }
+        // Closed even when nothing was invoked -- the session is holding
+        // other people's COM objects open, and the menu being dismissed
+        // without a choice is the ordinary case.
+        session?.close()
+    }
+
+    // MARK: - Menu drawing
+
     private func contextMenu() -> Widget {
-        guard let at = menuAt else { return SizedBox(width: 0, height: 0) }
-        let rows = menuRowsForEntry
-        let height = Double(rows.count) * kMenuRowH + 12
+        let rows = menuRows
+        guard let at = menuOrigin(rows) else { return SizedBox(width: 0, height: 0) }
         return Positioned(left: at.x, top: at.y) {
-            SizedBox(width: kFilesMenuW, height: height) {
-                ClipRRect(borderRadius: BorderRadius.circular(8)) {
-                    ColoredBox(color: Color(0xF41F2229)) {
-                        Padding(padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 6)) {
-                            Column(mainAxisSize: .min, crossAxisAlignment: .start) {
-                                for row in rows {
-                                    SizedBox(width: kFilesMenuW, height: kMenuRowH) {
-                                        Padding(padding: EdgeInsets(horizontal: 12, vertical: 0)) {
-                                            Align(alignment: Alignment.centerLeft) {
-                                                Text(row.0,
-                                                     style: TextStyle(color: Color(0xFFE6EAF0),
-                                                                      fontSize: 12))
-                                            }
+            menuPanel(rows, hover: menuHover, pill: hasPillRow)
+        }
+    }
+
+    private func submenuPanel() -> Widget {
+        guard let at = subAt else { return SizedBox(width: 0, height: 0) }
+        let rows = shellList(subRows)
+        // Nothing to show yet: the handler is still filling it in. Drawing an
+        // empty panel for those few hundred milliseconds is worse than
+        // drawing none -- it reads as "this submenu is empty".
+        guard !rows.isEmpty else { return SizedBox(width: 0, height: 0) }
+        return Positioned(left: at.x, top: at.y) {
+            menuPanel(rows, hover: subHover, pill: false)
+        }
+    }
+
+    /// The panel itself: Windows 11's rounded, bordered, near-opaque slab.
+    private func menuPanel(_ rows: [MenuRow], hover: Int?, pill: Bool) -> Widget {
+        let width = panelWidth(rows)
+        return SizedBox(width: width, height: panelHeight(rows, pill: pill)) {
+            DecoratedBox(
+                decoration: BoxDecoration(
+                    color: Win11.menuBg,
+                    border: Border.all(color: Win11.menuBorder, width: 1),
+                    borderRadius: BorderRadius.circular(kMenuRadius),
+                    boxShadow: [BoxShadow(color: Color(0x66000000),
+                                          offset: Offset(0, 4), blurRadius: 12)]),
+                child: Padding(padding: EdgeInsets(horizontal: kMenuPanelPad,
+                                                   vertical: kMenuPanelPad)) {
+                    Column(mainAxisSize: .min, crossAxisAlignment: .stretch) {
+                        if pill {
+                            pillRow(width: width)
+                            separatorRow()
+                        }
+                        for (index, row) in rows.enumerated() {
+                            if row.isSeparator {
+                                separatorRow()
+                            } else {
+                                menuRowWidget(row, width: width,
+                                              hovered: hover == index)
+                            }
+                        }
+                    }
+                })
+        }
+    }
+
+    /// Windows 11's row of icon verbs across the top of the menu.
+    ///
+    /// Greyed until the shell answers, and then live in place. They are the
+    /// shell's own Cut, Copy, Share and Delete -- which is what makes them
+    /// worth having: the recycle bin, the undo stack and the clipboard
+    /// formats are the shell's, and reimplementing any of that around
+    /// IFileOperation to fill this row would be building a worse copy of
+    /// something already installed.
+    private func pillRow(width: Double) -> Widget {
+        let cell = (width - kMenuPanelPad * 2) / Double(Self.pillVerbs.count)
+        return SizedBox(height: kMenuPillRow) {
+            Row(crossAxisAlignment: .center) {
+                for (index, entry) in Self.pillVerbs.enumerated() {
+                    SizedBox(width: cell, height: kMenuPillRow) {
+                        Center {
+                            ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                                ColoredBox(color: pillHover == index
+                                           && pillVerb(index)?.isEnabled == true
+                                           ? Win11.menuHover : Color(0x00000000)) {
+                                    SizedBox(width: 34, height: 32) {
+                                        Center {
+                                            MacosIcon(icon: entry.glyph,
+                                                      color: pillVerb(index)?.isEnabled == true
+                                                          ? Win11.text : Win11.disabled,
+                                                      size: kMenuGlyph)
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The rule between two groups of verbs.
+    ///
+    /// No `Center` around it, which is what the first cut had: a Center gives
+    /// its child the child's OWN width, and a `SizedBox(height:)` has none --
+    /// so the line was one pixel tall, zero wide, and the menu came out with
+    /// gaps where its rules should be. The Padding's constraint is the full
+    /// panel width, and the box takes it.
+    private func separatorRow() -> Widget {
+        SizedBox(height: kMenuSepH) {
+            Padding(padding: EdgeInsets(left: 10, top: 3, right: 10, bottom: 3)) {
+                ColoredBox(color: Win11.menuSep) { SizedBox(height: 1) }
+            }
+        }
+    }
+
+    private func menuRowWidget(_ row: MenuRow, width: Double, hovered: Bool) -> Widget {
+        let colour = row.isEnabled ? Win11.text : Win11.disabled
+        return SizedBox(height: kMenuRow) {
+            Padding(padding: EdgeInsets(horizontal: 1, vertical: 1)) {
+                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                    ColoredBox(color: hovered && row.isEnabled
+                               ? Win11.menuHover : Color(0x00000000)) {
+                        Stack(alignment: Alignment.centerLeft) {
+                            Positioned(left: kMenuIconX, top: 0, bottom: 0) {
+                                Center {
+                                    if let glyph = row.glyph {
+                                        MacosIcon(icon: glyph, color: colour,
+                                                  size: kMenuGlyph)
+                                    } else {
+                                        SizedBox(width: kMenuGlyph, height: kMenuGlyph)
+                                    }
+                                }
+                            }
+                            Positioned(left: kMenuLabelX, top: 0,
+                                       right: row.isSubmenu ? 26 : 10, bottom: 0) {
+                                Align(alignment: Alignment.centerLeft) {
+                                    Text(row.title,
+                                         style: TextStyle(
+                                            color: colour,
+                                            fontSize: 13,
+                                            fontWeight: row.isDefault ? .w600 : .w400),
+                                         overflow: .ellipsis, maxLines: 1)
+                                }
+                            }
+                            if row.isSubmenu {
+                                Positioned(top: 0, right: 10, bottom: 0) {
+                                    Center {
+                                        MacosIcon(icon: CupertinoIcons.chevron_right,
+                                                  color: Win11.textDim, size: 10)
                                     }
                                 }
                             }

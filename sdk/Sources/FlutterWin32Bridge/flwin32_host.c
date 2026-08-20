@@ -1686,6 +1686,31 @@ uint64_t flwin32_host_window(FlWin32Host* host) {
   return (uint64_t)(UINT_PTR)host->window;
 }
 
+/* The client area in LOGICAL POINTS -- the units a widget tree lays out in.
+ *
+ * For a surface that has to place something against its own edges and cannot
+ * simply assume the size it was created at: a window is resizable, and a
+ * context menu that runs off the bottom is clipped by the window rather than
+ * flipped by it. GetDpiForWindow rather than the monitor's dpi, because this
+ * is about THIS window: dragged across a scale boundary, it is the per-window
+ * value that follows.
+ */
+int32_t flwin32_host_client_size(FlWin32Host* host, int32_t* width,
+                                 int32_t* height) {
+  if (host == NULL || host->window == NULL) return 0;
+  RECT rect;
+  if (!GetClientRect(host->window, &rect)) return 0;
+  UINT dpi = GetDpiForWindow(host->window);
+  if (dpi == 0) dpi = USER_DEFAULT_SCREEN_DPI;
+  if (width != NULL) {
+    *width = (int32_t)((rect.right - rect.left) * USER_DEFAULT_SCREEN_DPI / (int)dpi);
+  }
+  if (height != NULL) {
+    *height = (int32_t)((rect.bottom - rect.top) * USER_DEFAULT_SCREEN_DPI / (int)dpi);
+  }
+  return 1;
+}
+
 void flwin32_host_request_redraw(FlWin32Host* host) {
   if (host == NULL || host->controller == NULL) return;
   FlutterDesktopViewControllerForceRedraw(host->controller);
