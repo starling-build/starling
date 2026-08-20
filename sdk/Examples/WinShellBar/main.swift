@@ -156,6 +156,20 @@ if let index = CommandLine.arguments.firstIndex(of: "--thumb-probe") {
 // exits; `--background` asks for the folder's menu instead of the item's, and
 // `--extended` is Shift+right-click.
 //
+// A WARM-UP WAS TRIED AND REMOVED, so that the cold numbers below are not
+// read as a problem this app has. They belong to a process that does nothing
+// but query: 517ms for a file against 61ms for the same query again, and 21
+// rows cold against 23 warm, because a handler still loading contributes
+// nothing to the query loading it.
+//
+// The file explorer never sees that. Measured in the app, the FIRST
+// right-click of a session completes in 233ms and the third in 202ms; every
+// menu comes back with the same 19 verbs. Warming one throwaway session at
+// startup changed the first click from 265ms to 253ms -- inside the noise --
+// and the handler DLLs are already resident from explorer.exe anyway. A
+// one-file folder, where the listing's own icon work cannot be doing the
+// warming, measured the same 233ms.
+//
 // The oracle for the file explorer's context menu, and the same bargain
 // `--print-status` makes for the control centre: the menu HOSTS other
 // people's verbs, so what is in it is a property of this machine's installed
