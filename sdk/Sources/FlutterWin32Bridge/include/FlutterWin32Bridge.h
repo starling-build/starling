@@ -254,6 +254,21 @@ typedef struct FlWin32HandlerCost {
     int32_t failed;     // no IContextMenu, or would not instantiate
 } FlWin32HandlerCost;
 
+// One menu built over a chosen set of class keys, in milliseconds, with the
+// row count. `mode` 0 asks only about the item's own ProgID and extension --
+// the cheap classes -- and 1 asks about everything, which is what the shell
+// normally does. SHCreateDefaultContextMenu takes the key set as a parameter,
+// so this is the shell building both, with the shell's own labels.
+double flwin32_shellmenu_time_keys(const char* path, int32_t mode,
+                                   int32_t* items);
+
+// One QueryContextMenu under one CMF_ flag set, in milliseconds, with the
+// number of rows it produced. For --menu-flags: the flags are the only
+// documented lever on the shell's own call, and what they cost is published
+// nowhere.
+double flwin32_shellmenu_time_flags(const char* path, uint32_t flags,
+                                    int32_t* items);
+
 int32_t flwin32_shellmenu_handler_costs(const char* path,
                                         FlWin32HandlerCost* out,
                                         int32_t max);
@@ -271,6 +286,12 @@ typedef struct FlWin32StaticVerb {
 
 int32_t flwin32_static_verbs(const char* path, FlWin32StaticVerb* out,
                              int32_t max);
+
+// The rows a restricted key set produces, for comparing the cheap tier with
+// the full menu item by item. Reuses FlWin32StaticVerb for the shape.
+int32_t flwin32_shellmenu_keys_rows(const char* path, int32_t mode,
+                                    FlWin32StaticVerb* out, int32_t max);
+
 
 // Ends the session and releases the handlers. Safe while the query is still
 // running; blocks until the thread is gone.

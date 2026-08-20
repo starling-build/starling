@@ -354,6 +354,96 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-static") {
     exit(0)
 }
 
+// `--menu-flags <path>` times QueryContextMenu under each CMF_ flag set.
+//
+// Before building anything that duplicates the shell -- a static-verb tier, a
+// hardcoded label table -- the cheaper question is whether the shell's own
+// call can simply be asked to do less. These are the documented flags; the
+// two worth the trouble are ASYNCVERBSTATE, which tells handlers not to block
+// working out whether a verb is enabled, and OPTIMIZEFORINVOKE, which says
+// the menu is not going to be shown.
+if let index = CommandLine.arguments.firstIndex(of: "--menu-flags") {
+    let path = index + 1 < CommandLine.arguments.count
+        ? CommandLine.arguments[index + 1] : ""
+    guard !path.isEmpty else {
+        print("[menu-flags] expected a path")
+        exit(2)
+    }
+    let sets: [(String, UInt32)] = [
+        ("CMF_NORMAL", 0x0000),
+        ("CMF_EXPLORE (what we send)", 0x0004),
+        ("CMF_ITEMMENU", 0x0080),
+        ("CMF_EXPLORE|CMF_ASYNCVERBSTATE", 0x0004 | 0x0400),
+        ("CMF_EXPLORE|CMF_OPTIMIZEFORINVOKE", 0x0004 | 0x0800),
+        ("CMF_EXPLORE|CMF_DISABLEDVERBS", 0x0004 | 0x0200),
+        ("CMF_EXPLORE|CMF_SYNCCASCADEMENU", 0x0004 | 0x1000),
+        ("CMF_EXPLORE|CMF_DONOTPICKDEFAULT", 0x0004 | 0x2000),
+        ("CMF_DEFAULTONLY (floor)", 0x0001),
+    ]
+    // One query first, thrown away: otherwise the first flag set in the list
+    // pays for loading every handler DLL and looks like the slow one.
+    var warm: Int32 = 0
+    _ = flwin32_shellmenu_time_flags(path, 0x0004, &warm)
+
+    // And the lever that is not a flag: the same shell, asked about fewer
+    // classes. If this is fast and its rows are useful, a fast tier needs no
+    // hardcoded labels and no registry parsing of our own.
+    for (label, mode) in [("no classes (shell built-ins only)", Int32(2)),
+                          ("cheap classes only (ProgID/ext)", Int32(0)),
+                          ("every class (what the shell does)", Int32(1))] {
+        var best = Double.greatestFiniteMagnitude
+        var rows: Int32 = 0
+        for _ in 0..<3 {
+            var items: Int32 = 0
+            let ms = flwin32_shellmenu_time_keys(path, mode, &items)
+            if ms >= 0 && ms < best { best = ms; rows = items }
+        }
+        let padded = label.count >= 38 ? String(label.prefix(38))
+            : label + String(repeating: " ", count: 38 - label.count)
+        print("  " + padded + String(format: "%6.0fms   %d rows", best, Int(rows)))
+    }
+
+    // The subset question, answered by listing both.
+    func keyRows(_ mode: Int32) -> [String] {
+        var buffer = [FlWin32StaticVerb](repeating: FlWin32StaticVerb(), count: 64)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_shellmenu_keys_rows(path, mode, $0.baseAddress, 64)
+        }
+        func text<T>(_ tuple: T) -> String {
+            var copy = tuple
+            return withUnsafeBytes(of: &copy) { bytes in
+                String(cString: bytes.baseAddress!.assumingMemoryBound(to: CChar.self))
+            }
+        }
+        return buffer.prefix(Int(n)).map { text($0.label) }
+    }
+    let fastRows = keyRows(0)
+    let fullRows = keyRows(1)
+    print("  fast tier (\(fastRows.count)): " + fastRows.joined(separator: " | "))
+    let strays = fastRows.filter { !fullRows.contains($0) }
+    print("  in the fast tier but NOT in the full menu: "
+          + (strays.isEmpty ? "none -- a strict subset" : strays.joined(separator: " | ")))
+    print("  the full menu adds: "
+          + fullRows.filter { !fastRows.contains($0) }.joined(separator: " | "))
+
+    print("[menu-flags] \(path)")
+    for (name, flags) in sets {
+        // Three runs, best of, because a handler that touches the network can
+        // spike and one sample would read as a difference between flag sets.
+        var best = Double.greatestFiniteMagnitude
+        var rows: Int32 = 0
+        for _ in 0..<3 {
+            var items: Int32 = 0
+            let ms = flwin32_shellmenu_time_flags(path, flags, &items)
+            if ms >= 0 && ms < best { best = ms; rows = items }
+        }
+        let label = name.count >= 38 ? String(name.prefix(38))
+                                     : name + String(repeating: " ", count: 38 - name.count)
+        print("  " + label + String(format: "%6.0fms   %d rows", best, Int(rows)))
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-modes") {
     for mode in Win32SystemInfo.displayModes() {
         print("\(mode.width)x\(mode.height)@\(mode.refresh)")
