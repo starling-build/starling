@@ -24,6 +24,21 @@
 import FlutterWin32Bridge
 import Foundation
 
+/// Which of the session's two menus a row came from.
+///
+/// The cheap one is the same shell asked about fewer association classes --
+/// the item's own ProgID and extension rather than `*` and
+/// AllFilesystemObjects, where the expensive handlers live. Measured: 2ms for
+/// a document against 48ms for the full set, and its rows are a strict subset
+/// of the full menu's, so replacing one with the other only ever adds.
+///
+/// A row's tier travels with it because the two menus number their verbs
+/// independently: id 3 means different things in each.
+public enum Win32ShellMenuTier: Int32, Sendable {
+    case fast = 0
+    case full = 1
+}
+
 /// One row of the shell's menu.
 public struct Win32ShellVerb: Sendable {
     /// What `invoke` takes. -1 for a separator or a submenu, neither of which
@@ -74,29 +89,32 @@ public final class Win32ShellMenu {
     /// The top-level rows, on the main thread, once the shell has answered.
     /// Empty when the menu could not be built at all -- an item that has gone
     /// away between the click and the query, most often.
-    public func items(_ done: @escaping ([Win32ShellVerb]) -> Void) {
-        deliver({ [weak self] in self?.itemsSync() ?? [] }, done)
+    public func items(_ tier: Win32ShellMenuTier,
+                      _ done: @escaping ([Win32ShellVerb]) -> Void) {
+        deliver({ [weak self] in self?.itemsSync(tier) ?? [] }, done)
     }
 
     /// The rows inside a submenu. Work rather than a read: the handler has to
     /// be told to populate it first, which is why this is asynchronous too.
-    public func expand(_ token: Int32, _ done: @escaping ([Win32ShellVerb]) -> Void) {
-        deliver({ [weak self] in self?.expandSync(token) ?? [] }, done)
+    public func expand(_ tier: Win32ShellMenuTier, _ token: Int32,
+                       _ done: @escaping ([Win32ShellVerb]) -> Void) {
+        deliver({ [weak self] in self?.expandSync(tier, token) ?? [] }, done)
     }
 
     /// The blocking forms, for a CLI probe and nothing else -- they hold the
     /// calling thread for as long as the shell takes, which on a cold first
     /// menu was measured at over a second. A surface that draws frames must
     /// use the callback forms above.
-    public func itemsSync() -> [Win32ShellVerb] {
+    public func itemsSync(_ tier: Win32ShellMenuTier = .full) -> [Win32ShellVerb] {
         fetch { handle, buffer, max in
-            flwin32_shellmenu_items(handle, buffer, max)
+            flwin32_shellmenu_items(handle, tier.rawValue, buffer, max)
         }
     }
 
-    public func expandSync(_ token: Int32) -> [Win32ShellVerb] {
+    public func expandSync(_ tier: Win32ShellMenuTier,
+                           _ token: Int32) -> [Win32ShellVerb] {
         fetch { handle, buffer, max in
-            flwin32_shellmenu_expand(handle, token, buffer, max)
+            flwin32_shellmenu_expand(handle, tier.rawValue, token, buffer, max)
         }
     }
 
@@ -112,9 +130,9 @@ public final class Win32ShellMenu {
     /// Runs a verb. Off the UI thread for the reason everything else here is,
     /// and then some: Properties opens a modal sheet, and Delete a
     /// confirmation, and both of them run for as long as the user takes.
-    public func invoke(_ id: Int32) {
+    public func invoke(_ tier: Win32ShellMenuTier, _ id: Int32) {
         guard let handle else { return }
-        Self.queue.async { flwin32_shellmenu_invoke(handle, id) }
+        Self.queue.async { flwin32_shellmenu_invoke(handle, tier.rawValue, id) }
     }
 
     /// Ends the session. Queued behind whatever is already in flight, so a

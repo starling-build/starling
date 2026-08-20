@@ -216,7 +216,7 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
               + "\"\(row.title)\"\(flags)")
         if row.isSubmenu {
             let started = Date()
-            let children = session.expandSync(row.submenu)
+            let children = session.expandSync(.full, row.submenu)
             let ms = Int(Date().timeIntervalSince(started) * 1000)
             print("      (\(children.count) children in \(ms)ms)")
             for child in children.prefix(8) where !child.isSeparator {
@@ -388,7 +388,8 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-flags") {
     // And the lever that is not a flag: the same shell, asked about fewer
     // classes. If this is fast and its rows are useful, a fast tier needs no
     // hardcoded labels and no registry parsing of our own.
-    for (label, mode) in [("no classes (shell built-ins only)", Int32(2)),
+    for (label, mode) in [("first class only (Directory / ProgID)", Int32(3)),
+                          ("no classes (shell built-ins only)", Int32(2)),
                           ("cheap classes only (ProgID/ext)", Int32(0)),
                           ("every class (what the shell does)", Int32(1))] {
         var best = Double.greatestFiniteMagnitude
@@ -441,6 +442,45 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-flags") {
                                      : name + String(repeating: " ", count: 38 - name.count)
         print("  " + label + String(format: "%6.0fms   %d rows", best, Int(rows)))
     }
+    exit(0)
+}
+
+// `--menu-invoke <path> <fast|full> <verb>` runs one canonical verb from one
+// tier and exits.
+//
+// The tiered session numbers its verbs per tier, so invoking with the wrong
+// tier runs whatever sits at that offset in the other menu -- a bug that
+// would be silent in the worst way, because both menus contain plausible
+// verbs. Timing a click in the UI cannot pin down which tier answered; this
+// can, because it names the tier.
+if let index = CommandLine.arguments.firstIndex(of: "--menu-invoke") {
+    let args = CommandLine.arguments
+    guard index + 3 < args.count else {
+        print("[menu-invoke] expected <path> <fast|full> <verb>")
+        exit(2)
+    }
+    let path = args[index + 1]
+    let tier: Win32ShellMenuTier = args[index + 2] == "fast" ? .fast : .full
+    let wanted = args[index + 3].lowercased()
+    guard let session = Win32ShellMenu(path: path, owner: 0) else {
+        print("[menu-invoke] could not start a session")
+        exit(1)
+    }
+    let rows = session.itemsSync(tier)
+    guard let row = rows.first(where: { $0.verb == wanted }) else {
+        print("[menu-invoke] \(args[index + 2]) tier has no \"\(wanted)\" verb; it has: "
+              + rows.filter { !$0.verb.isEmpty }.map(\.verb).joined(separator: " "))
+        session.close()
+        exit(3)
+    }
+    print("[menu-invoke] \(args[index + 2]) tier: invoking \(row.verb) "
+          + "(id \(row.id), \"\(row.title)\")")
+    session.invoke(tier, row.id)
+    // The invoke is queued on the session's serial queue and the close behind
+    // it; both have to run before this process may exit, and the clipboard
+    // formats are rendered by the close (OleFlushClipboard).
+    session.close()
+    Thread.sleep(forTimeInterval: 1.5)
     exit(0)
 }
 

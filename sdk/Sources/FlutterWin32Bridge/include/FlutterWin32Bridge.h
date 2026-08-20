@@ -204,22 +204,40 @@ FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
                                          int32_t extended,
                                          uint64_t owner);
 
-// The top-level rows. BLOCKS until the shell has answered -- background
-// thread only, which is the entire point of the session. -1 if the menu could
-// not be built at all.
-int32_t flwin32_shellmenu_items(FlWin32ShellMenu* menu, FlWin32ShellVerb* out,
-                                int32_t max);
+// The top-level rows of one TIER. BLOCKS until that tier has answered --
+// background thread only, which is the entire point of the session. -1 if the
+// tier could not be built.
+//
+// TIER 0 is the same shell asked about fewer association classes (the item's
+// ProgID and extension, or Directory and Folder). It is 2ms for a file, 9ms
+// for an executable, 45ms for a folder, against 48-59ms for tier 1 -- because
+// the cost of a menu is its HANDLERS and handlers are registered per class.
+// Its rows are a strict subset of tier 1's, so drawing it first and replacing
+// it later only ever ADDS rows. There is no tier 0 for a background menu: its
+// verbs come from the folder's view object, which takes no key set.
+//
+// TIER 1 is everything, as Explorer would build it.
+#define FLWIN32_SHELLMENU_FAST 0
+#define FLWIN32_SHELLMENU_FULL 1
+
+int32_t flwin32_shellmenu_items(FlWin32ShellMenu* menu, int32_t tier,
+                                FlWin32ShellVerb* out, int32_t max);
 
 // The rows inside a submenu, by the token from `submenu`. A submenu arrives
 // EMPTY and is populated by the WM_INITMENUPOPUP its handler is waiting for,
 // so this is not a read -- it is work, and it BLOCKS.
-int32_t flwin32_shellmenu_expand(FlWin32ShellMenu* menu, int32_t token,
-                                 FlWin32ShellVerb* out, int32_t max);
+int32_t flwin32_shellmenu_expand(FlWin32ShellMenu* menu, int32_t tier,
+                                 int32_t token, FlWin32ShellVerb* out,
+                                 int32_t max);
 
 // Runs a verb, on the session's thread and in its apartment. BLOCKS for as
 // long as the verb does, which for one that opens a dialog is until the
 // dialog is answered.
-int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* menu, int32_t id);
+// Runs a verb, on the tier it came from: the two menus number their verbs
+// independently, so an id without its tier would run whatever sits at that
+// offset in the other one.
+int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* menu, int32_t tier,
+                                 int32_t id);
 
 // Where the assembly's time went, in milliseconds: binding the shell item and
 // creating the IContextMenu (which is also when handler DLLs load cold),

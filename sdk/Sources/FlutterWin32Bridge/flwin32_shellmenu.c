@@ -28,6 +28,25 @@
  * is the one thing Explorer cannot do, because its verbs and its rectangle
  * are decided together.
  *
+ * AND IT ASKS TWICE, cheaply first.
+ *
+ * QueryContextMenu is 84-99% of the assembly, and the cost is per HANDLER --
+ * Defender 40ms on a folder, shell32's Library Location 19ms, Sharing 7ms.
+ * Handlers are registered PER CLASS, so the association keys are a lever on
+ * the price: SHCreateDefaultContextMenu takes them as a parameter, and asking
+ * only about the item's own ProgID and extension asks almost no handlers.
+ * Measured: 2ms for a .rdp, 9ms for an .exe, 45ms for a folder, against
+ * 48-59ms for the full set.
+ *
+ * The fast tier is still the SHELL's menu -- its labels, localized, and its
+ * built-in verbs (Cut, Copy, Delete, Create shortcut, Properties) -- and a
+ * real IContextMenu bound to the item, so it can be invoked through. And it
+ * is a STRICT SUBSET of the full menu, checked row by row, which is what
+ * makes drawing it early safe: the second tier only ever ADDS.
+ *
+ * A background menu has one tier. Its verbs come from the folder's view
+ * object rather than from association keys, so there is nothing to restrict.
+ *
  * A THREAD PER MENU, and an apartment on it. Shell extensions are
  * apartment-threaded in-proc servers: they expect an STA, and an STA only
  * works if its thread PUMPS MESSAGES, because that is how COM marshals calls
@@ -95,7 +114,9 @@ struct FlWin32ShellMenu {
     /* Signalled when the query is done -- once, at the start of the session.
      * Distinct from the request pair below because it is not a reply to
      * anything: the caller waits for it without having asked. */
+    /* One per TIER: the cheap query answers first, the full one after it. */
     HANDLE ev_ready;
+    HANDLE ev_full;
     HANDLE ev_request;
     HANDLE ev_done;
 
@@ -103,26 +124,28 @@ struct FlWin32ShellMenu {
      * serial queue rather than by a lock here. */
     int cmd;
     int arg;
+    int tier;
     FlWin32ShellVerb* out;
     int out_max;
     int out_count;
 
-    /* Written by the query, read after ev_ready. */
-    FlWin32ShellVerb items[FLWIN32_SHELLMENU_MAX];
-    int count;
-    int status;
+    /* Written by each query, read after that tier's event. Index 0 is the
+     * cheap tier, 1 the full one. */
+    FlWin32ShellVerb items[2][FLWIN32_SHELLMENU_MAX];
+    int count[2];
+    int status[2];
 
     /* Session-thread only, from here down. */
     wchar_t path[1024];
     int background;
     int extended;
     HWND owner;
-    IContextMenu* cm;
-    IContextMenu2* cm2;
-    IContextMenu3* cm3;
-    HMENU menu;
-    FlWin32SubMenu subs[MAX_SUBMENUS];
-    int sub_count;
+    IContextMenu* cm[2];
+    IContextMenu2* cm2[2];
+    IContextMenu3* cm3[2];
+    HMENU menu[2];
+    FlWin32SubMenu subs[2][MAX_SUBMENUS];
+    int sub_count[2];
 
     /* Where the time went, in milliseconds. Filled by build(), read by
      * flwin32_shellmenu_timings -- which exists because "QueryContextMenu is
@@ -131,6 +154,7 @@ struct FlWin32ShellMenu {
     double t_query;
     double t_walk;
     double t_verbs;
+    double t_fast;
 };
 
 static double now_ms(void) {
@@ -219,10 +243,8 @@ static void canonical_verb(IContextMenu* cm, UINT offset, char* out, int out_siz
  * has a separator per handler group and several of those groups are empty
  * once the owner-draw rows are gone -- without this the menu comes out as a
  * column of rules. */
-static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
+static int collect_menu(struct FlWin32ShellMenu* s, int tier, HMENU menu,
                         FlWin32ShellVerb* out, int max) {
-    double verbs_before = s->t_verbs;
-    (void)verbs_before;
     int total = GetMenuItemCount(menu);
     if (total <= 0) return 0;
     UINT def = GetMenuDefaultItem(menu, FALSE, GMDI_USEDISABLED);
@@ -265,11 +287,11 @@ static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
              * the session's own table, handed back to expand(). */
             v->id = -1;
             v->is_submenu = 1;
-            if (s->sub_count < MAX_SUBMENUS) {
-                s->subs[s->sub_count].menu = mi.hSubMenu;
-                s->subs[s->sub_count].position = i;
-                s->sub_count++;
-                v->submenu = s->sub_count; /* 1-based; 0 means "none" */
+            if (s->sub_count[tier] < MAX_SUBMENUS) {
+                s->subs[tier][s->sub_count[tier]].menu = mi.hSubMenu;
+                s->subs[tier][s->sub_count[tier]].position = i;
+                s->sub_count[tier]++;
+                v->submenu = s->sub_count[tier]; /* 1-based; 0 means "none" */
             } else {
                 continue; /* No token to give, so do not offer the row. */
             }
@@ -277,7 +299,7 @@ static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
             if (mi.wID < ID_FIRST || mi.wID > ID_LAST) continue;
             v->id = (int32_t)(mi.wID - ID_FIRST);
             double verb_start = now_ms();
-            canonical_verb(s->cm, (UINT)v->id, v->verb, (int)sizeof(v->verb));
+            canonical_verb(s->cm[tier], (UINT)v->id, v->verb, (int)sizeof(v->verb));
             s->t_verbs += now_ms() - verb_start;
         }
         count++;
@@ -288,6 +310,103 @@ static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
 }
 
 /* Builds the session's IContextMenu and reads its top level. */
+/* The item's own classes, which is where an application's verbs live and
+ * where the expensive handlers do NOT: Defender, OneDrive, Sharing and
+ * WorkFolders are all registered against `*` and AllFilesystemObjects.
+ * Returns how many keys were opened. */
+static int cheap_keys(struct FlWin32ShellMenu* s, HKEY* keys, int max) {
+    int count = 0;
+    DWORD attrs = GetFileAttributesW(s->path);
+    int is_directory = (attrs != INVALID_FILE_ATTRIBUTES)
+                    && (attrs & FILE_ATTRIBUTE_DIRECTORY);
+    wchar_t names[4][80];
+    int n = 0;
+    if (is_directory) {
+        wcscpy_s(names[n++], 80, L"Directory");
+        wcscpy_s(names[n++], 80, L"Folder");
+    } else {
+        const wchar_t* dot = wcsrchr(s->path, L'.');
+        if (dot != NULL && wcslen(dot) < 60) {
+            wchar_t progid[80];
+            DWORD size = sizeof(progid);
+            if (RegGetValueW(HKEY_CLASSES_ROOT, dot, NULL, RRF_RT_REG_SZ, NULL,
+                             progid, &size) == ERROR_SUCCESS && progid[0] != 0) {
+                wcscpy_s(names[n++], 80, progid);
+            }
+            wcscpy_s(names[n++], 80, dot);
+        }
+    }
+    for (int i = 0; i < n && count < max; i++) {
+        HKEY key;
+        if (RegOpenKeyExW(HKEY_CLASSES_ROOT, names[i], 0, KEY_READ, &key)
+                == ERROR_SUCCESS) {
+            keys[count++] = key;
+        }
+    }
+    return count;
+}
+
+/* Tier 0: the same shell, asked about fewer classes.
+ *
+ * SHCreateDefaultContextMenu is the documented way to hand the association
+ * keys in rather than let the shell derive them. Everything else is the
+ * shell's: the labels, the built-in verbs, the invocation. Returns 0 when
+ * there is no cheap tier to build -- a background menu has none. */
+static int build_fast(struct FlWin32ShellMenu* s) {
+    if (s->background) return 0;
+
+    LPITEMIDLIST pidl = NULL;
+    if (FAILED(SHParseDisplayName(s->path, NULL, &pidl, 0, NULL))) return 0;
+    IShellFolder* parent = NULL;
+    LPCITEMIDLIST child = NULL;
+    HRESULT hr = SHBindToParent(pidl, &IID_IShellFolder, (void**)&parent, &child);
+    if (FAILED(hr) || parent == NULL) {
+        CoTaskMemFree(pidl);
+        return 0;
+    }
+
+    HKEY keys[4];
+    int key_count = cheap_keys(s, keys, 4);
+    int ok = 0;
+    if (key_count > 0) {
+        DEFCONTEXTMENU dcm;
+        ZeroMemory(&dcm, sizeof(dcm));
+        dcm.hwnd = s->owner;
+        dcm.psf = parent;
+        dcm.cidl = 1;
+        dcm.apidl = &child;
+        dcm.cKeys = (UINT)key_count;
+        dcm.aKeys = keys;
+
+        IContextMenu* cm = NULL;
+        double t0 = now_ms();
+        if (SUCCEEDED(SHCreateDefaultContextMenu(&dcm, &IID_IContextMenu,
+                                                 (void**)&cm)) && cm != NULL) {
+            s->cm[0] = cm;
+            cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu3, (void**)&s->cm3[0]);
+            cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu2, (void**)&s->cm2[0]);
+            s->menu[0] = CreatePopupMenu();
+            if (s->menu[0] != NULL) {
+                UINT flags = CMF_NORMAL | CMF_EXPLORE;
+                if (s->extended) flags |= CMF_EXTENDEDVERBS;
+                if (SUCCEEDED(cm->lpVtbl->QueryContextMenu(cm, s->menu[0], 0,
+                                                           ID_FIRST, ID_LAST,
+                                                           flags))) {
+                    s->count[0] = collect_menu(s, 0, s->menu[0], s->items[0],
+                                               FLWIN32_SHELLMENU_MAX);
+                    ok = 1;
+                }
+            }
+        }
+        s->t_fast = now_ms() - t0;
+    }
+
+    for (int i = 0; i < key_count; i++) RegCloseKey(keys[i]);
+    parent->lpVtbl->Release(parent);
+    CoTaskMemFree(pidl);
+    return ok;
+}
+
 static int build(struct FlWin32ShellMenu* s) {
     IContextMenu* cm = NULL;
     double t0 = now_ms();
@@ -341,17 +460,17 @@ static int build(struct FlWin32ShellMenu* s) {
         if (FAILED(hr) || cm == NULL) return 0;
     }
 
-    s->cm = cm;
+    s->cm[1] = cm;
     /* IContextMenu3 first: a handler that implements both wants the newer one,
      * and HandleMenuMsg2 is what fills a submenu in on Windows 11. Either may
      * be absent, and a session with neither simply cannot expand anything. */
-    cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu3, (void**)&s->cm3);
-    cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu2, (void**)&s->cm2);
+    cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu3, (void**)&s->cm3[1]);
+    cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu2, (void**)&s->cm2[1]);
 
     s->t_bind = now_ms() - t0;
 
-    s->menu = CreatePopupMenu();
-    if (s->menu == NULL) return 0;
+    s->menu[1] = CreatePopupMenu();
+    if (s->menu[1] == NULL) return 0;
 
     /* CMF_EXPLORE is what a folder VIEW asks for, and it is the difference
      * between the menu a file gets in Explorer's list and the shorter one it
@@ -361,13 +480,14 @@ static int build(struct FlWin32ShellMenu* s) {
     UINT flags = CMF_NORMAL | CMF_EXPLORE;
     if (s->extended) flags |= CMF_EXTENDEDVERBS;
     double t1 = now_ms();
-    HRESULT hr = s->cm->lpVtbl->QueryContextMenu(s->cm, s->menu, 0,
-                                                 ID_FIRST, ID_LAST, flags);
+    HRESULT hr = s->cm[1]->lpVtbl->QueryContextMenu(s->cm[1], s->menu[1], 0,
+                                                    ID_FIRST, ID_LAST, flags);
     if (FAILED(hr)) return 0;
     double t2 = now_ms();
     s->t_query = t2 - t1;
 
-    s->count = collect_menu(s, s->menu, s->items, FLWIN32_SHELLMENU_MAX);
+    s->count[1] = collect_menu(s, 1, s->menu[1], s->items[1],
+                               FLWIN32_SHELLMENU_MAX);
     s->t_walk = now_ms() - t2;
     return 1;
 }
@@ -380,37 +500,43 @@ static int build(struct FlWin32ShellMenu* s) {
  * by the submenu's handle and its position in the parent. We are not running
  * a USER32 menu, so nobody sends it -- this does, by hand, on the thread that
  * owns the handler. */
-static int expand(struct FlWin32ShellMenu* s, int token,
+static int expand(struct FlWin32ShellMenu* s, int tier, int token,
                   FlWin32ShellVerb* out, int max) {
-    if (token < 1 || token > s->sub_count) return 0;
-    FlWin32SubMenu sub = s->subs[token - 1];
+    if (tier < 0 || tier > 1) return 0;
+    if (token < 1 || token > s->sub_count[tier]) return 0;
+    FlWin32SubMenu sub = s->subs[tier][token - 1];
     if (sub.menu == NULL) return 0;
 
-    if (s->cm3 != NULL) {
+    if (s->cm3[tier] != NULL) {
         LRESULT unused = 0;
-        s->cm3->lpVtbl->HandleMenuMsg2(s->cm3, WM_INITMENUPOPUP,
-                                       (WPARAM)sub.menu,
-                                       MAKELPARAM(sub.position, FALSE), &unused);
-    } else if (s->cm2 != NULL) {
-        s->cm2->lpVtbl->HandleMenuMsg(s->cm2, WM_INITMENUPOPUP,
-                                      (WPARAM)sub.menu,
-                                      MAKELPARAM(sub.position, FALSE));
+        s->cm3[tier]->lpVtbl->HandleMenuMsg2(s->cm3[tier], WM_INITMENUPOPUP,
+                                             (WPARAM)sub.menu,
+                                             MAKELPARAM(sub.position, FALSE),
+                                             &unused);
+    } else if (s->cm2[tier] != NULL) {
+        s->cm2[tier]->lpVtbl->HandleMenuMsg(s->cm2[tier], WM_INITMENUPOPUP,
+                                            (WPARAM)sub.menu,
+                                            MAKELPARAM(sub.position, FALSE));
     }
-    return collect_menu(s, sub.menu, out, max);
+    return collect_menu(s, tier, sub.menu, out, max);
 }
 
 /* The canonical verb of a top-level row, or "". */
-static const char* verb_of(struct FlWin32ShellMenu* s, int id) {
-    for (int i = 0; i < s->count; i++) {
-        if (!s->items[i].is_separator && s->items[i].id == id) {
-            return s->items[i].verb;
+static const char* verb_of(struct FlWin32ShellMenu* s, int tier, int id) {
+    for (int i = 0; i < s->count[tier]; i++) {
+        if (!s->items[tier][i].is_separator && s->items[tier][i].id == id) {
+            return s->items[tier][i].verb;
         }
     }
     return "";
 }
 
-static int invoke(struct FlWin32ShellMenu* s, int id) {
-    if (s->cm == NULL || id < 0) return 0;
+/* Invoked on the tier the row CAME FROM. The two menus number their verbs
+ * independently -- both start at zero -- so an id is meaningless without the
+ * tier that issued it, and crossing them would run whatever verb happens to
+ * sit at that offset in the other menu. */
+static int invoke(struct FlWin32ShellMenu* s, int tier, int id) {
+    if (tier < 0 || tier > 1 || s->cm[tier] == NULL || id < 0) return 0;
 
     /* PROPERTIES IS ASKED FOR, NOT INVOKED -- and this is the one place where
      * hosting somebody else's menu shows its seam.
@@ -431,7 +557,7 @@ static int invoke(struct FlWin32ShellMenu* s, int id) {
      * Verbs that want the site for something OTHER than a property sheet --
      * "Restore previous versions" is one -- have no such front door and
      * remain the boundary of what a menu without a view can run. */
-    if (strcmp(verb_of(s, id), "properties") == 0) {
+    if (strcmp(verb_of(s, tier, id), "properties") == 0) {
         return SHObjectProperties(s->owner, SHOP_FILEPATH, s->path, NULL) ? 1 : 0;
     }
 
@@ -449,7 +575,8 @@ static int invoke(struct FlWin32ShellMenu* s, int id) {
     ici.lpVerbW = MAKEINTRESOURCEW(id);
     ici.nShow = SW_SHOWNORMAL;
 
-    HRESULT hr = s->cm->lpVtbl->InvokeCommand(s->cm, (CMINVOKECOMMANDINFO*)&ici);
+    HRESULT hr = s->cm[tier]->lpVtbl->InvokeCommand(s->cm[tier],
+                                                    (CMINVOKECOMMANDINFO*)&ici);
     return SUCCEEDED(hr) ? 1 : 0;
 }
 
@@ -468,10 +595,12 @@ static void release_session(struct FlWin32ShellMenu* s) {
      * does before it exits, for the same reason. A no-op when the clipboard
      * belongs to somebody else, so it is unconditional here. */
     OleFlushClipboard();
-    if (s->menu != NULL) { DestroyMenu(s->menu); s->menu = NULL; }
-    if (s->cm3 != NULL) { s->cm3->lpVtbl->Release(s->cm3); s->cm3 = NULL; }
-    if (s->cm2 != NULL) { s->cm2->lpVtbl->Release(s->cm2); s->cm2 = NULL; }
-    if (s->cm != NULL) { s->cm->lpVtbl->Release(s->cm); s->cm = NULL; }
+    for (int tier = 0; tier < 2; tier++) {
+        if (s->menu[tier] != NULL) { DestroyMenu(s->menu[tier]); s->menu[tier] = NULL; }
+        if (s->cm3[tier] != NULL) { s->cm3[tier]->lpVtbl->Release(s->cm3[tier]); s->cm3[tier] = NULL; }
+        if (s->cm2[tier] != NULL) { s->cm2[tier]->lpVtbl->Release(s->cm2[tier]); s->cm2[tier] = NULL; }
+        if (s->cm[tier] != NULL) { s->cm[tier]->lpVtbl->Release(s->cm[tier]); s->cm[tier] = NULL; }
+    }
 }
 
 static DWORD WINAPI session_thread(LPVOID param) {
@@ -485,11 +614,18 @@ static DWORD WINAPI session_thread(LPVOID param) {
      * nothing. Explorer's own threads are OleInitialize'd. */
     HRESULT co = OleInitialize(NULL);
     if (SUCCEEDED(co)) {
-        s->status = build(s) ? 1 : -1;
+        /* The cheap tier first and on its own event: for a file it is done in
+         * two milliseconds, and the surface can draw the shell's verbs before
+         * the first frame rather than a hundred milliseconds after it. */
+        s->status[0] = build_fast(s) ? 1 : -1;
+        SetEvent(s->ev_ready);
+        s->status[1] = build(s) ? 1 : -1;
     } else {
-        s->status = -1;
+        s->status[0] = -1;
+        s->status[1] = -1;
+        SetEvent(s->ev_ready);
     }
-    SetEvent(s->ev_ready);
+    SetEvent(s->ev_full);
 
     for (;;) {
         /* Waits on the request AND on the message queue. The second half is
@@ -507,9 +643,9 @@ static DWORD WINAPI session_thread(LPVOID param) {
                 break;
             }
             if (cmd == CMD_EXPAND) {
-                s->out_count = expand(s, s->arg, s->out, s->out_max);
+                s->out_count = expand(s, s->tier, s->arg, s->out, s->out_max);
             } else if (cmd == CMD_INVOKE) {
-                s->out_count = invoke(s, s->arg);
+                s->out_count = invoke(s, s->tier, s->arg);
             }
             SetEvent(s->ev_done);
         } else if (w == WAIT_OBJECT_0 + 1) {
@@ -529,9 +665,10 @@ static DWORD WINAPI session_thread(LPVOID param) {
 }
 
 /* Hands `cmd` to the session thread and waits for it to be done with it. */
-static void request(struct FlWin32ShellMenu* s, int cmd, int arg,
+static void request(struct FlWin32ShellMenu* s, int cmd, int tier, int arg,
                     FlWin32ShellVerb* out, int out_max) {
     s->cmd = cmd;
+    s->tier = tier;
     s->arg = arg;
     s->out = out;
     s->out_max = out_max;
@@ -557,9 +694,12 @@ FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
     s->extended = extended ? 1 : 0;
     s->owner = (HWND)(ULONG_PTR)owner;
     s->ev_ready = CreateEventW(NULL, TRUE, FALSE, NULL);   /* manual reset */
+    s->ev_full = CreateEventW(NULL, TRUE, FALSE, NULL);
     s->ev_request = CreateEventW(NULL, FALSE, FALSE, NULL);
     s->ev_done = CreateEventW(NULL, FALSE, FALSE, NULL);
-    if (s->ev_ready == NULL || s->ev_request == NULL || s->ev_done == NULL) {
+    if (s->ev_ready == NULL || s->ev_full == NULL || s->ev_request == NULL
+            || s->ev_done == NULL) {
+        if (s->ev_full) CloseHandle(s->ev_full);
         if (s->ev_ready) CloseHandle(s->ev_ready);
         if (s->ev_request) CloseHandle(s->ev_request);
         if (s->ev_done) CloseHandle(s->ev_done);
@@ -569,6 +709,7 @@ FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
 
     s->thread = CreateThread(NULL, 0, session_thread, s, 0, NULL);
     if (s->thread == NULL) {
+        CloseHandle(s->ev_full);
         CloseHandle(s->ev_ready);
         CloseHandle(s->ev_request);
         CloseHandle(s->ev_done);
@@ -578,37 +719,40 @@ FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
     return s;
 }
 
-int32_t flwin32_shellmenu_items(FlWin32ShellMenu* s, FlWin32ShellVerb* out,
-                                int32_t max) {
-    if (s == NULL || out == NULL || max <= 0) return -1;
-    WaitForSingleObject(s->ev_ready, INFINITE);
-    if (s->status != 1) return -1;
-    int n = s->count < max ? s->count : max;
-    memcpy(out, s->items, (size_t)n * sizeof(FlWin32ShellVerb));
+int32_t flwin32_shellmenu_items(FlWin32ShellMenu* s, int32_t tier,
+                                FlWin32ShellVerb* out, int32_t max) {
+    if (s == NULL || out == NULL || max <= 0 || tier < 0 || tier > 1) return -1;
+    /* Each tier has its own event, so asking for the cheap one does not wait
+     * for the expensive one -- which is the entire point of there being two. */
+    WaitForSingleObject(tier == 0 ? s->ev_ready : s->ev_full, INFINITE);
+    if (s->status[tier] != 1) return -1;
+    int n = s->count[tier] < max ? s->count[tier] : max;
+    memcpy(out, s->items[tier], (size_t)n * sizeof(FlWin32ShellVerb));
     return n;
 }
 
-int32_t flwin32_shellmenu_expand(FlWin32ShellMenu* s, int32_t token,
-                                 FlWin32ShellVerb* out, int32_t max) {
-    if (s == NULL || out == NULL || max <= 0) return 0;
-    WaitForSingleObject(s->ev_ready, INFINITE);
-    if (s->status != 1) return 0;
-    request(s, CMD_EXPAND, (int)token, out, (int)max);
+int32_t flwin32_shellmenu_expand(FlWin32ShellMenu* s, int32_t tier,
+                                 int32_t token, FlWin32ShellVerb* out,
+                                 int32_t max) {
+    if (s == NULL || out == NULL || max <= 0 || tier < 0 || tier > 1) return 0;
+    WaitForSingleObject(tier == 0 ? s->ev_ready : s->ev_full, INFINITE);
+    if (s->status[tier] != 1) return 0;
+    request(s, CMD_EXPAND, (int)tier, (int)token, out, (int)max);
     return (int32_t)s->out_count;
 }
 
-int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* s, int32_t id) {
-    if (s == NULL) return 0;
-    WaitForSingleObject(s->ev_ready, INFINITE);
-    if (s->status != 1) return 0;
-    request(s, CMD_INVOKE, (int)id, NULL, 0);
+int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* s, int32_t tier, int32_t id) {
+    if (s == NULL || tier < 0 || tier > 1) return 0;
+    WaitForSingleObject(tier == 0 ? s->ev_ready : s->ev_full, INFINITE);
+    if (s->status[tier] != 1) return 0;
+    request(s, CMD_INVOKE, (int)tier, (int)id, NULL, 0);
     return (int32_t)s->out_count;
 }
 
 void flwin32_shellmenu_timings(FlWin32ShellMenu* s, double* bind, double* query,
                                double* walk, double* verbs) {
     if (s == NULL) return;
-    WaitForSingleObject(s->ev_ready, INFINITE);
+    WaitForSingleObject(s->ev_full, INFINITE);
     if (bind != NULL) *bind = s->t_bind;
     if (query != NULL) *query = s->t_query;
     if (walk != NULL) *walk = s->t_walk;
@@ -622,10 +766,14 @@ void flwin32_shellmenu_close(FlWin32ShellMenu* s) {
      * that safe: the thread signals it whether the build succeeded or failed,
      * and only then does it start looking at requests, so the quit cannot
      * arrive while it is mid-QueryContextMenu. */
+    /* Both tiers, because the thread is only listening once it has finished
+     * building them and a quit sent earlier would sit unread. */
     WaitForSingleObject(s->ev_ready, INFINITE);
-    request(s, CMD_QUIT, 0, NULL, 0);
+    WaitForSingleObject(s->ev_full, INFINITE);
+    request(s, CMD_QUIT, 0, 0, NULL, 0);
     WaitForSingleObject(s->thread, INFINITE);
     CloseHandle(s->thread);
+    CloseHandle(s->ev_full);
     CloseHandle(s->ev_ready);
     CloseHandle(s->ev_request);
     CloseHandle(s->ev_done);

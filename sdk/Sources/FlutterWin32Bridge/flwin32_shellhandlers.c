@@ -243,6 +243,7 @@ double flwin32_shellmenu_time_keys(const char* path, int32_t mode,
      * at all. If that is fast, the "cheap tier" needs no hardcoded labels and
      * no registry reading: it is the shell, asked a smaller question. */
     int wanted = (mode == 2) ? 0 : ((mode == 0) ? cheap : n);
+    if (mode == 3) wanted = 1;   /* the first class only */
     HKEY keys[8];
     int key_count = 0;
     for (int i = 0; i < wanted; i++) {

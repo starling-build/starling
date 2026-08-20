@@ -88,6 +88,9 @@ struct MenuRow {
     var shellId: Int32 = -1
     /// The token `expand` takes, for a submenu.
     var token: Int32 = 0
+    /// Which of the session's two menus issued `shellId` and `token`. They
+    /// number their verbs independently, so the id alone is not enough.
+    var tier: Win32ShellMenuTier = .full
     var action: (() -> Void)? = nil
 }
 
@@ -126,8 +129,21 @@ final class ShellMenuModel {
     private(set) var hover: Int?
     private(set) var pillHover: Int?
 
-    /// What the shell came back with.
+    /// What the shell came back with, and which query it came from.
+    ///
+    /// TWO QUERIES, cheap one first. The same shell asked about only the
+    /// item's own classes answers in 2ms for a document and 45ms for a
+    /// folder, against 48-59ms for everything -- because a menu's cost is its
+    /// handlers, and the expensive ones (Defender, OneDrive, Sharing) are
+    /// registered against `*` and AllFilesystemObjects, which the cheap query
+    /// does not ask about.
+    ///
+    /// Drawing the first and then the second is safe because the first is a
+    /// STRICT SUBSET of the second, checked row by row: no row on screen ever
+    /// changes meaning or disappears, the panel only grows. Which is not
+    /// something a tier assembled by hand out of the registry could promise.
     private(set) var shellRows: [Win32ShellVerb] = []
+    private(set) var shellTier: Win32ShellMenuTier = .fast
 
     /// The open submenu, if any.
     private(set) var subAt: MenuPoint?
@@ -218,12 +234,22 @@ final class ShellMenuModel {
         let generation = self.generation
         let session = Win32ShellMenu(path: path, background: entry == nil,
                                      owner: Win32WindowedHost.host?.windowHandle ?? 0)
-        session?.items { [weak self] rows in
-            guard let self, self.generation == generation else { return }
+        // The cheap tier, which for a file is usually back before the first
+        // frame is drawn.
+        session?.items(.fast) { [weak self] rows in
+            guard let self, self.generation == generation,
+                  self.shellTier == .fast, !rows.isEmpty else { return }
+            self.shellRows = rows
+            self.mainCache = nil
+        }
+        // And the full one, which supersedes it.
+        session?.items(.full) { [weak self] rows in
+            guard let self, self.generation == generation, !rows.isEmpty else { return }
             // Nothing to reposition: the panel is anchored to the corner the
             // pointer is at, and `origin` re-derives the other corner from
             // whatever the menu now weighs.
             self.shellRows = rows
+            self.shellTier = .full
             self.mainCache = nil
         }
 
@@ -249,6 +275,7 @@ final class ShellMenuModel {
         shell?.close()
         shell = session
         shellRows = []
+        shellTier = .fast
         subToken = 0
         subRows = []
         subAt = nil
@@ -272,6 +299,7 @@ final class ShellMenuModel {
         hover = nil
         pillHover = nil
         shellRows = []
+        shellTier = .fast
         subAt = nil
         subToken = 0
         subRows = []
@@ -375,7 +403,8 @@ final class ShellMenuModel {
                                 isEnabled: verb.isEnabled,
                                 isDefault: false,
                                 shellId: verb.id,
-                                token: verb.submenu))
+                                token: verb.submenu,
+                                tier: shellTier))
         }
         while let last = rows.last, last.isSeparator { rows.removeLast() }
         return rows
@@ -491,14 +520,21 @@ final class ShellMenuModel {
 
         var action: (() -> Void)?
         var shellId: Int32 = -1
+        var shellTierForInvoke: Win32ShellMenuTier = .full
         var hitAMenu = false
 
         if let subOrigin = subAt, let index = rowIndex(subs, origin: subOrigin, x, y) {
             hitAMenu = true
-            if subs.rows[index].isEnabled { shellId = subs.rows[index].shellId }
+            if subs.rows[index].isEnabled {
+                shellId = subs.rows[index].shellId
+                shellTierForInvoke = subs.rows[index].tier
+            }
         } else if let index = pillIndex(menu, origin: at, x, y) {
             hitAMenu = true
-            if let verb = pillVerb(index), verb.isEnabled { shellId = verb.id }
+            if let verb = pillVerb(index), verb.isEnabled {
+                shellId = verb.id
+                shellTierForInvoke = shellTier
+            }
         } else if let index = rowIndex(menu, origin: at, x, y) {
             hitAMenu = true
             let row = menu.rows[index]
@@ -509,6 +545,7 @@ final class ShellMenuModel {
             if row.isEnabled {
                 action = row.action
                 shellId = row.shellId
+                shellTierForInvoke = row.tier
             }
         }
 
@@ -520,7 +557,7 @@ final class ShellMenuModel {
         shell = nil
         dismiss()
         action?()
-        if shellId >= 0 { session?.invoke(shellId) }
+        if shellId >= 0 { session?.invoke(shellTierForInvoke, shellId) }
         session?.close()
 
         // A right-click somewhere else does not merely dismiss: Windows moves
@@ -580,7 +617,7 @@ final class ShellMenuModel {
         subAt = MenuPoint(x: parentOrigin.x + width - 4,
                           y: parentOrigin.y + top - kMenuPanelPad)
 
-        session.expand(token) { [weak self] rows in
+        session.expand(row.tier, token) { [weak self] rows in
             guard let self, self.generation == generation,
                   self.subToken == token else { return }
             self.subRows = rows
