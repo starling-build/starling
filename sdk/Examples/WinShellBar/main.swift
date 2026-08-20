@@ -95,6 +95,23 @@ if CommandLine.arguments.contains("--print-status") {
     exit(0)
 }
 
+// `--tray-probe [seconds]` takes the "Shell_TrayWnd" class the tray protocol
+// looks up, broadcasts TaskbarCreated so every app re-adds its icons, prints
+// what arrives, hands the class back to explorer and exits.
+//
+// A probe rather than a flag anyone should keep: the tray protocol is entirely
+// undocumented, and the three things that decide whether a shell can host it —
+// whether OUR window is the one Shell_NotifyIcon finds while explorer is still
+// running, what the payload looks like on this Windows build, and what else
+// arrives on the same channel that we would be swallowing — can only be
+// answered on a real machine.
+if let index = CommandLine.arguments.firstIndex(of: "--tray-probe") {
+    let seconds = index + 1 < CommandLine.arguments.count
+        ? Int32(CommandLine.arguments[index + 1]) ?? 20 : 20
+    flwin32_tray_probe(seconds)
+    exit(0)
+}
+
 // `--print-machine` prints what the Settings app reports and exits — the
 // oracle for that pane, the same bargain `--print-status` makes for the
 // control centre: the only honest way to know a readout is right is to ask

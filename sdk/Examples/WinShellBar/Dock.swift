@@ -102,6 +102,23 @@ let keepsNativeTaskbar =
     CommandLine.arguments.contains("--keep-taskbar")
     || CommandLine.arguments.contains("--plain")
 
+/// One notification-area icon's cell along the strip, and the picture inside
+/// it. 16pt is what Windows draws a tray icon at, and these sit beside its
+/// icons in the user's memory rather than beside our 40pt dock tiles.
+let kTrayCell = 26.0
+let kTrayIcon = 16.0
+
+/// Whether Explorer keeps the notification area. The tray is other people's
+/// icons and hosting it means taking a window class off explorer, so it gets
+/// the same escape hatch as the taskbar and the Windows key.
+let keepsNativeTray =
+    CommandLine.arguments.contains("--keep-tray")
+    || CommandLine.arguments.contains("--plain")
+    // Taking the tray while explorer's taskbar is still on screen would empty
+    // ITS notification area into ours — the icons only exist in one place,
+    // and the one the user can see would be the one without them.
+    || keepsNativeTaskbar
+
 /// Whether the Windows key is left to Windows. Same bargain as the taskbar:
 /// the shell takes over the thing the user reaches for, and there is a flag
 /// to hand it back. `--plain` opts out of both for the same reason.
@@ -175,6 +192,10 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// The tile the pointer is over, if any.
     private var hovered: Int?
+    /// The notification icon the pointer is over — by identity rather than
+    /// index, because the strip reorders itself whenever an app comes or goes
+    /// and an index would name a different icon a moment later.
+    private var hoveredTray: UInt64?
     /// The tile whose right-click menu is open, if any.
     private var menuOpen: Int?
     /// Whether the control centre is down, and whether the pointer is
@@ -701,6 +722,44 @@ final class StarlingDockState: State<StatefulWidget> {
                      style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 12))]
     }
 
+    /// Other people's icons. The shell draws them and forwards presses; it
+    /// never decides what one means.
+    private func trayCluster() -> Widget {
+        let icons = bloc.state.tray
+        if vertical {
+            return SizedBox(width: Double(kDockHeight), height: trayLength) {
+                Column(mainAxisSize: .min, crossAxisAlignment: .center) {
+                    for icon in icons { trayTile(icon) }
+                }
+            }
+        }
+        return SizedBox(width: trayLength, height: Double(kDockHeight)) {
+            Row(mainAxisSize: .min, crossAxisAlignment: .center) {
+                for icon in icons { trayTile(icon) }
+            }
+        }
+    }
+
+    private func trayTile(_ icon: Win32TrayIcon) -> Widget {
+        SizedBox(width: kTrayCell, height: kTrayCell) {
+            Center {
+                // The picture arrives a beat after the icon does — it is
+                // rasterized on the cache's queue — and the placeholder holds
+                // the cell so the strip does not reflow underneath the
+                // pointer as they land.
+                if let view = bloc.icons.view(DockBloc.trayKey(icon), side: kTrayIcon) {
+                    view
+                } else {
+                    ClipRRect(borderRadius: BorderRadius.circular(3)) {
+                        ColoredBox(color: Color(0x22FFFFFF)) {
+                            SizedBox(width: kTrayIcon, height: kTrayIcon)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func statusCluster() -> Widget {
         // A fixed extent, imposed rather than measured — `ccOpener` hit-tests
         // against this same number, and a readout that laid itself out to its
@@ -739,6 +798,53 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     // MARK: - Geometry
+
+    /// How far the notification area runs along the strip.
+    private var trayLength: Double { Double(bloc.state.tray.count) * kTrayCell }
+
+    /// The notification area's rectangle, immediately inboard of the status
+    /// readout — where Windows puts it, between the running apps and the
+    /// clock. Arithmetic for the same reason every other rectangle here is:
+    /// the press arrives at a root Listener, not at the widget.
+    private var trayRect: CcRect {
+        switch bloc.state.edge {
+        case .bottom:
+            return CcRect(x: ShellScreen.logicalWidth - kStatusWidth - trayLength,
+                          y: stripOffset, w: trayLength, h: Double(kDockHeight))
+        case .top:
+            return CcRect(x: ShellScreen.logicalWidth - kStatusWidth - trayLength,
+                          y: 0, w: trayLength, h: Double(kDockHeight))
+        case .left:
+            return CcRect(x: 0,
+                          y: ShellScreen.logicalHeight - kStatusHeight - trayLength,
+                          w: Double(kDockHeight), h: trayLength)
+        case .right:
+            return CcRect(x: stripOffset,
+                          y: ShellScreen.logicalHeight - kStatusHeight - trayLength,
+                          w: Double(kDockHeight), h: trayLength)
+        }
+    }
+
+    /// Which tray icon a point is over, or nil.
+    /// Where a tray cell's centre is along the strip — the tooltip's anchor.
+    private func trayCentre(_ icon: Win32TrayIcon) -> Double {
+        guard let index = bloc.state.tray.firstIndex(where: { $0.id == icon.id })
+        else { return 0 }
+        let rect = trayRect
+        let along = (Double(index) + 0.5) * kTrayCell
+        return (vertical ? rect.y : rect.x) + along
+    }
+
+    private func trayHit(_ x: Double, _ y: Double) -> Win32TrayIcon? {
+        let icons = bloc.state.tray
+        guard !icons.isEmpty else { return nil }
+        let rect = trayRect
+        guard rect.contains(x, y) else { return nil }
+        let along = vertical ? (y - rect.y) : (x - rect.x)
+        let index = Int(along / kTrayCell)
+        guard index >= 0, index < icons.count else { return nil }
+        return icons[index]
+    }
 
     /// Which tile a point in the panel is over, or nil.
     ///
@@ -850,6 +956,18 @@ final class StarlingDockState: State<StatefulWidget> {
                                           : Alignment.centerRight) {
                     statusCluster()
                 }
+                // The notification area, inboard of the readout. The padding
+                // is what puts it there: the Align fills the strip minus the
+                // readout's fixed extent, so the icons end where the clock's
+                // cluster begins — which is the rectangle `trayRect` tests.
+                Padding(padding: vertical
+                        ? EdgeInsets(left: 0, top: 0, right: 0, bottom: kStatusHeight)
+                        : EdgeInsets(left: 0, top: 0, right: kStatusWidth, bottom: 0)) {
+                    Align(alignment: vertical ? Alignment.bottomCenter
+                                              : Alignment.centerRight) {
+                        trayCluster()
+                    }
+                }
             }
         }
     }
@@ -942,6 +1060,30 @@ final class StarlingDockState: State<StatefulWidget> {
             })
     }
 
+    /// What Windows shows on hover: the app's own tooltip. Without it a tray
+    /// icon is a picture with no name, which for the half of them that are
+    /// abstract glyphs is no help at all.
+    private func trayLabel(_ icon: Win32TrayIcon) -> Widget {
+        let text = icon.tooltip.isEmpty ? "Notification icon" : icon.tooltip
+        // Unmeasured, like the tile labels, and capped: a tooltip can be a
+        // paragraph ("OneDrive - Personal / Not signed in") and a flyout as
+        // wide as the screen is worse than one that clips.
+        let width = min(Double(text.count) * 6.6 + 20, 320)
+        let origin = flyoutOrigin(centre: trayCentre(icon), width: width, height: 26)
+        return Positioned(left: origin.x, top: origin.y,
+                          child: ClipRRect(borderRadius: BorderRadius.circular(6)) {
+                ColoredBox(color: Color(0xF01B1D22)) {
+                    SizedBox(width: width, height: 26) {
+                        Padding(padding: EdgeInsets(left: 10, top: 5, right: 10, bottom: 5)) {
+                            Text(text,
+                                 style: TextStyle(color: Color(0xFFE6EAF0), fontSize: 12),
+                                 maxLines: 1)
+                        }
+                    }
+                }
+            })
+    }
+
     /// Where a flyout for this tile goes — its top-left corner, in the same
     /// window coordinates a pointer event arrives in.
     ///
@@ -955,7 +1097,13 @@ final class StarlingDockState: State<StatefulWidget> {
     /// to the right of it exactly as one on a bottom dock goes above.
     private func flyoutOrigin(_ index: Int, width: Double, height: Double)
         -> (x: Double, y: Double) {
-        let centre = tileCentre(index)
+        flyoutOrigin(centre: tileCentre(index), width: width, height: height)
+    }
+
+    /// The same formula against an arbitrary point along the strip — what the
+    /// notification area's tooltips hang off, since they are not tiles.
+    private func flyoutOrigin(centre: Double, width: Double, height: Double)
+        -> (x: Double, y: Double) {
         let windowW = vertical ? windowThickness : ShellScreen.logicalWidth
         let windowH = vertical ? ShellScreen.logicalHeight : windowThickness
         switch bloc.state.edge {
@@ -1124,6 +1272,18 @@ final class StarlingDockState: State<StatefulWidget> {
             child: Listener(
                 onPointerDown: { e in
                     let x = e.position.dx, y = e.position.dy
+                    // The notification area first, and with both buttons: a
+                    // tray icon's right-click menu is the whole point of most
+                    // of them, and it belongs to the app, not to the dock's
+                    // own tile menu.
+                    if let icon = self.trayHit(x, y) {
+                        self.setState {
+                            self.menuOpen = nil
+                            self.controlCentreOpen = false
+                        }
+                        self.bloc.add(.trayClick(icon.id, e.buttons == 2 ? .right : .left))
+                        return
+                    }
                     // 2 is the secondary button. A press, not a release: the
                     // press is what arrives reliably here, and a menu that
                     // opens on press is what every desktop does anyway.
@@ -1162,8 +1322,12 @@ final class StarlingDockState: State<StatefulWidget> {
                 },
                 onPointerHover: { e in
                     let index = self.pointerTile(e.position.dx, e.position.dy)
-                    guard index != self.hovered else { return }
-                    self.setState { self.hovered = index }
+                    let tray = self.trayHit(e.position.dx, e.position.dy)?.id
+                    guard index != self.hovered || tray != self.hoveredTray else { return }
+                    self.setState {
+                        self.hovered = index
+                        self.hoveredTray = tray
+                    }
                 },
                 child: ColoredBox(color: Color(0x00000000)) {
                 Stack(alignment: Alignment.bottomCenter) {
@@ -1217,6 +1381,9 @@ final class StarlingDockState: State<StatefulWidget> {
                         menu(open)
                     } else if let over = hovered {
                         label(over)
+                    } else if let id = hoveredTray,
+                              let icon = bloc.state.tray.first(where: { $0.id == id }) {
+                        trayLabel(icon)
                     }
                 }
             }))

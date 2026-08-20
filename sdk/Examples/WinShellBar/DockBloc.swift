@@ -68,6 +68,12 @@ struct DockState {
     /// piece of arithmetic in the surface keys off this.
     var isVertical: Bool { edge == .left || edge == .right }
 
+    /// The notification area, mirrored from the apps that own it. Empty
+    /// until they answer the broadcast that asks them to re-register, which
+    /// takes a second or two after the shell starts — there is no way to ask
+    /// what is already there. See Win32Tray.
+    var tray: [Win32TrayIcon] = []
+
     /// Bumped when an icon texture lands. Icons are rasterized off the UI
     /// thread and arrive after the tiles that want them are already drawn, so
     /// something observable has to change or the dock keeps its fallback
@@ -113,6 +119,10 @@ final class DockBloc: @unchecked Sendable {
         case statusRead(network: Win32Network, power: Win32Power,
                         volume: Win32Volume?, dark: Bool)
         case iconsChanged
+        /// An app added, changed or removed a tray icon.
+        case trayChanged
+        /// The user pressed one; it is forwarded to the app that owns it.
+        case trayClick(UInt64, Win32TrayButton)
     }
 
     private(set) var state = DockState()
@@ -172,6 +182,14 @@ final class DockBloc: @unchecked Sendable {
 
         case .iconsChanged:
             state.iconRevision &+= 1
+
+        case .trayChanged:
+            _readTray()
+
+        case .trayClick(let id, let button):
+            // Off the UI thread: this ends in SetForegroundWindow on somebody
+            // else's window, and the somebody else may be busy.
+            Task.detached { Win32Tray.click(id, button: button) }
 
         case .activate(let item):
             _activate(item)
@@ -272,6 +290,17 @@ final class DockBloc: @unchecked Sendable {
             await MainActor.run { self?.add(.catalogLoaded(apps)) }
         }
 
+        // The tray, if this shell is taking it. Nothing appears at once:
+        // starting it broadcasts the message that asks every app to re-add
+        // its icon, and they answer in their own time.
+        if !keepsNativeTray {
+            let took = Win32Tray.start { [weak self] in self?.add(.trayChanged) }
+            print("[WinShell] notification area hosted: \(took)")
+            if took { _readTray() }
+        } else {
+            print("[WinShell] notification area left to Windows (--keep-tray)")
+        }
+
         _rebuild()
         _readStatus()
 
@@ -282,6 +311,31 @@ final class DockBloc: @unchecked Sendable {
             let level = Win32Status.brightness()
             await MainActor.run { self?.state.brightness = level }
         }
+    }
+
+    /// Takes a fresh tray snapshot and hands each icon's picture to the cache.
+    ///
+    /// Cheap enough for the UI thread — it is a table of a dozen entries and
+    /// an IsWindow per entry — and the expensive half, turning handles into
+    /// textures, is the icon cache's own queue.
+    private func _readTray() {
+        let snapshot = Win32Tray.snapshot()
+        state.tray = snapshot.map(\.icon)
+        for (icon, handle) in snapshot {
+            // The generation is in the key because the picture changes while
+            // the icon does not: a sync client redraws its arrows constantly,
+            // and a cache keyed on identity alone would show the first frame
+            // for ever.
+            icons.ensure(trayKey: Self.trayKey(icon), icon: handle)
+        }
+        // An icon that changed its picture left its old texture behind, and
+        // the sweep that frees those lives in the rebuild. A busy sync client
+        // redraws every few seconds and nothing else here would ever run.
+        _queueRefresh()
+    }
+
+    static func trayKey(_ icon: Win32TrayIcon) -> String {
+        "tray:\(icon.id):\(icon.generation)"
     }
 
     /// Reads the system status off the UI thread and publishes it back.
@@ -398,6 +452,10 @@ final class DockBloc: @unchecked Sendable {
                 icons.ensure(app: app)
             }
         }
+        // The tray's textures are claimed here too: `retain(only:)` releases
+        // everything it is not shown, and a rebuild that forgot them would
+        // free the icons out from under the strip that is drawing them.
+        for icon in state.tray { claimed.insert(Self.trayKey(icon)) }
         icons.retain(only: claimed)
         state.items = [DockItem(key: kLauncherKey, name: "Launcher", app: nil,
                                 windows: [], isPinned: true)] + built

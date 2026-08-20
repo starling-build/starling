@@ -269,6 +269,57 @@ void flwin32_shell_broadcast_toggle(void);
 int32_t flwin32_winkey_capture(void (*callback)(void* user), void* user);
 void flwin32_winkey_release(void);
 
+// ── the notification area ───────────────────────────────────────────────────
+//
+// Hosting the tray means BEING the window Shell_NotifyIcon looks up: a window
+// of class "Shell_TrayWnd". Nothing registers and nothing is granted — the
+// class name is the whole contract — so `start` takes it from explorer, whose
+// taskbar the shell has already hidden, and `stop` gives it back.
+//
+// There is no way to enumerate the icons that already exist. Starting
+// broadcasts "TaskbarCreated", which every app is obliged to answer by
+// re-adding its own; that is the only way in, and it is why the tray fills up
+// over a second or two rather than at once.
+//
+// `changed` is called on the UI thread whenever the set changes; the shell
+// then asks for a fresh list. See flwin32_tray.c for the wire format and for
+// what else arrives on the same channel.
+int32_t flwin32_tray_start(void (*changed)(void* user), void* user);
+void flwin32_tray_stop(void);
+
+// A snapshot. Icons in it are copies owned by the list, so the shell can take
+// as long as it likes rasterizing them while apps carry on changing theirs.
+typedef struct FlWin32TrayList FlWin32TrayList;
+FlWin32TrayList* flwin32_tray_list(void);
+void flwin32_tray_list_free(FlWin32TrayList* list);
+int32_t flwin32_tray_list_count(FlWin32TrayList* list);
+// Stable for as long as the icon exists — identity for the shell, since
+// neither the window nor the id is dependable (an icon registered with a GUID
+// sends its later changes with no window and no id at all).
+uint64_t flwin32_tray_list_key(FlWin32TrayList* list, int32_t index);
+// An HICON belonging to the list. Rasterize it with flwin32_icon_rasterize_handle.
+uint64_t flwin32_tray_list_icon(FlWin32TrayList* list, int32_t index);
+// Bumped every time the icon's picture changes while its identity does not —
+// an app showing sync progress or an unread badge redraws constantly. A cache
+// keyed on the key alone would show the first frame forever.
+uint32_t flwin32_tray_list_generation(FlWin32TrayList* list, int32_t index);
+// Takes the icon OUT of the list: the caller owns it now and must destroy it
+// with flwin32_icon_destroy. For handing one to a background thread that will
+// outlive the snapshot.
+uint64_t flwin32_tray_list_take_icon(FlWin32TrayList* list, int32_t index);
+int32_t flwin32_tray_list_tip(FlWin32TrayList* list, int32_t index, char* out,
+                              int32_t out_size);
+
+// Tells the icon's owner the mouse was over it: button 0 left, 1 right,
+// 2 middle. The position it is told is the CURSOR's, which is the icon's —
+// the pointer is on the icon, because that is what a click is.
+void flwin32_tray_click(uint64_t key, int32_t button);
+
+// A diagnostic: takes the class, prints every message that arrives for
+// `seconds` with the wire bytes decoded, then hands it back. This is how the
+// format above was established and how to re-check it on a new Windows build.
+void flwin32_tray_probe(int32_t seconds);
+
 int32_t flwin32_monitor_count(void);
 int32_t flwin32_monitor_rect(int32_t index,
                              int32_t* x,
@@ -427,7 +478,18 @@ int32_t flwin32_icon_rasterize_path(const char* path,
                                     uint8_t** out_pixels,
                                     int32_t* out_width,
                                     int32_t* out_height);
+// Rasterizes an icon handle the caller already has — a tray icon, which
+// arrives as a handle and never as a path. Borrows it: the handle is still
+// the caller's to destroy.
+int32_t flwin32_icon_rasterize_handle(uint64_t icon,
+                                      int32_t size,
+                                      uint8_t** out_pixels,
+                                      int32_t* out_width,
+                                      int32_t* out_height);
+
 void flwin32_icon_free(uint8_t* pixels);
+// For an icon handle the caller took ownership of (flwin32_tray_list_take_icon).
+void flwin32_icon_destroy(uint64_t icon);
 
 // Rasterizes the icon and registers it with the engine as an external
 // texture, so a `TextureWidget` can draw it. Returns the texture id, or -1.

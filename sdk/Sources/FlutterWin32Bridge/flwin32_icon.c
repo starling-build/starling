@@ -291,6 +291,22 @@ int32_t flwin32_icon_rasterize_path(const char* path,
     return rasterize(info.hIcon, 1, size, out_pixels, out_width, out_height);
 }
 
+int32_t flwin32_icon_rasterize_handle(uint64_t icon,
+                                      int32_t size,
+                                      uint8_t** out_pixels,
+                                      int32_t* out_width,
+                                      int32_t* out_height) {
+    /* Borrowed, not owned: a tray icon handle belongs to the snapshot that
+     * handed it over, and destroying it here would blank the icon the moment
+     * the shell drew it. */
+    return rasterize((HICON)(uintptr_t)icon, 0, size, out_pixels, out_width,
+                     out_height);
+}
+
+void flwin32_icon_destroy(uint64_t icon) {
+    if (icon != 0) DestroyIcon((HICON)(uintptr_t)icon);
+}
+
 void flwin32_icon_free(uint8_t* pixels) {
     free(pixels);
 }

@@ -61,5 +61,24 @@ public enum Win32Icon {
               let pixels, width > 0, height > 0 else { return nil }
         return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
     }
+
+    /// Releases a handle the caller took ownership of — a tray icon out of a
+    /// `Win32Tray.snapshot()`. Not for handles that were only borrowed.
+    public static func destroy(_ handle: UInt64) {
+        flwin32_icon_destroy(handle)
+    }
+
+    /// From an icon handle the caller already has — a tray icon, which arrives
+    /// as a handle and never as a path or a window. Borrows it: the handle is
+    /// still the caller's to destroy.
+    public static func rasterize(icon handle: UInt64, size: Int = 32) -> Bitmap? {
+        var pixels: UnsafeMutablePointer<UInt8>? = nil
+        var width: Int32 = 0
+        var height: Int32 = 0
+        guard flwin32_icon_rasterize_handle(handle, Int32(size), &pixels,
+                                            &width, &height) != 0,
+              let pixels, width > 0, height > 0 else { return nil }
+        return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
+    }
 }
 #endif

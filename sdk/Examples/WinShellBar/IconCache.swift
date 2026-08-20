@@ -82,6 +82,26 @@ final class IconCache {
         rasterize(key: key) { Win32Icon.rasterize(path: path, size: size) }
     }
 
+    /// Rasterizes a tray icon, which arrives as a HANDLE rather than a path:
+    /// the app drew it, and there is no file anywhere to point at.
+    ///
+    /// The handle belongs to this call from here on, whether or not it is
+    /// used — it was taken out of a snapshot that has already been freed, so
+    /// the alternative to destroying it here is leaking one icon per refresh,
+    /// and the refresh runs whenever any app touches its tray icon.
+    func ensure(trayKey key: String, icon handle: UInt64, size: Int = 32) {
+        guard handle != 0 else { return }
+        guard textures[key] == nil, !attempted.contains(key) else {
+            Win32Icon.destroy(handle)
+            return
+        }
+        attempted.insert(key)
+        rasterize(key: key) {
+            defer { Win32Icon.destroy(handle) }
+            return Win32Icon.rasterize(icon: handle, size: size)
+        }
+    }
+
     /// Rasterize off the UI thread, register on it.
     ///
     /// The expensive half is the shell asking for an HICON and drawing it into
