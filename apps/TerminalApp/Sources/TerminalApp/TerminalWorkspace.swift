@@ -31,7 +31,6 @@
 import Flutter
 import Foundation
 
-#if !os(iOS)
 
 /// Where a workspace lives, as a person types it: `remote:host/ws:dev`.
 ///
@@ -80,7 +79,28 @@ struct WorkspaceSpec: Equatable {
     /// line someone would rather not edit). The switcher (`⌘O`) is how a
     /// person reaches a workspace now, and it calls the same `_openWorkspace`;
     /// this path remains for scripts and for launching straight into one.
+    #if os(iOS)
+    /// The workspace the connect screen just picked.
+    ///
+    /// iOS has no argv and no environment worth reading — the app is launched
+    /// by a tap — so the connect screen is this platform's launch line, and
+    /// this is where it writes what it chose.
+    nonisolated(unsafe) static var connected: WorkspaceSpec?
+
+    /// The workspace a fresh connection lands in.
+    ///
+    /// A name, because a workspace has to have one to be found again, and the
+    /// far side keys its arrangement on it. "main" rather than the device name
+    /// so that reconnecting from the phone and from the iPad reach the SAME
+    /// arrangement — which is the whole point of the feature, and would be
+    /// quietly lost if each device invented its own.
+    static let defaultName = "main"
+    #endif
+
     static func fromLaunch() -> WorkspaceSpec? {
+        #if os(iOS)
+        return connected
+        #else
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--workspace"), i + 1 < args.count,
            let spec = WorkspaceSpec(args[i + 1]) {
@@ -91,6 +111,7 @@ struct WorkspaceSpec: Equatable {
             return spec
         }
         return nil
+        #endif
     }
 }
 
@@ -131,14 +152,35 @@ final class TerminalWorkspace: @unchecked Sendable {
     /// pane, because the pane is where the red line explaining it is written.
     var onPaneEnded: ((Int) -> Void)?
 
+    #if os(iOS)
+    /// How iOS reaches a daemon, set once by the app when its ssh connection
+    /// comes up (`SSHTerminal.termdDialer()`).
+    ///
+    /// A global, and deliberately: on this platform there is exactly ONE ssh
+    /// connection and every workspace, pane and control link is a channel on
+    /// it. Threading a dialer through each of them would be ceremony around a
+    /// fact that cannot vary — and the day it can vary (a second host), this
+    /// is the one place that has to change.
+    ///
+    /// nil until connected, which is also the honest answer: a workspace
+    /// asked for before there is a connection cannot be reached, and its link
+    /// says so rather than inventing a transport.
+    nonisolated(unsafe) static var dialer: TermdDialer?
+    #endif
+
     init(spec: WorkspaceSpec) {
         self.spec = spec
         // How this host is reached, if the person said (HostConfig.swift).
         // Passed rather than left to the environment because a GUI launch has
         // no environment worth speaking of — the app comes up from Finder or a
         // dock with no shell above it, so `STARLING_SSH` is simply absent.
+        #if os(iOS)
+        self.link = RemoteWorkspace(name: spec.name, host: spec.host,
+                                    dial: TerminalWorkspace.dialer)
+        #else
         self.link = RemoteWorkspace(name: spec.name, host: spec.host,
                                     sshPath: HostConfig.ssh(for: spec.host))
+        #endif
     }
 
     /// Connect, and hand back what the far side was holding. `nil` means a
@@ -181,11 +223,21 @@ final class TerminalWorkspace: @unchecked Sendable {
         // No size is passed: the view resizes the session on mount and the
         // link turns that into a RESIZE frame, so the far end is told the
         // pane's real size rather than the one it was guessed at here.
+        #if os(iOS)
+        // Each pane gets its own channel on the one ssh connection — the
+        // iOS equivalent of the desktop's one ssh child per pane.
+        let remote = RemoteTerminal(session: pane.session,
+                                    host: spec.host,
+                                    attach: (session ?? 0) == 0 ? nil : session,
+                                    command: reopenCommand(in: cwd),
+                                    dial: TerminalWorkspace.dialer)
+        #else
         let remote = RemoteTerminal(session: pane.session,
                                     host: spec.host,
                                     attach: (session ?? 0) == 0 ? nil : session,
                                     command: reopenCommand(in: cwd),
                                     sshPath: HostConfig.ssh(for: spec.host))
+        #endif
         // The blob's directory is right for the FIRST open — the pane has no
         // screen of its own yet, so there is nothing better to know. From then
         // on the pane's own emulator is the better answer, and it is asked at
@@ -369,4 +421,3 @@ final class TerminalWorkspace: @unchecked Sendable {
     }
 }
 
-#endif  // !os(iOS)

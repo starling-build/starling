@@ -26,7 +26,6 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
-#if !os(iOS)
 
 /// One row: a place to go, and what is there.
 struct SwitcherRow {
@@ -258,8 +257,18 @@ extension _TerminalTabsState {
         // host with the stock `ssh` and then opening it with the configured
         // one would make the picker lie: it would show nothing for a host that
         // works perfectly.
+        #if os(iOS)
+        // One connection, one host: the picker asks the machine this app is
+        // already attached to, down a channel of its own.
+        let dialer = TerminalWorkspace.dialer
+        let sshPath: String? = nil
+        #else
+        let dialer: TermdDialer? = nil
+        let sshPath = HostConfig.ssh(for: host)
+        #endif
         TermdDirectory.list(host: host,
-                            sshPath: HostConfig.ssh(for: host)) { [weak self] listing in
+                            sshPath: sshPath,
+                            dial: dialer) { [weak self] listing in
             DispatchQueue.main.async {
                 guard let self = self, self._switcher.open,
                       self._switcher.host == host
@@ -611,4 +620,3 @@ extension _TerminalTabsState {
     }
 }
 
-#endif  // !os(iOS)

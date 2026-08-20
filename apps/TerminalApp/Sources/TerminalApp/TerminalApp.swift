@@ -17,6 +17,9 @@
 
 import Flutter
 import Foundation
+#if os(iOS)
+import FlutterUIKit
+#endif
 
 class TerminalApp: StatefulWidget {
     override func createState() -> State<StatefulWidget> {
@@ -63,14 +66,31 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     #if os(iOS)
-    /// Columns the grid is sized to. 50, which on a 393pt phone puts the
-    /// font at ~13pt — the size the desktop terminal itself defaults to.
-    /// 80 was tried first, because that is the width the software world
-    /// assumes (man pages, `ls -l`, every TUI's layout) — and it came out
-    /// unreadable, ~8pt on an iPhone 15. On a phone held in one hand,
-    /// reading the text beats not wrapping it; pinch inward for the full
-    /// 80 when a TUI needs its layout over your eyesight.
-    private static let defaultColumns = 50
+    /// Columns the grid is sized to, taken from the window the app actually
+    /// got rather than from a constant.
+    ///
+    /// A phone gets 50. 80 was tried first, because that is the width the
+    /// software world assumes (man pages, `ls -l`, every TUI's layout) — and
+    /// it came out unreadable, ~8pt on an iPhone 15. Held in one hand,
+    /// reading the text beats not wrapping it; pinch inward for the full 80
+    /// when a TUI needs its layout over your eyesight.
+    ///
+    /// An iPad is not a big phone, and a flat 50 made that obvious the first
+    /// time one ran it: a 45-character prompt spanned a 13-inch display, one
+    /// glyph about 20pt. Above the phone's floor the rule is the desktop's
+    /// own — a 13pt monospace advance is ~8.2pt, which is exactly why 13pt
+    /// yields 49 columns in a 402pt window — so dividing the width by it
+    /// keeps the font at the size both desktop hosts default to. A 13-inch
+    /// iPad opens at ~125 columns, and a split pane still has room for real
+    /// output instead of six words a line.
+    ///
+    /// `windowSize` is zero until the tree is mounted; this is read from
+    /// `build`, so it is not, but the floor covers it if that ever changes.
+    private static var defaultColumns: Int {
+        let width = UIKitHost.windowSize.width
+        guard width > 0 else { return 50 }
+        return max(50, Int((width / 8.2).rounded()))
+    }
 
     private var columns: Int {
         get {
@@ -85,23 +105,28 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
     /// on screen until then.
     private var connected = false
 
+    /// Connect, then hand the screen to the same tabbed workspace UI the
+    /// desktop runs.
+    ///
+    /// The connection is opened `connectionOnly`: it authenticates and stops
+    /// there, because every pane dials its own channel through the dialer set
+    /// below. Anything this object opened for itself would be a second shell
+    /// on the far machine that nothing draws.
+    ///
+    /// Order matters. The dialer and the launch spec are in place BEFORE
+    /// `connected` flips, because that flip mounts `TerminalTabsView`, whose
+    /// `initState` reads the spec and starts dialing immediately.
     private func connect(_ target: SSHTarget) {
         target.remember()
         let ssh = SSHTerminal(session: session)
+        ssh.connectionOnly = true
         self.ssh = ssh
+        TerminalWorkspace.dialer = ssh.termdDialer()
+        WorkspaceSpec.connected = WorkspaceSpec(
+            "\(target.host)/ws:\(WorkspaceSpec.defaultName)")
         ssh.connect(host: target.host, port: target.port,
                     user: target.user, password: target.password)
         setState { self.connected = true }
-    }
-
-    /// The terminal proper: a grid sized to a column count rather than to a
-    /// font size, and a pinch that moves that count.
-    private func terminal() -> Widget {
-        return TerminalView(
-            session: session,
-            fitColumns: columns,
-            onFitColumnsChanged: { [weak self] in self?.columns = $0 },
-            pinchToZoom: true)
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -110,7 +135,10 @@ class _TerminalAppState: State<StatefulWidget>, @unchecked Sendable {
                 self?.connect(target)
             })
         }
-        return terminal()
+        // The pad chrome, not the desktop's (docs/plans/ipad-ui.md). The
+        // model underneath is the same class either way — TerminalPad.swift
+        // overrides `build` and nothing else.
+        return TerminalPadView()
     }
     #else
     /// The desktop terminal is tabbed — several shells in one window, the bar

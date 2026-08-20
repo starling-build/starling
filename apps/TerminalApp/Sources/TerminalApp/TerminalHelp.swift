@@ -29,7 +29,6 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
-#if !os(iOS)
 
 /// One row: a chord and what it does. `mac` is shown instead of `chord` on
 /// macOS when the two differ; nil means the same chord everywhere.
@@ -294,4 +293,3 @@ extension _TerminalTabsState {
     }
 }
 
-#endif

@@ -25,8 +25,6 @@
 // layout moves, and otherwise sits there — which is also what makes it the
 // right place to notice that the far end is gone.
 
-#if os(Linux) || os(macOS) || os(Windows)
-
 import Foundation
 
 public final class RemoteWorkspace: @unchecked Sendable {
@@ -115,7 +113,9 @@ public final class RemoteWorkspace: @unchecked Sendable {
     private var pendingAdds: [UInt32] = []
     private var added = Set<UInt32>()
 
-    private var child: ChildLink?
+    private var child: TermdTransport?
+    /// How this workspace reaches its daemon — see `TermdDialer`.
+    private let dial: TermdDialer
     private let lock = NSLock()
     private var stopped = false
     private var attempt = 0
@@ -132,15 +132,29 @@ public final class RemoteWorkspace: @unchecked Sendable {
     /// closing the window right after a split still records it.
     private static let debounce: TimeInterval = 0.4
 
+    /// `dial` is how this workspace reaches its daemon. The desktops leave it
+    /// nil and get the ssh child; iOS has no child to spawn and must pass one
+    /// — a channel on the ssh connection the app already holds.
     public init(name: String,
                 host: String,
                 sshPath: String? = nil,
-                serverPath: String? = nil) {
+                serverPath: String? = nil,
+                dial: TermdDialer? = nil) {
         self.name = name
         self.host = host
+        #if os(Linux) || os(macOS) || os(Windows)
         let paths = TermdPaths(ssh: sshPath, server: serverPath)
         self.sshPath = paths.ssh
         self.serverPath = paths.server
+        self.dial = dial ?? termdChildDialer(sshPath: paths.ssh,
+                                             serverPath: paths.server)
+        #else
+        self.sshPath = sshPath ?? ""
+        self.serverPath = serverPath ?? "starling-termd"
+        // A caller that forgets is a workspace that never connects, rather
+        // than one that quietly reaches the wrong machine.
+        self.dial = dial ?? { _ in nil }
+        #endif
     }
 
     // MARK: - Lifecycle
@@ -262,15 +276,15 @@ public final class RemoteWorkspace: @unchecked Sendable {
     }
 
     private func spawn() -> Bool {
-        let argv = termdArgv(host: host, sshPath: sshPath, serverPath: serverPath)
         // The control link queues with its panes rather than beside them: it
-        // dials the same host, at the same moment, for the same reason.
-        TermdDialPacer.shared.awaitTurn(host: host)
+        // dials the same host, at the same moment, for the same reason. The
+        // pacing lives inside the dialer now, because only the child transport
+        // has a handshake storm to spread.
         lock.lock()
         let done = stopped
         lock.unlock()
         if done { return false }
-        guard let link = ChildLink.spawn(argv) else { return false }
+        guard let link = dial(host) else { return false }
         lock.lock()
         child = link
         // Every connection after the first is a reconnect, and the WS_META it
@@ -505,5 +519,3 @@ public final class RemoteWorkspace: @unchecked Sendable {
         link?.close()
     }
 }
-
-#endif  // os(Linux) || os(macOS) || os(Windows)

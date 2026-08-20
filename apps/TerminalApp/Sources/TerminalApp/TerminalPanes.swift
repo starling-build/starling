@@ -16,7 +16,6 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
-#if !os(iOS)
 
 /// Which way a split divides its box.
 enum SplitAxis {
@@ -281,4 +280,3 @@ func buildPaneTree(_ node: LayoutNode,
     }
 }
 
-#endif  // !os(iOS)

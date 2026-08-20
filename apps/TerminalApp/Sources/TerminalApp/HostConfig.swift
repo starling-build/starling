@@ -27,7 +27,6 @@
 import Flutter
 import Foundation
 
-#if !os(iOS)
 
 enum HostConfig {
     static var path: String {
@@ -60,4 +59,3 @@ enum HostConfig {
     }
 }
 
-#endif

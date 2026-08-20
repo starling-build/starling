@@ -36,7 +36,6 @@ import Foundation
 // exec, so a tab here could not start a shell — that platform opens ONE ssh
 // session from a connect screen (TerminalApp.swift) and there is nothing to
 // tab between.
-#if !os(iOS)
 
 /// One tab: a tree of panes, plus an identity that survives the list moving
 /// under it.
@@ -133,7 +132,12 @@ final class TerminalTabsView: StatefulWidget {
     }
 }
 
-final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
+/// Not final: `_TerminalPadState` (TerminalPad.swift) is this state with
+/// different chrome. Everything about what a pane IS — the tab list, the split
+/// tree, the workspace, the chord table — is inherited rather than copied,
+/// which is decision 2 of docs/plans/ipad-ui.md: share the model, fork the
+/// chrome. Two copies of "what a pane is" is how two UIs become two products.
+class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
 
     // Not private: TerminalSwitcher.swift is an extension on this state, and
     // the switcher is the thing that decides which tab you are looking at.
@@ -281,7 +285,16 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         if let workspace = tab?.workspace {
             workspace.attach(pane, session: nil)
         } else {
+            #if os(iOS)
+            // There is no local shell here, and a pane that silently stays
+            // blank is the worst version of that: it looks like a hang. Say
+            // what happened and name the way out.
+            pane.session.feed(Array(
+                ("\u{1B}[38;5;244mno local shell on iOS — ⌘O to reach a "
+                 + "workspace\u{1B}[0m\r\n").utf8))
+            #else
             pane.session.startShell()
+            #endif
         }
         return pane
     }
@@ -295,8 +308,20 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         return tab
     }
 
+    /// ⌘T. On the desktop a new tab is a local shell; on iOS there is no such
+    /// thing, so the chord opens the switcher and the tab is whatever is
+    /// picked there.
+    ///
+    /// Not left unbound: ⌘T is the most worn-in chord a terminal has, and a
+    /// key that does nothing teaches nothing. Landing in the picker is at
+    /// least the right neighbourhood — every way to get a new tab on this
+    /// platform is in it.
     private func _newTab() {
+        #if os(iOS)
+        _openSwitcher()
+        #else
         setState { _open() }
+        #endif
     }
 
     // MARK: - Workspaces
@@ -572,7 +597,9 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
         tab.workspace?.record(tab)
     }
 
-    private func _focusPane(_ pane: TerminalPane) {
+    // Not private: the sidebar (TerminalPad.swift) focuses a pane by
+    // tapping its row, which is the same act as clicking the pane.
+    func _focusPane(_ pane: TerminalPane) {
         guard let tab = tabs.indices.contains(active) ? tabs[active] : nil
         else { return }
         // Engaging with a pane makes this client the one whose size the far
@@ -731,11 +758,23 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                 if isO { _openSwitcher(); return true }
             }
         }
-        #if os(macOS)
+        #if os(macOS) || os(iOS)
         // The native chords, beside the Ctrl ones every platform gets — the
         // same pairing TerminalView already makes for copy/paste/find. Cmd+D
         // and Cmd+Shift+D are iTerm's split pair, which is the muscle memory
         // most Mac terminal users already have.
+        //
+        // iOS is in here because an iPad with a keyboard attached is a ⌘
+        // machine — same modifier, same conventions, and a person moving
+        // between the Mac app and the iPad one should not have to learn a
+        // second set. Left out, every chord below fell THROUGH to the shell:
+        // ⌘O typed a bare `o` at the prompt rather than opening the switcher,
+        // which reads as "the keyboard is broken" rather than "unimplemented".
+        //
+        // One chord does not survive the trip: ⌘/ is eaten by iPadOS before
+        // the app sees it — the modifier arrives, the `/` never does — so the
+        // help sheet is reached by Ctrl+Shift+/ there. Every other chord in
+        // this block was verified arriving with meta set.
         if _metaDown && !_ctrlDown {
             // ⌘1…⌘8 jump, and ⌘9 is the LAST tab rather than the ninth —
             // Safari's rule, which Terminal.app and iTerm both follow, and
@@ -774,7 +813,9 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// discover this from below, and a metrics change rebuilds the whole tree
     /// (see Adapter's onMetricsChanged), so reading it here is what makes the
     /// grid follow a window resize.
-    private func _windowSize() -> Size {
+    // Not private, same reason `_switcher` is not: the pad chrome
+    // (TerminalPad.swift) is a subclass and draws from these.
+    func _windowSize() -> Size {
         if let view = PlatformDispatcher.instance.implicitView {
             let dpr = view.devicePixelRatio
             let phys = view.physicalSize
@@ -836,7 +877,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// sizes its grid from the whole window, which is right for a terminal
     /// that IS the window and wrong for every pane in a split: the shell
     /// would be told a size it does not have.
-    private func _panes(_ tab: TerminalTab, in body: Size) -> Widget {
+    func _panes(_ tab: TerminalTab, in body: Size) -> Widget {
         // A lone pane fills the window edge to edge; only a SPLIT one is held
         // off the edges. Floating a single pane would cost text area and a
         // border around the whole window is noise — the same reason the active
@@ -1209,4 +1250,3 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     }
 }
 
-#endif  // !os(iOS)

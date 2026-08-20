@@ -14,7 +14,6 @@
 // of being wrong for a few seconds is a stale row rather than a lost pane.
 // Anything that needs to STAY current holds a RemoteWorkspace instead.
 
-#if os(Linux) || os(macOS) || os(Windows)
 
 import Foundation
 
@@ -59,16 +58,26 @@ public enum TermdDirectory {
     /// Ask a host what it has. `completion` runs on an internal thread, with
     /// nil when the far side could not be reached or did not answer in time —
     /// which for a picker means "show nothing", not "there is nothing".
+    /// `dial` is how the host is reached; the desktops leave it nil and get
+    /// the ssh child, iOS passes a channel on its existing connection.
     public static func list(host: String,
                             sshPath: String? = nil,
                             serverPath: String? = nil,
                             timeout: TimeInterval = 8,
+                            dial: TermdDialer? = nil,
                             completion: @escaping @Sendable (Listing?) -> Void) {
+        #if os(Linux) || os(macOS) || os(Windows)
         let paths = TermdPaths(ssh: sshPath, server: serverPath)
+        let dialer = dial ?? termdChildDialer(sshPath: paths.ssh,
+                                              serverPath: paths.server)
+        #else
+        guard let dialer = dial else {
+            completion(nil)
+            return
+        }
+        #endif
         Thread {
-            let argv = termdArgv(host: host, sshPath: paths.ssh,
-                                 serverPath: paths.server)
-            guard let link = ChildLink.spawn(argv) else {
+            guard let link = dialer(host) else {
                 completion(nil)
                 return
             }
@@ -175,4 +184,3 @@ public enum TermdDirectory {
     }
 }
 
-#endif  // os(Linux) || os(macOS) || os(Windows)

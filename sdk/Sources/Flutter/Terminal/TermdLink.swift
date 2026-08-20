@@ -13,9 +13,105 @@
 // `read` returns a positive count, `0` for "nothing within the timeout" (the
 // caller uses that tick for ACK and heartbeat), or `-1` for end of stream.
 
+import Foundation
+
+// MARK: - The transport
+
+/// One byte pipe to a daemon, and the only thing above it that a platform can
+/// change.
+///
+/// The desktops reach termd by spawning `ssh host starling-termd --stdio` and
+/// talking over the child's pipes — `ChildLink` below. iOS cannot: there is no
+/// fork and no exec there, so its ssh is NIOSSH inside this process and the
+/// pipe is a channel on that connection. Both are the same three calls, and
+/// everything above them — framing, byte offsets, reconnect, the protocol
+/// itself — is one copy of the code for every platform.
+///
+/// `read` returns a positive count, `0` for "nothing within the timeout" (the
+/// caller uses that tick for ACK and heartbeat), or `-1` for end of stream.
+/// A transport that cannot honour the timeout will spin the client's read
+/// thread; one that returns `0` at end of stream will hang it.
+public protocol TermdTransport: AnyObject {
+    func read(into buf: inout [UInt8], timeoutMs: Int32) -> Int
+    func write(_ frame: [UInt8])
+    func close()
+}
+
+/// Opens one transport to `host`, or returns nil if it could not.
+///
+/// Injected rather than chosen inside the client, because the two
+/// implementations do not live in the same place: the child spawn is here in
+/// the framework, and the NIOSSH one is in the app that already holds the ssh
+/// connection. `RemoteWorkspace` and `RemoteTerminal` name only this.
+public typealias TermdDialer = (_ host: String) -> TermdTransport?
+
+// MARK: - Wire format
+
+/// Frame types, shared by every client of the protocol (termd/protocol.h).
+enum TermdFrame: UInt8 {
+    case hello = 1, helloOk = 2, list = 3, listReply = 4, open = 5
+    case attach = 6, attached = 7, data = 8, input = 9, resize = 10
+    case ack = 11, exit = 12, detach = 13, error = 14, ping = 15, pong = 16
+    // Workspaces — docs/plans/remote-workspace.md.
+    case wsCreate = 17, wsInfo = 18, wsList = 19, wsListReply = 20
+    case wsAdd = 21, wsSetMeta = 22, wsGetMeta = 23, wsMeta = 24
+    case sessionCwd = 25, sessionCwdReply = 26, kill = 27
+}
+
+/// What the far side says it can be asked for (HELLO_OK's trailing byte).
+struct TermdCaps: OptionSet {
+    let rawValue: UInt8
+    /// A session's command reaches a POSIX shell, so a client may compose one.
+    static let posixShell = TermdCaps(rawValue: 0x01)
+    /// The daemon can report a session's working directory.
+    static let sessionCwd = TermdCaps(rawValue: 0x02)
+}
+
+/// Little-endian scalars, the format's only encoding rule.
+enum TermdWire {
+    /// 2 added session names (termd/protocol.h). The daemon refuses a version
+    /// it does not speak, so an old server answers ERROR rather than
+    /// misreading a named OPEN as a command.
+    static let version = 2
+    /// termd/protocol.h's TERMD_MAX_NAME, less the NUL the daemon adds.
+    static let maxNameBytes = 63
+    /// TERMD_MAX_BLOB: generous for a tree of pane ratios and mean about
+    /// anything else, which is the point.
+    static let maxBlobBytes = 16 * 1024
+
+    static func u16(_ v: UInt16) -> [UInt8] { [UInt8(v & 0xff), UInt8(v >> 8)] }
+    static func u32(_ v: UInt32) -> [UInt8] {
+        (0..<4).map { UInt8((v >> (8 * $0)) & 0xff) }
+    }
+    static func u64(_ v: UInt64) -> [UInt8] {
+        (0..<8).map { UInt8((v >> (8 * UInt64($0))) & 0xff) }
+    }
+    static func readU16(_ b: [UInt8], _ off: Int) -> UInt16 {
+        UInt16(b[off]) | (UInt16(b[off + 1]) << 8)
+    }
+    static func readU32(_ b: [UInt8], _ off: Int) -> UInt32 {
+        UInt32(b[off]) | (UInt32(b[off + 1]) << 8)
+            | (UInt32(b[off + 2]) << 16) | (UInt32(b[off + 3]) << 24)
+    }
+    static func readU64(_ b: [UInt8], _ off: Int) -> UInt64 {
+        var v: UInt64 = 0
+        for i in 0..<8 { v |= UInt64(b[off + i]) << (8 * UInt64(i)) }
+        return v
+    }
+
+    /// One frame: `u8 type; u8 flags; u16 pad; u32 len; payload`.
+    static func frame(_ type: TermdFrame, _ payload: [UInt8]) -> [UInt8] {
+        var out = [UInt8]([type.rawValue, 0, 0, 0])
+        out.append(contentsOf: u32(UInt32(payload.count)))
+        out.append(contentsOf: payload)
+        return out
+    }
+}
+
+// MARK: - The ssh child, on the platforms that have one
+
 #if os(Linux) || os(macOS) || os(Windows)
 
-import Foundation
 #if os(Linux)
 import Glibc
 #elseif os(Windows)
@@ -158,8 +254,13 @@ func termdSplitCommand(_ text: String) -> [String] {
     }
 }
 
+#endif  // os(Linux) || os(macOS) || os(Windows)
+
 /// Paces outbound dials to one host, so that N panes do not arrive at one
 /// sshd as N simultaneous handshakes.
+///
+/// Cross-platform even though only the child transport paces: `backoff` is
+/// the reconnect curve every client uses, iOS included.
 ///
 /// This is the "N panes, N reconnect storms" risk in
 /// docs/plans/remote-workspace.md, and it is not theoretical. Every pane holds
@@ -232,6 +333,8 @@ final class TermdDialPacer: @unchecked Sendable {
     }
 }
 
+#if os(Linux) || os(macOS) || os(Windows)
+
 /// The environment a termd client is reached through, defaults included.
 struct TermdPaths {
     let ssh: String
@@ -252,7 +355,7 @@ struct TermdPaths {
 /// offsets, reconnect, the protocol itself) is the same code everywhere,
 /// which is the point of isolating it here rather than sprinkling `#if`
 /// through a read loop.
-final class ChildLink {
+final class ChildLink: TermdTransport {
 #if os(Linux) || os(macOS)
     private var pid: pid_t
     private let toChild: Int32
@@ -438,66 +541,17 @@ final class ChildLink {
 #endif
 }
 
-// MARK: - Wire format
-
-/// Frame types, shared by every client of the protocol (termd/protocol.h).
-enum TermdFrame: UInt8 {
-    case hello = 1, helloOk = 2, list = 3, listReply = 4, open = 5
-    case attach = 6, attached = 7, data = 8, input = 9, resize = 10
-    case ack = 11, exit = 12, detach = 13, error = 14, ping = 15, pong = 16
-    // Workspaces — docs/plans/remote-workspace.md.
-    case wsCreate = 17, wsInfo = 18, wsList = 19, wsListReply = 20
-    case wsAdd = 21, wsSetMeta = 22, wsGetMeta = 23, wsMeta = 24
-    case sessionCwd = 25, sessionCwdReply = 26, kill = 27
-}
-
-/// What the far side says it can be asked for (HELLO_OK's trailing byte).
-struct TermdCaps: OptionSet {
-    let rawValue: UInt8
-    /// A session's command reaches a POSIX shell, so a client may compose one.
-    static let posixShell = TermdCaps(rawValue: 0x01)
-    /// The daemon can report a session's working directory.
-    static let sessionCwd = TermdCaps(rawValue: 0x02)
-}
-
-/// Little-endian scalars, the format's only encoding rule.
-enum TermdWire {
-    /// 2 added session names (termd/protocol.h). The daemon refuses a version
-    /// it does not speak, so an old server answers ERROR rather than
-    /// misreading a named OPEN as a command.
-    static let version = 2
-    /// termd/protocol.h's TERMD_MAX_NAME, less the NUL the daemon adds.
-    static let maxNameBytes = 63
-    /// TERMD_MAX_BLOB: generous for a tree of pane ratios and mean about
-    /// anything else, which is the point.
-    static let maxBlobBytes = 16 * 1024
-
-    static func u16(_ v: UInt16) -> [UInt8] { [UInt8(v & 0xff), UInt8(v >> 8)] }
-    static func u32(_ v: UInt32) -> [UInt8] {
-        (0..<4).map { UInt8((v >> (8 * $0)) & 0xff) }
-    }
-    static func u64(_ v: UInt64) -> [UInt8] {
-        (0..<8).map { UInt8((v >> (8 * UInt64($0))) & 0xff) }
-    }
-    static func readU16(_ b: [UInt8], _ off: Int) -> UInt16 {
-        UInt16(b[off]) | (UInt16(b[off + 1]) << 8)
-    }
-    static func readU32(_ b: [UInt8], _ off: Int) -> UInt32 {
-        UInt32(b[off]) | (UInt32(b[off + 1]) << 8)
-            | (UInt32(b[off + 2]) << 16) | (UInt32(b[off + 3]) << 24)
-    }
-    static func readU64(_ b: [UInt8], _ off: Int) -> UInt64 {
-        var v: UInt64 = 0
-        for i in 0..<8 { v |= UInt64(b[off + i]) << (8 * UInt64(i)) }
-        return v
-    }
-
-    /// One frame: `u8 type; u8 flags; u16 pad; u32 len; payload`.
-    static func frame(_ type: TermdFrame, _ payload: [UInt8]) -> [UInt8] {
-        var out = [UInt8]([type.rawValue, 0, 0, 0])
-        out.append(contentsOf: u32(UInt32(payload.count)))
-        out.append(contentsOf: payload)
-        return out
+/// The desktops' dialer: pace, then spawn `ssh host starling-termd --stdio`.
+///
+/// The pacing belongs here rather than in the client because it is a property
+/// of *this* transport — N panes becoming N ssh handshakes at one sshd. A
+/// transport that multiplexes channels over one connection, as iOS does, has
+/// no such storm to spread and no reason to inherit the wait.
+func termdChildDialer(sshPath: String, serverPath: String) -> TermdDialer {
+    return { host in
+        TermdDialPacer.shared.awaitTurn(host: host)
+        return ChildLink.spawn(termdArgv(host: host, sshPath: sshPath,
+                                         serverPath: serverPath))
     }
 }
 

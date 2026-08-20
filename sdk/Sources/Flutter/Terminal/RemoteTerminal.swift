@@ -21,7 +21,6 @@
 // child with two pipes (TermdLink.swift) and Darwin has one. A Mac terminal
 // that cannot reach a remote session would be the odd one out, and it is the
 // machine this is developed on.
-#if os(Linux) || os(macOS) || os(Windows)
 import Foundation
 
 public final class RemoteTerminal: @unchecked Sendable {
@@ -96,7 +95,9 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// ACK reports. The only piece of state a reconnect actually needs.
     private var consumed: UInt64 = 0
 
-    private var child: ChildLink?
+    private var child: TermdTransport?
+    /// How this session reaches its daemon — see `TermdDialer`.
+    private let dial: TermdDialer
     private let lock = NSLock()
     private var stopped = false
     /// An ATTACH is outstanding — which is what makes an ERROR answering it
@@ -111,15 +112,24 @@ public final class RemoteTerminal: @unchecked Sendable {
                 attach: UInt32? = nil,
                 command: String? = nil,
                 sshPath: String? = nil,
-                serverPath: String? = nil) {
+                serverPath: String? = nil,
+                dial: TermdDialer? = nil) {
         self.session = session
         self.host = host
         self.name = (name?.isEmpty ?? true) ? nil : name
         self.remoteId = attach
         self.command = command
+        #if os(Linux) || os(macOS) || os(Windows)
         let paths = TermdPaths(ssh: sshPath, server: serverPath)
         self.sshPath = paths.ssh
         self.serverPath = paths.server
+        self.dial = dial ?? termdChildDialer(sshPath: paths.ssh,
+                                             serverPath: paths.server)
+        #else
+        self.sshPath = sshPath ?? ""
+        self.serverPath = serverPath ?? "starling-termd"
+        self.dial = dial ?? { _ in nil }
+        #endif
 
         // Keys and query responses go up the wire; the grid stays here.
         session.onOutput = { [weak self] text in
@@ -191,17 +201,16 @@ public final class RemoteTerminal: @unchecked Sendable {
     /// host is local — the same protocol either way, which is what makes a
     /// local persistent session and a remote one the same feature.
     private func spawn() -> Bool {
-        let argv = termdArgv(host: host, sshPath: sshPath, serverPath: serverPath)
         // Wait for this host's turn. Every pane of a workspace dials the same
         // machine the instant a tunnel drops, and unpaced that is N handshakes
-        // in one millisecond — see TermdDialPacer.
-        TermdDialPacer.shared.awaitTurn(host: host)
+        // in one millisecond — see TermdDialPacer, which the child dialer
+        // waits on for us.
         lock.lock()
         let done = stopped
         lock.unlock()
         // Waiting for a slot takes real time, and stop() can land inside it.
         if done { return false }
-        guard let link = ChildLink.spawn(argv) else { return false }
+        guard let link = dial(host) else { return false }
         lock.lock()
         child = link
         lock.unlock()
@@ -438,4 +447,3 @@ public final class RemoteTerminal: @unchecked Sendable {
         TermdWire.readU64(b, off)
     }
 }
-#endif  // os(Linux) || os(macOS) || os(Windows)

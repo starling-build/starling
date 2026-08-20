@@ -296,6 +296,18 @@ public final class SSHTerminal: @unchecked Sendable {
     /// Fires on an internal thread whenever `link` changes.
     public var onLink: ((Link) -> Void)?
 
+    /// When set, this object is a CONNECTION and nothing else — it
+    /// authenticates and then stops, opening no session channel of its own.
+    ///
+    /// That is the workspace shape: a tab's panes each dial their own channel
+    /// through `termdDialer()`, so a session owned here as well would be an
+    /// extra shell nobody asked for, running on the far machine for as long as
+    /// the app is open.
+    public var connectionOnly = false
+
+    /// Fires once the connection is up and `termdDialer()` will answer.
+    public var onConnected: (() -> Void)?
+
     private let group: MultiThreadedEventLoopGroup
     private var connection: Channel?
     private var channel: Channel?
@@ -387,7 +399,19 @@ public final class SSHTerminal: @unchecked Sendable {
                     guard let self = self, !self.reachedLive else { return }
                     self.fail(self.describe(errors.error ?? Failure.closedDuringHandshake))
                 }
-                self.openSession(on: connection)
+                if self.connectionOnly {
+                    // Nothing more to open: every pane dials its own channel
+                    // through `termdDialer()`. "Live" for this object is the
+                    // connection being up, which is also what stops a later
+                    // close from being reported as a failed handshake.
+                    self.lock.lock()
+                    self._reachedLive = true
+                    self.lock.unlock()
+                    self.setLink(.live)
+                    self.onConnected?()
+                } else {
+                    self.openSession(on: connection)
+                }
             }
         }
     }
@@ -412,6 +436,71 @@ public final class SSHTerminal: @unchecked Sendable {
         lock.unlock()
         disconnectKeepingState()
         setLink(.idle)
+    }
+
+    /// A `TermdDialer` for a workspace: another channel on this connection,
+    /// carrying WS_* frames (TermdSSHTransport.swift).
+    ///
+    /// Synchronous on purpose. `RemoteWorkspace` calls its dialer from its own
+    /// thread and expects a connected transport or nil — the same contract the
+    /// desktop's `ChildLink.spawn` meets by blocking in fork/exec. So this
+    /// waits for the exec to be accepted rather than handing back a transport
+    /// whose channel might still fail, which would look to the workspace like
+    /// a daemon that answers nothing.
+    ///
+    /// `host` is ignored: an iOS workspace lives on the machine this terminal
+    /// is already connected to, and there is no second connection to reach
+    /// anywhere else. That is also why a bad host cannot silently reach the
+    /// wrong box here.
+    public func termdDialer() -> TermdDialer {
+        return { [weak self] _ in
+            guard let self = self else { return nil }
+            self.lock.lock()
+            let conn = self.connection
+            self.lock.unlock()
+            guard let conn = conn else { return nil }
+
+            let transport = TermdSSHTransport()
+            let ready = DispatchSemaphore(value: 0)
+
+            let created = conn.eventLoop.makePromise(of: Channel.self)
+            conn.pipeline.handler(type: NIOSSHHandler.self).whenComplete { result in
+                switch result {
+                case .failure(let error):
+                    created.fail(error)
+                case .success(let ssh):
+                    ssh.createChannel(created) { child, type in
+                        guard type == .session else {
+                            return child.eventLoop.makeFailedFuture(
+                                ChannelError.inappropriateOperationForState)
+                        }
+                        transport.bind(child)
+                        // Same `sh -lc` login shell as the session channel, and
+                        // for the same reason: sshd's exec PATH does not
+                        // include ~/.local/bin, where termd usually lives.
+                        return child.pipeline.addHandler(
+                            TermdWorkspaceChannelHandler(
+                                transport: transport,
+                                command: "sh -lc 'exec starling-termd --stdio'",
+                                onReady: { good in
+                                    transport.markAccepted(good)
+                                    ready.signal()
+                                }))
+                    }
+                }
+            }
+            created.futureResult.whenFailure { _ in ready.signal() }
+
+            // Long enough for a real handshake on a slow link, short enough
+            // that a wedged far side does not hold the workspace thread for
+            // ever — it will retry on its own backoff.
+            guard ready.wait(timeout: .now() + 20) == .success else {
+                transport.close()
+                return nil
+            }
+            if !transport.wasAccepted { transport.close(); return nil }
+            return transport
+        }
     }
 
     private func openSession(on connection: Channel) {

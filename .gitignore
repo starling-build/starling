@@ -5,6 +5,7 @@
 .build/
 .build-starling/
 .build-gtk/
+.build-macos/
 .DS_Store
 .stage/
 /build/tools/drm_screenshot
