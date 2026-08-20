@@ -203,7 +203,14 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// is what gets the folder's own menu.
     private func targetAt(_ x: Double, _ y: Double) -> MenuTarget? {
         guard x >= kFilesSidebar, y >= kFilesToolbar else { return nil }
-        let index = Int((y - kFilesToolbar + scroll.offset) / kFilesRow)
+        // `offset` TRAPS on a controller with no attached position, and an
+        // EMPTY folder is exactly that: the listing draws its "This folder
+        // is empty" label instead of the scrollable, so nothing ever
+        // attaches. The first right-click on an empty folder's background
+        // killed the app here -- hasClients is the guard Dart code uses on
+        // the same contract, not an optimization.
+        let offset = scroll.hasClients ? scroll.offset : 0
+        let index = Int((y - kFilesToolbar + offset) / kFilesRow)
         guard index >= 0, index < bloc.state.visible.count else { return .background }
         return .item(bloc.state.visible[index])
     }
