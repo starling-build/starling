@@ -230,6 +230,34 @@ int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* menu, int32_t id);
 void flwin32_shellmenu_timings(FlWin32ShellMenu* menu, double* bind, double* query,
                                double* walk, double* verbs);
 
+// WHICH HANDLER is costing the time inside QueryContextMenu.
+//
+// The stage timings above say QueryContextMenu is 84-99% of the assembly, and
+// that is where the answer stops being useful: QueryContextMenu is a loop over
+// every shell extension registered for the item, and nothing reports a
+// per-handler cost. So this runs the shell's own loop by hand -- registry ->
+// CoCreateInstance -> IShellExtInit::Initialize -> QueryContextMenu, one at a
+// time, with a clock around each. Read-only, diagnostic, --menu-handlers only.
+//
+// The static verbs (registry `shell\<verb>\command` entries -- Open, Edit,
+// "Open with Visual Studio") are the shell's own work rather than a handler's,
+// so they are not in this table; the gap between its total and the monolithic
+// figure is them.
+typedef struct FlWin32HandlerCost {
+    char key[80];       // "AllFilesystemObjects\FileSyncEx"
+    char clsid[48];
+    char dll[96];       // the leaf of InprocServer32 -- who this actually is
+    double create_ms;   // CoCreateInstance, which is where a cold DLL loads
+    double init_ms;     // IShellExtInit::Initialize
+    double query_ms;    // the handler's own QueryContextMenu
+    int32_t items;      // how many rows it contributed
+    int32_t failed;     // no IContextMenu, or would not instantiate
+} FlWin32HandlerCost;
+
+int32_t flwin32_shellmenu_handler_costs(const char* path,
+                                        FlWin32HandlerCost* out,
+                                        int32_t max);
+
 // Ends the session and releases the handlers. Safe while the query is still
 // running; blocks until the thread is gone.
 void flwin32_shellmenu_close(FlWin32ShellMenu* menu);

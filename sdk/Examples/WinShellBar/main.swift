@@ -246,6 +246,79 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
     exit(0)
 }
 
+// `--menu-handlers <path>` times every registered context-menu handler for a
+// path, one at a time, and prints them worst first.
+//
+// The answer to "where is the bottleneck" that --menu-probe cannot give:
+// it can say QueryContextMenu is 99% of the assembly, but QueryContextMenu is
+// a loop over other people's DLLs and the useful question is which one. This
+// runs that loop by hand. Read-only, and it instantiates nothing the real menu
+// would not instantiate a moment later.
+if let index = CommandLine.arguments.firstIndex(of: "--menu-handlers") {
+    let path = index + 1 < CommandLine.arguments.count
+        ? CommandLine.arguments[index + 1] : ""
+    guard !path.isEmpty else {
+        print("[menu-handlers] expected a path")
+        exit(2)
+    }
+    let max = 64
+    var buffer = [FlWin32HandlerCost](repeating: FlWin32HandlerCost(), count: max)
+    let started = Date()
+    let n = buffer.withUnsafeMutableBufferPointer {
+        flwin32_shellmenu_handler_costs(path, $0.baseAddress, Int32(max))
+    }
+    let elapsed = Date().timeIntervalSince(started) * 1000
+    // GENERIC, not `Any`. A fixed-size C char array imports as a tuple, and
+    // passing a tuple as `Any` boxes it -- withUnsafeBytes then reads the
+    // BOX, which prints as a pointer's worth of mojibake and looks exactly
+    // like a corrupted registry read.
+    func text<T>(_ tuple: T) -> String {
+        var copy = tuple
+        return withUnsafeBytes(of: &copy) { bytes in
+            String(cString: bytes.baseAddress!.assumingMemoryBound(to: CChar.self))
+        }
+    }
+    struct Row {
+        let key: String, dll: String, create: Double, initMs: Double
+        let query: Double, items: Int32, failed: Bool
+        var total: Double { create + initMs + query }
+    }
+    let rows = buffer.prefix(Int(n)).map { raw -> Row in
+        var raw = raw
+        return Row(key: text(raw.key), dll: text(raw.dll),
+                   create: raw.create_ms, initMs: raw.init_ms,
+                   query: raw.query_ms, items: raw.items, failed: raw.failed != 0)
+    }
+    print("[menu-handlers] \(path): \(rows.count) registered handlers, "
+          + String(format: "%.0fms to run them all", elapsed))
+    // Padded by hand: String(format:)'s %s wants a C string, and handing it a
+    // Swift String prints the pointer's bytes as text -- which looks exactly
+    // like a corrupted registry read and is not one.
+    func pad(_ text: String, _ width: Int) -> String {
+        text.count >= width ? String(text.prefix(width))
+                            : text + String(repeating: " ", count: width - text.count)
+    }
+    func ms(_ value: Double) -> String {
+        pad(String(format: "%.1fms", value), 8)
+    }
+    print("  " + pad("handler", 44) + pad("dll", 26)
+          + pad("create", 8) + pad("init", 8) + pad("query", 8) + "items")
+    for row in rows.sorted(by: { $0.total > $1.total }) {
+        print("  " + pad(row.key, 44) + pad(row.dll.isEmpty ? "-" : row.dll, 26)
+              + ms(row.create) + ms(row.initMs) + ms(row.query)
+              + "\(row.items)" + (row.failed ? "  (no menu)" : ""))
+    }
+    let total = rows.reduce(0.0) { $0 + $1.total }
+    let worst = rows.sorted { $0.total > $1.total }.first
+    print(String(format: "  -- these handlers account for %.0fms", total))
+    if let worst {
+        print("  -- worst: \(worst.key) (\(worst.dll.isEmpty ? "-" : worst.dll)) at "
+              + String(format: "%.0fms, %.0f%% of the handlers' total",
+                       worst.total, total > 0 ? worst.total / total * 100 : 0))
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-modes") {
     for mode in Win32SystemInfo.displayModes() {
         print("\(mode.width)x\(mode.height)@\(mode.refresh)")
