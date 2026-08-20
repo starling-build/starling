@@ -266,7 +266,23 @@ func _setupWidgetBinding(_ app: Widget) {
         // and a cursor at column 37 painted an empty grid with the cursor at
         // column 0. The engine delivers vsync reliably through the Cocoa
         // embedder, so there is nothing here to fall back FROM.
-        if !_fallbackFrameScheduled {
+        // THE HOOK, NOT THE PIPELINE, when the host provides one. Asking
+        // the embedder for a real frame (ForceRedraw -> the engine's own
+        // begin-frame pass) is strictly better than the out-of-band drain
+        // below: the drain composites outside the engine's frame callback,
+        // and whether such a composite reaches the screen depends on the
+        // context it runs from -- from a RunLoop pump it does, from the
+        // host's WM_TIMER drain it silently does not, which surfaced as a
+        // menu that never showed its rows. It also cannot race the real
+        // frame into skipping (the macOS pathology in the comment above),
+        // because it IS the real frame.
+        if let kick = hostScheduleEngineFrame {
+            kick()
+        } else if !_fallbackFrameScheduled {
+            // No hook installed: the RunLoop fallback. Late -- RunLoop.main
+            // is pumped by input on this host, and by nearly nothing when
+            // the pointer is still -- but visibly composites, which the
+            // GCD main queue variant of this block did not.
             _fallbackFrameScheduled = true
             RunLoop.main.perform(_sendablePerform {
                 _fallbackFrameScheduled = false

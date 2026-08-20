@@ -30,6 +30,20 @@ public nonisolated(unsafe) var windowedHostBoot:
 public nonisolated(unsafe) var hostPeriodicTimerInstall:
     ((Double, @escaping () -> Void) -> AnyObject?)? = nil
 
+/// Asks the host's EMBEDDER for a real engine frame -- the begin-frame /
+/// draw-frame pass, through the engine's own scheduler. Installed by hosts
+/// where the bridge's programmatic `scheduleFrame` never produces one: on
+/// Win32, `PlatformDispatcher.scheduleFrame` reaches
+/// `Engine::ScheduleFrame` through the Swift-bridge registry and no frame
+/// ever comes back, while the embedder-API path this hook takes
+/// (`ForceRedraw` -> `FlutterEngineScheduleFrame`, the same call a resize
+/// makes) reliably does. Without it, a `setState` from a
+/// `DispatchQueue.main.async` callback -- a shell menu's verbs arriving,
+/// a listing finishing its load -- composites only when the next
+/// input-driven frame happens along, measured at ~630ms of nothing under
+/// a motionless pointer.
+public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
+
 /// The main entry point for an app that should run under whichever host is
 /// available:
 /// - `FLUTTER_DMABUF_SOCKET` set (spawned by the Starling shell) — the GPU
