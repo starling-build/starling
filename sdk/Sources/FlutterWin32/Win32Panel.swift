@@ -170,6 +170,41 @@ public enum Win32Shell {
         flwin32_shell_broadcast_toggle()
     }
 
+    /// A bare tap of either Windows key, delivered here rather than to
+    /// Explorer's Start menu.
+    ///
+    /// The key labelled with the Windows logo is the one people press to open
+    /// Start, and hiding Explorer's taskbar does not take it with them:
+    /// explorer is still running and still owns it. There is no way to ask for
+    /// a lone modifier — `RegisterHotKey` treats Win as something that
+    /// modifies another key — so this is a low-level keyboard hook, and it
+    /// only ever eats the tap: `Win+E`, `Win+D`, `Win+L` and everything
+    /// Microsoft adds next are dispatched by Windows off a keydown we never
+    /// touch. See `flwin32_winkey.c` for how a tap is unmade.
+    ///
+    /// Call it on the UI thread. `handler` runs there too, on the message
+    /// loop. Returns whether the hook took — false either because Windows
+    /// refused it or because another Starling shell in this session already
+    /// holds the key, which is what a second dock on a second monitor gets.
+    @discardableResult
+    public static func captureSuperKey(_ handler: @escaping () -> Void) -> Bool {
+        superKeyHandler = handler
+        return flwin32_winkey_capture({ _ in Win32Shell.superKeyHandler?() }, nil) != 0
+    }
+
+    /// Gives the key back to Windows. The hook dies with the process anyway,
+    /// and a hung shell loses it on the system's own timeout — which is the
+    /// right failure: a desktop where the Windows key does nothing at all is
+    /// worse than one where it opens the wrong Start.
+    public static func releaseSuperKey() {
+        flwin32_winkey_release()
+        superKeyHandler = nil
+    }
+
+    /// Global for the same reason `Win32Host`'s toggle handler is: one UI
+    /// thread, one hook per process.
+    nonisolated(unsafe) private static var superKeyHandler: (() -> Void)?
+
     /// Opens Starling's own Settings window.
     ///
     /// Another run of this binary, like the launcher: the framework mounts one

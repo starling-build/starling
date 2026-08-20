@@ -255,6 +255,20 @@ void flwin32_host_on_toggle(FlWin32Host* host,
                             void* user);
 void flwin32_shell_broadcast_toggle(void);
 
+// ── the Windows key ─────────────────────────────────────────────────────────
+//
+// A bare tap of either Windows key, turned into `callback`. Every Win+<key>
+// combination is left alone — the keydown is never swallowed, so the system's
+// own shortcut table keeps working without us knowing what is in it.
+//
+// Must be called on the thread that pumps the message loop: a WH_KEYBOARD_LL
+// hook is called back on the thread that installed it, and the callback is
+// posted to a message-only window so it runs on the loop rather than inside
+// the hook (a hook that overruns LowLevelHooksTimeout is silently removed).
+// Returns non-zero if the hook is installed.
+int32_t flwin32_winkey_capture(void (*callback)(void* user), void* user);
+void flwin32_winkey_release(void);
+
 int32_t flwin32_monitor_count(void);
 int32_t flwin32_monitor_rect(int32_t index,
                              int32_t* x,

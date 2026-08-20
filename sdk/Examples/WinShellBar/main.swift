@@ -272,6 +272,20 @@ if wantsFiles {
         let hidden = Win32Shell.hideNativeTaskbar()
         print("[WinShell] Explorer taskbar hidden: \(hidden)")
     }
+
+    // The Windows key, pointed at our Start instead of Explorer's. It lives in
+    // the DOCK because the dock is the process that stays running — and
+    // because two hooks would replay the keyup twice and toggle the launcher
+    // back closed. Installed here, on the thread that is about to become the
+    // message loop, which is where a low-level hook has to be.
+    if !keepsWindowsKey {
+        let captured = Win32Shell.captureSuperKey { Win32Shell.toggleOverlay() }
+        print("[WinShell] Windows key captured: \(captured)")
+    } else {
+        // Said out loud, because "we chose not to" and "we tried and failed"
+        // are the same silence in a log otherwise.
+        print("[WinShell] Windows key left to Windows (--keep-winkey)")
+    }
     // transparent: the dock is a slab floating over the wallpaper, so the
     // strip around it has to be a hole rather than a black band. overhang:
     // the window extends above the reserved strip so the hover label and the

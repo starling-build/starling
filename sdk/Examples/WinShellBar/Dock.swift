@@ -102,6 +102,13 @@ let keepsNativeTaskbar =
     CommandLine.arguments.contains("--keep-taskbar")
     || CommandLine.arguments.contains("--plain")
 
+/// Whether the Windows key is left to Windows. Same bargain as the taskbar:
+/// the shell takes over the thing the user reaches for, and there is a flag
+/// to hand it back. `--plain` opts out of both for the same reason.
+let keepsWindowsKey =
+    CommandLine.arguments.contains("--keep-winkey")
+    || CommandLine.arguments.contains("--plain")
+
 /// What the dock keeps when nothing of that app is running, on a machine that
 /// has never been told otherwise. Matched loosely against the Start Menu
 /// name, because the exact wording moves between Windows releases ("Command
