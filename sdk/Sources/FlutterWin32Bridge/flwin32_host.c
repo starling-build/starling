@@ -1677,6 +1677,15 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
 // nothing else. The alternative -- resetting when it is shown -- puts a build
 // and a rasterize between the user's keypress and the pixels, which measured
 // as a whole extra frame.
+/* The host's TOP-LEVEL window, for the Win32 calls that need a window rather
+ * than a view -- DwmRegisterThumbnail's destination is the first. Not the
+ * child: the child is the engine's view, and a thumbnail placed against it
+ * would be in the wrong coordinate space and clipped to it. */
+uint64_t flwin32_host_window(FlWin32Host* host) {
+  if (host == NULL) return 0;
+  return (uint64_t)(UINT_PTR)host->window;
+}
+
 void flwin32_host_request_redraw(FlWin32Host* host) {
   if (host == NULL || host->controller == NULL) return;
   FlutterDesktopViewControllerForceRedraw(host->controller);

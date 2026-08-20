@@ -130,6 +130,28 @@ if let index = CommandLine.arguments.firstIndex(of: "--tray-probe") {
 // CLI is what lets a benchmark run at a refresh rate other than the one the
 // machine happens to be in — this monitor is 3840x2160 at 29Hz, so a frame is
 // 34ms and no screen-sampling measurement can resolve better than that.
+// `--thumb-probe [hwnd] [seconds]` puts the same window in two destination
+// windows -- one plain, one layered and colour-keyed exactly as the dock is --
+// and holds them on screen to be photographed.
+//
+// A probe rather than a flag anyone should keep, for the reason --tray-probe
+// is one: DwmRegisterThumbnail is documented, but whether DWM will composite
+// onto the LAYERED window our dock actually is, is not documented either way,
+// and the whole design depends on the answer. With no hwnd it picks the
+// foreground window, which is the easy way to aim it at something specific.
+if let index = CommandLine.arguments.firstIndex(of: "--thumb-probe") {
+    let given = index + 1 < CommandLine.arguments.count
+        ? UInt64(CommandLine.arguments[index + 1]) : nil
+    let seconds = index + 2 < CommandLine.arguments.count
+        ? Int32(CommandLine.arguments[index + 2]) ?? 12 : 12
+    let target = given ?? Win32WindowManager.windows().first(where: {
+        !$0.title.isEmpty && !$0.title.contains("Starling")
+    })?.handle ?? 0
+    print("[WinShell] thumb-probe target=0x\(String(target, radix: 16))")
+    flwin32_thumb_probe(target, seconds)
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-modes") {
     for mode in Win32SystemInfo.displayModes() {
         print("\(mode.width)x\(mode.height)@\(mode.refresh)")

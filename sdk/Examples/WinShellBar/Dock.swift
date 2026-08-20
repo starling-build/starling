@@ -219,7 +219,6 @@ final class StarlingDockState: State<StatefulWidget> {
     private let previews = PreviewCache()
     /// Bumped whenever the preview closes or moves to another tile, so a
     /// refresh armed for the old one stops re-arming.
-    private var previewGeneration = 0
 
     /// Whether the overflow flyout — the icons behind the chevron — is down.
     private var trayOverflowOpen = false
@@ -243,10 +242,6 @@ final class StarlingDockState: State<StatefulWidget> {
         super.initState()
         CupertinoIcons.registerFont()
         bloc.add(.start)
-        previews.onReady = { [weak self] in
-            guard let self, self.mounted else { return }
-            self.setState {}
-        }
         Win32WindowManager.observe { [weak self] _ in
             self?.bloc.add(.windowsChanged)
         }
@@ -1298,44 +1293,26 @@ final class StarlingDockState: State<StatefulWidget> {
                     ColoredBox(color: Color(0xFF11131A)) {
                         SizedBox(width: kPreviewThumbW, height: kPreviewThumbH) {
                             Center {
-                                // A MINIMIZED WINDOW HAS NOTHING TO RENDER.
+                                // DELIBERATELY EMPTY.
                                 //
-                                // Windows shows one anyway: DWM keeps the last
-                                // frame from before it was minimized, and that
-                                // is what its preview draws. PrintWindow asks
-                                // the window to paint, and a minimized window
-                                // paints nothing — so where Windows has a
-                                // stale picture we have none at all, and a
-                                // black rectangle would read as a broken
-                                // preview rather than as a hidden window.
+                                // DWM paints the picture into this rectangle,
+                                // over the top of whatever the tree drew here
+                                // — so the slot is a hole, and the dark fill
+                                // behind it is what shows through while a
+                                // registration is still being made and around
+                                // an aspect-fitted picture that does not fill
+                                // the slot.
                                 //
-                                // The app's own icon says the same thing
-                                // honestly, and covers the first beat before a
-                                // capture lands as well.
-                                if let view = previews.view(window.handle,
-                                                            width: kPreviewThumbW,
-                                                            height: kPreviewThumbH) {
-                                    view
-                                } else if let icon = previewFallbackIcon(index) {
-                                    icon
-                                } else {
-                                    SizedBox(width: kPreviewThumbW, height: kPreviewThumbH)
-                                }
+                                // A minimized window needs no fallback icon any
+                                // more: DWM kept its last frame, which is the
+                                // whole reason the taskbar can show one.
+                                SizedBox(width: kPreviewThumbW, height: kPreviewThumbH)
                             }
                         }
                     }
                 }
             }
         }
-    }
-
-    /// The app's icon, for a thumbnail there is no picture for.
-    private func previewFallbackIcon(_ index: Int) -> Widget? {
-        guard index >= 0, index < bloc.state.items.count else { return nil }
-        let item = bloc.state.items[index]
-        let key = item.windows.first.map(IconCache.key(for:))
-            ?? item.app.map(IconCache.key(for:))
-        return key.flatMap { bloc.icons.view($0, side: 40) }
     }
 
     /// A press inside the preview card. True when it consumed the press.
@@ -1375,24 +1352,38 @@ final class StarlingDockState: State<StatefulWidget> {
     /// for a clock or a build log, and a fraction of the cost of the real
     /// thing.
     private func openPreview(_ index: Int) {
-        previewGeneration += 1
-        let generation = previewGeneration
-        previews.pixelSide = Int(kPreviewThumbW * (ShellScreen.monitor?.scale ?? 2.0))
-        previews.refresh(previewWindows(index).map(\.handle))
-        refreshPreview(generation)
+        previews.sync(previewWindows(index).map(\.handle))
+        placePreview(index)
     }
 
-    private func refreshPreview(_ generation: Int) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self, self.mounted, self.previewGeneration == generation,
-                  let index = self.hovered, self.hasPreview(index) else { return }
-            self.previews.refresh(self.previewWindows(index).map(\.handle))
-            self.refreshPreview(generation)
+    /// Puts each registered thumbnail where its slot is.
+    ///
+    /// The rects are COMPUTED from the same constants the tree lays out with,
+    /// not measured from it: the card's origin is `flyoutOrigin` and every
+    /// cell is a fixed size, so the arithmetic here and the widths in
+    /// `previewCell` are the same two numbers. If one changes the other must —
+    /// there is no layout pass to catch a divergence, the picture simply lands
+    /// beside its slot.
+    ///
+    /// Physical pixels, because that is what DWM's destination rect is in.
+    private func placePreview(_ index: Int) {
+        let windows = previewWindows(index)
+        guard !windows.isEmpty else { return }
+        let size = previewSize(index)
+        let origin = flyoutOrigin(index, width: size.width, height: size.height)
+        let scale = ShellScreen.monitor?.scale ?? 2.0
+        let top = origin.y + kPreviewPad + kPreviewTitleH
+        for (i, window) in windows.enumerated() {
+            let left = origin.x + kPreviewPad + Double(i) * (kPreviewThumbW + kPreviewPad)
+            previews.place(window.handle,
+                           x: Int((left * scale).rounded()),
+                           y: Int((top * scale).rounded()),
+                           width: Int((kPreviewThumbW * scale).rounded()),
+                           height: Int((kPreviewThumbH * scale).rounded()))
         }
     }
 
     private func closePreview() {
-        previewGeneration += 1
         previews.releaseAll()
         setState { hovered = nil }
     }
@@ -1677,9 +1668,8 @@ final class StarlingDockState: State<StatefulWidget> {
                     if let index, self.hasPreview(index) {
                         self.openPreview(index)
                     } else if wasPreviewing {
-                        // Left a running tile: stop capturing and give the
-                        // thumbnails back.
-                        self.previewGeneration += 1
+                        // Left a running tile: give the thumbnails back, or
+                        // DWM keeps painting them over the dock.
                         self.previews.releaseAll()
                     }
                 },

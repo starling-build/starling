@@ -248,6 +248,9 @@ int32_t flwin32_host_is_visible(FlWin32Host* host);
 // documented way for unrelated processes to talk with no socket or pipe.
 // Rasterize now, visible or not — so a hidden overlay can be brought up to
 // date before it is shown.
+// The host's top-level window, for calls that need an HWND (thumbnails).
+uint64_t flwin32_host_window(FlWin32Host* host);
+
 void flwin32_host_request_redraw(FlWin32Host* host);
 
 void flwin32_host_on_toggle(FlWin32Host* host,
@@ -517,6 +520,45 @@ int32_t flwin32_capture_window(uint64_t window,
                                uint8_t** out_pixels,
                                int32_t* out_width,
                                int32_t* out_height);
+
+// ── live window thumbnails (DwmRegisterThumbnail) ──────────────────────
+//
+// What the taskbar's own preview is. Unlike flwin32_capture_window these are
+// LIVE and cost us nothing -- DWM is already compositing those pixels -- and
+// they work for a minimized source, because DWM keeps its last frame.
+//
+// The price: a thumbnail is not a bitmap. DWM paints it into a rectangle of a
+// destination window WE OWN and we never see the pixels, so it cannot go in
+// the widget tree. The card draws its chrome; DWM draws the picture on top.
+//
+// Register once per (destination, source) while a preview is open, place it
+// on every layout, unregister when it closes. `dest` must belong to this
+// process.
+int32_t flwin32_thumb_register(uint64_t dest, uint64_t src, uint64_t* out_handle);
+
+// The destination rectangle is in `dest`'s CLIENT coordinates and PHYSICAL
+// pixels -- multiply logical points by the screen scale before calling, or the
+// picture lands at half size on a 200% display and is exactly right on a 100%
+// one. `client_only` drops the source's own title bar and border.
+int32_t flwin32_thumb_place(uint64_t handle,
+                            int32_t x,
+                            int32_t y,
+                            int32_t width,
+                            int32_t height,
+                            int32_t opacity,
+                            int32_t client_only);
+
+int32_t flwin32_thumb_hide(uint64_t handle);
+int32_t flwin32_thumb_unregister(uint64_t handle);
+
+// The source's size as DWM knows it, for fitting a thumbnail into a slot
+// without distorting it. Takes a registration handle, not a window: there is
+// no window-only form of this call.
+int32_t flwin32_thumb_source_size(uint64_t handle, int32_t* width, int32_t* height);
+
+// Establishes, on a real machine, whether DWM will composite onto the layered
+// colour-keyed window the dock actually is. See flwin32_thumb.c.
+void flwin32_thumb_probe(uint64_t src, int32_t seconds);
 
 void flwin32_icon_free(uint8_t* pixels);
 // For an icon handle the caller took ownership of (flwin32_tray_list_take_icon).

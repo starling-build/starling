@@ -97,6 +97,12 @@ public final class Win32Host {
         flwin32_host_request_redraw(host)
     }
 
+    /// The host's TOP-LEVEL window, for the Win32 calls that take an HWND
+    /// rather than a view -- a DWM thumbnail's destination is the first of
+    /// them. Not the engine's child view: a thumbnail placed against that
+    /// would be in the wrong coordinate space and clipped to it.
+    public var windowHandle: UInt64 { flwin32_host_window(host) }
+
     /// Called when any Starling surface broadcasts a toggle. Runs on the UI
     /// thread, inside the message loop.
     public func onToggle(_ handler: @escaping () -> Void) {

@@ -1,85 +1,80 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Thumbnails of other people's windows, for the dock's hover previews.
+// The pictures in the dock's hover preview, as DWM thumbnails.
 //
-// Separate from IconCache, which it otherwise resembles, because the two have
-// opposite lifetimes. An icon is small, permanent and never changes, so that
-// cache remembers what it has ATTEMPTED and never asks twice. A preview is
-// large, temporary and stale the moment it is taken — the whole point is that
-// it shows what the window looks like NOW — so this one re-captures on demand
-// and throws everything away when the preview closes.
+// This used to be PrintWindow into a DIB, uploaded as an external texture.
+// That is a PRINTING api doing a compositing job, and every symptom followed
+// from it: a capture costs a full re-render of the target window, so it had to
+// be throttled to once a second rather than being live; a MINIMIZED window
+// paints nothing, so it came back empty and needed the app's icon drawn over
+// the hole; and it re-captured on a timer that had to be cancelled, generation
+// -tokened and re-armed.
 //
-// Capturing is not free: it asks the window to render itself at full size.
-// Hence one capture when a preview opens and one per second while it is up,
-// rather than one per frame.
+// DwmRegisterThumbnail is what the taskbar's own preview is, and it deletes
+// all three problems: DWM is already compositing those pixels, so it is live
+// for free, and it keeps the last frame of a minimized window, so a minimized
+// window shows its content exactly as Windows' preview does.
+//
+// WHAT IT COSTS. A thumbnail is not an image. DWM paints it into a rectangle
+// of a destination window WE OWN -- here, the dock's own panel window -- and
+// we never see the pixels. So these are not Widgets, and the card cannot draw
+// anything ON one: the tree draws the chrome and the slot, and the picture
+// arrives on top of it. Verified on the physical box that DWM does composite
+// onto the dock's WS_EX_LAYERED colour-keyed window, which was the one thing
+// this design depended on and which is documented nowhere -- see
+// flwin32_thumb.c's probe.
+//
+// Positions are PHYSICAL pixels in the dock window's client space. The card
+// lays out in logical points, so every rect goes through the screen scale on
+// its way here.
 
 #if os(Windows)
-import Flutter
 import FlutterWin32
 import Foundation
 
 final class PreviewCache {
-    /// Called on the UI thread when a thumbnail has landed.
-    var onReady: (() -> Void)?
+    private var thumbs: [UInt64: Win32Thumbnail] = [:]
 
-    private var textures: [UInt64: Int] = [:]
-    private var inFlight: Set<UInt64> = []
+    /// The destination: the dock's own top-level window. Read on demand rather
+    /// than stored, because the host is built after this object is.
+    private var destination: UInt64 { Win32WindowedHost.host?.windowHandle ?? 0 }
 
-    /// The longest side, in physical pixels. The card draws at a fixed
-    /// logical size, so this is that size times the screen's scale.
-    var pixelSide: Int = 320
-
-    /// Captures anything in `windows` that is not already in flight. Existing
-    /// thumbnails stay on screen until the new one lands, so a refresh does
-    /// not blink.
-    func refresh(_ windows: [UInt64]) {
-        for handle in windows where !inFlight.contains(handle) {
-            inFlight.insert(handle)
-            let side = pixelSide
-            Self.queue.async { [weak self] in
-                let bitmap = Win32Capture.thumbnail(window: handle, maxSide: side)
-                DispatchQueue.main.async {
-                    guard let self else {
-                        bitmap?.discard()
-                        return
-                    }
-                    self.inFlight.remove(handle)
-                    guard let bitmap else { return }
-                    guard let id = Win32WindowedHost.host?.registerPixels(bitmap) else {
-                        return
-                    }
-                    // Replace rather than skip: the old picture is a picture
-                    // of the past, which is the one thing a preview must not
-                    // be.
-                    if let old = self.textures[handle] {
-                        Win32WindowedHost.host?.unregisterTexture(old)
-                    }
-                    self.textures[handle] = id
-                    self.onReady?()
-                }
+    /// Registers anything in `windows` not already registered, and drops
+    /// anything no longer listed. Called when a card opens and whenever its
+    /// window list changes; there is no timer, because there is nothing to
+    /// re-capture.
+    func sync(_ windows: [UInt64]) {
+        let dest = destination
+        guard dest != 0 else { return }
+        for handle in windows where thumbs[handle] == nil {
+            if let thumb = Win32Thumbnail(source: handle, destination: dest) {
+                thumbs[handle] = thumb
             }
         }
-    }
-
-    /// ONE serial queue, for the reason the icon cache has one: these are
-    /// synchronous shell round trips, and asking for six at once is slower
-    /// than asking for six in a row as well as being ruder to the apps.
-    private static let queue = DispatchQueue(label: "starling.previews.capture",
-                                             qos: .userInitiated)
-
-    func view(_ handle: UInt64, width: Double, height: Double) -> Widget? {
-        guard let id = textures[handle] else { return nil }
-        return SizedBox(width: width, height: height) {
-            TextureWidget(textureId: id)
+        for (handle, thumb) in thumbs where !windows.contains(handle) {
+            thumb.release()
+            thumbs.removeValue(forKey: handle)
         }
     }
 
-    /// Everything goes when the preview closes. A dozen 320px thumbnails is
-    /// real memory on the GPU, and the next preview wants fresh ones anyway.
+    /// Puts one window's picture in a slot, aspect-fitted so a wide window in
+    /// a 16:9 slot is letterboxed rather than stretched.
+    func place(_ handle: UInt64, x: Int, y: Int, width: Int, height: Int) {
+        thumbs[handle]?.fit(inX: x, y: y, width: width, height: height)
+    }
+
+    /// Whether there is a live registration for this window — the card uses it
+    /// to decide between leaving the slot empty for DWM and drawing a
+    /// placeholder, for the beat before a registration exists.
+    func has(_ handle: UInt64) -> Bool { thumbs[handle] != nil }
+
+    /// Everything goes when the card closes. NOT optional: a thumbnail that
+    /// outlives its card keeps painting over the dock, which reads as the
+    /// shell being broken rather than as a leak.
     func releaseAll() {
-        for id in textures.values { Win32WindowedHost.host?.unregisterTexture(id) }
-        textures.removeAll()
+        for thumb in thumbs.values { thumb.release() }
+        thumbs.removeAll()
     }
 }
 #endif
