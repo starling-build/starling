@@ -182,8 +182,14 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
     let started = Date()
     let rows = session.itemsSync()
     let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+    let split = session.timings()
     print("[menu-probe] \(path)\(background ? " (background)" : "") "
           + "-> \(rows.count) rows in \(elapsed)ms")
+    // WHERE the time went, which is the only way to know whether
+    // QueryContextMenu is the cost or merely the call it is easiest to blame.
+    print(String(format: "[menu-probe] bind %.0fms  QueryContextMenu %.0fms  "
+                       + "walk %.2fms (of which GetCommandString %.2fms)",
+                 split.bind, split.query, split.walk, split.verbs))
     for row in rows {
         if row.isSeparator {
             print("  --------")
@@ -206,6 +212,23 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
         }
     }
     session.close()
+
+    // The SAME query again, in the same process. Everything a handler needed
+    // loading is loaded now, so the difference between these two lines is
+    // what a cold shell costs -- and it is the reason a probe (a fresh
+    // process every time) reports so much more than the running app does.
+    if let warm = Win32ShellMenu(path: path, background: background,
+                                 extended: extended, owner: 0) {
+        let started = Date()
+        let rows = warm.itemsSync()
+        let elapsed = Int(Date().timeIntervalSince(started) * 1000)
+        let split = warm.timings()
+        print("[menu-probe] again, warm: \(rows.count) rows in \(elapsed)ms")
+        print(String(format: "[menu-probe] bind %.0fms  QueryContextMenu %.0fms  "
+                           + "walk %.2fms (of which GetCommandString %.2fms)",
+                     split.bind, split.query, split.walk, split.verbs))
+        warm.close()
+    }
     exit(0)
 }
 

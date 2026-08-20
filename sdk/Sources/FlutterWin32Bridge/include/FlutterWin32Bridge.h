@@ -221,6 +221,15 @@ int32_t flwin32_shellmenu_expand(FlWin32ShellMenu* menu, int32_t token,
 // dialog is answered.
 int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* menu, int32_t id);
 
+// Where the assembly's time went, in milliseconds: binding the shell item and
+// creating the IContextMenu (which is also when handler DLLs load cold),
+// QueryContextMenu itself, walking the resulting HMENU, and -- inside that
+// walk -- the per-row GetCommandString calls, which are calls into the
+// handlers and are counted separately because they are not free. For the
+// probe; a menu that is only being drawn has no use for them.
+void flwin32_shellmenu_timings(FlWin32ShellMenu* menu, double* bind, double* query,
+                               double* walk, double* verbs);
+
 // Ends the session and releases the handlers. Safe while the query is still
 // running; blocks until the thread is gone.
 void flwin32_shellmenu_close(FlWin32ShellMenu* menu);

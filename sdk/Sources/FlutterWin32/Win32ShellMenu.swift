@@ -100,6 +100,15 @@ public final class Win32ShellMenu {
         }
     }
 
+    /// Where the assembly's time went, in milliseconds. Blocks until the
+    /// query is done, like `itemsSync` -- for the probe.
+    public func timings() -> (bind: Double, query: Double, walk: Double, verbs: Double) {
+        guard let handle else { return (0, 0, 0, 0) }
+        var bind = 0.0, query = 0.0, walk = 0.0, verbs = 0.0
+        flwin32_shellmenu_timings(handle, &bind, &query, &walk, &verbs)
+        return (bind, query, walk, verbs)
+    }
+
     /// Runs a verb. Off the UI thread for the reason everything else here is,
     /// and then some: Properties opens a modal sheet, and Delete a
     /// confirmation, and both of them run for as long as the user takes.

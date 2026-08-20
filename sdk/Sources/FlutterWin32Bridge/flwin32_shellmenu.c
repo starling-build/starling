@@ -123,7 +123,22 @@ struct FlWin32ShellMenu {
     HMENU menu;
     FlWin32SubMenu subs[MAX_SUBMENUS];
     int sub_count;
+
+    /* Where the time went, in milliseconds. Filled by build(), read by
+     * flwin32_shellmenu_timings -- which exists because "QueryContextMenu is
+     * the slow part" was a guess for as long as nobody split it up. */
+    double t_bind;
+    double t_query;
+    double t_walk;
+    double t_verbs;
 };
+
+static double now_ms(void) {
+    LARGE_INTEGER f, c;
+    QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&c);
+    return (double)c.QuadPart * 1000.0 / (double)f.QuadPart;
+}
 
 static wchar_t* utf8_to_wide_local(const char* utf8) {
     if (utf8 == NULL) return NULL;
@@ -206,6 +221,8 @@ static void canonical_verb(IContextMenu* cm, UINT offset, char* out, int out_siz
  * column of rules. */
 static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
                         FlWin32ShellVerb* out, int max) {
+    double verbs_before = s->t_verbs;
+    (void)verbs_before;
     int total = GetMenuItemCount(menu);
     if (total <= 0) return 0;
     UINT def = GetMenuDefaultItem(menu, FALSE, GMDI_USEDISABLED);
@@ -259,7 +276,9 @@ static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
         } else {
             if (mi.wID < ID_FIRST || mi.wID > ID_LAST) continue;
             v->id = (int32_t)(mi.wID - ID_FIRST);
+            double verb_start = now_ms();
             canonical_verb(s->cm, (UINT)v->id, v->verb, (int)sizeof(v->verb));
+            s->t_verbs += now_ms() - verb_start;
         }
         count++;
     }
@@ -271,6 +290,7 @@ static int collect_menu(struct FlWin32ShellMenu* s, HMENU menu,
 /* Builds the session's IContextMenu and reads its top level. */
 static int build(struct FlWin32ShellMenu* s) {
     IContextMenu* cm = NULL;
+    double t0 = now_ms();
 
     if (s->background) {
         /* The FOLDER's menu rather than an item's -- what a right-click on
@@ -328,6 +348,8 @@ static int build(struct FlWin32ShellMenu* s) {
     cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu3, (void**)&s->cm3);
     cm->lpVtbl->QueryInterface(cm, &IID_IContextMenu2, (void**)&s->cm2);
 
+    s->t_bind = now_ms() - t0;
+
     s->menu = CreatePopupMenu();
     if (s->menu == NULL) return 0;
 
@@ -338,11 +360,15 @@ static int build(struct FlWin32ShellMenu* s) {
      * builds), asked for only when the caller says the modifier was down. */
     UINT flags = CMF_NORMAL | CMF_EXPLORE;
     if (s->extended) flags |= CMF_EXTENDEDVERBS;
+    double t1 = now_ms();
     HRESULT hr = s->cm->lpVtbl->QueryContextMenu(s->cm, s->menu, 0,
                                                  ID_FIRST, ID_LAST, flags);
     if (FAILED(hr)) return 0;
+    double t2 = now_ms();
+    s->t_query = t2 - t1;
 
     s->count = collect_menu(s, s->menu, s->items, FLWIN32_SHELLMENU_MAX);
+    s->t_walk = now_ms() - t2;
     return 1;
 }
 
@@ -577,6 +603,16 @@ int32_t flwin32_shellmenu_invoke(FlWin32ShellMenu* s, int32_t id) {
     if (s->status != 1) return 0;
     request(s, CMD_INVOKE, (int)id, NULL, 0);
     return (int32_t)s->out_count;
+}
+
+void flwin32_shellmenu_timings(FlWin32ShellMenu* s, double* bind, double* query,
+                               double* walk, double* verbs) {
+    if (s == NULL) return;
+    WaitForSingleObject(s->ev_ready, INFINITE);
+    if (bind != NULL) *bind = s->t_bind;
+    if (query != NULL) *query = s->t_query;
+    if (walk != NULL) *walk = s->t_walk;
+    if (verbs != NULL) *verbs = s->t_verbs;
 }
 
 void flwin32_shellmenu_close(FlWin32ShellMenu* s) {
