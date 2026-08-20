@@ -299,6 +299,10 @@ int32_t flwin32_tray_list_count(FlWin32TrayList* list);
 uint64_t flwin32_tray_list_key(FlWin32TrayList* list, int32_t index);
 // An HICON belonging to the list. Rasterize it with flwin32_icon_rasterize_handle.
 uint64_t flwin32_tray_list_icon(FlWin32TrayList* list, int32_t index);
+// Whether WINDOWS' own setting puts this icon on the bar rather than behind
+// the chevron (HKCU\Control Panel\NotifyIconSettings). A new icon nobody has
+// promoted is hidden — that is Windows 11's default, not an omission.
+int32_t flwin32_tray_list_promoted(FlWin32TrayList* list, int32_t index);
 // Bumped every time the icon's picture changes while its identity does not —
 // an app showing sync progress or an unread badge redraws constantly. A cache
 // keyed on the key alone would show the first frame forever.
@@ -314,6 +318,18 @@ int32_t flwin32_tray_list_tip(FlWin32TrayList* list, int32_t index, char* out,
 // 2 middle. The position it is told is the CURSOR's, which is the icon's —
 // the pointer is on the icon, because that is what a click is.
 void flwin32_tray_click(uint64_t key, int32_t button);
+
+// Moves whenever the icon set or the promoted/hidden split changes. Poll it —
+// the user promotes and demotes icons in Windows' own Settings, which tells
+// the shell nothing — and take a fresh list only when it moves. The registry
+// read behind it is throttled, so calling this on a one-second tick is cheap.
+uint64_t flwin32_tray_revision(void);
+
+// Asks every app to re-add its icon, by broadcasting "TaskbarCreated". The
+// only way to repopulate a notification area — needed after a shell that was
+// KILLED rather than closed, which leaves every icon registered to a window
+// that no longer exists and a tray that nothing will refill on its own.
+void flwin32_tray_reannounce(void);
 
 // A diagnostic: takes the class, prints every message that arrives for
 // `seconds` with the wire bytes decoded, then hands it back. This is how the

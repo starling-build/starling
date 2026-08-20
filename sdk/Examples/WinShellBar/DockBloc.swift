@@ -152,6 +152,12 @@ final class DockBloc: @unchecked Sendable {
             state.now = Date()
             _hideNativeTaskbarIfItCameBack()
             _readStatus()
+            // Promoting an icon happens in WINDOWS' Settings and sends the
+            // shell nothing at all, so the split has to be polled. The
+            // revision moves only when something really changed, and the
+            // registry read behind it is throttled — this is one call a
+            // second, not a re-read a second.
+            if Win32Tray.revision != trayRevision { _readTray() }
         case .windowsChanged:
             _queueRefresh()
 
@@ -318,7 +324,10 @@ final class DockBloc: @unchecked Sendable {
     /// Cheap enough for the UI thread — it is a table of a dozen entries and
     /// an IsWindow per entry — and the expensive half, turning handles into
     /// textures, is the icon cache's own queue.
+    @ObservationIgnored private var trayRevision: UInt64 = 0
+
     private func _readTray() {
+        trayRevision = Win32Tray.revision
         let snapshot = Win32Tray.snapshot()
         state.tray = snapshot.map(\.icon)
         for (icon, handle) in snapshot {

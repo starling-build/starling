@@ -47,6 +47,7 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -247,6 +248,7 @@ typedef struct {
   UINT callback;
   UINT version;
   int version_declared; /* whether NIM_SETVERSION said so, or we inferred it */
+  int promoted;      /* whether Windows' own setting puts it on the bar */
   HICON icon;        /* OUR copy: the app may destroy its own at any time */
   uint32_t generation; /* bumped whenever the icon itself changes, so a cache
                         * keyed on it re-rasterizes and one keyed on the key
@@ -256,6 +258,43 @@ typedef struct {
 } FlTrayEntry;
 
 #define kMaxTrayIcons 128
+
+/* ── which icons Windows itself would show ───────────────────────────────────
+ *
+ * Windows 11 does not put every notification icon on the bar. Each one is
+ * PROMOTED or not, the user decides per icon, and the rest live behind the
+ * chevron. The setting is per user in
+ *
+ *     HKCU\Control Panel\NotifyIconSettings\<hash>
+ *
+ * with IsPromoted (absent means no -- a new icon is hidden by default, which
+ * is why an app you just installed does not appear on the taskbar), and an
+ * identity to match on: IconGuid for the icons registered with a GUID, or
+ * UID plus ExecutablePath for the rest.
+ *
+ * ExecutablePath is not a path. It is a KNOWNFOLDERID in braces followed by
+ * the rest -- {1AC14E77-...}\SecurityHealthSystray.exe is System32 -- so it
+ * has to be expanded before it can be compared to anything. Reading it raw
+ * matches nothing and silently hides every icon.
+ *
+ * Ignoring all this and showing everything is what we did first, and it is
+ * wrong in the direction that shows: this machine promotes exactly ONE icon
+ * of seven, so our strip had three where explorer's had one. */
+
+typedef struct {
+  int has_guid;
+  GUID guid;
+  int has_uid;
+  DWORD uid;
+  wchar_t exe[MAX_PATH];
+  int promoted;
+} FlTraySetting;
+
+#define kMaxTraySettings 64
+static FlTraySetting g_settings[kMaxTraySettings];
+static int g_setting_count;
+static DWORD g_settings_read_at;
+static uint64_t g_revision = 1;
 
 static CRITICAL_SECTION g_lock;
 static int g_lock_ready;
@@ -270,6 +309,134 @@ static int g_probing;
 static int g_debug = -1;
 static void (*g_changed)(void* user);
 static void* g_changed_user;
+
+/* "{GUID}\rest" -> "C:\real\folder\rest". Anything without the brace form
+ * is already a path and is copied through. */
+static void expand_known_folder(const wchar_t* in, wchar_t* out, size_t n) {
+  out[0] = 0;
+  if (in == NULL || in[0] != L'{') {
+    if (in != NULL) wcsncpy(out, in, n - 1);
+    out[n - 1] = 0;
+    return;
+  }
+  const wchar_t* close = wcschr(in, L'}');
+  if (close == NULL) return;
+  wchar_t id[64] = {0};
+  size_t len = (size_t)(close - in) + 1;
+  if (len >= 64) return;
+  wcsncpy(id, in, len);
+  GUID folder;
+  if (FAILED(IIDFromString(id, &folder))) return;
+  PWSTR base = NULL;
+  if (FAILED(SHGetKnownFolderPath(&folder, 0, NULL, &base)) || base == NULL) return;
+  const wchar_t* rest = close + 1;
+  if (*rest == L'\\') rest++;
+  _snwprintf(out, n - 1, L"%ls\\%ls", base, rest);
+  out[n - 1] = 0;
+  CoTaskMemFree(base);
+}
+
+/* Re-reads HKCU\Control Panel\NotifyIconSettings. Throttled: the user
+ * changes this in Settings, which sends us nothing, so it has to be polled --
+ * but seven subkeys once every couple of seconds is the whole cost, and the
+ * shell asks for it on the tick it already has. */
+static int read_settings(void) {
+  DWORD now = GetTickCount();
+  if (g_setting_count > 0 && (now - g_settings_read_at) < 2000) return 0;
+  g_settings_read_at = now;
+
+  HKEY root;
+  if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                    L"Control Panel\\NotifyIconSettings", 0,
+                    KEY_READ, &root) != ERROR_SUCCESS) {
+    return 0;
+  }
+  FlTraySetting fresh[kMaxTraySettings];
+  int count = 0;
+  for (DWORD i = 0; count < kMaxTraySettings; i++) {
+    wchar_t name[128];
+    DWORD name_len = 128;
+    if (RegEnumKeyExW(root, i, name, &name_len, NULL, NULL, NULL, NULL)
+        != ERROR_SUCCESS) {
+      break;
+    }
+    HKEY item;
+    if (RegOpenKeyExW(root, name, 0, KEY_READ, &item) != ERROR_SUCCESS) continue;
+    FlTraySetting* out = &fresh[count];
+    ZeroMemory(out, sizeof(*out));
+
+    wchar_t buf[MAX_PATH * 2];
+    DWORD size = sizeof(buf);
+    DWORD type = 0;
+    if (RegQueryValueExW(item, L"IconGuid", NULL, &type, (LPBYTE)buf, &size)
+            == ERROR_SUCCESS && type == REG_SZ) {
+      buf[(size / sizeof(wchar_t)) < 1 ? 0 : (size / sizeof(wchar_t)) - 1] = 0;
+      if (SUCCEEDED(IIDFromString(buf, &out->guid))) out->has_guid = 1;
+    }
+    DWORD dw = 0;
+    size = sizeof(dw);
+    if (RegQueryValueExW(item, L"UID", NULL, &type, (LPBYTE)&dw, &size)
+            == ERROR_SUCCESS && type == REG_DWORD) {
+      out->has_uid = 1;
+      out->uid = dw;
+    }
+    size = sizeof(buf);
+    if (RegQueryValueExW(item, L"ExecutablePath", NULL, &type, (LPBYTE)buf, &size)
+            == ERROR_SUCCESS && type == REG_SZ) {
+      buf[(size / sizeof(wchar_t)) < 1 ? 0 : (size / sizeof(wchar_t)) - 1] = 0;
+      expand_known_folder(buf, out->exe, MAX_PATH);
+    }
+    dw = 0;
+    size = sizeof(dw);
+    /* Absent means not promoted. A new icon is hidden until the user says
+     * otherwise -- that is Windows 11's default, not an omission. */
+    if (RegQueryValueExW(item, L"IsPromoted", NULL, &type, (LPBYTE)&dw, &size)
+            == ERROR_SUCCESS && type == REG_DWORD) {
+      out->promoted = (dw != 0);
+    }
+    RegCloseKey(item);
+    if (out->has_guid || out->has_uid) count++;
+  }
+  RegCloseKey(root);
+
+  int changed = (count != g_setting_count) ||
+                (memcmp(fresh, g_settings, sizeof(FlTraySetting) * (size_t)count) != 0);
+  memcpy(g_settings, fresh, sizeof(FlTraySetting) * (size_t)count);
+  g_setting_count = count;
+  return changed;
+}
+
+/* The owning process's image, which is half of the identity for an icon that
+ * did not register a GUID. */
+static void owner_exe(HWND owner, wchar_t* out, size_t n) {
+  out[0] = 0;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(owner, &pid);
+  if (pid == 0) return;
+  HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (proc == NULL) return;
+  DWORD len = (DWORD)n;
+  QueryFullProcessImageNameW(proc, 0, out, &len);
+  CloseHandle(proc);
+}
+
+static int is_promoted(const FlTrayEntry* e) {
+  wchar_t exe[MAX_PATH];
+  owner_exe(e->owner, exe, MAX_PATH);
+  for (int i = 0; i < g_setting_count; i++) {
+    const FlTraySetting* s = &g_settings[i];
+    if (e->has_guid && s->has_guid) {
+      if (IsEqualGUID(&e->guid, &s->guid)) return s->promoted;
+      continue;
+    }
+    if (!e->has_guid && s->has_uid && s->uid == e->id && exe[0] != 0 &&
+        _wcsicmp(exe, s->exe) == 0) {
+      return s->promoted;
+    }
+  }
+  /* No entry at all: Windows hides an icon it has not been told about. */
+  return 0;
+}
 
 static void lock_init(void) {
   if (!g_lock_ready) {
@@ -393,6 +560,11 @@ static BOOL apply_change(DWORD message, const FlTrayIconData* n, int* changed) {
       e->hidden = (n->dwState & NIS_HIDDEN) ? 1 : 0;
     }
   }
+  /* Settled when the icon arrives, and again whenever the setting changes
+   * (see flwin32_tray_revision) -- not per snapshot, which would be an
+   * OpenProcess per icon per frame. */
+  read_settings();
+  e->promoted = is_promoted(e);
   *changed = 1;
   return accepted;
 }
@@ -431,6 +603,7 @@ static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
       EnterCriticalSection(&g_lock);
       int changed = 0;
       BOOL accepted = apply_change(head[1], n, &changed);
+      if (changed) g_revision++;
       LeaveCriticalSection(&g_lock);
       if (changed && g_changed != NULL) g_changed(g_changed_user);
       if (g_probing && !accepted) {
@@ -572,6 +745,30 @@ FlWin32TrayList* flwin32_tray_list(void) {
   return list;
 }
 
+uint64_t flwin32_tray_revision(void) {
+  lock_init();
+  EnterCriticalSection(&g_lock);
+  /* The user promotes and demotes icons in Windows' own Settings, which tells
+   * us nothing at all -- so the setting is polled here, on the tick the shell
+   * already has, and the revision moves only when something really changed.
+   * The read itself is throttled inside read_settings. */
+  if (read_settings()) {
+    for (int i = 0; i < g_count; i++) {
+      g_icons[i].promoted = is_promoted(&g_icons[i]);
+    }
+    g_revision++;
+  }
+  uint64_t r = g_revision;
+  LeaveCriticalSection(&g_lock);
+  return r;
+}
+
+void flwin32_tray_reannounce(void) {
+  /* The only way to repopulate a notification area. Whoever owns the class
+   * now gets every icon back. */
+  SendNotifyMessageW(HWND_BROADCAST, taskbar_created_message(), 0, 0);
+}
+
 void flwin32_tray_list_free(FlWin32TrayList* list) {
   if (list == NULL) return;
   for (int i = 0; i < list->count; i++) {
@@ -592,6 +789,11 @@ uint64_t flwin32_tray_list_key(FlWin32TrayList* list, int32_t index) {
 uint64_t flwin32_tray_list_icon(FlWin32TrayList* list, int32_t index) {
   if (list == NULL || index < 0 || index >= list->count) return 0;
   return (uint64_t)(ULONG_PTR)list->items[index].icon;
+}
+
+int32_t flwin32_tray_list_promoted(FlWin32TrayList* list, int32_t index) {
+  if (list == NULL || index < 0 || index >= list->count) return 0;
+  return list->items[index].promoted;
 }
 
 uint32_t flwin32_tray_list_generation(FlWin32TrayList* list, int32_t index) {

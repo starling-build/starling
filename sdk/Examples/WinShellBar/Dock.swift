@@ -107,6 +107,11 @@ let keepsNativeTaskbar =
 /// icons in the user's memory rather than beside our 40pt dock tiles.
 let kTrayCell = 26.0
 let kTrayIcon = 16.0
+/// The overflow flyout: a cell per hidden icon, at most four to a row, which
+/// is the shape Windows 11's own overflow uses.
+let kTrayFlyoutCell = 40.0
+let kTrayFlyoutCols = 4
+let kTrayFlyoutPad = 8.0
 
 /// Whether Explorer keeps the notification area. The tray is other people's
 /// icons and hosting it means taking a window class off explorer, so it gets
@@ -192,6 +197,8 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// The tile the pointer is over, if any.
     private var hovered: Int?
+    /// Whether the overflow flyout — the icons behind the chevron — is down.
+    private var trayOverflowOpen = false
     /// The notification icon the pointer is over — by identity rather than
     /// index, because the strip reorders itself whenever an app comes or goes
     /// and an index would name a different icon a moment later.
@@ -725,19 +732,119 @@ final class StarlingDockState: State<StatefulWidget> {
     /// Other people's icons. The shell draws them and forwards presses; it
     /// never decides what one means.
     private func trayCluster() -> Widget {
-        let icons = bloc.state.tray
+        let icons = promotedTray
         if vertical {
             return SizedBox(width: Double(kDockHeight), height: trayLength) {
                 Column(mainAxisSize: .min, crossAxisAlignment: .center) {
+                    if showsTrayChevron { trayChevron() }
                     for icon in icons { trayTile(icon) }
                 }
             }
         }
         return SizedBox(width: trayLength, height: Double(kDockHeight)) {
             Row(mainAxisSize: .min, crossAxisAlignment: .center) {
+                if showsTrayChevron { trayChevron() }
                 for icon in icons { trayTile(icon) }
             }
         }
+    }
+
+    /// The chevron, pointing the way the flyout will open — up from a bottom
+    /// dock, as on Windows, and outward from a dock down a side.
+    private func trayChevron() -> Widget {
+        let glyph: IconData
+        switch bloc.state.edge {
+        case .bottom: glyph = CupertinoIcons.chevron_up
+        case .top: glyph = CupertinoIcons.chevron_down
+        case .left: glyph = CupertinoIcons.chevron_right
+        case .right: glyph = CupertinoIcons.chevron_left
+        }
+        return SizedBox(width: kTrayCell, height: kTrayCell) {
+            Center {
+                MacosIcon(icon: glyph, color: Color(0xFFE6EAF0), size: 13)
+            }
+        }
+    }
+
+    /// The icons Windows keeps behind the chevron, in a grid over the strip.
+    private func trayOverflow() -> Widget {
+        let icons = hiddenTray
+        let cols = min(icons.count, kTrayFlyoutCols)
+        let rows = (icons.count + kTrayFlyoutCols - 1) / kTrayFlyoutCols
+        let width = Double(cols) * kTrayFlyoutCell + kTrayFlyoutPad * 2
+        let height = Double(rows) * kTrayFlyoutCell + kTrayFlyoutPad * 2
+        let origin = flyoutOrigin(centre: trayCellCentre(0), width: width, height: height)
+        return Positioned(left: origin.x, top: origin.y,
+                          child: ClipRRect(borderRadius: BorderRadius.circular(8)) {
+                ColoredBox(color: Color(0xF01B1D22)) {
+                    SizedBox(width: width, height: height) {
+                        Padding(padding: EdgeInsets(left: kTrayFlyoutPad, top: kTrayFlyoutPad,
+                                                    right: kTrayFlyoutPad, bottom: kTrayFlyoutPad)) {
+                            Column(mainAxisSize: .min, crossAxisAlignment: .start) {
+                                for row in 0..<max(rows, 1) {
+                                    Row(mainAxisSize: .min, crossAxisAlignment: .center) {
+                                        for col in 0..<cols {
+                                            let i = row * kTrayFlyoutCols + col
+                                            if i < icons.count {
+                                                trayOverflowTile(icons[i])
+                                            } else {
+                                                SizedBox(width: kTrayFlyoutCell,
+                                                         height: kTrayFlyoutCell)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+    }
+
+    private func trayOverflowTile(_ icon: Win32TrayIcon) -> Widget {
+        SizedBox(width: kTrayFlyoutCell, height: kTrayFlyoutCell) {
+            Center {
+                if let view = bloc.icons.view(DockBloc.trayKey(icon), side: kTrayIcon) {
+                    view
+                } else {
+                    ClipRRect(borderRadius: BorderRadius.circular(3)) {
+                        ColoredBox(color: Color(0x22FFFFFF)) {
+                            SizedBox(width: kTrayIcon, height: kTrayIcon)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A press while the overflow is down. True when it consumed the press.
+    ///
+    /// Arithmetic against the SAME origin the drawing uses, for the reason
+    /// every other flyout in this surface is: widget-level input does not
+    /// arrive reliably here, and two independent layouts drift into dead rows.
+    private func handleTrayOverflow(_ x: Double, _ y: Double, right: Bool) -> Bool {
+        let icons = hiddenTray
+        guard trayOverflowOpen, !icons.isEmpty else { return false }
+        let cols = min(icons.count, kTrayFlyoutCols)
+        let rows = (icons.count + kTrayFlyoutCols - 1) / kTrayFlyoutCols
+        let width = Double(cols) * kTrayFlyoutCell + kTrayFlyoutPad * 2
+        let height = Double(rows) * kTrayFlyoutCell + kTrayFlyoutPad * 2
+        let origin = flyoutOrigin(centre: trayCellCentre(0), width: width, height: height)
+        guard x >= origin.x, x < origin.x + width,
+              y >= origin.y, y < origin.y + height else {
+            // Outside closes it, and the press carries on to whatever it hit —
+            // which is what Windows' own overflow does.
+            setState { trayOverflowOpen = false }
+            return false
+        }
+        let col = Int((x - origin.x - kTrayFlyoutPad) / kTrayFlyoutCell)
+        let row = Int((y - origin.y - kTrayFlyoutPad) / kTrayFlyoutCell)
+        let index = row * kTrayFlyoutCols + col
+        if col >= 0, col < cols, row >= 0, index >= 0, index < icons.count {
+            setState { trayOverflowOpen = false }
+            bloc.add(.trayClick(icons[index].id, right ? .right : .left))
+        }
+        return true
     }
 
     private func trayTile(_ icon: Win32TrayIcon) -> Widget {
@@ -799,8 +906,27 @@ final class StarlingDockState: State<StatefulWidget> {
 
     // MARK: - Geometry
 
-    /// How far the notification area runs along the strip.
-    private var trayLength: Double { Double(bloc.state.tray.count) * kTrayCell }
+    /// The icons Windows itself would put on the bar, and the ones it keeps
+    /// behind the chevron. The user chose this, per icon, in Windows' own
+    /// Settings — showing everything instead is not "more helpful", it is a
+    /// strip that disagrees with the taskbar it replaced.
+    private var promotedTray: [Win32TrayIcon] { bloc.state.tray.filter(\.isPromoted) }
+    private var hiddenTray: [Win32TrayIcon] { bloc.state.tray.filter { !$0.isPromoted } }
+
+    /// Windows shows no chevron when there is nothing behind it.
+    private var showsTrayChevron: Bool { !hiddenTray.isEmpty }
+
+    /// How far the notification area runs along the strip: the chevron, if
+    /// there is one, then the promoted icons.
+    private var trayLength: Double {
+        Double(promotedTray.count + (showsTrayChevron ? 1 : 0)) * kTrayCell
+    }
+
+    /// What a press in the notification area landed on.
+    private enum TrayTarget {
+        case chevron
+        case icon(Win32TrayIcon)
+    }
 
     /// The notification area's rectangle, immediately inboard of the status
     /// readout — where Windows puts it, between the running apps and the
@@ -826,24 +952,33 @@ final class StarlingDockState: State<StatefulWidget> {
     }
 
     /// Which tray icon a point is over, or nil.
-    /// Where a tray cell's centre is along the strip — the tooltip's anchor.
-    private func trayCentre(_ icon: Win32TrayIcon) -> Double {
-        guard let index = bloc.state.tray.firstIndex(where: { $0.id == icon.id })
-        else { return 0 }
+    /// Where a cell's centre is along the strip — what a tooltip or the
+    /// overflow flyout hangs off. Cell 0 is the chevron when there is one.
+    private func trayCellCentre(_ cell: Int) -> Double {
         let rect = trayRect
-        let along = (Double(index) + 0.5) * kTrayCell
-        return (vertical ? rect.y : rect.x) + along
+        return (vertical ? rect.y : rect.x) + (Double(cell) + 0.5) * kTrayCell
     }
 
-    private func trayHit(_ x: Double, _ y: Double) -> Win32TrayIcon? {
-        let icons = bloc.state.tray
-        guard !icons.isEmpty else { return nil }
+    private func trayCentre(_ icon: Win32TrayIcon) -> Double {
+        guard let index = promotedTray.firstIndex(where: { $0.id == icon.id })
+        else { return trayCellCentre(0) }
+        return trayCellCentre(index + (showsTrayChevron ? 1 : 0))
+    }
+
+    /// What a point in the notification area is over, or nil.
+    private func trayHit(_ x: Double, _ y: Double) -> TrayTarget? {
         let rect = trayRect
-        guard rect.contains(x, y) else { return nil }
+        guard rect.w > 0, rect.h > 0, rect.contains(x, y) else { return nil }
         let along = vertical ? (y - rect.y) : (x - rect.x)
-        let index = Int(along / kTrayCell)
-        guard index >= 0, index < icons.count else { return nil }
-        return icons[index]
+        var index = Int(along / kTrayCell)
+        guard index >= 0 else { return nil }
+        if showsTrayChevron {
+            if index == 0 { return .chevron }
+            index -= 1
+        }
+        let icons = promotedTray
+        guard index < icons.count else { return nil }
+        return .icon(icons[index])
     }
 
     /// Which tile a point in the panel is over, or nil.
@@ -1276,12 +1411,24 @@ final class StarlingDockState: State<StatefulWidget> {
                     // tray icon's right-click menu is the whole point of most
                     // of them, and it belongs to the app, not to the dock's
                     // own tile menu.
-                    if let icon = self.trayHit(x, y) {
+                    // The overflow first: while it is down it owns every
+                    // press, including the one that closes it.
+                    if self.trayOverflowOpen,
+                       self.handleTrayOverflow(x, y, right: e.buttons == 2) {
+                        return
+                    }
+                    if let target = self.trayHit(x, y) {
                         self.setState {
                             self.menuOpen = nil
                             self.controlCentreOpen = false
                         }
-                        self.bloc.add(.trayClick(icon.id, e.buttons == 2 ? .right : .left))
+                        switch target {
+                        case .chevron:
+                            self.setState { self.trayOverflowOpen.toggle() }
+                        case .icon(let icon):
+                            self.setState { self.trayOverflowOpen = false }
+                            self.bloc.add(.trayClick(icon.id, e.buttons == 2 ? .right : .left))
+                        }
                         return
                     }
                     // 2 is the secondary button. A press, not a release: the
@@ -1322,7 +1469,10 @@ final class StarlingDockState: State<StatefulWidget> {
                 },
                 onPointerHover: { e in
                     let index = self.pointerTile(e.position.dx, e.position.dy)
-                    let tray = self.trayHit(e.position.dx, e.position.dy)?.id
+                    var tray: UInt64? = nil
+                    if case .icon(let icon)? = self.trayHit(e.position.dx, e.position.dy) {
+                        tray = icon.id
+                    }
                     guard index != self.hovered || tray != self.hoveredTray else { return }
                     self.setState {
                         self.hovered = index
@@ -1377,7 +1527,9 @@ final class StarlingDockState: State<StatefulWidget> {
                     }
                     // A menu wins over a label: the pointer is inside the tile
                     // for both, and two flyouts stacked on one icon is noise.
-                    if let open = menuOpen {
+                    if trayOverflowOpen, !hiddenTray.isEmpty {
+                        trayOverflow()
+                    } else if let open = menuOpen {
                         menu(open)
                     } else if let over = hovered {
                         label(over)

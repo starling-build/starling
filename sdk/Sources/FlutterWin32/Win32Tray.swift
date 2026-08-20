@@ -34,6 +34,10 @@ public struct Win32TrayIcon: Sendable, Identifiable, Equatable {
     /// Bumped when the picture changes but the icon does not: sync progress,
     /// an unread badge, a connection going green. Part of any cache key.
     public let generation: UInt32
+    /// Whether WINDOWS' own per-icon setting puts this on the bar rather than
+    /// behind the chevron. An icon nobody has promoted is hidden, which is
+    /// Windows 11's default for anything newly installed.
+    public let isPromoted: Bool
 }
 
 public enum Win32Tray {
@@ -78,6 +82,19 @@ public enum Win32Tray {
         }
     }
 
+    /// Moves whenever the set of icons, or the promoted/hidden split, changes.
+    /// Poll it on a tick the shell already has and take a fresh snapshot only
+    /// when it moves: the user promotes icons in Windows' own Settings, which
+    /// sends the shell nothing at all.
+    public static var revision: UInt64 { flwin32_tray_revision() }
+
+    /// Asks every app to re-add its icon. The only way to repopulate a tray —
+    /// there is no enumeration — and what a machine needs after a shell that
+    /// was killed rather than closed.
+    public static func reannounce() {
+        flwin32_tray_reannounce()
+    }
+
     /// Tells the icon's owner the mouse was over it, and nothing else — the
     /// shell never acts on a tray icon itself. The app is told the cursor's
     /// position, which is the icon's, and puts its menu there.
@@ -95,7 +112,8 @@ public enum Win32Tray {
                 ? String(cString: buffer) : ""
             out.append(Win32TrayIcon(id: flwin32_tray_list_key(list, Int32(i)),
                                      tooltip: tip,
-                                     generation: flwin32_tray_list_generation(list, Int32(i))))
+                                     generation: flwin32_tray_list_generation(list, Int32(i)),
+                                     isPromoted: flwin32_tray_list_promoted(list, Int32(i)) != 0))
         }
         return out
     }

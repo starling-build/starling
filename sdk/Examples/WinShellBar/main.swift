@@ -66,7 +66,14 @@ ShellScreen.use(monitor: wantsMonitor)
 // (atexit covers the tidy path, and nothing covers taskkill /f).
 if CommandLine.arguments.contains("--restore-taskbar") {
     Win32Shell.showNativeTaskbar()
-    print("[WinShell] Explorer's taskbar restored")
+    // AND THE TRAY. Putting the taskbar back leaves its notification area
+    // EMPTY: every icon is still registered to our window, which by now does
+    // not exist, and nothing repopulates a tray on its own — there is no
+    // enumeration to re-run. This is the recovery path for a shell that was
+    // killed rather than closed, so it is exactly the case where the tidy
+    // handover did not happen.
+    Win32Tray.reannounce()
+    print("[WinShell] Explorer's taskbar restored, and the tray asked to refill")
     exit(0)
 }
 
