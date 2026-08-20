@@ -899,17 +899,33 @@ final class ContextMenuState: State<StatefulWidget> {
         }
     }
 
-    /// The panel itself: Windows 11's rounded, bordered, near-opaque slab.
+    /// The panel itself: Windows 11's rounded, bordered acrylic slab -- a
+    /// backdrop blur under a translucent tint, which is what native menus
+    /// actually are. The blur samples OUR OWN window's content, and that is
+    /// the whole story here: this menu clamps inside the window, so there is
+    /// nothing else behind it to sample -- the one place real acrylic could
+    /// diverge is a menu overhanging the window's edge, which would take the
+    /// popup-window surface this file's origin() comment describes.
     private func panel(_ menu: MenuCache, hover: Int?) -> Widget {
         SizedBox(width: menu.width, height: menu.height) {
             DecoratedBox(
                 decoration: BoxDecoration(
-                    color: Win11.menuBg,
                     border: Border.all(color: Win11.menuBorder, width: 1),
                     borderRadius: BorderRadius.circular(kMenuRadius),
                     boxShadow: [BoxShadow(color: Win11.menuShadow,
                                           offset: Offset(0, 4), blurRadius: 12)]),
-                child: Padding(padding: EdgeInsets(horizontal: kMenuPanelPad,
+                child: ClipRRect(borderRadius: BorderRadius.circular(kMenuRadius)) {
+                    BackdropFilter(
+                        filter: ImageFilterFactory.blur(sigmaX: 24, sigmaY: 24),
+                        child: ColoredBox(color: Win11.menuBg) {
+                            panelContent(menu, hover: hover)
+                        })
+                })
+        }
+    }
+
+    private func panelContent(_ menu: MenuCache, hover: Int?) -> Widget {
+        Padding(padding: EdgeInsets(horizontal: kMenuPanelPad,
                                                    vertical: kMenuPanelPad)) {
                     Column(mainAxisSize: .min, crossAxisAlignment: .stretch) {
                         if menu.pill {
@@ -924,7 +940,6 @@ final class ContextMenuState: State<StatefulWidget> {
                             }
                         }
                     }
-                })
         }
     }
 

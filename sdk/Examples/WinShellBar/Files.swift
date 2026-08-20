@@ -77,7 +77,10 @@ enum Win11 {
     static var fieldFill: Color { light ? Color(0xFFFFFFFF) : Color(0xFF2D2D2D) }
     /// The context menu, sampled from Explorer's own: a near-opaque slab with
     /// a hairline around it, not the app's window colours.
-    static var menuBg: Color { light ? Color(0xFAFCFCFC) : Color(0xFA2C2C2C) }
+    /// The acrylic TINT now, not the whole surface: the panel puts a
+    /// backdrop blur underneath it (see FilesMenu.panel), so the alpha is
+    /// what lets the frosted content through.
+    static var menuBg: Color { light ? Color(0xE0FCFCFC) : Color(0xE02C2C2C) }
     static var menuBorder: Color { light ? Color(0xFFD4D4D4) : Color(0xFF454545) }
     static var menuHover: Color { light ? Color(0xFFF0F0F0) : Color(0xFF383838) }
     static var menuSep: Color { light ? Color(0xFFE4E4E4) : Color(0xFF3D3D3D) }
