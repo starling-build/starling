@@ -341,7 +341,7 @@ final class DockBloc: @unchecked Sendable {
             // a 100% one, which on icons this small is the difference between
             // Windows' picture and a blurred copy of it.
             icons.ensure(trayKey: Self.trayKey(icon), icon: handle,
-                         size: Int((kTrayIcon * trayScale).rounded()))
+                         size: Int((kTrayIcon * iconScale).rounded()))
         }
         // An icon that changed its picture left its old texture behind, and
         // the sweep that frees those lives in the rebuild. A busy sync client
@@ -353,7 +353,7 @@ final class DockBloc: @unchecked Sendable {
     /// 2 rather than 1: this shell only runs on screens it has been given a
     /// monitor for, and guessing low would blur every icon on the machine we
     /// actually develop against.
-    private var trayScale: Double { ShellScreen.monitor?.scale ?? 2.0 }
+    private var iconScale: Double { ShellScreen.monitor?.scale ?? 2.0 }
 
     static func trayKey(_ icon: Win32TrayIcon) -> String {
         "tray:\(icon.id):\(icon.generation)"
@@ -466,11 +466,16 @@ final class DockBloc: @unchecked Sendable {
         // A running app's own window icon beats the Start Menu's: a browser's
         // window icon is the profile or the site, which is what the user is
         // actually looking at.
+        // At the PHYSICAL size the tile will draw, for the same reason the
+        // tray rasterizes at its own: 48 is a resample at every scale the
+        // dock actually runs at -- 68px on this 200% screen -- and an icon
+        // blown up 1.4x reads as a smeared copy of the one Windows draws.
+        let side = Int((kDockIcon * iconScale).rounded())
         for item in built {
             if let window = item.windows.first {
-                icons.ensure(window: window, size: 48)
+                icons.ensure(window: window, size: side)
             } else if let app = item.app {
-                icons.ensure(app: app)
+                icons.ensure(app: app, size: side)
             }
         }
         // The tray's textures are claimed here too: `retain(only:)` releases
