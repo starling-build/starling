@@ -61,6 +61,15 @@ private enum PadChrome {
     static let statusFailed: Int = 0xFF_E5695B
     static let dot: Double = 8
 
+    /// The permission sheet. Louder than the sidebar because it is the one
+    /// surface that acts on the far machine, and a person should never answer
+    /// it by accident.
+    static let sheetBg: Int = 0xFF_1B1E28
+    static let sheetEdge: Int = 0xFF_2C3140
+    static let sheetScrim: Int = 0xB3_06070B
+    /// The option the program itself is pointing at. Marked, not pre-pressed.
+    static let sheetPickBg: Int = 0x2E_8AA0FF
+    static let sheetRow: Double = 52
 }
 
 /// The iPad terminal: the same workspace, drawn for a finger.
@@ -185,6 +194,13 @@ final class _TerminalPadState: _TerminalTabsState, @unchecked Sendable {
                                          child: _sidebar(height: window.height)))
             }
         }
+
+        // The permission sheet sits UNDER the switcher and help, not over
+        // them: those two are things the person just asked for, and a sheet
+        // jumping in front of a deliberate action would be the overlay taking
+        // the screen from them.
+        layers.append(_prompt.map { _promptOverlay($0, window) }
+            ?? SizedBox(width: 0, height: 0))
 
         // Same two overlays the desktop stacks, in the same order and for the
         // same reasons: the switcher is a question about which of these you

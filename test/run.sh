@@ -90,6 +90,32 @@ LAYOUT_BIN=$(mktemp /tmp/starling-layout.XXXXXX)
      || { "$LAYOUT_BIN" 2>/dev/null | grep FAIL; false; }) || fails=$((fails + 1))
 rm -f "$LAYOUT_BIN"
 
+# What a touch overlay is allowed to put a button on (docs/plans/ipad-ui.md,
+# milestone 4). The corpus is raw pty bytes recorded from real programs and
+# replayed through the REAL emulator — a parser written for the test would be
+# a second thing to drift, and this suite exists to notice when the first one
+# moves. The bar is one-directional: an overlay that misses a prompt costs a
+# tap, one that appears over ordinary text and sends a keystroke costs trust,
+# so the negatives are the point and no false positive is acceptable.
+step "unit tests: grid regions (what a finger may touch)"
+RG_DIR=$(mktemp -d /tmp/starling-regions.XXXXXX)
+(cc -O1 -c "$REPO/sdk/Sources/CTerminalCore/starling_term.c" -o "$RG_DIR/st.o" \
+     -I "$REPO/sdk/Sources/CTerminalCore/include" \
+ && cc -O1 -c "$REPO/sdk/Sources/CTerminalCore/st_ring.c" -o "$RG_DIR/ring.o" \
+     -I "$REPO/sdk/Sources/CTerminalCore/include" \
+ && swiftc -O -I "$REPO/sdk/Sources/CTerminalCore/include" -o "$RG_DIR/regions-test" \
+     "$REPO/test/tui-corpus/regions-test.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/TerminalEmulator.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/GridRegions.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/PromptChoice.swift" \
+     "$RG_DIR/st.o" "$RG_DIR/ring.o" 2>/dev/null \
+ && "$RG_DIR/regions-test" "$REPO/test/tui-corpus/corpus" | tail -1 \
+        | grep -q "all region checks passed" \
+ && echo "  ✔ grid regions: no false positives on the corpus" \
+ || { "$RG_DIR/regions-test" "$REPO/test/tui-corpus/corpus" 2>&1 | grep FAIL; false; }) \
+ || fails=$((fails + 1))
+rm -rf "$RG_DIR"
+
 # The conformance suite above proves the GRID is right. This proves the grid
 # can be SEEN: the engine has no system font fallback, so a codepoint missing
 # from every loaded face paints nothing while the cell holds the right

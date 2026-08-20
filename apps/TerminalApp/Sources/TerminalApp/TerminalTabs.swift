@@ -162,6 +162,21 @@ class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     /// Whether the keyboard reference is up. See TerminalHelp.swift.
     var _helpOpen = false
 
+    /// The choice on screen in the focused pane, if the detector is sure
+    /// enough to offer one. See PromptChoice.swift for what "sure" means.
+    var _prompt: PromptChoice?
+    /// The emulator generation `_prompt` was computed from, so the grid is
+    /// only rescanned when it actually changed. A permission prompt sits
+    /// still for as long as a person takes to read it, and rescanning a
+    /// static screen at 60Hz would be the most expensive thing the pane does.
+    var _promptGeneration: UInt64 = 0
+    var _promptPaneId: Int = -1
+    var _promptTick = 0
+    /// Set when the person dismisses a prompt they want to answer in the
+    /// terminal instead. Cleared when the screen moves on, so the next
+    /// prompt is offered normally.
+    var _promptDismissedAt: UInt64 = 0
+
     /// Modifier state, watched rather than read off the event: the embedders
     /// report modifiers as their own key events, not as flags on the letter.
     /// Kept here rather than in the TerminalView because the view is
@@ -197,6 +212,9 @@ class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             _open()
         }
         _tickStatus()
+        // The permission sheet watches the focused pane on every platform —
+        // it is behaviour, not chrome (TerminalPrompt.swift).
+        _tickPrompt()
     }
 
     /// Repaints the status dots, and only when one has actually changed.
@@ -236,8 +254,9 @@ class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     override func dispose() {
-        // Orphans the pending status poll, which holds `self` weakly but would
-        // otherwise keep rescheduling itself against a dead widget.
+        // Orphans the pending status AND prompt polls, which hold `self`
+        // weakly but would otherwise keep rescheduling against a dead widget.
+        _promptTick += 1
         _statusTick &+= 1
         // The workspace goes first: closing it flushes a layout change that
         // may be seconds old, and it is the only state here that outlives the
@@ -855,6 +874,11 @@ class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             textDirection: .ltr,
             child: Stack(children: [
                 Positioned(left: 0, top: 0, right: 0, bottom: 0, child: chrome),
+                // Under the switcher and help: those two are things the
+                // person just asked for, and a sheet jumping in front of a
+                // deliberate action would be taking the screen from them.
+                _prompt.map { _promptOverlay($0, Size(window.width, window.height)) }
+                    ?? SizedBox(width: 0, height: 0),
                 // Over everything, including the tab bar: the switcher is a
                 // question about which of these you want to be looking at.
                 _switcher.open

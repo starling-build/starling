@@ -1,0 +1,10 @@
+docs
+README.md
+src
+
+./docs:
+plan.md
+
+./src:
+main.swift
+util.swift

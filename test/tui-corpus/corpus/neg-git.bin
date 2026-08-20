@@ -1,0 +1,16 @@
+[?1h=[33m6f68ec1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mwip/post-rebase-ios-work[m[33m)[m ios: the keyboard is a panel you pull up, not one that sh[m [33m[m[33m[m[1;36m[m[33m[m[1;32m[m[33m[mows itself[m
+[33m13f5fe7[m ios: the keyboard is part of the terminal, not a curtain over it[m
+[33m8e26ce2[m ios: 50 columns by default — a phone shows text you can read[m
+[33mf089d78[m ios: ios-app.sh signs a device build for real, given identity and profile[m
+[33m9c3ab54[m ios: the device engine lives in ios_debug, and now the --device build finds it[m
+[33mbe89460[m ios: a finger is not a mouse — drag scrolls, long-press selects[m
+[33mbbccc95[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m test: the fast tier passes on a Mac, and says why when it skips[m
+[33mf254c4c[m terminal: the workspace switcher takes a paste[m
+[33m0c214f8[m Merge: the remote-workspace branch into main[m
+[33m7e5daac[m[33m ([m[1;32mremote-workspace[m[33m)[m terminal: a darker ground, and no purple cast[m
+[33mfaee41d[m terminal: a launch is a local shell, not wherever you were last[m
+[33m78b5410[m demo: record the macOS terminal, and subtitle it from the driver's own clock[m
+[33m36af0ce[m Merge: the 0.1.1 terminal and 0.3.1 SDK releases into main[m
+[33m7658357[m ui: the terminal page points at 0.1.1[m
+[33m54022dd[m[33m ([m[1;33mtag: [m[1;33mterminal-v0.1.1[m[33m, [m[1;31mstarling/release-terminal-0.1.1[m[33m, [m[1;31morigin/release-terminal-0.1.1[m[33m, [m[1;32mrelea[m [33m[m[33m[m[1;33m[m[1;33m[m[33m[m[1;31m[m[33m[m[1;31m[m[33m[m[1;32mse-terminal-0.1.1[m[33m)[m release: rebuild the 0.1.1 .deb on the respun SDK, with its fonts[m
+[K[?1l>
