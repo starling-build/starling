@@ -1278,7 +1278,7 @@ final class StarlingDockState: State<StatefulWidget> {
                         Padding(padding: EdgeInsets(left: kPreviewPad, top: kPreviewPad,
                                                     right: kPreviewPad, bottom: kPreviewPad)) {
                             Row(mainAxisSize: .min, crossAxisAlignment: .start) {
-                                for window in windows { previewCell(window) }
+                                for window in windows { previewCell(window, index) }
                             }
                         }
                     }
@@ -1286,7 +1286,7 @@ final class StarlingDockState: State<StatefulWidget> {
             })
     }
 
-    private func previewCell(_ window: Win32Window) -> Widget {
+    private func previewCell(_ window: Win32Window, _ index: Int) -> Widget {
         Padding(padding: EdgeInsets(left: 0, top: 0, right: kPreviewPad, bottom: 0)) {
             Column(mainAxisSize: .min, crossAxisAlignment: .start) {
                 SizedBox(width: kPreviewThumbW, height: kPreviewTitleH) {
@@ -1298,14 +1298,26 @@ final class StarlingDockState: State<StatefulWidget> {
                     ColoredBox(color: Color(0xFF11131A)) {
                         SizedBox(width: kPreviewThumbW, height: kPreviewThumbH) {
                             Center {
-                                // Nothing until the capture lands — a beat, not
-                                // a frame, because rendering somebody else's 4K
-                                // window is a real cost and it happens off this
-                                // thread.
+                                // A MINIMIZED WINDOW HAS NOTHING TO RENDER.
+                                //
+                                // Windows shows one anyway: DWM keeps the last
+                                // frame from before it was minimized, and that
+                                // is what its preview draws. PrintWindow asks
+                                // the window to paint, and a minimized window
+                                // paints nothing — so where Windows has a
+                                // stale picture we have none at all, and a
+                                // black rectangle would read as a broken
+                                // preview rather than as a hidden window.
+                                //
+                                // The app's own icon says the same thing
+                                // honestly, and covers the first beat before a
+                                // capture lands as well.
                                 if let view = previews.view(window.handle,
                                                             width: kPreviewThumbW,
                                                             height: kPreviewThumbH) {
                                     view
+                                } else if let icon = previewFallbackIcon(index) {
+                                    icon
                                 } else {
                                     SizedBox(width: kPreviewThumbW, height: kPreviewThumbH)
                                 }
@@ -1315,6 +1327,15 @@ final class StarlingDockState: State<StatefulWidget> {
                 }
             }
         }
+    }
+
+    /// The app's icon, for a thumbnail there is no picture for.
+    private func previewFallbackIcon(_ index: Int) -> Widget? {
+        guard index >= 0, index < bloc.state.items.count else { return nil }
+        let item = bloc.state.items[index]
+        let key = item.windows.first.map(IconCache.key(for:))
+            ?? item.app.map(IconCache.key(for:))
+        return key.flatMap { bloc.icons.view($0, side: 40) }
     }
 
     /// A press inside the preview card. True when it consumed the press.
