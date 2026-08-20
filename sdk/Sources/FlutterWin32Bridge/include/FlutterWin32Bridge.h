@@ -503,6 +503,21 @@ int32_t flwin32_icon_rasterize_handle(uint64_t icon,
                                       int32_t* out_width,
                                       int32_t* out_height);
 
+// ── capturing another window ────────────────────────────────────────────────
+//
+// A thumbnail of `window`, scaled so its longest side is `max_side`, as
+// premultiplied-opaque RGBA the caller owns (release with flwin32_icon_free).
+// Returns 0 for a minimized window, one that refused to render, or our own
+// surfaces — see flwin32_capture.c for what this can and cannot photograph.
+//
+// Not free: it asks the window to render itself at full size. Call it when a
+// preview opens, not per frame.
+int32_t flwin32_capture_window(uint64_t window,
+                               int32_t max_side,
+                               uint8_t** out_pixels,
+                               int32_t* out_width,
+                               int32_t* out_height);
+
 void flwin32_icon_free(uint8_t* pixels);
 // For an icon handle the caller took ownership of (flwin32_tray_list_take_icon).
 void flwin32_icon_destroy(uint64_t icon);

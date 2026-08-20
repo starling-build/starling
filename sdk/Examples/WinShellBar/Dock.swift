@@ -107,11 +107,27 @@ let keepsNativeTaskbar =
 /// icons in the user's memory rather than beside our 40pt dock tiles.
 let kTrayCell = 26.0
 let kTrayIcon = 16.0
+/// A taskbar preview: one thumbnail per window of the app being hovered,
+/// with its title above it — the card Windows shows when you hover a taskbar
+/// button. 16:9 because most windows are wider than they are tall, and the
+/// thumbnail is letterboxed inside it rather than stretched.
+let kPreviewThumbW = 208.0
+let kPreviewThumbH = 117.0
+let kPreviewTitleH = 20.0
+let kPreviewPad = 10.0
+let kPreviewMaxCols = 4
+
 /// The overflow flyout: a cell per hidden icon, at most four to a row, which
 /// is the shape Windows 11's own overflow uses.
 let kTrayFlyoutCell = 40.0
 let kTrayFlyoutCols = 4
 let kTrayFlyoutPad = 8.0
+
+/// STARLING_DOCK_DEBUG=1 traces the pointer. Hover is the one input this
+/// surface cannot check by looking at a screenshot: if nothing is drawn there
+/// is no way to tell "the event never came" from "the event came and the
+/// state did not change" from "the state changed and nothing composited".
+let dockDebug = (ProcessInfo.processInfo.environment["STARLING_DOCK_DEBUG"] ?? "0") != "0"
 
 /// Whether Explorer keeps the notification area. The tray is other people's
 /// icons and hosting it means taking a window class off explorer, so it gets
@@ -197,6 +213,14 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// The tile the pointer is over, if any.
     private var hovered: Int?
+    /// Thumbnails for the tile being hovered. Kept out of the bloc for the
+    /// same reason `hovered` is: it is about this pointer, and it is thrown
+    /// away the moment the pointer leaves.
+    private let previews = PreviewCache()
+    /// Bumped whenever the preview closes or moves to another tile, so a
+    /// refresh armed for the old one stops re-arming.
+    private var previewGeneration = 0
+
     /// Whether the overflow flyout — the icons behind the chevron — is down.
     private var trayOverflowOpen = false
     /// The notification icon the pointer is over — by identity rather than
@@ -219,6 +243,10 @@ final class StarlingDockState: State<StatefulWidget> {
         super.initState()
         CupertinoIcons.registerFont()
         bloc.add(.start)
+        previews.onReady = { [weak self] in
+            guard let self, self.mounted else { return }
+            self.setState {}
+        }
         Win32WindowManager.observe { [weak self] _ in
             self?.bloc.add(.windowsChanged)
         }
@@ -1219,6 +1247,135 @@ final class StarlingDockState: State<StatefulWidget> {
             })
     }
 
+    /// Whether this tile gets a picture rather than a name: Windows shows a
+    /// thumbnail per window for a running app and a plain label for a pinned
+    /// one that is not running.
+    private func hasPreview(_ index: Int) -> Bool {
+        guard index >= 0, index < bloc.state.items.count else { return false }
+        return !bloc.state.items[index].windows.isEmpty
+    }
+
+    private func previewWindows(_ index: Int) -> [Win32Window] {
+        guard index >= 0, index < bloc.state.items.count else { return [] }
+        return Array(bloc.state.items[index].windows.prefix(kPreviewMaxCols))
+    }
+
+    private func previewSize(_ index: Int) -> (width: Double, height: Double) {
+        let count = max(previewWindows(index).count, 1)
+        return (Double(count) * (kPreviewThumbW + kPreviewPad) + kPreviewPad,
+                kPreviewPad + kPreviewTitleH + kPreviewThumbH + kPreviewPad)
+    }
+
+    /// The card, and the picture in it.
+    private func preview(_ index: Int) -> Widget {
+        let windows = previewWindows(index)
+        let size = previewSize(index)
+        let origin = flyoutOrigin(index, width: size.width, height: size.height)
+        return Positioned(left: origin.x, top: origin.y,
+                          child: ClipRRect(borderRadius: BorderRadius.circular(8)) {
+                ColoredBox(color: Color(0xF01B1D22)) {
+                    SizedBox(width: size.width, height: size.height) {
+                        Padding(padding: EdgeInsets(left: kPreviewPad, top: kPreviewPad,
+                                                    right: kPreviewPad, bottom: kPreviewPad)) {
+                            Row(mainAxisSize: .min, crossAxisAlignment: .start) {
+                                for window in windows { previewCell(window) }
+                            }
+                        }
+                    }
+                }
+            })
+    }
+
+    private func previewCell(_ window: Win32Window) -> Widget {
+        Padding(padding: EdgeInsets(left: 0, top: 0, right: kPreviewPad, bottom: 0)) {
+            Column(mainAxisSize: .min, crossAxisAlignment: .start) {
+                SizedBox(width: kPreviewThumbW, height: kPreviewTitleH) {
+                    Text(window.title.isEmpty ? "Untitled" : window.title,
+                         style: TextStyle(color: Color(0xFFE6EAF0), fontSize: 12),
+                         maxLines: 1)
+                }
+                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                    ColoredBox(color: Color(0xFF11131A)) {
+                        SizedBox(width: kPreviewThumbW, height: kPreviewThumbH) {
+                            Center {
+                                // Nothing until the capture lands — a beat, not
+                                // a frame, because rendering somebody else's 4K
+                                // window is a real cost and it happens off this
+                                // thread.
+                                if let view = previews.view(window.handle,
+                                                            width: kPreviewThumbW,
+                                                            height: kPreviewThumbH) {
+                                    view
+                                } else {
+                                    SizedBox(width: kPreviewThumbW, height: kPreviewThumbH)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A press inside the preview card. True when it consumed the press.
+    private func handlePreview(_ x: Double, _ y: Double) -> Bool {
+        guard let index = hovered, hasPreview(index) else { return false }
+        let windows = previewWindows(index)
+        let size = previewSize(index)
+        let origin = flyoutOrigin(index, width: size.width, height: size.height)
+        guard x >= origin.x, x < origin.x + size.width,
+              y >= origin.y, y < origin.y + size.height else { return false }
+        let column = Int((x - origin.x - kPreviewPad) / (kPreviewThumbW + kPreviewPad))
+        guard column >= 0, column < windows.count else { return true }
+        closePreview()
+        // Raising is the whole point of a preview: it is how you pick between
+        // four windows of the same app, which a dock tile alone cannot do.
+        let handle = windows[column].handle
+        Task.detached { _ = Win32WindowManager.activate(handle) }
+        return true
+    }
+
+    /// Whether a point is over the open card — which keeps it open. Without
+    /// this the card vanishes the moment the pointer leaves the tile to reach
+    /// it, and nothing in it can ever be clicked.
+    private func overPreview(_ x: Double, _ y: Double) -> Bool {
+        guard let index = hovered, hasPreview(index) else { return false }
+        let size = previewSize(index)
+        let origin = flyoutOrigin(index, width: size.width, height: size.height)
+        return x >= origin.x && x < origin.x + size.width &&
+               y >= origin.y && y < origin.y + size.height
+    }
+
+    /// Captures now, and again on a timer while the card is up.
+    ///
+    /// Windows' own previews are live, because DWM already has the pixels and
+    /// hands out a thumbnail for nothing. Ours cost a full render of the
+    /// window, so this is a second apart rather than a frame — visibly live
+    /// for a clock or a build log, and a fraction of the cost of the real
+    /// thing.
+    private func openPreview(_ index: Int) {
+        previewGeneration += 1
+        let generation = previewGeneration
+        previews.pixelSide = Int(kPreviewThumbW * (ShellScreen.monitor?.scale ?? 2.0))
+        previews.refresh(previewWindows(index).map(\.handle))
+        refreshPreview(generation)
+    }
+
+    private func refreshPreview(_ generation: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self, self.mounted, self.previewGeneration == generation,
+                  let index = self.hovered, self.hasPreview(index) else { return }
+            self.previews.refresh(self.previewWindows(index).map(\.handle))
+            self.refreshPreview(generation)
+        }
+    }
+
+    private func closePreview() {
+        previewGeneration += 1
+        previews.releaseAll()
+        setState { hovered = nil }
+    }
+
     /// Where a flyout for this tile goes — its top-left corner, in the same
     /// window coordinates a pointer event arrives in.
     ///
@@ -1441,6 +1598,10 @@ final class StarlingDockState: State<StatefulWidget> {
                         }
                         return
                     }
+                    // The preview card, before the tile menu: it is drawn
+                    // over the overhang and a press in it means "raise that
+                    // window", not "the pointer left the tile".
+                    if self.handlePreview(x, y) { return }
                     if self.menuOpen != nil, self.handleTileMenu(x, y) { return }
                     if self.controlCentreOpen, self.handleControlCentre(x, y) { return }
                     if self.ccOpener.contains(x, y) {
@@ -1468,15 +1629,37 @@ final class StarlingDockState: State<StatefulWidget> {
                     }
                 },
                 onPointerHover: { e in
-                    let index = self.pointerTile(e.position.dx, e.position.dy)
+                    let x = e.position.dx, y = e.position.dy
+                    // Inside the open card the hover is not about a tile at
+                    // all, and re-reading it would clear the very card the
+                    // pointer is travelling into.
+                    if self.overPreview(x, y) { return }
+                    let index = self.pointerTile(x, y)
+                    if dockDebug {
+                        let has = index.map { self.hasPreview($0) } ?? false
+                        let count = index.map { i in
+                            i < self.bloc.state.items.count
+                                ? self.bloc.state.items[i].windows.count : -1
+                        } ?? -1
+                        print("[dock] hover \(Int(x)),\(Int(y)) tile=\(index.map(String.init) ?? "-") windows=\(count) preview=\(has) was=\(self.hovered.map(String.init) ?? "-")")
+                    }
                     var tray: UInt64? = nil
-                    if case .icon(let icon)? = self.trayHit(e.position.dx, e.position.dy) {
+                    if case .icon(let icon)? = self.trayHit(x, y) {
                         tray = icon.id
                     }
                     guard index != self.hovered || tray != self.hoveredTray else { return }
+                    let wasPreviewing = self.hovered.map(self.hasPreview) ?? false
                     self.setState {
                         self.hovered = index
                         self.hoveredTray = tray
+                    }
+                    if let index, self.hasPreview(index) {
+                        self.openPreview(index)
+                    } else if wasPreviewing {
+                        // Left a running tile: stop capturing and give the
+                        // thumbnails back.
+                        self.previewGeneration += 1
+                        self.previews.releaseAll()
                     }
                 },
                 child: ColoredBox(color: Color(0x00000000)) {
@@ -1531,6 +1714,8 @@ final class StarlingDockState: State<StatefulWidget> {
                         trayOverflow()
                     } else if let open = menuOpen {
                         menu(open)
+                    } else if let over = hovered, hasPreview(over) {
+                        preview(over)
                     } else if let over = hovered {
                         label(over)
                     } else if let id = hoveredTray,
