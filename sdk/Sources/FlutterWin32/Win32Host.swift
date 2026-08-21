@@ -147,6 +147,17 @@ public final class Win32Host {
     /// thread and one window per process.
     nonisolated(unsafe) private static var toggleHandler: (() -> Void)?
 
+    /// Called when the system's light/dark theme flips (WM_SETTINGCHANGE
+    /// with "ImmersiveColorSet"). Runs on the UI thread; the registry
+    /// already holds the new value, so re-read it with
+    /// `Win32SystemInfo.appsUseLightTheme()`.
+    public func onThemeChange(_ handler: @escaping () -> Void) {
+        Win32Host.themeHandler = handler
+        flwin32_host_on_theme_change(host, { _ in Win32Host.themeHandler?() }, nil)
+    }
+
+    nonisolated(unsafe) private static var themeHandler: (() -> Void)?
+
     /// Registers `window`'s application icon with the engine as an external
     /// texture and returns its id for a `TextureWidget`, or nil when the
     /// window has no icon to give.

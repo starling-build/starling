@@ -174,6 +174,8 @@ final class LauncherBloc: @unchecked Sendable {
         case pin(Win32App)
         case unpin(String)
         case recentLoaded([Win32FileEntry], name: String, dark: Bool)
+        /// The system's light/dark setting moved while we were running.
+        case themeChanged(dark: Bool)
         case recentAppsLoaded([Win32App])
         /// Start renaming a group, or stop.
         case beginRename(String?)
@@ -222,6 +224,9 @@ final class LauncherBloc: @unchecked Sendable {
         case .unpin(let key):
             state.pinned.removeAll { $0 == key }
             _savePins()
+
+        case .themeChanged(let dark):
+            state.dark = dark
 
         case .recentLoaded(let entries, let name, let dark):
             state.recent = entries
@@ -507,6 +512,12 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // the time this fires we are already on screen.
         Win32WindowedHost.host?.onToggle { [weak self] in
             self?.didToggle()
+        }
+        // Start's glass follows the system theme; a parked overlay still
+        // receives the WM_SETTINGCHANGE broadcast, so the restyle has
+        // happened by the time it is next shown.
+        Win32WindowedHost.host?.onThemeChange { [weak self] in
+            self?.bloc.add(.themeChanged(dark: Win32Control.isDarkMode))
         }
     }
 

@@ -115,8 +115,13 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
 
 ## Hygiene
 
-- [ ] Theme changes need a relaunch: AppsUseLightTheme is read once at
-      boot; listen for WM_SETTINGCHANGE and restyle live.
+- [x] Theme changes restyle live: the host turns WM_SETTINGCHANGE
+      ("ImmersiveColorSet") into a callback (flwin32_host_on_theme_change /
+      onThemeChange); Files re-reads AppsUseLightTheme, flips Win11.light,
+      rebuilds from the root and pokes each tab's bloc for the lazy rows;
+      the launcher restyles its glass through a themeChanged event. The dock
+      already polled. Verified both directions with a live registry flip +
+      broadcast.
 - [ ] Dock and launcher still draw Cupertino glyphs; the FluentIcons
       conversion covered Files and its menu. Same mechanical swap.
 - [x] Push: winshell and the engine's `starling` are both on origin

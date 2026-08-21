@@ -539,6 +539,12 @@ void flwin32_host_close_window(FlWin32Host* host);
 void flwin32_host_on_toggle(FlWin32Host* host,
                             void (*callback)(void* user),
                             void* user);
+// Called when the system's light/dark theme flips (WM_SETTINGCHANGE with
+// "ImmersiveColorSet"), on the UI thread. The new value is already in the
+// registry -- re-read it with flwin32_apps_use_light_theme.
+void flwin32_host_on_theme_change(FlWin32Host* host,
+                                  void (*callback)(void* user),
+                                  void* user);
 void flwin32_shell_broadcast_toggle(void);
 
 // ── the Windows key ─────────────────────────────────────────────────────────

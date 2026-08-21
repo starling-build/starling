@@ -63,11 +63,10 @@ let kFilesColSize = 90.0
 /// sampled from dark Explorer; light from light Explorer over the same
 /// folder (menu #FCFCFC, list #FFFFFF, chrome mica #F3F3F3).
 enum Win11 {
-    /// Which palette, set ONCE at startup (main.swift) from the system's
-    /// AppsUseLightTheme -- the apps theme Explorer's own chrome follows.
-    /// Not reactive: Windows apps restyle on WM_SETTINGCHANGE, which nothing
-    /// here listens for yet, so a theme flipped mid-session shows up on the
-    /// next launch.
+    /// Which palette: seeded at startup (main.swift) from the system's
+    /// AppsUseLightTheme -- the apps theme Explorer's own chrome follows --
+    /// and flipped live when WM_SETTINGCHANGE says the setting moved
+    /// (StarlingFilesState.initState registers the host callback).
     static var light = false
 
     static var windowBg: Color { light ? Color(0xFFF3F3F3) : Color(0xFF202020) }
@@ -378,6 +377,18 @@ final class StarlingFilesState: State<StatefulWidget> {
         // The system's own icon font: this surface imitates Explorer, and
         // Explorer's glyphs come from Segoe Fluent Icons, not Cupertino.
         FluentIcons.registerFont()
+        // Restyle when the system's light/dark theme flips -- Windows'
+        // Settings or our own broadcast WM_SETTINGCHANGE, the host turns it
+        // into this callback. The root rebuild recolors the chrome; the
+        // listing's lazy rows need the bloc poke (ancestor rebuilds do not
+        // reach lazy sliver children -- see the framework traps).
+        Win32WindowedHost.host?.onThemeChange { [weak self] in
+            let light = Win32SystemInfo.appsUseLightTheme()
+            guard light != Win11.light else { return }
+            Win11.light = light
+            self?.setState {}
+            self?.tabs.blocs.forEach { $0.add(.iconsChanged) }
+        }
         // The caption becomes ours to draw: tabs in the titlebar, exactly
         // Explorer's shape. The strip's hit test (stripPress) owes the
         // window drag, minimize, maximize and close in exchange.

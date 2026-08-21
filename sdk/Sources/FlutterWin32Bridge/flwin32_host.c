@@ -144,6 +144,8 @@ struct FlWin32Host {
   int custom_titlebar;
   void (*toggle_callback)(void* user);
   void* toggle_user;
+  void (*theme_callback)(void* user);
+  void* theme_user;
   // External textures we handed the engine, so their pixel buffers can be
   // freed on unregister. Swift only ever sees the int64 id.
   struct HostTextureSlot* textures;
@@ -427,6 +429,18 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
             FlutterDesktopViewControllerGetEngine(host->controller));
       }
       return 0;
+
+    case WM_SETTINGCHANGE:
+      // The light/dark switch. "ImmersiveColorSet" is the string Windows
+      // broadcasts when the personalization theme flips (and the one our own
+      // Settings toggle broadcasts, flwin32_set_dark_mode) -- the registry
+      // holds the new value by the time it arrives, so the callback just
+      // re-reads. This wndproc runs on the thread the widget tree lives on.
+      if (host != NULL && host->theme_callback != NULL && lparam != 0 &&
+          _wcsicmp((const wchar_t*)lparam, L"ImmersiveColorSet") == 0) {
+        host->theme_callback(host->theme_user);
+      }
+      break;
 
     case WM_DESTROY:
       // Unregister the appbar FIRST. Leaving a registration behind means
@@ -1836,6 +1850,14 @@ void flwin32_host_on_toggle(FlWin32Host* host,
   if (host == NULL) return;
   host->toggle_callback = callback;
   host->toggle_user = user;
+}
+
+void flwin32_host_on_theme_change(FlWin32Host* host,
+                                  void (*callback)(void* user),
+                                  void* user) {
+  if (host == NULL) return;
+  host->theme_callback = callback;
+  host->theme_user = user;
 }
 
 void flwin32_shell_broadcast_toggle(void) {

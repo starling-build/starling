@@ -67,8 +67,8 @@ public enum Win32SystemInfo {
 
     /// Whether the user's APPS theme is light -- the value Explorer's own
     /// chrome follows (AppsUseLightTheme), not the taskbar's separate
-    /// SystemUsesLightTheme. Read it once at startup; Windows apps restyle
-    /// on WM_SETTINGCHANGE, which nothing here listens for yet.
+    /// SystemUsesLightTheme. Read at startup, and again from
+    /// `Win32WindowedHost.host?.onThemeChange` when the setting flips.
     public static func appsUseLightTheme() -> Bool {
         flwin32_apps_use_light_theme() != 0
     }
