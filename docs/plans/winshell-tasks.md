@@ -6,6 +6,13 @@ mouse notices first. Updated 2026-08-21: every visual-polish, functional-gap
 and hygiene item is done -- what remains is the deferred-by-decision section
 below and the small not-yets recorded inside ticked entries (tab
 reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
+CHECKPOINT 2026-08-21 (end of the Phase-1 session): NOTHING IS IN
+FLIGHT. Every landing below is committed, pushed, deployed to the box's
+dist, and was driven live before its commit. The working tree is clean at
+b5a791e. A fresh session starts from the wave plan
+(winshell-shell-replacement.md): wave 2's desktop surface once track 2's
+popup surfaces (0b) exist, or 0b itself if that track is idle.
+
 Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
 COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,
 typed path entry, subtree search, Quick Access pinning -- sections
