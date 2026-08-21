@@ -106,6 +106,19 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
 
+// Restyles the window into THE DESKTOP: the full monitor (wallpaper runs
+// under the dock, so rcMonitor, not the work area), pinned to the BOTTOM of
+// the z-order through every activation -- the plane explorer's Progman is.
+// Takes focus on click (the icon grid owns selection and the keyboard) but
+// never raises. `monitor` indexes flwin32_monitor_rect, -1 for the primary.
+void flwin32_host_set_desktop(FlWin32Host* host, int32_t monitor);
+
+// The wallpaper, rastered to COVER exactly want_w x want_h (Windows' "Fill"
+// fit: scaled up, centred, overflow cropped) as opaque RGBA the caller frees
+// with flwin32_icon_free. Blocks on the decode -- background thread only.
+int32_t flwin32_wallpaper_raster(int32_t want_w, int32_t want_h,
+                                 uint8_t** out_pixels);
+
 // ── network adapters, for the Settings app ──────────────────────────────────
 //
 // The whole enumeration, unlike flwin32_network_status which answers "am I

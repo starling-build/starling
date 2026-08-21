@@ -36,6 +36,12 @@ public enum Win32WindowedHost {
     /// Mutually exclusive with `panel`; a surface is one or the other.
     nonisolated(unsafe) public static var overlay: OverlayPlacement? = nil
 
+    /// Set before `runStarlingApp` to come up as THE DESKTOP: the full
+    /// monitor at the bottom of the z-order (see Win32Host.setDesktop).
+    /// `.some(nil)` means the primary monitor. Mutually exclusive with the
+    /// other two shapes above.
+    nonisolated(unsafe) public static var desktop: Int?? = nil
+
     /// Point runStarlingApp/startPeriodicTimer at the Win32 host. Call once,
     /// before runStarlingApp.
     public static func install() {
@@ -71,6 +77,7 @@ public enum Win32WindowedHost {
             // and a tree laid out against the pre-panel size would render one
             // frame at the wrong geometry.
             if let placement = panel { h.setPanel(placement) }
+            if let monitor = desktop { h.setDesktop(monitor: monitor) }
             if let placement = overlay {
                 h.setOverlay(monitor: placement.monitor,
                              opacity: placement.opacity,

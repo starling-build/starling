@@ -420,6 +420,149 @@ int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
     return ok;
 }
 
+/* The wallpaper, rastered to COVER exactly want_w x want_h -- the desktop
+ * surface's backdrop. The shell's image factory does the decode (same as
+ * the thumbnail above, minus THUMBNAILONLY: the wallpaper is exactly the
+ * file we want extracted, at the biggest size the factory will serve), and
+ * a HALFTONE StretchBlt does the cover-crop -- scale so the image fills the
+ * target, centred, overflow cropped, which is Windows' own "Fill" fit. The
+ * factory caps its output (~2560 on this machine's cache tiers), so a 4K
+ * target may be an upscale of a 2560 decode; for a photo behind a grid of
+ * icons that is invisible, and the VM it must also look right on is 1024
+ * wide. Returns opaque RGBA the caller frees with flwin32_icon_free. */
+int32_t flwin32_wallpaper_raster(int32_t want_w, int32_t want_h,
+                                 uint8_t** out_pixels) {
+    if (want_w <= 0 || want_h <= 0 || out_pixels == NULL) return 0;
+    wchar_t path[MAX_PATH];
+    path[0] = L'\0';
+    if (!SystemParametersInfoW(SPI_GETDESKWALLPAPER, MAX_PATH, path, 0)
+        || path[0] == L'\0') {
+        return 0;
+    }
+
+    HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    int ok = 0;
+    IShellItem* item = NULL;
+    if (SUCCEEDED(SHCreateItemFromParsingName(path, NULL, &IID_IShellItem,
+                                              (void**)&item))) {
+        IShellItemImageFactory* factory = NULL;
+        if (SUCCEEDED(item->lpVtbl->QueryInterface(
+                item, &IID_IShellItemImageFactory, (void**)&factory))) {
+            SIZE want;
+            want.cx = want_w;
+            want.cy = want_h;
+            HBITMAP bitmap = NULL;
+            if (SUCCEEDED(factory->lpVtbl->GetImage(
+                    factory, want, SIIGBF_RESIZETOFIT, &bitmap))
+                && bitmap != NULL) {
+                BITMAP info;
+                if (GetObjectW(bitmap, sizeof(info), &info)
+                    && info.bmWidth > 0 && info.bmHeight > 0) {
+                    int sw = info.bmWidth;
+                    int sh = info.bmHeight;
+                    /* GetDIBits with a NEGATIVE height request normalizes
+                     * the rows to top-down whatever the factory's section
+                     * held -- the same contract the thumbnail above leans
+                     * on. (A StretchBlt between DIB sections was tried
+                     * first and came out vertically flipped: the factory's
+                     * sections are top-down, and GDI's blit orientation
+                     * semantics between mixed sections are exactly the
+                     * kind of thing to stop depending on.) */
+                    BITMAPINFO bi;
+                    ZeroMemory(&bi, sizeof(bi));
+                    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+                    bi.bmiHeader.biWidth = sw;
+                    bi.bmiHeader.biHeight = -sh; /* top-down */
+                    bi.bmiHeader.biPlanes = 1;
+                    bi.bmiHeader.biBitCount = 32;
+                    bi.bmiHeader.biCompression = BI_RGB;
+                    uint8_t* src = (uint8_t*)malloc((size_t)sw
+                                                    * (size_t)sh * 4);
+                    HDC dc = GetDC(NULL);
+                    if (src != NULL && dc != NULL
+                        && GetDIBits(dc, bitmap, 0, (UINT)sh, src, &bi,
+                                     DIB_RGB_COLORS) == sh) {
+                        /* Cover: sample the target through the scale that
+                         * fills it, centred, overflow cropped. Bilinear by
+                         * hand -- deterministic, orientation-proof, and a
+                         * wallpaper decode runs once per session. */
+                        double sx = (double)want_w / sw;
+                        double sy = (double)want_h / sh;
+                        double scale = sx > sy ? sx : sy;
+                        double span_w = (double)want_w / scale;
+                        double span_h = (double)want_h / scale;
+                        double off_x = ((double)sw - span_w) / 2.0;
+                        double off_y = ((double)sh - span_h) / 2.0;
+                        uint8_t* dst = (uint8_t*)malloc(
+                            (size_t)want_w * (size_t)want_h * 4);
+                        if (dst != NULL) {
+                            for (int y = 0; y < want_h; y++) {
+                                /* Rows read BOTTOM-UP, found empirically:
+                                 * this factory's DIB hands GetDIBits rows
+                                 * that arrive inverted even against a
+                                 * top-down request (the palace hung from
+                                 * the sky through two prior "fixes"), so
+                                 * the sampler walks the source upside down
+                                 * and the output comes out upright. If a
+                                 * future wallpaper renders flipped, the
+                                 * factory changed its mind -- probe before
+                                 * believing either orientation. */
+                                double fy = off_y
+                                    + ((double)(want_h - 1 - y) + 0.5)
+                                      / scale - 0.5;
+                                if (fy < 0) fy = 0;
+                                if (fy > sh - 1) fy = sh - 1;
+                                int y0 = (int)fy;
+                                int y1 = y0 + 1 < sh ? y0 + 1 : y0;
+                                double wy = fy - y0;
+                                uint8_t* q = dst
+                                    + (size_t)y * (size_t)want_w * 4;
+                                for (int x = 0; x < want_w; x++) {
+                                    double fx = off_x
+                                        + ((double)x + 0.5) / scale - 0.5;
+                                    if (fx < 0) fx = 0;
+                                    if (fx > sw - 1) fx = sw - 1;
+                                    int x0 = (int)fx;
+                                    int x1 = x0 + 1 < sw ? x0 + 1 : x0;
+                                    double wx = fx - x0;
+                                    const uint8_t* p00 = src
+                                        + ((size_t)y0 * sw + x0) * 4;
+                                    const uint8_t* p01 = src
+                                        + ((size_t)y0 * sw + x1) * 4;
+                                    const uint8_t* p10 = src
+                                        + ((size_t)y1 * sw + x0) * 4;
+                                    const uint8_t* p11 = src
+                                        + ((size_t)y1 * sw + x1) * 4;
+                                    for (int c = 0; c < 3; c++) {
+                                        double top = p00[c] * (1 - wx)
+                                            + p01[c] * wx;
+                                        double bot = p10[c] * (1 - wx)
+                                            + p11[c] * wx;
+                                        double v = top * (1 - wy) + bot * wy;
+                                        /* BGR -> RGB while writing. */
+                                        q[x * 4 + (2 - c)] =
+                                            (uint8_t)(v + 0.5);
+                                    }
+                                    q[x * 4 + 3] = 255;
+                                }
+                            }
+                            *out_pixels = dst;
+                            ok = 1;
+                        }
+                    }
+                    if (dc != NULL) ReleaseDC(NULL, dc);
+                    free(src);
+                }
+                DeleteObject(bitmap);
+            }
+            factory->lpVtbl->Release(factory);
+        }
+        item->lpVtbl->Release(item);
+    }
+    if (init == S_OK || init == S_FALSE) CoUninitialize();
+    return ok;
+}
+
 void flwin32_icon_destroy(uint64_t icon) {
     if (icon != 0) DestroyIcon((HICON)(uintptr_t)icon);
 }

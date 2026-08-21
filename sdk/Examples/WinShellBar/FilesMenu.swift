@@ -204,6 +204,33 @@ final class ShellMenuModel {
     /// and how far they have been scrolled.
     @ObservationIgnored var target: ((Double, Double) -> MenuTarget?)?
 
+    /// Runs after a shell verb completes. A verb moves files without telling
+    /// anyone and nothing watches a directory, so the SURFACE re-reads its
+    /// own listing here — the file explorer's default below; the desktop
+    /// grid replaces it with its own refresh. (The pin re-read rides along
+    /// for the explorer because "Pin to Quick access" is one of these verbs.)
+    @ObservationIgnored var afterVerb: () -> Void = {
+        filesBloc.add(.refresh)
+        filesBloc.reloadPins()
+    }
+
+    /// The directory a BACKGROUND click means, and what Open / Open with…
+    /// do — the three other places the menu used to reach straight into the
+    /// file explorer's bloc. Parameterized for the desktop surface, whose
+    /// process carries only a dormant FilesBloc: its background is the
+    /// Desktop folder and its Open is a ShellExecute, and reading the
+    /// dormant bloc's empty directory here is how the desktop's first
+    /// background menu came up with no shell verbs at all.
+    @ObservationIgnored var backgroundDirectory: () -> String = {
+        filesBloc.state.directory
+    }
+    @ObservationIgnored var activate: (Win32FileEntry) -> Void = {
+        filesBloc.add(.activate($0))
+    }
+    @ObservationIgnored var openWith: (Win32FileEntry) -> Void = { _ in
+        filesBloc.add(.openWith)
+    }
+
     /// The session assembling the verbs, and the generation that lets an
     /// answer for a menu already dismissed be dropped rather than drawn into
     /// the next one. NOT observed: nothing draws them, and a rebuild per
@@ -471,7 +498,7 @@ final class ShellMenuModel {
         case .background: entry = nil
         case .item(let found): entry = found
         }
-        let path = entry?.path ?? filesBloc.state.directory
+        let path = entry?.path ?? backgroundDirectory()
         // An ITEM in a namespace listing has to be addressed through the
         // folder it was listed from -- its own name does not find it back
         // (see Win32ShellMenu.init). The BACKGROUND menu needs no such help:
@@ -641,25 +668,26 @@ final class ShellMenuModel {
                                                          : FluentIcons.document,
                                 isDefault: true,
                                 accelerator: "Enter",
-                                action: { filesBloc.add(.activate(entry)) }))
+                                action: { [activate] in activate(entry) }))
             if !entry.isDirectory {
                 rows.append(MenuRow(title: "Open with…",
                                     glyph: FluentIcons.viewAll,
-                                    action: { filesBloc.add(.openWith) }))
+                                    action: { [openWith] in openWith(entry) }))
             }
             rows.append(MenuRow(title: "Show in Explorer",
                                 glyph: FluentIcons.openExternal,
-                                action: {
-                let path = entry.isDirectory ? entry.path : filesBloc.state.directory
+                                action: { [backgroundDirectory] in
+                let path = entry.isDirectory ? entry.path
+                                             : backgroundDirectory()
                 Task.detached { Win32Files.openInExplorer(path) }
             }))
         } else {
             rows.append(MenuRow(title: "Refresh", glyph: FluentIcons.refresh,
-                                action: { filesBloc.add(.open(filesBloc.state.directory)) }))
+                                action: { [afterVerb] in afterVerb() }))
             rows.append(MenuRow(title: "Show in Explorer",
                                 glyph: FluentIcons.openExternal,
-                                action: {
-                let path = filesBloc.state.directory
+                                action: { [backgroundDirectory] in
+                let path = backgroundDirectory()
                 Task.detached { Win32Files.openInExplorer(path) }
             }))
         }
@@ -1003,9 +1031,8 @@ final class ShellMenuModel {
             // Restore takes a relaunch to notice. The pins re-read for the
             // same reason: "Pin to Quick access" is one of these verbs, and
             // the sidebar's pin section is the shell's set, not ours.
-            session?.invoke(shellTierForInvoke, shellId) {
-                filesBloc.add(.refresh)
-                filesBloc.reloadPins()
+            session?.invoke(shellTierForInvoke, shellId) { [afterVerb] in
+                afterVerb()
             }
         }
         session?.close()

@@ -64,6 +64,17 @@ public enum Win32Icon {
         return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
     }
 
+    /// The wallpaper, rastered to COVER exactly width x height (Windows'
+    /// "Fill" fit) — the desktop surface's backdrop. Blocks on the decode:
+    /// background thread only.
+    public static func wallpaper(width: Int, height: Int) -> Bitmap? {
+        var pixels: UnsafeMutablePointer<UInt8>? = nil
+        guard flwin32_wallpaper_raster(Int32(width), Int32(height),
+                                       &pixels) != 0,
+              let pixels else { return nil }
+        return Bitmap(pixels: pixels, width: width, height: height)
+    }
+
     /// The icon a live window reports. **Safe on any thread**, though it
     /// sends a message to the owning window with a timeout, so it is not
     /// instant when that window is busy — another reason not to do it on the

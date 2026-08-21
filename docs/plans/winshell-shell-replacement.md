@@ -90,6 +90,19 @@ ACTIVATES ONLY IN NO-EXPLORER MODE. While explorer runs, Progman owns the
 bottom of the z-order and fighting it for wallpaper clicks is a losing
 game; the surface exists for the endgame, tested in the VM's trial mode.
 
+**BUILT 2026-08-21, dev-box verified; the VM no-explorer trial is the
+remaining gate.** `--desktop` (WinShellBar) is the surface: wallpaper
+cover-rastered through the shell's image factory, the icon grid over the
+merged user+Public Desktop, per-item icons and thumbnails, column-major
+defaults with drag-to-reposition persisted in our own store, double-click
+through ShellExecute, and the right-click menus on the popup surfaces --
+the desktop menu is 0b's first consumer with no parent window at all.
+The window shape is flwin32_host_set_desktop (full rcMonitor, bottom-
+pinned via a WM_WINDOWPOSCHANGING clamp, focusable but never raised).
+The explorer gate is enforced in main.swift (STARLING_DESKTOP_TRIAL=1 is
+the dev-box override this was driven under). `--print-desktop` is the
+oracle. Findings and v1 boundaries in winshell-tasks.md.
+
 ### Phase 3 — tray ownership
 
 Flip flwin32_tray.c from reading explorer's tray to BEING Shell_TrayWnd

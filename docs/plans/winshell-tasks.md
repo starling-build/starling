@@ -4,6 +4,51 @@ The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
 mouse notices first.
 
+## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
+
+`--desktop`: wallpaper and the icon grid at the bottom of the z-order,
+the plane explorer's Progman owns until the Shell= endgame. Driven live
+on this box under STARLING_DESKTOP_TRIAL=1 (the gate in main.swift
+otherwise refuses while explorer runs — the plan's own decision,
+enforced): wallpaper cover-fit, icons with real textures and thumbnails,
+click/Ctrl-click selection, double-click opening through the shell, icon
+drag persisting to our own store (`--print-desktop` read it back from a
+separate process), and both right-click menus on popup surfaces — the
+desktop menu is 0b's first consumer with NO parent window at all.
+
+What it took, beyond assembly of parts that already existed:
+- **The window shape** is `flwin32_host_set_desktop`: full rcMonitor (the
+  wallpaper runs under the dock), WS_POPUP + TOOLWINDOW, pinned to
+  HWND_BOTTOM through every activation by a WM_WINDOWPOSCHANGING clamp —
+  focusable but never raised, which is what explorer's own desktop is.
+- **The wallpaper raster** (flwin32_wallpaper_raster) decodes through the
+  shell's image factory and cover-crops with a hand bilinear sampler.
+  Hand-rolled because GDI would not say which way was up: a StretchBlt
+  between DIB sections came out vertically flipped through two different
+  orientation "fixes", and GetDIBits rows arrived inverted even against a
+  top-down request — the sampler now walks the source bottom-up, found
+  EMPIRICALLY, with a comment telling the next reader to probe before
+  believing either orientation.
+- **ShellMenuModel grew surface hooks** (backgroundDirectory / activate /
+  openWith, joining afterVerb): the menu reached into the file explorer's
+  bloc for those four things, and in the desktop's process that bloc is
+  dormant — the first background menu asked the shell about an EMPTY
+  path and came up with three rows and no New submenu. The hooks default
+  to the old Files behaviour; the desktop redirects them.
+- Icons are per PATH (a desktop is shortcuts, each with its own face and
+  arrow badge), unlike the listing's per-type keys; labels are the
+  shell's display names, white with the drop shadow that survives a
+  white wallpaper.
+
+V1 boundaries, each deliberate: no rubber-band selection, no OLE drag
+in/out (the Files machinery is there to lift), no inline rename, no
+keyboard navigation beyond F5/Delete/Escape, one monitor, wallpaper read
+once at start, and the paste/rename cells of the menu's pill row are
+Files-bound and quietly dead here. THE GATE THAT REMAINS: the VM trial
+with explorer absent — kill explorer, launch --desktop, wallpaper up,
+icons live, menus and drops working, explorer restored cleanly. The VM
+harness runs on the Linux machine; this box cannot reach it.
+
 ## Popup surfaces (0b) — landed and verified 2026-08-21
 
 Track 2's prerequisite, and the last one: every panel of the file
@@ -89,12 +134,13 @@ is done -- what remains is the deferred-by-decision section below and the
 small not-yets recorded inside ticked entries (tab reorder/tear-off,
 column reorder, custom drag imagery, edge autoscroll).
 
-CHECKPOINT 2026-08-21 (end of the popup-surfaces session): NOTHING IS IN
-FLIGHT. Track 2's popup surfaces (0b, section above) are DONE, and the
-parallel session landed Phase 4's banners and Run dialog (section below,
-built on the passive-overlay machinery rather than waiting on 0b). Every
-prerequisite for wave 2's desktop surface — 0a namespace enumeration and
-0b popup surfaces — is now in hand: a fresh session starts THERE.
+CHECKPOINT 2026-08-21 (end of the desktop-surface session): NOTHING IS IN
+FLIGHT. Wave 2's desktop surface is BUILT and dev-box verified (section
+below); its remaining gate is the VM trial with explorer absent, which
+needs the Linux machine that runs the VM harness — this box cannot reach
+it. A session on that machine runs the trial (kill explorer, launch
+--desktop, the wave-plan gate list); a session here picks up the desktop
+v1 boundaries or whatever else is open.
 
 Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
 COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,

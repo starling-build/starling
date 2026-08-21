@@ -108,6 +108,13 @@ public final class Win32Host {
                                  Int32(bottomMargin))
     }
 
+    /// Restyles the window into THE DESKTOP: full monitor, pinned to the
+    /// bottom of the z-order, focusable but never raised — the plane
+    /// explorer's Progman is. Call before `run()`, like the other restyles.
+    public func setDesktop(monitor: Int?) {
+        flwin32_host_set_desktop(host, Int32(monitor ?? -1))
+    }
+
     public func setVisible(_ visible: Bool) {
         flwin32_host_set_visible(host, visible ? 1 : 0)
     }

@@ -55,6 +55,7 @@ let wantsFiles = CommandLine.arguments.contains("--files")
 let wantsNotifications = CommandLine.arguments.contains("--notifications")
 let wantsBanners = CommandLine.arguments.contains("--banners")
 let wantsRun = CommandLine.arguments.contains("--run")
+let wantsDesktop = CommandLine.arguments.contains("--desktop")
 
 // `--monitor N` indexes Win32Display.monitors(); absent means the primary.
 // One value, given to BOTH the placement that puts the window on a screen and
@@ -609,6 +610,30 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-invoke") {
     exit(0)
 }
 
+// What the desktop surface would draw, from outside it: the merged listing
+// (user + Public Desktop), the grid it computes for the primary monitor, and
+// every icon's cell -- stored position or column-major default. The only
+// honest check of the grid's claim is asking the same code with no window.
+if CommandLine.arguments.contains("--print-desktop") {
+    let monitors = Win32Display.monitors()
+    let monitor = monitors.first(where: { $0.isPrimary }) ?? monitors.first
+    let scale = monitor?.scale ?? 1.0
+    let w = Double(monitor?.width ?? 1920) / scale
+    let h = Double(monitor?.height ?? 1080) / scale
+    let cols = max(1, Int((w - kDeskMarginX * 2) / kDeskCellW))
+    let rows = max(1, Int((h - kDeskMarginY * 2) / kDeskCellH))
+    let items = DesktopBloc.placed(DesktopBloc.desktopEntries(),
+                                   stored: DesktopBloc.loadPositions(),
+                                   cols: cols, rows: rows)
+    print("[desktop] grid \(cols)x\(rows) on \(Int(w))x\(Int(h))pt, "
+          + "\(items.count) items, store \(DesktopBloc.storePath)")
+    for item in items {
+        print("[desktop] (\(item.col),\(item.row)) "
+              + item.entry.name + (item.entry.isDirectory ? "\\" : ""))
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-modes") {
     for mode in Win32SystemInfo.displayModes() {
         print("\(mode.width)x\(mode.height)@\(mode.refresh)")
@@ -740,6 +765,29 @@ if wantsFiles {
                    width: Int(kFilesWidth * panelScale),
                    height: Int(kFilesHeight * panelScale)) {
         StarlingFiles()
+    }
+} else if wantsDesktop {
+    // The plan's decision, enforced rather than remembered: while explorer
+    // runs, Progman owns the bottom of the z-order and fighting it for
+    // wallpaper clicks is a losing game. The surface exists for the
+    // no-explorer endgame; the VM's trial mode (explorer killed) is where
+    // it is proven, and STARLING_DESKTOP_TRIAL=1 is the dev-box override
+    // for driving it OVER a live explorer, accepted as an approximation.
+    if flwin32_shell_explorer_present() != 0,
+       ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"] != "1" {
+        print("[desktop] explorer is running and owns the desktop plane; "
+              + "kill it first (the VM trial), or set "
+              + "STARLING_DESKTOP_TRIAL=1 to trial over it.")
+        exit(1)
+    }
+    Win32WindowedHost.desktop = .some(wantsMonitor)
+    // The full monitor in PHYSICAL pixels, the size the restyle will
+    // confirm -- created at its final size so there is no resize for the
+    // first frame to survive.
+    runStarlingApp(title: "Starling Desktop",
+                   width: panelWidth,
+                   height: Int(screen?.height ?? 1080)) {
+        StarlingDesktop()
     }
 } else if wantsSettings {
     // An ORDINARY WINDOW: no panel, no overlay, no restyle. Settings is an

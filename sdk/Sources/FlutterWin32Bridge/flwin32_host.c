@@ -126,6 +126,13 @@ struct FlWin32Host {
   int panel_monitor;
   int panel_takes_focus;
   int panel_transparent;
+  // Desktop mode: a full-monitor surface pinned to the BOTTOM of the
+  // z-order -- the wallpaper-and-icons window explorer's Progman is, for the
+  // no-explorer endgame. Every other window naturally covers it; clicking it
+  // focuses it (icons take selection and keys) but never raises it, which is
+  // the WM_WINDOWPOSCHANGING pin in host_wnd_proc.
+  int desktop_active;
+  int desktop_monitor;
   // Overlay mode: a full-screen surface that is hidden until something asks
   // for it — the launcher, and later Mission Control.
   int overlay_active;
@@ -206,6 +213,7 @@ static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
 // host_wnd_proc has to call both and comes first.
 static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
+static void desktop_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
 
 // The engine behind this host's view, for a second view controller
@@ -326,6 +334,21 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       if (host != NULL) flwin32_popup_notify_host_event(host);
       break;
 
+    case WM_WINDOWPOSCHANGING:
+      // The desktop stays at the BOTTOM of the z-order, whatever asks
+      // otherwise -- most often Windows itself, raising the window because a
+      // click activated it. Explorer's own desktop holds its place the same
+      // way. Only when the move would actually change z-order: a
+      // SWP_NOZORDER move ignores hwndInsertAfter anyway.
+      if (host != NULL && host->desktop_active) {
+        WINDOWPOS* pos = (WINDOWPOS*)lparam;
+        if (pos != NULL && !(pos->flags & SWP_NOZORDER)) {
+          pos->hwndInsertAfter = HWND_BOTTOM;
+        }
+        return 0;
+      }
+      break;
+
     case WM_NCCALCSIZE:
       // Custom titlebar: give the CAPTION to the client and keep the resize
       // borders. The recipe: remember where the window's top was, let
@@ -390,6 +413,13 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       // picks up the new points-to-pixels ratio for the thickness.
       if (host != NULL && host->panel_active) {
         panel_apply_placement(host);
+        return 0;
+      }
+      // The desktop is edge-anchored chrome by the same argument: the
+      // suggested rectangle is the old one scaled, and the right answer is
+      // "the monitor", re-derived.
+      if (host != NULL && host->desktop_active) {
+        desktop_apply_placement(host);
         return 0;
       }
       if (lparam != 0) {
@@ -1224,6 +1254,55 @@ void flwin32_host_set_panel(FlWin32Host* host,
   host->panel_takes_focus = takes_focus ? 1 : 0;
   host->panel_transparent = transparent ? 1 : 0;
   panel_apply_placement(host);
+}
+
+// ── the desktop surface ─────────────────────────────────────────────────────
+//
+// Restyles the window into the wallpaper-and-icons plane: the FULL monitor
+// (rcMonitor, not the work area -- the wallpaper runs under the dock), at
+// the BOTTOM of the z-order, where it stays through every activation via the
+// WM_WINDOWPOSCHANGING pin in host_wnd_proc. Unlike a panel it takes focus:
+// the icon grid owns selection, rename and the keyboard when clicked, and
+// activation without raising is exactly what explorer's own desktop does.
+static void desktop_apply_placement(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return;
+
+  RECT area;
+  MonitorPick pick = {0};
+  pick.want = host->desktop_monitor;
+  if (host->desktop_monitor >= 0) {
+    EnumDisplayMonitors(NULL, NULL, monitor_pick_cb, (LPARAM)&pick);
+  }
+  if (pick.found) {
+    area = pick.rect;
+  } else {
+    MONITORINFO mi = {sizeof(MONITORINFO)};
+    if (!GetMonitorInfoW(
+            MonitorFromWindow(host->window, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+      return;
+    }
+    area = mi.rcMonitor;
+  }
+
+  // WS_POPUP for the same reason the panel: the client area IS the window.
+  SetWindowLongPtrW(host->window, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+  // TOOLWINDOW keeps the desktop out of Alt+Tab -- it is the thing behind
+  // the windows one alt-tabs BETWEEN. No TOPMOST, no NOACTIVATE.
+  LONG_PTR ex = GetWindowLongPtrW(host->window, GWL_EXSTYLE);
+  ex |= WS_EX_TOOLWINDOW;
+  ex &= ~(LONG_PTR)(WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED);
+  SetWindowLongPtrW(host->window, GWL_EXSTYLE, ex);
+
+  SetWindowPos(host->window, HWND_BOTTOM, area.left, area.top,
+               area.right - area.left, area.bottom - area.top,
+               SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+}
+
+void flwin32_host_set_desktop(FlWin32Host* host, int32_t monitor) {
+  if (host == NULL || host->window == NULL) return;
+  host->desktop_active = 1;
+  host->desktop_monitor = monitor;
+  desktop_apply_placement(host);
 }
 
 // ── appbar: asking Windows to reserve the strip ─────────────────────────────
