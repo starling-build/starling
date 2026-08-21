@@ -71,8 +71,18 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       close glyph close one (the window when it is the last), tabs shrink
       to fit as they multiply. Not yet: dragging tabs to reorder or tear
       off, middle-click close.
-- [ ] View modes: Details only; the View button is honest about it (drawn
-      disabled) but icon/tile/list views are the ask.
+- [x] View modes: Details, Tiles, Medium icons, Large icons, per tab,
+      behind a live View dropdown. One ListingGrid struct describes cell
+      geometry for every mode (Details is its columns == 1 case), consumed
+      by the lazy ListView (grid modes scroll by strip: one item = one run
+      of cells) AND every arithmetic hit test -- menu targeting, the
+      rubber band (now a true 2D intersect), drop targeting, arrows
+      (up/down move a strip, left/right a neighbour where one exists),
+      type-to-jump's scroll-into-view. Icons re-warm per mode edge
+      (48/96) under size-suffixed cache keys. Verified live: band, menu,
+      2D arrows, double-click open, selection surviving mode switches.
+      List and Content stay out -- List is a column-major sideways
+      scroller, a different scroller rather than a different cell.
 - [x] Drag & drop, in and out. In: the window is an OLE drop target
       (flwin32_dragdrop.c); files from any source land in the open folder
       or the folder row under the pointer (drawn lit), with Explorer's

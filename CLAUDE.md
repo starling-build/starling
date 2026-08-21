@@ -305,6 +305,13 @@ Framework (`sdk/`):
   `Directionality`.
 - Lazy sliver list children don't rebuild on ancestor rebuild — theme/state
   changes need a bloc `.refresh` poke.
+- Changing a lazy list's cell SHAPE needs a `key` on the ListView. An
+  in-place update does rebuild inflated children with the new builder, but a
+  child whose root widget TYPE changed remounts through the sliver element's
+  `insertRenderObjectChild` — a no-op there (children arrive via
+  `createChild` during layout) — so the fresh render objects go nowhere and
+  the old cells keep painting inside the new extents. Keying by mode
+  remounts the whole sliver down the working path. (Files' view modes.)
 - Element **remount is the dominant update path** (no `updateRenderObject`); if
   fresh content never composites, suspect paint marking.
 - `print()` is block-buffered through pipes — debug with raw `write(2, …)`.

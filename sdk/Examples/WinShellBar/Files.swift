@@ -287,9 +287,20 @@ final class StarlingFilesState: State<StatefulWidget> {
             bloc.add(.goBack)
             return true
         case 0x1_0000_0301: // Down
-            moveSelection(1, extend: shiftDown)
+            // A strip down: one row in Details, one grid row otherwise.
+            moveSelection(listingGrid().columns, extend: shiftDown)
             return true
         case 0x1_0000_0304: // Up
+            moveSelection(-listingGrid().columns, extend: shiftDown)
+            return true
+        case 0x1_0000_0303: // Right -- a neighbour, only where cells have one
+            let columns = listingGrid().columns
+            guard columns > 1 else { break }
+            moveSelection(1, extend: shiftDown)
+            return true
+        case 0x1_0000_0302: // Left
+            let columns = listingGrid().columns
+            guard columns > 1 else { break }
             moveSelection(-1, extend: shiftDown)
             return true
         case 0x1_0000_0306: // Home
@@ -346,15 +357,17 @@ final class StarlingFilesState: State<StatefulWidget> {
         ensureRowVisible(next)
     }
 
-    /// Scrolls just far enough that row `index` is inside the viewport --
-    /// the arrows walking off the bottom pull the list along.
+    /// Scrolls just far enough that item `index` is inside the viewport --
+    /// the arrows walking off the bottom pull the list along. Strip-aware:
+    /// in a grid mode the unit that scrolls is the strip the item sits in.
     private func ensureRowVisible(_ index: Int) {
         guard scroll.hasClients else { return }
         let size = Win32WindowedHost.host?.clientSize
             ?? (width: kFilesWidth, height: kFilesHeight)
-        let viewHeight = size.height - kFilesToolbar - kFilesStatusBar
-        let top = Double(index) * kFilesRow
-        let bottom = top + kFilesRow
+        let g = listingGrid()
+        let viewHeight = size.height - g.top - kFilesStatusBar
+        let top = Double(index / g.columns) * g.cellH
+        let bottom = top + g.cellH
         if top < scroll.offset {
             scroll.jumpTo(top)
         } else if bottom > scroll.offset + viewHeight {
@@ -537,7 +550,13 @@ final class StarlingFilesState: State<StatefulWidget> {
                         sidebar()
                         Expanded {
                             Column(crossAxisAlignment: .stretch) {
-                                columnHeaders()
+                                // The header strip is Details furniture:
+                                // the other view modes have no columns to
+                                // head, so their listing starts above it
+                                // (see ListingGrid.top).
+                                if bloc.state.viewMode == .details {
+                                    columnHeaders()
+                                }
                                 Expanded {
                                     ColoredBox(color: Win11.listBg) { listing() }
                                 }
@@ -572,12 +591,51 @@ final class StarlingFilesState: State<StatefulWidget> {
     // Everything past this point -- the rows, the geometry, the session, the
     // drawing -- is FilesMenu.swift.
 
-    /// The row under a point, accounting for how far the list is scrolled.
-    /// nil above the listing (the toolbars, the sidebar) so no menu opens
-    /// there, and `.background` in the empty space below the last row, which
-    /// is what gets the folder's own menu.
-    private func targetAt(_ x: Double, _ y: Double) -> MenuTarget? {
-        guard x >= kFilesSidebar, y >= kFilesToolbar else { return nil }
+    // MARK: - Listing geometry
+
+    /// One description of where the cells are, for every view mode. The
+    /// ListView that draws them and the arithmetic hit tests (context menu
+    /// targeting, the rubber band, drop targeting, the arrow keys) consume
+    /// the same numbers, which is the only thing keeping them in agreement.
+    /// Details is the columns == 1 case of the same grid.
+    private struct ListingGrid {
+        let columns: Int
+        let cellW: Double
+        let cellH: Double
+        /// Where the listing's content starts, in window coordinates --
+        /// below the header strip in Details, in its place otherwise.
+        let top: Double
+        let left: Double
+    }
+
+    private func listingGrid() -> ListingGrid {
+        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let avail = width - kFilesSidebar
+        switch bloc.state.viewMode {
+        case .details:
+            return ListingGrid(columns: 1, cellW: avail, cellH: kFilesRow,
+                               top: kFilesToolbar, left: kFilesSidebar)
+        case .tiles:
+            return packed(cellW: 252, cellH: 62, avail: avail)
+        case .mediumIcons:
+            return packed(cellW: 98, cellH: 112, avail: avail)
+        case .largeIcons:
+            return packed(cellW: 146, cellH: 160, avail: avail)
+        }
+    }
+
+    private func packed(cellW: Double, cellH: Double,
+                        avail: Double) -> ListingGrid {
+        ListingGrid(columns: max(1, Int((avail - 16) / cellW)),
+                    cellW: cellW, cellH: cellH,
+                    top: kFilesToolbar - kFilesHeaderRow,
+                    left: kFilesSidebar + 8)
+    }
+
+    /// The item index under a window-space point, or nil in a strip's
+    /// trailing gap and below the last cell.
+    private func cellIndex(at x: Double, _ y: Double,
+                           in g: ListingGrid) -> Int? {
         // `offset` TRAPS on a controller with no attached position, and an
         // EMPTY folder is exactly that: the listing draws its "This folder
         // is empty" label instead of the scrollable, so nothing ever
@@ -585,8 +643,23 @@ final class StarlingFilesState: State<StatefulWidget> {
         // killed the app here -- hasClients is the guard Dart code uses on
         // the same contract, not an optimization.
         let offset = scroll.hasClients ? scroll.offset : 0
-        let index = Int((y - kFilesToolbar + offset) / kFilesRow)
-        guard index >= 0, index < bloc.state.visible.count else { return .background }
+        let strip = Int((y - g.top + offset) / g.cellH)
+        guard strip >= 0, x >= g.left else { return nil }
+        let column = Int((x - g.left) / g.cellW)
+        guard column < g.columns else { return nil }
+        let index = strip * g.columns + column
+        guard index < bloc.state.visible.count else { return nil }
+        return index
+    }
+
+    /// The item under a point, accounting for how far the list is scrolled.
+    /// nil above the listing (the toolbars, the sidebar) so no menu opens
+    /// there, and `.background` in the empty space around and below the
+    /// cells, which is what gets the folder's own menu.
+    private func targetAt(_ x: Double, _ y: Double) -> MenuTarget? {
+        let g = listingGrid()
+        guard x >= kFilesSidebar, y >= g.top else { return nil }
+        guard let index = cellIndex(at: x, y, in: g) else { return .background }
         return .item(bloc.state.visible[index])
     }
 
@@ -608,22 +681,36 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
         let size = Win32WindowedHost.host?.clientSize
             ?? (width: kFilesWidth, height: kFilesHeight)
+        let g = listingGrid()
         let x = min(max(e.position.dx, kFilesSidebar), size.width)
-        let y = min(max(e.position.dy, kFilesToolbar),
+        let y = min(max(e.position.dy, g.top),
                     size.height - kFilesStatusBar)
         band.rect = (min(origin.x, x), min(origin.y, y),
                      abs(x - origin.x), abs(y - origin.y))
 
-        // The rows the rectangle's vertical span intersects. Same arithmetic
-        // as targetAt, over a range instead of a point.
+        // The cells the rectangle intersects. Same arithmetic as targetAt,
+        // over both spans instead of a point -- in Details the column span
+        // is always 0...0 and this is the old row walk.
         let offset = scroll.hasClients ? scroll.offset : 0
         let count = bloc.state.visible.count
-        let lo = max(Int((min(origin.y, y) - kFilesToolbar + offset) / kFilesRow), 0)
-        let hi = min(Int((max(origin.y, y) - kFilesToolbar + offset) / kFilesRow),
-                     count - 1)
         var covered = bandBase
-        if lo <= hi {
-            for i in lo...hi { covered.insert(bloc.state.visible[i].path) }
+        if count > 0 {
+            let loS = max(Int((min(origin.y, y) - g.top + offset) / g.cellH), 0)
+            let hiS = min(Int((max(origin.y, y) - g.top + offset) / g.cellH),
+                          (count - 1) / g.columns)
+            let loC = max(Int((min(origin.x, x) - g.left) / g.cellW), 0)
+            let hiC = min(Int((max(origin.x, x) - g.left) / g.cellW),
+                          g.columns - 1)
+            if loS <= hiS, loC <= hiC, max(origin.x, x) >= g.left {
+                for strip in loS...hiS {
+                    for column in loC...hiC {
+                        let index = strip * g.columns + column
+                        if index < count {
+                            covered.insert(bloc.state.visible[index].path)
+                        }
+                    }
+                }
+            }
         }
         if covered != bandLast {
             bandLast = covered
@@ -1118,6 +1205,20 @@ final class StarlingFilesState: State<StatefulWidget> {
         ])
     }
 
+    private func openViewFlyout() {
+        func modeRow(_ mode: FilesViewMode) -> MenuRow {
+            MenuRow(title: mode.label,
+                    glyph: bloc.state.viewMode == mode ? FluentIcons.check : nil,
+                    action: { filesBloc.add(.setView(mode)) })
+        }
+        menu.openFlyout(at: lastDown.x - 24, flyoutAnchorY, rows: [
+            modeRow(.largeIcons),
+            modeRow(.mediumIcons),
+            modeRow(.tiles),
+            modeRow(.details),
+        ])
+    }
+
     private func openNewWindow() {
         let exe = ProcessInfo.processInfo.arguments[0]
         let dir = bloc.state.directory
@@ -1184,7 +1285,9 @@ final class StarlingFilesState: State<StatefulWidget> {
                         self.openSortFlyout()
                     }
                     barButton(FluentIcons.viewAll, "View",
-                              chevron: true, enabled: false) {}
+                              chevron: true, enabled: true) {
+                        self.openViewFlyout()
+                    }
                     Expanded { SizedBox(height: 1) }
                     textButton("Open in Explorer") { self.bloc.add(.openInExplorer) }
                 }
@@ -1555,12 +1658,152 @@ final class StarlingFilesState: State<StatefulWidget> {
             return message("No items match \"\(bloc.state.filter)\".")
         }
 
-        // Lazy: a folder of ten thousand files builds only the rows on screen.
+        // Lazy in every mode: a folder of ten thousand files builds only
+        // what is on screen. Grid modes scroll by STRIP -- one ListView item
+        // is a horizontal run of `columns` cells -- which keeps the laziness
+        // and keeps every hit test on the shared ListingGrid arithmetic.
+        //
+        // KEYED BY MODE, deliberately: switching views must remount the
+        // whole list. An in-place update rebuilds the inflated children
+        // with the new builder, but a child whose root TYPE changed is a
+        // remount inside the sliver -- and the sliver element's
+        // insertRenderObjectChild is a no-op (children arrive through
+        // createChild during layout), so the fresh render objects go
+        // nowhere and the old mode keeps painting inside the new extents.
+        // A fresh sliver takes the working path: mount, then lazy create.
+        let g = listingGrid()
+        if bloc.state.viewMode == .details {
+            return ListView(
+                key: ValueKey("details"),
+                controller: scroll,
+                itemExtent: kFilesRow,
+                itemCount: bloc.state.visible.count,
+                itemBuilder: { [weak self] _, index in self?.row(index) })
+        }
+        let strips = (bloc.state.visible.count + g.columns - 1) / g.columns
         return ListView(
+            key: ValueKey("grid-\(g.cellW)x\(g.cellH)"),
             controller: scroll,
-            itemExtent: kFilesRow,
-            itemCount: bloc.state.visible.count,
-            itemBuilder: { [weak self] _, index in self?.row(index) })
+            itemExtent: g.cellH,
+            itemCount: strips,
+            itemBuilder: { [weak self] _, strip in self?.gridStrip(strip, g) })
+    }
+
+    /// One horizontal run of grid cells. The 8pt leading padding is
+    /// ListingGrid.left's margin -- change one, change the other.
+    private func gridStrip(_ strip: Int, _ g: ListingGrid) -> Widget {
+        let visible = bloc.state.visible
+        let start = strip * g.columns
+        guard start < visible.count else { return SizedBox(height: g.cellH) }
+        let end = min(start + g.columns, visible.count)
+        return Padding(padding: EdgeInsets(left: 8, top: 0, right: 0, bottom: 0)) {
+            Row(crossAxisAlignment: .stretch, spacing: 0) {
+                for index in start..<end {
+                    SizedBox(width: g.cellW, height: g.cellH) {
+                        self.cell(visible[index])
+                    }
+                }
+            }
+        }
+    }
+
+    /// One grid cell: the selection slab, the hover, the tap -- the same
+    /// contract as a Details row, in a different shape.
+    private func cell(_ entry: Win32FileEntry) -> Widget {
+        let mode = bloc.state.viewMode
+        let selected = bloc.state.selection.contains(entry.path)
+            || dropHover == entry.path
+        let side = Double(mode.iconSide)
+        let key = FilesBloc.iconKey(entry, side: mode.iconSide)
+        return GestureDetector(
+            onTap: { self.tapped(entry) },
+            child: Hover { hovered in
+                Padding(padding: EdgeInsets(horizontal: 2, vertical: 2)) {
+                    ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                        ColoredBox(color: selected ? Win11.selection
+                                   : (hovered ? Win11.hoverFill
+                                              : Color(0x00000000))) {
+                            if mode == .tiles {
+                                self.tileContent(entry, key: key, side: side)
+                            } else {
+                                self.iconContent(entry, key: key, side: side)
+                            }
+                        }
+                    }
+                }
+            })
+    }
+
+    /// The type's icon, or the same fallback glyphs the Details rows draw.
+    private func cellIcon(_ entry: Win32FileEntry, key: String,
+                          side: Double) -> Widget {
+        SizedBox(width: side, height: side) {
+            Center {
+                if let icon = self.bloc.icons.view(key, side: side) {
+                    icon
+                } else {
+                    MacosIcon(icon: entry.isDirectory ? FluentIcons.folderFill
+                                                      : FluentIcons.page,
+                              color: Win11.textFaint, size: side * 0.8)
+                }
+            }
+        }
+    }
+
+    /// Icon views: the icon over up to two centred lines of name -- or the
+    /// rename field, exactly where the name was, Explorer's own gesture.
+    private func iconContent(_ entry: Win32FileEntry, key: String,
+                             side: Double) -> Widget {
+        Column(mainAxisAlignment: .center, crossAxisAlignment: .center) {
+            cellIcon(entry, key: key, side: side)
+            SizedBox(height: 5)
+            Padding(padding: EdgeInsets(horizontal: 4, vertical: 0)) {
+                if self.bloc.state.renaming == entry.path {
+                    self.renameField(entry)
+                } else {
+                    Text(entry.name,
+                         style: TextStyle(color: Win11.text, fontSize: 12),
+                         textAlign: .center,
+                         overflow: .ellipsis,
+                         maxLines: 2)
+                }
+            }
+        }
+    }
+
+    /// Tiles: the icon beside the name over the dimmed facts, Explorer's
+    /// tile -- type for everything, size for files.
+    private func tileContent(_ entry: Win32FileEntry, key: String,
+                             side: Double) -> Widget {
+        Padding(padding: EdgeInsets(horizontal: 8, vertical: 0)) {
+            Row(crossAxisAlignment: .center, spacing: 9) {
+                cellIcon(entry, key: key, side: side)
+                Expanded {
+                    Column(mainAxisAlignment: .center,
+                           crossAxisAlignment: .start) {
+                        if self.bloc.state.renaming == entry.path {
+                            self.renameField(entry)
+                        } else {
+                            Text(entry.name,
+                                 style: TextStyle(color: Win11.text,
+                                                  fontSize: 12),
+                                 overflow: .ellipsis,
+                                 maxLines: 1)
+                        }
+                        Text(FilesBloc.typeLabel(entry),
+                             style: TextStyle(color: Win11.textFaint,
+                                              fontSize: 11),
+                             maxLines: 1)
+                        if !entry.isDirectory {
+                            Text(self.sizeText(entry.size),
+                                 style: TextStyle(color: Win11.textFaint,
+                                                  fontSize: 11),
+                                 maxLines: 1)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func message(_ text: String) -> Widget {

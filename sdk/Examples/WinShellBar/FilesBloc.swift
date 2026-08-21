@@ -60,6 +60,9 @@ struct FilesState {
     /// default: folders first, then by name ascending.
     var sortKey: FilesSortKey = .name
     var sortAscending = true
+    /// How the listing draws. Per tab, like the sort -- Explorer remembers
+    /// a view per folder, and per tab is the honest subset of that.
+    var viewMode: FilesViewMode = .details
     /// The search box, which filters the listing that is already in memory
     /// rather than starting a new enumeration. Explorer searches the subtree
     /// and we do not -- see `visible` for the honest scope of this.
@@ -85,6 +88,34 @@ struct FilesState {
 /// sorts by.
 enum FilesSortKey {
     case name, modified, type, size
+}
+
+/// How the listing draws: Explorer's view modes, the ones this window can
+/// honestly offer. (List and Content are absent because List is a
+/// column-major layout that scrolls sideways -- a different scroller, not a
+/// different cell -- and faking it vertically would not be Explorer's List.)
+enum FilesViewMode: Equatable {
+    case details, tiles, mediumIcons, largeIcons
+
+    /// The raster the mode's icons need. Details stays at the 32 every
+    /// listing already warms; the others re-warm at their own edge so a
+    /// 48pt drawing is not a 32px texture stretched.
+    var iconSide: Int {
+        switch self {
+        case .details: return 32
+        case .tiles, .mediumIcons: return 48
+        case .largeIcons: return 96
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .details: return "Details"
+        case .tiles: return "Tiles"
+        case .mediumIcons: return "Medium icons"
+        case .largeIcons: return "Large icons"
+        }
+    }
 }
 
 @Observable
@@ -117,6 +148,7 @@ final class FilesBloc: @unchecked Sendable {
         case goForward
         case refresh
         case sort(FilesSortKey)
+        case setView(FilesViewMode)
         case sortDirection(ascending: Bool)
         case filter(String)
         case openInExplorer
@@ -285,6 +317,12 @@ final class FilesBloc: @unchecked Sendable {
             // outright, Explorer's way -- no toggle to reason about.
             state.sortAscending = ascending
             _reproject()
+
+        case .setView(let mode):
+            state.viewMode = mode
+            // The mode's icon edge, warmed for what is already listed --
+            // switching to Large icons must not draw 32px rasters at 96pt.
+            _warmIcons(state.entries, side: mode.iconSide)
 
         case .filter(let text):
             state.filter = text
@@ -493,6 +531,9 @@ final class FilesBloc: @unchecked Sendable {
             state.selectionAnchor = nil
             _reproject()
             _warmIcons(entries)
+            if state.viewMode.iconSide != 32 {
+                _warmIcons(entries, side: state.viewMode.iconSide)
+            }
 
         case .iconsChanged:
             state.iconRevision &+= 1
@@ -568,18 +609,21 @@ final class FilesBloc: @unchecked Sendable {
     /// would otherwise queue a thousand shell round trips behind each other —
     /// the same contention that left 15 of the launcher's 79 icons blank
     /// until they were serialized. Folders share one icon between them all.
-    private func _warmIcons(_ entries: [Win32FileEntry]) {
+    private func _warmIcons(_ entries: [Win32FileEntry], side: Int = 32) {
         var seen = Set<String>()
         for entry in entries {
-            let key = FilesBloc.iconKey(entry)
+            let key = FilesBloc.iconKey(entry, side: side)
             guard seen.insert(key).inserted else { continue }
-            icons.ensure(key: key, path: entry.path, size: 32)
+            icons.ensure(key: key, path: entry.path, size: side)
         }
     }
 
-    /// Directories share one key; files share one per extension.
-    static func iconKey(_ entry: Win32FileEntry) -> String {
-        entry.isDirectory ? "\u{1}dir" : "\u{1}ext:\(entry.ext)"
+    /// Directories share one key; files share one per extension -- and each
+    /// raster edge is its own texture, so Details' 32s and Large icons' 96s
+    /// coexist rather than the first-warmed size winning for both.
+    static func iconKey(_ entry: Win32FileEntry, side: Int = 32) -> String {
+        let base = entry.isDirectory ? "\u{1}dir" : "\u{1}ext:\(entry.ext)"
+        return side == 32 ? base : "\(base)@\(side)"
     }
 }
 
