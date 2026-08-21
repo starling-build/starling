@@ -52,6 +52,11 @@ struct DockState {
     /// which case the control centre does not draw the control at all.
     var brightness: Int?
     var darkMode = false
+    /// Night light, nil where the machine has none — the native tile set
+    /// omits it then, and so do we.
+    var nightLight: Bool?
+    /// Energy saver, read-only: the OS owns the toggle, we own the truth.
+    var energySaver: Bool?
     /// Set by the Wi-Fi tile so the panel answers the click immediately — the
     /// radio takes a moment to settle and the next poll is a second away,
     /// which without this reads as a dead button. Cleared once the poll agrees.
@@ -107,6 +112,12 @@ final class DockBloc: @unchecked Sendable {
         case toggleMute
         case toggleWifi
         case toggleDarkMode
+        case toggleNightLight
+        /// A Quick Settings tile whose function lives in Windows: opens the
+        /// system surface (a `ms-settings:` page, `LiveCaptions.exe`,
+        /// `DisplaySwitch.exe`) rather than pretending to a toggle we do not
+        /// own. Off the UI thread — ShellExecute can stall.
+        case openSystemSurface(String)
         case setNativeTaskbar(Bool)
         /// Move the dock to another screen edge.
         case setEdge(PanelEdge)
@@ -117,7 +128,8 @@ final class DockBloc: @unchecked Sendable {
         // events like any other so that every mutation goes through `add`.
         case catalogLoaded([Win32App])
         case statusRead(network: Win32Network, power: Win32Power,
-                        volume: Win32Volume?, dark: Bool)
+                        volume: Win32Volume?, dark: Bool,
+                        nightLight: Bool?, energySaver: Bool?)
         case iconsChanged
         /// An app added, changed or removed a tray icon.
         case trayChanged
@@ -174,11 +186,14 @@ final class DockBloc: @unchecked Sendable {
                   + "\(state.pins.count) pinned")
             _rebuild()
 
-        case .statusRead(let network, let power, let volume, let dark):
+        case .statusRead(let network, let power, let volume, let dark,
+                         let nightLight, let energySaver):
             state.network = network
             state.power = power
             state.volume = volume
             state.darkMode = dark
+            state.nightLight = nightLight
+            state.energySaver = energySaver
             // The poll is the truth. Drop the optimistic Wi-Fi answer as soon
             // as it agrees, so a radio that refused the change corrects itself
             // instead of leaving the tile lying about it.
@@ -244,6 +259,20 @@ final class DockBloc: @unchecked Sendable {
             let dark = !state.darkMode
             state.darkMode = dark
             Task.detached { Win32Control.setDarkMode(dark) }
+        case .toggleNightLight:
+            // Optimistic, like the others: the blob write lands in
+            // milliseconds but the next poll is a second away, and a tile
+            // that answers a second late reads as a dead button.
+            guard let current = state.nightLight else { return }
+            state.nightLight = !current
+            Task.detached { [weak self] in
+                let ok = Win32Control.setNightLight(!current)
+                if !ok {
+                    await MainActor.run { self?.state.nightLight = current }
+                }
+            }
+        case .openSystemSurface(let path):
+            Task.detached { Win32AppCatalog.open(path) }
         case .setEdge(let edge):
             guard edge != state.edge else { return }
             state.edge = edge
@@ -371,11 +400,17 @@ final class DockBloc: @unchecked Sendable {
             let power = Win32Status.power()
             let volume = Win32Status.volume()
             // Read rather than remembered: the user can change the theme in
-            // Windows' own Settings and the tile has to follow.
+            // Windows' own Settings and the tile has to follow. Night light
+            // and energy saver for the same reason — both have owners other
+            // than us (Settings' schedule, the OS's battery threshold).
             let dark = Win32Control.isDarkMode
+            let nightLight = Win32Control.nightLight
+            let energySaver = Win32Control.energySaver
             await MainActor.run {
                 self?.add(.statusRead(network: network, power: power,
-                                      volume: volume, dark: dark))
+                                      volume: volume, dark: dark,
+                                      nightLight: nightLight,
+                                      energySaver: energySaver))
             }
         }
     }

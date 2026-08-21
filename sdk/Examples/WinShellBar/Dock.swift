@@ -60,32 +60,36 @@ let kDockIcon = 34.0
 /// How far the window extends past the strip, for labels, menus and the
 /// control centre to draw in.
 ///
-/// Deep enough for the WIDEST of them, which is the control centre: on a
-/// vertical dock the panel opens across the overhang rather than along the
-/// screen, so 300pt left it clipped by the window's own edge — the inset plus
-/// kCcWidth is 316. A window is a hard clip and there is no warning.
-let kDockOverhang = 340
+/// Deep enough for the TALLEST of them, which is Quick Settings with a
+/// brightness slider: 392 of panel plus the 13pt inset. On a vertical dock
+/// the panel opens across the overhang instead, and 13 + kQsWidth = 371
+/// fits the same depth. A window is a hard clip and there is no warning.
+let kDockOverhang = 420
 
 /// Geometry the flyout arithmetic needs. The tile is a fixed size, so where
 /// each one sits is arithmetic rather than a layout query — which is what
 /// lets a label be positioned over an icon without measuring anything.
 let kDockTile = kDockIcon + 14.0
 
-/// The control centre, in logical points. The tile grid is two columns wide
-/// and the panel is sized from it rather than the other way round, so a
-/// change to the tile size cannot leave the panel the wrong width.
-let kCcPad = 10.0
-let kCcGap = 8.0
-let kCcTileW = 138.0
-let kCcTileH = 62.0
-let kCcSliderH = 40.0
-let kCcRowH = 32.0
-let kCcWidth = kCcTileW * 2 + kCcGap + kCcPad * 2
-/// The panel without a brightness slider. `ccHeight` adds one when the
-/// monitor has a backlight we can reach.
-let kCcHeightBase = kCcPad * 2 + kCcTileH * 2 + kCcGap + kCcSliderH + kCcRowH + kCcGap
-/// How far the panel sits from the right edge and above the strip.
-let kCcInset = 12.0
+/// Quick Settings, in logical points — WINDOWS' geometry, not ours. Every
+/// number here was measured off the native Win+A panel on this machine
+/// (docs: 358 wide, 24pt content inset, 94x48 buttons three across with
+/// 14pt gaps on a 96pt row pitch, an 8pt corner). The panel is a replica of
+/// an Explorer surface the shell replaces, so the native panel is the spec
+/// and "close" reads as wrong the moment they are seen side by side.
+let kQsWidth = 358.0
+let kQsPad = 24.0
+let kQsBtnW = 94.0
+let kQsBtnH = 48.0
+let kQsGapX = 14.0
+/// Button top to next button top; the label rides in the space between.
+let kQsRowPitch = 96.0
+/// One slider's zone — glyph, track and thumb centred inside it.
+let kQsSliderZone = 60.0
+let kQsFooterH = 56.0
+let kQsRadius = 8.0
+/// How far the panel sits from the screen edge — 13 on the native panel.
+let kCcInset = 13.0
 
 /// Width of the status cluster. FIXED, and imposed with a SizedBox, for the
 /// same reason the dock's tiles are a fixed size: the click that opens the
@@ -256,6 +260,16 @@ final class StarlingDockState: State<StatefulWidget> {
         timer = startPeriodicTimer(seconds: 1.0) { [weak self] in
             self?.bloc.add(.tick)
         }
+
+        // Win+A is Quick Settings, exactly as it is on the shell this one
+        // replaces. Registered here rather than in main because the panel's
+        // open flag lives in this State; the hook itself was installed
+        // before the window existed, and chords ride it. Win+N will join it
+        // when the notification centre exists.
+        Win32Shell.captureSuperChords(["A"]) { [weak self] _ in
+            guard let self else { return }
+            self.setState { self.controlCentreOpen.toggle() }
+        }
     }
 
     override func dispose() {
@@ -318,60 +332,136 @@ final class StarlingDockState: State<StatefulWidget> {
     private var ccFrame: CcRect {
         switch bloc.state.edge {
         case .bottom:
-            return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
+            return CcRect(x: ShellScreen.logicalWidth - kCcInset - kQsWidth,
                           y: stripOffset - kCcInset - ccHeight,
-                          w: kCcWidth, h: ccHeight)
+                          w: kQsWidth, h: ccHeight)
         case .top:
-            return CcRect(x: ShellScreen.logicalWidth - kCcInset - kCcWidth,
+            return CcRect(x: ShellScreen.logicalWidth - kCcInset - kQsWidth,
                           y: Double(kDockHeight) + kCcInset,
-                          w: kCcWidth, h: ccHeight)
+                          w: kQsWidth, h: ccHeight)
         case .left:
             return CcRect(x: Double(kDockHeight) + kCcInset,
                           y: ShellScreen.logicalHeight - kCcInset - ccHeight,
-                          w: kCcWidth, h: ccHeight)
+                          w: kQsWidth, h: ccHeight)
         case .right:
-            return CcRect(x: stripOffset - kCcInset - kCcWidth,
+            return CcRect(x: stripOffset - kCcInset - kQsWidth,
                           y: ShellScreen.logicalHeight - kCcInset - ccHeight,
-                          w: kCcWidth, h: ccHeight)
+                          w: kQsWidth, h: ccHeight)
         }
     }
 
-    /// The four tiles, then the slider track, then the wide bottom row — in
-    /// the order they are drawn.
     /// Whether the panel offers a brightness slider at all — only when a
     /// monitor answered DDC/CI. Plenty do not, and a slider that cannot move
-    /// anything is worse than no slider.
+    /// anything is worse than no slider. The native panel makes the same
+    /// call: this machine's Win+A has no brightness row either.
     private var hasBrightness: Bool { bloc.state.brightness != nil }
 
+    /// What a Quick Settings button does when pressed. An enum rather than a
+    /// closure so the hit test can dispatch without capturing the widget.
+    private enum QsAction {
+        case toggleWifi
+        case toggleNightLight
+        /// Opens a system surface — a `ms-settings:` page or an inbox exe.
+        /// The panel closes, exactly as the native one does on a launch.
+        case open(String)
+    }
+
+    /// One button of the grid: Windows' tile set for this hardware, with our
+    /// backends behind it. `active` paints it accent; `available: false`
+    /// draws it dimmed and dead.
+    private struct QsTile {
+        let icon: IconData
+        let label: String
+        let active: Bool
+        var available = true
+        var chevron = false
+        var closes = false
+        let action: QsAction
+    }
+
+    /// The grid, assembled the way Windows assembles its own: from what the
+    /// hardware has. No Wi-Fi adapter, no Wi-Fi tile; no night-light state,
+    /// no night-light tile. At most six — two rows of three, the native
+    /// default page.
+    private var qsTiles: [QsTile] {
+        var tiles: [QsTile] = []
+        let s = bloc.state
+        if s.network.hasWifiAdapter {
+            let ethernet = s.network.kind == .ethernet && s.wifiWanted == nil
+            tiles.append(QsTile(
+                icon: s.wifiIsOn ? FluentIcons.wifi : FluentIcons.wifiOff,
+                label: ethernet ? "Ethernet"
+                    : (s.wifiIsOn && !s.network.ssid.isEmpty ? s.network.ssid : "Wi-Fi"),
+                active: s.wifiIsOn || ethernet,
+                chevron: true, action: .toggleWifi))
+        }
+        tiles.append(QsTile(icon: CupertinoIcons.person_crop_circle,
+                            label: "Accessibility", active: false,
+                            chevron: true, closes: true,
+                            action: .open("ms-settings:easeofaccess")))
+        tiles.append(QsTile(icon: CupertinoIcons.leaf_arrow_circlepath,
+                            label: "Energy saver",
+                            active: s.energySaver == true,
+                            available: s.energySaver != nil, closes: true,
+                            action: .open("ms-settings:powersleep")))
+        tiles.append(QsTile(icon: CupertinoIcons.captions_bubble,
+                            label: "Live captions", active: false, closes: true,
+                            action: .open("LiveCaptions.exe")))
+        if s.nightLight != nil {
+            tiles.append(QsTile(icon: FluentIcons.moon,
+                                label: "Night light",
+                                active: s.nightLight == true,
+                                action: .toggleNightLight))
+        }
+        tiles.append(QsTile(icon: FluentIcons.share,
+                            label: "Nearby sharing", active: false, closes: true,
+                            action: .open("ms-settings:crossdevice")))
+        tiles.append(QsTile(icon: CupertinoIcons.rectangle_on_rectangle,
+                            label: "Wired display", active: false,
+                            chevron: true, closes: true,
+                            action: .open("DisplaySwitch.exe")))
+        return Array(tiles.prefix(6))
+    }
+
+    private var qsRows: Int { (qsTiles.count + 2) / 3 }
+
     private var ccHeight: Double {
-        kCcHeightBase + (hasBrightness ? kCcSliderH : 0)
+        kQsPad + Double(qsRows) * kQsRowPitch
+            + (hasBrightness ? kQsSliderZone : 0) + kQsSliderZone + kQsFooterH
     }
 
     private func ccRects() -> (tiles: [CcRect], slider: CcRect,
-                               brightness: CcRect?, row: CcRect) {
+                               brightness: CcRect?, footer: CcRect,
+                               gear: CcRect, output: CcRect) {
         let f = ccFrame
-        // Two across, then the odd one out spanning the row — a half tile
-        // beside a hole reads as something failed to load.
-        let tiles: [CcRect] = [
-            CcRect(x: f.x + kCcPad, y: f.y + kCcPad, w: kCcTileW, h: kCcTileH),
-            CcRect(x: f.x + kCcPad + kCcTileW + kCcGap, y: f.y + kCcPad,
-                   w: kCcTileW, h: kCcTileH),
-            CcRect(x: f.x + kCcPad, y: f.y + kCcPad + kCcTileH + kCcGap,
-                   w: kCcWidth - kCcPad * 2, h: kCcTileH),
-        ]
-        let afterTiles = f.y + kCcPad + kCcTileH * 2 + kCcGap * 2
-        // Both tracks start clear of the glyph at their left.
-        let trackX = f.x + kCcPad + 28
-        let trackW = kCcWidth - kCcPad * 2 - 28
-        // Brightness above sound, the order Windows' own Quick Settings uses.
+        // Three across on the native pitch; the label lives in the 48pt
+        // under its button, inside the same row.
+        let tiles: [CcRect] = (0..<qsTiles.count).map { i in
+            CcRect(x: f.x + kQsPad + Double(i % 3) * (kQsBtnW + kQsGapX),
+                   y: f.y + kQsPad + Double(i / 3) * kQsRowPitch,
+                   w: kQsBtnW, h: kQsBtnH)
+        }
+        let afterTiles = f.y + kQsPad + Double(qsRows) * kQsRowPitch
+        // The slider zones span the panel minus the side insets; the drawn
+        // track is narrower, but a drag that starts on the glyph should
+        // still take the slider, so the hit rectangle is the whole zone.
+        // Brightness above sound, the order the native panel uses.
         let brightness = hasBrightness
-            ? CcRect(x: trackX, y: afterTiles, w: trackW, h: kCcSliderH)
+            ? CcRect(x: f.x + kQsPad, y: afterTiles,
+                     w: kQsWidth - kQsPad * 2 - 44, h: kQsSliderZone)
             : nil
-        let slider = CcRect(x: trackX, y: afterTiles + (hasBrightness ? kCcSliderH : 0),
-                            w: trackW, h: kCcSliderH)
-        let row = CcRect(x: f.x + kCcPad, y: slider.y + kCcSliderH,
-                         w: kCcWidth - kCcPad * 2, h: kCcRowH)
-        return (tiles, slider, brightness, row)
+        let slider = CcRect(x: f.x + kQsPad,
+                            y: afterTiles + (hasBrightness ? kQsSliderZone : 0),
+                            w: kQsWidth - kQsPad * 2 - 44, h: kQsSliderZone)
+        // The output-picker affordance at the volume slider's right.
+        let output = CcRect(x: slider.x + slider.w, y: slider.y,
+                            w: 44, h: kQsSliderZone)
+        let footer = CcRect(x: f.x, y: f.y + ccHeight - kQsFooterH,
+                            w: kQsWidth, h: kQsFooterH)
+        // The gear, right-aligned in the footer on the native inset.
+        let gear = CcRect(x: f.x + kQsWidth - kQsPad - 32,
+                          y: footer.y + (kQsFooterH - 32) / 2, w: 32, h: 32)
+        return (tiles, slider, brightness, footer, gear, output)
     }
 
     /// Where the status readout is, and therefore what opens the panel.
@@ -394,59 +484,133 @@ final class StarlingDockState: State<StatefulWidget> {
         }
     }
 
-    /// Wi-Fi, Sound, Dark Mode.
-    ///
-    /// Not the desktop's six. Record and Record App have no counterpart here
-    /// yet, and tiling is deliberately gone: Windows already has Snap and its
-    /// own arrangement commands, and a shell that shoves everyone's windows
-    /// onto a grid is doing something the user did not ask for with the one
-    /// power it has over other people's applications. A tile that does
-    /// nothing is worse than a tile that is missing, and so is one that does
-    /// something unasked.
+    /// A tile press. Toggles stay open, launches close — the native panel's
+    /// own behaviour, and the reason `closes` is on the tile rather than
+    /// decided here.
     private func ccTapped(_ index: Int) {
-        switch index {
-        case 0:
+        let tiles = qsTiles
+        guard index < tiles.count, tiles[index].available else { return }
+        switch tiles[index].action {
+        case .toggleWifi:
             bloc.add(.toggleWifi)
-        case 1:
-            bloc.add(.toggleMute)
-        default:
-            bloc.add(.toggleDarkMode)
+        case .toggleNightLight:
+            bloc.add(.toggleNightLight)
+        case .open(let surface):
+            bloc.add(.openSystemSurface(surface))
         }
+        if tiles[index].closes { controlCentreOpen = false }
+    }
+
+    /// The drawn track inside a slider zone: clear of the 34pt the leading
+    /// glyph keeps. The zone is the hit target; the track is the ruler the
+    /// percentage is measured against, so a press on the glyph reads as 0
+    /// rather than as a negative number.
+    private func qsTrackRect(_ zone: CcRect) -> CcRect {
+        CcRect(x: zone.x + 34, y: zone.y, w: zone.w - 34, h: zone.h)
     }
 
     private func ccSetVolumeFrom(_ x: Double) {
-        bloc.add(.setVolume(ccPercent(x, ccRects().slider)))
+        bloc.add(.setVolume(ccPercent(x, qsTrackRect(ccRects().slider))))
     }
 
     private func ccSetBrightnessFrom(_ x: Double) {
-        guard let track = ccRects().brightness else { return }
-        bloc.add(.setBrightness(ccPercent(x, track)))
+        guard let zone = ccRects().brightness else { return }
+        bloc.add(.setBrightness(ccPercent(x, qsTrackRect(zone))))
     }
 
     private func ccPercent(_ x: Double, _ track: CcRect) -> Int {
         Int((min(1, max(0, (x - track.x) / track.w)) * 100).rounded())
     }
 
-    private func ccTile(_ index: Int, icon: IconData, label: String,
-                        active: Bool, available: Bool = true) -> Widget {
+    // MARK: - The Windows 11 palette
+    //
+    // Sampled off the native panel (light) and its dark twin. Not our
+    // desktop's colours on purpose: this surface impersonates Windows, and
+    // the accent pair is the one place light and dark disagree in kind —
+    // dark mode's accent is a LIGHT blue with BLACK glyphs on it.
+    private struct QsPalette {
+        let panel: Color
+        let stroke: Color
+        let button: Color
+        let buttonStroke: Color
+        let accent: Color
+        let onAccent: Color
+        let ink: Color
+        let subInk: Color
+        let disabledInk: Color
+        let trackRest: Color
+        let divider: Color
+    }
+
+    private var qsPalette: QsPalette {
+        bloc.state.darkMode
+            ? QsPalette(panel: Color(0xF52C2C2C), stroke: Color(0xFF1D1D1D),
+                        button: Color(0xFF383838), buttonStroke: Color(0xFF454545),
+                        accent: Color(0xFF4CC2FF), onAccent: Color(0xFF000000),
+                        ink: Color(0xFFFFFFFF), subInk: Color(0xFFCFCFCF),
+                        disabledInk: Color(0xFF6E6E6E),
+                        trackRest: Color(0xFF9D9D9D), divider: Color(0xFF3D3D3D))
+            : QsPalette(panel: Color(0xF5F2F2F2), stroke: Color(0xFFD8D8D8),
+                        button: Color(0xFFFBFBFB), buttonStroke: Color(0xFFE5E5E5),
+                        accent: Color(0xFF0067C0), onAccent: Color(0xFFFFFFFF),
+                        ink: Color(0xFF1B1B1B), subInk: Color(0xFF5D5D5D),
+                        disabledInk: Color(0xFF9D9D9D),
+                        trackRest: Color(0xFF868686), divider: Color(0xFFE5E5E5))
+    }
+
+    /// One grid cell: the 94x48 button, then its label centred in the space
+    /// beneath — two widgets, one rect, exactly the native anatomy.
+    private func qsTileWidget(_ index: Int) -> Widget {
+        let tile = qsTiles[index]
         let rect = ccRects().tiles[index]
-        let fill = !available ? Color(0x14FFFFFF)
-            : active ? Color(0xFF2F6FE0) : Color(0x1FFFFFFF)
-        let ink = available ? Color(0xFFF2F5FA) : Color(0xFF6E7683)
-        return Positioned(left: rect.x - ccFrame.x, top: rect.y - ccFrame.y) {
-            SizedBox(width: rect.w, height: rect.h) {
-                ClipRRect(borderRadius: BorderRadius.circular(10)) {
-                    ColoredBox(color: fill) {
-                        Padding(padding: EdgeInsets(left: 12, top: 0, right: 10, bottom: 0)) {
-                            Row(crossAxisAlignment: .center, spacing: 10) {
-                                MacosIcon(icon: icon, color: ink, size: 19)
-                                Expanded {
-                                    Text(label,
-                                         style: TextStyle(color: ink, fontSize: 12,
-                                                          fontWeight: .w500),
-                                         overflow: .ellipsis, maxLines: 1)
+        let p = qsPalette
+        let fill = !tile.available ? p.button
+            : tile.active ? p.accent : p.button
+        let stroke = tile.active && tile.available ? p.accent : p.buttonStroke
+        let glyph = !tile.available ? p.disabledInk
+            : tile.active ? p.onAccent : p.ink
+        // The cell is 20pt wider than its button so the label can run past
+        // both sides the way the native ones do — drawn wide rather than
+        // positioned negative, because a Stack clips at its own box.
+        return Positioned(left: rect.x - ccFrame.x - 10, top: rect.y - ccFrame.y) {
+            SizedBox(width: rect.w + 20, height: rect.h + 30) {
+                Stack(alignment: Alignment.topLeft) {
+                    // The button: a 1px stroke under a filled core, because
+                    // there is no bordered box primitive here — the outer
+                    // rounded box IS the border.
+                    Positioned(left: 10, top: 0, width: rect.w, height: rect.h) {
+                        ClipRRect(borderRadius: BorderRadius.circular(6)) {
+                            ColoredBox(color: stroke) {
+                                Padding(padding: EdgeInsets(left: 1, top: 1, right: 1, bottom: 1)) {
+                                    ClipRRect(borderRadius: BorderRadius.circular(5)) {
+                                        ColoredBox(color: fill) {
+                                            Center {
+                                                if tile.chevron {
+                                                    Row(mainAxisAlignment: .center,
+                                                        crossAxisAlignment: .center,
+                                                        spacing: 6) {
+                                                        MacosIcon(icon: tile.icon, color: glyph, size: 18)
+                                                        MacosIcon(icon: FluentIcons.chevronRight,
+                                                                  color: glyph, size: 11)
+                                                    }
+                                                } else {
+                                                    MacosIcon(icon: tile.icon, color: glyph, size: 18)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    }
+                    // The label, allowed to run a little wider than its
+                    // button the way the native ones do.
+                    Positioned(left: 0, top: rect.h + 6, width: rect.w + 20, height: 18) {
+                        Center {
+                            Text(tile.label,
+                                 style: TextStyle(color: tile.available ? p.ink : p.disabledInk,
+                                                  fontSize: 12),
+                                 overflow: .ellipsis, maxLines: 1)
                         }
                     }
                 }
@@ -454,62 +618,68 @@ final class StarlingDockState: State<StatefulWidget> {
         }
     }
 
-    /// The volume slider, drawn rather than composed.
+    /// The sliders, drawn rather than composed.
     ///
     /// A `MacosSlider` would want a pan recognizer, and recognizers are
     /// exactly what does not arrive reliably in this surface — so the track,
-    /// the fill and the knob are three boxes and the drag is two lines in the
-    /// root Listener. It also keeps the slider's geometry in `ccRects`, where
-    /// the hit test can see it.
+    /// the fill and the thumb are boxes and the drag is two lines in the
+    /// root Listener. It also keeps the slider's geometry in `ccRects`,
+    /// where the hit test can see it.
     /// The brightness track, when there is a backlight to move.
     private func ccBrightnessSlider() -> Widget? {
-        guard let rect = ccRects().brightness,
+        guard let zone = ccRects().brightness,
               let percent = bloc.state.brightness else { return nil }
-        return ccTrack(rect, percent: Double(percent),
-                       icon: FluentIcons.brightness,
-                       fill: Color(0xFFE8B84B))
+        return ccTrack(zone, percent: Double(percent),
+                       icon: FluentIcons.brightness)
     }
 
     private func ccSlider() -> Widget {
-        let rect = ccRects().slider
+        let zone = ccRects().slider
         let percent = Double(bloc.state.volume?.percent ?? 0)
-        return ccTrack(rect, percent: percent,
+        return ccTrack(zone, percent: percent,
                        icon: (bloc.state.volume?.isMuted ?? false)
-                           ? FluentIcons.mute : FluentIcons.volume,
-                       fill: Color(0xFF4C8DF6))
+                           ? FluentIcons.mute : FluentIcons.volume)
     }
 
-    /// One slider, drawn. Both tracks are the same three boxes; only the
-    /// glyph, the fill colour and the value differ.
-    ///
-    /// Boxes rather than a `MacosSlider` for the reason the whole panel is
-    /// arithmetic: widget-level input is unreliable here, so the drag comes
-    /// off the root Listener and the drawing has to agree with a rectangle
-    /// `ccRects` already decided.
-    private func ccTrack(_ rect: CcRect, percent: Double,
-                         icon: IconData, fill: Color) -> Widget {
+    /// One Win11 slider: leading glyph, a 6pt rounded track filled accent up
+    /// to the value, and a solid accent thumb. Both sliders are this; only
+    /// glyph and value differ — the native panel colours them identically.
+    private func ccTrack(_ zone: CcRect, percent: Double,
+                         icon: IconData) -> Widget {
+        let p = qsPalette
+        let track = qsTrackRect(zone)
         let fraction = min(1, max(0, percent / 100))
-        let knob = (rect.w - 14) * fraction
-        return Positioned(left: kCcPad, top: rect.y - ccFrame.y) {
-            SizedBox(width: kCcWidth - kCcPad * 2, height: rect.h) {
+        let knob = (track.w - 16) * fraction
+        return Positioned(left: zone.x - ccFrame.x, top: zone.y - ccFrame.y) {
+            SizedBox(width: zone.w, height: zone.h) {
                 Stack(alignment: Alignment.centerLeft) {
                     Align(alignment: Alignment.centerLeft) {
-                        MacosIcon(icon: icon, color: Color(0xFFD5DAE3), size: 16)
+                        MacosIcon(icon: icon, color: p.ink, size: 19)
                     }
-                    Positioned(left: 28, top: rect.h / 2 - 3, width: rect.w, height: 6) {
+                    Positioned(left: 34, top: zone.h / 2 - 3,
+                               width: track.w, height: 6) {
                         ClipRRect(borderRadius: BorderRadius.circular(3)) {
-                            ColoredBox(color: Color(0x33FFFFFF)) { SizedBox(expand: ()) }
+                            ColoredBox(color: p.trackRest) { SizedBox(expand: ()) }
                         }
                     }
-                    Positioned(left: 28, top: rect.h / 2 - 3,
-                               width: max(6, knob + 7), height: 6) {
+                    Positioned(left: 34, top: zone.h / 2 - 3,
+                               width: max(6, knob + 8), height: 6) {
                         ClipRRect(borderRadius: BorderRadius.circular(3)) {
-                            ColoredBox(color: fill) { SizedBox(expand: ()) }
+                            ColoredBox(color: p.accent) { SizedBox(expand: ()) }
                         }
                     }
-                    Positioned(left: 28 + knob, top: rect.h / 2 - 7, width: 14, height: 14) {
-                        ClipRRect(borderRadius: BorderRadius.circular(7)) {
-                            ColoredBox(color: Color(0xFFF2F5FA)) { SizedBox(expand: ()) }
+                    // The thumb: an accent core in a panel-coloured ring, the
+                    // native thumb's anatomy.
+                    Positioned(left: 34 + knob - 1, top: zone.h / 2 - 9,
+                               width: 18, height: 18) {
+                        ClipRRect(borderRadius: BorderRadius.circular(9)) {
+                            ColoredBox(color: p.button) {
+                                Padding(padding: EdgeInsets(left: 3, top: 3, right: 3, bottom: 3)) {
+                                    ClipRRect(borderRadius: BorderRadius.circular(6)) {
+                                        ColoredBox(color: p.accent) { SizedBox(expand: ()) }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -517,24 +687,48 @@ final class StarlingDockState: State<StatefulWidget> {
         }
     }
 
-    private func ccBottomRow() -> Widget {
-        let rect = ccRects().row
-        return Positioned(left: kCcPad, top: rect.y - ccFrame.y) {
+    /// The affordance at the volume slider's right: the output-picker glyph
+    /// and chevron the native panel puts there.
+    private func ccOutputPicker() -> Widget {
+        let rect = ccRects().output
+        let p = qsPalette
+        return Positioned(left: rect.x - ccFrame.x, top: rect.y - ccFrame.y) {
             SizedBox(width: rect.w, height: rect.h) {
-                ClipRRect(borderRadius: BorderRadius.circular(8)) {
-                    ColoredBox(color: Color(0x14FFFFFF)) {
-                        Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0)) {
-                            Row(crossAxisAlignment: .center, spacing: 10) {
-                                MacosIcon(icon: FluentIcons.allApps,
-                                          color: Color(0xFFD5DAE3), size: 15)
-                                Expanded {
-                                    Text(bloc.state.nativeTaskbarWanted
-                                             ? "Hide the Windows taskbar"
-                                             : "Show the Windows taskbar",
-                                         style: TextStyle(color: Color(0xFFD5DAE3), fontSize: 12),
-                                         overflow: .ellipsis, maxLines: 1)
-                                }
+                Row(mainAxisAlignment: .end, crossAxisAlignment: .center, spacing: 3) {
+                    MacosIcon(icon: FluentIcons.volume, color: p.subInk, size: 15)
+                    MacosIcon(icon: FluentIcons.chevronRight, color: p.subInk, size: 11)
+                }
+            }
+        }
+    }
+
+    /// The footer: a hairline, the battery readout when there is a battery,
+    /// and the gear. The native bar's whole population.
+    private func ccFooter() -> Widget {
+        let f = ccFrame
+        let footer = ccRects().footer
+        let p = qsPalette
+        return Positioned(left: 0, top: footer.y - f.y) {
+            SizedBox(width: kQsWidth, height: kQsFooterH) {
+                Stack(alignment: Alignment.topLeft) {
+                    Positioned(left: 0, top: 0, width: kQsWidth, height: 1) {
+                        ColoredBox(color: p.divider) { SizedBox(expand: ()) }
+                    }
+                    if bloc.state.power.hasBattery, let percent = bloc.state.power.percent {
+                        Positioned(left: kQsPad, top: 0, width: 120, height: kQsFooterH) {
+                            Row(crossAxisAlignment: .center, spacing: 8) {
+                                MacosIcon(icon: CupertinoIcons.battery_25_percent,
+                                          color: p.ink, size: 20)
+                                Text("\(percent)%",
+                                     style: TextStyle(color: p.ink, fontSize: 12))
                             }
+                        }
+                    }
+                    Positioned(left: kQsWidth - kQsPad - 32,
+                               top: (kQsFooterH - 32) / 2, width: 32, height: 32) {
+                        Center {
+                            MacosIcon(icon: CupertinoIcons.gear_alt_fill,
+                                      color: p.ink, size: 17)
                         }
                     }
                 }
@@ -563,11 +757,14 @@ final class StarlingDockState: State<StatefulWidget> {
             }
             return true
         }
-        if rects.row.contains(x, y) {
-            setState {
-                bloc.add(.setNativeTaskbar(!bloc.state.nativeTaskbarWanted))
-                controlCentreOpen = false
-            }
+        if rects.gear.contains(x, y) {
+            setState { controlCentreOpen = false }
+            Win32Shell.openSettings()
+            return true
+        }
+        if rects.output.contains(x, y) {
+            setState { controlCentreOpen = false }
+            bloc.add(.openSystemSurface("ms-settings:sound"))
             return true
         }
         for (index, tile) in rects.tiles.enumerated() where tile.contains(x, y) {
@@ -594,34 +791,28 @@ final class StarlingDockState: State<StatefulWidget> {
         // `ccFrame` is already in window coordinates for every edge, so
         // placing by its top-left needs no window height and cannot disagree
         // with the hit test that uses the same rectangle.
+        let p = qsPalette
         return Positioned(left: frame.x, top: frame.y) {
             SizedBox(width: frame.w, height: frame.h) {
-                ClipRRect(borderRadius: BorderRadius.circular(14)) {
-                    ColoredBox(color: Color(0xF41F2229)) {
-                        Stack(alignment: Alignment.topLeft) {
-                            ccTile(0,
-                                   icon: bloc.state.wifiIsOn ? FluentIcons.wifi : FluentIcons.wifiOff,
-                                   label: bloc.state.network.kind == .ethernet && bloc.state.wifiWanted == nil
-                                       ? "Ethernet" : (bloc.state.wifiIsOn ? "Wi-Fi" : "Wi-Fi off"),
-                                   active: bloc.state.wifiIsOn || bloc.state.network.kind == .ethernet,
-                                   // Whether the machine HAS a radio, not
-                                   // whether it is on one. Keyed off the
-                                   // connection before, which meant that
-                                   // switching Wi-Fi off made the tile
-                                   // unavailable — and so there was no way
-                                   // left to switch it back on.
-                                   available: bloc.state.network.hasWifiAdapter)
-                            ccTile(1,
-                                   icon: (bloc.state.volume?.isMuted ?? false)
-                                       ? FluentIcons.mute : FluentIcons.volume,
-                                   label: (bloc.state.volume?.isMuted ?? false) ? "Muted" : "Sound",
-                                   active: !(bloc.state.volume?.isMuted ?? false),
-                                   available: bloc.state.volume != nil)
-                            ccTile(2, icon: FluentIcons.moon, label: "Dark Mode",
-                                   active: bloc.state.darkMode)
-                            if let brightness = ccBrightnessSlider() { brightness }
-                            ccSlider()
-                            ccBottomRow()
+                // The 1px stroke is the outer box; the panel is inset inside
+                // it — the same trick as the buttons, for the same lack of a
+                // bordered-box primitive.
+                ClipRRect(borderRadius: BorderRadius.circular(kQsRadius)) {
+                    ColoredBox(color: p.stroke) {
+                        Padding(padding: EdgeInsets(left: 1, top: 1, right: 1, bottom: 1)) {
+                            ClipRRect(borderRadius: BorderRadius.circular(kQsRadius - 1)) {
+                                ColoredBox(color: p.panel) {
+                                    Stack(alignment: Alignment.topLeft) {
+                                        for index in 0..<qsTiles.count {
+                                            qsTileWidget(index)
+                                        }
+                                        if let brightness = ccBrightnessSlider() { brightness }
+                                        ccSlider()
+                                        ccOutputPicker()
+                                        ccFooter()
+                                    }
+                                }
+                            }
                         }
                     }
                 }
