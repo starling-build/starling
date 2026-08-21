@@ -89,6 +89,24 @@ and hand the class back on any exit path. With explorer present this runs
 in forward-what-isn't-ours mode (already prototyped); with explorer absent
 we ARE the answer.
 
+**DONE 2026-08-21 (track 3).** The appbar service is live in flwin32_tray.c:
+registry, QUERYPOS/SETPOS clipping with same-edge stacking, GETTASKBARPOS
+answered with the dock's own bar (found by pid, no dock touchpoint),
+GET/SETSTATE, GET/SETAUTOHIDEBAR per edge, ABN_POSCHANGED to other bars,
+and SPI_SETWORKAREA recomputed on every grant (saved and restored on stop).
+Serving activates when explorer's tray is absent, or under STARLING_TRAY_OWN=1
+for tests. Verified in the VM with explorer killed: work area 712, GETTASKBARPOS
+(0,712,1024,768) edge 3 from an out-of-process probe, icons and dock intact,
+explorer restored cleanly after. Three wire facts worth keeping: the envelope
+is packed-32-bit APPBARDATA(40) + u64 dwMessage + u64 hSharedMemory + u64 pid;
+hSharedMemory is an SHAllocShared block (a raw POINTER for same-process
+callers), so results are written back through SHLockShared/SHUnlockShared —
+MapViewOfFile fails ERROR_INVALID_HANDLE; and the pid field names the process
+the handle is valid in (the tray's own, pre-duplicated by the sender's
+shell32). One ordering rule bought with a failed test: the dock takes the
+tray class BEFORE its panel registers the appbar (main.swift), because
+SHAppBarMessage resolves Shell_TrayWnd at call time.
+
 ### Phase 4 — the surfaces explorer's family draws
 
 - **Toast banners.** The centre reads the store; without explorer nothing

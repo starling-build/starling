@@ -48,11 +48,16 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "include/FlutterWin32Bridge.h"
+
+/* SHLockShared/SHUnlockShared, for reading appbar results back to callers.
+ * Package.swift links shlwapi too -- belt and braces, same as dwmapi. */
+#pragma comment(lib, "shlwapi")
 
 /* The payload of the tray WM_COPYDATA is NOT the NOTIFYICONDATAW this process
  * compiles against. It is the 32-BIT layout -- handles as DWORDs, no padding
@@ -221,12 +226,12 @@ static void dump_tray_copydata(COPYDATASTRUCT* cds) {
 }
 
 static void dump_unknown(COPYDATASTRUCT* cds) {
-  printf("[tray] OTHER dwData=%llu cb=%lu bytes:",
+  printf("[tray] OTHER dwData=%llu cb=%lu\n",
          (unsigned long long)cds->dwData, (unsigned long)cds->cbData);
-  unsigned char* p = (unsigned char*)cds->lpData;
-  DWORD n = cds->cbData < 32 ? cds->cbData : 32;
-  for (DWORD i = 0; i < n; i++) printf(" %02X", p[i]);
-  printf("\n");
+  /* 64, not 32: the appbar payload is 64 bytes and the fields that matter for
+   * serving it -- dwMessage, hSharedMemory, the caller's pid -- are the ones
+   * past 40 that the shorter dump never showed. */
+  hexdump("ab", cds->lpData, cds->cbData, 64);
   fflush(stdout);
 }
 
@@ -591,6 +596,354 @@ static HWND explorer_tray(void) {
   return g_explorer_tray;
 }
 
+/* ── the appbar service ──────────────────────────────────────────────────────
+ *
+ * SHAppBarMessage marshals its APPBARDATA into a WM_COPYDATA (dwData 0) to
+ * whatever window the Shell_TrayWnd class resolves to. While explorer runs
+ * that is explorer's problem and we forward; with explorer gone -- or with
+ * STARLING_TRAY_OWN=1 forcing it for a test -- nothing else will answer, and
+ * "nothing answers" means no dock reservation, no work area, and maximized
+ * windows underneath the dock.
+ *
+ * The wire, pinned by a live 64-byte probe dump (Windows 11 25H2): the packed
+ * 32-bit APPBARDATA -- DWORD handles, 8-byte lParam, 40 bytes ending at the
+ * cbSize it declares -- then three 8-byte fields: the ABM_* message, the
+ * shared-section handle for struct results, and the pid that handle is valid
+ * in. That pid was OUR OWN in every observed message: shell32 duplicates the
+ * section handle into the tray's process before sending, so the answer path
+ * is usually a bare MapViewOfFile. The sender reads the section back and
+ * frees the handle (SHFreeShared) after our SendMessage returns, which is
+ * why the wire handle must be left open here.
+ */
+#pragma pack(push, 1)
+typedef struct {
+  DWORD cbSize;
+  DWORD hWnd;             /* a HWND truncated to 32 bits, like the tray wire */
+  DWORD uCallbackMessage;
+  DWORD uEdge;
+  RECT rc;
+  UINT64 lParam;
+} FlAppBarData32;         /* 40 bytes -- the cbSize the wire declares */
+
+typedef struct {
+  FlAppBarData32 abd;
+  UINT64 dwMessage;
+  UINT64 hSharedMemory;
+  UINT64 dwSourceProcessId;
+} FlAppBarEnvelope;       /* 64 bytes -- the observed cbData, exactly */
+#pragma pack(pop)
+
+typedef char fl_appbar_layout_check[(sizeof(FlAppBarEnvelope) == 64) ? 1 : -1];
+
+/* Everything below is touched only on the tray window's thread -- WM_COPYDATA
+ * lands there and nowhere else -- so unlike the icon table it needs no lock.
+ * (flwin32_tray_stop resets it, and DestroyWindow already ties stop to this
+ * same thread.) */
+typedef struct {
+  HWND hwnd;
+  UINT callback;
+  UINT edge;              /* granted edge, or (UINT)-1 before any SETPOS */
+  RECT rect;              /* granted rect */
+  int has_rect;
+} FlAppBarEntry;
+
+#define kMaxAppBars 16
+static FlAppBarEntry g_bars[kMaxAppBars];
+static int g_bar_count;
+static UINT g_ab_state = ABS_ALWAYSONTOP;  /* what explorer reports by default */
+static HWND g_autohide[4];                 /* one slot per ABE_* edge */
+static RECT g_wa_saved;
+static int g_wa_saved_valid;
+static int g_wa_dirty;
+static int g_own = -1;
+
+static int appbar_serving(void) {
+  if (g_own < 0) {
+    const char* v = getenv("STARLING_TRAY_OWN");
+    g_own = (v != NULL && v[0] != '\0' && v[0] != '0') ? 1 : 0;
+  }
+  if (g_own) return 1;
+  /* Re-checked per message: explorer can exit at any moment, and the first
+   * appbar call after it does is the one that must not be forwarded into
+   * the void. */
+  return explorer_tray() == NULL;
+}
+
+static const char* abm_name(UINT m) {
+  switch (m) {
+    case ABM_NEW: return "ABM_NEW";
+    case ABM_REMOVE: return "ABM_REMOVE";
+    case ABM_QUERYPOS: return "ABM_QUERYPOS";
+    case ABM_SETPOS: return "ABM_SETPOS";
+    case ABM_GETSTATE: return "ABM_GETSTATE";
+    case ABM_GETTASKBARPOS: return "ABM_GETTASKBARPOS";
+    case ABM_ACTIVATE: return "ABM_ACTIVATE";
+    case ABM_GETAUTOHIDEBAR: return "ABM_GETAUTOHIDEBAR";
+    case ABM_SETAUTOHIDEBAR: return "ABM_SETAUTOHIDEBAR";
+    case ABM_WINDOWPOSCHANGED: return "ABM_WINDOWPOSCHANGED";
+    case ABM_SETSTATE: return "ABM_SETSTATE";
+    default: return "ABM_?";
+  }
+}
+
+/* Write the (possibly modified) APPBARDATA back through the caller's shared
+ * section -- QUERYPOS/SETPOS/GETTASKBARPOS results travel this way, not in
+ * the SendMessage return. */
+static void appbar_return(UINT64 hshared, UINT64 pid, const FlAppBarData32* abd) {
+  if (hshared == 0) return;
+  /* This is an SHAllocShared block, not a bare file mapping: a same-process
+   * caller's "handle" arrives as a direct heap pointer (the dock's own
+   * registration does), and a cross-process caller's as an object only
+   * SHLockShared resolves -- MapViewOfFile on either is ERROR_INVALID_HANDLE.
+   * The shlwapi pair is what explorer's own tray uses, so use it too; the
+   * pid rides the wire precisely to be SHLockShared's second argument. */
+  void* block = SHLockShared((HANDLE)(ULONG_PTR)hshared, (DWORD)pid);
+  if (block == NULL) {
+    if (g_probing || g_debug > 0) {
+      printf("[tray] appbar return: SHLockShared(0x%llX, %llu) failed: %lu\n",
+             (unsigned long long)hshared, (unsigned long long)pid,
+             GetLastError());
+      fflush(stdout);
+    }
+    return;
+  }
+  if (g_probing || g_debug > 0) {
+    printf("[tray] appbar return block before write:\n");
+    hexdump("abret", block, 64, 64);
+  }
+  memcpy(block, abd, sizeof(*abd));
+  SHUnlockShared(block);
+  /* Freeing is the sender's job (SHFreeShared), after it reads the result
+   * our SendMessage return unblocks it to collect. */
+}
+
+static FlAppBarEntry* bar_find(HWND hwnd) {
+  for (int i = 0; i < g_bar_count; i++) {
+    if (g_bars[i].hwnd == hwnd) return &g_bars[i];
+  }
+  return NULL;
+}
+
+/* An appbar whose process crashed never sends ABM_REMOVE; the dead window is
+ * the only notice we get, same as the icon table. */
+static void bars_gc(void) {
+  for (int i = g_bar_count - 1; i >= 0; i--) {
+    if (!IsWindow(g_bars[i].hwnd)) {
+      for (int j = i; j < g_bar_count - 1; j++) g_bars[j] = g_bars[j + 1];
+      g_bar_count--;
+    }
+  }
+}
+
+static void bars_notify(HWND except, UINT code) {
+  for (int i = 0; i < g_bar_count; i++) {
+    if (g_bars[i].hwnd == except || g_bars[i].callback == 0) continue;
+    PostMessageW(g_bars[i].hwnd, g_bars[i].callback, (WPARAM)code, 0);
+  }
+}
+
+/* The work area is the reservation made real: explorer derives it from its
+ * taskbar plus every registered appbar, and maximized windows size to it. With
+ * explorer out of the picture that duty is ours, or the dock is a strip that
+ * maximized windows sit underneath. */
+static void workarea_recompute(void) {
+  POINT origin = {0, 0};
+  MONITORINFO mi;
+  ZeroMemory(&mi, sizeof(mi));
+  mi.cbSize = sizeof(mi);
+  if (!GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) return;
+  RECT wa = mi.rcMonitor;
+  for (int i = 0; i < g_bar_count; i++) {
+    if (!g_bars[i].has_rect) continue;
+    RECT overlap;
+    if (!IntersectRect(&overlap, &g_bars[i].rect, &mi.rcMonitor)) continue;
+    const RECT* r = &g_bars[i].rect;
+    switch (g_bars[i].edge) {
+      case ABE_LEFT:   if (r->right > wa.left) wa.left = r->right; break;
+      case ABE_TOP:    if (r->bottom > wa.top) wa.top = r->bottom; break;
+      case ABE_RIGHT:  if (r->left < wa.right) wa.right = r->left; break;
+      case ABE_BOTTOM: if (r->top < wa.bottom) wa.bottom = r->top; break;
+    }
+  }
+  RECT cur;
+  if (SystemParametersInfoW(SPI_GETWORKAREA, 0, &cur, 0) && EqualRect(&cur, &wa)) return;
+  if (!g_wa_saved_valid) {
+    /* What was there before our first change, so exiting can put it back. */
+    g_wa_saved = cur;
+    g_wa_saved_valid = 1;
+  }
+  BOOL ok = SystemParametersInfoW(SPI_SETWORKAREA, 0, &wa, SPIF_SENDCHANGE);
+  if (g_probing || g_debug > 0) {
+    printf("[tray] workarea (%ld,%ld,%ld,%ld) -> set=%d err=%lu\n",
+           (long)wa.left, (long)wa.top, (long)wa.right, (long)wa.bottom,
+           ok ? 1 : 0, ok ? 0 : GetLastError());
+    fflush(stdout);
+  }
+  g_wa_dirty = 1;
+}
+
+/* Snap a proposed rect to its edge on the monitor it falls on, keeping the
+ * proposed thickness, then stack it past every bar already granted the same
+ * edge -- which is what explorer grants a second bottom bar. QUERYPOS and
+ * SETPOS share this; the difference is only whether the result is recorded. */
+static void appbar_clip(HWND self, UINT edge, RECT* rc) {
+  MONITORINFO mi;
+  ZeroMemory(&mi, sizeof(mi));
+  mi.cbSize = sizeof(mi);
+  if (!GetMonitorInfoW(MonitorFromRect(rc, MONITOR_DEFAULTTOPRIMARY), &mi)) return;
+  RECT mon = mi.rcMonitor;
+  int vertical = (edge == ABE_LEFT || edge == ABE_RIGHT);
+  LONG thick = vertical ? rc->right - rc->left : rc->bottom - rc->top;
+  if (vertical) {
+    if (rc->top < mon.top) rc->top = mon.top;
+    if (rc->bottom > mon.bottom) rc->bottom = mon.bottom;
+  } else {
+    if (rc->left < mon.left) rc->left = mon.left;
+    if (rc->right > mon.right) rc->right = mon.right;
+  }
+  LONG base = (edge == ABE_LEFT) ? mon.left
+            : (edge == ABE_TOP) ? mon.top
+            : (edge == ABE_RIGHT) ? mon.right
+            : mon.bottom;
+  for (int i = 0; i < g_bar_count; i++) {
+    FlAppBarEntry* o = &g_bars[i];
+    if (o->hwnd == self || !o->has_rect || o->edge != edge) continue;
+    switch (edge) {
+      case ABE_LEFT:   if (o->rect.right > base) base = o->rect.right; break;
+      case ABE_TOP:    if (o->rect.bottom > base) base = o->rect.bottom; break;
+      case ABE_RIGHT:  if (o->rect.left < base) base = o->rect.left; break;
+      default:         if (o->rect.top < base) base = o->rect.top; break;
+    }
+  }
+  switch (edge) {
+    case ABE_LEFT:   rc->left = base;          rc->right = base + thick; break;
+    case ABE_TOP:    rc->top = base;           rc->bottom = base + thick; break;
+    case ABE_RIGHT:  rc->right = base;         rc->left = base - thick; break;
+    default:         rc->bottom = base;        rc->top = base - thick; break;
+  }
+}
+
+static LRESULT appbar_serve(FlAppBarEnvelope* env) {
+  FlAppBarData32 abd = env->abd;
+  HWND hwnd = (HWND)(ULONG_PTR)abd.hWnd;
+  UINT msg = (UINT)env->dwMessage;
+  LRESULT result = TRUE;
+  bars_gc();
+  switch (msg) {
+    case ABM_NEW: {
+      /* FALSE for a second registration of the same window -- documented, and
+       * the honest answer, same bargain as the unmatched NIM_MODIFY. */
+      if (bar_find(hwnd) != NULL || g_bar_count >= kMaxAppBars) {
+        result = FALSE;
+        break;
+      }
+      FlAppBarEntry* e = &g_bars[g_bar_count++];
+      ZeroMemory(e, sizeof(*e));
+      e->hwnd = hwnd;
+      e->callback = abd.uCallbackMessage;
+      e->edge = (UINT)-1;
+      break;
+    }
+    case ABM_REMOVE: {
+      FlAppBarEntry* e = bar_find(hwnd);
+      if (e != NULL) {
+        int i = (int)(e - g_bars);
+        for (int j = i; j < g_bar_count - 1; j++) g_bars[j] = g_bars[j + 1];
+        g_bar_count--;
+        bars_notify(hwnd, ABN_POSCHANGED);
+        workarea_recompute();
+      }
+      break;  /* TRUE either way, per the docs */
+    }
+    case ABM_QUERYPOS:
+    case ABM_SETPOS: {
+      appbar_clip(hwnd, abd.uEdge, &abd.rc);
+      if (msg == ABM_SETPOS) {
+        FlAppBarEntry* e = bar_find(hwnd);
+        if (e == NULL && g_bar_count < kMaxAppBars) {
+          /* A bar that skipped ABM_NEW -- seen in the wild; register it
+           * rather than granting a rect we then refuse to remember. */
+          e = &g_bars[g_bar_count++];
+          ZeroMemory(e, sizeof(*e));
+          e->hwnd = hwnd;
+        }
+        if (e != NULL) {
+          int moved = !e->has_rect || e->edge != abd.uEdge ||
+                      !EqualRect(&e->rect, &abd.rc);
+          if (abd.uCallbackMessage != 0) e->callback = abd.uCallbackMessage;
+          e->edge = abd.uEdge;
+          e->rect = abd.rc;
+          e->has_rect = 1;
+          if (moved) {
+            bars_notify(hwnd, ABN_POSCHANGED);
+            workarea_recompute();
+          }
+        }
+      }
+      break;
+    }
+    case ABM_GETSTATE:
+      result = g_ab_state;
+      break;
+    case ABM_SETSTATE:
+      g_ab_state = (UINT)abd.lParam;
+      break;
+    case ABM_GETTASKBARPOS: {
+      /* Apps position flyouts by this. The dock hosts the tray in its own
+       * process, so "the taskbar" is the registered bar whose window is ours
+       * -- no side channel, no dock touchpoint. */
+      result = FALSE;
+      for (int i = 0; i < g_bar_count; i++) {
+        DWORD pid = 0;
+        GetWindowThreadProcessId(g_bars[i].hwnd, &pid);
+        if (pid == GetCurrentProcessId() && g_bars[i].has_rect) {
+          abd.uEdge = g_bars[i].edge;
+          abd.rc = g_bars[i].rect;
+          result = TRUE;
+          break;
+        }
+      }
+      break;
+    }
+    case ABM_GETAUTOHIDEBAR: {
+      HWND ah = g_autohide[abd.uEdge & 3];
+      result = (ah != NULL && IsWindow(ah)) ? (LRESULT)(DWORD)(ULONG_PTR)ah : 0;
+      break;
+    }
+    case ABM_SETAUTOHIDEBAR: {
+      UINT edge = abd.uEdge & 3;
+      if (abd.lParam != 0) {
+        HWND held = g_autohide[edge];
+        if (held != NULL && IsWindow(held) && held != hwnd) result = FALSE;
+        else g_autohide[edge] = hwnd;
+      } else if (g_autohide[edge] == hwnd) {
+        g_autohide[edge] = NULL;
+      }
+      break;
+    }
+    case ABM_ACTIVATE:
+    case ABM_WINDOWPOSCHANGED:
+      /* Explorer uses these to shuffle autohide bars; acknowledging is the
+       * whole contract until we grow autohide of our own. */
+      break;
+    default:
+      result = FALSE;
+      break;
+  }
+  if (g_probing || g_debug > 0) {
+    printf("[tray] appbar %-14s hwnd=0x%08lX edge=%lu rc=(%ld,%ld,%ld,%ld) "
+           "-> %lld (bars=%d shm=0x%llX/%llu)\n",
+           abm_name(msg), (unsigned long)env->abd.hWnd,
+           (unsigned long)abd.uEdge, (long)abd.rc.left, (long)abd.rc.top,
+           (long)abd.rc.right, (long)abd.rc.bottom, (long long)result,
+           g_bar_count, (unsigned long long)env->hSharedMemory,
+           (unsigned long long)env->dwSourceProcessId);
+    fflush(stdout);
+  }
+  appbar_return(env->hSharedMemory, env->dwSourceProcessId, &abd);
+  return result;
+}
+
 static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
                                       LPARAM lparam) {
   if (message == WM_COPYDATA) {
@@ -612,12 +965,21 @@ static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
       }
       return accepted;
     }
-    /* EVERYTHING ELSE GOES ON TO EXPLORER. Taking the Shell_TrayWnd class
-     * takes the appbar protocol with it -- SHAppBarMessage looks the window up
-     * the same way -- and our OWN dock reserves its strip through that call.
-     * Swallowing it and returning TRUE reports success while reserving
-     * nothing, which is a dock with windows underneath it and no error to
-     * show for it. */
+    /* The appbar protocol arrives on the same window, dwData 0. Serve it when
+     * we are the shell (explorer's tray gone, or STARLING_TRAY_OWN forcing);
+     * forward it while explorer still answers -- swallowing it and returning
+     * TRUE would report success while reserving nothing, which is a dock with
+     * windows underneath it and no error to show for it. The size gate is the
+     * 64-byte envelope the probe pinned; a WOW64 caller might send a shorter
+     * one, which has not been observed and falls through to the forward. */
+    if (cds != NULL && cds->dwData == 0 &&
+        cds->cbData >= sizeof(FlAppBarEnvelope) && appbar_serving()) {
+      if (g_probing) dump_unknown(cds);
+      FlAppBarEnvelope env;
+      memcpy(&env, cds->lpData, sizeof(env));
+      return appbar_serve(&env);
+    }
+    /* EVERYTHING ELSE GOES ON TO EXPLORER. */
     if (cds != NULL) {
       if (g_probing) dump_unknown(cds);
       HWND real = explorer_tray();
@@ -705,6 +1067,16 @@ void flwin32_tray_stop(void) {
   g_count = 0;
   LeaveCriticalSection(&g_lock);
   g_changed = NULL;
+  /* The appbar side of the same hand-back: forget every registration, and put
+   * the work area back the way we found it -- a shell that exits leaving the
+   * screen 56 pixels short has visibly broken every maximized window until
+   * something else recomputes it. */
+  g_bar_count = 0;
+  ZeroMemory(g_autohide, sizeof(g_autohide));
+  if (g_wa_dirty && g_wa_saved_valid) {
+    SystemParametersInfoW(SPI_SETWORKAREA, 0, &g_wa_saved, SPIF_SENDCHANGE);
+    g_wa_dirty = 0;
+  }
   /* Hand the tray back: apps re-add to whatever answers now, which is
    * explorer. Without this the machine is left with a tray missing everything
    * that had re-registered with us. */
