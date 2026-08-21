@@ -267,6 +267,7 @@ final class StarlingFilesState: State<StatefulWidget> {
             textDirection: .ltr,
             child: Listener(
                 onPointerDown: { e in
+                    self.lastDown = (e.position.dx, e.position.dy)
                     // 2 is the secondary button, and a PRESS rather than a
                     // release — the same choice the dock makes, for the same
                     // reason: the press is what arrives reliably, and every
@@ -448,7 +449,10 @@ final class StarlingFilesState: State<StatefulWidget> {
             },
             child: Padding(padding: EdgeInsets(left: 0, top: 1, right: 0, bottom: 1)) {
                 ClipRRect(borderRadius: BorderRadius.circular(6)) {
-                    ColoredBox(color: selected ? Color(0x2E6FA8FF) : Color(0x00000000)) {
+                    Hover { hovered in
+                    ColoredBox(color: selected ? Color(0x2E6FA8FF)
+                               : (hovered && !place.path.isEmpty
+                                  ? Win11.hoverFill : Color(0x00000000))) {
                         SizedBox(height: 30) {
                             Padding(padding: EdgeInsets(horizontal: 10, vertical: 0)) {
                                 Row(crossAxisAlignment: .center, spacing: 9) {
@@ -465,6 +469,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 }
                             }
                         }
+                    }
                     }
                 }
             })
@@ -530,7 +535,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                             captionButton((Win32WindowedHost.host?.isMaximized ?? false)
                                           ? FluentIcons.chromeRestore
                                           : FluentIcons.chromeMaximize)
-                            captionButton(FluentIcons.close)
+                            captionButton(FluentIcons.chromeClose, isClose: true)
                         }
                     }
                 }
@@ -538,10 +543,21 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
     }
 
-    private func captionButton(_ icon: IconData) -> Widget {
-        SizedBox(width: kCaptionButtonW) {
-            Center {
-                MacosIcon(icon: icon, color: Win11.textDim, size: 12)
+    /// One of the caption trio. Close hovers RED with a white glyph --
+    /// Windows' one non-negotiable hover -- and the others grey.
+    private func captionButton(_ icon: IconData, isClose: Bool = false) -> Widget {
+        Hover { hovered in
+            ColoredBox(color: hovered
+                       ? (isClose ? Color(0xFFC42B1C) : Win11.hoverFill)
+                       : Color(0x00000000)) {
+                SizedBox(width: kCaptionButtonW) {
+                    Center {
+                        MacosIcon(icon: icon,
+                                  color: isClose && hovered
+                                      ? Color(0xFFFFFFFF) : Win11.textDim,
+                                  size: 12)
+                    }
+                }
             }
         }
     }
@@ -550,6 +566,12 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// that maximizes -- detected by hand, the way the listing detects its
     /// own double-click (see the trap note on onDoubleTap).
     private var lastStripTapAt = Date.distantPast
+
+    /// Where the last pointer-down landed, recorded by the root Listener. A
+    /// GestureDetector's onTap carries no position, and the command bar's
+    /// dropdowns need one to anchor their flyout under the button that was
+    /// pressed. A plain var: recording it must not rebuild anything.
+    private var lastDown = (x: 0.0, y: 0.0)
 
     /// A left press in the titlebar strip: caption buttons, the tab's close,
     /// "+", and everywhere else is the drag handle Windows expects a
@@ -569,14 +591,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
         // "+": a new window on this folder.
         if x >= kTabX + kTabW + 2 && x < kTabX + kTabW + 34 {
-            let exe = ProcessInfo.processInfo.arguments[0]
-            let dir = bloc.state.directory
-            Task.detached {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: exe)
-                process.arguments = ["--files", dir]
-                try? process.run()
-            }
+            openNewWindow()
             return
         }
         // The empty strip: a second press within the double-click window
@@ -600,6 +615,54 @@ final class StarlingFilesState: State<StatefulWidget> {
         return bloc.state.visible.first { $0.path == path }
     }
 
+    /// The command bar's dropdowns, anchored under the pressed button --
+    /// `lastDown` supplies the x a GestureDetector's tap cannot, and the
+    /// panel is the context menu's own machinery in flyout mode.
+    private var flyoutAnchorY: Double {
+        kFilesTabStrip + kFilesNavBar + kFilesCommandBar - 4
+    }
+
+    private func openNewFlyout() {
+        menu.openFlyout(at: lastDown.x - 24, flyoutAnchorY, rows: [
+            MenuRow(title: "Folder", glyph: FluentIcons.folder,
+                    action: { filesBloc.add(.newFolder) }),
+            MenuRow(title: "Window", glyph: FluentIcons.openExternal,
+                    action: { self.openNewWindow() }),
+        ])
+    }
+
+    private func openSortFlyout() {
+        func keyRow(_ title: String, _ key: FilesSortKey) -> MenuRow {
+            MenuRow(title: title,
+                    glyph: bloc.state.sortKey == key ? FluentIcons.check : nil,
+                    action: { filesBloc.add(.sort(key)) })
+        }
+        menu.openFlyout(at: lastDown.x - 24, flyoutAnchorY, rows: [
+            keyRow("Name", .name),
+            keyRow("Date modified", .modified),
+            keyRow("Type", .type),
+            keyRow("Size", .size),
+            MenuRow(isSeparator: true),
+            MenuRow(title: "Ascending",
+                    glyph: bloc.state.sortAscending ? FluentIcons.check : nil,
+                    action: { filesBloc.add(.sortDirection(ascending: true)) }),
+            MenuRow(title: "Descending",
+                    glyph: bloc.state.sortAscending ? nil : FluentIcons.check,
+                    action: { filesBloc.add(.sortDirection(ascending: false)) }),
+        ])
+    }
+
+    private func openNewWindow() {
+        let exe = ProcessInfo.processInfo.arguments[0]
+        let dir = bloc.state.directory
+        Task.detached {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: exe)
+            process.arguments = ["--files", dir]
+            try? process.run()
+        }
+    }
+
     private func commandBar() -> Widget {
         SizedBox(height: kFilesCommandBar) {
             Padding(padding: EdgeInsets(left: 10, top: 0, right: 10, bottom: 0)) {
@@ -610,7 +673,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // means.)
                     barButton(FluentIcons.add, "New", chevron: true,
                               enabled: true) {
-                        self.bloc.add(.newFolder)
+                        self.openNewFlyout()
                     }
                     barSeparator()
                     // Explorer's own enablement: cut/copy/rename/delete need
@@ -651,9 +714,9 @@ final class StarlingFilesState: State<StatefulWidget> {
                         }
                     }
                     barSeparator()
-                    barButton(FluentIcons.sort, sortLabel(),
+                    barButton(FluentIcons.sort, "Sort",
                               chevron: true, enabled: true) {
-                        self.cycleSort()
+                        self.openSortFlyout()
                     }
                     barButton(FluentIcons.viewAll, "View",
                               chevron: true, enabled: false) {}
@@ -853,11 +916,19 @@ final class StarlingFilesState: State<StatefulWidget> {
                          _ action: @escaping () -> Void) -> Widget {
         GestureDetector(
             onTap: enabled ? action : {},
-            child: SizedBox(width: 34, height: 30) {
-                Center {
-                    MacosIcon(icon: icon,
-                              color: enabled ? Win11.textDim : Win11.disabled,
-                              size: 14)
+            child: Hover { hovered in
+                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                    ColoredBox(color: hovered && enabled
+                               ? Win11.hoverFill : Color(0x00000000)) {
+                        SizedBox(width: 34, height: 30) {
+                            Center {
+                                MacosIcon(icon: icon,
+                                          color: enabled ? Win11.textDim
+                                                         : Win11.disabled,
+                                          size: 14)
+                            }
+                        }
+                    }
                 }
             })
     }
@@ -867,21 +938,31 @@ final class StarlingFilesState: State<StatefulWidget> {
                            _ action: @escaping () -> Void) -> Widget {
         GestureDetector(
             onTap: enabled ? action : {},
-            child: SizedBox(height: 30) {
-                Padding(padding: EdgeInsets(horizontal: 9, vertical: 0)) {
-                    Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 6) {
-                        MacosIcon(icon: icon,
-                                  color: enabled ? Win11.textDim : Win11.disabled,
-                                  size: 13)
-                        Text(label,
-                             style: TextStyle(
-                                color: enabled ? Win11.textDim : Win11.disabled,
-                                fontSize: 12))
-                        if chevron {
-                            MacosIcon(icon: FluentIcons.chevronDown,
-                                      color: enabled ? Win11.textFaint
-                                                     : Win11.disabled,
-                                      size: 9)
+            child: Hover { hovered in
+                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                    ColoredBox(color: hovered && enabled
+                               ? Win11.hoverFill : Color(0x00000000)) {
+                        SizedBox(height: 30) {
+                            Padding(padding: EdgeInsets(horizontal: 9, vertical: 0)) {
+                                Row(mainAxisSize: .min, crossAxisAlignment: .center,
+                                    spacing: 6) {
+                                    MacosIcon(icon: icon,
+                                              color: enabled ? Win11.textDim
+                                                             : Win11.disabled,
+                                              size: 13)
+                                    Text(label,
+                                         style: TextStyle(
+                                            color: enabled ? Win11.textDim
+                                                           : Win11.disabled,
+                                            fontSize: 12))
+                                    if chevron {
+                                        MacosIcon(icon: FluentIcons.chevronDown,
+                                                  color: enabled ? Win11.textFaint
+                                                                 : Win11.disabled,
+                                                  size: 9)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -892,11 +973,19 @@ final class StarlingFilesState: State<StatefulWidget> {
                          _ action: @escaping () -> Void) -> Widget {
         GestureDetector(
             onTap: enabled ? action : {},
-            child: SizedBox(width: 36, height: 32) {
-                Center {
-                    MacosIcon(icon: icon,
-                              color: enabled ? Win11.textDim : Win11.disabled,
-                              size: 15)
+            child: Hover { hovered in
+                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                    ColoredBox(color: hovered && enabled
+                               ? Win11.hoverFill : Color(0x00000000)) {
+                        SizedBox(width: 36, height: 32) {
+                            Center {
+                                MacosIcon(icon: icon,
+                                          color: enabled ? Win11.textDim
+                                                         : Win11.disabled,
+                                          size: 15)
+                            }
+                        }
+                    }
                 }
             })
     }
@@ -937,26 +1026,6 @@ final class StarlingFilesState: State<StatefulWidget> {
         let total = bloc.state.entries.count
         if !bloc.state.filter.isEmpty { return "\(shown) of \(total) items" }
         return total == 1 ? "1 item" : "\(total) items"
-    }
-
-    private func sortLabel() -> String {
-        switch bloc.state.sortKey {
-        case .name: return "Sort: Name"
-        case .modified: return "Sort: Date"
-        case .type: return "Sort: Type"
-        case .size: return "Sort: Size"
-        }
-    }
-
-    /// The command bar's Sort button walks the four columns, so the control is
-    /// reachable without going to the header row.
-    private func cycleSort() {
-        switch bloc.state.sortKey {
-        case .name: bloc.add(.sort(.modified))
-        case .modified: bloc.add(.sort(.type))
-        case .type: bloc.add(.sort(.size))
-        case .size: bloc.add(.sort(.name))
-        }
     }
 
     private func textButton(_ text: String, _ action: @escaping () -> Void) -> Widget {
@@ -1069,13 +1138,15 @@ final class StarlingFilesState: State<StatefulWidget> {
 
         return GestureDetector(
             onTap: { self.tapped(entry) },
-            child: ColoredBox(color: selected ? Win11.selection : Color(0x00000000)) {
+            child: Hover { hovered in
+                ColoredBox(color: selected ? Win11.selection
+                           : (hovered ? Win11.hoverFill : Color(0x00000000))) {
                 SizedBox(height: kFilesRow) {
                     Padding(padding: EdgeInsets(left: 16, top: 0, right: 16, bottom: 0)) {
                         Row(crossAxisAlignment: .center, spacing: 10) {
                             SizedBox(width: 18, height: 18) {
                                 Center {
-                                    if let icon = bloc.icons.view(key, side: 16) {
+                                    if let icon = self.bloc.icons.view(key, side: 16) {
                                         icon
                                     } else {
                                         MacosIcon(icon: entry.isDirectory
@@ -1086,8 +1157,8 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 }
                             }
                             Expanded {
-                                if bloc.state.renaming == entry.path {
-                                    renameField(entry)
+                                if self.bloc.state.renaming == entry.path {
+                                    self.renameField(entry)
                                 } else {
                                     Text(entry.name,
                                          style: TextStyle(color: Win11.text, fontSize: 12),
@@ -1097,7 +1168,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                             SizedBox(width: kFilesColModified) {
                                 // Left-aligned, as Explorer's column is.
                                 Align(alignment: Alignment.centerLeft) {
-                                    Text(modifiedText(entry),
+                                    Text(self.modifiedText(entry),
                                          style: TextStyle(color: Win11.textFaint,
                                                           fontSize: 12),
                                          maxLines: 1)
@@ -1115,7 +1186,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                             }
                             SizedBox(width: kFilesColSize) {
                                 Align(alignment: Alignment.centerRight) {
-                                    Text(entry.isDirectory ? "" : sizeText(entry.size),
+                                    Text(entry.isDirectory ? "" : self.sizeText(entry.size),
                                          style: TextStyle(color: Win11.textFaint,
                                                           fontSize: 12),
                                          maxLines: 1)
@@ -1123,6 +1194,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                             }
                         }
                     }
+                }
                 }
             })
     }

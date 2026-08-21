@@ -79,6 +79,8 @@ enum FluentIcons {
     static let favorite = IconData(0xE734, fontFamily: family)
     static let pin = IconData(0xE718, fontFamily: family)
     static let zip = IconData(0xE7B8, fontFamily: family)
+    static let check = IconData(0xE73E, fontFamily: family)
+    static let folder = IconData(0xE8B7, fontFamily: family)
 
     // Places.
     static let home = IconData(0xEA8A, fontFamily: family)

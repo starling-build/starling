@@ -90,6 +90,7 @@ final class FilesBloc: @unchecked Sendable {
         case goForward
         case refresh
         case sort(FilesSortKey)
+        case sortDirection(ascending: Bool)
         case filter(String)
         case openInExplorer
 
@@ -206,6 +207,12 @@ final class FilesBloc: @unchecked Sendable {
                 state.sortKey = key
                 state.sortAscending = true
             }
+            _reproject()
+
+        case .sortDirection(let ascending):
+            // The Sort flyout's Ascending/Descending rows say the direction
+            // outright, Explorer's way -- no toggle to reason about.
+            state.sortAscending = ascending
             _reproject()
 
         case .filter(let text):

@@ -171,6 +171,12 @@ final class ShellMenuModel {
     /// open, no COM -- not per frame.
     private(set) var canPaste = false
 
+    /// FLYOUT mode: the same panel, hit test and hover, fed rows directly
+    /// instead of from a shell session -- what the command bar's New and
+    /// Sort dropdowns open. Non-nil replaces everything rows(for:) would
+    /// assemble; there is no pill, no tiers, no session to close.
+    private(set) var flyoutRows: [MenuRow]?
+
     /// The open submenu, if any.
     private(set) var subAt: MenuPoint?
     private(set) var subRows: [Win32ShellVerb] = []
@@ -256,7 +262,27 @@ final class ShellMenuModel {
     /// Whether the menu carries the icon row. An item's does; the folder
     /// background's does not, because none of those four verbs is about a
     /// folder you are standing in.
-    var hasPillRow: Bool { entry != nil }
+    var hasPillRow: Bool { entry != nil && flyoutRows == nil }
+
+    /// Opens a FLYOUT: the given rows, anchored under a command-bar button.
+    /// Same panel, same hit test, same hover as the context menu; no shell
+    /// session behind it.
+    func openFlyout(at x: Double, _ y: Double, rows: [MenuRow]) {
+        dismiss()
+        generation &+= 1
+        flyoutRows = rows
+        entry = nil
+        flipped = false
+        var anchorX = x
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: kFilesWidth, height: kFilesHeight)
+        let width = panelWidth(rows, pill: false)
+        if anchorX + width > size.width - kMenuEdge {
+            anchorX = max(kMenuEdge, size.width - kMenuEdge - width)
+        }
+        anchor = MenuPoint(x: anchorX, y: y)
+        mainCache = nil
+    }
 
     // MARK: - Opening
 
@@ -319,6 +345,7 @@ final class ShellMenuModel {
         shellRows = []
         shellTier = .fast
         expanded = false
+        flyoutRows = nil
         canPaste = Win32FileOps.clipboardHasFiles()
         subToken = 0
         subRows = []
@@ -339,6 +366,7 @@ final class ShellMenuModel {
         shell = nil
         anchor = nil
         flipped = false
+        flyoutRows = nil
         entry = nil
         hover = nil
         pillHover = nil
@@ -388,6 +416,8 @@ final class ShellMenuModel {
     /// answered nothing.
     private func rows(for entry: Win32FileEntry?,
                       shell shellVerbs: [Win32ShellVerb]) -> [MenuRow] {
+        // A flyout IS its rows -- nothing assembled, nothing curated.
+        if let flyoutRows { return flyoutRows }
         var rows: [MenuRow] = []
         if let entry {
             rows.append(MenuRow(title: "Open",
