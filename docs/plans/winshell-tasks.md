@@ -69,8 +69,8 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       tab the user is looking at without knowing tabs exist. "+" and
       Ctrl+T open a Home tab as Explorer does, Ctrl+W and the per-tab
       close glyph close one (the window when it is the last), tabs shrink
-      to fit as they multiply. Not yet: dragging tabs to reorder or tear
-      off, middle-click close.
+      to fit as they multiply, and middle-click closes the tab under it.
+      Not yet: dragging tabs to reorder or tear off.
 - [x] View modes: Details, Tiles, Medium icons, Large icons, per tab,
       behind a live View dropdown. One ListingGrid struct describes cell
       geometry for every mode (Details is its columns == 1 case), consumed
@@ -92,8 +92,10 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       the selection (the shell's own data object, so Explorer's optimized
       move works), which also gives window-internal drags. Verified against
       a real OLE source, our own window, and native Explorer as target.
-      Not yet: sidebar rows as drop targets, custom drag imagery (the
-      default OLE cursors stand in), edge autoscroll during a drag.
+      The sidebar's rows are drop targets too now -- each row's folder,
+      lit while a drag hovers it, resolved by an arithmetic mirror of the
+      sidebar's layout. Not yet: custom drag imagery (the default OLE
+      cursors stand in), edge autoscroll during a drag.
 - [x] Type-to-jump (printable keys accumulate for a second, first prefix
       match selected and scrolled into view); arrows walk the list with
       Shift extending the range from the anchor, Home/End leap, and the

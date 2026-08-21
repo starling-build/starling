@@ -534,6 +534,15 @@ final class StarlingFilesState: State<StatefulWidget> {
                         self.stripPress(e.position.dx, e.position.dy)
                         return
                     }
+                    // Middle-click closes the tab under it, as every
+                    // tabbed thing on the desktop does.
+                    if e.buttons == 4 && e.position.dy < kFilesTabStrip {
+                        if let index = self.tabAt(e.position.dx,
+                                                  e.position.dy) {
+                            self.closeTab(index)
+                        }
+                        return
+                    }
                     // A press on a header divider arms a column resize;
                     // the moves land in colDragMoved until the button lifts.
                     if e.buttons == 1,
@@ -827,17 +836,51 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     // MARK: - Drops
 
-    /// Where a drop at this point would land: the folder row under the
-    /// pointer, else the open directory. nil where nothing takes a drop
-    /// (the sidebar and the bars -- honest until the sidebar learns to).
+    /// Where a drop at this point would land: a sidebar row's folder, the
+    /// folder row under the pointer, else the open directory. nil where
+    /// nothing takes a drop (the bars, the rules, This PC).
     private func dropResolve(_ x: Double, _ y: Double) -> String? {
-        // Nothing lands ON This PC -- it is not a folder.
+        // The sidebar's rows take drops too -- each is a folder, and the
+        // folder is the target. Independent of what the listing shows, so
+        // it works from the This PC view as well.
+        if x < kFilesSidebar { return sidebarDropTarget(x, y) }
+        // Nothing lands ON This PC's listing -- it is not a folder.
         guard !bloc.state.isThisPC else { return nil }
-        guard x >= kFilesSidebar, y >= kFilesToolbar else { return nil }
+        guard y >= kFilesToolbar else { return nil }
         if case .item(let entry)? = targetAt(x, y), entry.isDirectory {
             return entry.path
         }
         return bloc.state.directory
+    }
+
+    /// The folder behind the sidebar row under a point, or nil over the
+    /// rules, This PC (not a folder) and the empty space below. MIRRORS
+    /// sidebar()'s layout arithmetic -- a row added there must be added
+    /// here, or drops land one row off.
+    private func sidebarDropTarget(_ x: Double, _ y: Double) -> String? {
+        guard x >= 8, x <= kFilesSidebar - 8 else { return nil }
+        let byName = Dictionary(uniqueKeysWithValues:
+            bloc.state.places.map { ($0.name, $0) })
+        var items: [(height: Double, path: String?)] = []
+        if let home = byName["Home"] { items.append((32, home.path)) }
+        if let oneDrive = bloc.state.oneDrive {
+            items.append((32, oneDrive.path))
+        }
+        items.append((17, nil))                    // rule
+        for name in Self.pinOrder {
+            if let place = byName[name] { items.append((32, place.path)) }
+        }
+        items.append((17, nil))                    // rule
+        items.append((32, nil))                    // This PC
+        if thisPCExpanded {
+            for drive in bloc.state.drives { items.append((32, drive.path)) }
+        }
+        var top = kFilesTabStrip + kFilesNavBar + kFilesCommandBar + 10
+        for item in items {
+            if y >= top, y < top + item.height { return item.path }
+            top += item.height
+        }
+        return nil
     }
 
     /// The effect for a drag at this point, and the target highlight as a
@@ -977,7 +1020,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                           onChevron: (() -> Void)? = nil,
                           onTap: (() -> Void)? = nil) -> Widget {
         let selected = !place.path.isEmpty
-            && bloc.state.directory == place.path
+            && (bloc.state.directory == place.path
+                // A drag hovering the row lights it the way the listing's
+                // folder rows light -- the drop-target promise, made
+                // visible.
+                || dropHover == place.path)
         let look = Self.placeLooks[place.name]
         let icon = glyph ?? look?.glyph ?? FluentIcons.folderFill
         let tint = tint ?? (glyph != nil ? Win11.textDim
@@ -1189,6 +1236,20 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// A left press in the titlebar strip: caption buttons, the tab's close,
     /// "+", and everywhere else is the drag handle Windows expects a
     /// titlebar to be. Coordinates are logical, from the root Listener.
+    /// The tab under a strip point, by the arithmetic that draws the strip.
+    /// Shared by the left-button press (activate / close zone) and the
+    /// middle-click close.
+    private func tabAt(_ x: Double, _ y: Double) -> Int? {
+        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let tw = tabWidth(width)
+        let tabsEnd = kTabX + Double(tabs.blocs.count) * (tw + 4)
+        guard x >= kTabX, x < tabsEnd, y >= 8 else { return nil }
+        let index = Int((x - kTabX) / (tw + 4))
+        let inTab = x - (kTabX + Double(index) * (tw + 4))
+        guard inTab < tw, tabs.blocs.indices.contains(index) else { return nil }
+        return index
+    }
+
     private func stripPress(_ x: Double, _ y: Double) {
         guard let host = Win32WindowedHost.host else { return }
         let width = host.clientSize?.width ?? kFilesWidth
@@ -1201,17 +1262,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         // Closing the last tab closes the window, as Explorer's does.
         let tw = tabWidth(width)
         let tabsEnd = kTabX + Double(tabs.blocs.count) * (tw + 4)
-        if x >= kTabX && x < tabsEnd && y >= 8 {
-            let index = Int((x - kTabX) / (tw + 4))
+        if let index = tabAt(x, y) {
             let inTab = x - (kTabX + Double(index) * (tw + 4))
-            if inTab < tw && tabs.blocs.indices.contains(index) {
-                if inTab >= tw - 28 {
-                    closeTab(index)
-                } else {
-                    tabs.active = index
-                }
-                return
+            if inTab >= tw - 28 {
+                closeTab(index)
+            } else {
+                tabs.active = index
             }
+            return
         }
         // "+": a new tab.
         if x >= tabsEnd + 2 && x < tabsEnd + 36 {
