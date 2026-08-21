@@ -402,7 +402,11 @@ int32_t flwin32_fileop_clip(const char* path, int32_t is_cut) {
  * Item arrays are parent-agnostic (unlike GetUIObjectOf, which wants
  * children of one folder), which keeps the contract honest even though a
  * listing's selection does in fact share a parent. Caller releases. */
-static IShellItemArray* fo_item_array(const char* paths_nl) {
+/* Shared with flwin32_dragdrop.c (drag-out builds its data object from the
+ * same array); internal linkage otherwise -- not in the public header. */
+IShellItemArray* flwin32_fo_item_array(const char* paths_nl);
+
+IShellItemArray* flwin32_fo_item_array(const char* paths_nl) {
     wchar_t* wide = fo_utf8_to_wide(paths_nl);
     if (wide == NULL) return NULL;
 
@@ -442,7 +446,7 @@ typedef struct {
 static int fo_delete_multi_body(void* arg) {
     FoDeleteMultiArgs* a = (FoDeleteMultiArgs*)arg;
     int ok = 0;
-    IShellItemArray* items = fo_item_array(a->paths);
+    IShellItemArray* items = flwin32_fo_item_array(a->paths);
     IFileOperation* op = NULL;
     if (items != NULL && SUCCEEDED(fo_create(a->owner, &op))) {
         if (SUCCEEDED(op->lpVtbl->DeleteItems(op, (IUnknown*)items))
@@ -473,7 +477,7 @@ typedef struct {
 static int fo_clip_multi_body(void* arg) {
     FoClipMultiArgs* a = (FoClipMultiArgs*)arg;
     int ok = 0;
-    IShellItemArray* items = fo_item_array(a->paths);
+    IShellItemArray* items = flwin32_fo_item_array(a->paths);
     if (items == NULL) return 0;
 
     IDataObject* data = NULL;
@@ -573,5 +577,55 @@ int32_t flwin32_fileop_properties(const char* path, uint64_t owner) {
     int ok = SHObjectProperties((HWND)(ULONG_PTR)owner, SHOP_FILEPATH, wpath,
                                 NULL) ? 1 : 0;
     free(wpath);
+    return ok;
+}
+
+/* Copy or move a set of files into a directory -- the landing half of drag
+ * and drop, and deliberately the same machinery as everything above: one
+ * IFileOperation over the whole set, so a forty-file drop is one progress
+ * dialog and one undo entry. */
+typedef struct {
+    const char* paths;
+    wchar_t* dir;
+    int move;
+    HWND owner;
+} FoTransferArgs;
+
+static int fo_transfer_body(void* arg) {
+    FoTransferArgs* a = (FoTransferArgs*)arg;
+    int ok = 0;
+    IShellItemArray* items = flwin32_fo_item_array(a->paths);
+    if (items == NULL) return 0;
+
+    IShellItem* target = NULL;
+    IFileOperation* op = NULL;
+    if (SUCCEEDED(SHCreateItemFromParsingName(a->dir, NULL, &IID_IShellItem,
+                                              (void**)&target))
+        && SUCCEEDED(fo_create(a->owner, &op))) {
+        HRESULT hr = a->move
+            ? op->lpVtbl->MoveItems(op, (IUnknown*)items, target)
+            : op->lpVtbl->CopyItems(op, (IUnknown*)items, target);
+        if (SUCCEEDED(hr) && SUCCEEDED(op->lpVtbl->PerformOperations(op))) {
+            ok = 1;
+        }
+    }
+    if (op != NULL) op->lpVtbl->Release(op);
+    if (target != NULL) target->lpVtbl->Release(target);
+    items->lpVtbl->Release(items);
+    return ok;
+}
+
+int32_t flwin32_fileop_transfer(const char* paths_nl, const char* target_dir,
+                                int32_t is_move, uint64_t owner) {
+    if (paths_nl == NULL || paths_nl[0] == 0) return 0;
+    if (target_dir == NULL || target_dir[0] == 0) return 0;
+    FoTransferArgs args;
+    args.paths = paths_nl;
+    args.dir = fo_utf8_to_wide(target_dir);
+    if (args.dir == NULL) return 0;
+    args.move = is_move != 0;
+    args.owner = (HWND)(ULONG_PTR)owner;
+    int ok = fo_run_sta(fo_transfer_body, &args);
+    free(args.dir);
     return ok;
 }

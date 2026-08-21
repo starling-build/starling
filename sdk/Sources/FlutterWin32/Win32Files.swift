@@ -376,6 +376,17 @@ public enum Win32FileOps {
         }
     }
 
+    /// Copy or move a set of files into a directory -- what a drop resolves
+    /// to. One IFileOperation over the whole set, like `deleteMany`.
+    public static func transfer(_ paths: [String], into dir: String,
+                                move: Bool, owner: UInt64,
+                                done: ((Bool) -> Void)? = nil) {
+        let joined = paths.joined(separator: "\n")
+        run(done) {
+            flwin32_fileop_transfer(joined, dir, move ? 1 : 0, owner) != 0
+        }
+    }
+
     private static func run(_ done: ((Bool) -> Void)?,
                             _ work: @escaping () -> Bool) {
         queue.async {
@@ -384,6 +395,60 @@ public enum Win32FileOps {
                 DispatchQueue.main.async { done(ok) }
             }
         }
+    }
+}
+
+/// The window as an OLE drop target -- the Swift face of flwin32_dragdrop.c.
+///
+/// A static surface rather than an instance, because C function pointers
+/// cannot capture context and the process has exactly one host window. The
+/// closures run on the UI thread (the drop target's callbacks arrive through
+/// its message pump), so they may touch widget state directly. Set them
+/// BEFORE calling `register`; a drag that arrives between the two would
+/// otherwise be refused, which is at least honest.
+public enum Win32DropTarget {
+    /// A drag carrying files entered the window: the paths, the pointer in
+    /// logical client coordinates, and the modifier keys. Return the effect
+    /// to show the source: 0 none, 1 copy, 2 move.
+    public static var onEnter: (([String], Double, Double, UInt32) -> Int32)?
+    public static var onOver: ((Double, Double, UInt32) -> Int32)?
+    public static var onLeave: (() -> Void)?
+    /// The drop happened. `move` is the effect the UI last chose.
+    public static var onDrop: (([String], Double, Double, Bool) -> Void)?
+
+    private static func split(_ joined: UnsafePointer<CChar>?) -> [String] {
+        guard let joined else { return [] }
+        return String(cString: joined).split(separator: "\n").map(String.init)
+    }
+
+    /// A full OLE drag of `paths` out of this process. Blocks on the UI
+    /// thread (DoDragDrop pumps its own loop) until drop or cancel -- call
+    /// it from a deferred hop, never mid pointer dispatch. Returns 0
+    /// cancelled, 1 copied, 2 moved; a move onto Explorer reports 0 by the
+    /// shell's optimized-move handshake, so refresh regardless.
+    @discardableResult
+    public static func beginDrag(_ paths: [String]) -> Int32 {
+        flwin32_dragdrop_begin(paths.joined(separator: "\n"))
+    }
+
+    /// Call once from the UI thread after the host window exists.
+    @discardableResult
+    public static func register(window: UInt64) -> Bool {
+        flwin32_dragdrop_register(
+            window,
+            { paths, x, y, keys, _ in
+                Win32DropTarget.onEnter?(Win32DropTarget.split(paths), x, y, keys) ?? 0
+            },
+            { x, y, keys, _ in
+                Win32DropTarget.onOver?(x, y, keys) ?? 0
+            },
+            { _ in
+                Win32DropTarget.onLeave?()
+            },
+            { paths, x, y, _, isMove, _ in
+                Win32DropTarget.onDrop?(Win32DropTarget.split(paths), x, y, isMove != 0)
+            },
+            nil) != 0
     }
 }
 #endif

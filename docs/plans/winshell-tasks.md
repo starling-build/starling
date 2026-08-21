@@ -63,8 +63,17 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       need per-window multi-directory state and a tab strip model.
 - [ ] View modes: Details only; the View button is honest about it (drawn
       disabled) but icon/tile/list views are the ask.
-- [ ] Drag & drop, in and out (ties into the shell's IDataObject work
-      already done for the clipboard).
+- [x] Drag & drop, in and out. In: the window is an OLE drop target
+      (flwin32_dragdrop.c); files from any source land in the open folder
+      or the folder row under the pointer (drawn lit), with Explorer's
+      effect rules -- Ctrl copies, Shift moves, default moves within a
+      volume and copies across, a drop back into the files' own folder
+      refused. Out: a row press dragged past 4px starts DoDragDrop with
+      the selection (the shell's own data object, so Explorer's optimized
+      move works), which also gives window-internal drags. Verified against
+      a real OLE source, our own window, and native Explorer as target.
+      Not yet: sidebar rows as drop targets, custom drag imagery (the
+      default OLE cursors stand in), edge autoscroll during a drag.
 - [ ] Column resize/reorder; type-to-jump in the listing; Backspace and
       Alt+arrow navigation keys.
 - [ ] New dropdown with the ShellNew templates (New currently creates a

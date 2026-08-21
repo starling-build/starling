@@ -134,6 +134,15 @@ final class StarlingFilesState: State<StatefulWidget> {
     private var bandActive = false
     private var bandLast: Set<String> = []
 
+    // An OLE drag in flight over this window: what it carries, and which
+    // folder row it is over (drawn selected, as Explorer lights its target).
+    private var dropPaths: [String] = []
+    private var dropHover: String?
+
+    // A row press that may become a drag OUT: armed on the press, fired
+    // when it moves past a click's worth, cleared on release either way.
+    private var dragCandidate: (path: String, x: Double, y: Double)?
+
     /// The search box's text. Owned by the widget, not the bloc: the bloc
     /// holds the filter it produced, which is a different thing from what is
     /// currently in the field.
@@ -274,6 +283,32 @@ final class StarlingFilesState: State<StatefulWidget> {
         DispatchQueue.main.async {
             Win32WindowedHost.host?.setCustomTitlebar()
         }
+        // The window takes drops: files dragged in from Explorer (or any
+        // OLE source) land in the open folder, or in the folder row under
+        // the pointer. The closures go in before registration so the first
+        // drag is never refused; registration is deferred with the titlebar
+        // because it needs the window handle.
+        Win32DropTarget.onEnter = { [weak self] paths, x, y, keys in
+            guard let self else { return 0 }
+            self.dropPaths = paths
+            return self.dropEffect(x, y, keys)
+        }
+        Win32DropTarget.onOver = { [weak self] x, y, keys in
+            self?.dropEffect(x, y, keys) ?? 0
+        }
+        Win32DropTarget.onLeave = { [weak self] in
+            self?.dropPaths = []
+            self?.setDropHover(nil)
+        }
+        Win32DropTarget.onDrop = { [weak self] paths, x, y, move in
+            self?.dropPaths = []
+            self?.dropFinish(paths, x, y, move)
+        }
+        DispatchQueue.main.async {
+            if let handle = Win32WindowedHost.host?.windowHandle {
+                Win32DropTarget.register(window: handle)
+            }
+        }
         // The listing is the only thing the menu cannot work out for itself.
         menu.target = { [weak self] x, y in self?.targetAt(x, y) }
         bloc.add(.start)
@@ -338,18 +373,30 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // with the selection it started over, because a
                     // Ctrl-drag adds to that rather than replacing it.
                     if e.buttons == 1,
-                       case .background? =
-                           self.targetAt(e.position.dx, e.position.dy) {
-                        if !self.ctrlDown && !self.shiftDown {
-                            self.bloc.add(.clearSelection)
+                       let target = self.targetAt(e.position.dx, e.position.dy) {
+                        switch target {
+                        case .background:
+                            if !self.ctrlDown && !self.shiftDown {
+                                self.bloc.add(.clearSelection)
+                            }
+                            self.bandOrigin = (e.position.dx, e.position.dy)
+                            self.bandBase = self.ctrlDown
+                                ? self.bloc.state.selection : []
+                        case .item(let entry):
+                            // May become a drag out -- see dragMoved.
+                            self.dragCandidate =
+                                (entry.path, e.position.dx, e.position.dy)
                         }
-                        self.bandOrigin = (e.position.dx, e.position.dy)
-                        self.bandBase = self.ctrlDown
-                            ? self.bloc.state.selection : []
                     }
                 },
-                onPointerMove: { e in self.bandMoved(e) },
-                onPointerUp: { _ in self.bandEnded() },
+                onPointerMove: { e in
+                    if self.dragMoved(e) { return }
+                    self.bandMoved(e)
+                },
+                onPointerUp: { _ in
+                    self.dragCandidate = nil
+                    self.bandEnded()
+                },
                 // The highlight, and what opens a submenu — Windows opens
                 // them on hover and so does this. Only while a menu is down:
                 // this fires for every pointer move over the whole window.
@@ -471,6 +518,85 @@ final class StarlingFilesState: State<StatefulWidget> {
         guard bandActive else { return }
         bandActive = false
         band.rect = nil
+    }
+
+    /// A pressed row moving past the click threshold becomes an OLE drag
+    /// of the selection (or of just that row, when it was not in the
+    /// selection -- Explorer's rule, same as right-click). Returns true
+    /// while a candidate is armed so the band never sees these moves.
+    private func dragMoved(_ e: PointerMoveEvent) -> Bool {
+        guard let candidate = dragCandidate, e.buttons == 1 else { return false }
+        let dx = e.position.dx - candidate.x
+        let dy = e.position.dy - candidate.y
+        guard dx * dx + dy * dy > 16 else { return true }
+        dragCandidate = nil
+        if !bloc.state.selection.contains(candidate.path) {
+            bloc.add(.select(candidate.path))
+        }
+        let paths = selectionPaths
+        guard !paths.isEmpty else { return true }
+        // DoDragDrop runs a modal pump; entering it from the middle of this
+        // pointer dispatch would re-enter the adapter. One hop later the
+        // dispatch has unwound and the button is still down, which is all
+        // the drag loop needs.
+        DispatchQueue.main.async { [weak self] in
+            Win32DropTarget.beginDrag(paths)
+            // Whatever the target did (including Explorer's optimized move,
+            // which reports none), the listing may be stale now.
+            self?.bloc.add(.refresh)
+        }
+        return true
+    }
+
+    // MARK: - Drops
+
+    /// Where a drop at this point would land: the folder row under the
+    /// pointer, else the open directory. nil where nothing takes a drop
+    /// (the sidebar and the bars -- honest until the sidebar learns to).
+    private func dropResolve(_ x: Double, _ y: Double) -> String? {
+        guard x >= kFilesSidebar, y >= kFilesToolbar else { return nil }
+        if case .item(let entry)? = targetAt(x, y), entry.isDirectory {
+            return entry.path
+        }
+        return bloc.state.directory
+    }
+
+    /// The effect for a drag at this point, and the target highlight as a
+    /// side effect. Explorer's rules: Ctrl forces a copy, Shift a move, and
+    /// the default is a move within a volume, a copy across -- with a drop
+    /// back into the files' own folder refused outright.
+    private func dropEffect(_ x: Double, _ y: Double, _ keys: UInt32) -> Int32 {
+        guard let target = dropResolve(x, y), !dropPaths.isEmpty else {
+            setDropHover(nil)
+            return 0
+        }
+        let lowered = target.lowercased()
+        let parent = (dropPaths[0] as NSString).deletingLastPathComponent
+        if parent.lowercased() == lowered
+            || dropPaths.contains(where: { $0.lowercased() == lowered }) {
+            setDropHover(nil)
+            return 0
+        }
+        setDropHover(target == bloc.state.directory ? nil : target)
+        if keys & 0x0008 != 0 { return 1 }  // MK_CONTROL
+        if keys & 0x0004 != 0 { return 2 }  // MK_SHIFT
+        return dropPaths[0].prefix(2).lowercased() == target.prefix(2).lowercased()
+            ? 2 : 1
+    }
+
+    private func setDropHover(_ path: String?) {
+        guard dropHover != path else { return }
+        setState { dropHover = path }
+    }
+
+    private func dropFinish(_ paths: [String], _ x: Double, _ y: Double,
+                            _ move: Bool) {
+        setDropHover(nil)
+        guard !paths.isEmpty, let target = dropResolve(x, y) else { return }
+        Win32FileOps.transfer(paths, into: target, move: move,
+                              owner: FilesBloc.ownerWindow) { [weak self] ok in
+            if ok { self?.bloc.add(.refresh) }
+        }
     }
 
     // MARK: - Sidebar
@@ -1255,6 +1381,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         guard index < bloc.state.visible.count else { return SizedBox(height: kFilesRow) }
         let entry = bloc.state.visible[index]
         let selected = bloc.state.selection.contains(entry.path)
+            || dropHover == entry.path
         let key = FilesBloc.iconKey(entry)
 
         return GestureDetector(

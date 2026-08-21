@@ -218,6 +218,47 @@ int32_t flwin32_fileop_new_folder(const char* dir, const char* name,
 // The item's property sheet (SHObjectProperties), for Alt+Enter.
 int32_t flwin32_fileop_properties(const char* path, uint64_t owner);
 
+// Copy (is_move = 0) or move (1) a set of files into `target_dir` -- the
+// landing half of drag and drop, one IFileOperation over the whole set.
+// Blocks like every other entry point here; call it from a worker.
+int32_t flwin32_fileop_transfer(const char* paths_nl, const char* target_dir,
+                                int32_t is_move, uint64_t owner);
+
+// -- the window as an OLE drop target ---------------------------------------
+//
+// flwin32_dragdrop.c. Register once, on the UI thread, after the host window
+// exists; the callbacks arrive on that thread through its message pump, in
+// LOGICAL client coordinates. enter/over return the effect to show the drag
+// source: 0 none, 1 copy, 2 move. `paths_nl` is the dragged files,
+// newline-separated UTF-8, valid only for the duration of the call -- copy
+// it out. drop's is_move is the effect the UI last chose, so the handler
+// routes to the right transfer without re-deriving it.
+typedef int32_t (*FlWin32DropEnterCallback)(const char* paths_nl,
+                                            double x, double y,
+                                            uint32_t keys, void* user);
+typedef int32_t (*FlWin32DropOverCallback)(double x, double y,
+                                           uint32_t keys, void* user);
+typedef void (*FlWin32DropLeaveCallback)(void* user);
+typedef void (*FlWin32DropDropCallback)(const char* paths_nl,
+                                        double x, double y,
+                                        uint32_t keys, int32_t is_move,
+                                        void* user);
+int32_t flwin32_dragdrop_register(uint64_t hwnd,
+                                  FlWin32DropEnterCallback on_enter,
+                                  FlWin32DropOverCallback on_over,
+                                  FlWin32DropLeaveCallback on_leave,
+                                  FlWin32DropDropCallback on_drop,
+                                  void* user);
+
+// The other direction: a full OLE drag of `paths_nl` FROM this process.
+// Call on the UI thread (DoDragDrop pumps its own modal loop there) and
+// never from the middle of pointer dispatch -- defer one hop first. Blocks
+// until drop or cancel. Returns 0 cancelled/none, 1 copy, 2 move; a move
+// onto Explorer comes back 0 by the shell's optimized-move handshake
+// (Explorer relocated the files itself), so 0 does not mean nothing moved
+// -- refresh the listing either way.
+int32_t flwin32_dragdrop_begin(const char* paths_nl);
+
 // -- the shell's own context menu, asked for off the drawing thread ---------
 //
 // What Explorer puts in a right-click: the static verbs from the association
