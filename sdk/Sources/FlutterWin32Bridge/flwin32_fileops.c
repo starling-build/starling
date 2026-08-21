@@ -163,16 +163,58 @@ static int fo_paste_body(void* arg) {
         && SUCCEEDED(SHCreateShellItemArrayFromDataObject(
                data, &IID_IShellItemArray, (void**)&items))
         && SUCCEEDED(fo_create(a->owner, &op))) {
-        HRESULT hr = move
-            ? op->lpVtbl->MoveItems(op, (IUnknown*)items, target)
-            : op->lpVtbl->CopyItems(op, (IUnknown*)items, target);
-        if (SUCCEEDED(hr) && SUCCEEDED(op->lpVtbl->PerformOperations(op))) {
+        /* Explorer's same-folder rules need to know whether every item is
+         * being pasted back where it came from: a copy then lands as
+         * " - Copy" (FOF_RENAMEONCOLLISION) instead of raising the
+         * conflict dialog, and a cut moves nothing at all. */
+        int same_parent = 0;
+        DWORD count = 0;
+        if (SUCCEEDED(items->lpVtbl->GetCount(items, &count)) && count > 0) {
+            same_parent = 1;
+            for (DWORD i = 0; i < count && same_parent; i++) {
+                IShellItem* item = NULL;
+                IShellItem* parent = NULL;
+                wchar_t* ppath = NULL;
+                same_parent = 0;
+                if (SUCCEEDED(items->lpVtbl->GetItemAt(items, i, &item))
+                    && SUCCEEDED(item->lpVtbl->GetParent(item, &parent))
+                    && SUCCEEDED(parent->lpVtbl->GetDisplayName(
+                           parent, SIGDN_FILESYSPATH, &ppath))
+                    && ppath != NULL) {
+                    /* Trailing backslashes differ by source ("C:\" vs a
+                     * plain directory); compare with them trimmed, but
+                     * never trim a root's. */
+                    size_t dl = wcslen(dir), pl = wcslen(ppath);
+                    while (dl > 3 && dir[dl - 1] == L'\\') dl--;
+                    while (pl > 3 && ppath[pl - 1] == L'\\') pl--;
+                    same_parent = dl == pl && _wcsnicmp(dir, ppath, dl) == 0;
+                }
+                if (ppath != NULL) CoTaskMemFree(ppath);
+                if (parent != NULL) parent->lpVtbl->Release(parent);
+                if (item != NULL) item->lpVtbl->Release(item);
+            }
+        }
+        if (move && same_parent) {
+            /* Cut, pasted in place: Explorer moves nothing and keeps the
+             * clipboard. Success, by doing nothing. */
             ok = 1;
-            if (move) {
-                /* A cut has been consumed. Explorer clears the clipboard
-                 * here too: pasting it again would move files that are no
-                 * longer where the clipboard says. */
-                OleSetClipboard(NULL);
+        } else {
+            if (!move && same_parent) {
+                op->lpVtbl->SetOperationFlags(
+                    op, FOF_ALLOWUNDO | FOFX_ADDUNDORECORD
+                            | FOF_RENAMEONCOLLISION);
+            }
+            HRESULT hr = move
+                ? op->lpVtbl->MoveItems(op, (IUnknown*)items, target)
+                : op->lpVtbl->CopyItems(op, (IUnknown*)items, target);
+            if (SUCCEEDED(hr) && SUCCEEDED(op->lpVtbl->PerformOperations(op))) {
+                ok = 1;
+                if (move) {
+                    /* A cut has been consumed. Explorer clears the clipboard
+                     * here too: pasting it again would move files that are no
+                     * longer where the clipboard says. */
+                    OleSetClipboard(NULL);
+                }
             }
         }
     }
@@ -354,6 +396,122 @@ int32_t flwin32_fileop_clip(const char* path, int32_t is_cut) {
     int ok = fo_run_sta(fo_clip_body, &args);
     free(args.path);
     return ok;
+}
+
+/* Parses a newline-separated UTF-8 path list into an IShellItemArray.
+ * Item arrays are parent-agnostic (unlike GetUIObjectOf, which wants
+ * children of one folder), which keeps the contract honest even though a
+ * listing's selection does in fact share a parent. Caller releases. */
+static IShellItemArray* fo_item_array(const char* paths_nl) {
+    wchar_t* wide = fo_utf8_to_wide(paths_nl);
+    if (wide == NULL) return NULL;
+
+    LPITEMIDLIST pidls[256];
+    int count = 0;
+    wchar_t* cursor = wide;
+    while (cursor != NULL && *cursor != 0 && count < 256) {
+        wchar_t* newline = wcschr(cursor, L'\n');
+        if (newline != NULL) *newline = 0;
+        if (*cursor != 0) {
+            LPITEMIDLIST pidl = NULL;
+            if (SUCCEEDED(SHParseDisplayName(cursor, NULL, &pidl, 0, NULL))) {
+                pidls[count++] = pidl;
+            }
+        }
+        cursor = newline != NULL ? newline + 1 : NULL;
+    }
+    free(wide);
+    if (count == 0) return NULL;
+
+    IShellItemArray* items = NULL;
+    HRESULT hr = SHCreateShellItemArrayFromIDLists(
+        (UINT)count, (LPCITEMIDLIST*)pidls, &items);
+    for (int i = 0; i < count; i++) CoTaskMemFree(pidls[i]);
+    return SUCCEEDED(hr) ? items : NULL;
+}
+
+/* Delete a SELECTION to the recycle bin: one IFileOperation over the whole
+ * set, so it is one progress dialog, one confirmation, and one entry in
+ * the undo stack -- exactly what Explorer does with a multi-selection,
+ * and what N separate operations would not be. */
+typedef struct {
+    const char* paths;
+    HWND owner;
+} FoDeleteMultiArgs;
+
+static int fo_delete_multi_body(void* arg) {
+    FoDeleteMultiArgs* a = (FoDeleteMultiArgs*)arg;
+    int ok = 0;
+    IShellItemArray* items = fo_item_array(a->paths);
+    IFileOperation* op = NULL;
+    if (items != NULL && SUCCEEDED(fo_create(a->owner, &op))) {
+        if (SUCCEEDED(op->lpVtbl->DeleteItems(op, (IUnknown*)items))
+            && SUCCEEDED(op->lpVtbl->PerformOperations(op))) {
+            ok = 1;
+        }
+    }
+    if (op != NULL) op->lpVtbl->Release(op);
+    if (items != NULL) items->lpVtbl->Release(items);
+    return ok;
+}
+
+int32_t flwin32_fileop_delete_multi(const char* paths_nl, uint64_t owner) {
+    if (paths_nl == NULL || paths_nl[0] == 0) return 0;
+    FoDeleteMultiArgs args = { paths_nl, (HWND)(ULONG_PTR)owner };
+    return fo_run_sta(fo_delete_multi_body, &args);
+}
+
+/* Put a SELECTION on the clipboard as one copy or cut. The data object is
+ * the item array's own (BHID_DataObject), carrying every item, with the
+ * preferred drop effect written over it -- the multi-item twin of
+ * flwin32_fileop_clip, and pasting it lands the whole selection. */
+typedef struct {
+    const char* paths;
+    int is_cut;
+} FoClipMultiArgs;
+
+static int fo_clip_multi_body(void* arg) {
+    FoClipMultiArgs* a = (FoClipMultiArgs*)arg;
+    int ok = 0;
+    IShellItemArray* items = fo_item_array(a->paths);
+    if (items == NULL) return 0;
+
+    IDataObject* data = NULL;
+    if (SUCCEEDED(items->lpVtbl->BindToHandler(items, NULL, &BHID_DataObject,
+                                               &IID_IDataObject,
+                                               (void**)&data)) && data != NULL) {
+        FORMATETC fmt = {
+            (CLIPFORMAT)RegisterClipboardFormatW(CFSTR_PREFERREDDROPEFFECT),
+            NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
+        if (mem != NULL) {
+            DWORD* value = (DWORD*)GlobalLock(mem);
+            if (value != NULL) {
+                *value = a->is_cut ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
+                GlobalUnlock(mem);
+                STGMEDIUM medium;
+                medium.tymed = TYMED_HGLOBAL;
+                medium.hGlobal = mem;
+                medium.pUnkForRelease = NULL;
+                data->lpVtbl->SetData(data, &fmt, &medium, TRUE);
+            } else {
+                GlobalFree(mem);
+            }
+        }
+        if (SUCCEEDED(OleSetClipboard(data))) {
+            OleFlushClipboard();
+            ok = 1;
+        }
+        data->lpVtbl->Release(data);
+    }
+    items->lpVtbl->Release(items);
+    return ok;
+}
+
+int32_t flwin32_fileop_clip_multi(const char* paths_nl, int32_t is_cut) {
+    if (paths_nl == NULL || paths_nl[0] == 0) return 0;
+    FoClipMultiArgs args = { paths_nl, is_cut };
+    return fo_run_sta(fo_clip_multi_body, &args);
 }
 
 /* Create one folder. The NAME is the caller's problem on purpose:

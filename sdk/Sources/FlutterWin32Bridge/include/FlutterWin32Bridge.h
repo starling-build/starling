@@ -198,6 +198,12 @@ int32_t flwin32_fileop_rename(const char* path, const char* new_name,
 // Delete to the recycle bin, with the shell's confirmation.
 int32_t flwin32_fileop_delete(const char* path, uint64_t owner);
 
+// The multi-item twins, taking newline-separated paths: one IFileOperation
+// (one progress, one confirmation, one undo entry) and one data object
+// carrying the whole selection.
+int32_t flwin32_fileop_delete_multi(const char* paths_nl, uint64_t owner);
+int32_t flwin32_fileop_clip_multi(const char* paths_nl, int32_t is_cut);
+
 // Put one item on the clipboard as a copy (is_cut = 0) or a cut (1): the
 // shell's own data object plus CFSTR_PREFERREDDROPEFFECT, flushed so it
 // survives the caller.

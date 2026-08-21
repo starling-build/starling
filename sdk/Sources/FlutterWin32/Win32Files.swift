@@ -293,6 +293,23 @@ public enum Win32FileOps {
         run(done) { flwin32_fileop_delete(path, owner) != 0 }
     }
 
+    /// Delete a SELECTION: one operation over the set, so one progress
+    /// dialog and one undo entry -- what Explorer does, and what N separate
+    /// deletes would not be.
+    public static func deleteMany(_ paths: [String], owner: UInt64,
+                                  done: ((Bool) -> Void)? = nil) {
+        let joined = paths.joined(separator: "\n")
+        run(done) { flwin32_fileop_delete_multi(joined, owner) != 0 }
+    }
+
+    /// Copy (or cut) a selection to the clipboard as one data object; a
+    /// paste lands the whole set.
+    public static func clipMany(_ paths: [String], cut: Bool,
+                                done: ((Bool) -> Void)? = nil) {
+        let joined = paths.joined(separator: "\n")
+        run(done) { flwin32_fileop_clip_multi(joined, cut ? 1 : 0) != 0 }
+    }
+
     /// The property sheet, for Alt+Enter.
     public static func showProperties(_ path: String, owner: UInt64) {
         run(nil) { flwin32_fileop_properties(path, owner) != 0 }

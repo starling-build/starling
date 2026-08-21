@@ -46,9 +46,16 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
 
 ## File explorer — functional gaps (medium)
 
-- [ ] Multi-select: Ctrl/Shift-click, rubber-band, "n items selected",
-      operations over the selection set. Single-select everywhere today.
-      Biggest functional gap left.
+- [x] Multi-select: Ctrl-click toggles, Shift-click spans from the anchor,
+      Ctrl+A, "n items selected", background click deselects, right-click
+      keeps a selection it lands inside. Delete recycles the set as ONE
+      IFileOperation (one progress dialog, one undo); Ctrl+C/X put the set
+      on the clipboard as one data object. Same-folder paste now lands
+      " - Copy" files instead of the shell's conflict dialog, and a
+      same-folder cut-paste is the no-op Explorer makes it. Rubber-band
+      drag selection is the piece that remains.
+- [ ] Rubber-band selection: drag over the listing to select. The one part
+      of multi-select not done (needs a drag surface the listing lacks).
 - [ ] Real tabs: one tab per window now; "+" opens a new window. Real tabs
       need per-window multi-directory state and a tab strip model.
 - [ ] View modes: Details only; the View button is honest about it (drawn

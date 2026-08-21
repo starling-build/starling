@@ -159,17 +159,32 @@ final class StarlingFilesState: State<StatefulWidget> {
         if ctrlDown {
             switch keyData.physical {
             case 0x0007_0006: // C
-                guard let entry = selectedEntry else { return false }
                 if shiftDown {
-                    // Quoted, exactly as Explorer's Copy as path writes it.
-                    Clipboard.setData(ClipboardData(text: "\"\(entry.path)\""))
-                } else {
-                    bloc.add(.clip(entry, cut: false))
+                    // Quoted, one per line -- exactly as Explorer's Copy as
+                    // path writes it, for one path or many.
+                    let paths = selectionPaths
+                    guard !paths.isEmpty else { return false }
+                    Clipboard.setData(ClipboardData(
+                        text: paths.map { "\"\($0)\"" }.joined(separator: "\r\n")))
+                    return true
                 }
+                if bloc.state.selection.count > 1 {
+                    bloc.add(.clipSelection(cut: false))
+                    return true
+                }
+                guard let entry = selectedEntry else { return false }
+                bloc.add(.clip(entry, cut: false))
                 return true
             case 0x0007_001B: // X
+                if bloc.state.selection.count > 1 {
+                    bloc.add(.clipSelection(cut: true))
+                    return true
+                }
                 guard let entry = selectedEntry else { return false }
                 bloc.add(.clip(entry, cut: true))
+                return true
+            case 0x0007_0004: // A
+                bloc.add(.selectAll)
                 return true
             case 0x0007_0019: // V
                 bloc.add(.paste(into: bloc.state.directory))
@@ -205,6 +220,10 @@ final class StarlingFilesState: State<StatefulWidget> {
             bloc.add(.beginRename(entry))
             return true
         case 0x1_0000_007F: // Delete
+            if bloc.state.selection.count > 1 {
+                bloc.add(.deleteSelection)
+                return true
+            }
             guard let entry = selectedEntry else { return false }
             bloc.add(.deleteEntry(entry))
             return true
@@ -286,7 +305,24 @@ final class StarlingFilesState: State<StatefulWidget> {
                         return
                     }
                     if e.buttons == 2 {
+                        // Explorer's rule: a right-click on a row OUTSIDE
+                        // the selection moves the selection to it; inside,
+                        // the selection stands and the menu speaks for it.
+                        if case .item(let entry)? =
+                            self.targetAt(e.position.dx, e.position.dy),
+                           !self.bloc.state.selection.contains(entry.path) {
+                            self.bloc.add(.select(entry.path))
+                        }
                         self.menu.open(at: e.position.dx, e.position.dy)
+                        return
+                    }
+                    // A plain click on the listing's background deselects,
+                    // as Explorer's does. Rows re-select through their own
+                    // GestureDetector after this fires.
+                    if e.buttons == 1, !self.ctrlDown, !self.shiftDown,
+                       case .background? =
+                           self.targetAt(e.position.dx, e.position.dy) {
+                        self.bloc.add(.clearSelection)
                     }
                 },
                 // The highlight, and what opens a submenu — Windows opens
@@ -615,6 +651,13 @@ final class StarlingFilesState: State<StatefulWidget> {
         return bloc.state.visible.first { $0.path == path }
     }
 
+    /// The selection in VISIBLE order -- a Set has none, and Copy as path
+    /// pasting rows in a different order than the screen shows them reads
+    /// as a bug even when every path is right.
+    private var selectionPaths: [String] {
+        bloc.state.visible.map(\.path).filter(bloc.state.selection.contains)
+    }
+
     /// The command bar's dropdowns, anchored under the pressed button --
     /// `lastDown` supplies the x a GestureDetector's tap cannot, and the
     /// panel is the context menu's own machinery in flyout mode.
@@ -870,6 +913,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// bars both reporting the item count was worse than either.
     private func statusBar() -> Widget {
         let entry = bloc.state.visible.first { $0.path == bloc.state.selected }
+        let count = bloc.state.selection.count
         return SizedBox(height: kFilesStatusBar) {
             ColoredBox(color: Win11.windowBg) {
                 Padding(padding: EdgeInsets(left: 14, top: 0, right: 10, bottom: 0)) {
@@ -877,13 +921,14 @@ final class StarlingFilesState: State<StatefulWidget> {
                         Text(itemCountLabel(),
                              style: TextStyle(color: Win11.textFaint, fontSize: 11),
                              maxLines: 1)
-                        if entry != nil {
+                        if count > 0 {
                             // The hairline between the counts, as Explorer
                             // separates its own.
                             SizedBox(width: 1, height: 14) {
                                 ColoredBox(color: Win11.stroke) { SizedBox(width: 1) }
                             }
-                            Text("1 item selected",
+                            Text(count == 1 ? "1 item selected"
+                                            : "\(count) items selected",
                                  style: TextStyle(color: Win11.textFaint, fontSize: 11),
                                  maxLines: 1)
                         }
@@ -1133,7 +1178,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     private func row(_ index: Int) -> Widget {
         guard index < bloc.state.visible.count else { return SizedBox(height: kFilesRow) }
         let entry = bloc.state.visible[index]
-        let selected = bloc.state.selected == entry.path
+        let selected = bloc.state.selection.contains(entry.path)
         let key = FilesBloc.iconKey(entry)
 
         return GestureDetector(
@@ -1202,6 +1247,19 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// Select on the first tap, open on a second within half a second. See
     /// `lastTapPath` for why this is not `onDoubleTap`.
     private func tapped(_ entry: Win32FileEntry) {
+        // Modified clicks are selection surgery, never activation -- and
+        // they reset the double-click memory, so Ctrl-click then plain
+        // click does not read as a double.
+        if ctrlDown {
+            lastTapPath = nil
+            bloc.add(.toggleSelect(entry.path))
+            return
+        }
+        if shiftDown {
+            lastTapPath = nil
+            bloc.add(.rangeSelect(entry.path))
+            return
+        }
         let now = Date()
         let again = lastTapPath == entry.path
             && now.timeIntervalSince(lastTapAt) < 0.5

@@ -30,8 +30,16 @@ struct FilesState {
     var loading = false
     var places: [Win32Place] = []
     var drives: [Win32Place] = []
-    /// The row the pointer last pressed, for the selection highlight.
-    var selected: String?
+    /// The SELECTION, as Explorer has one: any number of rows, grown by
+    /// Ctrl-click, spanned by Shift-click from the anchor. `selected` below
+    /// is the single-item view of it that the footer, rename and Open with
+    /// consume -- nil whenever the selection is not exactly one, which is
+    /// also what makes those single-item affordances honestly disable
+    /// themselves on a multi-selection.
+    var selection: Set<String> = []
+    /// Where a Shift range measures from: the last plainly-clicked row.
+    var selectionAnchor: String?
+    var selected: String? { selection.count == 1 ? selection.first : nil }
     var error: String?
     /// What opens the selected file, and what Explorer calls its type —
     /// looked up when the selection changes, not per row: the association
@@ -82,6 +90,15 @@ final class FilesBloc: @unchecked Sendable {
         /// A row was activated: enter a folder, or hand a file to the shell.
         case activate(Win32FileEntry)
         case select(String?)
+        /// Ctrl-click: grow or shrink the selection by one row.
+        case toggleSelect(String)
+        /// Shift-click: the visible range from the anchor to this row.
+        case rangeSelect(String)
+        case selectAll
+        case clearSelection
+        /// The whole selection, as ONE shell operation each.
+        case deleteSelection
+        case clipSelection(cut: Bool)
         case selectionInfo(app: String?, type: String?)
         /// The shell's own "Open with" dialog for the selection.
         case openWith
@@ -233,7 +250,8 @@ final class FilesBloc: @unchecked Sendable {
             }
 
         case .select(let path):
-            state.selected = path
+            state.selection = path == nil ? [] : [path!]
+            state.selectionAnchor = path
             state.selectedApp = nil
             state.selectedType = nil
             guard let path,
@@ -254,6 +272,52 @@ final class FilesBloc: @unchecked Sendable {
         case .selectionInfo(let app, let type):
             state.selectedApp = app
             state.selectedType = type
+
+        case .toggleSelect(let path):
+            if state.selection.contains(path) {
+                state.selection.remove(path)
+            } else {
+                state.selection.insert(path)
+            }
+            state.selectionAnchor = path
+            state.selectedApp = nil
+            state.selectedType = nil
+
+        case .rangeSelect(let path):
+            // The visible range from the anchor to here, replacing the
+            // selection -- Explorer's Shift-click. The anchor stays put so
+            // successive Shift-clicks re-span from the same origin.
+            let anchor = state.selectionAnchor ?? state.visible.first?.path
+            guard let anchor,
+                  let from = state.visible.firstIndex(where: { $0.path == anchor }),
+                  let to = state.visible.firstIndex(where: { $0.path == path })
+            else {
+                state.selection = [path]
+                state.selectionAnchor = path
+                break
+            }
+            let range = from <= to ? from...to : to...from
+            state.selection = Set(state.visible[range].map(\.path))
+
+        case .selectAll:
+            state.selection = Set(state.visible.map(\.path))
+
+        case .clearSelection:
+            state.selection = []
+            state.selectionAnchor = nil
+
+        case .deleteSelection:
+            let paths = state.visible.map(\.path).filter(state.selection.contains)
+            guard !paths.isEmpty else { break }
+            Win32FileOps.deleteMany(paths, owner: Self.ownerWindow) {
+                [weak self] ok in
+                if ok { self?.add(.refresh) }
+            }
+
+        case .clipSelection(let cut):
+            let paths = state.visible.map(\.path).filter(state.selection.contains)
+            guard !paths.isEmpty else { break }
+            Win32FileOps.clipMany(paths, cut: cut)
 
         case .openWith:
             guard let path = state.selected else { return }
@@ -285,7 +349,8 @@ final class FilesBloc: @unchecked Sendable {
 
         case .beginRename(let entry):
             state.renaming = entry.path
-            state.selected = entry.path
+            state.selection = [entry.path]
+            state.selectionAnchor = entry.path
 
         case .commitRename(let newName):
             guard let path = state.renaming else { return }
@@ -300,7 +365,9 @@ final class FilesBloc: @unchecked Sendable {
                     // Keep the selection on the renamed item, under its new
                     // name, so F2-Enter-F2 flows work.
                     let parent = (path as NSString).deletingLastPathComponent
-                    self?.state.selected = Win32Files.join(parent, newName)
+                    let renamed = Win32Files.join(parent, newName)
+                    self?.state.selection = [renamed]
+                    self?.state.selectionAnchor = renamed
                 }
                 self?.add(.refresh)
             }
@@ -326,7 +393,8 @@ final class FilesBloc: @unchecked Sendable {
                 // its rename field. `renaming` survives the refresh because
                 // the listing arrives keyed by path.
                 if let path {
-                    self.state.selected = path
+                    self.state.selection = [path]
+                    self.state.selectionAnchor = path
                     self.state.renaming = path
                 }
                 self.add(.refresh)
@@ -350,7 +418,10 @@ final class FilesBloc: @unchecked Sendable {
         case .compress(let entry):
             Win32FileOps.compressToZip(entry.path) { [weak self] made in
                 guard let self else { return }
-                if let made { self.state.selected = made }
+                if let made {
+                    self.state.selection = [made]
+                    self.state.selectionAnchor = made
+                }
                 self.add(.refresh)
             }
 
@@ -359,7 +430,8 @@ final class FilesBloc: @unchecked Sendable {
             state.entries = entries
             state.error = error
             state.loading = false
-            state.selected = nil
+            state.selection = []
+            state.selectionAnchor = nil
             _reproject()
             _warmIcons(entries)
 
