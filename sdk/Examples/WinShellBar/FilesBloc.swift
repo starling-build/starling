@@ -68,6 +68,12 @@ struct FilesState {
     /// and we do not -- see `visible` for the honest scope of this.
     var filter = ""
     var canGoUp: Bool { Win32Files.parent(of: directory) != nil }
+    /// The computer view. Not a folder: no listing, no file operations.
+    var isThisPC: Bool { directory == kThisPCPath }
+    /// The drives with their capacities, for the computer view's tiles --
+    /// read when the view opens, not per build: GetDiskFreeSpaceEx on a
+    /// sleeping USB drive is a stall nothing should pay per frame.
+    var driveDetails: [Win32Drive] = []
     /// The path being renamed inline, if any: its row draws a text field in
     /// place of its name. One at a time by construction -- starting a rename
     /// ends any other.
@@ -83,6 +89,12 @@ struct FilesState {
     fileprivate(set) var visible: [Win32FileEntry] = []
 
 }
+
+/// The computer view's "directory": not a path at all, which the \u{1}
+/// prefix guarantees no real folder can be. Opening it draws the drives
+/// (Explorer's This PC), and every file-shaped affordance -- New, drops,
+/// the background menu -- gates itself off.
+let kThisPCPath = "\u{1}ThisPC"
 
 /// The four columns Explorer shows in Details view, which are the four this
 /// sorts by.
@@ -174,6 +186,7 @@ final class FilesBloc: @unchecked Sendable {
         case placesLoaded(places: [Win32Place], drives: [Win32Place],
                           oneDrive: Win32Place?)
         case templatesLoaded([Win32Files.ShellNewTemplate])
+        case thisPCLoaded([Win32Drive])
         /// Explorer's New submenu, one template: create the file and drop
         /// into its rename field, exactly the newFolder gesture.
         case newFile(Win32Files.ShellNewTemplate)
@@ -261,6 +274,10 @@ final class FilesBloc: @unchecked Sendable {
 
         case .templatesLoaded(let templates):
             state.newTemplates = templates
+
+        case .thisPCLoaded(let drives):
+            state.driveDetails = drives
+            if state.isThisPC { state.loading = false }
 
         case .newFile(let template):
             let directory = state.directory
@@ -588,6 +605,21 @@ final class FilesBloc: @unchecked Sendable {
     }
 
     private func _list(_ path: String) {
+        if path == kThisPCPath {
+            // The computer view: no directory read, the drives instead.
+            state.directory = path
+            state.entries = []
+            state.error = nil
+            state.loading = state.driveDetails.isEmpty
+            state.selection = []
+            state.selectionAnchor = nil
+            _reproject()
+            Task.detached { [weak self] in
+                let drives = Win32SystemInfo.drives()
+                await MainActor.run { self?.add(.thisPCLoaded(drives)) }
+            }
+            return
+        }
         state.loading = true
         state.error = nil
         Task.detached { [weak self] in

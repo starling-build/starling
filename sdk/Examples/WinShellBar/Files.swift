@@ -53,6 +53,9 @@ let kFilesHeight = 680.0
 
 let kFilesStatusBar = 34.0
 
+/// One Devices-and-drives tile in the This PC view, Explorer's proportions.
+let kDriveTileW = 308.0
+
 /// The Details columns, at Explorer's proportions. Name takes what is left.
 let kFilesColModified = 170.0
 let kFilesColType = 130.0
@@ -554,7 +557,8 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 // the other view modes have no columns to
                                 // head, so their listing starts above it
                                 // (see ListingGrid.top).
-                                if bloc.state.viewMode == .details {
+                                if bloc.state.viewMode == .details
+                                    && !bloc.state.isThisPC {
                                     columnHeaders()
                                 }
                                 Expanded {
@@ -657,6 +661,9 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// there, and `.background` in the empty space around and below the
     /// cells, which is what gets the folder's own menu.
     private func targetAt(_ x: Double, _ y: Double) -> MenuTarget? {
+        // The computer view has no folder behind it: no background menu,
+        // no item menus -- the drives are not files.
+        guard !bloc.state.isThisPC else { return nil }
         let g = listingGrid()
         guard x >= kFilesSidebar, y >= g.top else { return nil }
         guard let index = cellIndex(at: x, y, in: g) else { return .background }
@@ -759,6 +766,8 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// pointer, else the open directory. nil where nothing takes a drop
     /// (the sidebar and the bars -- honest until the sidebar learns to).
     private func dropResolve(_ x: Double, _ y: Double) -> String? {
+        // Nothing lands ON This PC -- it is not a folder.
+        guard !bloc.state.isThisPC else { return nil }
         guard x >= kFilesSidebar, y >= kFilesToolbar else { return nil }
         if case .item(let entry)? = targetAt(x, y), entry.isDirectory {
             return entry.path
@@ -850,16 +859,18 @@ final class StarlingFilesState: State<StatefulWidget> {
                         }
                         sidebarRule()
                         // This PC leads its drives, computer glyph and all.
-                        // The chevron collapses them -- the drive rows are
-                        // its only children, so expansion is one bool here,
-                        // on the WINDOW: tabs share a nav pane in Explorer
-                        // and they share this one too.
-                        placeRow(Win32Place(name: "This PC", path: ""),
+                        // The ROW navigates to the computer view; only the
+                        // chevron collapses the drives -- Explorer's own
+                        // split. Expansion is one bool here, on the WINDOW:
+                        // tabs share a nav pane in Explorer and they share
+                        // this one too.
+                        placeRow(Win32Place(name: "This PC",
+                                            path: kThisPCPath),
                                  glyph: FluentIcons.thisPC,
                                  chevron: thisPCExpanded
                                      ? FluentIcons.chevronDown
                                      : FluentIcons.chevronRight,
-                                 onTap: { [weak self] in
+                                 onChevron: { [weak self] in
                                      self?.setState {
                                          self?.thisPCExpanded.toggle()
                                      }
@@ -898,6 +909,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     private func placeRow(_ place: Win32Place, pinned: Bool = false,
                           glyph: IconData? = nil, tint: Color? = nil,
                           chevron: IconData? = nil,
+                          onChevron: (() -> Void)? = nil,
                           onTap: (() -> Void)? = nil) -> Widget {
         let selected = !place.path.isEmpty
             && bloc.state.directory == place.path
@@ -927,12 +939,25 @@ final class StarlingFilesState: State<StatefulWidget> {
                                     // The chevron gutter spends exactly the
                                     // 10 points a plain row spends on left
                                     // padding, so the icon column aligns
-                                    // either way.
+                                    // either way. Its own tap target when
+                                    // it has its own job -- the inner
+                                    // detector wins the hit test, so the
+                                    // row underneath does not also fire.
                                     if let chevron {
-                                        SizedBox(width: 10) {
-                                            MacosIcon(icon: chevron,
-                                                      color: Win11.textFaint,
-                                                      size: 9)
+                                        if let onChevron {
+                                            GestureDetector(
+                                                onTap: onChevron,
+                                                child: SizedBox(width: 10) {
+                                                    MacosIcon(icon: chevron,
+                                                              color: Win11.textFaint,
+                                                              size: 9)
+                                                })
+                                        } else {
+                                            SizedBox(width: 10) {
+                                                MacosIcon(icon: chevron,
+                                                          color: Win11.textFaint,
+                                                          size: 9)
+                                            }
                                         }
                                     }
                                     Expanded {
@@ -990,6 +1015,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     private func tabLabel(_ bloc: FilesBloc) -> String {
         let path = bloc.state.directory
         if path.isEmpty { return "Files" }
+        if path == kThisPCPath { return "This PC" }
         let name = (path as NSString).lastPathComponent
         return name.isEmpty ? Win32Files.displayName(for: path) : name
     }
@@ -1238,7 +1264,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // own ShellNew templates, each born into its rename
                     // field.
                     barButton(FluentIcons.add, "New", chevron: true,
-                              enabled: true) {
+                              enabled: !bloc.state.isThisPC) {
                         self.openNewFlyout()
                     }
                     barSeparator()
@@ -1567,6 +1593,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     private func folderLabel() -> String {
         let path = bloc.state.directory
         if path.isEmpty { return "Files" }
+        if path == kThisPCPath { return "This PC" }
         let name = (path as NSString).lastPathComponent
         return name.isEmpty ? path : name
     }
@@ -1574,6 +1601,9 @@ final class StarlingFilesState: State<StatefulWidget> {
     private func crumbs() -> [(label: String, path: String)] {
         let path = bloc.state.directory
         guard !path.isEmpty else { return [] }
+        if path == kThisPCPath {
+            return [(label: "This PC", path: kThisPCPath)]
+        }
         var out: [(label: String, path: String)] = []
         var walk: String? = path
         while let here = walk, !here.isEmpty {
@@ -1585,13 +1615,17 @@ final class StarlingFilesState: State<StatefulWidget> {
             out.append((label: label, path: here))
             walk = Win32Files.parent(of: here)
         }
-        // "This PC" leads, as in Explorer. It is not a folder here (there is
-        // no computer view yet), so it carries no path and does not navigate.
-        out.append((label: "This PC", path: ""))
+        // "This PC" leads, as in Explorer -- and navigates to the computer
+        // view now, like every other crumb.
+        out.append((label: "This PC", path: kThisPCPath))
         return out.reversed()
     }
 
     private func itemCountLabel() -> String {
+        if bloc.state.isThisPC {
+            let count = bloc.state.driveDetails.count
+            return count == 1 ? "1 item" : "\(count) items"
+        }
         let shown = bloc.state.visible.count
         let total = bloc.state.entries.count
         if !bloc.state.filter.isEmpty { return "\(shown) of \(total) items" }
@@ -1644,6 +1678,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     // MARK: - Listing
 
     private func listing() -> Widget {
+        if bloc.state.isThisPC { return thisPCView() }
         if let error = bloc.state.error { return message(error) }
         if bloc.state.loading && bloc.state.entries.isEmpty {
             return Column(mainAxisAlignment: .center, crossAxisAlignment: .center) {
@@ -1804,6 +1839,126 @@ final class StarlingFilesState: State<StatefulWidget> {
                 }
             }
         }
+    }
+
+    // MARK: - This PC
+
+    /// The tile highlight, local to the window rather than in the bloc's
+    /// selection: drive tiles must never enter `selection`, because every
+    /// file operation reads that set and a Ctrl+C with C:\ in it is a copy
+    /// of the whole drive waiting for a paste.
+    private var selectedDrive: String?
+
+    /// Explorer's computer view, the honest subset: Devices and drives,
+    /// each tile carrying the shell's name and the capacity bar. The
+    /// folders section is absent because the sidebar already IS one.
+    private func thisPCView() -> Widget {
+        let drives = bloc.state.driveDetails
+        if drives.isEmpty {
+            return Column(mainAxisAlignment: .center,
+                          crossAxisAlignment: .center) {
+                SizedBox(width: 240) { MacosProgressIndicator() }
+            }
+        }
+        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let perRow = max(1, Int((width - kFilesSidebar - 32) / kDriveTileW))
+        let rows = stride(from: 0, to: drives.count, by: perRow).map {
+            Array(drives[$0..<min($0 + perRow, drives.count)])
+        }
+        return Align(alignment: Alignment.topLeft) {
+            Padding(padding: EdgeInsets(left: 16, top: 12, right: 16,
+                                        bottom: 12)) {
+                Column(crossAxisAlignment: .start) {
+                    Text("Devices and drives",
+                         style: TextStyle(color: Win11.text, fontSize: 13,
+                                          fontWeight: .w600))
+                    SizedBox(height: 10)
+                    for row in rows {
+                        Row(crossAxisAlignment: .center, spacing: 8) {
+                            for drive in row { driveTile(drive) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func driveTile(_ drive: Win32Drive) -> Widget {
+        let path = drive.letter + ":\\"
+        let selected = selectedDrive == path
+        let fraction = drive.total > 0
+            ? Double(drive.total - drive.free) / Double(drive.total) : 0
+        // Explorer's own alarm: the bar turns red when the drive is nearly
+        // full (under ten percent free).
+        let low = drive.total > 0 && Double(drive.free) < Double(drive.total) * 0.1
+        let barW = kDriveTileW - 40 - 12 - 16 - 8
+        return GestureDetector(
+            onTap: {
+                let now = Date()
+                let again = self.lastTapPath == path
+                    && now.timeIntervalSince(self.lastTapAt) < 0.5
+                self.lastTapPath = path
+                self.lastTapAt = now
+                if again {
+                    self.lastTapPath = nil
+                    self.bloc.add(.open(path))
+                } else {
+                    self.setState { self.selectedDrive = path }
+                }
+            },
+            child: Hover { hovered in
+                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                    ColoredBox(color: selected ? Win11.selection
+                               : (hovered ? Win11.hoverFill
+                                          : Color(0x00000000))) {
+                        SizedBox(width: kDriveTileW, height: 64) {
+                            Padding(padding: EdgeInsets(horizontal: 8,
+                                                        vertical: 0)) {
+                                Row(crossAxisAlignment: .center, spacing: 12) {
+                                    MacosIcon(icon: FluentIcons.drive,
+                                              color: Win11.textDim, size: 36)
+                                    Column(mainAxisAlignment: .center,
+                                           crossAxisAlignment: .start) {
+                                        Text(Win32Files.displayName(for: path),
+                                             style: TextStyle(color: Win11.text,
+                                                              fontSize: 12),
+                                             maxLines: 1)
+                                        SizedBox(height: 4)
+                                        // The capacity bar: a track with the
+                                        // used fraction filled, Explorer's.
+                                        SizedBox(width: barW, height: 12) {
+                                            ClipRRect(borderRadius:
+                                                    BorderRadius.circular(2)) {
+                                                Stack(alignment:
+                                                        Alignment.topLeft) {
+                                                    ColoredBox(
+                                                        color: Win11.stroke) {
+                                                        SizedBox(width: barW,
+                                                                 height: 12)
+                                                    }
+                                                    ColoredBox(color: low
+                                                        ? Color(0xFFDA3B01)
+                                                        : Win11.accent) {
+                                                        SizedBox(
+                                                            width: barW * fraction,
+                                                            height: 12)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        SizedBox(height: 3)
+                                        Text("\(self.sizeText(drive.free)) free of \(self.sizeText(drive.total))",
+                                             style: TextStyle(
+                                                 color: Win11.textFaint,
+                                                 fontSize: 11),
+                                             maxLines: 1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            })
     }
 
     private func message(_ text: String) -> Widget {
