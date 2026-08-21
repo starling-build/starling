@@ -580,6 +580,16 @@ void flwin32_shell_broadcast_toggle(void);
 // posted to a message-only window so it runs on the loop rather than inside
 // the hook (a hook that overruns LowLevelHooksTimeout is silently removed).
 // Returns non-zero if the hook is installed.
+// Wheel handed straight to the shell surface, in CLIENT POINTS plus a list
+// delta (one notch = 48pt). A workaround with a bug behind it: the engine's
+// Windows swift-mode loses scroll packets between the embedder and the
+// runtime callback, while every other pointer event arrives -- see
+// flwin32_host.c. Registered = consumed.
+void flwin32_host_on_wheel(FlWin32Host* host,
+                           void (*callback)(void* user, double x_pt,
+                                            double y_pt, double delta),
+                           void* user);
+
 int32_t flwin32_winkey_capture(void (*callback)(void* user), void* user);
 void flwin32_winkey_release(void);
 

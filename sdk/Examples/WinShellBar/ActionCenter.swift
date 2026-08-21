@@ -70,6 +70,10 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     /// difference between one call per app and one per card per poll.
     private var appIcons: [String: Int] = [:]
     private var appIconTried: Set<String> = []
+    /// How far the list is scrolled, in points of content. Clamped through
+    /// `clampedScroll` rather than at every mutation, so a shrinking list
+    /// cannot strand the viewport past its own end.
+    private var listScroll = 0.0
     /// What the pointer is over — the interactive parts answer hover the
     /// way the native panel's do. Arithmetic off the root Listener, one
     /// rectangle set for drawing and hit-testing both.
@@ -102,6 +106,21 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         // window was hidden presents as stale black, with no error. On hide,
         // fold the calendar back so the next open starts where the native
         // panel starts.
+        // The wheel, from the host — the engine's Windows swift-mode drops
+        // scroll packets (flwin32_host.c has the account), so the Listener's
+        // onPointerSignal below never fires today. It stays wired for the
+        // fixed engine; the host consumes only while this hook is registered.
+        Win32WindowedHost.host?.onWheel { [weak self] x, y, delta in
+            guard let self, y < self.notifPanel.h else { return }
+            let limit = self.maxScroll(self.listRows().contentH)
+            let next = min(max(0, self.clampedScroll + delta), limit)
+            if next != self.clampedScroll {
+                self.setState {
+                    self.listScroll = next
+                    self.hovered = self.acHover(x, y)
+                }
+            }
+        }
         Win32WindowedHost.host?.onToggle { [weak self] in
             guard let self else { return }
             if Win32WindowedHost.host?.isVisible == true {
@@ -112,6 +131,7 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                     self.calendarExpanded = false
                     self.monthOffset = 0
                     self.hovered = nil
+                    self.listScroll = 0
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     Win32WindowedHost.host?.requestRedraw()
@@ -216,8 +236,9 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         let kind: RowKind
     }
 
-    /// Rows that fit, and how many cards did not.
-    private func listRows() -> (rows: [ListRow], hidden: Int) {
+    /// Every row, in content coordinates from 0 — the viewport scrolls over
+    /// them. Also the content's total height, for the clamp and the thumb.
+    private func listRows() -> (rows: [ListRow], contentH: Double) {
         var order: [String] = []
         var byApp: [String: [Int]] = [:]
         for (i, t) in toasts.enumerated() {
@@ -225,22 +246,29 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             byApp[t.app, default: []].append(i)
         }
         var rows: [ListRow] = []
-        var y = 48.0
-        var shown = 0
-        let limit = notifPanel.h - 26
-        outer: for app in order {
-            if y + headerH > limit { break }
+        var y = 0.0
+        for app in order {
             rows.append(ListRow(y: y, h: headerH, kind: .appHeader(app)))
             y += headerH
             for i in byApp[app] ?? [] {
-                if y + cardH > limit { break outer }
                 rows.append(ListRow(y: y, h: cardH, kind: .card(i)))
                 y += cardH + cardGap
-                shown += 1
             }
             y += 4
         }
-        return (rows, toasts.count - shown)
+        return (rows, y)
+    }
+
+    /// The viewport the rows scroll inside: below the panel's header, above
+    /// its bottom inset.
+    private var listTop: Double { 48 }
+    private var listViewH: Double { notifPanel.h - listTop - 10 }
+
+    private func maxScroll(_ contentH: Double) -> Double {
+        max(0, contentH - listViewH)
+    }
+    private var clampedScroll: Double {
+        min(max(0, listScroll), maxScroll(listRows().contentH))
     }
 
     private func cardRect(_ row: ListRow) -> AcRect {
@@ -324,10 +352,13 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         if calendarExpanded, calNext.contains(x, y) { return .next }
         if calHeader.contains(x, y) { return .header }
         if !toasts.isEmpty, clearAllRect.contains(x, y) { return .clearAll }
-        for row in listRows().rows {
-            guard case .card(let i) = row.kind else { continue }
-            if cardCloseRect(row).contains(x, y) { return .cardClose(i) }
-            if cardRect(row).contains(x, y) { return .card(i) }
+        if y >= listTop, y <= listTop + listViewH {
+            let cy = y - listTop + clampedScroll
+            for row in listRows().rows {
+                guard case .card(let i) = row.kind else { continue }
+                if cardCloseRect(row).contains(x, cy) { return .cardClose(i) }
+                if cardRect(row).contains(x, cy) { return .card(i) }
+            }
         }
         return nil
     }
@@ -337,11 +368,14 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             clearAllToasts()
             return
         }
-        for row in listRows().rows {
-            guard case .card(let i) = row.kind,
-                  cardCloseRect(row).contains(x, y) else { continue }
-            removeToast(toasts[i].id)
-            return
+        if y >= listTop, y <= listTop + listViewH {
+            let cy = y - listTop + clampedScroll
+            for row in listRows().rows {
+                guard case .card(let i) = row.kind,
+                      cardCloseRect(row).contains(x, cy) else { continue }
+                removeToast(toasts[i].id)
+                return
+            }
         }
         if calHeader.contains(x, y) {
             setState { calendarExpanded.toggle() }
@@ -392,9 +426,11 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         return f.string(from: t.time)
     }
 
-    private func toastCard(_ row: ListRow, _ i: Int, _ p: WinPalette) -> Widget {
+    private func toastCard(_ row: ListRow, _ i: Int, _ p: WinPalette,
+                           _ offset: Double) -> Widget {
         let toast = toasts[i]
-        let r = cardRect(row)
+        var r = cardRect(row)
+        r = AcRect(x: r.x, y: r.y - offset, w: r.w, h: r.h)
         let hoveredHere: Bool = {
             switch hovered {
             case .card(let j), .cardClose(let j): return j == i
@@ -452,8 +488,9 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     }
 
     /// One app's header row: its logo and its name, the native section head.
-    private func appHeaderRow(_ row: ListRow, _ app: String, _ p: WinPalette) -> Widget {
-        Positioned(left: 16, top: row.y, width: kAcWidth - 32, height: row.h) {
+    private func appHeaderRow(_ row: ListRow, _ app: String, _ p: WinPalette,
+                              _ offset: Double) -> Widget {
+        Positioned(left: 16, top: row.y - offset, width: kAcWidth - 32, height: row.h) {
             Row(crossAxisAlignment: .center, spacing: 8) {
                 if let tex = appIcons[app] {
                     SizedBox(width: 16, height: 16) {
@@ -469,6 +506,7 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     private func notificationsBody(_ p: WinPalette) -> Widget {
         let emptyY = notifPanel.h * 0.42
         let list = listRows()
+        let offset = clampedScroll
         return Stack(alignment: Alignment.topLeft) {
             // Header: the title, the do-not-disturb bell (still a stub), and
             // "Clear all" — live exactly when there is something to clear.
@@ -502,23 +540,40 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                     }
                 }
             } else {
-                for row in list.rows {
-                    switch row.kind {
-                    case .appHeader(let app):
-                        appHeaderRow(row, app, p)
-                    case .card(let i):
-                        toastCard(row, i, p)
-                    }
-                }
-                if list.hidden > 0 {
-                    Positioned(left: 0, top: notifPanel.h - 24,
-                               width: kAcWidth, height: 18) {
-                        Center {
-                            Text("+ \(list.hidden) more",
-                                 style: TextStyle(color: p.subInk, fontSize: 12))
+                // The viewport: rows drawn shifted by the scroll, clipped to
+                // the panel's list area, only the ones that intersect it.
+                Positioned(left: 0, top: listTop, width: kAcWidth, height: listViewH) {
+                    ClipRRect(borderRadius: BorderRadius.circular(0)) {
+                        Stack(alignment: Alignment.topLeft) {
+                            for row in list.rows
+                            where row.y + row.h > offset && row.y < offset + listViewH {
+                                switch row.kind {
+                                case .appHeader(let app):
+                                    appHeaderRow(row, app, p, offset)
+                                case .card(let i):
+                                    toastCard(row, i, p, offset)
+                                }
+                            }
                         }
                     }
                 }
+                // The thumb, while there is anywhere to scroll to.
+                if maxScroll(list.contentH) > 0 {
+                    scrollThumb(list.contentH, p)
+                }
+            }
+        }
+    }
+
+    /// The scrollbar's thumb: proportional, right-aligned in the viewport —
+    /// the quiet kind Windows shows on a scrollable flyout.
+    private func scrollThumb(_ contentH: Double, _ p: WinPalette) -> Widget {
+        let thumbH = max(24, listViewH * listViewH / contentH)
+        let track = listViewH - thumbH
+        let y = listTop + track * (clampedScroll / maxScroll(contentH))
+        return Positioned(left: kAcWidth - 7, top: y, width: 4, height: thumbH) {
+            ClipRRect(borderRadius: BorderRadius.circular(2)) {
+                ColoredBox(color: p.trackRest) { SizedBox(expand: ()) }
             }
         }
     }
@@ -633,6 +688,21 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                     let over = self.acHover(event.position.dx, event.position.dy)
                     if over != self.hovered {
                         self.setState { self.hovered = over }
+                    }
+                },
+                onPointerSignal: { [weak self] event in
+                    guard let self,
+                          let scroll = event as? PointerScrollEvent,
+                          scroll.position.dy < self.notifPanel.h else { return }
+                    let limit = self.maxScroll(self.listRows().contentH)
+                    let next = min(max(0, self.clampedScroll + scroll.scrollDelta.dy), limit)
+                    if next != self.clampedScroll {
+                        self.setState {
+                            self.listScroll = next
+                            // The rows move under a stationary pointer.
+                            self.hovered = self.acHover(scroll.position.dx,
+                                                        scroll.position.dy)
+                        }
                     }
                 },
                 behavior: .opaque,

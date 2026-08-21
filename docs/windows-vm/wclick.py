@@ -23,6 +23,9 @@ $sig = @"
 [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
 [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
 [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint data, UIntPtr extra);
+[DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(long pt);
+[DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 "@
 $u = Add-Type -MemberDefinition $sig -Name U -Namespace W -PassThru
 [void]$u::SetProcessDpiAwarenessContext([IntPtr](-4))
@@ -51,9 +54,21 @@ def main():
     p.add_argument("--double", action="store_true")
     p.add_argument("--right", action="store_true")
     p.add_argument("--move-only", action="store_true")
+    p.add_argument("--wheel", type=int, default=0,
+                   help="scroll clicks at X,Y instead of a button click; negative scrolls down")
     a = p.parse_args()
 
-    if a.move_only:
+    if a.wheel:
+        # Wheel routes to the FOCUS window, and the injecting task's hidden
+        # console holds it -- foreground the window under the cursor first,
+        # which is what a physical user's click-then-scroll already did.
+        clicks = (
+            f"$pt = [long]{a.x} -bor ([long]{a.y} -shl 32); "
+            "$w = $u::GetAncestor($u::WindowFromPoint($pt), 2); "
+            "if ($w -ne [IntPtr]::Zero) { [void]$u::SetForegroundWindow($w) }; "
+            "Start-Sleep -Milliseconds 150; "
+            f"$u::mouse_event(0x0800,0,0,[uint32]({a.wheel * 120} -band 0xFFFFFFFF),[UIntPtr]::Zero)")
+    elif a.move_only:
         clicks = ""
     else:
         down, up = ("0x0008", "0x0010") if a.right else ("0x0002", "0x0004")

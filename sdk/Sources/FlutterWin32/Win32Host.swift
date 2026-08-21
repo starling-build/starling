@@ -153,6 +153,20 @@ public final class Win32Host {
 
     /// Called when any Starling surface broadcasts a toggle. Runs on the UI
     /// thread, inside the message loop.
+    /// Wheel events, handed straight from the host — the engine's Windows
+    /// swift-mode loses scroll packets (see flwin32_host.c), so a surface
+    /// that scrolls takes the wheel here. Client points; delta is list
+    /// points, one notch = 48.
+    public func onWheel(_ handler: @escaping (Double, Double, Double) -> Void) {
+        Win32Host.wheelHandler = handler
+        flwin32_host_on_wheel(host, { _, x, y, delta in
+            Win32Host.wheelHandler?(x, y, delta)
+        }, nil)
+    }
+
+    /// One UI thread, one host per process — same bargain as the toggle.
+    nonisolated(unsafe) private static var wheelHandler: ((Double, Double, Double) -> Void)?
+
     public func onToggle(_ handler: @escaping () -> Void) {
         Win32Host.toggleHandler = handler
         flwin32_host_on_toggle(host, { _ in Win32Host.toggleHandler?() }, nil)

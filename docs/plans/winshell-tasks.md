@@ -25,6 +25,20 @@ Render time; first frame after idle fires immediately instead of snapping to
 the tick grid; programmatic setState gets a real embedder frame on Win32
 (hostScheduleEngineFrame).
 
+## Engine debt, found from the flyouts
+
+- [ ] **Windows swift-mode loses scroll packets.** Verified end-to-end on the
+      notification centre: WM_MOUSEWHEEL reaches the engine child's wndproc
+      (OnScroll runs), and no pointer datum with signalKind=scroll ever
+      arrives at the SwiftRuntime callback — while moves, hovers and clicks
+      on the same pipe are fine. Every scrollable on Win32 is affected;
+      Files' ListView only appears to work because nobody wheels it. Until
+      the engine drop is found, the host hands the wheel straight to the
+      surface (flwin32_host_on_wheel, registered = consumed so a fixed
+      engine cannot double-deliver) and the notification centre scrolls
+      through it. The frame also forwards WM_MOUSEWHEEL to the child, since
+      the wheel routes by focus and the frame can hold it.
+
 ## File explorer — visual polish (small)
 
 - [x] Hover states — everywhere native has them: caption trio (close goes
