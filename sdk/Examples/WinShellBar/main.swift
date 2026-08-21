@@ -52,6 +52,7 @@ let wantsAppbar = !CommandLine.arguments.contains("--no-appbar")
 let wantsLauncher = CommandLine.arguments.contains("--launcher")
 let wantsSettings = CommandLine.arguments.contains("--settings")
 let wantsFiles = CommandLine.arguments.contains("--files")
+let wantsNotifications = CommandLine.arguments.contains("--notifications")
 
 // `--monitor N` indexes Win32Display.monitors(); absent means the primary.
 // One value, given to BOTH the placement that puts the window on a screen and
@@ -636,6 +637,25 @@ if wantsFiles {
                    width: Int(980 * panelScale),
                    height: Int(680 * panelScale)) {
         StarlingSettings()
+    }
+} else if wantsNotifications {
+    // The notification centre: the launcher's bargain exactly — a parked
+    // overlay, hidden until its toggle — but pinned to the work area's
+    // right edge and listening on its OWN channel, so Win+N does not toggle
+    // the launcher too.
+    if !wantsPlain {
+        Win32WindowedHost.overlay = OverlayPlacement(
+            monitor: wantsMonitor, opacity: 1.0,
+            size: (width: kAcWidth, height: kAcHeightPt),
+            bottomMargin: kAcPanelGap,
+            rightMargin: 13,
+            channel: "notifications",
+            transparent: true)
+    }
+    runStarlingApp(title: "Starling Notifications",
+                   width: Int(kAcWidth * panelScale),
+                   height: Int(kAcHeightPt * panelScale)) {
+        StarlingActionCenter()
     }
 } else if wantsLauncher {
     // An overlay, not a panel: it is not an edge and it reserves nothing. It

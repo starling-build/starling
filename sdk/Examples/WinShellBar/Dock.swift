@@ -261,15 +261,23 @@ final class StarlingDockState: State<StatefulWidget> {
             self?.bloc.add(.tick)
         }
 
-        // Win+A is Quick Settings, exactly as it is on the shell this one
-        // replaces. Registered here rather than in main because the panel's
-        // open flag lives in this State; the hook itself was installed
-        // before the window existed, and chords ride it. Win+N will join it
-        // when the notification centre exists.
-        Win32Shell.captureSuperChords(["A"]) { [weak self] _ in
+        // Win+A is Quick Settings and Win+N the notification centre, exactly
+        // as on the shell this one replaces. Registered here rather than in
+        // main because Quick Settings' open flag lives in this State; the
+        // hook itself was installed before the window existed, and chords
+        // ride it.
+        Win32Shell.captureSuperChords(["A", "N"]) { [weak self] letter in
             guard let self else { return }
-            self.setState { self.controlCentreOpen.toggle() }
+            if letter == "N" {
+                self.setState { self.controlCentreOpen = false }
+                Win32Shell.toggleOverlay(channel: "notifications")
+            } else {
+                self.setState { self.controlCentreOpen.toggle() }
+            }
         }
+        // Park the notification centre now, so the first Win+N is a show
+        // rather than a second engine boot. Idempotent across dock restarts.
+        Win32Shell.ensureNotificationCenter()
     }
 
     override func dispose() {
@@ -484,6 +492,25 @@ final class StarlingDockState: State<StatefulWidget> {
         }
     }
 
+    /// The clock's slice of the status cluster — pressing it opens the
+    /// notification centre, exactly the split the native taskbar makes: the
+    /// icons open Quick Settings, the clock opens the calendar. Wide enough
+    /// for "11:02 Thu 20 Aug" plus the edge padding; zero on a vertical
+    /// dock, where the whole cluster stays on Quick Settings.
+    private var acOpener: CcRect {
+        let w = 126.0
+        switch bloc.state.edge {
+        case .bottom:
+            return CcRect(x: ShellScreen.logicalWidth - w,
+                          y: stripOffset, w: w, h: Double(kDockHeight))
+        case .top:
+            return CcRect(x: ShellScreen.logicalWidth - w, y: 0,
+                          w: w, h: Double(kDockHeight))
+        case .left, .right:
+            return CcRect(x: 0, y: 0, w: 0, h: 0)
+        }
+    }
+
     /// A tile press. Toggles stay open, launches close — the native panel's
     /// own behaviour, and the reason `closes` is on the tile rather than
     /// decided here.
@@ -522,41 +549,9 @@ final class StarlingDockState: State<StatefulWidget> {
         Int((min(1, max(0, (x - track.x) / track.w)) * 100).rounded())
     }
 
-    // MARK: - The Windows 11 palette
-    //
-    // Sampled off the native panel (light) and its dark twin. Not our
-    // desktop's colours on purpose: this surface impersonates Windows, and
-    // the accent pair is the one place light and dark disagree in kind —
-    // dark mode's accent is a LIGHT blue with BLACK glyphs on it.
-    private struct QsPalette {
-        let panel: Color
-        let stroke: Color
-        let button: Color
-        let buttonStroke: Color
-        let accent: Color
-        let onAccent: Color
-        let ink: Color
-        let subInk: Color
-        let disabledInk: Color
-        let trackRest: Color
-        let divider: Color
-    }
-
-    private var qsPalette: QsPalette {
-        bloc.state.darkMode
-            ? QsPalette(panel: Color(0xF52C2C2C), stroke: Color(0xFF1D1D1D),
-                        button: Color(0xFF383838), buttonStroke: Color(0xFF454545),
-                        accent: Color(0xFF4CC2FF), onAccent: Color(0xFF000000),
-                        ink: Color(0xFFFFFFFF), subInk: Color(0xFFCFCFCF),
-                        disabledInk: Color(0xFF6E6E6E),
-                        trackRest: Color(0xFF9D9D9D), divider: Color(0xFF3D3D3D))
-            : QsPalette(panel: Color(0xF5F2F2F2), stroke: Color(0xFFD8D8D8),
-                        button: Color(0xFFFBFBFB), buttonStroke: Color(0xFFE5E5E5),
-                        accent: Color(0xFF0067C0), onAccent: Color(0xFFFFFFFF),
-                        ink: Color(0xFF1B1B1B), subInk: Color(0xFF5D5D5D),
-                        disabledInk: Color(0xFF9D9D9D),
-                        trackRest: Color(0xFF868686), divider: Color(0xFFE5E5E5))
-    }
+    /// The Windows 11 flyout palette — shared with the notification centre,
+    /// see WinTheme.swift.
+    private var qsPalette: WinPalette { WinPalette.of(dark: bloc.state.darkMode) }
 
     /// One grid cell: the 94x48 button, then its label centred in the space
     /// beneath — two widgets, one rect, exactly the native anatomy.
@@ -1810,6 +1805,16 @@ final class StarlingDockState: State<StatefulWidget> {
                     if self.handlePreview(x, y) { return }
                     if self.menuOpen != nil, self.handleTileMenu(x, y) { return }
                     if self.controlCentreOpen, self.handleControlCentre(x, y) { return }
+                    // The clock before the rest of the cluster — its slice
+                    // sits inside ccOpener's rectangle.
+                    if self.acOpener.contains(x, y) {
+                        self.setState {
+                            self.controlCentreOpen = false
+                            self.menuOpen = nil
+                        }
+                        Win32Shell.toggleOverlay(channel: "notifications")
+                        return
+                    }
                     if self.ccOpener.contains(x, y) {
                         self.setState {
                             self.controlCentreOpen.toggle()

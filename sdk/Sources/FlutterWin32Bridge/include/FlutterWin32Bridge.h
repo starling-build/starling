@@ -504,6 +504,21 @@ void flwin32_trace(const char* label);
 void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha,
                               int32_t width_pt, int32_t height_pt,
                               int32_t margin_pt);
+// Pin a sized overlay to the work area's RIGHT edge instead of centring it —
+// where Windows 11 puts its notification centre. Call before set_overlay.
+void flwin32_host_set_overlay_anchor_right(FlWin32Host* host,
+                                           int32_t right_margin_pt);
+// Key pure black out of a sized overlay — the panel's colour-key trick, for
+// an overlay drawn as separate blocks with see-through gaps. Call before
+// set_overlay.
+void flwin32_host_set_overlay_colorkey(FlWin32Host* host);
+// Move this overlay onto a named toggle channel. Every overlay hears
+// HWND_BROADCAST, so a second overlay kind NEEDS its own channel or Win+N
+// toggles the launcher too. Call before set_overlay.
+void flwin32_host_set_overlay_channel(FlWin32Host* host, const char* channel);
+void flwin32_shell_broadcast_toggle_channel(const char* channel);
+// Start the notification-centre process parked if it is not already running.
+void flwin32_shell_ensure_notification_center(void);
 void flwin32_host_set_visible(FlWin32Host* host, int32_t visible);
 int32_t flwin32_host_is_visible(FlWin32Host* host);
 

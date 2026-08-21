@@ -75,7 +75,10 @@ public enum Win32WindowedHost {
                 h.setOverlay(monitor: placement.monitor,
                              opacity: placement.opacity,
                              size: placement.size,
-                             bottomMargin: placement.bottomMargin)
+                             bottomMargin: placement.bottomMargin,
+                             rightMargin: placement.rightMargin,
+                             channel: placement.channel,
+                             transparent: placement.transparent)
             }
             flwin32_trace("mountWidget: begin")
             h.mountWidget(root)
