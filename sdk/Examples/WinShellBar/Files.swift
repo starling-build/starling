@@ -296,24 +296,26 @@ final class StarlingFilesState: State<StatefulWidget> {
                 Stack(alignment: Alignment.topLeft) {
                     Column(crossAxisAlignment: .stretch) {
                     tabStrip()
+                    // Explorer's order, full width: the address row, then
+                    // the command bar, and only THEN the sidebar/listing
+                    // split -- the sidebar starts below the bars, and so
+                    // does ours now.
+                    navigationBar()
+                    commandBar()
                     Expanded {
                     Row(crossAxisAlignment: .stretch) {
                         sidebar()
                         Expanded {
                             Column(crossAxisAlignment: .stretch) {
-                                // Explorer's order: the address row sits
-                                // ABOVE the command bar.
-                                navigationBar()
-                                commandBar()
                                 columnHeaders()
                                 Expanded {
                                     ColoredBox(color: Win11.listBg) { listing() }
                                 }
-                                statusBar()
                             }
                         }
                     }
                     }
+                    statusBar()
                     }
                     // Always mounted, drawing nothing when there is no menu:
                     // a Stack that GAINS a child does not reliably composite
@@ -362,7 +364,8 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// the single biggest visual difference from native. Ordered as Explorer
     /// pins them: Desktop, Downloads, Documents, Pictures, Music, Videos.
     private static let placeLooks: [String: (glyph: IconData, tint: Color)] = [
-        "Home": (CupertinoIcons.house, Color(0xFF4E80C9)),
+        // Home's house is the warm one, as Windows paints it.
+        "Home": (CupertinoIcons.house_fill, Color(0xFFCB6E3C)),
         "Desktop": (CupertinoIcons.macwindow, Color(0xFF4E80C9)),
         "Downloads": (CupertinoIcons.arrow_down_circle, Color(0xFF3F9E49)),
         "Documents": (CupertinoIcons.doc_text, Color(0xFF5E7CA8)),
@@ -663,13 +666,15 @@ final class StarlingFilesState: State<StatefulWidget> {
         SizedBox(height: kFilesNavBar) {
             Padding(padding: EdgeInsets(left: 10, top: 0, right: 10, bottom: 6)) {
                 Row(crossAxisAlignment: .center, spacing: 4) {
-                    navIcon(CupertinoIcons.chevron_left, enabled: bloc.canGoBack) {
+                    // Long arrows, as Explorer draws them -- the thin
+                    // chevrons read as a different application.
+                    navIcon(CupertinoIcons.arrow_left, enabled: bloc.canGoBack) {
                         self.bloc.add(.goBack)
                     }
-                    navIcon(CupertinoIcons.chevron_right, enabled: bloc.canGoForward) {
+                    navIcon(CupertinoIcons.arrow_right, enabled: bloc.canGoForward) {
                         self.bloc.add(.goForward)
                     }
-                    navIcon(CupertinoIcons.chevron_up, enabled: bloc.state.canGoUp) {
+                    navIcon(CupertinoIcons.arrow_up, enabled: bloc.state.canGoUp) {
                         self.bloc.add(.goUp)
                     }
                     navIcon(CupertinoIcons.arrow_clockwise, enabled: true) {
@@ -884,11 +889,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                          _ action: @escaping () -> Void) -> Widget {
         GestureDetector(
             onTap: enabled ? action : {},
-            child: SizedBox(width: 32, height: 32) {
+            child: SizedBox(width: 36, height: 32) {
                 Center {
                     MacosIcon(icon: icon,
                               color: enabled ? Win11.textDim : Win11.disabled,
-                              size: 13)
+                              size: 15)
                 }
             })
     }
