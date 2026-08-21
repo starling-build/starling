@@ -172,6 +172,12 @@ cost, isolating the listing's rebuild scope, and present-side frame
 statistics -- the last of which is the same plumbing the idle-present
 question below needs.
 
+The road past this list -- replacing explorer.exe itself -- is planned in
+`winshell-shell-replacement.md` (2026-08-21): shell-namespace enumeration
+and the popup-surface spike as the two prerequisites that pay four times
+each, then the desktop surface, tray ownership, toast banners, and the
+Winlogon Shell= slot, every phase VM-proven before the dev box tries it.
+
 ## Deferred by decision (session-sized)
 
 - [ ] The context menu as its own popup window. Feasibility fully
