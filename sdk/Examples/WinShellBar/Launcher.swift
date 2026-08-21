@@ -504,6 +504,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
+        // The chrome glyphs are Segoe Fluent Icons now; Cupertino stays
+        // registered for anything the framework's own controls draw.
+        FluentIcons.registerFont()
 
         // A notification, not a request: the HOST does the showing, because
         // while this overlay is hidden there is no tree to ask — a hidden
@@ -616,8 +619,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     // to find out is to press something.
                     if editing {
                         SizedBox(height: 13) {
-                            MacosIcon(icon: isPinned ? CupertinoIcons.minus_circle_fill
-                                                     : CupertinoIcons.plus_circle,
+                            MacosIcon(icon: isPinned ? FluentIcons.removeFrom
+                                                     : FluentIcons.addTo,
                                       color: isPinned ? Color(0xFFE06C6C)
                                                       : theme.tertiary,
                                       size: 12)
@@ -642,7 +645,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
         if let icon = bloc.icons.view(key, side: side) { return icon }
         return SizedBox(width: side, height: side) {
             Center {
-                MacosIcon(icon: CupertinoIcons.app_badge,
+                MacosIcon(icon: FluentIcons.appDefault,
                           color: theme.tertiary, size: side * 0.7)
             }
         }
@@ -674,8 +677,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
                                 }
                                 if editing {
                                     MacosIcon(icon: isPinned
-                                                  ? CupertinoIcons.minus_circle_fill
-                                                  : CupertinoIcons.plus_circle,
+                                                  ? FluentIcons.removeFrom
+                                                  : FluentIcons.addTo,
                                               color: isPinned ? Color(0xFFE06C6C)
                                                               : theme.tertiary,
                                               size: 14)
@@ -714,7 +717,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                                                     : Color(0x00000000)) {
                             SizedBox(width: 36, height: 36) {
                                 Center {
-                                    MacosIcon(icon: CupertinoIcons.power,
+                                    MacosIcon(icon: FluentIcons.power,
                                               color: theme.text, size: 18)
                                 }
                             }
@@ -764,11 +767,11 @@ final class StarlingLauncherState: State<StatefulWidget> {
 
     private func powerGlyph(_ action: Win32Session.Action) -> IconData {
         switch action {
-        case .lock: return CupertinoIcons.lock_fill
-        case .signOut: return CupertinoIcons.square_arrow_right
-        case .sleep: return CupertinoIcons.moon_fill
-        case .restart: return CupertinoIcons.arrow_clockwise
-        case .shutDown: return CupertinoIcons.power
+        case .lock: return FluentIcons.lock
+        case .signOut: return FluentIcons.signOut
+        case .sleep: return FluentIcons.moon
+        case .restart: return FluentIcons.restart
+        case .shutDown: return FluentIcons.power
         }
     }
 
@@ -819,8 +822,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
                             child: Row(mainAxisSize: .min, crossAxisAlignment: .center,
                                        spacing: 7) {
                                 MacosIcon(icon: group.collapsed
-                                              ? CupertinoIcons.chevron_right
-                                              : CupertinoIcons.chevron_down,
+                                              ? FluentIcons.chevronRight
+                                              : FluentIcons.chevronDown,
                                           color: self.theme.secondary, size: 11)
                                 Text(group.name,
                                      style: TextStyle(color: self.theme.text,
@@ -837,7 +840,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                         GestureDetector(
                             onTap: { self.bloc.add(.beginRename(group.key)) },
                             child: Padding(padding: EdgeInsets(horizontal: 10, vertical: 4)) {
-                                MacosIcon(icon: CupertinoIcons.pencil,
+                                MacosIcon(icon: FluentIcons.edit,
                                           color: self.theme.tertiary, size: 13)
                             })
                     }
@@ -907,7 +910,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                 controller: search,
                 placeholder: "Search for apps and files",
                 prefix: Padding(padding: EdgeInsets(left: 6, top: 0, right: 0, bottom: 0)) {
-                    MacosIcon(icon: CupertinoIcons.search,
+                    MacosIcon(icon: FluentIcons.search,
                               color: theme.secondary, size: 14)
                 },
                 onChanged: { text in
@@ -1085,8 +1088,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
                             icon
                         } else {
                             MacosIcon(icon: entry.isDirectory
-                                          ? CupertinoIcons.folder_fill
-                                          : CupertinoIcons.doc_fill,
+                                          ? FluentIcons.folderFill
+                                          : FluentIcons.document,
                                       color: theme.tertiary, size: 20)
                         }
                         Expanded {
@@ -1168,11 +1171,11 @@ final class StarlingLauncherState: State<StatefulWidget> {
         sectionRow("Pinned",
                    Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 6) {
                        if bloc.state.editingPins {
-                           pill("Done", CupertinoIcons.checkmark, true) {
+                           pill("Done", FluentIcons.check, true) {
                                self.bloc.add(.toggleEditPins)
                            }
                        }
-                       pill("All apps", CupertinoIcons.chevron_right, false) {
+                       pill("All apps", FluentIcons.chevronRight, false) {
                            self.bloc.add(.showAllApps(true))
                        }
                    })
@@ -1189,12 +1192,12 @@ final class StarlingLauncherState: State<StatefulWidget> {
         sectionRow("All apps",
                    Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 6) {
                        pill(bloc.state.editingPins ? "Done" : "Pin apps",
-                            bloc.state.editingPins ? CupertinoIcons.checkmark
-                                                   : CupertinoIcons.pin_fill,
+                            bloc.state.editingPins ? FluentIcons.check
+                                                   : FluentIcons.pinned,
                             bloc.state.editingPins, leading: true) {
                            self.bloc.add(.toggleEditPins)
                        }
-                       pill("Back", CupertinoIcons.chevron_left, false, leading: true) {
+                       pill("Back", FluentIcons.chevronLeft, false, leading: true) {
                            self.bloc.add(.showAllApps(false))
                        }
                    })

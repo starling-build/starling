@@ -42,6 +42,9 @@ final class StarlingSettingsState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
+        // The chrome glyphs are Segoe Fluent Icons now; Cupertino stays
+        // registered for anything the framework's own controls draw.
+        FluentIcons.registerFont()
         bloc.add(.start)
     }
 
@@ -200,8 +203,8 @@ final class StarlingSettingsState: State<StatefulWidget> {
                 Column(crossAxisAlignment: .stretch) {
                     Row(crossAxisAlignment: .center, spacing: 9) {
                         MacosIcon(icon: adapter.kind == .wifi
-                                      ? CupertinoIcons.wifi
-                                      : CupertinoIcons.antenna_radiowaves_left_right,
+                                      ? FluentIcons.wifi
+                                      : FluentIcons.ethernet,
                                   color: adapter.isUp ? Color(0xFF6FCF97)
                                                       : Color(0xFF6E7683),
                                   size: 15)
@@ -270,8 +273,8 @@ final class StarlingSettingsState: State<StatefulWidget> {
             onTap: { self.bloc.add(.setDisplayMode(mode)) },
             child: SizedBox(height: 32) {
                 Row(crossAxisAlignment: .center, spacing: 10) {
-                    MacosIcon(icon: selected ? CupertinoIcons.largecircle_fill_circle
-                                             : CupertinoIcons.circle,
+                    MacosIcon(icon: selected ? FluentIcons.radioOn
+                                             : FluentIcons.radioOff,
                               color: selected ? Color(0xFF4C8DF6) : Color(0xFF6E7683),
                               size: 15)
                     Text("\(mode.label)   ·   \(mode.refresh) Hz",

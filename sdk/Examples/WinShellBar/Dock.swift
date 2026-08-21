@@ -241,6 +241,9 @@ final class StarlingDockState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
+        // The chrome glyphs are Segoe Fluent Icons now; Cupertino stays
+        // registered for anything the framework's own controls draw.
+        FluentIcons.registerFont()
         bloc.add(.start)
         Win32WindowManager.observe { [weak self] _ in
             self?.bloc.add(.windowsChanged)
@@ -463,7 +466,7 @@ final class StarlingDockState: State<StatefulWidget> {
         guard let rect = ccRects().brightness,
               let percent = bloc.state.brightness else { return nil }
         return ccTrack(rect, percent: Double(percent),
-                       icon: CupertinoIcons.sun_max_fill,
+                       icon: FluentIcons.brightness,
                        fill: Color(0xFFE8B84B))
     }
 
@@ -472,7 +475,7 @@ final class StarlingDockState: State<StatefulWidget> {
         let percent = Double(bloc.state.volume?.percent ?? 0)
         return ccTrack(rect, percent: percent,
                        icon: (bloc.state.volume?.isMuted ?? false)
-                           ? CupertinoIcons.speaker_slash : CupertinoIcons.speaker_2,
+                           ? FluentIcons.mute : FluentIcons.volume,
                        fill: Color(0xFF4C8DF6))
     }
 
@@ -522,7 +525,7 @@ final class StarlingDockState: State<StatefulWidget> {
                     ColoredBox(color: Color(0x14FFFFFF)) {
                         Padding(padding: EdgeInsets(left: 12, top: 0, right: 12, bottom: 0)) {
                             Row(crossAxisAlignment: .center, spacing: 10) {
-                                MacosIcon(icon: CupertinoIcons.rectangle_grid_2x2,
+                                MacosIcon(icon: FluentIcons.allApps,
                                           color: Color(0xFFD5DAE3), size: 15)
                                 Expanded {
                                     Text(bloc.state.nativeTaskbarWanted
@@ -597,7 +600,7 @@ final class StarlingDockState: State<StatefulWidget> {
                     ColoredBox(color: Color(0xF41F2229)) {
                         Stack(alignment: Alignment.topLeft) {
                             ccTile(0,
-                                   icon: bloc.state.wifiIsOn ? CupertinoIcons.wifi : CupertinoIcons.wifi_slash,
+                                   icon: bloc.state.wifiIsOn ? FluentIcons.wifi : FluentIcons.wifiOff,
                                    label: bloc.state.network.kind == .ethernet && bloc.state.wifiWanted == nil
                                        ? "Ethernet" : (bloc.state.wifiIsOn ? "Wi-Fi" : "Wi-Fi off"),
                                    active: bloc.state.wifiIsOn || bloc.state.network.kind == .ethernet,
@@ -610,11 +613,11 @@ final class StarlingDockState: State<StatefulWidget> {
                                    available: bloc.state.network.hasWifiAdapter)
                             ccTile(1,
                                    icon: (bloc.state.volume?.isMuted ?? false)
-                                       ? CupertinoIcons.speaker_slash : CupertinoIcons.speaker_2,
+                                       ? FluentIcons.mute : FluentIcons.volume,
                                    label: (bloc.state.volume?.isMuted ?? false) ? "Muted" : "Sound",
                                    active: !(bloc.state.volume?.isMuted ?? false),
                                    available: bloc.state.volume != nil)
-                            ccTile(2, icon: CupertinoIcons.moon_fill, label: "Dark Mode",
+                            ccTile(2, icon: FluentIcons.moon, label: "Dark Mode",
                                    active: bloc.state.darkMode)
                             if let brightness = ccBrightnessSlider() { brightness }
                             ccSlider()
@@ -670,7 +673,7 @@ final class StarlingDockState: State<StatefulWidget> {
     private func networkIcon() -> Widget? {
         let network = bloc.state.network
         guard network.kind != .ethernet else {
-            return MacosIcon(icon: CupertinoIcons.antenna_radiowaves_left_right,
+            return MacosIcon(icon: FluentIcons.network,
                              color: Color(0xFFD5DAE3), size: 15)
         }
         // Nothing at all on a machine with no Wi-Fi. An empty signal meter on
@@ -741,7 +744,7 @@ final class StarlingDockState: State<StatefulWidget> {
                 }
                 if charging {
                     Positioned(left: 8, top: 0, width: 11, height: 15) {
-                        MacosIcon(icon: CupertinoIcons.bolt_fill,
+                        MacosIcon(icon: FluentIcons.bolt,
                                   color: Color(0xFF14161A), size: 11)
                     }
                 }
@@ -777,10 +780,10 @@ final class StarlingDockState: State<StatefulWidget> {
     private func trayChevron() -> Widget {
         let glyph: IconData
         switch bloc.state.edge {
-        case .bottom: glyph = CupertinoIcons.chevron_up
-        case .top: glyph = CupertinoIcons.chevron_down
-        case .left: glyph = CupertinoIcons.chevron_right
-        case .right: glyph = CupertinoIcons.chevron_left
+        case .bottom: glyph = FluentIcons.chevronUp
+        case .top: glyph = FluentIcons.chevronDown
+        case .left: glyph = FluentIcons.chevronRight
+        case .right: glyph = FluentIcons.chevronLeft
         }
         return SizedBox(width: kTrayCell, height: kTrayCell) {
             Center {
@@ -1160,7 +1163,7 @@ final class StarlingDockState: State<StatefulWidget> {
                                 ClipRRect(borderRadius: BorderRadius.circular(10)) {
                                     ColoredBox(color: Color(0xFF2B3550)) {
                                         Center {
-                                            MacosIcon(icon: CupertinoIcons.square_grid_2x2,
+                                            MacosIcon(icon: FluentIcons.allApps,
                                                       color: Color(0xFF9EC2FF), size: 21)
                                         }
                                     }
@@ -1171,7 +1174,7 @@ final class StarlingDockState: State<StatefulWidget> {
                         } else {
                             SizedBox(width: kDockIcon, height: kDockIcon) {
                                 Center {
-                                    MacosIcon(icon: CupertinoIcons.app_badge,
+                                    MacosIcon(icon: FluentIcons.appDefault,
                                               color: Color(0xFFB8C0CC), size: 21)
                                 }
                             }

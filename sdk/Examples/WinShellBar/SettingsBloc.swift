@@ -44,12 +44,12 @@ enum SettingsPane: Int, CaseIterable {
 
     var icon: IconData {
         switch self {
-        case .system: return CupertinoIcons.desktopcomputer
-        case .network: return CupertinoIcons.antenna_radiowaves_left_right
-        case .display: return CupertinoIcons.rectangle_on_rectangle
-        case .sound: return CupertinoIcons.speaker_2_fill
-        case .personalisation: return CupertinoIcons.paintbrush_fill
-        case .storage: return CupertinoIcons.tray_2_fill
+        case .system: return FluentIcons.system
+        case .network: return FluentIcons.network
+        case .display: return FluentIcons.desktop
+        case .sound: return FluentIcons.volume
+        case .personalisation: return FluentIcons.personalize
+        case .storage: return FluentIcons.drive
         }
     }
 

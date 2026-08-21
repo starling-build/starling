@@ -58,6 +58,39 @@ enum FluentIcons {
     static let chevronDown = IconData(0xE70D, fontFamily: family)
     static let chevronUp = IconData(0xE70E, fontFamily: family)
     static let chevronRight = IconData(0xE76C, fontFamily: family)
+    static let chevronLeft = IconData(0xE76B, fontFamily: family)
+
+    // The dock's tiles and Start's controls. Verified against the font's
+    // own cmap and drawn to be looked at before being trusted -- several of
+    // these (SignOut F3B1, the wifi-error EB5E) are not on the Fluent page.
+    static let brightness = IconData(0xE706, fontFamily: family)
+    static let volume = IconData(0xE767, fontFamily: family)
+    static let mute = IconData(0xE74F, fontFamily: family)
+    static let wifi = IconData(0xE701, fontFamily: family)
+    static let wifiOff = IconData(0xEB5E, fontFamily: family)
+    static let ethernet = IconData(0xE839, fontFamily: family)
+    /// The antenna with radio waves (InternetSharing) -- the generic
+    /// "network" glyph, where the adapter's kind is not the point.
+    static let network = IconData(0xE704, fontFamily: family)
+    static let bolt = IconData(0xE945, fontFamily: family)
+    static let moon = IconData(0xE708, fontFamily: family)
+    static let power = IconData(0xE7E8, fontFamily: family)
+    static let restart = IconData(0xE777, fontFamily: family)
+    static let signOut = IconData(0xF3B1, fontFamily: family)
+    static let lock = IconData(0xE72E, fontFamily: family)
+    static let edit = IconData(0xE70F, fontFamily: family)
+    static let allApps = IconData(0xE71D, fontFamily: family)
+    /// The system's own generic-app placeholder (AppIconDefault).
+    static let appDefault = IconData(0xECAA, fontFamily: family)
+    static let addTo = IconData(0xECC8, fontFamily: family)
+    static let removeFrom = IconData(0xECC9, fontFamily: family)
+    static let pinned = IconData(0xE842, fontFamily: family)
+
+    // Settings' rows and radios.
+    static let system = IconData(0xE770, fontFamily: family)
+    static let personalize = IconData(0xE771, fontFamily: family)
+    static let radioOn = IconData(0xECCB, fontFamily: family)
+    static let radioOff = IconData(0xECCA, fontFamily: family)
 
     // The command bar and the menu's verbs.
     static let add = IconData(0xE710, fontFamily: family)
