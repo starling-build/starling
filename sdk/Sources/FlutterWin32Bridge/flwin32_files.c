@@ -82,6 +82,64 @@ int32_t flwin32_known_path(int32_t which, char* out, int32_t out_size) {
 /* What Explorer's Type column says. Falls back to nothing rather than
  * inventing "FOO File" -- the caller can do that itself and knows whether it
  * wants to. */
+/* A date-time the way WINDOWS formats it -- GetDateFormatEx/GetTimeFormatEx
+ * with the user's own locale settings, which is what Explorer's Date
+ * modified column shows. Foundation's formatter answers from its own locale
+ * data and disagrees with the machine ("17/08/2026, 5:59 PM" against
+ * Explorer's "8/17/2026 5:59 PM" on this very box), and a column that
+ * formats dates differently from the Explorer beside it looks broken even
+ * when both are defensible. Takes Unix seconds. */
+int32_t flwin32_format_datetime(int64_t unix_seconds, char* out,
+                                int32_t out_size) {
+    if (out == NULL || out_size <= 0) return 0;
+    /* Unix epoch in FILETIME ticks: 1601 to 1970 is 11644473600 seconds. */
+    long long ticks = (unix_seconds + 11644473600LL) * 10000000LL;
+    FILETIME ft;
+    ft.dwLowDateTime = (DWORD)(ticks & 0xFFFFFFFF);
+    ft.dwHighDateTime = (DWORD)(ticks >> 32);
+    FILETIME local;
+    if (!FileTimeToLocalFileTime(&ft, &local)) return 0;
+    SYSTEMTIME st;
+    if (!FileTimeToSystemTime(&local, &st)) return 0;
+
+    wchar_t date[80];
+    wchar_t time[80];
+    if (GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, NULL,
+                        date, 80, NULL) == 0) {
+        return 0;
+    }
+    if (GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, NULL,
+                        time, 80) == 0) {
+        return 0;
+    }
+    wchar_t joined[170];
+    wcscpy_s(joined, 170, date);
+    wcscat_s(joined, 170, L" ");
+    wcscat_s(joined, 170, time);
+    return wide_out(joined, out, out_size);
+}
+
+/* The shell's DISPLAY name for a path: "Local Disk (C:)" for a drive root,
+ * the localized "Documents" for a known folder -- the strings Explorer's
+ * sidebar and breadcrumb show, which are not the file system's names. */
+int32_t flwin32_file_display_name(const char* path, char* out,
+                                  int32_t out_size) {
+    if (path == NULL) return 0;
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+
+    SHFILEINFOW info;
+    ZeroMemory(&info, sizeof(info));
+    DWORD_PTR ok = SHGetFileInfoW(wide, 0, &info, sizeof(info),
+                                  SHGFI_DISPLAYNAME);
+    free(wide);
+    if (!ok) return 0;
+    return wide_out(info.szDisplayName, out, out_size);
+}
+
 int32_t flwin32_file_type_name(const char* path, char* out, int32_t out_size) {
     if (path == NULL) return 0;
     int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);

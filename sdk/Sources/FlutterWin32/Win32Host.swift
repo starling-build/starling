@@ -97,6 +97,26 @@ public final class Win32Host {
         flwin32_host_request_redraw(host)
     }
 
+    /// Give the caption to the widget tree: the app draws the titlebar (tabs,
+    /// caption buttons) and owes the window `beginDrag`, `minimize`,
+    /// `toggleMaximize` and `closeWindow` in return. Resize borders stay the
+    /// system's.
+    public func setCustomTitlebar(_ enable: Bool = true) {
+        flwin32_host_set_custom_titlebar(host, enable ? 1 : 0)
+    }
+
+    /// Hand a press on the app-drawn titlebar to the frame as a caption
+    /// click -- Windows runs its own move loop, snap layouts included. Call
+    /// during the pointer-down.
+    public func beginDrag() {
+        flwin32_host_begin_drag(host)
+    }
+
+    public func minimize() { flwin32_host_minimize(host) }
+    public func toggleMaximize() { flwin32_host_toggle_maximize(host) }
+    public var isMaximized: Bool { flwin32_host_is_maximized(host) != 0 }
+    public func closeWindow() { flwin32_host_close_window(host) }
+
     /// The host's TOP-LEVEL window, for the Win32 calls that take an HWND
     /// rather than a view -- a DWM thumbnail's destination is the first of
     /// them. Not the engine's child view: a thumbnail placed against that

@@ -175,6 +175,16 @@ void flwin32_shell_open_files(void);
 // menu can enable Paste without opening anything.
 int32_t flwin32_clipboard_has_files(void);
 
+// The shell's display name for a path -- "Local Disk (C:)", the localized
+// "Documents" -- the strings Explorer's own chrome shows.
+int32_t flwin32_file_display_name(const char* path, char* out,
+                                  int32_t out_size);
+
+// A date-time formatted the way Windows itself formats one (user locale,
+// short date, no seconds) -- what Explorer's Date modified column shows.
+int32_t flwin32_format_datetime(int64_t unix_seconds, char* out,
+                                int32_t out_size);
+
 // Paste the clipboard's files into target_dir, honouring the preferred drop
 // effect: a cut MOVES and then clears the clipboard, a copy COPIES and
 // leaves it.
@@ -459,6 +469,25 @@ int32_t flwin32_host_client_size(FlWin32Host* host, int32_t* width,
                                  int32_t* height);
 
 void flwin32_host_request_redraw(FlWin32Host* host);
+
+// -- custom titlebar --------------------------------------------------------
+//
+// Gives the CAPTION to the client, so the widget tree draws the titlebar --
+// tabs, caption buttons and all, the way Explorer's own window works. The
+// resize borders stay the system's; the top band is still resizable (the
+// child view declines those hits). The tree then owes the window a way to
+// move and to close: the three calls below, plus begin_drag on the strip.
+void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable);
+
+// Hand a press on the app-drawn titlebar to the frame as a caption click --
+// Windows runs its own move loop, snap layouts included. Call during the
+// pointer-down, on the UI thread.
+void flwin32_host_begin_drag(FlWin32Host* host);
+
+void flwin32_host_minimize(FlWin32Host* host);
+void flwin32_host_toggle_maximize(FlWin32Host* host);
+int32_t flwin32_host_is_maximized(FlWin32Host* host);
+void flwin32_host_close_window(FlWin32Host* host);
 
 void flwin32_host_on_toggle(FlWin32Host* host,
                             void (*callback)(void* user),

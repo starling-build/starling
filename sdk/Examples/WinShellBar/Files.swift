@@ -30,7 +30,15 @@ let kFilesSidebar = 220.0
 let kFilesRow = 28.0
 /// Explorer's three stacked bars, and the column-header strip under them.
 /// Everything above the list, which is what the row arithmetic measures from.
-let kFilesTabStrip = 38.0
+/// The titlebar strip. Taller than the old in-window tab row because it IS
+/// the titlebar now: the caption belongs to the client (setCustomTitlebar),
+/// the way Explorer's own tabs live in its caption.
+let kFilesTabStrip = 44.0
+/// One caption button (minimize / maximize / close), Windows' own width.
+let kCaptionButtonW = 46.0
+/// The tab's fixed geometry, shared by the drawing and the strip hit test.
+let kTabX = 8.0
+let kTabW = 220.0
 let kFilesCommandBar = 44.0
 let kFilesNavBar = 44.0
 let kFilesHeaderRow = 26.0
@@ -217,6 +225,18 @@ final class StarlingFilesState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
+        // The caption becomes ours to draw: tabs in the titlebar, exactly
+        // Explorer's shape. The strip's hit test (stripPress) owes the
+        // window drag, minimize, maximize and close in exchange.
+        //
+        // DEFERRED, not called here: the style change fires a synchronous
+        // WM_SIZE, the embedder answers it with a frame, and that frame
+        // re-enters the adapter while THIS build is mid-flight -- measured
+        // as a crash on the adapter's own force-unwraps. After the current
+        // frame settles, the resize is just a resize.
+        DispatchQueue.main.async {
+            Win32WindowedHost.host?.setCustomTitlebar()
+        }
         // The listing is the only thing the menu cannot work out for itself.
         menu.target = { [weak self] x, y in self?.targetAt(x, y) }
         bloc.add(.start)
@@ -253,6 +273,14 @@ final class StarlingFilesState: State<StatefulWidget> {
                                         buttons: e.buttons)
                         return
                     }
+                    // The titlebar strip is ours to run: buttons, tab, and
+                    // the drag handle. Left button only — a right-click on
+                    // a real titlebar shows the system menu, which is not
+                    // built, and swallowing it quietly beats faking it.
+                    if e.buttons == 1 && e.position.dy < kFilesTabStrip {
+                        self.stripPress(e.position.dx, e.position.dy)
+                        return
+                    }
                     if e.buttons == 2 {
                         self.menu.open(at: e.position.dx, e.position.dy)
                     }
@@ -273,8 +301,10 @@ final class StarlingFilesState: State<StatefulWidget> {
                         sidebar()
                         Expanded {
                             Column(crossAxisAlignment: .stretch) {
-                                commandBar()
+                                // Explorer's order: the address row sits
+                                // ABOVE the command bar.
                                 navigationBar()
+                                commandBar()
                                 columnHeaders()
                                 Expanded {
                                     ColoredBox(color: Win11.listBg) { listing() }
@@ -327,19 +357,65 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     // MARK: - Sidebar
 
+    /// Each known folder's glyph and tint, approximating the coloured icons
+    /// Explorer's sidebar draws -- a uniform column of yellow folders was
+    /// the single biggest visual difference from native. Ordered as Explorer
+    /// pins them: Desktop, Downloads, Documents, Pictures, Music, Videos.
+    private static let placeLooks: [String: (glyph: IconData, tint: Color)] = [
+        "Home": (CupertinoIcons.house, Color(0xFF4E80C9)),
+        "Desktop": (CupertinoIcons.macwindow, Color(0xFF4E80C9)),
+        "Downloads": (CupertinoIcons.arrow_down_circle, Color(0xFF3F9E49)),
+        "Documents": (CupertinoIcons.doc_text, Color(0xFF5E7CA8)),
+        "Pictures": (CupertinoIcons.photo, Color(0xFF8A5BB8)),
+        "Music": (CupertinoIcons.music_note, Color(0xFFC94E7E)),
+        "Videos": (CupertinoIcons.film, Color(0xFFC97A3F)),
+    ]
+    private static let pinOrder = ["Desktop", "Downloads", "Documents",
+                                   "Pictures", "Music", "Videos"]
+
     private func sidebar() -> Widget {
-        SizedBox(width: kFilesSidebar) {
+        let byName = Dictionary(uniqueKeysWithValues:
+            bloc.state.places.map { ($0.name, $0) })
+        return SizedBox(width: kFilesSidebar) {
             ColoredBox(color: Win11.navPane) {
-                Padding(padding: EdgeInsets(left: 8, top: 6, right: 8, bottom: 8)) {
+                Padding(padding: EdgeInsets(left: 8, top: 10, right: 8, bottom: 8)) {
                     Column(crossAxisAlignment: .stretch) {
-                        sidebarHeading("Home")
-                        for place in bloc.state.places { placeRow(place) }
-                        SizedBox(height: 12)
-                        sidebarHeading("This PC")
-                        for drive in bloc.state.drives { placeRow(drive) }
+                        // Home first, alone -- Explorer's own shape: no
+                        // section headings, the rows are the structure.
+                        if let home = byName["Home"] { placeRow(home) }
+                        sidebarRule()
+                        // The pinned folders, in Explorer's order, each
+                        // carrying its pin.
+                        for name in Self.pinOrder {
+                            if let place = byName[name] {
+                                placeRow(place, pinned: true)
+                            }
+                        }
+                        sidebarRule()
+                        // This PC leads its drives, computer glyph and all.
+                        // Not expandable yet: the drives are simply always
+                        // shown, which for one drive is the same picture.
+                        placeRow(Win32Place(name: "This PC", path: ""),
+                                 glyph: CupertinoIcons.desktopcomputer)
+                        for drive in bloc.state.drives {
+                            Padding(padding: EdgeInsets(left: 14, top: 0,
+                                                        right: 0, bottom: 0)) {
+                                placeRow(Win32Place(
+                                    name: Win32Files.displayName(for: drive.path),
+                                    path: drive.path),
+                                    glyph: CupertinoIcons.square_stack_3d_up)
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+
+    /// The hairline between sidebar groups, inset the way Explorer's are.
+    private func sidebarRule() -> Widget {
+        Padding(padding: EdgeInsets(left: 10, top: 8, right: 10, bottom: 8)) {
+            SizedBox(height: 1) { ColoredBox(color: Win11.stroke) { SizedBox(height: 1) } }
         }
     }
 
@@ -350,24 +426,36 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
     }
 
-    private func placeRow(_ place: Win32Place) -> Widget {
-        let selected = bloc.state.directory == place.path
+    private func placeRow(_ place: Win32Place, pinned: Bool = false,
+                          glyph: IconData? = nil) -> Widget {
+        let selected = !place.path.isEmpty
+            && bloc.state.directory == place.path
+        let look = Self.placeLooks[place.name]
+        let icon = glyph ?? look?.glyph ?? CupertinoIcons.folder_fill
+        let tint = glyph != nil ? Win11.textDim
+            : (look?.tint ?? (Win11.light ? Color(0xFF4E80C9)
+                                          : Color(0xFF7FA9DE)))
         return GestureDetector(
-            onTap: { self.bloc.add(.open(place.path)) },
+            onTap: {
+                guard !place.path.isEmpty else { return }
+                self.bloc.add(.open(place.path))
+            },
             child: Padding(padding: EdgeInsets(left: 0, top: 1, right: 0, bottom: 1)) {
                 ClipRRect(borderRadius: BorderRadius.circular(6)) {
                     ColoredBox(color: selected ? Color(0x2E6FA8FF) : Color(0x00000000)) {
                         SizedBox(height: 30) {
                             Padding(padding: EdgeInsets(horizontal: 10, vertical: 0)) {
                                 Row(crossAxisAlignment: .center, spacing: 9) {
-                                    MacosIcon(icon: CupertinoIcons.folder_fill,
-                                              color: Win11.light ? Color(0xFF4E80C9)
-                                                                 : Color(0xFF7FA9DE),
-                                              size: 14)
+                                    MacosIcon(icon: icon, color: tint, size: 14)
                                     Text(place.name,
                                          style: TextStyle(color: Win11.text,
                                                           fontSize: 13),
                                          maxLines: 1)
+                                    if pinned {
+                                        Expanded { SizedBox(height: 1) }
+                                        MacosIcon(icon: CupertinoIcons.pin,
+                                                  color: Win11.textFaint, size: 11)
+                                    }
                                 }
                             }
                         }
@@ -387,26 +475,113 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// window that can hold several listings and this holds one, so a strip
     /// that pretended otherwise would be chrome that does nothing. The shape
     /// is Explorer's; the count is honest.
+    /// The titlebar: the active tab, "+", and the caption buttons -- drawn
+    /// by us because the caption is client area now. NO GestureDetectors
+    /// here: every press in the strip goes through stripPress, hit-tested
+    /// arithmetically from the root Listener, because a drag must reach
+    /// beginDrag on the raw pointer-down and gestures do not give it up.
     private func tabStrip() -> Widget {
         SizedBox(height: kFilesTabStrip) {
-            Padding(padding: EdgeInsets(left: 8, top: 6, right: 8, bottom: 0)) {
-                Row(crossAxisAlignment: .stretch) {
-                    ClipRRect(borderRadius: BorderRadius.circular(6)) {
-                        ColoredBox(color: Win11.surface) {
-                            Padding(padding: EdgeInsets(horizontal: 12, vertical: 0)) {
-                                Row(crossAxisAlignment: .center, spacing: 8) {
-                                    MacosIcon(icon: CupertinoIcons.folder_fill,
-                                              color: Win11.textDim, size: 13)
-                                    Text(folderLabel(),
-                                         style: TextStyle(color: Win11.text, fontSize: 12),
-                                         maxLines: 1)
+            ColoredBox(color: Win11.windowBg) {
+                Stack(alignment: Alignment.topLeft) {
+                    // The active tab, seated on the strip's bottom edge with
+                    // rounded shoulders, the way Explorer's tab sits.
+                    Positioned(left: kTabX, top: 8, bottom: 0) {
+                        SizedBox(width: kTabW) {
+                            ClipRRect(borderRadius: BorderRadius.only(
+                                topLeft: Radius(circular: 8),
+                                topRight: Radius(circular: 8))) {
+                                ColoredBox(color: Win11.surface) {
+                                    Padding(padding: EdgeInsets(
+                                        left: 12, top: 0, right: 8, bottom: 0)) {
+                                        Row(crossAxisAlignment: .center, spacing: 8) {
+                                            MacosIcon(icon: CupertinoIcons.folder_fill,
+                                                      color: Win11.textDim, size: 13)
+                                            Expanded {
+                                                Text(folderLabel(),
+                                                     style: TextStyle(color: Win11.text,
+                                                                      fontSize: 12),
+                                                     overflow: .ellipsis, maxLines: 1)
+                                            }
+                                            MacosIcon(icon: CupertinoIcons.xmark,
+                                                      color: Win11.textFaint, size: 10)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                    Expanded { SizedBox(height: 1) }
+                    // "+", which opens a new window on this folder -- the
+                    // nearest honest thing to a new tab until tabs are real.
+                    Positioned(left: kTabX + kTabW + 8, top: 12) {
+                        MacosIcon(icon: CupertinoIcons.add,
+                                  color: Win11.textDim, size: 14)
+                    }
+                    // The caption trio, Windows' own widths, right-aligned.
+                    Positioned(top: 0, right: 0, bottom: 0) {
+                        Row(crossAxisAlignment: .stretch) {
+                            captionButton(CupertinoIcons.minus)
+                            captionButton((Win32WindowedHost.host?.isMaximized ?? false)
+                                          ? CupertinoIcons.square_on_square
+                                          : CupertinoIcons.square)
+                            captionButton(CupertinoIcons.xmark)
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private func captionButton(_ icon: IconData) -> Widget {
+        SizedBox(width: kCaptionButtonW) {
+            Center {
+                MacosIcon(icon: icon, color: Win11.textDim, size: 12)
+            }
+        }
+    }
+
+    /// When the last left press landed in the strip, for the double-click
+    /// that maximizes -- detected by hand, the way the listing detects its
+    /// own double-click (see the trap note on onDoubleTap).
+    private var lastStripTapAt = Date.distantPast
+
+    /// A left press in the titlebar strip: caption buttons, the tab's close,
+    /// "+", and everywhere else is the drag handle Windows expects a
+    /// titlebar to be. Coordinates are logical, from the root Listener.
+    private func stripPress(_ x: Double, _ y: Double) {
+        guard let host = Win32WindowedHost.host else { return }
+        let width = host.clientSize?.width ?? kFilesWidth
+        let fromRight = width - x
+        if fromRight <= kCaptionButtonW { host.closeWindow(); return }
+        if fromRight <= kCaptionButtonW * 2 { host.toggleMaximize(); return }
+        if fromRight <= kCaptionButtonW * 3 { host.minimize(); return }
+        // The tab's own close. One tab, so it closes the window -- the same
+        // thing Explorer does to its last tab.
+        if x >= kTabX + kTabW - 30 && x < kTabX + kTabW && y >= 8 {
+            host.closeWindow()
+            return
+        }
+        // "+": a new window on this folder.
+        if x >= kTabX + kTabW + 2 && x < kTabX + kTabW + 34 {
+            let exe = ProcessInfo.processInfo.arguments[0]
+            let dir = bloc.state.directory
+            Task.detached {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: exe)
+                process.arguments = ["--files", dir]
+                try? process.run()
+            }
+            return
+        }
+        // The empty strip: a second press within the double-click window
+        // maximizes; a first one is the drag Windows owns from here.
+        let now = Date()
+        if now.timeIntervalSince(lastStripTapAt) < 0.4 {
+            lastStripTapAt = .distantPast
+            host.toggleMaximize()
+        } else {
+            lastStripTapAt = now
+            host.beginDrag()
         }
     }
 
@@ -427,7 +602,8 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // its rename field. (Explorer's is a dropdown with the
                     // ShellNew templates; the folder is the one everybody
                     // means.)
-                    barButton(CupertinoIcons.add, "New", enabled: true) {
+                    barButton(CupertinoIcons.add, "New", chevron: true,
+                              enabled: true) {
                         self.bloc.add(.newFolder)
                     }
                     barSeparator()
@@ -455,16 +631,26 @@ final class StarlingFilesState: State<StatefulWidget> {
                             self.bloc.add(.beginRename(entry))
                         }
                     }
+                    // Share, through the shell's own verb -- the same
+                    // windows.modernshare the menu's icon row invokes.
+                    barIcon(CupertinoIcons.share,
+                            enabled: selectedEntry?.isDirectory == false) {
+                        if let entry = self.selectedEntry {
+                            self.bloc.add(.share(entry))
+                        }
+                    }
                     barIcon(CupertinoIcons.trash, enabled: selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.deleteEntry(entry))
                         }
                     }
                     barSeparator()
-                    barButton(CupertinoIcons.arrow_up_arrow_down, sortLabel(), enabled: true) {
+                    barButton(CupertinoIcons.arrow_up_arrow_down, sortLabel(),
+                              chevron: true, enabled: true) {
                         self.cycleSort()
                     }
-                    barButton(CupertinoIcons.square_grid_2x2, "View", enabled: false) {}
+                    barButton(CupertinoIcons.square_grid_2x2, "View",
+                              chevron: true, enabled: false) {}
                     Expanded { SizedBox(height: 1) }
                     textButton("Open in Explorer") { self.bloc.add(.openInExplorer) }
                 }
@@ -507,13 +693,20 @@ final class StarlingFilesState: State<StatefulWidget> {
                 SizedBox(height: 32) {
                     Padding(padding: EdgeInsets(horizontal: 10, vertical: 0)) {
                         Row(crossAxisAlignment: .center, spacing: 2) {
+                            // The leading device glyph, as Explorer draws it.
+                            MacosIcon(icon: CupertinoIcons.desktopcomputer,
+                                      color: Win11.textDim, size: 13)
+                            SizedBox(width: 4)
                             for (i, crumb) in parts.enumerated() {
                                 if i > 0 {
                                     MacosIcon(icon: CupertinoIcons.chevron_right,
                                               color: Win11.textFaint, size: 9)
                                 }
                                 GestureDetector(
-                                    onTap: { self.bloc.add(.open(crumb.path)) },
+                                    onTap: {
+                                        guard !crumb.path.isEmpty else { return }
+                                        self.bloc.add(.open(crumb.path))
+                                    },
                                     child: Padding(
                                         padding: EdgeInsets(horizontal: 5, vertical: 3)) {
                                         Text(crumb.label,
@@ -540,7 +733,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         SizedBox(width: 220, height: 32) {
             MacosTextField(
                 controller: search,
-                placeholder: "Search this folder",
+                placeholder: "Search \(folderLabel())",
                 prefix: Padding(padding: EdgeInsets(left: 6, top: 0, right: 0, bottom: 0)) {
                     MacosIcon(icon: CupertinoIcons.search, color: Win11.textFaint, size: 12)
                 },
@@ -563,7 +756,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                         SizedBox(width: 18, height: 1)
                         Expanded { headerCell("Name", .name, true) }
                         SizedBox(width: kFilesColModified) {
-                            headerCell("Date modified", .modified, false)
+                            headerCell("Date modified", .modified, true)
                         }
                         SizedBox(width: kFilesColType) { headerCell("Type", .type, true) }
                         SizedBox(width: kFilesColSize) { headerCell("Size", .size, false) }
@@ -614,6 +807,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                              style: TextStyle(color: Win11.textFaint, fontSize: 11),
                              maxLines: 1)
                         if entry != nil {
+                            // The hairline between the counts, as Explorer
+                            // separates its own.
+                            SizedBox(width: 1, height: 14) {
+                                ColoredBox(color: Win11.stroke) { SizedBox(width: 1) }
+                            }
                             Text("1 item selected",
                                  style: TextStyle(color: Win11.textFaint, fontSize: 11),
                                  maxLines: 1)
@@ -656,7 +854,8 @@ final class StarlingFilesState: State<StatefulWidget> {
             })
     }
 
-    private func barButton(_ icon: IconData, _ label: String, enabled: Bool,
+    private func barButton(_ icon: IconData, _ label: String,
+                           chevron: Bool = false, enabled: Bool,
                            _ action: @escaping () -> Void) -> Widget {
         GestureDetector(
             onTap: enabled ? action : {},
@@ -670,6 +869,12 @@ final class StarlingFilesState: State<StatefulWidget> {
                              style: TextStyle(
                                 color: enabled ? Win11.textDim : Win11.disabled,
                                 fontSize: 12))
+                        if chevron {
+                            MacosIcon(icon: CupertinoIcons.chevron_down,
+                                      color: enabled ? Win11.textFaint
+                                                     : Win11.disabled,
+                                      size: 9)
+                        }
                     }
                 }
             })
@@ -705,10 +910,17 @@ final class StarlingFilesState: State<StatefulWidget> {
         var out: [(label: String, path: String)] = []
         var walk: String? = path
         while let here = walk, !here.isEmpty {
-            let name = (here as NSString).lastPathComponent
-            out.append((label: name.isEmpty ? here : name, path: here))
+            // A drive ROOT gets the shell's display name -- "Local Disk
+            // (C:)", as Explorer's breadcrumb says it -- not the bare "C:".
+            let isRoot = Win32Files.parent(of: here) == nil
+            let label = isRoot ? Win32Files.displayName(for: here)
+                               : (here as NSString).lastPathComponent
+            out.append((label: label, path: here))
             walk = Win32Files.parent(of: here)
         }
+        // "This PC" leads, as in Explorer. It is not a folder here (there is
+        // no computer view yet), so it carries no path and does not navigate.
+        out.append((label: "This PC", path: ""))
         return out.reversed()
     }
 
@@ -875,7 +1087,8 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 }
                             }
                             SizedBox(width: kFilesColModified) {
-                                Align(alignment: Alignment.centerRight) {
+                                // Left-aligned, as Explorer's column is.
+                                Align(alignment: Alignment.centerLeft) {
                                     Text(modifiedText(entry),
                                          style: TextStyle(color: Win11.textFaint,
                                                           fontSize: 12),
@@ -933,11 +1146,17 @@ final class StarlingFilesState: State<StatefulWidget> {
         return "\(bytes) B"
     }
 
+    /// WINDOWS' own short date and time -- GetDateFormatEx with the user's
+    /// locale, "8/17/2026 5:59 PM" on this machine -- not Foundation's, whose
+    /// locale data disagreed with the Explorer sitting beside this window.
     private func modifiedText(_ entry: Win32FileEntry) -> String {
         guard let date = entry.modified else { return "" }
-        let f = DateFormatter()
-        f.dateFormat = "d MMM yyyy  HH:mm"
-        return f.string(from: date)
+        var buffer = [CChar](repeating: 0, count: 96)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_format_datetime(Int64(date.timeIntervalSince1970),
+                                    $0.baseAddress, 96)
+        }
+        return n > 0 ? String(cString: buffer) : ""
     }
 }
 #endif

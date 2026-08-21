@@ -37,6 +37,11 @@ public struct Win32Place: Sendable, Equatable, Identifiable {
     public let name: String
     public let path: String
     public var id: String { path }
+
+    public init(name: String, path: String) {
+        self.name = name
+        self.path = path
+    }
 }
 
 public enum Win32Files {
@@ -167,6 +172,19 @@ public enum Win32Files {
         Win32SystemInfo.drives().map {
             Win32Place(name: "\($0.letter):", path: "\($0.letter):\\")
         }
+    }
+
+    /// The shell's display name -- "Local Disk (C:)" for a drive root, the
+    /// localized "Documents" for a known folder. Falls back to the file
+    /// system's own last component.
+    public static func displayName(for path: String) -> String {
+        var buffer = [CChar](repeating: 0, count: 256)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_file_display_name(path, $0.baseAddress, 256)
+        }
+        if n > 0 { return String(cString: buffer) }
+        let name = (path as NSString).lastPathComponent
+        return name.isEmpty ? path : name
     }
 
     /// What Explorer's Type column would say. Answers per EXTENSION, from the

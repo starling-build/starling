@@ -107,6 +107,8 @@ final class FilesBloc: @unchecked Sendable {
         /// into an inline rename on it.
         case newFolder
         case compress(Win32FileEntry)
+        /// The Share sheet, via the shell's windows.modernshare verb.
+        case share(Win32FileEntry)
 
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
         case placesLoaded(places: [Win32Place], drives: [Win32Place])
@@ -321,6 +323,21 @@ final class FilesBloc: @unchecked Sendable {
                     self.state.renaming = path
                 }
                 self.add(.refresh)
+            }
+
+        case .share(let entry):
+            // The Share sheet has no direct API; it is the
+            // windows.modernshare verb on the item's own menu, so a
+            // throwaway session finds and runs it -- the same verb the
+            // context menu's icon row invokes through its live session.
+            let session = Win32ShellMenu(path: entry.path,
+                                         owner: Self.ownerWindow)
+            session?.items(.full) { rows in
+                if let verb = rows.first(where: {
+                    $0.verb == "windows.modernshare" && !$0.isSeparator }) {
+                    session?.invoke(.full, verb.id)
+                }
+                session?.close()
             }
 
         case .compress(let entry):

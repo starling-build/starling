@@ -137,6 +137,11 @@ struct FlWin32Host {
   int overlay_height_pt;
   int overlay_margin_pt;
   RECT overlay_rect;
+  // Custom titlebar: the caption is given to the CLIENT (WM_NCCALCSIZE
+  // returns the frame minus its title bar), so the widget tree draws the
+  // titlebar -- tabs, caption buttons and all -- the way Explorer's own
+  // window works. Resize borders stay the system's.
+  int custom_titlebar;
   void (*toggle_callback)(void* user);
   void* toggle_user;
   // External textures we handed the engine, so their pixel buffers can be
@@ -279,6 +284,51 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
                    frame.bottom - frame.top, TRUE);
       }
       return 0;
+
+    case WM_NCCALCSIZE:
+      // Custom titlebar: give the CAPTION to the client and keep the resize
+      // borders. The recipe: remember where the window's top was, let
+      // DefWindowProc lay out the normal frame (which reserves the caption),
+      // then put the client's top back at the window's top. Maximized, the
+      // frame hangs off-screen by its border thickness, so that much is
+      // added back or the titlebar's first pixels would be invisible.
+      if (host != NULL && host->custom_titlebar && wparam == TRUE) {
+        NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lparam;
+        LONG original_top = params->rgrc[0].top;
+        LRESULT result = DefWindowProcW(hwnd, message, wparam, lparam);
+        params->rgrc[0].top = original_top;
+        if (IsZoomed(hwnd)) {
+          UINT dpi = GetDpiForWindow(hwnd);
+          params->rgrc[0].top +=
+              GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
+              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+        }
+        return result;
+      }
+      break;
+
+    case WM_NCHITTEST:
+      // With the caption gone, the strip along the window's top edge is
+      // CLIENT area, and DefWindowProc would say so -- making the window
+      // unresizable from above. The child view already declines hits in
+      // that band (HTTRANSPARENT, see child_cursor_wnd_proc), so they land
+      // here; call the band what it is.
+      if (host != NULL && host->custom_titlebar && !IsZoomed(hwnd)) {
+        LRESULT hit = DefWindowProcW(hwnd, message, wparam, lparam);
+        if (hit == HTCLIENT) {
+          RECT window_rect;
+          GetWindowRect(hwnd, &window_rect);
+          int y = (int)(short)HIWORD(lparam);
+          UINT dpi = GetDpiForWindow(hwnd);
+          int band = GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
+                     GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+          if (y >= window_rect.top && y < window_rect.top + band) {
+            return HTTOP;
+          }
+        }
+        return hit;
+      }
+      break;
 
     case WM_DPICHANGED:
       // The frame has to resize ITSELF here. flwin32_host_create asks for
@@ -1393,6 +1443,27 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
     return TRUE;
   }
 
+  // Under a custom titlebar, the top resize band belongs to the FRAME: the
+  // child declines the hit and the parent's WM_NCHITTEST names it HTTOP.
+  // Without this the child swallows every hit and the window cannot be
+  // resized from above.
+  if (message == WM_NCHITTEST) {
+    HWND parent = GetParent(hwnd);
+    FlWin32Host* host = parent != NULL
+        ? (FlWin32Host*)GetWindowLongPtrW(parent, GWLP_USERDATA) : NULL;
+    if (host != NULL && host->custom_titlebar && !IsZoomed(parent)) {
+      RECT window_rect;
+      GetWindowRect(parent, &window_rect);
+      int y = (int)(short)HIWORD(lparam);
+      UINT dpi = GetDpiForWindow(parent);
+      int band = GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
+                 GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+      if (y >= window_rect.top && y < window_rect.top + band) {
+        return HTTRANSPARENT;
+      }
+    }
+  }
+
   // Undo the subclass while the window still exists: WM_NCDESTROY is the last
   // message it receives, and a property left behind outlives the HWND.
   if (message == WM_NCDESTROY) {
@@ -1714,6 +1785,49 @@ int32_t flwin32_host_client_size(FlWin32Host* host, int32_t* width,
 void flwin32_host_request_redraw(FlWin32Host* host) {
   if (host == NULL || host->controller == NULL) return;
   FlutterDesktopViewControllerForceRedraw(host->controller);
+}
+
+void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable) {
+  if (host == NULL || host->window == NULL) return;
+  host->custom_titlebar = enable ? 1 : 0;
+  // Keep DWM's top hairline: extending the frame one pixel into the client
+  // preserves the accent-coloured border a captioned window has, which the
+  // NCCALCSIZE takeover would otherwise erase.
+  MARGINS margins = {0, 0, enable ? 1 : 0, 0};
+  DwmExtendFrameIntoClientArea(host->window, &margins);
+  // The frame is recalculated only when something says it changed.
+  SetWindowPos(host->window, NULL, 0, 0, 0, 0,
+               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOACTIVATE);
+}
+
+void flwin32_host_begin_drag(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return;
+  // The documented dance for "this pixel is a title bar": give the mouse
+  // back and hand the press to the frame as a caption click. Windows runs
+  // its own modal move loop from here -- snap layouts, aero shake and all.
+  ReleaseCapture();
+  SendMessageW(host->window, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+}
+
+void flwin32_host_minimize(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return;
+  ShowWindow(host->window, SW_MINIMIZE);
+}
+
+void flwin32_host_toggle_maximize(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return;
+  ShowWindow(host->window, IsZoomed(host->window) ? SW_RESTORE : SW_MAXIMIZE);
+}
+
+int32_t flwin32_host_is_maximized(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return 0;
+  return IsZoomed(host->window) ? 1 : 0;
+}
+
+void flwin32_host_close_window(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return;
+  PostMessageW(host->window, WM_CLOSE, 0, 0);
 }
 
 void flwin32_host_on_toggle(FlWin32Host* host,
