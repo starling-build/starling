@@ -283,12 +283,13 @@ final class StarlingDockState: State<StatefulWidget> {
             self?.bloc.add(.tick)
         }
 
-        // Win+A is Quick Settings, Win+N the notification centre, and Win+E
-        // the file explorer — OURS, all three, exactly the surfaces this
-        // shell replaces. Registered here rather than in main because Quick
-        // Settings' open flag lives in this State; the hook itself was
-        // installed before the window existed, and chords ride it.
-        Win32Shell.captureSuperChords(["A", "N", "E"]) { [weak self] letter in
+        // Win+A is Quick Settings, Win+N the notification centre, Win+E the
+        // file explorer, and Win+R the Run dialog — OURS, all four, exactly
+        // the surfaces this shell replaces. Registered here rather than in
+        // main because Quick Settings' open flag lives in this State; the
+        // hook itself was installed before the window existed, and chords
+        // ride it.
+        Win32Shell.captureSuperChords(["A", "N", "E", "R"]) { [weak self] letter in
             guard let self else { return }
             switch letter {
             case "N":
@@ -296,6 +297,8 @@ final class StarlingDockState: State<StatefulWidget> {
                 Win32Shell.toggleOverlay(channel: "notifications")
             case "E":
                 Win32Shell.openFiles()
+            case "R":
+                Win32Shell.toggleOverlay(channel: "run")
             default:
                 self.setState { self.controlCentreOpen.toggle() }
             }
@@ -303,6 +306,11 @@ final class StarlingDockState: State<StatefulWidget> {
         // Park the notification centre now, so the first Win+N is a show
         // rather than a second engine boot. Idempotent across dock restarts.
         Win32Shell.ensureNotificationCenter()
+        // And the banner process: it has no user gesture to boot on, so it
+        // must be warm before the first toast arrives.
+        Win32Shell.ensureBanners()
+        // And the Run dialog, so Win+R is a show too.
+        Win32Shell.ensureRun()
     }
 
     override func dispose() {

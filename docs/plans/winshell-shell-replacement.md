@@ -118,6 +118,48 @@ SHAppBarMessage resolves Shell_TrayWnd at call time.
 - **Volume/brightness OSD**: verify in the VM whether the system's own
   survives shell-less; build only if it does not.
 
+**Banners + Run DONE 2026-08-21, VM-verified.** Both ride the parked-overlay
+machinery rather than the popup-surface spike — each is its own process
+(`--banners`, `--run`) with a named toggle channel, which the overlay work
+had already made cheap. What each took:
+
+- *Banners* (Banner.swift): a controller OUTSIDE the widget tree (a parked
+  overlay's tree does not mount until first shown, and deciding when to show
+  is the whole job) polls the store every 2s off the UI thread, seeds
+  silently on first read (the login backlog is the centre's business), and
+  pops only what the native shell cannot: explorer absent, or
+  STARLING_BANNERS=1 for tests, never while the centre is on screen. The
+  overlay grew a **passive** mode for it — show without activation and
+  without the global Escape hotkey — because a surface that appears while
+  the user is typing must steal nothing. Verified in the VM with explorer
+  killed: banner pops on a fresh toast, keystrokes keep landing in notepad
+  WHILE it is up, it auto-dismisses at 6s, body-click opens the centre,
+  X-click just dismisses, and with explorer alive or the centre open it
+  stays suppressed. Restoring explorer had ShellExperienceHost pop the
+  backlog toast natively — the muteness really is explorer-keyed.
+- *Run* (RunDialog.swift): overlay pinned to the work area's bottom-LEFT
+  (a `leftMargin` anchor, mirroring the centre's right pin), Win+R joins
+  the dock's chord capture. Executes via ShellExecute with %VAR% expansion
+  first; failure is the native dialog's wording drawn inline, not a modal.
+  Verified: chord opens ours (explorer's RunFileDlg never appears), the
+  last command comes back selected on reopen with any stale error cleared,
+  `%windir%\notepad.exe` expands and launches, Esc and the Cancel button
+  both dismiss.
+- The chase for "who draws banners without explorer" was settled in the VM
+  first: ShellExperienceHost survives explorer's death but goes MUTE —
+  Show() succeeds, the store fills, nothing pops.
+- A pre-existing dock bug surfaced by the Run overlay's show/hide churn:
+  `_rebuild`'s `claimed` set never included the two fixed tiles' keys, so
+  `retain(only:)` freed the Files folder texture on every window event and
+  the tile flashed the fallback glyph until re-rasterize. Fixed by claiming
+  kLauncherKey/kFilesKey.
+- Still open in this phase: Alt-Tab-with-previews (follow-up, not a
+  blocker) and the OSD survival check — both as bulleted above. Toast
+  arrival is polled; wiring UserNotificationListener's NotificationChanged
+  through the raw ABI would make it instant. The banner's app logo draws
+  Settings' plated icon as a dot at 16pt where native shows the bare gear —
+  cosmetic, needs the unplated asset.
+
 ### Phase 5 — the session slot
 
 - **Startup runner**: HKLM/HKCU Run, RunOnce (delete-before-run

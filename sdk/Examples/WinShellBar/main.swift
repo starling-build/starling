@@ -53,6 +53,8 @@ let wantsLauncher = CommandLine.arguments.contains("--launcher")
 let wantsSettings = CommandLine.arguments.contains("--settings")
 let wantsFiles = CommandLine.arguments.contains("--files")
 let wantsNotifications = CommandLine.arguments.contains("--notifications")
+let wantsBanners = CommandLine.arguments.contains("--banners")
+let wantsRun = CommandLine.arguments.contains("--run")
 
 // `--monitor N` indexes Win32Display.monitors(); absent means the primary.
 // One value, given to BOTH the placement that puts the window on a screen and
@@ -670,6 +672,48 @@ if wantsFiles {
                    width: Int(kAcWidth * panelScale),
                    height: Int(kAcHeightPt * panelScale)) {
         StarlingActionCenter()
+    }
+} else if wantsBanners {
+    // The toast banner: a parked overlay like the others, with two
+    // differences. It is PASSIVE — a surface that appears while the user is
+    // typing must not steal focus or the next Escape — and no user gesture
+    // shows it: the controller polls the store and shows it on arrival,
+    // which is why it starts OFF the widget lifecycle (a parked overlay's
+    // tree does not mount until first shown).
+    if !wantsPlain {
+        Win32WindowedHost.overlay = OverlayPlacement(
+            monitor: wantsMonitor, opacity: 1.0,
+            size: (width: kBannerWidth, height: kBannerHeight),
+            bottomMargin: kBannerGap,
+            rightMargin: 13,
+            channel: "banners",
+            transparent: true,
+            passive: true)
+    }
+    BannerController.shared.start()
+    runStarlingApp(title: "Starling Banners",
+                   width: Int(kBannerWidth * panelScale),
+                   height: Int(kBannerHeight * panelScale)) {
+        StarlingBanner()
+    }
+} else if wantsRun {
+    // The Run dialog: a parked overlay pinned to the work area's bottom-left
+    // corner, where Windows puts its own. It takes focus deliberately — the
+    // whole surface is a text field — so it is NOT passive, and the standard
+    // overlay Escape/focus-loss dismissal is exactly right for it.
+    if !wantsPlain {
+        Win32WindowedHost.overlay = OverlayPlacement(
+            monitor: wantsMonitor, opacity: 1.0,
+            size: (width: kRunWidth, height: kRunHeight),
+            bottomMargin: kRunGap,
+            leftMargin: kRunGap,
+            channel: "run",
+            transparent: true)
+    }
+    runStarlingApp(title: "Starling Run",
+                   width: Int(kRunWidth * panelScale),
+                   height: Int(kRunHeight * panelScale)) {
+        StarlingRun()
     }
 } else if wantsLauncher {
     // An overlay, not a panel: it is not an edge and it reserves nothing. It
