@@ -10,6 +10,26 @@
 import FlutterSwiftBridge
 @preconcurrency import Foundation
 
+// MARK: - Frame timing
+
+/// STARLING_FRAME_LOG=1: one stderr line per composited frame with the
+/// build / layout / paint / composite / finalize split, in microseconds.
+/// External CPU sampling cannot attribute per-frame costs (the dead end
+/// documented in docs/plans/winshell-perf.md); this is the timer it asks
+/// for. Same convention as STARLING_SWAPCHAIN_DEBUG. FileHandle rather
+/// than print(): print is block-buffered through pipes and the consumer
+/// of this log IS a pipe.
+private let frameLogEnabled =
+    (ProcessInfo.processInfo.environment["STARLING_FRAME_LOG"] ?? "") == "1"
+
+private func frameLogNow() -> UInt64 {
+    frameLogEnabled ? DispatchTime.now().uptimeNanoseconds : 0
+}
+
+private func frameLogWrite(_ line: String) {
+    FileHandle.standardError.write(Data((line + "\n").utf8))
+}
+
 // MARK: - RenderObjectToWidgetAdapter
 
 /// A `RenderObjectWidget` that bridges a widget subtree to an existing
@@ -456,12 +476,18 @@ func _setupWidgetBinding(_ app: Widget) {
         // widget change — a terminal echoing keystrokes — never re-presents.
         let updatedTextures = FrameCallbackScheduler.shared.takeUpdatedTextures()
 
+        let ftStart = frameLogNow()
+
         // Flush dirty elements before layout
         buildOwner.buildScopeWithCallback(rootElement!) {}
 
+        let ftBuild = frameLogNow()
+
         // Frame pipeline (mirrors RendererBinding.drawFrame)
         pipelineOwner!.flushLayout()
+        let ftLayout = frameLogNow()
         pipelineOwner!.flushPaint()
+        let ftPaint = frameLogNow()
 
         // Only composite if something actually changed. Skipping composite
         // when nothing is dirty avoids unnecessary scene builds, engine
@@ -524,7 +550,21 @@ func _setupWidgetBinding(_ app: Widget) {
         //
         // AFTER compositing, not before: an element deactivated during build
         // may still own a render object that layout and paint walk this frame.
+        let ftComposite = frameLogNow()
         buildOwner.finalizeTree()
+
+        // Only frames that composited: the skipped ones are the cheap
+        // steady state and would drown the signal.
+        if frameLogEnabled && shouldComposite {
+            let ftEnd = DispatchTime.now().uptimeNanoseconds
+            func us(_ a: UInt64, _ b: UInt64) -> UInt64 { (b - a) / 1_000 }
+            frameLogWrite("[frame] build=\(us(ftStart, ftBuild))us"
+                + " layout=\(us(ftBuild, ftLayout))us"
+                + " paint=\(us(ftLayout, ftPaint))us"
+                + " composite=\(us(ftPaint, ftComposite))us"
+                + " finalize=\(us(ftComposite, ftEnd))us"
+                + " total=\(us(ftStart, ftEnd))us")
+        }
     }
     pd.onDrawFrame = { }
 
