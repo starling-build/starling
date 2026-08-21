@@ -23,13 +23,22 @@
 // a given point in its listing, which only it knows -- and hands it over
 // through `target`.
 //
-// The root Listener still drives it. Widget-level input does not arrive
-// reliably in this surface (a GestureDetector inside a Positioned does not
-// fire), so presses and hovers are hit-tested arithmetically from the top of
-// the tree and forwarded here. That is why the geometry is a set of functions
-// over a MenuCache rather than a layout: the press has no idea what a row is,
-// and the drawing and the hit test must agree without one ever measuring the
-// other.
+// THE PANELS ARE POPUP WINDOWS now (Win32PopupSurfaces): each open panel is
+// its own engine view in its own WS_POPUP window, placed at the model's
+// window-space geometry, so a menu overhangs the window's edges and outgrows
+// its height the way Windows' own does. The model neither knows nor cares --
+// its arithmetic stays in window coordinates; the popup content translates
+// its local pointer events back by the panel's origin on the way in
+// (MenuPanelSurface), and syncPopups translates geometry out on the way to
+// the window placement. The in-window drawing survives as the fallback for
+// a machine where a second engine view cannot be created (popupsEnabled).
+//
+// The window's root Listener still drives the WINDOW side: a press there
+// while a menu is open dismisses it (and is eaten), which is also what makes
+// right-click-elsewhere move the menu. Hit tests stay arithmetic functions
+// over a MenuCache rather than a layout: the popup Listener's press has no
+// idea what a row is either, and the drawing and the hit test must agree
+// without one ever measuring the other.
 
 #if os(Windows)
 import CupertinoIcons
@@ -69,6 +78,14 @@ let kMenuEdge = 6.0
 struct MenuPoint {
     var x: Double
     var y: Double
+}
+
+/// A placed panel, for deciding whether its popup window needs moving.
+struct MenuRect: Equatable {
+    var x: Double
+    var y: Double
+    var w: Double
+    var h: Double
 }
 
 /// What the surface found under a right-click. `nil` from `target` means the
@@ -208,6 +225,142 @@ final class ShellMenuModel {
 
     var isOpen: Bool { anchor != nil }
 
+    // MARK: - Popup surfaces
+    //
+    // Each open panel rides its own popup WINDOW (Win32PopupSurfaces) — the
+    // second surface origin()'s comment used to wish for. The model stays
+    // the single owner of geometry, in the same window-logical coordinates
+    // it always used; what changes is only where a panel's pixels land (a
+    // popup placed at that geometry, free to overhang the window) and where
+    // its pointer events come from (the popup's own tree, translated back
+    // into window coordinates before they reach press/hovered).
+    //
+    // OBSERVED: `popupsEnabled`, because the in-window widget draws the
+    // panels itself exactly when this is false — the fallback for a machine
+    // where a second engine view cannot be created. Everything else here is
+    // bookkeeping no build reads.
+    //
+    // Every popup call is DEFERRED to its own main-queue turn
+    // (scheduleSync), never made inline from a mutator: a press arrives
+    // FROM the popup's own view, and closing that view inside its event
+    // dispatch would destroy the window under the call stack that is
+    // delivering the event.
+    private(set) var popupsEnabled = true
+    /// Bumped by every scheduleSync, i.e. after every mutation that can
+    /// move a panel's geometry. The popup surfaces' builds read it, and
+    /// NEED to: syncPopups warms mainCache/subCache OUTSIDE any tracked
+    /// build, so a surface whose build then hits a warm cache never reads
+    /// the observed rows underneath and would miss the next change — the
+    /// full-tier verbs arrived, the popup window was resized for them, and
+    /// the panel inside kept drawing the fast tier into the taller surface.
+    private(set) var geometryEpoch = 0
+    @ObservationIgnored private var mainPopup: Int?
+    @ObservationIgnored private var subPopup: Int?
+    @ObservationIgnored private var mainPopupRect: MenuRect?
+    @ObservationIgnored private var subPopupRect: MenuRect?
+    @ObservationIgnored private var syncScheduled = false
+
+    func scheduleSync() {
+        guard popupsEnabled else { return }
+        geometryEpoch &+= 1
+        guard !syncScheduled else { return }
+        syncScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.syncScheduled = false
+            self.syncPopups()
+        }
+    }
+
+    private func syncPopups() {
+        guard popupsEnabled else { return }
+        guard isOpen, let at = origin(mainMenu) else {
+            closePopups()
+            return
+        }
+        let menu = mainMenu
+        let rect = MenuRect(x: at.x, y: at.y, w: menu.width, h: menu.height)
+        if let id = mainPopup {
+            if rect != mainPopupRect {
+                Win32PopupSurfaces.place(id, x: rect.x, y: rect.y,
+                                         width: rect.w, height: rect.h)
+                mainPopupRect = rect
+            }
+        } else {
+            Win32PopupSurfaces.onDismiss { [weak self] in
+                self?.dismiss()
+                self?.scheduleSync()
+            }
+            mainPopup = Win32PopupSurfaces.open(
+                x: rect.x, y: rect.y, width: rect.w, height: rect.h,
+                content: { [weak self] in
+                    self.map { MenuPanelSurface(model: $0, isSub: false) }
+                        ?? SizedBox(width: 0, height: 0)
+                })
+            guard mainPopup != nil else {
+                // No second surface on this machine: fall back to drawing
+                // in-window, permanently — the flip re-runs the widget's
+                // build, which starts drawing the panels it was skipping.
+                popupsEnabled = false
+                Win32PopupSurfaces.onDismiss(nil)
+                return
+            }
+            mainPopupRect = rect
+        }
+
+        if let subOrigin = subAt, !subMenu.rows.isEmpty {
+            let sub = subMenu
+            let srect = MenuRect(x: subOrigin.x, y: subOrigin.y,
+                                 w: sub.width, h: sub.height)
+            if let id = subPopup {
+                if srect != subPopupRect {
+                    Win32PopupSurfaces.place(id, x: srect.x, y: srect.y,
+                                             width: srect.w, height: srect.h)
+                    subPopupRect = srect
+                }
+            } else {
+                subPopup = Win32PopupSurfaces.open(
+                    x: srect.x, y: srect.y, width: srect.w, height: srect.h,
+                    content: { [weak self] in
+                        self.map { MenuPanelSurface(model: $0, isSub: true) }
+                            ?? SizedBox(width: 0, height: 0)
+                    })
+                subPopupRect = srect
+            }
+        } else if let id = subPopup {
+            Win32PopupSurfaces.close(id)
+            subPopup = nil
+            subPopupRect = nil
+        }
+    }
+
+    private func closePopups() {
+        if let id = subPopup {
+            Win32PopupSurfaces.close(id)
+            subPopup = nil
+            subPopupRect = nil
+        }
+        if let id = mainPopup {
+            Win32PopupSurfaces.close(id)
+            mainPopup = nil
+            mainPopupRect = nil
+            Win32PopupSurfaces.onDismiss(nil)
+        }
+    }
+
+    /// Where a panel may sit: the monitor's work area once panels are
+    /// popups, the window's own client area in the in-window fallback (a
+    /// window is a hard clip there).
+    var placementBounds: (left: Double, top: Double, right: Double,
+                          bottom: Double) {
+        if popupsEnabled, let frame = Win32PopupSurfaces.frame() {
+            return frame
+        }
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: kFilesWidth, height: kFilesHeight)
+        return (0, 0, size.width, size.height)
+    }
+
     // MARK: - The verbs
 
     /// One cell of the icon row. Most are the SHELL's verbs -- matched on
@@ -274,14 +427,15 @@ final class ShellMenuModel {
         entry = nil
         flipped = false
         var anchorX = x
-        let size = Win32WindowedHost.host?.clientSize
-            ?? (width: kFilesWidth, height: kFilesHeight)
+        let bounds = placementBounds
         let width = panelWidth(rows, pill: false)
-        if anchorX + width > size.width - kMenuEdge {
-            anchorX = max(kMenuEdge, size.width - kMenuEdge - width)
+        if anchorX + width > bounds.right - kMenuEdge {
+            anchorX = max(bounds.left + kMenuEdge,
+                          bounds.right - kMenuEdge - width)
         }
         anchor = MenuPoint(x: anchorX, y: y)
         mainCache = nil
+        scheduleSync()
     }
 
     // MARK: - Opening
@@ -317,6 +471,7 @@ final class ShellMenuModel {
                   self.shellTier == .fast, !rows.isEmpty else { return }
             self.shellRows = rows
             self.mainCache = nil
+            self.scheduleSync()
         }
         // And the full one, which supersedes it.
         session?.items(.full) { [weak self] rows in
@@ -327,6 +482,7 @@ final class ShellMenuModel {
             self.shellRows = rows
             self.shellTier = .full
             self.mainCache = nil
+            self.scheduleSync()
         }
 
         // Which way it opens, decided HERE and not revisited. Windows flips a
@@ -337,15 +493,15 @@ final class ShellMenuModel {
         // draw immediately would fit almost anywhere, so choosing the
         // direction from them would open downward on every click and then
         // discover it had nowhere to grow.
-        let size = Win32WindowedHost.host?.clientSize
-            ?? (width: kFilesWidth, height: kFilesHeight)
-        let below = size.height - kMenuEdge - y
-        let above = y - kMenuEdge
+        let bounds = placementBounds
+        let below = bounds.bottom - kMenuEdge - y
+        let above = y - (bounds.top + kMenuEdge)
         let flip = below < reservedHeight && above > below
         var anchorX = x
         let width = panelWidth(rows(for: entry, shell: []), pill: entry != nil)
-        if anchorX + width > size.width - kMenuEdge {
-            anchorX = max(kMenuEdge, size.width - kMenuEdge - width)
+        if anchorX + width > bounds.right - kMenuEdge {
+            anchorX = max(bounds.left + kMenuEdge,
+                          bounds.right - kMenuEdge - width)
         }
 
         shell?.close()
@@ -366,6 +522,7 @@ final class ShellMenuModel {
         flipped = flip
         mainCache = nil
         subCache = nil
+        scheduleSync()
         return true
     }
 
@@ -391,6 +548,7 @@ final class ShellMenuModel {
         // other people's COM objects open, and the menu being dismissed
         // without a choice is the ordinary case.
         session?.close()
+        scheduleSync()
     }
 
     /// What the finished menu is expected to come to.
@@ -667,19 +825,19 @@ final class ShellMenuModel {
     /// its top and grows downward, which is the same statement mirrored.
     ///
     /// The clamps at the end are the case neither direction can save: a menu
-    /// taller than the whole window. It then covers most of it, which is
-    /// honest -- the real answer is a popup WINDOW, the way Windows' menu is
-    /// one, so that it is not clipped by the window it was opened from. That
-    /// is a second surface, and a bigger change than this.
+    /// taller than the whole SCREEN. The panels are popup windows now, so
+    /// the bound is the monitor's work area, not the window -- a menu taller
+    /// than the window simply overhangs it, the way Windows' own does. (In
+    /// the in-window fallback the bounds shrink back to the client area and
+    /// the old clamping behaviour returns with them.)
     func origin(_ menu: MenuCache) -> MenuPoint? {
         guard let anchor else { return nil }
-        let size = Win32WindowedHost.host?.clientSize
-            ?? (width: kFilesWidth, height: kFilesHeight)
+        let bounds = placementBounds
         var y = flipped ? anchor.y - menu.height : anchor.y
-        if y + menu.height > size.height - kMenuEdge {
-            y = size.height - kMenuEdge - menu.height
+        if y + menu.height > bounds.bottom - kMenuEdge {
+            y = bounds.bottom - kMenuEdge - menu.height
         }
-        if y < kMenuEdge { y = kMenuEdge }
+        if y < bounds.top + kMenuEdge { y = bounds.top + kMenuEdge }
         return MenuPoint(x: anchor.x, y: y)
     }
 
@@ -781,9 +939,11 @@ final class ShellMenuModel {
             // row inside it.
             if row.isSubmenu { return }
             // "Show more options" rearranges the menu instead of choosing
-            // from it -- run it and keep the panel open.
+            // from it -- run it and keep the panel open, which just changed
+            // shape under its popup.
             if row.keepsOpen {
                 if row.isEnabled { row.action?() }
+                scheduleSync()
                 return
             }
             if row.isEnabled {
@@ -850,6 +1010,10 @@ final class ShellMenuModel {
         let hovered = pill != nil ? nil : over
         if hover != hovered { hover = hovered }
         if subHover != nil && subAt == nil { subHover = nil }
+        // A hover is what opens and closes a submenu; its panel follows.
+        // (A pure highlight change schedules a sync that finds nothing to
+        // move -- coalesced and cheap.)
+        scheduleSync()
     }
 
     /// Fills in a submenu and hangs it off the row.
@@ -877,31 +1041,39 @@ final class ShellMenuModel {
                   self.subToken == token else { return }
             self.subRows = rows
             self.subCache = nil
-            // The child hangs off the parent's right edge and may run off the
-            // window's; flip it to the parent's left, which is what Windows
-            // does with the same problem.
-            let size = Win32WindowedHost.host?.clientSize
-                ?? (width: kFilesWidth, height: kFilesHeight)
+            // The child hangs off the parent's right edge and may run off
+            // the SCREEN's; flip it to the parent's left, which is what
+            // Windows does with the same problem. (The window stopped being
+            // the boundary when the panels became popups.)
+            let bounds = self.placementBounds
             let child = self.subMenu
             if var at = self.subAt {
-                if at.x + child.width > size.width - kMenuEdge {
-                    at.x = max(kMenuEdge, parentOrigin.x - child.width + 4)
+                if at.x + child.width > bounds.right - kMenuEdge {
+                    at.x = max(bounds.left + kMenuEdge,
+                               parentOrigin.x - child.width + 4)
                 }
-                if at.y + child.height > size.height - kMenuEdge {
-                    at.y = max(kMenuEdge, size.height - kMenuEdge - child.height)
+                if at.y + child.height > bounds.bottom - kMenuEdge {
+                    at.y = max(bounds.top + kMenuEdge,
+                               bounds.bottom - kMenuEdge - child.height)
                 }
                 self.subAt = at
             }
+            self.scheduleSync()
         }
     }
 }
 
-// MARK: - The widget
+// MARK: - The widgets
 //
-// Always mounted, drawing nothing when the menu is closed. Two reasons, and
-// the second is the one that bites: a Stack that GAINS a child does not
-// reliably composite it in this framework, and a widget that comes and goes
-// would take the model's observation with it.
+// Two hosts for the same panels. MenuPanelSurface is the real one: it is
+// what a popup window's view mounts (one per panel — the menu, and its
+// submenu), so a panel draws at ITS OWN origin and takes its own pointer
+// events, translated back into window coordinates for the model. The
+// in-window StarlingContextMenu remains mounted in the file explorer's tree
+// as the FALLBACK, drawing panels the old Positioned way only when a popup
+// surface could not be created (model.popupsEnabled == false); the rest of
+// the time it draws nothing. Both hosts observe the model and share the
+// painters below, so the fallback cannot drift from the real thing.
 
 final class StarlingContextMenu: StatefulWidget {
     let model: ShellMenuModel
@@ -925,9 +1097,9 @@ final class ContextMenuState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        // The same tracking the surfaces use for their blocs -- and the whole
-        // point of this file: what re-runs when the pointer moves is THIS
-        // build, over at most two panels, rather than the file explorer's.
+        // The same tracking the surfaces use for their blocs. While popups
+        // carry the panels this build reads one property and draws nothing;
+        // the flip to the fallback re-runs it and it starts drawing.
         withObservationTracking {
             _buildContent()
         } onChange: { [weak self] in
@@ -937,7 +1109,8 @@ final class ContextMenuState: State<StatefulWidget> {
     }
 
     private func _buildContent() -> Widget {
-        Stack(alignment: Alignment.topLeft) {
+        guard !model.popupsEnabled else { return SizedBox(width: 0, height: 0) }
+        return Stack(alignment: Alignment.topLeft) {
             menuPanel()
             submenuPanel()
         }
@@ -949,7 +1122,7 @@ final class ContextMenuState: State<StatefulWidget> {
             return SizedBox(width: 0, height: 0)
         }
         return Positioned(left: at.x, top: at.y) {
-            panel(menu, hover: model.hover)
+            model.panelWidget(menu, hover: model.hover, inPopup: false)
         }
     }
 
@@ -961,51 +1134,150 @@ final class ContextMenuState: State<StatefulWidget> {
         // drawing none -- it reads as "this submenu is empty".
         guard !menu.rows.isEmpty else { return SizedBox(width: 0, height: 0) }
         return Positioned(left: at.x, top: at.y) {
-            panel(menu, hover: model.subHover)
+            model.panelWidget(menu, hover: model.subHover, inPopup: false)
+        }
+    }
+}
+
+/// A popup window's content: ONE panel, drawn at the surface's origin.
+///
+/// The surface is placed at exactly the panel's window-space rectangle
+/// (syncPopups), so drawing at (0,0) and adding the panel's origin to every
+/// pointer event keeps the model's arithmetic — press, hovered, rowIndex —
+/// in the one coordinate space it always used. The model neither knows nor
+/// cares that the pixels now live in another window.
+final class MenuPanelSurface: StatefulWidget {
+    let model: ShellMenuModel
+    let isSub: Bool
+
+    init(model: ShellMenuModel, isSub: Bool) {
+        self.model = model
+        self.isSub = isSub
+        super.init()
+    }
+
+    override func createState() -> State<StatefulWidget> {
+        MenuPanelSurfaceState(model: model, isSub: isSub)
+    }
+}
+
+final class MenuPanelSurfaceState: State<StatefulWidget> {
+    private let model: ShellMenuModel
+    private let isSub: Bool
+
+    init(model: ShellMenuModel, isSub: Bool) {
+        self.model = model
+        self.isSub = isSub
+        super.init()
+    }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        withObservationTracking {
+            _buildContent()
+        } onChange: { [weak self] in
+            guard let self, self.mounted else { return }
+            self.setState {}
         }
     }
 
-    /// The panel itself: Windows 11's rounded, bordered acrylic slab -- a
-    /// backdrop blur under a translucent tint, which is what native menus
-    /// actually are. The blur samples OUR OWN window's content, and that is
-    /// the whole story here: this menu clamps inside the window, so there is
-    /// nothing else behind it to sample -- the one place real acrylic could
-    /// diverge is a menu overhanging the window's edge, which would take the
-    /// popup-window surface this file's origin() comment describes.
-    private func panel(_ menu: MenuCache, hover: Int?) -> Widget {
+    private func _buildContent() -> Widget {
+        // The one read that keeps this build subscribed to geometry changes
+        // even when the caches below come back warm — see geometryEpoch.
+        _ = model.geometryEpoch
+        let menu = isSub ? model.subMenu : model.mainMenu
+        let hover = isSub ? model.subHover : model.hover
+        let at = isSub ? model.subAt : model.origin(model.mainMenu)
+        // Between the dismissal and the popup's deferred close there is one
+        // empty build; sized zero rather than guessing at stale geometry.
+        guard model.isOpen, let origin = at else {
+            return SizedBox(width: 0, height: 0)
+        }
+        return Listener(
+            onPointerDown: { [weak self] e in
+                guard let self else { return }
+                self.model.press(origin.x + e.position.dx,
+                                 origin.y + e.position.dy,
+                                 buttons: e.buttons)
+            },
+            onPointerMove: { [weak self] e in
+                guard let self else { return }
+                self.model.hovered(origin.x + e.position.dx,
+                                   origin.y + e.position.dy)
+            },
+            onPointerHover: { [weak self] e in
+                guard let self else { return }
+                self.model.hovered(origin.x + e.position.dx,
+                                   origin.y + e.position.dy)
+            },
+            child: model.panelWidget(menu, hover: hover, inPopup: true))
+    }
+}
+
+// MARK: - The panel painters
+//
+// On the model so both hosts share them; reads of observed state (hover,
+// pillHover, the caches' backing fields) register with whichever build is
+// running, exactly as they did as widget methods.
+
+extension ShellMenuModel {
+
+    /// The panel itself: Windows 11's rounded, bordered slab.
+    ///
+    /// In a POPUP the rounding and the shadow are the WINDOW's: DWM clips
+    /// the surface to its own small-round corners and paints the menu
+    /// shadow outside them, which is precisely what native menus are. So
+    /// the popup variant fills its surface edge to edge — no ClipRRect (a
+    /// second, larger radius would notch black class-brush pixels into the
+    /// corners), no BoxShadow (it would be clipped at the surface's edge),
+    /// and an OPAQUE fill, because behind this surface there is nothing of
+    /// ours to blur: the translucent in-window tint would composite against
+    /// the class brush, not against acrylic.
+    func panelWidget(_ menu: MenuCache, hover: Int?, inPopup: Bool) -> Widget {
         SizedBox(width: menu.width, height: menu.height) {
-            DecoratedBox(
-                decoration: BoxDecoration(
-                    border: Border.all(color: Win11.menuBorder, width: 1),
-                    borderRadius: BorderRadius.circular(kMenuRadius),
-                    boxShadow: [BoxShadow(color: Win11.menuShadow,
-                                          offset: Offset(0, 4), blurRadius: 12)]),
-                child: ClipRRect(borderRadius: BorderRadius.circular(kMenuRadius)) {
-                    BackdropFilter(
-                        filter: ImageFilterFactory.blur(sigmaX: 24, sigmaY: 24),
-                        child: ColoredBox(color: Win11.menuBg) {
-                            panelContent(menu, hover: hover)
-                        })
-                })
+            if inPopup {
+                DecoratedBox(
+                    decoration: BoxDecoration(
+                        border: Border.all(color: Win11.menuBorder, width: 1)),
+                    child: ColoredBox(color: Win11.menuBgOpaque) {
+                        panelContentWidget(menu, hover: hover)
+                    })
+            } else {
+                DecoratedBox(
+                    decoration: BoxDecoration(
+                        border: Border.all(color: Win11.menuBorder, width: 1),
+                        borderRadius: BorderRadius.circular(kMenuRadius),
+                        boxShadow: [BoxShadow(color: Win11.menuShadow,
+                                              offset: Offset(0, 4),
+                                              blurRadius: 12)]),
+                    child: ClipRRect(borderRadius:
+                                        BorderRadius.circular(kMenuRadius)) {
+                        BackdropFilter(
+                            filter: ImageFilterFactory.blur(sigmaX: 24,
+                                                            sigmaY: 24),
+                            child: ColoredBox(color: Win11.menuBg) {
+                                panelContentWidget(menu, hover: hover)
+                            })
+                    })
+            }
         }
     }
 
-    private func panelContent(_ menu: MenuCache, hover: Int?) -> Widget {
+    private func panelContentWidget(_ menu: MenuCache, hover: Int?) -> Widget {
         Padding(padding: EdgeInsets(horizontal: kMenuPanelPad,
-                                                   vertical: kMenuPanelPad)) {
-                    Column(mainAxisSize: .min, crossAxisAlignment: .stretch) {
-                        if menu.pill {
-                            pillRow(width: menu.width)
-                            separatorRow()
-                        }
-                        for (index, row) in menu.rows.enumerated() {
-                            if row.isSeparator {
-                                separatorRow()
-                            } else {
-                                menuRowWidget(row, hovered: hover == index)
-                            }
-                        }
+                                    vertical: kMenuPanelPad)) {
+            Column(mainAxisSize: .min, crossAxisAlignment: .stretch) {
+                if menu.pill {
+                    pillRowWidget(width: menu.width)
+                    separatorRowWidget()
+                }
+                for (index, row) in menu.rows.enumerated() {
+                    if row.isSeparator {
+                        separatorRowWidget()
+                    } else {
+                        rowWidget(row, hovered: hover == index)
                     }
+                }
+            }
         }
     }
 
@@ -1017,17 +1289,17 @@ final class ContextMenuState: State<StatefulWidget> {
     /// formats are the shell's, and reimplementing any of that around
     /// IFileOperation to fill this row would be building a worse copy of
     /// something already installed.
-    private func pillRow(width: Double) -> Widget {
-        let cell = (width - kMenuPanelPad * 2) / Double(ShellMenuModel.pillCells.count)
+    private func pillRowWidget(width: Double) -> Widget {
+        let cell = (width - kMenuPanelPad * 2) / Double(Self.pillCells.count)
         return SizedBox(height: kMenuPillRow) {
             Row(crossAxisAlignment: .center) {
-                for (index, entry) in ShellMenuModel.pillCells.enumerated() {
-                    let live = model.pillLive(index)
+                for (index, entry) in Self.pillCells.enumerated() {
+                    let live = pillLive(index)
                     let colour = live ? Win11.text : Win11.disabled
                     SizedBox(width: cell, height: kMenuPillRow) {
                         Center {
                             ClipRRect(borderRadius: BorderRadius.circular(4)) {
-                                ColoredBox(color: model.pillHover == index && live
+                                ColoredBox(color: pillHover == index && live
                                            ? Win11.menuHover : Color(0x00000000)) {
                                     SizedBox(width: cell - 6, height: 46) {
                                         Column(mainAxisAlignment: .center) {
@@ -1039,7 +1311,7 @@ final class ContextMenuState: State<StatefulWidget> {
                                             // its verbs once it has answered;
                                             // ours (Paste, Rename) carry their
                                             // own labels.
-                                            Text(model.pillVerb(index)?.title
+                                            Text(pillVerb(index)?.title
                                                      ?? entry.label,
                                                  style: TextStyle(color: colour,
                                                                   fontSize: 10),
@@ -1062,7 +1334,7 @@ final class ContextMenuState: State<StatefulWidget> {
     /// so the line was one pixel tall, zero wide, and the menu came out with
     /// gaps where its rules should be. The Padding's constraint is the full
     /// panel width, and the box takes it.
-    private func separatorRow() -> Widget {
+    private func separatorRowWidget() -> Widget {
         SizedBox(height: kMenuSepH) {
             Padding(padding: EdgeInsets(left: 10, top: 3, right: 10, bottom: 3)) {
                 ColoredBox(color: Win11.menuSep) { SizedBox(height: 1) }
@@ -1070,7 +1342,7 @@ final class ContextMenuState: State<StatefulWidget> {
         }
     }
 
-    private func menuRowWidget(_ row: MenuRow, hovered: Bool) -> Widget {
+    private func rowWidget(_ row: MenuRow, hovered: Bool) -> Widget {
         let colour = row.isEnabled ? Win11.text : Win11.disabled
         return SizedBox(height: kMenuRow) {
             Padding(padding: EdgeInsets(horizontal: 1, vertical: 1)) {

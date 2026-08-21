@@ -22,6 +22,10 @@ import Foundation
 public final class Win32Host {
 
     private let host: OpaquePointer
+    /// The C host, for the sibling that manages popup surfaces
+    /// (Win32PopupSurfaces) — the one other owner of flwin32_ calls that
+    /// take the host.
+    var cHost: OpaquePointer { host }
     // The engine holds this pointer for its lifetime; heap-allocate so it
     // never moves and never dies before the process does.
     private let callbacks: UnsafeMutablePointer<SwiftRuntimeCallbacks>

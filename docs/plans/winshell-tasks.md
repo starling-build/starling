@@ -2,16 +2,83 @@
 
 The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
-mouse notices first. Updated 2026-08-21: every visual-polish, functional-gap
-and hygiene item is done -- what remains is the deferred-by-decision section
-below and the small not-yets recorded inside ticked entries (tab
-reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
-CHECKPOINT 2026-08-21 (end of the Phase-1 session): NOTHING IS IN
-FLIGHT. Every landing below is committed, pushed, deployed to the box's
-dist, and was driven live before its commit. The working tree is clean at
-b5a791e. A fresh session starts from the wave plan
-(winshell-shell-replacement.md): wave 2's desktop surface once track 2's
-popup surfaces (0b) exist, or 0b itself if that track is idle.
+mouse notices first.
+
+## Popup surfaces (0b) — landed and verified 2026-08-21
+
+Track 2's prerequisite, and the last one: every panel of the file
+explorer's menu — the menu, its submenu, the command bar's flyouts — is now
+its own POPUP WINDOW, so it overhangs the window's edges and outgrows its
+height, the way Windows' own menus are windows. Driven on the box: a
+right-click near the window's right edge opens a menu standing mostly on
+the desktop, "Give access to"'s submenu draws beside it in a second popup,
+"Show more options" grows the popup in place, a verb runs (Copy as path →
+the clipboard), and dismissal works from all three directions (a click in
+the window, a click in another app, the popup rows themselves).
+
+The machinery, reusable as-is for wave 2's desktop menu, tray flyouts and
+toast banners: `flwin32_popup.c` opens/places/closes a second engine view
+(FlutterDesktopEngineCreateViewController — exported from
+flutter_windows.dll but declared only in upstream's INTERNAL header; the
+declaration is copied into the .c) inside a WS_POPUP | WS_EX_NOACTIVATE |
+TOOLWINDOW | TOPMOST window, addressed in HOST-CLIENT LOGICAL POINTS;
+`Win32PopupSurfaces` (Swift) keys content builders by the returned view id
+through the adapter's existing multiViewContentBuilder — the multi-view
+path the Linux multi-monitor work built, never before used on Windows.
+DWMWCP_ROUND + an opaque panel fill IS the native menu anatomy: DWM clips
+the surface to the radius and paints the menu shadow outside it. NOACTIVATE
+means the keyboard never leaves the host window (menu keys keep working
+unchanged), and the engine view never takes focus on a click — verified in
+the embedder: FlutterWindow::Focus runs only on an explicit request.
+
+Three findings, each bought with a black rectangle:
+- **The swift-mode render path could only commit ONE view per pass**
+  (engine fix, shell.cc). The render callback ended the frame after every
+  view's Render; EndFrame consumes the pipeline's single producer
+  continuation, so the second view's tree in the same Swift pass staged
+  against an empty continuation and was silently dropped — the submenu
+  composited exactly once, in the same pass as the resizing menu, and
+  stayed black forever. The commit is now POSTED to the tail of the
+  current UI task: all views of a pass stage first, one EndFrame commits
+  them (Dart-mode batching restored), and inside a real vsync task the
+  posted commit finds the recorder null and no-ops. This also fixes the
+  same latent drop on Linux multi-monitor, where it self-healed and hid.
+- **Warming a derived cache outside a tracked build starves observation**
+  (geometryEpoch). syncPopups reads mainMenu to size the popup, filling
+  the @ObservationIgnored cache; the popup's build then hits the warm
+  cache, never reads the observed rows underneath, and misses the next
+  change — the popup window resized for the full verb tier while the
+  panel inside kept drawing the fast tier. Every geometry mutation bumps
+  an observed epoch (inside scheduleSync, which every mutator already
+  calls) and the surface build reads it.
+- **Popup calls must be DEFERRED off the popup's own event dispatch.** A
+  press arrives from the popup's view; closing that view inline would
+  destroy the window under the call stack delivering the event. All popup
+  window ops go through one coalesced main-queue sync (scheduleSync).
+
+The in-window drawing survives as the fallback when a popup cannot be
+created (popupsEnabled=false, flipped on first failure), sharing the same
+panel painters so it cannot drift. Menu clamping switched from the window
+to the monitor's WORK AREA (flwin32_popup_frame). Oracles:
+"[Adapter] view N pipeline created/first composite/disposed" and
+"[Win32Popup] view N has no content builder" on stderr.
+
+Not done, deliberately: per-pixel-alpha acrylic in popups (the popup fill
+is opaque; real cross-window acrylic needs DirectComposition, not a GL
+swapchain colorkey), and the launcher/notification-centre overlays still
+use their own full-window machinery rather than popup surfaces.
+
+Updated 2026-08-21: every visual-polish, functional-gap and hygiene item
+is done -- what remains is the deferred-by-decision section below and the
+small not-yets recorded inside ticked entries (tab reorder/tear-off,
+column reorder, custom drag imagery, edge autoscroll).
+
+CHECKPOINT 2026-08-21 (end of the popup-surfaces session): NOTHING IS IN
+FLIGHT. Track 2's popup surfaces (0b, section above) are DONE, and the
+parallel session landed Phase 4's banners and Run dialog (section below,
+built on the passive-overlay machinery rather than waiting on 0b). Every
+prerequisite for wave 2's desktop surface — 0a namespace enumeration and
+0b popup surfaces — is now in hand: a fresh session starts THERE.
 
 Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
 COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,
@@ -390,12 +457,11 @@ Winlogon Shell= slot, every phase VM-proven before the dev box tries it.
 
 ## Deferred by decision (session-sized)
 
-- [ ] The context menu as its own popup window. Feasibility fully
-      established mid-session: FlutterDesktopEngineCreateViewController is
-      exported, the adapter's secondaryPipelines are view-generic, pointer
-      routing is per-view. Buys menu overhang past the window's edges,
-      menus taller than the window, true cross-window acrylic. The spike
-      was parked in favour of window-parity work.
+- [x] The context menu as its own popup window — DONE, see "Popup surfaces
+      (0b)" at the top of this file. (Of the three things the deferral
+      predicted it would buy, two arrived — overhang and height; true
+      cross-window acrylic did not: the popup fill is opaque, because
+      per-pixel alpha over a GL swapchain needs DirectComposition.)
 - [ ] Engine frame-dispatch latency: ~40ms request-to-begin-frame across
       five queue hops (documented in engine commit e077473108b). Worth
       ~25-30ms off every first paint, but it is upstream-forked scheduler

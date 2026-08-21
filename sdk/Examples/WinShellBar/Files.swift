@@ -117,6 +117,10 @@ enum Win11 {
     /// backdrop blur underneath it (see FilesMenu.panel), so the alpha is
     /// what lets the frosted content through.
     static var menuBg: Color { light ? Color(0xE0FCFCFC) : Color(0xE02C2C2C) }
+    /// The popup-surface menu fill: the same slab, OPAQUE. A popup window's
+    /// panel has nothing of ours behind it to frost, and the translucent
+    /// tint would composite against the surface's black class brush.
+    static var menuBgOpaque: Color { light ? Color(0xFFFCFCFC) : Color(0xFF2C2C2C) }
     static var menuBorder: Color { light ? Color(0xFFD4D4D4) : Color(0xFF454545) }
     static var menuHover: Color { light ? Color(0xFFF0F0F0) : Color(0xFF383838) }
     static var menuSep: Color { light ? Color(0xFFE4E4E4) : Color(0xFF3D3D3D) }

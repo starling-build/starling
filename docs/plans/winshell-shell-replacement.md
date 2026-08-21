@@ -53,6 +53,18 @@ alone; the feasibility notes (FlutterDesktopEngineCreateViewController
 exported, secondaryPipelines view-generic, per-view pointer routing) carry
 over unchanged.
 
+**DONE 2026-08-21 (track 2).** Win32PopupSurfaces (Swift) + flwin32_popup.c:
+open/place/close a popup-window engine view addressed in host-client logical
+points, content built per view id through the adapter's existing
+multiViewContentBuilder. The Files context menu, its submenus and the
+command-bar flyouts all ride it — driven on the box overhanging the window's
+edge. Took one engine fix (the swift-mode render callback committed the frame
+after EVERY view's Render, so a pass compositing two views silently dropped
+all but the first — the commit is posted to the task's tail now) and one
+observation fix (warming the menu caches outside a tracked build starved the
+popup's rebuild subscription — geometryEpoch). Findings in
+winshell-tasks.md's popup-surfaces section.
+
 ### Phase 1 — finish Explorer-the-app
 
 With namespace enumeration in hand: Recycle Bin and Network in the sidebar

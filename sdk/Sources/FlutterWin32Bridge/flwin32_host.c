@@ -207,6 +207,14 @@ static const wchar_t kWindowClass[] = L"FlutterSwiftWin32Host";
 static void appbar_apply_position(FlWin32Host* host);
 static void panel_apply_placement(FlWin32Host* host);
 static void overlay_park(FlWin32Host* host);
+
+// The engine behind this host's view, for a second view controller
+// (flwin32_popup.c). Returned as void* so the vendored embedder headers stay
+// inside this target.
+void* flwin32_host_engine(FlWin32Host* host) {
+  if (host == NULL || host->controller == NULL) return NULL;
+  return (void*)FlutterDesktopViewControllerGetEngine(host->controller);
+}
 static void overlay_rederive(FlWin32Host* host);
 static int overlay_area(FlWin32Host* host, RECT* out);
 static void install_child_cursor_proc(HWND child);
@@ -309,7 +317,14 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
         MoveWindow(host->child, 0, 0, frame.right - frame.left,
                    frame.bottom - frame.top, TRUE);
       }
+      // A popup is anchored to a point in this client area; the window
+      // changing shape under it orphans that anchor. Same for WM_MOVE below.
+      if (host != NULL) flwin32_popup_notify_host_event(host);
       return 0;
+
+    case WM_MOVE:
+      if (host != NULL) flwin32_popup_notify_host_event(host);
+      break;
 
     case WM_NCCALCSIZE:
       // Custom titlebar: give the CAPTION to the client and keep the resize
@@ -493,6 +508,7 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
         SHAppBarMessage(ABM_REMOVE, &abd);
         host->appbar_registered = 0;
       }
+      if (host != NULL) flwin32_popup_close_all(host);
       PostQuitMessage(0);
       return 0;
 
@@ -510,6 +526,12 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
         overlay_park(host);
         if (host->toggle_callback != NULL) host->toggle_callback(host->toggle_user);
         return 0;
+      }
+      // Popups are NOACTIVATE, so a click on one never lands here; a click
+      // on ANOTHER app deactivates this window, and its popups must go the
+      // way every menu on the system goes.
+      if (host != NULL && LOWORD(wparam) == WA_INACTIVE) {
+        flwin32_popup_notify_host_event(host);
       }
       break;
 
@@ -1537,6 +1559,12 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
 // than a static: the embedder already owns the child's GWLP_USERDATA (it
 // stores its FlutterWindow* there), and a static would tie this to one host
 // per process, which is a constraint the rest of this file does not have.
+//
+// Also the popup surfaces' route to the same fix (flwin32_popup.c) — their
+// view children have the identical stuck-cursor problem, hence the exported
+// wrapper below. Safe under a popup parent: the proc reads the parent's
+// GWLP_USERDATA as an FlWin32Host, and popup frames deliberately leave
+// theirs NULL.
 static void install_child_cursor_proc(HWND child) {
   if (child == NULL || GetPropW(child, kChildProcProp) != NULL) return;
   WNDPROC original =
@@ -1546,6 +1574,10 @@ static void install_child_cursor_proc(HWND child) {
     // Could not record the original, so do not leave ours in its place.
     SetWindowLongPtrW(child, GWLP_WNDPROC, (LONG_PTR)original);
   }
+}
+
+void flwin32_install_child_cursor_proc(void* child_hwnd) {
+  install_child_cursor_proc((HWND)child_hwnd);
 }
 
 // ── overlays: a full-screen surface that is usually not there ───────────────
