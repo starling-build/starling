@@ -87,6 +87,11 @@ struct FilesState {
     /// not pay. Recomputed by `_reproject()` when the listing, the sort or the
     /// filter changes, and at no other time.
     fileprivate(set) var visible: [Win32FileEntry] = []
+    /// `visible`, keyed by path -- for the lookups that run per BUILD (the
+    /// command bar's enablement asks for the selected entry half a dozen
+    /// times, the status bar once more), which must not each walk ten
+    /// thousand rows. Rebuilt with `visible`, in `_reproject()`.
+    fileprivate(set) var visibleByPath: [String: Win32FileEntry] = [:]
 
 }
 
@@ -583,6 +588,8 @@ final class FilesBloc: @unchecked Sendable {
             return ascending ? order : !order
         }
         state.visible = rows
+        state.visibleByPath = Dictionary(rows.map { ($0.path, $0) },
+                                         uniquingKeysWith: { a, _ in a })
     }
 
     /// Explorer's Type column, cached BY EXTENSION.

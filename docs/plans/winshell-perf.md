@@ -36,9 +36,8 @@ Caveats learned doing it:
 | scenario                          | cost                                    |
 |-----------------------------------|-----------------------------------------|
 | idle (Details or This PC)         | 0–0.9% of a core — no polling anywhere  |
-| hover sweep, Details (warm)       | ~0.1ms CPU per row change               |
-| hover sweep, Details (cold start) | ~5ms per change for the first sweep     |
-| hover sweep, Medium icons         | ~2.3ms per cell change (see follow-ups) |
+| hover sweep, warm plateau         | 0.07-0.2ms per change, Details and grid alike (see the correction below) |
+| hover sweep, cold / driven-hard   | 2-5ms per change -- attribution open    |
 | wheel scroll, Details             | ~4.6% of a core                         |
 | wheel scroll, Medium icons        | ~0.9% (4x fewer builds per pixel)       |
 | rubber band, grid                 | ~7.7%                                   |
@@ -58,8 +57,25 @@ Caveats learned doing it:
 | SHGetFileInfo display name          | 0.10ms per call                        |
 | SHGetFileInfo type name             | 0.075ms per call (already one per TYPE by design) |
 
+## A finding withdrawn
+
+The first pass reported grid hover at ~25x Details hover. Re-measured with
+a better protocol -- three consecutive sweeps on one process, keeping only
+the plateau -- BOTH modes bottom out in the same sub-millisecond class
+(grid 0.07ms/move, Details 0.20ms/move). The multi-millisecond readings
+appear on cold processes and on processes that have been driven hard, and
+one controlled observation (Details at a stable 2.5ms/move fell to
+0.2ms/move after a refresh cleared the selection) hints the escalation is
+selection-linked -- but external CPU sampling is at its noise floor here
+(sweeps of ~230 events against desktop-wide contention swing +-1.5ms/move)
+and cannot attribute it. Do not optimize the ClipRRect on this evidence;
+instrument first.
+
 ## Fixed during this pass
 
+- `selectedEntry` and the status bar look the selection up in a
+  `visibleByPath` dictionary built once per reprojection -- the command
+  bar alone asked six times per rebuild, each a full scan of the listing.
 - `Win32Files.displayName` is memoized. The sidebar's drive rows and the
   breadcrumb ask on every window rebuild, and a rebuild can run per
   pointer move (column drag) — 0.1ms of shell call per drive per frame
@@ -67,10 +83,12 @@ Caveats learned doing it:
 
 ## Follow-ups, in value order
 
-1. **Grid hover is ~25x Details hover** (~2.3ms vs ~0.1ms per change).
-   The cells differ from rows by a ClipRRect wrapper and a larger repaint
-   extent; worth isolating which. Not urgent — it is pointer-bound and
-   idles at zero.
+1. **Internal frame timing.** Every open question above (what escalates
+   hover to milliseconds on a driven process, whether it is
+   selection-linked, what a rebuild's chrome/listing split is) dead-ends
+   on external CPU sampling's noise floor. A timer around the build/raster
+   pass, behind an env var, answers all of them -- and is the same
+   plumbing the present-statistics question needs.
 2. **The full-window rebuild (~4ms on a big folder) is the unit cost**
    behind column drags and selection clicks. Isolating the listing (or
    headers+listing) into its own rebuild scope would cut drag cost by
@@ -80,6 +98,6 @@ Caveats learned doing it:
    — O(n) string compares on every rebuild of a 10k folder. Small today;
    a dictionary or the selection's own entry would delete it.
 4. **Present-side smoothness is unmeasured** — CPU says nothing about
-   frame pacing, and GDI capture cannot see the GL view. This is the same
-   instrumentation the deferred idle-present question needs (present
-   statistics from inside the engine); one piece of plumbing answers both.
+   frame pacing, and GDI capture cannot see the GL view. Folded into
+   follow-up 1: one piece of engine instrumentation answers the frame
+   pacing, the idle-present question, and the hover attribution above.

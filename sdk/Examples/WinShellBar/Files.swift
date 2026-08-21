@@ -1328,7 +1328,9 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// actions.
     private var selectedEntry: Win32FileEntry? {
         guard let path = bloc.state.selected else { return nil }
-        return bloc.state.visible.first { $0.path == path }
+        // The dictionary, not a scan: the command bar asks half a dozen
+        // times per build.
+        return bloc.state.visibleByPath[path]
     }
 
     /// The selection in VISIBLE order -- a Set has none, and Copy as path
@@ -1620,7 +1622,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// ("what happens if I double-click this") is a real one, and two stacked
     /// bars both reporting the item count was worse than either.
     private func statusBar() -> Widget {
-        let entry = bloc.state.visible.first { $0.path == bloc.state.selected }
+        let entry = bloc.state.selected.flatMap { bloc.state.visibleByPath[$0] }
         let count = bloc.state.selection.count
         return SizedBox(height: kFilesStatusBar) {
             ColoredBox(color: Win11.windowBg) {
