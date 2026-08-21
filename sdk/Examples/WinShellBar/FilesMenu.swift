@@ -218,12 +218,12 @@ final class ShellMenuModel {
     }
 
     static let pillCells: [(action: PillAction, glyph: IconData, label: String)] = [
-        (.shell("cut"), CupertinoIcons.scissors, "Cut"),
-        (.shell("copy"), CupertinoIcons.doc_on_doc, "Copy"),
-        (.paste, CupertinoIcons.doc_on_clipboard, "Paste"),
-        (.rename, CupertinoIcons.pencil, "Rename"),
-        (.shell("windows.modernshare"), CupertinoIcons.share, "Share"),
-        (.shell("delete"), CupertinoIcons.trash, "Delete"),
+        (.shell("cut"), FluentIcons.cut, "Cut"),
+        (.shell("copy"), FluentIcons.copy, "Copy"),
+        (.paste, FluentIcons.paste, "Paste"),
+        (.rename, FluentIcons.rename, "Rename"),
+        (.shell("windows.modernshare"), FluentIcons.share, "Share"),
+        (.shell("delete"), FluentIcons.delete, "Delete"),
     ]
 
     /// Shell verbs the list does not repeat: the row above, and the two we
@@ -241,16 +241,16 @@ final class ShellMenuModel {
     /// to a menu we are not running, and inventing a picture for "Restore
     /// previous versions" is worse than leaving the column empty.
     static let verbGlyphs: [String: IconData] = [
-        "pintohome": CupertinoIcons.pin,
-        "properties": CupertinoIcons.info,
-        "copyaspath": CupertinoIcons.doc_on_clipboard,
-        "link": CupertinoIcons.link,
-        "print": CupertinoIcons.printer,
-        "runas": CupertinoIcons.lock,
-        "previousversions": CupertinoIcons.clock,
-        "pintostartscreen": CupertinoIcons.pin,
-        "pintohomefile": CupertinoIcons.star,
-        "edit": CupertinoIcons.pencil,
+        "pintohome": FluentIcons.pin,
+        "properties": FluentIcons.info,
+        "copyaspath": FluentIcons.paste,
+        "link": FluentIcons.link,
+        "print": FluentIcons.print,
+        "runas": FluentIcons.admin,
+        "previousversions": FluentIcons.history,
+        "pintostartscreen": FluentIcons.pin,
+        "pintohomefile": FluentIcons.favorite,
+        "edit": FluentIcons.rename,
     ]
 
     /// Whether the menu carries the icon row. An item's does; the folder
@@ -391,27 +391,27 @@ final class ShellMenuModel {
         var rows: [MenuRow] = []
         if let entry {
             rows.append(MenuRow(title: "Open",
-                                glyph: entry.isDirectory ? CupertinoIcons.folder_open
-                                                         : CupertinoIcons.doc_text,
+                                glyph: entry.isDirectory ? FluentIcons.folderOpen
+                                                         : FluentIcons.document,
                                 isDefault: true,
                                 accelerator: "Enter",
                                 action: { filesBloc.add(.activate(entry)) }))
             if !entry.isDirectory {
                 rows.append(MenuRow(title: "Open with…",
-                                    glyph: CupertinoIcons.square_grid_2x2,
+                                    glyph: FluentIcons.viewAll,
                                     action: { filesBloc.add(.openWith) }))
             }
             rows.append(MenuRow(title: "Show in Explorer",
-                                glyph: CupertinoIcons.arrow_up_right,
+                                glyph: FluentIcons.openExternal,
                                 action: {
                 let path = entry.isDirectory ? entry.path : filesBloc.state.directory
                 Task.detached { Win32Files.openInExplorer(path) }
             }))
         } else {
-            rows.append(MenuRow(title: "Refresh", glyph: CupertinoIcons.arrow_2_circlepath,
+            rows.append(MenuRow(title: "Refresh", glyph: FluentIcons.refresh,
                                 action: { filesBloc.add(.open(filesBloc.state.directory)) }))
             rows.append(MenuRow(title: "Show in Explorer",
-                                glyph: CupertinoIcons.arrow_up_right,
+                                glyph: FluentIcons.openExternal,
                                 action: {
                 let path = filesBloc.state.directory
                 Task.detached { Win32Files.openInExplorer(path) }
@@ -432,7 +432,7 @@ final class ShellMenuModel {
             }
             rows.append(MenuRow(isSeparator: true))
             rows.append(MenuRow(title: "Show more options",
-                                glyph: CupertinoIcons.ellipsis,
+                                glyph: FluentIcons.more,
                                 keepsOpen: true,
                                 action: { [weak self] in self?.showMore() }))
         }
@@ -526,7 +526,7 @@ final class ShellMenuModel {
             // same zip (see Win32FileOps.compressToZip).
             if name == "copyaspath", let entry {
                 rows.append(MenuRow(title: "Compress to ZIP file",
-                                    glyph: CupertinoIcons.archivebox,
+                                    glyph: FluentIcons.zip,
                                     action: { filesBloc.add(.compress(entry)) }))
             }
             if let verb = verbs.first(where: { !$0.isSeparator && $0.verb == name }) {
@@ -1047,7 +1047,7 @@ final class ContextMenuState: State<StatefulWidget> {
                             if row.isSubmenu {
                                 Positioned(top: 0, right: 10, bottom: 0) {
                                     Center {
-                                        MacosIcon(icon: CupertinoIcons.chevron_right,
+                                        MacosIcon(icon: FluentIcons.chevronRight,
                                                   color: Win11.textDim, size: 10)
                                     }
                                 }

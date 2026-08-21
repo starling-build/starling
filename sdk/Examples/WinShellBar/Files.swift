@@ -225,6 +225,9 @@ final class StarlingFilesState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
+        // The system's own icon font: this surface imitates Explorer, and
+        // Explorer's glyphs come from Segoe Fluent Icons, not Cupertino.
+        FluentIcons.registerFont()
         // The caption becomes ours to draw: tabs in the titlebar, exactly
         // Explorer's shape. The strip's hit test (stripPress) owes the
         // window drag, minimize, maximize and close in exchange.
@@ -365,13 +368,13 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// pins them: Desktop, Downloads, Documents, Pictures, Music, Videos.
     private static let placeLooks: [String: (glyph: IconData, tint: Color)] = [
         // Home's house is the warm one, as Windows paints it.
-        "Home": (CupertinoIcons.house_fill, Color(0xFFCB6E3C)),
-        "Desktop": (CupertinoIcons.macwindow, Color(0xFF4E80C9)),
-        "Downloads": (CupertinoIcons.arrow_down_circle, Color(0xFF3F9E49)),
-        "Documents": (CupertinoIcons.doc_text, Color(0xFF5E7CA8)),
-        "Pictures": (CupertinoIcons.photo, Color(0xFF8A5BB8)),
-        "Music": (CupertinoIcons.music_note, Color(0xFFC94E7E)),
-        "Videos": (CupertinoIcons.film, Color(0xFFC97A3F)),
+        "Home": (FluentIcons.home, Color(0xFFCB6E3C)),
+        "Desktop": (FluentIcons.desktop, Color(0xFF4E80C9)),
+        "Downloads": (FluentIcons.download, Color(0xFF3F9E49)),
+        "Documents": (FluentIcons.document, Color(0xFF5E7CA8)),
+        "Pictures": (FluentIcons.pictures, Color(0xFF8A5BB8)),
+        "Music": (FluentIcons.music, Color(0xFFC94E7E)),
+        "Videos": (FluentIcons.video, Color(0xFFC97A3F)),
     ]
     private static let pinOrder = ["Desktop", "Downloads", "Documents",
                                    "Pictures", "Music", "Videos"]
@@ -399,14 +402,14 @@ final class StarlingFilesState: State<StatefulWidget> {
                         // Not expandable yet: the drives are simply always
                         // shown, which for one drive is the same picture.
                         placeRow(Win32Place(name: "This PC", path: ""),
-                                 glyph: CupertinoIcons.desktopcomputer)
+                                 glyph: FluentIcons.thisPC)
                         for drive in bloc.state.drives {
                             Padding(padding: EdgeInsets(left: 14, top: 0,
                                                         right: 0, bottom: 0)) {
                                 placeRow(Win32Place(
                                     name: Win32Files.displayName(for: drive.path),
                                     path: drive.path),
-                                    glyph: CupertinoIcons.square_stack_3d_up)
+                                    glyph: FluentIcons.drive)
                             }
                         }
                     }
@@ -434,7 +437,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         let selected = !place.path.isEmpty
             && bloc.state.directory == place.path
         let look = Self.placeLooks[place.name]
-        let icon = glyph ?? look?.glyph ?? CupertinoIcons.folder_fill
+        let icon = glyph ?? look?.glyph ?? FluentIcons.folderFill
         let tint = glyph != nil ? Win11.textDim
             : (look?.tint ?? (Win11.light ? Color(0xFF4E80C9)
                                           : Color(0xFF7FA9DE)))
@@ -456,7 +459,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                          maxLines: 1)
                                     if pinned {
                                         Expanded { SizedBox(height: 1) }
-                                        MacosIcon(icon: CupertinoIcons.pin,
+                                        MacosIcon(icon: FluentIcons.pin,
                                                   color: Win11.textFaint, size: 11)
                                     }
                                 }
@@ -498,7 +501,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                     Padding(padding: EdgeInsets(
                                         left: 12, top: 0, right: 8, bottom: 0)) {
                                         Row(crossAxisAlignment: .center, spacing: 8) {
-                                            MacosIcon(icon: CupertinoIcons.folder_fill,
+                                            MacosIcon(icon: FluentIcons.folderFill,
                                                       color: Win11.textDim, size: 13)
                                             Expanded {
                                                 Text(folderLabel(),
@@ -506,7 +509,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                                                       fontSize: 12),
                                                      overflow: .ellipsis, maxLines: 1)
                                             }
-                                            MacosIcon(icon: CupertinoIcons.xmark,
+                                            MacosIcon(icon: FluentIcons.close,
                                                       color: Win11.textFaint, size: 10)
                                         }
                                     }
@@ -517,17 +520,17 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // "+", which opens a new window on this folder -- the
                     // nearest honest thing to a new tab until tabs are real.
                     Positioned(left: kTabX + kTabW + 8, top: 12) {
-                        MacosIcon(icon: CupertinoIcons.add,
+                        MacosIcon(icon: FluentIcons.add,
                                   color: Win11.textDim, size: 14)
                     }
                     // The caption trio, Windows' own widths, right-aligned.
                     Positioned(top: 0, right: 0, bottom: 0) {
                         Row(crossAxisAlignment: .stretch) {
-                            captionButton(CupertinoIcons.minus)
+                            captionButton(FluentIcons.chromeMinimize)
                             captionButton((Win32WindowedHost.host?.isMaximized ?? false)
-                                          ? CupertinoIcons.square_on_square
-                                          : CupertinoIcons.square)
-                            captionButton(CupertinoIcons.xmark)
+                                          ? FluentIcons.chromeRestore
+                                          : FluentIcons.chromeMaximize)
+                            captionButton(FluentIcons.close)
                         }
                     }
                 }
@@ -605,7 +608,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // its rename field. (Explorer's is a dropdown with the
                     // ShellNew templates; the folder is the one everybody
                     // means.)
-                    barButton(CupertinoIcons.add, "New", chevron: true,
+                    barButton(FluentIcons.add, "New", chevron: true,
                               enabled: true) {
                         self.bloc.add(.newFolder)
                     }
@@ -615,44 +618,44 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // five run through the shell (IFileOperation / the
                     // shell's data object) -- see FilesBloc and
                     // flwin32_fileops.c.
-                    barIcon(CupertinoIcons.scissors, enabled: selectedEntry != nil) {
+                    barIcon(FluentIcons.cut, enabled: selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.clip(entry, cut: true))
                         }
                     }
-                    barIcon(CupertinoIcons.doc_on_doc, enabled: selectedEntry != nil) {
+                    barIcon(FluentIcons.copy, enabled: selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.clip(entry, cut: false))
                         }
                     }
-                    barIcon(CupertinoIcons.doc_on_clipboard,
+                    barIcon(FluentIcons.paste,
                             enabled: Win32FileOps.clipboardHasFiles()) {
                         self.bloc.add(.paste(into: self.bloc.state.directory))
                     }
-                    barIcon(CupertinoIcons.pencil, enabled: selectedEntry != nil) {
+                    barIcon(FluentIcons.rename, enabled: selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.beginRename(entry))
                         }
                     }
                     // Share, through the shell's own verb -- the same
                     // windows.modernshare the menu's icon row invokes.
-                    barIcon(CupertinoIcons.share,
+                    barIcon(FluentIcons.share,
                             enabled: selectedEntry?.isDirectory == false) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.share(entry))
                         }
                     }
-                    barIcon(CupertinoIcons.trash, enabled: selectedEntry != nil) {
+                    barIcon(FluentIcons.delete, enabled: selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.deleteEntry(entry))
                         }
                     }
                     barSeparator()
-                    barButton(CupertinoIcons.arrow_up_arrow_down, sortLabel(),
+                    barButton(FluentIcons.sort, sortLabel(),
                               chevron: true, enabled: true) {
                         self.cycleSort()
                     }
-                    barButton(CupertinoIcons.square_grid_2x2, "View",
+                    barButton(FluentIcons.viewAll, "View",
                               chevron: true, enabled: false) {}
                     Expanded { SizedBox(height: 1) }
                     textButton("Open in Explorer") { self.bloc.add(.openInExplorer) }
@@ -668,16 +671,16 @@ final class StarlingFilesState: State<StatefulWidget> {
                 Row(crossAxisAlignment: .center, spacing: 4) {
                     // Long arrows, as Explorer draws them -- the thin
                     // chevrons read as a different application.
-                    navIcon(CupertinoIcons.arrow_left, enabled: bloc.canGoBack) {
+                    navIcon(FluentIcons.back, enabled: bloc.canGoBack) {
                         self.bloc.add(.goBack)
                     }
-                    navIcon(CupertinoIcons.arrow_right, enabled: bloc.canGoForward) {
+                    navIcon(FluentIcons.forward, enabled: bloc.canGoForward) {
                         self.bloc.add(.goForward)
                     }
-                    navIcon(CupertinoIcons.arrow_up, enabled: bloc.state.canGoUp) {
+                    navIcon(FluentIcons.up, enabled: bloc.state.canGoUp) {
                         self.bloc.add(.goUp)
                     }
-                    navIcon(CupertinoIcons.arrow_clockwise, enabled: true) {
+                    navIcon(FluentIcons.refresh, enabled: true) {
                         self.bloc.add(.refresh)
                     }
                     SizedBox(width: 4)
@@ -699,12 +702,12 @@ final class StarlingFilesState: State<StatefulWidget> {
                     Padding(padding: EdgeInsets(horizontal: 10, vertical: 0)) {
                         Row(crossAxisAlignment: .center, spacing: 2) {
                             // The leading device glyph, as Explorer draws it.
-                            MacosIcon(icon: CupertinoIcons.desktopcomputer,
+                            MacosIcon(icon: FluentIcons.thisPC,
                                       color: Win11.textDim, size: 13)
                             SizedBox(width: 4)
                             for (i, crumb) in parts.enumerated() {
                                 if i > 0 {
-                                    MacosIcon(icon: CupertinoIcons.chevron_right,
+                                    MacosIcon(icon: FluentIcons.chevronRight,
                                               color: Win11.textFaint, size: 9)
                                 }
                                 GestureDetector(
@@ -740,7 +743,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                 controller: search,
                 placeholder: "Search \(folderLabel())",
                 prefix: Padding(padding: EdgeInsets(left: 6, top: 0, right: 0, bottom: 0)) {
-                    MacosIcon(icon: CupertinoIcons.search, color: Win11.textFaint, size: 12)
+                    MacosIcon(icon: FluentIcons.search, color: Win11.textFaint, size: 12)
                 },
                 onChanged: { text in self.bloc.add(.filter(text)) },
                 style: TextStyle(color: Win11.text, fontSize: 12),
@@ -787,8 +790,8 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // re-click will flip it.
                     if active {
                         MacosIcon(icon: bloc.state.sortAscending
-                                      ? CupertinoIcons.chevron_up
-                                      : CupertinoIcons.chevron_down,
+                                      ? FluentIcons.chevronUp
+                                      : FluentIcons.chevronDown,
                                   color: Win11.accent, size: 8)
                     }
                 }
@@ -875,7 +878,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 color: enabled ? Win11.textDim : Win11.disabled,
                                 fontSize: 12))
                         if chevron {
-                            MacosIcon(icon: CupertinoIcons.chevron_down,
+                            MacosIcon(icon: FluentIcons.chevronDown,
                                       color: enabled ? Win11.textFaint
                                                      : Win11.disabled,
                                       size: 9)
@@ -1076,8 +1079,8 @@ final class StarlingFilesState: State<StatefulWidget> {
                                         icon
                                     } else {
                                         MacosIcon(icon: entry.isDirectory
-                                                      ? CupertinoIcons.folder_fill
-                                                      : CupertinoIcons.doc,
+                                                      ? FluentIcons.folderFill
+                                                      : FluentIcons.page,
                                                   color: Win11.textFaint, size: 14)
                                     }
                                 }
