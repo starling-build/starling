@@ -145,6 +145,18 @@ final class StarlingFilesState: State<StatefulWidget> {
     // when it moves past a click's worth, cleared on release either way.
     private var dragCandidate: (path: String, x: Double, y: Double)?
 
+    /// Where the arrow keys stand: the row the last key or click landed on,
+    /// which Shift+arrows extend from and plain arrows step from. A stale
+    /// path (the file left, the tab changed) simply fails the lookup and
+    /// the anchor takes over.
+    private var keyCursor: String?
+
+    /// Type-to-jump, as every Windows listing does it: printable keys
+    /// accumulate for a second and the first name with that prefix gets
+    /// the selection.
+    private var typeAhead = ""
+    private var typeAheadAt = Date.distantPast
+
     /// The search box's text. Owned by the widget, not the bloc: the bloc
     /// holds the filter it produced, which is a different thing from what is
     /// currently in the field.
@@ -226,6 +238,15 @@ final class StarlingFilesState: State<StatefulWidget> {
             }
         }
 
+        if altDown {
+            switch keyData.logical {
+            case 0x1_0000_0302: bloc.add(.goBack); return true     // Left
+            case 0x1_0000_0303: bloc.add(.goForward); return true  // Right
+            case 0x1_0000_0304: bloc.add(.goUp); return true       // Up
+            default: break
+            }
+        }
+
         switch keyData.logical {
         case 0x1_0000_001B: // Escape: the menu first, then a rename in flight
             if menu.isOpen {
@@ -259,8 +280,82 @@ final class StarlingFilesState: State<StatefulWidget> {
             guard let entry = selectedEntry else { return false }
             bloc.add(.deleteEntry(entry))
             return true
+        case 0x1_0000_0008: // Backspace: Explorer's other Back
+            bloc.add(.goBack)
+            return true
+        case 0x1_0000_0301: // Down
+            moveSelection(1, extend: shiftDown)
+            return true
+        case 0x1_0000_0304: // Up
+            moveSelection(-1, extend: shiftDown)
+            return true
+        case 0x1_0000_0306: // Home
+            moveSelection(-bloc.state.visible.count, extend: shiftDown)
+            return true
+        case 0x1_0000_0305: // End
+            moveSelection(bloc.state.visible.count, extend: shiftDown)
+            return true
         default:
-            return false
+            break
+        }
+
+        // Type-to-jump: anything printable, outside a chord.
+        if !ctrlDown && !altDown, let character = keyData.character,
+           character.count == 1,
+           let scalar = character.unicodeScalars.first,
+           scalar.value >= 0x20, scalar.value != 0x7F {
+            let now = Date()
+            if now.timeIntervalSince(typeAheadAt) > 1.0 { typeAhead = "" }
+            typeAheadAt = now
+            typeAhead += character.lowercased()
+            if let index = bloc.state.visible.firstIndex(
+                where: { $0.name.lowercased().hasPrefix(typeAhead) }) {
+                let path = bloc.state.visible[index].path
+                keyCursor = path
+                bloc.add(.select(path))
+                ensureRowVisible(index)
+            }
+            return true
+        }
+        return false
+    }
+
+    /// One arrow step (or a Home/End leap, clamped), extending the range
+    /// from the anchor when Shift rides along -- Explorer's arrows.
+    private func moveSelection(_ delta: Int, extend: Bool) {
+        let visible = bloc.state.visible
+        guard !visible.isEmpty else { return }
+        let base = keyCursor ?? bloc.state.selectionAnchor ?? bloc.state.selected
+        let start = base.flatMap { b in visible.firstIndex { $0.path == b } }
+        let next: Int
+        if let start {
+            next = min(max(start + delta, 0), visible.count - 1)
+        } else {
+            next = delta > 0 ? 0 : visible.count - 1
+        }
+        let path = visible[next].path
+        keyCursor = path
+        if extend {
+            bloc.add(.rangeSelect(path))
+        } else {
+            bloc.add(.select(path))
+        }
+        ensureRowVisible(next)
+    }
+
+    /// Scrolls just far enough that row `index` is inside the viewport --
+    /// the arrows walking off the bottom pull the list along.
+    private func ensureRowVisible(_ index: Int) {
+        guard scroll.hasClients else { return }
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: kFilesWidth, height: kFilesHeight)
+        let viewHeight = size.height - kFilesToolbar - kFilesStatusBar
+        let top = Double(index) * kFilesRow
+        let bottom = top + kFilesRow
+        if top < scroll.offset {
+            scroll.jumpTo(top)
+        } else if bottom > scroll.offset + viewHeight {
+            scroll.jumpTo(bottom - viewHeight)
         }
     }
 
@@ -1503,6 +1598,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// Select on the first tap, open on a second within half a second. See
     /// `lastTapPath` for why this is not `onDoubleTap`.
     private func tapped(_ entry: Win32FileEntry) {
+        keyCursor = entry.path
         // Modified clicks are selection surgery, never activation -- and
         // they reset the double-click memory, so Ctrl-click then plain
         // click does not read as a double.

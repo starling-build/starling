@@ -81,8 +81,11 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       a real OLE source, our own window, and native Explorer as target.
       Not yet: sidebar rows as drop targets, custom drag imagery (the
       default OLE cursors stand in), edge autoscroll during a drag.
-- [ ] Column resize/reorder; type-to-jump in the listing; Backspace and
-      Alt+arrow navigation keys.
+- [x] Type-to-jump (printable keys accumulate for a second, first prefix
+      match selected and scrolled into view); arrows walk the list with
+      Shift extending the range from the anchor, Home/End leap, and the
+      viewport follows; Backspace and Alt+Left/Right/Up drive history.
+- [ ] Column resize/reorder.
 - [ ] New dropdown with the ShellNew templates (New currently creates a
       folder only).
 - [ ] A This PC / computer view, which would also make the breadcrumb's
