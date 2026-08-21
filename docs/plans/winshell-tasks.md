@@ -4,6 +4,21 @@ The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
 mouse notices first.
 
+CHECKPOINT 2026-08-21 (end of the desktop-surface session): NOTHING IS
+IN FLIGHT. Everything below is committed and pushed in both repos
+(desktop 1280b3e, engine e0ed4e31068), the box's dist runs the current
+tree (dock + Files up, the --desktop trial stopped), and every landing
+was driven live before its commit. This session: popup surfaces (0b)
+with its engine one-commit-per-pass fix and the settle-before-reveal
+menu behaviour, then wave 2's desktop surface with its three traps
+(wallpaper orientation, the dormant-bloc menu couplings, the
+fullscreen-app appbar demotion). THE NEXT SESSION: the VM trial with
+explorer absent — kill explorer, --desktop, the wave-plan gate list —
+which needs the Linux machine that hosts the VM harness; this box
+cannot reach it. A session HERE instead picks from the desktop v1
+boundaries below, the deferred not-yets, or the engine frame-dispatch
+work.
+
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 
 `--desktop`: wallpaper and the icon grid at the bottom of the z-order,
@@ -144,14 +159,6 @@ Updated 2026-08-21: every visual-polish, functional-gap and hygiene item
 is done -- what remains is the deferred-by-decision section below and the
 small not-yets recorded inside ticked entries (tab reorder/tear-off,
 column reorder, custom drag imagery, edge autoscroll).
-
-CHECKPOINT 2026-08-21 (end of the desktop-surface session): NOTHING IS IN
-FLIGHT. Wave 2's desktop surface is BUILT and dev-box verified (section
-below); its remaining gate is the VM trial with explorer absent, which
-needs the Linux machine that runs the VM harness — this box cannot reach
-it. A session on that machine runs the trial (kill explorer, launch
---desktop, the wave-plan gate list); a session here picks up the desktop
-v1 boundaries or whatever else is open.
 
 Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
 COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,
