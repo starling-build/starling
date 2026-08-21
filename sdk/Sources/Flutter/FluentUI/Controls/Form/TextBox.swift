@@ -162,10 +162,14 @@ class _TextBoxState: State<StatefulWidget> {
     /// Keyboard focus for this field.
     private let _focusNode = FocusNode(debugLabel: "FluentTextBox")
 
-    /// Caret blink state (Ticker-driven; Foundation.Timer does not fire on
-    /// the DRM embedder).
+    /// Caret blink state. A deadline timer, NOT a Ticker: a Ticker holds the
+    /// engine's frame loop hot for as long as it runs, which for a caret
+    /// means a full-rate frame pump to flip two pixels twice a second —
+    /// measured at 10% of a core for one parked overlay whose field stayed
+    /// focused. asyncAfter + a generation token is the house timer
+    /// (Foundation.Timer does not fire on the DRM embedder).
     private var _caretVisible: Bool = true
-    private var _caretTicker: Ticker?
+    private var _caretBlinkGeneration = 0
     #if os(Linux)
     /// True while this box is the reported IME caret target (child-app
     /// shells anchor the IME candidate panel to it).
@@ -336,24 +340,24 @@ class _TextBoxState: State<StatefulWidget> {
 
     private func _startCaretBlink() {
         _caretVisible = true
-        _caretTicker?.stop()
-        _caretTicker = Ticker({ [weak self] elapsed in
-            guard let self = self else { return }
-            let comps = elapsed.components
-            let ms = comps.seconds * 1_000 + comps.attoseconds / 1_000_000_000_000_000
-            let visible = (ms / 530) % 2 == 0
-            if visible != self._caretVisible {
-                self.setState {
-                    self._caretVisible = visible
-                }
+        _caretBlinkGeneration += 1
+        _scheduleCaretFlip(_caretBlinkGeneration)
+    }
+
+    private func _scheduleCaretFlip(_ generation: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(530)) { [weak self] in
+            guard let self = self, self._caretBlinkGeneration == generation else { return }
+            self.setState {
+                self._caretVisible.toggle()
             }
-        }, debugLabel: "TextBox caret blink")
-        _ = _caretTicker?.start()
+            self._scheduleCaretFlip(generation)
+        }
     }
 
     private func _stopCaretBlink() {
-        _caretTicker?.stop()
-        _caretTicker = nil
+        // The bump is the cancellation: the pending flip sees a stale
+        // generation and dies without touching the disposed state.
+        _caretBlinkGeneration += 1
         _caretVisible = true
     }
 
