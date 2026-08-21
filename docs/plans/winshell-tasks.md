@@ -66,14 +66,19 @@ to the monitor's WORK AREA (flwin32_popup_frame). Oracles:
 Not done, deliberately: per-pixel-alpha acrylic in popups (the popup fill
 is opaque; real cross-window acrylic needs DirectComposition, not a GL
 swapchain colorkey), and the launcher/notification-centre overlays still
-use their own full-window machinery rather than popup surfaces. Updated 2026-08-21: every visual-polish, functional-gap
-and hygiene item is done -- what remains is the deferred-by-decision section
-below and the small not-yets recorded inside ticked entries (tab
-reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
+use their own full-window machinery rather than popup surfaces.
+
+Updated 2026-08-21: every visual-polish, functional-gap and hygiene item
+is done -- what remains is the deferred-by-decision section below and the
+small not-yets recorded inside ticked entries (tab reorder/tear-off,
+column reorder, custom drag imagery, edge autoscroll).
+
 CHECKPOINT 2026-08-21 (end of the popup-surfaces session): NOTHING IS IN
-FLIGHT. Track 2's popup surfaces (0b) are DONE — section below — which
-was the last prerequisite: a fresh session starts on wave 2's desktop
-surface (0a and 0b both in hand), or toast banners (needs only 0b).
+FLIGHT. Track 2's popup surfaces (0b, section above) are DONE, and the
+parallel session landed Phase 4's banners and Run dialog (section below,
+built on the passive-overlay machinery rather than waiting on 0b). Every
+prerequisite for wave 2's desktop surface — 0a namespace enumeration and
+0b popup surfaces — is now in hand: a fresh session starts THERE.
 
 Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
 COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,
