@@ -70,10 +70,44 @@ V1 boundaries, each deliberate: no rubber-band selection, no OLE drag
 in/out (the Files machinery is there to lift), no inline rename, no
 keyboard navigation beyond F5/Delete/Escape, one monitor, wallpaper read
 once at start, and the paste/rename cells of the menu's pill row are
-Files-bound and quietly dead here. THE GATE THAT REMAINS: the VM trial
-with explorer absent — kill explorer, launch --desktop, wallpaper up,
-icons live, menus and drops working, explorer restored cleanly. The VM
-harness runs on the Linux machine; this box cannot reach it.
+Files-bound and quietly dead here.
+
+**THE GATE IS RUN — PASSED 2026-08-21, and it caught a real bug.** The VM
+trial with explorer absent: killed explorer, launched `--desktop`, and the
+surface came up BLACK and stayed black. Everything else passed once that
+was fixed — wallpaper cover-fit the right way up, both icons with real
+textures, shortcut badges and shadowed labels, click and Ctrl-click
+selection, the background menu (New submenu populated — the dormant-bloc
+hooks hold with explorer gone) and the icon menu with its pill row, both
+on popup surfaces with no parent window; icon drag snapped to its cell and
+persisted (`desktop-icons.json` read back `NVIDIA App.lnk: [4,2]` from a
+separate process); double-click launched Edge THROUGH the shell with
+explorer absent; the dock kept its reservation (work area 712, dock above
+the desktop in the z-order — the ABN_FULLSCREENAPP demotion did not
+return); and explorer restored cleanly with all four surfaces alive.
+
+**The bug the gate existed to find: the desktop never got its first
+frame.** `desktop_apply_placement` runs BEFORE the tree mounts (the
+restyle has to settle the client size) and shows the window with
+SWP_SHOWWINDOW, so the one WM_PAINT the child gets paints an EMPTY tree.
+By the time `flwin32_host_show` runs the window is already visible, so
+ShowWindow is a no-op, UpdateWindow finds nothing invalid, and no second
+paint is ever requested. **With explorer running its window traffic
+invalidates the desktop within a frame or two and the content appears** —
+which is exactly why the dev box's trial mode looked perfect and why only
+the explorer-absent gate could see it. Fixed by forcing the redraw in the
+desktop branch of the show, the same call and the same reason as the one
+in set_visible. A nudge from outside (SetWindowPos by one pixel) was what
+proved the tree was fine and only the frame was missing.
+
+Two harness lessons, both paid for in this run: an injected DRAG needs
+`/rl HIGHEST` **and** a hidden wscript wrapper — a bare
+`schtasks /tr powershell ...` opens a console that takes the foreground
+and eats the gesture as a QuickEdit text selection (an orange block in
+the screenshot is the tell), and UIPI drops medium-integrity input into
+the elevated shell's windows. wclick.py already does both; copy it.
+Screenshot DURING the hold to tell "gesture not delivered" from "drop
+rejected".
 
 ## Popup surfaces (0b) — landed and verified 2026-08-21
 

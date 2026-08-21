@@ -911,9 +911,23 @@ void flwin32_host_show(FlWin32Host* host) {
   // is how the trigger was pinned to this show). Focus follows the first
   // CLICK, which activates without tripping the check -- driven both ways
   // on the box.
+  //
+  // AND IT FORCES A REDRAW, which is what makes it appear at all with
+  // explorer absent. desktop_apply_placement runs BEFORE the tree mounts
+  // (the restyle has to settle the client size first) and shows the window
+  // with SWP_SHOWWINDOW, so the one WM_PAINT the child gets paints an EMPTY
+  // tree -- black. By the time this runs the window is already visible, so
+  // ShowWindow is a no-op, UpdateWindow finds nothing invalid, and no second
+  // paint is ever asked for. With explorer running, its window traffic
+  // invalidates the desktop within a frame or two and the content appears,
+  // which is exactly why the dev box never saw this and the VM's
+  // explorer-absent gate did: with nothing else on the machine touching the
+  // z-order, a black desktop is where it stays. Same call, same reason, as
+  // the one in set_visible.
   if (host->desktop_active) {
     ShowWindow(host->window, SW_SHOWNOACTIVATE);
     UpdateWindow(host->window);
+    FlutterDesktopViewControllerForceRedraw(host->controller);
     return;
   }
   ShowWindow(host->window, SW_SHOW);
