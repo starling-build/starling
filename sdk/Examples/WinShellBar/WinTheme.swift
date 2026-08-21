@@ -18,6 +18,11 @@ struct WinPalette {
     let stroke: Color
     let button: Color
     let buttonStroke: Color
+    /// The button's fill under the pointer — native darkens toward the
+    /// panel in light mode and lightens in dark.
+    let buttonHover: Color
+    /// The subtle wash a hovered row or day cell gets.
+    let rowHover: Color
     let accent: Color
     let onAccent: Color
     let ink: Color
@@ -30,12 +35,14 @@ struct WinPalette {
         dark
             ? WinPalette(panel: Color(0xF52C2C2C), stroke: Color(0xFF1D1D1D),
                          button: Color(0xFF383838), buttonStroke: Color(0xFF454545),
+                         buttonHover: Color(0xFF3D3D3D), rowHover: Color(0xFF383838),
                          accent: Color(0xFF4CC2FF), onAccent: Color(0xFF000000),
                          ink: Color(0xFFFFFFFF), subInk: Color(0xFFCFCFCF),
                          disabledInk: Color(0xFF6E6E6E),
                          trackRest: Color(0xFF9D9D9D), divider: Color(0xFF3D3D3D))
             : WinPalette(panel: Color(0xF5F2F2F2), stroke: Color(0xFFD8D8D8),
                          button: Color(0xFFFBFBFB), buttonStroke: Color(0xFFE5E5E5),
+                         buttonHover: Color(0xFFF5F5F5), rowHover: Color(0xFFE9E9E9),
                          accent: Color(0xFF0067C0), onAccent: Color(0xFFFFFFFF),
                          ink: Color(0xFF1B1B1B), subInk: Color(0xFF5D5D5D),
                          disabledInk: Color(0xFF9D9D9D),

@@ -60,10 +60,21 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     private var monthOffset = 0
     private var calendarExpanded = false
     private var timer: AnyObject?
+    /// What the pointer is over — the calendar's interactive parts answer
+    /// hover the way the native panel's do. Arithmetic off the root
+    /// Listener, one rectangle set for drawing and hit-testing both.
+    private var hovered: AcHover?
+
+    enum AcHover: Equatable {
+        case header
+        case prev
+        case next
+    }
 
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
+        FluentIcons.registerFont()
         // Half a minute, not a second: the only thing that moves on its own
         // here is the date line.
         timer = startPeriodicTimer(seconds: 30) { [weak self] in
@@ -83,6 +94,7 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                 self.setState {
                     self.calendarExpanded = false
                     self.monthOffset = 0
+                    self.hovered = nil
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     Win32WindowedHost.host?.requestRedraw()
@@ -181,6 +193,13 @@ final class StarlingActionCenterState: State<StatefulWidget> {
 
     // MARK: - Input
 
+    private func acHover(_ x: Double, _ y: Double) -> AcHover? {
+        if calendarExpanded, calPrev.contains(x, y) { return .prev }
+        if calendarExpanded, calNext.contains(x, y) { return .next }
+        if calHeader.contains(x, y) { return .header }
+        return nil
+    }
+
     private func handlePress(_ x: Double, _ y: Double) {
         if calHeader.contains(x, y) {
             setState { calendarExpanded.toggle() }
@@ -231,7 +250,7 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             }
             Positioned(left: kAcWidth - 112, top: 12, width: 28, height: 28) {
                 Center {
-                    MacosIcon(icon: CupertinoIcons.bell, color: p.disabledInk, size: 15)
+                    MacosIcon(icon: FluentIcons.ringer, color: p.disabledInk, size: 15)
                 }
             }
             Positioned(left: kAcWidth - 78, top: 13, width: 64, height: 26) {
@@ -291,6 +310,13 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         let cellW = (kAcWidth - 24) / 7
         let weekdayTop = kAcCalCollapsedH + kAcCalMonthBarH
         return Stack(alignment: Alignment.topLeft) {
+            if hovered == .header {
+                Positioned(left: 4, top: 4, width: kAcWidth - 10, height: kAcCalCollapsedH - 8) {
+                    ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                        ColoredBox(color: p.rowHover) { SizedBox(expand: ()) }
+                    }
+                }
+            }
             // The date row, with the expand/collapse chevron. The chevron
             // points the way the panel will grow: up when collapsed.
             Positioned(left: 16, top: 16, width: 220, height: 20) {
@@ -300,8 +326,8 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             Positioned(left: kAcWidth - 40, top: 14, width: 24, height: 24) {
                 Center {
                     MacosIcon(icon: calendarExpanded
-                                  ? CupertinoIcons.chevron_down : CupertinoIcons.chevron_up,
-                              color: p.subInk, size: 13)
+                                  ? FluentIcons.chevronDown : FluentIcons.chevronUp,
+                              color: p.subInk, size: 12)
                 }
             }
             if calendarExpanded {
@@ -312,13 +338,21 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                          style: TextStyle(color: p.ink, fontSize: 13, fontWeight: .w600))
                 }
                 Positioned(left: kAcWidth - 76, top: kAcCalCollapsedH + 6, width: 32, height: 24) {
-                    Center {
-                        MacosIcon(icon: CupertinoIcons.chevron_up, color: p.subInk, size: 13)
+                    ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                        ColoredBox(color: hovered == .prev ? p.rowHover : Color(0x00000000)) {
+                            Center {
+                                MacosIcon(icon: FluentIcons.chevronUp, color: p.subInk, size: 12)
+                            }
+                        }
                     }
                 }
                 Positioned(left: kAcWidth - 40, top: kAcCalCollapsedH + 6, width: 32, height: 24) {
-                    Center {
-                        MacosIcon(icon: CupertinoIcons.chevron_down, color: p.subInk, size: 13)
+                    ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                        ColoredBox(color: hovered == .next ? p.rowHover : Color(0x00000000)) {
+                            Center {
+                                MacosIcon(icon: FluentIcons.chevronDown, color: p.subInk, size: 12)
+                            }
+                        }
                     }
                 }
                 for i in 0..<7 {
@@ -343,6 +377,13 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             child: Listener(
                 onPointerDown: { [weak self] event in
                     self?.handlePress(event.position.dx, event.position.dy)
+                },
+                onPointerHover: { [weak self] event in
+                    guard let self else { return }
+                    let over = self.acHover(event.position.dx, event.position.dy)
+                    if over != self.hovered {
+                        self.setState { self.hovered = over }
+                    }
                 },
                 behavior: .opaque,
                 // The SizedBox is what gives the Stack its extent: with only

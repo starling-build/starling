@@ -230,6 +230,17 @@ final class StarlingDockState: State<StatefulWidget> {
     /// index, because the strip reorders itself whenever an app comes or goes
     /// and an index would name a different icon a moment later.
     private var hoveredTray: UInt64?
+    /// Which Quick Settings control is under the pointer — native buttons
+    /// answer hover, and after the MouseRegion fix there is no excuse left.
+    /// Still arithmetic off the root Listener, same as everything else in
+    /// the panel: one rectangle set for drawing and hit-testing both.
+    private var hoveredQs: QsHover?
+
+    enum QsHover: Equatable {
+        case tile(Int)
+        case gear
+        case output
+    }
     /// The tile whose right-click menu is open, if any.
     private var menuOpen: Int?
     /// Whether the control centre is down, and whether the pointer is
@@ -403,7 +414,7 @@ final class StarlingDockState: State<StatefulWidget> {
                 active: s.wifiIsOn || ethernet,
                 chevron: true, action: .toggleWifi))
         }
-        tiles.append(QsTile(icon: CupertinoIcons.person_crop_circle,
+        tiles.append(QsTile(icon: FluentIcons.accessibility,
                             label: "Accessibility", active: false,
                             chevron: true, closes: true,
                             action: .open("ms-settings:easeofaccess")))
@@ -412,7 +423,7 @@ final class StarlingDockState: State<StatefulWidget> {
                             active: s.energySaver == true,
                             available: s.energySaver != nil, closes: true,
                             action: .open("ms-settings:powersleep")))
-        tiles.append(QsTile(icon: CupertinoIcons.captions_bubble,
+        tiles.append(QsTile(icon: FluentIcons.cc,
                             label: "Live captions", active: false, closes: true,
                             action: .open("LiveCaptions.exe")))
         if s.nightLight != nil {
@@ -424,7 +435,7 @@ final class StarlingDockState: State<StatefulWidget> {
         tiles.append(QsTile(icon: FluentIcons.share,
                             label: "Nearby sharing", active: false, closes: true,
                             action: .open("ms-settings:crossdevice")))
-        tiles.append(QsTile(icon: CupertinoIcons.rectangle_on_rectangle,
+        tiles.append(QsTile(icon: FluentIcons.project,
                             label: "Wired display", active: false,
                             chevron: true, closes: true,
                             action: .open("DisplaySwitch.exe")))
@@ -559,8 +570,10 @@ final class StarlingDockState: State<StatefulWidget> {
         let tile = qsTiles[index]
         let rect = ccRects().tiles[index]
         let p = qsPalette
+        let hovered = hoveredQs == .tile(index)
         let fill = !tile.available ? p.button
-            : tile.active ? p.accent : p.button
+            : tile.active ? p.accent
+            : hovered ? p.buttonHover : p.button
         let stroke = tile.active && tile.available ? p.accent : p.buttonStroke
         let glyph = !tile.available ? p.disabledInk
             : tile.active ? p.onAccent : p.ink
@@ -687,11 +700,12 @@ final class StarlingDockState: State<StatefulWidget> {
     private func ccOutputPicker() -> Widget {
         let rect = ccRects().output
         let p = qsPalette
+        let ink = hoveredQs == .output ? p.ink : p.subInk
         return Positioned(left: rect.x - ccFrame.x, top: rect.y - ccFrame.y) {
             SizedBox(width: rect.w, height: rect.h) {
                 Row(mainAxisAlignment: .end, crossAxisAlignment: .center, spacing: 3) {
-                    MacosIcon(icon: FluentIcons.volume, color: p.subInk, size: 15)
-                    MacosIcon(icon: FluentIcons.chevronRight, color: p.subInk, size: 11)
+                    MacosIcon(icon: FluentIcons.volume, color: ink, size: 15)
+                    MacosIcon(icon: FluentIcons.chevronRight, color: ink, size: 11)
                 }
             }
         }
@@ -721,14 +735,29 @@ final class StarlingDockState: State<StatefulWidget> {
                     }
                     Positioned(left: kQsWidth - kQsPad - 32,
                                top: (kQsFooterH - 32) / 2, width: 32, height: 32) {
-                        Center {
-                            MacosIcon(icon: CupertinoIcons.gear_alt_fill,
-                                      color: p.ink, size: 17)
+                        ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                            ColoredBox(color: hoveredQs == .gear ? p.rowHover : Color(0x00000000)) {
+                                Center {
+                                    MacosIcon(icon: FluentIcons.settings,
+                                              color: p.ink, size: 16)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    /// Which control the pointer is over, or nil for panel body and outside.
+    private func qsHover(_ x: Double, _ y: Double) -> QsHover? {
+        let rects = ccRects()
+        if rects.gear.contains(x, y) { return .gear }
+        if rects.output.contains(x, y) { return .output }
+        for (index, tile) in rects.tiles.enumerated() where tile.contains(x, y) {
+            return .tile(index)
+        }
+        return nil
     }
 
     /// A press while the panel is open. Returns true if the panel consumed it.
@@ -770,7 +799,10 @@ final class StarlingDockState: State<StatefulWidget> {
         // panel's own background does not close it.
         if ccFrame.contains(x, y) { return true }
         // Outside: close, and let the press carry on to whatever it hit.
-        setState { controlCentreOpen = false }
+        setState {
+            controlCentreOpen = false
+            hoveredQs = nil
+        }
         return false
     }
 
@@ -1841,6 +1873,16 @@ final class StarlingDockState: State<StatefulWidget> {
                 },
                 onPointerHover: { e in
                     let x = e.position.dx, y = e.position.dy
+                    // The open panel first: its buttons want the hover, and
+                    // the dock's tiles are under it anyway.
+                    if self.controlCentreOpen {
+                        let over = self.qsHover(x, y)
+                        if over != self.hoveredQs {
+                            self.setState { self.hoveredQs = over }
+                        }
+                    } else if self.hoveredQs != nil {
+                        self.setState { self.hoveredQs = nil }
+                    }
                     // Inside the open card the hover is not about a tile at
                     // all, and re-reading it would clear the very card the
                     // pointer is travelling into.

@@ -54,6 +54,14 @@ enum FluentIcons {
     static let refresh = IconData(0xE72C, fontFamily: family)
     static let search = IconData(0xE721, fontFamily: family)
 
+    // The flyouts' tile roles — Quick Settings and the notification centre.
+    static let settings = IconData(0xE713, fontFamily: family)
+    static let accessibility = IconData(0xE776, fontFamily: family)
+    static let cc = IconData(0xE7F0, fontFamily: family)
+    static let project = IconData(0xE7F4, fontFamily: family)
+    static let calendar = IconData(0xE787, fontFamily: family)
+    static let ringer = IconData(0xEA8F, fontFamily: family)
+
     // Chevrons.
     static let chevronDown = IconData(0xE70D, fontFamily: family)
     static let chevronUp = IconData(0xE70E, fontFamily: family)
