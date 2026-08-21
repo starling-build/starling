@@ -34,8 +34,10 @@
 #include <shlwapi.h>
 #define SECURITY_WIN32
 #include <security.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "include/FlutterWin32Bridge.h"
 
@@ -273,4 +275,193 @@ int32_t flwin32_user_display_name(char* out, int32_t out_size) {
     DWORD basic = 256;
     if (GetUserNameW(name, &basic)) return wide_out(name, out, out_size);
     return 0;
+}
+
+/* --------------------------------------------------------------- ShellNew */
+
+/* Appends UTF-8 to out at *used, NUL-terminating; 0 if it will not fit. */
+static int sn_append(char* out, int32_t out_size, int32_t* used,
+                     const char* s) {
+    int len = (int)strlen(s);
+    if (*used + len + 1 > out_size) return 0;
+    memcpy(out + *used, s, (size_t)len);
+    *used += len;
+    out[*used] = 0;
+    return 1;
+}
+
+static int sn_append_wide(char* out, int32_t out_size, int32_t* used,
+                          const wchar_t* w) {
+    char buf[1024];
+    if (wide_out(w, buf, (int32_t)sizeof(buf)) == 0) return 0;
+    return sn_append(out, out_size, used, buf);
+}
+
+/* Whether `key` holds a usable ShellNew recipe, and which. Command entries
+ * are wizards that launch a program rather than describe a file, and
+ * Handler entries (.lnk, .library-ms) delegate creation to a COM object --
+ * an empty file where either was expected is broken, so both are skipped.
+ * kind: 1 = NullFile, 2 = FileName (template copied), 3 = Data (bytes). */
+static int sn_recipe(HKEY key, int* kind, wchar_t* file, DWORD file_chars,
+                     BYTE* data, DWORD* data_size) {
+    if (RegQueryValueExW(key, L"Command", NULL, NULL, NULL, NULL)
+            == ERROR_SUCCESS
+        || RegQueryValueExW(key, L"Handler", NULL, NULL, NULL, NULL)
+            == ERROR_SUCCESS) {
+        return 0;
+    }
+    if (RegQueryValueExW(key, L"NullFile", NULL, NULL, NULL, NULL)
+            == ERROR_SUCCESS) {
+        *kind = 1;
+        return 1;
+    }
+    DWORD bytes = file_chars * sizeof(wchar_t);
+    if (RegGetValueW(key, NULL, L"FileName", RRF_RT_REG_SZ, NULL, file,
+                     &bytes) == ERROR_SUCCESS && file[0] != L'\0') {
+        *kind = 2;
+        return 1;
+    }
+    if (RegGetValueW(key, NULL, L"Data", RRF_RT_REG_BINARY, NULL, data,
+                     data_size) == ERROR_SUCCESS && *data_size > 0) {
+        *kind = 3;
+        return 1;
+    }
+    return 0;
+}
+
+/* Resolves a ShellNew FileName to the template on disk: an absolute path is
+ * itself; a bare name is looked for in the user's Templates folder and then
+ * the system's ShellNew directory, which is where Windows keeps its own. */
+static int sn_template_path(const wchar_t* name, wchar_t* out,
+                            DWORD out_chars) {
+    if (wcschr(name, L':') != NULL) {
+        wcsncpy(out, name, out_chars - 1);
+        out[out_chars - 1] = 0;
+        return GetFileAttributesW(out) != INVALID_FILE_ATTRIBUTES;
+    }
+    PWSTR templates = NULL;
+    if (SUCCEEDED(SHGetKnownFolderPath(&FOLDERID_Templates, 0, NULL,
+                                       &templates))) {
+        _snwprintf(out, out_chars, L"%s\\%s", templates, name);
+        CoTaskMemFree(templates);
+        if (GetFileAttributesW(out) != INVALID_FILE_ATTRIBUTES) return 1;
+    }
+    wchar_t windir[MAX_PATH];
+    if (GetWindowsDirectoryW(windir, MAX_PATH) > 0) {
+        _snwprintf(out, out_chars, L"%s\\ShellNew\\%s", windir, name);
+        if (GetFileAttributesW(out) != INVALID_FILE_ATTRIBUTES) return 1;
+    }
+    return 0;
+}
+
+/* The templates behind Explorer's New submenu, read the way Explorer reads
+ * them: every extension key in HKCR whose ShellNew subkey (bare, or under
+ * the extension's progid) describes a file this caller can create. Writes
+ * one template per line:
+ *
+ *     ext<TAB>type name<TAB>kind<TAB>source
+ *
+ * kind "null" makes an empty file, "file" copies `source` (a resolved
+ * template path), "data" writes `source` decoded from hex. Type names come
+ * from the progid's default value, through SHLoadIndirectString when the
+ * value is a @resource reference. Returns the bytes written. A registry
+ * walk over all of HKCR -- call it off the UI thread and cache it. */
+int32_t flwin32_shellnew_templates(char* out, int32_t out_size) {
+    if (out == NULL || out_size <= 0) return 0;
+    out[0] = 0;
+    int32_t used = 0;
+    for (DWORD i = 0;; i++) {
+        wchar_t ext[260];
+        DWORD ext_chars = 260;
+        LSTATUS st = RegEnumKeyExW(HKEY_CLASSES_ROOT, i, ext, &ext_chars,
+                                   NULL, NULL, NULL, NULL);
+        if (st == ERROR_NO_MORE_ITEMS) break;
+        if (st != ERROR_SUCCESS || ext[0] != L'.') continue;
+
+        wchar_t progid[260] = L"";
+        DWORD progid_bytes = sizeof(progid);
+        RegGetValueW(HKEY_CLASSES_ROOT, ext, NULL, RRF_RT_REG_SZ, NULL,
+                     progid, &progid_bytes);
+
+        /* The recipe: `.ext\<progid>\ShellNew` wins over `.ext\ShellNew`,
+         * because that is where an app that took over the extension put
+         * its own. */
+        wchar_t subkey[560];
+        HKEY key = NULL;
+        int kind = 0;
+        wchar_t file[MAX_PATH] = L"";
+        BYTE data[2048];
+        DWORD data_size = sizeof(data);
+        if (progid[0] != L'\0') {
+            _snwprintf(subkey, 560, L"%s\\%s\\ShellNew", ext, progid);
+            if (RegOpenKeyExW(HKEY_CLASSES_ROOT, subkey, 0, KEY_READ, &key)
+                    != ERROR_SUCCESS) {
+                key = NULL;
+            }
+        }
+        if (key == NULL) {
+            _snwprintf(subkey, 560, L"%s\\ShellNew", ext);
+            if (RegOpenKeyExW(HKEY_CLASSES_ROOT, subkey, 0, KEY_READ, &key)
+                    != ERROR_SUCCESS) {
+                continue;
+            }
+        }
+        int usable = sn_recipe(key, &kind, file, MAX_PATH, data, &data_size);
+        RegCloseKey(key);
+        if (!usable) continue;
+
+        /* A FileName that resolves nowhere is an uninstalled app's
+         * leftover; a row for it would create nothing. */
+        wchar_t source[MAX_PATH] = L"";
+        if (kind == 2 && !sn_template_path(file, source, MAX_PATH)) continue;
+
+        /* The type's display name, from the progid. No progid or no name
+         * means no honest label -- skip rather than show ".xyz file". */
+        if (progid[0] == L'\0') continue;
+        wchar_t name[260] = L"";
+        DWORD name_bytes = sizeof(name);
+        if (RegGetValueW(HKEY_CLASSES_ROOT, progid, NULL, RRF_RT_REG_SZ,
+                         NULL, name, &name_bytes) != ERROR_SUCCESS
+                || name[0] == L'\0') {
+            continue;
+        }
+        if (name[0] == L'@') {
+            wchar_t resolved[260];
+            if (SUCCEEDED(SHLoadIndirectString(name, resolved, 260, NULL))) {
+                wcsncpy(name, resolved, 259);
+                name[259] = 0;
+            } else {
+                continue;
+            }
+        }
+
+        int32_t mark = used;
+        int ok = sn_append_wide(out, out_size, &used, ext)
+              && sn_append(out, out_size, &used, "\t")
+              && sn_append_wide(out, out_size, &used, name)
+              && sn_append(out, out_size, &used, "\t");
+        if (ok) {
+            if (kind == 1) {
+                ok = sn_append(out, out_size, &used, "null\t");
+            } else if (kind == 2) {
+                ok = sn_append(out, out_size, &used, "file\t")
+                  && sn_append_wide(out, out_size, &used, source);
+            } else {
+                ok = sn_append(out, out_size, &used, "data\t");
+                for (DWORD b = 0; ok && b < data_size; b++) {
+                    char hex[3];
+                    snprintf(hex, 3, "%02x", data[b]);
+                    ok = sn_append(out, out_size, &used, hex);
+                }
+            }
+        }
+        ok = ok && sn_append(out, out_size, &used, "\n");
+        if (!ok) {
+            /* Did not fit: drop the half-written line, keep what did. */
+            used = mark;
+            out[used] = 0;
+            break;
+        }
+    }
+    return used;
 }

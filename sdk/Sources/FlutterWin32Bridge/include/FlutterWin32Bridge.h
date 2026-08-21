@@ -152,6 +152,13 @@ int32_t flwin32_open_with_dialog(const char* path);
 // local account with no display name set is the usual answer, not an error.
 int32_t flwin32_user_display_name(char* out, int32_t out_size);
 
+// The ShellNew templates behind Explorer's New submenu, one per line:
+// "ext<TAB>type name<TAB>kind<TAB>source" — kind "null" (empty file),
+// "file" (copy `source`), or "data" (write `source` decoded from hex).
+// Command entries (wizards) are skipped. A walk over all of HKCR: call off
+// the UI thread and cache the answer.
+int32_t flwin32_shellnew_templates(char* out, int32_t out_size);
+
 // Hands the folder to Windows' own Explorer.
 int32_t flwin32_open_in_explorer(const char* path);
 

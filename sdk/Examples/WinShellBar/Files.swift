@@ -1076,12 +1076,25 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     private func openNewFlyout() {
-        menu.openFlyout(at: lastDown.x - 24, flyoutAnchorY, rows: [
+        var rows = [
             MenuRow(title: "Folder", glyph: FluentIcons.folder,
                     action: { filesBloc.add(.newFolder) }),
             MenuRow(title: "Window", glyph: FluentIcons.openExternal,
                     action: { self.openNewWindow() }),
-        ])
+        ]
+        // The ShellNew templates, below Explorer's own separator. Empty
+        // only in the first moments of the first window, before the
+        // registry walk lands.
+        let templates = bloc.state.newTemplates
+        if !templates.isEmpty {
+            rows.append(MenuRow(isSeparator: true))
+            for template in templates {
+                rows.append(MenuRow(title: template.name,
+                                    glyph: FluentIcons.page,
+                                    action: { filesBloc.add(.newFile(template)) }))
+            }
+        }
+        menu.openFlyout(at: lastDown.x - 24, flyoutAnchorY, rows: rows)
     }
 
     private func openSortFlyout() {
@@ -1120,10 +1133,9 @@ final class StarlingFilesState: State<StatefulWidget> {
         SizedBox(height: kFilesCommandBar) {
             Padding(padding: EdgeInsets(left: 10, top: 0, right: 10, bottom: 0)) {
                 Row(crossAxisAlignment: .center, spacing: 2) {
-                    // Explorer's New, as a plain click: a folder, born into
-                    // its rename field. (Explorer's is a dropdown with the
-                    // ShellNew templates; the folder is the one everybody
-                    // means.)
+                    // Explorer's New: Folder, Window, then the registry's
+                    // own ShellNew templates, each born into its rename
+                    // field.
                     barButton(FluentIcons.add, "New", chevron: true,
                               enabled: true) {
                         self.openNewFlyout()

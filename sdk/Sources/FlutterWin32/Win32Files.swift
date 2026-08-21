@@ -183,6 +183,95 @@ public enum Win32Files {
         return Win32Place(name: displayName(for: path), path: path)
     }
 
+    /// One entry of Explorer's New submenu: a file type whose ShellNew
+    /// registration describes a file this shell can create.
+    public struct ShellNewTemplate: Sendable, Equatable {
+        public let ext: String      // ".txt"
+        public let name: String     // "Text Document"
+        let kind: String            // "null" | "file" | "data"
+        let source: String          // template path, or the bytes as hex
+    }
+
+    nonisolated(unsafe) private static var shellNewCache: [ShellNewTemplate]?
+    private static let shellNewLock = NSLock()
+
+    /// The ShellNew templates, the way Explorer's New submenu gets them.
+    /// The first call walks all of HKCR (call it off the UI thread); the
+    /// answer is kept, because it changes only when software is installed.
+    public static func shellNewTemplates() -> [ShellNewTemplate] {
+        shellNewLock.lock()
+        defer { shellNewLock.unlock() }
+        if let cached = shellNewCache { return cached }
+        var buffer = [CChar](repeating: 0, count: 65536)
+        let n = buffer.withUnsafeMutableBufferPointer {
+            flwin32_shellnew_templates($0.baseAddress, 65536)
+        }
+        var out: [ShellNewTemplate] = []
+        var seen = Set<String>()
+        if n > 0 {
+            for line in String(cString: buffer).split(separator: "\n") {
+                let parts = line.split(separator: "\t", maxSplits: 3,
+                                       omittingEmptySubsequences: false)
+                guard parts.count == 4 else { continue }
+                let name = String(parts[1])
+                // Two extensions naming the same type would put the same
+                // row in the menu twice; the first registration wins.
+                guard seen.insert(name).inserted else { continue }
+                out.append(ShellNewTemplate(ext: String(parts[0]),
+                                            name: name,
+                                            kind: String(parts[2]),
+                                            source: String(parts[3])))
+            }
+        }
+        out.sort { $0.name.localizedCaseInsensitiveCompare($1.name)
+                       == .orderedAscending }
+        shellNewCache = out
+        return out
+    }
+
+    /// Creates a new file in `directory` from `template`, Explorer-named --
+    /// "New Text Document.txt", then "New Text Document (2).txt" -- and
+    /// returns the created path, or nil.
+    public static func shellNewCreate(in directory: String,
+                                      template: ShellNewTemplate) -> String? {
+        var name = "New \(template.name)\(template.ext)"
+        var counter = 2
+        while FileManager.default.fileExists(atPath: join(directory, name)) {
+            name = "New \(template.name) (\(counter))\(template.ext)"
+            counter += 1
+        }
+        let path = join(directory, name)
+        switch template.kind {
+        case "null":
+            guard FileManager.default.createFile(atPath: path,
+                                                 contents: nil) else {
+                return nil
+            }
+        case "file":
+            do {
+                try FileManager.default.copyItem(atPath: template.source,
+                                                 toPath: path)
+            } catch { return nil }
+        case "data":
+            var bytes = Data()
+            var index = template.source.startIndex
+            while index < template.source.endIndex,
+                  let next = template.source.index(index, offsetBy: 2,
+                      limitedBy: template.source.endIndex),
+                  let byte = UInt8(template.source[index..<next], radix: 16) {
+                bytes.append(byte)
+                index = next
+            }
+            guard FileManager.default.createFile(atPath: path,
+                                                 contents: bytes) else {
+                return nil
+            }
+        default:
+            return nil
+        }
+        return path
+    }
+
     /// The drives, as places. Reuses the Settings reader — one answer to
     /// "what drives are there", not two that can disagree.
     public static func drives() -> [Win32Place] {

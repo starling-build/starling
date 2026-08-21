@@ -89,8 +89,14 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       Shift extending the range from the anchor, Home/End leap, and the
       viewport follows; Backspace and Alt+Left/Right/Up drive history.
 - [ ] Column resize/reorder.
-- [ ] New dropdown with the ShellNew templates (New currently creates a
-      folder only).
+- [x] New dropdown carries the ShellNew templates: a registry walk
+      (flwin32_shellnew_templates, cached per process) finds every
+      extension whose ShellNew describes a file we can honestly create --
+      NullFile, a template copy, or literal Data bytes; Command and Handler
+      entries (wizards, .lnk) are skipped rather than faked. Each row
+      creates "New <Type><ext>" uniqued and drops into inline rename,
+      the newFolder gesture. On this machine that is one row (Compressed
+      (zipped) Folder) -- the list is the machine's, not a hardcode.
 - [ ] A This PC / computer view, which would also make the breadcrumb's
       "This PC" crumb navigate instead of being a label.
 

@@ -33,6 +33,9 @@ struct FilesState {
     /// The OneDrive row, when the machine has one. nil is "no row" -- a
     /// sidebar entry that navigates nowhere is worse than absence.
     var oneDrive: Win32Place?
+    /// The ShellNew templates for the New dropdown -- loaded once with the
+    /// places, empty until the registry walk lands.
+    var newTemplates: [Win32Files.ShellNewTemplate] = []
     /// The SELECTION, as Explorer has one: any number of rows, grown by
     /// Ctrl-click, spanned by Shift-click from the anchor. `selected` below
     /// is the single-item view of it that the footer, rename and Open with
@@ -138,6 +141,10 @@ final class FilesBloc: @unchecked Sendable {
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
         case placesLoaded(places: [Win32Place], drives: [Win32Place],
                           oneDrive: Win32Place?)
+        case templatesLoaded([Win32Files.ShellNewTemplate])
+        /// Explorer's New submenu, one template: create the file and drop
+        /// into its rename field, exactly the newFolder gesture.
+        case newFile(Win32Files.ShellNewTemplate)
         case iconsChanged
     }
 
@@ -210,6 +217,34 @@ final class FilesBloc: @unchecked Sendable {
             state.places = places
             state.drives = drives
             state.oneDrive = oneDrive
+            // The registry walk rides behind the places rather than in
+            // front of any listing; the answer is process-cached, so the
+            // tabs after the first pay nothing.
+            Task.detached { [weak self] in
+                let templates = Win32Files.shellNewTemplates()
+                await MainActor.run {
+                    self?.add(.templatesLoaded(templates))
+                }
+            }
+
+        case .templatesLoaded(let templates):
+            state.newTemplates = templates
+
+        case .newFile(let template):
+            let directory = state.directory
+            Task.detached { [weak self] in
+                let path = Win32Files.shellNewCreate(in: directory,
+                                                     template: template)
+                await MainActor.run {
+                    guard let self else { return }
+                    if let path {
+                        self.state.selection = [path]
+                        self.state.selectionAnchor = path
+                        self.state.renaming = path
+                    }
+                    self.add(.refresh)
+                }
+            }
 
         case .open(let path):
             if !state.directory.isEmpty, state.directory != path {
