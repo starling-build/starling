@@ -107,8 +107,16 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       creates "New <Type><ext>" uniqued and drops into inline rename,
       the newFolder gesture. On this machine that is one row (Compressed
       (zipped) Folder) -- the list is the machine's, not a hardcode.
-- [ ] A This PC / computer view, which would also make the breadcrumb's
-      "This PC" crumb navigate instead of being a label.
+- [x] A This PC computer view: a sentinel non-path directory
+      (kThisPCPath, U+0001-prefixed so no folder can collide) draws
+      Devices and drives -- each tile the shell's name, Explorer's
+      capacity bar (red under 10% free), "x GB free of y GB", double-click
+      opens the drive. The sidebar row and the breadcrumb's This PC crumb
+      both navigate there now; the sidebar chevron became its own tap
+      target so collapsing does not navigate. Everything file-shaped gates
+      itself off the sentinel: New disabled, no background menu, no drops,
+      no headers -- and drive tiles keep their highlight OUT of the
+      bloc's selection, so no file operation can ever see C:\ selected.
 
 ## Deferred by decision (session-sized)
 
