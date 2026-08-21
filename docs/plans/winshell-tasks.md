@@ -6,9 +6,17 @@ mouse notices first. Updated 2026-08-21: every visual-polish, functional-gap
 and hygiene item is done -- what remains is the deferred-by-decision section
 below and the small not-yets recorded inside ticked entries (tab
 reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
-The next session-sized piece by this list's own logic is the context menu
-as its own popup window, parked earlier in favour of window parity, which
-is now complete.
+Updated again 2026-08-21, later: Phase 1 of the shell-replacement plan is
+four-fifths landed (namespace enumeration + bin/Network/zip, Ctrl+Z,
+thumbnails, typed path entry, subtree search -- sections below). The one
+Phase-1 item left is QUICK ACCESS PINNING, which is the next
+session-sized piece: it needs the pinned/frequent split read out of the
+Quick Access namespace (::{679f85cb-0220-4080-b29b-5540cc05aab6}
+enumerates BOTH mixed; a per-item pinned property or the pinned-only
+child folder has to be probed first), pin/unpin through the shell's own
+pintohome/unpinfromhome verbs so Explorer and this window agree, and the
+sidebar's hardcoded pinOrder rows replaced by the read set. After that,
+track 1 rejoins the wave plan (winshell-shell-replacement.md).
 
 ## Subtree search — landed and verified 2026-08-21
 
