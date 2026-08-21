@@ -69,6 +69,12 @@ public final class AnyHitTestTarget: HitTestTarget, CustomStringConvertible {
         self.wrapped = target
     }
 
+    /// The target this box erases. Consumers that dispatch by TYPE -- the
+    /// mouse tracker looking for `MouseTrackerAnnotationProtocol` conformers
+    /// in a hit path -- must look through the box: a cast against the box
+    /// itself can only ever see `AnyHitTestTarget`.
+    public var base: HitTestTarget { wrapped }
+
     public func handleEvent(_ event: PointerEvent, entry: HitTestEntry<AnyHitTestTarget>) {
         wrapped.handleEvent(event, entry: entry)
     }

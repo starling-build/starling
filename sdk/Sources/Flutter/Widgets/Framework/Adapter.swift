@@ -226,6 +226,23 @@ func _setupWidgetBinding(_ app: Widget) {
     // Pointer event state — caches hit test results for active pointers.
     var hitTests: [Int: HitTestResult] = [:]
 
+    // The mouse tracker, which is what makes MouseRegion's enter/exit fire.
+    // Dart routes every pointer event through RendererBinding._dispatchEvent,
+    // which feeds its tracker before dispatching; this adapter dispatches
+    // directly and never did — so every MouseRegion in every app was
+    // silently inert. Created here with the same per-view hit test the
+    // dispatch below uses.
+    let mouseTracker = MouseTracker({ position, viewId in
+        let result = HitTestResult()
+        if let implicitId = PlatformDispatcher.instance.implicitView?.viewId,
+           viewId == implicitId {
+            _ = renderView?.hitTest(result, position: position)
+        } else if let sp = secondaryPipelines[viewId] {
+            _ = sp.renderView.hitTest(result, position: position)
+        }
+        return result
+    })
+
     // Track whether a fallback frame is already scheduled on the RunLoop.
     var _fallbackFrameScheduled = false
 
@@ -600,6 +617,15 @@ func _setupWidgetBinding(_ app: Widget) {
             } else if event.down || event is PointerPanZoomUpdateEvent {
                 hitTestResult = hitTests[event.pointer]
             }
+
+            // The tracker sees EVERY event, as RendererBinding's dispatch
+            // gives it in Dart — it derives enter/exit for MouseRegions by
+            // diffing the annotations under the device. Moves pass nil so
+            // the tracker re-runs the hit test itself: the cached down-time
+            // result deliberately does not follow the hover.
+            mouseTracker.updateWithEvent(
+                event,
+                hitTestResult: event is PointerMoveEvent ? nil : hitTestResult)
 
             if let result = hitTestResult {
                 for entry in result.path {
