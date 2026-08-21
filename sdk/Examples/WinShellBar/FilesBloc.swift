@@ -249,6 +249,58 @@ final class FilesBloc: @unchecked Sendable {
         if undoStack.count > undoDepth { undoStack.removeFirst() }
     }
 
+    /// Pops and runs the last journal's inverse. Static because the stack
+    /// is: the desktop surface undoes from the same per-process history the
+    /// explorer feeds. Returns false when there was nothing to undo; `done`
+    /// fires when the operation reports back. Refresh on failure too -- a
+    /// partial undo (three of five moved back before a conflict was
+    /// cancelled) has still changed the folder -- and failure does NOT
+    /// re-push the entry: retrying an inverse whose world has shifted under
+    /// it does the wrong thing more often than the right one.
+    @discardableResult
+    static func performUndo(done: @escaping (Bool) -> Void) -> Bool {
+        guard let entry = undoStack.popLast() else { return false }
+        // One operation's journal is homogeneous in practice (a paste is
+        // all copies or all moves), but the grouping below does not depend
+        // on it. Kinds map to inverses:
+        switch entry[0].kind {
+        case .copy, .new:
+            // Copies and creations undo the same way: the produced files
+            // go to the recycle bin. No confirmation -- Windows does not
+            // confirm a recycle, and Explorer's own undo-copy is silent too.
+            Win32FileOps.deleteMany(entry.map(\.dst),
+                                    owner: Self.ownerWindow) { ok, _ in
+                done(ok)
+            }
+        case .move:
+            // Each item back to its OWN folder under its OWN name -- src
+            // carries both, dst is where it is now. One operation over the
+            // set, like the move that is being undone.
+            let moves = entry.map { record in
+                (current: record.dst,
+                 dir: (record.src as NSString).deletingLastPathComponent,
+                 name: (record.src as NSString).lastPathComponent)
+            }
+            Win32FileOps.undoMoves(moves, owner: Self.ownerWindow, done: done)
+        case .rename:
+            // A rename journal is one record; its inverse is the old name
+            // back onto the new path.
+            let record = entry[0]
+            let oldName = (record.src as NSString).lastPathComponent
+            Win32FileOps.rename(record.dst, to: oldName,
+                                owner: Self.ownerWindow) { ok, _ in
+                done(ok)
+            }
+        case .delete:
+            // dst is each item's $R... slot in the bin (empty-dst permanent
+            // deletes were filtered at push). The bin's own restore verb,
+            // because it alone retires the $I record.
+            Win32FileOps.restoreFromBin(entry.map(\.dst),
+                                        owner: Self.ownerWindow, done: done)
+        }
+        return true
+    }
+
     private(set) var state = FilesState()
 
     /// Where THIS bloc starts, when it is not the first: a new tab opens
@@ -685,57 +737,7 @@ final class FilesBloc: @unchecked Sendable {
             }
 
         case .undo:
-            guard let entry = Self.undoStack.popLast() else { break }
-            let refresh: (Bool) -> Void = { [weak self] ok in
-                // Refresh even on failure -- a partial undo (three of five
-                // moved back before a conflict was cancelled) has still
-                // changed the folder. Failure also does NOT re-push the
-                // entry: retrying an inverse whose world has shifted under
-                // it does the wrong thing more often than the right one.
-                _ = ok
-                self?.add(.refresh)
-            }
-            // One operation's journal is homogeneous in practice (a paste
-            // is all copies or all moves), but the grouping below does not
-            // depend on it. Kinds map to inverses:
-            switch entry[0].kind {
-            case .copy, .new:
-                // Copies and creations undo the same way: the produced
-                // files go to the recycle bin. No confirmation -- Windows
-                // does not confirm a recycle, and Explorer's own undo-copy
-                // is silent too.
-                Win32FileOps.deleteMany(entry.map(\.dst),
-                                        owner: Self.ownerWindow) { ok, _ in
-                    refresh(ok)
-                }
-            case .move:
-                // Each item back to its OWN folder under its OWN name --
-                // src carries both, dst is where it is now. One operation
-                // over the set, like the move that is being undone.
-                let moves = entry.map { record in
-                    (current: record.dst,
-                     dir: (record.src as NSString).deletingLastPathComponent,
-                     name: (record.src as NSString).lastPathComponent)
-                }
-                Win32FileOps.undoMoves(moves, owner: Self.ownerWindow,
-                                       done: refresh)
-            case .rename:
-                // A rename journal is one record; its inverse is the old
-                // name back onto the new path.
-                let record = entry[0]
-                let oldName = (record.src as NSString).lastPathComponent
-                Win32FileOps.rename(record.dst, to: oldName,
-                                    owner: Self.ownerWindow) { ok, _ in
-                    refresh(ok)
-                }
-            case .delete:
-                // dst is each item's $R... slot in the bin (empty-dst
-                // permanent deletes were filtered at push). The bin's own
-                // restore verb, because it alone retires the $I record.
-                Win32FileOps.restoreFromBin(entry.map(\.dst),
-                                            owner: Self.ownerWindow,
-                                            done: refresh)
-            }
+            Self.performUndo { [weak self] _ in self?.add(.refresh) }
 
         case .listed(let directory, let entries, let error):
             state.directory = directory

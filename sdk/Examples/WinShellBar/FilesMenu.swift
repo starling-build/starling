@@ -230,6 +230,17 @@ final class ShellMenuModel {
     @ObservationIgnored var openWith: (Win32FileEntry) -> Void = { _ in
         filesBloc.add(.openWith)
     }
+    /// The pill row's two non-shell cells, same bargain as the four hooks
+    /// above: Paste lands the clipboard in the given folder, Rename opens
+    /// the surface's inline edit. The defaults are the explorer's; the
+    /// desktop redirects both, because its filesBloc is dormant and a cell
+    /// wired to it is a cell that quietly does nothing.
+    @ObservationIgnored var pasteInto: (String) -> Void = {
+        filesBloc.add(.paste(into: $0))
+    }
+    @ObservationIgnored var beginRename: (Win32FileEntry) -> Void = {
+        filesBloc.add(.beginRename($0))
+    }
 
     /// The session assembling the verbs, and the generation that lets an
     /// answer for a menu already dismissed be dropped rather than drawn into
@@ -986,11 +997,11 @@ final class ShellMenuModel {
                     }
                 case .paste:
                     if let target = entry?.path {
-                        action = { filesBloc.add(.paste(into: target)) }
+                        action = { [pasteInto] in pasteInto(target) }
                     }
                 case .rename:
                     if let entry {
-                        action = { filesBloc.add(.beginRename(entry)) }
+                        action = { [beginRename] in beginRename(entry) }
                     }
                 }
             }
