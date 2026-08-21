@@ -57,19 +57,26 @@ Caveats learned doing it:
 | SHGetFileInfo display name          | 0.10ms per call                        |
 | SHGetFileInfo type name             | 0.075ms per call (already one per TYPE by design) |
 
-## A finding withdrawn
+## A finding withdrawn, then settled from inside
 
-The first pass reported grid hover at ~25x Details hover. Re-measured with
-a better protocol -- three consecutive sweeps on one process, keeping only
-the plateau -- BOTH modes bottom out in the same sub-millisecond class
-(grid 0.07ms/move, Details 0.20ms/move). The multi-millisecond readings
-appear on cold processes and on processes that have been driven hard, and
-one controlled observation (Details at a stable 2.5ms/move fell to
-0.2ms/move after a refresh cleared the selection) hints the escalation is
-selection-linked -- but external CPU sampling is at its noise floor here
-(sweeps of ~230 events against desktop-wide contention swing +-1.5ms/move)
-and cannot attribute it. Do not optimize the ClipRRect on this evidence;
-instrument first.
+The first pass reported grid hover at ~25x Details hover; a plateau
+protocol shrank that to "same class, noisy"; one observation hinted the
+escalation was selection-linked. All three were artifacts of external CPU
+sampling's noise floor. The frame timer (below) settled it:
+
+    UI-thread cost per hover-change frame, System32, mean/max us
+    Details, no selection:   build  347/ 709  paint  955/1290  total 1406/1811
+    Details, selected:       build  354/1324  paint  920/1296  total 1360/2456
+    Medium icons:            build  228/ 528  paint 1333/1682  total 1720/2204
+    one selection click:     build 3648/6852 (the full rebuild) total ~4.8-7.9ms
+    view flip, worst frame:  build to 7.9ms, total to 11.3ms
+
+Hover costs ~1.4-1.8ms of UI thread per change in EVERY mode, paint-
+dominated; the grid is +25% in paint (bigger cells), not 25x anything;
+selection changes nothing. Nothing here needs optimizing -- a real mouse
+crosses ~30 rows/s, ~4% of a core. The external sweep figures scattered
+from 0.07 to 2.5ms/move around a signal this size, which is the measure of
+that method, not of the code.
 
 ## Fixed during this pass
 
@@ -83,12 +90,12 @@ instrument first.
 
 ## Follow-ups, in value order
 
-1. **Internal frame timing.** Every open question above (what escalates
-   hover to milliseconds on a driven process, whether it is
-   selection-linked, what a rebuild's chrome/listing split is) dead-ends
-   on external CPU sampling's noise floor. A timer around the build/raster
-   pass, behind an env var, answers all of them -- and is the same
-   plumbing the present-statistics question needs.
+1. **Internal frame timing: BUILT.** `STARLING_FRAME_LOG=1` logs one
+   stderr line per composited frame with the build / layout / paint /
+   composite / finalize split (Adapter.swift's frame pipeline). It
+   answered the hover question same-day. Still open: the ENGINE side --
+   raster-thread time and present pacing -- which is the idle-present
+   question's plumbing.
 2. **The full-window rebuild (~4ms on a big folder) is the unit cost**
    behind column drags and selection clicks. Isolating the listing (or
    headers+listing) into its own rebuild scope would cut drag cost by
