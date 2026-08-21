@@ -707,6 +707,17 @@ if wantsFiles {
         print("[WinShell] Explorer taskbar hidden: \(hidden)")
     }
 
+    // The tray class, taken BEFORE the panel registers its appbar below:
+    // SHAppBarMessage resolves Shell_TrayWnd at call time, so this ordering is
+    // what points the dock's own reservation at the appbar service in this
+    // process when that service is the one answering (explorer absent, or
+    // STARLING_TRAY_OWN=1 forcing it). With explorer present the service
+    // forwards and nothing changes. DockBloc starts the tray again later,
+    // which is only a callback rewire.
+    if !keepsNativeTray {
+        Win32Tray.start {}
+    }
+
     // The Windows key, pointed at our Start instead of Explorer's. It lives in
     // the DOCK because the dock is the process that stays running — and
     // because two hooks would replay the keyup twice and toggle the launcher

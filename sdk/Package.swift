@@ -669,6 +669,9 @@ targets += [
             .linkedLibrary("runtimeobject"),
             // WIC, for decoding the notification listener's app logos.
             .linkedLibrary("windowscodecs"),
+            // SHLockShared/SHUnlockShared, for writing appbar results back
+            // through the caller's SHAllocShared block (flwin32_tray.c).
+            .linkedLibrary("shlwapi"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.
