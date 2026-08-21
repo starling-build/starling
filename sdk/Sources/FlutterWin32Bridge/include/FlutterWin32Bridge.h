@@ -647,6 +647,11 @@ void flwin32_host_request_redraw(FlWin32Host* host);
 // caller falls back to drawing in-window).
 int64_t flwin32_popup_open(FlWin32Host* host, double x_pt, double y_pt,
                            double w_pt, double h_pt);
+// Shows a popup opened by flwin32_popup_open, which creates it HIDDEN: the
+// view has composited nothing at that point, and a visible window spends
+// the frames until its first present as a flat rectangle. The Swift side
+// calls this once the view's first scene has been composited. Idempotent.
+void flwin32_popup_show(FlWin32Host* host, int64_t view_id);
 // Moves/resizes an open popup ("Show more options" growing in place).
 void flwin32_popup_place(FlWin32Host* host, int64_t view_id, double x_pt,
                          double y_pt, double w_pt, double h_pt);

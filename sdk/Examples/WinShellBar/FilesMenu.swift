@@ -279,12 +279,32 @@ final class ShellMenuModel {
             return
         }
         let menu = mainMenu
+        // Settled: nothing further is coming that would change the panel's
+        // shape. Flyouts arrive whole; a shell menu settles when the full
+        // tier has answered, or when there is no session to answer at all.
+        // An unsettled menu's popup opens HELD — hidden while the fast tier
+        // gives way to the full one — so the growth happens off screen and
+        // the menu appears once, at its final size, instead of visibly
+        // jumping in its first few frames. (The reveal below runs on every
+        // sync, so the popup shows the moment settling is observed; open()
+        // arms a timeout for the shell never answering.)
+        let settled = flyoutRows != nil || shellTier == .full || shell == nil
         let rect = MenuRect(x: at.x, y: at.y, w: menu.width, h: menu.height)
         if let id = mainPopup {
             if rect != mainPopupRect {
                 Win32PopupSurfaces.place(id, x: rect.x, y: rect.y,
                                          width: rect.w, height: rect.h)
                 mainPopupRect = rect
+            }
+            if settled {
+                // A beat later, not now: the settled cache has only just
+                // invalidated, and the frame that composites the panel at
+                // its final size is still ahead. Revealing after ~two frame
+                // times shows painted rows, not the previous tier inside
+                // the new window. Idempotent, so every sync may schedule it.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                    Win32PopupSurfaces.reveal(id)
+                }
             }
         } else {
             Win32PopupSurfaces.onDismiss { [weak self] in
@@ -293,6 +313,7 @@ final class ShellMenuModel {
             }
             mainPopup = Win32PopupSurfaces.open(
                 x: rect.x, y: rect.y, width: rect.w, height: rect.h,
+                holdUntilRevealed: !settled,
                 content: { [weak self] in
                     self.map { MenuPanelSurface(model: $0, isSub: false) }
                         ?? SizedBox(width: 0, height: 0)
@@ -523,6 +544,20 @@ final class ShellMenuModel {
         mainCache = nil
         subCache = nil
         scheduleSync()
+        // The held popup's failsafe: a shell that never answers the full
+        // tier (an empty answer, a hung handler) must not leave an
+        // invisible menu holding the model open. A HANG rescue, not a UX
+        // budget — an earlier 250ms cut revealed the fast tier exactly when
+        // the full one was slow (a cold shell's first menu, ~700ms), and
+        // the full tier then reshuffled rows ON SCREEN: "Add to Favorites"
+        // lands mid-panel, so everything under it stepped down. Waiting for
+        // the full set is what native does; the cold first menu is slow in
+        // Explorer too.
+        let revealGeneration = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, self.generation == revealGeneration else { return }
+            if let id = self.mainPopup { Win32PopupSurfaces.reveal(id) }
+        }
         return true
     }
 

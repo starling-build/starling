@@ -136,6 +136,13 @@ public nonisolated(unsafe) var _forceNextComposite = false
 /// views get no content and are never rendered.
 public nonisolated(unsafe) var multiViewContentBuilder: ((FlutterView) -> Widget)? = nil
 
+/// Called once per non-implicit view, right after its FIRST scene is
+/// composited — the moment a host that kept the view's window hidden can
+/// show it without exposing an unpainted surface (the Win32 popup surfaces
+/// open hidden and show here, which is what keeps a menu from flashing as
+/// a flat rectangle before its first present).
+public nonisolated(unsafe) var multiViewFirstComposite: ((Int) -> Void)? = nil
+
 /// The render/build pipeline of one non-implicit view (multi-monitor).
 private final class SecondaryViewPipeline {
     let renderView: RenderView
@@ -536,6 +543,7 @@ func _setupWidgetBinding(_ app: Widget) {
                     // what tells them apart.
                     try? FileHandle.standardError.write(contentsOf: Data(
                         "[Adapter] view \(fv.viewId) first composite\n".utf8))
+                    multiViewFirstComposite?(fv.viewId)
                 }
             }
         }

@@ -63,6 +63,22 @@ to the monitor's WORK AREA (flwin32_popup_frame). Oracles:
 "[Adapter] view N pipeline created/first composite/disposed" and
 "[Win32Popup] view N has no content builder" on stderr.
 
+How a popup becomes visible, tightened after the box showed both faults:
+a popup window is created HIDDEN with a menu-coloured erase brush (the
+host's black class brush flashed a black rectangle for the frames before
+the first present — burst screenshots caught it), shown no earlier than
+its view's first composite (multiViewFirstComposite, the adapter's
+per-view hook), and a menu's popup holds PAST that until the menu has
+SETTLED — the full verb tier in, or a flyout's rows, which arrive whole
+(Win32PopupSurfaces holdUntilRevealed/reveal, plus a 1.5s hang rescue).
+The two-tier query stays, but the fast→full growth now happens off
+screen: an earlier cut that revealed on a 250ms budget showed the fast
+tier exactly when the full one was slow (a cold shell's first menu,
+~700ms) and the full set then reshuffled rows under the pointer — "Add
+to Favorites" lands mid-panel and everything below it stepped down.
+Waiting is what native does; warm menus appear once, complete, in
+~100-300ms, and the cold first menu costs what Explorer's own does.
+
 Not done, deliberately: per-pixel-alpha acrylic in popups (the popup fill
 is opaque; real cross-window acrylic needs DirectComposition, not a GL
 swapchain colorkey), and the launcher/notification-centre overlays still
