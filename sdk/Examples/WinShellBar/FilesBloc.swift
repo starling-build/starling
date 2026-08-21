@@ -85,6 +85,15 @@ struct FilesState {
     /// place of its name. One at a time by construction -- starting a rename
     /// ends any other.
     var renaming: String?
+    /// Subtree search: what the walk under `directory` has found so far,
+    /// named by RELATIVE path ("sub\\inner\\notes.txt") so the existing Name
+    /// column says where each hit lives. Appended below the folder's own
+    /// matches in `visible`.
+    fileprivate(set) var searchHits: [Win32FileEntry] = []
+    /// True while the walk is still running -- the status bar says so,
+    /// because a search that is 10% done looks identical to one that found
+    /// everything.
+    fileprivate(set) var searching = false
 
     /// What the list actually shows: the listing, filtered, then ordered.
     ///
@@ -204,6 +213,8 @@ final class FilesBloc: @unchecked Sendable {
         case newFile(Win32Files.ShellNewTemplate)
         /// Ctrl+Z: pop the journal stack and apply the inverse.
         case undo
+        /// A batch of subtree-search hits landing from the walk.
+        case searchBatch(generation: Int, hits: [Win32FileEntry], done: Bool)
         case iconsChanged
     }
 
@@ -381,6 +392,19 @@ final class FilesBloc: @unchecked Sendable {
 
         case .filter(let text):
             state.filter = text
+            // The walk first: it clears the previous query's hits, so the
+            // reproject below never shows old-query results under the new
+            // text.
+            _startSearch()
+            _reproject()
+
+        case .searchBatch(let generation, let hits, let done):
+            // A batch from a cancelled walk: a new filter or a navigation
+            // has moved on, and these hits describe a question nobody is
+            // asking any more.
+            guard generation == searchGeneration else { break }
+            state.searchHits.append(contentsOf: hits)
+            if done { state.searching = false }
             _reproject()
 
         case .refresh:
@@ -706,6 +730,10 @@ final class FilesBloc: @unchecked Sendable {
             state.loading = false
             state.selection = []
             state.selectionAnchor = nil
+            // The filter survives navigation (existing behaviour), so the
+            // walk it implies restarts under the NEW root -- and a stale
+            // walk under the old one dies either way.
+            _startSearch()
             _reproject()
             _warmIcons(entries)
             if state.viewMode.iconSide != 32 {
@@ -722,6 +750,109 @@ final class FilesBloc: @unchecked Sendable {
     /// Folders always sort above files whatever the column, which is what
     /// every file manager does and what keeps a folder findable in a
     /// directory of ten thousand things.
+    /// The subtree walk behind the search box -- Explorer's search, in the
+    /// honest version this window can offer: a cancellable breadth-first
+    /// walk, not an index. Hits stream in batches (the first ones appear
+    /// while deep directories are still being read) and carry their
+    /// RELATIVE path as the name, which is what tells the user where a hit
+    /// lives without a column model this window does not have.
+    ///
+    /// Deliberate limits, each the cheap honest choice: 1000 hits (a search
+    /// that matched a thousand things needs a narrower query, not more
+    /// scrolling), half a million entries scanned (the cycle backstop --
+    /// junction loops exist and FileManager will happily walk one forever),
+    /// and no descent into symlinks or junctions.
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var searchGeneration = 0
+
+    private func _startSearch() {
+        searchTask?.cancel()
+        searchGeneration += 1
+        state.searchHits = []
+        // Nothing to walk on This PC (not a folder) or a namespace listing
+        // (FileManager cannot enumerate a "::" location or a zip's inside;
+        // the in-memory filter still applies there).
+        guard !state.filter.isEmpty, !state.isThisPC, !state.isNamespace,
+              !state.directory.isEmpty else {
+            state.searching = false
+            _reproject()
+            return
+        }
+        let generation = searchGeneration
+        let root = state.directory
+        let query = state.filter
+        state.searching = true
+        searchTask = Task.detached(priority: .utility) { [weak self] in
+            // The debounce: typing "not" then "notes" should cost one walk,
+            // not two -- the first is cancelled here before it reads a
+            // single directory.
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if Task.isCancelled { return }
+
+            let needle = query.lowercased()
+            let fm = FileManager()
+            let rootDir = root.hasSuffix("\\") ? String(root.dropLast()) : root
+            var queue: [String] = [rootDir]     // relative "" == the root
+            var batch: [Win32FileEntry] = []
+            var found = 0
+            var scanned = 0
+
+            func flush(done: Bool) async {
+                let out = batch
+                batch = []
+                await MainActor.run {
+                    self?.add(.searchBatch(generation: generation, hits: out,
+                                           done: done))
+                }
+            }
+
+            while !queue.isEmpty, found < 1000, scanned < 500_000 {
+                if Task.isCancelled { return }
+                let dir = queue.removeFirst()
+                guard let names = try? fm.contentsOfDirectory(atPath: dir)
+                else { continue }
+                for name in names {
+                    if Task.isCancelled { return }
+                    scanned += 1
+                    let path = dir + "\\" + name
+                    var isDirectory: ObjCBool = false
+                    guard fm.fileExists(atPath: path,
+                                        isDirectory: &isDirectory) else {
+                        continue
+                    }
+                    if isDirectory.boolValue {
+                        // Junction/symlink loops are the classic infinite
+                        // walk; a link's TARGET is elsewhere in the tree
+                        // and will be visited on its own.
+                        if (try? fm.destinationOfSymbolicLink(atPath: path))
+                            == nil {
+                            queue.append(path)
+                        }
+                    }
+                    // Depth-1 rows are the listing's own; the in-memory
+                    // filter already shows those matches.
+                    guard dir != rootDir,
+                          name.lowercased().contains(needle) else { continue }
+                    let attrs = try? fm.attributesOfItem(atPath: path)
+                    let relative = String(path.dropFirst(rootDir.count + 1))
+                    batch.append(Win32FileEntry(
+                        name: relative,
+                        path: path,
+                        isDirectory: isDirectory.boolValue,
+                        size: (attrs?[.size] as? Int64)
+                            ?? Int64((attrs?[.size] as? Int) ?? 0),
+                        modified: attrs?[.modificationDate] as? Date,
+                        ext: isDirectory.boolValue
+                            ? "" : (name as NSString).pathExtension.lowercased()))
+                    found += 1
+                    if batch.count >= 50 { await flush(done: false) }
+                    if found >= 1000 { break }
+                }
+            }
+            await flush(done: true)
+        }
+    }
+
     private func _reproject() {
         var rows = state.entries
         if !state.filter.isEmpty {
@@ -741,6 +872,12 @@ final class FilesBloc: @unchecked Sendable {
                                     FilesBloc.typeLabel(b)) == .orderedAscending
             }
             return ascending ? order : !order
+        }
+        // Subtree hits ride below the folder's own matches, in discovery
+        // order -- they are named by relative path, so sorting them among
+        // the plain names would interleave apples and paths.
+        if !state.filter.isEmpty, !state.searchHits.isEmpty {
+            rows.append(contentsOf: state.searchHits)
         }
         state.visible = rows
         state.visibleByPath = Dictionary(rows.map { ($0.path, $0) },

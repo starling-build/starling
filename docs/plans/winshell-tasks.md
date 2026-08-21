@@ -10,6 +10,25 @@ The next session-sized piece by this list's own logic is the context menu
 as its own popup window, parked earlier in favour of window parity, which
 is now complete.
 
+## Subtree search — landed and verified 2026-08-21
+
+Phase 1's last functional gap but one: the search box now walks the
+subtree behind the instant in-folder filter -- the honest cancellable-BFS
+version the plan asked for, not an index. Hits stream in batches of 50
+(first results while deep directories are still reading), named by
+RELATIVE path so the existing Name column says where each hit lives,
+appended below the folder's own matches. 300ms debounce so "notes" costs
+one walk, not five; generation token + Task cancellation kill a stale
+walk on retype or navigation; the filter surviving navigation restarts
+the walk under the new root. Deliberate limits, each the cheap honest
+choice: 1000 hits, 500k entries scanned (junction-loop backstop), no
+descent into symlinks/junctions, and no walk at all on This PC or a
+namespace listing (FileManager cannot enumerate those; the in-memory
+filter still applies). The status bar appends "searching…" while the
+walk runs, because 10% done looks identical to finished. Verified on the
+box: "TextBox" typed over the sdk tree surfaces
+Sources\Flutter\FluentUI\...\TextBox.swift within a second.
+
 ## Typed path entry — landed and verified 2026-08-21
 
 Phase 1's address-bar edit: a click on the breadcrumb's empty space flips

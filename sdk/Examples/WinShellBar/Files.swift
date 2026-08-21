@@ -1767,10 +1767,12 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
     }
 
-    /// Filters the listing already in memory. NOT Explorer's search, which
-    /// walks the subtree and asks the index -- this is the current folder, and
-    /// the placeholder says so, because a search box that quietly searches
-    /// less than the user expects is worse than one that never ran.
+    /// Filters the listing in memory INSTANTLY, and walks the subtree
+    /// behind it (FilesBloc._startSearch): the folder's own matches appear
+    /// per keystroke, the deeper hits stream in below them named by
+    /// relative path. Explorer asks the index; this is the honest
+    /// cancellable-walk version, and the status bar says "searching…"
+    /// while it runs.
     private func searchBox() -> Widget {
         SizedBox(width: 220, height: 32) {
             MacosTextField(
@@ -2021,7 +2023,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
         let shown = bloc.state.visible.count
         let total = bloc.state.entries.count
-        if !bloc.state.filter.isEmpty { return "\(shown) of \(total) items" }
+        if !bloc.state.filter.isEmpty {
+            // The walk's honesty: "searching" while it runs, because 10%
+            // done looks identical to finished -- and the count includes
+            // the subtree hits riding below the folder's own matches.
+            let counted = "\(shown) of \(total) items"
+            return bloc.state.searching ? counted + "  ·  searching…"
+                                        : counted
+        }
         return total == 1 ? "1 item" : "\(total) items"
     }
 
