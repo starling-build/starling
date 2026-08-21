@@ -72,9 +72,31 @@ enum Win11 {
     /// (StarlingFilesState.initState registers the host callback).
     static var light = false
 
-    static var windowBg: Color { light ? Color(0xFFF3F3F3) : Color(0xFF202020) }
+    /// The wallpaper's average colour, the mica ingredient -- read once
+    /// off-thread at startup (StarlingFilesState.initState) and again when
+    /// the theme flips. nil until it lands, which draws the plain base.
+    /// Real mica is DWM compositing a blurred desktop behind transparent
+    /// window regions -- unreachable behind an opaque GL swap chain -- but
+    /// what the eye reads off Explorer's chrome at rest is the TINT, and
+    /// that is affordable everywhere.
+    nonisolated(unsafe) static var micaTint: UInt32?
+
+    /// `base` leaned toward the wallpaper's tint by `amount`.
+    private static func mica(_ base: UInt32, _ amount: Double) -> Color {
+        guard let tint = micaTint else { return Color(Int(base)) }
+        func channel(_ shift: UInt32) -> UInt32 {
+            let b = Double((base >> shift) & 0xFF)
+            let t = Double((tint >> shift) & 0xFF)
+            return UInt32(b + (t - b) * amount + 0.5) << shift
+        }
+        return Color(Int(0xFF00_0000 | channel(16) | channel(8) | channel(0)))
+    }
+
+    static var windowBg: Color {
+        light ? mica(0xFFF3F3F3, 0.20) : mica(0xFF202020, 0.15)
+    }
     static var surface: Color { light ? Color(0xFFFFFFFF) : Color(0xFF272727) }
-    static var navPane: Color { light ? Color(0xFFF3F3F3) : Color(0xFF202020) }
+    static var navPane: Color { windowBg }
     static var listBg: Color { light ? Color(0xFFFFFFFF) : Color(0xFF272727) }
     static var stroke: Color { light ? Color(0xFFE5E5E5) : Color(0xFF383838) }
     static var text: Color { light ? Color(0xFF1B1B1B) : Color(0xFFFFFFFF) }
@@ -450,6 +472,18 @@ final class StarlingFilesState: State<StatefulWidget> {
             Win11.light = light
             self?.setState {}
             self?.tabs.blocs.forEach { $0.add(.iconsChanged) }
+        }
+        // The mica tint: the wallpaper's average, decoded off this thread
+        // (a shell thumbnail plus arithmetic) and painted in when it lands.
+        // The first frames draw the plain base, which is also mica's own
+        // rest state on a machine that disallows transparency.
+        Task.detached { [weak self] in
+            guard let tint = Win32SystemInfo.wallpaperAverage() else { return }
+            await MainActor.run {
+                Win11.micaTint = tint
+                self?.setState {}
+                self?.tabs.blocs.forEach { $0.add(.iconsChanged) }
+            }
         }
         // The caption becomes ours to draw: tabs in the titlebar, exactly
         // Explorer's shape. The strip's hit test (stripPress) owes the

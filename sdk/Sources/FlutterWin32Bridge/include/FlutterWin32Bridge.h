@@ -459,6 +459,9 @@ int32_t flwin32_pick_image(char* out, int32_t out_size);
 
 int32_t flwin32_set_wallpaper(const char* path);
 int32_t flwin32_get_wallpaper(char* out, int32_t out_size);
+// The wallpaper's average colour (0xAARRGGBB) — the mica tint. Decodes via
+// the shell's image factory; call off the UI thread.
+int32_t flwin32_wallpaper_average(uint32_t* out_argb);
 
 // ── ending the session ──────────────────────────────────────────────────────
 

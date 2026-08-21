@@ -154,6 +154,14 @@ public enum Win32SystemInfo {
         string { flwin32_get_wallpaper($0, $1) }
     }
 
+    /// The wallpaper's average colour as 0xAARRGGBB -- the mica tint.
+    /// Decodes a shell thumbnail; call off the UI thread.
+    public static func wallpaperAverage() -> UInt32? {
+        var argb: UInt32 = 0
+        guard flwin32_wallpaper_average(&argb) != 0 else { return nil }
+        return argb
+    }
+
     @discardableResult
     public static func setWallpaper(_ path: String) -> Bool {
         flwin32_set_wallpaper(path) != 0

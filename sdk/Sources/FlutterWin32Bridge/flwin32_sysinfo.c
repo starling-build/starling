@@ -333,6 +333,82 @@ int32_t flwin32_get_wallpaper(char* out, int32_t out_size) {
     return out_utf8(path, out, out_size);
 }
 
+/* The wallpaper's average colour, as 0xAARRGGBB -- the mica ingredient.
+ * Real mica is DWM compositing a blurred desktop behind transparent window
+ * regions, which an opaque GL swap chain cannot show; what the eye mostly
+ * reads off Explorer's chrome is the TINT, and the average of a thumbnail
+ * is that tint. The shell's own image factory does the decode (the same
+ * machinery behind Explorer's thumbnails), so every format the desktop can
+ * be set to is covered without linking an image library. COM-inits its own
+ * apartment: callers run this off the UI thread, where the decode belongs. */
+int32_t flwin32_wallpaper_average(uint32_t* out_argb) {
+    if (out_argb == NULL) return 0;
+    wchar_t path[MAX_PATH];
+    path[0] = L'\0';
+    if (!SystemParametersInfoW(SPI_GETDESKWALLPAPER, MAX_PATH, path, 0)
+        || path[0] == L'\0') {
+        return 0;
+    }
+    HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    int ok = 0;
+    IShellItem* item = NULL;
+    if (SUCCEEDED(SHCreateItemFromParsingName(path, NULL, &IID_IShellItem,
+                                              (void**)&item))) {
+        IShellItemImageFactory* factory = NULL;
+        if (SUCCEEDED(item->lpVtbl->QueryInterface(
+                item, &IID_IShellItemImageFactory, (void**)&factory))) {
+            SIZE want;
+            want.cx = 16;
+            want.cy = 16;
+            HBITMAP bitmap = NULL;
+            if (SUCCEEDED(factory->lpVtbl->GetImage(
+                    factory, want, SIIGBF_RESIZETOFIT, &bitmap))
+                && bitmap != NULL) {
+                BITMAP info;
+                if (GetObjectW(bitmap, sizeof(info), &info)
+                    && info.bmWidth > 0 && info.bmHeight > 0) {
+                    int w = info.bmWidth;
+                    int h = info.bmHeight;
+                    BITMAPINFO bi;
+                    ZeroMemory(&bi, sizeof(bi));
+                    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+                    bi.bmiHeader.biWidth = w;
+                    bi.bmiHeader.biHeight = -h;
+                    bi.bmiHeader.biPlanes = 1;
+                    bi.bmiHeader.biBitCount = 32;
+                    bi.bmiHeader.biCompression = BI_RGB;
+                    unsigned char* pixels =
+                        (unsigned char*)malloc((size_t)w * (size_t)h * 4);
+                    HDC dc = GetDC(NULL);
+                    if (pixels != NULL && dc != NULL
+                        && GetDIBits(dc, bitmap, 0, (UINT)h, pixels, &bi,
+                                     DIB_RGB_COLORS) == h) {
+                        unsigned long long r = 0, g = 0, b = 0;
+                        int n = w * h;
+                        for (int i = 0; i < n; i++) {
+                            b += pixels[i * 4];
+                            g += pixels[i * 4 + 1];
+                            r += pixels[i * 4 + 2];
+                        }
+                        *out_argb = 0xFF000000u
+                            | ((uint32_t)(r / (unsigned)n) << 16)
+                            | ((uint32_t)(g / (unsigned)n) << 8)
+                            | (uint32_t)(b / (unsigned)n);
+                        ok = 1;
+                    }
+                    if (dc != NULL) ReleaseDC(NULL, dc);
+                    free(pixels);
+                }
+                DeleteObject(bitmap);
+            }
+            factory->lpVtbl->Release(factory);
+        }
+        item->lpVtbl->Release(item);
+    }
+    if (init == S_OK || init == S_FALSE) CoUninitialize();
+    return ok;
+}
+
 /* ----------------------------------------------------------------- dialog */
 
 /* The shell's own open dialog, for picking a wallpaper.

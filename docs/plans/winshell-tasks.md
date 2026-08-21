@@ -40,8 +40,14 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       %USERPROFILE%\OneDrive), only when the folder really exists, shell-named
       and cloud-glyphed under Home. Gallery/Network/Linux stay out until a
       backing view exists — a row that navigates nowhere is worse than absence.
-- [ ] Mica titlebar tint: native's caption area picks up a desktop-tinted
-      mica; ours is flat windowBg.
+- [x] Mica titlebar tint, the honest approximation: real mica is DWM
+      compositing a blurred desktop behind transparent window regions,
+      unreachable behind an opaque GL swap chain -- but what the eye reads
+      off Explorer's chrome at rest is the TINT, so the chrome (windowBg /
+      navPane) now blends 20% (light; 15% dark) of the wallpaper's average
+      colour, computed off-thread from a shell thumbnail
+      (flwin32_wallpaper_average) when the window opens. Listing and field
+      surfaces stay pure, as native's do.
 - [x] This PC in the sidebar expands and collapses: a chevron in the row's
       left gutter (icons stay aligned), the row itself toggles since it has
       nowhere to navigate, and the state lives on the window — tabs share a
