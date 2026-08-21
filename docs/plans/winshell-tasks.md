@@ -135,6 +135,14 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       no headers -- and drive tiles keep their highlight OUT of the
       bloc's selection, so no file operation can ever see C:\ selected.
 
+A performance profile of all of the above is in `winshell-perf.md`
+(2026-08-21): idle is clean everywhere, the heaviest interaction is the
+column drag at ~4ms CPU per move (the pre-existing full-window rebuild
+cost, no regression), and the follow-ups it names are grid-hover raster
+cost, isolating the listing's rebuild scope, and present-side frame
+statistics -- the last of which is the same plumbing the idle-present
+question below needs.
+
 ## Deferred by decision (session-sized)
 
 - [ ] The context menu as its own popup window. Feasibility fully

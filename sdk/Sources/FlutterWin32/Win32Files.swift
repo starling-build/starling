@@ -280,17 +280,40 @@ public enum Win32Files {
         }
     }
 
+    nonisolated(unsafe) private static var displayNameCache: [String: String] = [:]
+    private static let displayNameLock = NSLock()
+
     /// The shell's display name -- "Local Disk (C:)" for a drive root, the
     /// localized "Documents" for a known folder. Falls back to the file
     /// system's own last component.
+    ///
+    /// MEMOIZED: the sidebar's drive rows and the breadcrumb ask on every
+    /// window rebuild, and a rebuild can run per pointer move (a column
+    /// drag). The answer is a shell call measured at ~0.1ms -- pennies
+    /// once, a tax per frame -- and it changes only when a volume is
+    /// relabeled, which a relaunch is allowed to notice.
     public static func displayName(for path: String) -> String {
+        displayNameLock.lock()
+        if let cached = displayNameCache[path] {
+            displayNameLock.unlock()
+            return cached
+        }
+        displayNameLock.unlock()
         var buffer = [CChar](repeating: 0, count: 256)
         let n = buffer.withUnsafeMutableBufferPointer {
             flwin32_file_display_name(path, $0.baseAddress, 256)
         }
-        if n > 0 { return String(cString: buffer) }
-        let name = (path as NSString).lastPathComponent
-        return name.isEmpty ? path : name
+        let name: String
+        if n > 0 {
+            name = String(cString: buffer)
+        } else {
+            let last = (path as NSString).lastPathComponent
+            name = last.isEmpty ? path : last
+        }
+        displayNameLock.lock()
+        displayNameCache[path] = name
+        displayNameLock.unlock()
+        return name
     }
 
     /// What Explorer's Type column would say. Answers per EXTENSION, from the
