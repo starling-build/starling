@@ -106,21 +106,6 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         // window was hidden presents as stale black, with no error. On hide,
         // fold the calendar back so the next open starts where the native
         // panel starts.
-        // The wheel, from the host — the engine's Windows swift-mode drops
-        // scroll packets (flwin32_host.c has the account), so the Listener's
-        // onPointerSignal below never fires today. It stays wired for the
-        // fixed engine; the host consumes only while this hook is registered.
-        Win32WindowedHost.host?.onWheel { [weak self] x, y, delta in
-            guard let self, y < self.notifPanel.h else { return }
-            let limit = self.maxScroll(self.listRows().contentH)
-            let next = min(max(0, self.clampedScroll + delta), limit)
-            if next != self.clampedScroll {
-                self.setState {
-                    self.listScroll = next
-                    self.hovered = self.acHover(x, y)
-                }
-            }
-        }
         Win32WindowedHost.host?.onToggle { [weak self] in
             guard let self else { return }
             if Win32WindowedHost.host?.isVisible == true {

@@ -159,15 +159,6 @@ struct FlWin32Host {
   void* toggle_user;
   void (*theme_callback)(void* user);
   void* theme_user;
-  // Wheel, delivered straight to the shell surface. The engine's Windows
-  // swift-mode drops scroll packets somewhere between OnScroll and the
-  // runtime callback (verified end-to-end: the child's wndproc runs, no
-  // packet arrives in Swift; moves and clicks on the same pipe are fine) --
-  // so until that engine bug is fixed, a surface that wants the wheel takes
-  // it from the host. Registered = consumed, so a fixed engine cannot
-  // double-deliver.
-  void (*wheel_callback)(void* user, double x_pt, double y_pt, double delta);
-  void* wheel_user;
   // External textures we handed the engine, so their pixel buffers can be
   // freed on unregister. Swift only ever sees the int64 id.
   struct HostTextureSlot* textures;
@@ -450,12 +441,14 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
     case WM_MOUSEWHEEL:
     case WM_MOUSEHWHEEL:
       // The wheel goes to the FOCUS window, and whenever focus is on the
-      // frame rather than the child — the instant between activation and
-      // WM_SETFOCUS's hand-down, or any path that focused the frame without
-      // activating it — the scroll dies here, because the embedder is
-      // listening on the child. Same story as WM_SETFOCUS above: hand it
-      // down. The child's wndproc turns it into the engine's scroll event;
-      // coordinates ride in screen space, so no translation is needed.
+      // frame rather than the child — a path that focused the frame without
+      // activating it, or input injected before WM_SETFOCUS's hand-down —
+      // the scroll would die here, because the embedder listens on the
+      // child. Same story as WM_SETFOCUS above: hand it down; the child's
+      // wndproc turns it into the engine's scroll event, and coordinates
+      // ride in screen space so no translation is needed. The engine's own
+      // pipe delivers it to the framework from there — verified by pixels
+      // after a day of prints through a full-buffered pipe said otherwise.
       if (host != NULL && host->child != NULL) {
         return SendMessageW(host->child, message, wparam, lparam);
       }
@@ -1495,21 +1488,6 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
     return TRUE;
   }
 
-  if (message == WM_MOUSEWHEEL) {
-    HWND parent = GetParent(hwnd);
-    FlWin32Host* host = parent != NULL
-        ? (FlWin32Host*)GetWindowLongPtrW(parent, GWLP_USERDATA) : NULL;
-    if (host != NULL && host->wheel_callback != NULL) {
-      POINT pt = { (int)(short)LOWORD(lparam), (int)(short)HIWORD(lparam) };
-      ScreenToClient(hwnd, &pt);
-      UINT dpi = GetDpiForWindow(hwnd);
-      double scale = dpi > 0 ? (double)dpi / 96.0 : 1.0;
-      // One notch = 120 = 48 points of list, the shell's scroll gait.
-      double delta = -((double)GET_WHEEL_DELTA_WPARAM(wparam) / 120.0) * 48.0;
-      host->wheel_callback(host->wheel_user, pt.x / scale, pt.y / scale, delta);
-      return 0;
-    }
-  }
 
   // Under a custom titlebar, the top resize band belongs to the FRAME: the
   // child declines the hit and the parent's WM_NCHITTEST names it HTTOP.
@@ -1920,15 +1898,6 @@ void flwin32_host_on_theme_change(FlWin32Host* host,
   if (host == NULL) return;
   host->theme_callback = callback;
   host->theme_user = user;
-}
-
-void flwin32_host_on_wheel(FlWin32Host* host,
-                           void (*callback)(void* user, double x_pt,
-                                            double y_pt, double delta),
-                           void* user) {
-  if (host == NULL) return;
-  host->wheel_callback = callback;
-  host->wheel_user = user;
 }
 
 void flwin32_shell_broadcast_toggle(void) {

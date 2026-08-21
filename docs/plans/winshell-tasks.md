@@ -25,19 +25,24 @@ Render time; first frame after idle fires immediately instead of snapping to
 the tick grid; programmatic setState gets a real embedder frame on Win32
 (hostScheduleEngineFrame).
 
-## Engine debt, found from the flyouts
+## Retractions and traps, from the flyouts
 
-- [ ] **Windows swift-mode loses scroll packets.** Verified end-to-end on the
-      notification centre: WM_MOUSEWHEEL reaches the engine child's wndproc
-      (OnScroll runs), and no pointer datum with signalKind=scroll ever
-      arrives at the SwiftRuntime callback — while moves, hovers and clicks
-      on the same pipe are fine. Every scrollable on Win32 is affected;
-      Files' ListView only appears to work because nobody wheels it. Until
-      the engine drop is found, the host hands the wheel straight to the
-      surface (flwin32_host_on_wheel, registered = consumed so a fixed
-      engine cannot double-deliver) and the notification centre scrolls
-      through it. The frame also forwards WM_MOUSEWHEEL to the child, since
-      the wheel routes by focus and the frame can hold it.
+- **The engine does NOT lose scroll packets — retraction.** An earlier
+  version of this entry claimed Windows swift-mode dropped signalKind=scroll
+  between the embedder and the SwiftRuntime callback. False, twice over, and
+  worth recording because both halves will bite again:
+  1. *Injected wheel routes by FOCUS, not position* — a test harness's
+     hidden console holds focus, SetForegroundWindow from background is
+     refused, so synthetic wheels vanish while hovers (position-routed)
+     work. Post WM_MOUSEWHEEL at the frame from an in-session task instead
+     (wclick.py --wheel has the account).
+  2. *print() through a redirected pipe is FULLY BUFFERED on Windows* — the
+     same trap the desktop's CLAUDE.md documents for Linux. Diagnostic
+     prints that "never appeared" were sitting in a 4KB buffer; absence of
+     a print is not absence of the event. Judge input plumbing by PIXELS
+     (screenshot-diff before/after), never by prints.
+  What survives as real: the frame forwards WM_MOUSEWHEEL down to the
+  engine's child, for the paths where focus is on the frame itself.
 
 ## File explorer — visual polish (small)
 
