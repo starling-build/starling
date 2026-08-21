@@ -279,3 +279,49 @@ void flwin32_shell_ensure_notification_center(void) {
 void flwin32_shell_open_files(void) {
     open_surface(L"Starling Files", L"--files");
 }
+
+/* Start the banner PROCESS if it is not running -- parked like the others.
+ * Banners are the one surface with no user gesture to boot on: the engine
+ * has to be warm before the first toast arrives or the toast waits a second
+ * for it. */
+void flwin32_shell_ensure_banners(void) {
+    if (FindWindowW(L"FlutterSwiftWin32Host", L"Starling Banners") != NULL) {
+        return;
+    }
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
+    ShellExecuteW(NULL, L"open", exe, L"--banners", NULL, SW_HIDE);
+}
+
+/* Start the Run-dialog process if it is not running -- parked, so Win+R is a
+ * show rather than an engine boot. */
+void flwin32_shell_ensure_run(void) {
+    if (FindWindowW(L"FlutterSwiftWin32Host", L"Starling Run") != NULL) {
+        return;
+    }
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
+    ShellExecuteW(NULL, L"open", exe, L"--run", NULL, SW_HIDE);
+}
+
+/* Whether explorer is running as the shell, by its desktop window. Progman
+ * exists exactly as long as explorer does, and unlike Shell_TrayWnd it is a
+ * class we never take -- so it stays an honest tell after the tray and the
+ * appbar service are ours. */
+int32_t flwin32_shell_explorer_present(void) {
+    return FindWindowW(L"Progman", NULL) != NULL ? 1 : 0;
+}
+
+/* Whether a named Starling surface is currently on screen -- the banner asks
+ * about the notification centre, because popping a banner under an open
+ * centre that already shows the same toast is what the native shell
+ * suppresses too. */
+int32_t flwin32_shell_surface_visible(const char* title_utf8) {
+    if (title_utf8 == NULL) return 0;
+    wchar_t title[256];
+    if (MultiByteToWideChar(CP_UTF8, 0, title_utf8, -1, title, 256) == 0) {
+        return 0;
+    }
+    HWND w = FindWindowW(L"FlutterSwiftWin32Host", title);
+    return (w != NULL && IsWindowVisible(w)) ? 1 : 0;
+}

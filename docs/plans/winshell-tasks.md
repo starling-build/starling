@@ -292,6 +292,16 @@ Render time; first frame after idle fires immediately instead of snapping to
 the tick grid; programmatic setState gets a real embedder frame on Win32
 (hostScheduleEngineFrame).
 
+## Phase 4 surfaces: banners + Run — landed and verified 2026-08-21
+
+Toast banners (`--banners`, passive parked overlay, polls the store, pops
+only where the native shell cannot) and the Win+R Run dialog (`--run`,
+bottom-left parked overlay, ShellExecute with %VAR% expansion) are DONE and
+VM-verified end to end — the full account, including the passive-overlay
+mode, the left-edge anchor, and the dock's Files-tile texture-retain fix
+this work surfaced, lives in `winshell-shell-replacement.md` under Phase 4.
+The dock now holds four chords: Win+A, Win+N, Win+E, Win+R.
+
 ## The file-manager role is ours
 
 Starling Files now answers the dock's File Explorer tile (wearing

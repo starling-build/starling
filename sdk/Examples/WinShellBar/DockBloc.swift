@@ -542,6 +542,13 @@ final class DockBloc: @unchecked Sendable {
         // everything it is not shown, and a rebuild that forgot them would
         // free the icons out from under the strip that is drawing them.
         for icon in state.tray { claimed.insert(Self.trayKey(icon)) }
+        // And the two fixed tiles: they are in `state.items` unconditionally,
+        // so their textures are always on screen. Leaving them unclaimed
+        // freed the Files folder on every rebuild, and any window event (an
+        // overlay showing, a window closing) flashed the tile to the
+        // fallback glyph until the re-rasterize landed.
+        claimed.insert(kLauncherKey)
+        claimed.insert(kFilesKey)
         icons.retain(only: claimed)
         state.items = [DockItem(key: kLauncherKey, name: "Launcher", app: nil,
                                 windows: [], isPinned: true),

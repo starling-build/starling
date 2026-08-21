@@ -149,6 +149,8 @@ public struct OverlayPlacement: Sendable {
     /// Set to pin the panel to the work area's RIGHT edge with this inset,
     /// instead of centring it — Windows' notification centre, not its Start.
     public let rightMargin: Double?
+    /// Or to the LEFT edge — the Run dialog's corner.
+    public let leftMargin: Double?
     /// The toggle channel this overlay answers. `nil` is the default channel
     /// (the launcher's). A second overlay kind must name its own — every
     /// overlay hears the broadcast, so one channel would toggle them all.
@@ -157,20 +159,28 @@ public struct OverlayPlacement: Sendable {
     /// blocks whose gaps should show the desktop, like the notification
     /// centre's two panels. Costs the tree true black, same as the panels.
     public let transparent: Bool
+    /// Showing takes nothing from the user: no activation, no global Escape.
+    /// For surfaces that appear uninvited — toast banners — where stealing
+    /// focus from whatever the user is typing in would be the bug.
+    public let passive: Bool
 
     public init(monitor: Int? = nil, opacity: Double = 0.96,
                 size: (width: Double, height: Double)? = nil,
                 bottomMargin: Double = 12,
                 rightMargin: Double? = nil,
+                leftMargin: Double? = nil,
                 channel: String? = nil,
-                transparent: Bool = false) {
+                transparent: Bool = false,
+                passive: Bool = false) {
         self.monitor = monitor
         self.opacity = opacity
         self.size = size
         self.bottomMargin = bottomMargin
         self.rightMargin = rightMargin
+        self.leftMargin = leftMargin
         self.channel = channel
         self.transparent = transparent
+        self.passive = passive
     }
 }
 
@@ -197,6 +207,29 @@ public enum Win32Shell {
     /// a show rather than an engine boot. Idempotent.
     public static func ensureNotificationCenter() {
         flwin32_shell_ensure_notification_center()
+    }
+
+    /// Starts the toast-banner process parked. Banners have no user gesture
+    /// to boot on, so the engine must be warm before the first toast arrives.
+    public static func ensureBanners() {
+        flwin32_shell_ensure_banners()
+    }
+
+    /// Starts the Run-dialog process parked, so Win+R is a show rather than
+    /// an engine boot. Idempotent.
+    public static func ensureRun() {
+        flwin32_shell_ensure_run()
+    }
+
+    /// Whether explorer is running as the shell — by its Progman desktop
+    /// window, a class this shell never takes.
+    public static var explorerPresent: Bool {
+        flwin32_shell_explorer_present() != 0
+    }
+
+    /// Whether the named Starling surface is currently visible on screen.
+    public static func surfaceVisible(_ title: String) -> Bool {
+        flwin32_shell_surface_visible(title) != 0
     }
 
     /// A bare tap of either Windows key, delivered here rather than to

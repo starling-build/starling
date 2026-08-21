@@ -578,10 +578,18 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha,
 // where Windows 11 puts its notification centre. Call before set_overlay.
 void flwin32_host_set_overlay_anchor_right(FlWin32Host* host,
                                            int32_t right_margin_pt);
+// The same pin to the work area's LEFT edge — the Run dialog's corner.
+void flwin32_host_set_overlay_anchor_left(FlWin32Host* host,
+                                          int32_t left_margin_pt);
 // Key pure black out of a sized overlay — the panel's colour-key trick, for
 // an overlay drawn as separate blocks with see-through gaps. Call before
 // set_overlay.
 void flwin32_host_set_overlay_colorkey(FlWin32Host* host);
+// Mark this overlay passive: showing it neither activates the window nor
+// registers the global Escape hotkey. For surfaces that appear uninvited
+// (toast banners) and must not take anything from the user. Call before
+// set_overlay.
+void flwin32_host_set_overlay_passive(FlWin32Host* host);
 // Move this overlay onto a named toggle channel. Every overlay hears
 // HWND_BROADCAST, so a second overlay kind NEEDS its own channel or Win+N
 // toggles the launcher too. Call before set_overlay.
@@ -589,6 +597,16 @@ void flwin32_host_set_overlay_channel(FlWin32Host* host, const char* channel);
 void flwin32_shell_broadcast_toggle_channel(const char* channel);
 // Start the notification-centre process parked if it is not already running.
 void flwin32_shell_ensure_notification_center(void);
+// Start the toast-banner process parked if it is not already running.
+void flwin32_shell_ensure_banners(void);
+// Start the Run-dialog process parked if it is not already running.
+void flwin32_shell_ensure_run(void);
+// Whether explorer is running as the shell (by its Progman desktop window --
+// a class this shell never takes, so it stays honest after the tray is ours).
+int32_t flwin32_shell_explorer_present(void);
+// Whether the named Starling surface ("Starling Notifications", ...) is
+// currently visible on screen. UTF-8 title.
+int32_t flwin32_shell_surface_visible(const char* title_utf8);
 void flwin32_host_set_visible(FlWin32Host* host, int32_t visible);
 int32_t flwin32_host_is_visible(FlWin32Host* host);
 

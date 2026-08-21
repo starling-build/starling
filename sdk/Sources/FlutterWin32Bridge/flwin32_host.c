@@ -131,6 +131,11 @@ struct FlWin32Host {
   int overlay_active;
   int overlay_monitor;
   int overlay_shown;
+  // A passive overlay shows without taking anything from the user: no
+  // activation, no global Escape hotkey. Toast banners -- a surface that
+  // appears while the user is typing somewhere else, where stealing focus or
+  // eating the next Esc would be the bug.
+  int overlay_passive;
   int overlay_alpha;  // the configured opacity; parking drops it to zero
   // A sized overlay is a floating panel above the dock; 0 means full screen.
   int overlay_width_pt;
@@ -139,6 +144,10 @@ struct FlWin32Host {
   // 0 centred (the launcher); 1 pinned to the work area's right edge (the
   // notification centre), inset by overlay_margin_right_pt.
   int overlay_halign_right;
+  // Or to the LEFT edge (the Run dialog, where Windows puts its own),
+  // inset by overlay_margin_left_pt.
+  int overlay_halign_left;
+  int overlay_margin_left_pt;
   // Key pure black out of the surface, exactly the panel's trick: the
   // notification centre is two rounded panels with a gap, and an opaque
   // window paints that gap as a black band nothing asked for. Combines with
@@ -1726,6 +1735,10 @@ static int overlay_area(FlWin32Host* host, RECT* out) {
     LONG right_margin = (LONG)(host->overlay_margin_right_pt * scale);
     out->right = work.right - right_margin;
     out->left = out->right - w;
+  } else if (host->overlay_halign_left) {
+    LONG left_margin = (LONG)(host->overlay_margin_left_pt * scale);
+    out->left = work.left + left_margin;
+    out->right = out->left + w;
   } else {
     out->left = work.left + (avail_w - w) / 2;
     out->right = out->left + w;
@@ -1817,6 +1830,13 @@ void flwin32_host_set_visible(FlWin32Host* host, int32_t visible) {
   // just asked for directly.
   FlutterDesktopViewControllerForceRedraw(host->controller);
   flwin32_trace("set_visible(1): ForceRedraw returned");
+  if (host->overlay_passive) {
+    // No hotkey and no activation: a banner that appears while the user is
+    // typing must not eat their next Escape or take their keyboard. It is
+    // dismissed by its own timer or a click, both of which it can hear
+    // without ever being the foreground window.
+    return;
+  }
   RegisterHotKey(host->window, kOverlayEscapeHotkey, 0, VK_ESCAPE);
   // Through the window manager's own activate, which owns the
   // AttachThreadInput dance: the process asking for this is usually the BAR,
@@ -1964,6 +1984,11 @@ void flwin32_shell_broadcast_toggle_channel(const char* channel) {
   PostMessageW(HWND_BROADCAST, starling_named_toggle_message(channel), 0, 0);
 }
 
+void flwin32_host_set_overlay_passive(FlWin32Host* host) {
+  if (host == NULL) return;
+  host->overlay_passive = 1;
+}
+
 void flwin32_host_set_overlay_colorkey(FlWin32Host* host) {
   if (host == NULL) return;
   host->overlay_colorkey = 1;
@@ -1974,5 +1999,13 @@ void flwin32_host_set_overlay_anchor_right(FlWin32Host* host,
   if (host == NULL) return;
   host->overlay_halign_right = 1;
   host->overlay_margin_right_pt = right_margin_pt;
+  overlay_rederive(host);
+}
+
+void flwin32_host_set_overlay_anchor_left(FlWin32Host* host,
+                                          int32_t left_margin_pt) {
+  if (host == NULL) return;
+  host->overlay_halign_left = 1;
+  host->overlay_margin_left_pt = left_margin_pt;
   overlay_rederive(host);
 }

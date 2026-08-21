@@ -79,19 +79,27 @@ public final class Win32Host {
                            size: (width: Double, height: Double)? = nil,
                            bottomMargin: Double = 12,
                            rightMargin: Double? = nil,
+                           leftMargin: Double? = nil,
                            channel: String? = nil,
-                           transparent: Bool = false) {
+                           transparent: Bool = false,
+                           passive: Bool = false) {
         // Anchor and channel BEFORE set_overlay: that call positions the
         // window, and an anchor set afterwards would leave it centred until
         // the next monitor change rederived it.
         if let rightMargin {
             flwin32_host_set_overlay_anchor_right(host, Int32(rightMargin))
         }
+        if let leftMargin {
+            flwin32_host_set_overlay_anchor_left(host, Int32(leftMargin))
+        }
         if let channel {
             flwin32_host_set_overlay_channel(host, channel)
         }
         if transparent {
             flwin32_host_set_overlay_colorkey(host)
+        }
+        if passive {
+            flwin32_host_set_overlay_passive(host)
         }
         flwin32_host_set_overlay(host, Int32(monitor ?? -1),
                                  Int32((opacity * 255).rounded()),

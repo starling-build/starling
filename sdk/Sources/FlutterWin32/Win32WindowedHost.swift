@@ -77,8 +77,10 @@ public enum Win32WindowedHost {
                              size: placement.size,
                              bottomMargin: placement.bottomMargin,
                              rightMargin: placement.rightMargin,
+                             leftMargin: placement.leftMargin,
                              channel: placement.channel,
-                             transparent: placement.transparent)
+                             transparent: placement.transparent,
+                             passive: placement.passive)
             }
             flwin32_trace("mountWidget: begin")
             h.mountWidget(root)
