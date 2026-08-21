@@ -874,8 +874,17 @@ final class FilesBloc: @unchecked Sendable {
             // extension still warms the key for both.
             guard entry.isFileSystem else { continue }
             let key = FilesBloc.iconKey(entry, side: side)
-            guard seen.insert(key).inserted else { continue }
-            icons.ensure(key: key, path: entry.path, size: side)
+            if seen.insert(key).inserted {
+                icons.ensure(key: key, path: entry.path, size: side)
+            }
+            // The thumbnail rides BEHIND the type icon on the same serial
+            // queue: the type icon is the instant answer every row of that
+            // type shares, the thumbnail replaces it per file as the decode
+            // lands (IconCache dedups, so re-listing costs nothing).
+            if let thumb = FilesBloc.thumbKey(entry, side: side) {
+                icons.ensure(thumbnailKey: thumb, path: entry.path,
+                             size: side)
+            }
         }
     }
 
@@ -885,6 +894,28 @@ final class FilesBloc: @unchecked Sendable {
     static func iconKey(_ entry: Win32FileEntry, side: Int = 32) -> String {
         let base = entry.isDirectory ? "\u{1}dir" : "\u{1}ext:\(entry.ext)"
         return side == 32 ? base : "\(base)@\(side)"
+    }
+
+    /// The types whose rows show the FILE, not the type: what the shell has
+    /// thumbnail handlers for out of the box. A gate rather than asking the
+    /// factory about everything -- SIIGBF_THUMBNAILONLY does fail cleanly
+    /// for a .txt, but only after touching the file, and a listing of ten
+    /// thousand sources should not pay ten thousand misses to learn what
+    /// this set already says.
+    private static let thumbnailExts: Set<String> = [
+        "jpg", "jpeg", "png", "gif", "bmp", "webp", "tif", "tiff",
+        "heic", "heif", "avif", "jfif",
+        "mp4", "mov", "avi", "mkv", "wmv", "webm", "m4v", "mpg", "mpeg",
+    ]
+
+    /// The thumbnail texture key for an entry, or nil where a thumbnail is
+    /// not on offer. Per FILE (the path is the key), per raster edge, and
+    /// only for real files -- a zip member or a recycled slot has nothing
+    /// the factory could open.
+    static func thumbKey(_ entry: Win32FileEntry, side: Int = 32) -> String? {
+        guard !entry.isDirectory, entry.isFileSystem,
+              thumbnailExts.contains(entry.ext) else { return nil }
+        return "\u{1}thumb:\(entry.path)@\(side)"
     }
 }
 

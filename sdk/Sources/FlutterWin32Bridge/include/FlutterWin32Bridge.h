@@ -945,6 +945,16 @@ int32_t flwin32_thumb_source_size(uint64_t handle, int32_t* width, int32_t* heig
 // colour-keyed window the dock actually is. See flwin32_thumb.c.
 void flwin32_thumb_probe(uint64_t src, int32_t seconds);
 
+// A file's THUMBNAIL (the picture itself, a video frame) via the shell's
+// image factory -- SIIGBF_THUMBNAILONLY, so a type with no thumbnail handler
+// fails and the caller keeps its type icon. Letterboxed onto a transparent
+// side-by-side square, premultiplied RGBA, free with flwin32_icon_free.
+// Blocks on decode (the shell's thumbnail cache makes repeats cheap) --
+// background thread only.
+int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
+                               uint8_t** out_pixels, int32_t* out_width,
+                               int32_t* out_height);
+
 void flwin32_icon_free(uint8_t* pixels);
 // For an icon handle the caller took ownership of (flwin32_tray_list_take_icon).
 void flwin32_icon_destroy(uint64_t icon);

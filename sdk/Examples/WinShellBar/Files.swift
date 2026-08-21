@@ -2018,12 +2018,19 @@ final class StarlingFilesState: State<StatefulWidget> {
             })
     }
 
-    /// The type's icon, or the same fallback glyphs the Details rows draw.
+    /// The file's THUMBNAIL where one has landed, else the type's icon,
+    /// else the same fallback glyphs the Details rows draw. The thumbnail
+    /// arrives after the icon (it is a decode, queued behind the cheap
+    /// answers), so a row upgrades in place as the texture lands.
     private func cellIcon(_ entry: Win32FileEntry, key: String,
                           side: Double) -> Widget {
         SizedBox(width: side, height: side) {
             Center {
-                if let icon = self.bloc.icons.view(key, side: side) {
+                if let thumbKey = FilesBloc.thumbKey(
+                       entry, side: bloc.state.viewMode.iconSide),
+                   let thumb = self.bloc.icons.view(thumbKey, side: side) {
+                    thumb
+                } else if let icon = self.bloc.icons.view(key, side: side) {
                     icon
                 } else {
                     MacosIcon(icon: entry.isDirectory ? FluentIcons.folderFill
@@ -2261,7 +2268,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                         Row(crossAxisAlignment: .center, spacing: 10) {
                             SizedBox(width: 18, height: 18) {
                                 Center {
-                                    if let icon = self.bloc.icons.view(key, side: 16) {
+                                    if let thumbKey = FilesBloc.thumbKey(entry),
+                                       let thumb = self.bloc.icons.view(
+                                           thumbKey, side: 16) {
+                                        thumb
+                                    } else if let icon = self.bloc.icons.view(key, side: 16) {
                                         icon
                                     } else {
                                         MacosIcon(icon: entry.isDirectory

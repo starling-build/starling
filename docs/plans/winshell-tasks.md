@@ -10,6 +10,28 @@ The next session-sized piece by this list's own logic is the context menu
 as its own popup window, parked earlier in favour of window parity, which
 is now complete.
 
+## Thumbnails — landed and verified 2026-08-21
+
+Phase 1's per-file thumbnails, in every view mode: IShellItemImageFactory
+with SIIGBF_THUMBNAILONLY (flwin32_icon_thumbnail), so a type without a
+thumbnail handler fails fast and the row keeps its type icon -- and gated
+by an extension set BEFORE asking, because a ten-thousand-source listing
+should not pay ten thousand disk-touching misses to learn what the set
+already says. The result is letterboxed onto a transparent square in C
+(the factory preserves aspect; stretching is what a wrong thumbnail looks
+like), so IconCache's square texture slots take it unchanged. Thumbnails
+are per FILE where icons were per TYPE -- keyed by path and raster edge --
+and ride the same serial rasterize queue BEHIND the type icons: every row
+gets its instant shared answer, then upgrades in place as decodes land.
+The shell's own thumbnail cache does the heavy lifting on revisits.
+
+Verified on the box: a folder of jpgs shows per-file pictures in Details
+(16px) and Large icons (96px, aspect kept), notes.txt keeps its type icon,
+and a mixed Downloads folder still draws folder/exe/zip icons untouched.
+Not done: no eviction (a 10k-photo folder at 96px is ~350MB of textures if
+fully warmed -- fine at today's folder sizes, worth an LRU if it ever
+shows), and no video-badge overlay on video thumbnails.
+
 ## Ctrl+Z — landed and verified 2026-08-21
 
 Phase 1's undo item, done the only way it can be done: FOFX_ADDUNDORECORD
