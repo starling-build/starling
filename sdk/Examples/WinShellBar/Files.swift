@@ -240,6 +240,14 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// when it ends. Held here rather than made per-build so the text
     /// survives the rebuilds that happen while the user types.
     private var renameController: TextEditingController?
+    /// The address bar's other face: a click on its empty space flips the
+    /// crumbs into an edit field (Explorer's gesture), Enter navigates,
+    /// Escape puts the crumbs back.
+    private var pathEditing = false
+    private var pathController: TextEditingController?
+    /// The directory the edit opened over -- when the window navigates away
+    /// underneath it (sidebar click, Back), the edit is stale and closes.
+    private var pathEditDirectory = ""
     private var renamePath: String?
 
     /// Modifier state for the window shortcuts, tracked from the key stream
@@ -263,6 +271,21 @@ final class StarlingFilesState: State<StatefulWidget> {
         default: break
         }
         guard keyData.type == .down else { return false }
+
+        // While the address bar is a text field, the field owns the keys:
+        // Ctrl+C there means "copy the selected text", not "clip the
+        // selected file". Only Escape is ours -- it closes the edit, as it
+        // closes a rename below.
+        if pathEditing {
+            if keyData.logical == 0x1_0000_001B {
+                setState {
+                    pathEditing = false
+                    pathController = nil
+                }
+                return true
+            }
+            return false
+        }
 
         // Letter chords match on the PHYSICAL (HID) id: with Ctrl held this
         // embedder delivers the letter with logical == 0 and no character,
@@ -1583,8 +1606,22 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     /// The address bar, as Explorer draws it: the path broken into segments
-    /// with chevrons between them, each one a place you can go back to.
+    /// with chevrons between them, each one a place you can go back to --
+    /// and, on a click in its empty space, an edit field over the same
+    /// footprint (Explorer's other address bar). Enter navigates, Escape
+    /// puts the crumbs back, and the crumbs also return whenever a
+    /// navigation lands (the rebuild reads `pathEditing` fresh).
     private func breadcrumb() -> Widget {
+        // A navigation that lands UNDER the edit (a sidebar click, Back)
+        // closes it: the field was editing a directory this window is no
+        // longer in. Cleared directly rather than through setState -- this
+        // runs inside the rebuild that navigation already caused, and the
+        // crumbs drawn below are the correct face for the new state.
+        if pathEditing && bloc.state.directory != pathEditDirectory {
+            pathEditing = false
+            pathController = nil
+        }
+        if pathEditing { return pathField() }
         let parts = crumbs()
         return ClipRRect(borderRadius: BorderRadius.circular(4)) {
             ColoredBox(color: Win11.fieldFill) {
@@ -1615,11 +1652,118 @@ final class StarlingFilesState: State<StatefulWidget> {
                                              maxLines: 1)
                                     })
                             }
-                            Expanded { SizedBox(height: 1) }
+                            // The empty remainder of the bar IS the edit
+                            // affordance. A transparent ColoredBox, because
+                            // a bare SizedBox hit-tests as nothing and this
+                            // framework's ColoredBox hit-tests opaque at any
+                            // alpha -- the documented trap, here load-bearing.
+                            Expanded {
+                                GestureDetector(
+                                    onTap: { self.openPathEdit() },
+                                    child: ColoredBox(color: Color(0x00000000)) {
+                                        SizedBox(height: 32)
+                                    })
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    /// The breadcrumb's edit face: the current path as text, everything
+    /// selected the moment it opens -- the common gesture is to type a
+    /// whole new path over it, not to append.
+    private func pathField() -> Widget {
+        SizedBox(height: 32) {
+            MacosTextField(
+                controller: pathController!,
+                onSubmitted: { text in self.commitPath(text) },
+                style: TextStyle(color: Win11.text, fontSize: 12),
+                padding: EdgeInsets(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                    color: Win11.fieldFill,
+                    border: Border.all(color: Win11.accent, width: 1),
+                    borderRadius: BorderRadius.circular(4)),
+                autofocus: true,
+                // Losing focus IS the dismissal: Escape unfocuses inside
+                // the field (the key never reaches handleShortcut while
+                // the field owns it), and Explorer's bar also folds back
+                // to crumbs the moment the edit stops being the focus.
+                onFocusChanged: { focused in
+                    guard !focused, self.pathEditing else { return }
+                    self.setState {
+                        self.pathEditing = false
+                        self.pathController = nil
+                    }
+                })
+        }
+    }
+
+    private func openPathEdit() {
+        let directory = bloc.state.directory
+        // The sentinel is not a path anyone can edit; an empty field with
+        // everything to type is more honest than "\u{1}ThisPC".
+        let text = directory == kThisPCPath ? "" : directory
+        setState {
+            let controller = TextEditingController(text: text)
+            // Everything selected, as Explorer opens it: the common gesture
+            // is typing a whole new path over the old one, not appending.
+            controller.selection = TextSelection(baseOffset: 0,
+                                                 extentOffset: text.count)
+            pathController = controller
+            pathEditing = true
+            pathEditDirectory = directory
+        }
+    }
+
+    /// Enter in the address field: expand what Explorer expands, then go.
+    private func commitPath(_ text: String) {
+        var path = text.trimmingCharacters(in: .whitespaces)
+        // Pasted paths arrive quoted more often than not -- "Copy as path"
+        // itself writes them that way.
+        path = path.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        // %USERPROFILE% and friends, Explorer's oldest address-bar contract.
+        while let range = path.range(of: "%[A-Za-z0-9_()]+%",
+                                     options: .regularExpression) {
+            let name = String(path[range].dropFirst().dropLast())
+            guard let value = ProcessInfo.processInfo.environment[name] else {
+                break
+            }
+            path.replaceSubrange(range, with: value)
+        }
+        guard !path.isEmpty else {
+            setState { pathEditing = false; pathController = nil }
+            return
+        }
+        // A bare drive means its root: "C:" alone is a CWD reference in
+        // Win32 (it can resolve anywhere), and the root is what the user
+        // typing it into an address bar meant.
+        if path.count == 2, path.hasSuffix(":") { path += "\\" }
+        if path.caseInsensitiveCompare("This PC") == .orderedSame {
+            setState { pathEditing = false; pathController = nil }
+            bloc.add(.open(kThisPCPath))
+            return
+        }
+        var isDirectory: ObjCBool = false
+        let exists = path.hasPrefix("::")
+            || FileManager.default.fileExists(atPath: path,
+                                              isDirectory: &isDirectory)
+        guard exists else {
+            // Explorer raises "Windows can't find" here; staying in the
+            // field with the text intact is this window's quieter version
+            // -- the typo is still there to fix, and Escape backs out.
+            return
+        }
+        setState { pathEditing = false; pathController = nil }
+        if path.hasPrefix("::") || isDirectory.boolValue
+            || path.lowercased().hasSuffix(".zip") {
+            // Directories, namespace locations and zips all navigate --
+            // the listing routes each through the right enumerator.
+            bloc.add(.open(path))
+        } else {
+            // A FILE typed into the address bar opens, as in Explorer.
+            Task.detached { Win32AppCatalog.open(path) }
         }
     }
 

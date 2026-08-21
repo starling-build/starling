@@ -10,6 +10,31 @@ The next session-sized piece by this list's own logic is the context menu
 as its own popup window, parked earlier in favour of window parity, which
 is now complete.
 
+## Typed path entry — landed and verified 2026-08-21
+
+Phase 1's address-bar edit: a click on the breadcrumb's empty space flips
+the crumbs into a field over the same footprint, everything selected
+(typing replaces, Explorer's gesture). Enter expands %VARS%, trims Copy-
+as-path quotes, roots a bare "C:", takes "This PC" by name, and navigates
+-- directories, "::" locations and zips through the listing's routing, a
+FILE by opening it. A nonexistent path stays in the field to be fixed;
+Escape backs out; a navigation landing underneath (sidebar click, Back)
+folds the field back to crumbs, checked against the directory it opened
+over.
+
+Took a framework addition: FluentTextBox/MacosTextField grew
+`onFocusChanged`. The field consumes Escape internally (unfocus), so an
+ancestor's shortcut handler NEVER sees it while the field is focused --
+the first build left the field open-but-unfocused forever, and the only
+honest dismissal signal is the focus node's own. The inline rename has
+the same latent quirk (its Escape path in handleShortcut is unreachable
+while the field is focused; the second press works); wiring it to
+onFocusChanged is a follow-up.
+
+Driving note: the click that OPENS the edit and a second click both land
+in the same place -- and the second collapses the select-all (the field's
+own caret placement, correct). One click, then type.
+
 ## Thumbnails — landed and verified 2026-08-21
 
 Phase 1's per-file thumbnails, in every view mode: IShellItemImageFactory
