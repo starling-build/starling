@@ -111,3 +111,41 @@ that method, not of the code.
    the table is the ~40ms request-to-begin-frame dispatch (task list,
    deferred section) -- and STARLING_PRESENT_LOG's gap histogram is the
    smoothness gate that scheduler surgery was waiting for.
+
+## Addendum 2026-08-21, later: the five-process shell at idle
+
+Measured after Phase 4 (banners + Run) landed, in the win11-gpu VM (8 GB,
+8 vcpu), by sampling each process's `TotalProcessorTime` delta over 20s
+with every surface parked and the desktop untouched. Memory is private
+bytes (working sets in the guest are trim-happy and lie low).
+
+| process | idle CPU (one core) | private |
+|---|---|---|
+| dock | 2.7% | ~42 MB |
+| notifications | 1.9% | ~40 MB |
+| banners | 3.9% | ~26 MB |
+| run | 2.4% (was **10.2%**) | ~29 MB |
+| files (open, idle) | 0.9% | ~50 MB |
+
+Whole shell: ~11% of one core, ~200 MB private, both roughly flat.
+
+**The 10% was the caret-blink Ticker.** A Ticker holds the engine's frame
+loop hot for as long as it runs — TickerScheduler re-schedules a frame
+per tick — so one focused FluentTextBox meant a full-rate frame pump to
+flip two pixels twice a second, and the Run dialog's field stays focused
+while the overlay is hidden. Rewritten as the house deadline timer
+(asyncAfter + generation token, TextBox.swift); the residual 2.4% is two
+real frames a second still presented into a hidden window. TerminalView
+already used the timer pattern; TextBox was the last Ticker-driven blink.
+
+Worth a later pass, in value order:
+
+1. **Unfocus (or stop blinking) when the host window hides** — takes
+   run's residual to notification-parity (~1.3%), and is honest anyway:
+   a hidden field is not editing.
+2. **The banner poll reads the whole store every 2s** (WinRT enumeration,
+   ~4%/core). NotificationChanged through the raw ABI replaces the poll
+   outright — already on the plan as the instant-arrival follow-up; this
+   is the second reason to do it.
+3. The dock's ~2.7% predates Phase 4 (1 Hz clock tick + tray read) and
+   is the same order as before; nothing new to chase.
