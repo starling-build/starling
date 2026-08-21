@@ -94,10 +94,7 @@ instrument first.
    headers+listing) into its own rebuild scope would cut drag cost by
    whatever the chrome+sidebar share is; measure before assuming it is
    worth it.
-3. **statusBar scans `visible` per build** (`first { $0.path == selected }`)
-   — O(n) string compares on every rebuild of a 10k folder. Small today;
-   a dictionary or the selection's own entry would delete it.
-4. **Present-side smoothness is unmeasured** — CPU says nothing about
+3. **Present-side smoothness is unmeasured** — CPU says nothing about
    frame pacing, and GDI capture cannot see the GL view. Folded into
    follow-up 1: one piece of engine instrumentation answers the frame
    pacing, the idle-present question, and the hover attribution above.
