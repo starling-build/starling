@@ -2,8 +2,13 @@
 
 The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
-mouse notices first. Updated 2026-08-20, at the end of the session that took
-the file explorer and its context menu to parity with native Explorer.
+mouse notices first. Updated 2026-08-21: every visual-polish, functional-gap
+and hygiene item is done -- what remains is the deferred-by-decision section
+below and the small not-yets recorded inside ticked entries (tab
+reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
+The next session-sized piece by this list's own logic is the context menu
+as its own popup window, parked earlier in favour of window parity, which
+is now complete.
 
 ## Done, for context
 
