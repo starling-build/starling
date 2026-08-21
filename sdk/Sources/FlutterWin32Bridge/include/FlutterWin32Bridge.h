@@ -568,6 +568,14 @@ void flwin32_shell_broadcast_toggle(void);
 int32_t flwin32_winkey_capture(void (*callback)(void* user), void* user);
 void flwin32_winkey_release(void);
 
+// Win+<letter> chords the shell keeps for itself -- Quick Settings and the
+// notification centre replace Explorer surfaces, so their chords must not
+// reach Explorer. Rides the tap hook: capture first, or this returns 0.
+// `vks` are virtual-key codes ('A', 'N'); the callback gets the one pressed.
+int32_t flwin32_winkey_set_chords(const int32_t* vks, int32_t count,
+                                  void (*callback)(void* user, int32_t vk),
+                                  void* user);
+
 // ── the notification area ───────────────────────────────────────────────────
 //
 // Hosting the tray means BEING the window Shell_NotifyIcon looks up: a window
@@ -938,6 +946,16 @@ int32_t flwin32_wifi_set_radio(int32_t on);
 // see flwin32_status.c for why one of each is not enough.
 int32_t flwin32_dark_mode(void);
 int32_t flwin32_set_dark_mode(int32_t dark);
+
+// Night light -- the blue-light filter Quick Settings toggles. No API
+// exists; this rewrites the CloudStore blob Settings itself writes (see
+// flwin32_status.c for the blob's shape). Read returns 1 on, 0 off, -1 when
+// the machine has no night-light state to toggle.
+int32_t flwin32_night_light(void);
+int32_t flwin32_set_night_light(int32_t on);
+
+// Energy saver, read-only: 1 on, 0 off, -1 unknown. The OS owns the toggle.
+int32_t flwin32_energy_saver(void);
 
 // ── installed applications ──────────────────────────────────────────────────
 //

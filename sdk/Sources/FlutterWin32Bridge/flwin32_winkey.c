@@ -71,6 +71,7 @@
 #define kInjectTag 0x53544152u /* 'STAR' */
 
 #define WM_STARLING_WINKEY_TAP (WM_USER + 0x52)
+#define WM_STARLING_WINKEY_CHORD (WM_USER + 0x53)
 
 static HHOOK g_hook;
 static HWND g_sink;
@@ -85,6 +86,29 @@ static void* g_user;
 static BOOL g_win_down;
 static DWORD g_win_vk;
 static BOOL g_win_used;
+
+/* CHORDS THE SHELL TAKES FOR ITSELF -- the exception to "the keydown passes
+ * through untouched" above, and a narrow one. Win+A is Quick Settings and
+ * Win+N is the notification centre: both open EXPLORER surfaces we have
+ * replaced, so letting Windows dispatch them puts Microsoft's panel over
+ * ours -- the one case where re-synthesizing is not optional. Only the keys
+ * in g_chord_vks are eaten; Win+E and the rest still go to Windows.
+ *
+ * Both the down and the up of the chorded letter are swallowed: the down is
+ * what Windows acts on, and the up left behind would arrive at the focused
+ * window as a spurious bare-letter keyup. The Win keyup that follows is
+ * already not-bare (g_win_used), so it replays through the normal path. */
+static void (*g_chord_cb)(void* user, int32_t vk);
+static void* g_chord_user;
+static DWORD g_chord_vks[8];
+static int g_chord_count;
+/* The letter whose keyup we still owe a swallow. */
+static DWORD g_chord_eating;
+/* Whether THIS hold of the Windows key had one of our chords eaten out of
+ * it. The Win keyup after that must be masked from Windows too: we ate the
+ * letter, so from Explorer's seat the hold was empty -- a bare tap -- and it
+ * would open Microsoft's Start over the panel our chord just opened. */
+static BOOL g_win_chorded;
 
 /* mask, mask-up, then the keyup we swallowed. Returns whether the whole
  * sequence was accepted: if it was not, the caller must let the real keyup
@@ -131,12 +155,42 @@ static LRESULT CALLBACK winkey_hook(int code, WPARAM wparam, LPARAM lparam) {
     }
   } else if (is_win && is_up) {
     BOOL bare = g_win_down && ev->vkCode == g_win_vk && !g_win_used;
+    BOOL chorded = g_win_down && g_win_chorded;
     g_win_down = FALSE;
+    g_win_chorded = FALSE;
     if (bare && replay_masked_keyup(ev->vkCode)) {
       if (g_sink != NULL) PostMessageW(g_sink, WM_STARLING_WINKEY_TAP, 0, 0);
       return 1; /* eaten -- the replay above is the keyup the system sees */
     }
+    /* A hold we took a chord out of: Windows saw the down and nothing since,
+     * so this keyup reads to Explorer as a bare tap and opens ITS Start over
+     * the surface our chord opened. Mask it the same way -- but post
+     * nothing: the chord already did its work. */
+    if (chorded && replay_masked_keyup(ev->vkCode)) {
+      return 1;
+    }
   } else if (is_down || is_up) {
+    /* The keyup owed from a chord eaten below -- swallow it even if the
+     * Windows key has already been released, or the focused window gets a
+     * keyup for a key it never saw go down. */
+    if (is_up && g_chord_eating != 0 && ev->vkCode == g_chord_eating) {
+      g_chord_eating = 0;
+      return 1;
+    }
+    /* A chord of ours: eat it and tell the shell, before the generic
+     * bookkeeping -- though that still runs, because the Win keyup after
+     * this must not read as a bare tap. */
+    if (is_down && g_win_down && g_chord_cb != NULL) {
+      for (int i = 0; i < g_chord_count; i++) {
+        if (ev->vkCode == g_chord_vks[i]) {
+          g_win_used = TRUE;
+          g_win_chorded = TRUE;
+          g_chord_eating = ev->vkCode;
+          PostMessageW(g_sink, WM_STARLING_WINKEY_CHORD, (WPARAM)ev->vkCode, 0);
+          return 1;
+        }
+      }
+    }
     /* Any other key, down or up, and this was a shortcut rather than a tap.
      * The UP matters as much as the down: Win+E released in the other order
      * (E first, then Win) would otherwise still read as bare. */
@@ -149,6 +203,10 @@ static LRESULT CALLBACK winkey_sink_proc(HWND hwnd, UINT message, WPARAM wparam,
                                          LPARAM lparam) {
   if (message == WM_STARLING_WINKEY_TAP) {
     if (g_callback != NULL) g_callback(g_user);
+    return 0;
+  }
+  if (message == WM_STARLING_WINKEY_CHORD) {
+    if (g_chord_cb != NULL) g_chord_cb(g_chord_user, (int32_t)wparam);
     return 0;
   }
   return DefWindowProcW(hwnd, message, wparam, lparam);
@@ -236,4 +294,26 @@ void flwin32_winkey_release(void) {
   g_user = NULL;
   g_win_down = FALSE;
   g_win_used = FALSE;
+  g_chord_cb = NULL;
+  g_chord_user = NULL;
+  g_chord_count = 0;
+  g_chord_eating = 0;
+  g_win_chorded = FALSE;
+}
+
+int32_t flwin32_winkey_set_chords(const int32_t* vks, int32_t count,
+                                  void (*callback)(void* user, int32_t vk),
+                                  void* user) {
+  /* Chords ride the tap hook: without it there is nothing watching the
+   * keyboard, and quietly installing a second hook here would break the
+   * one-hook-per-session rule the mutex enforces. */
+  if (g_hook == NULL) return 0;
+  if (count > (int32_t)(sizeof(g_chord_vks) / sizeof(g_chord_vks[0]))) {
+    count = (int32_t)(sizeof(g_chord_vks) / sizeof(g_chord_vks[0]));
+  }
+  for (int32_t i = 0; i < count; i++) g_chord_vks[i] = (DWORD)vks[i];
+  g_chord_count = (int)count;
+  g_chord_cb = callback;
+  g_chord_user = user;
+  return 1;
 }

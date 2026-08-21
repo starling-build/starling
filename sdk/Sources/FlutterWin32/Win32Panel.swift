@@ -199,11 +199,35 @@ public enum Win32Shell {
     public static func releaseSuperKey() {
         flwin32_winkey_release()
         superKeyHandler = nil
+        superChordHandler = nil
+    }
+
+    /// Win+<letter> chords the shell keeps: Quick Settings and the
+    /// notification centre replace Explorer surfaces, so `Win+A`/`Win+N`
+    /// must open OURS, not Microsoft's. Everything not named here still goes
+    /// to Windows — see the header of `flwin32_winkey.c` for why that
+    /// restraint matters. Requires `captureSuperKey` to have succeeded, for
+    /// the same one-hook-per-session reason.
+    ///
+    /// `handler` receives the letter pressed ("A", "N") on the UI thread.
+    @discardableResult
+    public static func captureSuperChords(_ letters: [Character],
+                                          _ handler: @escaping (Character) -> Void) -> Bool {
+        superChordHandler = handler
+        let vks = letters.compactMap { $0.uppercased().unicodeScalars.first.map { Int32($0.value) } }
+        return vks.withUnsafeBufferPointer { buf in
+            flwin32_winkey_set_chords(buf.baseAddress, Int32(buf.count), { _, vk in
+                if let scalar = Unicode.Scalar(UInt32(vk)) {
+                    Win32Shell.superChordHandler?(Character(scalar))
+                }
+            }, nil) != 0
+        }
     }
 
     /// Global for the same reason `Win32Host`'s toggle handler is: one UI
     /// thread, one hook per process.
     nonisolated(unsafe) private static var superKeyHandler: (() -> Void)?
+    nonisolated(unsafe) private static var superChordHandler: ((Character) -> Void)?
 
     /// Opens Starling's own Settings window.
     ///
