@@ -1285,6 +1285,11 @@ int32_t flwin32_sessionslot_exec_command(const char* cmdline_utf8);
 // stops the NEXT logon from repeating the failure is the caller's, first.
 int32_t flwin32_sessionslot_start_explorer(void);
 
+// Hides this process's console window, only when the process owns it
+// (fresh console, attached-process count 1 -- the Shell= start). From a
+// terminal it does nothing: that console is the user's.
+void flwin32_sessionslot_hide_own_console(void);
+
 #ifdef __cplusplus
 }
 #endif

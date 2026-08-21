@@ -288,6 +288,19 @@ int32_t flwin32_sessionslot_exec_command(const char* cmdline_utf8) {
     }
 }
 
+/* Hide this process's console window -- but only when the process OWNS it
+ * (attached process count 1: started by Winlogon or a double-click, which
+ * pops a fresh console for a console-subsystem binary). Run from a
+ * terminal, the console is the terminal, and hiding the window the user
+ * typed into is not a fix for anything. The VM soak found this: Shell=
+ * started the supervisor and the session came up wearing a console. */
+void flwin32_sessionslot_hide_own_console(void) {
+    HWND console = GetConsoleWindow();
+    DWORD pids[4];
+    if (console == NULL) return;
+    if (GetConsoleProcessList(pids, 4) == 1) ShowWindow(console, SW_HIDE);
+}
+
 /* The supervisor's bail-out: explorer back as the running shell. A plain
  * spawn -- when Winlogon's Shell slot is ours and we are giving up, starting
  * explorer.exe IS restoring the desktop; the registry write that stops the

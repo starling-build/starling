@@ -204,7 +204,43 @@ had already made cheap. What each took:
   needs EV signing to live with SmartScreen. That is a release concern,
   not a development one — the VM does not care.
 
-**MACHINERY BUILT 2026-08-21, box-verified; the VM soak is what remains.**
+**THE SOAK IS RUN — PASSED 2026-08-21, in win11-gpu through real Winlogon
+logons.** Registered per-user, rebooted: Winlogon started `--session`,
+which brought up the dock (tray filled, clock live) and the desktop
+(wallpaper, icons — the NVIDIA icon still on the cell a previous session
+dragged it to), and replayed startup for real with explorer absent: a
+live HKLM RunOnce (Edge cleanup) ran and was DELETED — and did not
+reappear at the next logon, which is RunOnce's whole contract observed
+in the wild. Kill the dock: respawned in the same second. Kill it again
+inside the minute: crash loop declared, desktop reaped, HKCU Shell value
+deleted (verified gone by reg query), explorer started — and after a
+further reboot the machine default held. `--unregister-shell` run as the
+user closed the loop voluntarily; the VM ends the day on stock explorer.
+
+Two bugs the soak caught, both fixed and re-proven in a second round:
+- **The Shell= session came up wearing a console window.** Winlogon
+  starts a console-subsystem binary with a fresh console. The supervisor
+  now hides its console — but only when it OWNS it
+  (GetConsoleProcessList count 1); run from a dev terminal the call does
+  nothing, because that console is the user's.
+- **The bail restored a shell but not the taskbar.** A force-killed dock
+  never runs its atexit, and ABS_AUTOHIDE is a PERSISTED user setting —
+  the recovered explorer came back taskbar-less, twice, across a reboot.
+  The bail now waits for explorer to stand and calls
+  flwin32_explorer_taskbar_show().
+
+Harness traps paid for in this run, for the next driver: guest-exec runs
+as SYSTEM in session 0 — window titles of session-1 processes are
+INVISIBLE there (select processes by Win32_Process CommandLine, never by
+MainWindowTitle), and anything touching the user's HKCU must run as the
+user via the wclick.py schtasks+vbs recipe. winrun.py stdout is
+intermittently swallowed; write results to a guest file and read it back
+over qemu-agent guest-file-read (wcat) rather than trusting the exec
+channel. The VM's autologon had a blank stored password — set
+DefaultPassword (the account password is in type-keys.py's docstring) or
+every reboot parks at an "incorrect password" dialog.
+
+**MACHINERY BUILT 2026-08-21, box-verified.**
 `--session` (flwin32_sessionslot.c + Session.swift) is the Shell= entry:
 a supervisor that never boots the engine, spawns the dock and desktop by
 HANDLE (CreateProcessW, not the ensure_* ShellExecuteW — a supervisor

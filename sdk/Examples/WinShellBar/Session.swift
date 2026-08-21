@@ -205,6 +205,12 @@ enum SessionSlot {
 
     /// The `--session` entry. Never returns.
     static func supervise(trial: Bool) -> Never {
+        // Started by Winlogon, a console-subsystem binary wears a fresh
+        // console window over the session (the VM soak's first screenshot).
+        // Hidden only when this process owns it -- from a dev terminal the
+        // call does nothing.
+        flwin32_sessionslot_hide_own_console()
+
         var children = [Child(role: "dock", args: ""),
                         Child(role: "desktop", args: "--desktop")]
 
@@ -279,6 +285,17 @@ enum SessionSlot {
                     _ = unregister()
                 }
                 _ = flwin32_sessionslot_start_explorer()
+                // A force-killed dock never ran its atexit, so explorer's
+                // taskbar comes back wearing the AUTOHIDE the dock set --
+                // a PERSISTED user setting, so it survives reboots (the VM
+                // soak came back taskbar-less twice). Wait for explorer to
+                // stand, then put the state back.
+                for _ in 0..<20 where flwin32_shell_explorer_present() == 0 {
+                    Thread.sleep(forTimeInterval: 0.5)
+                }
+                Thread.sleep(forTimeInterval: 3)
+                _ = flwin32_explorer_taskbar_show()
+                log("explorer started, taskbar state restored")
                 exit(1)
             }
 

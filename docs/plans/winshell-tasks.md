@@ -4,20 +4,22 @@ The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
 mouse notices first.
 
-CHECKPOINT 2026-08-21, later still (Phase 5 machinery built): the
-desktop's VM gate is PASSED (section below, run from the Linux side),
-the desktop's v1 boundaries are mostly closed, and the SESSION SLOT is
-now built and box-verified — `--session` supervisor with crash-loop
-bail, startup runner with RunOnce semantics, `--print-startup` oracle,
-`--register-shell`/`--unregister-shell` (see winshell-shell-replacement
-Phase 5 for the full account). Engine untouched (e0ed4e31068). WHAT
-REMAINS: the VM soak — register the shell in win11-gpu, real GDM-style
-logon through Winlogon's Shell=, startup ran, tray fills, banners pop,
-kill→recover, kill-kill→explorer returns on its own — driven over SSH
-to the Linux host (192.168.68.61) via docs/windows-vm/winrun.py
-`-d win11-gpu`. Desktop-side not-yets (OLE drag OUT, multi-monitor,
-wallpaper watch) and the engine frame-dispatch work remain open for
-box-bound sessions.
+CHECKPOINT 2026-08-21, end of the Phase-5 session: **THE SHELL=
+SOAK IS PASSED.** Phase 5 is built AND VM-proven in win11-gpu through
+real Winlogon logons (winshell-shell-replacement.md Phase 5 has the full
+account): register → reboot → our session with startup replayed and a
+real HKLM RunOnce consumed exactly once → kill/respawn →
+kill-kill/bail → explorer back with taskbar restored → voluntary
+unregister → stock explorer. Two soak-caught bugs (the supervisor's
+console window, the bail's taskbar state) fixed and re-proven in a
+second round. The VM ends on stock explorer; this box's dist runs the
+final tree. Engine untouched (e0ed4e31068). The VM is driven over SSH
+to the Linux host (192.168.68.61), harness in docs/windows-vm
+(`-d win11-gpu`). WHAT REMAINS of the plan: the long-tail audit (DDE
+ShellExecute paths, autoplay, safely-remove — VM checks), EV signing
+(release concern), and the standing follow-ups: desktop OLE drag OUT,
+multi-monitor, wallpaper watch, Alt-Tab previews, the OSD survival
+check, engine frame-dispatch.
 
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 
