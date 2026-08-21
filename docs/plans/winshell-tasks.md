@@ -98,7 +98,11 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       match selected and scrolled into view); arrows walk the list with
       Shift extending the range from the anchor, Home/End leap, and the
       viewport follows; Backspace and Alt+Left/Right/Up drive history.
-- [ ] Column resize/reorder.
+- [x] Column resize: the header gaps are draggable dividers (root
+      Listener arithmetic, like everything else) -- a boundary follows the
+      pointer, the column right of it gives or takes the width, clamped
+      50..400, rows and headers reading the same window-state numbers.
+      Reorder remains unbuilt.
 - [x] New dropdown carries the ShellNew templates: a registry walk
       (flwin32_shellnew_templates, cached per process) finds every
       extension whose ShellNew describes a file we can honestly create --
