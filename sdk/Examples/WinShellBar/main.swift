@@ -129,6 +129,63 @@ if CommandLine.arguments.contains("--print-notifications") {
 // running, what the payload looks like on this Windows build, and what else
 // arrives on the same channel that we would be swallowing — can only be
 // answered on a real machine.
+// `--fileop-probe copy|move|rename src dst-dir-or-name` runs one operation
+// and prints the journal -- the oracle for the undo stack, which is built
+// entirely from these records: if the sink misreports what an operation
+// did, Ctrl+Z deletes the wrong file, and no amount of watching the UI
+// shows why. move and rename round the trip through their inverses too.
+if let index = CommandLine.arguments.firstIndex(of: "--fileop-probe") {
+    guard index + 3 < CommandLine.arguments.count else {
+        print("usage: --fileop-probe copy|move|rename <src> <dst-dir|name>")
+        exit(1)
+    }
+    let mode = CommandLine.arguments[index + 1]
+    let move = mode == "move"
+    let src = CommandLine.arguments[index + 2]
+    let dst = CommandLine.arguments[index + 3]
+    let ok = mode == "rename"
+        ? flwin32_fileop_rename(src, dst, 0)
+        : flwin32_fileop_transfer(src, dst, move ? 1 : 0, 0)
+    print("\(mode) ok=\(ok) journal=\(flwin32_fileop_journal_count())")
+    var srcBuf = [CChar](repeating: 0, count: 1024)
+    var dstBuf = [CChar](repeating: 0, count: 1024)
+    var records: [(src: String, dst: String)] = []
+    for i in 0..<flwin32_fileop_journal_count() {
+        var kind: Int32 = 0
+        _ = srcBuf.withUnsafeMutableBufferPointer { s in
+            dstBuf.withUnsafeMutableBufferPointer { d in
+                flwin32_fileop_journal_get(i, &kind, s.baseAddress, 1024,
+                                           d.baseAddress, 1024)
+            }
+        }
+        records.append((String(cString: srcBuf), String(cString: dstBuf)))
+        let record = records[Int(i)]
+        print("  [\(i)] kind=\(kind) src=\(record.src) dst=\(record.dst)")
+    }
+    // A move probe rounds the trip: the records back through undo_moves,
+    // each item to its own folder under its own name, then report whether
+    // the world is as it was. This is the whole undo-move path minus the UI.
+    if move && !records.isEmpty {
+        let lines = records.map { record in
+            let dir = (record.src as NSString).deletingLastPathComponent
+            let name = (record.src as NSString).lastPathComponent
+            return "\(record.dst)\t\(dir)\t\(name)"
+        }.joined(separator: "\n")
+        let undone = flwin32_fileop_undo_moves(lines, 0)
+        let restored = records.allSatisfy {
+            FileManager.default.fileExists(atPath: $0.src)
+        }
+        print("undo_moves ok=\(undone) restored=\(restored)")
+    }
+    if mode == "rename", let record = records.first {
+        let oldName = (record.src as NSString).lastPathComponent
+        let back = flwin32_fileop_rename(record.dst, oldName, 0)
+        let restored = FileManager.default.fileExists(atPath: record.src)
+        print("undo_rename ok=\(back) restored=\(restored)")
+    }
+    exit(0)
+}
+
 if let index = CommandLine.arguments.firstIndex(of: "--tray-probe") {
     let seconds = index + 1 < CommandLine.arguments.count
         ? Int32(CommandLine.arguments[index + 1]) ?? 20 : 20
@@ -169,6 +226,35 @@ if let index = CommandLine.arguments.firstIndex(of: "--thumb-probe") {
     exit(0)
 }
 
+// `--ns-probe <location>` lists a namespace location the way the file
+// explorer's listing does (flwin32_ns_list), one row per item with the
+// attributes that cross the boundary -- the oracle for what IEnumShellItems
+// actually yields for a ::{CLSID}, which is not always what Folder.Items()
+// shows in PowerShell (Quick Access was the proof).
+if let index = CommandLine.arguments.firstIndex(of: "--ns-probe") {
+    let location = index + 1 < CommandLine.arguments.count
+        ? CommandLine.arguments[index + 1] : ""
+    guard !location.isEmpty else {
+        print("[ns-probe] expected a location")
+        exit(2)
+    }
+    guard let entries = Win32Files.listNamespace(location) else {
+        print("[ns-probe] listNamespace returned nil for \(location)")
+        exit(1)
+    }
+    print("[ns-probe] \(location) -> \(entries.count) items")
+    for entry in entries {
+        print("  name=[\(entry.name)] path=[\(entry.path)] "
+              + "dir=\(entry.isDirectory) fs=\(entry.isFileSystem) "
+              + "type=[\(entry.typeName ?? "-")]")
+    }
+    print("[ns-probe] pins:")
+    for place in Win32Files.quickAccessPins() {
+        print("  pinned name=[\(place.name)] path=[\(place.path)]")
+    }
+    exit(0)
+}
+
 // `--menu-probe <path>` prints the shell's context-menu verbs for a path and
 // exits; `--background` asks for the folder's menu instead of the item's, and
 // `--extended` is Shift+right-click.
@@ -203,7 +289,17 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
     }
     let background = CommandLine.arguments.contains("--background")
     let extended = CommandLine.arguments.contains("--extended")
-    guard let session = Win32ShellMenu(path: path, background: background,
+    // `--location <folder>` addresses the item as a CHILD of a namespace
+    // folder rather than by its own name -- the Recycle Bin / Quick Access
+    // route, and the only way to see the verbs those parents contribute
+    // (Restore, Unpin from Quick access).
+    var location: String? = nil
+    if let li = CommandLine.arguments.firstIndex(of: "--location"),
+       li + 1 < CommandLine.arguments.count {
+        location = CommandLine.arguments[li + 1]
+    }
+    guard let session = Win32ShellMenu(path: path, location: location,
+                                       background: background,
                                        extended: extended, owner: 0) else {
         print("[menu-probe] could not start a session for \(path)")
         exit(1)

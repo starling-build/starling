@@ -240,6 +240,14 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// when it ends. Held here rather than made per-build so the text
     /// survives the rebuilds that happen while the user types.
     private var renameController: TextEditingController?
+    /// The address bar's other face: a click on its empty space flips the
+    /// crumbs into an edit field (Explorer's gesture), Enter navigates,
+    /// Escape puts the crumbs back.
+    private var pathEditing = false
+    private var pathController: TextEditingController?
+    /// The directory the edit opened over -- when the window navigates away
+    /// underneath it (sidebar click, Back), the edit is stale and closes.
+    private var pathEditDirectory = ""
     private var renamePath: String?
 
     /// Modifier state for the window shortcuts, tracked from the key stream
@@ -263,6 +271,21 @@ final class StarlingFilesState: State<StatefulWidget> {
         default: break
         }
         guard keyData.type == .down else { return false }
+
+        // While the address bar is a text field, the field owns the keys:
+        // Ctrl+C there means "copy the selected text", not "clip the
+        // selected file". Only Escape is ours -- it closes the edit, as it
+        // closes a rename below.
+        if pathEditing {
+            if keyData.logical == 0x1_0000_001B {
+                setState {
+                    pathEditing = false
+                    pathController = nil
+                }
+                return true
+            }
+            return false
+        }
 
         // Letter chords match on the PHYSICAL (HID) id: with Ctrl held this
         // embedder delivers the letter with logical == 0 and no character,
@@ -316,6 +339,15 @@ final class StarlingFilesState: State<StatefulWidget> {
                 // destination cannot be.
                 guard canMutateHere else { return false }
                 bloc.add(.paste(into: bloc.state.directory))
+                return true
+            case 0x0007_001D: // Z: undo the last file operation
+                // Not gated on canMutateHere: the inverse runs on the
+                // JOURNAL's paths, not on this listing -- Ctrl+Z from the
+                // Recycle Bin view after a delete is exactly the gesture
+                // that should work. An inline rename in flight keeps the
+                // key though; the field's edit is not a file operation yet.
+                guard bloc.state.renaming == nil else { return false }
+                bloc.add(.undo)
                 return true
             default:
                 break
@@ -917,8 +949,8 @@ final class StarlingFilesState: State<StatefulWidget> {
             items.append((32, oneDrive.path))
         }
         items.append((17, nil))                    // rule
-        for name in Self.pinOrder {
-            if let place = byName[name] { items.append((32, place.path)) }
+        for place in bloc.state.quickAccess {
+            items.append((32, place.path))
         }
         items.append((17, nil))                    // rule
         items.append((32, nil))                    // This PC
@@ -970,8 +1002,12 @@ final class StarlingFilesState: State<StatefulWidget> {
         setDropHover(nil)
         guard !paths.isEmpty, let target = dropResolve(x, y) else { return }
         Win32FileOps.transfer(paths, into: target, move: move,
-                              owner: FilesBloc.ownerWindow) { [weak self] ok in
-            if ok { self?.bloc.add(.refresh) }
+                              owner: FilesBloc.ownerWindow) {
+            [weak self] ok, records in
+            if ok {
+                FilesBloc.pushUndo(records)
+                self?.bloc.add(.refresh)
+            }
         }
     }
 
@@ -991,9 +1027,6 @@ final class StarlingFilesState: State<StatefulWidget> {
         "Music": (FluentIcons.music, Color(0xFFC94E7E)),
         "Videos": (FluentIcons.video, Color(0xFFC97A3F)),
     ]
-    private static let pinOrder = ["Desktop", "Downloads", "Documents",
-                                   "Pictures", "Music", "Videos"]
-
     private func sidebar() -> Widget {
         let byName = Dictionary(uniqueKeysWithValues:
             bloc.state.places.map { ($0.name, $0) })
@@ -1012,12 +1045,15 @@ final class StarlingFilesState: State<StatefulWidget> {
                                      tint: Color(0xFF0F6CBD))
                         }
                         sidebarRule()
-                        // The pinned folders, in Explorer's order, each
-                        // carrying its pin.
-                        for name in Self.pinOrder {
-                            if let place = byName[name] {
-                                placeRow(place, pinned: true)
-                            }
+                        // The pinned folders: EXPLORER'S pin set, read from
+                        // the shell, in the shell's order -- pin a folder in
+                        // either explorer and both sidebars grow the row.
+                        // (Replaced a hardcoded six-name list; the shell's
+                        // set for a fresh profile IS those six.) The pin
+                        // glyph is live: clicking it unpins, through the
+                        // shell's own unpinfromhome verb.
+                        for place in bloc.state.quickAccess {
+                            placeRow(place, pinned: true)
                         }
                         sidebarRule()
                         // This PC leads its drives, computer glyph and all.
@@ -1154,10 +1190,21 @@ final class StarlingFilesState: State<StatefulWidget> {
                                                  maxLines: 1)
                                             if pinned {
                                                 Expanded { SizedBox(height: 1) }
-                                                MacosIcon(
-                                                    icon: FluentIcons.pin,
-                                                    color: Win11.textFaint,
-                                                    size: 11)
+                                                // Live, not decoration:
+                                                // this is the unpin.
+                                                GestureDetector(
+                                                    onTap: {
+                                                        self.bloc.runShellVerb(
+                                                            "unpinfromhome",
+                                                            path: place.path,
+                                                            location: Win32Files
+                                                                .NamespacePlace
+                                                                .quickAccess)
+                                                    },
+                                                    child: MacosIcon(
+                                                        icon: FluentIcons.pin,
+                                                        color: Win11.textFaint,
+                                                        size: 11))
                                             }
                                         }
                                     }
@@ -1570,8 +1617,22 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     /// The address bar, as Explorer draws it: the path broken into segments
-    /// with chevrons between them, each one a place you can go back to.
+    /// with chevrons between them, each one a place you can go back to --
+    /// and, on a click in its empty space, an edit field over the same
+    /// footprint (Explorer's other address bar). Enter navigates, Escape
+    /// puts the crumbs back, and the crumbs also return whenever a
+    /// navigation lands (the rebuild reads `pathEditing` fresh).
     private func breadcrumb() -> Widget {
+        // A navigation that lands UNDER the edit (a sidebar click, Back)
+        // closes it: the field was editing a directory this window is no
+        // longer in. Cleared directly rather than through setState -- this
+        // runs inside the rebuild that navigation already caused, and the
+        // crumbs drawn below are the correct face for the new state.
+        if pathEditing && bloc.state.directory != pathEditDirectory {
+            pathEditing = false
+            pathController = nil
+        }
+        if pathEditing { return pathField() }
         let parts = crumbs()
         return ClipRRect(borderRadius: BorderRadius.circular(4)) {
             ColoredBox(color: Win11.fieldFill) {
@@ -1602,7 +1663,18 @@ final class StarlingFilesState: State<StatefulWidget> {
                                              maxLines: 1)
                                     })
                             }
-                            Expanded { SizedBox(height: 1) }
+                            // The empty remainder of the bar IS the edit
+                            // affordance. A transparent ColoredBox, because
+                            // a bare SizedBox hit-tests as nothing and this
+                            // framework's ColoredBox hit-tests opaque at any
+                            // alpha -- the documented trap, here load-bearing.
+                            Expanded {
+                                GestureDetector(
+                                    onTap: { self.openPathEdit() },
+                                    child: ColoredBox(color: Color(0x00000000)) {
+                                        SizedBox(height: 32)
+                                    })
+                            }
                         }
                     }
                 }
@@ -1610,10 +1682,108 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
     }
 
-    /// Filters the listing already in memory. NOT Explorer's search, which
-    /// walks the subtree and asks the index -- this is the current folder, and
-    /// the placeholder says so, because a search box that quietly searches
-    /// less than the user expects is worse than one that never ran.
+    /// The breadcrumb's edit face: the current path as text, everything
+    /// selected the moment it opens -- the common gesture is to type a
+    /// whole new path over it, not to append.
+    private func pathField() -> Widget {
+        SizedBox(height: 32) {
+            MacosTextField(
+                controller: pathController!,
+                onSubmitted: { text in self.commitPath(text) },
+                style: TextStyle(color: Win11.text, fontSize: 12),
+                padding: EdgeInsets(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                    color: Win11.fieldFill,
+                    border: Border.all(color: Win11.accent, width: 1),
+                    borderRadius: BorderRadius.circular(4)),
+                autofocus: true,
+                // Losing focus IS the dismissal: Escape unfocuses inside
+                // the field (the key never reaches handleShortcut while
+                // the field owns it), and Explorer's bar also folds back
+                // to crumbs the moment the edit stops being the focus.
+                onFocusChanged: { focused in
+                    guard !focused, self.pathEditing else { return }
+                    self.setState {
+                        self.pathEditing = false
+                        self.pathController = nil
+                    }
+                })
+        }
+    }
+
+    private func openPathEdit() {
+        let directory = bloc.state.directory
+        // The sentinel is not a path anyone can edit; an empty field with
+        // everything to type is more honest than "\u{1}ThisPC".
+        let text = directory == kThisPCPath ? "" : directory
+        setState {
+            let controller = TextEditingController(text: text)
+            // Everything selected, as Explorer opens it: the common gesture
+            // is typing a whole new path over the old one, not appending.
+            controller.selection = TextSelection(baseOffset: 0,
+                                                 extentOffset: text.count)
+            pathController = controller
+            pathEditing = true
+            pathEditDirectory = directory
+        }
+    }
+
+    /// Enter in the address field: expand what Explorer expands, then go.
+    private func commitPath(_ text: String) {
+        var path = text.trimmingCharacters(in: .whitespaces)
+        // Pasted paths arrive quoted more often than not -- "Copy as path"
+        // itself writes them that way.
+        path = path.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        // %USERPROFILE% and friends, Explorer's oldest address-bar contract.
+        while let range = path.range(of: "%[A-Za-z0-9_()]+%",
+                                     options: .regularExpression) {
+            let name = String(path[range].dropFirst().dropLast())
+            guard let value = ProcessInfo.processInfo.environment[name] else {
+                break
+            }
+            path.replaceSubrange(range, with: value)
+        }
+        guard !path.isEmpty else {
+            setState { pathEditing = false; pathController = nil }
+            return
+        }
+        // A bare drive means its root: "C:" alone is a CWD reference in
+        // Win32 (it can resolve anywhere), and the root is what the user
+        // typing it into an address bar meant.
+        if path.count == 2, path.hasSuffix(":") { path += "\\" }
+        if path.caseInsensitiveCompare("This PC") == .orderedSame {
+            setState { pathEditing = false; pathController = nil }
+            bloc.add(.open(kThisPCPath))
+            return
+        }
+        var isDirectory: ObjCBool = false
+        let exists = path.hasPrefix("::")
+            || FileManager.default.fileExists(atPath: path,
+                                              isDirectory: &isDirectory)
+        guard exists else {
+            // Explorer raises "Windows can't find" here; staying in the
+            // field with the text intact is this window's quieter version
+            // -- the typo is still there to fix, and Escape backs out.
+            return
+        }
+        setState { pathEditing = false; pathController = nil }
+        if path.hasPrefix("::") || isDirectory.boolValue
+            || path.lowercased().hasSuffix(".zip") {
+            // Directories, namespace locations and zips all navigate --
+            // the listing routes each through the right enumerator.
+            bloc.add(.open(path))
+        } else {
+            // A FILE typed into the address bar opens, as in Explorer.
+            Task.detached { Win32AppCatalog.open(path) }
+        }
+    }
+
+    /// Filters the listing in memory INSTANTLY, and walks the subtree
+    /// behind it (FilesBloc._startSearch): the folder's own matches appear
+    /// per keystroke, the deeper hits stream in below them named by
+    /// relative path. Explorer asks the index; this is the honest
+    /// cancellable-walk version, and the status bar says "searching…"
+    /// while it runs.
     private func searchBox() -> Widget {
         SizedBox(width: 220, height: 32) {
             MacosTextField(
@@ -1864,7 +2034,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
         let shown = bloc.state.visible.count
         let total = bloc.state.entries.count
-        if !bloc.state.filter.isEmpty { return "\(shown) of \(total) items" }
+        if !bloc.state.filter.isEmpty {
+            // The walk's honesty: "searching" while it runs, because 10%
+            // done looks identical to finished -- and the count includes
+            // the subtree hits riding below the folder's own matches.
+            let counted = "\(shown) of \(total) items"
+            return bloc.state.searching ? counted + "  ·  searching…"
+                                        : counted
+        }
         return total == 1 ? "1 item" : "\(total) items"
     }
 
@@ -2005,12 +2182,19 @@ final class StarlingFilesState: State<StatefulWidget> {
             })
     }
 
-    /// The type's icon, or the same fallback glyphs the Details rows draw.
+    /// The file's THUMBNAIL where one has landed, else the type's icon,
+    /// else the same fallback glyphs the Details rows draw. The thumbnail
+    /// arrives after the icon (it is a decode, queued behind the cheap
+    /// answers), so a row upgrades in place as the texture lands.
     private func cellIcon(_ entry: Win32FileEntry, key: String,
                           side: Double) -> Widget {
         SizedBox(width: side, height: side) {
             Center {
-                if let icon = self.bloc.icons.view(key, side: side) {
+                if let thumbKey = FilesBloc.thumbKey(
+                       entry, side: bloc.state.viewMode.iconSide),
+                   let thumb = self.bloc.icons.view(thumbKey, side: side) {
+                    thumb
+                } else if let icon = self.bloc.icons.view(key, side: side) {
                     icon
                 } else {
                     MacosIcon(icon: entry.isDirectory ? FluentIcons.folderFill
@@ -2248,7 +2432,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                         Row(crossAxisAlignment: .center, spacing: 10) {
                             SizedBox(width: 18, height: 18) {
                                 Center {
-                                    if let icon = self.bloc.icons.view(key, side: 16) {
+                                    if let thumbKey = FilesBloc.thumbKey(entry),
+                                       let thumb = self.bloc.icons.view(
+                                           thumbKey, side: 16) {
+                                        thumb
+                                    } else if let icon = self.bloc.icons.view(key, side: 16) {
                                         icon
                                     } else {
                                         MacosIcon(icon: entry.isDirectory

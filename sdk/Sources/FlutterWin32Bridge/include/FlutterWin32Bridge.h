@@ -172,6 +172,10 @@ int32_t flwin32_ns_field(FlWin32NsList* list, int32_t index, int32_t field,
 int32_t flwin32_ns_attrs(FlWin32NsList* list, int32_t index,
                          int32_t* is_folder, int32_t* is_filesystem,
                          int64_t* size, int64_t* mtime_unix);
+// System.Home.IsPinned: 1 pinned, 0 not, -1 unanswered. Quick Access
+// children answer it (it is what splits pinned from merely-frequent there);
+// everything else returns -1, which must not be read as "not pinned".
+int32_t flwin32_ns_pinned(FlWin32NsList* list, int32_t index);
 // One location's own display name — "Recycle Bin", "Network", and whatever
 // the machine's language calls them. flwin32_file_display_name cannot answer
 // this: SHGetFileInfoW parses a PATH, and a ::{CLSID} is not one. Resolves
@@ -258,6 +262,30 @@ int32_t flwin32_fileop_properties(const char* path, uint64_t owner);
 // Blocks like every other entry point here; call it from a worker.
 int32_t flwin32_fileop_transfer(const char* paths_nl, const char* target_dir,
                                 int32_t is_move, uint64_t owner);
+
+// The journal: what the LAST operation above actually did, one record per
+// item, with the names the shell settled on (" - Copy", "(2)") rather than
+// the names that were asked for. It exists because Ctrl+Z cannot be
+// delegated -- FOFX_ADDUNDORECORD feeds Explorer's undo stack, which has no
+// replay API -- so the caller keeps an inverse journal from these records.
+// Reset by each operation; read it before starting the next. `kind`: 1 copy,
+// 2 move, 3 rename, 4 delete, 5 new. For a delete, `dst` is the item's $R...
+// slot in the recycle bin (what a restore takes), or empty when the delete
+// was permanent. Same serial-queue contract as everything here.
+int32_t flwin32_fileop_journal_count(void);
+int32_t flwin32_fileop_journal_get(int32_t index, int32_t* kind,
+                                   char* src, int32_t src_size,
+                                   char* dst, int32_t dst_size);
+
+// The two undo executors the journal needs beyond the entry points above.
+// undo_moves: one line per item, "current-path<TAB>target-dir<TAB>name" --
+// each moved back under its own name, one IFileOperation over the set.
+// bin_restore: recycled items by their $R... slot paths (a delete record's
+// `dst`), restored through the bin's own "undelete" verb -- the only whole
+// restore; moving the slot back by hand orphans its $I record. Both BLOCK.
+int32_t flwin32_fileop_undo_moves(const char* lines_nl, uint64_t owner);
+int32_t flwin32_fileop_bin_restore(const char* slot_paths_nl,
+                                   uint64_t owner);
 
 // -- the window as an OLE drop target ---------------------------------------
 //
@@ -938,6 +966,16 @@ int32_t flwin32_thumb_source_size(uint64_t handle, int32_t* width, int32_t* heig
 // Establishes, on a real machine, whether DWM will composite onto the layered
 // colour-keyed window the dock actually is. See flwin32_thumb.c.
 void flwin32_thumb_probe(uint64_t src, int32_t seconds);
+
+// A file's THUMBNAIL (the picture itself, a video frame) via the shell's
+// image factory -- SIIGBF_THUMBNAILONLY, so a type with no thumbnail handler
+// fails and the caller keeps its type icon. Letterboxed onto a transparent
+// side-by-side square, premultiplied RGBA, free with flwin32_icon_free.
+// Blocks on decode (the shell's thumbnail cache makes repeats cheap) --
+// background thread only.
+int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
+                               uint8_t** out_pixels, int32_t* out_width,
+                               int32_t* out_height);
 
 void flwin32_icon_free(uint8_t* pixels);
 // For an icon handle the caller took ownership of (flwin32_tray_list_take_icon).

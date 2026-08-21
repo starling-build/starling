@@ -82,6 +82,17 @@ final class IconCache {
         rasterize(key: key) { Win32Icon.rasterize(path: path, size: size) }
     }
 
+    /// Rasterizes a file's THUMBNAIL -- per FILE, unlike everything above,
+    /// because a thousand photos are a thousand pictures where they were one
+    /// type icon. A type with no thumbnail handler fails inside and lands in
+    /// `attempted`, so the row keeps its type icon and the miss is not
+    /// retried on every rebuild.
+    func ensure(thumbnailKey key: String, path: String, size: Int) {
+        guard textures[key] == nil, !attempted.contains(key) else { return }
+        attempted.insert(key)
+        rasterize(key: key) { Win32Icon.thumbnail(path: path, side: size) }
+    }
+
     /// Rasterizes a tray icon, which arrives as a HANDLE rather than a path:
     /// the app drew it, and there is no file anywhere to point at.
     ///

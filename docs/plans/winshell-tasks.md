@@ -6,9 +6,152 @@ mouse notices first. Updated 2026-08-21: every visual-polish, functional-gap
 and hygiene item is done -- what remains is the deferred-by-decision section
 below and the small not-yets recorded inside ticked entries (tab
 reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
-The next session-sized piece by this list's own logic is the context menu
-as its own popup window, parked earlier in favour of window parity, which
-is now complete.
+CHECKPOINT 2026-08-21 (end of the Phase-1 session): NOTHING IS IN
+FLIGHT. Every landing below is committed, pushed, deployed to the box's
+dist, and was driven live before its commit. The working tree is clean at
+b5a791e. A fresh session starts from the wave plan
+(winshell-shell-replacement.md): wave 2's desktop surface once track 2's
+popup surfaces (0b) exist, or 0b itself if that track is idle.
+
+Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
+COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,
+typed path entry, subtree search, Quick Access pinning -- sections
+below). Track 1 rejoins the wave plan (winshell-shell-replacement.md);
+by that plan the next work is wave 2's desktop surface (needs 0a, done
+here, AND 0b's popup surfaces from track 2) or whatever track is open.
+
+## Quick Access pinning — landed and verified 2026-08-21
+
+The sidebar's pin section is now EXPLORER'S pin set, not a hardcoded
+six-name list: read from the Quick Access folder and re-read after every
+shell verb (a pin/unpin IS a shell verb, and nothing else announces one).
+Pin from any folder's context menu (pintohome was already in the modern
+verbs); unpin by clicking the row's pin glyph, which runs unpinfromhome
+through the same location-addressed menu session the Recycle Bin's
+Restore uses. Round trip driven on the box: pin docs -> row appears,
+click its pin -> row leaves, and the shell's own set confirms both.
+
+Three findings, each probed before believed:
+- QUICK ACCESS REFUSES BHID_EnumItems outright (the modern enumeration
+  that works for the bin, Network and zips) while answering the classic
+  IShellFolder::EnumObjects. flwin32_ns_list grew the classic fallback,
+  and the menu session's resolve_item switched to the classic walk
+  entirely -- the folder handle it binds to walk is exactly the parent
+  GetUIObjectOf wants.
+- The bare "::{679F85CB-...}" spelling DOES NOT PARSE for Quick Access
+  (it does for the bin and Network); the "shell:::{...}" URI does. The
+  NamespacePlace constant carries the working spelling and a warning.
+- Pinned vs merely-frequent is System.Home.IsPinned, resolved BY NAME at
+  runtime (PSGetPropertyKeyFromName -- the SDK ships no PKEY_ for it).
+  Everything outside Quick Access answers -1/unanswered, which must not
+  be read as "not pinned".
+
+`--ns-probe <location>` joined the CLI oracles (it is how the two
+enumeration findings were caught), and `--menu-probe` takes `--location`
+now -- the QA child's menu is where unpinfromhome lives; the folder
+addressed by its own path only ever offers pintohome.
+
+## Subtree search — landed and verified 2026-08-21
+
+Phase 1's last functional gap but one: the search box now walks the
+subtree behind the instant in-folder filter -- the honest cancellable-BFS
+version the plan asked for, not an index. Hits stream in batches of 50
+(first results while deep directories are still reading), named by
+RELATIVE path so the existing Name column says where each hit lives,
+appended below the folder's own matches. 300ms debounce so "notes" costs
+one walk, not five; generation token + Task cancellation kill a stale
+walk on retype or navigation; the filter surviving navigation restarts
+the walk under the new root. Deliberate limits, each the cheap honest
+choice: 1000 hits, 500k entries scanned (junction-loop backstop), no
+descent into symlinks/junctions, and no walk at all on This PC or a
+namespace listing (FileManager cannot enumerate those; the in-memory
+filter still applies). The status bar appends "searching…" while the
+walk runs, because 10% done looks identical to finished. Verified on the
+box: "TextBox" typed over the sdk tree surfaces
+Sources\Flutter\FluentUI\...\TextBox.swift within a second.
+
+## Typed path entry — landed and verified 2026-08-21
+
+Phase 1's address-bar edit: a click on the breadcrumb's empty space flips
+the crumbs into a field over the same footprint, everything selected
+(typing replaces, Explorer's gesture). Enter expands %VARS%, trims Copy-
+as-path quotes, roots a bare "C:", takes "This PC" by name, and navigates
+-- directories, "::" locations and zips through the listing's routing, a
+FILE by opening it. A nonexistent path stays in the field to be fixed;
+Escape backs out; a navigation landing underneath (sidebar click, Back)
+folds the field back to crumbs, checked against the directory it opened
+over.
+
+Took a framework addition: FluentTextBox/MacosTextField grew
+`onFocusChanged`. The field consumes Escape internally (unfocus), so an
+ancestor's shortcut handler NEVER sees it while the field is focused --
+the first build left the field open-but-unfocused forever, and the only
+honest dismissal signal is the focus node's own. The inline rename has
+the same latent quirk (its Escape path in handleShortcut is unreachable
+while the field is focused; the second press works); wiring it to
+onFocusChanged is a follow-up.
+
+Driving note: the click that OPENS the edit and a second click both land
+in the same place -- and the second collapses the select-all (the field's
+own caret placement, correct). One click, then type.
+
+## Thumbnails — landed and verified 2026-08-21
+
+Phase 1's per-file thumbnails, in every view mode: IShellItemImageFactory
+with SIIGBF_THUMBNAILONLY (flwin32_icon_thumbnail), so a type without a
+thumbnail handler fails fast and the row keeps its type icon -- and gated
+by an extension set BEFORE asking, because a ten-thousand-source listing
+should not pay ten thousand disk-touching misses to learn what the set
+already says. The result is letterboxed onto a transparent square in C
+(the factory preserves aspect; stretching is what a wrong thumbnail looks
+like), so IconCache's square texture slots take it unchanged. Thumbnails
+are per FILE where icons were per TYPE -- keyed by path and raster edge --
+and ride the same serial rasterize queue BEHIND the type icons: every row
+gets its instant shared answer, then upgrades in place as decodes land.
+The shell's own thumbnail cache does the heavy lifting on revisits.
+
+Verified on the box: a folder of jpgs shows per-file pictures in Details
+(16px) and Large icons (96px, aspect kept), notes.txt keeps its type icon,
+and a mixed Downloads folder still draws folder/exe/zip icons untouched.
+Not done: no eviction (a 10k-photo folder at 96px is ~350MB of textures if
+fully warmed -- fine at today's folder sizes, worth an LRU if it ever
+shows), and no video-badge overlay on video thumbnails.
+
+## Ctrl+Z — landed and verified 2026-08-21
+
+Phase 1's undo item, done the only way it can be done: FOFX_ADDUNDORECORD
+feeds Explorer's undo stack but that stack has NO REPLAY API -- it is
+shell32 per-process state Explorer alone can pop -- so the app keeps an
+inverse journal of its own. An IFileOperationProgressSink (C, static
+vtable, flwin32_fileops.c) records what each operation ACTUALLY did, in
+the names the shell settled on (" - Copy", "(2)"); undoing the name we
+asked for instead of the name we got deletes the wrong file. FilesBloc
+keeps a static 32-deep stack of these journals -- static because Explorer's
+undo is per session, not per folder: delete here, Ctrl+Z from any tab.
+
+The inverses: copy/new → recycle the produced files; move → each item back
+to its OWN folder under its OWN name, one IFileOperation over the set
+(flwin32_fileop_undo_moves); rename → the old name back; delete → the
+bin's own "undelete" verb on the recorded $R... slots
+(flwin32_fileop_bin_restore) -- addressed by ENUMERATION of the bin folder,
+the same lesson resolve_item paid for, because no string parses to a bin
+item, and through the verb because moving a slot back by hand orphans its
+$I record.
+
+All four verified on the box: delete→Ctrl+Z and copy-paste→Ctrl+Z driven
+through the UI (file restored to its original path; the " - Copy" landed
+in the bin); move and rename round-tripped through `--fileop-probe`, which
+is the journal's oracle and stays in main.swift. Two honest gaps, both
+deliberate: operations run through the context menu's SHELL VERBS are not
+journaled (InvokeCommand reports nothing back), and there is no Ctrl+Y
+redo yet -- the records to build it from are all there.
+
+The driving lesson, again: synthetic Ctrl-key delivery to the window is
+FLAKY (an injected keystroke silently vanishes when foreground shifts),
+and the first "undo is broken" was exactly that. The stderr breadcrumb
+proved the app never received the key; the probe then proved the machinery
+without the UI. Judge input plumbing by logs and probes, not by one
+keystroke's apparent effect.
 
 ## Shell-namespace enumeration — landed and verified 2026-08-21
 

@@ -805,9 +805,12 @@ final class ShellMenuModel {
             // Re-read the folder once the verb is done. A shell verb moves
             // files without telling anyone and nothing watches a directory,
             // so without this a Delete leaves its row on screen and a
-            // Restore takes a relaunch to notice.
+            // Restore takes a relaunch to notice. The pins re-read for the
+            // same reason: "Pin to Quick access" is one of these verbs, and
+            // the sidebar's pin section is the shell's set, not ours.
             session?.invoke(shellTierForInvoke, shellId) {
                 filesBloc.add(.refresh)
+                filesBloc.reloadPins()
             }
         }
         session?.close()

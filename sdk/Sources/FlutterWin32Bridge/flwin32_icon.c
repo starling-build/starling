@@ -37,8 +37,12 @@
 
 #include <windows.h>
 #include <shellapi.h>  /* ExtractIconExW */
+#include <shobjidl.h>  /* IShellItemImageFactory, for thumbnails */
+#include <shlobj.h>
 #include <stdlib.h>
 #include <string.h>
+
+#pragma comment(lib, "ole32.lib")
 
 #include "include/FlutterWin32Bridge.h"
 
@@ -301,6 +305,119 @@ int32_t flwin32_icon_rasterize_handle(uint64_t icon,
      * the shell drew it. */
     return rasterize((HICON)(uintptr_t)icon, 0, size, out_pixels, out_width,
                      out_height);
+}
+
+/* A file's THUMBNAIL -- the picture itself for an image, a frame for a
+ * video -- through IShellItemImageFactory, which is the machinery behind
+ * Explorer's own thumbnails and its on-disk thumbnail cache: a folder the
+ * user has seen in Explorer answers from cache, the same speed Explorer
+ * gets. SIIGBF_THUMBNAILONLY on purpose -- a file type with no thumbnail
+ * handler FAILS here instead of answering with its icon, and the caller
+ * keeps drawing the type icon it already has; asking this for a .txt would
+ * just be the slow route to the same picture.
+ *
+ * The result is LETTERBOXED onto a transparent side-by-side square: the
+ * factory preserves aspect (a 3:2 photo comes back 96x64), and the caller's
+ * texture slot is square -- stretching is what a wrong thumbnail looks
+ * like, and centring is what Explorer does. Same output contract as every
+ * rasterizer here: premultiplied RGBA, malloc'd, freed by
+ * flwin32_icon_free.
+ *
+ * COM-inits its own apartment (tolerating a caller's) -- callers are the
+ * icon queue's worker, same situation as flwin32_wallpaper_average. */
+int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
+                               uint8_t** out_pixels, int32_t* out_width,
+                               int32_t* out_height) {
+    if (path == NULL || path[0] == 0 || side <= 0 || out_pixels == NULL) {
+        return 0;
+    }
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+
+    HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    int ok = 0;
+    IShellItem* item = NULL;
+    if (SUCCEEDED(SHCreateItemFromParsingName(wide, NULL, &IID_IShellItem,
+                                              (void**)&item))) {
+        IShellItemImageFactory* factory = NULL;
+        if (SUCCEEDED(item->lpVtbl->QueryInterface(
+                item, &IID_IShellItemImageFactory, (void**)&factory))) {
+            SIZE want;
+            want.cx = side;
+            want.cy = side;
+            HBITMAP bitmap = NULL;
+            if (SUCCEEDED(factory->lpVtbl->GetImage(
+                    factory, want,
+                    SIIGBF_THUMBNAILONLY | SIIGBF_RESIZETOFIT, &bitmap))
+                && bitmap != NULL) {
+                BITMAP info;
+                if (GetObjectW(bitmap, sizeof(info), &info)
+                    && info.bmWidth > 0 && info.bmWidth <= side
+                    && info.bmHeight > 0 && info.bmHeight <= side) {
+                    int w = info.bmWidth;
+                    int h = info.bmHeight;
+                    BITMAPINFO bi;
+                    ZeroMemory(&bi, sizeof(bi));
+                    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+                    bi.bmiHeader.biWidth = w;
+                    bi.bmiHeader.biHeight = -h; /* top-down */
+                    bi.bmiHeader.biPlanes = 1;
+                    bi.bmiHeader.biBitCount = 32;
+                    bi.bmiHeader.biCompression = BI_RGB;
+                    uint8_t* src = (uint8_t*)malloc((size_t)w * (size_t)h * 4);
+                    uint8_t* dst = (uint8_t*)calloc(
+                        (size_t)side * (size_t)side, 4);
+                    HDC dc = GetDC(NULL);
+                    if (src != NULL && dst != NULL && dc != NULL
+                        && GetDIBits(dc, bitmap, 0, (UINT)h, src, &bi,
+                                     DIB_RGB_COLORS) == h) {
+                        /* A photo's DIB routinely reports alpha 0 across
+                         * the board (BI_RGB with the fourth byte unused);
+                         * all-zero alpha composites as nothing, so it is
+                         * rebuilt as opaque. Any nonzero alpha means the
+                         * handler really produced transparency, taken as
+                         * premultiplied -- which is what DrawIconEx-style
+                         * 32bpp DIBs carry. */
+                        int has_alpha = 0;
+                        for (int i = 0; i < w * h; i++) {
+                            if (src[i * 4 + 3] != 0) { has_alpha = 1; break; }
+                        }
+                        int off_x = (side - w) / 2;
+                        int off_y = (side - h) / 2;
+                        for (int y = 0; y < h; y++) {
+                            for (int x = 0; x < w; x++) {
+                                const uint8_t* p = src + ((size_t)y * w + x) * 4;
+                                uint8_t* q = dst
+                                    + (((size_t)(y + off_y)) * side
+                                       + (size_t)(x + off_x)) * 4;
+                                q[0] = p[2];             /* B,G,R,A -> RGBA */
+                                q[1] = p[1];
+                                q[2] = p[0];
+                                q[3] = has_alpha ? p[3] : 255;
+                            }
+                        }
+                        *out_pixels = dst;
+                        dst = NULL;
+                        if (out_width != NULL) *out_width = side;
+                        if (out_height != NULL) *out_height = side;
+                        ok = 1;
+                    }
+                    if (dc != NULL) ReleaseDC(NULL, dc);
+                    free(src);
+                    free(dst);
+                }
+                DeleteObject(bitmap);
+            }
+            factory->lpVtbl->Release(factory);
+        }
+        item->lpVtbl->Release(item);
+    }
+    free(wide);
+    if (init == S_OK || init == S_FALSE) CoUninitialize();
+    return ok;
 }
 
 void flwin32_icon_destroy(uint64_t icon) {

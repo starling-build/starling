@@ -85,6 +85,14 @@ public class FluentTextBox: StatefulWidget {
     /// perfectly normal and swallowed every keystroke.
     public let autofocus: Bool
 
+    /// Focus gained/lost, as the field's own focus node sees it. The hook a
+    /// transient editor needs: Escape inside a field UNFOCUSES it (the key
+    /// is consumed here, so an ancestor's shortcut handler never sees it),
+    /// and a surface that swaps a field in -- an address bar, an inline
+    /// rename -- has no other way to learn that the field is done and put
+    /// its resting face back.
+    public let onFocusChanged: ((Bool) -> Void)?
+
     /// Creates a Fluent UI text box.
     public init(
         key: (any Key)? = nil,
@@ -105,7 +113,8 @@ public class FluentTextBox: StatefulWidget {
         showFocusRing: Bool = true,
         prefix: Widget? = nil,
         suffix: Widget? = nil,
-        autofocus: Bool = false
+        autofocus: Bool = false,
+        onFocusChanged: ((Bool) -> Void)? = nil
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -125,6 +134,7 @@ public class FluentTextBox: StatefulWidget {
         self.prefix = prefix
         self.suffix = suffix
         self.autofocus = autofocus
+        self.onFocusChanged = onFocusChanged
         super.init(key: key)
     }
 
@@ -185,6 +195,7 @@ class _TextBoxState: State<StatefulWidget> {
             self.setState {
                 self._isFocused = focused
             }
+            self.textBox.onFocusChanged?(focused)
             if focused {
                 self._startCaretBlink()
                 // A focused field on a touch device has to ask for the keys.

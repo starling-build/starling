@@ -385,13 +385,10 @@ static int cheap_keys(struct FlWin32ShellMenu* s, HKEY* keys, int max) {
     return count;
 }
 
-/* Defined in flwin32_namespace.c, which is the translation unit that carries
- * INITGUID -- the SDK headers never define this one for plain C. */
-EXTERN_C const GUID kBHID_EnumItems;
-
 /* The session's target as the shell sees it: the folder it lives in, and its
- * child pidl within that folder. `free_me` is the absolute pidl the caller
- * must CoTaskMemFree; `child` points INTO it and must not be freed.
+ * child pidl within that folder. `free_me` is a pidl the caller must
+ * CoTaskMemFree; `child` aliases it (or points into it) and must not be
+ * freed separately.
  *
  * Two ways in, and the second one is why this function exists.
  *
@@ -415,7 +412,13 @@ EXTERN_C const GUID kBHID_EnumItems;
  * same walk flwin32_ns_list did to list the row, so the item this resolves is
  * by construction the one the user clicked. Enumerating to address one item
  * is only worth it because a namespace folder is small (a bin holds tens of
- * items) and a menu opens once per click. */
+ * items) and a menu opens once per click.
+ *
+ * The walk is the CLASSIC one -- IShellFolder::EnumObjects, matched by
+ * GetDisplayNameOf(SHGDN_FORPARSING) -- not IEnumShellItems: Quick Access
+ * refuses BHID_EnumItems outright while answering EnumObjects (verified
+ * with --ns-probe), the Recycle Bin answers both, and the folder handle the
+ * classic route already holds is exactly what GetUIObjectOf needs. */
 static HRESULT resolve_item(struct FlWin32ShellMenu* s,
                             IShellFolder** parent_out,
                             LPITEMIDLIST* free_me,
@@ -424,57 +427,63 @@ static HRESULT resolve_item(struct FlWin32ShellMenu* s,
     *free_me = NULL;
     *child_out = NULL;
 
-    LPITEMIDLIST pidl = NULL;
     if (s->location[0] == 0) {
+        LPITEMIDLIST pidl = NULL;
         if (FAILED(SHParseDisplayName(s->path, NULL, &pidl, 0, NULL))) {
             return E_FAIL;
         }
-    } else {
-        IShellItem* root = NULL;
-        if (FAILED(SHCreateItemFromParsingName(s->location, NULL,
-                                               &IID_IShellItem,
-                                               (void**)&root))) {
-            return E_FAIL;
+        IShellFolder* parent = NULL;
+        LPCITEMIDLIST child = NULL;
+        HRESULT hr = SHBindToParent(pidl, &IID_IShellFolder, (void**)&parent,
+                                    &child);
+        if (FAILED(hr) || parent == NULL) {
+            CoTaskMemFree(pidl);
+            return FAILED(hr) ? hr : E_FAIL;
         }
-        IEnumShellItems* iter = NULL;
-        HRESULT hr = root->lpVtbl->BindToHandler(root, NULL, &kBHID_EnumItems,
-                                                 &IID_IEnumShellItems,
-                                                 (void**)&iter);
-        root->lpVtbl->Release(root);
-        if (FAILED(hr) || iter == NULL) return E_FAIL;
+        *parent_out = parent;
+        *free_me = pidl;
+        *child_out = child;
+        return S_OK;
+    }
 
-        IShellItem* child = NULL;
-        while (pidl == NULL &&
-               iter->lpVtbl->Next(iter, 1, &child, NULL) == S_OK) {
-            LPWSTR name = NULL;
-            if (SUCCEEDED(child->lpVtbl->GetDisplayName(
-                    child, SIGDN_DESKTOPABSOLUTEPARSING, &name))) {
-                if (_wcsicmp(name, s->path) == 0) {
-                    /* The item's own absolute pidl -- rooted at the desktop,
-                     * so SHBindToParent below lands on the namespace folder
-                     * it really lives in rather than on any filesystem
-                     * folder its name happens to spell. */
-                    SHGetIDListFromObject((IUnknown*)child, &pidl);
-                }
-                CoTaskMemFree(name);
+    /* The location branch: walk the namespace folder itself, keep the
+     * matching CHILD pidl, and the folder handle we bound to walk it is
+     * exactly the parent GetUIObjectOf wants -- no absolute pidl, no
+     * SHBindToParent, no way to land on the wrong parent. */
+    LPITEMIDLIST loc_pidl = NULL;
+    IShellFolder* folder = NULL;
+    IEnumIDList* ids = NULL;
+    LPITEMIDLIST match = NULL;
+    if (SUCCEEDED(SHParseDisplayName(s->location, NULL, &loc_pidl, 0, NULL))
+        && SUCCEEDED(SHBindToObject(NULL, loc_pidl, NULL, &IID_IShellFolder,
+                                    (void**)&folder))
+        && SUCCEEDED(folder->lpVtbl->EnumObjects(
+               folder, NULL, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS, &ids))
+        && ids != NULL) {
+        LPITEMIDLIST child = NULL;
+        while (match == NULL
+               && ids->lpVtbl->Next(ids, 1, &child, NULL) == S_OK) {
+            STRRET ret;
+            wchar_t name[1024];
+            if (SUCCEEDED(folder->lpVtbl->GetDisplayNameOf(
+                    folder, child, SHGDN_FORPARSING, &ret))
+                && SUCCEEDED(StrRetToBufW(&ret, child, name, 1024))
+                && _wcsicmp(name, s->path) == 0) {
+                match = child;
+            } else {
+                CoTaskMemFree(child);
             }
-            child->lpVtbl->Release(child);
         }
-        iter->lpVtbl->Release(iter);
-        if (pidl == NULL) return E_FAIL;
+        ids->lpVtbl->Release(ids);
     }
-
-    IShellFolder* parent = NULL;
-    LPCITEMIDLIST child = NULL;
-    HRESULT hr = SHBindToParent(pidl, &IID_IShellFolder, (void**)&parent,
-                                &child);
-    if (FAILED(hr) || parent == NULL) {
-        CoTaskMemFree(pidl);
-        return FAILED(hr) ? hr : E_FAIL;
+    if (loc_pidl != NULL) CoTaskMemFree(loc_pidl);
+    if (match == NULL) {
+        if (folder != NULL) folder->lpVtbl->Release(folder);
+        return E_FAIL;
     }
-    *parent_out = parent;
-    *free_me = pidl;
-    *child_out = child;
+    *parent_out = folder;
+    *free_me = match;
+    *child_out = match;
     return S_OK;
 }
 

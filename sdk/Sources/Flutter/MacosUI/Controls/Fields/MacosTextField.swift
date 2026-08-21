@@ -28,6 +28,10 @@ public class MacosTextField: StatefulWidget {
     public let obscuringCharacter: String
     /// Takes the keyboard as soon as it is mounted — see `FluentTextBox`.
     public let autofocus: Bool
+    /// Focus gained/lost — see `FluentTextBox.onFocusChanged`, which this
+    /// forwards. The hook a transient editor (an address bar, an inline
+    /// rename) needs to put its resting face back when the field is done.
+    public let onFocusChanged: ((Bool) -> Void)?
 
     public init(
         key: (any Key)? = nil,
@@ -46,7 +50,8 @@ public class MacosTextField: StatefulWidget {
         showFocusRing: Bool = true,
         obscureText: Bool = false,
         obscuringCharacter: String = "\u{2022}",
-        autofocus: Bool = false
+        autofocus: Bool = false,
+        onFocusChanged: ((Bool) -> Void)? = nil
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -64,6 +69,7 @@ public class MacosTextField: StatefulWidget {
         self.obscureText = obscureText
         self.obscuringCharacter = obscuringCharacter
         self.autofocus = autofocus
+        self.onFocusChanged = onFocusChanged
         super.init(key: key)
     }
 
@@ -135,7 +141,8 @@ class _MacosTextFieldState: State<StatefulWidget> {
                 showFocusRing: field.showFocusRing,
                 prefix: field.prefix,
                 suffix: field.suffix,
-                autofocus: field.autofocus
+                autofocus: field.autofocus,
+                onFocusChanged: field.onFocusChanged
             )
         )
     }

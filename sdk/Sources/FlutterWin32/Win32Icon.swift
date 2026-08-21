@@ -48,6 +48,22 @@ public enum Win32Icon {
         return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
     }
 
+    /// A file's THUMBNAIL -- the picture itself, a video's frame -- through
+    /// the shell's image factory and its on-disk thumbnail cache. nil for a
+    /// type with no thumbnail handler (SIIGBF_THUMBNAILONLY fails rather
+    /// than answering with the icon), which is the caller's cue to keep the
+    /// type icon it already has. Letterboxed to a square. Blocks on decode:
+    /// background thread only.
+    public static func thumbnail(path: String, side: Int) -> Bitmap? {
+        var pixels: UnsafeMutablePointer<UInt8>? = nil
+        var width: Int32 = 0
+        var height: Int32 = 0
+        guard flwin32_icon_thumbnail(path, Int32(side), &pixels,
+                                     &width, &height) != 0,
+              let pixels, width > 0, height > 0 else { return nil }
+        return Bitmap(pixels: pixels, width: Int(width), height: Int(height))
+    }
+
     /// The icon a live window reports. **Safe on any thread**, though it
     /// sends a message to the owning window with a timeout, so it is not
     /// instant when that window is busy — another reason not to do it on the

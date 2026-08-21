@@ -33,6 +33,11 @@ struct FilesState {
     /// The OneDrive row, when the machine has one. nil is "no row" -- a
     /// sidebar entry that navigates nowhere is worse than absence.
     var oneDrive: Win32Place?
+    /// The folders pinned to Quick Access -- EXPLORER'S pin set, read from
+    /// the shell (System.Home.IsPinned over the Quick Access folder), so
+    /// both explorers always agree. This replaced a hardcoded six-name
+    /// list: pin a folder in either window and both sidebars grow the row.
+    var quickAccess: [Win32Place] = []
     /// The ShellNew templates for the New dropdown -- loaded once with the
     /// places, empty until the registry walk lands.
     var newTemplates: [Win32Files.ShellNewTemplate] = []
@@ -85,6 +90,15 @@ struct FilesState {
     /// place of its name. One at a time by construction -- starting a rename
     /// ends any other.
     var renaming: String?
+    /// Subtree search: what the walk under `directory` has found so far,
+    /// named by RELATIVE path ("sub\\inner\\notes.txt") so the existing Name
+    /// column says where each hit lives. Appended below the folder's own
+    /// matches in `visible`.
+    fileprivate(set) var searchHits: [Win32FileEntry] = []
+    /// True while the walk is still running -- the status bar says so,
+    /// because a search that is 10% done looks identical to one that found
+    /// everything.
+    fileprivate(set) var searching = false
 
     /// What the list actually shows: the listing, filtered, then ordered.
     ///
@@ -197,12 +211,42 @@ final class FilesBloc: @unchecked Sendable {
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
         case placesLoaded(places: [Win32Place], drives: [Win32Place],
                           oneDrive: Win32Place?)
+        /// The Quick Access pin set, (re)read -- at startup with the
+        /// places, and again after any shell verb runs (a pin/unpin is a
+        /// shell verb, and nothing else tells us it happened).
+        case pinsLoaded([Win32Place])
         case templatesLoaded([Win32Files.ShellNewTemplate])
         case thisPCLoaded([Win32Drive])
         /// Explorer's New submenu, one template: create the file and drop
         /// into its rename field, exactly the newFolder gesture.
         case newFile(Win32Files.ShellNewTemplate)
+        /// Ctrl+Z: pop the journal stack and apply the inverse.
+        case undo
+        /// A batch of subtree-search hits landing from the walk.
+        case searchBatch(generation: Int, hits: [Win32FileEntry], done: Bool)
         case iconsChanged
+    }
+
+    /// The undo stack: one entry per completed operation, each the
+    /// operation's JOURNAL -- what actually happened, in the names the
+    /// shell settled on. Ours to keep because the shell's own stack
+    /// (FOFX_ADDUNDORECORD) has no replay API; see Win32FileOps.OpRecord.
+    /// STATIC, like Explorer's: undo is per session, not per folder --
+    /// delete here, Ctrl+Z from any tab or window of this process.
+    /// Main-thread only, as all bloc state is.
+    ///
+    /// What does NOT land here, knowingly: operations run through the
+    /// context menu's shell verbs (its Cut/Delete rows go through
+    /// InvokeCommand, which reports nothing back), and permanent deletes
+    /// (the record's dst is empty -- there is nothing to restore).
+    private static var undoStack: [[Win32FileOps.OpRecord]] = []
+    private static let undoDepth = 32
+
+    static func pushUndo(_ records: [Win32FileOps.OpRecord]) {
+        let undoable = records.filter { !($0.kind == .delete && $0.dst.isEmpty) }
+        guard !undoable.isEmpty else { return }
+        undoStack.append(undoable)
+        if undoStack.count > undoDepth { undoStack.removeFirst() }
     }
 
     private(set) var state = FilesState()
@@ -258,9 +302,11 @@ final class FilesBloc: @unchecked Sendable {
                 let places = Win32Files.places()
                 let drives = Win32Files.drives()
                 let oneDrive = Win32Files.oneDrive()
+                let pins = Win32Files.quickAccessPins()
                 await MainActor.run {
                     self?.add(.placesLoaded(places: places, drives: drives,
                                             oneDrive: oneDrive))
+                    self?.add(.pinsLoaded(pins))
                     // Home, or the first drive on a machine with no profile
                     // folders to speak of.
                     guard requested == nil else { return }
@@ -269,6 +315,9 @@ final class FilesBloc: @unchecked Sendable {
                     }
                 }
             }
+
+        case .pinsLoaded(let pins):
+            state.quickAccess = pins
 
         case .placesLoaded(let places, let drives, let oneDrive):
             state.places = places
@@ -302,6 +351,8 @@ final class FilesBloc: @unchecked Sendable {
                         self.state.selection = [path]
                         self.state.selectionAnchor = path
                         self.state.renaming = path
+                        Self.pushUndo([Win32FileOps.OpRecord(
+                            kind: .new, src: "", dst: path)])
                     }
                     self.add(.refresh)
                 }
@@ -355,6 +406,19 @@ final class FilesBloc: @unchecked Sendable {
 
         case .filter(let text):
             state.filter = text
+            // The walk first: it clears the previous query's hits, so the
+            // reproject below never shows old-query results under the new
+            // text.
+            _startSearch()
+            _reproject()
+
+        case .searchBatch(let generation, let hits, let done):
+            // A batch from a cancelled walk: a new filter or a navigation
+            // has moved on, and these hits describe a question nobody is
+            // asking any more.
+            guard generation == searchGeneration else { break }
+            state.searchHits.append(contentsOf: hits)
+            if done { state.searching = false }
             _reproject()
 
         case .refresh:
@@ -470,8 +534,11 @@ final class FilesBloc: @unchecked Sendable {
             let paths = state.visible.map(\.path).filter(state.selection.contains)
             guard !paths.isEmpty else { break }
             Win32FileOps.deleteMany(paths, owner: Self.ownerWindow) {
-                [weak self] ok in
-                if ok { self?.add(.refresh) }
+                [weak self] ok, records in
+                if ok {
+                    Self.pushUndo(records)
+                    self?.add(.refresh)
+                }
             }
 
         case .clipSelection(let cut):
@@ -504,8 +571,11 @@ final class FilesBloc: @unchecked Sendable {
 
         case .paste(let directory):
             Win32FileOps.paste(into: directory, owner: Self.ownerWindow) {
-                [weak self] ok in
-                if ok { self?.add(.refresh) }
+                [weak self] ok, records in
+                if ok {
+                    Self.pushUndo(records)
+                    self?.add(.refresh)
+                }
             }
 
         case .beginRename(let entry):
@@ -521,8 +591,9 @@ final class FilesBloc: @unchecked Sendable {
             let oldName = (path as NSString).lastPathComponent
             guard !newName.isEmpty, newName != oldName else { return }
             Win32FileOps.rename(path, to: newName, owner: Self.ownerWindow) {
-                [weak self] ok in
+                [weak self] ok, records in
                 if ok {
+                    Self.pushUndo(records)
                     // Keep the selection on the renamed item, under its new
                     // name, so F2-Enter-F2 flows work.
                     let parent = (path as NSString).deletingLastPathComponent
@@ -549,8 +620,11 @@ final class FilesBloc: @unchecked Sendable {
                 break
             }
             Win32FileOps.delete(entry.path, owner: Self.ownerWindow) {
-                [weak self] ok in
-                if ok { self?.add(.refresh) }
+                [weak self] ok, records in
+                if ok {
+                    Self.pushUndo(records)
+                    self?.add(.refresh)
+                }
             }
 
         case .showProperties(let entry):
@@ -575,6 +649,8 @@ final class FilesBloc: @unchecked Sendable {
                     self.state.selection = [path]
                     self.state.selectionAnchor = path
                     self.state.renaming = path
+                    Self.pushUndo([Win32FileOps.OpRecord(
+                        kind: .new, src: "", dst: path)])
                 }
                 self.add(.refresh)
             }
@@ -600,8 +676,65 @@ final class FilesBloc: @unchecked Sendable {
                 if let made {
                     self.state.selection = [made]
                     self.state.selectionAnchor = made
+                    // tar.exe runs outside the journal; the zip's path is
+                    // the whole record, and undo deletes it.
+                    Self.pushUndo([Win32FileOps.OpRecord(
+                        kind: .new, src: "", dst: made)])
                 }
                 self.add(.refresh)
+            }
+
+        case .undo:
+            guard let entry = Self.undoStack.popLast() else { break }
+            let refresh: (Bool) -> Void = { [weak self] ok in
+                // Refresh even on failure -- a partial undo (three of five
+                // moved back before a conflict was cancelled) has still
+                // changed the folder. Failure also does NOT re-push the
+                // entry: retrying an inverse whose world has shifted under
+                // it does the wrong thing more often than the right one.
+                _ = ok
+                self?.add(.refresh)
+            }
+            // One operation's journal is homogeneous in practice (a paste
+            // is all copies or all moves), but the grouping below does not
+            // depend on it. Kinds map to inverses:
+            switch entry[0].kind {
+            case .copy, .new:
+                // Copies and creations undo the same way: the produced
+                // files go to the recycle bin. No confirmation -- Windows
+                // does not confirm a recycle, and Explorer's own undo-copy
+                // is silent too.
+                Win32FileOps.deleteMany(entry.map(\.dst),
+                                        owner: Self.ownerWindow) { ok, _ in
+                    refresh(ok)
+                }
+            case .move:
+                // Each item back to its OWN folder under its OWN name --
+                // src carries both, dst is where it is now. One operation
+                // over the set, like the move that is being undone.
+                let moves = entry.map { record in
+                    (current: record.dst,
+                     dir: (record.src as NSString).deletingLastPathComponent,
+                     name: (record.src as NSString).lastPathComponent)
+                }
+                Win32FileOps.undoMoves(moves, owner: Self.ownerWindow,
+                                       done: refresh)
+            case .rename:
+                // A rename journal is one record; its inverse is the old
+                // name back onto the new path.
+                let record = entry[0]
+                let oldName = (record.src as NSString).lastPathComponent
+                Win32FileOps.rename(record.dst, to: oldName,
+                                    owner: Self.ownerWindow) { ok, _ in
+                    refresh(ok)
+                }
+            case .delete:
+                // dst is each item's $R... slot in the bin (empty-dst
+                // permanent deletes were filtered at push). The bin's own
+                // restore verb, because it alone retires the $I record.
+                Win32FileOps.restoreFromBin(entry.map(\.dst),
+                                            owner: Self.ownerWindow,
+                                            done: refresh)
             }
 
         case .listed(let directory, let entries, let error):
@@ -611,6 +744,10 @@ final class FilesBloc: @unchecked Sendable {
             state.loading = false
             state.selection = []
             state.selectionAnchor = nil
+            // The filter survives navigation (existing behaviour), so the
+            // walk it implies restarts under the NEW root -- and a stale
+            // walk under the old one dies either way.
+            _startSearch()
             _reproject()
             _warmIcons(entries)
             if state.viewMode.iconSide != 32 {
@@ -627,6 +764,109 @@ final class FilesBloc: @unchecked Sendable {
     /// Folders always sort above files whatever the column, which is what
     /// every file manager does and what keeps a folder findable in a
     /// directory of ten thousand things.
+    /// The subtree walk behind the search box -- Explorer's search, in the
+    /// honest version this window can offer: a cancellable breadth-first
+    /// walk, not an index. Hits stream in batches (the first ones appear
+    /// while deep directories are still being read) and carry their
+    /// RELATIVE path as the name, which is what tells the user where a hit
+    /// lives without a column model this window does not have.
+    ///
+    /// Deliberate limits, each the cheap honest choice: 1000 hits (a search
+    /// that matched a thousand things needs a narrower query, not more
+    /// scrolling), half a million entries scanned (the cycle backstop --
+    /// junction loops exist and FileManager will happily walk one forever),
+    /// and no descent into symlinks or junctions.
+    @ObservationIgnored private var searchTask: Task<Void, Never>?
+    @ObservationIgnored private var searchGeneration = 0
+
+    private func _startSearch() {
+        searchTask?.cancel()
+        searchGeneration += 1
+        state.searchHits = []
+        // Nothing to walk on This PC (not a folder) or a namespace listing
+        // (FileManager cannot enumerate a "::" location or a zip's inside;
+        // the in-memory filter still applies there).
+        guard !state.filter.isEmpty, !state.isThisPC, !state.isNamespace,
+              !state.directory.isEmpty else {
+            state.searching = false
+            _reproject()
+            return
+        }
+        let generation = searchGeneration
+        let root = state.directory
+        let query = state.filter
+        state.searching = true
+        searchTask = Task.detached(priority: .utility) { [weak self] in
+            // The debounce: typing "not" then "notes" should cost one walk,
+            // not two -- the first is cancelled here before it reads a
+            // single directory.
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if Task.isCancelled { return }
+
+            let needle = query.lowercased()
+            let fm = FileManager()
+            let rootDir = root.hasSuffix("\\") ? String(root.dropLast()) : root
+            var queue: [String] = [rootDir]     // relative "" == the root
+            var batch: [Win32FileEntry] = []
+            var found = 0
+            var scanned = 0
+
+            func flush(done: Bool) async {
+                let out = batch
+                batch = []
+                await MainActor.run {
+                    self?.add(.searchBatch(generation: generation, hits: out,
+                                           done: done))
+                }
+            }
+
+            while !queue.isEmpty, found < 1000, scanned < 500_000 {
+                if Task.isCancelled { return }
+                let dir = queue.removeFirst()
+                guard let names = try? fm.contentsOfDirectory(atPath: dir)
+                else { continue }
+                for name in names {
+                    if Task.isCancelled { return }
+                    scanned += 1
+                    let path = dir + "\\" + name
+                    var isDirectory: ObjCBool = false
+                    guard fm.fileExists(atPath: path,
+                                        isDirectory: &isDirectory) else {
+                        continue
+                    }
+                    if isDirectory.boolValue {
+                        // Junction/symlink loops are the classic infinite
+                        // walk; a link's TARGET is elsewhere in the tree
+                        // and will be visited on its own.
+                        if (try? fm.destinationOfSymbolicLink(atPath: path))
+                            == nil {
+                            queue.append(path)
+                        }
+                    }
+                    // Depth-1 rows are the listing's own; the in-memory
+                    // filter already shows those matches.
+                    guard dir != rootDir,
+                          name.lowercased().contains(needle) else { continue }
+                    let attrs = try? fm.attributesOfItem(atPath: path)
+                    let relative = String(path.dropFirst(rootDir.count + 1))
+                    batch.append(Win32FileEntry(
+                        name: relative,
+                        path: path,
+                        isDirectory: isDirectory.boolValue,
+                        size: (attrs?[.size] as? Int64)
+                            ?? Int64((attrs?[.size] as? Int) ?? 0),
+                        modified: attrs?[.modificationDate] as? Date,
+                        ext: isDirectory.boolValue
+                            ? "" : (name as NSString).pathExtension.lowercased()))
+                    found += 1
+                    if batch.count >= 50 { await flush(done: false) }
+                    if found >= 1000 { break }
+                }
+            }
+            await flush(done: true)
+        }
+    }
+
     private func _reproject() {
         var rows = state.entries
         if !state.filter.isEmpty {
@@ -646,6 +886,12 @@ final class FilesBloc: @unchecked Sendable {
                                     FilesBloc.typeLabel(b)) == .orderedAscending
             }
             return ascending ? order : !order
+        }
+        // Subtree hits ride below the folder's own matches, in discovery
+        // order -- they are named by relative path, so sorting them among
+        // the plain names would interleave apples and paths.
+        if !state.filter.isEmpty, !state.searchHits.isEmpty {
+            rows.append(contentsOf: state.searchHits)
         }
         state.visible = rows
         state.visibleByPath = Dictionary(rows.map { ($0.path, $0) },
@@ -667,8 +913,16 @@ final class FilesBloc: @unchecked Sendable {
     /// the shell has finished -- a verb with a dialog does not return until
     /// the user has answered it.
     private func runShellVerb(_ verb: String, on entry: Win32FileEntry) {
-        let session = Win32ShellMenu(path: entry.path,
-                                     location: state.directory,
+        runShellVerb(verb, path: entry.path, location: state.directory)
+    }
+
+    /// The general form: `location` is the namespace folder the item is a
+    /// child of (see Win32ShellMenu.init), which for the Quick Access verbs
+    /// is the QA folder itself -- "unpinfromhome" exists only on the QA
+    /// child, never on the folder addressed by its own path.
+    func runShellVerb(_ verb: String, path: String, location: String?) {
+        let session = Win32ShellMenu(path: path,
+                                     location: location,
                                      owner: Self.ownerWindow)
         session?.items(.full) { [weak self] rows in
             guard let row = rows.first(where: {
@@ -676,8 +930,21 @@ final class FilesBloc: @unchecked Sendable {
                 session?.close()
                 return
             }
-            session?.invoke(.full, row.id) { self?.add(.refresh) }
+            session?.invoke(.full, row.id) {
+                self?.add(.refresh)
+                self?.reloadPins()
+            }
             session?.close()
+        }
+    }
+
+    /// Re-reads the Quick Access pin set, off-thread. Hangs off every shell
+    /// verb completion -- a pin or unpin IS a shell verb, and nothing else
+    /// announces that one happened.
+    func reloadPins() {
+        Task.detached { [weak self] in
+            let pins = Win32Files.quickAccessPins()
+            await MainActor.run { self?.add(.pinsLoaded(pins)) }
         }
     }
 
@@ -779,8 +1046,17 @@ final class FilesBloc: @unchecked Sendable {
             // extension still warms the key for both.
             guard entry.isFileSystem else { continue }
             let key = FilesBloc.iconKey(entry, side: side)
-            guard seen.insert(key).inserted else { continue }
-            icons.ensure(key: key, path: entry.path, size: side)
+            if seen.insert(key).inserted {
+                icons.ensure(key: key, path: entry.path, size: side)
+            }
+            // The thumbnail rides BEHIND the type icon on the same serial
+            // queue: the type icon is the instant answer every row of that
+            // type shares, the thumbnail replaces it per file as the decode
+            // lands (IconCache dedups, so re-listing costs nothing).
+            if let thumb = FilesBloc.thumbKey(entry, side: side) {
+                icons.ensure(thumbnailKey: thumb, path: entry.path,
+                             size: side)
+            }
         }
     }
 
@@ -790,6 +1066,28 @@ final class FilesBloc: @unchecked Sendable {
     static func iconKey(_ entry: Win32FileEntry, side: Int = 32) -> String {
         let base = entry.isDirectory ? "\u{1}dir" : "\u{1}ext:\(entry.ext)"
         return side == 32 ? base : "\(base)@\(side)"
+    }
+
+    /// The types whose rows show the FILE, not the type: what the shell has
+    /// thumbnail handlers for out of the box. A gate rather than asking the
+    /// factory about everything -- SIIGBF_THUMBNAILONLY does fail cleanly
+    /// for a .txt, but only after touching the file, and a listing of ten
+    /// thousand sources should not pay ten thousand misses to learn what
+    /// this set already says.
+    private static let thumbnailExts: Set<String> = [
+        "jpg", "jpeg", "png", "gif", "bmp", "webp", "tif", "tiff",
+        "heic", "heif", "avif", "jfif",
+        "mp4", "mov", "avi", "mkv", "wmv", "webm", "m4v", "mpg", "mpeg",
+    ]
+
+    /// The thumbnail texture key for an entry, or nil where a thumbnail is
+    /// not on offer. Per FILE (the path is the key), per raster edge, and
+    /// only for real files -- a zip member or a recycled slot has nothing
+    /// the factory could open.
+    static func thumbKey(_ entry: Win32FileEntry, side: Int = 32) -> String? {
+        guard !entry.isDirectory, entry.isFileSystem,
+              thumbnailExts.contains(entry.ext) else { return nil }
+        return "\u{1}thumb:\(entry.path)@\(side)"
     }
 }
 
