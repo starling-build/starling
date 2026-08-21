@@ -667,6 +667,8 @@ targets += [
             // listener — the one WinRT API the shell consumes (see
             // flwin32_notifications.c for why raw ABI rather than C++/WinRT).
             .linkedLibrary("runtimeobject"),
+            // WIC, for decoding the notification listener's app logos.
+            .linkedLibrary("windowscodecs"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.

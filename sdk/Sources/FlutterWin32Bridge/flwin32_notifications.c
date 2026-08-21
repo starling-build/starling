@@ -50,6 +50,9 @@
 #include <windows.ui.notifications.h>
 #include <windows.ui.notifications.management.h>
 #include <windows.applicationmodel.h>
+#include <windows.storage.streams.h>
+#include <shcore.h>
+#include <wincodec.h>
 
 #include "include/FlutterWin32Bridge.h"
 
@@ -75,6 +78,16 @@ static const IID kIID_ListenerStatics =
     {0xff6123cf, 0x4386, 0x4aa3, {0xb7, 0x3d, 0xb8, 0x04, 0xe5, 0xb6, 0x3b, 0x23}};
 static const IID kIID_IAsyncInfo =
     {0x00000036, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+static const IID kIID_IStream =
+    {0x0000000c, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+static const CLSID kCLSID_WICImagingFactory =
+    {0xcacaf262, 0x9370, 0x4615, {0xa1, 0x3b, 0x9f, 0x55, 0x39, 0xda, 0x4c, 0x0a}};
+static const IID kIID_IWICImagingFactory =
+    {0xec5ec8a9, 0xc395, 0x4314, {0x9c, 0x77, 0x54, 0xd7, 0xa9, 0x35, 0xff, 0x70}};
+/* 32bppPRGBA: premultiplied RGBA, byte-for-byte what the engine's texture
+ * path wants (see flwin32_icon.c) -- WIC does the swizzle, not us. */
+static const GUID kGUID_WICPixelFormat32bppPRGBA =
+    {0x3cc4a650, 0xa527, 0x4d37, {0xa9, 0x16, 0x31, 0x42, 0xc7, 0xeb, 0xed, 0xba}};
 
 static Listener* g_listener; /* held for the process; agile, MTA */
 
@@ -289,4 +302,134 @@ int32_t flwin32_notification_remove(uint32_t id) {
 int32_t flwin32_notifications_clear(void) {
     if (g_listener == NULL && !flwin32_notifications_init()) return 0;
     return SUCCEEDED(g_listener->lpVtbl->ClearNotifications(g_listener)) ? 1 : 0;
+}
+
+/* The notifying app's logo, as premultiplied RGBA pixels the engine's
+ * texture path takes as-is. Looked up by toast id (one enumeration per
+ * call -- the Swift side caches per app, so this runs once per app, not
+ * once per card). malloc'd; ownership passes to the caller, and
+ * flwin32_host_register_pixels' texture takes it from there.
+ *
+ * The stream plumbing is the one place raw WinRT threatens to sprawl and
+ * does not: OpenReadAsync's operation arrives typed, and
+ * CreateStreamOverRandomAccessStream (shcore) turns the WinRT stream into a
+ * classic IStream that WIC decodes directly -- no IBuffer, no ReadAsync. */
+int32_t flwin32_notification_app_icon(uint32_t toast_id, int32_t size,
+                                      uint8_t** out_pixels,
+                                      int32_t* out_w, int32_t* out_h) {
+    if (out_pixels == NULL || out_w == NULL || out_h == NULL) return 0;
+    *out_pixels = NULL;
+    if (g_listener == NULL && !flwin32_notifications_init()) return 0;
+
+    NotifsAsync* op = NULL;
+    if (FAILED(g_listener->lpVtbl->GetNotificationsAsync(
+            g_listener, NotificationKinds_Toast, &op))) {
+        return 0;
+    }
+    if (wait_async((IUnknown*)op, 3000) != Completed) {
+        op->lpVtbl->Release(op);
+        return 0;
+    }
+    NotifsView* view = NULL;
+    HRESULT hr = op->lpVtbl->GetResults(op, &view);
+    op->lpVtbl->Release(op);
+    if (FAILED(hr) || view == NULL) return 0;
+
+    int32_t ok = 0;
+    unsigned int count = 0;
+    view->lpVtbl->get_Size(view, &count);
+    for (unsigned int i = 0; i < count && !ok; i++) {
+        UserNotification* un = NULL;
+        if (FAILED(view->lpVtbl->GetAt(view, i, &un)) || un == NULL) continue;
+        unsigned int id = 0;
+        un->lpVtbl->get_Id(un, &id);
+        if (id != toast_id) {
+            un->lpVtbl->Release(un);
+            continue;
+        }
+
+        AppInfo* ai = NULL;
+        AppDisplayInfo* di = NULL;
+        __x_ABI_CWindows_CStorage_CStreams_CIRandomAccessStreamReference* ref = NULL;
+        if (SUCCEEDED(un->lpVtbl->get_AppInfo(un, &ai)) && ai != NULL &&
+            SUCCEEDED(ai->lpVtbl->get_DisplayInfo(ai, &di)) && di != NULL) {
+            struct __x_ABI_CWindows_CFoundation_CSize want;
+            want.Width = (FLOAT)size;
+            want.Height = (FLOAT)size;
+            di->lpVtbl->GetLogo(di, want, &ref);
+        }
+        if (ref != NULL) {
+            __FIAsyncOperation_1_Windows__CStorage__CStreams__CIRandomAccessStreamWithContentType* open_op = NULL;
+            if (SUCCEEDED(ref->lpVtbl->OpenReadAsync(ref, &open_op)) &&
+                wait_async((IUnknown*)open_op, 3000) == Completed) {
+                __x_ABI_CWindows_CStorage_CStreams_CIRandomAccessStreamWithContentType* stream = NULL;
+                if (SUCCEEDED(open_op->lpVtbl->GetResults(open_op, &stream)) &&
+                    stream != NULL) {
+                    IStream* istream = NULL;
+                    if (SUCCEEDED(CreateStreamOverRandomAccessStream(
+                            (IUnknown*)stream, &kIID_IStream,
+                            (void**)&istream))) {
+                        IWICImagingFactory* wic = NULL;
+                        if (SUCCEEDED(CoCreateInstance(
+                                &kCLSID_WICImagingFactory, NULL,
+                                CLSCTX_INPROC_SERVER, &kIID_IWICImagingFactory,
+                                (void**)&wic))) {
+                            IWICBitmapDecoder* decoder = NULL;
+                            if (SUCCEEDED(wic->lpVtbl->CreateDecoderFromStream(
+                                    wic, istream, NULL,
+                                    WICDecodeMetadataCacheOnDemand,
+                                    &decoder))) {
+                                IWICBitmapFrameDecode* frame = NULL;
+                                if (SUCCEEDED(decoder->lpVtbl->GetFrame(
+                                        decoder, 0, &frame))) {
+                                    IWICBitmapSource* converted = NULL;
+                                    if (SUCCEEDED(WICConvertBitmapSource(
+                                            &kGUID_WICPixelFormat32bppPRGBA,
+                                            (IWICBitmapSource*)frame,
+                                            &converted))) {
+                                        UINT w = 0, h = 0;
+                                        converted->lpVtbl->GetSize(converted,
+                                                                   &w, &h);
+                                        if (w > 0 && h > 0 && w <= 512 &&
+                                            h <= 512) {
+                                            UINT stride = w * 4;
+                                            UINT bytes = stride * h;
+                                            uint8_t* pixels =
+                                                (uint8_t*)malloc(bytes);
+                                            if (pixels != NULL &&
+                                                SUCCEEDED(converted->lpVtbl
+                                                    ->CopyPixels(
+                                                        converted, NULL,
+                                                        stride, bytes,
+                                                        pixels))) {
+                                                *out_pixels = pixels;
+                                                *out_w = (int32_t)w;
+                                                *out_h = (int32_t)h;
+                                                ok = 1;
+                                            } else {
+                                                free(pixels);
+                                            }
+                                        }
+                                        converted->lpVtbl->Release(converted);
+                                    }
+                                    frame->lpVtbl->Release(frame);
+                                }
+                                decoder->lpVtbl->Release(decoder);
+                            }
+                            wic->lpVtbl->Release(wic);
+                        }
+                        istream->lpVtbl->Release(istream);
+                    }
+                    stream->lpVtbl->Release(stream);
+                }
+                if (open_op != NULL) open_op->lpVtbl->Release(open_op);
+            }
+            ref->lpVtbl->Release(ref);
+        }
+        if (di != NULL) di->lpVtbl->Release(di);
+        if (ai != NULL) ai->lpVtbl->Release(ai);
+        un->lpVtbl->Release(un);
+    }
+    view->lpVtbl->Release(view);
+    return ok;
 }

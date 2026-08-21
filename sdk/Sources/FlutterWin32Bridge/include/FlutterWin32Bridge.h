@@ -991,6 +991,11 @@ int32_t flwin32_notifications_read(
     void* user);
 int32_t flwin32_notification_remove(uint32_t id);
 int32_t flwin32_notifications_clear(void);
+// The notifying app's logo as premultiplied RGBA, malloc'd -- feed it to
+// flwin32_host_register_pixels, which takes ownership. Blocking.
+int32_t flwin32_notification_app_icon(uint32_t toast_id, int32_t size,
+                                      uint8_t** out_pixels,
+                                      int32_t* out_w, int32_t* out_h);
 
 // ── installed applications ──────────────────────────────────────────────────
 //

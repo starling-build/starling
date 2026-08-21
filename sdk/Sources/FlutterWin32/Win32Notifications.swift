@@ -58,6 +58,16 @@ public enum Win32Notifications {
         flwin32_notification_remove(id) != 0
     }
 
+    /// The notifying app's logo as engine-ready pixels, or nil when the app
+    /// has none to give. One store enumeration per call — cache per app.
+    public static func appIcon(toastId: UInt32, size: Int = 32) -> Win32Icon.Bitmap? {
+        var pixels: UnsafeMutablePointer<UInt8>? = nil
+        var w: Int32 = 0, h: Int32 = 0
+        guard flwin32_notification_app_icon(toastId, Int32(size), &pixels, &w, &h) != 0,
+              let p = pixels else { return nil }
+        return Win32Icon.Bitmap(pixels: p, width: Int(w), height: Int(h))
+    }
+
     /// The native panel's "Clear all", the real one — per-id removals,
     /// because the listener's bulk ClearNotifications reports success from a
     /// desktop process while clearing nothing (verified against the store:

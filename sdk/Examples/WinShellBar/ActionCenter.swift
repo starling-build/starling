@@ -65,6 +65,11 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     /// the NotificationChanged event: the event needs a hand-written COM
     /// object, and a panel that is usually hidden has no use for it.
     private var toasts: [Win32Toast] = []
+    /// App-logo textures, by app display name. Registered once per app —
+    /// the C side enumerates the store per fetch, so the cache is the
+    /// difference between one call per app and one per card per poll.
+    private var appIcons: [String: Int] = [:]
+    private var appIconTried: Set<String> = []
     /// What the pointer is over — the interactive parts answer hover the
     /// way the native panel's do. Arithmetic off the root Listener, one
     /// rectangle set for drawing and hit-testing both.
@@ -121,8 +126,30 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         Task.detached { [weak self] in
             let items = Win32Notifications.read()
             await MainActor.run {
-                guard let self, items != self.toasts else { return }
-                self.setState { self.toasts = items }
+                guard let self else { return }
+                if items != self.toasts {
+                    self.setState { self.toasts = items }
+                }
+                self.ensureAppIcons()
+            }
+        }
+    }
+
+    /// One logo fetch per app ever — rasterized off the UI thread,
+    /// registered on it, the IconCache bargain in miniature.
+    private func ensureAppIcons() {
+        for toast in toasts where !appIconTried.contains(toast.app) {
+            appIconTried.insert(toast.app)
+            let id = toast.id
+            let app = toast.app
+            Task.detached { [weak self] in
+                guard let bitmap = Win32Notifications.appIcon(toastId: id, size: 32) else { return }
+                await MainActor.run {
+                    guard let self else { bitmap.discard(); return }
+                    if let tex = Win32WindowedHost.host?.registerPixels(bitmap) {
+                        self.setState { self.appIcons[app] = tex }
+                    }
+                }
             }
         }
     }
@@ -171,25 +198,57 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     private var calHeader: AcRect {
         AcRect(x: 0, y: calPanel.y, w: kAcWidth, h: kAcCalCollapsedH)
     }
-    /// The toast cards: fixed-height cards down the notifications panel,
-    /// newest first, capped at what fits — the "+ n more" line stands in for
-    /// the scroll this surface does not have yet.
-    private let cardH = 96.0
+    /// The list, laid out the way the native panel lays it: one header per
+    /// app (icon and name), that app's cards beneath it, newest app first —
+    /// capped at what fits, with "+ n more" standing in for the scroll this
+    /// surface does not have yet.
+    private let cardH = 76.0
     private let cardGap = 8.0
+    private let headerH = 30.0
 
-    private var visibleCards: Int {
-        let avail = notifPanel.h - 52 - 26
-        return max(0, min(toasts.count, Int(avail / (cardH + cardGap))))
+    private enum RowKind {
+        case appHeader(String)
+        /// Index into `toasts`.
+        case card(Int)
+    }
+    private struct ListRow {
+        let y: Double, h: Double
+        let kind: RowKind
     }
 
-    private func cardRect(_ i: Int) -> AcRect {
-        AcRect(x: 12, y: 52 + Double(i) * (cardH + cardGap),
-               w: kAcWidth - 24, h: cardH)
+    /// Rows that fit, and how many cards did not.
+    private func listRows() -> (rows: [ListRow], hidden: Int) {
+        var order: [String] = []
+        var byApp: [String: [Int]] = [:]
+        for (i, t) in toasts.enumerated() {
+            if byApp[t.app] == nil { order.append(t.app) }
+            byApp[t.app, default: []].append(i)
+        }
+        var rows: [ListRow] = []
+        var y = 48.0
+        var shown = 0
+        let limit = notifPanel.h - 26
+        outer: for app in order {
+            if y + headerH > limit { break }
+            rows.append(ListRow(y: y, h: headerH, kind: .appHeader(app)))
+            y += headerH
+            for i in byApp[app] ?? [] {
+                if y + cardH > limit { break outer }
+                rows.append(ListRow(y: y, h: cardH, kind: .card(i)))
+                y += cardH + cardGap
+                shown += 1
+            }
+            y += 4
+        }
+        return (rows, toasts.count - shown)
     }
 
-    private func cardCloseRect(_ i: Int) -> AcRect {
-        let r = cardRect(i)
-        return AcRect(x: r.x + r.w - 32, y: r.y + 6, w: 26, h: 26)
+    private func cardRect(_ row: ListRow) -> AcRect {
+        AcRect(x: 12, y: row.y, w: kAcWidth - 24, h: row.h)
+    }
+
+    private func cardCloseRect(_ row: ListRow) -> AcRect {
+        AcRect(x: kAcWidth - 44, y: row.y + 6, w: 26, h: 26)
     }
 
     private var clearAllRect: AcRect {
@@ -265,9 +324,10 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         if calendarExpanded, calNext.contains(x, y) { return .next }
         if calHeader.contains(x, y) { return .header }
         if !toasts.isEmpty, clearAllRect.contains(x, y) { return .clearAll }
-        for i in 0..<visibleCards {
-            if cardCloseRect(i).contains(x, y) { return .cardClose(i) }
-            if cardRect(i).contains(x, y) { return .card(i) }
+        for row in listRows().rows {
+            guard case .card(let i) = row.kind else { continue }
+            if cardCloseRect(row).contains(x, y) { return .cardClose(i) }
+            if cardRect(row).contains(x, y) { return .card(i) }
         }
         return nil
     }
@@ -277,7 +337,9 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             clearAllToasts()
             return
         }
-        for i in 0..<visibleCards where cardCloseRect(i).contains(x, y) {
+        for row in listRows().rows {
+            guard case .card(let i) = row.kind,
+                  cardCloseRect(row).contains(x, y) else { continue }
             removeToast(toasts[i].id)
             return
         }
@@ -330,9 +392,9 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         return f.string(from: t.time)
     }
 
-    private func toastCard(_ i: Int, _ p: WinPalette) -> Widget {
+    private func toastCard(_ row: ListRow, _ i: Int, _ p: WinPalette) -> Widget {
         let toast = toasts[i]
-        let r = cardRect(i)
+        let r = cardRect(row)
         let hoveredHere: Bool = {
             switch hovered {
             case .card(let j), .cardClose(let j): return j == i
@@ -347,30 +409,27 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                             ClipRRect(borderRadius: BorderRadius.circular(5)) {
                                 ColoredBox(color: hoveredHere ? p.buttonHover : p.button) {
                                     Stack(alignment: Alignment.topLeft) {
-                                        Positioned(left: 12, top: 8, width: r.w - 90, height: 16) {
-                                            Text(toast.app,
-                                                 style: TextStyle(color: p.subInk, fontSize: 11),
-                                                 overflow: .ellipsis, maxLines: 1)
-                                        }
-                                        Positioned(left: r.w - 76, top: 8, width: 36, height: 16) {
-                                            Text(toastTimeText(toast),
-                                                 style: TextStyle(color: p.subInk, fontSize: 11))
-                                        }
-                                        Positioned(left: 12, top: 28, width: r.w - 24, height: 18) {
+                                        Positioned(left: 12, top: 10, width: r.w - 96, height: 18) {
                                             Text(toast.title,
                                                  style: TextStyle(color: p.ink, fontSize: 13,
                                                                   fontWeight: .w600),
                                                  overflow: .ellipsis, maxLines: 1)
                                         }
-                                        Positioned(left: 12, top: 48, width: r.w - 24, height: 40) {
+                                        if !hoveredHere {
+                                            Positioned(left: r.w - 52, top: 12, width: 40, height: 16) {
+                                                Text(toastTimeText(toast),
+                                                     style: TextStyle(color: p.subInk, fontSize: 11))
+                                            }
+                                        }
+                                        Positioned(left: 12, top: 32, width: r.w - 24, height: 36) {
                                             Text(toast.body,
                                                  style: TextStyle(color: p.subInk, fontSize: 12),
                                                  overflow: .ellipsis, maxLines: 2)
                                         }
-                                        // The dismiss X, on the card the pointer is over —
-                                        // the native card's own affordance.
+                                        // The dismiss X, where the time was —
+                                        // the native card's own swap.
                                         if hoveredHere {
-                                            Positioned(left: r.w - 32, top: 6, width: 26, height: 26) {
+                                            Positioned(left: r.w - 44, top: 6, width: 26, height: 26) {
                                                 ClipRRect(borderRadius: BorderRadius.circular(4)) {
                                                     ColoredBox(color: hovered == .cardClose(i)
                                                                    ? p.rowHover : Color(0x00000000)) {
@@ -392,10 +451,24 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         }
     }
 
+    /// One app's header row: its logo and its name, the native section head.
+    private func appHeaderRow(_ row: ListRow, _ app: String, _ p: WinPalette) -> Widget {
+        Positioned(left: 16, top: row.y, width: kAcWidth - 32, height: row.h) {
+            Row(crossAxisAlignment: .center, spacing: 8) {
+                if let tex = appIcons[app] {
+                    SizedBox(width: 16, height: 16) {
+                        TextureWidget(textureId: tex)
+                    }
+                }
+                Text(app, style: TextStyle(color: p.subInk, fontSize: 12),
+                     overflow: .ellipsis, maxLines: 1)
+            }
+        }
+    }
+
     private func notificationsBody(_ p: WinPalette) -> Widget {
         let emptyY = notifPanel.h * 0.42
-        let shown = visibleCards
-        let hidden = toasts.count - shown
+        let list = listRows()
         return Stack(alignment: Alignment.topLeft) {
             // Header: the title, the do-not-disturb bell (still a stub), and
             // "Clear all" — live exactly when there is something to clear.
@@ -429,14 +502,19 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                     }
                 }
             } else {
-                for i in 0..<shown {
-                    toastCard(i, p)
+                for row in list.rows {
+                    switch row.kind {
+                    case .appHeader(let app):
+                        appHeaderRow(row, app, p)
+                    case .card(let i):
+                        toastCard(row, i, p)
+                    }
                 }
-                if hidden > 0 {
-                    Positioned(left: 0, top: 52 + Double(shown) * (cardH + cardGap),
+                if list.hidden > 0 {
+                    Positioned(left: 0, top: notifPanel.h - 24,
                                width: kAcWidth, height: 18) {
                         Center {
-                            Text("+ \(hidden) more",
+                            Text("+ \(list.hidden) more",
                                  style: TextStyle(color: p.subInk, fontSize: 12))
                         }
                     }
