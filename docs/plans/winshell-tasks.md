@@ -151,6 +151,14 @@ desktop branch of the show, the same call and the same reason as the one
 in set_visible. A nudge from outside (SetWindowPos by one pixel) was what
 proved the tree was fine and only the frame was missing.
 
+**Re-run on the FINAL merged tree** (the second pass landed mid-gate):
+first frame correct cold with explorer absent, the dragged position
+remembered across the restart, the rubber band drawing live and taking
+the icon it swept, F2 opening the inline rename with the basename in the
+field — then explorer restored, four surfaces alive, the shortcut
+untouched. So the verdict covers what is actually on the branch, not the
+tree the gate started against.
+
 Two harness lessons, both paid for in this run: an injected DRAG needs
 `/rl HIGHEST` **and** a hidden wscript wrapper — a bare
 `schtasks /tr powershell ...` opens a console that takes the foreground
