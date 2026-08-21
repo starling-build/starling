@@ -90,18 +90,24 @@ that method, not of the code.
 
 ## Follow-ups, in value order
 
-1. **Internal frame timing: BUILT.** `STARLING_FRAME_LOG=1` logs one
-   stderr line per composited frame with the build / layout / paint /
-   composite / finalize split (Adapter.swift's frame pipeline). It
-   answered the hover question same-day. Still open: the ENGINE side --
-   raster-thread time and present pacing -- which is the idle-present
-   question's plumbing.
+1. **Internal frame timing: BUILT, both halves.** `STARLING_FRAME_LOG=1`
+   logs the UI thread's build / layout / paint / composite / finalize
+   split per composited frame (Adapter.swift); `STARLING_PRESENT_LOG=1`
+   (engine 319173a327f) logs every present with SwapBuffers duration, gap
+   since the previous present, and a raw QPC timestamp external tooling
+   can correlate against. Findings: after true idle a click's frame
+   presents within milliseconds (the ~600ms idle-repaint mystery was GDI
+   capture staleness -- deferred item closed); swap itself is ~350us and
+   never vsync-blocked; hover-driven repaints present every 2-5 vsyncs
+   (p50 46ms request-to-glass), which is the documented ~40ms
+   frame-dispatch latency measured from the present side.
 2. **The full-window rebuild (~4ms on a big folder) is the unit cost**
    behind column drags and selection clicks. Isolating the listing (or
    headers+listing) into its own rebuild scope would cut drag cost by
    whatever the chrome+sidebar share is; measure before assuming it is
    worth it.
-3. **Present-side smoothness is unmeasured** — CPU says nothing about
-   frame pacing, and GDI capture cannot see the GL view. Folded into
-   follow-up 1: one piece of engine instrumentation answers the frame
-   pacing, the idle-present question, and the hover attribution above.
+3. **Frame-dispatch latency is now the whole story.** With presents
+   prompt after idle and swap sub-millisecond, the only latency left on
+   the table is the ~40ms request-to-begin-frame dispatch (task list,
+   deferred section) -- and STARLING_PRESENT_LOG's gap histogram is the
+   smoothness gate that scheduler surgery was waiting for.

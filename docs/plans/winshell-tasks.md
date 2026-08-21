@@ -155,12 +155,18 @@ question below needs.
       five queue hops (documented in engine commit e077473108b). Worth
       ~25-30ms off every first paint, but it is upstream-forked scheduler
       surgery with animation-jank risk — needs its own pass with
-      smoothness validation.
-- [ ] Idle present-vs-capture ambiguity: whether the ~600ms idle repaint
-      delay is real glass latency or GDI screen-capture staleness was left
-      undetermined (PrintWindow cannot see the GL view; the cursor rides a
-      hardware overlay). Settling it needs present statistics from inside
-      the engine.
+      smoothness validation. Present-side confirmation (engine 319173a327f,
+      STARLING_PRESENT_LOG): hover-driven repaints present every 2-5
+      vsyncs, p50 46ms request-to-glass — the dispatch latency wearing its
+      runtime face. The smoothness validation the fix needs can now be
+      read off gap_us histograms.
+- [x] Idle present-vs-capture ambiguity: SETTLED (engine 319173a327f).
+      STARLING_PRESENT_LOG=1 logs every present with a QPC timestamp in
+      the same counter external tooling reads; five idle-then-click probes
+      showed the click's frame presenting within milliseconds of the
+      input after 8s of true idle. The ~600ms was GDI screen-capture
+      staleness. Screenshots of the GL view lag reality; the log is the
+      truth now.
 
 ## Hygiene
 
