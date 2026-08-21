@@ -172,6 +172,13 @@ int32_t flwin32_ns_field(FlWin32NsList* list, int32_t index, int32_t field,
 int32_t flwin32_ns_attrs(FlWin32NsList* list, int32_t index,
                          int32_t* is_folder, int32_t* is_filesystem,
                          int64_t* size, int64_t* mtime_unix);
+// One location's own display name — "Recycle Bin", "Network", and whatever
+// the machine's language calls them. flwin32_file_display_name cannot answer
+// this: SHGetFileInfoW parses a PATH, and a ::{CLSID} is not one. Resolves
+// the item and asks it, so it is right for any parsing name. Returns 0 when
+// the location does not resolve.
+int32_t flwin32_ns_display_name(const char* location, char* out,
+                                int32_t out_size);
 
 // The ShellNew templates behind Explorer's New submenu, one per line:
 // "ext<TAB>type name<TAB>kind<TAB>source" — kind "null" (empty file),
@@ -326,7 +333,18 @@ typedef struct FlWin32ShellMenu FlWin32ShellMenu;
 // rather than the item's. `extended` is Shift+right-click (CMF_EXTENDEDVERBS).
 // `owner` is the window any dialog a verb opens will be parented to. Returns
 // immediately; nothing is queried yet.
+//
+// `location` is the namespace FOLDER `path` was listed from, or NULL for the
+// ordinary case where `path` addresses itself. It is needed for a Recycle Bin
+// item and harmless everywhere else: a recycled item's parsing name is its
+// raw "C:\$Recycle.Bin\…\$R…" slot, which re-parses to the FILESYSTEM file
+// and hands back that file's menu (Open, Edit in Notepad, Cut) instead of the
+// bin's (Restore, Cut, Delete, Properties) -- and the bin folder implements no
+// ParseDisplayName, so no string spells the item either. Given `location` the
+// session finds the item the way the listing did, by enumerating. Pass the
+// listing's own directory whenever the row came from flwin32_ns_list.
 FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
+                                         const char* location,
                                          int32_t background,
                                          int32_t extended,
                                          uint64_t owner);

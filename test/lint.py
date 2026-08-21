@@ -93,7 +93,7 @@ def case_blocks(path: Path, selector: str) -> dict[str, str]:
         for label in labels:
             blocks[label] = blocks.get(label, "") + body
 
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if re.match(rf'case\s+{re.escape(selector)}\s+in\b', stripped):
             in_block = True
@@ -131,7 +131,7 @@ def install_recipe_names(path: Path) -> set[str]:
 def swift_case_strings(path: Path, func_signature: str) -> set[str]:
     """String literals of `case "x":` inside one Swift function — used to read
     a vocabulary out of the code that owns it, instead of restating it here."""
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     start = text.find(func_signature)
     if start < 0:
         return set()
@@ -247,7 +247,7 @@ def check_catalog() -> None:
     # how mpv/vlc/libreoffice/obs became installable-but-invisible.
     unlisted = set()
     m = re.search(r'^UNLISTED="([^"]*)"',
-                  (REPO / "build/app-install.sh").read_text(), re.M)
+                  (REPO / "build/app-install.sh").read_text(encoding="utf-8"), re.M)
     if m:
         unlisted = set(m.group(1).split())
     orphans = install_recipes - catalog_installs - unlisted
@@ -288,12 +288,12 @@ def check_wayland_callbacks() -> None:
     """
     check = "wayland-callbacks"
     header = REPO / "shell/Sources/WaylandServer/include/wayland_server.h"
-    declared = set(re.findall(r"\bwayland_server_on_(\w+)\s*\(", header.read_text()))
+    declared = set(re.findall(r"\bwayland_server_on_(\w+)\s*\(", header.read_text(encoding="utf-8")))
     if not declared:
         fail(check, f"no wayland_server_on_* declarations found in {header}")
         return
 
-    swift = " ".join(p.read_text() for p in
+    swift = " ".join(p.read_text(encoding="utf-8") for p in
                      (REPO / "shell/Sources/DesktopShellApp").rglob("*.swift"))
     for name in sorted(declared):
         full = f"wayland_server_on_{name}"
@@ -331,7 +331,7 @@ def check_engine_header_mirror() -> None:
         note(check, "engine/ or sdk/ checkout not present — skipped "
                     "(run bootstrap.sh)")
         return
-    if engine_header.read_text() != sdk_header.read_text():
+    if engine_header.read_text(encoding="utf-8") != sdk_header.read_text(encoding="utf-8"):
         fail(check, "fl_drm_view.h differs between the engine and the sdk "
                     "copy Swift imports — copy the engine's over "
                     "sdk/Sources/FlutterDRMBridge/include/engine/")
@@ -339,8 +339,8 @@ def check_engine_header_mirror() -> None:
     ok("fl_drm_view.h engine/sdk copies identical")
 
     declared = set(re.findall(r"\bfl_drm_view_(set_\w*_callback)\s*\(",
-                              sdk_header.read_text()))
-    swift = " ".join(p.read_text() for p in
+                              sdk_header.read_text(encoding="utf-8")))
+    swift = " ".join(p.read_text(encoding="utf-8") for p in
                      (REPO / "shell/Sources/DesktopShellApp").rglob("*.swift"))
     for name in sorted(declared):
         full = f"fl_drm_view_{name}"
@@ -437,11 +437,11 @@ def check_result_builders() -> None:
     overlay = REPO / "sdk/Sources/Flutter/Widgets/ResultBuilders.swift"
     if not overlay.exists():
         return
-    src = overlay.read_text()
+    src = overlay.read_text(encoding="utf-8")
 
     sources = [p for p in (REPO / "sdk/Sources/Flutter").rglob("*.swift")
                if p != overlay]
-    corpus = {p: p.read_text() for p in sources}
+    corpus = {p: p.read_text(encoding="utf-8") for p in sources}
 
     def ported_signatures(cls: str, member: str) -> list[dict[str, tuple[str, str]]]:
         """Parameter maps of every `init` (or named static func) declared on `cls`."""
@@ -649,7 +649,7 @@ def check_window_chrome() -> None:
     check = "window-chrome"
     shell_src = REPO / "shell/Sources/DesktopShellApp"
     widget = shell_src / "Window/DesktopWindow.swift"
-    src = _strip_swift_noise(widget.read_text())
+    src = _strip_swift_noise(widget.read_text(encoding="utf-8"))
 
     m = re.search(r"\n    init\s*\(", src)
     if not m:
@@ -673,7 +673,7 @@ def check_window_chrome() -> None:
     for path in sorted(shell_src.rglob("*.swift")):
         if path == widget:
             continue
-        text = _strip_swift_noise(path.read_text())
+        text = _strip_swift_noise(path.read_text(encoding="utf-8"))
         for hit in re.finditer(r"\bDesktopWindow\s*\(", text):
             passed, _ = _top_level_labels(text, text.index("(", hit.start()))
             # Name the call site by its enclosing func, for the exemption
@@ -725,7 +725,7 @@ def check_gpu_offload() -> None:
 
     def literals(path: Path, pattern: str) -> set[str]:
         try:
-            return set(re.findall(pattern, path.read_text()))
+            return set(re.findall(pattern, path.read_text(encoding="utf-8")))
         except OSError:
             return set()
 
@@ -790,7 +790,7 @@ def check_script_syntax() -> None:
         # Check each script with the shell it actually declares: run-desktop.sh
         # and wechat-run.sh are bash and use arrays, which `sh -n` (dash)
         # rejects for syntax it simply does not have.
-        shebang = script.read_text().split("\n", 1)[0]
+        shebang = script.read_text(encoding="utf-8").split("\n", 1)[0]
         shell = "bash" if "bash" in shebang else "sh"
         result = subprocess.run([shell, "-n", str(script)],
                                 capture_output=True, text=True)

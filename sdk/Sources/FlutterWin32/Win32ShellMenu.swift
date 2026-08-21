@@ -79,9 +79,17 @@ public final class Win32ShellMenu {
     /// Shift+right-click. `owner` is the window a verb's dialog is parented
     /// to; a properties sheet with no owner is a window the user can lose
     /// behind the one they asked it from.
-    public init?(path: String, background: Bool = false, extended: Bool = false,
+    ///
+    /// `location` is the namespace folder the row was LISTED from, and it is
+    /// what makes the Recycle Bin's own menu (Restore, Cut, Delete,
+    /// Properties) reachable: a recycled item's path is its raw `$R…` slot,
+    /// which re-parses to the filesystem file and yields that file's menu
+    /// instead. nil for an ordinary listing, where a path addresses itself.
+    public init?(path: String, location: String? = nil,
+                 background: Bool = false, extended: Bool = false,
                  owner: UInt64) {
-        guard let handle = flwin32_shellmenu_open(path, background ? 1 : 0,
+        guard let handle = flwin32_shellmenu_open(path, location,
+                                                  background ? 1 : 0,
                                                   extended ? 1 : 0, owner) else {
             return nil
         }
@@ -132,9 +140,20 @@ public final class Win32ShellMenu {
     /// Runs a verb. Off the UI thread for the reason everything else here is,
     /// and then some: Properties opens a modal sheet, and Delete a
     /// confirmation, and both of them run for as long as the user takes.
-    public func invoke(_ tier: Win32ShellMenuTier, _ id: Int32) {
+    /// Runs a row's verb. `done` lands on the main thread once the shell has
+    /// finished with it -- which for a verb that puts up a dialog (Delete's
+    /// confirmation, a properties sheet) is after the user has answered,
+    /// because InvokeCommand is modal and does not return until then. It is
+    /// the only moment a caller can honestly re-read the folder: a shell verb
+    /// moves files without telling anyone, and nothing here watches a
+    /// directory.
+    public func invoke(_ tier: Win32ShellMenuTier, _ id: Int32,
+                       _ done: (() -> Void)? = nil) {
         guard let handle else { return }
-        Self.queue.async { flwin32_shellmenu_invoke(handle, tier.rawValue, id) }
+        Self.queue.async {
+            flwin32_shellmenu_invoke(handle, tier.rawValue, id)
+            if let done { DispatchQueue.main.async(execute: done) }
+        }
     }
 
     /// Ends the session. Queued behind whatever is already in flight, so a

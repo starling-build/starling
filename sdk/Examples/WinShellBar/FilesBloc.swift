@@ -361,6 +361,15 @@ final class FilesBloc: @unchecked Sendable {
             _list(state.directory)
 
         case .activate(let entry):
+            // The Recycle Bin is a dead end, and deliberately: every row in
+            // it is a "$R…" slot, so opening one would hand a recycled file
+            // to its association and entering a recycled FOLDER would list
+            // the bin's own storage. (isFileSystem does not catch this --
+            // recycled items report it TRUE, because the slot really is a
+            // file.) Explorer opens nothing here either: Restore it first
+            // and open it where it came from. Restore and Properties are on
+            // the context menu, through the shell.
+            if state.directory == Win32Files.NamespacePlace.recycleBin { break }
             if entry.isDirectory {
                 add(.open(entry.path))
             } else if entry.ext == "zip" && entry.isFileSystem {
@@ -368,10 +377,9 @@ final class FilesBloc: @unchecked Sendable {
                 // listing routes a file path through the namespace.
                 add(.open(entry.path))
             } else if !entry.isFileSystem {
-                // No file behind it (a recycled item, a Network machine
-                // that is not a share): activation has nothing honest to
-                // do. The context menu carries the real verbs -- Restore,
-                // Properties -- through the shell session.
+                // No file behind it (a Network machine that is not a share,
+                // a member inside a zip): activation has nothing honest to
+                // do -- there is no path an app could be handed.
             } else {
                 // The shell decides what opens a file, exactly as the dock's
                 // launcher does — and off this thread, because it is the same
@@ -384,6 +392,11 @@ final class FilesBloc: @unchecked Sendable {
             state.selectionAnchor = path
             state.selectedApp = nil
             state.selectedType = nil
+            // Nothing to ask in a namespace listing: the association would
+            // be looked up against a "$R…" slot, and the footer has no Open
+            // buttons there to justify the registry walk anyway. The Type
+            // column is already the shell's own (Win32FileEntry.typeName).
+            guard !state.isNamespace else { return }
             guard let path,
                   let entry = state.entries.first(where: { $0.path == path }),
                   !entry.isDirectory else { return }
@@ -442,6 +455,18 @@ final class FilesBloc: @unchecked Sendable {
             state.selectedType = nil
 
         case .deleteSelection:
+            // A namespace listing has no multi-item route: a shell menu
+            // session addresses ONE item, which is also why the context menu
+            // is single-item everywhere. One row still deletes, through the
+            // shell (see .deleteEntry); several do nothing rather than
+            // quietly deleting the wrong storage.
+            if state.isNamespace {
+                if let path = state.selected,
+                   let entry = state.visibleByPath[path] {
+                    add(.deleteEntry(entry))
+                }
+                break
+            }
             let paths = state.visible.map(\.path).filter(state.selection.contains)
             guard !paths.isEmpty else { break }
             Win32FileOps.deleteMany(paths, owner: Self.ownerWindow) {
@@ -450,6 +475,7 @@ final class FilesBloc: @unchecked Sendable {
             }
 
         case .clipSelection(let cut):
+            guard !state.isNamespace else { break }
             let paths = state.visible.map(\.path).filter(state.selection.contains)
             guard !paths.isEmpty else { break }
             Win32FileOps.clipMany(paths, cut: cut)
@@ -511,12 +537,30 @@ final class FilesBloc: @unchecked Sendable {
             state.renaming = nil
 
         case .deleteEntry(let entry):
+            // In a namespace listing the shell's own verb, never
+            // Win32FileOps: IFileOperation would take the path at face
+            // value, and a recycled item's path is its "$R…" slot -- so it
+            // would delete the bin's storage and leave the "$I" record that
+            // names it behind. The shell's delete knows it is emptying one
+            // bin entry, and puts up the permanent-delete confirmation
+            // itself.
+            if state.isNamespace {
+                runShellVerb("delete", on: entry)
+                break
+            }
             Win32FileOps.delete(entry.path, owner: Self.ownerWindow) {
                 [weak self] ok in
                 if ok { self?.add(.refresh) }
             }
 
         case .showProperties(let entry):
+            // Same reasoning: the sheet for a recycled item is the bin's
+            // (it names the original location and when it was deleted), not
+            // the "$R…" file's.
+            if state.isNamespace {
+                runShellVerb("properties", on: entry)
+                break
+            }
             Win32FileOps.showProperties(entry.path, owner: Self.ownerWindow)
 
         case .newFolder:
@@ -608,6 +652,35 @@ final class FilesBloc: @unchecked Sendable {
                                          uniquingKeysWith: { a, _ in a })
     }
 
+    /// Runs one of the SHELL's own verbs on a row of a namespace listing.
+    ///
+    /// The only route that reaches such a row at all. Everything else here
+    /// speaks paths, and a namespace row's path does not address it back: a
+    /// recycled item's is the raw "$R…" slot (which re-parses to the
+    /// filesystem file), and the Recycle Bin folder implements no
+    /// ParseDisplayName, so no spelling of its name would work either. The
+    /// session takes the listing's own directory as the location and finds
+    /// the item the way the listing found it -- see Win32ShellMenu.init.
+    ///
+    /// Throwaway, the same shape as `.share`: open, find the verb, invoke,
+    /// close. The refresh is on the invoke's completion because that is when
+    /// the shell has finished -- a verb with a dialog does not return until
+    /// the user has answered it.
+    private func runShellVerb(_ verb: String, on entry: Win32FileEntry) {
+        let session = Win32ShellMenu(path: entry.path,
+                                     location: state.directory,
+                                     owner: Self.ownerWindow)
+        session?.items(.full) { [weak self] rows in
+            guard let row = rows.first(where: {
+                $0.verb == verb && !$0.isSeparator && $0.isEnabled }) else {
+                session?.close()
+                return
+            }
+            session?.invoke(.full, row.id) { self?.add(.refresh) }
+            session?.close()
+        }
+    }
+
     /// Explorer's Type column, cached BY EXTENSION.
     ///
     /// `Win32Files.typeName` is a registry walk, and the reason the selection
@@ -617,9 +690,17 @@ final class FilesBloc: @unchecked Sendable {
     @ObservationIgnored private static var typeCache: [String: String] = [:]
 
     static func typeLabel(_ entry: Win32FileEntry) -> String {
+        // The shell already answered for this item (a namespace listing
+        // reads it per item), and where it did it outranks the extension --
+        // in the Recycle Bin the extension route asks the association
+        // database about a `$R…` slot and gets "TXTX File" for a text file.
+        if let type = entry.typeName { return type }
         if entry.isDirectory { return "File folder" }
         let ext = (entry.name as NSString).pathExtension.lowercased()
-        if ext.isEmpty { return "File" }
+        // No extension to ask about, and the shell offered nothing: for a
+        // real file that is honestly a "File", but a Network device is not
+        // one, and calling it that is worse than an empty cell.
+        if ext.isEmpty { return entry.isFileSystem ? "File" : "" }
         if let hit = typeCache[ext] { return hit }
         let name = Win32Files.typeName(for: entry.path)
         let label = name.isEmpty ? ext.uppercased() + " File" : name
@@ -690,6 +771,13 @@ final class FilesBloc: @unchecked Sendable {
     private func _warmIcons(_ entries: [Win32FileEntry], side: Int = 32) {
         var seen = Set<String>()
         for entry in entries {
+            // An item with no file behind it has no icon to extract: the
+            // shell's extractor wants a path and a parsing name is not one,
+            // so this would queue a round trip per zip member or network
+            // server only to fail and land back on the glyph the row draws
+            // anyway. Skipped BEFORE `seen`, so a real file sharing the
+            // extension still warms the key for both.
+            guard entry.isFileSystem else { continue }
             let key = FilesBloc.iconKey(entry, side: side)
             guard seen.insert(key).inserted else { continue }
             icons.ensure(key: key, path: entry.path, size: side)

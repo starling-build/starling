@@ -130,7 +130,15 @@ FlWin32NsList* flwin32_ns_list(const char* location) {
                 NsEntry* e = &entries[count];
                 memset(e, 0, sizeof(*e));
                 e->parsing = ns_name(child, SIGDN_DESKTOPABSOLUTEPARSING);
-                e->display = ns_name(child, SIGDN_NORMALDISPLAY);
+                /* PARENTRELATIVE, not NORMALDISPLAY: a Name column wants
+                 * what the item is called INSIDE this folder. They agree
+                 * for most locations and disagree exactly where it matters
+                 * -- a recycled item's NORMALDISPLAY is its original FULL
+                 * PATH ("C:\Users\...\Downloads\notes.txt"), which filled
+                 * the bin's Name column with paths. Explorer shows
+                 * "notes.txt" there and puts the path in its own Original
+                 * Location column, which this window does not have yet. */
+                e->display = ns_name(child, SIGDN_PARENTRELATIVE);
 
                 SFGAOF attrs = 0;
                 child->lpVtbl->GetAttributes(
@@ -221,6 +229,46 @@ int32_t flwin32_ns_field(FlWin32NsList* list, int32_t index, int32_t field,
     memcpy(out, s, (size_t)len);
     out[len] = 0;
     return len + 1;
+}
+
+/* One location's OWN display name. flwin32_file_display_name is the wrong
+ * tool for a ::{CLSID}: SHGetFileInfoW parses a filesystem path and a
+ * parsing name is not one, so it fails and the caller falls back to the raw
+ * "::{645FF040-...}" as a label. Resolving the item and asking it works for
+ * every parsing name, and answers in the machine's own language. */
+int32_t flwin32_ns_display_name(const char* location, char* out,
+                                int32_t out_size) {
+    if (location == NULL || location[0] == 0 || out == NULL || out_size <= 0) {
+        return 0;
+    }
+    int wide_len = MultiByteToWideChar(CP_UTF8, 0, location, -1, NULL, 0);
+    if (wide_len <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)wide_len, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, location, -1, wide, wide_len);
+
+    HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    int32_t written = 0;
+    IShellItem* item = NULL;
+    if (SUCCEEDED(SHCreateItemFromParsingName(wide, NULL, &IID_IShellItem,
+                                              (void**)&item))) {
+        LPWSTR name = NULL;
+        if (SUCCEEDED(item->lpVtbl->GetDisplayName(item, SIGDN_NORMALDISPLAY,
+                                                   &name))) {
+            int need = WideCharToMultiByte(CP_UTF8, 0, name, -1, NULL, 0,
+                                           NULL, NULL);
+            if (need > 0 && need <= out_size) {
+                WideCharToMultiByte(CP_UTF8, 0, name, -1, out, out_size,
+                                    NULL, NULL);
+                written = need;
+            }
+            CoTaskMemFree(name);
+        }
+        item->lpVtbl->Release(item);
+    }
+    free(wide);
+    if (init == S_OK || init == S_FALSE) CoUninitialize();
+    return written;
 }
 
 int32_t flwin32_ns_attrs(FlWin32NsList* list, int32_t index,

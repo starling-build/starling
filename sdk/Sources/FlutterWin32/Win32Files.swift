@@ -33,9 +33,17 @@ public struct Win32FileEntry: Sendable, Equatable, Identifiable {
     /// shell's own machinery (SHParseDisplayName, IFileOperation) accepts
     /// but the filesystem APIs must not be handed.
     public let isFileSystem: Bool
+    /// What the SHELL says this is — set only where the shell was asked
+    /// (a namespace listing, which reads it per item anyway). nil means
+    /// "derive it from the extension", which is what an ordinary directory
+    /// listing does and what the association database is for. It exists
+    /// because deriving is WRONG in the Recycle Bin: the extension route
+    /// answers off `path`, and a recycled item's path is its `$R…` slot.
+    public let typeName: String?
 
     public init(name: String, path: String, isDirectory: Bool, size: Int64,
-                modified: Date?, ext: String, isFileSystem: Bool = true) {
+                modified: Date?, ext: String, isFileSystem: Bool = true,
+                typeName: String? = nil) {
         self.name = name
         self.path = path
         self.isDirectory = isDirectory
@@ -43,6 +51,7 @@ public struct Win32FileEntry: Sendable, Equatable, Identifiable {
         self.modified = modified
         self.ext = ext
         self.isFileSystem = isFileSystem
+        self.typeName = typeName
     }
 
     public var id: String { path }
@@ -216,6 +225,7 @@ public enum Win32Files {
             let parsing = field(index, 0)
             guard !parsing.isEmpty else { continue }
             let isDirectory = folder != 0
+            let type = field(index, 2)
             out.append(Win32FileEntry(
                 name: display.isEmpty ? parsing : display,
                 path: parsing,
@@ -223,9 +233,25 @@ public enum Win32Files {
                 size: size,
                 modified: mtime > 0
                     ? Date(timeIntervalSince1970: TimeInterval(mtime)) : nil,
+                // From the PARSING name, not the display one. The display
+                // name honours "hide extensions for known file types" --
+                // Explorer's setting, which the shell applies for us -- so
+                // "a - Copy.txt" arrives as "a - Copy" and derives an EMPTY
+                // extension. That is only cosmetic in the Name column and
+                // load-bearing here: `ext` is the icon cache key, so every
+                // known-type file in the bin collapsed onto one key and drew
+                // whichever icon warmed first (a text file wearing the zip's
+                // icon). The parsing name keeps the real extension -- a
+                // recycled item's `$R…` slot preserves it, and a zip member's
+                // path is a plain path.
                 ext: isDirectory
-                    ? "" : (display as NSString).pathExtension.lowercased(),
-                isFileSystem: filesystem != 0))
+                    ? "" : (parsing as NSString).pathExtension.lowercased(),
+                isFileSystem: filesystem != 0,
+                // The shell's own Type text, already read per item on the C
+                // side. Carrying it costs nothing here and is the only
+                // correct answer in the bin, where the extension route
+                // would ask about a `$R…` slot name.
+                typeName: type.isEmpty ? nil : type))
         }
         return out
     }
@@ -364,8 +390,14 @@ public enum Win32Files {
         }
         displayNameLock.unlock()
         var buffer = [CChar](repeating: 0, count: 256)
+        // A "::" location is a parsing name, not a path: SHGetFileInfoW
+        // cannot name it and the namespace resolver can. Same cache either
+        // way -- the callers (crumbs, tab captions, the sidebar) do not know
+        // or care which kind of name they are holding.
         let n = buffer.withUnsafeMutableBufferPointer {
-            flwin32_file_display_name(path, $0.baseAddress, 256)
+            path.hasPrefix("::")
+                ? flwin32_ns_display_name(path, $0.baseAddress, 256)
+                : flwin32_file_display_name(path, $0.baseAddress, 256)
         }
         let name: String
         if n > 0 {
@@ -395,6 +427,13 @@ public enum Win32Files {
     /// — "This PC" is a shell namespace, not a path, and pretending otherwise
     /// leads somewhere that does not exist.
     public static func parent(of directory: String) -> String? {
+        // A namespace root has no parent we can name. The Recycle Bin's real
+        // one is the Desktop, which this window has no view for, and "This
+        // PC" would be a lie -- so Up disables itself there. (Explicit,
+        // because the path arithmetic below would fall to nil anyway: a
+        // ::{CLSID} has no separator to delete. Depending on that by accident
+        // is how it comes back the day a location has one.)
+        guard !directory.hasPrefix("::") else { return nil }
         let trimmed = directory.hasSuffix("\\") && directory.count > 3
             ? String(directory.dropLast()) : directory
         guard trimmed.count > 3 else { return nil }

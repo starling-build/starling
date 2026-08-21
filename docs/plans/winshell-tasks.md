@@ -10,44 +10,62 @@ The next session-sized piece by this list's own logic is the context menu
 as its own popup window, parked earlier in favour of window parity, which
 is now complete.
 
-## In flight (checkpoint 2026-08-21, mid-session context clear)
+## Shell-namespace enumeration — landed and verified 2026-08-21
 
-Track 1 / Phase 0a of `winshell-shell-replacement.md` -- shell-namespace
-enumeration -- is HALF LANDED at this checkpoint. Compiles clean; NOT yet
-deployed or verified. Done: flwin32_namespace.c (IEnumShellItems snapshot,
-tray-list shape; note BHID_EnumItems has no C definition in the SDK
-headers -- kBHID_EnumItems is defined locally), header block,
-Win32FileEntry.isFileSystem (explicit init, defaulted true),
-Win32Files.listNamespace + NamespacePlace (Recycle Bin / Network CLSIDs),
-FilesBloc: _list routes "::" locations AND existing-but-not-directory
-paths (= zip browsing) through the namespace off-thread, activate gates
-non-filesystem files and opens zips as folders, state.isNamespace /
-namespaceFile; Files.swift: sidebar Recycle Bin + Network rows (after a
-rule below This PC) with matching sidebarDropTarget mirror entries (both
-nil -- not drop targets), FluentIcons.networkPlaces (0xE968), keyboard
-Ctrl+C/X and F2 gated behind a new `canMutateHere`
-(!isThisPC && !isNamespace; Delete deliberately NOT gated -- IFileOperation
-speaks parsing names and confirms permanence itself).
+Track 1 / Phase 0a of `winshell-shell-replacement.md` is DONE, deployed and
+driven on the box. The Recycle Bin, Network and zip-as-folder all list, and
+the bin's own verbs work: Restore was driven end to end (row leaves the
+listing, file returns to its original path).
 
-Remaining to finish the slice:
-1. Command-bar `enabled:` gating -- cut/copy/rename/paste buttons still
-   light up in namespace listings; use `canMutateHere` like the keys.
-2. New button: `enabled: !isThisPC` should become `canMutateHere`.
-3. dropResolve: gate namespace listings (background drop would target a
-   "::" directory).
-4. crumbs()/tabLabel()/folderLabel(): "::"-prefixed directory needs a
-   label -- "Recycle Bin"/"Network" for the known CLSIDs, else
-   displayName(for:); crumbs as a single crumb like This PC. Zip paths
-   walk fine textually already.
-5. Deploy and verify on the box: bin lists with ORIGINAL names and dates,
-   context-menu Restore works (SHParseDisplayName takes parsing names, so
-   the existing menu session should just work), Network enumerates (may
-   be slow/empty -- spinner covers it), double-click a .zip browses it,
-   crumb/tab labels, Delete-in-bin brings the shell's own permanent-delete
-   confirm.
-6. Optional polish: skip icon warming for !isFileSystem entries (rasterize
-   fails and falls back to glyphs today, which draws fine but wastes the
-   attempts).
+What it took, beyond the enumeration itself:
+
+- **A parsing name does not address a Recycle Bin item back.** This is the
+  finding that cost the most and the one to remember. A recycled item's
+  `SIGDN_DESKTOPABSOLUTEPARSING` name is its raw slot --
+  `C:\$Recycle.Bin\S-1-5-21-…\$RODZ69V.txt` -- so `SHParseDisplayName` on it
+  resolves the FILESYSTEM file and hands back that file's context menu: Open,
+  Edit in Notepad, Cut, "Restore previous versions" (the VSS verb, not the
+  bin's Restore). Every one of those verbs would have operated on the slot,
+  orphaning the `$I` record beside it. Nor is there a spelling that works --
+  the Recycle Bin folder implements no `ParseDisplayName` at all, checked
+  against the live folder with both the slot name and the display name. So
+  `flwin32_shellmenu_open` grew a `location` parameter: given one it finds
+  the item the way the listing found it (bind the location, enumerate, match
+  on parsing name, `SHGetIDListFromObject`), and `SHBindToParent` then lands
+  on the bin rather than on any filesystem folder the name happens to spell.
+  The old note here predicted "the existing menu session should just work" —
+  it did not, and the evidence is above.
+- **Display name, not normal display name.** `SIGDN_NORMALDISPLAY` on a bin
+  item is the original FULL PATH, which filled the Name column with paths.
+  `SIGDN_PARENTRELATIVE` is what a Name column wants.
+- **`ext` comes from the PARSING name.** The display name honours "hide
+  extensions for known file types", so `a - Copy.txt` arrives as `a - Copy`
+  with an empty extension -- cosmetic in the Name column and load-bearing as
+  the icon cache key, where it collapsed every known type in the bin onto one
+  key (a text file wearing the zip's icon).
+- **The shell's Type text is carried through** (`Win32FileEntry.typeName`).
+  The extension route asks the association database about a `$R…` slot and
+  answers "TXTX File" for a text document.
+- Everything file-shaped gates behind `canMutateHere` (command bar, New,
+  keys including Ctrl+V, dropResolve, the menu's Rename cell) and the footer
+  drops its Open / Open with / "opens with" -- all of them would have run on
+  a slot. Delete and Properties are NOT gated: in a namespace listing they
+  re-route through the shell's own verb (`runShellVerb`), which is the same
+  machinery the context menu uses and the only thing that reaches the item.
+- **A shell verb now refreshes the listing.** `Win32ShellMenu.invoke` gained
+  a completion (InvokeCommand is modal, so it fires after the user has
+  answered any dialog). Nothing watches a directory here, so without it
+  Restore left its row on screen.
+- The Recycle Bin is a deliberate dead end for activation: double-click opens
+  nothing, as in Explorer. `isFileSystem` does not catch this -- recycled
+  items report it TRUE, because the slot really is a file.
+
+Not done, and deliberately: no Original Location / Date Deleted columns (the
+bin's own, which this window has no column model for), no multi-item shell
+verbs (a menu session addresses ONE item, which is why the context menu is
+single-item everywhere), and Network devices show an empty Type because the
+shell offers none for them -- better than the "File" the extension route
+invented.
 
 ## Done, for context
 

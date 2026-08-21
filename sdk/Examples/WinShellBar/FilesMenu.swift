@@ -297,10 +297,18 @@ final class ShellMenuModel {
         case .item(let found): entry = found
         }
         let path = entry?.path ?? filesBloc.state.directory
+        // An ITEM in a namespace listing has to be addressed through the
+        // folder it was listed from -- its own name does not find it back
+        // (see Win32ShellMenu.init). The BACKGROUND menu needs no such help:
+        // a "::{CLSID}" location parses to itself, and asking for it is how
+        // the bin's own "Empty Recycle Bin" arrives.
+        let location = (entry != nil && filesBloc.state.isNamespace)
+            ? filesBloc.state.directory : nil
 
         generation &+= 1
         let generation = self.generation
-        let session = Win32ShellMenu(path: path, background: entry == nil,
+        let session = Win32ShellMenu(path: path, location: location,
+                                     background: entry == nil,
                                      owner: Win32WindowedHost.host?.windowHandle ?? 0)
         // The cheap tier, which for a file is usually back before the first
         // frame is drawn.
@@ -418,6 +426,21 @@ final class ShellMenuModel {
                       shell shellVerbs: [Win32ShellVerb]) -> [MenuRow] {
         // A flyout IS its rows -- nothing assembled, nothing curated.
         if let flyoutRows { return flyoutRows }
+
+        // An ITEM in a namespace listing is the shell's to describe, whole.
+        // None of our own verbs below survives contact with one: Open and
+        // Open with… would run the association on a "$R…" slot, Show in
+        // Explorer would reveal the bin's internals, Compress would zip the
+        // slot file and orphan the $I record beside it. And there is nothing
+        // to curate -- the modern/legacy split exists because a file's menu
+        // is thirty rows deep from a dozen handlers, while the bin's is four
+        // (Restore, Cut, Delete, Properties), which is Explorer's whole menu
+        // there too. So: the shell's list, as it comes, with no "Show more
+        // options" hiding four rows behind a click.
+        if entry != nil, filesBloc.state.isNamespace {
+            return shellList(shellVerbs)
+        }
+
         var rows: [MenuRow] = []
         if let entry {
             rows.append(MenuRow(title: "Open",
@@ -705,7 +728,9 @@ final class ShellMenuModel {
             // works -- which is also why a plain file's cell stays grey.
             return canPaste && entry?.isDirectory == true
         case .rename:
-            return entry != nil
+            // Ours, not the shell's: an inline edit in the listing, which
+            // needs a real file under the row to rename.
+            return entry != nil && !filesBloc.state.isNamespace
         }
     }
 
@@ -776,7 +801,15 @@ final class ShellMenuModel {
         shell = nil
         dismiss()
         action?()
-        if shellId >= 0 { session?.invoke(shellTierForInvoke, shellId) }
+        if shellId >= 0 {
+            // Re-read the folder once the verb is done. A shell verb moves
+            // files without telling anyone and nothing watches a directory,
+            // so without this a Delete leaves its row on screen and a
+            // Restore takes a relaunch to notice.
+            session?.invoke(shellTierForInvoke, shellId) {
+                filesBloc.add(.refresh)
+            }
+        }
         session?.close()
 
         // A right-click somewhere else does not merely dismiss: Windows moves

@@ -178,6 +178,10 @@ struct FlWin32ShellMenu {
 
     /* Read-only after open(), shared by both tier threads. */
     wchar_t path[1024];
+    /* The namespace FOLDER `path` is a child of, or empty for the ordinary
+     * case where `path` addresses itself. See resolve_item below for why a
+     * Recycle Bin item needs this and a file does not. */
+    wchar_t location[1024];
     int background;
     int extended;
     HWND owner;
@@ -381,6 +385,99 @@ static int cheap_keys(struct FlWin32ShellMenu* s, HKEY* keys, int max) {
     return count;
 }
 
+/* Defined in flwin32_namespace.c, which is the translation unit that carries
+ * INITGUID -- the SDK headers never define this one for plain C. */
+EXTERN_C const GUID kBHID_EnumItems;
+
+/* The session's target as the shell sees it: the folder it lives in, and its
+ * child pidl within that folder. `free_me` is the absolute pidl the caller
+ * must CoTaskMemFree; `child` points INTO it and must not be freed.
+ *
+ * Two ways in, and the second one is why this function exists.
+ *
+ * An ordinary path addresses itself: SHParseDisplayName resolves it and
+ * SHBindToParent splits it. That is the whole story for a file, a folder, a
+ * drive, and for a ::{CLSID} location named as itself.
+ *
+ * A RECYCLE BIN ITEM does not. Its SIGDN_DESKTOPABSOLUTEPARSING name is the
+ * raw slot path -- "C:\$Recycle.Bin\S-1-5-21-…\$RODZ69V.txt" -- and parsing
+ * that string lands on the FILESYSTEM file, not on the bin's item. The menu
+ * that comes back is then an ordinary file's: Open, Edit in Notepad, Cut,
+ * "Restore previous versions" (the VSS verb, not the bin's Restore) -- and
+ * every one of those verbs would operate on the raw slot, orphaning the $I
+ * record beside it. Nor is there a string that would work: the Recycle Bin
+ * folder does not implement ParseDisplayName at all, so no spelling of a
+ * child's name round-trips through it (checked against the real folder, both
+ * the slot name and the display name, both refused).
+ *
+ * So a namespace child is addressed the way it was FOUND: bind the location,
+ * enumerate it, and take the item whose parsing name matches. That is the
+ * same walk flwin32_ns_list did to list the row, so the item this resolves is
+ * by construction the one the user clicked. Enumerating to address one item
+ * is only worth it because a namespace folder is small (a bin holds tens of
+ * items) and a menu opens once per click. */
+static HRESULT resolve_item(struct FlWin32ShellMenu* s,
+                            IShellFolder** parent_out,
+                            LPITEMIDLIST* free_me,
+                            LPCITEMIDLIST* child_out) {
+    *parent_out = NULL;
+    *free_me = NULL;
+    *child_out = NULL;
+
+    LPITEMIDLIST pidl = NULL;
+    if (s->location[0] == 0) {
+        if (FAILED(SHParseDisplayName(s->path, NULL, &pidl, 0, NULL))) {
+            return E_FAIL;
+        }
+    } else {
+        IShellItem* root = NULL;
+        if (FAILED(SHCreateItemFromParsingName(s->location, NULL,
+                                               &IID_IShellItem,
+                                               (void**)&root))) {
+            return E_FAIL;
+        }
+        IEnumShellItems* iter = NULL;
+        HRESULT hr = root->lpVtbl->BindToHandler(root, NULL, &kBHID_EnumItems,
+                                                 &IID_IEnumShellItems,
+                                                 (void**)&iter);
+        root->lpVtbl->Release(root);
+        if (FAILED(hr) || iter == NULL) return E_FAIL;
+
+        IShellItem* child = NULL;
+        while (pidl == NULL &&
+               iter->lpVtbl->Next(iter, 1, &child, NULL) == S_OK) {
+            LPWSTR name = NULL;
+            if (SUCCEEDED(child->lpVtbl->GetDisplayName(
+                    child, SIGDN_DESKTOPABSOLUTEPARSING, &name))) {
+                if (_wcsicmp(name, s->path) == 0) {
+                    /* The item's own absolute pidl -- rooted at the desktop,
+                     * so SHBindToParent below lands on the namespace folder
+                     * it really lives in rather than on any filesystem
+                     * folder its name happens to spell. */
+                    SHGetIDListFromObject((IUnknown*)child, &pidl);
+                }
+                CoTaskMemFree(name);
+            }
+            child->lpVtbl->Release(child);
+        }
+        iter->lpVtbl->Release(iter);
+        if (pidl == NULL) return E_FAIL;
+    }
+
+    IShellFolder* parent = NULL;
+    LPCITEMIDLIST child = NULL;
+    HRESULT hr = SHBindToParent(pidl, &IID_IShellFolder, (void**)&parent,
+                                &child);
+    if (FAILED(hr) || parent == NULL) {
+        CoTaskMemFree(pidl);
+        return FAILED(hr) ? hr : E_FAIL;
+    }
+    *parent_out = parent;
+    *free_me = pidl;
+    *child_out = child;
+    return S_OK;
+}
+
 /* Tier 0: the same shell, asked about fewer classes.
  *
  * SHCreateDefaultContextMenu is the documented way to hand the association
@@ -391,15 +488,18 @@ static int cheap_keys(struct FlWin32ShellMenu* s, HKEY* keys, int max) {
 static int build_fast(FlWin32MenuTier* t) {
     struct FlWin32ShellMenu* s = t->session;
 
-    LPITEMIDLIST pidl = NULL;
-    if (FAILED(SHParseDisplayName(s->path, NULL, &pidl, 0, NULL))) return 0;
+    /* No cheap tier for a namespace child. The fast tier IS the association
+     * keys -- the item's ProgID and extension -- and for a recycled item
+     * those describe the file it used to be, not the bin entry it is: the
+     * menu it would build is the ordinary file menu this whole path exists
+     * to stop showing. Returning 0 leaves only the real tier, which is
+     * correct and a few tens of ms later. */
+    if (s->location[0] != 0) return 0;
+
     IShellFolder* parent = NULL;
+    LPITEMIDLIST pidl = NULL;
     LPCITEMIDLIST child = NULL;
-    HRESULT hr = SHBindToParent(pidl, &IID_IShellFolder, (void**)&parent, &child);
-    if (FAILED(hr) || parent == NULL) {
-        CoTaskMemFree(pidl);
-        return 0;
-    }
+    if (FAILED(resolve_item(s, &parent, &pidl, &child))) return 0;
 
     HKEY keys[4];
     int key_count = cheap_keys(s, keys, 4);
@@ -481,18 +581,13 @@ static int build(FlWin32MenuTier* t) {
          * the owner window is given at CREATION rather than only at invoke.
          * Properties opens the real sheet after this change and nothing else
          * in the menu moved. */
-        LPITEMIDLIST pidl = NULL;
-        if (FAILED(SHParseDisplayName(s->path, NULL, &pidl, 0, NULL))) return 0;
         IShellFolder* parent = NULL;
+        LPITEMIDLIST pidl = NULL;
         LPCITEMIDLIST child = NULL;
-        HRESULT hr = SHBindToParent(pidl, &IID_IShellFolder, (void**)&parent,
-                                    &child);
-        if (FAILED(hr) || parent == NULL) {
-            CoTaskMemFree(pidl);
-            return 0;
-        }
-        hr = parent->lpVtbl->GetUIObjectOf(parent, s->owner, 1, &child,
-                                           &IID_IContextMenu, NULL, (void**)&cm);
+        if (FAILED(resolve_item(s, &parent, &pidl, &child))) return 0;
+        HRESULT hr = parent->lpVtbl->GetUIObjectOf(parent, s->owner, 1, &child,
+                                                   &IID_IContextMenu, NULL,
+                                                   (void**)&cm);
         parent->lpVtbl->Release(parent);
         CoTaskMemFree(pidl);
         if (FAILED(hr) || cm == NULL) return 0;
@@ -739,6 +834,7 @@ static void close_tier_events(FlWin32MenuTier* t) {
 }
 
 FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
+                                         const char* location,
                                          int32_t background,
                                          int32_t extended,
                                          uint64_t owner) {
@@ -750,6 +846,14 @@ FlWin32ShellMenu* flwin32_shellmenu_open(const char* path,
     if (wide == NULL) { free(s); return NULL; }
     wcsncpy_s(s->path, 1024, wide, _TRUNCATE);
     free(wide);
+
+    if (location != NULL && location[0] != 0) {
+        wchar_t* wloc = utf8_to_wide_local(location);
+        if (wloc != NULL) {
+            wcsncpy_s(s->location, 1024, wloc, _TRUNCATE);
+            free(wloc);
+        }
+    }
 
     s->background = background ? 1 : 0;
     s->extended = extended ? 1 : 0;

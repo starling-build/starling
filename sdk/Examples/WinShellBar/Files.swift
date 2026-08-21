@@ -311,6 +311,10 @@ final class StarlingFilesState: State<StatefulWidget> {
                 closeTab(tabs.active)
                 return true
             case 0x0007_0019: // V
+                // Nothing pastes INTO a namespace listing either: the target
+                // "directory" is a parsing name, which IFileOperation's
+                // destination cannot be.
+                guard canMutateHere else { return false }
                 bloc.add(.paste(into: bloc.state.directory))
                 return true
             default:
@@ -884,8 +888,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         // folder is the target. Independent of what the listing shows, so
         // it works from the This PC view as well.
         if x < kFilesSidebar { return sidebarDropTarget(x, y) }
-        // Nothing lands ON This PC's listing -- it is not a folder.
-        guard !bloc.state.isThisPC else { return nil }
+        // Nothing lands ON This PC's listing -- it is not a folder. Nor on a
+        // namespace one: the background target would be a "::" parsing name
+        // and the folder rows under the pointer are the bin's own slots, so
+        // there is no honest destination anywhere in the view. (Dragging
+        // INTO the Recycle Bin is a delete, not a copy, and belongs to the
+        // sidebar row -- which is handled above and is deliberately not a
+        // drop target yet.)
+        guard !bloc.state.isThisPC, !bloc.state.isNamespace else { return nil }
         guard y >= kFilesToolbar else { return nil }
         if case .item(let entry)? = targetAt(x, y), entry.isDirectory {
             return entry.path
@@ -1043,13 +1053,16 @@ final class StarlingFilesState: State<StatefulWidget> {
                         // the listing speaks the shell's namespace, so the
                         // old "a row that navigates nowhere" objection is
                         // paid off.
-                        placeRow(Win32Place(
-                                     name: "Recycle Bin",
-                                     path: Win32Files.NamespacePlace.recycleBin),
+                        // Named by the shell, like every other row here --
+                        // so a German machine reads "Papierkorb" rather than
+                        // our English guess at it.
+                        let bin = Win32Files.NamespacePlace.recycleBin
+                        let network = Win32Files.NamespacePlace.network
+                        placeRow(Win32Place(name: Win32Files.displayName(for: bin),
+                                            path: bin),
                                  glyph: FluentIcons.delete)
-                        placeRow(Win32Place(
-                                     name: "Network",
-                                     path: Win32Files.NamespacePlace.network),
+                        placeRow(Win32Place(name: Win32Files.displayName(for: network),
+                                            path: network),
                                  glyph: FluentIcons.networkPlaces)
                     }
                 }
@@ -1185,6 +1198,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         let path = bloc.state.directory
         if path.isEmpty { return "Files" }
         if path == kThisPCPath { return "This PC" }
+        if path.hasPrefix("::") { return Win32Files.displayName(for: path) }
         let name = (path as NSString).lastPathComponent
         return name.isEmpty ? Win32Files.displayName(for: path) : name
     }
@@ -1455,7 +1469,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // own ShellNew templates, each born into its rename
                     // field.
                     barButton(FluentIcons.add, "New", chevron: true,
-                              enabled: !bloc.state.isThisPC) {
+                              enabled: canMutateHere) {
                         self.openNewFlyout()
                     }
                     barSeparator()
@@ -1464,29 +1478,44 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // five run through the shell (IFileOperation / the
                     // shell's data object) -- see FilesBloc and
                     // flwin32_fileops.c.
-                    barIcon(FluentIcons.cut, enabled: selectedEntry != nil) {
+                    //
+                    // canMutateHere on the first four for the same reason the
+                    // keys carry it: the clipboard data object is built from
+                    // FILE paths, and a parsing name in a CF_HDROP is a lie
+                    // waiting for a paste. Delete alone stays lit -- its
+                    // IFileOperation speaks parsing names and confirms
+                    // permanence itself, which is exactly Empty Recycle Bin.
+                    barIcon(FluentIcons.cut,
+                            enabled: canMutateHere && selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.clip(entry, cut: true))
                         }
                     }
-                    barIcon(FluentIcons.copy, enabled: selectedEntry != nil) {
+                    barIcon(FluentIcons.copy,
+                            enabled: canMutateHere && selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.clip(entry, cut: false))
                         }
                     }
                     barIcon(FluentIcons.paste,
-                            enabled: Win32FileOps.clipboardHasFiles()) {
+                            enabled: canMutateHere
+                                && Win32FileOps.clipboardHasFiles()) {
                         self.bloc.add(.paste(into: self.bloc.state.directory))
                     }
-                    barIcon(FluentIcons.rename, enabled: selectedEntry != nil) {
+                    barIcon(FluentIcons.rename,
+                            enabled: canMutateHere && selectedEntry != nil) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.beginRename(entry))
                         }
                     }
                     // Share, through the shell's own verb -- the same
-                    // windows.modernshare the menu's icon row invokes.
+                    // windows.modernshare the menu's icon row invokes. It
+                    // hands the target a PATH, so an item with no file
+                    // behind it (a recycled slot, a zip's contents) cannot
+                    // be shared and says so by staying grey.
                     barIcon(FluentIcons.share,
-                            enabled: selectedEntry?.isDirectory == false) {
+                            enabled: selectedEntry?.isDirectory == false
+                                && selectedEntry?.isFileSystem == true) {
                         if let entry = self.selectedEntry {
                             self.bloc.add(.share(entry))
                         }
@@ -1681,7 +1710,12 @@ final class StarlingFilesState: State<StatefulWidget> {
                                      maxLines: 1)
                             }
                         }
-                        if let entry, !entry.isDirectory {
+                        // Not in a namespace listing: both buttons run the
+                        // association, and the path they would run it on is
+                        // a "$R…" slot or a zip member -- neither is a file
+                        // an app can be handed. Explorer offers no Open in
+                        // its bin either.
+                        if let entry, !entry.isDirectory, !bloc.state.isNamespace {
                             textButton("Open") { self.bloc.add(.activate(entry)) }
                             textButton("Open with\u{2026}") { self.bloc.add(.openWith) }
                         }
@@ -1785,6 +1819,9 @@ final class StarlingFilesState: State<StatefulWidget> {
         let path = bloc.state.directory
         if path.isEmpty { return "Files" }
         if path == kThisPCPath { return "This PC" }
+        // A namespace location has no last component worth showing -- the
+        // shell names it, in the machine's own language.
+        if path.hasPrefix("::") { return Win32Files.displayName(for: path) }
         let name = (path as NSString).lastPathComponent
         return name.isEmpty ? path : name
     }
@@ -1794,6 +1831,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         guard !path.isEmpty else { return [] }
         if path == kThisPCPath {
             return [(label: "This PC", path: kThisPCPath)]
+        }
+        // A namespace root stands alone, like This PC: its real parent is
+        // the Desktop, which this window has no view for, so a chain that
+        // led anywhere would be leading somewhere that does not exist.
+        // (Inside a zip is NOT this case -- that path is a real one and
+        // walks textually to the drive, which is what Explorer shows too.)
+        if path.hasPrefix("::") {
+            return [(label: Win32Files.displayName(for: path), path: path)]
         }
         var out: [(label: String, path: String)] = []
         var walk: String? = path
@@ -2021,7 +2066,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                               fontSize: 11),
                              maxLines: 1)
                         if !entry.isDirectory {
-                            Text(self.sizeText(entry.size),
+                            Text(self.sizeText(for: entry),
                                  style: TextStyle(color: Win11.textFaint,
                                                   fontSize: 11),
                                  maxLines: 1)
@@ -2243,7 +2288,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                             }
                             SizedBox(width: self.colSize) {
                                 Align(alignment: Alignment.centerRight) {
-                                    Text(entry.isDirectory ? "" : self.sizeText(entry.size),
+                                    Text(self.sizeText(for: entry),
                                          style: TextStyle(color: Win11.textFaint,
                                                           fontSize: 12),
                                          maxLines: 1)
@@ -2284,6 +2329,17 @@ final class StarlingFilesState: State<StatefulWidget> {
         } else {
             bloc.add(.select(entry.path))
         }
+    }
+
+    /// The Size cell for one row, EMPTY where there is nothing to measure.
+    /// A directory has no size, and neither does a shell item with no file
+    /// behind it -- a Network device answers 0 for PKEY_Size exactly as an
+    /// empty file does, and "0 B" against a printer reads as a measurement
+    /// rather than as the absence of one.
+    private func sizeText(for entry: Win32FileEntry) -> String {
+        if entry.isDirectory { return "" }
+        if !entry.isFileSystem && entry.size == 0 { return "" }
+        return sizeText(entry.size)
     }
 
     private func sizeText(_ bytes: Int64) -> String {
