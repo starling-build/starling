@@ -609,6 +609,49 @@ int32_t flwin32_host_client_size(FlWin32Host* host, int32_t* width,
 
 void flwin32_host_request_redraw(FlWin32Host* host);
 
+// -- popup surfaces ---------------------------------------------------------
+//
+// A second engine view in its own WS_POPUP window (flwin32_popup.c): the
+// surface a context menu, a tray flyout, or a toast banner stands on, free
+// of the window it was opened from — it may overhang its edges or outgrow it
+// entirely. Every coordinate here is the HOST window's client area in
+// LOGICAL POINTS, the space the widget tree already computes menu geometry
+// in; the conversion to screen pixels happens inside with the host's DPI.
+//
+// The popup never takes activation (a native menu does not either): the
+// keyboard stays with the host window, and its titlebar stays lit. Pointer
+// input inside the popup reaches the widget tree tagged with the returned
+// view id — the Swift side builds that view's tree through
+// multiViewContentBuilder, keyed by the same id.
+
+// Opens a popup at (x,y), sized w x h. Returns the engine view id to key the
+// content builder by, or -1 (all slots taken, or view creation failed —
+// caller falls back to drawing in-window).
+int64_t flwin32_popup_open(FlWin32Host* host, double x_pt, double y_pt,
+                           double w_pt, double h_pt);
+// Moves/resizes an open popup ("Show more options" growing in place).
+void flwin32_popup_place(FlWin32Host* host, int64_t view_id, double x_pt,
+                         double y_pt, double w_pt, double h_pt);
+void flwin32_popup_close(FlWin32Host* host, int64_t view_id);
+void flwin32_popup_close_all(FlWin32Host* host);
+int32_t flwin32_popup_count(FlWin32Host* host);
+// The monitor's WORK AREA in host-client logical points (left may well be
+// negative) — what menu placement clamps against once it can leave the
+// window.
+void flwin32_popup_frame(FlWin32Host* host, double* left, double* top,
+                         double* right, double* bottom);
+// Called when the host is deactivated, moved or resized while popups are
+// open — the "clicked away" of a surface that never holds focus itself. The
+// callback owner dismisses whatever the popups were showing.
+void flwin32_popup_on_dismiss(void (*callback)(void* user), void* user);
+// flwin32_host.c -> flwin32_popup.c, from the host's window procedure.
+void flwin32_popup_notify_host_event(FlWin32Host* host);
+// The engine behind the host's view, and the cursor-fix subclass for a view
+// child (both for flwin32_popup.c; the HWND/engine types stay void* so the
+// vendored embedder headers stay inside the host TU).
+void* flwin32_host_engine(FlWin32Host* host);
+void flwin32_install_child_cursor_proc(void* child_hwnd);
+
 // -- custom titlebar --------------------------------------------------------
 //
 // Gives the CAPTION to the client, so the widget tree draws the titlebar --

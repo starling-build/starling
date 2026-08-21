@@ -525,8 +525,18 @@ func _setupWidgetBinding(_ app: Widget) {
             sp.pipelineOwner.flushLayout()
             sp.pipelineOwner.flushPaint()
             if viewDirty {
+                let first = !sp.hasComposited
                 sp.hasComposited = true
                 sp.renderView.compositeFrame()
+                if first {
+                    // One line per view's life — the composite-side twin of
+                    // "pipeline created" above. A view that was created and
+                    // never composited, or composited into a surface that
+                    // shows nothing, are different failures; this line is
+                    // what tells them apart.
+                    try? FileHandle.standardError.write(contentsOf: Data(
+                        "[Adapter] view \(fv.viewId) first composite\n".utf8))
+                }
             }
         }
 
