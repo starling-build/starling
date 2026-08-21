@@ -60,26 +60,37 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     private var monthOffset = 0
     private var calendarExpanded = false
     private var timer: AnyObject?
-    /// What the pointer is over — the calendar's interactive parts answer
-    /// hover the way the native panel's do. Arithmetic off the root
-    /// Listener, one rectangle set for drawing and hit-testing both.
+    /// The toast store, newest first — the panel's real content, re-read on
+    /// a short poll while visible and once on every show. Poll rather than
+    /// the NotificationChanged event: the event needs a hand-written COM
+    /// object, and a panel that is usually hidden has no use for it.
+    private var toasts: [Win32Toast] = []
+    /// What the pointer is over — the interactive parts answer hover the
+    /// way the native panel's do. Arithmetic off the root Listener, one
+    /// rectangle set for drawing and hit-testing both.
     private var hovered: AcHover?
 
     enum AcHover: Equatable {
         case header
         case prev
         case next
+        case clearAll
+        case card(Int)
+        case cardClose(Int)
     }
 
     override func initState() {
         super.initState()
         CupertinoIcons.registerFont()
         FluentIcons.registerFont()
-        // Half a minute, not a second: the only thing that moves on its own
-        // here is the date line.
-        timer = startPeriodicTimer(seconds: 30) { [weak self] in
-            self?.setState { self?.now = Date() }
+        // Five seconds: the date line barely moves, but the toast store does,
+        // and the poll is only paid while the panel is on screen.
+        timer = startPeriodicTimer(seconds: 5) { [weak self] in
+            guard let self else { return }
+            self.setState { self.now = Date() }
+            if Win32WindowedHost.host?.isVisible == true { self.refreshToasts() }
         }
+        refreshToasts()
         // The launcher's bargain (see its didToggle): the host shows the
         // window; the tree hears about it here. On show, mark the tree dirty
         // so a fresh frame is what the user sees — a frame painted while the
@@ -90,6 +101,7 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             guard let self else { return }
             if Win32WindowedHost.host?.isVisible == true {
                 self.setState { self.now = Date() }
+                self.refreshToasts()
             } else {
                 self.setState {
                     self.calendarExpanded = false
@@ -100,6 +112,36 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                     Win32WindowedHost.host?.requestRedraw()
                 }
             }
+        }
+    }
+
+    // MARK: - The store
+
+    private func refreshToasts() {
+        Task.detached { [weak self] in
+            let items = Win32Notifications.read()
+            await MainActor.run {
+                guard let self, items != self.toasts else { return }
+                self.setState { self.toasts = items }
+            }
+        }
+    }
+
+    private func removeToast(_ id: UInt32) {
+        // Optimistic, then re-read: the next poll is seconds away and a card
+        // that lingers after its X reads as a dead button.
+        setState { toasts.removeAll { $0.id == id } }
+        Task.detached { [weak self] in
+            Win32Notifications.remove(id)
+            await MainActor.run { self?.refreshToasts() }
+        }
+    }
+
+    private func clearAllToasts() {
+        setState { toasts = [] }
+        Task.detached { [weak self] in
+            Win32Notifications.clearAll()
+            await MainActor.run { self?.refreshToasts() }
         }
     }
 
@@ -129,6 +171,31 @@ final class StarlingActionCenterState: State<StatefulWidget> {
     private var calHeader: AcRect {
         AcRect(x: 0, y: calPanel.y, w: kAcWidth, h: kAcCalCollapsedH)
     }
+    /// The toast cards: fixed-height cards down the notifications panel,
+    /// newest first, capped at what fits — the "+ n more" line stands in for
+    /// the scroll this surface does not have yet.
+    private let cardH = 96.0
+    private let cardGap = 8.0
+
+    private var visibleCards: Int {
+        let avail = notifPanel.h - 52 - 26
+        return max(0, min(toasts.count, Int(avail / (cardH + cardGap))))
+    }
+
+    private func cardRect(_ i: Int) -> AcRect {
+        AcRect(x: 12, y: 52 + Double(i) * (cardH + cardGap),
+               w: kAcWidth - 24, h: cardH)
+    }
+
+    private func cardCloseRect(_ i: Int) -> AcRect {
+        let r = cardRect(i)
+        return AcRect(x: r.x + r.w - 32, y: r.y + 6, w: 26, h: 26)
+    }
+
+    private var clearAllRect: AcRect {
+        AcRect(x: kAcWidth - 78, y: 13, w: 64, h: 26)
+    }
+
     private var calPrev: AcRect {
         AcRect(x: kAcWidth - 76, y: calPanel.y + kAcCalCollapsedH, w: 32, h: kAcCalMonthBarH)
     }
@@ -197,10 +264,23 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         if calendarExpanded, calPrev.contains(x, y) { return .prev }
         if calendarExpanded, calNext.contains(x, y) { return .next }
         if calHeader.contains(x, y) { return .header }
+        if !toasts.isEmpty, clearAllRect.contains(x, y) { return .clearAll }
+        for i in 0..<visibleCards {
+            if cardCloseRect(i).contains(x, y) { return .cardClose(i) }
+            if cardRect(i).contains(x, y) { return .card(i) }
+        }
         return nil
     }
 
     private func handlePress(_ x: Double, _ y: Double) {
+        if !toasts.isEmpty, clearAllRect.contains(x, y) {
+            clearAllToasts()
+            return
+        }
+        for i in 0..<visibleCards where cardCloseRect(i).contains(x, y) {
+            removeToast(toasts[i].id)
+            return
+        }
         if calHeader.contains(x, y) {
             setState { calendarExpanded.toggle() }
             return
@@ -239,11 +319,86 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         }
     }
 
+    /// The relative time the native cards carry — "2m", "3h", a date.
+    private func toastTimeText(_ t: Win32Toast) -> String {
+        let s = Int(now.timeIntervalSince(t.time))
+        if s < 60 { return "now" }
+        if s < 3600 { return "\(s / 60)m" }
+        if s < 86400 { return "\(s / 3600)h" }
+        let f = DateFormatter()
+        f.dateFormat = "d MMM"
+        return f.string(from: t.time)
+    }
+
+    private func toastCard(_ i: Int, _ p: WinPalette) -> Widget {
+        let toast = toasts[i]
+        let r = cardRect(i)
+        let hoveredHere: Bool = {
+            switch hovered {
+            case .card(let j), .cardClose(let j): return j == i
+            default: return false
+            }
+        }()
+        return Positioned(left: r.x, top: r.y) {
+            SizedBox(width: r.w, height: r.h) {
+                ClipRRect(borderRadius: BorderRadius.circular(6)) {
+                    ColoredBox(color: p.buttonStroke) {
+                        Padding(padding: EdgeInsets(left: 1, top: 1, right: 1, bottom: 1)) {
+                            ClipRRect(borderRadius: BorderRadius.circular(5)) {
+                                ColoredBox(color: hoveredHere ? p.buttonHover : p.button) {
+                                    Stack(alignment: Alignment.topLeft) {
+                                        Positioned(left: 12, top: 8, width: r.w - 90, height: 16) {
+                                            Text(toast.app,
+                                                 style: TextStyle(color: p.subInk, fontSize: 11),
+                                                 overflow: .ellipsis, maxLines: 1)
+                                        }
+                                        Positioned(left: r.w - 76, top: 8, width: 36, height: 16) {
+                                            Text(toastTimeText(toast),
+                                                 style: TextStyle(color: p.subInk, fontSize: 11))
+                                        }
+                                        Positioned(left: 12, top: 28, width: r.w - 24, height: 18) {
+                                            Text(toast.title,
+                                                 style: TextStyle(color: p.ink, fontSize: 13,
+                                                                  fontWeight: .w600),
+                                                 overflow: .ellipsis, maxLines: 1)
+                                        }
+                                        Positioned(left: 12, top: 48, width: r.w - 24, height: 40) {
+                                            Text(toast.body,
+                                                 style: TextStyle(color: p.subInk, fontSize: 12),
+                                                 overflow: .ellipsis, maxLines: 2)
+                                        }
+                                        // The dismiss X, on the card the pointer is over —
+                                        // the native card's own affordance.
+                                        if hoveredHere {
+                                            Positioned(left: r.w - 32, top: 6, width: 26, height: 26) {
+                                                ClipRRect(borderRadius: BorderRadius.circular(4)) {
+                                                    ColoredBox(color: hovered == .cardClose(i)
+                                                                   ? p.rowHover : Color(0x00000000)) {
+                                                        Center {
+                                                            MacosIcon(icon: FluentIcons.close,
+                                                                      color: p.subInk, size: 11)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func notificationsBody(_ p: WinPalette) -> Widget {
         let emptyY = notifPanel.h * 0.42
+        let shown = visibleCards
+        let hidden = toasts.count - shown
         return Stack(alignment: Alignment.topLeft) {
-            // Header: the title, the do-not-disturb bell, "Clear all" — the
-            // latter two disabled until there are notifications to act on.
+            // Header: the title, the do-not-disturb bell (still a stub), and
+            // "Clear all" — live exactly when there is something to clear.
             Positioned(left: 16, top: 14, width: 160, height: 24) {
                 Text("Notifications",
                      style: TextStyle(color: p.ink, fontSize: 14, fontWeight: .w600))
@@ -255,19 +410,36 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             }
             Positioned(left: kAcWidth - 78, top: 13, width: 64, height: 26) {
                 ClipRRect(borderRadius: BorderRadius.circular(13)) {
-                    ColoredBox(color: p.button) {
+                    ColoredBox(color: toasts.isEmpty ? p.button
+                               : hovered == .clearAll ? p.buttonHover : p.button) {
                         Center {
                             Text("Clear all",
-                                 style: TextStyle(color: p.disabledInk, fontSize: 12))
+                                 style: TextStyle(color: toasts.isEmpty ? p.disabledInk : p.ink,
+                                                  fontSize: 12))
                         }
                     }
                 }
             }
-            // The honest empty state, where the native panel centres its own.
-            Positioned(left: 0, top: emptyY, width: kAcWidth, height: 20) {
-                Center {
-                    Text("No new notifications",
-                         style: TextStyle(color: p.subInk, fontSize: 13))
+            if toasts.isEmpty {
+                // The honest empty state, where the native panel centres its own.
+                Positioned(left: 0, top: emptyY, width: kAcWidth, height: 20) {
+                    Center {
+                        Text("No new notifications",
+                             style: TextStyle(color: p.subInk, fontSize: 13))
+                    }
+                }
+            } else {
+                for i in 0..<shown {
+                    toastCard(i, p)
+                }
+                if hidden > 0 {
+                    Positioned(left: 0, top: 52 + Double(shown) * (cardH + cardGap),
+                               width: kAcWidth, height: 18) {
+                        Center {
+                            Text("+ \(hidden) more",
+                                 style: TextStyle(color: p.subInk, fontSize: 12))
+                        }
+                    }
                 }
             }
         }

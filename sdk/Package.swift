@@ -663,6 +663,10 @@ targets += [
             // and the audio endpoint's volume.
             .linkedLibrary("wlanapi"),
             .linkedLibrary("iphlpapi"),
+            // RoGetActivationFactory + HSTRING, for the notification
+            // listener — the one WinRT API the shell consumes (see
+            // flwin32_notifications.c for why raw ABI rather than C++/WinRT).
+            .linkedLibrary("runtimeobject"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.

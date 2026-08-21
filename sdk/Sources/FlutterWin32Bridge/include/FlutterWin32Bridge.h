@@ -972,6 +972,26 @@ int32_t flwin32_set_night_light(int32_t on);
 // Energy saver, read-only: 1 on, 0 off, -1 unknown. The OS owns the toggle.
 int32_t flwin32_energy_saver(void);
 
+// ── notifications ───────────────────────────────────────────────────────────
+//
+// The toasts Windows is holding, through UserNotificationListener — the same
+// store the native notification centre shows. ALL BLOCKING: init brings up
+// WinRT on the calling thread, read polls an async to completion. Background
+// thread only; see flwin32_notifications.c.
+int32_t flwin32_notifications_init(void);
+// 2 allowed, 1 denied, 0 unspecified, -1 unavailable. Asks for access the
+// first time, which is what flips a fresh machine to Allowed.
+int32_t flwin32_notifications_access(void);
+// Emits one callback per toast (newest state of the store, unordered):
+// id for removal, app display name, first text element as title, the rest
+// joined as body, creation time in unix seconds. Returns the count, or -1.
+int32_t flwin32_notifications_read(
+    void (*emit)(void* user, uint32_t id, const char* app, const char* title,
+                 const char* body, int64_t time_unix),
+    void* user);
+int32_t flwin32_notification_remove(uint32_t id);
+int32_t flwin32_notifications_clear(void);
+
 // ── installed applications ──────────────────────────────────────────────────
 //
 // Windows has no app registry the way Starling does on Linux. What it has is

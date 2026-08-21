@@ -103,6 +103,20 @@ if CommandLine.arguments.contains("--print-status") {
     exit(0)
 }
 
+// `--print-notifications` reads the toast store and exits — the oracle for
+// the notification centre, the same bargain --print-status makes for Quick
+// Settings: the only honest check of the panel's list is asking the system
+// again from outside the process that draws it.
+if CommandLine.arguments.contains("--print-notifications") {
+    print("access=\(Win32Notifications.access())")
+    let toasts = Win32Notifications.read()
+    print("count=\(toasts.count)")
+    for t in toasts {
+        print("[\(t.id)] \(t.app) @ \(t.time) :: \(t.title) :: \(t.body.replacingOccurrences(of: "\n", with: " | "))")
+    }
+    exit(0)
+}
+
 // `--tray-probe [seconds]` takes the "Shell_TrayWnd" class the tray protocol
 // looks up, broadcasts TaskbarCreated so every app re-adds its icons, prints
 // what arrives, hands the class back to explorer and exits.
