@@ -139,6 +139,14 @@ final class FilesBloc: @unchecked Sendable {
 
     private(set) var state = FilesState()
 
+    /// Where THIS bloc starts, when it is not the first: a new tab opens
+    /// Home (Explorer's rule), not whatever `--files` named at launch.
+    @ObservationIgnored private let startDirectory: String?
+
+    init(startingIn directory: String? = nil) {
+        startDirectory = directory
+    }
+
     /// The window the shell's dialogs (conflict, progress, confirm) parent
     /// to. A dialog with no owner is a window the user can lose behind the
     /// one they asked it from.
@@ -176,7 +184,7 @@ final class FilesBloc: @unchecked Sendable {
             // of the same detached read: the sidebar is furniture, and waiting
             // for it before listing what the user actually asked for would put
             // a profile-folder enumeration in front of every launch.
-            let requested = Self.requestedDirectory
+            let requested = startDirectory ?? Self.requestedDirectory
             if let requested { _list(requested) }
             Task.detached { [weak self] in
                 let places = Win32Files.places()
@@ -533,5 +541,51 @@ final class FilesBloc: @unchecked Sendable {
     }
 }
 
-let filesBloc = FilesBloc()
+/// The window's tabs: one bloc per tab -- so history, selection, sort,
+/// filter and scroll are each tab's own for free -- and one active index.
+/// The `filesBloc` global below resolves to the active tab, which is what
+/// keeps every existing consumer (the context menu above all) pointed at
+/// the tab the user is looking at without knowing tabs exist.
+@Observable
+final class FilesTabs: @unchecked Sendable {
+    static let shared = FilesTabs()
+
+    private(set) var blocs = [FilesBloc()]
+    /// Parallel to `blocs`: each tab keeps its own scroll position, so
+    /// switching away and back lands where the user left.
+    @ObservationIgnored private(set) var scrolls = [ScrollController()]
+    var active = 0
+
+    var bloc: FilesBloc { blocs[active] }
+    var scroll: ScrollController { scrolls[active] }
+
+    /// A new tab, opening Home like Explorer's "+" (or `directory` when a
+    /// caller has somewhere specific in mind), started and made active.
+    func add(_ directory: String? = nil) {
+        let home = directory ?? Win32Files.places().first?.path
+        let bloc = FilesBloc(startingIn: home)
+        blocs.append(bloc)
+        scrolls.append(ScrollController())
+        active = blocs.count - 1
+        bloc.add(.start)
+    }
+
+    /// Closes a tab. False when it was the last one -- Explorer closes the
+    /// window then, and so does the caller.
+    func close(_ index: Int) -> Bool {
+        guard blocs.count > 1, blocs.indices.contains(index) else {
+            return false
+        }
+        blocs.remove(at: index)
+        scrolls.remove(at: index)
+        if active >= blocs.count {
+            active = blocs.count - 1
+        } else if index < active {
+            active -= 1
+        }
+        return true
+    }
+}
+
+var filesBloc: FilesBloc { FilesTabs.shared.bloc }
 #endif

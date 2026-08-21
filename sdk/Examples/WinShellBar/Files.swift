@@ -106,7 +106,8 @@ final class StarlingFiles: StatefulWidget {
 }
 
 final class StarlingFilesState: State<StatefulWidget> {
-    private let bloc = filesBloc
+    private var tabs: FilesTabs { FilesTabs.shared }
+    private var bloc: FilesBloc { tabs.bloc }
 
     /// Double-click, by hand.
     ///
@@ -120,8 +121,9 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     /// The list's scroll position, so a right-click can work out which row is
     /// under the pointer. Without it the arithmetic is only right until the
-    /// first scroll — and then silently wrong, which is worse.
-    private let scroll = ScrollController()
+    /// first scroll — and then silently wrong, which is worse. PER TAB, from
+    /// the tabs model: switching away and back lands where the user left.
+    private var scroll: ScrollController { tabs.scroll }
 
     // The rubber band's bookkeeping. `band` is the drawn rectangle (its own
     // model, so dragging rebuilds the overlay and not this window); the rest
@@ -209,6 +211,12 @@ final class StarlingFilesState: State<StatefulWidget> {
                 return true
             case 0x0007_0004: // A
                 bloc.add(.selectAll)
+                return true
+            case 0x0007_0017: // T: new tab
+                tabs.add()
+                return true
+            case 0x0007_001A: // W: close tab (the window, when it is the last)
+                closeTab(tabs.active)
                 return true
             case 0x0007_0019: // V
                 bloc.add(.paste(into: bloc.state.directory))
@@ -729,40 +737,74 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// here: every press in the strip goes through stripPress, hit-tested
     /// arithmetically from the root Listener, because a drag must reach
     /// beginDrag on the raw pointer-down and gestures do not give it up.
+    /// Tabs shrink to fit as they multiply, Explorer-fashion, down to a
+    /// floor that keeps the close glyph reachable.
+    private func tabWidth(_ width: Double) -> Double {
+        let available = width - kCaptionButtonW * 3 - kTabX - 50
+        let count = Double(max(tabs.blocs.count, 1))
+        return min(kTabW, max(90, available / count - 4))
+    }
+
+    private func tabLabel(_ bloc: FilesBloc) -> String {
+        let path = bloc.state.directory
+        if path.isEmpty { return "Files" }
+        let name = (path as NSString).lastPathComponent
+        return name.isEmpty ? Win32Files.displayName(for: path) : name
+    }
+
+    private func closeTab(_ index: Int) {
+        if !tabs.close(index) {
+            Win32WindowedHost.host?.closeWindow()
+        }
+    }
+
     private func tabStrip() -> Widget {
         SizedBox(height: kFilesTabStrip) {
             ColoredBox(color: Win11.windowBg) {
                 Stack(alignment: Alignment.topLeft) {
-                    // The active tab, seated on the strip's bottom edge with
-                    // rounded shoulders, the way Explorer's tab sits.
-                    Positioned(left: kTabX, top: 8, bottom: 0) {
-                        SizedBox(width: kTabW) {
-                            ClipRRect(borderRadius: BorderRadius.only(
-                                topLeft: Radius(circular: 8),
-                                topRight: Radius(circular: 8))) {
-                                ColoredBox(color: Win11.surface) {
-                                    Padding(padding: EdgeInsets(
-                                        left: 12, top: 0, right: 8, bottom: 0)) {
-                                        Row(crossAxisAlignment: .center, spacing: 8) {
-                                            MacosIcon(icon: FluentIcons.folderFill,
-                                                      color: Win11.textDim, size: 13)
-                                            Expanded {
-                                                Text(folderLabel(),
-                                                     style: TextStyle(color: Win11.text,
-                                                                      fontSize: 12),
-                                                     overflow: .ellipsis, maxLines: 1)
+                    // Every tab, seated on the strip's bottom edge with
+                    // rounded shoulders the way Explorer's sit; the active
+                    // one carries the surface colour the content area
+                    // continues, which is what visually welds tab to page.
+                    let width = Win32WindowedHost.host?.clientSize?.width
+                        ?? kFilesWidth
+                    let tw = tabWidth(width)
+                    for (index, tabBloc) in tabs.blocs.enumerated() {
+                        Positioned(left: kTabX + Double(index) * (tw + 4),
+                                   top: 8, bottom: 0) {
+                            SizedBox(width: tw) {
+                                ClipRRect(borderRadius: BorderRadius.only(
+                                    topLeft: Radius(circular: 8),
+                                    topRight: Radius(circular: 8))) {
+                                    Hover { hovered in
+                                        ColoredBox(color: index == self.tabs.active
+                                                   ? Win11.surface
+                                                   : (hovered ? Win11.hoverFill
+                                                              : Color(0x00000000))) {
+                                        Padding(padding: EdgeInsets(
+                                            left: 12, top: 0, right: 8, bottom: 0)) {
+                                            Row(crossAxisAlignment: .center, spacing: 8) {
+                                                MacosIcon(icon: FluentIcons.folderFill,
+                                                          color: Win11.textDim, size: 13)
+                                                Expanded {
+                                                    Text(self.tabLabel(tabBloc),
+                                                         style: TextStyle(color: Win11.text,
+                                                                          fontSize: 12),
+                                                         overflow: .ellipsis, maxLines: 1)
+                                                }
+                                                MacosIcon(icon: FluentIcons.close,
+                                                          color: Win11.textFaint, size: 10)
                                             }
-                                            MacosIcon(icon: FluentIcons.close,
-                                                      color: Win11.textFaint, size: 10)
+                                        }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    // "+", which opens a new window on this folder -- the
-                    // nearest honest thing to a new tab until tabs are real.
-                    Positioned(left: kTabX + kTabW + 8, top: 12) {
+                    // "+": a new tab, on Home, as Explorer's does.
+                    Positioned(left: kTabX + Double(tabs.blocs.count) * (tw + 4) + 8,
+                               top: 12) {
                         MacosIcon(icon: FluentIcons.add,
                                   color: Win11.textDim, size: 14)
                     }
@@ -821,15 +863,26 @@ final class StarlingFilesState: State<StatefulWidget> {
         if fromRight <= kCaptionButtonW { host.closeWindow(); return }
         if fromRight <= kCaptionButtonW * 2 { host.toggleMaximize(); return }
         if fromRight <= kCaptionButtonW * 3 { host.minimize(); return }
-        // The tab's own close. One tab, so it closes the window -- the same
-        // thing Explorer does to its last tab.
-        if x >= kTabX + kTabW - 30 && x < kTabX + kTabW && y >= 8 {
-            host.closeWindow()
-            return
+        // The tabs, by the same arithmetic that drew them: the close glyph
+        // zone at each tab's right edge, the rest of the tab activates.
+        // Closing the last tab closes the window, as Explorer's does.
+        let tw = tabWidth(width)
+        let tabsEnd = kTabX + Double(tabs.blocs.count) * (tw + 4)
+        if x >= kTabX && x < tabsEnd && y >= 8 {
+            let index = Int((x - kTabX) / (tw + 4))
+            let inTab = x - (kTabX + Double(index) * (tw + 4))
+            if inTab < tw && tabs.blocs.indices.contains(index) {
+                if inTab >= tw - 28 {
+                    closeTab(index)
+                } else {
+                    tabs.active = index
+                }
+                return
+            }
         }
-        // "+": a new window on this folder.
-        if x >= kTabX + kTabW + 2 && x < kTabX + kTabW + 34 {
-            openNewWindow()
+        // "+": a new tab.
+        if x >= tabsEnd + 2 && x < tabsEnd + 36 {
+            tabs.add()
             return
         }
         // The empty strip: a second press within the double-click window

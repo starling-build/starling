@@ -59,8 +59,15 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       rebuilds one box and not the window) and the rows it spans become the
       selection live; Ctrl-dragging adds to what was selected. No edge
       autoscroll yet -- the band selects what is on screen.
-- [ ] Real tabs: one tab per window now; "+" opens a new window. Real tabs
-      need per-window multi-directory state and a tab strip model.
+- [x] Real tabs: one FilesBloc per tab (history, selection, sort, filter
+      and scroll each tab's own for free), an observable active index, and
+      the `filesBloc` global becomes a computed view of the active tab --
+      which keeps the context menu and every other consumer pointed at the
+      tab the user is looking at without knowing tabs exist. "+" and
+      Ctrl+T open a Home tab as Explorer does, Ctrl+W and the per-tab
+      close glyph close one (the window when it is the last), tabs shrink
+      to fit as they multiply. Not yet: dragging tabs to reorder or tear
+      off, middle-click close.
 - [ ] View modes: Details only; the View button is honest about it (drawn
       disabled) but icon/tile/list views are the ask.
 - [x] Drag & drop, in and out. In: the window is an OLE drop target
