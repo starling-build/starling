@@ -152,6 +152,27 @@ int32_t flwin32_open_with_dialog(const char* path);
 // local account with no display name set is the usual answer, not an error.
 int32_t flwin32_user_display_name(char* out, int32_t out_size);
 
+// ── the shell namespace ─────────────────────────────────────────────────────
+//
+// Listing what has no directory behind it: the Recycle Bin, Network, a .zip
+// browsed as a folder. `location` is a parsing name — a filesystem path, a
+// ::{CLSID}, or a zip's path — and the snapshot resolves everything into
+// plain data before returning (no COM object crosses the boundary).
+// Enumerating Network can block on discovery: call off the UI thread.
+typedef struct FlWin32NsList FlWin32NsList;
+FlWin32NsList* flwin32_ns_list(const char* location);
+void flwin32_ns_list_free(FlWin32NsList* list);
+int32_t flwin32_ns_count(FlWin32NsList* list);
+// field: 0 parsing name (re-addressable), 1 display name, 2 type name.
+int32_t flwin32_ns_field(FlWin32NsList* list, int32_t index, int32_t field,
+                         char* out, int32_t out_size);
+// is_folder means "the shell can enumerate inside" (a zip FILE reports 0 —
+// the STREAM bit wins — because the listing shows it as a file; entering it
+// is the caller's choice via flwin32_ns_list on its path).
+int32_t flwin32_ns_attrs(FlWin32NsList* list, int32_t index,
+                         int32_t* is_folder, int32_t* is_filesystem,
+                         int64_t* size, int64_t* mtime_unix);
+
 // The ShellNew templates behind Explorer's New submenu, one per line:
 // "ext<TAB>type name<TAB>kind<TAB>source" — kind "null" (empty file),
 // "file" (copy `source`), or "data" (write `source` decoded from hex).

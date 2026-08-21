@@ -70,6 +70,13 @@ struct FilesState {
     var canGoUp: Bool { Win32Files.parent(of: directory) != nil }
     /// The computer view. Not a folder: no listing, no file operations.
     var isThisPC: Bool { directory == kThisPCPath }
+    /// A shell-namespace location -- the Recycle Bin, Network, inside a
+    /// zip. Listed through the shell, and the file-shaped affordances that
+    /// assume a real directory (New, drops into the background) gate off.
+    var isNamespace: Bool { directory.hasPrefix("::") || namespaceFile }
+    /// Set by the listing when `directory` is a FILE the shell can
+    /// enumerate (a zip): FileManager cannot list it, the namespace can.
+    fileprivate(set) var namespaceFile = false
     /// The drives with their capacities, for the computer view's tiles --
     /// read when the view opens, not per build: GetDiskFreeSpaceEx on a
     /// sleeping USB drive is a stall nothing should pay per frame.
@@ -356,6 +363,15 @@ final class FilesBloc: @unchecked Sendable {
         case .activate(let entry):
             if entry.isDirectory {
                 add(.open(entry.path))
+            } else if entry.ext == "zip" && entry.isFileSystem {
+                // A zip opens AS A FOLDER, Explorer's own gesture -- the
+                // listing routes a file path through the namespace.
+                add(.open(entry.path))
+            } else if !entry.isFileSystem {
+                // No file behind it (a recycled item, a Network machine
+                // that is not a share): activation has nothing honest to
+                // do. The context menu carries the real verbs -- Restore,
+                // Properties -- through the shell session.
             } else {
                 // The shell decides what opens a file, exactly as the dock's
                 // launcher does — and off this thread, because it is the same
@@ -612,6 +628,29 @@ final class FilesBloc: @unchecked Sendable {
     }
 
     private func _list(_ path: String) {
+        // The shell's namespace, not the filesystem: a ::{CLSID} location
+        // (Recycle Bin, Network), or a PATH THAT IS NOT A DIRECTORY the
+        // shell can enumerate anyway -- which is what browsing a zip is.
+        var pathIsDirectory: ObjCBool = false
+        let pathExists = FileManager.default.fileExists(
+            atPath: path, isDirectory: &pathIsDirectory)
+        if path.hasPrefix("::") || (pathExists && !pathIsDirectory.boolValue) {
+            state.loading = true
+            state.error = nil
+            state.namespaceFile = pathExists && !pathIsDirectory.boolValue
+            Task.detached { [weak self] in
+                let entries = Win32Files.listNamespace(path)
+                await MainActor.run {
+                    self?.add(.listed(
+                        directory: path,
+                        entries: entries ?? [],
+                        error: entries == nil
+                            ? "Cannot open this location." : nil))
+                }
+            }
+            return
+        }
+        state.namespaceFile = false
         if path == kThisPCPath {
             // The computer view: no directory read, the drives instead.
             state.directory = path

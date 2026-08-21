@@ -133,6 +133,9 @@ enum FluentIcons {
     static let video = IconData(0xE714, fontFamily: family)
     static let thisPC = IconData(0xE977, fontFamily: family)
     static let cloud = IconData(0xE753, fontFamily: family)
+    /// The sidebar's Network place (the MDL2 "Network" glyph) -- distinct
+    /// from `network`, the antenna the status surfaces use.
+    static let networkPlaces = IconData(0xE968, fontFamily: family)
     static let drive = IconData(0xEDA2, fontFamily: family)
     static let folderFill = IconData(0xE8D5, fontFamily: family)
     static let folderOpen = IconData(0xE838, fontFamily: family)

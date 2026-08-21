@@ -280,6 +280,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                         text: paths.map { "\"\($0)\"" }.joined(separator: "\r\n")))
                     return true
                 }
+                // Not from a namespace listing: the clipboard data object
+                // is built from FILE paths, and a parsing name in a
+                // CF_HDROP is a lie waiting for a paste. The context menu's
+                // shell verbs remain the honest route there.
+                guard canMutateHere else { return false }
                 if bloc.state.selection.count > 1 {
                     bloc.add(.clipSelection(cut: false))
                     return true
@@ -288,6 +293,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                 bloc.add(.clip(entry, cut: false))
                 return true
             case 0x0007_001B: // X
+                guard canMutateHere else { return false }
                 if bloc.state.selection.count > 1 {
                     bloc.add(.clipSelection(cut: true))
                     return true
@@ -343,7 +349,7 @@ final class StarlingFilesState: State<StatefulWidget> {
             }
             return true
         case 0x1_0000_0802: // F2
-            guard let entry = selectedEntry else { return false }
+            guard canMutateHere, let entry = selectedEntry else { return false }
             bloc.add(.beginRename(entry))
             return true
         case 0x1_0000_007F: // Delete
@@ -909,6 +915,10 @@ final class StarlingFilesState: State<StatefulWidget> {
         if thisPCExpanded {
             for drive in bloc.state.drives { items.append((32, drive.path)) }
         }
+        items.append((17, nil))                    // rule
+        items.append((32, nil))                    // Recycle Bin -- a drop
+        items.append((32, nil))                    // Network      -- not a
+                                                   // folder either one
         var top = kFilesTabStrip + kFilesNavBar + kFilesCommandBar + 10
         for item in items {
             if y >= top, y < top + item.height { return item.path }
@@ -1028,6 +1038,19 @@ final class StarlingFilesState: State<StatefulWidget> {
                                 }
                             }
                         }
+                        sidebarRule()
+                        // The namespace places: rows that NAVIGATE now --
+                        // the listing speaks the shell's namespace, so the
+                        // old "a row that navigates nowhere" objection is
+                        // paid off.
+                        placeRow(Win32Place(
+                                     name: "Recycle Bin",
+                                     path: Win32Files.NamespacePlace.recycleBin),
+                                 glyph: FluentIcons.delete)
+                        placeRow(Win32Place(
+                                     name: "Network",
+                                     path: Win32Files.NamespacePlace.network),
+                                 glyph: FluentIcons.networkPlaces)
                     }
                 }
             }
@@ -1331,6 +1354,15 @@ final class StarlingFilesState: State<StatefulWidget> {
         // The dictionary, not a scan: the command bar asks half a dozen
         // times per build.
         return bloc.state.visibleByPath[path]
+    }
+
+    /// Whether the file-shaped mutations (New, rename, cut/copy/paste)
+    /// belong in this listing: a real directory yes, This PC and the
+    /// namespace views no. Delete stays available everywhere -- the
+    /// IFileOperation behind it speaks parsing names and puts up its own
+    /// confirmation where deletion is permanent.
+    private var canMutateHere: Bool {
+        !bloc.state.isThisPC && !bloc.state.isNamespace
     }
 
     /// The selection in VISIBLE order -- a Set has none, and Copy as path

@@ -28,6 +28,22 @@ public struct Win32FileEntry: Sendable, Equatable, Identifiable {
     /// folder shares one icon and rasterizing each of them separately is how
     /// a listing takes a second to appear.
     public let ext: String
+    /// False for an item with no file behind it — a Network machine, an
+    /// entry inside a zip. `path` is then a shell PARSING NAME, which the
+    /// shell's own machinery (SHParseDisplayName, IFileOperation) accepts
+    /// but the filesystem APIs must not be handed.
+    public let isFileSystem: Bool
+
+    public init(name: String, path: String, isDirectory: Bool, size: Int64,
+                modified: Date?, ext: String, isFileSystem: Bool = true) {
+        self.name = name
+        self.path = path
+        self.isDirectory = isDirectory
+        self.size = size
+        self.modified = modified
+        self.ext = ext
+        self.isFileSystem = isFileSystem
+    }
 
     public var id: String { path }
 }
@@ -164,6 +180,54 @@ public enum Win32Files {
             flwin32_user_display_name($0.baseAddress, 256)
         }
         return n > 0 ? String(cString: buffer) : ""
+    }
+
+    /// The namespace locations the sidebar can offer — parsing names, not
+    /// paths. The CLSIDs are the shell's own, stable since forever.
+    public enum NamespacePlace {
+        public static let recycleBin = "::{645FF040-5081-101B-9F08-00AA002F954E}"
+        public static let network = "::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}"
+    }
+
+    /// Lists a shell NAMESPACE location — the Recycle Bin, Network, a .zip
+    /// browsed as a folder — by parsing name. nil when the location does
+    /// not resolve or cannot enumerate; an empty array is an honestly empty
+    /// folder. Can block (Network discovery): call off the UI thread.
+    public static func listNamespace(_ location: String) -> [Win32FileEntry]? {
+        guard let list = flwin32_ns_list(location) else { return nil }
+        defer { flwin32_ns_list_free(list) }
+        let count = flwin32_ns_count(list)
+        var out: [Win32FileEntry] = []
+        out.reserveCapacity(Int(count))
+        var buffer = [CChar](repeating: 0, count: 4096)
+        func field(_ index: Int32, _ which: Int32) -> String {
+            let n = buffer.withUnsafeMutableBufferPointer {
+                flwin32_ns_field(list, index, which, $0.baseAddress, 4096)
+            }
+            return n > 0 ? String(cString: buffer) : ""
+        }
+        for index in 0..<count {
+            var folder: Int32 = 0
+            var filesystem: Int32 = 0
+            var size: Int64 = 0
+            var mtime: Int64 = 0
+            flwin32_ns_attrs(list, index, &folder, &filesystem, &size, &mtime)
+            let display = field(index, 1)
+            let parsing = field(index, 0)
+            guard !parsing.isEmpty else { continue }
+            let isDirectory = folder != 0
+            out.append(Win32FileEntry(
+                name: display.isEmpty ? parsing : display,
+                path: parsing,
+                isDirectory: isDirectory,
+                size: size,
+                modified: mtime > 0
+                    ? Date(timeIntervalSince1970: TimeInterval(mtime)) : nil,
+                ext: isDirectory
+                    ? "" : (display as NSString).pathExtension.lowercased(),
+                isFileSystem: filesystem != 0))
+        }
+        return out
     }
 
     /// The user's OneDrive, when there is one — a row for a real folder

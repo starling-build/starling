@@ -10,6 +10,45 @@ The next session-sized piece by this list's own logic is the context menu
 as its own popup window, parked earlier in favour of window parity, which
 is now complete.
 
+## In flight (checkpoint 2026-08-21, mid-session context clear)
+
+Track 1 / Phase 0a of `winshell-shell-replacement.md` -- shell-namespace
+enumeration -- is HALF LANDED at this checkpoint. Compiles clean; NOT yet
+deployed or verified. Done: flwin32_namespace.c (IEnumShellItems snapshot,
+tray-list shape; note BHID_EnumItems has no C definition in the SDK
+headers -- kBHID_EnumItems is defined locally), header block,
+Win32FileEntry.isFileSystem (explicit init, defaulted true),
+Win32Files.listNamespace + NamespacePlace (Recycle Bin / Network CLSIDs),
+FilesBloc: _list routes "::" locations AND existing-but-not-directory
+paths (= zip browsing) through the namespace off-thread, activate gates
+non-filesystem files and opens zips as folders, state.isNamespace /
+namespaceFile; Files.swift: sidebar Recycle Bin + Network rows (after a
+rule below This PC) with matching sidebarDropTarget mirror entries (both
+nil -- not drop targets), FluentIcons.networkPlaces (0xE968), keyboard
+Ctrl+C/X and F2 gated behind a new `canMutateHere`
+(!isThisPC && !isNamespace; Delete deliberately NOT gated -- IFileOperation
+speaks parsing names and confirms permanence itself).
+
+Remaining to finish the slice:
+1. Command-bar `enabled:` gating -- cut/copy/rename/paste buttons still
+   light up in namespace listings; use `canMutateHere` like the keys.
+2. New button: `enabled: !isThisPC` should become `canMutateHere`.
+3. dropResolve: gate namespace listings (background drop would target a
+   "::" directory).
+4. crumbs()/tabLabel()/folderLabel(): "::"-prefixed directory needs a
+   label -- "Recycle Bin"/"Network" for the known CLSIDs, else
+   displayName(for:); crumbs as a single crumb like This PC. Zip paths
+   walk fine textually already.
+5. Deploy and verify on the box: bin lists with ORIGINAL names and dates,
+   context-menu Restore works (SHParseDisplayName takes parsing names, so
+   the existing menu session should just work), Network enumerates (may
+   be slow/empty -- spinner covers it), double-click a .zip browses it,
+   crumb/tab labels, Delete-in-bin brings the shell's own permanent-delete
+   confirm.
+6. Optional polish: skip icon warming for !isFileSystem entries (rasterize
+   fails and falls back to glyphs today, which draws fine but wastes the
+   attempts).
+
 ## Done, for context
 
 The context menu matches native structurally and visually: modern tier with
