@@ -27,13 +27,15 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
 
 ## File explorer — visual polish (small)
 
-- [ ] Hover states: caption buttons (gray hover, red close), sidebar rows,
-      listing rows, command-bar buttons. Needs widget-level hover plumbing —
-      the root Listener only tracks hover while a menu is open. The most
-      noticeable remaining tell in daily use.
-- [ ] Dropdowns that drop: New ∨, Sort ∨, View ∨ draw chevrons but click as
-      plain buttons. Needs a small flyout panel; the context-menu machinery
-      is the thing to generalize, not duplicate.
+- [x] Hover states — everywhere native has them: caption trio (close goes
+      red), nav arrows, command bar, sidebar rows, listing rows. Took a
+      three-part framework fix first: MouseRegion had never fired anywhere
+      (tracker unfed, annotation cast against the wrong type, targets boxed
+      in AnyHitTestTarget). See commits d296a91 + 454429d.
+- [x] Dropdowns that drop: the context-menu machinery gained a flyout mode;
+      New (Folder / Window) and Sort (keys + direction, checkmarked) open
+      real menus under their buttons. View still disabled — it waits on
+      view modes existing.
 - [ ] OneDrive sidebar row when %USERPROFILE%\OneDrive exists (honest: it is
       a real folder). Gallery/Network/Linux stay out until a backing view
       exists — a row that navigates nowhere is worse than absence.
