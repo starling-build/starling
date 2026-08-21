@@ -146,14 +146,31 @@ public struct OverlayPlacement: Sendable {
     /// Points between the panel's bottom edge and the bottom of the work
     /// area. The work area already excludes the dock.
     public let bottomMargin: Double
+    /// Set to pin the panel to the work area's RIGHT edge with this inset,
+    /// instead of centring it — Windows' notification centre, not its Start.
+    public let rightMargin: Double?
+    /// The toggle channel this overlay answers. `nil` is the default channel
+    /// (the launcher's). A second overlay kind must name its own — every
+    /// overlay hears the broadcast, so one channel would toggle them all.
+    public let channel: String?
+    /// Key pure black out of the surface — for an overlay drawn as separate
+    /// blocks whose gaps should show the desktop, like the notification
+    /// centre's two panels. Costs the tree true black, same as the panels.
+    public let transparent: Bool
 
     public init(monitor: Int? = nil, opacity: Double = 0.96,
                 size: (width: Double, height: Double)? = nil,
-                bottomMargin: Double = 12) {
+                bottomMargin: Double = 12,
+                rightMargin: Double? = nil,
+                channel: String? = nil,
+                transparent: Bool = false) {
         self.monitor = monitor
         self.opacity = opacity
         self.size = size
         self.bottomMargin = bottomMargin
+        self.rightMargin = rightMargin
+        self.channel = channel
+        self.transparent = transparent
     }
 }
 
@@ -168,6 +185,18 @@ public enum Win32Shell {
     /// Asks every Starling overlay in the session to show or hide itself.
     public static func toggleOverlay() {
         flwin32_shell_broadcast_toggle()
+    }
+
+    /// The same toggle on a named channel — one overlay kind, not all of
+    /// them. The notification centre lives on "notifications".
+    public static func toggleOverlay(channel: String) {
+        flwin32_shell_broadcast_toggle_channel(channel)
+    }
+
+    /// Starts the notification-centre process parked, so the first Win+N is
+    /// a show rather than an engine boot. Idempotent.
+    public static func ensureNotificationCenter() {
+        flwin32_shell_ensure_notification_center()
     }
 
     /// A bare tap of either Windows key, delivered here rather than to
@@ -199,11 +228,35 @@ public enum Win32Shell {
     public static func releaseSuperKey() {
         flwin32_winkey_release()
         superKeyHandler = nil
+        superChordHandler = nil
+    }
+
+    /// Win+<letter> chords the shell keeps: Quick Settings and the
+    /// notification centre replace Explorer surfaces, so `Win+A`/`Win+N`
+    /// must open OURS, not Microsoft's. Everything not named here still goes
+    /// to Windows — see the header of `flwin32_winkey.c` for why that
+    /// restraint matters. Requires `captureSuperKey` to have succeeded, for
+    /// the same one-hook-per-session reason.
+    ///
+    /// `handler` receives the letter pressed ("A", "N") on the UI thread.
+    @discardableResult
+    public static func captureSuperChords(_ letters: [Character],
+                                          _ handler: @escaping (Character) -> Void) -> Bool {
+        superChordHandler = handler
+        let vks = letters.compactMap { $0.uppercased().unicodeScalars.first.map { Int32($0.value) } }
+        return vks.withUnsafeBufferPointer { buf in
+            flwin32_winkey_set_chords(buf.baseAddress, Int32(buf.count), { _, vk in
+                if let scalar = Unicode.Scalar(UInt32(vk)) {
+                    Win32Shell.superChordHandler?(Character(scalar))
+                }
+            }, nil) != 0
+        }
     }
 
     /// Global for the same reason `Win32Host`'s toggle handler is: one UI
     /// thread, one hook per process.
     nonisolated(unsafe) private static var superKeyHandler: (() -> Void)?
+    nonisolated(unsafe) private static var superChordHandler: ((Character) -> Void)?
 
     /// Opens Starling's own Settings window.
     ///

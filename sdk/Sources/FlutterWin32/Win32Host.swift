@@ -73,7 +73,22 @@ public final class Win32Host {
     /// expects the instant they ask for it.
     public func setOverlay(monitor: Int?, opacity: Double,
                            size: (width: Double, height: Double)? = nil,
-                           bottomMargin: Double = 12) {
+                           bottomMargin: Double = 12,
+                           rightMargin: Double? = nil,
+                           channel: String? = nil,
+                           transparent: Bool = false) {
+        // Anchor and channel BEFORE set_overlay: that call positions the
+        // window, and an anchor set afterwards would leave it centred until
+        // the next monitor change rederived it.
+        if let rightMargin {
+            flwin32_host_set_overlay_anchor_right(host, Int32(rightMargin))
+        }
+        if let channel {
+            flwin32_host_set_overlay_channel(host, channel)
+        }
+        if transparent {
+            flwin32_host_set_overlay_colorkey(host)
+        }
         flwin32_host_set_overlay(host, Int32(monitor ?? -1),
                                  Int32((opacity * 255).rounded()),
                                  Int32(size?.width ?? 0),

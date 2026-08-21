@@ -260,6 +260,22 @@ void flwin32_shell_open_settings(void) {
     open_surface(L"Starling Settings", L"--settings");
 }
 
+/* Start the notification centre PROCESS if it is not running -- parked, like
+ * the launcher, so the first Win+N is a show rather than an engine boot. No
+ * raise: a parked overlay has nothing to raise, its toggle channel does the
+ * showing. */
+void flwin32_shell_ensure_notification_center(void) {
+    if (FindWindowW(L"FlutterSwiftWin32Host", L"Starling Notifications") != NULL) {
+        return;
+    }
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
+    /* SW_HIDE: this exe is a console-subsystem binary, and the show command
+     * applies to the console Windows would otherwise pop for it. The
+     * surface's own window is created by the host and parked regardless. */
+    ShellExecuteW(NULL, L"open", exe, L"--notifications", NULL, SW_HIDE);
+}
+
 void flwin32_shell_open_files(void) {
     open_surface(L"Starling Files", L"--files");
 }

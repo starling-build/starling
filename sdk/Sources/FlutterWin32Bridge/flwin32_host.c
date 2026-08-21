@@ -136,6 +136,19 @@ struct FlWin32Host {
   int overlay_width_pt;
   int overlay_height_pt;
   int overlay_margin_pt;
+  // 0 centred (the launcher); 1 pinned to the work area's right edge (the
+  // notification centre), inset by overlay_margin_right_pt.
+  int overlay_halign_right;
+  // Key pure black out of the surface, exactly the panel's trick: the
+  // notification centre is two rounded panels with a gap, and an opaque
+  // window paints that gap as a black band nothing asked for. Combines with
+  // the uniform alpha (LWA_COLORKEY | LWA_ALPHA is one call).
+  int overlay_colorkey;
+  int overlay_margin_right_pt;
+  // The broadcast this overlay answers. 0 = the default channel; a second
+  // overlay kind registers its own string, or Win+N would toggle the
+  // launcher too — HWND_BROADCAST reaches everyone.
+  UINT overlay_toggle_msg;
   RECT overlay_rect;
   // Custom titlebar: the caption is given to the CLIENT (WM_NCCALCSIZE
   // returns the frame minus its title bar), so the widget tree draws the
@@ -234,7 +247,9 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
     }
   }
 
-  if (host != NULL && message == starling_toggle_message()) {
+  if (host != NULL &&
+      message == (host->overlay_toggle_msg != 0 ? host->overlay_toggle_msg
+                                                : starling_toggle_message())) {
     // The toggle is handled HERE, in C, and not by the widget tree — because
     // while the overlay is hidden there IS no widget tree.
     //
@@ -422,6 +437,22 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
         SetFocus(host->child);
       }
       return 0;
+
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+      // The wheel goes to the FOCUS window, and whenever focus is on the
+      // frame rather than the child — a path that focused the frame without
+      // activating it, or input injected before WM_SETFOCUS's hand-down —
+      // the scroll would die here, because the embedder listens on the
+      // child. Same story as WM_SETFOCUS above: hand it down; the child's
+      // wndproc turns it into the engine's scroll event, and coordinates
+      // ride in screen space so no translation is needed. The engine's own
+      // pipe delivers it to the framework from there — verified by pixels
+      // after a day of prints through a full-buffered pipe said otherwise.
+      if (host != NULL && host->child != NULL) {
+        return SendMessageW(host->child, message, wparam, lparam);
+      }
+      break;
 
     case WM_FONTCHANGE:
       if (host != NULL && host->controller != NULL) {
@@ -1457,6 +1488,7 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
     return TRUE;
   }
 
+
   // Under a custom titlebar, the top resize band belongs to the FRAME: the
   // child declines the hit and the parent's WM_NCHITTEST names it HTTOP.
   // Without this the child swallows every hit and the window cannot be
@@ -1562,7 +1594,8 @@ void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha,
   if (alpha < 0) alpha = 255;
   if (alpha > 255) alpha = 255;
   host->overlay_alpha = alpha;
-  SetLayeredWindowAttributes(host->window, 0, (BYTE)alpha, LWA_ALPHA);
+  SetLayeredWindowAttributes(host->window, RGB(0, 0, 0), (BYTE)alpha,
+                             LWA_ALPHA | (host->overlay_colorkey ? LWA_COLORKEY : 0));
 
   host->overlay_rect = area;
   overlay_park(host);
@@ -1654,10 +1687,17 @@ static int overlay_area(FlWin32Host* host, RECT* out) {
   if (w > avail_w) w = avail_w;
   if (h > avail_h - margin) h = avail_h - margin;
 
-  // Centred horizontally, sitting just above the bottom of the work area —
-  // where Windows 11 puts its own Start menu, and where the dock is.
-  out->left = work.left + (avail_w - w) / 2;
-  out->right = out->left + w;
+  // Bottom-anchored just above the work area either way. Centred is where
+  // Windows 11 puts its own Start menu; right-pinned is where it puts the
+  // notification centre.
+  if (host->overlay_halign_right) {
+    LONG right_margin = (LONG)(host->overlay_margin_right_pt * scale);
+    out->right = work.right - right_margin;
+    out->left = out->right - w;
+  } else {
+    out->left = work.left + (avail_w - w) / 2;
+    out->right = out->left + w;
+  }
   out->bottom = work.bottom - margin;
   out->top = out->bottom - h;
   return 1;
@@ -1867,4 +1907,40 @@ void flwin32_shell_broadcast_toggle(void) {
   // desktop, which is the whole shell's responsiveness bet on other people's
   // apps.
   PostMessageW(HWND_BROADCAST, starling_toggle_message(), 0, 0);
+}
+
+// The same broadcast on a named channel. Every overlay hears HWND_BROADCAST,
+// so two overlay kinds on one channel would open and close together --
+// Win+N would toggle the launcher. The name keys the registered string.
+static UINT starling_named_toggle_message(const char* channel) {
+  wchar_t name[128] = L"StarlingShellToggle";
+  size_t base = wcslen(name);
+  if (channel != NULL) {
+    MultiByteToWideChar(CP_UTF8, 0, channel, -1, name + base,
+                        (int)(128 - base - 1));
+    name[127] = L'\0';
+  }
+  return RegisterWindowMessageW(name);
+}
+
+void flwin32_host_set_overlay_channel(FlWin32Host* host, const char* channel) {
+  if (host == NULL) return;
+  host->overlay_toggle_msg = starling_named_toggle_message(channel);
+}
+
+void flwin32_shell_broadcast_toggle_channel(const char* channel) {
+  PostMessageW(HWND_BROADCAST, starling_named_toggle_message(channel), 0, 0);
+}
+
+void flwin32_host_set_overlay_colorkey(FlWin32Host* host) {
+  if (host == NULL) return;
+  host->overlay_colorkey = 1;
+}
+
+void flwin32_host_set_overlay_anchor_right(FlWin32Host* host,
+                                           int32_t right_margin_pt) {
+  if (host == NULL) return;
+  host->overlay_halign_right = 1;
+  host->overlay_margin_right_pt = right_margin_pt;
+  overlay_rederive(host);
 }

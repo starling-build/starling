@@ -30,6 +30,35 @@ Render time; first frame after idle fires immediately instead of snapping to
 the tick grid; programmatic setState gets a real embedder frame on Win32
 (hostScheduleEngineFrame).
 
+## The file-manager role is ours
+
+Starling Files now answers the dock's File Explorer tile (wearing
+explorer.exe's own yellow folder) and Win+E — the third chord the shell
+keeps, after Win+A and Win+N. Deliberately NOT taken: explorer.exe itself
+(the desktop, dialogs and tray stay its), and the global Directory
+association — apps that ShellExecute a folder still get the handler they
+assume. Revisit the association only when view modes and the address bar
+reach parity.
+
+## Retractions and traps, from the flyouts
+
+- **The engine does NOT lose scroll packets — retraction.** An earlier
+  version of this entry claimed Windows swift-mode dropped signalKind=scroll
+  between the embedder and the SwiftRuntime callback. False, twice over, and
+  worth recording because both halves will bite again:
+  1. *Injected wheel routes by FOCUS, not position* — a test harness's
+     hidden console holds focus, SetForegroundWindow from background is
+     refused, so synthetic wheels vanish while hovers (position-routed)
+     work. Post WM_MOUSEWHEEL at the frame from an in-session task instead
+     (wclick.py --wheel has the account).
+  2. *print() through a redirected pipe is FULLY BUFFERED on Windows* — the
+     same trap the desktop's CLAUDE.md documents for Linux. Diagnostic
+     prints that "never appeared" were sitting in a 4KB buffer; absence of
+     a print is not absence of the event. Judge input plumbing by PIXELS
+     (screenshot-diff before/after), never by prints.
+  What survives as real: the frame forwards WM_MOUSEWHEEL down to the
+  engine's child, for the paths where focus is on the frame itself.
+
 ## File explorer — visual polish (small)
 
 - [x] Hover states — everywhere native has them: caption trio (close goes

@@ -507,6 +507,21 @@ void flwin32_trace(const char* label);
 void flwin32_host_set_overlay(FlWin32Host* host, int32_t monitor, int32_t alpha,
                               int32_t width_pt, int32_t height_pt,
                               int32_t margin_pt);
+// Pin a sized overlay to the work area's RIGHT edge instead of centring it —
+// where Windows 11 puts its notification centre. Call before set_overlay.
+void flwin32_host_set_overlay_anchor_right(FlWin32Host* host,
+                                           int32_t right_margin_pt);
+// Key pure black out of a sized overlay — the panel's colour-key trick, for
+// an overlay drawn as separate blocks with see-through gaps. Call before
+// set_overlay.
+void flwin32_host_set_overlay_colorkey(FlWin32Host* host);
+// Move this overlay onto a named toggle channel. Every overlay hears
+// HWND_BROADCAST, so a second overlay kind NEEDS its own channel or Win+N
+// toggles the launcher too. Call before set_overlay.
+void flwin32_host_set_overlay_channel(FlWin32Host* host, const char* channel);
+void flwin32_shell_broadcast_toggle_channel(const char* channel);
+// Start the notification-centre process parked if it is not already running.
+void flwin32_shell_ensure_notification_center(void);
 void flwin32_host_set_visible(FlWin32Host* host, int32_t visible);
 int32_t flwin32_host_is_visible(FlWin32Host* host);
 
@@ -570,6 +585,14 @@ void flwin32_shell_broadcast_toggle(void);
 // Returns non-zero if the hook is installed.
 int32_t flwin32_winkey_capture(void (*callback)(void* user), void* user);
 void flwin32_winkey_release(void);
+
+// Win+<letter> chords the shell keeps for itself -- Quick Settings and the
+// notification centre replace Explorer surfaces, so their chords must not
+// reach Explorer. Rides the tap hook: capture first, or this returns 0.
+// `vks` are virtual-key codes ('A', 'N'); the callback gets the one pressed.
+int32_t flwin32_winkey_set_chords(const int32_t* vks, int32_t count,
+                                  void (*callback)(void* user, int32_t vk),
+                                  void* user);
 
 // ── the notification area ───────────────────────────────────────────────────
 //
@@ -941,6 +964,41 @@ int32_t flwin32_wifi_set_radio(int32_t on);
 // see flwin32_status.c for why one of each is not enough.
 int32_t flwin32_dark_mode(void);
 int32_t flwin32_set_dark_mode(int32_t dark);
+
+// Night light -- the blue-light filter Quick Settings toggles. No API
+// exists; this rewrites the CloudStore blob Settings itself writes (see
+// flwin32_status.c for the blob's shape). Read returns 1 on, 0 off, -1 when
+// the machine has no night-light state to toggle.
+int32_t flwin32_night_light(void);
+int32_t flwin32_set_night_light(int32_t on);
+
+// Energy saver, read-only: 1 on, 0 off, -1 unknown. The OS owns the toggle.
+int32_t flwin32_energy_saver(void);
+
+// ── notifications ───────────────────────────────────────────────────────────
+//
+// The toasts Windows is holding, through UserNotificationListener — the same
+// store the native notification centre shows. ALL BLOCKING: init brings up
+// WinRT on the calling thread, read polls an async to completion. Background
+// thread only; see flwin32_notifications.c.
+int32_t flwin32_notifications_init(void);
+// 2 allowed, 1 denied, 0 unspecified, -1 unavailable. Asks for access the
+// first time, which is what flips a fresh machine to Allowed.
+int32_t flwin32_notifications_access(void);
+// Emits one callback per toast (newest state of the store, unordered):
+// id for removal, app display name, first text element as title, the rest
+// joined as body, creation time in unix seconds. Returns the count, or -1.
+int32_t flwin32_notifications_read(
+    void (*emit)(void* user, uint32_t id, const char* app, const char* title,
+                 const char* body, int64_t time_unix),
+    void* user);
+int32_t flwin32_notification_remove(uint32_t id);
+int32_t flwin32_notifications_clear(void);
+// The notifying app's logo as premultiplied RGBA, malloc'd -- feed it to
+// flwin32_host_register_pixels, which takes ownership. Blocking.
+int32_t flwin32_notification_app_icon(uint32_t toast_id, int32_t size,
+                                      uint8_t** out_pixels,
+                                      int32_t* out_w, int32_t* out_h);
 
 // ── installed applications ──────────────────────────────────────────────────
 //
