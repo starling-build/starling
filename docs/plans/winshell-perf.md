@@ -149,3 +149,33 @@ Worth a later pass, in value order:
    is the second reason to do it.
 3. The dock's ~2.7% predates Phase 4 (1 Hz clock tick + tray read) and
    is the same order as before; nothing new to chase.
+
+### The native shell, same method, same box
+
+Windows' own shell family measured identically (20s deltas, idle desktop,
+explorer restored and settled):
+
+| process | idle CPU | private | WS |
+|---|---|---|---|
+| explorer | 0.0% | 49 MB | 37 MB |
+| StartMenuExperienceHost | 0.0% | 46 MB | 120 MB |
+| SearchHost | 0.0% | 38 MB | 117 MB |
+| ShellExperienceHost | 0.0% | 15 MB | 73 MB |
+| ShellHost | 0.0% | 7 MB | 39 MB |
+| Widgets + WidgetService | 0.0% | 18 MB | 92 MB |
+| **total** | **0.0%** | **~173 MB** | ~478 MB |
+
+Read against ours: memory is a wash — ~200 MB private for five engine
+processes vs ~173 MB for seven native ones (their WS is triple ours, but
+that is shared XAML/framework pages, and the suspended UWP hosts get
+compressed under pressure where our pages stay hot). **Idle CPU is not a
+wash: they are 0.0% across the board and we are ~11% of a core.** The
+native shell is fully event-driven — the UWP surfaces are literally
+SUSPENDED between uses — while every one of our residual percents is a
+poll or a frame pump: the banner's 2s store read, the dock's tick+tray
+read, the hidden caret's two frames a second, and an unexplained ~1-2%
+floor that even the tree-less parked notifications process pays. 0.0% is
+the honest target, and the floor is the interesting part: a parked
+engine with no tree and no timers should cost nothing, and measuring
+where its wakeups come from (the present-side frame statistics item
+above) is the first step of any pass at this table.
