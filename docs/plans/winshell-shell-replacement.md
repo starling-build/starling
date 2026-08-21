@@ -204,6 +204,33 @@ had already made cheap. What each took:
   needs EV signing to live with SmartScreen. That is a release concern,
   not a development one — the VM does not care.
 
+**MACHINERY BUILT 2026-08-21, box-verified; the VM soak is what remains.**
+`--session` (flwin32_sessionslot.c + Session.swift) is the Shell= entry:
+a supervisor that never boots the engine, spawns the dock and desktop by
+HANDLE (CreateProcessW, not the ensure_* ShellExecuteW — a supervisor
+that cannot wait on its children is one in name only), replays startup,
+restarts a crashed child, and on the second exit of the same child
+inside 60s reaps the others, deletes our HKCU Shell value, and starts
+explorer NOW. Driven on the box in trial mode (STARLING_SESSION_TRIAL=1,
+which also propagates STARLING_DESKTOP_TRIAL to the desktop child): the
+full narrative — spawn, trial-skip of startup, kill→respawn,
+kill-kill→crash-loop→reap desktop→explorer — is in
+%LOCALAPPDATA%\Starling\session.log, which the supervisor writes for
+exactly this audit. Startup replay: HKLM RunOnce, HKLM Run (BOTH
+registry views), HKCU Run, common Startup folder, user Startup folder,
+HKCU RunOnce; RunOnce deletes before running ("!" defers to after, a
+failed HKLM delete skips the entry rather than repeating it every
+logon); registry entries run through CreateProcessW on the raw command
+line (explorer's reading of their quoting), folder items through the
+shell. Startup runs only when explorer is ABSENT — beside explorer every
+entry already ran this logon. `--print-startup` is the oracle (identical
+walk, nothing run, nothing deleted; verified against this box's real
+OneDrive RunOnce cleanup entries). `--register-shell`/`--unregister-shell`
+write/delete the per-user value — round-tripped on the box with `reg
+query` as the outside witness, ending at <machine default>. HKCU only,
+enforced in the C: machine-wide registration is a decision the code
+refuses to be able to make.
+
 ## Parallelization — four tracks, owned files, two test targets
 
 The dependency graph allows more parallelism than the files do. Phases 0a

@@ -4,21 +4,20 @@ The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
 mouse notices first.
 
-CHECKPOINT 2026-08-21, later (end of the desktop-interaction session):
-NOTHING IS IN FLIGHT. The desktop surface's v1 boundaries are mostly
-closed (section below): rubber band, inline rename, keyboard
-navigation, clipboard chords with the shared Ctrl+Z journal, the menu
-pill's Paste/Rename cells rewired off the dormant filesBloc, OLE drops
-IN with drop-point placement, and drags onto a folder icon moving the
-file — every one driven live on this box under STARLING_DESKTOP_TRIAL=1
-before commit. Engine untouched (still e0ed4e31068); the box's dist
-runs the current tree (dock + Files up, the trial stopped). What
-remains desktop-side: OLE drag OUT, multi-monitor, a wallpaper change
-watch. THE NEXT SESSION: still the VM trial with explorer absent —
-kill explorer, --desktop, the wave-plan gate list — which needs the
-Linux machine that hosts the VM harness; this box cannot reach it. A
-session HERE picks from the remaining boundaries above, the deferred
-not-yets, or the engine frame-dispatch work.
+CHECKPOINT 2026-08-21, later still (Phase 5 machinery built): the
+desktop's VM gate is PASSED (section below, run from the Linux side),
+the desktop's v1 boundaries are mostly closed, and the SESSION SLOT is
+now built and box-verified — `--session` supervisor with crash-loop
+bail, startup runner with RunOnce semantics, `--print-startup` oracle,
+`--register-shell`/`--unregister-shell` (see winshell-shell-replacement
+Phase 5 for the full account). Engine untouched (e0ed4e31068). WHAT
+REMAINS: the VM soak — register the shell in win11-gpu, real GDM-style
+logon through Winlogon's Shell=, startup ran, tray fills, banners pop,
+kill→recover, kill-kill→explorer returns on its own — driven over SSH
+to the Linux host (192.168.68.61) via docs/windows-vm/winrun.py
+`-d win11-gpu`. Desktop-side not-yets (OLE drag OUT, multi-monitor,
+wallpaper watch) and the engine frame-dispatch work remain open for
+box-bound sessions.
 
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 

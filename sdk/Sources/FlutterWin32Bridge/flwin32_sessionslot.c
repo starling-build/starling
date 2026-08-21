@@ -1,0 +1,307 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+/*
+ * flwin32_sessionslot.c -- the session slot (shell-replacement Phase 5).
+ *
+ * The primitives behind `WinShellBar.exe --session`: spawn a surface of this
+ * same binary and get a HANDLE back (ShellExecuteW, which the ensure_*
+ * helpers use, hands out none -- a supervisor that cannot wait on its
+ * children is a supervisor in name only), wait on the set, read and write
+ * the per-user Winlogon\Shell value, and enumerate the Run/RunOnce keys the
+ * startup runner replays.
+ *
+ * Policy lives in Swift (Session.swift): the startup ORDER, RunOnce's
+ * delete-before-run semantics, the crash-loop arithmetic. This file is only
+ * the Win32 that Swift cannot spell.
+ */
+
+#include "include/FlutterWin32Bridge.h"
+
+#ifdef _WIN32
+
+#include <windows.h>
+#include <shellapi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
+
+/* ------------------------------------------------------------- utf8 <-> wide */
+
+static wchar_t* sess_utf8_to_wide(const char* utf8) {
+    if (utf8 == NULL) return NULL;
+    int n = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
+    if (n <= 0) return NULL;
+    wchar_t* out = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+    if (out == NULL) return NULL;
+    MultiByteToWideChar(CP_UTF8, 0, utf8, -1, out, n);
+    return out;
+}
+
+static int32_t sess_wide_out(const wchar_t* wide, char* out, int32_t out_size) {
+    if (wide == NULL || out == NULL || out_size <= 0) return 0;
+    int n = WideCharToMultiByte(CP_UTF8, 0, wide, -1, out, out_size, NULL, NULL);
+    return n > 0 ? n - 1 : 0;
+}
+
+/* ------------------------------------------------------------------ children */
+
+/* Spawn this same executable with `args`, console-less, and return the
+ * process handle for the supervisor to wait on. CreateProcessW rather than
+ * ShellExecuteW for exactly that handle; CREATE_NO_WINDOW because this is a
+ * console-subsystem binary and each child would otherwise pop one. */
+uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8) {
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return 0;
+
+    wchar_t* wargs = sess_utf8_to_wide(args_utf8 ? args_utf8 : "");
+    if (wargs == NULL) return 0;
+
+    /* CreateProcessW mutates the command line; build "exe args" writable. */
+    size_t len = wcslen(exe) + wcslen(wargs) + 4;
+    wchar_t* cmd = (wchar_t*)malloc(len * sizeof(wchar_t));
+    if (cmd == NULL) { free(wargs); return 0; }
+    swprintf(cmd, len, L"\"%s\" %s", exe, wargs);
+    free(wargs);
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    BOOL ok = CreateProcessW(exe, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW,
+                             NULL, NULL, &si, &pi);
+    free(cmd);
+    if (!ok) return 0;
+    CloseHandle(pi.hThread);
+    return (uint64_t)(uintptr_t)pi.hProcess;
+}
+
+/* Wait for any of the handles to exit, or the timeout. Returns the index of
+ * the exited child, -1 on timeout, -2 on error. */
+int32_t flwin32_sessionslot_wait_any(const uint64_t* handles, int32_t count,
+                                 int32_t timeout_ms) {
+    HANDLE hs[MAXIMUM_WAIT_OBJECTS];
+    int32_t i;
+    if (handles == NULL || count <= 0 || count > MAXIMUM_WAIT_OBJECTS) return -2;
+    for (i = 0; i < count; i++) hs[i] = (HANDLE)(uintptr_t)handles[i];
+    DWORD r = WaitForMultipleObjects((DWORD)count, hs, FALSE,
+                                     timeout_ms < 0 ? INFINITE
+                                                    : (DWORD)timeout_ms);
+    if (r >= WAIT_OBJECT_0 && r < WAIT_OBJECT_0 + (DWORD)count) {
+        return (int32_t)(r - WAIT_OBJECT_0);
+    }
+    if (r == WAIT_TIMEOUT) return -1;
+    return -2;
+}
+
+void flwin32_sessionslot_close_handle(uint64_t handle) {
+    if (handle != 0) CloseHandle((HANDLE)(uintptr_t)handle);
+}
+
+/* The bail-out's reaper: a child left running would fight the returning
+ * explorer for the surface it draws (the desktop plane above all). Hard
+ * terminate -- the children hold no state worth a graceful anything. */
+void flwin32_sessionslot_kill(uint64_t handle) {
+    if (handle != 0) TerminateProcess((HANDLE)(uintptr_t)handle, 1);
+}
+
+int32_t flwin32_sessionslot_alive(uint64_t handle) {
+    DWORD code = 0;
+    if (handle == 0) return 0;
+    if (!GetExitCodeProcess((HANDLE)(uintptr_t)handle, &code)) return 0;
+    return code == STILL_ACTIVE ? 1 : 0;
+}
+
+/* ------------------------------------------------------- the Winlogon slot */
+
+static const wchar_t kWinlogonKey[] =
+    L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon";
+
+/* The per-user Shell value. Chars written, 0 when the value is absent --
+ * which means the machine default (explorer.exe) and is the healthy
+ * unregistered state, not an error. */
+int32_t flwin32_sessionslot_shell_get(char* out, int32_t out_size) {
+    HKEY key;
+    wchar_t value[1024];
+    DWORD size = sizeof(value);
+    DWORD type = 0;
+    LONG r;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, kWinlogonKey, 0, KEY_READ, &key)
+        != ERROR_SUCCESS) {
+        return 0;
+    }
+    r = RegQueryValueExW(key, L"Shell", NULL, &type, (LPBYTE)value, &size);
+    RegCloseKey(key);
+    if (r != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) {
+        return 0;
+    }
+    value[(sizeof(value) / sizeof(wchar_t)) - 1] = L'\0';
+    return sess_wide_out(value, out, out_size);
+}
+
+/* Write the per-user Shell value; NULL deletes it, restoring the machine
+ * default. HKCU only, by design -- machine-wide registration is a decision
+ * this code refuses to be able to make. */
+int32_t flwin32_sessionslot_shell_set(const char* cmdline_utf8) {
+    HKEY key;
+    LONG r;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, kWinlogonKey, 0, NULL, 0,
+                        KEY_SET_VALUE, NULL, &key, NULL) != ERROR_SUCCESS) {
+        return 0;
+    }
+    if (cmdline_utf8 == NULL) {
+        r = RegDeleteValueW(key, L"Shell");
+        RegCloseKey(key);
+        return (r == ERROR_SUCCESS || r == ERROR_FILE_NOT_FOUND) ? 1 : 0;
+    }
+    {
+        wchar_t* wide = sess_utf8_to_wide(cmdline_utf8);
+        if (wide == NULL) { RegCloseKey(key); return 0; }
+        r = RegSetValueExW(key, L"Shell", 0, REG_SZ, (const BYTE*)wide,
+                           (DWORD)((wcslen(wide) + 1) * sizeof(wchar_t)));
+        free(wide);
+    }
+    RegCloseKey(key);
+    return r == ERROR_SUCCESS ? 1 : 0;
+}
+
+/* ------------------------------------------------------------ startup keys */
+
+static const wchar_t kRunKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+static const wchar_t kRunOnceKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce";
+
+/* which -> hive/key/view. HKLM Run is enumerated in BOTH registry views
+ * (64-bit and Wow6432Node): explorer processes both, and a 32-bit app's
+ * autostart lives only in the second. */
+static int sess_startup_open(int32_t which, int view32, HKEY* out) {
+    HKEY hive = (which == 0 || which == 1) ? HKEY_LOCAL_MACHINE
+                                          : HKEY_CURRENT_USER;
+    const wchar_t* key = (which == 0 || which == 5) ? kRunOnceKey : kRunKey;
+    REGSAM sam = KEY_READ | (view32 ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
+    return RegOpenKeyExW(hive, key, 0, sam, out) == ERROR_SUCCESS;
+}
+
+/* One source's entries as "name\tcommand\n" lines. which: 0 HKLM RunOnce,
+ * 1 HKLM Run, 2 HKCU Run, 5 HKCU RunOnce (3/4 are the Startup folders,
+ * listed by the caller from flwin32_known_folder). Empty commands are
+ * skipped, as explorer skips them. */
+int32_t flwin32_sessionslot_startup_list(int32_t which, char* out,
+                                     int32_t out_size) {
+    int32_t used = 0;
+    int views = (which == 0 || which == 1) ? 2 : 1;
+    int v;
+    if (out == NULL || out_size <= 0) return 0;
+    out[0] = '\0';
+    for (v = 0; v < views; v++) {
+        HKEY key;
+        DWORD index = 0;
+        if (!sess_startup_open(which, v, &key)) continue;
+        for (;;) {
+            wchar_t name[256];
+            wchar_t data[2048];
+            DWORD name_len = sizeof(name) / sizeof(wchar_t);
+            DWORD data_len = sizeof(data);
+            DWORD type = 0;
+            LONG r = RegEnumValueW(key, index++, name, &name_len, NULL, &type,
+                                   (LPBYTE)data, &data_len);
+            if (r == ERROR_NO_MORE_ITEMS) break;
+            if (r != ERROR_SUCCESS) continue;
+            if (type != REG_SZ && type != REG_EXPAND_SZ) continue;
+            data[(sizeof(data) / sizeof(wchar_t)) - 1] = L'\0';
+            if (data[0] == L'\0') continue;
+            {
+                wchar_t expanded[2048];
+                const wchar_t* cmd = data;
+                if (type == REG_EXPAND_SZ &&
+                    ExpandEnvironmentStringsW(data, expanded,
+                        sizeof(expanded) / sizeof(wchar_t)) > 0) {
+                    cmd = expanded;
+                }
+                {
+                    char n8[768], c8[4096];
+                    int wrote;
+                    if (sess_wide_out(name, n8, sizeof(n8)) == 0 && name[0]) continue;
+                    sess_wide_out(name, n8, sizeof(n8));
+                    sess_wide_out(cmd, c8, sizeof(c8));
+                    wrote = _snprintf_s(out + used, (size_t)(out_size - used),
+                                        _TRUNCATE, "%s\t%s\n", n8, c8);
+                    if (wrote < 0) { RegCloseKey(key); return used; }
+                    used += wrote;
+                }
+            }
+        }
+        RegCloseKey(key);
+    }
+    return used;
+}
+
+/* Delete one RunOnce value -- the delete-BEFORE-run half of explorer's
+ * semantics (the "!" prefix, delete-after, is the caller's to sequence).
+ * which: 0 HKLM (needs rights; failure means DO NOT run the entry, or it
+ * runs again every logon), 5 HKCU. */
+int32_t flwin32_sessionslot_runonce_delete(int32_t which, const char* name_utf8) {
+    HKEY hive = which == 0 ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
+    int views = which == 0 ? 2 : 1;
+    int v;
+    int deleted = 0;
+    wchar_t* wname = sess_utf8_to_wide(name_utf8);
+    if (wname == NULL) return 0;
+    for (v = 0; v < views; v++) {
+        HKEY key;
+        REGSAM sam = KEY_SET_VALUE | (v ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
+        if (RegOpenKeyExW(hive, kRunOnceKey, 0, sam, &key) != ERROR_SUCCESS) {
+            continue;
+        }
+        if (RegDeleteValueW(key, wname) == ERROR_SUCCESS) deleted = 1;
+        RegCloseKey(key);
+    }
+    free(wname);
+    return deleted;
+}
+
+/* Run one registry startup entry. CreateProcessW on the raw command line
+ * first -- that is how explorer runs these, and how their quoting expects to
+ * be read -- with a ShellExecuteW fallback for values that are a bare
+ * document path. */
+int32_t flwin32_sessionslot_exec_command(const char* cmdline_utf8) {
+    wchar_t* cmd = sess_utf8_to_wide(cmdline_utf8);
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    if (cmd == NULL) return 0;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL,
+                       &si, &pi)) {
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        free(cmd);
+        return 1;
+    }
+    {
+        HINSTANCE r = ShellExecuteW(NULL, L"open", cmd, NULL, NULL,
+                                    SW_SHOWNORMAL);
+        free(cmd);
+        return (INT_PTR)r > 32 ? 1 : 0;
+    }
+}
+
+/* The supervisor's bail-out: explorer back as the running shell. A plain
+ * spawn -- when Winlogon's Shell slot is ours and we are giving up, starting
+ * explorer.exe IS restoring the desktop; the registry write that stops the
+ * next logon from repeating this is the caller's, first. */
+int32_t flwin32_sessionslot_start_explorer(void) {
+    wchar_t path[MAX_PATH];
+    UINT n = GetWindowsDirectoryW(path, MAX_PATH);
+    if (n == 0 || n > MAX_PATH - 14) return 0;
+    wcscat_s(path, MAX_PATH, L"\\explorer.exe");
+    {
+        HINSTANCE r = ShellExecuteW(NULL, L"open", path, NULL, NULL,
+                                    SW_SHOWNORMAL);
+        return (INT_PTR)r > 32 ? 1 : 0;
+    }
+}
+
+#endif  /* _WIN32 */

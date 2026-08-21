@@ -81,6 +81,58 @@ if CommandLine.arguments.contains("--restore-taskbar") {
     exit(0)
 }
 
+// The session slot (shell-replacement Phase 5). `--session` is what
+// Winlogon's Shell= points at: the supervisor, which spawns the dock and
+// desktop, replays startup, and never boots the engine -- it must not share
+// its children's failure modes. Gated like the desktop trial: beside a
+// running explorer it refuses unless STARLING_SESSION_TRIAL=1, because two
+// shells' startup and surfaces fighting is not a state anyone asked for.
+if CommandLine.arguments.contains("--session") {
+    let explorerUp = Win32Shell.explorerPresent
+    let trial = ProcessInfo.processInfo.environment["STARLING_SESSION_TRIAL"] == "1"
+    if explorerUp && !trial {
+        print("[session] explorer is running; --session is the Shell= "
+              + "entry, not a sidecar. STARLING_SESSION_TRIAL=1 to force "
+              + "for a smoke test.")
+        exit(1)
+    }
+    SessionSlot.supervise(trial: explorerUp)
+}
+
+// `--print-startup` walks the startup sources in replay order -- HKLM
+// RunOnce, HKLM Run (both views), HKCU Run, both Startup folders, HKCU
+// RunOnce -- and prints what a real session would run, running nothing and
+// deleting nothing. The startup runner's oracle.
+if CommandLine.arguments.contains("--print-startup") {
+    for line in SessionSlot.runStartup(execute: false) { print(line) }
+    print("[startup] shell=\(SessionSlot.registeredShell() ?? "<machine default>")")
+    exit(0)
+}
+
+// `--register-shell` / `--unregister-shell`: the per-user Winlogon\Shell
+// value, effective at this user's NEXT logon. Per-user (HKCU) only -- one
+// account opts in, every other account still gets explorer -- and the
+// supervisor's crash-loop bail deletes the same value, so a broken shell
+// un-registers itself.
+if CommandLine.arguments.contains("--register-shell") {
+    let before = SessionSlot.registeredShell() ?? "<machine default>"
+    let ok = SessionSlot.register()
+    print("[session] shell was: \(before)")
+    print(ok ? "[session] registered: \(SessionSlot.ownCommandLine) "
+             + "(next logon)"
+             : "[session] registration FAILED")
+    exit(ok ? 0 : 1)
+}
+if CommandLine.arguments.contains("--unregister-shell") {
+    let before = SessionSlot.registeredShell() ?? "<machine default>"
+    let ok = SessionSlot.unregister()
+    print("[session] shell was: \(before)")
+    print(ok ? "[session] unregistered; the machine default (explorer) "
+             + "returns at next logon"
+             : "[session] unregister FAILED")
+    exit(ok ? 0 : 1)
+}
+
 // `--print-status` prints what the status readout reads and exits.
 //
 // It is the oracle for the control centre: the panel's job is to CHANGE these

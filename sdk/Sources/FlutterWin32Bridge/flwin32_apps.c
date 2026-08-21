@@ -289,9 +289,15 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size) {
      * not one: an app installed for all users lands in the first and one
      * installed for the current user in the second, and a dock that reads
      * only ProgramData silently misses everything installed per-user --
-     * which on a modern Windows is most things. */
-    const KNOWNFOLDERID* id =
-        (which == 1) ? &FOLDERID_Programs : &FOLDERID_CommonPrograms;
+     * which on a modern Windows is most things. 2/3 are the Startup pair,
+     * same split, for the session slot's startup runner. */
+    const KNOWNFOLDERID* id;
+    switch (which) {
+        case 1: id = &FOLDERID_Programs; break;
+        case 2: id = &FOLDERID_Startup; break;
+        case 3: id = &FOLDERID_CommonStartup; break;
+        default: id = &FOLDERID_CommonPrograms; break;
+    }
     PWSTR path = NULL;
     if (FAILED(SHGetKnownFolderPath(id, 0, NULL, &path))) return 0;
     int32_t n = wide_copy_out(path, out, out_size);

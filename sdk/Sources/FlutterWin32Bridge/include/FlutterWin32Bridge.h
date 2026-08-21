@@ -1234,6 +1234,57 @@ int32_t flwin32_explorer_taskbar_show(void);
 
 int32_t flwin32_explorer_taskbar_visible(void);
 
+// -- The session slot (shell-replacement Phase 5) ----------------------------
+//
+// Primitives behind `WinShellBar.exe --session`: spawn a surface of this
+// binary and keep its HANDLE (the supervisor waits on its children), read
+// and write the per-user Winlogon\Shell value, and enumerate the startup
+// sources the runner replays. Policy -- order, RunOnce semantics, the
+// crash-loop arithmetic -- lives in Session.swift; see flwin32_session.c.
+
+// Spawns this executable with `args`, console-less. Returns a process
+// handle the caller must close, or 0.
+uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8);
+
+// Waits for any handle to exit: its index, -1 on timeout, -2 on error.
+// timeout_ms < 0 waits forever.
+int32_t flwin32_sessionslot_wait_any(const uint64_t* handles, int32_t count,
+                                 int32_t timeout_ms);
+void flwin32_sessionslot_close_handle(uint64_t handle);
+// Hard-terminates a child -- the bail-out's reaper, so nothing of ours is
+// left fighting the returning explorer for the desktop plane.
+void flwin32_sessionslot_kill(uint64_t handle);
+int32_t flwin32_sessionslot_alive(uint64_t handle);
+
+// The per-user (HKCU) Winlogon Shell value. get: utf8 chars written, 0 when
+// absent -- the healthy unregistered state, meaning the machine default.
+// set: NULL deletes the value; returns non-zero on success. HKCU only, by
+// design: machine-wide registration is a decision this code refuses to be
+// able to make.
+int32_t flwin32_sessionslot_shell_get(char* out, int32_t out_size);
+int32_t flwin32_sessionslot_shell_set(const char* cmdline_utf8);
+
+// One startup source's entries as "name\tcommand\n" lines. which: 0 HKLM
+// RunOnce, 1 HKLM Run (both registry views), 2 HKCU Run, 5 HKCU RunOnce.
+// (3/4, the Startup folders, are listed by the caller via
+// flwin32_known_folder 3/2.) Returns bytes written.
+int32_t flwin32_sessionslot_startup_list(int32_t which, char* out,
+                                     int32_t out_size);
+
+// Deletes one RunOnce value (which: 0 HKLM, 5 HKCU) -- the delete-before-run
+// half of explorer's semantics. A failed HKLM delete means DO NOT run the
+// entry, or it repeats every logon.
+int32_t flwin32_sessionslot_runonce_delete(int32_t which, const char* name_utf8);
+
+// Runs one registry startup entry: CreateProcessW on the raw command line
+// (explorer's reading of its quoting), ShellExecuteW fallback for bare
+// document paths.
+int32_t flwin32_sessionslot_exec_command(const char* cmdline_utf8);
+
+// The supervisor's bail-out: starts explorer.exe. The registry write that
+// stops the NEXT logon from repeating the failure is the caller's, first.
+int32_t flwin32_sessionslot_start_explorer(void);
+
 #ifdef __cplusplus
 }
 #endif
