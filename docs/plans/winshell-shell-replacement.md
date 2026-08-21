@@ -119,6 +119,50 @@ we ARE the answer.
   needs EV signing to live with SmartScreen. That is a release concern,
   not a development one — the VM does not care.
 
+## Parallelization — four tracks, owned files, two test targets
+
+The dependency graph allows more parallelism than the files do. Phases 0a
+(namespace), 0b (popup surfaces), 3 (tray), and 5's early parts have no
+code dependencies on each other; what collides is ownership of the hot
+files and the two machines that can run the result. The 2026-08-21
+action-center merge landed clean because the parallel sessions pushed
+early and mostly alternated deploys — this section makes that luck into
+policy.
+
+Wave 1, four tracks, each owning its files exclusively:
+
+| track | work | owns | test target |
+|---|---|---|---|
+| 1 | namespace enumeration (0a), then the Phase-1 file-manager items SERIALLY | Win32Files.swift, FilesBloc.swift, Files.swift, new flwin32_namespace.c | dev box |
+| 2 | popup surfaces (0b) | Adapter.swift (secondary views), flwin32_host.c, new popup host files | dev box — coordinate deploy windows with track 1 |
+| 3 | tray ownership (Phase 3) | flwin32_tray.c, one dock touchpoint | the VM — taking Shell_TrayWnd full-time is exactly what must not be first tried on the machine being worked on |
+| 4 | session plumbing (Phase 5 early): startup runner, supervisor, oracles, VM survival scripts | all new files, docs/windows-vm/ | the VM |
+
+A fifth track fits with zero collisions if there is appetite: the engine
+repo's frame-dispatch scheduler work (its smoothness gate is now built —
+STARLING_PRESENT_LOG's gap histogram), which touches no desktop-repo file.
+
+Rules that make it work:
+
+- **Files.swift/FilesBloc.swift belong to track 1, full stop.** Thumbnails,
+  typed paths, Ctrl+Z, search and the namespace rows all land there; they
+  are one serial queue inside track 1, never a second session's edit.
+- **main.swift flag additions will conflict trivially** (every track adds a
+  --print-* oracle); accept and resolve, they are one-line.
+- **Push early and often.** The clean merge this plan was written under
+  happened because both sessions kept origin/winshell current.
+- **Before wave 1 starts: a per-track dist.** The deploy loop is
+  `Stop-Process -Name WinShellBar` plus overwriting one dist folder, so
+  two dev-box sessions kill each other's running tests. A `--dist <dir>`
+  (or a second dist folder for track 2) is a ten-minute change that buys
+  the whole scheme.
+
+Wave 2, as wave 1 merges: the desktop surface (needs 0a AND 0b), toast
+banners (needs 0b), Win+E/Win+R riding whichever track is open. Phase-1
+items continue inside track 1 throughout. The waves converge to two
+tracks, then to one for the Shell= switch and the VM soak — that last
+step is deliberately not parallel with anything.
+
 ## Trial mode and verification
 
 Everything from Phase 2 on is proven in the libvirt Windows guest FIRST
