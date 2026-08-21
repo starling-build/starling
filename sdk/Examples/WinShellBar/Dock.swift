@@ -175,7 +175,9 @@ let kDockEdges: [(edge: PanelEdge, label: String)] = [
 /// The four Wi-Fi bars, shortest first.
 let kBarHeights: [Double] = [5, 8, 11, 15]
 
-let kDefaultPins = ["file explorer", "terminal", "notepad", "paint", "edge", "settings"]
+// No "file explorer" here: the Files tile below takes that role, opening
+// STARLING's explorer. Windows' own stays launchable from Start.
+let kDefaultPins = ["terminal", "notepad", "paint", "edge", "settings"]
 
 /// The launcher's tile. A reserved key rather than a separate widget, so it
 /// flows through the same hit-testing arithmetic, the same hover label and
@@ -187,6 +189,15 @@ let kDefaultPins = ["file explorer", "terminal", "notepad", "paint", "edge", "se
 /// the thing you press to start something belongs beside the things you have
 /// already started.
 let kLauncherKey = "\u{1}starling-launcher"
+
+/// The file manager's tile — reserved like the launcher's, and it opens
+/// STARLING's file explorer, not Windows'. Taking the file-manager ROLE is
+/// deliberate and this is its whole extent (plus Win+E): explorer.exe keeps
+/// running, keeps the desktop and the dialogs, and the global Directory
+/// association is left alone — apps that open folders still get the handler
+/// they assume. The tile wears explorer.exe's own yellow folder, because
+/// that is the icon that means "files" on this desktop.
+let kFilesKey = "\u{1}starling-files"
 
 /// One dock entry: an installed app, a running app, or both.
 struct DockItem {
@@ -272,17 +283,20 @@ final class StarlingDockState: State<StatefulWidget> {
             self?.bloc.add(.tick)
         }
 
-        // Win+A is Quick Settings and Win+N the notification centre, exactly
-        // as on the shell this one replaces. Registered here rather than in
-        // main because Quick Settings' open flag lives in this State; the
-        // hook itself was installed before the window existed, and chords
-        // ride it.
-        Win32Shell.captureSuperChords(["A", "N"]) { [weak self] letter in
+        // Win+A is Quick Settings, Win+N the notification centre, and Win+E
+        // the file explorer — OURS, all three, exactly the surfaces this
+        // shell replaces. Registered here rather than in main because Quick
+        // Settings' open flag lives in this State; the hook itself was
+        // installed before the window existed, and chords ride it.
+        Win32Shell.captureSuperChords(["A", "N", "E"]) { [weak self] letter in
             guard let self else { return }
-            if letter == "N" {
+            switch letter {
+            case "N":
                 self.setState { self.controlCentreOpen = false }
                 Win32Shell.toggleOverlay(channel: "notifications")
-            } else {
+            case "E":
+                Win32Shell.openFiles()
+            default:
                 self.setState { self.controlCentreOpen.toggle() }
             }
         }

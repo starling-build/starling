@@ -25,6 +25,16 @@ Render time; first frame after idle fires immediately instead of snapping to
 the tick grid; programmatic setState gets a real embedder frame on Win32
 (hostScheduleEngineFrame).
 
+## The file-manager role is ours
+
+Starling Files now answers the dock's File Explorer tile (wearing
+explorer.exe's own yellow folder) and Win+E — the third chord the shell
+keeps, after Win+A and Win+N. Deliberately NOT taken: explorer.exe itself
+(the desktop, dialogs and tray stay its), and the global Directory
+association — apps that ShellExecute a folder still get the handler they
+assume. Revisit the association only when view modes and the address bar
+reach parity.
+
 ## Retractions and traps, from the flyouts
 
 - **The engine does NOT lose scroll packets — retraction.** An earlier

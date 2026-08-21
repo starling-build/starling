@@ -433,6 +433,12 @@ final class DockBloc: @unchecked Sendable {
             Win32Shell.toggleOverlay()
             return
         }
+        // Ours, not Windows': open Starling Files, or fall through to the
+        // ordinary raise/minimize when a window already exists.
+        if item.key == kFilesKey, item.windows.isEmpty {
+            Win32Shell.openFiles()
+            return
+        }
         guard let window = item.windows.first(where: { $0.isForeground })
                 ?? item.windows.first else {
             if let app = item.app {
@@ -466,7 +472,23 @@ final class DockBloc: @unchecked Sendable {
     /// Cheap and synchronous on purpose — window enumeration measured under a
     /// millisecond, and the icons it asks for rasterize on their own queue.
     private func _rebuild() {
-        let windows = Win32WindowManager.windows()
+        let allWindows = Win32WindowManager.windows()
+        // Our own Files surface is pulled out of the generic flow and onto
+        // its reserved tile. Identified by exe + the surface's stable title
+        // — the same contract open_surface raises windows by.
+        let selfExe = (CommandLine.arguments[0] as NSString)
+            .lastPathComponent.lowercased()
+        var filesWindows: [Win32Window] = []
+        var windows: [Win32Window] = []
+        for window in allWindows {
+            let exeName = (window.executablePath as NSString)
+                .lastPathComponent.lowercased()
+            if exeName == selfExe && window.title == "Starling Files" {
+                filesWindows.append(window)
+            } else {
+                windows.append(window)
+            }
+        }
         var byExe: [String: [Win32Window]] = [:]
         for window in windows {
             byExe[IconCache.key(for: window), default: []].append(window)
@@ -506,6 +528,9 @@ final class DockBloc: @unchecked Sendable {
         // dock actually runs at -- 68px on this 200% screen -- and an icon
         // blown up 1.4x reads as a smeared copy of the one Windows draws.
         let side = Int((kDockIcon * iconScale).rounded())
+        // The Files tile wears explorer.exe's yellow folder — the icon that
+        // has meant "files" on Windows for thirty years.
+        icons.ensure(key: kFilesKey, path: "C:\\Windows\\explorer.exe", size: side)
         for item in built {
             if let window = item.windows.first {
                 icons.ensure(window: window, size: side)
@@ -519,7 +544,9 @@ final class DockBloc: @unchecked Sendable {
         for icon in state.tray { claimed.insert(Self.trayKey(icon)) }
         icons.retain(only: claimed)
         state.items = [DockItem(key: kLauncherKey, name: "Launcher", app: nil,
-                                windows: [], isPinned: true)] + built
+                                windows: [], isPinned: true),
+                       DockItem(key: kFilesKey, name: "File Explorer", app: nil,
+                                windows: filesWindows, isPinned: true)] + built
     }
 
     // MARK: - Pins
