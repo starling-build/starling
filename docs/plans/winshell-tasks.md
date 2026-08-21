@@ -10,6 +10,42 @@ The next session-sized piece by this list's own logic is the context menu
 as its own popup window, parked earlier in favour of window parity, which
 is now complete.
 
+## Ctrl+Z — landed and verified 2026-08-21
+
+Phase 1's undo item, done the only way it can be done: FOFX_ADDUNDORECORD
+feeds Explorer's undo stack but that stack has NO REPLAY API -- it is
+shell32 per-process state Explorer alone can pop -- so the app keeps an
+inverse journal of its own. An IFileOperationProgressSink (C, static
+vtable, flwin32_fileops.c) records what each operation ACTUALLY did, in
+the names the shell settled on (" - Copy", "(2)"); undoing the name we
+asked for instead of the name we got deletes the wrong file. FilesBloc
+keeps a static 32-deep stack of these journals -- static because Explorer's
+undo is per session, not per folder: delete here, Ctrl+Z from any tab.
+
+The inverses: copy/new → recycle the produced files; move → each item back
+to its OWN folder under its OWN name, one IFileOperation over the set
+(flwin32_fileop_undo_moves); rename → the old name back; delete → the
+bin's own "undelete" verb on the recorded $R... slots
+(flwin32_fileop_bin_restore) -- addressed by ENUMERATION of the bin folder,
+the same lesson resolve_item paid for, because no string parses to a bin
+item, and through the verb because moving a slot back by hand orphans its
+$I record.
+
+All four verified on the box: delete→Ctrl+Z and copy-paste→Ctrl+Z driven
+through the UI (file restored to its original path; the " - Copy" landed
+in the bin); move and rename round-tripped through `--fileop-probe`, which
+is the journal's oracle and stays in main.swift. Two honest gaps, both
+deliberate: operations run through the context menu's SHELL VERBS are not
+journaled (InvokeCommand reports nothing back), and there is no Ctrl+Y
+redo yet -- the records to build it from are all there.
+
+The driving lesson, again: synthetic Ctrl-key delivery to the window is
+FLAKY (an injected keystroke silently vanishes when foreground shifts),
+and the first "undo is broken" was exactly that. The stderr breadcrumb
+proved the app never received the key; the probe then proved the machinery
+without the UI. Judge input plumbing by logs and probes, not by one
+keystroke's apparent effect.
+
 ## Shell-namespace enumeration — landed and verified 2026-08-21
 
 Track 1 / Phase 0a of `winshell-shell-replacement.md` is DONE, deployed and

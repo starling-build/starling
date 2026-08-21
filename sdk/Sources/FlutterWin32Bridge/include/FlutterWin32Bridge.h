@@ -259,6 +259,30 @@ int32_t flwin32_fileop_properties(const char* path, uint64_t owner);
 int32_t flwin32_fileop_transfer(const char* paths_nl, const char* target_dir,
                                 int32_t is_move, uint64_t owner);
 
+// The journal: what the LAST operation above actually did, one record per
+// item, with the names the shell settled on (" - Copy", "(2)") rather than
+// the names that were asked for. It exists because Ctrl+Z cannot be
+// delegated -- FOFX_ADDUNDORECORD feeds Explorer's undo stack, which has no
+// replay API -- so the caller keeps an inverse journal from these records.
+// Reset by each operation; read it before starting the next. `kind`: 1 copy,
+// 2 move, 3 rename, 4 delete, 5 new. For a delete, `dst` is the item's $R...
+// slot in the recycle bin (what a restore takes), or empty when the delete
+// was permanent. Same serial-queue contract as everything here.
+int32_t flwin32_fileop_journal_count(void);
+int32_t flwin32_fileop_journal_get(int32_t index, int32_t* kind,
+                                   char* src, int32_t src_size,
+                                   char* dst, int32_t dst_size);
+
+// The two undo executors the journal needs beyond the entry points above.
+// undo_moves: one line per item, "current-path<TAB>target-dir<TAB>name" --
+// each moved back under its own name, one IFileOperation over the set.
+// bin_restore: recycled items by their $R... slot paths (a delete record's
+// `dst`), restored through the bin's own "undelete" verb -- the only whole
+// restore; moving the slot back by hand orphans its $I record. Both BLOCK.
+int32_t flwin32_fileop_undo_moves(const char* lines_nl, uint64_t owner);
+int32_t flwin32_fileop_bin_restore(const char* slot_paths_nl,
+                                   uint64_t owner);
+
 // -- the window as an OLE drop target ---------------------------------------
 //
 // flwin32_dragdrop.c. Register once, on the UI thread, after the host window

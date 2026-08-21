@@ -492,6 +492,57 @@ public enum Win32FileOps {
     private static let queue = DispatchQueue(label: "starling.fileops",
                                              qos: .userInitiated)
 
+    /// One thing an operation did to one item, in the names the shell
+    /// SETTLED ON (" - Copy", "(2)") rather than the names that were asked
+    /// for. The raw material of undo: the shell's own undo stack
+    /// (FOFX_ADDUNDORECORD) has no replay API -- it is Explorer's private
+    /// property -- so a caller that wants Ctrl+Z keeps these and applies
+    /// the inverse itself.
+    public struct OpRecord: Sendable {
+        public enum Kind: Int32, Sendable {
+            case copy = 1, move = 2, rename = 3, delete = 4, new = 5
+        }
+        public let kind: Kind
+        /// The item as it was BEFORE. Empty for `.new`.
+        public let src: String
+        /// The item as it is NOW. For `.delete`, its `$R…` slot in the
+        /// recycle bin -- what a restore takes -- or empty when the delete
+        /// was permanent and there is nothing to undo.
+        public let dst: String
+
+        public init(kind: Kind, src: String, dst: String) {
+            self.kind = kind
+            self.src = src
+            self.dst = dst
+        }
+    }
+
+    /// Reads the C journal for the operation that just ran. Queue-private:
+    /// the journal is reset by the NEXT operation, so it is read on the
+    /// same serial queue, immediately.
+    private static func journal() -> [OpRecord] {
+        let count = flwin32_fileop_journal_count()
+        var out: [OpRecord] = []
+        out.reserveCapacity(Int(count))
+        var src = [CChar](repeating: 0, count: 1024)
+        var dst = [CChar](repeating: 0, count: 1024)
+        for index in 0..<count {
+            var kind: Int32 = 0
+            let ok = src.withUnsafeMutableBufferPointer { s in
+                dst.withUnsafeMutableBufferPointer { d in
+                    flwin32_fileop_journal_get(index, &kind, s.baseAddress,
+                                               1024, d.baseAddress, 1024)
+                }
+            }
+            guard ok != 0, let k = OpRecord.Kind(rawValue: kind) else {
+                continue
+            }
+            out.append(OpRecord(kind: k, src: String(cString: src),
+                                dst: String(cString: dst)))
+        }
+        return out
+    }
+
     /// Whether a paste has anything to paste. Cheap -- no clipboard open, no
     /// COM -- so a menu can ask at every open.
     public static func clipboardHasFiles() -> Bool {
@@ -507,31 +558,33 @@ public enum Win32FileOps {
     }
 
     /// Paste the clipboard's files into `directory`. A cut moves and clears
-    /// the clipboard; a copy copies and leaves it.
+    /// the clipboard; a copy copies and leaves it. `done` carries the
+    /// journal -- what actually landed, under the names the shell chose --
+    /// which is what an undo stack is built from.
     public static func paste(into directory: String, owner: UInt64,
-                             done: ((Bool) -> Void)? = nil) {
-        run(done) { flwin32_fileop_paste(directory, owner) != 0 }
+                             done: ((Bool, [OpRecord]) -> Void)? = nil) {
+        runJournaled(done) { flwin32_fileop_paste(directory, owner) != 0 }
     }
 
     /// Rename in place. `name` is a name, not a path.
     public static func rename(_ path: String, to name: String, owner: UInt64,
-                              done: ((Bool) -> Void)? = nil) {
-        run(done) { flwin32_fileop_rename(path, name, owner) != 0 }
+                              done: ((Bool, [OpRecord]) -> Void)? = nil) {
+        runJournaled(done) { flwin32_fileop_rename(path, name, owner) != 0 }
     }
 
     /// Delete to the recycle bin, with the shell's confirmation.
     public static func delete(_ path: String, owner: UInt64,
-                              done: ((Bool) -> Void)? = nil) {
-        run(done) { flwin32_fileop_delete(path, owner) != 0 }
+                              done: ((Bool, [OpRecord]) -> Void)? = nil) {
+        runJournaled(done) { flwin32_fileop_delete(path, owner) != 0 }
     }
 
     /// Delete a SELECTION: one operation over the set, so one progress
     /// dialog and one undo entry -- what Explorer does, and what N separate
     /// deletes would not be.
     public static func deleteMany(_ paths: [String], owner: UInt64,
-                                  done: ((Bool) -> Void)? = nil) {
+                                  done: ((Bool, [OpRecord]) -> Void)? = nil) {
         let joined = paths.joined(separator: "\n")
-        run(done) { flwin32_fileop_delete_multi(joined, owner) != 0 }
+        runJournaled(done) { flwin32_fileop_delete_multi(joined, owner) != 0 }
     }
 
     /// Copy (or cut) a selection to the clipboard as one data object; a
@@ -612,11 +665,33 @@ public enum Win32FileOps {
     /// to. One IFileOperation over the whole set, like `deleteMany`.
     public static func transfer(_ paths: [String], into dir: String,
                                 move: Bool, owner: UInt64,
-                                done: ((Bool) -> Void)? = nil) {
+                                done: ((Bool, [OpRecord]) -> Void)? = nil) {
         let joined = paths.joined(separator: "\n")
-        run(done) {
+        runJournaled(done) {
             flwin32_fileop_transfer(joined, dir, move ? 1 : 0, owner) != 0
         }
+    }
+
+    /// Undo of a MOVE: every item back to its own folder under its own
+    /// name, one IFileOperation over the set. Each entry is (where the item
+    /// is now, the directory it came from, the name it had there).
+    public static func undoMoves(
+        _ moves: [(current: String, dir: String, name: String)],
+        owner: UInt64, done: ((Bool) -> Void)? = nil
+    ) {
+        let lines = moves.map { "\($0.current)\t\($0.dir)\t\($0.name)" }
+            .joined(separator: "\n")
+        run(done) { flwin32_fileop_undo_moves(lines, owner) != 0 }
+    }
+
+    /// Undo of a DELETE: restore recycled items by their `$R…` slot paths
+    /// (a delete record's `dst`), through the bin's own restore verb -- the
+    /// only whole restore; moving a slot back by hand orphans its `$I`
+    /// record.
+    public static func restoreFromBin(_ slots: [String], owner: UInt64,
+                                      done: ((Bool) -> Void)? = nil) {
+        let joined = slots.joined(separator: "\n")
+        run(done) { flwin32_fileop_bin_restore(joined, owner) != 0 }
     }
 
     private static func run(_ done: ((Bool) -> Void)?,
@@ -625,6 +700,21 @@ public enum Win32FileOps {
             let ok = work()
             if let done {
                 DispatchQueue.main.async { done(ok) }
+            }
+        }
+    }
+
+    /// `run`, delivering the operation's journal with its result. The read
+    /// happens HERE, on the serial queue, because the next operation resets
+    /// the C-side journal -- by the time a main-thread callback runs,
+    /// another op may already be in flight.
+    private static func runJournaled(_ done: ((Bool, [OpRecord]) -> Void)?,
+                                     _ work: @escaping () -> Bool) {
+        queue.async {
+            let ok = work()
+            let records = journal()
+            if let done {
+                DispatchQueue.main.async { done(ok, records) }
             }
         }
     }

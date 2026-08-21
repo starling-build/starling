@@ -127,6 +127,63 @@ if CommandLine.arguments.contains("--print-notifications") {
 // running, what the payload looks like on this Windows build, and what else
 // arrives on the same channel that we would be swallowing — can only be
 // answered on a real machine.
+// `--fileop-probe copy|move|rename src dst-dir-or-name` runs one operation
+// and prints the journal -- the oracle for the undo stack, which is built
+// entirely from these records: if the sink misreports what an operation
+// did, Ctrl+Z deletes the wrong file, and no amount of watching the UI
+// shows why. move and rename round the trip through their inverses too.
+if let index = CommandLine.arguments.firstIndex(of: "--fileop-probe") {
+    guard index + 3 < CommandLine.arguments.count else {
+        print("usage: --fileop-probe copy|move|rename <src> <dst-dir|name>")
+        exit(1)
+    }
+    let mode = CommandLine.arguments[index + 1]
+    let move = mode == "move"
+    let src = CommandLine.arguments[index + 2]
+    let dst = CommandLine.arguments[index + 3]
+    let ok = mode == "rename"
+        ? flwin32_fileop_rename(src, dst, 0)
+        : flwin32_fileop_transfer(src, dst, move ? 1 : 0, 0)
+    print("\(mode) ok=\(ok) journal=\(flwin32_fileop_journal_count())")
+    var srcBuf = [CChar](repeating: 0, count: 1024)
+    var dstBuf = [CChar](repeating: 0, count: 1024)
+    var records: [(src: String, dst: String)] = []
+    for i in 0..<flwin32_fileop_journal_count() {
+        var kind: Int32 = 0
+        _ = srcBuf.withUnsafeMutableBufferPointer { s in
+            dstBuf.withUnsafeMutableBufferPointer { d in
+                flwin32_fileop_journal_get(i, &kind, s.baseAddress, 1024,
+                                           d.baseAddress, 1024)
+            }
+        }
+        records.append((String(cString: srcBuf), String(cString: dstBuf)))
+        let record = records[Int(i)]
+        print("  [\(i)] kind=\(kind) src=\(record.src) dst=\(record.dst)")
+    }
+    // A move probe rounds the trip: the records back through undo_moves,
+    // each item to its own folder under its own name, then report whether
+    // the world is as it was. This is the whole undo-move path minus the UI.
+    if move && !records.isEmpty {
+        let lines = records.map { record in
+            let dir = (record.src as NSString).deletingLastPathComponent
+            let name = (record.src as NSString).lastPathComponent
+            return "\(record.dst)\t\(dir)\t\(name)"
+        }.joined(separator: "\n")
+        let undone = flwin32_fileop_undo_moves(lines, 0)
+        let restored = records.allSatisfy {
+            FileManager.default.fileExists(atPath: $0.src)
+        }
+        print("undo_moves ok=\(undone) restored=\(restored)")
+    }
+    if mode == "rename", let record = records.first {
+        let oldName = (record.src as NSString).lastPathComponent
+        let back = flwin32_fileop_rename(record.dst, oldName, 0)
+        let restored = FileManager.default.fileExists(atPath: record.src)
+        print("undo_rename ok=\(back) restored=\(restored)")
+    }
+    exit(0)
+}
+
 if let index = CommandLine.arguments.firstIndex(of: "--tray-probe") {
     let seconds = index + 1 < CommandLine.arguments.count
         ? Int32(CommandLine.arguments[index + 1]) ?? 20 : 20

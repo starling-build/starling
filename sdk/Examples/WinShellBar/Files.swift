@@ -317,6 +317,15 @@ final class StarlingFilesState: State<StatefulWidget> {
                 guard canMutateHere else { return false }
                 bloc.add(.paste(into: bloc.state.directory))
                 return true
+            case 0x0007_001D: // Z: undo the last file operation
+                // Not gated on canMutateHere: the inverse runs on the
+                // JOURNAL's paths, not on this listing -- Ctrl+Z from the
+                // Recycle Bin view after a delete is exactly the gesture
+                // that should work. An inline rename in flight keeps the
+                // key though; the field's edit is not a file operation yet.
+                guard bloc.state.renaming == nil else { return false }
+                bloc.add(.undo)
+                return true
             default:
                 break
             }
@@ -970,8 +979,12 @@ final class StarlingFilesState: State<StatefulWidget> {
         setDropHover(nil)
         guard !paths.isEmpty, let target = dropResolve(x, y) else { return }
         Win32FileOps.transfer(paths, into: target, move: move,
-                              owner: FilesBloc.ownerWindow) { [weak self] ok in
-            if ok { self?.bloc.add(.refresh) }
+                              owner: FilesBloc.ownerWindow) {
+            [weak self] ok, records in
+            if ok {
+                FilesBloc.pushUndo(records)
+                self?.bloc.add(.refresh)
+            }
         }
     }
 

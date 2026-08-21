@@ -202,7 +202,31 @@ final class FilesBloc: @unchecked Sendable {
         /// Explorer's New submenu, one template: create the file and drop
         /// into its rename field, exactly the newFolder gesture.
         case newFile(Win32Files.ShellNewTemplate)
+        /// Ctrl+Z: pop the journal stack and apply the inverse.
+        case undo
         case iconsChanged
+    }
+
+    /// The undo stack: one entry per completed operation, each the
+    /// operation's JOURNAL -- what actually happened, in the names the
+    /// shell settled on. Ours to keep because the shell's own stack
+    /// (FOFX_ADDUNDORECORD) has no replay API; see Win32FileOps.OpRecord.
+    /// STATIC, like Explorer's: undo is per session, not per folder --
+    /// delete here, Ctrl+Z from any tab or window of this process.
+    /// Main-thread only, as all bloc state is.
+    ///
+    /// What does NOT land here, knowingly: operations run through the
+    /// context menu's shell verbs (its Cut/Delete rows go through
+    /// InvokeCommand, which reports nothing back), and permanent deletes
+    /// (the record's dst is empty -- there is nothing to restore).
+    private static var undoStack: [[Win32FileOps.OpRecord]] = []
+    private static let undoDepth = 32
+
+    static func pushUndo(_ records: [Win32FileOps.OpRecord]) {
+        let undoable = records.filter { !($0.kind == .delete && $0.dst.isEmpty) }
+        guard !undoable.isEmpty else { return }
+        undoStack.append(undoable)
+        if undoStack.count > undoDepth { undoStack.removeFirst() }
     }
 
     private(set) var state = FilesState()
@@ -302,6 +326,8 @@ final class FilesBloc: @unchecked Sendable {
                         self.state.selection = [path]
                         self.state.selectionAnchor = path
                         self.state.renaming = path
+                        Self.pushUndo([Win32FileOps.OpRecord(
+                            kind: .new, src: "", dst: path)])
                     }
                     self.add(.refresh)
                 }
@@ -470,8 +496,11 @@ final class FilesBloc: @unchecked Sendable {
             let paths = state.visible.map(\.path).filter(state.selection.contains)
             guard !paths.isEmpty else { break }
             Win32FileOps.deleteMany(paths, owner: Self.ownerWindow) {
-                [weak self] ok in
-                if ok { self?.add(.refresh) }
+                [weak self] ok, records in
+                if ok {
+                    Self.pushUndo(records)
+                    self?.add(.refresh)
+                }
             }
 
         case .clipSelection(let cut):
@@ -504,8 +533,11 @@ final class FilesBloc: @unchecked Sendable {
 
         case .paste(let directory):
             Win32FileOps.paste(into: directory, owner: Self.ownerWindow) {
-                [weak self] ok in
-                if ok { self?.add(.refresh) }
+                [weak self] ok, records in
+                if ok {
+                    Self.pushUndo(records)
+                    self?.add(.refresh)
+                }
             }
 
         case .beginRename(let entry):
@@ -521,8 +553,9 @@ final class FilesBloc: @unchecked Sendable {
             let oldName = (path as NSString).lastPathComponent
             guard !newName.isEmpty, newName != oldName else { return }
             Win32FileOps.rename(path, to: newName, owner: Self.ownerWindow) {
-                [weak self] ok in
+                [weak self] ok, records in
                 if ok {
+                    Self.pushUndo(records)
                     // Keep the selection on the renamed item, under its new
                     // name, so F2-Enter-F2 flows work.
                     let parent = (path as NSString).deletingLastPathComponent
@@ -549,8 +582,11 @@ final class FilesBloc: @unchecked Sendable {
                 break
             }
             Win32FileOps.delete(entry.path, owner: Self.ownerWindow) {
-                [weak self] ok in
-                if ok { self?.add(.refresh) }
+                [weak self] ok, records in
+                if ok {
+                    Self.pushUndo(records)
+                    self?.add(.refresh)
+                }
             }
 
         case .showProperties(let entry):
@@ -575,6 +611,8 @@ final class FilesBloc: @unchecked Sendable {
                     self.state.selection = [path]
                     self.state.selectionAnchor = path
                     self.state.renaming = path
+                    Self.pushUndo([Win32FileOps.OpRecord(
+                        kind: .new, src: "", dst: path)])
                 }
                 self.add(.refresh)
             }
@@ -600,8 +638,65 @@ final class FilesBloc: @unchecked Sendable {
                 if let made {
                     self.state.selection = [made]
                     self.state.selectionAnchor = made
+                    // tar.exe runs outside the journal; the zip's path is
+                    // the whole record, and undo deletes it.
+                    Self.pushUndo([Win32FileOps.OpRecord(
+                        kind: .new, src: "", dst: made)])
                 }
                 self.add(.refresh)
+            }
+
+        case .undo:
+            guard let entry = Self.undoStack.popLast() else { break }
+            let refresh: (Bool) -> Void = { [weak self] ok in
+                // Refresh even on failure -- a partial undo (three of five
+                // moved back before a conflict was cancelled) has still
+                // changed the folder. Failure also does NOT re-push the
+                // entry: retrying an inverse whose world has shifted under
+                // it does the wrong thing more often than the right one.
+                _ = ok
+                self?.add(.refresh)
+            }
+            // One operation's journal is homogeneous in practice (a paste
+            // is all copies or all moves), but the grouping below does not
+            // depend on it. Kinds map to inverses:
+            switch entry[0].kind {
+            case .copy, .new:
+                // Copies and creations undo the same way: the produced
+                // files go to the recycle bin. No confirmation -- Windows
+                // does not confirm a recycle, and Explorer's own undo-copy
+                // is silent too.
+                Win32FileOps.deleteMany(entry.map(\.dst),
+                                        owner: Self.ownerWindow) { ok, _ in
+                    refresh(ok)
+                }
+            case .move:
+                // Each item back to its OWN folder under its OWN name --
+                // src carries both, dst is where it is now. One operation
+                // over the set, like the move that is being undone.
+                let moves = entry.map { record in
+                    (current: record.dst,
+                     dir: (record.src as NSString).deletingLastPathComponent,
+                     name: (record.src as NSString).lastPathComponent)
+                }
+                Win32FileOps.undoMoves(moves, owner: Self.ownerWindow,
+                                       done: refresh)
+            case .rename:
+                // A rename journal is one record; its inverse is the old
+                // name back onto the new path.
+                let record = entry[0]
+                let oldName = (record.src as NSString).lastPathComponent
+                Win32FileOps.rename(record.dst, to: oldName,
+                                    owner: Self.ownerWindow) { ok, _ in
+                    refresh(ok)
+                }
+            case .delete:
+                // dst is each item's $R... slot in the bin (empty-dst
+                // permanent deletes were filtered at push). The bin's own
+                // restore verb, because it alone retires the $I record.
+                Win32FileOps.restoreFromBin(entry.map(\.dst),
+                                            owner: Self.ownerWindow,
+                                            done: refresh)
             }
 
         case .listed(let directory, let entries, let error):
