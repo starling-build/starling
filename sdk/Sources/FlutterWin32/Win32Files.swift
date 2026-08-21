@@ -166,6 +166,23 @@ public enum Win32Files {
         return n > 0 ? String(cString: buffer) : ""
     }
 
+    /// The user's OneDrive, when there is one — a row for a real folder
+    /// only. Windows exports the sync root as %OneDrive% once the client is
+    /// set up; the bare profile-folder spelling is the fallback. Named by
+    /// the shell ("OneDrive - Personal"), like everything else here.
+    public static func oneDrive() -> Win32Place? {
+        let env = ProcessInfo.processInfo.environment
+        guard let path = env["OneDrive"]
+                ?? env["USERPROFILE"].map({ $0 + "\\OneDrive" }) else {
+            return nil
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path,
+                                             isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return Win32Place(name: displayName(for: path), path: path)
+    }
+
     /// The drives, as places. Reuses the Settings reader — one answer to
     /// "what drives are there", not two that can disagree.
     public static func drives() -> [Win32Place] {

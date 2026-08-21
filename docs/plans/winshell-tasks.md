@@ -36,13 +36,16 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       New (Folder / Window) and Sort (keys + direction, checkmarked) open
       real menus under their buttons. View still disabled — it waits on
       view modes existing.
-- [ ] OneDrive sidebar row when %USERPROFILE%\OneDrive exists (honest: it is
-      a real folder). Gallery/Network/Linux stay out until a backing view
-      exists — a row that navigates nowhere is worse than absence.
+- [x] OneDrive sidebar row: %OneDrive% (falling back to
+      %USERPROFILE%\OneDrive), only when the folder really exists, shell-named
+      and cloud-glyphed under Home. Gallery/Network/Linux stay out until a
+      backing view exists — a row that navigates nowhere is worse than absence.
 - [ ] Mica titlebar tint: native's caption area picks up a desktop-tinted
       mica; ours is flat windowBg.
-- [ ] This PC in the sidebar is not expandable (drives are simply always
-      shown — same picture for one drive, wrong for many).
+- [x] This PC in the sidebar expands and collapses: a chevron in the row's
+      left gutter (icons stay aligned), the row itself toggles since it has
+      nowhere to navigate, and the state lives on the window — tabs share a
+      nav pane, as in Explorer.
 
 ## File explorer — functional gaps (medium)
 

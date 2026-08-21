@@ -91,6 +91,7 @@ enum FluentIcons {
     static let music = IconData(0xE8D6, fontFamily: family)
     static let video = IconData(0xE714, fontFamily: family)
     static let thisPC = IconData(0xE977, fontFamily: family)
+    static let cloud = IconData(0xE753, fontFamily: family)
     static let drive = IconData(0xEDA2, fontFamily: family)
     static let folderFill = IconData(0xE8D5, fontFamily: family)
     static let folderOpen = IconData(0xE838, fontFamily: family)

@@ -119,6 +119,10 @@ final class StarlingFilesState: State<StatefulWidget> {
     private var lastTapPath: String?
     private var lastTapAt = Date.distantPast
 
+    /// Whether the sidebar's This PC shows its drives. On the window, not
+    /// the tab: Explorer's tabs share one nav pane, and so do ours.
+    private var thisPCExpanded = true
+
     /// The list's scroll position, so a right-click can work out which row is
     /// under the pointer. Without it the arithmetic is only right until the
     /// first scroll — and then silently wrong, which is worse. PER TAB, from
@@ -731,6 +735,13 @@ final class StarlingFilesState: State<StatefulWidget> {
                         // Home first, alone -- Explorer's own shape: no
                         // section headings, the rows are the structure.
                         if let home = byName["Home"] { placeRow(home) }
+                        // OneDrive under it, when the machine has one --
+                        // shell-named ("OneDrive - Personal"), cloud in
+                        // OneDrive's blue.
+                        if let oneDrive = bloc.state.oneDrive {
+                            placeRow(oneDrive, glyph: FluentIcons.cloud,
+                                     tint: Color(0xFF0F6CBD))
+                        }
                         sidebarRule()
                         // The pinned folders, in Explorer's order, each
                         // carrying its pin.
@@ -741,17 +752,29 @@ final class StarlingFilesState: State<StatefulWidget> {
                         }
                         sidebarRule()
                         // This PC leads its drives, computer glyph and all.
-                        // Not expandable yet: the drives are simply always
-                        // shown, which for one drive is the same picture.
+                        // The chevron collapses them -- the drive rows are
+                        // its only children, so expansion is one bool here,
+                        // on the WINDOW: tabs share a nav pane in Explorer
+                        // and they share this one too.
                         placeRow(Win32Place(name: "This PC", path: ""),
-                                 glyph: FluentIcons.thisPC)
-                        for drive in bloc.state.drives {
-                            Padding(padding: EdgeInsets(left: 14, top: 0,
-                                                        right: 0, bottom: 0)) {
-                                placeRow(Win32Place(
-                                    name: Win32Files.displayName(for: drive.path),
-                                    path: drive.path),
-                                    glyph: FluentIcons.drive)
+                                 glyph: FluentIcons.thisPC,
+                                 chevron: thisPCExpanded
+                                     ? FluentIcons.chevronDown
+                                     : FluentIcons.chevronRight,
+                                 onTap: { [weak self] in
+                                     self?.setState {
+                                         self?.thisPCExpanded.toggle()
+                                     }
+                                 })
+                        if thisPCExpanded {
+                            for drive in bloc.state.drives {
+                                Padding(padding: EdgeInsets(left: 14, top: 0,
+                                                            right: 0, bottom: 0)) {
+                                    placeRow(Win32Place(
+                                        name: Win32Files.displayName(for: drive.path),
+                                        path: drive.path),
+                                        glyph: FluentIcons.drive)
+                                }
                             }
                         }
                     }
@@ -775,16 +798,20 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     private func placeRow(_ place: Win32Place, pinned: Bool = false,
-                          glyph: IconData? = nil) -> Widget {
+                          glyph: IconData? = nil, tint: Color? = nil,
+                          chevron: IconData? = nil,
+                          onTap: (() -> Void)? = nil) -> Widget {
         let selected = !place.path.isEmpty
             && bloc.state.directory == place.path
         let look = Self.placeLooks[place.name]
         let icon = glyph ?? look?.glyph ?? FluentIcons.folderFill
-        let tint = glyph != nil ? Win11.textDim
+        let tint = tint ?? (glyph != nil ? Win11.textDim
             : (look?.tint ?? (Win11.light ? Color(0xFF4E80C9)
-                                          : Color(0xFF7FA9DE)))
+                                          : Color(0xFF7FA9DE))))
+        let interactive = !place.path.isEmpty || onTap != nil
         return GestureDetector(
             onTap: {
+                if let onTap { onTap(); return }
                 guard !place.path.isEmpty else { return }
                 self.bloc.add(.open(place.path))
             },
@@ -792,20 +819,42 @@ final class StarlingFilesState: State<StatefulWidget> {
                 ClipRRect(borderRadius: BorderRadius.circular(6)) {
                     Hover { hovered in
                     ColoredBox(color: selected ? Color(0x2E6FA8FF)
-                               : (hovered && !place.path.isEmpty
+                               : (hovered && interactive
                                   ? Win11.hoverFill : Color(0x00000000))) {
                         SizedBox(height: 30) {
-                            Padding(padding: EdgeInsets(horizontal: 10, vertical: 0)) {
-                                Row(crossAxisAlignment: .center, spacing: 9) {
-                                    MacosIcon(icon: icon, color: tint, size: 14)
-                                    Text(place.name,
-                                         style: TextStyle(color: Win11.text,
-                                                          fontSize: 13),
-                                         maxLines: 1)
-                                    if pinned {
-                                        Expanded { SizedBox(height: 1) }
-                                        MacosIcon(icon: FluentIcons.pin,
-                                                  color: Win11.textFaint, size: 11)
+                            Padding(padding: EdgeInsets(
+                                left: chevron == nil ? 10 : 0, top: 0,
+                                right: 10, bottom: 0)) {
+                                Row(crossAxisAlignment: .center, spacing: 0) {
+                                    // The chevron gutter spends exactly the
+                                    // 10 points a plain row spends on left
+                                    // padding, so the icon column aligns
+                                    // either way.
+                                    if let chevron {
+                                        SizedBox(width: 10) {
+                                            MacosIcon(icon: chevron,
+                                                      color: Win11.textFaint,
+                                                      size: 9)
+                                        }
+                                    }
+                                    Expanded {
+                                        Row(crossAxisAlignment: .center,
+                                            spacing: 9) {
+                                            MacosIcon(icon: icon, color: tint,
+                                                      size: 14)
+                                            Text(place.name,
+                                                 style: TextStyle(
+                                                     color: Win11.text,
+                                                     fontSize: 13),
+                                                 maxLines: 1)
+                                            if pinned {
+                                                Expanded { SizedBox(height: 1) }
+                                                MacosIcon(
+                                                    icon: FluentIcons.pin,
+                                                    color: Win11.textFaint,
+                                                    size: 11)
+                                            }
+                                        }
                                     }
                                 }
                             }

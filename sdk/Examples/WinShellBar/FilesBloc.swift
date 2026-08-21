@@ -30,6 +30,9 @@ struct FilesState {
     var loading = false
     var places: [Win32Place] = []
     var drives: [Win32Place] = []
+    /// The OneDrive row, when the machine has one. nil is "no row" -- a
+    /// sidebar entry that navigates nowhere is worse than absence.
+    var oneDrive: Win32Place?
     /// The SELECTION, as Explorer has one: any number of rows, grown by
     /// Ctrl-click, spanned by Shift-click from the anchor. `selected` below
     /// is the single-item view of it that the footer, rename and Open with
@@ -133,7 +136,8 @@ final class FilesBloc: @unchecked Sendable {
         case share(Win32FileEntry)
 
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
-        case placesLoaded(places: [Win32Place], drives: [Win32Place])
+        case placesLoaded(places: [Win32Place], drives: [Win32Place],
+                          oneDrive: Win32Place?)
         case iconsChanged
     }
 
@@ -189,8 +193,10 @@ final class FilesBloc: @unchecked Sendable {
             Task.detached { [weak self] in
                 let places = Win32Files.places()
                 let drives = Win32Files.drives()
+                let oneDrive = Win32Files.oneDrive()
                 await MainActor.run {
-                    self?.add(.placesLoaded(places: places, drives: drives))
+                    self?.add(.placesLoaded(places: places, drives: drives,
+                                            oneDrive: oneDrive))
                     // Home, or the first drive on a machine with no profile
                     // folders to speak of.
                     guard requested == nil else { return }
@@ -200,9 +206,10 @@ final class FilesBloc: @unchecked Sendable {
                 }
             }
 
-        case .placesLoaded(let places, let drives):
+        case .placesLoaded(let places, let drives, let oneDrive):
             state.places = places
             state.drives = drives
+            state.oneDrive = oneDrive
 
         case .open(let path):
             if !state.directory.isEmpty, state.directory != path {
