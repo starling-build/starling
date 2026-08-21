@@ -125,6 +125,52 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// the tab: Explorer's tabs share one nav pane, and so do ours.
     private var thisPCExpanded = true
 
+    /// Details' column widths -- the header dividers drag them. On the
+    /// window, like the nav pane's state; the constants are the defaults.
+    private var colModified = kFilesColModified
+    private var colType = kFilesColType
+    private var colSize = kFilesColSize
+    /// A live divider drag: which column, where the pointer started, and
+    /// the column's width at that moment.
+    private var colDrag: (col: FilesSortKey, x: Double, width: Double)?
+
+    /// The divider under a header-row point, each boundary owning ±6pt of
+    /// the gap. A boundary belongs to the column RIGHT of it: dragging
+    /// moves the boundary while everything further right stays anchored,
+    /// so the column to the left grows by what this one gives up.
+    private func dividerAt(_ x: Double, _ y: Double) -> FilesSortKey? {
+        guard bloc.state.viewMode == .details, !bloc.state.isThisPC else {
+            return nil
+        }
+        let headerTop = kFilesToolbar - kFilesHeaderRow
+        guard y >= headerTop, y < kFilesToolbar else { return nil }
+        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let right = width - 16
+        let atSize = right - colSize - 5
+        let atType = atSize - 10 - colType
+        let atModified = atType - 10 - colModified
+        if abs(x - atSize) <= 6 { return .size }
+        if abs(x - atType) <= 6 { return .type }
+        if abs(x - atModified) <= 6 { return .modified }
+        return nil
+    }
+
+    /// Applies a divider drag: the pointer's travel comes off the column's
+    /// starting width, clamped so no column can vanish or eat the window.
+    private func colDragMoved(_ x: Double) {
+        guard let drag = colDrag else { return }
+        let proposed = drag.width - (x - drag.x)
+        let clamped = min(max(proposed, 50), 400)
+        setState {
+            switch drag.col {
+            case .modified: colModified = clamped
+            case .type: colType = clamped
+            case .size: colSize = clamped
+            case .name: break
+            }
+        }
+    }
+
     /// The list's scroll position, so a right-click can work out which row is
     /// under the pointer. Without it the arithmetic is only right until the
     /// first scroll — and then silently wrong, which is worse. PER TAB, from
@@ -488,6 +534,20 @@ final class StarlingFilesState: State<StatefulWidget> {
                         self.stripPress(e.position.dx, e.position.dy)
                         return
                     }
+                    // A press on a header divider arms a column resize;
+                    // the moves land in colDragMoved until the button lifts.
+                    if e.buttons == 1,
+                       let col = self.dividerAt(e.position.dx, e.position.dy) {
+                        let width: Double
+                        switch col {
+                        case .modified: width = self.colModified
+                        case .type: width = self.colType
+                        case .size: width = self.colSize
+                        case .name: width = 0
+                        }
+                        self.colDrag = (col, e.position.dx, width)
+                        return
+                    }
                     if e.buttons == 2 {
                         // Explorer's rule: a right-click on a row OUTSIDE
                         // the selection moves the selection to it; inside,
@@ -524,10 +584,15 @@ final class StarlingFilesState: State<StatefulWidget> {
                     }
                 },
                 onPointerMove: { e in
+                    if self.colDrag != nil {
+                        self.colDragMoved(e.position.dx)
+                        return
+                    }
                     if self.dragMoved(e) { return }
                     self.bandMoved(e)
                 },
                 onPointerUp: { _ in
+                    self.colDrag = nil
                     self.dragCandidate = nil
                     self.bandEnded()
                 },
@@ -1420,11 +1485,11 @@ final class StarlingFilesState: State<StatefulWidget> {
                     Row(crossAxisAlignment: .center, spacing: 10) {
                         SizedBox(width: 18, height: 1)
                         Expanded { headerCell("Name", .name, true) }
-                        SizedBox(width: kFilesColModified) {
+                        SizedBox(width: self.colModified) {
                             headerCell("Date modified", .modified, true)
                         }
-                        SizedBox(width: kFilesColType) { headerCell("Type", .type, true) }
-                        SizedBox(width: kFilesColSize) { headerCell("Size", .size, false) }
+                        SizedBox(width: self.colType) { headerCell("Type", .type, true) }
+                        SizedBox(width: self.colSize) { headerCell("Size", .size, false) }
                     }
                 }
             }
@@ -2031,7 +2096,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                          maxLines: 1)
                                 }
                             }
-                            SizedBox(width: kFilesColModified) {
+                            SizedBox(width: self.colModified) {
                                 // Left-aligned, as Explorer's column is.
                                 Align(alignment: Alignment.centerLeft) {
                                     Text(self.modifiedText(entry),
@@ -2042,7 +2107,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                             }
                             // Cached by extension -- a per-row registry walk
                             // is what the selection footer exists to avoid.
-                            SizedBox(width: kFilesColType) {
+                            SizedBox(width: self.colType) {
                                 Align(alignment: Alignment.centerLeft) {
                                     Text(FilesBloc.typeLabel(entry),
                                          style: TextStyle(color: Win11.textFaint,
@@ -2050,7 +2115,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                                          maxLines: 1)
                                 }
                             }
-                            SizedBox(width: kFilesColSize) {
+                            SizedBox(width: self.colSize) {
                                 Align(alignment: Alignment.centerRight) {
                                     Text(entry.isDirectory ? "" : self.sizeText(entry.size),
                                          style: TextStyle(color: Win11.textFaint,
