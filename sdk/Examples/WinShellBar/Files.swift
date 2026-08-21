@@ -81,6 +81,10 @@ enum Win11 {
     static var disabled: Color { light ? Color(0xFFA6A6A6) : Color(0xFF5A5A5A) }
     static var accent: Color { light ? Color(0xFF005FB8) : Color(0xFF4CC2FF) }
     static var selection: Color { light ? Color(0x330078D4) : Color(0x332F9CF4) }
+    /// The rubber band: accent-tinted fill, stronger accent edge -- sampled
+    /// from Explorer's own drag rectangle rather than invented.
+    static var bandFill: Color { light ? Color(0x2E0078D4) : Color(0x2E2F9CF4) }
+    static var bandStroke: Color { light ? Color(0x990078D4) : Color(0x992F9CF4) }
     static var hoverFill: Color { light ? Color(0x0A000000) : Color(0x14FFFFFF) }
     static var fieldFill: Color { light ? Color(0xFFFFFFFF) : Color(0xFF2D2D2D) }
     /// The context menu, sampled from Explorer's own: a near-opaque slab with
@@ -118,6 +122,17 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// under the pointer. Without it the arithmetic is only right until the
     /// first scroll — and then silently wrong, which is worse.
     private let scroll = ScrollController()
+
+    // The rubber band's bookkeeping. `band` is the drawn rectangle (its own
+    // model, so dragging rebuilds the overlay and not this window); the rest
+    // is this handler's: where the press landed, what was already selected
+    // when it did (Ctrl-dragging ADDS, as Explorer's does), and the last set
+    // dispatched so the bloc only hears real changes, not every pixel.
+    private let band = BandModel()
+    private var bandOrigin: (x: Double, y: Double)?
+    private var bandBase: Set<String> = []
+    private var bandActive = false
+    private var bandLast: Set<String> = []
 
     /// The search box's text. Owned by the widget, not the bloc: the bloc
     /// holds the filter it produced, which is a different thing from what is
@@ -318,13 +333,23 @@ final class StarlingFilesState: State<StatefulWidget> {
                     }
                     // A plain click on the listing's background deselects,
                     // as Explorer's does. Rows re-select through their own
-                    // GestureDetector after this fires.
-                    if e.buttons == 1, !self.ctrlDown, !self.shiftDown,
+                    // GestureDetector after this fires. Any background press
+                    // may also become a rubber band, so it is remembered --
+                    // with the selection it started over, because a
+                    // Ctrl-drag adds to that rather than replacing it.
+                    if e.buttons == 1,
                        case .background? =
                            self.targetAt(e.position.dx, e.position.dy) {
-                        self.bloc.add(.clearSelection)
+                        if !self.ctrlDown && !self.shiftDown {
+                            self.bloc.add(.clearSelection)
+                        }
+                        self.bandOrigin = (e.position.dx, e.position.dy)
+                        self.bandBase = self.ctrlDown
+                            ? self.bloc.state.selection : []
                     }
                 },
+                onPointerMove: { e in self.bandMoved(e) },
+                onPointerUp: { _ in self.bandEnded() },
                 // The highlight, and what opens a submenu — Windows opens
                 // them on hover and so does this. Only while a menu is down:
                 // this fires for every pointer move over the whole window.
@@ -365,6 +390,9 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // the menu's business -- this window does not rebuild
                     // when they move.
                     Positioned(left: 0, top: 0, right: 0, bottom: 0) {
+                        BandOverlay(model: band)
+                    }
+                    Positioned(left: 0, top: 0, right: 0, bottom: 0) {
                         StarlingContextMenu(model: menu)
                     }
                 }
@@ -395,6 +423,54 @@ final class StarlingFilesState: State<StatefulWidget> {
         let index = Int((y - kFilesToolbar + offset) / kFilesRow)
         guard index >= 0, index < bloc.state.visible.count else { return .background }
         return .item(bloc.state.visible[index])
+    }
+
+    // MARK: - The rubber band
+
+    /// Every pointer move with the left button down, once a background press
+    /// armed it. The 4px threshold is what separates a click (clear, handled
+    /// on the press) from a drag; past it, the rectangle is drawn clamped to
+    /// the listing and the rows it spans become the selection. No autoscroll
+    /// at the edges yet -- the band selects what is on screen.
+    private func bandMoved(_ e: PointerMoveEvent) {
+        guard let origin = bandOrigin, e.buttons == 1, !menu.isOpen else { return }
+        if !bandActive {
+            let dx = e.position.dx - origin.x
+            let dy = e.position.dy - origin.y
+            guard dx * dx + dy * dy > 16 else { return }
+            bandActive = true
+            bandLast = bandBase
+        }
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: kFilesWidth, height: kFilesHeight)
+        let x = min(max(e.position.dx, kFilesSidebar), size.width)
+        let y = min(max(e.position.dy, kFilesToolbar),
+                    size.height - kFilesStatusBar)
+        band.rect = (min(origin.x, x), min(origin.y, y),
+                     abs(x - origin.x), abs(y - origin.y))
+
+        // The rows the rectangle's vertical span intersects. Same arithmetic
+        // as targetAt, over a range instead of a point.
+        let offset = scroll.hasClients ? scroll.offset : 0
+        let count = bloc.state.visible.count
+        let lo = max(Int((min(origin.y, y) - kFilesToolbar + offset) / kFilesRow), 0)
+        let hi = min(Int((max(origin.y, y) - kFilesToolbar + offset) / kFilesRow),
+                     count - 1)
+        var covered = bandBase
+        if lo <= hi {
+            for i in lo...hi { covered.insert(bloc.state.visible[i].path) }
+        }
+        if covered != bandLast {
+            bandLast = covered
+            bloc.add(.bandSelect(Array(covered)))
+        }
+    }
+
+    private func bandEnded() {
+        bandOrigin = nil
+        guard bandActive else { return }
+        bandActive = false
+        band.rect = nil
     }
 
     // MARK: - Sidebar

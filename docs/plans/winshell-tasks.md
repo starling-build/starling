@@ -54,8 +54,11 @@ the tick grid; programmatic setState gets a real embedder frame on Win32
       " - Copy" files instead of the shell's conflict dialog, and a
       same-folder cut-paste is the no-op Explorer makes it. Rubber-band
       drag selection is the piece that remains.
-- [ ] Rubber-band selection: drag over the listing to select. The one part
-      of multi-select not done (needs a drag surface the listing lacks).
+- [x] Rubber-band selection: a background press dragged past 4px draws the
+      accent rectangle (its own model + overlay, like the menu, so the drag
+      rebuilds one box and not the window) and the rows it spans become the
+      selection live; Ctrl-dragging adds to what was selected. No edge
+      autoscroll yet -- the band selects what is on screen.
 - [ ] Real tabs: one tab per window now; "+" opens a new window. Real tabs
       need per-window multi-directory state and a tab strip model.
 - [ ] View modes: Details only; the View button is honest about it (drawn

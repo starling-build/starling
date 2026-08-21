@@ -96,6 +96,10 @@ final class FilesBloc: @unchecked Sendable {
         case rangeSelect(String)
         case selectAll
         case clearSelection
+        /// The rubber band's current coverage, replacing the selection
+        /// wholesale each time it changes (the additive Ctrl case is folded
+        /// in by the sender, which knows what the drag started over).
+        case bandSelect([String])
         /// The whole selection, as ONE shell operation each.
         case deleteSelection
         case clipSelection(cut: Bool)
@@ -305,6 +309,11 @@ final class FilesBloc: @unchecked Sendable {
         case .clearSelection:
             state.selection = []
             state.selectionAnchor = nil
+
+        case .bandSelect(let paths):
+            state.selection = Set(paths)
+            state.selectedApp = nil
+            state.selectedType = nil
 
         case .deleteSelection:
             let paths = state.visible.map(\.path).filter(state.selection.contains)
