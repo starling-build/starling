@@ -40,6 +40,17 @@ What it took, beyond assembly of parts that already existed:
   shell's display names, white with the drop shadow that survives a
   white wallpaper.
 
+- **A monitor-sized window shown WITH ACTIVATION is a "fullscreen app"
+  to the shell, and it demotes every appbar.** The desktop surface's
+  first activated show knocked the DOCK out of topmost — it landed
+  beneath the bottom-pinned surface and stayed (a manual topmost
+  re-assert stuck, which is how the trigger was pinned to the show).
+  flwin32_host_show now shows a desktop-mode window SW_SHOWNOACTIVATE;
+  focus follows the first click, which does not trip the check. For the
+  endgame: when OUR tray service is the appbar authority (explorer
+  absent), it must special-case ABN_FULLSCREENAPP for the desktop's own
+  window, or the same demotion returns wearing our name.
+
 V1 boundaries, each deliberate: no rubber-band selection, no OLE drag
 in/out (the Files machinery is there to lift), no inline rename, no
 keyboard navigation beyond F5/Delete/Escape, one monitor, wallpaper read

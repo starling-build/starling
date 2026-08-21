@@ -903,6 +903,19 @@ void flwin32_host_show(FlWin32Host* host) {
   if (host->overlay_active && !host->overlay_shown) {
     return;
   }
+  // THE DESKTOP IS SHOWN WITHOUT ACTIVATION, and this is load-bearing: a
+  // monitor-sized window becoming the FOREGROUND window is exactly what the
+  // shell's fullscreen-app handling looks for, and the one time it happened
+  // the shell demoted every appbar out of topmost -- the dock dropped
+  // beneath the desktop surface and stayed there (a re-assert stuck, which
+  // is how the trigger was pinned to this show). Focus follows the first
+  // CLICK, which activates without tripping the check -- driven both ways
+  // on the box.
+  if (host->desktop_active) {
+    ShowWindow(host->window, SW_SHOWNOACTIVATE);
+    UpdateWindow(host->window);
+    return;
+  }
   ShowWindow(host->window, SW_SHOW);
   UpdateWindow(host->window);
   SetFocus(host->child);
