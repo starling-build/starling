@@ -224,6 +224,35 @@ if let index = CommandLine.arguments.firstIndex(of: "--thumb-probe") {
     exit(0)
 }
 
+// `--ns-probe <location>` lists a namespace location the way the file
+// explorer's listing does (flwin32_ns_list), one row per item with the
+// attributes that cross the boundary -- the oracle for what IEnumShellItems
+// actually yields for a ::{CLSID}, which is not always what Folder.Items()
+// shows in PowerShell (Quick Access was the proof).
+if let index = CommandLine.arguments.firstIndex(of: "--ns-probe") {
+    let location = index + 1 < CommandLine.arguments.count
+        ? CommandLine.arguments[index + 1] : ""
+    guard !location.isEmpty else {
+        print("[ns-probe] expected a location")
+        exit(2)
+    }
+    guard let entries = Win32Files.listNamespace(location) else {
+        print("[ns-probe] listNamespace returned nil for \(location)")
+        exit(1)
+    }
+    print("[ns-probe] \(location) -> \(entries.count) items")
+    for entry in entries {
+        print("  name=[\(entry.name)] path=[\(entry.path)] "
+              + "dir=\(entry.isDirectory) fs=\(entry.isFileSystem) "
+              + "type=[\(entry.typeName ?? "-")]")
+    }
+    print("[ns-probe] pins:")
+    for place in Win32Files.quickAccessPins() {
+        print("  pinned name=[\(place.name)] path=[\(place.path)]")
+    }
+    exit(0)
+}
+
 // `--menu-probe <path>` prints the shell's context-menu verbs for a path and
 // exits; `--background` asks for the folder's menu instead of the item's, and
 // `--extended` is Shift+right-click.
@@ -258,7 +287,17 @@ if let index = CommandLine.arguments.firstIndex(of: "--menu-probe") {
     }
     let background = CommandLine.arguments.contains("--background")
     let extended = CommandLine.arguments.contains("--extended")
-    guard let session = Win32ShellMenu(path: path, background: background,
+    // `--location <folder>` addresses the item as a CHILD of a namespace
+    // folder rather than by its own name -- the Recycle Bin / Quick Access
+    // route, and the only way to see the verbs those parents contribute
+    // (Restore, Unpin from Quick access).
+    var location: String? = nil
+    if let li = CommandLine.arguments.firstIndex(of: "--location"),
+       li + 1 < CommandLine.arguments.count {
+        location = CommandLine.arguments[li + 1]
+    }
+    guard let session = Win32ShellMenu(path: path, location: location,
+                                       background: background,
                                        extended: extended, owner: 0) else {
         print("[menu-probe] could not start a session for \(path)")
         exit(1)

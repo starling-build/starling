@@ -949,8 +949,8 @@ final class StarlingFilesState: State<StatefulWidget> {
             items.append((32, oneDrive.path))
         }
         items.append((17, nil))                    // rule
-        for name in Self.pinOrder {
-            if let place = byName[name] { items.append((32, place.path)) }
+        for place in bloc.state.quickAccess {
+            items.append((32, place.path))
         }
         items.append((17, nil))                    // rule
         items.append((32, nil))                    // This PC
@@ -1027,9 +1027,6 @@ final class StarlingFilesState: State<StatefulWidget> {
         "Music": (FluentIcons.music, Color(0xFFC94E7E)),
         "Videos": (FluentIcons.video, Color(0xFFC97A3F)),
     ]
-    private static let pinOrder = ["Desktop", "Downloads", "Documents",
-                                   "Pictures", "Music", "Videos"]
-
     private func sidebar() -> Widget {
         let byName = Dictionary(uniqueKeysWithValues:
             bloc.state.places.map { ($0.name, $0) })
@@ -1048,12 +1045,15 @@ final class StarlingFilesState: State<StatefulWidget> {
                                      tint: Color(0xFF0F6CBD))
                         }
                         sidebarRule()
-                        // The pinned folders, in Explorer's order, each
-                        // carrying its pin.
-                        for name in Self.pinOrder {
-                            if let place = byName[name] {
-                                placeRow(place, pinned: true)
-                            }
+                        // The pinned folders: EXPLORER'S pin set, read from
+                        // the shell, in the shell's order -- pin a folder in
+                        // either explorer and both sidebars grow the row.
+                        // (Replaced a hardcoded six-name list; the shell's
+                        // set for a fresh profile IS those six.) The pin
+                        // glyph is live: clicking it unpins, through the
+                        // shell's own unpinfromhome verb.
+                        for place in bloc.state.quickAccess {
+                            placeRow(place, pinned: true)
                         }
                         sidebarRule()
                         // This PC leads its drives, computer glyph and all.
@@ -1190,10 +1190,21 @@ final class StarlingFilesState: State<StatefulWidget> {
                                                  maxLines: 1)
                                             if pinned {
                                                 Expanded { SizedBox(height: 1) }
-                                                MacosIcon(
-                                                    icon: FluentIcons.pin,
-                                                    color: Win11.textFaint,
-                                                    size: 11)
+                                                // Live, not decoration:
+                                                // this is the unpin.
+                                                GestureDetector(
+                                                    onTap: {
+                                                        self.bloc.runShellVerb(
+                                                            "unpinfromhome",
+                                                            path: place.path,
+                                                            location: Win32Files
+                                                                .NamespacePlace
+                                                                .quickAccess)
+                                                    },
+                                                    child: MacosIcon(
+                                                        icon: FluentIcons.pin,
+                                                        color: Win11.textFaint,
+                                                        size: 11))
                                             }
                                         }
                                     }

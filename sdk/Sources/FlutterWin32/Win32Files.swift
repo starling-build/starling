@@ -196,6 +196,12 @@ public enum Win32Files {
     public enum NamespacePlace {
         public static let recycleBin = "::{645FF040-5081-101B-9F08-00AA002F954E}"
         public static let network = "::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}"
+        /// Quick Access ("Home" since 22H2): the pinned + frequent set.
+        /// The `shell:` spelling is LOAD-BEARING: the bare "::{GUID}" form
+        /// parses for the bin and Network but NOT for this folder (probed
+        /// -- SHParseDisplayName refuses it), while the shell: URI resolves.
+        public static let quickAccess =
+            "shell:::{679F85CB-0220-4080-B29B-5540CC05AAB6}"
     }
 
     /// Lists a shell NAMESPACE location — the Recycle Bin, Network, a .zip
@@ -252,6 +258,40 @@ public enum Win32Files {
                 // correct answer in the bin, where the extension route
                 // would ask about a `$R…` slot name.
                 typeName: type.isEmpty ? nil : type))
+        }
+        return out
+    }
+
+    /// The folders the user has PINNED to Quick Access — Explorer's pin
+    /// set, read from the shell so both explorers always agree. The Quick
+    /// Access folder enumerates pinned and merely-frequent together;
+    /// System.Home.IsPinned is what splits them, and only folders qualify
+    /// (Windows lists recent FILES there too). Order is the shell's, which
+    /// is the order Explorer's sidebar shows. Can block briefly: call off
+    /// the UI thread.
+    public static func quickAccessPins() -> [Win32Place] {
+        guard let list = flwin32_ns_list(NamespacePlace.quickAccess) else {
+            return []
+        }
+        defer { flwin32_ns_list_free(list) }
+        var out: [Win32Place] = []
+        var buffer = [CChar](repeating: 0, count: 4096)
+        for index in 0..<flwin32_ns_count(list) {
+            guard flwin32_ns_pinned(list, index) == 1 else { continue }
+            var folder: Int32 = 0
+            flwin32_ns_attrs(list, index, &folder, nil, nil, nil)
+            guard folder != 0 else { continue }
+            func field(_ which: Int32) -> String {
+                let n = buffer.withUnsafeMutableBufferPointer {
+                    flwin32_ns_field(list, index, which, $0.baseAddress, 4096)
+                }
+                return n > 0 ? String(cString: buffer) : ""
+            }
+            let path = field(0)
+            let name = field(1)
+            guard !path.isEmpty else { continue }
+            out.append(Win32Place(name: name.isEmpty ? path : name,
+                                  path: path))
         }
         return out
     }

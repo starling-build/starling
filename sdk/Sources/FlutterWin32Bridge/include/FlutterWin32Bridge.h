@@ -172,6 +172,10 @@ int32_t flwin32_ns_field(FlWin32NsList* list, int32_t index, int32_t field,
 int32_t flwin32_ns_attrs(FlWin32NsList* list, int32_t index,
                          int32_t* is_folder, int32_t* is_filesystem,
                          int64_t* size, int64_t* mtime_unix);
+// System.Home.IsPinned: 1 pinned, 0 not, -1 unanswered. Quick Access
+// children answer it (it is what splits pinned from merely-frequent there);
+// everything else returns -1, which must not be read as "not pinned".
+int32_t flwin32_ns_pinned(FlWin32NsList* list, int32_t index);
 // One location's own display name — "Recycle Bin", "Network", and whatever
 // the machine's language calls them. flwin32_file_display_name cannot answer
 // this: SHGetFileInfoW parses a PATH, and a ::{CLSID} is not one. Resolves

@@ -33,6 +33,11 @@ struct FilesState {
     /// The OneDrive row, when the machine has one. nil is "no row" -- a
     /// sidebar entry that navigates nowhere is worse than absence.
     var oneDrive: Win32Place?
+    /// The folders pinned to Quick Access -- EXPLORER'S pin set, read from
+    /// the shell (System.Home.IsPinned over the Quick Access folder), so
+    /// both explorers always agree. This replaced a hardcoded six-name
+    /// list: pin a folder in either window and both sidebars grow the row.
+    var quickAccess: [Win32Place] = []
     /// The ShellNew templates for the New dropdown -- loaded once with the
     /// places, empty until the registry walk lands.
     var newTemplates: [Win32Files.ShellNewTemplate] = []
@@ -206,6 +211,10 @@ final class FilesBloc: @unchecked Sendable {
         case listed(directory: String, entries: [Win32FileEntry], error: String?)
         case placesLoaded(places: [Win32Place], drives: [Win32Place],
                           oneDrive: Win32Place?)
+        /// The Quick Access pin set, (re)read -- at startup with the
+        /// places, and again after any shell verb runs (a pin/unpin is a
+        /// shell verb, and nothing else tells us it happened).
+        case pinsLoaded([Win32Place])
         case templatesLoaded([Win32Files.ShellNewTemplate])
         case thisPCLoaded([Win32Drive])
         /// Explorer's New submenu, one template: create the file and drop
@@ -293,9 +302,11 @@ final class FilesBloc: @unchecked Sendable {
                 let places = Win32Files.places()
                 let drives = Win32Files.drives()
                 let oneDrive = Win32Files.oneDrive()
+                let pins = Win32Files.quickAccessPins()
                 await MainActor.run {
                     self?.add(.placesLoaded(places: places, drives: drives,
                                             oneDrive: oneDrive))
+                    self?.add(.pinsLoaded(pins))
                     // Home, or the first drive on a machine with no profile
                     // folders to speak of.
                     guard requested == nil else { return }
@@ -304,6 +315,9 @@ final class FilesBloc: @unchecked Sendable {
                     }
                 }
             }
+
+        case .pinsLoaded(let pins):
+            state.quickAccess = pins
 
         case .placesLoaded(let places, let drives, let oneDrive):
             state.places = places
@@ -899,8 +913,16 @@ final class FilesBloc: @unchecked Sendable {
     /// the shell has finished -- a verb with a dialog does not return until
     /// the user has answered it.
     private func runShellVerb(_ verb: String, on entry: Win32FileEntry) {
-        let session = Win32ShellMenu(path: entry.path,
-                                     location: state.directory,
+        runShellVerb(verb, path: entry.path, location: state.directory)
+    }
+
+    /// The general form: `location` is the namespace folder the item is a
+    /// child of (see Win32ShellMenu.init), which for the Quick Access verbs
+    /// is the QA folder itself -- "unpinfromhome" exists only on the QA
+    /// child, never on the folder addressed by its own path.
+    func runShellVerb(_ verb: String, path: String, location: String?) {
+        let session = Win32ShellMenu(path: path,
+                                     location: location,
                                      owner: Self.ownerWindow)
         session?.items(.full) { [weak self] rows in
             guard let row = rows.first(where: {
@@ -908,8 +930,21 @@ final class FilesBloc: @unchecked Sendable {
                 session?.close()
                 return
             }
-            session?.invoke(.full, row.id) { self?.add(.refresh) }
+            session?.invoke(.full, row.id) {
+                self?.add(.refresh)
+                self?.reloadPins()
+            }
             session?.close()
+        }
+    }
+
+    /// Re-reads the Quick Access pin set, off-thread. Hangs off every shell
+    /// verb completion -- a pin or unpin IS a shell verb, and nothing else
+    /// announces that one happened.
+    func reloadPins() {
+        Task.detached { [weak self] in
+            let pins = Win32Files.quickAccessPins()
+            await MainActor.run { self?.add(.pinsLoaded(pins)) }
         }
     }
 

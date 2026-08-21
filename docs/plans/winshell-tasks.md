@@ -6,17 +6,43 @@ mouse notices first. Updated 2026-08-21: every visual-polish, functional-gap
 and hygiene item is done -- what remains is the deferred-by-decision section
 below and the small not-yets recorded inside ticked entries (tab
 reorder/tear-off, column reorder, custom drag imagery, edge autoscroll).
-Updated again 2026-08-21, later: Phase 1 of the shell-replacement plan is
-four-fifths landed (namespace enumeration + bin/Network/zip, Ctrl+Z,
-thumbnails, typed path entry, subtree search -- sections below). The one
-Phase-1 item left is QUICK ACCESS PINNING, which is the next
-session-sized piece: it needs the pinned/frequent split read out of the
-Quick Access namespace (::{679f85cb-0220-4080-b29b-5540cc05aab6}
-enumerates BOTH mixed; a per-item pinned property or the pinned-only
-child folder has to be probed first), pin/unpin through the shell's own
-pintohome/unpinfromhome verbs so Explorer and this window agree, and the
-sidebar's hardcoded pinOrder rows replaced by the read set. After that,
-track 1 rejoins the wave plan (winshell-shell-replacement.md).
+Updated again 2026-08-21, later: PHASE 1 OF THE SHELL-REPLACEMENT PLAN IS
+COMPLETE (namespace enumeration + bin/Network/zip, Ctrl+Z, thumbnails,
+typed path entry, subtree search, Quick Access pinning -- sections
+below). Track 1 rejoins the wave plan (winshell-shell-replacement.md);
+by that plan the next work is wave 2's desktop surface (needs 0a, done
+here, AND 0b's popup surfaces from track 2) or whatever track is open.
+
+## Quick Access pinning — landed and verified 2026-08-21
+
+The sidebar's pin section is now EXPLORER'S pin set, not a hardcoded
+six-name list: read from the Quick Access folder and re-read after every
+shell verb (a pin/unpin IS a shell verb, and nothing else announces one).
+Pin from any folder's context menu (pintohome was already in the modern
+verbs); unpin by clicking the row's pin glyph, which runs unpinfromhome
+through the same location-addressed menu session the Recycle Bin's
+Restore uses. Round trip driven on the box: pin docs -> row appears,
+click its pin -> row leaves, and the shell's own set confirms both.
+
+Three findings, each probed before believed:
+- QUICK ACCESS REFUSES BHID_EnumItems outright (the modern enumeration
+  that works for the bin, Network and zips) while answering the classic
+  IShellFolder::EnumObjects. flwin32_ns_list grew the classic fallback,
+  and the menu session's resolve_item switched to the classic walk
+  entirely -- the folder handle it binds to walk is exactly the parent
+  GetUIObjectOf wants.
+- The bare "::{679F85CB-...}" spelling DOES NOT PARSE for Quick Access
+  (it does for the bin and Network); the "shell:::{...}" URI does. The
+  NamespacePlace constant carries the working spelling and a warning.
+- Pinned vs merely-frequent is System.Home.IsPinned, resolved BY NAME at
+  runtime (PSGetPropertyKeyFromName -- the SDK ships no PKEY_ for it).
+  Everything outside Quick Access answers -1/unanswered, which must not
+  be read as "not pinned".
+
+`--ns-probe <location>` joined the CLI oracles (it is how the two
+enumeration findings were caught), and `--menu-probe` takes `--location`
+now -- the QA child's menu is where unpinfromhome lives; the folder
+addressed by its own path only ever offers pintohome.
 
 ## Subtree search — landed and verified 2026-08-21
 
