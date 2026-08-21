@@ -27,6 +27,16 @@ public enum Win32PopupSurfaces {
     /// long as its popup: registered by `open`, removed by `close`.
     nonisolated(unsafe) private static var builders: [Int: () -> Widget] = [:]
 
+    /// Views whose first scene has been composited — the earliest a popup
+    /// window may be shown without exposing an unpainted surface.
+    nonisolated(unsafe) private static var composited = Set<Int>()
+
+    /// Popups whose owner asked to keep them hidden past the first
+    /// composite — a menu that knows more rows are seconds away holds until
+    /// `reveal`, so the growth happens off screen and the menu appears once,
+    /// at its settled size.
+    nonisolated(unsafe) private static var held = Set<Int>()
+
     nonisolated(unsafe) private static var installed = false
 
     nonisolated(unsafe) private static var dismissHandler: (() -> Void)?
@@ -51,6 +61,16 @@ public enum Win32PopupSurfaces {
             let content: Widget = builder?() ?? SizedBox(width: 0, height: 0)
             return Directionality(textDirection: .ltr, child: content)
         }
+        // Popups open HIDDEN and are shown here, after their view's first
+        // composite — a window shown at creation spends the frames until
+        // its first present as a flat rectangle over whatever it covers.
+        // A held popup waits further, for its owner's reveal.
+        multiViewFirstComposite = { id in
+            composited.insert(id)
+            guard !held.contains(id) else { return }
+            guard let host = Win32WindowedHost.host else { return }
+            flwin32_popup_show(host.cHost, Int64(id))
+        }
         flwin32_popup_on_dismiss({ _ in
             Win32PopupSurfaces.dismissHandler?()
         }, nil)
@@ -69,18 +89,33 @@ public enum Win32PopupSurfaces {
     /// computed in; the popup may overhang the window freely. Returns the
     /// view id, or nil when the surface could not be created (caller draws
     /// in-window instead).
+    /// `holdUntilRevealed` keeps the popup hidden past its first composite,
+    /// until `reveal` — for content the owner knows is about to change shape
+    /// (a menu whose full verb tier is still being queried), so it appears
+    /// once, settled, instead of growing on screen.
     public static func open(x: Double, y: Double, width: Double,
                             height: Double,
+                            holdUntilRevealed: Bool = false,
                             content: @escaping () -> Widget) -> Int? {
         guard let host = Win32WindowedHost.host else { return nil }
         installIfNeeded()
         let id = flwin32_popup_open(host.cHost, x, y, width, height)
         guard id > 0 else { return nil }
         builders[Int(id)] = content
+        if holdUntilRevealed { held.insert(Int(id)) }
         // The popup's first frame: opening is not itself a build, so kick
         // the engine the same way a programmatic setState does.
         hostScheduleEngineFrame?()
         return Int(id)
+    }
+
+    /// Lifts an open's `holdUntilRevealed`. Idempotent; shows immediately
+    /// when the view has composited, or on its first composite otherwise.
+    public static func reveal(_ id: Int) {
+        guard held.remove(id) != nil else { return }
+        guard composited.contains(id), let host = Win32WindowedHost.host
+        else { return }
+        flwin32_popup_show(host.cHost, Int64(id))
     }
 
     /// Moves/resizes an open popup (a menu growing as the shell's verbs
@@ -94,12 +129,16 @@ public enum Win32PopupSurfaces {
     public static func close(_ id: Int) {
         guard let host = Win32WindowedHost.host else { return }
         builders.removeValue(forKey: id)
+        composited.remove(id)
+        held.remove(id)
         flwin32_popup_close(host.cHost, Int64(id))
     }
 
     public static func closeAll() {
         guard let host = Win32WindowedHost.host else { return }
         builders.removeAll()
+        composited.removeAll()
+        held.removeAll()
         flwin32_popup_close_all(host.cHost)
     }
 

@@ -83,6 +83,15 @@ static void* dismiss_user = NULL;
 
 static const wchar_t kPopupClass[] = L"StarlingPopupSurface";
 
+// The brush behind each popup, kept per window: whatever part of the surface
+// becomes valid before the engine presents — the gap at open, and the new
+// region a resize exposes — is painted with this. The host window uses BLACK
+// there, which is right for colorkeyed chrome and was visibly wrong here: a
+// menu popping over a light listing announced itself as a black rectangle
+// for the frames before its first present. Menu-coloured, the same gap reads
+// as the panel arriving.
+static const wchar_t kPopupBrushProp[] = L"StarlingPopupBrush";
+
 static PopupSlot* slot_for(int64_t view_id) {
   for (int i = 0; i < kMaxPopups; i++) {
     if (popups[i].view_id == view_id && popups[i].view_id != 0) {
@@ -99,6 +108,24 @@ static LRESULT CALLBACK popup_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
       // The reason this window class exists: take the click, refuse the
       // activation, exactly as a native menu window does.
       return MA_NOACTIVATE;
+    case WM_ERASEBKGND: {
+      HBRUSH brush = (HBRUSH)GetPropW(hwnd, kPopupBrushProp);
+      if (brush != NULL) {
+        RECT frame;
+        GetClientRect(hwnd, &frame);
+        FillRect((HDC)wparam, &frame, brush);
+        return 1;
+      }
+      break;
+    }
+    case WM_NCDESTROY: {
+      HBRUSH brush = (HBRUSH)GetPropW(hwnd, kPopupBrushProp);
+      if (brush != NULL) {
+        DeleteObject(brush);
+        RemovePropW(hwnd, kPopupBrushProp);
+      }
+      break;
+    }
     case WM_SIZE: {
       // Keep the view child filling the frame (flwin32_popup_place resizes
       // the frame; the child follows here, and its own proc carries the new
@@ -127,10 +154,10 @@ static void ensure_popup_class(void) {
   wc.lpfnWndProc = popup_wnd_proc;
   wc.hInstance = GetModuleHandleW(NULL);
   wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-  // Black for the same reason the host class is: the gap between the window
-  // appearing and the engine's first present is painted with this brush, and
-  // both themes' menus sit closer to black than to white.
-  wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+  // No class brush: WM_ERASEBKGND paints the per-window menu-coloured brush
+  // (kPopupBrushProp) instead, because the right colour depends on the
+  // theme at open time and a class has one brush for every popup.
+  wc.hbrBackground = NULL;
   wc.lpszClassName = kPopupClass;
   RegisterClassExW(&wc);
 }
@@ -188,6 +215,14 @@ int64_t flwin32_popup_open(FlWin32Host* host, double x_pt, double y_pt,
     return -1;
   }
 
+  // The menu surface's own fill, per the theme AT OPEN (Win11.menuBgOpaque's
+  // twin — 0xFCFCFC light, 0x2C2C2C dark). Owned by the window, freed in
+  // WM_NCDESTROY.
+  COLORREF fill = flwin32_apps_use_light_theme()
+                      ? RGB(0xFC, 0xFC, 0xFC)
+                      : RGB(0x2C, 0x2C, 0x2C);
+  SetPropW(window, kPopupBrushProp, (HANDLE)CreateSolidBrush(fill));
+
   // The system's own rounding, which also buys the popup the DWM shadow a
   // native menu wears — this pair IS what a Windows 11 menu window is: DWM
   // clips the surface to the radius and shades outside it, and the content
@@ -216,7 +251,11 @@ int64_t flwin32_popup_open(FlWin32Host* host, double x_pt, double y_pt,
              TRUE);
   flwin32_install_child_cursor_proc(child);
 
-  ShowWindow(window, SW_SHOWNOACTIVATE);
+  // NOT shown here. The view has composited nothing yet, and a shown window
+  // spends the frames until its first present as a flat rectangle — the
+  // erase brush above makes that menu-coloured instead of black, and
+  // flwin32_popup_show (called from the Swift side once the view's first
+  // scene has been composited) shrinks it to nearly nothing.
 
   int64_t view_id =
       (int64_t)FlutterDesktopViewControllerGetViewId(controller);
@@ -225,6 +264,14 @@ int64_t flwin32_popup_open(FlWin32Host* host, double x_pt, double y_pt,
   slot->controller = controller;
   slot->host = host;
   return view_id;
+}
+
+void flwin32_popup_show(FlWin32Host* host, int64_t view_id) {
+  PopupSlot* slot = slot_for(view_id);
+  if (slot == NULL || slot->host != host) return;
+  if (!IsWindowVisible(slot->window)) {
+    ShowWindow(slot->window, SW_SHOWNOACTIVATE);
+  }
 }
 
 void flwin32_popup_place(FlWin32Host* host, int64_t view_id, double x_pt,
