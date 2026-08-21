@@ -486,3 +486,102 @@ int32_t flwin32_set_dark_mode(int32_t dark) {
                         SMTO_ABORTIFHUNG, 200, &result);
     return 1;
 }
+
+/* ------------------------------------------------------------ night light */
+
+/* Night light has no API at all: Settings writes an opaque blob into the
+ * CloudStore and the display pipeline watches the key. The shape, decoded
+ * off this machine (25H2) and consistent with every published toggler:
+ *
+ *   0..3    43 42 01 00        "CB" record header
+ *   4..9    0A 02 01 00 2A 06  fixed
+ *   10..14  five-byte timestamp varint; the watcher ignores a write that
+ *           does not move it forward, so it is bumped rather than recomputed
+ *   15..17  2A 2B 0E           fixed
+ *   18      LENGTH of the payload that follows -- 0x13/0x15 in the widely
+ *           documented blobs is this length (19/21), NOT a state code, which
+ *           is how the old recipe broke on a never-configured machine whose
+ *           default payload is short (0x05)
+ *   19..22  43 42 01 00        inner record header
+ *   23..24  10 00              PRESENT exactly while the filter is active --
+ *           the two bytes every toggle inserts and removes
+ *
+ * Getting the shape wrong does not break anything -- the watcher just
+ * ignores the write -- which is why the transform edits length-relative
+ * rather than assuming one fixed size. */
+static const wchar_t* const kNightLightKey =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\CloudStore\\Store\\"
+    L"DefaultAccount\\Current\\"
+    L"default$windows.data.bluelightreduction.bluelightreductionstate\\"
+    L"windows.data.bluelightreduction.bluelightreductionstate";
+
+/* Whether a state blob says the filter is running. -1: not a shape we know. */
+static int night_light_blob_active(const BYTE* data, DWORD size) {
+    if (size < 23 || data[0] != 0x43 || data[1] != 0x42 ||
+        data[19] != 0x43 || data[20] != 0x42) {
+        return -1;
+    }
+    return (size >= 25 && data[23] == 0x10 && data[24] == 0x00) ? 1 : 0;
+}
+
+/* 1 on, 0 off, -1 no night-light state on this machine. */
+int32_t flwin32_night_light(void) {
+    BYTE data[128];
+    DWORD size = sizeof(data);
+    if (RegGetValueW(HKEY_CURRENT_USER, kNightLightKey, L"Data",
+                     RRF_RT_REG_BINARY, NULL, data, &size) != ERROR_SUCCESS) {
+        return -1;
+    }
+    return night_light_blob_active(data, size);
+}
+
+int32_t flwin32_set_night_light(int32_t on) {
+    BYTE data[128];
+    DWORD size = sizeof(data);
+    if (RegGetValueW(HKEY_CURRENT_USER, kNightLightKey, L"Data",
+                     RRF_RT_REG_BINARY, NULL, data, &size) != ERROR_SUCCESS ||
+        size > sizeof(data) - 2) {
+        return 0;
+    }
+    int active = night_light_blob_active(data, size);
+    if (active < 0) return 0;
+    if (active == (on ? 1 : 0)) return 1; /* already there */
+
+    if (on) {
+        /* Grow: 0x10 0x00 slides in at offset 23, and the length at 18
+         * grows with it. */
+        memmove(data + 25, data + 23, size - 23);
+        data[23] = 0x10;
+        data[24] = 0x00;
+        data[18] += 2;
+        size += 2;
+    } else {
+        /* Shrink: the same two bytes come back out. */
+        memmove(data + 23, data + 25, size - 25);
+        data[18] -= 2;
+        size -= 2;
+    }
+    /* Move the clock forward; carry so 0xFF does not wrap into "older". */
+    for (int i = 10; i <= 14; i++) {
+        if (++data[i] != 0) break;
+    }
+
+    HKEY key = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, kNightLightKey, 0, KEY_SET_VALUE,
+                      &key) != ERROR_SUCCESS) {
+        return 0;
+    }
+    LSTATUS rc = RegSetValueExW(key, L"Data", 0, REG_BINARY, data, size);
+    RegCloseKey(key);
+    return rc == ERROR_SUCCESS ? 1 : 0;
+}
+
+/* ----------------------------------------------------------- energy saver */
+
+/* Read-only: the OS flips this itself and Settings is the only sanctioned
+ * writer, so the tile shows the true state and a press opens the page. */
+int32_t flwin32_energy_saver(void) {
+    SYSTEM_POWER_STATUS status;
+    if (!GetSystemPowerStatus(&status)) return -1;
+    return (status.SystemStatusFlag & 1) ? 1 : 0;
+}

@@ -169,5 +169,31 @@ public enum Win32Control {
     public static func setDarkMode(_ dark: Bool) -> Bool {
         flwin32_set_dark_mode(dark ? 1 : 0) != 0
     }
+
+    /// Night light — Windows' blue-light filter, the same state the native
+    /// Quick Settings tile flips. `nil` when this machine has no night-light
+    /// state at all, which is how the tile knows to draw as unavailable.
+    public static var nightLight: Bool? {
+        switch flwin32_night_light() {
+        case 1: return true
+        case 0: return false
+        default: return nil
+        }
+    }
+
+    @discardableResult
+    public static func setNightLight(_ on: Bool) -> Bool {
+        flwin32_set_night_light(on ? 1 : 0) != 0
+    }
+
+    /// Energy saver, read-only: the OS owns the toggle, so the tile shows
+    /// the true state and a press opens the Settings page instead of lying.
+    public static var energySaver: Bool? {
+        switch flwin32_energy_saver() {
+        case 1: return true
+        case 0: return false
+        default: return nil
+        }
+    }
 }
 #endif
