@@ -4,20 +4,21 @@ The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
 mouse notices first.
 
-CHECKPOINT 2026-08-21 (end of the desktop-surface session): NOTHING IS
-IN FLIGHT. Everything below is committed and pushed in both repos
-(desktop 1280b3e, engine e0ed4e31068), the box's dist runs the current
-tree (dock + Files up, the --desktop trial stopped), and every landing
-was driven live before its commit. This session: popup surfaces (0b)
-with its engine one-commit-per-pass fix and the settle-before-reveal
-menu behaviour, then wave 2's desktop surface with its three traps
-(wallpaper orientation, the dormant-bloc menu couplings, the
-fullscreen-app appbar demotion). THE NEXT SESSION: the VM trial with
-explorer absent — kill explorer, --desktop, the wave-plan gate list —
-which needs the Linux machine that hosts the VM harness; this box
-cannot reach it. A session HERE instead picks from the desktop v1
-boundaries below, the deferred not-yets, or the engine frame-dispatch
-work.
+CHECKPOINT 2026-08-21, later (end of the desktop-interaction session):
+NOTHING IS IN FLIGHT. The desktop surface's v1 boundaries are mostly
+closed (section below): rubber band, inline rename, keyboard
+navigation, clipboard chords with the shared Ctrl+Z journal, the menu
+pill's Paste/Rename cells rewired off the dormant filesBloc, OLE drops
+IN with drop-point placement, and drags onto a folder icon moving the
+file — every one driven live on this box under STARLING_DESKTOP_TRIAL=1
+before commit. Engine untouched (still e0ed4e31068); the box's dist
+runs the current tree (dock + Files up, the trial stopped). What
+remains desktop-side: OLE drag OUT, multi-monitor, a wallpaper change
+watch. THE NEXT SESSION: still the VM trial with explorer absent —
+kill explorer, --desktop, the wave-plan gate list — which needs the
+Linux machine that hosts the VM harness; this box cannot reach it. A
+session HERE picks from the remaining boundaries above, the deferred
+not-yets, or the engine frame-dispatch work.
 
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 
@@ -66,14 +67,60 @@ What it took, beyond assembly of parts that already existed:
   absent), it must special-case ABN_FULLSCREENAPP for the desktop's own
   window, or the same demotion returns wearing our name.
 
-V1 boundaries, each deliberate: no rubber-band selection, no OLE drag
-in/out (the Files machinery is there to lift), no inline rename, no
-keyboard navigation beyond F5/Delete/Escape, one monitor, wallpaper read
-once at start, and the paste/rename cells of the menu's pill row are
-Files-bound and quietly dead here. THE GATE THAT REMAINS: the VM trial
-with explorer absent — kill explorer, launch --desktop, wallpaper up,
-icons live, menus and drops working, explorer restored cleanly. The VM
-harness runs on the Linux machine; this box cannot reach it.
+V1 boundaries, mostly closed in the second pass (2026-08-21, later),
+each lifted from the file explorer's machinery and driven live:
+- **Rubber band**: same BandModel/BandOverlay split; the covered set is a
+  per-item cell intersect (desktop cells sit at arbitrary stored
+  positions, not list order). Ctrl-drag adds to the selection it started
+  over.
+- **Inline rename**: F2, the menu pill's Rename cell, click-away commits,
+  Escape cancels. The basename arrives SELECTED (Explorer's gesture) —
+  the first cut prefilled with caret-at-end and a driven type APPENDED,
+  renaming the file to a concatenation. The only honest cancel is
+  `onFocusChanged`: the field consumes Escape internally, so no shortcut
+  handler ever sees it (the typed-path lesson, reapplied). And bloc-level
+  Ctrl chords must be gated off while a rename is open — a chord the
+  field does not consume falls through, and Ctrl+A selected every icon
+  under the open edit.
+- **Keyboard**: arrows walk the grid spatially (nearest item in the
+  direction, same column/row preferred), Enter opens, Ctrl+A/C/X/V, and
+  Ctrl+Z through `FilesBloc.performUndo` — the undo case extracted to a
+  static so the desktop pops the same per-process journal the explorer
+  feeds. Verified: copy-paste on the desktop, Ctrl+Z recycles the copy.
+- **The menu pill's Paste/Rename cells** were the remaining dormant-bloc
+  couplings: ShellMenuModel grew `pasteInto`/`beginRename` hooks
+  (defaults keep the explorer's behaviour). Paste-into-folder-icon
+  driven: clipboard file landed inside the folder.
+- **OLE drops IN**: Win32DropTarget on the desktop window; external files
+  land in the Desktop folder AT THE DROP CELL (written to the position
+  store before the refresh) or in the folder icon under the pointer,
+  drawn lit. Driven from the Files window: same-volume default moved the
+  file, placed at the drop point.
+- **Icon drag onto a folder icon** moves the file into it (Explorer's
+  gesture); any other occupied cell still snaps back.
+- The position store PRUNES dead paths at refresh: `placed()` reserves
+  every stored cell, so a stale key (renamed/deleted file) was a hole no
+  icon could ever fill.
+
+Still deliberate not-yets: OLE drag OUT (an icon drag stays a
+window-internal reposition — making tile drags real DoDragDrop with the
+desktop as its own self-drop target is the honest architecture, a
+session of its own), multi-monitor, wallpaper read once at start.
+Also seen again, worth its weight: **the appbar demotion returns on
+ACTIVATION, not just on show.** A minimize-cascade that lands foreground
+on the monitor-sized desktop window trips explorer's fullscreen-app
+check and the dock loses topmost — SW_SHOWNOACTIVATE only cured the
+first show. Trial-mode artifact while explorer is the appbar authority;
+the endgame's ABN_FULLSCREENAPP special-case (tray phase) is the real
+fix, and this is more evidence it must key on the WINDOW, not the show
+path. THE GATE THAT REMAINS: the VM trial with explorer absent — kill
+explorer, launch --desktop, wallpaper up, icons live, menus and drops
+working, explorer restored cleanly. The VM harness runs on the Linux
+machine; this box cannot reach it.
+
+Small gap noticed while driving: the file explorer window itself has NO
+F5 (refresh is the toolbar button only); the desktop has it. One case in
+Files.handleShortcut when track 1 next opens those files.
 
 ## Popup surfaces (0b) — landed and verified 2026-08-21
 

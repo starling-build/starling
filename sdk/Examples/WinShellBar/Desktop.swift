@@ -20,10 +20,12 @@
 // -- the desktop's right-click NEEDS the popup surfaces, because there is no
 // parent window to draw a menu inside.
 //
-// V1 boundaries, each a deliberate not-yet: no rubber-band selection, no
-// OLE drag in/out (the Files machinery is there to lift), no inline rename,
-// no keyboard navigation, one monitor, and the wallpaper is read once at
-// start (no change watch).
+// V1 boundaries, each a deliberate not-yet: no OLE drag OUT (dragging an
+// icon stays a window-internal reposition; the drop target below takes
+// drags IN), one monitor, and the wallpaper is read once at start (no
+// change watch). Rubber band, inline rename, keyboard navigation and the
+// clipboard chords all landed in the second pass, lifted from the file
+// explorer's machinery.
 
 #if os(Windows)
 import CupertinoIcons
@@ -60,6 +62,12 @@ final class DesktopBloc {
     /// (logical points). The tile follows the pointer; everything else
     /// stands still.
     private(set) var drag: (path: String, x: Double, y: Double)?
+    /// The item whose label is an edit field right now, by path.
+    private(set) var renaming: String?
+    /// The folder icon lit under an OLE drag, by path.
+    private(set) var dropHover: String?
+    /// Where the arrow keys walk from: the last item selected singly.
+    private(set) var anchor: String?
 
     @ObservationIgnored let icons = IconCache()
     /// Grid dimensions, derived from the window once it exists.
@@ -156,15 +164,20 @@ final class DesktopBloc {
     }
 
     private func savePositions() {
+        var raw: [String: (Int, Int)] = [:]
+        for item in items { raw[item.entry.path] = (item.col, item.row) }
+        Self.save(positions: raw)
+    }
+
+    static func save(positions: [String: (Int, Int)]) {
         var raw: [String: [Int]] = [:]
-        for item in items { raw[item.entry.path] = [item.col, item.row] }
-        let dir = (Self.storePath as NSString).deletingLastPathComponent
+        for (path, cell) in positions { raw[path] = [cell.0, cell.1] }
+        let dir = (storePath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(
             withJSONObject: raw, options: [.sortedKeys]) {
-            FileManager.default.createFile(atPath: Self.storePath,
-                                           contents: data)
+            FileManager.default.createFile(atPath: storePath, contents: data)
         }
     }
 
@@ -184,10 +197,23 @@ final class DesktopBloc {
 
     func refresh() {
         let entries = Self.desktopEntries()
-        items = Self.placed(entries, stored: Self.loadPositions(),
+        // Prune stored cells whose file is gone -- placed() reserves every
+        // stored cell, so a stale key is a hole no icon can ever fill.
+        var stored = Self.loadPositions()
+        let live = Set(entries.map(\.path))
+        let pruned = stored.filter { live.contains($0.key) }
+        if pruned.count != stored.count {
+            stored = pruned
+            Self.save(positions: stored)
+        }
+        items = Self.placed(entries, stored: stored,
                             cols: cols, rows: rows)
         selection = selection.filter { path in
             items.contains { $0.entry.path == path }
+        }
+        if let open = renaming,
+           !items.contains(where: { $0.entry.path == open }) {
+            renaming = nil
         }
         warmIcons()
     }
@@ -270,9 +296,143 @@ final class DesktopBloc {
         } else {
             selection = [path]
         }
+        anchor = path
     }
 
     func clearSelection() { selection = [] }
+
+    /// The rubber band's live set -- wholesale, like the listing's
+    /// bandSelect: the covered cells plus whatever a Ctrl-drag started over.
+    func bandSelect(_ paths: Set<String>) { selection = paths }
+
+    func selectAll() { selection = Set(items.map(\.entry.path)) }
+
+    /// The anchor's item, which is what Enter opens and F2 renames.
+    var anchorItem: DesktopItem? {
+        guard let path = anchor ?? selection.first else { return nil }
+        return items.first { $0.entry.path == path }
+    }
+
+    /// One arrow-key step: the nearest item strictly in the direction,
+    /// preferring the same column (or row) -- how Explorer's desktop walks
+    /// a grid with holes in it. Nothing selected starts at the first cell.
+    func step(dCol: Int, dRow: Int) {
+        guard let current = anchorItem else {
+            if let first = items.min(by: {
+                ($0.col, $0.row) < ($1.col, $1.row)
+            }) { select(first.entry.path, toggle: false) }
+            return
+        }
+        var best: DesktopItem?
+        var bestScore = (Int.max, Int.max)
+        for item in items {
+            let dc = item.col - current.col
+            let dr = item.row - current.row
+            let forward = dCol != 0 ? dc * dCol : dr * dRow
+            guard forward > 0 else { continue }
+            let lateral = dCol != 0 ? abs(dr) : abs(dc)
+            if (lateral, forward) < bestScore {
+                bestScore = (lateral, forward)
+                best = item
+            }
+        }
+        if let best { select(best.entry.path, toggle: false) }
+    }
+
+    // MARK: - File operations
+
+    /// The window the shell's dialogs parent to, same rule as FilesBloc's.
+    static var ownerWindow: UInt64 { Win32WindowedHost.host?.windowHandle ?? 0 }
+
+    /// The selection in grid order, for the clipboard.
+    private var selectedPaths: [String] {
+        items.filter { selection.contains($0.entry.path) }.map(\.entry.path)
+    }
+
+    func clipSelection(cut: Bool) {
+        let paths = selectedPaths
+        guard !paths.isEmpty else { return }
+        Win32FileOps.clipMany(paths, cut: cut)
+    }
+
+    func pasteInto(_ directory: String) {
+        guard Win32FileOps.clipboardHasFiles() else { return }
+        Win32FileOps.paste(into: directory, owner: Self.ownerWindow) {
+            [weak self] ok, records in
+            if ok { FilesBloc.pushUndo(records) }
+            self?.refresh()
+        }
+    }
+
+    func beginRename(_ entry: Win32FileEntry) {
+        selection = [entry.path]
+        anchor = entry.path
+        renaming = entry.path
+    }
+
+    func cancelRename() { renaming = nil }
+
+    func commitRename(_ newName: String) {
+        guard let path = renaming else { return }
+        renaming = nil
+        // The old name is a no-op, not an error -- Enter on an untouched
+        // field is how half of all renames end.
+        let oldName = (path as NSString).lastPathComponent
+        guard !newName.isEmpty, newName != oldName else { return }
+        let cell = items.first { $0.entry.path == path }
+            .map { ($0.col, $0.row) }
+        Win32FileOps.rename(path, to: newName, owner: Self.ownerWindow) {
+            [weak self] ok, records in
+            guard let self else { return }
+            if ok {
+                FilesBloc.pushUndo(records)
+                // The name the SHELL settled on, not the one asked for --
+                // undoing the asked-for name deletes the wrong file, and
+                // reselecting it selects nothing.
+                let renamed = records.first?.dst
+                    ?? Win32Files.join(
+                        (path as NSString).deletingLastPathComponent, newName)
+                self.selection = [renamed]
+                self.anchor = renamed
+                if let cell {
+                    // The icon keeps its cell under its new name.
+                    var stored = Self.loadPositions()
+                    stored.removeValue(forKey: path)
+                    stored[renamed] = cell
+                    Self.save(positions: stored)
+                }
+            }
+            self.refresh()
+        }
+    }
+
+    func setDropHover(_ path: String?) {
+        guard dropHover != path else { return }
+        dropHover = path
+    }
+
+    /// Files an OLE drop just landed on the desktop folder take the cells
+    /// under the drop point -- written straight into the store, so the
+    /// refresh right behind this picks them up.
+    func place(_ paths: [String], nearX x: Double, y: Double) {
+        guard !paths.isEmpty else { return }
+        var stored = Self.loadPositions()
+        var taken = Set<Int>()
+        for (_, cell) in stored { taken.insert(cell.0 * rows + cell.1) }
+        for item in items where stored[item.entry.path] == nil {
+            taken.insert(item.col * rows + item.row)
+        }
+        let col = min(max(Int((x - kDeskMarginX) / kDeskCellW), 0), cols - 1)
+        let row = min(max(Int((y - kDeskMarginY) / kDeskCellH), 0), rows - 1)
+        var next = col * rows + row
+        for path in paths {
+            while next < cols * rows && taken.contains(next) { next += 1 }
+            guard next < cols * rows else { break }
+            taken.insert(next)
+            stored[path] = (next / rows, next % rows)
+        }
+        Self.save(positions: stored)
+    }
 
     func open(_ entry: Win32FileEntry) {
         // The shell, which is the only thing that knows how to open a .lnk.
@@ -288,7 +448,8 @@ final class DesktopBloc {
         drag = (current.path, x, y)
     }
 
-    /// Drops the dragged icon on the nearest cell; taken cells and
+    /// Drops the dragged icon on the nearest cell; a FOLDER already in that
+    /// cell takes the file (Explorer's gesture); any other taken cell and
     /// off-grid drops put it back where it came from.
     func endDrag() {
         guard let current = drag else { return }
@@ -300,11 +461,21 @@ final class DesktopBloc {
                       / kDeskCellW)
         let row = Int(((current.y + kDeskCellH / 2) - kDeskMarginY)
                       / kDeskCellH)
-        guard col >= 0, col < cols, row >= 0, row < rows,
-              !items.contains(where: {
-                  $0.col == col && $0.row == row
-                      && $0.entry.path != current.path
-              }) else { return }
+        if let occupant = items.first(where: {
+            $0.col == col && $0.row == row && $0.entry.path != current.path
+        }) {
+            if occupant.entry.isDirectory {
+                Win32FileOps.transfer([current.path],
+                                      into: occupant.entry.path, move: true,
+                                      owner: Self.ownerWindow) {
+                    [weak self] ok, records in
+                    if ok { FilesBloc.pushUndo(records) }
+                    self?.refresh()
+                }
+            }
+            return
+        }
+        guard col >= 0, col < cols, row >= 0, row < rows else { return }
         items[index].col = col
         items[index].row = row
         savePositions()
@@ -335,6 +506,22 @@ final class StarlingDesktopState: State<StatefulWidget> {
     /// Tracked from the key stream, the same bargain the file explorer
     /// strikes: KeyData carries no modifier mask.
     @ObservationIgnored private var ctrlDown = false
+    // The rubber band, the listing's own split: the rectangle is its own
+    // model and overlay so chasing the pointer rebuilds one box, and the
+    // desktop only hears about it when the covered SET changes.
+    private let band = BandModel()
+    @ObservationIgnored private var bandOrigin: (x: Double, y: Double)?
+    @ObservationIgnored private var bandBase: Set<String> = []
+    @ObservationIgnored private var bandActive = false
+    @ObservationIgnored private var bandLast: Set<String> = []
+    /// The inline rename's editor -- created when a rename begins,
+    /// prefilled once, reused across rebuilds (a fresh controller per build
+    /// would reset the text under the user's fingers).
+    @ObservationIgnored private var renameController: TextEditingController?
+    @ObservationIgnored private var renamePath: String?
+    /// What an OLE drag over the window is carrying, held from enter to
+    /// leave/drop for the effect arithmetic.
+    @ObservationIgnored private var dropPaths: [String] = []
 
     override func initState() {
         super.initState()
@@ -362,6 +549,94 @@ final class StarlingDesktopState: State<StatefulWidget> {
         menu.openWith = { entry in
             // Blocks on the shell's dialog -- background thread only.
             Task.detached { _ = Win32Files.openWith(entry.path) }
+        }
+        // The pill row's two non-shell cells, which otherwise poke the
+        // dormant filesBloc and quietly do nothing here.
+        menu.pasteInto = { [weak self] directory in
+            self?.bloc.pasteInto(directory)
+        }
+        menu.beginRename = { [weak self] entry in
+            self?.bloc.beginRename(entry)
+        }
+        // The desktop takes drops: files dragged from Explorer, the file
+        // window or any OLE source land in the Desktop folder -- at the
+        // cell they were dropped on -- or in the folder icon under the
+        // pointer, drawn lit. Closures in before registration, so the
+        // first drag is never refused.
+        Win32DropTarget.onEnter = { [weak self] paths, x, y, keys in
+            guard let self else { return 0 }
+            self.dropPaths = paths
+            return self.dropEffect(x, y, keys)
+        }
+        Win32DropTarget.onOver = { [weak self] x, y, keys in
+            self?.dropEffect(x, y, keys) ?? 0
+        }
+        Win32DropTarget.onLeave = { [weak self] in
+            self?.dropPaths = []
+            self?.bloc.setDropHover(nil)
+        }
+        Win32DropTarget.onDrop = { [weak self] paths, x, y, move in
+            self?.dropPaths = []
+            self?.dropFinish(paths, x, y, move)
+        }
+        DispatchQueue.main.async {
+            if let handle = Win32WindowedHost.host?.windowHandle {
+                Win32DropTarget.register(window: handle)
+            }
+        }
+    }
+
+    // MARK: - Drops in
+
+    /// Where a drop at this point would land: the folder icon under the
+    /// pointer, or the Desktop folder itself. A non-folder icon takes
+    /// nothing (Explorer shows deny there too -- dropping ON a file is not
+    /// a gesture this v1 honours).
+    private func dropResolve(_ x: Double, _ y: Double) -> String? {
+        if let item = bloc.item(at: x, y) {
+            return item.entry.isDirectory ? item.entry.path : nil
+        }
+        return DesktopBloc.userDesktopPath
+    }
+
+    private func dropEffect(_ x: Double, _ y: Double,
+                            _ keys: UInt32) -> Int32 {
+        guard let target = dropResolve(x, y), !dropPaths.isEmpty else {
+            bloc.setDropHover(nil)
+            return 0
+        }
+        let lowered = target.lowercased()
+        let parent = (dropPaths[0] as NSString).deletingLastPathComponent
+        if parent.lowercased() == lowered
+            || dropPaths.contains(where: { $0.lowercased() == lowered }) {
+            bloc.setDropHover(nil)
+            return 0
+        }
+        bloc.setDropHover(
+            target == DesktopBloc.userDesktopPath ? nil : target)
+        if keys & 0x0008 != 0 { return 1 }  // MK_CONTROL
+        if keys & 0x0004 != 0 { return 2 }  // MK_SHIFT
+        return dropPaths[0].prefix(2).lowercased()
+            == target.prefix(2).lowercased() ? 2 : 1
+    }
+
+    private func dropFinish(_ paths: [String], _ x: Double, _ y: Double,
+                            _ move: Bool) {
+        bloc.setDropHover(nil)
+        guard !paths.isEmpty, let target = dropResolve(x, y) else { return }
+        Win32FileOps.transfer(paths, into: target, move: move,
+                              owner: DesktopBloc.ownerWindow) {
+            [weak self] ok, records in
+            guard let self else { return }
+            if ok {
+                FilesBloc.pushUndo(records)
+                if target == DesktopBloc.userDesktopPath {
+                    // The arrivals take the cells under the drop point,
+                    // as Explorer places them.
+                    self.bloc.place(records.map(\.dst), nearX: x, y: y)
+                }
+            }
+            self.bloc.refresh()
         }
     }
 
@@ -394,12 +669,15 @@ final class StarlingDesktopState: State<StatefulWidget> {
                                                 x: candidate.originX + dx,
                                                 y: candidate.originY + dy)
                         }
+                        return
                     }
+                    self.bandMoved(e)
                 },
                 onPointerUp: { [weak self] _ in
                     guard let self else { return }
                     self.dragCandidate = nil
                     self.bloc.endDrag()
+                    self.bandEnded()
                 },
                 onPointerHover: { [weak self] e in
                     guard let self, self.menu.isOpen else { return }
@@ -410,6 +688,7 @@ final class StarlingDesktopState: State<StatefulWidget> {
                     for item in bloc.items {
                         tile(item)
                     }
+                    BandOverlay(model: band)
                     StarlingContextMenu(model: menu)
                 }))
     }
@@ -422,6 +701,16 @@ final class StarlingDesktopState: State<StatefulWidget> {
             return
         }
         let hit = bloc.item(at: x, y)
+        if let open = bloc.renaming {
+            if let hit, hit.entry.path == open {
+                // The click is the field's -- caret placement, not
+                // selection or a drag.
+                return
+            }
+            // Click-away commits, Explorer's rule; Escape cancels through
+            // the field's own focus loss (the field consumes the key).
+            commitRenameField()
+        }
         if e.buttons == 2 {
             // Explorer's rule, the same as the listing's: a right-click
             // outside the selection moves it; inside, the selection stands.
@@ -436,6 +725,11 @@ final class StarlingDesktopState: State<StatefulWidget> {
         guard let hit else {
             if !ctrlHeld() { bloc.clearSelection() }
             lastClick = nil
+            // A background press may become a rubber band -- remembered
+            // with the selection it started over, because a Ctrl-drag adds
+            // to that rather than replacing it.
+            bandOrigin = (x, y)
+            bandBase = ctrlHeld() ? bloc.selection : []
             return
         }
         let path = hit.entry.path
@@ -454,6 +748,105 @@ final class StarlingDesktopState: State<StatefulWidget> {
 
     private func ctrlHeld() -> Bool { ctrlDown }
 
+    // MARK: - The rubber band
+
+    /// Every pointer move with the left button down, once a background
+    /// press armed it. Same 4px threshold as the listing's; the covered
+    /// set is a per-item cell intersect, because desktop cells sit at
+    /// arbitrary stored positions rather than in list order.
+    private func bandMoved(_ e: PointerMoveEvent) {
+        guard let origin = bandOrigin, e.buttons == 1, !menu.isOpen
+        else { return }
+        if !bandActive {
+            let dx = e.position.dx - origin.x
+            let dy = e.position.dy - origin.y
+            guard dx * dx + dy * dy > 16 else { return }
+            bandActive = true
+            bandLast = bandBase
+        }
+        let size = Win32WindowedHost.host?.clientSize
+            ?? (width: 1920.0, height: 1080.0)
+        let x = min(max(e.position.dx, 0), size.width)
+        let y = min(max(e.position.dy, 0), size.height)
+        band.rect = (min(origin.x, x), min(origin.y, y),
+                     abs(x - origin.x), abs(y - origin.y))
+        let left = min(origin.x, x), right = max(origin.x, x)
+        let top = min(origin.y, y), bottom = max(origin.y, y)
+        var covered = bandBase
+        for item in bloc.items {
+            let o = bloc.cellOrigin(col: item.col, row: item.row)
+            if o.x < right, o.x + kDeskCellW > left,
+               o.y < bottom, o.y + kDeskCellH > top {
+                covered.insert(item.entry.path)
+            }
+        }
+        if covered != bandLast {
+            bandLast = covered
+            bloc.bandSelect(covered)
+        }
+    }
+
+    private func bandEnded() {
+        bandOrigin = nil
+        guard bandActive else { return }
+        bandActive = false
+        band.rect = nil
+    }
+
+    // MARK: - The inline rename
+
+    private func commitRenameField() {
+        let text = renameController?.text ?? ""
+        renameController = nil
+        renamePath = nil
+        bloc.commitRename(text.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// The tile label's edit field, where the label was. Same controller
+    /// bargain as the listing's: created when this rename begins, reused
+    /// across rebuilds until it ends.
+    private func renameField(_ entry: Win32FileEntry) -> Widget {
+        if renamePath != entry.path || renameController == nil {
+            renamePath = entry.path
+            // The BASENAME arrives selected, Explorer's gesture: typing
+            // replaces the name and leaves the extension standing.
+            let stem = (entry.name as NSString).deletingPathExtension
+            renameController = TextEditingController(value: TextEditingValue(
+                text: entry.name,
+                selection: TextSelection(baseOffset: 0,
+                                         extentOffset: stem.count)))
+        }
+        return SizedBox(height: 22) {
+            MacosTextField(
+                controller: renameController!,
+                onSubmitted: { text in
+                    self.renameController = nil
+                    self.renamePath = nil
+                    self.bloc.commitRename(
+                        text.trimmingCharacters(in: .whitespaces))
+                },
+                style: TextStyle(color: Win11.text, fontSize: 12),
+                padding: EdgeInsets(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                    color: Win11.fieldFill,
+                    border: Border.all(color: Win11.accent, width: 1),
+                    borderRadius: BorderRadius.circular(3)),
+                autofocus: true,
+                onFocusChanged: { focused in
+                    // The field consumes Escape internally (unfocus), so no
+                    // shortcut handler ever sees it while the field is
+                    // focused -- the focus node's own signal is the only
+                    // honest cancel. A commit already cleared `renaming`,
+                    // so the guard keeps this from double-firing.
+                    guard !focused, self.bloc.renaming == entry.path
+                    else { return }
+                    self.renameController = nil
+                    self.renamePath = nil
+                    self.bloc.cancelRename()
+                })
+        }
+    }
+
     /// The desktop's keys, the explorer's subset that makes sense with no
     /// listing: F5 re-reads, Delete recycles the selection, Escape closes
     /// an open menu. Logical ids are the engine's Flutter ids, same table
@@ -465,13 +858,66 @@ final class StarlingDesktopState: State<StatefulWidget> {
         default: break
         }
         guard keyData.type == .down else { return false }
+
+        // Letter chords match on the PHYSICAL id, like the listing's: with
+        // Ctrl held this embedder delivers the letter with logical == 0.
+        // Not while a rename is in flight -- a chord the field does not
+        // consume falls through here, and Ctrl+A selecting every icon
+        // under an open edit is what that looks like.
+        if ctrlDown && bloc.renaming == nil {
+            switch keyData.physical {
+            case 0x0007_0004:  // A
+                bloc.selectAll()
+                return true
+            case 0x0007_0006:  // C
+                bloc.clipSelection(cut: false)
+                return true
+            case 0x0007_001B:  // X
+                bloc.clipSelection(cut: true)
+                return true
+            case 0x0007_0019:  // V
+                bloc.pasteInto(DesktopBloc.userDesktopPath)
+                return true
+            case 0x0007_001D:  // Z
+                // The same per-process journal the explorer feeds; an
+                // inline rename in flight keeps the key, its edit is not a
+                // file operation yet.
+                guard bloc.renaming == nil else { return false }
+                return FilesBloc.performUndo { [weak self] _ in
+                    self?.bloc.refresh()
+                }
+            default:
+                break
+            }
+        }
+
         switch keyData.logical {
         case 0x1_0000_001B:  // Escape
             guard menu.isOpen else { return false }
             menu.dismiss()
             return true
+        case 0x1_0000_000D:  // Enter
+            guard let item = bloc.anchorItem else { return false }
+            bloc.open(item.entry)
+            return true
+        case 0x1_0000_0802:  // F2
+            guard let item = bloc.anchorItem else { return false }
+            bloc.beginRename(item.entry)
+            return true
         case 0x1_0000_0805:  // F5
             bloc.refresh()
+            return true
+        case 0x1_0000_0301:  // Down
+            bloc.step(dCol: 0, dRow: 1)
+            return true
+        case 0x1_0000_0304:  // Up
+            bloc.step(dCol: 0, dRow: -1)
+            return true
+        case 0x1_0000_0303:  // Right
+            bloc.step(dCol: 1, dRow: 0)
+            return true
+        case 0x1_0000_0302:  // Left
+            bloc.step(dCol: -1, dRow: 0)
             return true
         case 0x1_0000_007F:  // Delete
             let paths = Array(bloc.selection)
@@ -510,6 +956,7 @@ final class StarlingDesktopState: State<StatefulWidget> {
     private func tile(_ item: DesktopItem) -> Widget {
         let entry = item.entry
         let selected = bloc.selection.contains(entry.path)
+            || bloc.dropHover == entry.path
         let dragged = bloc.drag?.path == entry.path
         let origin = dragged
             ? (x: bloc.drag!.x, y: bloc.drag!.y)
@@ -544,22 +991,27 @@ final class StarlingDesktopState: State<StatefulWidget> {
                         SizedBox(height: 3)
                         SizedBox(width: kDeskCellW - 6,
                                  height: kDeskLabelH) {
-                            Text(displayLabel(entry),
-                                 style: TextStyle(
-                                    color: Color(0xFFFFFFFF),
-                                    fontSize: 12,
-                                    // The label sits on an arbitrary
-                                    // photograph; the shadow is what makes
-                                    // white text survive a white wallpaper,
-                                    // exactly as Windows draws its own.
-                                    shadows: [
-                                        Shadow(color: Color(0xB3000000),
-                                               offset: Offset(0, 1),
-                                               blurRadius: 3),
-                                    ]),
-                                 textAlign: .center,
-                                 overflow: .ellipsis,
-                                 maxLines: 2)
+                            if bloc.renaming == entry.path {
+                                renameField(entry)
+                            } else {
+                                Text(displayLabel(entry),
+                                     style: TextStyle(
+                                        color: Color(0xFFFFFFFF),
+                                        fontSize: 12,
+                                        // The label sits on an arbitrary
+                                        // photograph; the shadow is what
+                                        // makes white text survive a white
+                                        // wallpaper, exactly as Windows
+                                        // draws its own.
+                                        shadows: [
+                                            Shadow(color: Color(0xB3000000),
+                                                   offset: Offset(0, 1),
+                                                   blurRadius: 3),
+                                        ]),
+                                     textAlign: .center,
+                                     overflow: .ellipsis,
+                                     maxLines: 2)
+                            }
                         }
                     })
             }
