@@ -211,12 +211,21 @@ enum SessionSlot {
         // call does nothing.
         flwin32_sessionslot_hide_own_console()
 
-        var children = [Child(role: "dock", args: ""),
-                        Child(role: "desktop", args: "--desktop")]
+        // The ONE-VIEW shell is the session's shape: a single process whose
+        // implicit view is the full-screen chrome (dock, with the launcher
+        // as a layer of its tree) and whose second engine view is the
+        // desktop plane. One critical child instead of two — the crash-loop
+        // contract gets simpler — and the whole class of parked-process
+        // bugs (a hidden launcher's caret ticker presenting into an
+        // invisible window, a click's show-frame unable to preempt that
+        // cadence: the ~450ms click-to-Start stall) is unreachable by
+        // construction, because Start is a widget of the process that
+        // received the click.
+        var children = [Child(role: "shell", args: "--oneview")]
 
         if trial {
-            // Children inherit the environment; the desktop's own gate
-            // refuses to run beside explorer without this.
+            // Children inherit the environment; the desktop surface's own
+            // gate refuses to run beside explorer without this.
             _ = SetEnvironmentVariableA("STARLING_DESKTOP_TRIAL", "1")
         }
 
@@ -246,10 +255,14 @@ enum SessionSlot {
             if index == -1 {
                 // Quiet tick: re-park any small overlay that died. Idempotent
                 // FindWindow checks, so this costs nothing when all is well.
+                // NO ensure_launcher here: under --oneview the launcher is a
+                // LAYER of the shell's own tree with no window of its own, so
+                // the FindWindow guard can never see it and ensuring would
+                // spawn a second Start that answers the same toggle
+                // broadcast — the two would fight over every Win-key press.
                 flwin32_shell_ensure_notification_center()
                 flwin32_shell_ensure_banners()
                 flwin32_shell_ensure_run()
-                flwin32_shell_ensure_launcher()
                 continue
             }
             guard index >= 0, Int(index) < children.count else {

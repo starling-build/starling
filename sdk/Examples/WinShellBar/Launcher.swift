@@ -523,9 +523,34 @@ final class StarlingLauncherState: State<StatefulWidget> {
     /// Whether the power menu is down. View state: it is about this pointer,
     /// not about the machine.
     private var powerOpen = false
+    /// Bumped on every SHOW: it keys the search field, so each open remounts
+    /// it and `autofocus` takes the keyboard again after the hide unfocused
+    /// it. The unfocus is not hygiene — a PARKED launcher with a focused
+    /// field blinks its caret, and the caret ticker presents a frame per
+    /// blink into a hidden window forever. Worse than the waste: a real
+    /// CLICK's show-frame could not preempt that present cadence, which was
+    /// the ~450ms click-to-Start stall (a quiet toggle's could — the
+    /// foreground grant differs). No focus, no ticker: the parked engine is
+    /// truly idle, and the show is an after-idle frame, which fires
+    /// immediately.
+    private var openGeneration = 0
+    /// Whether the launcher has ever been shown. The field autofocuses only
+    /// from then on — at PARK time (process start, hidden) focus would start
+    /// the caret ticker with nobody watching. Embedded (`--oneview`) mounts
+    /// only when shown, so it starts true there.
+    private var everShown = false
+    /// Whether the search field holds the keyboard, via its own
+    /// onFocusChanged — the guard that keeps the hide-time unfocus from
+    /// stealing focus some OTHER surface's field holds in a shared-process
+    /// shell (the desktop's inline rename, in --oneshell).
+    private var searchFocused = false
 
     override func initState() {
         super.initState()
+        // The embedded (--oneview) launcher mounts only when it is shown, so
+        // its field autofocuses from the first build; the parked modes stay
+        // unfocused until their first show (see everShown).
+        everShown = (widget as! StarlingLauncher).embedded
         CupertinoIcons.registerFont()
         // The chrome glyphs are Segoe Fluent Icons now; Cupertino stays
         // registered for anything the framework's own controls draw.
@@ -572,6 +597,12 @@ final class StarlingLauncherState: State<StatefulWidget> {
     private func didToggle(shown: Bool) {
         flwin32_trace("launcher: didToggle begin")
         if shown {
+            // Remount the search field so autofocus takes the keyboard again
+            // (the hide below unfocused it — see openGeneration's comment).
+            setState {
+                everShown = true
+                openGeneration &+= 1
+            }
             bloc.add(.opened)
             flwin32_trace("launcher: didToggle end (shown)")
             return
@@ -584,6 +615,13 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // tree dirty — the build happens on the engine's next frame, and
         // asking to rasterize before that would push the OLD tree through.
         search.text = ""
+        // Give up the keyboard, and with it the caret ticker: a parked
+        // launcher must present NOTHING, or the next click-to-open waits on
+        // the blink cadence (the ~450ms stall). Guarded so a shared-process
+        // shell never steals focus a different surface's field holds.
+        if searchFocused {
+            FocusManager.instance.focusedNode?.unfocus()
+        }
         bloc.add(.closed)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             Win32WindowedHost.host?.requestRedraw()
@@ -957,6 +995,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
     private func searchBox() -> Widget {
         SizedBox(width: kStartContent, height: 34) {
             MacosTextField(
+                key: ValueKey(openGeneration),
                 controller: search,
                 placeholder: "Search for apps and files",
                 prefix: Padding(padding: EdgeInsets(left: 6, top: 0, right: 0, bottom: 0)) {
@@ -982,8 +1021,13 @@ final class StarlingLauncherState: State<StatefulWidget> {
                 // Start opens ready to be typed into. Without this the field
                 // only takes keys once it has been clicked, and typing straight
                 // after opening — which is how anyone uses a launcher — did
-                // nothing at all.
-                autofocus: true)
+                // nothing at all. NOT at park time though: a hidden field's
+                // focus runs the caret ticker into an invisible window (see
+                // openGeneration), so focus starts with the first show.
+                autofocus: everShown,
+                onFocusChanged: { [weak self] focused in
+                    self?.searchFocused = focused
+                })
         }
     }
 
