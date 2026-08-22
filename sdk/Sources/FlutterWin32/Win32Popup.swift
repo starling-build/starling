@@ -81,6 +81,11 @@ public enum Win32PopupSurfaces {
             guard let host = Win32WindowedHost.host else { return }
             flwin32_popup_show(host.cHost, Int64(id))
         }
+        multiViewComposited = { id in
+            guard pendingShows.remove(id) != nil,
+                  let host = Win32WindowedHost.host else { return }
+            flwin32_popup_show(host.cHost, Int64(id))
+        }
         flwin32_popup_on_dismiss({ _ in
             Win32PopupSurfaces.dismissHandler?()
         }, nil)
@@ -126,6 +131,38 @@ public enum Win32PopupSurfaces {
         guard composited.contains(id), let host = Win32WindowedHost.host
         else { return }
         flwin32_popup_show(host.cHost, Int64(id))
+    }
+
+    /// Hides a popup WITHOUT destroying it: window, view and mounted tree
+    /// survive, so the next open of the same panel is place + show instead
+    /// of create + mount + first composite — the pooled-menu path. The
+    /// builder registration stays; a hidden view keeps compositing, so its
+    /// content is current again a frame after its model refills. Cancels a
+    /// pending show, so a dismiss inside the reopen beat stays dismissed.
+    public static func hide(_ id: Int) {
+        guard let host = Win32WindowedHost.host else { return }
+        held.remove(id)
+        pendingShows.remove(id)
+        flwin32_popup_hide(host.cHost, Int64(id))
+    }
+
+    /// Shows a pooled popup again (a view that composited long ago). For a
+    /// first-ever open the reveal-on-first-composite path does this instead.
+    public static func show(_ id: Int) {
+        guard composited.contains(id), let host = Win32WindowedHost.host
+        else { return }
+        flwin32_popup_show(host.cHost, Int64(id))
+    }
+
+    /// Shows a pooled popup on its view's NEXT composite — the one that
+    /// carries the rebuild the caller just invalidated for, since caller
+    /// and engine share the UI thread and no frame can interleave between
+    /// the invalidation and this registration. The precise version of
+    /// "wait a beat, then show": no old-content flash, no guessed timer.
+    nonisolated(unsafe) private static var pendingShows = Set<Int>()
+    public static func showOnNextComposite(_ id: Int) {
+        installIfNeeded()
+        pendingShows.insert(id)
     }
 
     /// Moves/resizes an open popup (a menu growing as the shell's verbs

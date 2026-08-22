@@ -285,6 +285,17 @@ void flwin32_popup_place(FlWin32Host* host, int64_t view_id, double x_pt,
                r.bottom - r.top, SWP_NOACTIVATE | SWP_NOZORDER);
 }
 
+void flwin32_popup_hide(FlWin32Host* host, int64_t view_id) {
+  // The POOLING half of a fast menu: hiding keeps the window, the engine
+  // view and the mounted tree, so the next open is place + show instead of
+  // CreateViewController + adapter mount + first composite. A hidden view
+  // still composites (the surface work proved it), so the panel's content
+  // is current again by the frame after its model refills.
+  PopupSlot* slot = slot_for(view_id);
+  if (slot == NULL || slot->host != host) return;
+  ShowWindow(slot->window, SW_HIDE);
+}
+
 void flwin32_popup_close(FlWin32Host* host, int64_t view_id) {
   PopupSlot* slot = slot_for(view_id);
   if (slot == NULL || slot->host != host) return;

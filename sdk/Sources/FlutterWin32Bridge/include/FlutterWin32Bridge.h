@@ -683,6 +683,9 @@ void flwin32_popup_frame(FlWin32Host* host, double* left, double* top,
 // Called when the host is deactivated, moved or resized while popups are
 // open — the "clicked away" of a surface that never holds focus itself. The
 // callback owner dismisses whatever the popups were showing.
+// Hide without destroying: window, view and tree survive for the next open
+// (the pooled-menu path — place + show instead of create + mount).
+void flwin32_popup_hide(FlWin32Host* host, int64_t view_id);
 void flwin32_popup_on_dismiss(void (*callback)(void* user), void* user);
 // flwin32_host.c -> flwin32_popup.c, from the host's window procedure.
 void flwin32_popup_notify_host_event(FlWin32Host* host);

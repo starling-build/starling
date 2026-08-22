@@ -175,6 +175,29 @@ final class ShellMenuModel {
     /// something a tier assembled by hand out of the registry could promise.
     private(set) var shellRows: [Win32ShellVerb] = []
     private(set) var shellTier: Win32ShellMenuTier = .fast
+    /// True while `shellRows` is a TYPE-CACHE seed: the full rows of the
+    /// last same-typed menu, painted so the panel is complete on frame one.
+    /// Seeded rows carry no verb ids (their session is gone), so they draw
+    /// but cannot invoke; the real per-file query replaces them within a
+    /// few tens of ms and clears this.
+    private(set) var shellRowsSeeded = false
+
+    /// The type cache, keyed by what actually determines a menu: the
+    /// ASSOCIATION CLASSES. Static verbs are registry data per type;
+    /// dynamic handlers' rows are type-stable in the overwhelming case, and
+    /// the real query still runs per open to catch the exceptions. Nil key
+    /// = do not cache (namespace listings: the bin's menu is per-slot).
+    @ObservationIgnored private static var typeCache:
+        [String: [Win32ShellVerb]] = [:]
+
+    private static func typeKey(_ entry: Win32FileEntry?,
+                                namespace: Bool) -> String? {
+        guard !namespace else { return nil }
+        guard let entry else { return "\u{1}background" }
+        if entry.isDirectory { return "\u{1}directory" }
+        let ext = (entry.path as NSString).pathExtension.lowercased()
+        return ext.isEmpty ? "\u{1}noext" : ext
+    }
 
     /// Whether "Show more options" has been taken. The menu opens as
     /// Windows 11's MODERN menu -- the curated set -- and this flips it to
@@ -296,6 +319,10 @@ final class ShellMenuModel {
     @ObservationIgnored private var subPopup: Int?
     @ObservationIgnored private var mainPopupRect: MenuRect?
     @ObservationIgnored private var subPopupRect: MenuRect?
+    /// Whether the pooled main popup is currently shown (or scheduled to
+    /// show). The popup ID outliving the menu is what pooling means, so
+    /// visibility needs its own flag.
+    @ObservationIgnored private var mainPopupShown = false
     @ObservationIgnored private var syncScheduled = false
 
     func scheduleSync() {
@@ -317,16 +344,16 @@ final class ShellMenuModel {
             return
         }
         let menu = mainMenu
-        // Settled: nothing further is coming that would change the panel's
-        // shape. Flyouts arrive whole; a shell menu settles when the full
-        // tier has answered, or when there is no session to answer at all.
-        // An unsettled menu's popup opens HELD — hidden while the fast tier
-        // gives way to the full one — so the growth happens off screen and
-        // the menu appears once, at its final size, instead of visibly
-        // jumping in its first few frames. (The reveal below runs on every
-        // sync, so the popup shows the moment settling is observed; open()
-        // arms a timeout for the shell never answering.)
-        let settled = flyoutRows != nil || shellTier == .full || shell == nil
+        // No settling, no holding: the menu REVEALS with the rows it has.
+        // Our own verbs are complete the moment open() runs, the shell's
+        // fast tier (2ms for a file) is usually in before the first frame
+        // composites, and the full tier grows the middle section a frame or
+        // two later — under the pointer only ever the trailing "Show more
+        // options" row moves. Appearing instantly and growing beats
+        // appearing complete but late: the earlier hold-for-the-full-tier
+        // policy cost every warm menu ~200ms of invisible waiting to spare
+        // the cold one a visible growth Windows 11's own menu has too
+        // (slow IExplorerCommands fill in late there as well).
         let rect = MenuRect(x: at.x, y: at.y, w: menu.width, h: menu.height)
         if let id = mainPopup {
             if rect != mainPopupRect {
@@ -334,15 +361,14 @@ final class ShellMenuModel {
                                          width: rect.w, height: rect.h)
                 mainPopupRect = rect
             }
-            if settled {
-                // A beat later, not now: the settled cache has only just
-                // invalidated, and the frame that composites the panel at
-                // its final size is still ahead. Revealing after ~two frame
-                // times shows painted rows, not the previous tier inside
-                // the new window. Idempotent, so every sync may schedule it.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-                    Win32PopupSurfaces.reveal(id)
-                }
+            if !mainPopupShown {
+                // POOLED reopen: the hidden view kept compositing, but what
+                // it holds is the PREVIOUS menu until the rebuild this
+                // sync's invalidation scheduled lands. Show on exactly that
+                // composite — no old-content flash, no guessed timer. A
+                // dismiss before it lands cancels through hide().
+                mainPopupShown = true
+                Win32PopupSurfaces.showOnNextComposite(id)
             }
         } else {
             Win32PopupSurfaces.onDismiss { [weak self] in
@@ -351,7 +377,7 @@ final class ShellMenuModel {
             }
             mainPopup = Win32PopupSurfaces.open(
                 x: rect.x, y: rect.y, width: rect.w, height: rect.h,
-                holdUntilRevealed: !settled,
+                holdUntilRevealed: false,
                 content: { [weak self] in
                     self.map { MenuPanelSurface(model: $0, isSub: false) }
                         ?? SizedBox(width: 0, height: 0)
@@ -364,6 +390,7 @@ final class ShellMenuModel {
                 Win32PopupSurfaces.onDismiss(nil)
                 return
             }
+            mainPopupShown = true
             mainPopupRect = rect
         }
 
@@ -400,10 +427,13 @@ final class ShellMenuModel {
             subPopupRect = nil
         }
         if let id = mainPopup {
-            Win32PopupSurfaces.close(id)
-            mainPopup = nil
+            // POOLED: hide, never destroy. The window, engine view and
+            // mounted panel tree survive for the next right-click, which is
+            // then place + show instead of CreateViewController + adapter
+            // mount + first composite — the largest single cost of an open.
+            Win32PopupSurfaces.hide(id)
+            mainPopupShown = false
             mainPopupRect = nil
-            Win32PopupSurfaces.onDismiss(nil)
         }
     }
 
@@ -520,11 +550,14 @@ final class ShellMenuModel {
 
         generation &+= 1
         let generation = self.generation
+        let typeKey = Self.typeKey(entry,
+                                   namespace: filesBloc.state.isNamespace)
         let session = Win32ShellMenu(path: path, location: location,
                                      background: entry == nil,
                                      owner: Win32WindowedHost.host?.windowHandle ?? 0)
         // The cheap tier, which for a file is usually back before the first
-        // frame is drawn.
+        // frame is drawn. Skipped when a type-cache seed already painted the
+        // full shape (the seed IS a full tier, and fast ⊂ full).
         session?.items(.fast) { [weak self] rows in
             guard let self, self.generation == generation,
                   self.shellTier == .fast, !rows.isEmpty else { return }
@@ -532,7 +565,8 @@ final class ShellMenuModel {
             self.mainCache = nil
             self.scheduleSync()
         }
-        // And the full one, which supersedes it.
+        // And the full one, which supersedes it — and refreshes the type
+        // cache, so the NEXT same-typed menu paints complete on frame one.
         session?.items(.full) { [weak self] rows in
             guard let self, self.generation == generation, !rows.isEmpty else { return }
             // Nothing to reposition: the panel is anchored to the corner the
@@ -540,8 +574,10 @@ final class ShellMenuModel {
             // whatever the menu now weighs.
             self.shellRows = rows
             self.shellTier = .full
+            self.shellRowsSeeded = false
             self.mainCache = nil
             self.scheduleSync()
+            if let typeKey { Self.typeCache[typeKey] = rows }
         }
 
         // Which way it opens, decided HERE and not revisited. Windows flips a
@@ -567,6 +603,24 @@ final class ShellMenuModel {
         shell = session
         shellRows = []
         shellTier = .fast
+        shellRowsSeeded = false
+        // THE TYPE CACHE. A context menu is a function of the file's
+        // ASSOCIATION CLASSES (extension/ProgID, Directory, `*`) far more
+        // than of the file: the static verbs are pure registry data keyed
+        // by type, and even the dynamic handlers' items are type-stable in
+        // the overwhelming case. So the FULL rows of the last same-typed
+        // menu paint the panel COMPLETE on the first frame, while the real
+        // per-file query runs as always and reconciles — visually a no-op
+        // for the same type, and the thing that catches the exceptions
+        // (TortoiseGit's per-repo rows, OneDrive's per-file state). Seeded
+        // rows carry NO verb ids (their session is gone; an id against the
+        // new session would run someone else's verb), so a click inside the
+        // seed window — shorter than any human's move-and-press — is inert.
+        if let typeKey, let cached = Self.typeCache[typeKey] {
+            shellRows = cached
+            shellTier = .full
+            shellRowsSeeded = true
+        }
         expanded = false
         flyoutRows = nil
         canPaste = Win32FileOps.clipboardHasFiles()
@@ -582,20 +636,10 @@ final class ShellMenuModel {
         mainCache = nil
         subCache = nil
         scheduleSync()
-        // The held popup's failsafe: a shell that never answers the full
-        // tier (an empty answer, a hung handler) must not leave an
-        // invisible menu holding the model open. A HANG rescue, not a UX
-        // budget — an earlier 250ms cut revealed the fast tier exactly when
-        // the full one was slow (a cold shell's first menu, ~700ms), and
-        // the full tier then reshuffled rows ON SCREEN: "Add to Favorites"
-        // lands mid-panel, so everything under it stepped down. Waiting for
-        // the full set is what native does; the cold first menu is slow in
-        // Explorer too.
-        let revealGeneration = generation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self, self.generation == revealGeneration else { return }
-            if let id = self.mainPopup { Win32PopupSurfaces.reveal(id) }
-        }
+        // (The hold-until-settled failsafe used to live here. Nothing is
+        // held any more — the menu reveals with the rows it has, and the
+        // shell's tiers grow it in place — so there is no invisible menu a
+        // hung handler could strand.)
         return true
     }
 
@@ -760,8 +804,12 @@ final class ShellMenuModel {
                 isSubmenu: verb.isSubmenu,
                 isEnabled: verb.isEnabled,
                 isDefault: false,
-                shellId: verb.id,
-                token: verb.submenu,
+                // A SEEDED row's id belongs to a closed session; against
+                // the new one it would run someone else's verb. -1 is the
+                // established "not a command" — the row draws, a click
+                // inside the seed window dismisses harmlessly.
+                shellId: shellRowsSeeded ? -1 : verb.id,
+                token: shellRowsSeeded ? 0 : verb.submenu,
                 tier: shellTier,
                 accelerator: Self.verbAccelerators[verb.verb] ?? "")
     }

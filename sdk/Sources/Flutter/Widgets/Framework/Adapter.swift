@@ -143,6 +143,13 @@ public nonisolated(unsafe) var multiViewContentBuilder: ((FlutterView) -> Widget
 /// a flat rectangle before its first present).
 public nonisolated(unsafe) var multiViewFirstComposite: ((Int) -> Void)? = nil
 
+/// Called after EVERY composite of a non-implicit view (the first one
+/// included, after `multiViewFirstComposite`). What a POOLED popup's reopen
+/// waits on: its hidden view keeps compositing, and the safe moment to show
+/// the window again is the composite that carries the reopened menu's
+/// rebuild — a timer can only guess at that, this observes it.
+public nonisolated(unsafe) var multiViewComposited: ((Int) -> Void)? = nil
+
 /// The render/build pipeline of one non-implicit view (multi-monitor).
 private final class SecondaryViewPipeline {
     let renderView: RenderView
@@ -545,6 +552,7 @@ func _setupWidgetBinding(_ app: Widget) {
                         "[Adapter] view \(fv.viewId) first composite\n".utf8))
                     multiViewFirstComposite?(fv.viewId)
                 }
+                multiViewComposited?(fv.viewId)
             }
         }
 
