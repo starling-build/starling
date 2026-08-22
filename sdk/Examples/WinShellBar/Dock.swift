@@ -234,8 +234,30 @@ final class StarlingDockState: State<StatefulWidget> {
     // on every mouse move, and routing it through the bloc would be a round
     // trip per motion event for something no other surface can see.
 
-    /// The tile the pointer is over, if any.
+    /// The tile the pointer is over, if any. A PLAIN var, deliberately: the
+    /// only thing in the tree that reads it is the flyout slot, which is its
+    /// own stateful leaf (DockFlyoutSlot, end of file) poked directly — a
+    /// setState here rebuilds the entire full-screen chrome view per tile
+    /// crossing, which was measured at ~9% of a core under a pointer sweep.
     private var hovered: Int?
+    /// The live flyout slot, registered by its state on mount.
+    fileprivate weak var flyoutSlot: DockFlyoutSlotState?
+    /// Generation token for the label timeout below. Hover events only
+    /// arrive while the pointer MOVES over our opaque pixels, and the
+    /// overhang above the strip is a click-through colorkey hole — so a
+    /// pointer that jumps from a tile straight into the hole (a fast flick,
+    /// or an injected warp) never delivers the `index=nil` move that clears
+    /// the label, and there is no leave event on this surface
+    /// (MouseRegion.onExit never fires — see the menu note above). Windows'
+    /// own tooltips auto-dismiss after a few seconds anyway, so the timeout
+    /// is the native behaviour AND the heal for the stranded case.
+    private var labelTimeoutGen = 0
+    /// The dwell before a flyout first shows (see the hover handler): the
+    /// tile the pointer is waiting on, and the token that retires a dwell
+    /// the pointer moved away from.
+    private var pendingHover: Int?
+    private var pendingTray: UInt64?
+    private var dwellGen = 0
     /// Thumbnails for the tile being hovered. Kept out of the bloc for the
     /// same reason `hovered` is: it is about this pointer, and it is thrown
     /// away the moment the pointer leaves.
@@ -1598,6 +1620,26 @@ final class StarlingDockState: State<StatefulWidget> {
             })
     }
 
+    /// What the flyout slot shows. Called from DockFlyoutSlot's build (end of
+    /// file); the choice mirrors the old in-tree chain — a menu or the tray
+    /// overflow wins and the slot goes empty, a running tile gets its preview
+    /// card, a pinned one its name, a tray icon its tooltip.
+    fileprivate func flyoutContent() -> Widget {
+        let empty = Positioned(left: 0, top: 0,
+                               child: SizedBox(width: 0, height: 0))
+        if (trayOverflowOpen && !hiddenTray.isEmpty) || menuOpen != nil {
+            return empty
+        }
+        if let over = hovered {
+            return hasPreview(over) ? preview(over) : label(over)
+        }
+        if let id = hoveredTray,
+           let icon = bloc.state.tray.first(where: { $0.id == id }) {
+            return trayLabel(icon)
+        }
+        return empty
+    }
+
     /// Whether this tile gets a picture rather than a name: Windows shows a
     /// thumbnail per window for a running app and a plain label for a pinned
     /// one that is not running.
@@ -1741,7 +1783,46 @@ final class StarlingDockState: State<StatefulWidget> {
 
     private func closePreview() {
         previews.releaseAll()
-        setState { hovered = nil }
+        hovered = nil
+        flyoutSlot?.poke()
+    }
+
+    /// Show (or hide, for nil/nil) the hover flyout, updating only the
+    /// flyout slot — the hot path a pointer sweep drives.
+    private func showFlyout(_ index: Int?, _ tray: UInt64?) {
+        dwellGen += 1
+        pendingHover = nil
+        pendingTray = nil
+        let wasPreviewing = hovered.map(hasPreview) ?? false
+        hovered = index
+        hoveredTray = tray
+        flyoutSlot?.poke()
+        armLabelTimeout()
+        if let index, hasPreview(index) {
+            openPreview(index)
+        } else if wasPreviewing {
+            // Left a running tile: give the thumbnails back, or DWM keeps
+            // painting them over the dock.
+            previews.releaseAll()
+        }
+    }
+
+    /// Arm (or re-arm) the flyout's dismiss timer. Each crossing restarts
+    /// the clock; the generation token retires stale timers. The preview
+    /// card is exempt — the pointer travels into it to pick a window, and
+    /// native previews persist while it is there.
+    private func armLabelTimeout() {
+        labelTimeoutGen += 1
+        let gen = labelTimeoutGen
+        guard hovered != nil || hoveredTray != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+            guard let self, self.labelTimeoutGen == gen else { return }
+            if let over = self.hovered, self.hasPreview(over) { return }
+            guard self.hovered != nil || self.hoveredTray != nil else { return }
+            self.hovered = nil
+            self.hoveredTray = nil
+            self.flyoutSlot?.poke()
+        }
     }
 
     /// Where a flyout for this tile goes — its top-left corner, in the same
@@ -2054,18 +2135,41 @@ final class StarlingDockState: State<StatefulWidget> {
                     if case .icon(let icon)? = self.trayHit(x, y) {
                         tray = icon.id
                     }
-                    guard index != self.hovered || tray != self.hoveredTray else { return }
-                    let wasPreviewing = self.hovered.map(self.hasPreview) ?? false
-                    self.setState {
-                        self.hovered = index
-                        self.hoveredTray = tray
+                    // A dwell waits on ONE target: the moment the pointer is
+                    // anywhere else — another tile, or off the tiles
+                    // entirely (which the guard below would swallow, since
+                    // nil equals nil) — retire it, or it fires 400ms later
+                    // and raises a flyout under a pointer that has left.
+                    if self.pendingHover != nil || self.pendingTray != nil,
+                       index != self.pendingHover || tray != self.pendingTray {
+                        self.pendingHover = nil
+                        self.pendingTray = nil
+                        self.dwellGen += 1
                     }
-                    if let index, self.hasPreview(index) {
-                        self.openPreview(index)
-                    } else if wasPreviewing {
-                        // Left a running tile: give the thumbnails back, or
-                        // DWM keeps painting them over the dock.
-                        self.previews.releaseAll()
+                    guard index != self.hovered || tray != self.hoveredTray else { return }
+                    // Native show behaviour, and most of the sweep CPU fix:
+                    // a flyout that is already up follows the pointer
+                    // immediately (Windows' reshow), but from nothing it
+                    // waits out a dwell — so a flick across the dock draws
+                    // no flyout frames at all. Without the dwell a fast
+                    // sweep re-records the full view per tile crossed
+                    // (there are no interior repaint boundaries), ~13% of
+                    // a core; with it the sweep costs the event floor.
+                    if self.hovered != nil || self.hoveredTray != nil
+                        || (index == nil && tray == nil) {
+                        self.showFlyout(index, tray)
+                    } else {
+                        if index == self.pendingHover, tray == self.pendingTray {
+                            return    // already dwelling on this target
+                        }
+                        self.pendingHover = index
+                        self.pendingTray = tray
+                        self.dwellGen += 1
+                        let gen = self.dwellGen
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                            guard let self, self.dwellGen == gen else { return }
+                            self.showFlyout(index, tray)
+                        }
                     }
                 },
                 child: ColoredBox(color: Color(0x00000000)) {
@@ -2125,20 +2229,65 @@ final class StarlingDockState: State<StatefulWidget> {
                     }
                     // A menu wins over a label: the pointer is inside the tile
                     // for both, and two flyouts stacked on one icon is noise.
+                    // (The hover flyouts themselves live in the slot below and
+                    // check these flags, so the exclusion holds across both.)
                     if trayOverflowOpen, !hiddenTray.isEmpty {
                         trayOverflow()
                     } else if let open = menuOpen {
                         menu(open)
-                    } else if let over = hovered, hasPreview(over) {
-                        preview(over)
-                    } else if let over = hovered {
-                        label(over)
-                    } else if let id = hoveredTray,
-                              let icon = bloc.state.tray.first(where: { $0.id == id }) {
-                        trayLabel(icon)
+                    } else {
+                        Positioned(left: 0, bottom: 0) { SizedBox(width: 0, height: 0) }
                     }
+                    // The hover flyout — label, preview card, tray tooltip —
+                    // as its own stateful leaf, so a tile crossing repaints
+                    // this slot alone rather than rebuilding the whole
+                    // full-screen chrome tree (which was most of the CPU a
+                    // pointer sweep along the dock cost).
+                    DockFlyoutSlot(dock: self)
                 }
             }))
+    }
+}
+
+/// The hover flyout as its own rebuild scope — the Hover.swift discipline
+/// applied to the dock. Hover is the highest-frequency input the dock gets
+/// and the flyout is the ONLY widget that reads it, so the root updates
+/// `hovered` as a plain var and pokes this slot; nothing else rebuilds.
+/// Constant shape, per the Stack rule in the root's build: always one
+/// fill-Positioned holding one inner Stack with one positioned child —
+/// contents swap, the child count never does. The inner Stack is also what
+/// keeps the moving label's layout scoped: its fill constraints are tight,
+/// so repositioning the flyout never re-lays-out the root Stack's strip.
+final class DockFlyoutSlot: StatefulWidget {
+    unowned let dock: StarlingDockState
+
+    init(dock: StarlingDockState) {
+        self.dock = dock
+        super.init()
+    }
+
+    override func createState() -> State<StatefulWidget> { DockFlyoutSlotState() }
+}
+
+final class DockFlyoutSlotState: State<StatefulWidget> {
+    /// The root calls this instead of its own setState when only the hover
+    /// changed.
+    func poke() {
+        guard mounted else { return }
+        setState {}
+    }
+
+    override func initState() {
+        super.initState()
+        (widget as! DockFlyoutSlot).dock.flyoutSlot = self
+    }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let dock = (widget as! DockFlyoutSlot).dock
+        return Positioned(fill: (),
+                          child: Stack(alignment: Alignment.topLeft) {
+                dock.flyoutContent()
+            })
     }
 }
 #endif
