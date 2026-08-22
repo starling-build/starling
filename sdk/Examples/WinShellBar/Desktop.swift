@@ -55,6 +55,19 @@ struct DesktopItem {
 @Observable
 final class DesktopBloc {
 
+    /// Set (before `start()`) when the desktop runs as a surface view of the
+    /// one-app shell: the engine view id, whose WINDOW is what this bloc
+    /// measures against. Nil in the process-per-surface world, where the
+    /// process host's window IS the desktop.
+    var surfaceId: Int?
+
+    /// The desktop window's client size in logical points — the surface's
+    /// when there is one, the process host's otherwise.
+    var windowSize: (width: Double, height: Double)? {
+        if let sid = surfaceId { return Win32Surfaces.clientSize(sid) }
+        return Win32WindowedHost.host?.clientSize
+    }
+
     private(set) var items: [DesktopItem] = []
     private(set) var selection: Set<String> = []
     private(set) var wallpaperTexture: Int?
@@ -186,8 +199,7 @@ final class DesktopBloc {
     func start() {
         guard !started else { return }
         started = true
-        let size = Win32WindowedHost.host?.clientSize
-            ?? (width: 1920.0, height: 1080.0)
+        let size = windowSize ?? (width: 1920.0, height: 1080.0)
         cols = max(1, Int((size.width - kDeskMarginX * 2) / kDeskCellW))
         rows = max(1, Int((size.height - kDeskMarginY * 2) / kDeskCellH))
         icons.onTextureReady = { [weak self] in self?.poke() }
@@ -250,8 +262,7 @@ final class DesktopBloc {
     }
 
     private func loadWallpaper() {
-        guard let host = Win32WindowedHost.host,
-              let size = host.clientSize else { return }
+        guard let size = windowSize else { return }
         let scale = ShellScreen.monitor?.scale ?? 1.0
         let w = Int(size.width * scale)
         let h = Int(size.height * scale)
@@ -485,6 +496,15 @@ final class DesktopBloc {
 // MARK: - The widget
 
 final class StarlingDesktop: StatefulWidget {
+    /// Non-nil when the desktop runs as a SURFACE VIEW inside the one-app
+    /// shell (`--oneshell`): the engine view id. The tree then measures
+    /// itself against ITS window (the monitor), not the process host's (the
+    /// dock's panel — a grid computed against that is one row tall).
+    let surfaceId: Int?
+    init(surfaceId: Int? = nil) {
+        self.surfaceId = surfaceId
+        super.init()
+    }
     override func createState() -> State<StatefulWidget> {
         StarlingDesktopState()
     }
@@ -525,6 +545,7 @@ final class StarlingDesktopState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        bloc.surfaceId = (widget as! StarlingDesktop).surfaceId
         bloc.start()
         // This window owns its process, so the process-wide hook is ours.
         PlatformDispatcher.instance.onKeyData = { [weak self] keyData in
@@ -579,10 +600,17 @@ final class StarlingDesktopState: State<StatefulWidget> {
             self?.dropPaths = []
             self?.dropFinish(paths, x, y, move)
         }
-        DispatchQueue.main.async {
-            if let handle = Win32WindowedHost.host?.windowHandle {
-                Win32DropTarget.register(window: handle)
+        DispatchQueue.main.async { [weak self] in
+            // The desktop's OWN window: as a surface view the process host
+            // is the dock's panel, and a drop target registered there would
+            // catch drags onto the dock instead of the desktop.
+            let handle: UInt64
+            if let sid = self?.bloc.surfaceId {
+                handle = Win32Surfaces.windowHandle(sid)
+            } else {
+                handle = Win32WindowedHost.host?.windowHandle ?? 0
             }
+            if handle != 0 { Win32DropTarget.register(window: handle) }
         }
     }
 
@@ -764,8 +792,7 @@ final class StarlingDesktopState: State<StatefulWidget> {
             bandActive = true
             bandLast = bandBase
         }
-        let size = Win32WindowedHost.host?.clientSize
-            ?? (width: 1920.0, height: 1080.0)
+        let size = bloc.windowSize ?? (width: 1920.0, height: 1080.0)
         let x = min(max(e.position.dx, 0), size.width)
         let y = min(max(e.position.dy, 0), size.height)
         band.rect = (min(origin.x, x), min(origin.y, y),

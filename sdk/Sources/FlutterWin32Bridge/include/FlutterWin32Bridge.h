@@ -692,6 +692,50 @@ void flwin32_popup_notify_host_event(FlWin32Host* host);
 void* flwin32_host_engine(FlWin32Host* host);
 void flwin32_install_child_cursor_proc(void* child_hwnd);
 
+// -- surface views (one-app shell, flwin32_surface.c) -----------------------
+//
+// The popup mechanism generalized to shell surfaces, so one process (the
+// dock's) also owns the desktop and the launcher as engine views instead of
+// spawning a process per surface. A hidden surface still composites — the
+// multi-view path builds every view regardless of window visibility, which
+// is what retires the parked-overlay machinery here.
+
+#define FLWIN32_SURFACE_DESKTOP 0
+#define FLWIN32_SURFACE_OVERLAY 1
+
+// Opens a surface view on the host's monitor. DESKTOP ignores the size
+// arguments (it is the whole monitor, bottom-pinned, shown on first
+// composite via flwin32_surface_show); OVERLAY is width x height LOGICAL
+// POINTS centred at the bottom of the work area, bottom_margin above its
+// edge, created hidden, activatable (its keyboard rides real Win32 focus on
+// the view child), rounded, dismissing itself on deactivate, and answering
+// the launcher toggle broadcast. Returns the engine view id, or -1.
+int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
+                             double width_pt, double height_pt,
+                             double bottom_margin_pt);
+// DESKTOP: show at the bottom of the z-order (call on first composite).
+// OVERLAY: show + take foreground + focus the view child.
+void flwin32_surface_show(FlWin32Host* host, int64_t view_id);
+int32_t flwin32_surface_is_visible(FlWin32Host* host, int64_t view_id);
+void flwin32_surface_set_visible(FlWin32Host* host, int64_t view_id,
+                                 int32_t visible);
+void flwin32_surface_close(FlWin32Host* host, int64_t view_id);
+// Overlay visibility changes (toggle broadcast, click-away dismiss, an
+// explicit set_visible): the view id and its new visibility, on the window's
+// thread. One callback per process, like the popup dismiss hook.
+void flwin32_surface_on_overlay_toggled(void (*cb)(void* user, int64_t view_id,
+                                                   int32_t visible),
+                                        void* user);
+// The surface window's client area in LOGICAL POINTS — what a tree that laid
+// itself out against "the host's client size" must read instead when it runs
+// as a surface view (the host is the dock's panel there, and a desktop grid
+// computed against a 246pt-tall dock is one row). 0 when the view is unknown.
+int32_t flwin32_surface_client_size(FlWin32Host* host, int64_t view_id,
+                                    double* width_pt, double* height_pt);
+// The surface's top-level HWND, for per-window registrations (the desktop's
+// OLE drop target must land on the desktop's window, not the dock's).
+uint64_t flwin32_surface_window(FlWin32Host* host, int64_t view_id);
+
 // -- custom titlebar --------------------------------------------------------
 //
 // Gives the CAPTION to the client, so the widget tree draws the titlebar --

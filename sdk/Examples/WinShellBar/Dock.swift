@@ -311,11 +311,50 @@ final class StarlingDockState: State<StatefulWidget> {
         Win32Shell.ensureBanners()
         // And the Run dialog, so Win+R is a show too.
         Win32Shell.ensureRun()
-        // And the launcher (Start menu): the dock's tile and the Windows key
-        // only BROADCAST a toggle, so a launcher process has to be parked and
-        // listening. The dev-time starling.cmd started `--launcher` as its own
-        // line; under `--session` nothing did, so Start was dead until here.
-        Win32Shell.ensureLauncher()
+        if CommandLine.arguments.contains("--oneshell") {
+            // The one-app shell (branch winshell-oneapp): the desktop and the
+            // launcher are ENGINE VIEWS of this process, not processes of
+            // their own — one engine, one Swift runtime, one icon cache, and
+            // a toggle that is a message to a window that already exists.
+            openOneshellSurfaces()
+        } else {
+            // And the launcher (Start menu): the dock's tile and the Windows
+            // key only BROADCAST a toggle, so a launcher process has to be
+            // parked and listening. The dev-time starling.cmd started
+            // `--launcher` as its own line; under `--session` nothing did, so
+            // Start was dead until here.
+            Win32Shell.ensureLauncher()
+        }
+    }
+
+    /// The one-app shell's secondary surfaces, opened once the engine is up
+    /// (initState is inside the first frame, which is exactly that moment).
+    private func openOneshellSurfaces() {
+        // The desktop keeps its plan-mandated gate: while explorer runs,
+        // Progman owns the bottom of the z-order and fighting it is a losing
+        // game. Same override as the process-per-surface desktop.
+        if !Win32Shell.explorerPresent
+            || ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"]
+                == "1" {
+            let desk = Win32Surfaces.open(kind: .desktop) { id in
+                StarlingDesktop(surfaceId: id)
+            }
+            print("[WinShell] oneshell desktop view: \(desk.map(String.init) ?? "FAILED")")
+        } else {
+            print("[WinShell] oneshell desktop skipped (explorer present)")
+        }
+        // The launcher mounts hidden — a hidden VIEW still composites, so
+        // the whole parked-overlay dance (full-size parks, WM_SIZE kicks,
+        // preload off the widget lifecycle) is simply not needed here. Start
+        // the bloc first so the catalog walk overlaps the mount.
+        launcherBloc.add(.start)
+        let start = Win32Surfaces.open(kind: .overlay,
+                                       width: kLauncherWidth,
+                                       height: kLauncherHeight,
+                                       bottomMargin: kLauncherGap) { id in
+            StarlingLauncher(surfaceId: id)
+        }
+        print("[WinShell] oneshell launcher view: \(start.map(String.init) ?? "FAILED")")
     }
 
     override func dispose() {

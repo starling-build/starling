@@ -25,7 +25,10 @@ public enum Win32PopupSurfaces {
 
     /// Content builders keyed by engine view id. An entry lives exactly as
     /// long as its popup: registered by `open`, removed by `close`.
-    nonisolated(unsafe) private static var builders: [Int: () -> Widget] = [:]
+    /// Internal, not private: Win32Surfaces (the one-app shell's surface
+    /// views) registers its builders here too — one registry, because the
+    /// adapter has ONE multiViewContentBuilder for every secondary view.
+    nonisolated(unsafe) static var builders: [Int: () -> Widget] = [:]
 
     /// Views whose first scene has been composited — the earliest a popup
     /// window may be shown without exposing an unpainted surface.
@@ -42,8 +45,10 @@ public enum Win32PopupSurfaces {
     nonisolated(unsafe) private static var dismissHandler: (() -> Void)?
 
     /// Wires the adapter's multi-view builder and the C dismissal callback.
-    /// Idempotent; `open` calls it, so callers never need to.
-    private static func installIfNeeded() {
+    /// Idempotent; `open` calls it, so callers never need to — and
+    /// Win32Surfaces calls it too, since the registry and the first-composite
+    /// hook are shared.
+    static func installIfNeeded() {
         guard !installed else { return }
         installed = true
         multiViewContentBuilder = { view in
@@ -67,6 +72,11 @@ public enum Win32PopupSurfaces {
         // A held popup waits further, for its owner's reveal.
         multiViewFirstComposite = { id in
             composited.insert(id)
+            // Surface views (one-app shell) take their own first-composite
+            // action — the desktop shows itself here, never before, so the
+            // 7c8cc9a empty-first-paint class cannot recur. A surface id is
+            // no popup, so the popup show below is a C-side no-op for it.
+            Win32Surfaces.handleFirstComposite(id)
             guard !held.contains(id) else { return }
             guard let host = Win32WindowedHost.host else { return }
             flwin32_popup_show(host.cHost, Int64(id))

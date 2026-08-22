@@ -487,6 +487,15 @@ final class LauncherBloc: @unchecked Sendable {
 let launcherBloc = LauncherBloc()
 
 final class StarlingLauncher: StatefulWidget {
+    /// Non-nil when the launcher runs as a SURFACE VIEW inside the one-app
+    /// shell (`--oneshell`) rather than as its own process: the engine view
+    /// id, used to register for the surface's toggle notifications instead
+    /// of the process host's.
+    let surfaceId: Int?
+    init(surfaceId: Int? = nil) {
+        self.surfaceId = surfaceId
+        super.init()
+    }
     override func createState() -> State<StatefulWidget> { StarlingLauncherState() }
 }
 
@@ -508,13 +517,21 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // registered for anything the framework's own controls draw.
         FluentIcons.registerFont()
 
-        // A notification, not a request: the HOST does the showing, because
-        // while this overlay is hidden there is no tree to ask — a hidden
-        // window is never sent a frame, and the tree only builds on the first
-        // frame request, so none of this code has run yet at that point. By
-        // the time this fires we are already on screen.
-        Win32WindowedHost.host?.onToggle { [weak self] in
-            self?.didToggle()
+        // A notification, not a request: the WINDOW side does the showing.
+        // As its own process the host owns the overlay window; as a surface
+        // view (--oneshell) flwin32_surface.c owns it, and its notification
+        // carries the new visibility — a hidden VIEW still composites there,
+        // so unlike the process world this code has already run before the
+        // first show.
+        if let sid = (widget as! StarlingLauncher).surfaceId {
+            Win32Surfaces.onToggle(sid) { [weak self] visible in
+                self?.didToggle(shown: visible)
+            }
+        } else {
+            Win32WindowedHost.host?.onToggle { [weak self] in
+                self?.didToggle(
+                    shown: Win32WindowedHost.host?.isVisible == true)
+            }
         }
         // Start's glass follows the system theme; a parked overlay still
         // receives the WM_SETTINGCHANGE broadcast, so the restyle has
@@ -533,9 +550,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
 
     // MARK: - Showing and hiding
 
-    private func didToggle() {
+    private func didToggle(shown: Bool) {
         flwin32_trace("launcher: didToggle begin")
-        if Win32WindowedHost.host?.isVisible == true {
+        if shown {
             bloc.add(.opened)
             flwin32_trace("launcher: didToggle end (shown)")
             return

@@ -30,6 +30,10 @@
 //
 //   WinShellBar.exe             the dock, bottom edge
 //   WinShellBar.exe --launcher  the launcher, hidden until asked for
+//   WinShellBar.exe --oneshell  the ONE-APP shell (branch winshell-oneapp):
+//                               the dock, with the desktop and the launcher
+//                               as engine VIEWS of this process instead of
+//                               processes of their own (flwin32_surface.c)
 //   ... --monitor N             put either on a screen other than the primary
 //
 //   swift build -c release --product WinShellBar
