@@ -4,22 +4,33 @@ The Windows shell branch: WinShellBar (dock, launcher, settings, files) on
 the Win32 host. This file tracks what remains, ordered by what a hand on the
 mouse notices first.
 
-CHECKPOINT 2026-08-21, end of the Phase-5 session: **THE SHELL=
-SOAK IS PASSED.** Phase 5 is built AND VM-proven in win11-gpu through
-real Winlogon logons (winshell-shell-replacement.md Phase 5 has the full
-account): register → reboot → our session with startup replayed and a
-real HKLM RunOnce consumed exactly once → kill/respawn →
+CHECKPOINT 2026-08-21, later still — both machines reconciled: NOTHING
+IS IN FLIGHT anywhere. Both repos pulled and pushed on both boxes; the
+pair is winshell `cc36773` + engine `starling` `e0ed4e31068`. **Every
+phase of winshell-shell-replacement.md is now DONE and VM-proven**:
+0a namespace, 0b popup surfaces, 1 explorer-the-app, 2 the desktop
+surface (gate run from the Linux box — it caught the first-frame bug
+only explorer-absent can see, fixed 7c8cc9a), 3 tray/appbar, 4 banners
++ Run, 5 the session slot, whose Shell= soak passed through real
+Winlogon logons: register → reboot → our session with startup replayed
+and a real HKLM RunOnce consumed exactly once → kill/respawn →
 kill-kill/bail → explorer back with taskbar restored → voluntary
 unregister → stock explorer. Two soak-caught bugs (the supervisor's
 console window, the bail's taskbar state) fixed and re-proven in a
-second round. The VM ends on stock explorer; this box's dist runs the
-final tree. Engine untouched (e0ed4e31068). The VM is driven over SSH
-to the Linux host (192.168.68.61), harness in docs/windows-vm
-(`-d win11-gpu`). WHAT REMAINS of the plan: the long-tail audit (DDE
-ShellExecute paths, autoplay, safely-remove — VM checks), EV signing
-(release concern), and the standing follow-ups: desktop OLE drag OUT,
-multi-monitor, wallpaper watch, Alt-Tab previews, the OSD survival
-check, engine frame-dispatch.
+second round. The VM ends on stock explorer; both boxes' dists run the
+final tree. Cross-machine plumbing that made the soak drivable: the
+build host's SSH key is in the Linux host's authorized_keys, so either
+box can drive the VM harness (docs/windows-vm, `-d win11-gpu`, host
+192.168.68.61). One local note for the LINUX desktop: e0ed4e31068
+touches shell/common (shared core), so this box's host_debug /
+host_release binaries predate the checkout — rebuild before the next
+Linux run that cares. WHAT REMAINS of the plan: the long-tail audit
+(DDE ShellExecute paths, autoplay, safely-remove — VM checks), EV
+signing (release concern), and the standing follow-ups: desktop OLE
+drag OUT, multi-monitor, wallpaper watch, Alt-Tab previews, the OSD
+survival check, engine frame-dispatch, and the idle-CPU items in
+winshell-perf.md's addendum (unfocus-on-hide, NotificationChanged over
+the raw ABI, the parked-engine ~2% floor).
 
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 
