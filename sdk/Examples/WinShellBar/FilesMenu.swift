@@ -181,6 +181,10 @@ final class ShellMenuModel {
     /// but cannot invoke; the real per-file query replaces them within a
     /// few tens of ms and clears this.
     private(set) var shellRowsSeeded = false
+    /// The real fast-tier rows received while a seed was displayed — held
+    /// as the hang failsafe's fallback, since they carry LIVE verb ids and
+    /// the seed's do not.
+    @ObservationIgnored private var seedFallbackRows: [Win32ShellVerb]?
 
     /// The type cache, keyed by what actually determines a menu: the
     /// ASSOCIATION CLASSES. Static verbs are registry data per type;
@@ -195,8 +199,12 @@ final class ShellMenuModel {
         guard !namespace else { return nil }
         guard let entry else { return "\u{1}background" }
         if entry.isDirectory { return "\u{1}directory" }
-        let ext = (entry.path as NSString).pathExtension.lowercased()
-        return ext.isEmpty ? "\u{1}noext" : ext
+        // entry.ext, NEVER derived from the path here: it is already
+        // lowercased, dot-free, and computed by the listing with the exact
+        // semantics the icon cache fought for — NSString.pathExtension on a
+        // backslashed Windows path can mis-split (a dotted directory above
+        // an extensionless file yields a garbage key).
+        return entry.ext.isEmpty ? "\u{1}noext" : entry.ext
     }
 
     /// Whether "Show more options" has been taken. The menu opens as
@@ -556,11 +564,20 @@ final class ShellMenuModel {
                                      background: entry == nil,
                                      owner: Win32WindowedHost.host?.windowHandle ?? 0)
         // The cheap tier, which for a file is usually back before the first
-        // frame is drawn. Skipped when a type-cache seed already painted the
-        // full shape (the seed IS a full tier, and fast ⊂ full).
+        // frame is drawn. Under a type-cache seed it is not DRAWN (the seed
+        // is already the full shape) but it is KEPT: seeded rows have no
+        // verb ids, and if the full tier never answers — a hung third-party
+        // handler — these rows, with their live ids, are what the hang
+        // failsafe below falls back to. Without that, a hung handler leaves
+        // a menu that LOOKS complete and clicks like a dead one.
         session?.items(.fast) { [weak self] rows in
             guard let self, self.generation == generation,
-                  self.shellTier == .fast, !rows.isEmpty else { return }
+                  !rows.isEmpty else { return }
+            if self.shellRowsSeeded {
+                self.seedFallbackRows = rows
+                return
+            }
+            guard self.shellTier == .fast else { return }
             self.shellRows = rows
             self.mainCache = nil
             self.scheduleSync()
@@ -616,10 +633,28 @@ final class ShellMenuModel {
         // rows carry NO verb ids (their session is gone; an id against the
         // new session would run someone else's verb), so a click inside the
         // seed window — shorter than any human's move-and-press — is inert.
+        seedFallbackRows = nil
         if let typeKey, let cached = Self.typeCache[typeKey] {
             shellRows = cached
             shellTier = .full
             shellRowsSeeded = true
+            // The hang failsafe: a seeded menu whose FULL tier never answers
+            // (a hung handler) would otherwise stay inert forever — every
+            // row drawn, no row invocable. After a beat long enough that
+            // something is genuinely wrong, swap in the real FAST rows,
+            // which carry live ids: an honest shorter menu over a dead
+            // complete-looking one.
+            let seedGeneration = generation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                guard let self, self.generation == seedGeneration,
+                      self.shellRowsSeeded,
+                      let fallback = self.seedFallbackRows else { return }
+                self.shellRows = fallback
+                self.shellTier = .fast
+                self.shellRowsSeeded = false
+                self.mainCache = nil
+                self.scheduleSync()
+            }
         }
         expanded = false
         flyoutRows = nil
