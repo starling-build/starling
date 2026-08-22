@@ -199,6 +199,29 @@ the launcher (the dock's ensureLauncher raced the harness's explicit
 | working set, everything   | **478 MB / 5 procs** | ~605 MB / 6 procs     |
 | GPU (all phases)          | <1%                  | <1%                   |
 
+**And against the NATIVE shell, same phases, same box** (explorer +
+StartMenuExperienceHost + SearchHost + ShellExperienceHost; dwm excluded
+— it measures identically under both shells, 1.76 GB ws / 0.0% cpu):
+
+|                    | Starling one-view | native Windows shell |
+|--------------------|-------------------|----------------------|
+| idle CPU           | ~5.7% of one core (2.3 shell + overlays) | **~0.1%** |
+| hover sweep CPU    | ~14% (+overlays)  | **~1.7%**            |
+| Start-open idle    | 3.4%              | ~0.1%                |
+| working set        | **492 MB / 5 procs** | 595 MB / 4 procs  |
+| click/press→Start  | **93 ms**         | 169-236 ms           |
+| right-click→menu   | **117 ms**        | ~370 ms              |
+
+The honest shape of it: we are LEANER (about 100 MB less) and 2-3x
+FASTER to open things, while native is ~15-50x cheaper in CPU at
+idle/hover — it is fully event-driven with damage-tracked composition,
+we tick engines (the parked-engine floor x4 processes, the GCD pump, and
+full-view rasters). In absolute terms our idle is ~0.36% of this 16-core
+machine; the paths to closing the gap are already named: fold the three
+overlay processes into the one-view process (kills ~3.4% of the idle),
+the parked-engine floor item in winshell-perf, and per-view damage
+(engine-partial-repaint.md) for the hover column.
+
 Readings: memory is the clear win (~130 MB, one engine + one Swift
 runtime + one icon universe). Idle is a WASH — the feared 4K clock-tick
 raster costs no more than three smaller engines' combined idle floors,
