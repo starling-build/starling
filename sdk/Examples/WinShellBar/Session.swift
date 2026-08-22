@@ -249,6 +249,7 @@ enum SessionSlot {
                 flwin32_shell_ensure_notification_center()
                 flwin32_shell_ensure_banners()
                 flwin32_shell_ensure_run()
+                flwin32_shell_ensure_launcher()
                 continue
             }
             guard index >= 0, Int(index) < children.count else {
@@ -279,10 +280,21 @@ enum SessionSlot {
                     flwin32_sessionslot_close_handle(children[j].handle)
                     log("reaped \(children[j].role)")
                 }
-                if let current = registeredShell(),
-                   current.lowercased()
-                       .contains("winshellbar") {
+                // Delete our per-user Shell value so the NEXT logon is
+                // explorer's. Unregister when the value is ours OR when we
+                // cannot read it back: early in a logon HKCU has been observed
+                // to read empty from this process even though the value is set
+                // (the same misread that logs shell=<machine default> at
+                // start), and skipping the delete then leaves the loop armed to
+                // crash again every boot. Deleting an absent value is harmless,
+                // and only this shell ever writes the per-user Shell here — a
+                // readable foreign value is the one case we leave alone.
+                let current = registeredShell()
+                if current == nil
+                    || current!.lowercased().contains("winshellbar") {
                     _ = unregister()
+                    log("unregistered shell (was: "
+                        + "\(current ?? "<unreadable>"))")
                 }
                 _ = flwin32_sessionslot_start_explorer()
                 // A force-killed dock never ran its atexit, so explorer's

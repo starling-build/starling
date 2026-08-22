@@ -614,6 +614,10 @@ void flwin32_shell_ensure_notification_center(void);
 void flwin32_shell_ensure_banners(void);
 // Start the Run-dialog process parked if it is not already running.
 void flwin32_shell_ensure_run(void);
+// Start the launcher (Start menu) process parked if it is not already running,
+// so Win/the launcher tile is a show, not an engine boot -- and so there is a
+// process to receive the toggle broadcast at all under `--session`.
+void flwin32_shell_ensure_launcher(void);
 // Whether explorer is running as the shell (by its Progman desktop window --
 // a class this shell never takes, so it stays honest after the tray is ours).
 int32_t flwin32_shell_explorer_present(void);

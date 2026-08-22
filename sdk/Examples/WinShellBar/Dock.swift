@@ -311,6 +311,11 @@ final class StarlingDockState: State<StatefulWidget> {
         Win32Shell.ensureBanners()
         // And the Run dialog, so Win+R is a show too.
         Win32Shell.ensureRun()
+        // And the launcher (Start menu): the dock's tile and the Windows key
+        // only BROADCAST a toggle, so a launcher process has to be parked and
+        // listening. The dev-time starling.cmd started `--launcher` as its own
+        // line; under `--session` nothing did, so Start was dead until here.
+        Win32Shell.ensureLauncher()
     }
 
     override func dispose() {

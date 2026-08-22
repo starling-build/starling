@@ -221,6 +221,14 @@ public enum Win32Shell {
         flwin32_shell_ensure_run()
     }
 
+    /// Starts the launcher (Start menu) process parked, so the Windows key and
+    /// the dock's launcher tile are a show rather than an engine boot — and so
+    /// there is a process to receive the toggle broadcast at all under
+    /// `--session`, where nothing else starts it. Idempotent.
+    public static func ensureLauncher() {
+        flwin32_shell_ensure_launcher()
+    }
+
     /// Whether explorer is running as the shell — by its Progman desktop
     /// window, a class this shell never takes.
     public static var explorerPresent: Bool {

@@ -304,6 +304,22 @@ void flwin32_shell_ensure_run(void) {
     ShellExecuteW(NULL, L"open", exe, L"--run", NULL, SW_HIDE);
 }
 
+/* Start the launcher (Start menu) process if it is not running -- parked,
+ * so the Windows key and the dock's launcher tile are a SHOW rather than an
+ * engine boot. The manual dev launcher (starling.cmd) started `--launcher`
+ * as a second process explicitly; the supervised `--session` shell has no
+ * such second line, so without this the Start menu never had a process to
+ * receive its toggle broadcast at all -- Win/tile did nothing. Same parked
+ * idiom as the notification centre, banners and Run above. */
+void flwin32_shell_ensure_launcher(void) {
+    if (FindWindowW(L"FlutterSwiftWin32Host", L"Starling Launcher") != NULL) {
+        return;
+    }
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
+    ShellExecuteW(NULL, L"open", exe, L"--launcher", NULL, SW_HIDE);
+}
+
 /* Whether explorer is running as the shell, by its desktop window. Progman
  * exists exactly as long as explorer does, and unlike Shell_TrayWnd it is a
  * class we never take -- so it stays an honest tell after the tray and the
