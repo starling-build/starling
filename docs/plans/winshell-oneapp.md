@@ -130,6 +130,56 @@ Cost to weigh: every dock repaint now rasters 3840x2160 instead of
 Measure against winshell-perf's idle numbers before promoting oneview over
 oneshell; or teach the engine per-view damage.
 
+## Click-to-Start latency, measured across all three shells (2026-08-21)
+
+The question "how long from clicking the Start button to the launcher on
+screen", answered with an injected real click on the dock's launcher tile
+(found by scanning the strip for its 0xFF2B3550 fill) and a pixel oracle
+where the panel lands. 3840x2160 @ 29Hz — one frame is ~34ms and every
+screen read costs one, so that is the resolution. n=8 per cell.
+
+| shell | click→pixels (median) | toggle-broadcast→pixels |
+|---|---|---|
+| multi-process (`--session`'s shape) | **~454 ms** | 33–70 ms |
+| `--oneshell` (surface view) | **93 ms** | 90 ms |
+| `--oneview` (layer) | **143 ms** | 105 ms |
+
+**The multi-process shell has a ~450ms stall on the CLICK path that no
+prior benchmark saw** — they all posted the toggle broadcast or used the
+Win key, and the broadcast path is 2 frames. QPC-correlated tracing
+(STARLING_TRACE across processes shares the qpc= clock; clickprobe.ps1
+stamps the mouse-down on the same clock) pinned it:
+
+- click → dock's broadcast: **12.7 ms** (the gesture path is innocent),
+- launcher pipeline — ShowWindow, ForceRedraw, activate: done **+43 ms**,
+- but the launcher's first PRESENT: **+323 ms** (STARLING_PRESENT_LOG).
+
+Cause, two layers deep. (1) The parked launcher presents **every ~534 ms,
+forever, while hidden** — the autofocused search field's caret ticker
+drives a frame per blink, so the "dormant" process draws ~2 fps into an
+invisible window all session. (2) After a CLICK, the show's scheduled
+frame does not preempt that cadence — pixels wait for the next caret
+slot; after a bare toggle it fires immediately (+18 ms, gap 302ms — the
+control that seals it). The observable difference between the two cases
+is the foreground grant: a click's SetForegroundWindow is denied by the
+input-time foreground lock, a quiet toggle's succeeds. Why the engine's
+present pacing keys on that is the open engine-side question
+(fl_win32 vsync path; STARLING_PRESENT_LOG is the instrument).
+
+The trial rhythm even explains the tight 434–502 clustering: each close
+resets the cadence, the harness's fixed sleeps land the click ~120 ms
+after a caret tick, and the show waits ~450 ms for the next one.
+
+Both one-app shells are immune BY CONSTRUCTION: oneshell's surface is
+composited by the dock's always-lively engine; oneview's layer paints in
+the dock's own frame. Clicking Start is 3–5x faster in either — and the
+multi-process caret-cadence present burn (frames into a hidden window,
+all day) simply does not exist in them.
+
+Harness: bench.ps1 (StarBench), clickprobe.ps1 (StarClickProbe),
+traced2.cmd (StarTraced2: STARLING_TRACE + STARLING_PRESENT_LOG), all in
+C:\dist on the box.
+
 ## Not done, known, and next
 
 - **Popups from surface trees are anchored to the wrong window.**
