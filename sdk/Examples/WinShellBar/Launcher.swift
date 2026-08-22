@@ -492,8 +492,22 @@ final class StarlingLauncher: StatefulWidget {
     /// id, used to register for the surface's toggle notifications instead
     /// of the process host's.
     let surfaceId: Int?
-    init(surfaceId: Int? = nil) {
+    /// True when the launcher is a LAYER of the dock's own tree (`--oneview`):
+    /// no window-side registrations at all — the dock owns visibility, sends
+    /// the bloc's opened/closed itself, and this widget mounts fresh per
+    /// open (so the search controller starts empty for free).
+    let embedded: Bool
+    /// How an embedded launcher gets itself out of the way (launching an app
+    /// hides Start first, everywhere). Its own window it can hide; a layer
+    /// of the dock's tree has to ask the dock — hiding "the host" there is
+    /// hiding the WHOLE full-screen chrome window, dock and all, which is
+    /// exactly what the first --oneview tile click did.
+    let onRequestClose: (() -> Void)?
+    init(surfaceId: Int? = nil, embedded: Bool = false,
+         onRequestClose: (() -> Void)? = nil) {
         self.surfaceId = surfaceId
+        self.embedded = embedded
+        self.onRequestClose = onRequestClose
         super.init()
     }
     override func createState() -> State<StatefulWidget> { StarlingLauncherState() }
@@ -523,7 +537,12 @@ final class StarlingLauncherState: State<StatefulWidget> {
         // carries the new visibility — a hidden VIEW still composites there,
         // so unlike the process world this code has already run before the
         // first show.
-        if let sid = (widget as! StarlingLauncher).surfaceId {
+        let launcher = widget as! StarlingLauncher
+        if launcher.embedded {
+            // A layer of the dock's tree: the dock owns visibility and the
+            // bloc's opened/closed. Registering the host's onToggle from
+            // here would CLOBBER the dock's own registration — one slot.
+        } else if let sid = launcher.surfaceId {
             Win32Surfaces.onToggle(sid) { [weak self] visible in
                 self?.didToggle(shown: visible)
             }
@@ -573,15 +592,29 @@ final class StarlingLauncherState: State<StatefulWidget> {
         flwin32_trace("launcher: didToggle end (hidden)")
     }
 
+    /// Gets Start out of the way, whichever thing is hosting it: the dock's
+    /// layer (ask the dock), a surface view (hide that window), or its own
+    /// process window (hide the host). The host hide is LAST — in the other
+    /// two modes "the host" is the dock's panel, and hiding it takes the
+    /// whole chrome off the screen.
+    private func dismissSurface() {
+        let launcher = widget as! StarlingLauncher
+        if let close = launcher.onRequestClose {
+            close()
+        } else if let sid = launcher.surfaceId {
+            Win32Surfaces.setVisible(sid, false)
+        } else {
+            Win32WindowedHost.host?.setVisible(false)
+        }
+    }
+
     private func launch(_ app: Win32App) {
         // HIDE FIRST. Starting an app is not instant even on the fast path,
         // and it is a synchronous shell call on this thread — so launching
         // first left the launcher sitting on screen, frozen, until it
         // returned. Getting out of the way is the part the user is waiting
         // for; the app arriving is the part they expect to take a moment.
-        // HIDE FIRST. Getting out of the way is the part the user is waiting
-        // for; the app arriving is the part they expect to take a moment.
-        Win32WindowedHost.host?.setVisible(false)
+        dismissSurface()
         bloc.add(.launch(app))
     }
 
@@ -713,7 +746,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
         setState { powerOpen = false }
         // Out of the way first: whatever happens next, the launcher should not
         // be the last thing on screen during it.
-        Win32WindowedHost.host?.setVisible(false)
+        dismissSurface()
         Task.detached { Win32Session.perform(action) }
     }
 
@@ -1093,8 +1126,8 @@ final class StarlingLauncherState: State<StatefulWidget> {
 
     private func recentTile(_ entry: Win32FileEntry) -> Widget {
         GestureDetector(
-            onTap: {
-                Win32WindowedHost.host?.setVisible(false)
+            onTap: { [weak self] in
+                self?.dismissSurface()
                 let path = entry.path
                 Task.detached { Win32AppCatalog.open(path) }
             },

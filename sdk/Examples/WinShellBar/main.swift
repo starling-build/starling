@@ -34,6 +34,12 @@
 //                               the dock, with the desktop and the launcher
 //                               as engine VIEWS of this process instead of
 //                               processes of their own (flwin32_surface.c)
+//   WinShellBar.exe --oneview   the ONE-VIEW shell: the panel window covers
+//                               the screen and the launcher is a LAYER of
+//                               the dock's own tree (Linux-style); only the
+//                               desktop stays a second view — DWM gives a
+//                               window one z-slot, and the wallpaper must
+//                               sit UNDER apps while the chrome sits over
 //   ... --monitor N             put either on a screen other than the primary
 //
 //   swift build -c release --product WinShellBar
@@ -980,6 +986,16 @@ if wantsFiles {
     // the window extends above the reserved strip so the hover label and the
     // right-click menu have somewhere to draw — a window is a hard clip, and
     // both are taller than the dock.
+    // The one-VIEW shell: the panel window grows to the whole screen — the
+    // overhang becomes everything above the strip — so the launcher (and
+    // later every overlay) draws as a LAYER of the dock's own tree, the way
+    // the Linux shell stacks its chrome in one surface. Decided BEFORE the
+    // window exists: the tree and the window must agree from the first
+    // frame, and `dockOverhang` is what both sides read.
+    if CommandLine.arguments.contains("--oneview"), let s = screen {
+        dockOverhang = Int(Double(s.height) / panelScale) - kDockHeight
+        print("[WinShell] oneview: overhang \(dockOverhang)pt (full screen)")
+    }
     if !wantsPlain {
         // The edge the user last chose, read before the window is made: the
         // tree and the window must agree from the first frame, or the dock
@@ -989,10 +1005,10 @@ if wantsFiles {
                                                  monitor: wantsMonitor,
                                                  reserveSpace: wantsAppbar,
                                                  transparent: true,
-                                                 overhang: kDockOverhang)
+                                                 overhang: dockOverhang)
     }
     runStarlingApp(title: "Starling Dock", width: panelWidth,
-                   height: Int(Double(kDockHeight + kDockOverhang) * panelScale)) {
+                   height: Int(Double(kDockHeight + dockOverhang) * panelScale)) {
         StarlingDock()
     }
 }

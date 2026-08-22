@@ -181,6 +181,27 @@ public final class Win32Host {
     /// thread and one window per process.
     nonisolated(unsafe) private static var toggleHandler: (() -> Void)?
 
+    /// Called when the window loses activation — the one-view shell closes
+    /// its launcher layer here (click-away). Runs on the UI thread.
+    public func onDeactivate(_ handler: @escaping () -> Void) {
+        Win32Host.deactivateHandler = handler
+        flwin32_host_on_deactivate(host, { _ in
+            Win32Host.deactivateHandler?()
+        }, nil)
+    }
+
+    nonisolated(unsafe) private static var deactivateHandler: (() -> Void)?
+
+    /// The one-view shell's keyboard handoff: activation + focus onto the
+    /// engine child while the launcher layer is up (plus the Escape-to-close
+    /// hotkey), returned when the layer closes. EVERY close path must call
+    /// `releaseFocus` — it unregisters the global Escape hotkey; `restore:`
+    /// false on a click-away, where the click already chose the new owner.
+    public func takeFocus() { flwin32_host_take_focus(host) }
+    public func releaseFocus(restore: Bool) {
+        flwin32_host_release_focus(host, restore ? 1 : 0)
+    }
+
     /// Called when the system's light/dark theme flips (WM_SETTINGCHANGE
     /// with "ImmersiveColorSet"). Runs on the UI thread; the registry
     /// already holds the new value, so re-read it with

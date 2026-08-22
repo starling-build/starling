@@ -66,6 +66,14 @@ let kDockIcon = 34.0
 /// fits the same depth. A window is a hard clip and there is no warning.
 let kDockOverhang = 420
 
+/// The overhang actually in effect. `--oneview` (the one-view shell) grows
+/// it to everything above the strip, making the dock's window the ONE
+/// full-screen chrome surface — the launcher draws inside it as a layer,
+/// the way the Linux shell stacks its overlays in a single surface. Set
+/// once in main.swift before the window exists; the colour key keeps the
+/// undrawn screen a click-through hole either way.
+nonisolated(unsafe) var dockOverhang = kDockOverhang
+
 /// Geometry the flyout arithmetic needs. The tile is a fixed size, so where
 /// each one sits is arithmetic rather than a layout query — which is what
 /// lets a label be positioned over an icon without measuring anything.
@@ -254,6 +262,9 @@ final class StarlingDockState: State<StatefulWidget> {
     }
     /// The tile whose right-click menu is open, if any.
     private var menuOpen: Int?
+    /// One-view shell only: whether the launcher LAYER is up. In every
+    /// other mode the launcher is its own window/view and this stays false.
+    private var launcherOpen = false
     /// Whether the control centre is down, and whether the pointer is
     /// currently dragging its volume slider.
     private var controlCentreOpen = false
@@ -311,7 +322,15 @@ final class StarlingDockState: State<StatefulWidget> {
         Win32Shell.ensureBanners()
         // And the Run dialog, so Win+R is a show too.
         Win32Shell.ensureRun()
-        if CommandLine.arguments.contains("--oneshell") {
+        if CommandLine.arguments.contains("--oneview") {
+            // The one-VIEW shell: the launcher is a LAYER of this tree (the
+            // panel window covers the whole screen — dockOverhang was grown
+            // in main.swift), the way the Linux shell stacks its overlays in
+            // one surface. Only the desktop (wallpaper plane) remains a
+            // second view, because DWM gives one window one z-slot: the
+            // wallpaper must sit UNDER apps while this chrome sits over them.
+            openOneviewSurfaces()
+        } else if CommandLine.arguments.contains("--oneshell") {
             // The one-app shell (branch winshell-oneapp): the desktop and the
             // launcher are ENGINE VIEWS of this process, not processes of
             // their own — one engine, one Swift runtime, one icon cache, and
@@ -324,6 +343,56 @@ final class StarlingDockState: State<StatefulWidget> {
             // `--launcher` as its own line; under `--session` nothing did, so
             // Start was dead until here.
             Win32Shell.ensureLauncher()
+        }
+    }
+
+    /// The one-view shell: desktop view + the launcher wired as a layer of
+    /// THIS tree. The toggle broadcast already reaches this window (the host
+    /// fires its callback for any host kind); click-away is the window's own
+    /// deactivation, exactly what the floating launcher window used.
+    private func openOneviewSurfaces() {
+        if !Win32Shell.explorerPresent
+            || ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"]
+                == "1" {
+            let desk = Win32Surfaces.open(kind: .desktop) { id in
+                StarlingDesktop(surfaceId: id)
+            }
+            print("[WinShell] oneview desktop view: \(desk.map(String.init) ?? "FAILED")")
+        } else {
+            print("[WinShell] oneview desktop skipped (explorer present)")
+        }
+        launcherBloc.add(.start)
+        Win32WindowedHost.host?.onToggle { [weak self] in
+            self?.toggleLauncherLayer()
+        }
+        Win32WindowedHost.host?.onDeactivate { [weak self] in
+            guard let self, self.launcherOpen else { return }
+            self.setLauncherLayer(open: false, handBackFocus: false)
+        }
+    }
+
+    private func toggleLauncherLayer() {
+        setLauncherLayer(open: !launcherOpen, handBackFocus: true)
+    }
+
+    private func setLauncherLayer(open: Bool, handBackFocus: Bool) {
+        guard open != launcherOpen else { return }
+        setState {
+            launcherOpen = open
+            menuOpen = nil
+            controlCentreOpen = false
+        }
+        if open {
+            launcherBloc.add(.opened)
+            // Start owns the keyboard while it is up — the search field's
+            // autofocus lands in a tree whose window really has focus.
+            Win32WindowedHost.host?.takeFocus()
+        } else {
+            launcherBloc.add(.closed)
+            // ALWAYS released (it also unregisters the global Escape
+            // hotkey); the foreground goes back only when the close was not
+            // a click-away, where the click already chose the new owner.
+            Win32WindowedHost.host?.releaseFocus(restore: handBackFocus)
         }
     }
 
@@ -1309,10 +1378,10 @@ final class StarlingDockState: State<StatefulWidget> {
         let along: Double
         let across: Double
         switch bloc.state.edge {
-        case .bottom: along = x; across = y - Double(kDockOverhang)
+        case .bottom: along = x; across = y - Double(dockOverhang)
         case .top:    along = x; across = Double(kDockHeight) - y
         case .left:   along = y; across = Double(kDockHeight) - x
-        case .right:  along = y; across = x - Double(kDockOverhang)
+        case .right:  along = y; across = x - Double(dockOverhang)
         }
         guard across >= 0, across <= Double(kDockHeight) else { return nil }
 
@@ -1329,14 +1398,14 @@ final class StarlingDockState: State<StatefulWidget> {
     /// change — the host re-places the strip on WM_DISPLAYCHANGE and the
     /// icons have to be centred on the new one.
     /// The window's own thickness in points: the strip plus the overhang.
-    private var windowThickness: Double { Double(kDockHeight + kDockOverhang) }
+    private var windowThickness: Double { Double(kDockHeight + dockOverhang) }
 
     /// Where the strip starts within the window, across the axis. The
     /// overhang is on the far side of the strip from the screen edge, so it
     /// leads on a bottom or right dock and trails on a top or left one.
     private var stripOffset: Double {
         switch bloc.state.edge {
-        case .bottom, .right: return Double(kDockOverhang)
+        case .bottom, .right: return Double(dockOverhang)
         case .top, .left: return 0
         }
     }
@@ -1717,6 +1786,25 @@ final class StarlingDockState: State<StatefulWidget> {
         return Positioned(left: origin.x, top: origin.y, child: child)
     }
 
+    /// The launcher layer's footprint: Start's own geometry, centred above
+    /// the strip — exactly where its floating window sat, now as a child of
+    /// this tree (one-view shell).
+    private func launcherLayer() -> Widget {
+        let x = (ShellScreen.logicalWidth - kLauncherWidth) / 2
+        let y = windowThickness - Double(kDockHeight) - kLauncherGap
+            - kLauncherHeight
+        return Positioned(left: x, top: y, width: kLauncherWidth,
+                          height: kLauncherHeight) {
+            StarlingLauncher(embedded: true, onRequestClose: { [weak self] in
+                // Launching an app (or a power action) hides Start first —
+                // and for a LAYER that means closing the layer, never hiding
+                // the host window, which is the whole chrome. No focus
+                // hand-back: the thing being launched decides the new owner.
+                self?.setLauncherLayer(open: false, handBackFocus: false)
+            })
+        }
+    }
+
     /// A press while a tile menu is open. True when the menu consumed it.
     private func handleTileMenu(_ x: Double, _ y: Double) -> Bool {
         guard let index = menuOpen else { return false }
@@ -2023,6 +2111,15 @@ final class StarlingDockState: State<StatefulWidget> {
                     // sidesteps the question.
                     if controlCentreOpen {
                         controlCentre()
+                    } else {
+                        Positioned(left: 0, bottom: 0) { SizedBox(width: 0, height: 0) }
+                    }
+                    // The launcher LAYER (one-view shell): Start as a child
+                    // of this tree, floating above the strip where its own
+                    // window used to. Same constant-slot rule as the control
+                    // centre above — swap contents, never the child count.
+                    if launcherOpen {
+                        launcherLayer()
                     } else {
                         Positioned(left: 0, bottom: 0) { SizedBox(width: 0, height: 0) }
                     }

@@ -81,6 +81,55 @@ process start, its tree already composited.
    unaffected. Real per-view key routing is still the honest design for
    the full version.
 
+## Round 2: `--oneview` — the chrome as ONE VIEW (2026-08-21, later)
+
+The user's follow-up: "put all of them into just one view like the Linux
+desktop." One view for EVERYTHING is blocked by physics — DWM gives a
+window one z-slot, the wallpaper must sit UNDER apps while the dock sits
+over them, and on Linux the shell owns compositing so apps render BETWEEN
+its layers, the exact power DWM withholds. The floor on Windows is two
+planes, and `--oneview` reaches it: the desktop view (wallpaper + icons,
+bottom) plus ONE full-screen chrome view — the dock's panel window grown to
+the whole monitor (`dockOverhang` becomes everything above the strip), with
+the launcher drawn as a LAYER of the dock's own tree, Linux-style. No
+launcher window, no launcher view: Start is a widget.
+
+Driven on the box, all of it: the resting screen is pixel-identical (the
+colour key keeps the undrawn screen a click-through hole); Start opens as a
+layer — above a maximized app too; typing filters; a tile click launches
+Edge; click-away (WA_INACTIVE) and Escape (the overlay hotkey, registered
+by take_focus and unregistered on EVERY close) both dismiss; and clicks
+pass through the full-screen chrome into apps (typed into Edge's address
+bar through it). ~203 MB — the 4K swapchain costs ~30 MB over `--oneshell`.
+
+What it took:
+- `dockOverhang` became a runtime value (three uses + the window shape).
+- `flwin32_host_take_focus`/`release_focus`: a WS_EX_NOACTIVATE panel
+  refuses CLICK activation but takes it programmatically — Start owns the
+  keyboard while up, hands it back to the previous foreground on close.
+  take registers the overlay Escape hotkey; release (EVERY close path)
+  unregisters it — a leaked global VK_ESCAPE eats every app's Escape.
+- `flwin32_host_on_deactivate`: WA_INACTIVE closes the layer, the same
+  click-away the floating window had. The WM_HOTKEY handler needed an
+  overlay_active guard — set_visible(0) on a PANEL host is SW_HIDE on the
+  whole dock.
+- `StarlingLauncher(embedded:onRequestClose:)`: no window-side
+  registrations (host.onToggle would CLOBBER the dock's — one slot), and
+  every "hide first" site (app launch, power, recent tile) goes through
+  `dismissSurface()` — the first tile click hid the ENTIRE chrome window,
+  because "hide the host" in a layer world is the dock too. The same
+  latent bug existed in --oneshell's surface mode; dismissSurface covers
+  all three modes.
+- The dreaded GestureDetector-inside-Positioned trap did NOT bite: the
+  launcher's detectors (in its own Columns) fire inside the layer's
+  Positioned. The trap's boundary is narrower than recorded — worth a
+  proper root-cause someday.
+
+Cost to weigh: every dock repaint now rasters 3840x2160 instead of
+3840x952 (the clock ticks once a second) — ~2.3x pixels on the idle path.
+Measure against winshell-perf's idle numbers before promoting oneview over
+oneshell; or teach the engine per-view damage.
+
 ## Not done, known, and next
 
 - **Popups from surface trees are anchored to the wrong window.**

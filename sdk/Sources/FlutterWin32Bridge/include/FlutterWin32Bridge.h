@@ -764,6 +764,22 @@ void flwin32_host_on_toggle(FlWin32Host* host,
 void flwin32_host_on_theme_change(FlWin32Host* host,
                                   void (*callback)(void* user),
                                   void* user);
+// Called when the host window loses activation (WM_ACTIVATE / WA_INACTIVE),
+// on the UI thread — the one-view shell closes its launcher layer here, the
+// same click-away every floating overlay window used.
+void flwin32_host_on_deactivate(FlWin32Host* host,
+                                void (*callback)(void* user),
+                                void* user);
+// The one-view shell's keyboard handoff: take activation + focus the engine
+// child when the launcher layer opens (a NOACTIVATE panel refuses CLICK
+// activation but takes it programmatically), give it back to the window
+// that had it when the layer closes.
+// take: also registers the overlay Escape hotkey (Escape closes the layer).
+// release: EVERY close path must call it (it unregisters that global
+// hotkey); `restore` additionally hands the foreground back — false on a
+// click-away, where the click already chose the new owner.
+void flwin32_host_take_focus(FlWin32Host* host);
+void flwin32_host_release_focus(FlWin32Host* host, int32_t restore);
 void flwin32_shell_broadcast_toggle(void);
 
 // ── the Windows key ─────────────────────────────────────────────────────────

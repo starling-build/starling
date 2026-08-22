@@ -175,6 +175,12 @@ struct FlWin32Host {
   void* toggle_user;
   void (*theme_callback)(void* user);
   void* theme_user;
+  // The one-view shell: the dock's tree hosts the launcher as a LAYER, so
+  // the window needs to say when it lost activation (close the layer) and
+  // to take/hand back the keyboard around the layer's life.
+  void (*deactivate_callback)(void* user);
+  void* deactivate_user;
+  HWND prev_foreground;
   // External textures we handed the engine, so their pixel buffers can be
   // freed on unregister. Swift only ever sees the int64 id.
   struct HostTextureSlot* textures;
@@ -433,7 +439,11 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
 
     case WM_HOTKEY:
       if (host != NULL && wparam == kOverlayEscapeHotkey) {
-        flwin32_host_set_visible(host, 0);
+        // Overlay hosts hide their window; a PANEL host with the hotkey
+        // registered (the one-view launcher layer) must NOT — set_visible(0)
+        // on a non-overlay host is ShowWindow(SW_HIDE) on the whole dock.
+        // The callback alone is what closes the layer.
+        if (host->overlay_active) flwin32_host_set_visible(host, 0);
         if (host->toggle_callback != NULL) host->toggle_callback(host->toggle_user);
         return 0;
       }
@@ -562,6 +572,12 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       // way every menu on the system goes.
       if (host != NULL && LOWORD(wparam) == WA_INACTIVE) {
         flwin32_popup_notify_host_event(host);
+        // The one-view shell's launcher layer dismisses the same way a
+        // floating overlay window would have: losing activation IS the
+        // click-away.
+        if (host->deactivate_callback != NULL) {
+          host->deactivate_callback(host->deactivate_user);
+        }
       }
       break;
 
@@ -2048,6 +2064,44 @@ void flwin32_host_on_toggle(FlWin32Host* host,
   if (host == NULL) return;
   host->toggle_callback = callback;
   host->toggle_user = user;
+}
+
+void flwin32_host_on_deactivate(FlWin32Host* host,
+                                void (*callback)(void* user),
+                                void* user) {
+  if (host == NULL) return;
+  host->deactivate_callback = callback;
+  host->deactivate_user = user;
+}
+
+// The one-view shell's keyboard handoff. A WS_EX_NOACTIVATE panel refuses
+// activation from CLICKS (MA_NOACTIVATE — a taskbar press must not steal the
+// keyboard from the window it raises) but takes it fine programmatically,
+// which is exactly what opening the launcher layer wants: Start SHOULD own
+// the keyboard while it is up. The previous foreground window is remembered
+// so closing the layer hands the keyboard back where the user had it.
+void flwin32_host_take_focus(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return;
+  HWND fg = GetForegroundWindow();
+  if (fg != host->window) host->prev_foreground = fg;
+  SetForegroundWindow(host->window);
+  if (host->child != NULL) SetFocus(host->child);
+  // Escape closes the layer, the same global hotkey the overlay windows
+  // used — keys go to the engine child, so the top-level wndproc never
+  // sees a plain keypress. Paired with the unregister in release_focus,
+  // which every close path takes: a leaked GLOBAL VK_ESCAPE hotkey would
+  // eat every application's Escape.
+  RegisterHotKey(host->window, kOverlayEscapeHotkey, 0, VK_ESCAPE);
+}
+
+void flwin32_host_release_focus(FlWin32Host* host, int32_t restore) {
+  if (host == NULL || host->window == NULL) return;
+  UnregisterHotKey(host->window, kOverlayEscapeHotkey);
+  if (restore && GetForegroundWindow() == host->window &&
+      host->prev_foreground != NULL && IsWindow(host->prev_foreground)) {
+    SetForegroundWindow(host->prev_foreground);
+  }
+  host->prev_foreground = NULL;
 }
 
 void flwin32_host_on_theme_change(FlWin32Host* host,
