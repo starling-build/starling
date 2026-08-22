@@ -185,6 +185,16 @@ final class ShellMenuModel {
     /// as the hang failsafe's fallback, since they carry LIVE verb ids and
     /// the seed's do not.
     @ObservationIgnored private var seedFallbackRows: [Win32ShellVerb]?
+    /// COLD open (no type-cache seed): the popup stays hidden until the
+    /// fast tier lands, instead of revealing builtin-only rows that the
+    /// tiers then visibly rewrite — greyed Cut/Copy flipping enabled and
+    /// the menu growing twice was the one flicker the pixel gate caught.
+    /// Warm opens never set this (the seed IS the settled shape), so the
+    /// instant-reveal policy below is untouched where it matters; a cold
+    /// one waits the fast tier's few ms (~100ms on a fresh process, whose
+    /// first query loads the shell extension DLLs) with a 300ms failsafe
+    /// so a hung handler still gets an honest builtin menu, not a strand.
+    @ObservationIgnored private var revealHeld = false
 
     /// The type cache, keyed by what actually determines a menu: the
     /// ASSOCIATION CLASSES. Static verbs are registry data per type;
@@ -345,12 +355,40 @@ final class ShellMenuModel {
         }
     }
 
+    /// Lifts a cold open's held reveal (see revealHeld): the popup shows on
+    /// the composite that carries the rows the caller just set, so it
+    /// appears once, with real content — never the builtin-only skeleton.
+    /// Idempotent; a warm open never holds, so this is a no-op there.
+    private func revealNow() {
+        guard revealHeld else { return }
+        revealHeld = false
+        guard popupsEnabled, isOpen else { return }
+        if let id = mainPopup, !mainPopupShown {
+            // Pooled popup that rebuilt hidden through the hold: show on
+            // the composite carrying the current rows.
+            mainPopupShown = true
+            Win32PopupSurfaces.showOnNextComposite(id)
+        }
+        // The epoch bump guarantees a composite is coming for the pending
+        // show to ride — and when the hold deferred creation, this sync is
+        // what creates the popup (auto-shown on its first composite).
+        scheduleSync()
+    }
+
     private func syncPopups() {
         guard popupsEnabled else { return }
         guard isOpen, let at = origin(mainMenu) else {
             closePopups()
             return
         }
+        // A held cold open shows nothing yet — and if no popup exists, none
+        // is CREATED: a window created held and shown later flashed a ghost
+        // (border and shadow around an interior that had never presented).
+        // revealNow() re-syncs once rows exist, and the popup then takes
+        // the ordinary create -> first-composite -> show path. A pooled
+        // popup (already created, hidden) does rebuild during the hold, so
+        // its reveal composite carries the real rows.
+        if mainPopup == nil, revealHeld { return }
         let menu = mainMenu
         // No settling, no holding: the menu REVEALS with the rows it has.
         // Our own verbs are complete the moment open() runs, the shell's
@@ -369,12 +407,13 @@ final class ShellMenuModel {
                                          width: rect.w, height: rect.h)
                 mainPopupRect = rect
             }
-            if !mainPopupShown {
+            if !mainPopupShown, !revealHeld {
                 // POOLED reopen: the hidden view kept compositing, but what
                 // it holds is the PREVIOUS menu until the rebuild this
                 // sync's invalidation scheduled lands. Show on exactly that
                 // composite — no old-content flash, no guessed timer. A
-                // dismiss before it lands cancels through hide().
+                // dismiss before it lands cancels through hide(). A held
+                // cold open stays hidden here; revealNow() shows it.
                 mainPopupShown = true
                 Win32PopupSurfaces.showOnNextComposite(id)
             }
@@ -581,6 +620,7 @@ final class ShellMenuModel {
             self.shellRows = rows
             self.mainCache = nil
             self.scheduleSync()
+            self.revealNow()
         }
         // And the full one, which supersedes it — and refreshes the type
         // cache, so the NEXT same-typed menu paints complete on frame one.
@@ -594,6 +634,7 @@ final class ShellMenuModel {
             self.shellRowsSeeded = false
             self.mainCache = nil
             self.scheduleSync()
+            self.revealNow()
             if let typeKey { Self.typeCache[typeKey] = rows }
         }
 
@@ -634,6 +675,7 @@ final class ShellMenuModel {
         // new session would run someone else's verb), so a click inside the
         // seed window — shorter than any human's move-and-press — is inert.
         seedFallbackRows = nil
+        revealHeld = false
         if let typeKey, let cached = Self.typeCache[typeKey] {
             shellRows = cached
             shellTier = .full
@@ -654,6 +696,16 @@ final class ShellMenuModel {
                 self.shellRowsSeeded = false
                 self.mainCache = nil
                 self.scheduleSync()
+            }
+        } else if popupsEnabled {
+            // COLD: no seed to draw — hold the reveal for the fast tier
+            // (see revealHeld above). The in-window fallback draws live in
+            // the window and cannot hold, so it keeps the growing reveal.
+            revealHeld = true
+            let holdGeneration = generation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self, self.generation == holdGeneration else { return }
+                self.revealNow()
             }
         }
         expanded = false
@@ -687,6 +739,7 @@ final class ShellMenuModel {
         entry = nil
         hover = nil
         pillHover = nil
+        revealHeld = false
         shellRows = []
         shellTier = .fast
         expanded = false
