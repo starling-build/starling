@@ -180,6 +180,37 @@ Harness: bench.ps1 (StarBench), clickprobe.ps1 (StarClickProbe),
 traced2.cmd (StarTraced2: STARLING_TRACE + STARLING_PRESENT_LOG), all in
 C:\dist on the box.
 
+## CPU/memory profile: one-view session vs multi-process, same binary (2026-08-21)
+
+Three phases (60s idle, 20s hover sweep over the dock, 20s Start-open
+idle), per-process CPU (% of one core), working set, and per-pid GPU
+engine utilization. The multi-process round accidentally double-spawned
+the launcher (the dock's ensureLauncher raced the harness's explicit
+--launcher — a real hazard of the old shape); one launcher (~100 MB,
+~0.5%) is discounted below.
+
+|                       | one-view session      | multi-process trio     |
+|-----------------------|-----------------------|------------------------|
+| idle CPU (shell surfaces) | **2.5%** (one proc) | **2.6%** (dock 1.5 + desktop 0.6 + launcher 0.5) |
+| idle CPU (whole shell)    | ~5.6% incl. overlays | ~5.5% incl. overlays  |
+| hover-sweep CPU           | **12.4%**            | **7.6%** (dock)       |
+| Start-open idle CPU       | 3.0%                 | 2.7%                  |
+| working set, shell surfaces | **234 MB**         | ~340 MB               |
+| working set, everything   | **478 MB / 5 procs** | ~605 MB / 6 procs     |
+| GPU (all phases)          | <1%                  | <1%                   |
+
+Readings: memory is the clear win (~130 MB, one engine + one Swift
+runtime + one icon universe). Idle is a WASH — the feared 4K clock-tick
+raster costs no more than three smaller engines' combined idle floors,
+so the full-screen chrome is NOT an idle regression. The one real cost:
+active hover repaints ~1.6x the CPU (12.4 vs 7.6% — the ~2.3x pixel
+prediction, sublinear), ~5% of one core while the pointer is moving over
+tiles; per-view damage in the engine remains the proper fix. The
+launcher caret fix verified from the other side: parked launchers now
+idle at 0.5-0.8% with no present churn. oneview's PRIVATE bytes run
+~426 MB (two full-screen 4K surfaces + engine allocations) against a
+234 MB working set — the swapchains, mostly not resident.
+
 ## Not done, known, and next
 
 - **Popups from surface trees are anchored to the wrong window.**
