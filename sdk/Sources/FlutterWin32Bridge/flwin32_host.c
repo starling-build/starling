@@ -240,10 +240,36 @@ static int overlay_area(FlWin32Host* host, RECT* out);
 static void install_child_cursor_proc(HWND child);
 static void apply_colour_key(FlWin32Host* host);
 
-// Timer draining libdispatch's main queue so @MainActor code and
+// Draining libdispatch's main queue so @MainActor code and
 // DispatchQueue.main.async blocks run on the Win32 message thread. Same
-// arrangement as the GTK host's GLib timer. Resolved dynamically because the
-// symbol is a libdispatch implementation detail with no public header.
+// arrangement as the GTK host. Resolved dynamically because both symbols are
+// libdispatch implementation details with no public header.
+//
+// TWO MODES, and the difference between them is the whole idle cost of a
+// Starling process:
+//
+//   event-driven (default)  libdispatch hands out an auto-reset event it
+//                           signals whenever the main queue gets work -- the
+//                           same handle CFRunLoop waits on for us on Darwin.
+//                           The run loop blocks on it alongside the message
+//                           queue, so an idle process wakes ZERO times.
+//   poll (fallback)         an 8 ms WM_TIMER. What this host did
+//                           unconditionally until 2026-08-22, and what it
+//                           still does if this libdispatch has no handle.
+//
+// The poll cost real, measured CPU: 125 wakeups a second in EVERY process for
+// the life of the process -- no widget tree, hidden window and empty queue
+// included, because nothing about the timer was conditional on there being
+// anything to drain. That is where winshell-perf.md's "unexplained ~1-2%
+// floor that even the tree-less parked notifications process pays" came from;
+// five shell surfaces made it ~625 wakeups a second. The engine pins the
+// process timer resolution at 1 ms for its own frame scheduling
+// (task_runner_window.cc, fml/platform/win/message_loop_win.cc), so none of
+// those wakeups coalesced with anything either.
+//
+// STARLING_DRAIN_TIMER_MS=<ms> forces the poll back on at a chosen period, so
+// the two modes can be A/B'd from ONE binary in one sitting -- which is what
+// winshell-perf.md's own method section demands of any number from this box.
 #define kDrainTimerId 1
 #define kDrainTimerMs 8
 
@@ -265,6 +291,50 @@ static void drain_gcd_main_queue(void) {
   if (drain != NULL) {
     drain(NULL);
   }
+}
+
+// The event libdispatch signals when the main queue gets work, or NULL when
+// this libdispatch does not export the CFRunLoop integration -- in which case
+// the caller keeps the timer.
+//
+// The FIRST call is what makes the main queue signal a handle at all
+// (libdispatch initialises the runloop handle lazily, on this getter), so it
+// has to happen before the loop starts waiting on it, not after.
+//
+// dispatch_runloop_handle_t is a HANDLE on Windows -- an auto-reset event, so
+// a successful wait clears it and there is nothing to drain by hand. The
+// Linux spelling of the same handle is an eventfd that DOES need reading;
+// see GpuDmaBufRenderer.swift, which pays that difference in its poll loop.
+static HANDLE gcd_main_queue_handle(void) {
+  static HANDLE handle = NULL;
+  static int looked_up = 0;
+  if (!looked_up) {
+    looked_up = 1;
+    HMODULE d = GetModuleHandleW(L"dispatch.dll");
+    if (d != NULL) {
+      HANDLE (*get_handle)(void) = (HANDLE(*)(void))GetProcAddress(
+          d, "_dispatch_get_main_queue_handle_4CF");
+      if (get_handle != NULL) {
+        HANDLE h = get_handle();
+        if (h != NULL && h != INVALID_HANDLE_VALUE) {
+          handle = h;
+        }
+      }
+    }
+  }
+  return handle;
+}
+
+// STARLING_DRAIN_TIMER_MS, or 0 to mean "use the event".
+static unsigned drain_timer_override_ms(void) {
+  char buf[16];
+  DWORD n = GetEnvironmentVariableA("STARLING_DRAIN_TIMER_MS", buf,
+                                    (DWORD)sizeof(buf));
+  if (n == 0 || n >= sizeof(buf)) {
+    return 0;
+  }
+  int v = atoi(buf);
+  return v > 0 ? (unsigned)v : 0;
 }
 
 static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
@@ -1006,15 +1076,64 @@ void flwin32_host_run(FlWin32Host* host) {
   if (host == NULL) {
     return;
   }
-  SetTimer(host->window, kDrainTimerId, kDrainTimerMs, NULL);
-
-  MSG message;
-  while (GetMessageW(&message, NULL, 0, 0) > 0) {
-    TranslateMessage(&message);
-    DispatchMessageW(&message);
+  // Pick the drain mode (see the two-modes comment above kDrainTimerId).
+  unsigned drain_ms = drain_timer_override_ms();
+  HANDLE drain_event = (drain_ms == 0) ? gcd_main_queue_handle() : NULL;
+  if (drain_event == NULL && drain_ms == 0) {
+    drain_ms = kDrainTimerMs;
   }
 
-  KillTimer(host->window, kDrainTimerId);
+  MSG message;
+
+  if (drain_event != NULL) {
+    flwin32_trace("message loop: main-queue drain is event-driven");
+
+    // Work enqueued during startup -- before the getter above installed the
+    // handle -- signalled nothing, so it is sitting on the queue right now
+    // with no wakeup coming. Every later enqueue signals the event.
+    drain_gcd_main_queue();
+
+    for (;;) {
+      int quit = 0;
+      while (PeekMessageW(&message, NULL, 0, 0, PM_REMOVE)) {
+        if (message.message == WM_QUIT) {
+          quit = 1;
+          break;
+        }
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+      }
+      if (quit) {
+        break;
+      }
+      // What those messages just enqueued runs before we sleep. The event
+      // would wake us for it anyway; this only saves the round trip.
+      drain_gcd_main_queue();
+
+      // MWMO_INPUTAVAILABLE is load-bearing. Without it this wakes only for
+      // input that arrives AFTER the wait begins, and a message already
+      // sitting in the queue -- routine, since PeekMessage above marks what
+      // it looked at as old -- would sleep the loop forever.
+      DWORD r = MsgWaitForMultipleObjectsEx(1, &drain_event, INFINITE,
+                                            QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+      if (r == WAIT_OBJECT_0) {
+        drain_gcd_main_queue();
+      } else if (r == WAIT_FAILED) {
+        break;
+      }
+      // WAIT_OBJECT_0 + 1 is new input; the PeekMessage above pumps it.
+    }
+  } else {
+    flwin32_trace("message loop: main-queue drain polls");
+    SetTimer(host->window, kDrainTimerId, drain_ms, NULL);
+
+    while (GetMessageW(&message, NULL, 0, 0) > 0) {
+      TranslateMessage(&message);
+      DispatchMessageW(&message);
+    }
+
+    KillTimer(host->window, kDrainTimerId);
+  }
 }
 
 void flwin32_host_set_fullscreen(FlWin32Host* host, int32_t fullscreen) {
