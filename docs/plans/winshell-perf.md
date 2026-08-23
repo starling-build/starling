@@ -244,12 +244,78 @@ exactly like a focused window. At 0.447% for 62.2 ticks that is ~72 µs a
 tick, against ~35 µs for a drain-timer tick, which is why removing 125
 drain ticks and leaving 62 DM ticks lands at half.
 
-Gating it (armed on `DM_POINTERHITTEST`, killed when the gesture ends,
-or simply not run for parked/hidden views) is worth about as much again
-as this commit — ~0.45% per surface, ~2 more points across the shell —
-and it is the reason a Starling surface cannot reach the 0.0% that
-Windows' own shell processes read. It is an engine change
-(`starling` branch), so it pairs with a shell branch by name.
+**Fixed, and it was worth more than the estimate.** Engine
+`2974d27e73f` on branch `winshell-idle-drain` (paired by name with this
+repo's branch) arms that timer from the `DM_POINTERHITTEST` that already
+calls `SetContact`, and kills it when the viewport settles. Numbers and
+the settle rule are below.
+
+#### Gated — measured DESKTOP-URK35LH, 2026-08-22
+
+Same one-binary A/B the drain fix used, and for the same reason:
+`STARLING_DM_TIMER=always` restores the free-running timer, so both arms
+are the same exe and the same `flutter_windows.dll`. Two identical parked
+`--files` windows side by side, sampled over the same 240 s:
+
+| parked Files window | CPU (one core) | context switches/s |
+|---|---|---|
+| gated (default) | **0.013%** | 1 |
+| free-running 14 ms timer | **0.786%** | 98 |
+
+**62.5x**, and 1 context switch a second is a process that is genuinely
+asleep rather than merely cheap. The whole five-surface session at idle
+now reads **2.92% of one core** (oneview 1.87, run 0.62, banners 0.26,
+notifications 0.16, supervisor 0.00), against 3.96-5.42% before, with
+per-surface context switches of 4-44/s where the drain fix alone left
+394-437/s. Both halves of the floor are gone; what a parked Starling
+surface costs now is what it actually does.
+
+**Settle is later than "the user lifted their fingers", and getting that
+wrong breaks the *next* gesture, silently.** The viewport runs in
+MANUALUPDATE mode, so DirectManipulation advances only while our timer
+pumps `Update()` — including the inertia after the fingers leave *and*
+the synthesized `ZoomToRect` that resets the transform afterwards.
+Stopping at `DIRECTMANIPULATION_READY` would strand
+`during_synthesized_reset_` true, and the handler's first branch would
+then swallow the next gesture's status change. So the reset counts as
+unsettled while it is in flight. A contact that never becomes a gesture
+(a tap) reports no status change at all and so never settles: `Update()`
+counts idle passes and stops after ~1 s, which also covers the DM error
+paths that leave a reset unfinished. A gesture the user holds still also
+reports nothing and must NOT be stopped — hence the count is reset by
+viewport activity, not by content updates. Three unit tests in
+`direct_manipulation_unittests.cc` hold those three cases apart, and the
+`DM_POINTERHITTEST` tests in `window_unittests.cc` now assert the arming
+as well as the contact.
+
+**No trackpad exists on this box, so the gesture path itself is covered
+by unit tests, not by hardware.** That is the one gap in this
+verification. Everything else was driven live on the gated build: the
+1 Hz clock across a minute boundary, the dock's hover dwell label (cold
+and warm), Start via the toggle broadcast and via a real tile click,
+typed search, Escape and click-away, the tray chevron flyout, Files
+launched from its tile, its full context menu with real verbs, and the
+wheel scrolling its listing.
+
+**A scare worth recording: the stuck tray flyout suppresses the dock's
+hover labels.** After the fix, the dock's hover label stopped appearing
+— and appeared again under `STARLING_DM_TIMER=always`, which reads
+exactly like a regression. It is not. The runs that failed had all
+followed a tray-chevron click, and the tray overflow flyout that opens
+but never dismisses (already known, and present on the old exe) leaves
+the dock's hover flyout dead for the rest of that session. Clicking the
+chevron and then hovering reproduces it on demand in either mode; a
+session restart clears it. Cost about an hour, and it is a second reason
+to fix that flyout.
+
+**What it is NOT: libdispatch main-queue timers wake the drain fine.**
+The obvious theory for a late hover label was that the event-driven drain
+sleeps through `asyncAfter`, with the old 62 Hz DM timer having masked
+it. A direct probe says no, on both platforms: schedule a 400 ms
+main-queue timer, wait on `_dispatch_get_main_queue_handle_4CF`, and the
+handle is signalled at 413 ms on Windows and 400.2 ms on Linux. The
+drain design is sound for timers; only nested modal loops (above) still
+defer main-queue work.
 
 Landmine while in there: `kDirectManipulationTimer` is **1**, the same
 numeric id as `flwin32_host.c`'s `kDrainTimerId`. They live on different
