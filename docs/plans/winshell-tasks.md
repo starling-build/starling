@@ -61,7 +61,14 @@ process** (ERROR_NOT_FOUND), so its poll follows PRESENCE instead: 2 s
 while someone is at the machine, 15 s while nobody is. Bigger than either:
 `Task.detached { while true { await Task.sleep } }` costs ~46 context
 switches a second on Windows and is now a libdispatch timer. Whole session
-at idle: **2.34% → 0.65% → 0.08% of one core**, dwm 0.03%.
+at idle: **2.34% → 0.65% → 0.08% of one core**, dwm 0.03%. Then the
+chrome's own 5 s tick went the same way — five subscriptions
+(`WM_POWERBROADCAST`, `WM_SETTINGCHANGE`, `TaskbarCreated`, WLAN + IP
+callbacks, `RegNotifyChangeKeyValue`) in `Win32Status.watch`, leaving the
+chrome at **0.00% and 2 context switches a second**, and a promoted tray
+icon reaching the strip in 1.2 s instead of up to five. Two polls remain:
+the banner store (the OS refuses the arrival event to an unpackaged
+process) and the supervisor's 5 s wait timeout.
 
 **The dock's flyouts dismiss on click-away now** — the tray overflow that
 opened and never closed, and Quick Settings and a tile's menu with it.

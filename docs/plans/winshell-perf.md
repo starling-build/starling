@@ -478,6 +478,43 @@ Whole session at idle, five surfaces, 60 s samples:
 with `dwm` at 0.03%. A parked Starling desktop now costs about a tenth of
 one percent of one core, compositor included.
 
+#### And then the chrome's tick went too — 2026-08-23
+
+Three polls were left after the above: the chrome's 5 s tick, the banner
+store, and the supervisor's 5 s wait on its children. **The first is
+gone.** Its three jobs each had a notification behind them, and
+`Win32Status.watch` (flwin32_status.c) subscribes to all of them on one
+thread:
+
+| what moved | how Windows says so |
+|---|---|
+| battery, AC/battery | `WM_POWERBROADCAST` + `RegisterPowerSettingNotification` |
+| theme | `WM_SETTINGCHANGE` |
+| explorer's taskbar came back | it broadcasts `TaskbarCreated` itself |
+| Wi-Fi association and signal | `WlanRegisterNotification` |
+| anything with a cable | `NotifyIpInterfaceChange` |
+| the tray's promoted/hidden split | `RegNotifyChangeKeyValue` |
+
+**The trap, and the reason the watcher owns a window:** a power or
+settings broadcast reaches TOP-LEVEL windows only. A message-only window
+gets neither, and the failure is silence.
+
+Volume, night light and energy saver are deliberately absent: the STRIP
+does not show them. They live in Quick Settings, which asks for a fresh
+read when it opens. Nothing on screen is stale and nothing is on a timer.
+
+The chrome now reads **0.00% of one core and 2 context switches a
+second**, and the whole session 0.10%. Verified with the events rather
+than only the CPU: promoting a hidden tray icon in the registry (what
+Windows' own Settings writes) puts it on the strip in **1.2 s** where the
+poll could take five, and flipping `AppsUseLightTheme` with an
+`ImmersiveColorSet` broadcast turns Quick Settings dark and back.
+
+Two polls remain, and both are honest: the banner store (Windows refuses
+an unpackaged process the arrival event) and the supervisor's 5 s timeout
+on a blocking wait over its children's handles, which costs 0.00% and
+only re-parks an overlay that died.
+
 One residual, separate from this: `GpuDmaBufRenderer.swift`'s poll loop
 keeps a **100 ms idle backstop** (10 Hz) alongside the GCD fd. Far
 cheaper than 125 Hz and it was never the floor here, but it is not zero
