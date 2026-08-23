@@ -55,6 +55,7 @@
 #include <shellapi.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "include/FlutterWin32Bridge.h"
 
@@ -243,6 +244,48 @@ int32_t flwin32_explorer_taskbar_visible(void) {
  * Raising an existing window rather than starting a second process is not
  * politeness: two Settings windows would each hold their own idea of the
  * display mode and the volume, and the second one to be touched would win. */
+/* Start another run of this executable with `argument`, and NO console.
+ *
+ * CreateProcessW rather than ShellExecuteW, purely for CREATE_NO_WINDOW:
+ * this is a console-subsystem binary, so Windows pops a console for every
+ * child that does not say otherwise. The one it popped for a Files window
+ * was a full-screen terminal sitting BEHIND that window -- engine log text
+ * spilling out around its edges, and a second tile in our own dock for a
+ * window the user never opened. The supervisor spawns the dock and the
+ * desktop this way for the same reason; see flwin32_sessionslot_spawn_self.
+ *
+ * Passing SW_HIDE to ShellExecuteW looks like the smaller fix and is a trap.
+ * It suppresses the console by setting STARTUPINFO.wShowWindow, and Windows
+ * applies THAT to the process's first ShowWindow call whatever nCmdShow the
+ * call itself passes -- so the surface's own window never appears either.
+ * Measured on the box before this went in: the --files process came up with
+ * zero visible windows, console gone and Files gone with it. */
+static void spawn_surface(const wchar_t* argument) {
+    wchar_t exe[MAX_PATH];
+    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
+
+    /* CreateProcessW mutates the command line it is given, so it cannot be a
+     * literal: build a writable "exe args". */
+    size_t len = wcslen(exe) + wcslen(argument) + 4;
+    wchar_t* cmd = (wchar_t*)malloc(len * sizeof(wchar_t));
+    if (cmd == NULL) return;
+    swprintf(cmd, len, L"\"%s\" %s", exe, argument);
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    if (CreateProcessW(exe, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW,
+                       NULL, NULL, &si, &pi)) {
+        /* Nothing here waits on the child -- it is a sibling surface, not a
+         * subprocess. Both handles go back now or the entry leaks until we
+         * exit. */
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    free(cmd);
+}
+
 static void open_surface(const wchar_t* title, const wchar_t* argument) {
     HWND existing = FindWindowW(L"FlutterSwiftWin32Host", title);
     if (existing != NULL) {
@@ -251,9 +294,7 @@ static void open_surface(const wchar_t* title, const wchar_t* argument) {
         return;
     }
 
-    wchar_t exe[MAX_PATH];
-    if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
-    ShellExecuteW(NULL, L"open", exe, argument, NULL, SW_SHOWNORMAL);
+    spawn_surface(argument);
 }
 
 void flwin32_shell_open_settings(void) {
@@ -278,6 +319,40 @@ void flwin32_shell_ensure_notification_center(void) {
 
 void flwin32_shell_open_files(void) {
     open_surface(L"Starling Files", L"--files");
+}
+
+/* Files' own File > New window, which means a SECOND window on a directory
+ * of its choosing -- so no FindWindowW raise here, unlike open_surface: the
+ * one window that already exists is the one asking. Console-less for the
+ * same reason as everything else spawned here.
+ *
+ * The directory is quoted because a path with a space in it (C:\Program
+ * Files, and every "OneDrive - <company>") would otherwise reach the child
+ * as two arguments and FilesBloc.requestedDirectory would read the first
+ * half. */
+void flwin32_shell_open_files_at(const char* dir_utf8) {
+    if (dir_utf8 == NULL || dir_utf8[0] == '\0') {
+        flwin32_shell_open_files();
+        return;
+    }
+
+    int n = MultiByteToWideChar(CP_UTF8, 0, dir_utf8, -1, NULL, 0);
+    if (n <= 0) return;
+    wchar_t* dir = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+    if (dir == NULL) return;
+    if (MultiByteToWideChar(CP_UTF8, 0, dir_utf8, -1, dir, n) == 0) {
+        free(dir);
+        return;
+    }
+
+    size_t len = wcslen(dir) + 16;
+    wchar_t* argument = (wchar_t*)malloc(len * sizeof(wchar_t));
+    if (argument != NULL) {
+        swprintf(argument, len, L"--files \"%s\"", dir);
+        spawn_surface(argument);
+        free(argument);
+    }
+    free(dir);
 }
 
 /* Start the banner PROCESS if it is not running -- parked like the others.

@@ -207,11 +207,22 @@ int32_t flwin32_shellnew_templates(char* out, int32_t out_size);
 // Hands the folder to Windows' own Explorer.
 int32_t flwin32_open_in_explorer(const char* path);
 
+// Runs a program to completion with NO console window, returning its exit
+// code (-1 if it could not be started). For the console-subsystem tools the
+// file explorer shells out to -- tar.exe for Compress to ZIP -- which
+// otherwise flash a terminal over the desktop for the length of the job.
+// BLOCKS: call it off the UI thread.
+int32_t flwin32_run_hidden(const char* exe, const char* args, const char* dir);
+
 // Opens Starling's Settings surface, or raises the one already open.
 void flwin32_shell_open_settings(void);
 
 // Opens Starling's file explorer, or raises the one already open.
 void flwin32_shell_open_files(void);
+
+// Opens ANOTHER file explorer window, showing `dir` -- Files' own File > New
+// window. Never raises an existing one: the window asking is that window.
+void flwin32_shell_open_files_at(const char* dir);
 
 // -- file operations, through the shell's own machinery ---------------------
 //

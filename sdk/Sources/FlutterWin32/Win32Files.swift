@@ -681,18 +681,18 @@ public enum Win32FileOps {
                 zipName = "\(stem) (\(counter)).zip"
                 counter += 1
             }
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath:
-                "C:\\Windows\\System32\\tar.exe")
-            // -C first: the archive holds the item by NAME, not by its
+            // Through the bridge rather than `Process`, for CREATE_NO_WINDOW:
+            // tar.exe is console-subsystem, so the ordinary spawn puts a
+            // black terminal on screen for the length of the archive.
+            //
+            // The working directory carries the "-C" that used to be an
+            // argument: the archive holds the item by NAME, not by its
             // absolute path -- an unzip should produce "sub/", not
             // "Users/starling/.../sub/".
-            process.arguments = ["-a", "-c", "-f", zipName,
-                                 source.lastPathComponent]
-            process.currentDirectoryURL = URL(fileURLWithPath: parent)
-            let ok = (try? process.run()) != nil
-            if ok { process.waitUntilExit() }
-            let made = ok && process.terminationStatus == 0
+            let args = "-a -c -f \"\(zipName)\" \"\(source.lastPathComponent)\""
+            let code = flwin32_run_hidden("C:\\Windows\\System32\\tar.exe",
+                                          args, parent)
+            let made = code == 0
             if let done {
                 DispatchQueue.main.async {
                     done(made ? Win32Files.join(parent, zipName) : nil)

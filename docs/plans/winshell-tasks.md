@@ -737,3 +737,24 @@ Winlogon Shell= slot, every phase VM-proven before the dev box tries it.
       The flutter githooks cannot run on this box -- they are vpython3
       wrappers and depot_tools is not installed -- so engine pushes need
       --no-verify until that changes.
+- [x] A surface no longer opens with a CONSOLE behind it. Clicking Files in
+      the dock put a full-screen Windows Terminal window under the Files
+      window -- engine log text around its edges, and a second tile in our
+      own dock for a window nobody opened. `open_surface` reached for
+      `ShellExecuteW(..., SW_SHOWNORMAL)`, and this is a console-subsystem
+      binary, so Windows popped a console for the child. The parked surfaces
+      (notifications, banners, Run, launcher) never showed it only because
+      they pass SW_HIDE.
+      **SW_HIDE is the trap, not the fix.** It suppresses the console by
+      setting `STARTUPINFO.wShowWindow`, and Windows applies that to the
+      process's FIRST `ShowWindow` whatever nCmdShow the call passes -- so
+      the surface's own window never appears either. Measured on the box:
+      the `--files` process came up with the console gone and zero visible
+      windows. The fix is `CreateProcessW` with `CREATE_NO_WINDOW`, which is
+      what the supervisor already does for the dock and the desktop
+      (`flwin32_sessionslot_spawn_self`). Same treatment for Files' own
+      File > New window, which used Foundation's `Process` and popped one
+      too, and for Compress-to-ZIP's `tar.exe` (`flwin32_run_hidden`).
+      Verified from the dock tile: Files opens, no console class on screen
+      at all; New window spawns `--files "<dir>"` quoted and console-less;
+      the zip is a valid archive with the entries still relative.

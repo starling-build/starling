@@ -319,6 +319,19 @@ public enum Win32Shell {
         flwin32_shell_open_files()
     }
 
+    /// Opens a SECOND file explorer window on `directory` — Files' own
+    /// File > New window, which is the one case that wants another window
+    /// rather than the existing one raised.
+    ///
+    /// Spawning this through the bridge rather than `Process` is not
+    /// ceremony: this is a console-subsystem binary, and a child started
+    /// without `CREATE_NO_WINDOW` gets a console window of its own — which
+    /// is what used to sit behind a Files window looking like a terminal
+    /// background.
+    public static func openFiles(at directory: String) {
+        flwin32_shell_open_files_at(directory)
+    }
+
     /// Explorer's own taskbar — hidden, so that Starling's bar and dock are
     /// the only shell chrome on the screen rather than a second set beside
     /// Windows'.

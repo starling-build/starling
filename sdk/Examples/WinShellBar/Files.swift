@@ -1502,14 +1502,8 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     private func openNewWindow() {
-        let exe = ProcessInfo.processInfo.arguments[0]
         let dir = bloc.state.directory
-        Task.detached {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: exe)
-            process.arguments = ["--files", dir]
-            try? process.run()
-        }
+        Task.detached { Win32Shell.openFiles(at: dir) }
     }
 
     private func commandBar() -> Widget {

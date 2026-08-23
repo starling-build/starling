@@ -54,6 +54,22 @@ static int32_t wide_out(const wchar_t* w, char* out, int32_t out_size) {
     return need;
 }
 
+/* The other direction, allocating. The calls above each size a stack buffer
+ * from a path they already have; this is for the ones that do not know the
+ * length up front. Caller frees. */
+static wchar_t* files_utf8_to_wide(const char* s) {
+    if (s == NULL) return NULL;
+    int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    if (n <= 0) return NULL;
+    wchar_t* w = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+    if (w == NULL) return NULL;
+    if (MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n) == 0) {
+        free(w);
+        return NULL;
+    }
+    return w;
+}
+
 /* The places the sidebar offers, in the order it offers them. Kept as an
  * index rather than a GUID across the boundary so the Swift side does not
  * have to carry Windows' GUID table around. */
@@ -464,4 +480,56 @@ int32_t flwin32_shellnew_templates(char* out, int32_t out_size) {
         }
     }
     return used;
+}
+
+/* ------------------------------------------------------ running a console
+ * program without showing one
+ *
+ * Compress-to-ZIP hands the work to tar.exe, which Windows ships and which is
+ * console-subsystem: started the ordinary way it gets a console WINDOW, so
+ * zipping a folder from our file explorer flashes a black terminal over the
+ * desktop for as long as the archive takes. CREATE_NO_WINDOW is the whole
+ * fix, and Foundation's Process cannot ask for it -- hence this.
+ *
+ * BLOCKS until the child exits, and returns its exit code (-1 if it could not
+ * be started at all). Call it off the UI thread, like everything else here. */
+int32_t flwin32_run_hidden(const char* exe, const char* args, const char* dir) {
+    if (exe == NULL) return -1;
+
+    wchar_t* wexe = files_utf8_to_wide(exe);
+    wchar_t* wargs = args != NULL ? files_utf8_to_wide(args) : NULL;
+    wchar_t* wdir = dir != NULL ? files_utf8_to_wide(dir) : NULL;
+    int32_t rc = -1;
+
+    if (wexe != NULL && (args == NULL || wargs != NULL)
+                     && (dir == NULL || wdir != NULL)) {
+        /* CreateProcessW mutates the command line, so it gets its own buffer.
+         * argv[0] first, quoted: the CRT's parser drops it, and a program
+         * whose path has a space in it would otherwise arrive split. */
+        size_t len = wcslen(wexe) + (wargs ? wcslen(wargs) : 0) + 4;
+        wchar_t* cmd = (wchar_t*)malloc(len * sizeof(wchar_t));
+        if (cmd != NULL) {
+            swprintf(cmd, len, L"\"%s\" %s", wexe, wargs ? wargs : L"");
+
+            STARTUPINFOW si;
+            PROCESS_INFORMATION pi;
+            memset(&si, 0, sizeof(si));
+            si.cb = sizeof(si);
+            if (CreateProcessW(wexe, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW,
+                               NULL, wdir, &si, &pi)) {
+                WaitForSingleObject(pi.hProcess, INFINITE);
+                DWORD code = (DWORD)-1;
+                GetExitCodeProcess(pi.hProcess, &code);
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                rc = (int32_t)code;
+            }
+            free(cmd);
+        }
+    }
+
+    free(wexe);
+    free(wargs);
+    free(wdir);
+    return rc;
 }
