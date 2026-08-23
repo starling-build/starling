@@ -318,6 +318,69 @@ if let index = CommandLine.arguments.firstIndex(of: "--ns-probe") {
     exit(0)
 }
 
+// `--apps-probe [name]` prints the catalog the dock and the launcher read --
+// both halves of it, marked -- and with a name, STARTS the first app whose
+// name matches and says which route did it.
+//
+// The oracle for the half that has no files: a packaged app is a row in a
+// shell folder and nothing else, so "is Settings in the catalog" and "does
+// starting it by id actually work here" cannot be answered by looking at the
+// disk, and answering them through the GUI means trusting the launcher's
+// filtering, its icons and its click path at the same time.
+if let index = CommandLine.arguments.firstIndex(of: "--apps-probe") {
+    let wanted = index + 1 < CommandLine.arguments.count
+        && !CommandLine.arguments[index + 1].hasPrefix("--")
+        ? CommandLine.arguments[index + 1] : ""
+    // Timed in halves, because the two catalogs cost wildly different
+    // things: the shortcut walk is files, and the AppsFolder is the shell
+    // resolving every installed app -- including the package repository for
+    // the packaged ones.
+    let folderStart = Date()
+    var folderCount: Int32 = 0
+    if let list = flwin32_apps_folder_list() {
+        folderCount = flwin32_apps_folder_count(list)
+        flwin32_apps_folder_free(list)
+    }
+    let folderMs = Int(Date().timeIntervalSince(folderStart) * 1000)
+    let start = Date()
+    let apps = Win32AppCatalog.apps()
+    let ms = Int(Date().timeIntervalSince(start) * 1000)
+    print("[apps-probe] AppsFolder alone: \(folderCount) items in \(folderMs)ms")
+    let byId = apps.filter { !$0.appUserModelID.isEmpty }
+    let packaged = byId.filter { $0.appUserModelID.contains("!") }
+    print("[apps-probe] \(apps.count) apps in \(ms)ms — "
+          + "\(apps.count - byId.count) from shortcuts, \(byId.count) by id "
+          + "(\(packaged.count) packaged)")
+    for app in apps where !app.appUserModelID.isEmpty {
+        print("  id=[\(app.appUserModelID)] name=[\(app.name)] "
+              + "target=[\(app.target)]")
+    }
+    guard !wanted.isEmpty else { exit(0) }
+    guard let app = apps.first(where: {
+        $0.name.localizedCaseInsensitiveCompare(wanted) == .orderedSame
+    }) ?? apps.first(where: {
+        $0.name.lowercased().contains(wanted.lowercased())
+    }) else {
+        print("[apps-probe] no app named [\(wanted)]")
+        exit(1)
+    }
+    print("[apps-probe] starting [\(app.name)] id=[\(app.appUserModelID)] "
+          + "target=[\(app.target)]")
+    if !app.appUserModelID.isEmpty, app.target.isEmpty {
+        var diag = [CChar](repeating: 0, count: 256)
+        let route = diag.withUnsafeMutableBufferPointer {
+            flwin32_launch_app_id_ex(app.appUserModelID, $0.baseAddress, 256)
+        }
+        print("[apps-probe] route=" + (route == 1 ? "activation-manager"
+                                       : route == 2 ? "shell-path" : "FAILED")
+              + " diag=[\(String(cString: diag))]")
+        exit(route == 0 ? 1 : 0)
+    }
+    let ok = Win32AppCatalog.launch(app)
+    print("[apps-probe] shortcut route ok=\(ok)")
+    exit(ok ? 0 : 1)
+}
+
 // `--menu-probe <path>` prints the shell's context-menu verbs for a path and
 // exits; `--background` asks for the folder's menu instead of the item's, and
 // `--extended` is Shift+right-click.

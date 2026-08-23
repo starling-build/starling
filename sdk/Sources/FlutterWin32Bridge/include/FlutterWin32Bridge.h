@@ -1329,6 +1329,41 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size);
 int32_t flwin32_launch(const char* path, const char* arguments,
                        const char* directory);
 
+// -- The AppsFolder: the apps with no shortcut -------------------------------
+//
+// A packaged app (MSIX/Store/UWP) has no .lnk anywhere. It lives in the
+// virtual `shell:AppsFolder`, keyed by AppUserModelID, which is the other
+// half of what Explorer's Start enumerates -- and without it Settings, the
+// Store, Photos, Notepad and Calculator are not merely missing from the
+// launcher, they cannot be started at all.
+//
+// Snapshot object: one call resolves every child into plain C strings and
+// releases all COM before returning, so it is safe to hand across threads.
+// Enumerating asks the shell about every installed app; call it off the UI
+// thread, like the .lnk walk beside it.
+typedef struct FlWin32AppsList FlWin32AppsList;
+FlWin32AppsList* flwin32_apps_folder_list(void);
+void flwin32_apps_folder_free(FlWin32AppsList* list);
+int32_t flwin32_apps_folder_count(FlWin32AppsList* list);
+
+// field: 0 = the AppUserModelID, 1 = the display name.
+int32_t flwin32_apps_folder_field(FlWin32AppsList* list, int32_t index,
+                                  int32_t field, char* out, int32_t out_size);
+
+// Starts an app by AppUserModelID: the activation manager for a packaged id,
+// and "shell:AppsFolder\<id>" through the shell for everything else (and as
+// the fallback when the manager refuses, which is what an elevated process
+// gets). Returns WHICH route ran: 1 the activation manager, 2 the shell
+// path, 0 nothing started.
+int32_t flwin32_launch_app_id(const char* app_id);
+
+// The same, with the codes both routes answered with written into `diag`
+// ("activate=0x… shellexec=… lasterr=…"). A launch that does not happen is
+// otherwise indistinguishable from one the shell silently swallowed, and
+// these two routes fail for entirely different reasons.
+int32_t flwin32_launch_app_id_ex(const char* app_id, char* diag,
+                                 int32_t diag_size);
+
 // -- Explorer's own shell chrome ---------------------------------------------
 //
 // Starling is a SECOND taskbar until this runs. Hiding Explorer's costs

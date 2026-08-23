@@ -229,6 +229,11 @@ int32_t flwin32_icon_rasterize(uint64_t window,
     return rasterize(icon, owned, size, out_pixels, out_width, out_height);
 }
 
+/* Defined below, next to the thumbnail that shares it. */
+static int32_t shell_item_image(const wchar_t* wide, int32_t side, int flags,
+                                uint8_t** out_pixels, int32_t* out_width,
+                                int32_t* out_height);
+
 int32_t flwin32_icon_rasterize_path(const char* path,
                                     int32_t size,
                                     uint8_t** out_pixels,
@@ -288,8 +293,25 @@ int32_t flwin32_icon_rasterize_path(const char* path,
     memset(&info, 0, sizeof(info));
     UINT flags = SHGFI_ICON | (size > 24 ? SHGFI_LARGEICON : SHGFI_SMALLICON);
     DWORD_PTR ok = SHGetFileInfoW(wide, 0, &info, sizeof(info), flags);
+    if (ok == 0 || info.hIcon == NULL) {
+        /* NOT EVERY "PATH" IS A PATH. SHGetFileInfoW parses a file-system
+         * path and fails flat on a parsing name that has no file behind it
+         * -- "shell:AppsFolder\<AUMID>" for a packaged app, a ::{CLSID}
+         * for a virtual folder. Those are exactly the entries the AppsFolder
+         * half of the catalog is made of, and every one of them would draw
+         * the generic placeholder glyph forever: the miss is cached, so it
+         * reads as "Store apps have no icons" rather than "we asked the
+         * wrong way".
+         *
+         * The image factory resolves any shell item, which for a packaged
+         * app is its own logo -- the picture Explorer's Start draws. */
+        int32_t got = shell_item_image(wide, size,
+                                       SIIGBF_ICONONLY | SIIGBF_RESIZETOFIT,
+                                       out_pixels, out_width, out_height);
+        free(wide);
+        return got;
+    }
     free(wide);
-    if (ok == 0 || info.hIcon == NULL) return 0;
 
     /* SHGetFileInfo's icon is the caller's to destroy. */
     return rasterize(info.hIcon, 1, size, out_pixels, out_width, out_height);
@@ -307,37 +329,26 @@ int32_t flwin32_icon_rasterize_handle(uint64_t icon,
                      out_height);
 }
 
-/* A file's THUMBNAIL -- the picture itself for an image, a frame for a
- * video -- through IShellItemImageFactory, which is the machinery behind
- * Explorer's own thumbnails and its on-disk thumbnail cache: a folder the
- * user has seen in Explorer answers from cache, the same speed Explorer
- * gets. SIIGBF_THUMBNAILONLY on purpose -- a file type with no thumbnail
- * handler FAILS here instead of answering with its icon, and the caller
- * keeps drawing the type icon it already has; asking this for a .txt would
- * just be the slow route to the same picture.
+/* The shell's IMAGE FACTORY, for one already-wide parsing name.
  *
- * The result is LETTERBOXED onto a transparent side-by-side square: the
- * factory preserves aspect (a 3:2 photo comes back 96x64), and the caller's
- * texture slot is square -- stretching is what a wrong thumbnail looks
- * like, and centring is what Explorer does. Same output contract as every
- * rasterizer here: premultiplied RGBA, malloc'd, freed by
- * flwin32_icon_free.
+ * Two callers with opposite needs share it: the thumbnail below wants the
+ * picture and nothing else (SIIGBF_THUMBNAILONLY, which FAILS rather than
+ * falling back to an icon), and the path rasterizer wants an icon for
+ * something that is not a file at all (SIIGBF_ICONONLY). What they have in
+ * common is the awkward half -- an HBITMAP whose rows have to be read back,
+ * swizzled and letterboxed onto a square.
  *
- * COM-inits its own apartment (tolerating a caller's) -- callers are the
- * icon queue's worker, same situation as flwin32_wallpaper_average. */
-int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
-                               uint8_t** out_pixels, int32_t* out_width,
-                               int32_t* out_height) {
-    if (path == NULL || path[0] == 0 || side <= 0 || out_pixels == NULL) {
-        return 0;
-    }
-    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
-    if (n <= 0) return 0;
-    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
-    if (wide == NULL) return 0;
-    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
-
-    HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+ * LETTERBOXED, because the factory preserves aspect (a 3:2 photo comes back
+ * 96x64) and the caller's texture slot is square: stretching is what a wrong
+ * thumbnail looks like, and centring is what Explorer does. Output is the
+ * same contract as every rasterizer here: premultiplied RGBA, malloc'd,
+ * freed by flwin32_icon_free.
+ *
+ * Does NOT touch COM -- the caller owns its apartment, and the two here
+ * acquire one differently. */
+static int32_t shell_item_image(const wchar_t* wide, int32_t side, int flags,
+                                uint8_t** out_pixels, int32_t* out_width,
+                                int32_t* out_height) {
     int ok = 0;
     IShellItem* item = NULL;
     if (SUCCEEDED(SHCreateItemFromParsingName(wide, NULL, &IID_IShellItem,
@@ -349,9 +360,8 @@ int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
             want.cx = side;
             want.cy = side;
             HBITMAP bitmap = NULL;
-            if (SUCCEEDED(factory->lpVtbl->GetImage(
-                    factory, want,
-                    SIIGBF_THUMBNAILONLY | SIIGBF_RESIZETOFIT, &bitmap))
+            if (SUCCEEDED(factory->lpVtbl->GetImage(factory, want, flags,
+                                                    &bitmap))
                 && bitmap != NULL) {
                 BITMAP info;
                 if (GetObjectW(bitmap, sizeof(info), &info)
@@ -415,6 +425,36 @@ int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
         }
         item->lpVtbl->Release(item);
     }
+    return ok;
+}
+
+/* A file's THUMBNAIL -- the picture itself for an image, a frame for a
+ * video -- through the image factory above, which is the machinery behind
+ * Explorer's own thumbnails and its on-disk thumbnail cache: a folder the
+ * user has seen in Explorer answers from cache, the same speed Explorer
+ * gets. SIIGBF_THUMBNAILONLY on purpose -- a file type with no thumbnail
+ * handler FAILS here instead of answering with its icon, and the caller
+ * keeps drawing the type icon it already has; asking this for a .txt would
+ * just be the slow route to the same picture.
+ *
+ * COM-inits its own apartment (tolerating a caller's) -- callers are the
+ * icon queue's worker, same situation as flwin32_wallpaper_average. */
+int32_t flwin32_icon_thumbnail(const char* path, int32_t side,
+                               uint8_t** out_pixels, int32_t* out_width,
+                               int32_t* out_height) {
+    if (path == NULL || path[0] == 0 || side <= 0 || out_pixels == NULL) {
+        return 0;
+    }
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return 0;
+    wchar_t* wide = (wchar_t*)calloc((size_t)n, sizeof(wchar_t));
+    if (wide == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+
+    HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    int32_t ok = shell_item_image(wide, side,
+                                  SIIGBF_THUMBNAILONLY | SIIGBF_RESIZETOFIT,
+                                  out_pixels, out_width, out_height);
     free(wide);
     if (init == S_OK || init == S_FALSE) CoUninitialize();
     return ok;

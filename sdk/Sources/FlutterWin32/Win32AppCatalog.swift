@@ -4,11 +4,20 @@
 // What is installed on this machine, for the dock and the launcher.
 //
 // The Linux shell reads Starling's own app registry — `catalog.d/*.app` plus
-// what `app-install` records. Windows has no equivalent, and the thing that
-// stands in for it is the START MENU: a tree of `.lnk` shortcuts under a
-// machine-wide folder and a per-user one. Explorer's own Start reads exactly
-// this, so a shell that reads it sees the same apps the user expects to see,
-// including ones installed after we started.
+// what `app-install` records. Windows has no equivalent, and what stands in
+// for it is TWO catalogs:
+//
+//   - the START MENU, a tree of `.lnk` shortcuts under a machine-wide folder
+//     and a per-user one. It says the most: the target, its arguments, and
+//     the folder the launcher groups by.
+//   - the APPSFOLDER, a virtual shell folder keyed by AppUserModelID, which
+//     is where a PACKAGED app (MSIX/Store/UWP) lives — it has no shortcut
+//     anywhere on disk. Reading the Start Menu alone means Settings, the
+//     Store, Photos, Notepad, Terminal and Calculator are not just missing
+//     from the launcher: they cannot be started from this shell at all.
+//
+// Explorer's own Start reads both, and so does this. The shortcut wins where
+// the two describe the same app, because it is the one carrying detail.
 
 #if os(Windows)
 import FlutterWin32Bridge
@@ -35,17 +44,38 @@ public struct Win32App: Sendable, Equatable, Identifiable {
     public let arguments: String
     /// The shortcut's working directory, for the same reason.
     public let workingDirectory: String
+    /// The AppUserModelID, for an entry that came from the AppsFolder rather
+    /// than a shortcut. Empty for everything the `.lnk` walk produced — and
+    /// non-empty is what marks an app that can only be started by id.
+    public let appUserModelID: String
+
+    public init(shortcutPath: String, name: String, target: String,
+                category: String, arguments: String, workingDirectory: String,
+                appUserModelID: String = "") {
+        self.shortcutPath = shortcutPath
+        self.name = name
+        self.target = target
+        self.category = category
+        self.arguments = arguments
+        self.workingDirectory = workingDirectory
+        self.appUserModelID = appUserModelID
+    }
 }
 
 public enum Win32AppCatalog {
 
-    /// Everything in both Start Menu trees, sorted by name, de-duplicated by
-    /// target so an app installed both machine-wide and per-user appears once.
+    /// Both catalogs, merged and sorted by name: the two Start Menu trees
+    /// de-duplicated by target so an app installed machine-wide and per-user
+    /// appears once, then everything in the AppsFolder the shortcuts did not
+    /// already account for.
     ///
     /// This walks a few hundred files and resolves each through COM, so it is
     /// tens of milliseconds — a startup and refresh cost, not a per-frame one.
     public static func apps() -> [Win32App] {
         var byKey: [String: Win32App] = [:]
+        // Every name the shortcut walk produced, which is how an AppsFolder
+        // entry is recognized as one we already have.
+        var shortcutNames: Set<String> = []
         for which in Int32(0)...Int32(1) {
             guard let root = knownFolder(which) else { continue }
             for app in scan(root) {
@@ -54,7 +84,26 @@ public enum Win32AppCatalog {
                 // otherwise, which keeps unresolvable ones distinct.
                 let key = app.target.isEmpty ? app.shortcutPath.lowercased() : app.target
                 if byKey[key] == nil { byKey[key] = app }
+                shortcutNames.insert(app.name.lowercased())
             }
+        }
+        for entry in appsFolder() {
+            guard !entry.appID.isEmpty, !entry.name.isEmpty else { continue }
+            // The AppsFolder repeats every Start Menu shortcut — the same app
+            // seen from the other side — so the shortcut wins: it carries a
+            // target to match a window against, arguments, and the folder the
+            // launcher groups by, none of which an AppsFolder entry has.
+            //
+            // By NAME, because the two sides share no other field: a shortcut
+            // has a path and no id, and an entry here has an id and no path.
+            // A collision between two genuinely different apps of the same
+            // name costs one missing entry; not de-duplicating at all costs a
+            // launcher listing everything twice.
+            guard !shortcutNames.contains(entry.name.lowercased()) else { continue }
+            // Same first-wins rule as the walk above: an id that resolves to
+            // an executable we already have is the same app under another
+            // name, and the shortcut's copy is the one worth keeping.
+            if byKey[entry.key] == nil { byKey[entry.key] = entry.app }
         }
         return byKey.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -79,6 +128,12 @@ public enum Win32AppCatalog {
     /// follow that.
     @discardableResult
     public static func launch(_ app: Win32App) -> Bool {
+        // An app with no file behind it is started by ID: there is no
+        // executable to run and no shortcut to open, and the activation
+        // manager is what the Start menu itself uses.
+        if !app.appUserModelID.isEmpty, app.target.isEmpty {
+            return flwin32_launch_app_id(app.appUserModelID) != 0
+        }
         guard canStartDirectly(app) else {
             return flwin32_launch(app.shortcutPath, nil, nil) != 0
         }
@@ -151,6 +206,81 @@ public enum Win32AppCatalog {
                 category: (folder as NSString).lastPathComponent,
                 arguments: info.arguments,
                 workingDirectory: info.workingDirectory))
+        }
+        return out
+    }
+
+    /// One AppsFolder child: its AppUserModelID and what to call it.
+    private struct AppsFolderEntry {
+        let appID: String
+        let name: String
+
+        /// An id that IS a path is an ordinary program addressed by its own
+        /// executable — the shell puts those in the AppsFolder too. Keeping
+        /// it as the target means the entry matches a running window and
+        /// starts without going through the shell at all.
+        ///
+        /// The test is a DRIVE or a UNC root, not merely a backslash, because
+        /// a third shape looks like a path and is not:
+        /// `{1AC14E77-…}\dfrgui.exe` is a known-folder id with a file name
+        /// hung off it, and Windows 11 files most of the old Administrative
+        /// Tools that way. Taken as a target it exists nowhere, so the entry
+        /// draws the placeholder glyph forever (the image factory cannot
+        /// resolve it either — only the full `shell:AppsFolder\…` can) while
+        /// still launching, which reads as "some apps have no icon".
+        var target: String {
+            let id = appID.lowercased()
+            guard !id.contains("!") else { return "" }
+            guard id.hasPrefix("\\\\") || id.dropFirst().hasPrefix(":\\") else {
+                return ""
+            }
+            return id
+        }
+
+        /// Same convention as the shortcut walk: the target when there is
+        /// one, so an app already in the dock by executable does not arrive
+        /// a second time under its id.
+        var key: String {
+            target.isEmpty ? "shell:appsfolder\\" + appID.lowercased() : target
+        }
+
+        /// The parsing name that opens it, used as the id and as the
+        /// shell's own way in — `flwin32_launch` on this string works, which
+        /// makes it a real fallback rather than a label.
+        var app: Win32App {
+            Win32App(shortcutPath: "shell:AppsFolder\\" + appID,
+                     name: name,
+                     target: target,
+                     // No folder to group by: the AppsFolder is flat, exactly
+                     // as Explorer's own "All apps" list is. Loose entries
+                     // are what the launcher already does with a shortcut
+                     // filed at the top level.
+                     category: "",
+                     arguments: "",
+                     workingDirectory: "",
+                     appUserModelID: appID)
+        }
+    }
+
+    /// Everything in `shell:AppsFolder` — packaged apps, and the shell's own
+    /// view of every shortcut. Asks the shell about every installed app, so
+    /// it belongs off the UI thread with the rest of the catalog work.
+    private static func appsFolder() -> [AppsFolderEntry] {
+        guard let list = flwin32_apps_folder_list() else { return [] }
+        defer { flwin32_apps_folder_free(list) }
+        let count = flwin32_apps_folder_count(list)
+        var out: [AppsFolderEntry] = []
+        out.reserveCapacity(Int(count))
+        var buffer = [CChar](repeating: 0, count: 1024)
+        func field(_ index: Int32, _ which: Int32) -> String {
+            let n = buffer.withUnsafeMutableBufferPointer {
+                flwin32_apps_folder_field(list, index, which, $0.baseAddress, 1024)
+            }
+            return n > 0 ? String(cString: buffer) : ""
+        }
+        for index in 0..<count {
+            out.append(AppsFolderEntry(appID: field(index, 0),
+                                       name: field(index, 1)))
         }
         return out
     }
