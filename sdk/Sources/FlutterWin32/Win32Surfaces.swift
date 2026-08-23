@@ -113,7 +113,26 @@ public enum Win32Surfaces {
     /// already built.
     public static func show(_ id: Int) {
         guard let host = Win32WindowedHost.host else { return }
+        // FORCE ONE COMPOSITE, or the window opens blank.
+        //
+        // The adapter composites a SECONDARY view only when that view's own
+        // pipeline has layout or paint work, on purpose: a static second
+        // monitor should not re-present on every animation frame of the
+        // first. A window that has merely become visible has no such work —
+        // its tree is exactly as it was — so the frame the show schedules
+        // paints every other view and skips this one, and the window keeps
+        // whatever it last presented while hidden. For the file explorer,
+        // built at startup, that is the empty page it had before its first
+        // listing arrived: measured, a window shown this way stays white
+        // until something resizes it.
+        //
+        // Both halves are needed. This flag makes the next frame composite
+        // the view; `hostScheduleEngineFrame` is what makes a next frame
+        // happen at all on Windows, where the bridge's own `scheduleFrame`
+        // never produces one.
+        _forceNextComposite = true
         flwin32_surface_show(host.cHost, Int64(id))
+        hostScheduleEngineFrame?()
     }
 
     /// The overlay's visibility changes, with the NEW visibility — richer

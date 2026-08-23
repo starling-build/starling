@@ -463,6 +463,21 @@ void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
     // this for free because overlay_notify makes its tree rebuild; an app
     // surface has no such signal, so ask the engine directly. Same call, same
     // reason, as the desktop's in flwin32_host.c.
+    // AND FORCE A REDRAW. The view composited while hidden -- that is the
+    // point of building it at startup -- but nothing has asked the newly
+    // visible window for a frame, and with explorer absent nothing else will:
+    // the window stays the blank rectangle Windows painted. The overlay gets
+    // this for free because overlay_notify makes its tree rebuild; an app
+    // surface has no such signal, so ask the engine directly. Same call, same
+    // reason, as the desktop's in flwin32_host.c.
+    //
+    // NOT SUFFICIENT ON ITS OWN, measured: this schedules a frame, and the
+    // frame composites a secondary view only when THAT view's pipeline has
+    // work -- which a window that merely became visible does not. The
+    // caller (Win32Surfaces.show) sets the framework's force-composite flag
+    // for exactly this reason; without it the window shows the frame it
+    // composited while hidden, which for the file explorer is the empty page
+    // it had before its first listing arrived.
     FlutterDesktopViewControllerForceRedraw(slot->controller);
     return;
   }
