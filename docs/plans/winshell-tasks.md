@@ -43,8 +43,14 @@ creation and never killed) now runs only while a gesture is in flight —
 engine `2974d27e73f` on branch `winshell-idle-drain`, paired by name.
 Same one-binary A/B: **0.013% vs 0.786% of one core, 62.5x**, and 1
 context switch a second for a parked surface. The whole idle session is
-**2.92% of one core**. What remains at idle is not ours to gate: `dwm`
-costs ~5% composing the one-view chrome.
+**2.92% of one core**, and then **0.31-0.73%** once the shell stopped
+drawing at idle: the dock rebuilt the whole 4K chrome twice a second to
+repaint a clock with no seconds and a status poll whose answer had not
+changed, and the parked Run dialog blinked a caret in a window nobody
+could see (1.9 frames/s). Both fixed; an ordinary parked window reads
+0.000%. `dwm` fell with them, ~5% → **0.05%**: it was recompositing the
+colour-keyed layer because we kept redrawing it, not because it exists.
+What is left is the banner process's ~0.2% notification-store poll.
 
 **The dock's flyouts dismiss on click-away now** — the tray overflow that
 opened and never closed, and Quick Settings and a tile's menu with it.

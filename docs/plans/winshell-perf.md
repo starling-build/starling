@@ -359,6 +359,62 @@ obvious oracle is unavailable), but `SetTimer` on `WM_ENTERSIZEMOVE` /
 `WM_ENTERMENULOOP` and `KillTimer` on exit would close it for nothing at
 idle.
 
+### What was left was not floor, it was frames — 2026-08-22
+
+With both timers gone the question became "why is a parked shell still
+2.3% of a core", and the answer is that it was still DRAWING. Per
+surface, same binary, 60 s each, with the framework's own
+`STARLING_FRAME_LOG=1` counting frames before any present:
+
+| parked surface | cpu | ctxsw/s | frames/s |
+|---|---|---|---|
+| an ordinary window (`--files`) | **0.000%** | 1.0 | 0.00 |
+| banners | 0.26% | 32 | 0.00 |
+| run | 0.31% | 18 | **1.92** |
+| the one-view chrome | 0.31%* | 27 | **2.07** |
+
+\* standalone; in the live session the chrome read 1.64%.
+
+An ordinary parked window at 0.000% and one wakeup a second is the
+proof that the floor really is gone — everything above it is work
+somebody asked for.
+
+**The dock asked for two frames a second to change nothing.** Its state
+is observed, so *assigning* is what rebuilds: the 1 Hz tick assigned
+`state.now = Date()` and then six status fields, each rebuild being the
+whole 3840x2160 chrome (~800 µs of build alone). But the clock reads
+`h:mm` — **no seconds** — so 59 of every 60 rebuilds painted the
+identical string, and the status poll's answer (network, power, volume,
+theme, night light, energy saver) is the same for hours at a time.
+Assigning only when the displayed *minute* moves, and only the status
+values that actually moved, takes the chrome to ~0.03 frames/s. The tick
+stays at 1 Hz: it is one wakeup that now usually does nothing, and the
+native-taskbar guard and the tray revision check ride it.
+
+**The Run dialog blinked a caret in a window nobody could see.** It
+parks rather than closes so Win+R is instant, but a focused field flips
+its caret every 530 ms — 1.9 frames a second, for the life of the
+process, which was that process's entire idle cost. The field is now
+disabled while the dialog is off screen, and `FluentTextBox` only arms
+the blink while a caret is actually *drawn* (a read-only or disabled
+field paints none, so blinking one was always a frame to change
+nothing). Hidden 0.000%, open 0.416%, closed 0.000% — the caret parks
+with the window and comes back with it.
+
+Whole session at idle, five surfaces: **2.34% → 0.31-0.73% of one
+core**, with run, banners, notifications and the supervisor all reading
+0.00% and only the chrome still showing anything.
+
+**And dwm went from ~5% of a core to 0.05%.** The earlier section
+guessed the compositor was paying for the colour-keyed 4K layer's
+existence and that per-view damage would not touch it. Wrong on both
+counts: it was recompositing that layer twice a second because we kept
+redrawing it. Stop drawing and DWM stops too.
+
+What remains at idle is the banner process's ~0.2%: the 2 s
+notification-store poll named in the addendum above, still waiting for
+NotificationChanged over the raw ABI.
+
 One residual, separate from this: `GpuDmaBufRenderer.swift`'s poll loop
 keeps a **100 ms idle backstop** (10 Hz) alongside the GCD fd. Far
 cheaper than 125 Hz and it was never the floor here, but it is not zero
