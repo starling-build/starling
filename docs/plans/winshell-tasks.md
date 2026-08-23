@@ -787,3 +787,57 @@ addendum; the rig and the film pipeline in `test/bench/win-latency/`.
       `setDesktop` and `setOverlay` all run AFTER `host_create` in
       `Win32WindowedHost.boot`, which is the same shape that cost Files 90 ms
       — the dock, the desktop and the launcher may each be paying it at logon.
+
+CHECKPOINT 2026-08-23, later — two blockers found, and the file explorer
+moved into the shell on a branch.
+
+**The dev loop on the box is BLOCKED.** Smart App Control began enforcing
+mid-session and now refuses every freshly built unsigned `WinShellBar.exe`:
+CodeIntegrity event 3077, *"did not meet the Enterprise signing level
+requirements"*, policy `{0283AC0F-FFF1-49AE-ADA1-8A933130CAD6}` (that GUID is
+SAC's). It refuses the file from the build directory and from
+`C:\dist\Starling` alike, so it is the binary, not the path, and it is not
+transient. Recovery is `C:\dist\useexe.ps1 -Which old`, which restores a
+binary SAC already trusts — but know what that is: the **00:16 build**, from
+before that day's fixes, so **the box is currently running older code than
+main and does NOT have the z-order P0 fix**. Ways out, in order of
+seriousness: turn SAC off (Windows Security -> App & browser control —
+**IRREVERSIBLE**, it cannot be re-enabled without reinstalling Windows, so it
+is the user's call), or sign the binary. EV signing has moved from a release
+concern to the critical path.
+
+**The launcher cannot see packaged apps.** This file's neighbour
+`flwin32_apps.c` opens by saying the Start Menu "IS the catalog every Windows
+shell reads, Explorer included". That is only half true on modern Windows: a
+packaged (MSIX/Store/UWP) app has NO `.lnk`, it lives in the **AppsFolder**
+namespace keyed by AUMID, and Explorer's Start menu enumerates both. Ours
+enumerates the `.lnk` tree only — hence 79 apps, and no Settings, Store,
+Photos, Clock or Snipping Tool. It is not a display bug: those apps cannot be
+launched from our shell at all.
+
+Related and separate: **URI/protocol activation fails under our shell**.
+Measured — `ShellExecuteW("ms-settings:")` starts nothing,
+`explorer.exe ms-settings:` raises *"File system error (-2147219195)"*, and
+`windowsdefender://smartappcontrol` starts nothing. But a packaged app
+launched through its exe stub works (`calc.exe` -> CalculatorApp runs), so
+this is the protocol path, not packaged apps as such.
+
+- [ ] **Enumerate `shell:AppsFolder`, not just the Start Menu.** Both
+      catalogs, deduplicated, launching packaged entries via
+      `shell:AppsFolder\<AUMID>`. `flwin32_namespace.c` already enumerates
+      shell folders, so the machinery is there. NOT yet confirmed that the
+      AppsFolder launch route works under our shell — that test was the next
+      step. Until this lands, Windows' own Settings cannot be opened from the
+      Starling desktop, which is the immediate reason it matters: turning SAC
+      off needs it.
+- [ ] **Then find out why `ms-settings:` activation fails**, which is a
+      different fault from the missing catalog.
+- [ ] **`winshell-files-in-shell` (`807b840`) needs a run.** The file explorer
+      as an engine VIEW in the shell process: verified that Win+E opens a
+      Files window with NO new process and that the view composites, which is
+      the whole point (~110 ms of ANGLE plus ~30 ms of process start, gone).
+      Two fixes on it — the caption handler no longer gated on a slot that
+      does not exist during WM_NCCALCSIZE, and a ForceRedraw when an app
+      surface is shown — are built but UNRUN, because SAC started blocking
+      before they could be deployed. Before those, the window opened with a
+      system caption and blank content.
