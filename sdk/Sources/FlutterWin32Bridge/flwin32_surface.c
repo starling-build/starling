@@ -321,6 +321,67 @@ int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
   return view_id;
 }
 
+
+/* ---- keeping the desktop UNDER everything ---------------------------------
+ *
+ * The WM_WINDOWPOSCHANGING clamp below only fires when something asks to move
+ * OUR window. Nothing asks when a FOREIGN window is inserted BENEATH us --
+ * which Windows does when the app being launched cannot take the foreground,
+ * and most reliably when the desktop itself is the foreground window (which
+ * it becomes the moment the last app window closes). The result is a real
+ * app window that `IsWindowVisible` calls visible, at the right rect, not
+ * cloaked, and completely invisible to the user because our full-screen
+ * desktop is painted over it. With explorer absent there is nothing else to
+ * repaint the screen and reveal it, so it stays lost until something else
+ * happens to change the z-order.
+ *
+ * A shell cannot leave that to chance. This watches for any window being
+ * shown or taking the foreground anywhere else on the machine and puts the
+ * desktop back on the floor. EVENT_OBJECT_SHOW is the one that matters:
+ * a window can appear without ever becoming foreground, which is exactly the
+ * case the clamp misses.
+ */
+static HWINEVENTHOOK g_bottom_hook;
+static HWND g_desktop_window;
+
+static void sink_desktop(void) {
+  if (g_desktop_window == NULL || !IsWindow(g_desktop_window)) return;
+  /* Already on the floor: nothing below us in the z-order. Cheap enough to
+   * check on every show, and it keeps this off the frame path entirely. */
+  if (GetWindow(g_desktop_window, GW_HWNDNEXT) == NULL) return;
+  SetWindowPos(g_desktop_window, HWND_BOTTOM, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+}
+
+static void CALLBACK on_foreign_window(HWINEVENTHOOK hook, DWORD event,
+                                       HWND hwnd, LONG object_id,
+                                       LONG child_id, DWORD thread_id,
+                                       DWORD time) {
+  (void)hook; (void)event; (void)thread_id; (void)time;
+  if (hwnd == NULL || object_id != OBJID_WINDOW || child_id != CHILDID_SELF) {
+    return;
+  }
+  /* Top-level only: a child window being shown says nothing about z-order. */
+  if (GetAncestor(hwnd, GA_ROOT) != hwnd) return;
+  sink_desktop();
+}
+
+void flwin32_desktop_pin_to_bottom(uint64_t desktop_hwnd) {
+  HWND desktop = (HWND)(uintptr_t)desktop_hwnd;
+  if (desktop == NULL) return;
+  g_desktop_window = desktop;
+  if (g_bottom_hook != NULL) return;
+  /* SKIPOWNPROCESS: our own surfaces and popups come and go constantly and
+   * none of them can bury the desktop. */
+  g_bottom_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_OBJECT_SHOW,
+                                  NULL, on_foreign_window, 0, 0,
+                                  WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+}
+
+static void watch_for_windows_above(HWND desktop) {
+  flwin32_desktop_pin_to_bottom((uint64_t)(uintptr_t)desktop);
+}
+
 void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
   SurfaceSlot* slot = surface_for_view(view_id);
   if (slot == NULL || slot->host != host) return;
@@ -332,6 +393,8 @@ void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
     ShowWindow(slot->window, SW_SHOWNOACTIVATE);
     SetWindowPos(slot->window, HWND_BOTTOM, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    // ...and keep it there, against windows that arrive underneath.
+    watch_for_windows_above(slot->window);
   } else {
     overlay_show(slot);
   }

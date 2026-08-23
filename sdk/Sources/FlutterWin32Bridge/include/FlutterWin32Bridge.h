@@ -762,6 +762,15 @@ uint64_t flwin32_surface_window(FlWin32Host* host, int64_t view_id);
 // client-area RESIZE, and the embedder answers a resize by blocking the
 // platform thread until the raster thread returns a frame at the new size --
 // ~90 ms on a 29 Hz panel. Consumed by the next flwin32_host_create.
+// Keeps the DESKTOP window on the floor of the z-order against windows that
+// arrive UNDERNEATH it. The window's own WM_WINDOWPOSCHANGING clamp only sees
+// moves of the desktop itself; nothing tells it when Windows inserts an app
+// window below -- which happens when the launching app cannot take the
+// foreground, and leaves a real window that IsWindowVisible calls visible,
+// at the right rect, and hidden under our wallpaper. Idempotent; call once
+// with the desktop's HWND after showing it.
+void flwin32_desktop_pin_to_bottom(uint64_t desktop_hwnd);
+
 void flwin32_host_prepare_custom_titlebar(void);
 
 void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable);

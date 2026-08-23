@@ -1606,6 +1606,10 @@ static void desktop_apply_placement(FlWin32Host* host) {
   SetWindowPos(host->window, HWND_BOTTOM, area.left, area.top,
                area.right - area.left, area.bottom - area.top,
                SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+  // ...and keep it there. The clamp in host_wnd_proc only sees moves of THIS
+  // window; a window inserted underneath is invisible to it, and the app then
+  // sits behind our wallpaper looking, to every API, perfectly visible.
+  flwin32_desktop_pin_to_bottom((uint64_t)(uintptr_t)host->window);
 }
 
 void flwin32_host_set_desktop(FlWin32Host* host, int32_t monitor) {
