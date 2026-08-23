@@ -429,9 +429,54 @@ existence and that per-view damage would not touch it. Wrong on both
 counts: it was recompositing that layer twice a second because we kept
 redrawing it. Stop drawing and DWM stops too.
 
-What remains at idle is the banner process's ~0.2%: the 2 s
-notification-store poll named in the addendum above, still waiting for
-NotificationChanged over the raw ABI.
+### The last of it: what has to ask, and how often — 2026-08-22
+
+Three polls were left, and they are not the same question.
+
+**The notification centre is user-triggered**, so it has nothing to keep
+current while parked. Its 5 s tick claimed to be paid "only while the
+panel is on screen" and half was: the store read was gated on
+visibility, the `setState` above it was not, so a hidden overlay rebuilt
+its tree every five seconds forever. It now starts on show and stops on
+hide — 0.000% hidden, 0.625% open, 0.000% closed.
+
+**The banner is the one surface no gesture brings up**, so it must hear
+about a toast on its own. `UserNotificationListener` has that event, and
+it is now wired through the raw ABI — a hand-written COM object with the
+parameterized IID derived from WinRT's signature rule. **Windows refuses
+it: `add_NotificationChanged` answers ERROR_NOT_FOUND to a process with
+no package identity.** The registration stays (a packaged Starling would
+get it) but polling is the mechanism, so the question became what an ask
+costs:
+
+| asking the notification service | wall | CPU |
+|---|---|---|
+| full read of 5 toasts | 36-60 ms | ~6.2 ms |
+| the toast ids alone | 24 ms | ~6.2 ms |
+
+The same CPU either way — the price is the cross-process RPC, not the
+per-toast walk — so there is no cheap "has anything changed" to poll on.
+The ids-only variant was written, measured and deleted. What is left is
+frequency, and the honest rule is presence: two seconds while somebody is
+at the machine, fifteen while nobody has touched it for a minute (the
+toast is in the centre when they return). `GetLastInputInfo` costs
+microseconds.
+
+**And the finding that dwarfed both.** `Task.detached { while true { try?
+await Task.sleep(…) } }` costs **~46 context switches a second** on
+Windows in a process that is otherwise asleep — the parked Run dialog
+next to it wakes zero times. That loop, not the poll, was most of what
+the banner process spent. A libdispatch timer replaces it: the kernel
+holds the deadline and nothing runs until it fires. Worth grepping for
+elsewhere; on this platform `Task.sleep` is not a free way to wait.
+
+Whole session at idle, five surfaces, 60 s samples:
+
+    2.34%  →  0.65%  →  0.08% of one core
+                        (chrome 0.03, banners 0.05, the rest 0.00)
+
+with `dwm` at 0.03%. A parked Starling desktop now costs about a tenth of
+one percent of one core, compositor included.
 
 One residual, separate from this: `GpuDmaBufRenderer.swift`'s poll loop
 keeps a **100 ms idle backstop** (10 Hz) alongside the GCD fd. Far

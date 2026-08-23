@@ -53,7 +53,15 @@ boundary and rebuilds its own leaf, leaving a 5 s tick for the two guards
 that are periodic for nobody in particular (chrome at idle: 1.64% → 0.44%
 → **0.13%**). An ordinary parked window reads 0.000%. `dwm` fell with them, ~5% → **0.05%**: it was recompositing the
 colour-keyed layer because we kept redrawing it, not because it exists.
-What is left is the banner process's ~0.2% notification-store poll.
+Then the polls: the notification centre only ticks while it is on screen
+(it is opened by the user, so a hidden one has nothing to keep current),
+and the banner — the one surface no gesture brings up — got its arrival
+event wired through the raw ABI, which **Windows refuses to an unpackaged
+process** (ERROR_NOT_FOUND), so its poll follows PRESENCE instead: 2 s
+while someone is at the machine, 15 s while nobody is. Bigger than either:
+`Task.detached { while true { await Task.sleep } }` costs ~46 context
+switches a second on Windows and is now a libdispatch timer. Whole session
+at idle: **2.34% → 0.65% → 0.08% of one core**, dwm 0.03%.
 
 **The dock's flyouts dismiss on click-away now** — the tray overflow that
 opened and never closed, and Quick Settings and a tile's menu with it.
