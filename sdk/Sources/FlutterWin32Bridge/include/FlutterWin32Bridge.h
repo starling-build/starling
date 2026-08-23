@@ -1217,6 +1217,20 @@ int32_t flwin32_notifications_read(
     void* user);
 int32_t flwin32_notification_remove(uint32_t id);
 int32_t flwin32_notifications_clear(void);
+// Be TOLD when a status readout might have changed, instead of asking on a
+// timer. One watcher thread per process; returns 1 if it started.
+//
+// `kind` is one of the FLWIN32_STATUS_KIND_* bits: 1 the status reads (power,
+// network, theme), 2 the tray's promoted/hidden split, 4 explorer putting its
+// taskbar back. It says only what CLASS of thing moved — re-reading that class
+// is microseconds, and asking for it on a timer was the cost. Callbacks arrive
+// on the watcher thread (and, for the network ones, on threads Windows owns),
+// so hop before touching UI state.
+#define FLWIN32_STATUS_KIND_STATUS   1
+#define FLWIN32_STATUS_KIND_TRAY     2
+#define FLWIN32_STATUS_KIND_TASKBAR  4
+int32_t flwin32_status_watch(void (*cb)(void* user, int32_t kind), void* user);
+
 // Milliseconds since the last input in this session (0 if unavailable). Cheap
 // enough to call in a loop — it is what a poller should ask before deciding
 // how hard to work.

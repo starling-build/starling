@@ -96,8 +96,18 @@ final class DockBloc: @unchecked Sendable {
     enum Event {
         /// Start loading. Sent once, from the dock's `initState`.
         case start
-        /// The one-second heartbeat: clock, status, and Explorer's taskbar.
+        /// The fallback heartbeat — status, the tray split and Explorer's
+        /// taskbar, all three asked for at once. Only sent when the watcher
+        /// below could not start; each of the three has its own event now.
         case tick
+        /// Something a status readout depends on moved: power, network or
+        /// theme. From `Win32Status.watch`, which subscribes to the power
+        /// broadcast, the WLAN and IP-interface callbacks, and the settings
+        /// broadcast rather than asking every few seconds.
+        case statusChanged
+        /// Explorer put its taskbar back — it announces that itself, by
+        /// broadcasting TaskbarCreated.
+        case taskbarReturned
         /// A window opened, closed, or changed — from the WinEvent hook.
         case windowsChanged
 
@@ -178,6 +188,11 @@ final class DockBloc: @unchecked Sendable {
             // registry read behind it is throttled — this is one call a
             // second, not a re-read a second.
             if Win32Tray.revision != trayRevision { _readTray() }
+        case .statusChanged:
+            _readStatus()
+        case .taskbarReturned:
+            _hideNativeTaskbarIfItCameBack()
+
         case .windowsChanged:
             _queueRefresh()
 

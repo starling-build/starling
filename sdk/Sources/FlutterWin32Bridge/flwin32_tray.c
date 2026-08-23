@@ -347,7 +347,12 @@ static void expand_known_folder(const wchar_t* in, wchar_t* out, size_t n) {
  * shell asks for it on the tick it already has. */
 static int read_settings(void) {
   DWORD now = GetTickCount();
-  if (g_setting_count > 0 && (now - g_settings_read_at) < 2000) return 0;
+  /* A quarter second, not two: the throttle is here so a per-frame snapshot
+   * does not re-enumerate the key, and it was two seconds when a poll asked
+   * every second anyway. Now the ASK is a registry-change event, and a
+   * throttle longer than the gap between two edits would swallow the second
+   * one with nothing left to re-arm it. */
+  if (g_setting_count > 0 && (now - g_settings_read_at) < 250) return 0;
   g_settings_read_at = now;
 
   HKEY root;

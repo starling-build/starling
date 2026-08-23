@@ -121,6 +121,47 @@ public enum Win32Status {
     }
 }
 
+/// What moved. See `Win32Status.watch`.
+public enum Win32StatusChange: Sendable {
+    /// Power, network or theme — anything `Win32Status`'s readers cover.
+    case status
+    /// The tray's promoted/hidden split, edited in Windows' own Settings.
+    case tray
+    /// Explorer put its taskbar back on screen.
+    case taskbar
+}
+
+extension Win32Status {
+    /// Be told when a readout might have changed, rather than asking on a
+    /// timer.
+    ///
+    /// Every source behind these values has a notification — a power
+    /// broadcast, WLAN and IP-interface callbacks, a settings broadcast, a
+    /// registry change — and the bridge subscribes to all of them on one
+    /// thread. The handler runs on the MAIN queue and says only what class of
+    /// thing moved: re-reading that class costs microseconds, and it was
+    /// asking for it every few seconds that showed up as idle CPU.
+    ///
+    /// One watcher per process; the second call replaces the handler. False if
+    /// the watcher could not start, in which case the caller needs its poll.
+    @discardableResult
+    public static func watch(_ handler: @escaping (Win32StatusChange) -> Void) -> Bool {
+        changeHandler = handler
+        return flwin32_status_watch({ _, kind in
+            let change: Win32StatusChange
+            switch kind {
+            case Int32(FLWIN32_STATUS_KIND_TRAY): change = .tray
+            case Int32(FLWIN32_STATUS_KIND_TASKBAR): change = .taskbar
+            default: change = .status
+            }
+            DispatchQueue.main.async { Win32Status.changeHandler?(change) }
+        }, nil) != 0
+    }
+
+    nonisolated(unsafe) fileprivate static var changeHandler:
+        ((Win32StatusChange) -> Void)?
+}
+
 /// Changing what `Win32Status` reads — the control centre's half.
 ///
 /// Deliberately a separate type. A status bar reads; a control centre writes;

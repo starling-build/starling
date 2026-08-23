@@ -320,17 +320,34 @@ final class StarlingDockState: State<StatefulWidget> {
         // desktop's CLAUDE.md), and going through the host keeps every
         // backend honest about which loop the UI thread is really running.
         //
-        // Every FIVE seconds, and only for what is really periodic — the
-        // status poll and the two guards in the bloc's `.tick`. The clock
-        // used to ride this at 1 Hz and is `DockClock`'s own business now.
-        // The panel that shows these values in full asks for a fresh read
-        // when it opens (see the control-centre branches below), so the poll
-        // is a background refresh for the strip's icons rather than the thing
-        // the user is watching. The end of it is events, not polling at all:
-        // WM_POWERBROADCAST, an IAudioEndpointVolume callback, and NLM's
-        // network notifications each replace one of these reads.
-        timer = startPeriodicTimer(seconds: 5.0) { [weak self] in
-            self?.bloc.add(.tick)
+        // ...and it is the FALLBACK now. Each of the three things the tick did
+        // has a notification behind it, and `Win32Status.watch` subscribes to
+        // all of them on one thread: the power broadcast (battery and the
+        // AC/battery switch), the WLAN and IP-interface callbacks (the network
+        // readout), WM_SETTINGCHANGE (the theme), a registry watch on the
+        // tray's promoted/hidden split, and TaskbarCreated — which is
+        // explorer announcing its own return, the thing the tick's FindWindow
+        // was standing in for.
+        //
+        // Volume, night light and energy saver are not in that list because
+        // the STRIP does not show them: they live in Quick Settings, which
+        // asks for a fresh read when it opens (see the control-centre branches
+        // below). Nothing on screen is stale, and nothing is asked for on a
+        // timer.
+        if !Win32Status.watch({ [weak self] change in
+            guard let self else { return }
+            switch change {
+            case .status: self.bloc.add(.statusChanged)
+            case .tray: self.bloc.add(.trayChanged)
+            case .taskbar: self.bloc.add(.taskbarReturned)
+            }
+        }) {
+            // The watcher could not start. Better a heartbeat than a status
+            // bar that never moves again.
+            print("[WinShellDock] status watcher failed; falling back to a poll")
+            timer = startPeriodicTimer(seconds: 5.0) { [weak self] in
+                self?.bloc.add(.tick)
+            }
         }
 
         // Win+A is Quick Settings, Win+N the notification centre, Win+E the

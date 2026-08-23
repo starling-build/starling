@@ -585,3 +585,188 @@ int32_t flwin32_energy_saver(void) {
     if (!GetSystemPowerStatus(&status)) return -1;
     return (status.SystemStatusFlag & 1) ? 1 : 0;
 }
+
+/* ── The watcher: told, not asked ────────────────────────────────────────────
+ *
+ * Everything above is a READ. The dock used to call them on a five-second
+ * tick, which is the shape you reach for when nothing tells you -- except
+ * that for each of these, something does.
+ *
+ * One thread owns the whole arrangement, because every mechanism Windows
+ * offers here wants a different kind of home and they compose badly:
+ *
+ *   POWER   is a broadcast (WM_POWERBROADCAST), so it needs a TOP-LEVEL
+ *           window -- a message-only window receives no broadcasts, which is
+ *           the trap in this paragraph. RegisterPowerSettingNotification adds
+ *           the battery PERCENTAGE and the AC/battery switch on top, both
+ *           delivered to the same window as PBT_POWERSETTINGCHANGE.
+ *   THEME   is the same broadcast family: WM_SETTINGCHANGE, "ImmersiveColorSet".
+ *   EXPLORER announces its own return by broadcasting TaskbarCreated, which is
+ *           the shell's cue to hide that taskbar again -- it is the event the
+ *           old tick's FindWindow was standing in for.
+ *   NETWORK is two callbacks on threads of their own: WlanRegisterNotification
+ *           for the Wi-Fi association and its signal, NotifyIpInterfaceChange
+ *           for anything with a cable.
+ *   TRAY    (which icons the user promoted out of the overflow) is a registry
+ *           key with no notification of any kind except the one you ask for:
+ *           RegNotifyChangeKeyValue signals an event, which this thread waits
+ *           on alongside its message queue.
+ *
+ * The callback says only WHAT KIND of thing moved. Deciding what to re-read is
+ * the shell's business, and re-reading everything in that class is cheap --
+ * these are microsecond calls; it was asking for them on a timer that cost.
+ */
+
+#define FLWIN32_STATUS_KIND_STATUS   1   /* power, network, theme */
+#define FLWIN32_STATUS_KIND_TRAY     2   /* the promoted/hidden split */
+#define FLWIN32_STATUS_KIND_TASKBAR  4   /* explorer put its taskbar back */
+
+static void (*g_status_cb)(void* user, int32_t kind);
+static void* g_status_user;
+static HANDLE g_status_thread;
+static HWND g_status_window;
+static HANDLE g_wlan_handle;
+
+/* The two power settings worth a wake. Declared locally for the same reason
+ * the notification IIDs are: the SDK exports them for C++ consumers and this
+ * is a C target. */
+static const GUID kGuidAcDcPowerSource =
+    {0x5d3e9a59, 0xe9d5, 0x4b00, {0xa6, 0xbd, 0xff, 0x34, 0xff, 0x51, 0x65, 0x48}};
+static const GUID kGuidBatteryPercentage =
+    {0xa7ad8041, 0xb45a, 0x4cae, {0x87, 0xa3, 0xee, 0xcb, 0xb4, 0x68, 0xa9, 0xe1}};
+
+static void status_fire(int32_t kind) {
+    if (g_status_cb != NULL) g_status_cb(g_status_user, kind);
+}
+
+static void CALLBACK wlan_notify(PWLAN_NOTIFICATION_DATA data, PVOID context) {
+    (void)context;
+    if (data == NULL) return;
+    /* ACM is association and radio state; MSM is the connection itself and
+     * its signal quality. Anything else (scan lists, one-shot diagnostics) is
+     * noise the strip cannot show. */
+    if (data->NotificationSource == WLAN_NOTIFICATION_SOURCE_ACM ||
+        data->NotificationSource == WLAN_NOTIFICATION_SOURCE_MSM) {
+        status_fire(FLWIN32_STATUS_KIND_STATUS);
+    }
+}
+
+static void WINAPI ip_notify(PVOID context, PMIB_IPINTERFACE_ROW row,
+                             MIB_NOTIFICATION_TYPE type) {
+    (void)context; (void)row; (void)type;
+    status_fire(FLWIN32_STATUS_KIND_STATUS);
+}
+
+static LRESULT CALLBACK status_wnd_proc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
+    static UINT taskbar_created;
+    if (taskbar_created == 0) {
+        taskbar_created = RegisterWindowMessageW(L"TaskbarCreated");
+    }
+    if (msg == taskbar_created) {
+        status_fire(FLWIN32_STATUS_KIND_TASKBAR);
+        return 0;
+    }
+    switch (msg) {
+        case WM_POWERBROADCAST:
+            /* APMPOWERSTATUSCHANGE is the AC/battery switch and the coarse
+             * level crossings; POWERSETTINGCHANGE carries the percentage. */
+            if (w == PBT_APMPOWERSTATUSCHANGE || w == PBT_POWERSETTINGCHANGE) {
+                status_fire(FLWIN32_STATUS_KIND_STATUS);
+            }
+            return TRUE;
+        case WM_SETTINGCHANGE:
+            /* Every SETTINGCHANGE, not just ImmersiveColorSet: the string is
+             * absent for several of the ones that matter (SPI_SETWORKAREA
+             * among them) and a re-read costs microseconds. */
+            status_fire(FLWIN32_STATUS_KIND_STATUS);
+            return 0;
+        default:
+            break;
+    }
+    return DefWindowProcW(hwnd, msg, w, l);
+}
+
+static DWORD WINAPI status_watch_thread(LPVOID param) {
+    (void)param;
+    WNDCLASSW cls;
+    memset(&cls, 0, sizeof(cls));
+    cls.lpfnWndProc = status_wnd_proc;
+    cls.hInstance = GetModuleHandleW(NULL);
+    cls.lpszClassName = L"StarlingStatusWatch";
+    RegisterClassW(&cls);
+    /* Top-level, never shown, no taskbar presence. WS_POPUP with no
+     * WS_VISIBLE draws nothing; what matters is that it is not HWND_MESSAGE,
+     * or the broadcasts this exists for never arrive. */
+    g_status_window = CreateWindowExW(WS_EX_TOOLWINDOW, cls.lpszClassName,
+                                      L"", WS_POPUP, 0, 0, 0, 0,
+                                      NULL, NULL, cls.hInstance, NULL);
+    if (g_status_window == NULL) return 0;
+
+    HPOWERNOTIFY ac = RegisterPowerSettingNotification(
+        g_status_window, &kGuidAcDcPowerSource, DEVICE_NOTIFY_WINDOW_HANDLE);
+    HPOWERNOTIFY pct = RegisterPowerSettingNotification(
+        g_status_window, &kGuidBatteryPercentage, DEVICE_NOTIFY_WINDOW_HANDLE);
+
+    DWORD negotiated = 0;
+    if (WlanOpenHandle(2, NULL, &negotiated, &g_wlan_handle) == ERROR_SUCCESS) {
+        WlanRegisterNotification(g_wlan_handle, WLAN_NOTIFICATION_SOURCE_ALL,
+                                 TRUE, wlan_notify, NULL, NULL, NULL);
+    }
+    HANDLE ip_handle = NULL;
+    NotifyIpInterfaceChange(AF_UNSPEC, ip_notify, NULL, FALSE, &ip_handle);
+
+    /* The tray split. RegNotifyChangeKeyValue is one-shot: it has to be
+     * re-armed after every signal, which is why the key stays open. */
+    HKEY tray_key = NULL;
+    HANDLE tray_event = CreateEventW(NULL, FALSE, FALSE, NULL);
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Control Panel\\NotifyIconSettings",
+                      0, KEY_NOTIFY, &tray_key) == ERROR_SUCCESS) {
+        RegNotifyChangeKeyValue(tray_key, TRUE,
+                                REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET,
+                                tray_event, TRUE);
+    }
+
+    for (;;) {
+        HANDLE waits[1];
+        DWORD count = 0;
+        if (tray_key != NULL) waits[count++] = tray_event;
+        DWORD r = MsgWaitForMultipleObjectsEx(count, waits, INFINITE,
+                                              QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+        if (count > 0 && r == WAIT_OBJECT_0) {
+            status_fire(FLWIN32_STATUS_KIND_TRAY);
+            RegNotifyChangeKeyValue(tray_key, TRUE,
+                                    REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET,
+                                    tray_event, TRUE);
+            continue;
+        }
+        MSG msg;
+        int quit = 0;
+        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) { quit = 1; break; }
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        if (quit) break;
+    }
+
+    if (ip_handle != NULL) CancelMibChangeNotify2(ip_handle);
+    if (pct != NULL) UnregisterPowerSettingNotification(pct);
+    if (ac != NULL) UnregisterPowerSettingNotification(ac);
+    if (tray_key != NULL) RegCloseKey(tray_key);
+    if (tray_event != NULL) CloseHandle(tray_event);
+    return 0;
+}
+
+int32_t flwin32_status_watch(void (*cb)(void* user, int32_t kind), void* user) {
+    if (cb == NULL) return 0;
+    if (g_status_thread != NULL) return 1;   /* one watcher per process */
+    g_status_cb = cb;
+    g_status_user = user;
+    g_status_thread = CreateThread(NULL, 0, status_watch_thread, NULL, 0, NULL);
+    if (g_status_thread == NULL) {
+        g_status_cb = NULL;
+        g_status_user = NULL;
+        return 0;
+    }
+    return 1;
+}
