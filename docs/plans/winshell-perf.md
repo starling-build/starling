@@ -387,9 +387,27 @@ whole 3840x2160 chrome (~800 µs of build alone). But the clock reads
 identical string, and the status poll's answer (network, power, volume,
 theme, night light, energy saver) is the same for hours at a time.
 Assigning only when the displayed *minute* moves, and only the status
-values that actually moved, takes the chrome to ~0.03 frames/s. The tick
-stays at 1 Hz: it is one wakeup that now usually does nothing, and the
-native-taskbar guard and the tray revision check ride it.
+values that actually moved, took the chrome to ~0.03 frames/s — and then
+the shape itself was wrong, which making the tick cheap had only hidden.
+**The widget that draws the time is the only thing that knows what
+cadence the time needs.** `DockClock` now schedules itself to the next
+minute BOUNDARY and rebuilds that leaf alone (the rebuild-scope
+discipline the hover flyout already used), so a format that grows
+seconds gets a one-second cadence with no other change. What stays in
+the bloc's tick is what is genuinely periodic and belongs to nobody in
+particular — the native-taskbar guard and the tray revision check — at
+5 s, with Quick Settings asking for a fresh read when it opens rather
+than living off the background poll. The chrome at idle, in three steps:
+
+| the dock's chrome, idle | cpu | ctxsw/s | frames/s |
+|---|---|---|---|
+| 1 Hz tick, unconditional assigns | 1.64% | 27 | 2.07 |
+| assign-on-change | 0.44% | 20 | ~0.03 |
+| widget-owned clock, 5 s tick | **0.13%** | 7 | ~0.03 |
+
+The end state for the three status reads is events rather than polling:
+WM_POWERBROADCAST, an IAudioEndpointVolume callback, and NLM's network
+notifications each replace one.
 
 **The Run dialog blinked a caret in a window nobody could see.** It
 parks rather than closes so Win+R is instant, but a focused field flips
@@ -402,8 +420,8 @@ nothing). Hidden 0.000%, open 0.416%, closed 0.000% — the caret parks
 with the window and comes back with it.
 
 Whole session at idle, five surfaces: **2.34% → 0.31-0.73% of one
-core**, with run, banners, notifications and the supervisor all reading
-0.00% and only the chrome still showing anything.
+core**, and the chrome is now the *smallest* of them. What is left is
+the two notification surfaces' polls.
 
 **And dwm went from ~5% of a core to 0.05%.** The earlier section
 guessed the compositor was paying for the colour-keyed 4K layer's
