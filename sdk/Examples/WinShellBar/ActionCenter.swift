@@ -92,13 +92,15 @@ final class StarlingActionCenterState: State<StatefulWidget> {
         super.initState()
         CupertinoIcons.registerFont()
         FluentIcons.registerFont()
-        // Five seconds: the date line barely moves, but the toast store does,
-        // and the poll is only paid while the panel is on screen.
-        timer = startPeriodicTimer(seconds: 5) { [weak self] in
-            guard let self else { return }
-            self.setState { self.now = Date() }
-            if Win32WindowedHost.host?.isVisible == true { self.refreshToasts() }
-        }
+        // Nothing ticks while the panel is parked. This surface is brought up
+        // by the user — Win+N, or the clock in the tray — and the two things
+        // the tick keeps current (the date line, and each card's "3 minutes
+        // ago") are only true if somebody is reading them. The claim that the
+        // poll "is only paid while the panel is on screen" was half right: the
+        // store read was gated, but the `setState` above it was not, so a
+        // parked overlay rebuilt its whole hidden tree every five seconds for
+        // the life of the process.
+        if Win32WindowedHost.host?.isVisible == true { _startTicking() }
         refreshToasts()
         // The launcher's bargain (see its didToggle): the host shows the
         // window; the tree hears about it here. On show, mark the tree dirty
@@ -111,7 +113,9 @@ final class StarlingActionCenterState: State<StatefulWidget> {
             if Win32WindowedHost.host?.isVisible == true {
                 self.setState { self.now = Date() }
                 self.refreshToasts()
+                self._startTicking()
             } else {
+                self._stopTicking()
                 self.setState {
                     self.calendarExpanded = false
                     self.monthOffset = 0
@@ -123,6 +127,23 @@ final class StarlingActionCenterState: State<StatefulWidget> {
                 }
             }
         }
+    }
+
+    /// The tick runs only between a show and the hide that follows it.
+    private func _startTicking() {
+        guard timer == nil else { return }
+        timer = startPeriodicTimer(seconds: 5) { [weak self] in
+            guard let self, Win32WindowedHost.host?.isVisible == true else {
+                return
+            }
+            self.setState { self.now = Date() }
+            self.refreshToasts()
+        }
+    }
+
+    private func _stopTicking() {
+        stopPeriodicTimer(timer)
+        timer = nil
     }
 
     // MARK: - The store

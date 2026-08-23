@@ -13,11 +13,16 @@
 // Escape from whatever the user is typing in), and nothing the user does
 // boots it — it shows itself when the store grows.
 //
-// There is no arrival event wired yet: the listener's store is polled every
-// two seconds off the UI thread, which is also why the process must exist
-// before the first toast does (see flwin32_shell_ensure_banners). Wiring
-// UserNotificationListener's NotificationChanged through the raw ABI would
-// make it instant; a two-second-late banner is the honest MVP.
+// It hears about a toast rather than looking for one: the controller
+// subscribes to UserNotificationListener's NotificationChanged (wired through
+// the raw ABI in flwin32_notifications.c) and reads the store when the event
+// says something moved. It used to poll that store every two seconds, which
+// was both a banner up to two seconds late AND ~0.25% of a core spent, for the
+// life of the session, in a process whose entire job is to wait — the largest
+// idle cost left in the shell once the timer floors were gone. The process
+// still has to exist before the first toast does (see
+// flwin32_shell_ensure_banners): a subscriber that is not running hears
+// nothing either.
 
 #if os(Windows)
 import Flutter
@@ -51,13 +56,66 @@ final class BannerController {
 
     /// Called from main.swift before runStarlingApp.
     func start() {
-        Task.detached { [weak self] in
-            while true {
-                guard let self else { return }
-                let items = Win32Notifications.read()
-                await MainActor.run { self.apply(items) }
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-            }
+        // The event, if the OS will give it to us. It fires for removals as
+        // well as arrivals, which costs nothing: `apply` compares against what
+        // it has already seen.
+        let subscribed = Win32Notifications.onChanged { [weak self] in
+            self?.readStore()
+        }
+        // One read either way: it seeds `seen` with the login backlog, which
+        // is the notification centre's business rather than a banner storm.
+        readStore()
+        // Windows refuses that registration to a process without package
+        // identity — measured on the box: ERROR_NOT_FOUND — so in practice
+        // the loop below is the mechanism, and the only question is how often
+        // it asks. Asking is not cheap and cannot be made cheap: every ask is
+        // a cross-process RPC to the notification service, ~6 ms of CPU
+        // whether it fetches five toasts or just their ids (an ids-only
+        // variant was written and measured at exactly the same cost; see
+        // flwin32_notifications.c).
+        //
+        // So it asks at the rate somebody can actually be surprised at. A
+        // banner is an alert: it is worth two seconds of latency while a
+        // person is at the machine, and worth nothing at all while nobody
+        // has touched it for a minute — the toast is still in the centre
+        // when they come back, which is where they would look anyway. The
+        // presence check itself is microseconds (GetLastInputInfo).
+        //
+        // If the event ever IS granted — a packaged Starling would get it —
+        // the same loop stays as a slow backstop, because the listener is
+        // somebody else's code and a banner that never appears is worse than
+        // a wakeup every half minute.
+        scheduleNextPoll(subscribed: subscribed)
+    }
+
+    /// The poll queue exists because a store read BLOCKS for ~40 ms (it is an
+    /// RPC to the notification service, polled to completion), and because of
+    /// what it replaced: `Task.detached { while true { try? await
+    /// Task.sleep(…) } }`. That loop cost **~46 context switches a second** in
+    /// a process that was otherwise asleep — measured against the parked Run
+    /// dialog next to it, which wakes zero times — so Swift concurrency's
+    /// sleep is not a free way to wait on this platform. A libdispatch timer
+    /// is: the kernel holds the deadline and nothing runs until it fires.
+    private let pollQueue = DispatchQueue(label: "starling.banner.poll")
+
+    /// One-shot, rescheduled after each read, so the interval can follow
+    /// presence without a timer to reschedule.
+    private func scheduleNextPoll(subscribed: Bool) {
+        let away = Win32SystemInfo.idleMillis() > 60_000
+        let seconds = subscribed ? 30 : (away ? 15 : 2)
+        pollQueue.asyncAfter(deadline: .now() + .seconds(seconds)) { [weak self] in
+            guard let self else { return }
+            let items = Win32Notifications.read()
+            DispatchQueue.main.async { self.apply(items) }
+            self.scheduleNextPoll(subscribed: subscribed)
+        }
+    }
+
+    /// Read the store off the UI thread and apply what came back on it.
+    private func readStore() {
+        pollQueue.async { [weak self] in
+            let items = Win32Notifications.read()
+            DispatchQueue.main.async { self?.apply(items) }
         }
     }
 

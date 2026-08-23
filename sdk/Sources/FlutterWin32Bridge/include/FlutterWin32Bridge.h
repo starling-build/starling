@@ -1217,6 +1217,17 @@ int32_t flwin32_notifications_read(
     void* user);
 int32_t flwin32_notification_remove(uint32_t id);
 int32_t flwin32_notifications_clear(void);
+// Milliseconds since the last input in this session (0 if unavailable). Cheap
+// enough to call in a loop — it is what a poller should ask before deciding
+// how hard to work.
+uint64_t flwin32_last_input_millis(void);
+// The arrival event. Registers a UserNotificationListener.NotificationChanged
+// handler and returns 1 when the OS took it, 0 when it did not — a caller that
+// gets 0 must keep polling, and one that gets 1 should not. `cb` lands on a
+// WinRT threadpool thread and must do nothing but hop: reading the store from
+// inside it blocks that thread on an async this bridge polls to completion.
+// One registration per process; later calls are no-ops that return 1.
+int32_t flwin32_notifications_on_changed(void (*cb)(void* user), void* user);
 // The notifying app's logo as premultiplied RGBA, malloc'd -- feed it to
 // flwin32_host_register_pixels, which takes ownership. Blocking.
 int32_t flwin32_notification_app_icon(uint32_t toast_id, int32_t size,

@@ -2277,6 +2277,20 @@ void flwin32_host_on_theme_change(FlWin32Host* host,
   host->theme_user = user;
 }
 
+/* Milliseconds since the last keyboard or mouse input anywhere in the
+ * session, or 0 if the OS will not say. Microseconds to call -- it reads a
+ * counter the input stack already keeps -- which is what makes it usable as
+ * the gate on something expensive. */
+uint64_t flwin32_last_input_millis(void) {
+    LASTINPUTINFO info;
+    info.cbSize = sizeof(info);
+    info.dwTime = 0;
+    if (!GetLastInputInfo(&info)) return 0;
+    DWORD now = GetTickCount();
+    /* Unsigned arithmetic, so the 49-day tick wrap subtracts correctly. */
+    return (uint64_t)(now - info.dwTime);
+}
+
 void flwin32_shell_broadcast_toggle(void) {
   // HWND_BROADCAST reaches every top-level window in the session, and only
   // the process that registered the same string recognises the id. PostMessage

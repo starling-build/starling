@@ -77,7 +77,7 @@ public func runStarlingApp(title: String, width: Int = 800, height: Int = 600,
 /// tickers can discard it — hosts retain what they must).
 /// Token holder — DispatchSourceTimer is a protocol, and the API promises
 /// a class instance the caller can retain.
-private final class _TimerToken {
+fileprivate final class _TimerToken {
     let timer: any DispatchSourceTimer
     init(_ timer: any DispatchSourceTimer) { self.timer = timer }
     deinit { timer.cancel() }
@@ -97,6 +97,25 @@ public func startPeriodicTimer(seconds: Double,
     let token = _TimerToken(timer)
     _liveTimers.append(token)
     return token
+}
+
+/// Stop a ticker from `startPeriodicTimer`.
+///
+/// A surface that only means something while it is on screen should stop
+/// ticking when it is not. That is not a micro-optimisation on Starling's
+/// parked overlays: they keep their window AND their widget tree so a show is
+/// instant, so a tick that calls `setState` while parked is a full build,
+/// layout and paint of a tree nobody can see, for as long as the process
+/// lives.
+public func stopPeriodicTimer(_ token: AnyObject?) {
+    if let source = token as? (any DispatchSourceTimer) {
+        source.cancel()
+        return
+    }
+    if let held = token as? _TimerToken {
+        held.timer.cancel()
+        _liveTimers.removeAll { $0 === held }
+    }
 }
 
 private nonisolated(unsafe) var _liveTimers: [AnyObject] = []

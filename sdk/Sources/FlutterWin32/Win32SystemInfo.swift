@@ -73,6 +73,14 @@ public enum Win32SystemInfo {
         flwin32_apps_use_light_theme() != 0
     }
 
+    /// How long since the user last touched keyboard or mouse, anywhere in
+    /// the session. Microseconds to ask, so it is affordable as the gate on
+    /// something that is not: a surface that only matters to somebody who is
+    /// present can do less while nobody is.
+    public static func idleMillis() -> UInt64 {
+        flwin32_last_input_millis()
+    }
+
     /// One pass over everything the About pane needs. **Slow** — several
     /// registry reads and an adapter enumeration.
     public static func machine() -> Win32MachineInfo {

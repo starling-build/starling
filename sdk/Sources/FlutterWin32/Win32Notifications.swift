@@ -33,6 +33,22 @@ public enum Win32Notifications {
         }
     }
 
+    /// Subscribe to arrivals instead of polling for them. True when the OS
+    /// took the registration; a caller that gets false has to keep its poll.
+    ///
+    /// The handler is called on a WinRT threadpool thread and hops to the
+    /// main queue before yielding to `handler`, so callers get the shell's
+    /// usual thread rules and can read the store from a detached task.
+    @discardableResult
+    public static func onChanged(_ handler: @escaping () -> Void) -> Bool {
+        changedHandler = handler
+        return flwin32_notifications_on_changed({ _ in
+            DispatchQueue.main.async { Win32Notifications.changedHandler?() }
+        }, nil) != 0
+    }
+
+    nonisolated(unsafe) private static var changedHandler: (() -> Void)?
+
     /// The store as it stands, newest first. Empty on refusal — the UI's
     /// empty state is the same picture either way.
     public static func read() -> [Win32Toast] {

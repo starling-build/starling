@@ -21,6 +21,13 @@
  * handler is a hand-written COM object, and everything here already runs on
  * a background thread that has nothing better to do than sleep 10ms.
  *
+ * (One exception now: NotificationChanged, at the bottom of this file, IS a
+ * hand-written COM object. It bought the banner surface its idle back --
+ * polling the store every two seconds cost ~0.25% of a core in a process
+ * whose entire job is to wait for something that might not happen for hours.
+ * A handler is about sixty lines of vtable; the poll was the same cost
+ * forever.)
+ *
  * Second, no capability dance. GetAccessStatus answers synchronously, and a
  * full-trust desktop process asking RequestAccessAsync is auto-granted on
  * current builds -- the per-app "notification access" list in Settings is
@@ -46,6 +53,8 @@
 #include <inspectable.h>
 #include <asyncinfo.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <windows.ui.notifications.h>
 #include <windows.ui.notifications.management.h>
@@ -55,6 +64,10 @@
 #include <wincodec.h>
 
 #include "include/FlutterWin32Bridge.h"
+
+/* STARLING_TOAST_DEBUG=1: what the store costs to ask, and what the arrival
+ * event said when we tried to register it. Defined with the handler below. */
+static int toast_debug(void);
 
 /* Short names for the ABI mouthful, or nothing below fits on a line. */
 typedef __x_ABI_CWindows_CUI_CNotifications_CManagement_CIUserNotificationListenerStatics ListenerStatics;
@@ -174,6 +187,27 @@ int32_t flwin32_notifications_access(void) {
     }
 }
 
+/* WHAT ASKING COSTS, measured on the box with STARLING_TOAST_DEBUG=1:
+ *
+ *     full read of 5 toasts   36-60 ms wall, ~6.2 ms CPU
+ *     the ids alone            24 ms wall, ~6.2 ms CPU
+ *
+ * The same CPU either way, which is the useful finding: the price is the
+ * cross-process RPC to the notification service and the marshalling around
+ * it, NOT the per-toast walk through AppInfo and the ToastGeneric binding.
+ * So there is no cheap "has anything changed" to poll on -- an ids-only
+ * variant was written, measured, and deleted. The only lever left is HOW
+ * OFTEN the question is asked, which is why the caller varies its interval
+ * with whether anyone is there to read the answer.
+ */
+
+static int64_t now_micros(void) {
+    LARGE_INTEGER f, t;
+    QueryPerformanceFrequency(&f);
+    QueryPerformanceCounter(&t);
+    return t.QuadPart * 1000000LL / f.QuadPart;
+}
+
 /* One toast's worth of strings, delivered through the callback so the list
  * can be any length without an allocation contract across the boundary.
  * `time_unix` is seconds since 1970. Title is the first ToastGeneric text
@@ -184,6 +218,7 @@ int32_t flwin32_notifications_read(
     void* user) {
     if (emit == NULL) return -1;
     if (g_listener == NULL && !flwin32_notifications_init()) return -1;
+    int64_t read_t0 = toast_debug() ? now_micros() : 0;
 
     NotifsAsync* op = NULL;
     if (FAILED(g_listener->lpVtbl->GetNotificationsAsync(
@@ -290,6 +325,11 @@ int32_t flwin32_notifications_read(
         un->lpVtbl->Release(un);
     }
     view->lpVtbl->Release(view);
+    if (toast_debug()) {
+        printf("[toast] full read of %d in %lld us\n", emitted,
+               (long long)(now_micros() - read_t0));
+        fflush(stdout);
+    }
     return emitted;
 }
 
@@ -432,4 +472,142 @@ int32_t flwin32_notification_app_icon(uint32_t toast_id, int32_t size,
     }
     view->lpVtbl->Release(view);
     return ok;
+}
+
+
+/* ── NotificationChanged ─────────────────────────────────────────────────────
+ *
+ * The arrival event. Nothing the user does brings a toast banner up, so the
+ * surface that shows one has to hear about the toast -- and "hear" is the
+ * word: it used to READ the whole store every two seconds instead, which is
+ * what a process spends its idle life on if you let it.
+ *
+ * This is the hand-written COM object the top of this file was pleased not to
+ * need. It is a singleton with a static vtable and a refcount that never
+ * reaches zero: the listener holds it for the life of the process, and there
+ * is exactly one banner surface per session.
+ *
+ * The Invoke lands on a WinRT threadpool thread. It does nothing but call the
+ * callback, and the Swift side hops to the UI thread from there -- reading the
+ * store from inside an event handler would block the pool thread on an async
+ * this file polls to completion.
+ */
+
+typedef __FITypedEventHandler_2_Windows__CUI__CNotifications__CManagement__CUserNotificationListener_Windows__CUI__CNotifications__CUserNotificationChangedEventArgs
+    ChangedHandler;
+typedef __FITypedEventHandler_2_Windows__CUI__CNotifications__CManagement__CUserNotificationListener_Windows__CUI__CNotifications__CUserNotificationChangedEventArgsVtbl
+    ChangedHandlerVtbl;
+typedef __x_ABI_CWindows_CUI_CNotifications_CIUserNotificationChangedEventArgs
+    ChangedArgs;
+
+static void (*g_changed_cb)(void* user);
+static void* g_changed_user;
+static EventRegistrationToken g_changed_token;
+
+/* The handler's own IID, which is where a PARAMETERIZED interface differs
+ * from every other IID in this file: MIDL does not emit a literal for it,
+ * because there is nothing to emit -- the value is DERIVED from the
+ * instantiation. WinRT's rule is SHA-1 over the namespace GUID
+ * 11f47ad5-7b73-42c0-abae-878b1e16adee followed by the UTF-8 signature
+ *
+ *   pinterface({9de1c534-6ae1-11e0-84e1-18a905bcc53f};
+ *              rc(Windows.UI.Notifications.Management.UserNotificationListener;
+ *                 {62553e41-8a06-4cef-8215-6033a5be4b03});
+ *              rc(Windows.UI.Notifications.UserNotificationChangedEventArgs;
+ *                 {b6bd6839-79cf-4b25-82c0-0ce1eef81f8c}))
+ *
+ * (no whitespace in the real string), with the RFC 4122 version-5 bits set.
+ * The two inner GUIDs are the default interfaces, read from the SDK headers'
+ * MIDL_INTERFACE lines. Re-derivable from those four values alone, which is
+ * why they are written out here rather than just the answer.
+ *
+ * STARLING_TOAST_DEBUG=1 prints any IID this object is asked for and does not
+ * recognise -- if the derivation above is ever wrong, that log is what says
+ * so, rather than a banner that silently never appears. */
+static const IID kIID_ChangedHandler =
+    {0x10242902, 0xb897, 0x5507, {0x99, 0x22, 0x2c, 0x0a, 0x7d, 0x34, 0x46, 0x4d}};
+static const IID kIID_IUnknown_local =
+    {0x00000000, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+static const IID kIID_IAgileObject =
+    {0x94ea2b94, 0xe9cc, 0x49e0, {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
+
+static int toast_debug(void) {
+    static int on = -1;
+    if (on < 0) {
+        const char* v = getenv("STARLING_TOAST_DEBUG");
+        on = (v != NULL && strcmp(v, "1") == 0) ? 1 : 0;
+    }
+    return on;
+}
+
+static HRESULT STDMETHODCALLTYPE changed_qi(ChangedHandler* This, REFIID riid,
+                                            void** ppv) {
+    if (ppv == NULL) return E_POINTER;
+    /* IUnknown and the handler's own IID are the two that matter;
+     * IAgileObject spares the event source a proxy for a callback that is
+     * safe on any thread, which this one is -- it only calls a function
+     * pointer. */
+    if (IsEqualIID(riid, &kIID_IUnknown_local) ||
+        IsEqualIID(riid, &kIID_IAgileObject) ||
+        IsEqualIID(riid, &kIID_ChangedHandler)) {
+        *ppv = This;
+        return S_OK;
+    }
+    if (toast_debug()) {
+        printf("[toast] QI refused {%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\n",
+               (unsigned long)riid->Data1, riid->Data2, riid->Data3,
+               riid->Data4[0], riid->Data4[1], riid->Data4[2], riid->Data4[3],
+               riid->Data4[4], riid->Data4[5], riid->Data4[6], riid->Data4[7]);
+        fflush(stdout);
+    }
+    *ppv = NULL;
+    return E_NOINTERFACE;
+}
+
+/* Static lifetime, so the counts are a formality the ABI still asks for. */
+static ULONG STDMETHODCALLTYPE changed_addref(ChangedHandler* This) {
+    (void)This;
+    return 2;
+}
+
+static ULONG STDMETHODCALLTYPE changed_release(ChangedHandler* This) {
+    (void)This;
+    return 1;
+}
+
+static HRESULT STDMETHODCALLTYPE changed_invoke(ChangedHandler* This,
+                                                Listener* sender,
+                                                ChangedArgs* args) {
+    (void)This; (void)sender; (void)args;
+    if (g_changed_cb != NULL) g_changed_cb(g_changed_user);
+    return S_OK;
+}
+
+static const ChangedHandlerVtbl g_changed_vtbl = {
+    changed_qi, changed_addref, changed_release, changed_invoke
+};
+
+static ChangedHandler g_changed_sink = { &g_changed_vtbl };
+
+int32_t flwin32_notifications_on_changed(void (*cb)(void* user), void* user) {
+    if (g_listener == NULL && !flwin32_notifications_init()) return 0;
+    if (g_changed_cb != NULL) return 1;   /* one registration per process */
+    g_changed_cb = cb;
+    g_changed_user = user;
+    HRESULT hr = g_listener->lpVtbl->add_NotificationChanged(
+        g_listener, &g_changed_sink, &g_changed_token);
+    if (toast_debug()) {
+        printf("[toast] add_NotificationChanged hr=0x%08lx\n",
+               (unsigned long)hr);
+        fflush(stdout);
+    }
+    if (FAILED(hr)) {
+        /* Denied access, or an OS that will not raise it for this process.
+         * The caller keeps its poll; saying so honestly is the whole
+         * contract. */
+        g_changed_cb = NULL;
+        g_changed_user = NULL;
+        return 0;
+    }
+    return 1;
 }
