@@ -152,7 +152,7 @@ Worth a later pass, in value order:
 
 ### The floor had a cause, and it was ours — 2026-08-22
 
-**Found in source, fix committed, number NOT yet re-measured.** The
+**Found in source, fixed, and now measured on the box (see below).** The
 "unexplained ~1-2%" was not the engine and not a parked tree. Every
 Starling process ran an unconditional 8 ms `WM_TIMER`
 (`flwin32_host.c`, `SetTimer(host->window, kDrainTimerId, 8, NULL)`)
@@ -177,12 +177,119 @@ DRM child renderer was written; the hosts simply never adopted it.
 `flgtk_host.c` had the identical `g_timeout_add(8, …)`. macOS never
 did: CFRunLoop owns that handle for us.
 
-To confirm, re-run the 20 s `TotalProcessorTime` sample. The A/B is one
-binary in one sitting, as this document's method section demands:
-`STARLING_DRAIN_TIMER_MS=8` restores the old poll exactly,
-unset is the new path. Expected: the ~1-2% floor goes to ~0 on all
-five, leaving only the named costs — the banner's 2 s store read, the
-dock's 1 Hz tick, the hidden caret's two frames a second.
+#### Measured — DESKTOP-URK35LH, 2026-08-22
+
+Built and run on the physical box as the real Winlogon `Shell=`
+replacement (exe `F6B421ED`, engine `starling` `c52ab20b5e1`), driven
+through the supervised `--session` shell. `STARLING_TRACE=1` prints
+which path a process took, and both were confirmed from the shipped
+binary: `message loop: main-queue drain is event-driven` by default,
+`message loop: main-queue drain polls` under
+`STARLING_DRAIN_TIMER_MS=8`.
+
+**A 60 s whole-session sample cannot see this effect.** Totals across
+the five surfaces came out 3.96 / 4.24 / 5.42% event and 5.16 / 4.35 /
+5.18% poll — overlapping, because the saving per process (~0.4 points)
+is under the run-to-run spread of a restarted session. Every number in
+the table above is a 20 s sample of one such session, which is worth
+knowing before trusting a small delta in it.
+
+What separates cleanly, in every single sample, is **context switches
+per second per process**: 394-437 event vs 580-635 poll. That is the
+~125 Hz timer plus its scheduling, and it is the honest instrument for
+this change.
+
+For the CPU number, run the two modes **simultaneously** instead —
+two identical `--files` windows of the same binary, side by side, both
+idle, one with the env var and one without, sampled over the same 240 s:
+
+| parked Files window | CPU (one core) | context switches/s |
+|---|---|---|
+| event-driven (default) | **0.447%** | 491 |
+| 8 ms poll (old behaviour) | **0.882%** | 670 |
+
+Exactly **2.0x**, −0.435 points and −179 wakeups/s per process. Five
+surfaces put the shell's idle saving at roughly **2 points of one
+core**, which is the right order for the "~1-2% floor" this started
+from.
+
+**But the floor does not go to zero, and the prediction above was too
+generous.** A parked window with nothing to do still costs 0.447% with
+the drain timer gone. The drain timer was about *half* of the
+per-process floor.
+
+#### What is left is the engine's DirectManipulation timer — 62 Hz, per view, forever
+
+Answered by instrumenting the loop itself (a temporary env-gated
+histogram of wait returns and dispatched messages, not committed). An
+**idle** `--files` window, no pointer over it, nothing to draw:
+
+    [wake] over 5.0s: waits drain=0.0/s input=62.2/s  messages=62.2/s
+    [wake]   msg=0x0113 hwnd=00000000001A00FA  62.2/s
+
+Every wakeup is a `WM_TIMER`, all of them to one HWND, and the
+libdispatch drain event fires **0.0/s** — the event path is genuinely
+silent when nothing is queued, which is the commit's claim, confirmed
+from inside the loop. That HWND enumerates as the `FLUTTERVIEW` child of
+the host window, and `flutter_window.cc:438` is where it comes from:
+
+    SetTimer(result, kDirectManipulationTimer, 14, nullptr);
+
+armed once when the view window is created, never killed, and its
+handler calls `direct_manipulation_owner_->Update()` on every tick
+(`flutter_window.cc:688`). 14 ms rounds to ~62 Hz. It runs per view,
+visible or hidden, whether or not a touchpad exists and whether or not
+a gesture is in progress — a parked overlay with no widget tree pays it
+exactly like a focused window. At 0.447% for 62.2 ticks that is ~72 µs a
+tick, against ~35 µs for a drain-timer tick, which is why removing 125
+drain ticks and leaving 62 DM ticks lands at half.
+
+Gating it (armed on `DM_POINTERHITTEST`, killed when the gesture ends,
+or simply not run for parked/hidden views) is worth about as much again
+as this commit — ~0.45% per surface, ~2 more points across the shell —
+and it is the reason a Starling surface cannot reach the 0.0% that
+Windows' own shell processes read. It is an engine change
+(`starling` branch), so it pairs with a shell branch by name.
+
+Landmine while in there: `kDirectManipulationTimer` is **1**, the same
+numeric id as `flwin32_host.c`'s `kDrainTimerId`. They live on different
+HWNDs today (engine view child vs our host frame), so nothing collides —
+but a timer id is only unique per window, and putting either on the
+other's window would silently replace it.
+
+Verified live at the same time, all on the event-driven path: the 1 Hz
+clock ticks across a minute boundary, the dock's 400 ms hover dwell and
+its 4 s auto-dismiss both fire, Start opens on the toggle broadcast and
+on a real tile click, typed search filters, Escape and click-away
+dismiss, the tray clock opens the notification centre, Files launches
+from its tile, right-click draws the full context menu, and the wheel
+scrolls it. Layout and paint also stay live *inside* a Win32 sizing
+modal loop (a window resized by dragging its edge re-lays out while the
+button is held), because engine frames ride the engine's own task
+runner, not this queue.
+
+**Found while measuring, and bigger than the timer: `dwm` costs ~5% of
+one core at idle, and it is the one-view chrome that makes it.**
+Attributed by killing surfaces one at a time on the same idle desktop —
+all five surfaces up, dwm 4.93%; only the `--oneview` chrome left,
+5.06%; Starling stopped entirely, **0.00%**. It is identical in both
+drain modes and on the pre-fix binary, so it is not this change, but it
+does mean the shell's real idle cost on this box is ~4% ours plus ~5%
+compositor. The table above reads dwm 0.0% with the shell running,
+which no longer reproduces; the likely difference is what was on screen
+(a full-screen opaque window occludes the 4K colorkeyed chrome layer and
+DWM stops composing it). Worth its own pass: it is now the largest
+single idle cost in the system, and per-view damage would not touch it.
+
+One caveat the design does carry: a nested modal loop (`DoDragDrop`,
+`WM_ENTERSIZEMOVE`, a Win32 menu) pumps messages but does **not** run
+this drain, so `@MainActor` work enqueued during one is deferred until
+the loop exits — where the 8 ms `WM_TIMER` used to be dispatched by the
+nested loop like any other message. No user-visible case was found (the
+resize path above is live, and Files does not watch directories, so its
+obvious oracle is unavailable), but `SetTimer` on `WM_ENTERSIZEMOVE` /
+`WM_ENTERMENULOOP` and `KillTimer` on exit would close it for nothing at
+idle.
 
 One residual, separate from this: `GpuDmaBufRenderer.swift`'s poll loop
 keeps a **100 ms idle backstop** (10 Hz) alongside the GCD fd. Far
