@@ -18,10 +18,20 @@ public class MacosTextField: StatefulWidget {
     public let style: TextStyle?
     public let padding: EdgeInsets
     public let decoration: BoxDecoration?
+
+    /// Whether the focus ring is drawn. Off for a field whose surroundings
+    /// already draw the chrome — see FluentTextBox.showFocusRing.
+    public let showFocusRing: Bool
     /// Renders every character as `obscuringCharacter` — a password field.
     /// The editing underneath is unchanged; only what is painted differs.
     public let obscureText: Bool
     public let obscuringCharacter: String
+    /// Takes the keyboard as soon as it is mounted — see `FluentTextBox`.
+    public let autofocus: Bool
+    /// Focus gained/lost — see `FluentTextBox.onFocusChanged`, which this
+    /// forwards. The hook a transient editor (an address bar, an inline
+    /// rename) needs to put its resting face back when the field is done.
+    public let onFocusChanged: ((Bool) -> Void)?
 
     public init(
         key: (any Key)? = nil,
@@ -37,8 +47,11 @@ public class MacosTextField: StatefulWidget {
         style: TextStyle? = nil,
         padding: EdgeInsets = EdgeInsets(horizontal: 6, vertical: 4),
         decoration: BoxDecoration? = nil,
+        showFocusRing: Bool = true,
         obscureText: Bool = false,
-        obscuringCharacter: String = "\u{2022}"
+        obscuringCharacter: String = "\u{2022}",
+        autofocus: Bool = false,
+        onFocusChanged: ((Bool) -> Void)? = nil
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -52,8 +65,11 @@ public class MacosTextField: StatefulWidget {
         self.style = style
         self.padding = padding
         self.decoration = decoration
+        self.showFocusRing = showFocusRing
         self.obscureText = obscureText
         self.obscuringCharacter = obscuringCharacter
+        self.autofocus = autofocus
+        self.onFocusChanged = onFocusChanged
         super.init(key: key)
     }
 
@@ -122,8 +138,11 @@ class _MacosTextFieldState: State<StatefulWidget> {
                 obscuringCharacter: field.obscuringCharacter,
                 decoration: bgDecoration,
                 focusedDecoration: focusedDecoration,
+                showFocusRing: field.showFocusRing,
                 prefix: field.prefix,
-                suffix: field.suffix
+                suffix: field.suffix,
+                autofocus: field.autofocus,
+                onFocusChanged: field.onFocusChanged
             )
         )
     }

@@ -1,0 +1,352 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Shell chrome on Windows: a window that behaves like a bar or a dock rather
+// than like an application.
+//
+// Starling on Linux composites its own chrome because it IS the compositor.
+// Windows has no such seat — DWM owns compositing and is not replaceable — so
+// a Starling shell here is chrome plus a window manager: we draw the bar in an
+// undecorated always-on-top window and move everyone else's windows with
+// user32. This file is the first half of that.
+
+#if os(Windows)
+import FlutterWin32Bridge
+
+/// Which screen edge a panel is pinned to.
+public enum PanelEdge: Int32, Sendable {
+    case top = 0
+    case bottom = 1
+    case left = 2
+    case right = 3
+}
+
+/// One monitor, in the virtual-desktop coordinate space Windows lays screens
+/// out in — so `x`/`y` may be negative for a screen left of or above the
+/// primary, exactly like Starling's own DisplayLayout.
+public struct Win32Monitor: Sendable {
+    public let index: Int
+    public let x: Int
+    public let y: Int
+    public let width: Int
+    public let height: Int
+    public let isPrimary: Bool
+    /// The display scale: 1.0 at 96 dpi, 2.0 at 192. Windows lets each
+    /// monitor have its own, which is why every geometry on this boundary is
+    /// in physical pixels and every size the shell asks for is in points.
+    public let scale: Double
+
+    /// The monitor in the units a widget tree is laid out in.
+    public var logicalWidth: Double { Double(width) / scale }
+    public var logicalHeight: Double { Double(height) / scale }
+}
+
+public enum Win32Display {
+
+    /// Every monitor, primary first-ish (Windows does not promise an order —
+    /// read `isPrimary`, never index 0).
+    public static func monitors() -> [Win32Monitor] {
+        let n = Int(flwin32_monitor_count())
+        var out: [Win32Monitor] = []
+        out.reserveCapacity(n)
+        for i in 0..<n {
+            var x: Int32 = 0, y: Int32 = 0, w: Int32 = 0, h: Int32 = 0
+            var primary: Int32 = 0
+            guard flwin32_monitor_rect(Int32(i), &x, &y, &w, &h, &primary) != 0
+            else { continue }
+            let dpi = flwin32_monitor_dpi(Int32(i))
+            out.append(Win32Monitor(index: i, x: Int(x), y: Int(y),
+                                    width: Int(w), height: Int(h),
+                                    isPrimary: primary != 0,
+                                    scale: Double(dpi) / 96.0))
+        }
+        return out
+    }
+
+    public static func primary() -> Win32Monitor? {
+        let all = monitors()
+        return all.first(where: { $0.isPrimary }) ?? all.first
+    }
+}
+
+/// Where a panel sits. Handed to `Win32WindowedHost.panel` before
+/// `runStarlingApp`, because the window it restyles does not exist until the
+/// host boots.
+public struct PanelPlacement: Sendable {
+    public let edge: PanelEdge
+    /// LOGICAL POINTS — the same units the widget tree inside is laid out
+    /// in, so a 44pt bar is 44pt tall on every display and the host does the
+    /// pixel arithmetic. It also re-does it on a scale change, which a
+    /// caller working in pixels could not.
+    public let thickness: Int
+    /// Index into `Win32Display.monitors()`, or nil for the primary.
+    public let monitor: Int?
+    /// Ask Windows to RESERVE the strip (register as an appbar), so maximized
+    /// windows stop at the bar instead of going under it. Without this the
+    /// panel is only an overlay — which is the right answer for a HUD and the
+    /// wrong one for shell chrome.
+    public let reserveSpace: Bool
+    /// Whether clicking the panel moves the keyboard to it.
+    ///
+    /// Default false, and that default is what makes it chrome: a taskbar
+    /// that takes focus takes it away from the window the click is about to
+    /// raise, so the user's caret leaves the document they were typing in.
+    /// Turn it on only for a panel that has a text field of its own — a
+    /// launcher, a search bar.
+    public let takesFocus: Bool
+    /// Whether pure black in the tree is a hole rather than a colour.
+    ///
+    /// A dock is a slab floating over the wallpaper, so its window is the
+    /// full strip and most of that has to disappear; a menu bar fills its
+    /// strip and does not want this. The engine's swap chain is opaque, so
+    /// this is a colour key rather than per-pixel alpha — which is why it
+    /// costs the ability to paint true black here. Every Starling surface is
+    /// a near-black, so nothing real is lost.
+    public let transparent: Bool
+    /// Extra points the WINDOW occupies beyond the strip it reserves,
+    /// extending in from the edge.
+    ///
+    /// A dock needs this to draw above itself — a hover label, a right-click
+    /// menu — because a window is a hard clip and anything taller than the
+    /// strip would be cut off. The overhang reserves nothing, is transparent,
+    /// and is click-through until something paints in it.
+    public let overhang: Int
+
+    public init(edge: PanelEdge, thickness: Int, monitor: Int? = nil,
+                reserveSpace: Bool = false, takesFocus: Bool = false,
+                transparent: Bool = false, overhang: Int = 0) {
+        self.edge = edge
+        self.thickness = thickness
+        self.monitor = monitor
+        self.reserveSpace = reserveSpace
+        self.takesFocus = takesFocus
+        self.transparent = transparent
+        self.overhang = overhang
+    }
+}
+
+/// Where an overlay sits: the whole screen, or a floating panel. Handed to `Win32WindowedHost.overlay`
+/// before `runStarlingApp`, for the same reason `PanelPlacement` is: the
+/// window it restyles does not exist until the host boots, and a tree laid
+/// out against the pre-restyle size renders its first frame at the wrong
+/// geometry.
+public struct OverlayPlacement: Sendable {
+    /// Index into `Win32Display.monitors()`, or nil for the primary.
+    public let monitor: Int?
+    /// The whole surface's opacity. Uniform rather than per-pixel — the
+    /// engine's swap chain is opaque — which is what gives the frosted-panel
+    /// look without a blur we have no cheap way to do.
+    public let opacity: Double
+    /// The panel's size in POINTS, or nil to cover the whole monitor.
+    ///
+    /// Windows' own Start menu is a floating panel rather than a takeover, and
+    /// a launcher that blacks out the screen to show twelve icons is the
+    /// macOS habit imported without the macOS reason for it.
+    public let size: (width: Double, height: Double)?
+    /// Points between the panel's bottom edge and the bottom of the work
+    /// area. The work area already excludes the dock.
+    public let bottomMargin: Double
+    /// Set to pin the panel to the work area's RIGHT edge with this inset,
+    /// instead of centring it — Windows' notification centre, not its Start.
+    public let rightMargin: Double?
+    /// Or to the LEFT edge — the Run dialog's corner.
+    public let leftMargin: Double?
+    /// The toggle channel this overlay answers. `nil` is the default channel
+    /// (the launcher's). A second overlay kind must name its own — every
+    /// overlay hears the broadcast, so one channel would toggle them all.
+    public let channel: String?
+    /// Key pure black out of the surface — for an overlay drawn as separate
+    /// blocks whose gaps should show the desktop, like the notification
+    /// centre's two panels. Costs the tree true black, same as the panels.
+    public let transparent: Bool
+    /// Showing takes nothing from the user: no activation, no global Escape.
+    /// For surfaces that appear uninvited — toast banners — where stealing
+    /// focus from whatever the user is typing in would be the bug.
+    public let passive: Bool
+
+    public init(monitor: Int? = nil, opacity: Double = 0.96,
+                size: (width: Double, height: Double)? = nil,
+                bottomMargin: Double = 12,
+                rightMargin: Double? = nil,
+                leftMargin: Double? = nil,
+                channel: String? = nil,
+                transparent: Bool = false,
+                passive: Bool = false) {
+        self.monitor = monitor
+        self.opacity = opacity
+        self.size = size
+        self.bottomMargin = bottomMargin
+        self.rightMargin = rightMargin
+        self.leftMargin = leftMargin
+        self.channel = channel
+        self.transparent = transparent
+        self.passive = passive
+    }
+}
+
+/// Toggling a surface that lives in another process.
+///
+/// The framework mounts one widget root per process and the Win32 host owns
+/// one window, so Starling's surfaces on Windows are separate processes — the
+/// bar, the dock, the launcher. A registered window message broadcast is the
+/// documented way for unrelated processes to talk with no socket and no pipe:
+/// every process that registers the same string gets the same id back.
+public enum Win32Shell {
+    /// Asks every Starling overlay in the session to show or hide itself.
+    public static func toggleOverlay() {
+        flwin32_shell_broadcast_toggle()
+    }
+
+    /// The same toggle on a named channel — one overlay kind, not all of
+    /// them. The notification centre lives on "notifications".
+    public static func toggleOverlay(channel: String) {
+        flwin32_shell_broadcast_toggle_channel(channel)
+    }
+
+    /// Starts the notification-centre process parked, so the first Win+N is
+    /// a show rather than an engine boot. Idempotent.
+    public static func ensureNotificationCenter() {
+        flwin32_shell_ensure_notification_center()
+    }
+
+    /// Starts the toast-banner process parked. Banners have no user gesture
+    /// to boot on, so the engine must be warm before the first toast arrives.
+    public static func ensureBanners() {
+        flwin32_shell_ensure_banners()
+    }
+
+    /// Starts the Run-dialog process parked, so Win+R is a show rather than
+    /// an engine boot. Idempotent.
+    public static func ensureRun() {
+        flwin32_shell_ensure_run()
+    }
+
+    /// Starts the launcher (Start menu) process parked, so the Windows key and
+    /// the dock's launcher tile are a show rather than an engine boot — and so
+    /// there is a process to receive the toggle broadcast at all under
+    /// `--session`, where nothing else starts it. Idempotent.
+    public static func ensureLauncher() {
+        flwin32_shell_ensure_launcher()
+    }
+
+    /// Whether explorer is running as the shell — by its Progman desktop
+    /// window, a class this shell never takes.
+    public static var explorerPresent: Bool {
+        flwin32_shell_explorer_present() != 0
+    }
+
+    /// Whether the named Starling surface is currently visible on screen.
+    public static func surfaceVisible(_ title: String) -> Bool {
+        flwin32_shell_surface_visible(title) != 0
+    }
+
+    /// A bare tap of either Windows key, delivered here rather than to
+    /// Explorer's Start menu.
+    ///
+    /// The key labelled with the Windows logo is the one people press to open
+    /// Start, and hiding Explorer's taskbar does not take it with them:
+    /// explorer is still running and still owns it. There is no way to ask for
+    /// a lone modifier — `RegisterHotKey` treats Win as something that
+    /// modifies another key — so this is a low-level keyboard hook, and it
+    /// only ever eats the tap: `Win+E`, `Win+D`, `Win+L` and everything
+    /// Microsoft adds next are dispatched by Windows off a keydown we never
+    /// touch. See `flwin32_winkey.c` for how a tap is unmade.
+    ///
+    /// Call it on the UI thread. `handler` runs there too, on the message
+    /// loop. Returns whether the hook took — false either because Windows
+    /// refused it or because another Starling shell in this session already
+    /// holds the key, which is what a second dock on a second monitor gets.
+    @discardableResult
+    public static func captureSuperKey(_ handler: @escaping () -> Void) -> Bool {
+        superKeyHandler = handler
+        return flwin32_winkey_capture({ _ in Win32Shell.superKeyHandler?() }, nil) != 0
+    }
+
+    /// Gives the key back to Windows. The hook dies with the process anyway,
+    /// and a hung shell loses it on the system's own timeout — which is the
+    /// right failure: a desktop where the Windows key does nothing at all is
+    /// worse than one where it opens the wrong Start.
+    public static func releaseSuperKey() {
+        flwin32_winkey_release()
+        superKeyHandler = nil
+        superChordHandler = nil
+    }
+
+    /// Win+<letter> chords the shell keeps: Quick Settings and the
+    /// notification centre replace Explorer surfaces, so `Win+A`/`Win+N`
+    /// must open OURS, not Microsoft's. Everything not named here still goes
+    /// to Windows — see the header of `flwin32_winkey.c` for why that
+    /// restraint matters. Requires `captureSuperKey` to have succeeded, for
+    /// the same one-hook-per-session reason.
+    ///
+    /// `handler` receives the letter pressed ("A", "N") on the UI thread.
+    @discardableResult
+    public static func captureSuperChords(_ letters: [Character],
+                                          _ handler: @escaping (Character) -> Void) -> Bool {
+        superChordHandler = handler
+        let vks = letters.compactMap { $0.uppercased().unicodeScalars.first.map { Int32($0.value) } }
+        return vks.withUnsafeBufferPointer { buf in
+            flwin32_winkey_set_chords(buf.baseAddress, Int32(buf.count), { _, vk in
+                if let scalar = Unicode.Scalar(UInt32(vk)) {
+                    Win32Shell.superChordHandler?(Character(scalar))
+                }
+            }, nil) != 0
+        }
+    }
+
+    /// Global for the same reason `Win32Host`'s toggle handler is: one UI
+    /// thread, one hook per process.
+    nonisolated(unsafe) private static var superKeyHandler: (() -> Void)?
+    nonisolated(unsafe) private static var superChordHandler: ((Character) -> Void)?
+
+    /// Opens Starling's own Settings window.
+    ///
+    /// Another run of this binary, like the launcher: the framework mounts one
+    /// widget root per process, so a second surface is a second process. It is
+    /// found by asking for THIS executable rather than a recorded path — the
+    /// shell may be running from a staging tree, a package, or a build
+    /// directory, and only one of those is ever right.
+    ///
+    /// Already open? Windows brings the existing window forward rather than
+    /// this making a second one — see `flwin32_shell_open_settings`.
+    public static func openSettings() {
+        flwin32_shell_open_settings()
+    }
+
+    /// Opens Starling's file explorer, or raises the one already open. Same
+    /// bargain as `openSettings`.
+    public static func openFiles() {
+        flwin32_shell_open_files()
+    }
+
+    /// Explorer's own taskbar — hidden, so that Starling's bar and dock are
+    /// the only shell chrome on the screen rather than a second set beside
+    /// Windows'.
+    ///
+    /// This is not "replacing the shell": explorer.exe keeps running, keeps
+    /// owning the desktop and the tray plumbing and every shell dialog, and
+    /// its taskbar comes back on request. Swapping `Winlogon\Shell` is the
+    /// real replacement and a much later phase — it takes the desktop with
+    /// it, so a crash leaves the user with nothing.
+    ///
+    /// Idempotent, and worth re-asserting on a timer: explorer puts its
+    /// taskbar back on a display change and whenever it restarts.
+    @discardableResult
+    public static func hideNativeTaskbar() -> Bool {
+        flwin32_explorer_taskbar_hide() != 0
+    }
+
+    /// Puts it back, with the appbar state the user had before the first
+    /// hide. Runs from `atexit` on the ordinary exit path too — a machine
+    /// left with no taskbar and no Starling cannot be recovered from the
+    /// desktop, so this must not depend on the shell shutting down tidily.
+    @discardableResult
+    public static func showNativeTaskbar() -> Bool {
+        flwin32_explorer_taskbar_show() != 0
+    }
+
+    public static var nativeTaskbarIsVisible: Bool {
+        flwin32_explorer_taskbar_visible() != 0
+    }
+}
+#endif

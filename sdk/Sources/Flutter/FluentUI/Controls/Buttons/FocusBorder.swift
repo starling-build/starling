@@ -108,6 +108,13 @@ public class FocusBorder: StatelessWidget {
     }
 
     public override func build(_ context: any BuildContext) -> Widget {
+        // `focused` was stored and never read: the ring was painted whether or
+        // not the child had focus, on every control that wraps one. Nothing on
+        // Linux noticed because the shell and the apps are Fluent-free, and it
+        // surfaced on Windows as a black rectangle around the Start menu's
+        // search box that no combination of decorations could remove.
+        guard focused else { return child }
+
         let resolvedStyle = FocusThemeData.standard().merge(style)
         let borderWidth =
             (resolvedStyle.primaryBorder?.width ?? 0)

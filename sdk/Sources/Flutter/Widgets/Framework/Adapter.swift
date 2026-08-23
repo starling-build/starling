@@ -10,6 +10,26 @@
 import FlutterSwiftBridge
 @preconcurrency import Foundation
 
+// MARK: - Frame timing
+
+/// STARLING_FRAME_LOG=1: one stderr line per composited frame with the
+/// build / layout / paint / composite / finalize split, in microseconds.
+/// External CPU sampling cannot attribute per-frame costs (the dead end
+/// documented in docs/plans/winshell-perf.md); this is the timer it asks
+/// for. Same convention as STARLING_SWAPCHAIN_DEBUG. FileHandle rather
+/// than print(): print is block-buffered through pipes and the consumer
+/// of this log IS a pipe.
+private let frameLogEnabled =
+    (ProcessInfo.processInfo.environment["STARLING_FRAME_LOG"] ?? "") == "1"
+
+private func frameLogNow() -> UInt64 {
+    frameLogEnabled ? DispatchTime.now().uptimeNanoseconds : 0
+}
+
+private func frameLogWrite(_ line: String) {
+    FileHandle.standardError.write(Data((line + "\n").utf8))
+}
+
 // MARK: - RenderObjectToWidgetAdapter
 
 /// A `RenderObjectWidget` that bridges a widget subtree to an existing
@@ -115,6 +135,20 @@ public nonisolated(unsafe) var _forceNextComposite = false
 /// every frame alongside the implicit view. When nil (the default), added
 /// views get no content and are never rendered.
 public nonisolated(unsafe) var multiViewContentBuilder: ((FlutterView) -> Widget)? = nil
+
+/// Called once per non-implicit view, right after its FIRST scene is
+/// composited — the moment a host that kept the view's window hidden can
+/// show it without exposing an unpainted surface (the Win32 popup surfaces
+/// open hidden and show here, which is what keeps a menu from flashing as
+/// a flat rectangle before its first present).
+public nonisolated(unsafe) var multiViewFirstComposite: ((Int) -> Void)? = nil
+
+/// Called after EVERY composite of a non-implicit view (the first one
+/// included, after `multiViewFirstComposite`). What a POOLED popup's reopen
+/// waits on: its hidden view keeps compositing, and the safe moment to show
+/// the window again is the composite that carries the reopened menu's
+/// rebuild — a timer can only guess at that, this observes it.
+public nonisolated(unsafe) var multiViewComposited: ((Int) -> Void)? = nil
 
 /// The render/build pipeline of one non-implicit view (multi-monitor).
 private final class SecondaryViewPipeline {
@@ -226,6 +260,23 @@ func _setupWidgetBinding(_ app: Widget) {
     // Pointer event state — caches hit test results for active pointers.
     var hitTests: [Int: HitTestResult] = [:]
 
+    // The mouse tracker, which is what makes MouseRegion's enter/exit fire.
+    // Dart routes every pointer event through RendererBinding._dispatchEvent,
+    // which feeds its tracker before dispatching; this adapter dispatches
+    // directly and never did — so every MouseRegion in every app was
+    // silently inert. Created here with the same per-view hit test the
+    // dispatch below uses.
+    let mouseTracker = MouseTracker({ position, viewId in
+        let result = HitTestResult()
+        if let implicitId = PlatformDispatcher.instance.implicitView?.viewId,
+           viewId == implicitId {
+            _ = renderView?.hitTest(result, position: position)
+        } else if let sp = secondaryPipelines[viewId] {
+            _ = sp.renderView.hitTest(result, position: position)
+        }
+        return result
+    })
+
     // Track whether a fallback frame is already scheduled on the RunLoop.
     var _fallbackFrameScheduled = false
 
@@ -266,7 +317,23 @@ func _setupWidgetBinding(_ app: Widget) {
         // and a cursor at column 37 painted an empty grid with the cursor at
         // column 0. The engine delivers vsync reliably through the Cocoa
         // embedder, so there is nothing here to fall back FROM.
-        if !_fallbackFrameScheduled {
+        // THE HOOK, NOT THE PIPELINE, when the host provides one. Asking
+        // the embedder for a real frame (ForceRedraw -> the engine's own
+        // begin-frame pass) is strictly better than the out-of-band drain
+        // below: the drain composites outside the engine's frame callback,
+        // and whether such a composite reaches the screen depends on the
+        // context it runs from -- from a RunLoop pump it does, from the
+        // host's WM_TIMER drain it silently does not, which surfaced as a
+        // menu that never showed its rows. It also cannot race the real
+        // frame into skipping (the macOS pathology in the comment above),
+        // because it IS the real frame.
+        if let kick = hostScheduleEngineFrame {
+            kick()
+        } else if !_fallbackFrameScheduled {
+            // No hook installed: the RunLoop fallback. Late -- RunLoop.main
+            // is pumped by input on this host, and by nearly nothing when
+            // the pointer is still -- but visibly composites, which the
+            // GCD main queue variant of this block did not.
             _fallbackFrameScheduled = true
             RunLoop.main.perform(_sendablePerform {
                 _fallbackFrameScheduled = false
@@ -300,6 +367,18 @@ func _setupWidgetBinding(_ app: Widget) {
             pipelineOwner = PipelineOwner()
             pipelineOwner!.onNeedVisualUpdate = {
                 pd.scheduleFrame()
+                #if os(Windows)
+                // Same story as onBuildScheduled above: this embedder does
+                // not deliver a vsync frame for ScheduleFrame in Swift
+                // mode, so a RENDER-side invalidation — a scroll offset
+                // moving, a markNeedsLayout outside any build — must kick
+                // the host's real frame too, or the dirty layout sits
+                // until some other frame happens by. Scrolling a ListView
+                // was exactly this: the scroll position moved and notified,
+                // the viewport marked itself for layout, and nothing on
+                // screen ever moved.
+                hostScheduleEngineFrame?()
+                #endif
             }
             renderView!.attach(pipelineOwner!)
             renderView!.prepareInitialFrame()
@@ -347,6 +426,10 @@ func _setupWidgetBinding(_ app: Widget) {
                 let po = PipelineOwner()
                 po.onNeedVisualUpdate = {
                     pd.scheduleFrame()
+                    #if os(Windows)
+                    // See the implicit view's onNeedVisualUpdate above.
+                    hostScheduleEngineFrame?()
+                    #endif
                 }
                 rv.attach(po)
                 rv.prepareInitialFrame()
@@ -423,12 +506,18 @@ func _setupWidgetBinding(_ app: Widget) {
         // widget change — a terminal echoing keystrokes — never re-presents.
         let updatedTextures = FrameCallbackScheduler.shared.takeUpdatedTextures()
 
+        let ftStart = frameLogNow()
+
         // Flush dirty elements before layout
         buildOwner.buildScopeWithCallback(rootElement!) {}
 
+        let ftBuild = frameLogNow()
+
         // Frame pipeline (mirrors RendererBinding.drawFrame)
         pipelineOwner!.flushLayout()
+        let ftLayout = frameLogNow()
         pipelineOwner!.flushPaint()
+        let ftPaint = frameLogNow()
 
         // Only composite if something actually changed. Skipping composite
         // when nothing is dirty avoids unnecessary scene builds, engine
@@ -466,8 +555,20 @@ func _setupWidgetBinding(_ app: Widget) {
             sp.pipelineOwner.flushLayout()
             sp.pipelineOwner.flushPaint()
             if viewDirty {
+                let first = !sp.hasComposited
                 sp.hasComposited = true
                 sp.renderView.compositeFrame()
+                if first {
+                    // One line per view's life — the composite-side twin of
+                    // "pipeline created" above. A view that was created and
+                    // never composited, or composited into a surface that
+                    // shows nothing, are different failures; this line is
+                    // what tells them apart.
+                    try? FileHandle.standardError.write(contentsOf: Data(
+                        "[Adapter] view \(fv.viewId) first composite\n".utf8))
+                    multiViewFirstComposite?(fv.viewId)
+                }
+                multiViewComposited?(fv.viewId)
             }
         }
 
@@ -491,7 +592,21 @@ func _setupWidgetBinding(_ app: Widget) {
         //
         // AFTER compositing, not before: an element deactivated during build
         // may still own a render object that layout and paint walk this frame.
+        let ftComposite = frameLogNow()
         buildOwner.finalizeTree()
+
+        // Only frames that composited: the skipped ones are the cheap
+        // steady state and would drown the signal.
+        if frameLogEnabled && shouldComposite {
+            let ftEnd = DispatchTime.now().uptimeNanoseconds
+            func us(_ a: UInt64, _ b: UInt64) -> UInt64 { (b - a) / 1_000 }
+            frameLogWrite("[frame] build=\(us(ftStart, ftBuild))us"
+                + " layout=\(us(ftBuild, ftLayout))us"
+                + " paint=\(us(ftLayout, ftPaint))us"
+                + " composite=\(us(ftPaint, ftComposite))us"
+                + " finalize=\(us(ftComposite, ftEnd))us"
+                + " total=\(us(ftStart, ftEnd))us")
+        }
     }
     pd.onDrawFrame = { }
 
@@ -584,6 +699,15 @@ func _setupWidgetBinding(_ app: Widget) {
             } else if event.down || event is PointerPanZoomUpdateEvent {
                 hitTestResult = hitTests[event.pointer]
             }
+
+            // The tracker sees EVERY event, as RendererBinding's dispatch
+            // gives it in Dart — it derives enter/exit for MouseRegions by
+            // diffing the annotations under the device. Moves pass nil so
+            // the tracker re-runs the hit test itself: the cached down-time
+            // result deliberately does not follow the hover.
+            mouseTracker.updateWithEvent(
+                event,
+                hitTestResult: event is PointerMoveEvent ? nil : hitTestResult)
 
             if let result = hitTestResult {
                 for entry in result.path {

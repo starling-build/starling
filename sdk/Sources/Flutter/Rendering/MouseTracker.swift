@@ -3,8 +3,40 @@
 // found in the LICENSE file.
 
 import FlutterSwiftBridge
+import Foundation
 
 // =============================================================================
+// MARK: - MouseAnnotation
+
+/// An identity-hashed box around any `MouseTrackerAnnotationProtocol`, so
+/// the tracker's dictionaries can be keyed by the RENDER OBJECTS that carry
+/// annotations (`RenderMouseRegion`), not only by the plain
+/// `MouseTrackerAnnotation` class. The two grew up separately: the tracker
+/// hit-tested for the class while every MouseRegion in every widget tree
+/// conformed to the protocol -- so the cast always failed, the annotation
+/// set was always empty, and enter/exit never fired anywhere. The
+/// forwarders keep the dispatch sites reading exactly as Dart's do.
+public struct MouseAnnotation: Hashable {
+    public let object: any MouseTrackerAnnotationProtocol
+
+    public init(_ object: any MouseTrackerAnnotationProtocol) {
+        self.object = object
+    }
+
+    public static func == (lhs: MouseAnnotation, rhs: MouseAnnotation) -> Bool {
+        lhs.object === rhs.object
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(object))
+    }
+
+    var cursor: MouseCursor { object.cursor }
+    var validForMouseTracker: Bool { object.validForMouseTracker }
+    var onEnter: ((PointerEnterEvent) -> Void)? { object.onEnter }
+    var onExit: ((PointerExitEvent) -> Void)? { object.onExit }
+}
+
 // MARK: - Stub: MouseTrackerAnnotation
 // =============================================================================
 
@@ -195,18 +227,18 @@ fileprivate class MouseState {
     /// The list of annotations that contains this device.
     ///
     /// **Dart Source:** mouse_tracker.dart:29
-    var annotations: [MouseTrackerAnnotation: Matrix4] {
+    var annotations: [MouseAnnotation: Matrix4] {
         return _annotations
     }
 
     /// **Dart Source:** mouse_tracker.dart:30
-    private var _annotations: [MouseTrackerAnnotation: Matrix4] = [:]
+    private var _annotations: [MouseAnnotation: Matrix4] = [:]
 
     /// Replaces the current annotations with the given value and returns the
     /// previous annotations.
     ///
     /// **Dart Source:** mouse_tracker.dart:32
-    func replaceAnnotations(_ value: [MouseTrackerAnnotation: Matrix4]) -> [MouseTrackerAnnotation: Matrix4] {
+    func replaceAnnotations(_ value: [MouseAnnotation: Matrix4]) -> [MouseAnnotation: Matrix4] {
         let previous = _annotations
         _annotations = value
         return previous
@@ -274,8 +306,8 @@ fileprivate struct MouseTrackerUpdateDetails {
 
     /// Private memberwise initializer used by the factory methods.
     private init(
-        lastAnnotations: [MouseTrackerAnnotation: Matrix4],
-        nextAnnotations: [MouseTrackerAnnotation: Matrix4],
+        lastAnnotations: [MouseAnnotation: Matrix4],
+        nextAnnotations: [MouseAnnotation: Matrix4],
         previousEvent: PointerEvent?,
         triggeringEvent: PointerEvent?
     ) {
@@ -293,8 +325,8 @@ fileprivate struct MouseTrackerUpdateDetails {
     ///
     /// **Dart Source:** mouse_tracker.dart:72
     static func byNewFrame(
-        lastAnnotations: [MouseTrackerAnnotation: Matrix4],
-        nextAnnotations: [MouseTrackerAnnotation: Matrix4],
+        lastAnnotations: [MouseAnnotation: Matrix4],
+        nextAnnotations: [MouseAnnotation: Matrix4],
         previousEvent: PointerEvent
     ) -> MouseTrackerUpdateDetails {
         return MouseTrackerUpdateDetails(
@@ -312,8 +344,8 @@ fileprivate struct MouseTrackerUpdateDetails {
     ///
     /// **Dart Source:** mouse_tracker.dart:82
     static func byPointerEvent(
-        lastAnnotations: [MouseTrackerAnnotation: Matrix4],
-        nextAnnotations: [MouseTrackerAnnotation: Matrix4],
+        lastAnnotations: [MouseAnnotation: Matrix4],
+        nextAnnotations: [MouseAnnotation: Matrix4],
         previousEvent: PointerEvent? = nil,
         triggeringEvent: PointerEvent
     ) -> MouseTrackerUpdateDetails {
@@ -332,14 +364,14 @@ fileprivate struct MouseTrackerUpdateDetails {
     /// It is never nil.
     ///
     /// **Dart Source:** mouse_tracker.dart:92
-    let lastAnnotations: [MouseTrackerAnnotation: Matrix4]
+    let lastAnnotations: [MouseAnnotation: Matrix4]
 
     /// The annotations that the device is hovering after the update.
     ///
     /// It is never nil.
     ///
     /// **Dart Source:** mouse_tracker.dart:97
-    let nextAnnotations: [MouseTrackerAnnotation: Matrix4]
+    let nextAnnotations: [MouseAnnotation: Matrix4]
 
     /// The last event that the device observed before the update.
     ///
@@ -506,7 +538,7 @@ public class MouseTracker: ChangeNotifier {
                 let targetState = self._mouseStates[device] ?? existingState!
 
                 let lastEvent = targetState.replaceLatestEvent(event)
-                let nextAnnotations: [MouseTrackerAnnotation: Matrix4]
+                let nextAnnotations: [MouseAnnotation: Matrix4]
                 if event is PointerRemovedEvent {
                     nextAnnotations = [:]
                 } else {
@@ -634,12 +666,14 @@ public class MouseTracker: ChangeNotifier {
     /// their respective global transform matrices.
     ///
     /// **Dart Source:** mouse_tracker.dart:231
-    private func _hitTestInViewResultToAnnotations(_ result: HitTestResult) -> [MouseTrackerAnnotation: Matrix4] {
-        var annotations: [MouseTrackerAnnotation: Matrix4] = [:]
+    private func _hitTestInViewResultToAnnotations(_ result: HitTestResult) -> [MouseAnnotation: Matrix4] {
+        var annotations: [MouseAnnotation: Matrix4] = [:]
         for entry in result.path {
-            let target = entry.target
-            if let annotation = target as? MouseTrackerAnnotation {
-                annotations[annotation] = entry.transform!
+            // Hit path targets arrive boxed in AnyHitTestTarget -- look
+            // through the box, or the cast below can never succeed.
+            let target = (entry.target as? AnyHitTestTarget)?.base ?? entry.target
+            if let annotation = target as? (any MouseTrackerAnnotationProtocol) {
+                annotations[MouseAnnotation(annotation)] = entry.transform!
             }
         }
         return annotations
@@ -652,7 +686,7 @@ public class MouseTracker: ChangeNotifier {
     /// returned without calling `hitTest`.
     ///
     /// **Dart Source:** mouse_tracker.dart:247
-    private func _findAnnotations(_ state: MouseState) -> [MouseTrackerAnnotation: Matrix4] {
+    private func _findAnnotations(_ state: MouseState) -> [MouseAnnotation: Matrix4] {
         let globalPosition = state.latestEvent.position
         let device = state.device
         let viewId = state.latestEvent.viewId

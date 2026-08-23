@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import FlutterSwiftBridge
+import Foundation
 
 // MARK: - ParentData
 
@@ -693,9 +694,18 @@ open class RenderObject: HitTestTarget {
             parent!.markNeedsLayout()
         } else {
             // Root node (relayout boundary): register with PipelineOwner.
-            if let owner = _owner,
-               !owner._nodesNeedingLayout.contains(where: { $0 === self }) {
-                owner._nodesNeedingLayout.append(self)
+            // The visual-update request is UNCONDITIONAL, as upstream's is
+            // (object.dart marks, adds, and always requestVisualUpdate()s):
+            // gating it on "newly registered" welded a stale registration
+            // into a permanent freeze — the root sat in _nodesNeedingLayout
+            // from a mark no frame ever followed, every later mark skipped
+            // the request, and scroll wheels moved the offset with nothing
+            // on screen ever repainting. Duplicate registration is still
+            // deduplicated; the frame request is not.
+            if let owner = _owner {
+                if !owner._nodesNeedingLayout.contains(where: { $0 === self }) {
+                    owner._nodesNeedingLayout.append(self)
+                }
                 owner.requestVisualUpdate()
             }
         }

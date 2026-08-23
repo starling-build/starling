@@ -393,6 +393,9 @@ products += [
     .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
     // The same widget, tiled: a split tree of terminals with draggable seams.
     .executable(name: "TerminalTiling", targets: ["TerminalTiling"]),
+    // Shell chrome: a status bar pinned to the top of the primary monitor.
+    // Phase 0 of the Windows desktop port — see Examples/WinShellBar.
+    .executable(name: "WinShellBar", targets: ["WinShellBar"]),
 ]
 #endif
 
@@ -649,6 +652,26 @@ targets += [
             .unsafeFlags([
                 "-L\(engineOutDir)", "-lflutter_windows.dll",
             ]),
+            // DwmGetWindowAttribute, for the window manager's cloak test and
+            // its extended-frame-bounds correction. flwin32_wm.c also carries
+            // a #pragma comment(lib) for it — belt and braces, because a
+            // missing dwmapi shows up only at link time, after a cold build.
+            .linkedLibrary("dwmapi"),
+            // GetDpiForMonitor, for the panel's points-to-pixels conversion.
+            .linkedLibrary("shcore"),
+            // The status bar's three readings: wifi signal, adapter state,
+            // and the audio endpoint's volume.
+            .linkedLibrary("wlanapi"),
+            .linkedLibrary("iphlpapi"),
+            // RoGetActivationFactory + HSTRING, for the notification
+            // listener — the one WinRT API the shell consumes (see
+            // flwin32_notifications.c for why raw ABI rather than C++/WinRT).
+            .linkedLibrary("runtimeobject"),
+            // WIC, for decoding the notification listener's app logos.
+            .linkedLibrary("windowscodecs"),
+            // SHLockShared/SHUnlockShared, for writing appbar results back
+            // through the caller's SHAllocShared block (flwin32_tray.c).
+            .linkedLibrary("shlwapi"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.
@@ -976,6 +999,27 @@ targets += [
             "FlutterSwiftBridge",
         ],
         path: "Examples/TerminalTiling",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
+]
+#endif
+
+// Windows shell chrome (Examples/WinShellBar). Depends on FlutterWin32
+// directly rather than through ExampleHost: it needs the panel placement and
+// the monitor list, which are Win32-host concepts ExampleHost deliberately
+// does not re-export. Its own append, for the time-budget reason above.
+#if os(Windows)
+targets += [
+    .executableTarget(
+        name: "WinShellBar",
+        dependencies: [
+            "Flutter",
+            "FlutterSwiftBridge",
+            "FlutterWin32",
+            "CupertinoIcons",
+        ],
+        path: "Examples/WinShellBar",
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
         linkerSettings: engineLinkSettings
     ),

@@ -65,11 +65,33 @@ public class FluentTextBox: StatefulWidget {
     /// The decoration applied to the text box when focused.
     public let focusedDecoration: BoxDecoration?
 
+    /// Whether the accent focus ring is drawn around the box while it has
+    /// focus. It is drawn OUTSIDE `decoration`, so a caller that has supplied
+    /// its own chrome gets two rectangles — which is why this exists.
+    public let showFocusRing: Bool
+
     /// The prefix widget displayed before the text.
     public let prefix: Widget?
 
     /// The suffix widget displayed after the text.
     public let suffix: Widget?
+
+    /// Takes the keyboard as soon as it is mounted.
+    ///
+    /// A field only receives keys while its focus node is focused, and the
+    /// only thing that focused one was a tap. That is fine for a form and
+    /// wrong for anything that opens ready to be typed into — a launcher, a
+    /// search overlay, a dialog with one field. Those came up looking
+    /// perfectly normal and swallowed every keystroke.
+    public let autofocus: Bool
+
+    /// Focus gained/lost, as the field's own focus node sees it. The hook a
+    /// transient editor needs: Escape inside a field UNFOCUSES it (the key
+    /// is consumed here, so an ancestor's shortcut handler never sees it),
+    /// and a surface that swaps a field in -- an address bar, an inline
+    /// rename -- has no other way to learn that the field is done and put
+    /// its resting face back.
+    public let onFocusChanged: ((Bool) -> Void)?
 
     /// Creates a Fluent UI text box.
     public init(
@@ -88,8 +110,11 @@ public class FluentTextBox: StatefulWidget {
         obscuringCharacter: String = "\u{2022}",
         decoration: BoxDecoration? = nil,
         focusedDecoration: BoxDecoration? = nil,
+        showFocusRing: Bool = true,
         prefix: Widget? = nil,
-        suffix: Widget? = nil
+        suffix: Widget? = nil,
+        autofocus: Bool = false,
+        onFocusChanged: ((Bool) -> Void)? = nil
     ) {
         self.controller = controller
         self.placeholder = placeholder
@@ -104,9 +129,12 @@ public class FluentTextBox: StatefulWidget {
         self.obscureText = obscureText
         self.obscuringCharacter = obscuringCharacter
         self.decoration = decoration
+        self.showFocusRing = showFocusRing
         self.focusedDecoration = focusedDecoration
         self.prefix = prefix
         self.suffix = suffix
+        self.autofocus = autofocus
+        self.onFocusChanged = onFocusChanged
         super.init(key: key)
     }
 
@@ -134,10 +162,14 @@ class _TextBoxState: State<StatefulWidget> {
     /// Keyboard focus for this field.
     private let _focusNode = FocusNode(debugLabel: "FluentTextBox")
 
-    /// Caret blink state (Ticker-driven; Foundation.Timer does not fire on
-    /// the DRM embedder).
+    /// Caret blink state. A deadline timer, NOT a Ticker: a Ticker holds the
+    /// engine's frame loop hot for as long as it runs, which for a caret
+    /// means a full-rate frame pump to flip two pixels twice a second —
+    /// measured at 10% of a core for one parked overlay whose field stayed
+    /// focused. asyncAfter + a generation token is the house timer
+    /// (Foundation.Timer does not fire on the DRM embedder).
     private var _caretVisible: Bool = true
-    private var _caretTicker: Ticker?
+    private var _caretBlinkGeneration = 0
     #if os(Linux)
     /// True while this box is the reported IME caret target (child-app
     /// shells anchor the IME candidate panel to it).
@@ -167,6 +199,7 @@ class _TextBoxState: State<StatefulWidget> {
             self.setState {
                 self._isFocused = focused
             }
+            self.textBox.onFocusChanged?(focused)
             if focused {
                 self._startCaretBlink()
                 // A focused field on a touch device has to ask for the keys.
@@ -185,6 +218,7 @@ class _TextBoxState: State<StatefulWidget> {
         _focusNode.onKeyData = { [weak self] keyData in
             return self?._handleKey(keyData) ?? false
         }
+        if textBox.autofocus { _focusNode.requestFocus() }
     }
 
     override func dispose() {
@@ -304,32 +338,50 @@ class _TextBoxState: State<StatefulWidget> {
 
     // MARK: - Caret Blink
 
+    /// Whether a caret is actually drawn for this field. A read-only or
+    /// disabled field paints none (see `showCaret` in `build`), so blinking
+    /// one is a frame every 530 ms — build, layout, paint and a present — to
+    /// change nothing at all. That is not hypothetical: a parked overlay
+    /// whose field kept focus paid it for the life of the process.
+    private var _caretIsDrawn: Bool {
+        textBox.enabled && !textBox.readOnly
+    }
+
     private func _startCaretBlink() {
         _caretVisible = true
-        _caretTicker?.stop()
-        _caretTicker = Ticker({ [weak self] elapsed in
-            guard let self = self else { return }
-            let comps = elapsed.components
-            let ms = comps.seconds * 1_000 + comps.attoseconds / 1_000_000_000_000_000
-            let visible = (ms / 530) % 2 == 0
-            if visible != self._caretVisible {
-                self.setState {
-                    self._caretVisible = visible
-                }
+        _caretBlinkGeneration += 1
+        guard _caretIsDrawn else { return }
+        _scheduleCaretFlip(_caretBlinkGeneration)
+    }
+
+    private func _scheduleCaretFlip(_ generation: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(530)) { [weak self] in
+            guard let self = self, self._caretBlinkGeneration == generation else { return }
+            self.setState {
+                self._caretVisible.toggle()
             }
-        }, debugLabel: "TextBox caret blink")
-        _ = _caretTicker?.start()
+            self._scheduleCaretFlip(generation)
+        }
     }
 
     private func _stopCaretBlink() {
-        _caretTicker?.stop()
-        _caretTicker = nil
+        // The bump is the cancellation: the pending flip sees a stale
+        // generation and dies without touching the disposed state.
+        _caretBlinkGeneration += 1
         _caretVisible = true
     }
 
     override func didUpdateWidget(_ oldWidget: StatefulWidget) {
         super.didUpdateWidget(oldWidget)
         let oldTextBox = oldWidget as! FluentTextBox
+        // Focus survives a rebuild, so a field that becomes disabled (or
+        // read-only) while focused would otherwise keep blinking a caret it
+        // no longer draws — and one that becomes editable again would never
+        // start, because the blink is armed on focus and focus did not move.
+        let wasDrawn = oldTextBox.enabled && !oldTextBox.readOnly
+        if _isFocused && wasDrawn != _caretIsDrawn {
+            if _caretIsDrawn { _startCaretBlink() } else { _stopCaretBlink() }
+        }
         if textBox.controller !== oldTextBox.controller {
             if let listener = _boundListener {
                 (oldTextBox.controller ?? _controller)?.removeListener(listener)
@@ -447,7 +499,19 @@ class _TextBoxState: State<StatefulWidget> {
                 }
             } else if let placeholderText = textBox.placeholderText {
                 if isFocused && !textBox.readOnly {
-                    textContent = Text(caretGlyph, style: effectiveTextStyle)
+                    // Caret AND placeholder, the way every platform's search
+                    // box behaves: focusing the field used to blank the hint,
+                    // which on a box that autofocuses meant the hint was never
+                    // readable at all.
+                    textContent = Row(
+                        mainAxisSize: .min,
+                        children: [
+                            Text(caretGlyph, style: effectiveTextStyle),
+                            Expanded(child: Text(placeholderText,
+                                                 style: placeholderStyle,
+                                                 overflow: .clip, maxLines: 1)),
+                        ]
+                    )
                 } else {
                     textContent = Text(placeholderText, style: placeholderStyle)
                 }
@@ -535,7 +599,7 @@ class _TextBoxState: State<StatefulWidget> {
 
                 return FocusBorder(
                     child: decorated,
-                    focused: isFocused
+                    focused: isFocused && textBox.showFocusRing
                 )
             },
             onPressed: isEnabled

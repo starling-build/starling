@@ -30,6 +30,20 @@ public nonisolated(unsafe) var windowedHostBoot:
 public nonisolated(unsafe) var hostPeriodicTimerInstall:
     ((Double, @escaping () -> Void) -> AnyObject?)? = nil
 
+/// Asks the host's EMBEDDER for a real engine frame -- the begin-frame /
+/// draw-frame pass, through the engine's own scheduler. Installed by hosts
+/// where the bridge's programmatic `scheduleFrame` never produces one: on
+/// Win32, `PlatformDispatcher.scheduleFrame` reaches
+/// `Engine::ScheduleFrame` through the Swift-bridge registry and no frame
+/// ever comes back, while the embedder-API path this hook takes
+/// (`ForceRedraw` -> `FlutterEngineScheduleFrame`, the same call a resize
+/// makes) reliably does. Without it, a `setState` from a
+/// `DispatchQueue.main.async` callback -- a shell menu's verbs arriving,
+/// a listing finishing its load -- composites only when the next
+/// input-driven frame happens along, measured at ~630ms of nothing under
+/// a motionless pointer.
+public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
+
 /// The main entry point for an app that should run under whichever host is
 /// available:
 /// - `FLUTTER_DMABUF_SOCKET` set (spawned by the Starling shell) — the GPU
@@ -63,7 +77,7 @@ public func runStarlingApp(title: String, width: Int = 800, height: Int = 600,
 /// tickers can discard it — hosts retain what they must).
 /// Token holder — DispatchSourceTimer is a protocol, and the API promises
 /// a class instance the caller can retain.
-private final class _TimerToken {
+fileprivate final class _TimerToken {
     let timer: any DispatchSourceTimer
     init(_ timer: any DispatchSourceTimer) { self.timer = timer }
     deinit { timer.cancel() }
@@ -83,6 +97,25 @@ public func startPeriodicTimer(seconds: Double,
     let token = _TimerToken(timer)
     _liveTimers.append(token)
     return token
+}
+
+/// Stop a ticker from `startPeriodicTimer`.
+///
+/// A surface that only means something while it is on screen should stop
+/// ticking when it is not. That is not a micro-optimisation on Starling's
+/// parked overlays: they keep their window AND their widget tree so a show is
+/// instant, so a tick that calls `setState` while parked is a full build,
+/// layout and paint of a tree nobody can see, for as long as the process
+/// lives.
+public func stopPeriodicTimer(_ token: AnyObject?) {
+    if let source = token as? (any DispatchSourceTimer) {
+        source.cancel()
+        return
+    }
+    if let held = token as? _TimerToken {
+        held.timer.cancel()
+        _liveTimers.removeAll { $0 === held }
+    }
 }
 
 private nonisolated(unsafe) var _liveTimers: [AnyObject] = []

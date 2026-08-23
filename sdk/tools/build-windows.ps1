@@ -59,6 +59,18 @@ Set-Location $pkg
 $buildArgs = @('build', '-c', $Configuration)
 if ($Product) { $buildArgs += @('--product', $Product) }
 
+# -suppress-warnings is load-bearing, not tidiness. Once a module's diagnostic
+# output grows past the pipe buffer, swift-build stops draining the frontend's
+# stderr and the frontend blocks forever in NtWriteFile — the build "hangs"
+# with the compile actually finished (the .o files are all on disk, CPU flat
+# at zero). WinShellBar crossed that line in 2026-08: ~170 lines of Sendable
+# warnings was enough. Diagnose a recurrence with a noninvasive cdb attach
+# (`cdb -p <pid> -pv -c "~*k; qd"`; the toolchain's lldb is unusable — it
+# wants a python39.dll that isn't installed): the giveaway is the main thread
+# parked in NtWriteFile. Errors still fail the build normally; this only
+# silences the warning stream that jams the pipe.
+$buildArgs += @('-Xswiftc', '-suppress-warnings')
+
 # The failure is recognisable by the MSVC header and the call that fails; both
 # have to appear for this to count as the known bug.
 function Test-ModuleCacheBug([string[]]$lines) {
