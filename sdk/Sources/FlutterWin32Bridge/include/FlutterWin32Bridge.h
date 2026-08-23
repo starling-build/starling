@@ -716,6 +716,13 @@ void flwin32_install_child_cursor_proc(void* child_hwnd);
 
 #define FLWIN32_SURFACE_DESKTOP 0
 #define FLWIN32_SURFACE_OVERLAY 1
+// An ordinary application window hosted by the shell's own process: resizable,
+// in the taskbar, drawing its own caption, and CLOSING TO HIDDEN so the next
+// open is a ShowWindow on a tree that is already composited. What makes the
+// file explorer cost no engine startup -- the ~110 ms of ANGLE bringing up a
+// D3D device is charged once per process, at engine construction, and a view
+// on an engine that is already running pays none of it.
+#define FLWIN32_SURFACE_APP 2
 
 // Opens a surface view on the host's monitor. DESKTOP ignores the size
 // arguments (it is the whole monitor, bottom-pinned, shown on first
@@ -737,6 +744,11 @@ void flwin32_surface_close(FlWin32Host* host, int64_t view_id);
 // Overlay visibility changes (toggle broadcast, click-away dismiss, an
 // explicit set_visible): the view id and its new visibility, on the window's
 // thread. One callback per process, like the popup dismiss hook.
+// The app surface's close button: it hides rather than destroying, and this
+// says so, so the tree can go back to its starting state for the next open.
+void flwin32_surface_on_app_closed(void (*cb)(void* user, int64_t view_id),
+                                   void* user);
+
 void flwin32_surface_on_overlay_toggled(void (*cb)(void* user, int64_t view_id,
                                                    int32_t visible),
                                         void* user);
@@ -770,6 +782,27 @@ uint64_t flwin32_surface_window(FlWin32Host* host, int64_t view_id);
 // at the right rect, and hidden under our wallpaper. Idempotent; call once
 // with the desktop's HWND after showing it.
 void flwin32_desktop_pin_to_bottom(uint64_t desktop_hwnd);
+
+// The custom caption, marked ON THE WINDOW rather than on the host, so any
+// window in the process can have one -- including a surface view's, which is
+// what lets the file explorer live inside the shell and still draw its own
+// titlebar. `handle` answers WM_NCCALCSIZE and WM_NCHITTEST; both window
+// procedures call it.
+// Window operations by HANDLE, so a tree that draws its own caption can act
+// on the window it LIVES IN. Inside the shell process the "main window" is
+// the dock: a drag would drag the dock, a close would close the desktop.
+int32_t flwin32_window_is_maximized(uint64_t hwnd);
+void flwin32_window_minimize(uint64_t hwnd);
+void flwin32_window_toggle_maximize(uint64_t hwnd);
+void flwin32_window_close(uint64_t hwnd);
+void flwin32_window_begin_drag(uint64_t hwnd);
+int32_t flwin32_window_client_size(uint64_t hwnd, double* width_pt,
+                                   double* height_pt);
+
+int32_t flwin32_caption_active(void* hwnd);
+void flwin32_caption_mark(void* hwnd, int32_t enable);
+int32_t flwin32_caption_handle(void* hwnd, uint32_t message, uint64_t wparam,
+                               int64_t lparam, int64_t* out);
 
 void flwin32_host_prepare_custom_titlebar(void);
 

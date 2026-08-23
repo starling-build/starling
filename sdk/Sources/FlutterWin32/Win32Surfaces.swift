@@ -33,6 +33,13 @@ public enum Win32SurfaceKind {
     /// geometry): created hidden, activatable, rounded, dismissing on
     /// deactivate, answering the launcher toggle broadcast.
     case overlay
+    /// An ordinary application window owned by the shell's process:
+    /// resizable, in the taskbar, drawing its own caption, and CLOSING TO
+    /// HIDDEN so the next open is a ShowWindow on a tree that is already
+    /// composited. This is what makes an app cost no engine startup — the
+    /// ~110 ms of ANGLE bringing up a D3D device is charged once per
+    /// PROCESS, and a view on a running engine pays none of it.
+    case app
 }
 
 public enum Win32Surfaces {
@@ -40,6 +47,7 @@ public enum Win32Surfaces {
     nonisolated(unsafe) private static var kinds: [Int: Win32SurfaceKind] = [:]
     nonisolated(unsafe) private static var toggleHandlers:
         [Int: (Bool) -> Void] = [:]
+    nonisolated(unsafe) private static var closeHandlers: [Int: () -> Void] = [:]
     nonisolated(unsafe) private static var installed = false
 
     private static func installIfNeeded() {
@@ -49,6 +57,10 @@ public enum Win32Surfaces {
         // (the toggle broadcast, a click-away WA_INACTIVE) on the UI thread.
         flwin32_surface_on_overlay_toggled({ _, viewId, visible in
             Win32Surfaces.toggleHandlers[Int(viewId)]?(visible != 0)
+        }, nil)
+        // An app surface's close button hides it; the tree gets to reset.
+        flwin32_surface_on_app_closed({ _, viewId in
+            Win32Surfaces.closeHandlers[Int(viewId)]?()
         }, nil)
     }
 
@@ -64,10 +76,13 @@ public enum Win32Surfaces {
         guard let host = Win32WindowedHost.host else { return nil }
         Win32PopupSurfaces.installIfNeeded()
         installIfNeeded()
-        // 0 = FLWIN32_SURFACE_DESKTOP, 1 = FLWIN32_SURFACE_OVERLAY.
-        let id = flwin32_surface_open(host.cHost,
-                                      kind == .desktop ? 0 : 1,
-                                      width, height, bottomMargin)
+        // 0 = DESKTOP, 1 = OVERLAY, 2 = APP.
+        let cKind: Int32 = switch kind {
+        case .desktop: 0
+        case .overlay: 1
+        case .app:     2
+        }
+        let id = flwin32_surface_open(host.cHost, cKind, width, height, bottomMargin)
         guard id > 0 else { return nil }
         kinds[Int(id)] = kind
         Win32PopupSurfaces.builders[Int(id)] = { content(Int(id)) }
@@ -79,11 +94,25 @@ public enum Win32Surfaces {
 
     /// Called from the shared first-composite hook for EVERY new view; acts
     /// only on surface ids. The desktop shows itself here — its window
-    /// reaches the screen already painted.
+    /// reaches the screen already painted. An app surface does NOT: it is
+    /// built hidden at startup and shown when the user asks for it, which is
+    /// the whole point (the tree is already composited by then).
     static func handleFirstComposite(_ id: Int) {
         guard kinds[id] == .desktop, let host = Win32WindowedHost.host else {
             return
         }
+        flwin32_surface_show(host.cHost, Int64(id))
+    }
+
+    /// Called when an app surface's close button hid it.
+    public static func onClose(_ id: Int, _ handler: @escaping () -> Void) {
+        closeHandlers[id] = handler
+    }
+
+    /// Show and raise an app surface — the "open" gesture once its tree is
+    /// already built.
+    public static func show(_ id: Int) {
+        guard let host = Win32WindowedHost.host else { return }
         flwin32_surface_show(host.cHost, Int64(id))
     }
 

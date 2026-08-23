@@ -466,7 +466,7 @@ final class DockBloc: @unchecked Sendable {
         // Ours, not Windows': open Starling Files, or fall through to the
         // ordinary raise/minimize when a window already exists.
         if item.key == kFilesKey, item.windows.isEmpty {
-            Win32Shell.openFiles()
+            FilesWindow.openFileExplorer()
             return
         }
         guard let window = item.windows.first(where: { $0.isForeground })

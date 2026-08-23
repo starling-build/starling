@@ -170,7 +170,7 @@ final class StarlingFilesState: State<StatefulWidget> {
         }
         let headerTop = kFilesToolbar - kFilesHeaderRow
         guard y >= headerTop, y < kFilesToolbar else { return nil }
-        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let width = FilesWindow.current.clientSize?.width ?? kFilesWidth
         let right = width - 16
         let atSize = right - colSize - 5
         let atType = atSize - 10 - colType
@@ -479,7 +479,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// in a grid mode the unit that scrolls is the strip the item sits in.
     private func ensureRowVisible(_ index: Int) {
         guard scroll.hasClients else { return }
-        let size = Win32WindowedHost.host?.clientSize
+        let size = FilesWindow.current.clientSize
             ?? (width: kFilesWidth, height: kFilesHeight)
         let g = listingGrid()
         let viewHeight = size.height - g.top - kFilesStatusBar
@@ -540,8 +540,14 @@ final class StarlingFilesState: State<StatefulWidget> {
         // re-enters the adapter while THIS build is mid-flight -- measured
         // as a crash on the adapter's own force-unwraps. After the current
         // frame settles, the resize is just a resize.
-        DispatchQueue.main.async {
-            Win32WindowedHost.host?.setCustomTitlebar()
+        // Only when this tree owns the process's window. As a surface inside
+        // the shell the caption was claimed at window creation, before the
+        // view existed -- which is where it belongs (claiming it later is a
+        // resize, and the embedder answers a resize by blocking the thread).
+        if FilesWindow.current.surfaceId == nil {
+            DispatchQueue.main.async {
+                Win32WindowedHost.host?.setCustomTitlebar()
+            }
         }
         // The window takes drops: files dragged in from Explorer (or any
         // OLE source) land in the open folder, or in the folder row under
@@ -565,7 +571,7 @@ final class StarlingFilesState: State<StatefulWidget> {
             self?.dropFinish(paths, x, y, move)
         }
         DispatchQueue.main.async {
-            if let handle = Win32WindowedHost.host?.windowHandle {
+            if case let handle = FilesWindow.current.handle, handle != 0 {
                 Win32DropTarget.register(window: handle)
             }
         }
@@ -767,7 +773,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     private func listingGrid() -> ListingGrid {
-        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let width = FilesWindow.current.clientSize?.width ?? kFilesWidth
         let avail = width - kFilesSidebar
         switch bloc.state.viewMode {
         case .details:
@@ -840,7 +846,7 @@ final class StarlingFilesState: State<StatefulWidget> {
             bandActive = true
             bandLast = bandBase
         }
-        let size = Win32WindowedHost.host?.clientSize
+        let size = FilesWindow.current.clientSize
             ?? (width: kFilesWidth, height: kFilesHeight)
         let g = listingGrid()
         let x = min(max(e.position.dx, kFilesSidebar), size.width)
@@ -1256,7 +1262,7 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     private func closeTab(_ index: Int) {
         if !tabs.close(index) {
-            Win32WindowedHost.host?.closeWindow()
+            FilesWindow.current.close()
         }
     }
 
@@ -1268,7 +1274,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                     // rounded shoulders the way Explorer's sit; the active
                     // one carries the surface colour the content area
                     // continues, which is what visually welds tab to page.
-                    let width = Win32WindowedHost.host?.clientSize?.width
+                    let width = FilesWindow.current.clientSize?.width
                         ?? kFilesWidth
                     let tw = tabWidth(width)
                     for (index, tabBloc) in tabs.blocs.enumerated() {
@@ -1314,7 +1320,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                     Positioned(top: 0, right: 0, bottom: 0) {
                         Row(crossAxisAlignment: .stretch) {
                             captionButton(FluentIcons.chromeMinimize)
-                            captionButton((Win32WindowedHost.host?.isMaximized ?? false)
+                            captionButton(FilesWindow.current.isMaximized
                                           ? FluentIcons.chromeRestore
                                           : FluentIcons.chromeMaximize)
                             captionButton(FluentIcons.chromeClose, isClose: true)
@@ -1362,7 +1368,7 @@ final class StarlingFilesState: State<StatefulWidget> {
     /// Shared by the left-button press (activate / close zone) and the
     /// middle-click close.
     private func tabAt(_ x: Double, _ y: Double) -> Int? {
-        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let width = FilesWindow.current.clientSize?.width ?? kFilesWidth
         let tw = tabWidth(width)
         let tabsEnd = kTabX + Double(tabs.blocs.count) * (tw + 4)
         guard x >= kTabX, x < tabsEnd, y >= 8 else { return nil }
@@ -1373,12 +1379,13 @@ final class StarlingFilesState: State<StatefulWidget> {
     }
 
     private func stripPress(_ x: Double, _ y: Double) {
-        guard let host = Win32WindowedHost.host else { return }
-        let width = host.clientSize?.width ?? kFilesWidth
+        let window = FilesWindow.current
+        guard window.isValid else { return }
+        let width = window.clientSize?.width ?? kFilesWidth
         let fromRight = width - x
-        if fromRight <= kCaptionButtonW { host.closeWindow(); return }
-        if fromRight <= kCaptionButtonW * 2 { host.toggleMaximize(); return }
-        if fromRight <= kCaptionButtonW * 3 { host.minimize(); return }
+        if fromRight <= kCaptionButtonW { window.close(); return }
+        if fromRight <= kCaptionButtonW * 2 { window.toggleMaximize(); return }
+        if fromRight <= kCaptionButtonW * 3 { window.minimize(); return }
         // The tabs, by the same arithmetic that drew them: the close glyph
         // zone at each tab's right edge, the rest of the tab activates.
         // Closing the last tab closes the window, as Explorer's does.
@@ -1403,10 +1410,10 @@ final class StarlingFilesState: State<StatefulWidget> {
         let now = Date()
         if now.timeIntervalSince(lastStripTapAt) < 0.4 {
             lastStripTapAt = .distantPast
-            host.toggleMaximize()
+            window.toggleMaximize()
         } else {
             lastStripTapAt = now
-            host.beginDrag()
+            window.beginDrag()
         }
     }
 
@@ -2278,7 +2285,7 @@ final class StarlingFilesState: State<StatefulWidget> {
                 SizedBox(width: 240) { MacosProgressIndicator() }
             }
         }
-        let width = Win32WindowedHost.host?.clientSize?.width ?? kFilesWidth
+        let width = FilesWindow.current.clientSize?.width ?? kFilesWidth
         let perRow = max(1, Int((width - kFilesSidebar - 32) / kDriveTileW))
         let rows = stride(from: 0, to: drives.count, by: perRow).map {
             Array(drives[$0..<min($0 + perRow, drives.count)])

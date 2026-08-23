@@ -492,7 +492,7 @@ final class ShellMenuModel {
         if popupsEnabled, let frame = Win32PopupSurfaces.frame() {
             return frame
         }
-        let size = Win32WindowedHost.host?.clientSize
+        let size = FilesWindow.current.clientSize
             ?? (width: kFilesWidth, height: kFilesHeight)
         return (0, 0, size.width, size.height)
     }
@@ -601,7 +601,7 @@ final class ShellMenuModel {
                                    namespace: filesBloc.state.isNamespace)
         let session = Win32ShellMenu(path: path, location: location,
                                      background: entry == nil,
-                                     owner: Win32WindowedHost.host?.windowHandle ?? 0)
+                                     owner: FilesWindow.current.handle)
         // The cheap tier, which for a file is usually back before the first
         // frame is drawn. Under a type-cache seed it is not DRAWN (the seed
         // is already the full shape) but it is KEPT: seeded rows have no

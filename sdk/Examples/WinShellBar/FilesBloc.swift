@@ -314,7 +314,7 @@ final class FilesBloc: @unchecked Sendable {
     /// The window the shell's dialogs (conflict, progress, confirm) parent
     /// to. A dialog with no owner is a window the user can lose behind the
     /// one they asked it from.
-    static var ownerWindow: UInt64 { Win32WindowedHost.host?.windowHandle ?? 0 }
+    static var ownerWindow: UInt64 { FilesWindow.current.handle }
 
     /// Shared with the UI, which turns a key into a `TextureWidget`.
     @ObservationIgnored let icons = IconCache()
@@ -1209,4 +1209,33 @@ final class FilesTabs: @unchecked Sendable {
 }
 
 var filesBloc: FilesBloc { FilesTabs.shared.bloc }
+
+/// The window the file explorer's tree lives in.
+///
+/// A process of its own -- `--files` -- draws into the process's main window,
+/// which is what this is by default. Hosted INSIDE the shell it is a surface
+/// view instead, and the distinction is load-bearing: the shell's main window
+/// is the DOCK, so a titlebar drag would drag the dock and the close button
+/// would close the desktop. Process-wide because one process hosts one file
+/// explorer window; when that stops being true this becomes per-view, the
+/// same way `FilesTabs.shared` will.
+enum FilesWindow {
+    nonisolated(unsafe) static var current: Win32AppWindow = .main
+
+    /// Set by the shell when IT hosts the file explorer as a surface view.
+    /// Opening is then a ShowWindow on a tree that is already built, instead
+    /// of a process that has to start an engine.
+    nonisolated(unsafe) static var opener: (() -> Void)?
+
+    /// The one way to open the file explorer, whoever is asking -- Win+E, the
+    /// dock tile, the dock's menu. Hosted, it shows; otherwise it spawns,
+    /// exactly as before. UI thread: hosted, this is a ShowWindow.
+    static func openFileExplorer() {
+        if let opener {
+            opener()
+        } else {
+            Win32Shell.openFiles()
+        }
+    }
+}
 #endif

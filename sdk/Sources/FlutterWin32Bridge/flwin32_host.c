@@ -96,6 +96,92 @@ double flwin32_qpc_ms(void) {
 static int g_pending_custom_titlebar;
 static void apply_custom_titlebar(HWND window, int enable);
 
+
+/* ---- the custom caption, as a property of the WINDOW ----------------------
+ *
+ * Giving the caption to the client is three message handlers and a child
+ * window that has to decline the top band. All of it used to key off
+ * `host->custom_titlebar`, read from the frame's GWLP_USERDATA -- which works
+ * only for windows that HAVE an FlWin32Host, i.e. the process's one main
+ * window. A surface view's window (flwin32_surface.c) has no host, so a file
+ * explorer hosted inside the shell could not draw its own titlebar.
+ *
+ * Marking the window itself instead makes the behaviour available to any
+ * window in the process, and the handlers below are shared by both window
+ * procedures. */
+static const wchar_t kCaptionProp[] = L"StarlingCustomCaption";
+
+int32_t flwin32_caption_active(void* hwnd) {
+  return GetPropW((HWND)hwnd, kCaptionProp) != NULL ? 1 : 0;
+}
+
+void flwin32_caption_mark(void* hwnd, int32_t enable) {
+  HWND window = (HWND)hwnd;
+  if (window == NULL) return;
+  if (enable) {
+    SetPropW(window, kCaptionProp, (HANDLE)1);
+  } else {
+    RemovePropW(window, kCaptionProp);
+  }
+  // Keep DWM's top hairline: extending the frame one pixel into the client
+  // preserves the accent-coloured border a captioned window has, which the
+  // NCCALCSIZE takeover would otherwise erase.
+  MARGINS margins = {0, 0, enable ? 1 : 0, 0};
+  DwmExtendFrameIntoClientArea(window, &margins);
+  // The frame is recalculated only when something says it changed.
+  SetWindowPos(window, NULL, 0, 0, 0, 0,
+               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOACTIVATE);
+}
+
+/* The two frame messages the takeover needs. Returns 1 when it answered, and
+ * writes the result; 0 to fall through to the caller's own handling. */
+int32_t flwin32_caption_handle(void* hwnd_v, uint32_t message, uint64_t wparam,
+                               int64_t lparam, int64_t* out) {
+  HWND hwnd = (HWND)hwnd_v;
+  if (!flwin32_caption_active(hwnd)) return 0;
+
+  if (message == WM_NCCALCSIZE && wparam == TRUE) {
+    // Remember where the window's top was, let DefWindowProc lay out the
+    // normal frame (which reserves the caption), then put the client's top
+    // back at the window's top. Maximized, the frame hangs off-screen by its
+    // border thickness, so that much is added back or the titlebar's first
+    // pixels would be invisible.
+    NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)(LPARAM)lparam;
+    LONG original_top = params->rgrc[0].top;
+    LRESULT result = DefWindowProcW(hwnd, message, (WPARAM)wparam, (LPARAM)lparam);
+    params->rgrc[0].top = original_top;
+    if (IsZoomed(hwnd)) {
+      UINT dpi = GetDpiForWindow(hwnd);
+      params->rgrc[0].top += GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
+                             GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+    }
+    *out = (int64_t)result;
+    return 1;
+  }
+
+  if (message == WM_NCHITTEST && !IsZoomed(hwnd)) {
+    // With the caption gone the strip along the top edge is CLIENT area, and
+    // DefWindowProc would say so -- making the window unresizable from above.
+    LRESULT hit = DefWindowProcW(hwnd, message, (WPARAM)wparam, (LPARAM)lparam);
+    if (hit == HTCLIENT) {
+      RECT window_rect;
+      GetWindowRect(hwnd, &window_rect);
+      int y = (int)(short)HIWORD((LPARAM)lparam);
+      UINT dpi = GetDpiForWindow(hwnd);
+      int band = GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
+                 GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+      if (y >= window_rect.top && y < window_rect.top + band) {
+        *out = HTTOP;
+        return 1;
+      }
+    }
+    *out = (int64_t)hit;
+    return 1;
+  }
+  return 0;
+}
+
 void flwin32_trace(const char* label) {
   if (!trace_enabled()) return;
   fprintf(stderr, "[trace] %8.1f ms  qpc=%.3f  %s\n", flwin32_uptime_ms(),
@@ -437,49 +523,15 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       break;
 
     case WM_NCCALCSIZE:
-      // Custom titlebar: give the CAPTION to the client and keep the resize
-      // borders. The recipe: remember where the window's top was, let
-      // DefWindowProc lay out the normal frame (which reserves the caption),
-      // then put the client's top back at the window's top. Maximized, the
-      // frame hangs off-screen by its border thickness, so that much is
-      // added back or the titlebar's first pixels would be invisible.
-      if (host != NULL && host->custom_titlebar && wparam == TRUE) {
-        NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lparam;
-        LONG original_top = params->rgrc[0].top;
-        LRESULT result = DefWindowProcW(hwnd, message, wparam, lparam);
-        params->rgrc[0].top = original_top;
-        if (IsZoomed(hwnd)) {
-          UINT dpi = GetDpiForWindow(hwnd);
-          params->rgrc[0].top +=
-              GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
-              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-        }
-        return result;
+    case WM_NCHITTEST: {
+      // Shared with the surface windows -- see flwin32_caption_handle.
+      int64_t answer = 0;
+      if (flwin32_caption_handle(hwnd, message, (uint64_t)wparam,
+                                 (int64_t)lparam, &answer)) {
+        return (LRESULT)answer;
       }
       break;
-
-    case WM_NCHITTEST:
-      // With the caption gone, the strip along the window's top edge is
-      // CLIENT area, and DefWindowProc would say so -- making the window
-      // unresizable from above. The child view already declines hits in
-      // that band (HTTRANSPARENT, see child_cursor_wnd_proc), so they land
-      // here; call the band what it is.
-      if (host != NULL && host->custom_titlebar && !IsZoomed(hwnd)) {
-        LRESULT hit = DefWindowProcW(hwnd, message, wparam, lparam);
-        if (hit == HTCLIENT) {
-          RECT window_rect;
-          GetWindowRect(hwnd, &window_rect);
-          int y = (int)(short)HIWORD(lparam);
-          UINT dpi = GetDpiForWindow(hwnd);
-          int band = GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
-                     GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-          if (y >= window_rect.top && y < window_rect.top + band) {
-            return HTTOP;
-          }
-        }
-        return hit;
-      }
-      break;
+    }
 
     case WM_DPICHANGED:
       // The frame has to resize ITSELF here. flwin32_host_create asks for
@@ -1942,9 +1994,7 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
   // resized from above.
   if (message == WM_NCHITTEST) {
     HWND parent = GetParent(hwnd);
-    FlWin32Host* host = parent != NULL
-        ? (FlWin32Host*)GetWindowLongPtrW(parent, GWLP_USERDATA) : NULL;
-    if (host != NULL && host->custom_titlebar && !IsZoomed(parent)) {
+    if (parent != NULL && flwin32_caption_active(parent) && !IsZoomed(parent)) {
       RECT window_rect;
       GetWindowRect(parent, &window_rect);
       int y = (int)(short)HIWORD(lparam);
@@ -2304,6 +2354,58 @@ int32_t flwin32_host_client_size(FlWin32Host* host, int32_t* width,
   return 1;
 }
 
+
+/* ---- window operations, by HANDLE ----------------------------------------
+ *
+ * The same six things a titlebar needs, addressed by HWND rather than by
+ * FlWin32Host. A tree that draws its own caption has to act on the window it
+ * LIVES IN, and once the file explorer can be either a process of its own or
+ * a view inside the shell, "the process's main window" stops being the right
+ * answer -- in the shell it is the dock, so a drag would drag the dock and a
+ * close would close the desktop. */
+int32_t flwin32_window_is_maximized(uint64_t hwnd) {
+  HWND w = (HWND)(uintptr_t)hwnd;
+  return (w != NULL && IsZoomed(w)) ? 1 : 0;
+}
+
+void flwin32_window_minimize(uint64_t hwnd) {
+  HWND w = (HWND)(uintptr_t)hwnd;
+  if (w != NULL) ShowWindow(w, SW_MINIMIZE);
+}
+
+void flwin32_window_toggle_maximize(uint64_t hwnd) {
+  HWND w = (HWND)(uintptr_t)hwnd;
+  if (w != NULL) ShowWindow(w, IsZoomed(w) ? SW_RESTORE : SW_MAXIMIZE);
+}
+
+void flwin32_window_close(uint64_t hwnd) {
+  HWND w = (HWND)(uintptr_t)hwnd;
+  if (w != NULL) PostMessageW(w, WM_CLOSE, 0, 0);
+}
+
+void flwin32_window_begin_drag(uint64_t hwnd) {
+  HWND w = (HWND)(uintptr_t)hwnd;
+  if (w == NULL) return;
+  // The documented dance for "this pixel is a title bar": give the mouse back
+  // and hand the press to the frame as a caption click. Windows runs its own
+  // modal move loop from here -- snap layouts, aero shake and all.
+  ReleaseCapture();
+  SendMessageW(w, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+}
+
+int32_t flwin32_window_client_size(uint64_t hwnd, double* width_pt,
+                                   double* height_pt) {
+  HWND w = (HWND)(uintptr_t)hwnd;
+  if (w == NULL) return 0;
+  RECT r;
+  if (!GetClientRect(w, &r)) return 0;
+  UINT dpi = GetDpiForWindow(w);
+  double scale = dpi > 0 ? (double)dpi / 96.0 : 1.0;
+  if (width_pt != NULL) *width_pt = (double)(r.right - r.left) / scale;
+  if (height_pt != NULL) *height_pt = (double)(r.bottom - r.top) / scale;
+  return 1;
+}
+
 void flwin32_host_request_redraw(FlWin32Host* host) {
   if (host == NULL || host->controller == NULL) return;
   FlutterDesktopViewControllerForceRedraw(host->controller);
@@ -2314,15 +2416,7 @@ void flwin32_host_prepare_custom_titlebar(void) {
 }
 
 static void apply_custom_titlebar(HWND window, int enable) {
-  // Keep DWM's top hairline: extending the frame one pixel into the client
-  // preserves the accent-coloured border a captioned window has, which the
-  // NCCALCSIZE takeover would otherwise erase.
-  MARGINS margins = {0, 0, enable ? 1 : 0, 0};
-  DwmExtendFrameIntoClientArea(window, &margins);
-  // The frame is recalculated only when something says it changed.
-  SetWindowPos(window, NULL, 0, 0, 0, 0,
-               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-                   SWP_NOACTIVATE);
+  flwin32_caption_mark(window, enable);
 }
 
 void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable) {

@@ -132,6 +132,21 @@ static void overlay_hide(SurfaceSlot* slot) {
   overlay_notify(slot, 0);
 }
 
+static void (*app_closed_cb)(void* user, int64_t view_id);
+static void* app_closed_user;
+
+static void app_notify_closed(SurfaceSlot* slot) {
+  if (app_closed_cb != NULL && slot != NULL) {
+    app_closed_cb(app_closed_user, slot->view_id);
+  }
+}
+
+void flwin32_surface_on_app_closed(void (*cb)(void* user, int64_t view_id),
+                                   void* user) {
+  app_closed_cb = cb;
+  app_closed_user = user;
+}
+
 static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
                                          WPARAM wparam, LPARAM lparam) {
   SurfaceSlot* slot = surface_for_window(hwnd);
@@ -144,6 +159,34 @@ static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
       overlay_show(slot);
     }
     return 0;
+  }
+
+  // The app surface draws its own titlebar, exactly as the process-per-window
+  // file explorer does -- the handlers are shared (flwin32_caption_handle).
+  //
+  // NOT gated on the slot: WM_NCCALCSIZE arrives during CreateWindowExW and
+  // during the SWP_FRAMECHANGED that claims the caption, both of which happen
+  // BEFORE the slot is filled in. Gating on the slot meant the takeover was
+  // skipped exactly when it mattered and the window kept a system caption.
+  // The handler is keyed on a property of the window, so it is safe to ask
+  // for any message on any of our windows.
+  {
+    int64_t answer = 0;
+    if (flwin32_caption_handle(hwnd, message, (uint64_t)wparam,
+                               (int64_t)lparam, &answer)) {
+      return (LRESULT)answer;
+    }
+  }
+  if (slot != NULL && slot->kind == FLWIN32_SURFACE_APP) {
+    if (message == WM_CLOSE) {
+      // HIDE, do not destroy: the whole point of living in the shell process
+      // is that reopening is a ShowWindow on a tree that is already built and
+      // already composited. Destroying the view would give that back and make
+      // the next open pay for a tree mount and a fresh directory read.
+      ShowWindow(hwnd, SW_HIDE);
+      app_notify_closed(slot);
+      return 0;
+    }
   }
 
   switch (message) {
@@ -248,7 +291,20 @@ int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
   RECT r;
   DWORD style = WS_POPUP;
   DWORD exstyle = WS_EX_TOOLWINDOW;
-  if (kind == FLWIN32_SURFACE_DESKTOP) {
+  if (kind == FLWIN32_SURFACE_APP) {
+    // An ordinary application window: resizable, in the taskbar, and its own
+    // thing in Alt-Tab. WS_EX_APPWINDOW because the surface class is
+    // TOOLWINDOW by default for the chrome surfaces, and a tool window is
+    // exactly what a file explorer is not.
+    LONG w = (LONG)(width_pt * scale + 0.5);
+    LONG h = (LONG)(height_pt * scale + 0.5);
+    r.left = info.rcWork.left + ((info.rcWork.right - info.rcWork.left) - w) / 2;
+    r.top = info.rcWork.top + ((info.rcWork.bottom - info.rcWork.top) - h) / 2;
+    r.right = r.left + w;
+    r.bottom = r.top + h;
+    style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
+    exstyle = WS_EX_APPWINDOW;
+  } else if (kind == FLWIN32_SURFACE_DESKTOP) {
     // The whole monitor: the wallpaper runs under the dock, exactly as the
     // process-per-surface desktop does.
     r = info.rcMonitor;
@@ -287,6 +343,15 @@ int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
     DWM_WINDOW_CORNER_PREFERENCE corner = DWMWCP_ROUND;
     DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
                           sizeof(corner));
+  }
+  if (kind == FLWIN32_SURFACE_APP) {
+    // BEFORE the view controller exists. Claiming the caption afterwards is a
+    // client-area resize, and the embedder answers a resize by blocking the
+    // platform thread until the raster thread returns a frame at the new size
+    // -- ~90 ms on a 29 Hz panel, and here it would block the SHELL's thread.
+    flwin32_caption_mark(window, 1);
+    GetClientRect(window, &r);
+    MapWindowPoints(window, NULL, (POINT*)&r, 2);
   }
 
   FlutterDesktopViewControllerProperties properties;
@@ -386,6 +451,21 @@ void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
   SurfaceSlot* slot = surface_for_view(view_id);
   if (slot == NULL || slot->host != host) return;
   if (IsWindowVisible(slot->window)) return;
+  if (slot->kind == FLWIN32_SURFACE_APP) {
+    ShowWindow(slot->window, SW_SHOW);
+    SetForegroundWindow(slot->window);
+    HWND child = GetWindow(slot->window, GW_CHILD);
+    if (child != NULL) SetFocus(child);
+    // AND FORCE A REDRAW. The view composited while hidden -- that is the
+    // point of building it at startup -- but nothing has asked the newly
+    // visible window for a frame, and with explorer absent nothing else will:
+    // the window stays the blank rectangle Windows painted. The overlay gets
+    // this for free because overlay_notify makes its tree rebuild; an app
+    // surface has no such signal, so ask the engine directly. Same call, same
+    // reason, as the desktop's in flwin32_host.c.
+    FlutterDesktopViewControllerForceRedraw(slot->controller);
+    return;
+  }
   if (slot->kind == FLWIN32_SURFACE_DESKTOP) {
     // Bottom of the z-order, no activation — and the window only exists on
     // screen once its view has composited, so there is no empty first

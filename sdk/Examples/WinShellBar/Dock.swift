@@ -294,6 +294,10 @@ final class StarlingDockState: State<StatefulWidget> {
     /// Whether this process draws the launcher as a LAYER of this tree (the
     /// one-view shell) rather than leaving it to a launcher window.
     private var launcherLayerMode = false
+    /// The file explorer's surface view, when this process is hosting it.
+    /// nil means there is none and opening Files spawns a process, which is
+    /// what happens in the process-per-surface modes.
+    private var filesSurfaceId: Int?
     /// Whether the control centre is down, and whether the pointer is
     /// currently dragging its volume slider.
     private var controlCentreOpen = false
@@ -364,7 +368,7 @@ final class StarlingDockState: State<StatefulWidget> {
                 self.setState { self.controlCentreOpen = false }
                 Win32Shell.toggleOverlay(channel: "notifications")
             case "E":
-                Win32Shell.openFiles()
+                self.openFiles()
             case "R":
                 Win32Shell.toggleOverlay(channel: "run")
             default:
@@ -433,6 +437,47 @@ final class StarlingDockState: State<StatefulWidget> {
     /// THIS tree. The toggle broadcast already reaches this window (the host
     /// fires its callback for any host kind); click-away is the window's own
     /// deactivation, exactly what the floating launcher window used.
+
+    /// The FILE EXPLORER, hosted by this process as an app surface.
+    ///
+    /// The whole reason: `egl::Manager::Create` -- ANGLE bringing up a D3D
+    /// device -- is ~110 ms and is charged ONCE PER PROCESS, when the engine
+    /// is constructed. A view on an engine that is already running pays none
+    /// of it, and neither does it pay the process start, the DLL load or the
+    /// Swift runtime init. Explorer gets exactly this deal from being part of
+    /// the Windows shell; this is the same trick.
+    ///
+    /// Built HIDDEN at shell startup, because a hidden view still composites:
+    /// by the time anyone presses Win+E the tree is mounted and its first
+    /// scene is on the swapchain, so opening is a ShowWindow. Closing hides
+    /// it again rather than destroying it, so the second open is free too.
+    private func openFilesSurface() {
+        guard filesSurfaceId == nil else { return }
+        let id = Win32Surfaces.open(kind: .app,
+                                    width: kFilesWidth,
+                                    height: kFilesHeight) { _ in
+            StarlingFiles()
+        }
+        guard let id else {
+            print("[WinShell] files surface FAILED; falling back to a process")
+            return
+        }
+        filesSurfaceId = id
+        // Everything the Files tree does to "its window" must land on THIS
+        // window, not on the dock -- see FilesWindow.
+        FilesWindow.current = .surface(id)
+        FilesWindow.opener = { Win32Surfaces.show(id) }
+        Win32Surfaces.onClose(id) {
+            // Hidden, not gone. Explorer forgets your tabs on close; this
+            // keeps them, which is the trade for opening instantly.
+            print("[WinShell] files surface hidden")
+        }
+        print("[WinShell] files surface view: \(id)")
+    }
+
+    /// Win+E, and the dock's menu entry. One decision, in FilesWindow.
+    func openFiles() { FilesWindow.openFileExplorer() }
+
     private func openOneviewSurfaces() {
         if !Win32Shell.explorerPresent
             || ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"]
@@ -444,6 +489,7 @@ final class StarlingDockState: State<StatefulWidget> {
         } else {
             print("[WinShell] oneview desktop skipped (explorer present)")
         }
+        openFilesSurface()
         launcherBloc.add(.start)
         // The toggle and the deactivation are registered once for the whole
         // surface, in initState: the host keeps ONE handler for each, so a
@@ -554,6 +600,7 @@ final class StarlingDockState: State<StatefulWidget> {
         } else {
             print("[WinShell] oneshell desktop skipped (explorer present)")
         }
+        openFilesSurface()
         // The launcher mounts hidden — a hidden VIEW still composites, so
         // the whole parked-overlay dance (full-size parks, WM_SIZE kicks,
         // preload off the widget lifecycle) is simply not needed here. Start
@@ -2052,7 +2099,7 @@ final class StarlingDockState: State<StatefulWidget> {
             // that is not about the menu itself.
             var rows = [
                 DockMenuRow(label: "     Files") {
-                    Task.detached { Win32Shell.openFiles() }
+                    self.openFiles()
                 },
                 DockMenuRow(label: "     Settings") {
                     Task.detached { Win32Shell.openSettings() }
