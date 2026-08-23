@@ -822,16 +822,16 @@ Measured — `ShellExecuteW("ms-settings:")` starts nothing,
 launched through its exe stub works (`calc.exe` -> CalculatorApp runs), so
 this is the protocol path, not packaged apps as such.
 
-- [ ] **Enumerate `shell:AppsFolder`, not just the Start Menu.** Both
-      catalogs, deduplicated, launching packaged entries via
-      `shell:AppsFolder\<AUMID>`. `flwin32_namespace.c` already enumerates
-      shell folders, so the machinery is there. NOT yet confirmed that the
-      AppsFolder launch route works under our shell — that test was the next
-      step. Until this lands, Windows' own Settings cannot be opened from the
-      Starling desktop, which is the immediate reason it matters: turning SAC
-      off needs it.
-- [ ] **Then find out why `ms-settings:` activation fails**, which is a
-      different fault from the missing catalog.
+- [x] **Enumerate `shell:AppsFolder`, not just the Start Menu** — `c3fc720`,
+      built and deployed on the box. 79 shortcuts + 127 AppsFolder children
+      merge to **123 apps, 44 of them from no shortcut at all and 34
+      packaged**, de-duplicated by display name (the two sides share no other
+      field: a shortcut has a path and no id, an entry there has an id and no
+      path). Verified in the running shell: the pinned row now seeds Edge,
+      File Explorer, Terminal, Notepad, Settings and Calculator with their
+      real logos.
+- [ ] **Then find out why `ms-settings:` activation fails** — ANSWERED below,
+      and it is not the URI path: nothing packaged activates under our shell.
 - [ ] **`winshell-files-in-shell` (`807b840`) needs a run.** The file explorer
       as an engine VIEW in the shell process: verified that Win+E opens a
       Files window with NO new process and that the view composites, which is
@@ -841,3 +841,64 @@ this is the protocol path, not packaged apps as such.
       surface is shown — are built but UNRUN, because SAC started blocking
       before they could be deployed. Before those, the window opened with a
       system caption and blank content.
+
+CHECKPOINT 2026-08-23, later still — the catalog is whole, and the reason
+packaged apps do not START now has a name and an A/B behind it.
+
+**Packaged activation fails because Explorer is not the shell.** Same
+machine, same binary, ninety seconds apart, `--apps-probe Calculator`:
+
+| session shell | activation manager | result |
+|---|---|---|
+| Starling (`WinShellBar --session`) | `activate=0x80040900` | nothing runs |
+| explorer.exe | `activate=0x00000000 pid=10612` | CalculatorApp runs |
+| Starling **with explorer.exe started underneath** | `activate=0x00000000` | Calculator *and* Settings run |
+
+Both routes fail together under our shell — the activation manager with
+`0x80040900`, and `ShellExecuteW("shell:AppsFolder\<AUMID>")` with
+`SE_ERR_ACCESSDENIED` and a `0x80040954` last-error — so it is not the AUMID,
+the call, or the fallback. `Microsoft-Windows-TWinUI/Operational` names the
+phase outright: *"Activation for … failed. Activation phase: **COM App
+activation**"*, next to *"Attempted activation of the app, 0, **Class not
+registered**"*. And `Microsoft-Windows-AppModel-Runtime/Admin` shows the app
+**process was created** (`Created process 11280 for application
+Microsoft.WindowsCalculator_8wekyb3d8bbwe!App`) and then failed to register
+its class — the launch gets as far as a process and dies in the handshake.
+
+This is the SAME fault as `ms-settings:`, not a separate one. The protocol
+path was a red herring: every route into the modern activation machinery is
+shut, and the packaged apps that DO start under our shell (Windows Terminal
+hosting a console, `calc.exe`) start through `CreateProcess` and an execution
+alias, which never touches it.
+
+What is different about Explorer, as far as the evidence goes: it owns the
+**shell window**. `GetShellWindow()` is `0` under our shell and there is no
+`Progman`; under Explorer it is Progman, and `ShellExperienceHost` and
+`StartMenuExperienceHost` are running. Claiming it ourselves is not a
+one-liner — `SetShellWindow(hwnd)` from a test process is **refused**
+(returns FALSE, `GetLastError` 0), so whatever the rule is, an ordinary
+top-level window on the interactive desktop does not satisfy it.
+
+- [ ] **Decide what packaged apps are worth.** Three ways, in rising order of
+      how much of the "we are the shell" story they give up:
+      1. **Run explorer.exe underneath us** as a service provider and keep
+         hiding its taskbar (`flwin32_explorer.c` already does the hiding).
+         PROVEN to work — the third row above. Costs **646 MB** across
+         explorer + StartMenuExperienceHost + ShellExperienceHost + SearchHost,
+         and it is the trick other Windows shell replacements use.
+      2. **Find the registration Explorer performs** and do it ourselves.
+         `SetShellWindow` is the obvious candidate and it refuses us; the next
+         places to look are `SetShellWindowEx` with a real desktop window,
+         `RegisterShellHookWindow`, and whatever `ShellExperienceHost` is
+         activated BY.
+      3. **Leave it.** The catalog is honest either way — the entries are
+         there, they carry their logos, and they will start the day one of the
+         above lands. Today a click on Settings does nothing at all, which is
+         the worst of the three.
+- [ ] **The catalog costs 1.9s cold and 0.37s warm, and it is read TWICE.**
+      `DockBloc` and `LauncherBloc` each call `Win32AppCatalog.apps()` in
+      their own detached task, so at logon the machine pays both. The
+      AppsFolder is ~320ms of the warm number (the shortcut walk is ~50ms);
+      the cold 1.9s is the shell resolving every installed app for the first
+      time in the session. Off the UI thread, so it delays the launcher's
+      list rather than a frame — but a shared snapshot would halve it.
