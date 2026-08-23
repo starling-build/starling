@@ -367,6 +367,18 @@ func _setupWidgetBinding(_ app: Widget) {
             pipelineOwner = PipelineOwner()
             pipelineOwner!.onNeedVisualUpdate = {
                 pd.scheduleFrame()
+                #if os(Windows)
+                // Same story as onBuildScheduled above: this embedder does
+                // not deliver a vsync frame for ScheduleFrame in Swift
+                // mode, so a RENDER-side invalidation — a scroll offset
+                // moving, a markNeedsLayout outside any build — must kick
+                // the host's real frame too, or the dirty layout sits
+                // until some other frame happens by. Scrolling a ListView
+                // was exactly this: the scroll position moved and notified,
+                // the viewport marked itself for layout, and nothing on
+                // screen ever moved.
+                hostScheduleEngineFrame?()
+                #endif
             }
             renderView!.attach(pipelineOwner!)
             renderView!.prepareInitialFrame()
@@ -414,6 +426,10 @@ func _setupWidgetBinding(_ app: Widget) {
                 let po = PipelineOwner()
                 po.onNeedVisualUpdate = {
                     pd.scheduleFrame()
+                    #if os(Windows)
+                    // See the implicit view's onNeedVisualUpdate above.
+                    hostScheduleEngineFrame?()
+                    #endif
                 }
                 rv.attach(po)
                 rv.prepareInitialFrame()

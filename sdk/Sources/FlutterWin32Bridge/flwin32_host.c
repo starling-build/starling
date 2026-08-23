@@ -126,6 +126,12 @@ struct FlWin32Host {
   int panel_monitor;
   int panel_takes_focus;
   int panel_transparent;
+  // Reentrancy latch for the WM_MOUSEWHEEL hand-down (see the case): the
+  // child's DefWindowProc forwards wheel messages back to its PARENT --
+  // this window -- synchronously, so without the latch the two forwards
+  // ping-pong until the stack runs out (0xC00000FD; one fast wheel burst
+  // over the Files listing was enough).
+  int wheel_forwarding;
   // Desktop mode: a full-monitor surface pinned to the BOTTOM of the
   // z-order -- the wallpaper-and-icons window explorer's Progman is, for the
   // no-explorer endgame. Every other window naturally covers it; clicking it
@@ -513,8 +519,25 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       // ride in screen space so no translation is needed. The engine's own
       // pipe delivers it to the framework from there — verified by pixels
       // after a day of prints through a full-buffered pipe said otherwise.
+      //
+      // THE LATCH IS LOAD-BEARING. The child handles the wheel and then
+      // falls through to DefWindowProc, and DefWindowProc's documented
+      // behaviour for a child window's wheel message is to SEND it to the
+      // parent — this window, synchronously, inside our own SendMessageW.
+      // Un-latched, the two forwards ping-pong; the engine pumps tasks
+      // inside its pointer dispatch, so a fast burst stacks new notches'
+      // recursions on top and the process dies at 0xC00000FD (stack
+      // overflow) — the crash a wheel flick over the Files listing hit.
+      // With the latch, each notch crosses down exactly once and the
+      // bounce is swallowed; the child has already scrolled.
       if (host != NULL && host->child != NULL) {
-        return SendMessageW(host->child, message, wparam, lparam);
+        if (host->wheel_forwarding) {
+          return 0;
+        }
+        host->wheel_forwarding = 1;
+        LRESULT wheel_result = SendMessageW(host->child, message, wparam, lparam);
+        host->wheel_forwarding = 0;
+        return wheel_result;
       }
       break;
 
@@ -1639,6 +1662,29 @@ static LRESULT CALLBACK child_cursor_wnd_proc(HWND hwnd, UINT message,
   if (message == WM_SETCURSOR && LOWORD(lparam) == HTCLIENT) {
     SetCursor(LoadCursorW(NULL, IDC_ARROW));
     return TRUE;
+  }
+
+  // The wheel dedupe's other half (see WM_MOUSEWHEEL in host_wnd_proc).
+  // WHATEVER route a wheel notch takes into this child — focus routing,
+  // Windows' scroll-inactive-on-hover routing, or the parent's hand-down —
+  // the engine's handler ends in DefWindowProc, which SENDS the same notch
+  // to the parent. Latch around the child's handling so the parent can
+  // tell that bounce (swallow: this notch has already scrolled) from a
+  // notch it still must hand down. Without this, a focused window
+  // scrolled TWICE per notch: once for the direct delivery, once for the
+  // parent forwarding the bounce back in.
+  if (message == WM_MOUSEWHEEL || message == WM_MOUSEHWHEEL) {
+    HWND wheel_parent = GetParent(hwnd);
+    FlWin32Host* wheel_host = wheel_parent != NULL
+        ? (FlWin32Host*)GetWindowLongPtrW(wheel_parent, GWLP_USERDATA) : NULL;
+    if (wheel_host != NULL) {
+      wheel_host->wheel_forwarding = 1;
+      LRESULT wheel_result = original != NULL
+          ? CallWindowProcW(original, hwnd, message, wparam, lparam)
+          : DefWindowProcW(hwnd, message, wparam, lparam);
+      wheel_host->wheel_forwarding = 0;
+      return wheel_result;
+    }
   }
 
 
