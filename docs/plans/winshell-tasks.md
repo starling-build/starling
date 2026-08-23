@@ -758,3 +758,32 @@ Winlogon Shell= slot, every phase VM-proven before the dev box tries it.
       Verified from the dock tile: Files opens, no console class on screen
       at all; New window spawns `--files "<dir>"` quoted and console-less;
       the zip is a valid archive with the entries still relative.
+
+CHECKPOINT 2026-08-23 — mainline, and measured against Windows. `winshell`
+is merged into `main` (`2c7e5ab`); the engine half is on `starling`, not a
+paired branch. The box runs mainline as the real `Shell=`.
+
+Landed since: the file explorer opens with no console behind it (`4002f83` —
+`open_surface` used ShellExecuteW/SW_SHOWNORMAL on a console-subsystem
+binary; SW_HIDE is the trap, CREATE_NO_WINDOW the fix); the listing stopped
+waiting on Quick Access (`178c4e9`); the caption is claimed before the window
+exists (`7cca01e`); and the desktop stays under app windows (`a667a8b` — a
+P0: open, close, open and the second window was invisible, 21 of 24).
+
+Latency vs the native shell, warm medians: Start menu **67 ms vs 300 ms**,
+file manager **500 ms vs 1149 ms**, and **449 ms vs File Pilot's 515 ms**
+like-for-like. The remaining budget is not ours: ~110 ms is ANGLE bringing up
+a D3D device (per process, no cheaper configuration exists) and ~100 ms is
+DWM's window-open animation. Numbers and method in winshell-perf.md's
+addendum; the rig and the film pipeline in `test/bench/win-latency/`.
+
+- [ ] **Park or share the engine for Files.** The only way past the ~110 ms
+      ANGLE cost is to stop creating a process per surface: either park a
+      Files process the way the launcher, banners, Run and the notification
+      centre already are (`flwin32_shell_ensure_*`, ~100-150 MB resident), or
+      make Files a second VIEW in the oneview process, which pays nothing and
+      is cheaper in RAM. The second is the real fix and the bigger change.
+- [ ] **Audit the other surfaces for the resize handshake.** `setPanel`,
+      `setDesktop` and `setOverlay` all run AFTER `host_create` in
+      `Win32WindowedHost.boot`, which is the same shape that cost Files 90 ms
+      — the dock, the desktop and the launcher may each be paying it at logon.

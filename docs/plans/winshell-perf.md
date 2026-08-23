@@ -549,3 +549,98 @@ the honest target, and the floor is the interesting part: a parked
 engine with no tree and no timers should cost nothing, and measuring
 where its wakeups come from (the present-side frame statistics item
 above) is the first step of any pass at this table.
+
+---
+
+# Addendum, 2026-08-23 — latency vs the native shell, and the P0 it found
+
+## What was measured
+
+Keystroke-to-pixels against the Windows shell, on the physical box, warm,
+medians of 6:
+
+| | first pixels | usable |
+|---|---|---|
+| Start menu — Starling | 67 ms | **67 ms** (same frame, no animation) |
+| Start menu — Windows 11 | 183 ms | **300 ms** (fades in over ~4 frames) |
+| File manager — Starling Files | 317 ms | **500 ms** |
+| File manager — Windows Explorer | 366 ms | **1149 ms** |
+
+**4.5x to a finished Start menu; 2.3x to a usable file window** — the latter
+while starting a whole process, which Explorer (already running as the shell)
+never does.
+
+And against a hand-written native file manager, like-for-like (same desktop,
+same `CreateProcessW`, same rig): **Starling Files 449 ms vs File Pilot 0.8.3
+515 ms**, while drawing 1.9x the pixels from a 49.7 MB exe against its 2.5 MB
+one. A native app is not faster here because a cold launch is not dominated by
+framework overhead — see the budget below.
+
+Method, and how the comparison films are made: `test/bench/win-latency/README.md`.
+
+## Where a file-explorer launch actually goes
+
+By process uptime, from `STARLING_TRACE=1`:
+
+| phase | cost |
+|---|---|
+| process create + DLL load + Swift runtime | ~30 ms |
+| `FlutterDesktopEngineCreate` | **110 ms** |
+| ...of which `egl::Manager::Create` | **109.5 ms** |
+| view controller + first `WM_PAINT` | ~22 ms |
+| DWM's window-open animation | **~100 ms** |
+
+`egl::Manager::Create` is one `eglInitialize`, and that is essentially
+`D3D11CreateDevice`: **113 ms cold, ~62 ms warm** on this AMD 780M, with no
+flag, feature-level list or adapter trick that makes it cheaper (WARP does it
+in 11 ms, but software rendering is not the trade). It is charged **per
+process**, which is the whole asymmetry with Explorer. Pre-warming does not
+help: `d3d11.dll` and `dxgi.dll` were already loaded before the 113 ms call,
+so the cold/warm gap is driver and kernel setup, and there is only ~38 ms of
+our own startup to hide it behind.
+
+DWM's open animation is ~100 ms of the wall clock and both shells pay it —
+turning it off takes our 500 ms to 399 ms.
+
+Engine instrumentation for all of this is committed behind `STARLING_TRACE`
+(engine `89ec060db2d`, `164b0d6c8da`, `3ad2d4f97f8`): constructor phases,
+ANGLE bring-up step by step, and per-task timing with kind.
+
+## Two things fixed on the way
+
+- **The listing stopped waiting on the sidebar** (`178c4e9`). Opening with no
+  directory argument — Win+E and the dock tile — did not start the directory
+  read until `places()` + `drives()` + `oneDrive()` + `quickAccessPins()` had
+  all returned. Quick Access alone is **160 ms**; the read it was blocking is
+  **3 ms**. Quick Access is cached across runs now too.
+- **The caption is claimed before the window exists** (`7cca01e`). Files takes
+  the caption for its tabs, and doing that after a view controller exists is a
+  client-area *resize* — which the embedder answers by blocking the platform
+  thread in `OnWindowSizeChanged` until the raster thread returns a frame at
+  the new size, plus a `DwmFlush`. On a 29 Hz panel: **~90 ms of waiting**.
+  Claimed at `host_create` time there is nothing to resize.
+
+Together these take everything the window draws from ready-at-413 ms to
+ready-at-195 ms. The wall clock does not move, because the window's
+*appearance* is gated by ANGLE and DWM, not by our data — but the first frame
+the compositor shows now contains the file list instead of being empty.
+
+## The P0 it uncovered
+
+Benchmarking File Pilot, its window would not appear under our shell. It was
+not File Pilot: **open an app, close it, open another, and the second one is
+invisible** — a real window, `IsWindowVisible` true, correct rect, not
+cloaked, sitting under our full-screen desktop surface. 21 of 24 launches.
+
+The desktop clamps itself to `HWND_BOTTOM` in `WM_WINDOWPOSCHANGING`, which
+only ever sees moves of our own window; nothing tells it when Windows inserts
+a foreign window *below* us, which is what happens when the launching app
+cannot take the foreground — and closing the last app window hands the
+foreground to the desktop itself. Fixed in `a667a8b` with a WinEvent hook on
+`EVENT_SYSTEM_FOREGROUND..EVENT_OBJECT_SHOW` that sinks the desktop whenever
+another top-level window is shown. 0 of 24 after, idle unchanged.
+
+`test/bench/win-latency/zorder-stress.ps1` is the regression test. **A single
+launch passes even when the bug is present** — the sequence that matters is
+launch → close → launch, repeated.
+
