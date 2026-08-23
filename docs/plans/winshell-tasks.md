@@ -832,15 +832,27 @@ this is the protocol path, not packaged apps as such.
       real logos.
 - [ ] **Then find out why `ms-settings:` activation fails** — ANSWERED below,
       and it is not the URI path: nothing packaged activates under our shell.
-- [ ] **`winshell-files-in-shell` (`807b840`) needs a run.** The file explorer
-      as an engine VIEW in the shell process: verified that Win+E opens a
-      Files window with NO new process and that the view composites, which is
-      the whole point (~110 ms of ANGLE plus ~30 ms of process start, gone).
-      Two fixes on it — the caption handler no longer gated on a slot that
-      does not exist during WM_NCCALCSIZE, and a ForceRedraw when an app
-      surface is shown — are built but UNRUN, because SAC started blocking
-      before they could be deployed. Before those, the window opened with a
-      system caption and blank content.
+- [x] **The file explorer inside the shell — RUN, fixed, MERGED** (`f803734`
+      + `fee2a4c`, on main). Win+E and the dock's Files tile both open a Files
+      window with **no new process**, the custom caption draws (no system
+      title bar), closing hides and reopening is instant. Click to painted,
+      three runs: **110, 115, 121 ms — against 308 and 379 ms** for the same
+      explorer as its own process. That gap is the ~110 ms of ANGLE plus the
+      process start, and it is what the view exists for.
+
+      The ForceRedraw that was supposed to rescue the blank window is NOT
+      enough, measured twice against one build with an env knob between the
+      arms. The adapter composites a secondary view only when THAT view's
+      pipeline has layout or paint work — deliberately, so a static second
+      monitor does not re-present on every animation frame of the first — and
+      a window that merely became visible has none, so the frame the show
+      schedules skips it and the window keeps the frame it composited while
+      hidden (for Files built at startup: the empty page before its first
+      listing). The show now sets `_forceNextComposite` and kicks
+      `hostScheduleEngineFrame`; both halves are needed. A one-pixel resize
+      also worked and was rejected — the embedder answers a resize by blocking
+      the platform thread until the raster thread returns a frame, and that
+      thread is the SHELL's.
 
 CHECKPOINT 2026-08-23, later still — the catalog is whole, and the reason
 packaged apps do not START now has a name and an A/B behind it.
@@ -902,3 +914,16 @@ top-level window on the interactive desktop does not satisfy it.
       the cold 1.9s is the shell resolving every installed app for the first
       time in the session. Off the UI thread, so it delays the launcher's
       list rather than a frame — but a shared snapshot would halve it.
+
+**Driving the shell from a script, after three false negatives in a row.**
+Every one of these looked like "the feature does not work":
+- The injecting task must be `/rl HIGHEST`. The shell runs elevated, and
+  UIPI drops injected input from a lower-integrity process silently — no
+  error, no event, the click simply never happens.
+- Its console must not be on screen. A `schtasks`-launched `cmd` window
+  covers the dock, so the click lands on the console instead; run the script
+  through a hidden `wscript` shim (`sh.Run "cmd /c powershell …", 0, True` —
+  and it needs the `cmd /c`, because WScript.Shell does not do redirection).
+- `Move` is an ALIAS FOR `Move-Item` in PowerShell. A helper function named
+  `Move` is silently ignored in favour of it, so every pointer move became a
+  file-move error and the clicks landed wherever the cursor happened to be.
