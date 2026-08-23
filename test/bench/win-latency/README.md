@@ -91,6 +91,14 @@ competitor by 400 ms. Use 64×64 for anything with content in it. Look at the
 actual response curve before choosing a threshold; the noise floor here is
 0.05 and a real change is 20+.
 
+**Twenty reps, not six.** The quantum is 33 ms, so with n=6 a single slow
+launch moves the median a whole frame. A six-rep comparison once showed our
+file explorer 50 ms "faster under Explorer than under our own shell"; at n=14
+the gap vanished (the minima had been identical all along, which was the tell
+that should have been believed). Treat any gap under ~2 frames as unmeasured
+until it survives 20 reps, and quote the interquartile range beside the
+median — if the two ranges overlap, there is no result.
+
 **Report first pixels AND settled, separately.** Windows fades its Start menu
 in, so "first pixels" flatters it and "settled" is the honest "the menu is
 readable". Ours is identical on both, which is itself a finding.

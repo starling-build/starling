@@ -566,6 +566,19 @@ medians of 6:
 | File manager — Starling Files | 317 ms | **500 ms** |
 | File manager — Windows Explorer | 366 ms | **1149 ms** |
 
+Re-run at **n=20**, both launched by the same `CreateProcessW` and both on
+OUR shell — which is the honest question, since that is where a user of this
+desktop actually opens a file manager (Explorer then cold-starts rather than
+handing off to a resident instance):
+
+| | first pixels | usable | p25-p75 (usable) |
+|---|---|---|---|
+| Starling Files | **300 ms** | **483 ms** | 467-500 |
+| Windows Explorer | 567 ms | **1400 ms** | 1308-1400 |
+
+**2.9x to a usable window, and the distributions do not touch**: our slowest
+of twenty (600 ms) still beats Explorer's fastest (1300 ms).
+
 **4.5x to a finished Start menu; 2.3x to a usable file window** — the latter
 while starting a whole process, which Explorer (already running as the shell)
 never does.
