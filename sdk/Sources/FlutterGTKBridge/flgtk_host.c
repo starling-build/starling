@@ -63,6 +63,7 @@ static gboolean drain_gcd_main_queue(gpointer user_data) {
 // re-signals the fd.
 static gboolean drain_gcd_on_wakeup(gint fd, GIOCondition condition,
                                     gpointer user_data) {
+  (void)condition;
   uint64_t value = 0;
   ssize_t n;
   do {

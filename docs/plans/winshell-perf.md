@@ -150,6 +150,45 @@ Worth a later pass, in value order:
 3. The dock's ~2.7% predates Phase 4 (1 Hz clock tick + tray read) and
    is the same order as before; nothing new to chase.
 
+### The floor had a cause, and it was ours — 2026-08-22
+
+**Found in source, fix committed, number NOT yet re-measured.** The
+"unexplained ~1-2%" was not the engine and not a parked tree. Every
+Starling process ran an unconditional 8 ms `WM_TIMER`
+(`flwin32_host.c`, `SetTimer(host->window, kDrainTimerId, 8, NULL)`)
+whose only job was to pump libdispatch's main queue so `@MainActor` and
+`DispatchQueue.main.async` work reaches the message thread. Nothing
+about it was conditional on there being anything to drain — no widget
+tree, hidden window and empty queue all paid it. That is **125 wakeups
+a second per process, ~625 across the five surfaces**, and none of them
+coalesce with anything because the engine pins the process timer
+resolution at 1 ms for its own frame scheduling
+(`shell/platform/windows/task_runner_window.cc:50`,
+`fml/platform/win/message_loop_win.cc:31`). Windows' own shell
+processes, which read 0.0% in the table above, call no such timer.
+
+Both hosts now wait on libdispatch's wakeup handle instead
+(`_dispatch_get_main_queue_handle_4CF` — an auto-reset event on
+Windows, an eventfd on Linux), so an idle process wakes zero times.
+`GpuDmaBufRenderer.swift` had already been polling that fd since the
+DRM child renderer was written; the hosts simply never adopted it.
+
+**The Linux desktop paid the same tax, unmeasured** —
+`flgtk_host.c` had the identical `g_timeout_add(8, …)`. macOS never
+did: CFRunLoop owns that handle for us.
+
+To confirm, re-run the 20 s `TotalProcessorTime` sample. The A/B is one
+binary in one sitting, as this document's method section demands:
+`STARLING_DRAIN_TIMER_MS=8` restores the old poll exactly,
+unset is the new path. Expected: the ~1-2% floor goes to ~0 on all
+five, leaving only the named costs — the banner's 2 s store read, the
+dock's 1 Hz tick, the hidden caret's two frames a second.
+
+One residual, separate from this: `GpuDmaBufRenderer.swift`'s poll loop
+keeps a **100 ms idle backstop** (10 Hz) alongside the GCD fd. Far
+cheaper than 125 Hz and it was never the floor here, but it is not zero
+either, and it is the last periodic wakeup left in a parked Linux app.
+
 ### The native shell, same method, same box
 
 Windows' own shell family measured identically (20s deltas, idle desktop,

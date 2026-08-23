@@ -30,7 +30,10 @@ signing (release concern), and the standing follow-ups: desktop OLE
 drag OUT, multi-monitor, wallpaper watch, Alt-Tab previews, the OSD
 survival check, engine frame-dispatch, and the idle-CPU items in
 winshell-perf.md's addendum (unfocus-on-hide, NotificationChanged over
-the raw ABI, the parked-engine ~2% floor).
+the raw ABI). The **parked-engine ~2% floor is diagnosed and fixed** —
+it was our own 8 ms main-queue drain timer, not the engine; both hosts
+now wait on libdispatch's wakeup handle. Awaiting only the 20 s
+re-measure, which `STARLING_DRAIN_TIMER_MS=8` makes a one-binary A/B.
 
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 

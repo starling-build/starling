@@ -217,11 +217,12 @@ void flcocoa_host_run(FlCocoaHost* host) {
   if (host == NULL) {
     return;
   }
-  // No GCD drain timer here, unlike the GTK and Win32 hosts. On Darwin
-  // libdispatch installs the main queue onto the main run loop itself
+  // Nothing to drain the main queue here, unlike the GTK and Win32 hosts. On
+  // Darwin libdispatch installs the main queue onto the main run loop itself
   // (_dispatch_main_queue_callback_4CF is CFRunLoop's own hook), so
   // DispatchQueue.main and @MainActor work under [NSApp run] with nothing
-  // added.
+  // added. Those hosts wait on the same libdispatch wakeup handle CFRunLoop
+  // is using for us right here; they just have to ask for it by hand.
   [NSApp run];
 }
 
