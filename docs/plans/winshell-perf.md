@@ -245,9 +245,9 @@ tick, against ~35 µs for a drain-timer tick, which is why removing 125
 drain ticks and leaving 62 DM ticks lands at half.
 
 **Fixed, and it was worth more than the estimate.** Engine
-`2974d27e73f` on branch `winshell-idle-drain` (paired by name with this
-repo's branch) arms that timer from the `DM_POINTERHITTEST` that already
-calls `SetContact`, and kills it when the viewport settles. Numbers and
+`2974d27e73f`, on the engine's mainline `starling`, arms that timer from
+the `DM_POINTERHITTEST` that already calls `SetContact`, and kills it when
+the viewport settles. Numbers and
 the settle rule are below.
 
 #### Gated — measured DESKTOP-URK35LH, 2026-08-22

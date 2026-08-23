@@ -40,7 +40,7 @@ of the floor survives the fix and is still the engine's own idle cadence
 modal loops). **The other half is fixed too**, in the engine: the
 DirectManipulation gesture poll (a 14 ms `WM_TIMER` armed per view at
 creation and never killed) now runs only while a gesture is in flight —
-engine `2974d27e73f` on branch `winshell-idle-drain`, paired by name.
+engine `2974d27e73f`, on the engine's mainline `starling`.
 Same one-binary A/B: **0.013% vs 0.786% of one core, 62.5x**, and 1
 context switch a second for a parked surface. The whole idle session is
 **2.92% of one core**, and then **0.31-0.73%** once the shell stopped
