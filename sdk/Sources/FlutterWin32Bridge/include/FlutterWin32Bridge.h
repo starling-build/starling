@@ -757,6 +757,13 @@ uint64_t flwin32_surface_window(FlWin32Host* host, int64_t view_id);
 // resize borders stay the system's; the top band is still resizable (the
 // child view declines those hits). The tree then owes the window a way to
 // move and to close: the three calls below, plus begin_drag on the strip.
+// Ask for the custom titlebar BEFORE the host is created, so the caption
+// takeover happens while the window is still bare. Doing it afterwards is a
+// client-area RESIZE, and the embedder answers a resize by blocking the
+// platform thread until the raster thread returns a frame at the new size --
+// ~90 ms on a 29 Hz panel. Consumed by the next flwin32_host_create.
+void flwin32_host_prepare_custom_titlebar(void);
+
 void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable);
 
 // Hand a press on the app-drawn titlebar to the frame as a caption click --

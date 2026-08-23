@@ -91,6 +91,11 @@ double flwin32_qpc_ms(void) {
   return (double)now.QuadPart * 1000.0 / (double)freq.QuadPart;
 }
 
+/* Asked for BEFORE the host exists, so the caption takeover is applied while
+ * the window is still bare and no surface exists to resize. */
+static int g_pending_custom_titlebar;
+static void apply_custom_titlebar(HWND window, int enable);
+
 void flwin32_trace(const char* label) {
   if (!trace_enabled()) return;
   fprintf(stderr, "[trace] %8.1f ms  qpc=%.3f  %s\n", flwin32_uptime_ms(),
@@ -760,6 +765,20 @@ FlWin32Host* flwin32_host_create(const char* title,
     return NULL;
   }
 
+  // THE CAPTION TAKEOVER GOES HERE, not after the tree mounts. Giving the
+  // caption to the client grows the client area by the caption height, and
+  // once a view controller exists that is a RESIZE: the embedder blocks the
+  // platform thread until the raster thread returns a frame at the new size,
+  // and adds a DwmFlush on top. Measured on a 29 Hz panel, deferring it cost
+  // ~90 ms of the file explorer's startup -- pure waiting, in the middle of
+  // the main queue. Applied now, the engine's first surface is already the
+  // final size and nothing has to be resized at all.
+  int wants_custom_titlebar = g_pending_custom_titlebar;
+  g_pending_custom_titlebar = 0;
+  if (wants_custom_titlebar) {
+    apply_custom_titlebar(window, 1);
+  }
+
   // Engine data files resolve the standard Flutter bundle way:
   // <executable dir>/data/{icudtl.dat,flutter_assets}. These paths are
   // documented as relative to the executable's directory, so no absolute
@@ -822,6 +841,7 @@ FlWin32Host* flwin32_host_create(const char* title,
   install_child_cursor_proc(host->child);
 
   SetWindowLongPtrW(window, GWLP_USERDATA, (LONG_PTR)host);
+  host->custom_titlebar = wants_custom_titlebar;
   flwin32_trace("host_create: end");
   return host;
 }
@@ -1044,6 +1064,81 @@ void flwin32_host_show(FlWin32Host* host) {
   SetFocus(host->child);
 }
 
+
+/* STARLING_TRACE: name any single message dispatch that blocks the loop for
+ * longer than this. Startup spends ~100 ms somewhere between the first frame
+ * and the main queue being able to run again, and "the first GPU frame" is a
+ * guess until something says WHICH message it is sitting in. */
+#define kSlowDispatchMs 4.0
+
+/* Per-message-id cost over the startup window, dumped once. The loop is busy
+ * for ~100 ms after the first frame in dispatches each too short to name
+ * individually, so the only way to see what it is doing is to add them up. */
+#define kMsgTableSize 0x0400
+static double g_msg_ms[kMsgTableSize];
+static unsigned g_msg_count[kMsgTableSize];
+static double g_msg_other_ms;
+static unsigned g_msg_other_count;
+static int g_msg_dumped;
+
+static void dump_msg_table(void) {
+  if (g_msg_dumped) return;
+  g_msg_dumped = 1;
+  fprintf(stderr, "[msg-table] startup message cost, by message id:\n");
+  for (;;) {
+    int best = -1;
+    for (int i = 0; i < kMsgTableSize; i++) {
+      if (g_msg_count[i] == 0) continue;
+      if (best < 0 || g_msg_ms[i] > g_msg_ms[best]) best = i;
+    }
+    if (best < 0 || g_msg_ms[best] < 0.5) break;
+    fprintf(stderr, "[msg-table]   msg=0x%04X  %7.1f ms  x%u\n", (unsigned)best,
+            g_msg_ms[best], g_msg_count[best]);
+    g_msg_ms[best] = 0.0;
+    g_msg_count[best] = 0;
+  }
+  if (g_msg_other_count) {
+    fprintf(stderr, "[msg-table]   (>=0x400)   %7.1f ms  x%u\n",
+            g_msg_other_ms, g_msg_other_count);
+  }
+  fflush(stderr);
+}
+
+static void dispatch_timed(MSG* message) {
+  if (!trace_enabled()) {
+    TranslateMessage(message);
+    DispatchMessageW(message);
+    return;
+  }
+  double before = flwin32_qpc_ms();
+  TranslateMessage(message);
+  DispatchMessageW(message);
+  double spent = flwin32_qpc_ms() - before;
+  if (message->message < kMsgTableSize) {
+    g_msg_ms[message->message] += spent;
+    g_msg_count[message->message] += 1;
+  } else {
+    g_msg_other_ms += spent;
+    g_msg_other_count += 1;
+  }
+  if (spent >= kSlowDispatchMs) {
+    fprintf(stderr, "[slow-msg] %7.1f ms  msg=0x%04X hwnd=%p uptime=%.1f\n",
+            spent, (unsigned)message->message, (void*)message->hwnd,
+            flwin32_uptime_ms());
+    fflush(stderr);
+  }
+}
+
+
+/* The loop waits INFINITE and this process goes properly idle after startup,
+ * so nothing on the message path can be relied on to trigger the dump. */
+static DWORD WINAPI msg_table_dumper(LPVOID unused) {
+  (void)unused;
+  Sleep(1200);
+  dump_msg_table();
+  return 0;
+}
+
 void flwin32_host_run(FlWin32Host* host) {
   // Kick the first frame, so the widget tree mounts NOW rather than whenever
   // the window next happens to change size.
@@ -1076,6 +1171,10 @@ void flwin32_host_run(FlWin32Host* host) {
   if (host == NULL) {
     return;
   }
+  if (trace_enabled()) {
+    HANDLE t = CreateThread(NULL, 0, msg_table_dumper, NULL, 0, NULL);
+    if (t != NULL) CloseHandle(t);
+  }
   // Pick the drain mode (see the two-modes comment above kDrainTimerId).
   unsigned drain_ms = drain_timer_override_ms();
   HANDLE drain_event = (drain_ms == 0) ? gcd_main_queue_handle() : NULL;
@@ -1100,22 +1199,49 @@ void flwin32_host_run(FlWin32Host* host) {
           quit = 1;
           break;
         }
-        TranslateMessage(&message);
-        DispatchMessageW(&message);
+        dispatch_timed(&message);
       }
       if (quit) {
         break;
       }
       // What those messages just enqueued runs before we sleep. The event
       // would wake us for it anyway; this only saves the round trip.
-      drain_gcd_main_queue();
+      {
+        double d0 = trace_enabled() ? flwin32_qpc_ms() : 0.0;
+        drain_gcd_main_queue();
+        if (trace_enabled()) {
+          double ds = flwin32_qpc_ms() - d0;
+          if (ds >= 1.0 && flwin32_uptime_ms() < 1500.0) {
+            fprintf(stderr, "[drain] %6.1f ms  uptime=%.1f\n", ds,
+                    flwin32_uptime_ms());
+            fflush(stderr);
+          }
+        }
+      }
 
       // MWMO_INPUTAVAILABLE is load-bearing. Without it this wakes only for
       // input that arrives AFTER the wait begins, and a message already
       // sitting in the queue -- routine, since PeekMessage above marks what
       // it looked at as old -- would sleep the loop forever.
+      // STARLING_TRACE: how long the loop slept and WHY it woke. A main-queue
+      // enqueue is supposed to signal drain_event; if the loop instead sleeps
+      // through one and only wakes on input, work sits on the main queue for
+      // as long as the machine happens to stay quiet.
+      double wait_start = trace_enabled() ? flwin32_qpc_ms() : 0.0;
       DWORD r = MsgWaitForMultipleObjectsEx(1, &drain_event, INFINITE,
                                             QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+      if (trace_enabled()) {
+        double slept = flwin32_qpc_ms() - wait_start;
+        double up = flwin32_uptime_ms();
+        if (slept >= 1.0 && up < 1500.0) {
+          fprintf(stderr, "[loop] slept %7.1f ms  woke=%s  uptime=%.1f\n",
+                  slept,
+                  r == WAIT_OBJECT_0 ? "MAIN-QUEUE"
+                                     : (r == WAIT_OBJECT_0 + 1 ? "input" : "?"),
+                  up);
+          fflush(stderr);
+        }
+      }
       if (r == WAIT_OBJECT_0) {
         drain_gcd_main_queue();
       } else if (r == WAIT_FAILED) {
@@ -1128,8 +1254,7 @@ void flwin32_host_run(FlWin32Host* host) {
     SetTimer(host->window, kDrainTimerId, drain_ms, NULL);
 
     while (GetMessageW(&message, NULL, 0, 0) > 0) {
-      TranslateMessage(&message);
-      DispatchMessageW(&message);
+      dispatch_timed(&message);
     }
 
     KillTimer(host->window, kDrainTimerId);
@@ -2180,18 +2305,36 @@ void flwin32_host_request_redraw(FlWin32Host* host) {
   FlutterDesktopViewControllerForceRedraw(host->controller);
 }
 
-void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable) {
-  if (host == NULL || host->window == NULL) return;
-  host->custom_titlebar = enable ? 1 : 0;
+void flwin32_host_prepare_custom_titlebar(void) {
+  g_pending_custom_titlebar = 1;
+}
+
+static void apply_custom_titlebar(HWND window, int enable) {
   // Keep DWM's top hairline: extending the frame one pixel into the client
   // preserves the accent-coloured border a captioned window has, which the
   // NCCALCSIZE takeover would otherwise erase.
   MARGINS margins = {0, 0, enable ? 1 : 0, 0};
-  DwmExtendFrameIntoClientArea(host->window, &margins);
+  DwmExtendFrameIntoClientArea(window, &margins);
   // The frame is recalculated only when something says it changed.
-  SetWindowPos(host->window, NULL, 0, 0, 0, 0,
+  SetWindowPos(window, NULL, 0, 0, 0, 0,
                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                    SWP_NOACTIVATE);
+}
+
+void flwin32_host_set_custom_titlebar(FlWin32Host* host, int32_t enable) {
+  if (host == NULL || host->window == NULL) return;
+  // ALREADY IN THAT STATE IS FREE. The frame change fires a synchronous
+  // WM_SIZE, and the embedder answers a size change by BLOCKING the platform
+  // thread until the raster thread has produced a frame at the new size
+  // (FlutterWindowsView::OnWindowSizeChanged), plus a DwmFlush. On a 29 Hz
+  // panel that is ~90 ms of waiting. Doing nothing when nothing changed keeps
+  // a late call from paying it twice.
+  if (host->custom_titlebar == (enable ? 1 : 0)) return;
+  host->custom_titlebar = enable ? 1 : 0;
+  // Keep DWM's top hairline: extending the frame one pixel into the client
+  // preserves the accent-coloured border a captioned window has, which the
+  // NCCALCSIZE takeover would otherwise erase.
+  apply_custom_titlebar(host->window, enable ? 1 : 0);
 }
 
 void flwin32_host_begin_drag(FlWin32Host* host) {

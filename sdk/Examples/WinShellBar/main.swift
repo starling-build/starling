@@ -819,6 +819,13 @@ Win11.light = Win32SystemInfo.appsUseLightTheme()
 // takesFocus stays at its default of false for both: clicking a dock icon
 // must not take the keyboard off the window the click is about to raise.
 if wantsFiles {
+    // The caption is ours to draw (tabs in the titlebar), and it is claimed
+    // HERE rather than from the first build. Claiming it later grows the
+    // client area, which the embedder treats as a resize and answers by
+    // blocking the platform thread until the raster thread returns a frame
+    // at the new size -- measured at ~90 ms of a ~500 ms launch on a 29 Hz
+    // panel. Claimed before the window exists, there is nothing to resize.
+    Win32Host.prepareCustomTitlebar()
     // One pair of numbers for the window and for the tree, the same bargain
     // ShellScreen makes for a panel: the menu has to know where the window's
     // bottom edge is to flip itself up, and a tree laying out against a size

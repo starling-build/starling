@@ -135,6 +135,14 @@ public final class Win32Host {
     /// caption buttons) and owes the window `beginDrag`, `minimize`,
     /// `toggleMaximize` and `closeWindow` in return. Resize borders stay the
     /// system's.
+    /// Ask for the app-drawn caption BEFORE the window exists, which is where
+    /// it belongs: applying it later changes the client size, and a resize
+    /// makes the embedder block the platform thread until the raster thread
+    /// returns a frame at the new size. Call before `runStarlingApp`.
+    public static func prepareCustomTitlebar() {
+        flwin32_host_prepare_custom_titlebar()
+    }
+
     public func setCustomTitlebar(_ enable: Bool = true) {
         flwin32_host_set_custom_titlebar(host, enable ? 1 : 0)
     }
