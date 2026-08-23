@@ -579,6 +579,25 @@ handing off to a resident instance):
 **2.9x to a usable window, and the distributions do not touch**: our slowest
 of twenty (600 ms) still beats Explorer's fastest (1300 ms).
 
+The two Explorer numbers are not inconsistent, and the difference is worth
+understanding before quoting either. `explorer.exe` is ONE binary with two
+roles -- the shell (taskbar, Start, desktop, tray) and the file manager
+(`CabinetWClass` folder windows) -- and which one is running decides what a
+folder window costs:
+
+- **Explorer as the shell**: folder windows are hosted inside the already
+  running shell process. Opening one creates no process at all. 1149 ms, and
+  most of that is its own content load.
+- **Explorer NOT the shell** (i.e. our desktop): there is no host instance, so
+  each folder window becomes its OWN process. Verified on the box --
+  `SeparateProcess = 0` and yet two folders gave two explorer processes,
+  **197 MB each**, one `CabinetWClass` in each. 1400 ms.
+
+So the "on our shell" comparison is not a stacked deck: it is that on a
+desktop where Starling is the shell, Windows' file manager has no resident
+host to attach to, for the same reason our Files pays a full process launch
+every time. Both sides pay process creation. We are 2.9x faster anyway.
+
 **4.5x to a finished Start menu; 2.3x to a usable file window** — the latter
 while starting a whole process, which Explorer (already running as the shell)
 never does.
