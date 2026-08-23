@@ -301,12 +301,14 @@ wheel scrolling its listing.
 hover labels.** After the fix, the dock's hover label stopped appearing
 — and appeared again under `STARLING_DM_TIMER=always`, which reads
 exactly like a regression. It is not. The runs that failed had all
-followed a tray-chevron click, and the tray overflow flyout that opens
-but never dismisses (already known, and present on the old exe) leaves
-the dock's hover flyout dead for the rest of that session. Clicking the
-chevron and then hovering reproduces it on demand in either mode; a
-session restart clears it. Cost about an hour, and it is a second reason
-to fix that flyout.
+followed a tray-chevron click, and the tray overflow flyout that opened
+but never dismissed left the dock's hover flyout dead for the rest of
+that session — `flyoutContent` gives way to any open flyout, so a flyout
+that cannot close takes the labels with it. Clicking the chevron and then
+hovering reproduced it on demand in either mode; a session restart
+cleared it. Cost about an hour. **That flyout is fixed now** (see
+winshell-tasks.md): the panel holds activation while a flyout is down, so
+click-away arrives as its own deactivation.
 
 **What it is NOT: libdispatch main-queue timers wake the drain fine.**
 The obvious theory for a late hover label was that the event-driven drain

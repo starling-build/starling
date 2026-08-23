@@ -287,6 +287,13 @@ final class StarlingDockState: State<StatefulWidget> {
     /// One-view shell only: whether the launcher LAYER is up. In every
     /// other mode the launcher is its own window/view and this stays false.
     private var launcherOpen = false
+    /// Whether the panel is holding activation for an open flyout, and the
+    /// one press that hands the foreground ON rather than back.
+    private var flyoutFocus = false
+    private var flyoutFocusHandsOn = false
+    /// Whether this process draws the launcher as a LAYER of this tree (the
+    /// one-view shell) rather than leaving it to a launcher window.
+    private var launcherLayerMode = false
     /// Whether the control centre is down, and whether the pointer is
     /// currently dragging its volume slider.
     private var controlCentreOpen = false
@@ -324,6 +331,7 @@ final class StarlingDockState: State<StatefulWidget> {
         // ride it.
         Win32Shell.captureSuperChords(["A", "N", "E", "R"]) { [weak self] letter in
             guard let self else { return }
+            defer { self.syncFlyoutFocus() }
             switch letter {
             case "N":
                 self.setState { self.controlCentreOpen = false }
@@ -335,6 +343,31 @@ final class StarlingDockState: State<StatefulWidget> {
             default:
                 self.setState { self.controlCentreOpen.toggle() }
             }
+        }
+        // Click-away, for the flyouts drawn in this window and for the
+        // one-view launcher layer alike: the panel holds activation while one
+        // is down (see syncFlyoutFocus), so the press that lands anywhere
+        // else arrives here as WM_ACTIVATE/WA_INACTIVE. The host keeps one
+        // handler per callback, so this is the only place either is set.
+        Win32WindowedHost.host?.onDeactivate { [weak self] in
+            guard let self else { return }
+            if self.launcherOpen {
+                self.setLauncherLayer(open: false, handBackFocus: false)
+                return
+            }
+            self.closeFlyouts(handBackFocus: false)
+        }
+        Win32WindowedHost.host?.onToggle { [weak self] in
+            guard let self else { return }
+            // Escape shares this callback -- `takeFocus` registers it as the
+            // global hotkey -- so an open flyout goes first and the toggle
+            // stops there. Escape means "close what is open", not "open
+            // Start". A Start press from the dock's own tile never reaches
+            // this with a flyout still up: the press closed it on the way
+            // through the Listener below, synchronously, before the toggle
+            // broadcast it posted comes back.
+            if self.closeFlyouts(handBackFocus: true) { return }
+            if self.launcherLayerMode { self.toggleLauncherLayer() }
         }
         // Park the notification centre now, so the first Win+N is a show
         // rather than a second engine boot. Idempotent across dock restarts.
@@ -384,17 +417,72 @@ final class StarlingDockState: State<StatefulWidget> {
             print("[WinShell] oneview desktop skipped (explorer present)")
         }
         launcherBloc.add(.start)
-        Win32WindowedHost.host?.onToggle { [weak self] in
-            self?.toggleLauncherLayer()
-        }
-        Win32WindowedHost.host?.onDeactivate { [weak self] in
-            guard let self, self.launcherOpen else { return }
-            self.setLauncherLayer(open: false, handBackFocus: false)
-        }
+        // The toggle and the deactivation are registered once for the whole
+        // surface, in initState: the host keeps ONE handler for each, so a
+        // second registration here would quietly replace the flyouts' own.
+        launcherLayerMode = true
     }
 
     private func toggleLauncherLayer() {
         setLauncherLayer(open: !launcherOpen, handBackFocus: true)
+    }
+
+    /// Hold activation exactly while a dock flyout is down.
+    ///
+    /// The flyouts — the tray overflow, Quick Settings, a tile's menu — are
+    /// drawn INSIDE this panel window, and a press outside one never reaches
+    /// the root Listener: the overhang is a colour-keyed hole, so the window
+    /// under that pointer belongs to somebody else. Each flyout's "outside
+    /// closes it" branch therefore only ever ran for presses that landed on
+    /// the strip, and clicking away left the flyout up for the rest of the
+    /// session — with the hover labels suppressed behind it, since
+    /// `flyoutContent` gives way to an open flyout.
+    ///
+    /// Click-away has to arrive as the panel's own deactivation instead, and
+    /// that only happens if the panel holds activation while the flyout is
+    /// down: the same handoff the one-view launcher layer uses.
+    /// WS_EX_NOACTIVATE refuses activation from clicks — a taskbar press must
+    /// not take the keyboard from the window it raises — but takes it
+    /// programmatically, which is what `takeFocus` does. It also registers the
+    /// global Escape hotkey, so Escape closes a flyout for free.
+    ///
+    /// `handBackFocus` puts the keyboard back where the user had it, which is
+    /// right for a deliberate close and wrong twice over: on a click-away the
+    /// click already chose the new owner, and on a tray icon's click the app
+    /// is about to take the foreground from us to raise its own menu — a
+    /// `SetForegroundWindow` on the way out would take it straight back, and
+    /// a tray menu whose owner was refused the foreground dismisses itself in
+    /// the frame it appears in.
+    private func syncFlyoutFocus(handBackFocus: Bool = true) {
+        // The launcher layer runs its own take/release: it wants the keyboard
+        // for the search field, and it closes by a path of its own.
+        guard !launcherOpen else { return }
+        let want = (trayOverflowOpen && !hiddenTray.isEmpty)
+            || controlCentreOpen || menuOpen != nil
+        guard want != flyoutFocus else { return }
+        flyoutFocus = want
+        if want {
+            Win32WindowedHost.host?.takeFocus()
+        } else {
+            Win32WindowedHost.host?.releaseFocus(restore: handBackFocus)
+        }
+    }
+
+    /// Close whatever dock flyout is down. True when there was one, so a
+    /// caller can stop there — Escape means "close what is open".
+    @discardableResult
+    private func closeFlyouts(handBackFocus: Bool) -> Bool {
+        guard trayOverflowOpen || controlCentreOpen || menuOpen != nil else {
+            return false
+        }
+        setState {
+            trayOverflowOpen = false
+            controlCentreOpen = false
+            menuOpen = nil
+            hoveredQs = nil
+        }
+        syncFlyoutFocus(handBackFocus: handBackFocus)
+        return true
     }
 
     private func setLauncherLayer(open: Bool, handBackFocus: Bool) {
@@ -403,8 +491,12 @@ final class StarlingDockState: State<StatefulWidget> {
             launcherOpen = open
             menuOpen = nil
             controlCentreOpen = false
+            trayOverflowOpen = false
         }
         if open {
+            // Whatever the flyouts were holding is the layer's business now:
+            // it takes activation itself, and releases it on every close path.
+            flyoutFocus = false
             launcherBloc.add(.opened)
             // Start owns the keyboard while it is up — the search field's
             // autofocus lands in a tree whose window really has focus.
@@ -1236,6 +1328,11 @@ final class StarlingDockState: State<StatefulWidget> {
             // Outside closes it, and the press carries on to whatever it hit —
             // which is what Windows' own overflow does.
             setState { trayOverflowOpen = false }
+            // The chevron is the exception, and it has to be CONSUMED: let
+            // this press carry on and the caller's toggle reopens the flyout
+            // it just closed, in the same press. That is what made a second
+            // click on the chevron look like a chevron that does nothing.
+            if case .chevron? = trayHit(x, y) { return true }
             return false
         }
         let col = Int((x - origin.x - kTrayFlyoutPad) / kTrayFlyoutCell)
@@ -1243,6 +1340,9 @@ final class StarlingDockState: State<StatefulWidget> {
         let index = row * kTrayFlyoutCols + col
         if col >= 0, col < cols, row >= 0, index >= 0, index < icons.count {
             setState { trayOverflowOpen = false }
+            // The app is about to take the foreground from us to raise its
+            // own menu; do not hand the keyboard back over its head.
+            flyoutFocusHandsOn = true
             bloc.add(.trayClick(icons[index].id, right ? .right : .left))
         }
         return true
@@ -2031,6 +2131,14 @@ final class StarlingDockState: State<StatefulWidget> {
             textDirection: .ltr,
             child: Listener(
                 onPointerDown: { e in
+                    // Every branch below can open or close a flyout, and half
+                    // of them return early; the panel's activation follows
+                    // whatever this press left open (see syncFlyoutFocus).
+                    defer {
+                        self.syncFlyoutFocus(
+                            handBackFocus: !self.flyoutFocusHandsOn)
+                        self.flyoutFocusHandsOn = false
+                    }
                     let x = e.position.dx, y = e.position.dy
                     // The notification area first, and with both buttons: a
                     // tray icon's right-click menu is the whole point of most
@@ -2052,6 +2160,7 @@ final class StarlingDockState: State<StatefulWidget> {
                             self.setState { self.trayOverflowOpen.toggle() }
                         case .icon(let icon):
                             self.setState { self.trayOverflowOpen = false }
+                            self.flyoutFocusHandsOn = true
                             self.bloc.add(.trayClick(icon.id, e.buttons == 2 ? .right : .left))
                         }
                         return

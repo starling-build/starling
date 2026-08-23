@@ -46,6 +46,21 @@ context switch a second for a parked surface. The whole idle session is
 **2.92% of one core**. What remains at idle is not ours to gate: `dwm`
 costs ~5% composing the one-view chrome.
 
+**The dock's flyouts dismiss on click-away now** — the tray overflow that
+opened and never closed, and Quick Settings and a tile's menu with it.
+They are drawn INSIDE the panel window and the overhang around them is a
+colour-keyed hole, so a press anywhere else was never ours to see: each
+flyout's "outside closes it" branch only ever ran for presses that landed
+on the strip. The panel now holds activation while a flyout is down (the
+one-view launcher layer's handoff — WS_EX_NOACTIVATE takes activation
+programmatically), so click-away arrives as WM_ACTIVATE/WA_INACTIVE, and
+`takeFocus`'s global Escape hotkey closes a flyout for free. A second
+press on the chevron closes it too: the overflow handler consumes that
+one now, where before it closed the flyout and the caller's toggle
+reopened it in the same press. Verified on the box: open → click the
+desktop / the chevron / Escape all leave the identical closed frame, and
+the hover labels a stuck flyout used to suppress come back.
+
 ## The desktop surface (wave 2) — built 2026-08-21, VM trial pending
 
 `--desktop`: wallpaper and the icon grid at the bottom of the z-order,
