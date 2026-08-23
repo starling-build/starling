@@ -33,6 +33,17 @@ final class StarlingRun: StatefulWidget {
 final class StarlingRunState: State<StatefulWidget> {
     private let field = TextEditingController()
     private var errorText: String?
+    /// Whether the dialog is actually on screen.
+    ///
+    /// It is parked, not closed: the window and this tree stay alive so a
+    /// Win+R is instant. But a FOCUSED text field blinks its caret at 530 ms
+    /// whether or not anyone can see it, and every blink is a whole frame.
+    /// Measured on the box: 1.9 frames a second and 0.31% of a core, in a
+    /// dialog nobody was looking at — the entire idle cost of this process.
+    /// Disabling the field parks the caret with it (the blink is armed only
+    /// while one is drawn), and enabling it on the way in gets it back
+    /// without remounting anything.
+    private var onScreen = Win32WindowedHost.host?.isVisible == true
 
     private enum Hover: Equatable { case ok, cancel }
     private var hovered: Hover?
@@ -45,10 +56,14 @@ final class StarlingRunState: State<StatefulWidget> {
         // "appends garbage". A stale error does not survive the reopen.
         Win32WindowedHost.host?.onToggle { [weak self] in
             guard let self else { return }
-            if Win32WindowedHost.host?.isVisible == true {
+            let visible = Win32WindowedHost.host?.isVisible == true
+            if visible {
                 self.field.selection = TextSelection(
                     baseOffset: 0, extentOffset: self.field.text.count)
-                self.setState { self.errorText = nil }
+            }
+            self.setState {
+                self.onScreen = visible
+                if visible { self.errorText = nil }
             }
         }
     }
@@ -84,7 +99,10 @@ final class StarlingRunState: State<StatefulWidget> {
     }
 
     private func hide() {
-        setState { errorText = nil }
+        setState {
+            errorText = nil
+            onScreen = false
+        }
         Win32WindowedHost.host?.setVisible(false)
     }
 
@@ -168,6 +186,7 @@ final class StarlingRunState: State<StatefulWidget> {
                                             Positioned(left: 64, top: 78, width: kRunWidth - 80, height: 28) {
                                                 MacosTextField(
                                                     controller: field,
+                                                    enabled: onScreen,
                                                     onSubmitted: { [weak self] _ in self?.execute() },
                                                     autofocus: true)
                                             }

@@ -338,9 +338,19 @@ class _TextBoxState: State<StatefulWidget> {
 
     // MARK: - Caret Blink
 
+    /// Whether a caret is actually drawn for this field. A read-only or
+    /// disabled field paints none (see `showCaret` in `build`), so blinking
+    /// one is a frame every 530 ms — build, layout, paint and a present — to
+    /// change nothing at all. That is not hypothetical: a parked overlay
+    /// whose field kept focus paid it for the life of the process.
+    private var _caretIsDrawn: Bool {
+        textBox.enabled && !textBox.readOnly
+    }
+
     private func _startCaretBlink() {
         _caretVisible = true
         _caretBlinkGeneration += 1
+        guard _caretIsDrawn else { return }
         _scheduleCaretFlip(_caretBlinkGeneration)
     }
 
@@ -364,6 +374,14 @@ class _TextBoxState: State<StatefulWidget> {
     override func didUpdateWidget(_ oldWidget: StatefulWidget) {
         super.didUpdateWidget(oldWidget)
         let oldTextBox = oldWidget as! FluentTextBox
+        // Focus survives a rebuild, so a field that becomes disabled (or
+        // read-only) while focused would otherwise keep blinking a caret it
+        // no longer draws — and one that becomes editable again would never
+        // start, because the blink is armed on focus and focus did not move.
+        let wasDrawn = oldTextBox.enabled && !oldTextBox.readOnly
+        if _isFocused && wasDrawn != _caretIsDrawn {
+            if _caretIsDrawn { _startCaretBlink() } else { _stopCaretBlink() }
+        }
         if textBox.controller !== oldTextBox.controller {
             if let listener = _boundListener {
                 (oldTextBox.controller ?? _controller)?.removeListener(listener)

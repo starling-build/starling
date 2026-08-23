@@ -161,7 +161,17 @@ final class DockBloc: @unchecked Sendable {
         case .start:
             _start()
         case .tick:
-            state.now = Date()
+            // The clock reads "h:mm" — no seconds — so a fresh Date() a
+            // second rebuilt the whole chrome 59 times a minute to paint the
+            // identical string. The state is OBSERVED: assigning is what
+            // rebuilds, so assign only when the displayed minute moves.
+            // Minute buckets in UTC, because every timezone offset is a whole
+            // number of minutes: the boundary is the one the formatter sees.
+            let now = Date()
+            if Int(now.timeIntervalSince1970 / 60)
+                != Int(state.now.timeIntervalSince1970 / 60) {
+                state.now = now
+            }
             _hideNativeTaskbarIfItCameBack()
             _readStatus()
             // Promoting an icon happens in WINDOWS' Settings and sends the
@@ -188,12 +198,19 @@ final class DockBloc: @unchecked Sendable {
 
         case .statusRead(let network, let power, let volume, let dark,
                          let nightLight, let energySaver):
-            state.network = network
-            state.power = power
-            state.volume = volume
-            state.darkMode = dark
-            state.nightLight = nightLight
-            state.energySaver = energySaver
+            // Same rule as the clock, and for the same reason: the poll runs
+            // every second and the answer is the same for hours at a time, so
+            // assign only what actually moved. Six unconditional assignments
+            // here were the SECOND idle frame a second — 4K, ~1 ms of build,
+            // to redraw a battery icon that had not changed.
+            if state.network != network { state.network = network }
+            if state.power != power { state.power = power }
+            if state.volume != volume { state.volume = volume }
+            if state.darkMode != dark { state.darkMode = dark }
+            if state.nightLight != nightLight { state.nightLight = nightLight }
+            if state.energySaver != energySaver {
+                state.energySaver = energySaver
+            }
             // The poll is the truth. Drop the optimistic Wi-Fi answer as soon
             // as it agrees, so a radio that refused the change corrects itself
             // instead of leaving the tile lying about it.
