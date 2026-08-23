@@ -47,8 +47,11 @@ context switch a second for a parked surface. The whole idle session is
 drawing at idle: the dock rebuilt the whole 4K chrome twice a second to
 repaint a clock with no seconds and a status poll whose answer had not
 changed, and the parked Run dialog blinked a caret in a window nobody
-could see (1.9 frames/s). Both fixed; an ordinary parked window reads
-0.000%. `dwm` fell with them, ~5% → **0.05%**: it was recompositing the
+could see (1.9 frames/s). Both fixed, and the clock then moved OUT of the
+shell-wide tick entirely — `DockClock` schedules itself to the next minute
+boundary and rebuilds its own leaf, leaving a 5 s tick for the two guards
+that are periodic for nobody in particular (chrome at idle: 1.64% → 0.44%
+→ **0.13%**). An ordinary parked window reads 0.000%. `dwm` fell with them, ~5% → **0.05%**: it was recompositing the
 colour-keyed layer because we kept redrawing it, not because it exists.
 What is left is the banner process's ~0.2% notification-store poll.
 
