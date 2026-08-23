@@ -319,7 +319,17 @@ final class StarlingDockState: State<StatefulWidget> {
         // the DRM embedder a Foundation timer never fires at all (see the
         // desktop's CLAUDE.md), and going through the host keeps every
         // backend honest about which loop the UI thread is really running.
-        timer = startPeriodicTimer(seconds: 1.0) { [weak self] in
+        //
+        // Every FIVE seconds, and only for what is really periodic — the
+        // status poll and the two guards in the bloc's `.tick`. The clock
+        // used to ride this at 1 Hz and is `DockClock`'s own business now.
+        // The panel that shows these values in full asks for a fresh read
+        // when it opens (see the control-centre branches below), so the poll
+        // is a background refresh for the strip's icons rather than the thing
+        // the user is watching. The end of it is events, not polling at all:
+        // WM_POWERBROADCAST, an IAudioEndpointVolume callback, and NLM's
+        // network notifications each replace one of these reads.
+        timer = startPeriodicTimer(seconds: 5.0) { [weak self] in
             self?.bloc.add(.tick)
         }
 
@@ -342,6 +352,7 @@ final class StarlingDockState: State<StatefulWidget> {
                 Win32Shell.toggleOverlay(channel: "run")
             default:
                 self.setState { self.controlCentreOpen.toggle() }
+                if self.controlCentreOpen { self.bloc.add(.tick) }
             }
         }
         // Click-away, for the flyouts drawn in this window and for the
@@ -1103,23 +1114,6 @@ final class StarlingDockState: State<StatefulWidget> {
     // three moved down here when the menu bar went away, because this is
     // where Windows keeps them and where the user will look.
 
-    private func clockTimeText() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "H:mm"
-        return f.string(from: bloc.state.now)
-    }
-
-    private func clockDateText() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "d MMM"
-        return f.string(from: bloc.state.now)
-    }
-
-    private func clockText() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "h:mm  EEE d MMM"
-        return f.string(from: bloc.state.now)
-    }
 
     /// Wi-Fi with a slash when nothing is connected, and the aerial glyph for
     /// Ethernet — a wifi symbol on a desk machine is a lie the user cannot
@@ -1379,8 +1373,9 @@ final class StarlingDockState: State<StatefulWidget> {
                 if let network = networkIcon() { network }
                 for widget in batteryWidgets() { widget }
                 Padding(padding: EdgeInsets(left: 4, top: 0, right: 0, bottom: 0)) {
-                    Text(clockText(),
-                         style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
+                    DockClock(format: "h:mm  EEE d MMM",
+                              style: TextStyle(color: Color(0xFFFFFFFF),
+                                               fontSize: 13))
                 }
             }
         }
@@ -1396,10 +1391,12 @@ final class StarlingDockState: State<StatefulWidget> {
                        spacing: 7) {
                     if let network = networkIcon() { network }
                     for widget in batteryWidgets() { widget }
-                    Text(clockTimeText(),
-                         style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 13))
-                    Text(clockDateText(),
-                         style: TextStyle(color: Color(0xFF9AA3B0), fontSize: 10))
+                    DockClock(format: "H:mm",
+                              style: TextStyle(color: Color(0xFFFFFFFF),
+                                               fontSize: 13))
+                    DockClock(format: "d MMM",
+                              style: TextStyle(color: Color(0xFF9AA3B0),
+                                               fontSize: 10))
                 }
             }
         }
@@ -2196,6 +2193,10 @@ final class StarlingDockState: State<StatefulWidget> {
                             self.controlCentreOpen.toggle()
                             self.menuOpen = nil
                         }
+                        // The panel shows volume, power and network in full;
+                        // it opens on a fresh read rather than on whatever
+                        // the background poll last saw.
+                        if self.controlCentreOpen { self.bloc.add(.tick) }
                     }
                 },
                 onPointerMove: { e in
@@ -2355,6 +2356,85 @@ final class StarlingDockState: State<StatefulWidget> {
                     DockFlyoutSlot(dock: self)
                 }
             }))
+    }
+}
+
+/// The clock, with its own clock.
+///
+/// A shell-wide 1 Hz tick used to own this: a bloc event that assigned
+/// `state.now` and rebuilt the whole 3840x2160 chrome to move a minute hand.
+/// 59 of every 60 of those rebuilds painted the identical string, because the
+/// format has no seconds — nobody could have known that but the widget
+/// holding the format.
+///
+/// So the cadence lives here. It wakes on the next BOUNDARY the format cares
+/// about rather than on a period, so the minute changes on the minute instead
+/// of up to a period late, and it rebuilds this leaf alone. A format that
+/// grows seconds gets a one-second cadence with no other change — which is
+/// the point of the cadence living beside the format.
+final class DockClock: StatefulWidget {
+    let format: String
+    /// Qualified: `FlutterSwiftBridge` exports a `TextStyle` too, and a type
+    /// reference (unlike the call sites' expressions) cannot choose between
+    /// them on its own.
+    let style: Flutter.TextStyle
+
+    init(key: (any Key)? = nil, format: String, style: Flutter.TextStyle) {
+        self.format = format
+        self.style = style
+        super.init(key: key)
+    }
+
+    override func createState() -> State<StatefulWidget> { DockClockState() }
+}
+
+final class DockClockState: State<StatefulWidget> {
+    private var now = Date()
+    /// Retires a pending wake — the house timer idiom (asyncAfter plus a
+    /// generation token; Foundation.Timer does not fire on every embedder).
+    private var generation = 0
+
+    override func initState() {
+        super.initState()
+        _scheduleNextTick()
+    }
+
+    override func dispose() {
+        generation &+= 1
+        super.dispose()
+    }
+
+    override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        if (oldWidget as! DockClock).format != (widget as! DockClock).format {
+            _scheduleNextTick()
+        }
+    }
+
+    private func _scheduleNextTick() {
+        generation &+= 1
+        let gen = generation
+        // Seconds in the pattern mean a one-second cadence; anything else
+        // only moves on the minute. (A literal `s` inside quotes would read
+        // as seconds here and merely tick faster than it needs to.)
+        let period: TimeInterval =
+            (widget as! DockClock).format.contains("s") ? 1 : 60
+        let t = Date().timeIntervalSince1970
+        // Land just AFTER the boundary: a wake a hair before it draws the
+        // old minute and then reschedules for ~0 s.
+        let delay = period - t.truncatingRemainder(dividingBy: period) + 0.05
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.generation == gen else { return }
+            self.setState { self.now = Date() }
+            self._scheduleNextTick()
+        }
+    }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let clock = widget as! DockClock
+        let f = DateFormatter()
+        f.dateFormat = clock.format
+        return Text(f.string(from: now), style: clock.style)
     }
 }
 

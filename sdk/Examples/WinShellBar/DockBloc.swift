@@ -44,7 +44,6 @@ struct DockState {
     /// What the dock draws: pins first, then everything else with a window.
     var items: [DockItem] = []
 
-    var now = Date()
     var network = Win32Network(kind: .none, signal: 0, ssid: "")
     var power = Win32Power(hasBattery: false, percent: nil, isCharging: true)
     var volume: Win32Volume?
@@ -161,17 +160,16 @@ final class DockBloc: @unchecked Sendable {
         case .start:
             _start()
         case .tick:
-            // The clock reads "h:mm" — no seconds — so a fresh Date() a
-            // second rebuilt the whole chrome 59 times a minute to paint the
-            // identical string. The state is OBSERVED: assigning is what
-            // rebuilds, so assign only when the displayed minute moves.
-            // Minute buckets in UTC, because every timezone offset is a whole
-            // number of minutes: the boundary is the one the formatter sees.
-            let now = Date()
-            if Int(now.timeIntervalSince1970 / 60)
-                != Int(state.now.timeIntervalSince1970 / 60) {
-                state.now = now
-            }
+            // Housekeeping and the status poll — NOT the clock. The clock is
+            // `DockClock`, which owns its own cadence because it owns the
+            // format that decides what the cadence has to be; a shell-wide
+            // 1 Hz tick that assigned `state.now` rebuilt the whole 4K chrome
+            // 59 times a minute to paint the identical string.
+            //
+            // What is left here is genuinely periodic: explorer can put its
+            // taskbar back on its own, and a promotion in Windows' Settings
+            // moves the tray split with no notification to us. Neither is
+            // urgent, so this runs every few seconds rather than every one.
             _hideNativeTaskbarIfItCameBack()
             _readStatus()
             // Promoting an icon happens in WINDOWS' Settings and sends the
