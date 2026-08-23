@@ -333,6 +333,40 @@ final class FilesBloc: @unchecked Sendable {
     /// `--files <path>`, when one was given. Read here rather than passed in
     /// because the bloc is a global the widget tree reaches for, and threading
     /// a launch argument through the tree to reach it would be worse.
+    /// Where last run's Quick Access answer is kept. Beside session.log, in
+    /// the per-user app data the shell already writes to.
+    private static var pinCachePath: String? {
+        guard let base = ProcessInfo.processInfo.environment["LOCALAPPDATA"],
+              !base.isEmpty else { return nil }
+        return base + "\\Starling\\quickaccess.tsv"
+    }
+
+    /// Last run's pinned folders, or nil when there is no usable cache. Name
+    /// and path, tab separated -- neither may contain a tab.
+    static func cachedPins() -> [Win32Place]? {
+        guard let path = pinCachePath,
+              let text = try? String(contentsOfFile: path, encoding: .utf8)
+        else { return nil }
+        let pins = text.split(separator: "\n").compactMap { line -> Win32Place? in
+            let parts = line.split(separator: "\t", maxSplits: 1,
+                                   omittingEmptySubsequences: false)
+            guard parts.count == 2, !parts[1].isEmpty else { return nil }
+            return Win32Place(name: String(parts[0]), path: String(parts[1]))
+        }
+        return pins.isEmpty ? nil : pins
+    }
+
+    /// Best effort: a stale or missing cache costs one slow sidebar, never
+    /// correctness, because the live read runs either way.
+    static func writePinCache(_ pins: [Win32Place]) {
+        guard let path = pinCachePath else { return }
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir,
+                                                 withIntermediateDirectories: true)
+        let text = pins.map { "\($0.name)\t\($0.path)" }.joined(separator: "\n")
+        try? text.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
     static let requestedDirectory: String? = {
         guard let i = CommandLine.arguments.firstIndex(of: "--files"),
               i + 1 < CommandLine.arguments.count else { return nil }
@@ -350,19 +384,53 @@ final class FilesBloc: @unchecked Sendable {
             // a profile-folder enumeration in front of every launch.
             let requested = startDirectory ?? Self.requestedDirectory
             if let requested { _list(requested) }
+            flwin32_trace("files: .start done, detaching sidebar read")
             Task.detached { [weak self] in
+                // HOME FIRST, AND ALONE. `places()` is seven known-folder
+                // lookups and costs ~3 ms; the rest of the sidebar does not
+                // belong in front of it. Quick Access alone measured 160 ms on
+                // the dev box -- it walks the shell's jumplist store -- and
+                // for a launch with no directory argument (Win+E, the dock
+                // tile) the whole listing used to wait behind it, for nothing:
+                // the directory read itself is 3 ms.
                 let places = Win32Files.places()
+                flwin32_trace("files: places()")
+                if requested == nil, let start = places.first {
+                    await MainActor.run {
+                        flwin32_trace("files: .open(home) dispatched")
+                        self?.add(.open(start.path))
+                    }
+                }
+
+                // The sidebar is furniture: it fills in behind the listing.
                 let drives = Win32Files.drives()
+                flwin32_trace("files: drives()")
                 let oneDrive = Win32Files.oneDrive()
+                flwin32_trace("files: oneDrive()")
+                // Quick Access from LAST RUN first. Enumerating it live walks
+                // the shell's jumplist store and measured 160 ms on the dev
+                // box -- long enough that the sidebar was still filling in
+                // after the files had been readable for a third of a second.
+                // What is pinned changes rarely, so last run's answer is
+                // almost always this run's answer; the live read still happens
+                // and corrects it.
+                if let cached = Self.cachedPins(), !cached.isEmpty {
+                    await MainActor.run {
+                        flwin32_trace("files: pins from cache")
+                        self?.add(.pinsLoaded(cached))
+                    }
+                }
                 let pins = Win32Files.quickAccessPins()
+                Self.writePinCache(pins)
+                flwin32_trace("files: quickAccessPins()")
                 await MainActor.run {
                     self?.add(.placesLoaded(places: places, drives: drives,
                                             oneDrive: oneDrive))
                     self?.add(.pinsLoaded(pins))
-                    // Home, or the first drive on a machine with no profile
-                    // folders to speak of.
-                    guard requested == nil else { return }
-                    if let start = places.first ?? drives.first {
+                    // A machine with no profile folders to speak of: fall back
+                    // to the first drive, once we know what the drives are.
+                    guard requested == nil, places.first == nil else { return }
+                    if let start = drives.first {
                         self?.add(.open(start.path))
                     }
                 }
@@ -740,6 +808,7 @@ final class FilesBloc: @unchecked Sendable {
             Self.performUndo { [weak self] _ in self?.add(.refresh) }
 
         case .listed(let directory, let entries, let error):
+            flwin32_trace("files: .listed (rows in hand)")
             state.directory = directory
             state.entries = entries
             state.error = error
