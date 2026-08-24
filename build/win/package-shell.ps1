@@ -18,6 +18,10 @@ param(
     [string]$Version = "0.1.0",
     [string]$OutDir = "$env:USERPROFILE\dist",
     [switch]$SkipBuild,
+    # Ship Chromium's full 10.5 MB ICU instead of the 1.6 MB desktop slice.
+    # Here for the day something turns out to need a locale table we dropped:
+    # flip it, and the difference is one file.
+    [switch]$FullIcu,
 
     # --- signing -------------------------------------------------------
     # Off by default, so an unsigned developer package costs nothing. What
@@ -140,7 +144,26 @@ Copy-Item $built $stage -Force
 foreach ($dll in 'flutter_engine.dll','flutter_windows.dll') {
     Copy-Item (Join-Path $EngineOut $dll) $stage -Force
 }
-Copy-Item (Join-Path $EngineOut 'icudtl.dat') (Join-Path $stage 'data') -Force
+# ICU data, and NOT the one the build drops in the out directory. ICU ships
+# several prebuilt slices and //flutter/third_party/icu/BUILD.gn picks
+# `common` for every desktop target -- Chromium's full browser set, 10.5 MB
+# of which 372 language bundles, 293 currency, 251 region, 250 timezone and
+# 245 unit-name tables are for formatting we do not do: there is no Dart here,
+# and Foundation does our dates and numbers. `flutter_desktop` is upstream's
+# own slice for desktop embedders -- the break iterators (including the CJK,
+# Thai and Burmese line-break dictionaries), collation, layout and emoji
+# tables -- and it is 1.6 MB. The engine loads this file at runtime
+# (ICU_UTIL_DATA_FILE), so which bytes ship is a packaging decision, not a
+# build one, and no fork divergence is needed to make it.
+$engineSrc = Split-Path (Split-Path $EngineOut -Parent) -Parent
+$icuSlice = Join-Path $engineSrc 'flutter\third_party\icu\flutter_desktop\icudtl.dat'
+if ($FullIcu -or -not (Test-Path $icuSlice)) {
+    Copy-Item (Join-Path $EngineOut 'icudtl.dat') (Join-Path $stage 'data') -Force
+    Write-Host ("  icudtl.dat: full set, {0:N1} MB" -f ((Get-Item (Join-Path $stage 'data\icudtl.dat')).Length / 1MB))
+} else {
+    Copy-Item $icuSlice (Join-Path $stage 'data') -Force
+    Write-Host ("  icudtl.dat: desktop slice, {0:N1} MB" -f ((Get-Item (Join-Path $stage 'data\icudtl.dat')).Length / 1MB))
+}
 # The asset bundle and the icon font, both resolved relative to the exe.
 Copy-Item (Join-Path $sdk 'Resources\flutter_assets') (Join-Path $stage 'data') -Recurse -Force
 Copy-Item (Join-Path $sdk '.build\release\FlutterSwift_CupertinoIcons.resources') $stage -Recurse -Force

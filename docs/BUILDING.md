@@ -584,6 +584,64 @@ The engine's four Windows artifacts are `flutter_engine.dll`,
 the import libraries, which is why a released SDK bundle can substitute for an
 engine checkout here but the staged app zip cannot: it ships only the DLLs.
 
+### Trimming what Windows never runs
+
+`flutter/tools/gn` turns Vulkan on for every non-Apple target — it says so in
+a comment, "there's no reason the Vulkan embedder features can't work on these
+platforms" — while the Windows embedder references Vulkan nowhere and
+`flutter_windows_engine.cc` pushes `--enable-impeller=false`, so Windows draws
+with Skia on ANGLE. Editing `out/host_release/args.gn` and re-running `gn gen`
+(not `flutter/tools/gn`, which would overwrite it) takes 770 KB off
+`flutter_engine.dll`:
+
+```
+skia_use_vulkan = false
+shell_enable_vulkan = false
+enable_unittests = false
+```
+
+`enable_unittests = false` is not optional there: with Vulkan gone, `gn gen`
+fails on unresolved dependencies from the *test* graph
+(`embedder_unittests_library` needs `//flutter/testing:vulkan`) before a single
+file compiles. It also takes gtest out of the build.
+
+Two neighbouring knobs are dead ends, both of which cost a build to find out:
+
+- `impeller_enable_opengles = false` breaks the **embedder**, not Impeller:
+  `embedder_external_texture_gl.cc` includes
+  `impeller/renderer/backend/gles/context_gles.h` unconditionally, so the
+  GLES3 include path disappears and it fails on `'GLES3/gl3.h' file not found`.
+- `impeller_enable_vulkan = false` fails in `gn` itself, on a target-name
+  collision between `impellerc_gles_entity_shaders` and
+  `impellerc_gles3_entity_shaders`.
+
+Both would need patches to a fork we have to keep merging upstream into, for
+about a megabyte. Not worth it. `stripped_symbols = true` is a no-op on
+Windows — symbols live in the PDB.
+
+**The bigger win is not code at all.** `//flutter/third_party/icu/BUILD.gn`
+sets `data_dir = "common"` for every desktop target, which is Chromium's full
+10.5 MB browser ICU: 372 language bundles, 293 currency, 251 region, 250
+timezone, 245 unit-name tables. Upstream also ships `flutter_desktop` — break
+iterators (with the CJK, Thai and Burmese line-break dictionaries), collation,
+layout, emoji — at **1.6 MB**, and nothing in the build ever selects it. We
+have no Dart, and Foundation formats our dates and numbers, so the difference
+is unused. The engine loads this file at runtime (`ICU_UTIL_DATA_IMPL=
+ICU_UTIL_DATA_FILE`), so `build/win/package-shell.ps1` simply ships the slice
+instead — a packaging choice, no fork divergence, `-FullIcu` to put the big
+one back.
+
+Together: an installed tree of 136.5 MB becomes 127.3 MB, and the setup exe
+47.5 MB becomes 43.6 MB. **The Linux `build/stage.sh` still copies the full
+set** — the same ~8.8 MB is available there and has not been tested on that
+platform.
+
+One number for scale before anyone reaches for the Dart VM: a symbol-size
+breakdown of `libflutter_engine.so` puts Skia at 2.9 MB, the **Dart VM at
+1.1 MB**, Impeller at 1.0 MB and the shell/embedder at 1.0 MB. Removing Dart
+from the fork is days of surgery and a permanent merge cost for a third of
+what one line of packaging just recovered.
+
 ---
 
 ## Traps

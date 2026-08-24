@@ -173,13 +173,13 @@ startup is not replayed (Explorer already ran it this logon).
 
 ## What is in the package
 
-47 files, 136.5 MB staged:
+47 files, 127.3 MB staged:
 
 | | |
 |---|---|
 | `WinShellBar.exe` | the desktop — every surface listed at the top |
 | `flutter_engine.dll`, `flutter_windows.dll` | the engine, release build |
-| `data\icudtl.dat`, `data\flutter_assets` | ICU, and the asset bundle |
+| `data\icudtl.dat`, `data\flutter_assets` | ICU (the 1.6 MB desktop slice), and the asset bundle |
 | `FlutterSwift_CupertinoIcons.resources` | the icon font |
 | `*.dll` (Swift runtime) | most of the size, and all of the portability |
 | `BUILD-STAMP.txt` | version, commit, build time, engine directory |
