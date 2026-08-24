@@ -981,3 +981,58 @@ Two things this rests on, both worth keeping in mind before touching it:
       session where nobody right-clicks anything now holds 23 MB it would not
       have. Any right-click at all — the desktop's background menu included —
       pays it anyway, so this only costs the user who never opens a menu.
+
+CHECKPOINT 2026-08-23 — does the menu still need a window?
+
+Asked because hosting the file explorer in the shell might delete a mechanism
+rather than merely warm one. Two things came out of it, and the bug matters
+more than the experiment.
+
+**The hosted menu was opening in the wrong place, and had been since the
+merge** (`060bcf8`). Popup geometry crosses the boundary in the HOST window's
+client points; hosting moved the explorer's tree out of that window (the host
+is the DOCK, full screen at the origin, while the explorer sits wherever it
+was dragged). Measured: pointer at screen (1700,1000), explorer client origin
+(893,344), menu drawn at **(807,656)** — over the sidebar, nowhere near the
+click. `flwin32_surface_client_offset` answers where a surface's client area
+sits in host space and FilesMenu adds it as geometry leaves the model.
+
+**Why no bench caught it**: a menu misplaced by the window's origin still
+turns a probe patch near the window's edge white, so every latency number
+stood while the menu was in the wrong place. Ask the window manager where the
+popup IS (`GetWindowRect` on `StarlingPopupSurface`), do not infer it from
+pixels. And note the PowerShell trap that hid it once more: output written
+from inside an `EnumWindows` callback never reaches the pipeline, so the probe
+reported "no popup windows" when there was one — collect into a C# `List` and
+return it.
+
+**The layer experiment** (`a0c2dc3`, `STARLING_MENU_LAYER=1`). The chrome
+window is already the whole screen, layered with a colour key, so a menu drawn
+as one of its layers is not clipped and hit-tests where it paints — the same
+mechanism the launcher already uses. `MenuPanelSurface` needed no changes at
+all; the experiment is a publication point plus two constant slots.
+
+Four interleaved arms, 12 trials each, click to menu pixels:
+
+| arm | median | range |
+|---|---|---|
+| popup | 135 ms | 99–223 |
+| layer | 124 ms | 110–131 |
+| popup | 128 ms | 96–201 |
+| layer | 125 ms | 101–128 |
+
+**The median is a wash** — 6 ms apart, inside one frame at 29 Hz. The
+difference is the TAIL: the popup path is bimodal, clustering at ~97 ms AND
+~195 ms; the layer never leaves 101–131. Half the popup opens beat anything
+the layer does, and the other half take twice as long.
+
+- [ ] **Chase the popup path's ~195 ms cluster instead of adopting the
+      layer.** The suspicion is the composite-gated show missing a beat
+      (`showOnNextComposite`); if a popup open were reliably its fast case,
+      it would beat the layer outright and cost no second code path. This is
+      the cheaper of the two directions and the one the data points at.
+- [ ] The layer stays behind its switch as the control that established the
+      window is not what the menu waits for. What it would still need before
+      it could ever be a default: a drawn shadow, dismissal when the click
+      lands on another app (the popup path gets that from host deactivation),
+      and more than one monitor.
