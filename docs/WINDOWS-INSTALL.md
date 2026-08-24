@@ -194,6 +194,12 @@ self-contained. (`dumpbin /dependents` will list `api-ms-win-*` entries as
   desktop with neither bar. `WinShellBar.exe --restore-taskbar` is the
   standalone recovery for a shell that was killed rather than closed — it
   also re-announces the tray, which does not repopulate on its own.
+- **Killing Explorer does not leave you shell-less.** `AutoRestartShell` is
+  `1` on a stock Windows, so Explorer comes back on its own within seconds —
+  and `--session` then refuses to start beside it, which looks like "the
+  shell would not start" when it is really "Explorer won the race". Switch a
+  live session over with `Install.ps1 -Now`, which stops Explorer and starts
+  the shell as one step, or just sign out and back in.
 - **`Install.ps1` stops a running `WinShellBar` before copying.** A running
   copy holds its own exe open; without the stop the copy fails halfway and
   leaves a tree that is half of each build.
