@@ -9,7 +9,8 @@ Recorded separately because only one shell can own the desktop at a time,
 which is stated on the film rather than left for the reader to wonder about.
 
 - ours: `43192db`, the shell as `Shell=` (Starling registered, explorer absent)
-- theirs: Windows 11 Pro build 26200, the stock shell
+- theirs: **Windows 11 Pro build 26200**, the stock shell — see the note below,
+  Microsoft is changing this menu in the Insider channel
 - DESKTOP-URK35LH, 4K panel at 200%, **30 Hz** — one composited frame is 33 ms
 - rig: `test/bench/win-latency/` — `capture-ctxmenu.ps1` → `extract.sh` →
   `analyze-menu.py` → `compose-ctxmenu.py` / `filmstrip-ctxmenu.py`
@@ -68,3 +69,32 @@ traps: the pointer rests on the row for 700 ms before each click (right-click
 sooner and you measure the hover work still in flight, which inflates both
 sides and hides the difference), and the capture refuses to record unless a
 pre-flight right-click actually opens a menu.
+
+## What this is measured against, and when it expires
+
+**Windows 11 Pro build 26200, stable, as shipped on this box.** The build is
+recorded because a comparison against someone else's software is only true of
+the version you ran.
+
+On **2026-08-17** Microsoft announced context-menu work in the Insider
+channel: *"the menu opens much more quickly"*, attributed to *"behind-the-
+scenes engineering improvements"* and *"a cleaner default menu"*
+([blog](https://blogs.windows.com/windows-insider/2026/08/17/improving-file-explorer-context-menu-faster-simpler-and-more-customizable/)).
+No figures, no build number, no architecture — so there is nothing to compare
+against yet, and nothing here is claimed about it.
+
+Two things to get right when that build is measurable, both of which would
+otherwise produce a flattering number in one direction or the other:
+
+- **A cleaner default menu is a smaller menu.** Part of an announced speed-up
+  that comes from removing rows is not the same axis as the one measured here.
+  Count the rows in both menus and say so, or trim ours to match before
+  timing; a 12-row menu against an 8-row menu is two different questions.
+- **Their customisation settings change what the menu IS** (built-in commands
+  toggled off, inline commands as text, extensions collapsed into a submenu).
+  Pick one configuration, state it, and use it for both contenders.
+
+Re-running is the rig's cheapest operation: both arms are one script each
+(`capture-ctxmenu.ps1 -Label ours|explorer`), so the only real cost is putting
+the box on an Insider channel — which is the shell-replacement test machine,
+so that is a decision, not a step.
