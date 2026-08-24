@@ -141,6 +141,54 @@ struct MenuCache {
     var tops: [Double]
 }
 
+/// EXPERIMENT (`STARLING_MENU_LAYER=1`): the menu's panels as a LAYER of the
+/// shell's chrome instead of popup windows of their own.
+///
+/// A menu needs a window for one reason — it has to overhang the window it
+/// was opened from — and hosted in the shell that reason is gone: the chrome
+/// window is already the whole screen (`oneview: overhang … (full screen)`),
+/// `WS_EX_LAYERED` with `LWA_COLORKEY` on pure black, so pixels the tree
+/// paints are hit-tested and everything else falls through to whatever is
+/// behind. It is how the launcher is a layer rather than a window.
+///
+/// What it is meant to buy: the popup's place+show, a second engine view's
+/// composite, and one more DWM surface to present. What it cannot cover is
+/// every other host — the standalone file explorer process, notifications,
+/// banners, Run — which have no full-screen chrome, so the popup path stays.
+///
+/// The panels are published in the HOST window's client points, which for
+/// the full-screen chrome are the screen's: exactly the space syncPopups
+/// already converts into.
+@Observable
+final class MenuLayerHost {
+    struct Panel: Equatable {
+        let x: Double
+        let y: Double
+        let w: Double
+        let h: Double
+    }
+
+    nonisolated(unsafe) static let shared = MenuLayerHost()
+
+    /// Off unless asked for: this is an experiment measured against the
+    /// popup path, not a second default.
+    nonisolated(unsafe) static let enabled =
+        ProcessInfo.processInfo.environment["STARLING_MENU_LAYER"] == "1"
+
+    /// The model whose panels the chrome should draw, and where. Both are
+    /// set together; nil model means nothing is open.
+    var model: ShellMenuModel?
+    var main: Panel?
+    var sub: Panel?
+
+    func clear() {
+        guard model != nil || main != nil || sub != nil else { return }
+        model = nil
+        main = nil
+        sub = nil
+    }
+}
+
 @Observable
 final class ShellMenuModel {
 
@@ -393,6 +441,12 @@ final class ShellMenuModel {
     }
 
     private func syncPopups() {
+        // The layer experiment takes the whole job when it is on and this
+        // tree is hosted in the shell — see MenuLayerHost.
+        if MenuLayerHost.enabled, FilesWindow.current.surfaceId != nil {
+            syncLayer()
+            return
+        }
         guard popupsEnabled else { return }
         guard isOpen, let at = origin(mainMenu) else {
             closePopups()
@@ -491,7 +545,32 @@ final class ShellMenuModel {
         }
     }
 
+    /// The layer half of syncPopups: same geometry, published to the chrome
+    /// instead of placed as windows. No hold, no first-composite gating and
+    /// no pooling — the chrome's view is already on the swapchain, so a
+    /// panel appears on the next frame of a tree that is already presenting.
+    private func syncLayer() {
+        let host = MenuLayerHost.shared
+        guard isOpen, let at = origin(mainMenu) else {
+            host.clear()
+            return
+        }
+        let off = popupOffset
+        let menu = mainMenu
+        host.model = self
+        host.main = MenuLayerHost.Panel(x: at.x + off.x, y: at.y + off.y,
+                                        w: menu.width, h: menu.height)
+        if let subOrigin = subAt, !subMenu.rows.isEmpty {
+            host.sub = MenuLayerHost.Panel(x: subOrigin.x + off.x,
+                                           y: subOrigin.y + off.y,
+                                           w: subMenu.width, h: subMenu.height)
+        } else {
+            host.sub = nil
+        }
+    }
+
     private func closePopups() {
+        if MenuLayerHost.enabled { MenuLayerHost.shared.clear() }
         if let id = subPopup {
             Win32PopupSurfaces.close(id)
             subPopup = nil

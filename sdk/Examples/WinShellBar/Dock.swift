@@ -2465,8 +2465,34 @@ final class StarlingDockState: State<StatefulWidget> {
                     // full-screen chrome tree (which was most of the CPU a
                     // pointer sweep along the dock cost).
                     DockFlyoutSlot(dock: self)
+                    // The file explorer's context menu as a LAYER
+                    // (STARLING_MENU_LAYER=1) — last in the stack, so it
+                    // hit-tests above the chrome's own flyouts, and on the
+                    // same constant-slot rule as everything above.
+                    menuLayerSlot(sub: false)
+                    menuLayerSlot(sub: true)
                 }
             }))
+    }
+
+    /// One panel of the hosted file explorer's menu, drawn in the chrome's
+    /// full-screen view at the coordinates the model published.
+    ///
+    /// MenuPanelSurface is reused exactly as the popup path mounts it: it
+    /// draws the panel at its own origin and translates its local pointer
+    /// events back into the explorer WINDOW's coordinates, which is what the
+    /// model thinks in — and that translation does not care whether the
+    /// panel's box came from a popup window or from a Positioned here.
+    private func menuLayerSlot(sub: Bool) -> Widget {
+        let host = MenuLayerHost.shared
+        guard MenuLayerHost.enabled, let model = host.model,
+              let panel = sub ? host.sub : host.main else {
+            return Positioned(left: 0, bottom: 0) { SizedBox(width: 0, height: 0) }
+        }
+        return Positioned(left: panel.x, top: panel.y,
+                          width: panel.w, height: panel.h) {
+            MenuPanelSurface(model: model, isSub: sub)
+        }
     }
 }
 
