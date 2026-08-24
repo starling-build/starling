@@ -927,3 +927,57 @@ Every one of these looked like "the feature does not work":
 - `Move` is an ALIAS FOR `Move-Item` in PowerShell. A helper function named
   `Move` is silently ignored in favour of it, so every pointer move became a
   file-move error and the clicks landed wherever the cursor happened to be.
+
+CHECKPOINT 2026-08-23 — the context menu, now that Files lives in the shell.
+
+The question was whether hosting the file explorer as a view makes its context
+menu faster. Measured with the existing bench (`menubench` oracle: click to
+menu pixels, 29 Hz 4K, other windows minimized so the probe patch is
+wallpaper):
+
+| | first right-click | warm median |
+|---|---|---|
+| in-shell, fresh shell | 264.6 ms | 129.7 ms |
+| in-shell, after close + reopen | **103.5 ms** | 128.1 ms |
+| its own process | 233.2 ms | 138.6 ms |
+
+**Warm is unchanged, and that is the right answer.** Same code, same engine,
+same popup: the floor is the documented engine dispatch + present + 29 Hz
+quantization, and the menu logic stopped being the bottleneck two rounds ago.
+Hosting cannot move it.
+
+**What moves is the COLD cost, and it moves from per-window to per-session.**
+Closing and reopening Files keeps the process, its loaded handlers and its
+type cache, so the first menu after a reopen is 103 ms where a freshly
+launched Files process pays 233 ms — every launch.
+
+**Then the per-session cost turned out to be worth attacking too.** With the
+shell IDLE (0 ms of CPU in the three seconds before the click, so no startup
+work in the way) the first right-click of a session still cost **293 ms**, and
+42 modules / 23 MB arrived with it — the handler DLLs, loaded by the first
+`IContextMenu` session. `warmShellMenu` (`e2a5882`) spends that four seconds
+after startup instead:
+
+| | first right-click of a session |
+|---|---|
+| before | 293 ms |
+| after | **131.6 ms** |
+| the same explorer as its own process (control) | 299.3 ms |
+
+The control matters: a Files process never runs the dock's startup, so it is
+unwarmed by construction and shows the cost is real rather than drifting.
+
+Two things this rests on, both worth keeping in mind before touching it:
+- **The warm-up was tried and removed once**, and the comment that retired it
+  is still in `main.swift` — its measurement was honest and its premise
+  ("the handler DLLs are already resident from explorer.exe anyway") expired
+  the day we became the shell. It is amended in place rather than deleted.
+- **Four seconds, not zero.** Menu sessions share one serial queue by design,
+  so a right-click arriving mid-warm-up would queue behind it; and at startup
+  the warm-up would be competing with the catalog walk and a few hundred
+  icons.
+
+- [ ] **The trade to revisit if idle memory ever matters more than this**: a
+      session where nobody right-clicks anything now holds 23 MB it would not
+      have. Any right-click at all — the desktop's background menu included —
+      pays it anyway, so this only costs the user who never opens a menu.
