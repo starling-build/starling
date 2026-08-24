@@ -1036,3 +1036,49 @@ the layer does, and the other half take twice as long.
       it could ever be a default: a drawn shadow, dismissal when the click
       lands on another app (the popup path gets that from host deactivation),
       and more than one monitor.
+
+CHECKPOINT 2026-08-23 — WHY the layer is not much faster, traced frame by
+frame. This corrects the arm-vs-arm numbers above.
+
+**First, the correction.** The bench that produced "median a wash, 124 vs
+131" moves the pointer to the row and right-clicks **300 ms later**, so every
+trial was measured with hover work still in flight — the listing's row
+highlight, the chrome's own hover slot. That inflated BOTH arms and swamped
+the difference. Re-measured with the pointer settled for 700 ms, twice, arms
+swapped between runs, n=12 each:
+
+| | median | range |
+|---|---|---|
+| layer | **62.6 ms** | 36–96 |
+| popup | 72.4 ms | 27–138 |
+
+So the layer IS modestly faster — about 10 ms of median, a third of a frame —
+with a much shorter tail. Neither number resembles the ~130 ms the moving-
+pointer bench reported. Both protocols are honest about different things: a
+user really does move the pointer before right-clicking, so ~130 ms is closer
+to what they feel, and ~63 ms is what the path costs when nothing else is in
+flight.
+
+**Then the mechanism, from `STARLING_FRAME_LOG` with its new timeline.**
+
+- **It is not the drawing.** The chrome frame that draws a menu costs
+  **2.6–3.8 ms** total — build 1.9 ms, layout 0.45 ms, paint 0.25 ms,
+  composite **0.05 ms**. The popup's own view frame costs 0.2–0.6 ms. The
+  "a layer has to repaint a full-screen 4K window" theory is simply false:
+  only the damaged region composites.
+- **It is the two waits.** A menu open costs one engine frame plus one
+  display refresh, and this panel runs at **29 Hz — 34.5 ms a refresh**. The
+  traces show the frame that draws the menu landing 10–29 ms after the click
+  and the pixels 30–45 ms after that. That is the whole latency, and no
+  drawing path can remove it.
+- **What the layer actually removes** is one step, not the cost: the popup
+  composites its view and must then be SHOWN (gated on the next composite)
+  and picked up by DWM. Traced, a popup open composites THREE views — chrome,
+  file explorer, popup — while a layer open composites two. One step fewer
+  means fewer opens that cross a refresh boundary, which is exactly the
+  shorter tail and the ~10 ms of median, and nothing more.
+
+**So the ceiling on this idea was always small**, and it is now measured
+rather than assumed: the window was never the expensive part. On a 120 Hz
+display both paths would collapse toward the 3 ms of work, and the difference
+between them would vanish entirely.
