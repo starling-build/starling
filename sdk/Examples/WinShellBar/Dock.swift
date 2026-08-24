@@ -1651,10 +1651,22 @@ final class StarlingDockState: State<StatefulWidget> {
         vertical ? ShellScreen.logicalHeight : ShellScreen.logicalWidth
     }
 
-    /// Where the row (or column) of icons starts, so the icons are centred on
-    /// the SCREEN rather than on whatever is left over beside the clock.
+    /// Where the row (or column) of icons starts.
+    ///
+    /// Centred means centred on the SCREEN rather than in the space left over
+    /// beside the clock — which is also what keeps `tileCentre` arithmetic
+    /// instead of a layout query. Flush to the start means exactly that: the
+    /// launcher tile at the screen's own edge, where the Start button was
+    /// before Windows 11 moved it.
+    ///
+    /// This is the hit test's idea of where the icons are, and `barBody`
+    /// draws them. The two have to agree, so both read this setting and
+    /// nothing else decides it.
     private func rowLeft() -> Double {
-        (axisLength - Double(bloc.state.items.count) * kDockTile) / 2
+        switch bloc.state.alignment {
+        case .start:  return 0
+        case .center: return (axisLength - Double(bloc.state.items.count) * kDockTile) / 2
+        }
     }
 
     /// Where a tile's centre sits. The tile is a fixed size and the row is
@@ -1676,10 +1688,15 @@ final class StarlingDockState: State<StatefulWidget> {
     private func barBody() -> Widget {
         ColoredBox(color: Color(0xF01B1D22)) {
             Stack(alignment: Alignment.center) {
-                // Centred, Windows 11 style, and centred on the SCREEN rather
-                // than in the space left over — which is also what makes
-                // tileCentre arithmetic rather than a layout query.
-                Align(alignment: Alignment.center) {
+                // Centred (Windows 11) or flush to the start (Windows 10),
+                // on the SCREEN rather than in the space left over — which is
+                // also what makes tileCentre arithmetic rather than a layout
+                // query. `rowLeft` is the same decision in numbers; if these
+                // two ever disagree the icons draw in one place and answer
+                // clicks in another.
+                Align(alignment: bloc.state.alignment == .start
+                          ? (vertical ? Alignment.topCenter : Alignment.centerLeft)
+                          : Alignment.center) {
                     if vertical {
                         Column(mainAxisSize: .min, crossAxisAlignment: .center) {
                             for (index, item) in bloc.state.items.enumerated() {
@@ -2079,7 +2096,13 @@ final class StarlingDockState: State<StatefulWidget> {
     /// the strip — exactly where its floating window sat, now as a child of
     /// this tree (one-view shell).
     private func launcherLayer() -> Widget {
-        let x = (ShellScreen.logicalWidth - kLauncherWidth) / 2
+        // Start follows the icons: centred over a centred row, and over the
+        // launcher tile when the row is flush to the start — which is what
+        // Windows does when the taskbar is left-aligned. Clamped so it cannot
+        // run off a narrow screen.
+        let x = bloc.state.alignment == .start && !vertical
+            ? min(max(rowLeft(), 12), ShellScreen.logicalWidth - kLauncherWidth - 12)
+            : (ShellScreen.logicalWidth - kLauncherWidth) / 2
         let y = windowThickness - Double(kDockHeight) - kLauncherGap
             - kLauncherHeight
         return Positioned(left: x, top: y, width: kLauncherWidth,
@@ -2155,6 +2178,14 @@ final class StarlingDockState: State<StatefulWidget> {
             rows += kDockEdges.map { choice in
                 DockMenuRow(label: (bloc.state.edge == choice.edge ? "\u{2713}  " : "     ")
                                 + choice.label) { self.bloc.add(.setEdge(choice.edge)) }
+            }
+            // Where the icons gather along that edge — the taskbar setting
+            // Windows keeps under Personalization, in the menu that is already
+            // about where this bar lives.
+            rows += [(DockAlignment.center, "Icons centred"),
+                     (DockAlignment.start, "Icons to the start")].map { choice in
+                DockMenuRow(label: (bloc.state.alignment == choice.0 ? "\u{2713}  " : "     ")
+                                + choice.1) { self.bloc.add(.setAlignment(choice.0)) }
             }
             rows.append(DockMenuRow(
                 label: bloc.state.nativeTaskbarWanted

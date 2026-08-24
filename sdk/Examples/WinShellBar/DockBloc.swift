@@ -32,6 +32,13 @@ import Foundation
 import Observation
 
 /// The single source of truth for the dock.
+/// Which end of the dock the icons gather at. "Start" is the left of a bar
+/// and the top of a column, so one setting covers all four edges.
+enum DockAlignment: Int32 {
+    case center = 0
+    case start = 1
+}
+
 struct DockState {
     /// Everything installed, from the Start Menu.
     var catalog: [Win32App] = []
@@ -71,6 +78,12 @@ struct DockState {
     /// A dock on the left or right is a COLUMN of icons, not a row, and every
     /// piece of arithmetic in the surface keys off this.
     var isVertical: Bool { edge == .left || edge == .right }
+
+    /// Where the icons sit along the bar. Centred is the default, because
+    /// that is what the taskbar this replaces does now; flush to the start is
+    /// what it did for twenty years before that, and what a lot of people
+    /// still set it back to.
+    var alignment: DockAlignment = .center
 
     /// The notification area, mirrored from the apps that own it. Empty
     /// until they answer the broadcast that asks them to re-register, which
@@ -130,6 +143,7 @@ final class DockBloc: @unchecked Sendable {
         case setNativeTaskbar(Bool)
         /// Move the dock to another screen edge.
         case setEdge(PanelEdge)
+        case setAlignment(DockAlignment)
         /// Put Explorer's taskbar back and quit — the dock removes itself.
         case removeDock
 
@@ -303,6 +317,13 @@ final class DockBloc: @unchecked Sendable {
             }
         case .openSystemSurface(let path):
             Task.detached { Win32AppCatalog.open(path) }
+        case .setAlignment(let alignment):
+            guard alignment != state.alignment else { return }
+            state.alignment = alignment
+            _saveAlignment(alignment)
+            // The strip does not change shape, so no re-place: the icons
+            // simply gather at the other end on the next frame.
+
         case .setEdge(let edge):
             guard edge != state.edge else { return }
             state.edge = edge
@@ -338,6 +359,7 @@ final class DockBloc: @unchecked Sendable {
         icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
 
         state.edge = _loadEdge()
+        state.alignment = Self.loadAlignment()
 
         // The pins file, if there is one. The DEFAULTS need the catalog and
         // are seeded in `.catalogLoaded`.
@@ -639,6 +661,33 @@ final class DockBloc: @unchecked Sendable {
     }
 
     private func _loadEdge() -> PanelEdge { Self.loadEdge() }
+
+    /// Beside the edge, and stored the same way. Unlike the edge this one
+    /// does NOT have to be read before the window exists: alignment moves the
+    /// icons inside a strip whose shape and reservation are unchanged, so the
+    /// tree can learn about it on its own.
+    static func loadAlignment() -> DockAlignment {
+        let base = ProcessInfo.processInfo.environment["APPDATA"]
+            ?? NSTemporaryDirectory()
+        let path = base + "\\Starling\\dock-align.txt"
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8),
+              let raw = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let alignment = DockAlignment(rawValue: raw) else { return .center }
+        return alignment
+    }
+
+    private func _saveAlignment(_ alignment: DockAlignment) {
+        let base = ProcessInfo.processInfo.environment["APPDATA"]
+            ?? NSTemporaryDirectory()
+        let path = base + "\\Starling\\dock-align.txt"
+        Task.detached {
+            let dir = (path as NSString).deletingLastPathComponent
+            try? FileManager.default.createDirectory(atPath: dir,
+                                                     withIntermediateDirectories: true)
+            try? String(alignment.rawValue).write(toFile: path, atomically: true,
+                                                  encoding: .utf8)
+        }
+    }
 
     private func _saveEdge(_ edge: PanelEdge) {
         let path = edgePath
