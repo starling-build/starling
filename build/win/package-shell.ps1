@@ -22,6 +22,10 @@ param(
     # Here for the day something turns out to need a locale table we dropped:
     # flip it, and the difference is one file.
     [switch]$FullIcu,
+    # Ship every DLL in the Swift runtime directory, including the ones no
+    # binary in the package imports. The escape hatch if something turns out
+    # to be loaded dynamically rather than linked.
+    [switch]$KeepAllRuntime,
 
     # --- signing -------------------------------------------------------
     # Off by default, so an unsigned developer package costs nothing. What
@@ -173,6 +177,61 @@ if (Test-Path $SwiftRuntime) {
     Copy-Item (Join-Path $SwiftRuntime '*.dll') $stage -Force
 } else {
     Write-Warning "Swift runtime not found at $SwiftRuntime -- the package will only run where the toolchain is installed"
+}
+
+# Then throw away the ones nothing loads. The toolchain's runtime directory is
+# every library Swift on Windows can need -- networking, XML, distributed
+# actors, autodiff, the remote-mirror reflection library a debugger uses -- and
+# we copy the lot because there is no manifest saying which a given binary
+# wants. So ask the binaries: walk the static import graph out from the exe and
+# drop what it never reaches. That is ~3.5 MB, and unlike a hand-written
+# exclusion list it stays right when the shell starts using something new.
+#
+# THE LIMIT OF THIS: it sees static imports only. Anything a library loads with
+# LoadLibrary at runtime is invisible to it and would be pruned wrongly, which
+# is what -KeepAllRuntime is for, and why the skipped list is printed rather
+# than silently dropped.
+if (-not $KeepAllRuntime) {
+    $dumpbin = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if (-not $dumpbin) {
+        Write-Warning "dumpbin not found -- shipping the whole Swift runtime directory"
+    } else {
+        function Get-Imports([string]$path) {
+            & $dumpbin.FullName /dependents $path 2>$null |
+                Select-String -Pattern '^\s{4}(\S+\.dll)$' |
+                ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
+        }
+        $present = @{}
+        Get-ChildItem $stage -Filter *.dll -File | ForEach-Object { $present[$_.Name.ToLower()] = $_ }
+        $reached = @{}
+        $queue = New-Object System.Collections.Queue
+        # Roots: the exe, and the engine DLLs it loads. NOT $root as the loop
+        # variable -- PowerShell variables are case-INSENSITIVE, so that is the
+        # $Root parameter, and the loop leaves it holding a DLL name. The
+        # symptom lands three steps later, on `git -C $Root` reporting it
+        # cannot change to 'flutter_windows.dll'.
+        foreach ($rootBinary in 'WinShellBar.exe', 'flutter_engine.dll', 'flutter_windows.dll') {
+            $queue.Enqueue($rootBinary)
+            $reached[$rootBinary.ToLower()] = $true
+        }
+        while ($queue.Count) {
+            $cur = Join-Path $stage $queue.Dequeue()
+            if (-not (Test-Path $cur)) { continue }
+            foreach ($dep in Get-Imports $cur) {
+                if ($present.ContainsKey($dep) -and -not $reached.ContainsKey($dep)) {
+                    $reached[$dep] = $true
+                    $queue.Enqueue($dep)
+                }
+            }
+        }
+        $dropped = $present.Keys | Where-Object { -not $reached.ContainsKey($_) } | Sort-Object
+        if ($dropped) {
+            $freed = ($dropped | ForEach-Object { $present[$_].Length } | Measure-Object -Sum).Sum
+            Write-Host ("  unreferenced runtime libraries dropped ({0:N1} MB): {1}" -f ($freed / 1MB), (($dropped | ForEach-Object { $_ -replace '\.dll$','' }) -join ', '))
+            $dropped | ForEach-Object { Remove-Item $present[$_].FullName -Force }
+        }
+    }
 }
 Copy-Item (Join-Path $PSScriptRoot 'install.ps1') (Join-Path $stage 'Install.ps1') -Force
 Copy-Item (Join-Path $PSScriptRoot 'uninstall.ps1') (Join-Path $stage 'Uninstall.ps1') -Force

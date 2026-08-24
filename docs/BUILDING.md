@@ -633,6 +633,26 @@ symptoms point somewhere else entirely:
   `impeller_supports_rendering` — an **unresolved external at link time**,
   long after the switch responsible.
 
+**ANGLE builds three backends Windows never asks for.** `egl::Manager::Create`
+requests D3D11 three times — hardware, feature level 9_3, then WARP, which is
+still D3D11 — and nothing else, while `angle.gni` defaults `angle_enable_d3d9`,
+`angle_enable_gl_desktop_backend` and Vulkan on for Windows.
+`flutter/tools/gn` already turns GL and Vulkan off for Apple targets and
+simply never did for the platform that ships them. Turning them off takes
+`flutter_windows.dll` from 7.75 MB to **5.66 MB**:
+
+```
+angle_enable_vulkan = false
+angle_enable_gl = false
+angle_enable_gl_desktop_backend = false
+angle_enable_d3d9 = false
+```
+
+The GLSL and ESSL translators leave with `angle_enable_gl` (both derive from
+it); `angle_enable_hlsl` derives from `d3d9 || d3d11` and stays, which is the
+one that compiles our shaders. The desktop's screenshot is byte-identical
+before and after.
+
 One thing that keeps Impeller partly in the build no matter what: the Windows
 compositor uses **`impeller::ProcTableGLES` as its GL function loader**
 (`compositor_opengl.cc` calls `gl_->GenTextures`, `gl_->BindFramebuffer`), so
@@ -653,8 +673,19 @@ ICU_UTIL_DATA_FILE`), so `build/win/package-shell.ps1` simply ships the slice
 instead — a packaging choice, no fork divergence, `-FullIcu` to put the big
 one back.
 
-Together: an installed tree of 136.5 MB becomes 126.2 MB, and the setup exe
-47.5 MB becomes 43.1 MB. **The Linux `build/stage.sh` still copies the full
+**And the package ships runtime libraries nothing loads.** The Swift toolchain's
+runtime directory is everything Swift on Windows *can* need — networking, XML,
+distributed actors, autodiff, the remote-mirror library a debugger uses — and
+`package-shell.ps1` used to copy all of it because no manifest says which a
+given binary wants. It now walks the static import graph out from the exe and
+drops what is never reached: 15 libraries, **4.7 MB**, and unlike a hand-written
+exclusion list it stays correct when the shell starts using something new.
+`-KeepAllRuntime` ships them all again, which is the escape hatch if something
+turns out to be loaded with `LoadLibrary` rather than linked — the pruner sees
+static imports only, and prints what it dropped for that reason.
+
+Together: an installed tree of 136.5 MB becomes **119.4 MB**, and the setup exe
+47.5 MB becomes **40.4 MB**. **The Linux `build/stage.sh` still copies the full
 set** — the same ~8.8 MB is available there and has not been tested on that
 platform.
 

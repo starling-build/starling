@@ -173,7 +173,7 @@ startup is not replayed (Explorer already ran it this logon).
 
 ## What is in the package
 
-47 files, 126.2 MB staged:
+32 files, 119.4 MB staged:
 
 | | |
 |---|---|
@@ -181,7 +181,7 @@ startup is not replayed (Explorer already ran it this logon).
 | `flutter_engine.dll`, `flutter_windows.dll` | the engine, release build |
 | `data\icudtl.dat`, `data\flutter_assets` | ICU (the 1.6 MB desktop slice), and the asset bundle |
 | `FlutterSwift_CupertinoIcons.resources` | the icon font |
-| `*.dll` (Swift runtime) | most of the size, and all of the portability |
+| `*.dll` (Swift runtime) | most of the size, and all of the portability — only the libraries the binaries actually import |
 | `BUILD-STAMP.txt` | version, commit, build time, engine directory |
 | `Install.ps1`, `Uninstall.ps1` | shipped inside, run from inside |
 

@@ -47,6 +47,21 @@ $trims = @{
     # (embedder_unittests_library needs //flutter/testing:vulkan) before a
     # single file compiles. Takes gtest out of the build too.
     'enable_unittests'         = 'false'
+
+    # ANGLE's other backends. egl::Manager::Create asks for D3D11 three times
+    # -- hardware, feature level 9_3, then WARP, which is still D3D11 -- and
+    # never for anything else, but ANGLE defaults to building D3D9, the
+    # desktop GL backend and Vulkan on Windows as well. flutter/tools/gn
+    # already turns GL and Vulkan off for Apple targets; this is the same
+    # thing for the platform that actually ships them.
+    #
+    # angle_enable_essl and angle_enable_glsl follow angle_enable_gl, so the
+    # GLSL and ESSL translators leave with it; angle_enable_hlsl follows d3d9
+    # || d3d11 and stays, which is the one we need.
+    'angle_enable_vulkan'      = 'false'
+    'angle_enable_gl'          = 'false'
+    'angle_enable_gl_desktop_backend' = 'false'
+    'angle_enable_d3d9'        = 'false'
 }
 
 $text = Get-Content $argsFile -Raw
