@@ -1,0 +1,26 @@
+=== WINDOWS FILE EXPLORER, in the Windows shell ===
+  frames 3181, reps detected 20, calibration scale 0.99945 (1.0 = video time == wall time)
+  rep  t0       first    settled    first(ms)   
+  1    114      121      126        233.2        settled 399.8 ms
+  2    233      240      242        233.2        settled 299.8 ms
+  3    350      358      360        266.5        settled 333.1 ms
+  4    468      475      477        233.2        settled 299.8 ms
+  5    586      593      595        233.2        settled 299.8 ms
+  6    703      711      711        266.5        settled 266.5 ms
+  7    821      828      830        233.2        settled 299.8 ms
+  8    939      946      949        233.2        settled 333.1 ms
+  9    1057     1064     1067       233.2        settled 333.1 ms
+  10   1174     1181     1184       233.2        settled 333.1 ms
+  11   1293     1300     1302       233.2        settled 299.8 ms
+  12   1411     1418     1420       233.2        settled 299.8 ms
+  13   1530     1537     1539       233.2        settled 299.8 ms
+  14   1648     1656     1656       266.5        settled 266.5 ms
+  15   1766     1773     1775       233.2        settled 299.8 ms
+  16   1883     1891     1894       266.5        settled 366.5 ms
+  17   2002     2010     2011       266.5        settled 299.8 ms
+  18   2121     2128     2130       233.2        settled 299.8 ms
+  19   2238     2244     2247       199.9        settled 299.8 ms
+  20   2356     2363     2365       233.2        settled 299.8 ms
+  FIRST PIXELS  median 233.2 ms   min 199.9   max 266.5   (n=20)
+  SETTLED       median 299.8 ms   min 266.5   max 399.8
+  frame quantum at 30 fps: 33.3 ms
