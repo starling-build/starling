@@ -30,19 +30,21 @@ import Foundation
 /// menu is a panel above the taskbar; covering their work to show them a list
 /// of programs is a bigger interruption than the task deserves.
 ///
-/// Sized so the grid comes out at 7 columns by 5 rows — 35 apps a page, so a
-/// 79-app Start Menu is three pages. 740pt is also, not by coincidence, the
-/// height of Windows' own Start menu.
-let kLauncherWidth = 640.0
-let kLauncherHeight = 740.0
+/// SIZED FROM THE REAL ONE. Windows 11's Start on this machine measures
+/// 1664 x 1728 physical at 200%, so 832 x 864pt — taken off the running menu
+/// with an edge scan, not from a design doc. Ours was 640 x 740, which is
+/// what Start was two Windows versions ago; matching it is what makes the two
+/// read as the same object rather than as an imitation of one.
+let kLauncherWidth = 832.0
+let kLauncherHeight = 864.0
 let kLauncherGap = 12.0
 
-/// Windows 11's own: a 32pt icon in a 92 x 88 cell, six across.
+/// Windows 11's own: a 32pt icon in a 92 x 88 cell, EIGHT across.
 let kLauncherIcon = 32.0
 let kLauncherCell = 92.0
 let kLauncherCellH = 88.0
-/// The content column. 640 - 2 x 44, which is where Start's search box sits.
-let kStartContent = 552.0
+/// The content column. 832 - 2 x 44, which is where Start's search box sits.
+let kStartContent = 744.0
 /// One row of the All apps list.
 let kStartRowH = 40.0
 /// Points kept clear at the left and right of the grid.
@@ -75,10 +77,19 @@ struct StartTheme {
 let kPowerRowH = 38.0
 let kPowerMenuW = 190.0
 
-/// Start's pinned grid: six across, three down — Windows 11's own shape, and
-/// 6 x 104pt is 624pt inside a 780pt panel.
-let kPinnedColumns = 6
-let kPinnedRows = 3
+/// Start's pinned grid: EIGHT across, two down. Counted off the real one —
+/// fifteen apps in two rows of eight — where ours showed six in a single row
+/// and left the rest of the width empty.
+let kPinnedColumns = 8
+let kPinnedRows = 2
+
+/// The All section's category cards: four across the content column
+/// (4 x 174 + 3 x 16 = 744), each a 2 x 2 preview of the apps inside with the
+/// category's name beneath, which is the shape Windows 11 switched to.
+let kCategoryCard = 174.0
+let kCategoryCardH = 150.0
+let kCategoryGap = 16.0
+let kCategoryColumns = 4
 
 /// The single source of truth for the launcher.
 /// One group of apps in the launcher.
@@ -107,6 +118,80 @@ enum LauncherRow {
     case apps([Win32App])
 }
 
+/// The two ways Start lists everything installed: cards for each category, or
+/// one long alphabetical-by-group list. Windows offers both behind the
+/// "View:" control at the right of the All heading and opens on cards.
+enum AllView {
+    case category
+    case list
+}
+
+/// The categories the card view groups by.
+///
+/// Windows derives its own from app metadata we are not given — there is no
+/// API for "what kind of app is this" — so this is a keyword match over the
+/// app's name, with the Start Menu folder as a fallback. It is an
+/// APPROXIMATION on purpose, and the folder grouping stays the truth: the
+/// "View: List" switch shows it, unclassified and exactly as installers wrote
+/// it. A card view of forty one-app folders is not what Start looks like, and
+/// that is the whole reason this exists.
+enum StartCategory: String, CaseIterable {
+    case developer = "Developer Tools"
+    case productivity = "Productivity"
+    case utilities = "Utilities & Tools"
+    case creativity = "Creativity"
+    case communication = "Communication"
+    case games = "Games"
+    case other = "Other"
+
+    private static let keywords: [(StartCategory, [String])] = [
+        (.developer, ["visual studio", "sdk", "git", "python", "terminal",
+                      "powershell", "command prompt", "wsl", "ubuntu", "debug",
+                      "cmd", "kit", "developer", "package manager", "alacritty",
+                      "idle", "docs", "manuals"]),
+        (.communication, ["teams", "outlook", "mail", "phone link", "whatsapp",
+                          "linkedin", "quick assist", "skype", "chat"]),
+        (.creativity, ["paint", "photo", "camera", "clipchamp", "media player",
+                       "snipping", "sound recorder", "imagemagick", "gimp",
+                       "creative", "design"]),
+        (.games, ["xbox", "solitaire", "game", "minecraft"]),
+        (.productivity, ["notepad", "sticky notes", "to do", "onedrive",
+                         "office", "word", "excel", "powerpoint", "copilot",
+                         "calculator", "clock", "calendar", "edge", "chrome",
+                         "firefox", "store", "news", "weather"]),
+        (.utilities, ["settings", "control panel", "task", "manager", "disk",
+                      "defragment", "diagnostic", "monitor", "security",
+                      "defender", "backup", "recovery", "registry", "system",
+                      "administrative", "services", "event viewer", "policy",
+                      "magnifier", "narrator", "voice", "captions", "keyboard",
+                      "accessibility", "remote desktop", "amd", "nvidia",
+                      "driver", "install"]),
+    ]
+
+    static func of(_ app: Win32App) -> StartCategory {
+        let hay = (app.name + " " + app.category).lowercased()
+        for (category, words) in keywords where words.contains(where: hay.contains) {
+            return category
+        }
+        return .other
+    }
+}
+
+/// One row of the single scroll Start now is: the pinned grid, the
+/// recommended strip and the whole app list live in the same list rather than
+/// on two pages, so they scroll together.
+enum StartRow {
+    case pinnedHeader
+    case pinnedGrid
+    case recommendedHeader
+    case recommended
+    case allHeader
+    case categoryCards([LauncherGroup])
+    case groupHeader(LauncherGroup)
+    case app(Win32App)
+    case gap(Double)
+}
+
 struct LauncherState {
     /// Everything installed, from the Start Menu.
     var apps: [Win32App] = []
@@ -122,10 +207,14 @@ struct LauncherState {
     /// The group whose name is being edited, if any.
     var renaming: String?
 
-    // Start's own shape: a small pinned grid over a short list of recent
-    // things, with everything else one tap away behind "All apps".
-    /// Whether the All apps list is showing instead of the pinned view.
-    var showingAll = false
+    // Start's own shape: a pinned grid over a short list of recent things,
+    // and then EVERY app in the same scroll — Windows 11 stopped putting the
+    // app list behind an "All apps" page, so neither do we.
+    /// How the All section lists apps. Windows' own switcher, same default.
+    var allView: AllView = .category
+    /// The category card the user opened, if any: its apps replace the grid
+    /// of cards in place, which is what tapping a card does in Start.
+    var expandedGroup: String?
     /// Pinned apps, by catalog key, in the order the user put them.
     var pinned: [String] = []
     /// What the user opened lately — the shell's own Recent folder.
@@ -169,7 +258,9 @@ final class LauncherBloc: @unchecked Sendable {
         case goToPage(Int)
         /// Fold a group away, or open it again.
         case toggleGroup(String)
-        case showAllApps(Bool)
+        /// Cards or one long list, and which card is open.
+        case setAllView(AllView)
+        case expandGroup(String?)
         case toggleEditPins
         case pin(Win32App)
         case unpin(String)
@@ -209,8 +300,11 @@ final class LauncherBloc: @unchecked Sendable {
         case .goToPage(let page):
             state.page = page
 
-        case .showAllApps(let showing):
-            state.showingAll = showing
+        case .setAllView(let view):
+            state.allView = view
+            state.expandedGroup = nil
+        case .expandGroup(let key):
+            state.expandedGroup = key
 
         case .toggleEditPins:
             state.editingPins.toggle()
@@ -280,7 +374,7 @@ final class LauncherBloc: @unchecked Sendable {
             // costs the user nothing, because nobody is looking.
             state.query = ""
             state.page = 0
-            state.showingAll = false
+            state.expandedGroup = nil
             state.editingPins = false
             state.renaming = nil
         case .launch(let app):
@@ -329,6 +423,24 @@ final class LauncherBloc: @unchecked Sendable {
             // Loose apps last: they are the leftovers, not a category.
             if $0.key.isEmpty != $1.key.isEmpty { return !$0.key.isEmpty }
             return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    /// The groups the CARD view shows: categories, largest first, and every
+    /// category that has nothing in it left out. `groups` — the Start Menu
+    /// folders — remains what the list view shows.
+    var cardGroups: [LauncherGroup] {
+        var byCategory: [StartCategory: [Win32App]] = [:]
+        for app in state.apps { byCategory[StartCategory.of(app), default: []].append(app) }
+        return StartCategory.allCases.compactMap { category in
+            guard let apps = byCategory[category], !apps.isEmpty else { return nil }
+            return LauncherGroup(
+                key: "\u{1}cat\u{1}" + category.rawValue,
+                name: category.rawValue,
+                apps: apps.sorted {
+                    $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                },
+                collapsed: false)
         }
     }
 
@@ -426,7 +538,10 @@ final class LauncherBloc: @unchecked Sendable {
         // two icons and a lot of nothing. Loose shortcuts first: an app filed
         // at the top level of the Start Menu is one somebody installed on
         // purpose, while the folders are full of Administrative Tools.
-        for app in state.apps where seeded.count < kPinnedColumns {
+        // Fill BOTH rows, not one: the grid reserves two rows of eight, and a
+        // seed that stops at six leaves a band of empty panel where Windows
+        // has fifteen apps.
+        for app in state.apps where seeded.count < kPinnedColumns * kPinnedRows {
             guard app.category.isEmpty else { continue }
             let key = IconCache.key(for: app)
             if !seeded.contains(key) { seeded.append(key) }
@@ -1132,7 +1247,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
         var rows: [Widget] = []
         var index = 0
         while index < tiles.count {
-            let end = min(index + 2, tiles.count)
+            // THREE across, which is what the width now allows and what Start
+            // does with it.
+            let end = min(index + 3, tiles.count)
             rows.append(Row(mainAxisSize: .min, crossAxisAlignment: .center,
                             children: Array(tiles[index..<end])))
             index = end
@@ -1147,7 +1264,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
         let key = IconCache.key(for: app)
         return GestureDetector(
             onTap: { self.launch(app) },
-            child: SizedBox(width: kStartContent / 2, height: 48) {
+            child: SizedBox(width: kStartContent / 3, height: 48) {
                 Padding(padding: EdgeInsets(left: 10, top: 3, right: 6, bottom: 3)) {
                     Row(crossAxisAlignment: .center, spacing: 10) {
                         appIcon(key, 24)
@@ -1175,7 +1292,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                 let path = entry.path
                 Task.detached { Win32AppCatalog.open(path) }
             },
-            child: SizedBox(width: kStartContent / 2, height: 48) {
+            child: SizedBox(width: kStartContent / 3, height: 48) {
                 Padding(padding: EdgeInsets(left: 10, top: 3, right: 6, bottom: 3)) {
                     Row(crossAxisAlignment: .center, spacing: 10) {
                         if let icon = bloc.icons.view(recentKey(entry), side: 24) {
@@ -1262,39 +1379,130 @@ final class StarlingLauncherState: State<StatefulWidget> {
 
     /// "Pinned … All apps ›"
     private func pinnedHeader() -> Widget {
+        // No "All apps ›" any more: everything installed is further down this
+        // same scroll, so there is nowhere for that button to go. What stays
+        // on the right is the pin editor, which is ours — Windows puts
+        // pinning behind a right-click, and this framework gives us taps.
         sectionRow("Pinned",
-                   Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 6) {
-                       if bloc.state.editingPins {
-                           pill("Done", FluentIcons.check, true) {
-                               self.bloc.add(.toggleEditPins)
-                           }
-                       }
-                       pill("All apps", FluentIcons.chevronRight, false) {
-                           self.bloc.add(.showAllApps(true))
-                       }
+                   pill(bloc.state.editingPins ? "Done" : "Pin apps",
+                        bloc.state.editingPins ? FluentIcons.check : FluentIcons.pinned,
+                        bloc.state.editingPins) {
+                       self.bloc.add(.toggleEditPins)
                    })
     }
 
-    /// "‹ Back … All apps … Pin apps"
-    ///
-    /// Pinning lives HERE rather than on the pinned grid, because this is the
-    /// only view that shows an app you have not pinned yet. Turning it on
-    /// makes a row's tap add or remove the pin instead of launching it, in
-    /// both views — one mode, so leaving this list with it still on does not
-    /// silently change what the pinned grid does.
-    private func allAppsHeader() -> Widget {
-        sectionRow("All apps",
-                   Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 6) {
-                       pill(bloc.state.editingPins ? "Done" : "Pin apps",
-                            bloc.state.editingPins ? FluentIcons.check
-                                                   : FluentIcons.pinned,
-                            bloc.state.editingPins, leading: true) {
-                           self.bloc.add(.toggleEditPins)
-                       }
-                       pill("Back", FluentIcons.chevronLeft, false, leading: true) {
-                           self.bloc.add(.showAllApps(false))
-                       }
-                   })
+    /// "All … View: Category ⌄", or "‹ Utilities" once a card is open.
+    private func allHeader() -> Widget {
+        if let key = bloc.state.expandedGroup,
+           let group = (bloc.cardGroups + bloc.groups).first(where: { $0.key == key }) {
+            return sectionRow(group.name,
+                              pill("Back", FluentIcons.chevronLeft, false, leading: true) {
+                                  self.bloc.add(.expandGroup(nil))
+                              })
+        }
+        let category = bloc.state.allView == .category
+        return sectionRow("All",
+                          pill(category ? "View: Category" : "View: List",
+                               FluentIcons.chevronDown, false) {
+                              self.bloc.add(.setAllView(category ? .list : .category))
+                          })
+    }
+
+    /// One category card: a 2 x 2 preview of what is inside, the name under
+    /// it, and a tap that opens the category in place.
+    private func categoryCard(_ group: LauncherGroup) -> Widget {
+        let preview = Array(group.apps.prefix(4))
+        return GestureDetector(
+            onTap: { self.bloc.add(.expandGroup(group.key)) },
+            child: SizedBox(width: kCategoryCard + kCategoryGap,
+                            height: kCategoryCardH + 34) {
+                Column(mainAxisSize: .min, crossAxisAlignment: .center) {
+                    SizedBox(width: kCategoryCard, height: kCategoryCardH) {
+                        ClipRRect(borderRadius: BorderRadius.circular(8)) {
+                            ColoredBox(color: theme.fieldFill) {
+                                Center {
+                                    Column(mainAxisSize: .min,
+                                           crossAxisAlignment: .center) {
+                                        for pair in [Array(preview.prefix(2)),
+                                                     Array(preview.dropFirst(2))]
+                                        where !pair.isEmpty {
+                                            Row(mainAxisSize: .min,
+                                                crossAxisAlignment: .center) {
+                                                for app in pair {
+                                                    SizedBox(width: 56, height: 56) {
+                                                        Center {
+                                                            appIcon(IconCache.key(for: app), 34)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SizedBox(height: 8)
+                    SizedBox(width: kCategoryCard, height: 20) {
+                        Center {
+                            Text(group.name,
+                                 style: TextStyle(color: theme.text, fontSize: 12),
+                                 overflow: .ellipsis, maxLines: 1)
+                        }
+                    }
+                }
+            })
+    }
+
+    private func categoryRow(_ groups: [LauncherGroup]) -> Widget {
+        SizedBox(width: kStartContent, height: kCategoryCardH + 44) {
+            Row(mainAxisAlignment: .start, mainAxisSize: .min) {
+                for group in groups { categoryCard(group) }
+            }
+        }
+    }
+
+    /// The whole panel as ONE list: pinned, recommended and every app, in the
+    /// order Start shows them. Built as descriptors rather than widgets so the
+    /// list stays lazy — 129 apps is 129 rows in the list view.
+    private var startRows: [StartRow] {
+        var rows: [StartRow] = [.pinnedHeader, .pinnedGrid, .gap(18),
+                                .recommendedHeader, .recommended, .gap(22),
+                                .allHeader]
+        let cards = bloc.state.allView == .category ? bloc.cardGroups : []
+        let groups = bloc.groups
+        if let key = bloc.state.expandedGroup,
+           let group = (cards + groups).first(where: { $0.key == key }) {
+            rows += group.apps.map { .app($0) }
+        } else if bloc.state.allView == .category {
+            var index = 0
+            while index < cards.count {
+                let end = min(index + kCategoryColumns, cards.count)
+                rows.append(.categoryCards(Array(cards[index..<end])))
+                index = end
+            }
+        } else {
+            for group in groups {
+                rows.append(.groupHeader(group))
+                if !group.collapsed { rows += group.apps.map { .app($0) } }
+            }
+        }
+        rows.append(.gap(20))
+        return rows
+    }
+
+    private func startRow(_ row: StartRow) -> Widget {
+        switch row {
+        case .pinnedHeader:      return pinnedHeader()
+        case .pinnedGrid:        return pinnedGrid()
+        case .recommendedHeader: return sectionRow("Recommended", nil)
+        case .recommended:       return recommended()
+        case .allHeader:         return allHeader()
+        case .categoryCards(let groups): return categoryRow(groups)
+        case .groupHeader(let group):    return groupHeader(group)
+        case .app(let app):      return appRow(app, indented: true)
+        case .gap(let h):        return SizedBox(width: kStartContent, height: h)
+        }
     }
 
     /// Search results: a list, the way Start answers a query — not the pinned
@@ -1339,26 +1547,29 @@ final class StarlingLauncherState: State<StatefulWidget> {
                     } else if searching {
                         sectionRow("Best match", nil)
                         Expanded { SizedBox(width: kStartContent) { searchResults() } }
-                    } else if bloc.state.showingAll {
-                        allAppsHeader()
+                    } else {
+                        // ONE scroll: pinned, recommended and every app
+                        // installed, in that order, exactly as Start now
+                        // stacks them. The list is keyed by what shape its
+                        // rows are, because a lazy list whose cells change
+                        // TYPE keeps painting the old ones inside the new
+                        // extents (the trap is in the SDK's CLAUDE.md).
+                        let rows = startRows
                         Expanded {
                             SizedBox(width: kStartContent) {
                                 ListView(
+                                    key: ValueKey("start-\(bloc.state.allView)-"
+                                                  + (bloc.state.expandedGroup ?? "")),
                                     controller: scroll,
-                                    itemCount: allRows.count,
+                                    itemCount: rows.count,
                                     itemBuilder: { [weak self] _, index in
-                                        guard let self else { return SizedBox(height: 0) }
-                                        return self.groupRow(self.allRows, index)
+                                        guard let self, index < rows.count else {
+                                            return SizedBox(height: 0)
+                                        }
+                                        return self.startRow(rows[index])
                                     })
                             }
                         }
-                    } else {
-                        pinnedHeader()
-                        pinnedGrid()
-                        SizedBox(height: 18)
-                        sectionRow("Recommended", nil)
-                        recommended()
-                        Expanded { SizedBox(width: 1) }
                     }
 
                     accountBar()
