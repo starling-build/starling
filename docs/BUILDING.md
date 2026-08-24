@@ -591,9 +591,10 @@ a comment, "there's no reason the Vulkan embedder features can't work on these
 platforms" — and Impeller's backends default on for every desktop platform.
 Windows uses neither: the Windows embedder references Vulkan nowhere and
 `flutter_windows_engine.cc` pushes `--enable-impeller=false`, so it draws Skia
-on ANGLE. Editing `out/host_release/args.gn` and re-running `gn gen` (not
-`flutter/tools/gn`, which would overwrite it) takes **1.93 MB** off
-`flutter_engine.dll` — 11.65 to 9.72:
+on ANGLE. `build/win/engine-args.ps1` applies the following to an existing out
+directory and rebuilds — **run it after any `flutter/tools/gn`**, which
+rewrites `args.gn` from scratch and would silently restore both. It takes
+**1.93 MB** off `flutter_engine.dll`, 11.65 to 9.72:
 
 ```
 skia_use_vulkan = false
