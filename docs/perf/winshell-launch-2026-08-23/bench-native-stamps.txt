@@ -1,0 +1,6 @@
+rep 1 qpc_ms 107134269.525
+rep 2 qpc_ms 107139259.519
+rep 3 qpc_ms 107144247.474
+rep 4 qpc_ms 107149255.173
+rep 5 qpc_ms 107154270.064
+rep 6 qpc_ms 107159260.814

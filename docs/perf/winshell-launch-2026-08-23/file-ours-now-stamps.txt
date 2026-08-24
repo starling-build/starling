@@ -1,0 +1,12 @@
+rep 1 qpc_ms 4937292.381
+      window up after rep 1: True
+rep 2 qpc_ms 4946208.790
+      window up after rep 2: True
+rep 3 qpc_ms 4955117.478
+      window up after rep 3: True
+rep 4 qpc_ms 4964040.493
+      window up after rep 4: True
+rep 5 qpc_ms 4972967.200
+      window up after rep 5: True
+rep 6 qpc_ms 4981887.224
+      window up after rep 6: True
