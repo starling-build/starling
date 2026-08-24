@@ -822,6 +822,21 @@ Measured — `ShellExecuteW("ms-settings:")` starts nothing,
 launched through its exe stub works (`calc.exe` -> CalculatorApp runs), so
 this is the protocol path, not packaged apps as such.
 
+- [x] **The launcher was still losing apps, and it was our own merge** —
+      `6f0c1d6`. Entries were keyed by TARGET alone, so a target that several
+      shortcuts share collapsed them into one: 91 shortcuts became **76**
+      entries keyed by target and **88** keyed by target and arguments. Six
+      share `cmd.exe` (Command Prompt and all five VS developer prompts),
+      three share `wslg.exe` (every Linux app published into the Start Menu),
+      three share the 32-bit `powershell.exe`, two share `wsl.ico` (an
+      advertised shortcut whose "target" is an icon), and each Python install
+      shares its exe with its own Module Docs. **123 apps → 129**, 91 from
+      shortcuts where there were 79, and every app in `Get-StartApps` is now
+      present, checked name by name. The same fix resolves known-folder ids
+      (`{1AC14E77-…}\dfrgui.exe`) so the AppsFolder row and the shortcut for
+      one program stop appearing as two apps under two names — the shell's
+      label wins, the shortcut's launch data is kept. `--apps-probe --all`
+      dumps the merged catalog, which is what a question like this needs.
 - [x] **Enumerate `shell:AppsFolder`, not just the Start Menu** — `c3fc720`,
       built and deployed on the box. 79 shortcuts + 127 AppsFolder children
       merge to **123 apps, 44 of them from no shortcut at all and 34
