@@ -178,13 +178,11 @@ enum StartCategory: String, CaseIterable {
 }
 
 /// One row of the single scroll Start now is: the pinned grid, the
-/// recommended strip and the whole app list live in the same list rather than
-/// on two pages, so they scroll together.
+/// pinned grid and the whole app list live in the same list rather than on
+/// two pages, so they scroll together.
 enum StartRow {
     case pinnedHeader
     case pinnedGrid
-    case recommendedHeader
-    case recommended
     case allHeader
     case categoryCards([LauncherGroup])
     case groupHeader(LauncherGroup)
@@ -217,13 +215,6 @@ struct LauncherState {
     var expandedGroup: String?
     /// Pinned apps, by catalog key, in the order the user put them.
     var pinned: [String] = []
-    /// What the user opened lately — the shell's own Recent folder.
-    var recent: [Win32FileEntry] = []
-    /// Apps whose Start Menu shortcut is new. Windows' Recommended list is
-    /// "recently added" as much as "recently opened", and on a machine whose
-    /// Recent folder holds only shell-namespace shortcuts — which is this one
-    /// — it is the half that has anything in it.
-    var recentApps: [Win32App] = []
     var userName = ""
     /// Windows' own light/dark setting, so Start matches everything else on
     /// the machine.
@@ -264,10 +255,12 @@ final class LauncherBloc: @unchecked Sendable {
         case toggleEditPins
         case pin(Win32App)
         case unpin(String)
-        case recentLoaded([Win32FileEntry], name: String, dark: Bool)
+        /// Who is logged in, and whether the system is in dark mode. Was
+        /// `recentLoaded` and carried the Recent folder too, until
+        /// Recommended was removed.
+        case shellInfoLoaded(name: String, dark: Bool)
         /// The system's light/dark setting moved while we were running.
         case themeChanged(dark: Bool)
-        case recentAppsLoaded([Win32App])
         /// Start renaming a group, or stop.
         case beginRename(String?)
         /// Give a group a name of the user's own. An empty name puts the
@@ -322,19 +315,9 @@ final class LauncherBloc: @unchecked Sendable {
         case .themeChanged(let dark):
             state.dark = dark
 
-        case .recentLoaded(let entries, let name, let dark):
-            state.recent = entries
+        case .shellInfoLoaded(let name, let dark):
             state.userName = name
             state.dark = dark
-            // One icon per EXTENSION, exactly as the file explorer does it:
-            // six recent files are usually three types.
-            for entry in entries {
-                icons.ensure(key: LauncherBloc.recentKey(entry),
-                             path: entry.path, size: 32)
-            }
-
-        case .recentAppsLoaded(let apps):
-            state.recentApps = apps
 
         case .toggleGroup(let key):
             if state.collapsed.contains(key) {
@@ -387,12 +370,6 @@ final class LauncherBloc: @unchecked Sendable {
             // AFTER the catalog: the seed matches by name, so it has nothing
             // to match against any earlier.
             _loadPins()
-            // Same again for "recently added": it is a stat() per shortcut,
-            // so it waits for the catalog and runs off this thread.
-            Task.detached { [weak self] in
-                let added = LauncherBloc.recentlyAdded(apps)
-                await MainActor.run { self?.add(.recentAppsLoaded(added)) }
-            }
             print("[WinShellLauncher] \(apps.count) apps")
             _warmIcons(apps)
         case .iconsChanged:
@@ -481,31 +458,6 @@ final class LauncherBloc: @unchecked Sendable {
         }
     }
 
-    /// The apps installed in the last month, newest first.
-    ///
-    /// A Start Menu shortcut is written when the app is installed, so its
-    /// modification time IS the install date — no package database, no
-    /// registry walk, and it works for the ones that never registered
-    /// themselves properly either.
-    static func recentlyAdded(_ apps: [Win32App], limit: Int = 6) -> [Win32App] {
-        let fm = FileManager.default
-        let cutoff = Date().addingTimeInterval(-30 * 24 * 3600)
-        var dated: [(app: Win32App, when: Date)] = []
-        for app in apps {
-            guard let attributes = try? fm.attributesOfItem(atPath: app.shortcutPath),
-                  let when = attributes[.modificationDate] as? Date,
-                  when > cutoff else { continue }
-            dated.append((app, when))
-        }
-        return dated.sorted { $0.when > $1.when }.prefix(limit).map { $0.app }
-    }
-
-    /// Directories share one icon; files share one per extension — the same
-    /// bargain the file explorer strikes, for the same reason.
-    static func recentKey(_ entry: Win32FileEntry) -> String {
-        entry.isDirectory ? "\u{1}dir" : "\u{1}ext:\(entry.ext)"
-    }
-
     @ObservationIgnored private var pinsPath: String {
         let base = ProcessInfo.processInfo.environment["APPDATA"]
             ?? NSTemporaryDirectory()
@@ -570,15 +522,12 @@ final class LauncherBloc: @unchecked Sendable {
     private func _start() {
         _loadGroups()
 
-        // Recent items and the user's name: a folder read and a lookup, both
-        // off the UI thread like everything else here.
+        // The user's name and the system theme: two lookups, off the UI
+        // thread like everything else here.
         Task.detached { [weak self] in
-            let recent = Win32Files.recent(limit: 6)
             let name = Win32Files.userName()
             let dark = Win32Control.isDarkMode
-            await MainActor.run {
-                self?.add(.recentLoaded(recent, name: name, dark: dark))
-            }
+            await MainActor.run { self?.add(.shellInfoLoaded(name: name, dark: dark)) }
         }
         icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
         // Its own thread, because COM is initialized per call in
@@ -1202,10 +1151,7 @@ final class StarlingLauncherState: State<StatefulWidget> {
                 }
             }
         }
-        // Four rows when there is nothing to recommend, three when there is:
-        // Windows does the same trade — its "More pins" layout grows the grid
-        // into the space Recommended would have taken.
-        let maxRows = recommendations.isEmpty ? kPinnedRows + 1 : kPinnedRows
+        let maxRows = kPinnedRows
         var rows: [Widget] = []
         var index = 0
         while index < apps.count, rows.count < maxRows {
@@ -1224,106 +1170,13 @@ final class StarlingLauncherState: State<StatefulWidget> {
         }
     }
 
-    /// Files opened lately first, then apps installed lately — which is what
-    /// Windows' Recommended mixes too.
-    private var recommendations: [Widget] {
-        var out: [Widget] = bloc.state.recent.map { recentTile($0) }
-        for app in bloc.state.recentApps where out.count < 6 {
-            out.append(addedTile(app))
-        }
-        return out
+    /// The letter in the account disc.
+    private var initial: String {
+        let name = bloc.state.userName
+        guard let first = name.first else { return "?" }
+        return String(first).uppercased()
     }
 
-    private func recommended() -> Widget {
-        let tiles = recommendations
-        guard !tiles.isEmpty else {
-            return SizedBox(width: kStartContent, height: 60) {
-                Center {
-                    Text("Files you open will show up here.",
-                         style: TextStyle(color: theme.tertiary, fontSize: 12))
-                }
-            }
-        }
-        var rows: [Widget] = []
-        var index = 0
-        while index < tiles.count {
-            // THREE across, which is what the width now allows and what Start
-            // does with it.
-            let end = min(index + 3, tiles.count)
-            rows.append(Row(mainAxisSize: .min, crossAxisAlignment: .center,
-                            children: Array(tiles[index..<end])))
-            index = end
-        }
-        return SizedBox(width: kStartContent) {
-            Column(mainAxisSize: .min, crossAxisAlignment: .start, children: rows)
-        }
-    }
-
-    /// A recently installed app, in the same two-column row as a recent file.
-    private func addedTile(_ app: Win32App) -> Widget {
-        let key = IconCache.key(for: app)
-        return GestureDetector(
-            onTap: { self.launch(app) },
-            child: SizedBox(width: kStartContent / 3, height: 48) {
-                Padding(padding: EdgeInsets(left: 10, top: 3, right: 6, bottom: 3)) {
-                    Row(crossAxisAlignment: .center, spacing: 10) {
-                        appIcon(key, 24)
-                        Expanded {
-                            Column(mainAxisAlignment: .center,
-                                   crossAxisAlignment: .start) {
-                                Text(app.name,
-                                     style: TextStyle(color: theme.text, fontSize: 12),
-                                     overflow: .ellipsis, maxLines: 1)
-                                Text("Recently added",
-                                     style: TextStyle(color: theme.tertiary,
-                                                      fontSize: 11),
-                                     overflow: .ellipsis, maxLines: 1)
-                            }
-                        }
-                    }
-                }
-            })
-    }
-
-    private func recentTile(_ entry: Win32FileEntry) -> Widget {
-        GestureDetector(
-            onTap: { [weak self] in
-                self?.dismissSurface()
-                let path = entry.path
-                Task.detached { Win32AppCatalog.open(path) }
-            },
-            child: SizedBox(width: kStartContent / 3, height: 48) {
-                Padding(padding: EdgeInsets(left: 10, top: 3, right: 6, bottom: 3)) {
-                    Row(crossAxisAlignment: .center, spacing: 10) {
-                        if let icon = bloc.icons.view(recentKey(entry), side: 24) {
-                            icon
-                        } else {
-                            MacosIcon(icon: entry.isDirectory
-                                          ? FluentIcons.folderFill
-                                          : FluentIcons.document,
-                                      color: theme.tertiary, size: 20)
-                        }
-                        Expanded {
-                            Column(mainAxisAlignment: .center,
-                                   crossAxisAlignment: .start) {
-                                Text(entry.name,
-                                     style: TextStyle(color: theme.text, fontSize: 12),
-                                     overflow: .ellipsis, maxLines: 1)
-                                Text(entry.isDirectory ? "Folder"
-                                        : entry.ext.isEmpty ? "File"
-                                        : entry.ext.uppercased() + " file",
-                                     style: TextStyle(color: theme.tertiary,
-                                                      fontSize: 11),
-                                     overflow: .ellipsis, maxLines: 1)
-                            }
-                        }
-                    }
-                }
-            })
-    }
-
-    /// The bar along the bottom: who is signed in, and the power button. Its
-    /// own shade, full width, exactly as Start's is.
     private func accountBar() -> Widget {
         SizedBox(width: kLauncherWidth, height: 60) {
             ColoredBox(color: theme.footer) {
@@ -1367,17 +1220,6 @@ final class StarlingLauncherState: State<StatefulWidget> {
         }
     }
 
-    private func recentKey(_ entry: Win32FileEntry) -> String {
-        LauncherBloc.recentKey(entry)
-    }
-
-    private var initial: String {
-        let name = bloc.state.userName
-        guard let first = name.first else { return "?" }
-        return String(first).uppercased()
-    }
-
-    /// "Pinned … All apps ›"
     private func pinnedHeader() -> Widget {
         // No "All apps ›" any more: everything installed is further down this
         // same scroll, so there is nowhere for that button to go. What stays
@@ -1462,13 +1304,11 @@ final class StarlingLauncherState: State<StatefulWidget> {
         }
     }
 
-    /// The whole panel as ONE list: pinned, recommended and every app, in the
-    /// order Start shows them. Built as descriptors rather than widgets so the
+    /// The whole panel as ONE list: the pinned grid and every app installed,
+    /// in the order Start shows them. Built as descriptors rather than widgets so the
     /// list stays lazy — 129 apps is 129 rows in the list view.
     private var startRows: [StartRow] {
-        var rows: [StartRow] = [.pinnedHeader, .pinnedGrid, .gap(18),
-                                .recommendedHeader, .recommended, .gap(22),
-                                .allHeader]
+        var rows: [StartRow] = [.pinnedHeader, .pinnedGrid, .gap(22), .allHeader]
         let cards = bloc.state.allView == .category ? bloc.cardGroups : []
         let groups = bloc.groups
         if let key = bloc.state.expandedGroup,
@@ -1495,8 +1335,6 @@ final class StarlingLauncherState: State<StatefulWidget> {
         switch row {
         case .pinnedHeader:      return pinnedHeader()
         case .pinnedGrid:        return pinnedGrid()
-        case .recommendedHeader: return sectionRow("Recommended", nil)
-        case .recommended:       return recommended()
         case .allHeader:         return allHeader()
         case .categoryCards(let groups): return categoryRow(groups)
         case .groupHeader(let group):    return groupHeader(group)
@@ -1548,9 +1386,9 @@ final class StarlingLauncherState: State<StatefulWidget> {
                         sectionRow("Best match", nil)
                         Expanded { SizedBox(width: kStartContent) { searchResults() } }
                     } else {
-                        // ONE scroll: pinned, recommended and every app
-                        // installed, in that order, exactly as Start now
-                        // stacks them. The list is keyed by what shape its
+                        // ONE scroll: the pinned grid and every app
+                        // installed, the way Start stacks them once
+                        // Recommended is turned off. The list is keyed by what shape its
                         // rows are, because a lazy list whose cells change
                         // TYPE keeps painting the old ones inside the new
                         // extents (the trap is in the SDK's CLAUDE.md).
