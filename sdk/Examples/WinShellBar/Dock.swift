@@ -409,6 +409,8 @@ final class StarlingDockState: State<StatefulWidget> {
         Win32Shell.ensureBanners()
         // And the Run dialog, so Win+R is a show too.
         Win32Shell.ensureRun()
+        // And the shell's context-menu handlers, a few seconds from now.
+        warmShellMenu()
         if CommandLine.arguments.contains("--oneview") {
             // The one-VIEW shell: the launcher is a LAYER of this tree (the
             // panel window covers the whole screen — dockOverhang was grown
@@ -477,6 +479,51 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// Win+E, and the dock's menu entry. One decision, in FilesWindow.
     func openFiles() { FilesWindow.openFileExplorer() }
+
+    /// WARM THE SHELL'S CONTEXT-MENU HANDLERS, once, a few seconds in.
+    ///
+    /// The first right-click of a session costs **293ms against ~130ms warm**
+    /// — measured on the box with the shell idle (0ms of CPU over the three
+    /// seconds before the click), so it is not startup work standing in the
+    /// way. It is the first IContextMenu session loading the handler DLLs:
+    /// zipfldr, wshext, sendmail, Defender's, the Open-with machinery.
+    ///
+    /// THIS WAS TRIED ONCE AND REMOVED, and the comment recording that (in
+    /// main.swift, above `--menu-probe`) says exactly why it bought nothing:
+    /// *"the handler DLLs are already resident from explorer.exe anyway"*.
+    /// That was true of an app running under Explorer. This process IS the
+    /// shell, explorer is not running, and nothing else loads them before the
+    /// user's first right-click — so the same warm-up now buys the whole
+    /// difference, and the measurement that retired it has to be read with
+    /// its premise attached.
+    ///
+    /// ONE query, and deliberately NOT at the first frame. Every menu session
+    /// shares one serial queue on purpose (two threads asking the shell at
+    /// once is the contention the icon cache already measured itself out of),
+    /// so a right-click arriving while this is in flight would queue BEHIND
+    /// it — a warm-up at startup, competing with the catalog walk and a few
+    /// hundred icons, could make the first menu slower rather than faster.
+    /// Four seconds in, the catalog is done, the shell is idle, and the user
+    /// has not reached a folder yet.
+    private func warmShellMenu() {
+        guard !Self.shellMenuWarmed else { return }
+        Self.shellMenuWarmed = true
+        let owner = Win32WindowedHost.host?.windowHandle ?? 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            let home = ProcessInfo.processInfo.environment["USERPROFILE"]
+                ?? "C:\\Users"
+            guard let session = Win32ShellMenu(path: home, owner: owner) else {
+                return
+            }
+            // The rows are thrown away. What this came for is the DLLs the
+            // query loads and the shell's own caches it fills, which the next
+            // session — the user's — then does not pay for.
+            session.items(.full) { _ in session.close() }
+        }
+    }
+
+    /// Once per process: the DLLs stay loaded for its life.
+    private nonisolated(unsafe) static var shellMenuWarmed = false
 
     private func openOneviewSurfaces() {
         if !Win32Shell.explorerPresent

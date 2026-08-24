@@ -399,6 +399,16 @@ if let index = CommandLine.arguments.firstIndex(of: "--apps-probe") {
 // one-file folder, where the listing's own icon work cannot be doing the
 // warming, measured the same 233ms.
 //
+// AND THE WARM-UP IS BACK, because that last clause expired. "The handler
+// DLLs are already resident from explorer.exe anyway" was true of an app
+// running UNDER Explorer. Running AS the shell, with explorer absent,
+// nothing loads them before the user's first right-click: measured on the
+// box with the shell idle, the first menu of a session cost 293ms against
+// ~130ms warm, and 42 modules / 23 MB arrived with it. `warmShellMenu` in
+// Dock.swift now spends that four seconds after startup instead, and the
+// first right-click measures 131ms. Do not remove it on the strength of the
+// paragraph above without re-reading its premise.
+//
 // The oracle for the file explorer's context menu, and the same bargain
 // `--print-status` makes for the control centre: the menu HOSTS other
 // people's verbs, so what is in it is a property of this machine's installed
