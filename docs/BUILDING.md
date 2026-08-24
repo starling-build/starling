@@ -588,36 +588,57 @@ engine checkout here but the staged app zip cannot: it ships only the DLLs.
 
 `flutter/tools/gn` turns Vulkan on for every non-Apple target — it says so in
 a comment, "there's no reason the Vulkan embedder features can't work on these
-platforms" — while the Windows embedder references Vulkan nowhere and
-`flutter_windows_engine.cc` pushes `--enable-impeller=false`, so Windows draws
-with Skia on ANGLE. Editing `out/host_release/args.gn` and re-running `gn gen`
-(not `flutter/tools/gn`, which would overwrite it) takes 770 KB off
-`flutter_engine.dll`:
+platforms" — and Impeller's backends default on for every desktop platform.
+Windows uses neither: the Windows embedder references Vulkan nowhere and
+`flutter_windows_engine.cc` pushes `--enable-impeller=false`, so it draws Skia
+on ANGLE. Editing `out/host_release/args.gn` and re-running `gn gen` (not
+`flutter/tools/gn`, which would overwrite it) takes **1.93 MB** off
+`flutter_engine.dll` — 11.65 to 9.72:
 
 ```
 skia_use_vulkan = false
 shell_enable_vulkan = false
+impeller_enable_opengles = false
+impeller_enable_vulkan = false
 enable_unittests = false
 ```
 
-`enable_unittests = false` is not optional there: with Vulkan gone, `gn gen`
+Both Impeller backends off is what makes `impeller_supports_rendering` false,
+which is the switch the shell and embedder already guard on — one backend off
+is not a configuration: `gn` itself fails on a target-name collision between
+`impellerc_gles_entity_shaders` and `impellerc_gles3_entity_shaders`.
+
+`enable_unittests = false` is not optional either: with Vulkan gone, `gn gen`
 fails on unresolved dependencies from the *test* graph
 (`embedder_unittests_library` needs `//flutter/testing:vulkan`) before a single
 file compiles. It also takes gtest out of the build.
 
-Two neighbouring knobs are dead ends, both of which cost a build to find out:
+`stripped_symbols = true` is a no-op on Windows — symbols live in the PDB.
 
-- `impeller_enable_opengles = false` breaks the **embedder**, not Impeller:
-  `embedder_external_texture_gl.cc` includes
-  `impeller/renderer/backend/gles/context_gles.h` unconditionally, so the
-  GLES3 include path disappears and it fails on `'GLES3/gl3.h' file not found`.
-- `impeller_enable_vulkan = false` fails in `gn` itself, on a target-name
-  collision between `impellerc_gles_entity_shaders` and
-  `impellerc_gles3_entity_shaders`.
+**Building without Impeller needed three fixes in the fork** (`41b33fc37b0`),
+none of them Impeller work — they are what nobody had hit because a GL
+platform had never been built without it. They are listed here because the
+symptoms point somewhere else entirely:
 
-Both would need patches to a fork we have to keep merging upstream into, for
-about a megabyte. Not worth it. `stripped_symbols = true` is a no-op on
-Windows — symbols live in the PDB.
+- `embedder_external_texture_gl.cc` included seven Impeller headers
+  unguarded, and fails on **`'GLES3/gl3.h' file not found`** — the include
+  directory arrives with a dependency the embedder only takes when
+  `impeller_supports_rendering` is true.
+- `embedder.cc` read `GL_RGBA8`, which it was getting from those same Impeller
+  GLES headers. It already defines `GL_BGRA8_EXT` itself two lines above.
+- `InferOpenGLPlatformViewCreationCallback` constructs
+  `EmbedderSurfaceGLImpeller` under `#ifdef SHELL_ENABLE_GL`, while
+  `embedder/BUILD.gn` compiles that class only under
+  `impeller_supports_rendering` — an **unresolved external at link time**,
+  long after the switch responsible.
+
+One thing that keeps Impeller partly in the build no matter what: the Windows
+compositor uses **`impeller::ProcTableGLES` as its GL function loader**
+(`compositor_opengl.cc` calls `gl_->GenTextures`, `gl_->BindFramebuffer`), so
+`//flutter/impeller/renderer/backend/gles` stays a dependency of
+`flutter_windows.dll`. That target is not gated on the GN arg, so it still
+builds; what goes is Impeller's renderer, entity and Aiks layers and their
+shader archives.
 
 **The bigger win is not code at all.** `//flutter/third_party/icu/BUILD.gn`
 sets `data_dir = "common"` for every desktop target, which is Chromium's full
@@ -631,16 +652,17 @@ ICU_UTIL_DATA_FILE`), so `build/win/package-shell.ps1` simply ships the slice
 instead — a packaging choice, no fork divergence, `-FullIcu` to put the big
 one back.
 
-Together: an installed tree of 136.5 MB becomes 127.3 MB, and the setup exe
-47.5 MB becomes 43.6 MB. **The Linux `build/stage.sh` still copies the full
+Together: an installed tree of 136.5 MB becomes 126.2 MB, and the setup exe
+47.5 MB becomes 43.1 MB. **The Linux `build/stage.sh` still copies the full
 set** — the same ~8.8 MB is available there and has not been tested on that
 platform.
 
 One number for scale before anyone reaches for the Dart VM: a symbol-size
 breakdown of `libflutter_engine.so` puts Skia at 2.9 MB, the **Dart VM at
-1.1 MB**, Impeller at 1.0 MB and the shell/embedder at 1.0 MB. Removing Dart
-from the fork is days of surgery and a permanent merge cost for a third of
-what one line of packaging just recovered.
+1.1 MB**, Impeller at 1.0 MB and the shell/embedder at 1.0 MB. Impeller came
+out for three small guards; Dart is the runtime the whole `lib/ui` boundary is
+written against, so the same trade there is days of surgery and a permanent
+merge cost for less than the ICU line recovered.
 
 ---
 
