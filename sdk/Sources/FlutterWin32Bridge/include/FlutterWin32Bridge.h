@@ -1392,6 +1392,14 @@ int32_t flwin32_apps_folder_count(FlWin32AppsList* list);
 int32_t flwin32_apps_folder_field(FlWin32AppsList* list, int32_t index,
                                   int32_t field, char* out, int32_t out_size);
 
+// A known-folder-relative AppsFolder id ("{1AC14E77-…}\\dfrgui.exe", which is
+// how Windows 11 files most of the old Administrative Tools) resolved to a
+// real path. 0 for any other shape of id. Without it such an entry cannot be
+// matched to the Start Menu shortcut for the same program, and the launcher
+// lists the app twice under two different names.
+int32_t flwin32_expand_known_folder_id(const char* app_id, char* out,
+                                       int32_t out_size);
+
 // Starts an app by AppUserModelID: the activation manager for a packaged id,
 // and "shell:AppsFolder\<id>" through the shell for everything else (and as
 // the fallback when the manager refuses, which is what an elevated process

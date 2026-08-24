@@ -351,9 +351,22 @@ if let index = CommandLine.arguments.firstIndex(of: "--apps-probe") {
     print("[apps-probe] \(apps.count) apps in \(ms)ms — "
           + "\(apps.count - byId.count) from shortcuts, \(byId.count) by id "
           + "(\(packaged.count) packaged)")
-    for app in apps where !app.appUserModelID.isEmpty {
-        print("  id=[\(app.appUserModelID)] name=[\(app.name)] "
-              + "target=[\(app.target)]")
+    // `--all` dumps the WHOLE catalog, not just the half that came in by id.
+    // "the launcher is missing apps" is a question about what the merge threw
+    // away, and the by-id half cannot answer it: an app disappears when the
+    // shortcut walk collapses it into another entry, or when its AppsFolder
+    // row is de-duplicated against a shortcut of the same name.
+    if CommandLine.arguments.contains("--all") {
+        for app in apps {
+            let src = app.appUserModelID.isEmpty ? "lnk" : "id "
+            print("  \(src) name=[\(app.name)] target=[\(app.target)] "
+                  + "cat=[\(app.category)] id=[\(app.appUserModelID)]")
+        }
+    } else {
+        for app in apps where !app.appUserModelID.isEmpty {
+            print("  id=[\(app.appUserModelID)] name=[\(app.name)] "
+                  + "target=[\(app.target)]")
+        }
     }
     guard !wanted.isEmpty else { exit(0) }
     guard let app = apps.first(where: {

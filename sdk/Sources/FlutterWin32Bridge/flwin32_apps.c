@@ -590,6 +590,59 @@ static const IID kAppActivationManagerIID =
     {0x2e941141, 0x7f97, 0x4756,
      {0xba, 0x1d, 0x9d, 0xec, 0xde, 0x89, 0x4a, 0x3d}};
 
+/* A known-folder-relative AppsFolder id, resolved to a real path.
+ *
+ * Windows 11 files most of the old Administrative Tools as
+ * "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\dfrgui.exe" -- a KNOWNFOLDERID
+ * with a file name hung off it, not a path. It matters twice over: an id
+ * like that resolves to nothing on disk (no icon, no window match), and it
+ * cannot be recognized as the same app the Start Menu shortcut points at, so
+ * the launcher lists BOTH -- once under the shortcut's file name ("dfrgui")
+ * and once under the shell's display name ("Defragment and Optimize
+ * Drives").
+ *
+ * Answers 0 for anything that is not that shape, which is most ids. */
+int32_t flwin32_expand_known_folder_id(const char* app_id, char* out,
+                                       int32_t out_size) {
+    if (app_id == NULL || app_id[0] != '{' || out == NULL || out_size <= 0) {
+        return 0;
+    }
+    const char* close = strchr(app_id, '}');
+    if (close == NULL || close[1] != '\\' || close[2] == 0) return 0;
+
+    size_t guid_len = (size_t)(close - app_id) + 1;
+    if (guid_len >= 64) return 0;
+    char guid_ascii[64];
+    memcpy(guid_ascii, app_id, guid_len);
+    guid_ascii[guid_len] = 0;
+
+    wchar_t guid_wide[64];
+    if (MultiByteToWideChar(CP_UTF8, 0, guid_ascii, -1, guid_wide, 64) <= 0) {
+        return 0;
+    }
+    GUID folder;
+    if (FAILED(CLSIDFromString(guid_wide, &folder))) return 0;
+
+    PWSTR base = NULL;
+    if (FAILED(SHGetKnownFolderPath(&folder, 0, NULL, &base)) || base == NULL) {
+        return 0;
+    }
+    wchar_t* rest = utf8_to_wide(close + 2);
+    int32_t written = 0;
+    if (rest != NULL) {
+        size_t need = wcslen(base) + wcslen(rest) + 2;
+        wchar_t* full = (wchar_t*)calloc(need, sizeof(wchar_t));
+        if (full != NULL) {
+            _snwprintf_s(full, need, _TRUNCATE, L"%s\\%s", base, rest);
+            written = wide_copy_out(full, out, out_size);
+            free(full);
+        }
+        free(rest);
+    }
+    CoTaskMemFree(base);
+    return written;
+}
+
 int32_t flwin32_launch_app_id_ex(const char* app_id, char* diag,
                                  int32_t diag_size) {
     char notes[256];

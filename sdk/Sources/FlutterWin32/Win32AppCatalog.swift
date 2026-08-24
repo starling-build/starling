@@ -64,6 +64,28 @@ public struct Win32App: Sendable, Equatable, Identifiable {
 
 public enum Win32AppCatalog {
 
+    /// What a merge treats as "the same app": the program AND the switches it
+    /// is started with.
+    ///
+    /// The target alone is wrong, and wrong in the direction that loses apps.
+    /// Measured on the test machine, 91 Start Menu shortcuts collapse to **76**
+    /// entries keyed by target and **88** keyed by target and arguments —
+    /// twelve apps that simply were not in the launcher. Six of them share
+    /// `cmd.exe` (Command Prompt and all five Visual Studio developer
+    /// prompts), three share `wslg.exe` (every Linux app published into the
+    /// Start Menu), three share the 32-bit `powershell.exe`, and each Python
+    /// installation shares its `python.exe` with its own Module Docs entry.
+    /// The switches are what make them different programs to a user.
+    ///
+    /// The duplicate this key exists to collapse — the same app installed
+    /// machine-wide and per-user — still collapses, because those two
+    /// shortcuts carry the same arguments as well as the same target.
+    private static func identity(target: String, arguments: String,
+                                 fallback: String) -> String {
+        guard !target.isEmpty else { return fallback.lowercased() }
+        return target.lowercased() + "\u{1}" + arguments.lowercased()
+    }
+
     /// Both catalogs, merged and sorted by name: the two Start Menu trees
     /// de-duplicated by target so an app installed machine-wide and per-user
     /// appears once, then everything in the AppsFolder the shortcuts did not
@@ -79,10 +101,11 @@ public enum Win32AppCatalog {
         for which in Int32(0)...Int32(1) {
             guard let root = knownFolder(which) else { continue }
             for app in scan(root) {
-                // Keyed by target when there is one, so the machine-wide and
-                // per-user copies of the same app collapse; by shortcut path
-                // otherwise, which keeps unresolvable ones distinct.
-                let key = app.target.isEmpty ? app.shortcutPath.lowercased() : app.target
+                // Keyed by what the shortcut STARTS, program and switches
+                // both (see `identity`); by shortcut path when the target
+                // could not be resolved, which keeps those distinct.
+                let key = identity(target: app.target, arguments: app.arguments,
+                                   fallback: app.shortcutPath)
                 if byKey[key] == nil { byKey[key] = app }
                 shortcutNames.insert(app.name.lowercased())
             }
@@ -100,10 +123,23 @@ public enum Win32AppCatalog {
             // name costs one missing entry; not de-duplicating at all costs a
             // launcher listing everything twice.
             guard !shortcutNames.contains(entry.name.lowercased()) else { continue }
-            // Same first-wins rule as the walk above: an id that resolves to
-            // an executable we already have is the same app under another
-            // name, and the shortcut's copy is the one worth keeping.
-            if byKey[entry.key] == nil { byKey[entry.key] = entry.app }
+            guard let existing = byKey[entry.key] else {
+                byKey[entry.key] = entry.app
+                continue
+            }
+            // The same program, under a better name. Our walk names an entry
+            // after its shortcut FILE — which for the old Administrative
+            // Tools is "dfrgui" — while the shell names it what Windows
+            // shows: "Defragment and Optimize Drives". Keep the shortcut's
+            // launch data, take the shell's label, and the app stops
+            // appearing twice under two names.
+            byKey[entry.key] = Win32App(shortcutPath: existing.shortcutPath,
+                                        name: entry.name,
+                                        target: existing.target,
+                                        category: existing.category,
+                                        arguments: existing.arguments,
+                                        workingDirectory: existing.workingDirectory,
+                                        appUserModelID: existing.appUserModelID)
         }
         return byKey.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -229,19 +265,33 @@ public enum Win32AppCatalog {
         /// resolve it either — only the full `shell:AppsFolder\…` can) while
         /// still launching, which reads as "some apps have no icon".
         var target: String {
+            guard !appID.contains("!") else { return "" }
+            // A KNOWN-FOLDER id is a path once it is resolved:
+            // "{1AC14E77-…}\\dfrgui.exe" is System32's dfrgui.exe, and that
+            // is how it matches the Start Menu shortcut for the same program.
+            if appID.hasPrefix("{") {
+                var buffer = [CChar](repeating: 0, count: 1024)
+                let n = buffer.withUnsafeMutableBufferPointer {
+                    flwin32_expand_known_folder_id(appID, $0.baseAddress, 1024)
+                }
+                return n > 0 ? String(cString: buffer).lowercased() : ""
+            }
             let id = appID.lowercased()
-            guard !id.contains("!") else { return "" }
             guard id.hasPrefix("\\\\") || id.dropFirst().hasPrefix(":\\") else {
                 return ""
             }
             return id
         }
 
-        /// Same convention as the shortcut walk: the target when there is
-        /// one, so an app already in the dock by executable does not arrive
-        /// a second time under its id.
+        /// Same identity as the shortcut walk, so an app already listed by
+        /// its shortcut does not arrive a second time under its id. An entry
+        /// here carries no arguments — the id IS the whole command — so it
+        /// matches a shortcut that starts the same program with none.
         var key: String {
-            target.isEmpty ? "shell:appsfolder\\" + appID.lowercased() : target
+            target.isEmpty
+                ? "shell:appsfolder\\" + appID.lowercased()
+                : Win32AppCatalog.identity(target: target, arguments: "",
+                                           fallback: appID)
         }
 
         /// The parsing name that opens it, used as the id and as the
