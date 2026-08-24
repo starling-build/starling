@@ -1082,3 +1082,56 @@ flight.
 rather than assumed: the window was never the expensive part. On a 120 Hz
 display both paths would collapse toward the 3 ms of work, and the difference
 between them would vanish entirely.
+
+CHECKPOINT 2026-08-23 — head to head: our context menu against Explorer's.
+
+Same box, same 4K/29 Hz panel, same folder (`C:\Users\starling`), same window
+rect (98,98 2106x1431), same pixel oracle, pointer settled 700 ms before every
+click. Each file manager measured **in its own shell**: ours with Starling as
+`Shell=`, Explorer with the box switched back to the native shell.
+
+| menu | ours | Windows Explorer |
+|---|---|---|
+| **item** (a folder row) | **156 ms** median (129–230) | **300 ms** median (300–301) |
+| **background** (empty space) | **123 ms** median (98–135) | **267 ms** median (266–268) |
+| first of a session (cold) | 127–235 ms | **736–768 ms** |
+
+**Explorer's variance is ±1 ms across 20 trials.** That is not a race being
+won consistently, it is a HOLD: the appearance curve (patch delta sampled
+every ~33 ms) shows nothing at all for ~200 ms, then a step — 0, 0, 0, 0, 0,
+0, 162, 216, flat. Ours steps at ~121 ms. So Explorer still runs the policy
+we removed in `11b60b7`: it waits until its menu is complete and then shows
+it. We reveal with our own rows plus the fast tier and let the full tier grow
+the menu a frame or two later.
+
+**Read the comparison honestly**: both numbers are FIRST PIXELS. For Explorer
+first pixels are also the finished menu; for us the shell's full tier lands
+~60 ms after the reveal (the documented reconcile), so "complete" for us is
+~190–220 ms against Explorer's 300. Ahead either way, and further ahead on
+the measure a user actually feels.
+
+**Content is at parity**, which matters more than the milliseconds: both
+menus carry the same third-party rows from the same handlers (Open in
+Terminal, Open in Terminal Preview), because we speak the same `IContextMenu`
+protocol. Ours differs where our file explorer differs — a six-icon row
+against Explorer's four for a folder, "Show in Explorer" where Explorer
+offers "Open in new tab/window", "Compress to ZIP file" as one row where
+Explorer opens a "Compress to…" submenu — and both end with "Show more
+options".
+
+Harness notes, each of which cost a round trip:
+- **Explorer only selects a row where the NAME column is drawn.** A click near
+  the window's right edge, or on the navigation pane, gets its BACKGROUND menu
+  — and a background menu timed against an item menu is two different
+  questions compared. Both file managers draw a yellow folder glyph at the
+  left of the name, so scanning for it locates a real row; the sidebar's own
+  icons have to be excluded by x.
+- The Files window must be opened with **Win+E**, not by clicking the dock's
+  tile: the tile moves when the pins change, and a missed click leaves the
+  window hidden while `GetWindowRect` still answers happily. Verify the
+  window is PAINTED (count light pixels) before trusting any measurement
+  taken over it.
+- Switching shells back must `schtasks /end` AND kill before `/run`, or the
+  supervisor's respawn leaves **two** shells — two full-screen chrome
+  windows, the second eating every injected click, which shows up as a run
+  with zero trials rather than as an error.
