@@ -1150,3 +1150,35 @@ Harness notes, each of which cost a round trip:
   supervisor's respawn leaves **two** shells — two full-screen chrome
   windows, the second eating every injected click, which shows up as a run
   with zero trials rather than as an error.
+
+CHECKPOINT 2026-08-24 — **the desktop is packageable**. `build/win/`
+holds the Windows counterpart of `build/package-desktop.sh`:
+`package-shell.ps1` (build → assemble → zip → `StarlingSetup-<ver>.exe`
+via iexpress) plus `install.ps1` / `uninstall.ps1`, which are shipped
+inside the package and run from it — the same rule `build/session/`
+follows on Linux, so editing them anywhere but `build/win/` ships a
+stale installer. `docs/WINDOWS-INSTALL.md` is the user-facing half.
+
+47 files, 136.5 MB staged, 48.0 MB zipped, a 47.5 MB setup exe. One
+binary is the whole desktop, file explorer included, because the
+explorer is an engine view in the shell's process.
+
+Proven on the physical box, whole round trip: silent install → files
+under `%LOCALAPPDATA%\Programs\Starling` and `Winlogon\Shell` pointing
+at them → `Uninstall.ps1` → value gone, taskbar restored, explorer back,
+tree deleted → dev registration restored. Two things it taught:
+
+- **A quiet iexpress install runs `UserQuietInstCmd`, NOT `AppLaunched`.**
+  Empty, `/Q:A` extracts the payload perfectly, runs nothing, and exits
+  `0x80070002` — file-not-found for the empty command, which reads as a
+  corrupt package. `/C /T:<dir>` extracts without running and settles in
+  one command which half is broken.
+- **A build box hides a missing runtime DLL**, because the toolchain is
+  on `PATH`. Run the packaged exe with `PATH` cut to System32 and call
+  `--print-startup`: every static import resolves before `main`, so if
+  it prints, the closure is complete. (`dumpbin` calling `api-ms-win-*`
+  missing is noise — those are API-set contracts, not files.)
+
+Not signed, so Smart App Control still refuses it outright and
+SmartScreen prompts once; signing is the next real step if this is ever
+handed to someone who did not build it.
