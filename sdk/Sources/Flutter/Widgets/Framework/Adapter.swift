@@ -552,12 +552,24 @@ func _setupWidgetBinding(_ app: Widget) {
                 || !sp.pipelineOwner._nodesNeedingPaint.isEmpty
                 || forceComposite
                 || !updatedTextures.isDisjoint(with: sp.renderView.sceneTextureIds)
+            let svStart = frameLogNow()
             sp.pipelineOwner.flushLayout()
             sp.pipelineOwner.flushPaint()
             if viewDirty {
                 let first = !sp.hasComposited
                 sp.hasComposited = true
                 sp.renderView.compositeFrame()
+                // A SECONDARY view's frame, on the same timeline as the
+                // primary's above — a popup menu or a hosted file explorer
+                // composites here and nowhere else, and a question like
+                // "why did this path take an extra frame" cannot be answered
+                // from the primary's line alone.
+                if frameLogEnabled {
+                    let svEnd = DispatchTime.now().uptimeNanoseconds
+                    frameLogWrite("[frame] at=\(svStart / 1_000_000)ms"
+                        + " view=\(fv.viewId)"
+                        + " total=\((svEnd - svStart) / 1_000)us")
+                }
                 if first {
                     // One line per view's life — the composite-side twin of
                     // "pipeline created" above. A view that was created and
@@ -600,7 +612,8 @@ func _setupWidgetBinding(_ app: Widget) {
         if frameLogEnabled && shouldComposite {
             let ftEnd = DispatchTime.now().uptimeNanoseconds
             func us(_ a: UInt64, _ b: UInt64) -> UInt64 { (b - a) / 1_000 }
-            frameLogWrite("[frame] build=\(us(ftStart, ftBuild))us"
+            frameLogWrite("[frame] at=\(ftStart / 1_000_000)ms"
+                + " build=\(us(ftStart, ftBuild))us"
                 + " layout=\(us(ftBuild, ftLayout))us"
                 + " paint=\(us(ftLayout, ftPaint))us"
                 + " composite=\(us(ftPaint, ftComposite))us"
