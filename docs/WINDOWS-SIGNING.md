@@ -22,8 +22,25 @@ Not the SmartScreen dialog. **Smart App Control.**
   Signing every release with the *same* identity is what makes that
   reputation accumulate instead of resetting per build.
 
-The Microsoft Store would remove the prompt entirely and is not open to us: a
-Winlogon `Shell=` replacement cannot be an MSIX-packaged app.
+**The Store is not an alternative to signing — it requires it.** The MSIX
+route is closed to us (a Winlogon `Shell=` replacement cannot be a
+containerized package), but the Store has taken plain Win32 `.exe`/`.msi`
+installers since June 2021, and that route demands "the binary **and all of
+its PE files**" be signed by a CA in the Trusted Root Program, with
+self-signed explicitly refused
+([requirements](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msi/app-package-requirements)).
+What it adds on top is the SmartScreen half: no prompt during a Store
+install. Signing gets past Smart App Control, the Store gets past
+SmartScreen, and you need both to have neither.
+
+Our setup exe meets that bar except in two respects, if we ever submit it:
+the installer **must show no UI of its own** (UAC is allowed, our confirm
+prompt and finish message are not), and the download URL must be versioned,
+hosted by us, and never change behind a submission.
+
+For an open-source project there is also **SignPath Foundation**, which signs
+qualifying OSS free at OV level through their own pipeline — the trade being
+that the certificate subject and the build process are theirs.
 
 ## Which certificate
 
