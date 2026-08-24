@@ -173,7 +173,7 @@ startup is not replayed (Explorer already ran it this logon).
 
 ## What is in the package
 
-32 files, 119.4 MB staged:
+32 files, 118.5 MB staged:
 
 | | |
 |---|---|

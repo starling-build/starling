@@ -62,6 +62,18 @@ $trims = @{
     'angle_enable_gl'          = 'false'
     'angle_enable_gl_desktop_backend' = 'false'
     'angle_enable_d3d9'        = 'false'
+
+    # The Dart runtime's optional pieces. The VM itself cannot leave -- the
+    # shell's own plumbing types (SceneBuilder, MultiFrameCodec, ImageDecoder,
+    # PlatformMessage, SemanticsNode) live in //flutter/lib/ui and are
+    # Dart-wrappable classes, so dropping Dart means splitting that library,
+    # not guarding call sites. What CAN go is everything the VM only needs to
+    # talk to a network it never opens: this engine runs no Dart code at all,
+    # because Shell::CreateSwift injects a SwiftRuntimeController and leaves
+    # vm_ empty.
+    'dart_disable_secure_socket'        = 'true'
+    'dart_use_fallback_root_certificates' = 'false'
+    'dart_version_git_info'             = 'false'
 }
 
 $text = Get-Content $argsFile -Raw
