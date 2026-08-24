@@ -67,7 +67,11 @@ zips, and wraps the zip in the setup exe:
 ```
 
 It takes `-Version`, `-OutDir`, `-EngineOut` and `-SwiftRuntime`; the
-defaults match a box set up per `docs/BUILDING.md`. `Install.ps1` and
+defaults match a box set up per `docs/BUILDING.md`. Add `-Sign` with either
+`-SigningMetadata` (Azure Artifact Signing) or `-CertThumbprint` (a
+certificate on a token) to sign the payload and the setup exe — see
+[`docs/WINDOWS-SIGNING.md`](WINDOWS-SIGNING.md), which is also where the
+Smart App Control argument for bothering lives. `Install.ps1` and
 `Uninstall.ps1` are copied into the package **verbatim** — edit them in
 `build/win/`, never re-inline them in the packager, or a built package ships
 a stale installer.

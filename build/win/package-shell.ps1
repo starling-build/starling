@@ -17,9 +17,101 @@ param(
     [string]$SwiftRuntime = "$env:LOCALAPPDATA\Programs\Swift\Runtimes\6.2.3\usr\bin",
     [string]$Version = "0.1.0",
     [string]$OutDir = "$env:USERPROFILE\dist",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+
+    # --- signing -------------------------------------------------------
+    # Off by default, so an unsigned developer package costs nothing. What
+    # signing buys is NOT the SmartScreen dialog -- that stays until the
+    # publisher and each file hash accumulate download reputation -- it is
+    # Smart App Control, which blocks "unknown, unsigned code" outright and
+    # allows an unknown binary signed by a CA in the Trusted Root Program.
+    # Unsigned, this package cannot run at all on a SAC machine.
+    [switch]$Sign,
+    # Azure Artifact Signing (formerly Trusted Signing): the metadata.json
+    # naming the account, certificate profile and REGION endpoint.
+    [string]$SigningMetadata,
+    # Or a certificate in the local store / on a FIPS token, by thumbprint.
+    [string]$CertThumbprint,
+    [string]$SignToolPath,
+    [string]$DlibPath,
+    # Artifact Signing certificates live for THREE DAYS. The timestamp is not
+    # a nicety there, it is the only reason a signature outlives the week.
+    [string]$TimestampUrl = "http://timestamp.acs.microsoft.com"
 )
 $ErrorActionPreference = 'Stop'
+
+# --- signing -----------------------------------------------------------
+#
+# One function for both certificate sources, because everything except the
+# credential flag is identical and the two must not drift: same digest, same
+# timestamp authority, same verification.
+function Resolve-SignTool {
+    if ($SignToolPath) { return $SignToolPath }
+    # Newest SDK wins. The dlib needs 10.0.22621.755 or later; the 20348 SDK
+    # is explicitly unsupported, and picking it produces a signing failure
+    # that reads like an authentication problem.
+    $found = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object {
+            # bin\<version>\x64\signtool.exe on any current SDK; the older
+            # bin\x64 layout has no version to parse and sorts oldest.
+            $v = $null
+            if ([version]::TryParse($_.Directory.Parent.Name, [ref]$v)) { $v } else { [version]'0.0' }
+        } | Select-Object -Last 1
+    if (-not $found) { throw "signtool.exe not found; pass -SignToolPath or install the Windows SDK" }
+    return $found.FullName
+}
+
+function Resolve-Dlib {
+    if ($DlibPath) { return $DlibPath }
+    foreach ($root in @("${env:ProgramFiles}\Microsoft", "${env:ProgramFiles(x86)}\Microsoft", $OutDir)) {
+        $hit = Get-ChildItem $root -Recurse -Filter 'Azure.CodeSigning.Dlib.dll' -ErrorAction SilentlyContinue |
+            Where-Object { $_.DirectoryName -match '\\x64$' } | Select-Object -First 1
+        if ($hit) { return $hit.FullName }
+    }
+    throw ("the Artifact Signing dlib was not found. Install the client tools:`n" +
+           "  winget install -e --id Microsoft.Azure.ArtifactSigningClientTools`n" +
+           "or pass -DlibPath")
+}
+
+# Sign a batch of files. signtool takes many paths per invocation, and each
+# file is one signature either way, so batching costs nothing and saves the
+# per-call overhead of standing up the dlib.
+function Invoke-SignFiles([string[]]$Paths, [string]$What) {
+    if (-not $Paths -or $Paths.Count -eq 0) { return }
+    $tool = Resolve-SignTool
+    # NOT $args: that is an automatic variable inside a function, and
+    # shadowing it is the kind of thing that works until it doesn't.
+    $signArgs = @('sign', '/v', '/fd', 'SHA256', '/tr', $TimestampUrl, '/td', 'SHA256')
+    if ($CertThumbprint) {
+        $signArgs += @('/sha1', $CertThumbprint)
+    } else {
+        $signArgs += @('/dlib', (Resolve-Dlib), '/dmdf', $SigningMetadata)
+    }
+    Write-Host ("  signing {0} {1}" -f $Paths.Count, $What)
+    & $tool @signArgs @Paths
+    if ($LASTEXITCODE -ne 0) { throw "signing failed ($LASTEXITCODE)" }
+    # Verify against the machine's own policy, every signature in the file.
+    # A sign that "succeeded" but does not verify is the failure mode worth
+    # catching here rather than on a tester's SAC machine.
+    & $tool verify /pa /all @Paths | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "verification failed after signing ($LASTEXITCODE)" }
+}
+
+# Everything we redistribute that nobody has signed: our exe, the engine, and
+# the whole Swift runtime. NOT the MSVC redistributables -- those carry
+# Microsoft's own signature, and replacing it with ours would be a downgrade
+# that also burns quota. SAC judges every binary a process loads, so an
+# unsigned DLL beside a signed exe earns "Smart App Control has blocked PART
+# of this app", which is a worse bug report than a clean block.
+function Get-UnsignedBinaries([string]$Dir) {
+    Get-ChildItem $Dir -Recurse -Include *.exe, *.dll -File |
+        Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' } |
+        ForEach-Object { $_.FullName }
+}
+
+if ($Sign -and -not ($SigningMetadata -or $CertThumbprint)) {
+    throw "-Sign needs either -SigningMetadata (Artifact Signing) or -CertThumbprint"
+}
 
 $sdk = Join-Path $Root 'sdk'
 $name = "Starling-$Version-win-x64"
@@ -77,6 +169,15 @@ if (-not $sha) { $sha = 'unknown' }
 
 $files = Get-ChildItem $stage -Recurse -File
 Write-Host ("  {0} files, {1:N1} MB" -f $files.Count, (($files | Measure-Object -Property Length -Sum).Sum / 1MB))
+
+if ($Sign) {
+    Write-Host "== 2b. sign the payload =="
+    # BEFORE the zip: a signature is the last write to a file, and zipping a
+    # tree and signing it afterwards would mean signing nothing at all.
+    Invoke-SignFiles (Get-UnsignedBinaries $stage) "binaries"
+} else {
+    Write-Host "  (unsigned -- Smart App Control machines will refuse this package)"
+}
 
 Write-Host "== 3. zip =="
 $zip = Join-Path $OutDir "$name.zip"
@@ -156,6 +257,12 @@ $sed = Join-Path $OutDir 'starling.sed'
 Remove-Item $setup -Force -ErrorAction SilentlyContinue
 & $iexpress /N /Q $sed | Out-Null
 if (Test-Path $setup) {
+    # AFTER iexpress, for the same reason the payload is signed before the
+    # zip: whoever writes the file last wins, and iexpress writes the whole
+    # PE. The wrapper and its payload are signed separately -- the SFX
+    # signature covers what the user double-clicks, the payload signatures
+    # cover what SAC judges when the desktop actually runs.
+    if ($Sign) { Invoke-SignFiles @($setup) "setup.exe" }
     Write-Host ("  $setup  {0:N1} MB" -f ((Get-Item $setup).Length / 1MB))
 } else {
     Write-Warning "iexpress produced nothing; the zip is the deliverable"
