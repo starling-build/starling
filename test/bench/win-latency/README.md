@@ -178,6 +178,53 @@ schtasks /run /tn X
   `if (Check ...)` — the string is truthy, so every check "passes" (or fails).
   Use `Write-Host` for narration inside a function that returns a value.
 
+## The context-menu arm
+
+`capture-ctxmenu.ps1` is the pointer-driven sibling of `capture-menu.ps1`:
+right-click a folder row, time the menu. Same marker, same stamps, same
+analyzer (`analyze-menu.py`, which now infers the signature resolution from
+the file rather than assuming 16x16). `compose-ctxmenu.py` and
+`filmstrip-ctxmenu.py` make the film and the still.
+
+Measured 2026-08-23, 20 warm reps each, medians — ours under Starling,
+Explorer under the native shell:
+
+| | first pixels | finished |
+|---|---|---|
+| Starling | **66.6 ms** | **66.6 ms** (the same frame) |
+| Windows File Explorer | 233.2 ms | 299.8 ms |
+
+Ours is finished in the frame it first appears, because the type cache paints
+the panel complete. Explorer's menu is *absent* for seven frames and then
+steps in — it holds until its shell tier is complete, which is the policy we
+removed. **Note how much better this instrument is to us than GDI was**: a
+`CopyFromScreen` oracle read our menu at 123–156 ms and Explorer at ~300, so
+it penalised only the GL side. One instrument for both contenders, always.
+
+Four traps beyond the ones above, each of which produced a plausible-looking
+wrong answer:
+
+- **The sync marker must not take activation.** A WinForms marker without
+  `WS_EX_NOACTIVATE` steals the foreground; Explorer answers a right-click
+  while unfocused and OUR file explorer does not, so the capture recorded
+  twenty reps of nothing while the marker signal looked perfect. The analyzer
+  says "0 reps detected" over 20 clean marker edges — that phrasing means the
+  REGION never changed, not that t0 was missing.
+- **A "minimize everything else" step must skip the target's whole PROCESS,
+  not just its window.** Hosted in the shell, the file explorer's siblings are
+  the dock and the desktop, and the dock's window is titled ("Starling Dock"),
+  so a title-based skip minimizes the shell's own chrome. A minimized host has
+  no popups, and the pre-flight then reports a shell that cannot open menus.
+- **Do not dismiss the menu by clicking "somewhere empty".** A context menu
+  opens at the pointer and extends down and right; the window's bottom strip
+  is *inside* it, so the dismissal invokes whatever row is there — a run ends
+  up with a stack of Properties dialogs and every rep starts from a different
+  state. Press Escape, and check in pre-flight that Escape actually closes it
+  rather than assuming.
+- **Assert the menu opens before recording.** `capture-ctxmenu.ps1` opens one
+  menu, samples a patch, and refuses to record if nothing changed. Three of
+  the failures above were only cheap to find because of it.
+
 ## Comparing against the native shell
 
 Only one shell can own the Win key, so the two configurations are recorded

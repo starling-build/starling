@@ -14,14 +14,21 @@ import sys, statistics
 FPS = 30.0
 
 def load(prefix):
+    """Marker brightness per frame, and the region signature per frame.
+
+    The signature's resolution is INFERRED from the file, not assumed: the
+    README calls 16x16 enough for a surface that simply appears and 64x64
+    necessary for anything with content in it, and hardcoding one of them
+    turns the other into an assertion failure three steps later."""
     mk = open(prefix + ".marker.raw", "rb").read()
     mn = open(prefix + ".region.raw", "rb").read()
     n = len(mk)
-    assert len(mn) == n * 256, "signal length mismatch"
-    return mk, [mn[i*256:(i+1)*256] for i in range(n)], n
+    assert n and len(mn) % n == 0, "signal length mismatch"
+    k = len(mn) // n
+    return mk, [mn[i*k:(i+1)*k] for i in range(n)], n
 
 def mad(a, b):
-    return sum(abs(a[j] - b[j]) for j in range(256)) / 256.0
+    return sum(abs(a[j] - b[j]) for j in range(len(a))) / float(len(a))
 
 def analyze(prefix, stamps_file, label, thresh=8.0, settle_eps=0.5):
     mk, sig, n = load(prefix)
