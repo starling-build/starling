@@ -134,7 +134,23 @@ say so in different words:
   override. It can only be turned **off**, and turning it off is
   **irreversible without a clean install of Windows**. That is a decision
   about the machine, not a step in an install; on a machine that keeps it on,
-  this package cannot run at all.
+  *this* package cannot run at all.
+
+  **Unsigned is the operative word, and it is fixable.** SAC blocks
+  "malware, PUA, and unknown, unsigned code" — where its intelligence
+  service has no opinion about a file, it still allows one *signed by a CA
+  in the Microsoft Trusted Root Program*
+  ([overview](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview)).
+  So a publicly-trusted signature is what moves this package from "cannot
+  run" to "runs", and it is the reason to sign that outweighs the
+  SmartScreen dialog — which a signature does **not** remove, because
+  reputation builds per file hash and per publisher over weeks of downloads
+  ([SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)).
+
+  Two mitigations that need no certificate: SAC can only switch on at a
+  **clean install** of Windows, and Microsoft turns it off automatically on
+  machines whose usage looks like development. Anyone replacing their shell
+  is likely to be on such a machine already.
 
 ## Running it beside Explorer
 
