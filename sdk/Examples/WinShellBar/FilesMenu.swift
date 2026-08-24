@@ -375,6 +375,23 @@ final class ShellMenuModel {
         scheduleSync()
     }
 
+    /// The offset from THIS tree's window to the host window's client
+    /// origin, in logical points.
+    ///
+    /// Popup geometry crosses the boundary in the HOST window's client space.
+    /// For a process whose tree owns the main window those are the same
+    /// space and this is zero. Hosted in the shell they are not: the host
+    /// window is the DOCK, full screen at the origin, while the file
+    /// explorer is a surface window wherever the user dragged it — so a menu
+    /// computed at the pointer in this window's points opened at those
+    /// coordinates measured from the screen's corner instead. Measured
+    /// before the fix: pointer at screen (1700,1000), explorer client origin
+    /// (893,344), menu drawn at (807,656).
+    private var popupOffset: (x: Double, y: Double) {
+        guard let id = FilesWindow.current.surfaceId else { return (0, 0) }
+        return Win32Surfaces.clientOffset(id)
+    }
+
     private func syncPopups() {
         guard popupsEnabled else { return }
         guard isOpen, let at = origin(mainMenu) else {
@@ -400,7 +417,14 @@ final class ShellMenuModel {
         // policy cost every warm menu ~200ms of invisible waiting to spare
         // the cold one a visible growth Windows 11's own menu has too
         // (slow IExplorerCommands fill in late there as well).
-        let rect = MenuRect(x: at.x, y: at.y, w: menu.width, h: menu.height)
+        // Into the HOST window's client space, which is where popup geometry
+        // is expressed — see popupOffset. Converted HERE rather than at each
+        // call so the cached rects below compare in one space, and a window
+        // the user has dragged since the last sync re-places rather than
+        // silently keeping the old offset.
+        let off = popupOffset
+        let rect = MenuRect(x: at.x + off.x, y: at.y + off.y,
+                            w: menu.width, h: menu.height)
         if let id = mainPopup {
             if rect != mainPopupRect {
                 Win32PopupSurfaces.place(id, x: rect.x, y: rect.y,
@@ -443,7 +467,7 @@ final class ShellMenuModel {
 
         if let subOrigin = subAt, !subMenu.rows.isEmpty {
             let sub = subMenu
-            let srect = MenuRect(x: subOrigin.x, y: subOrigin.y,
+            let srect = MenuRect(x: subOrigin.x + off.x, y: subOrigin.y + off.y,
                                  w: sub.width, h: sub.height)
             if let id = subPopup {
                 if srect != subPopupRect {

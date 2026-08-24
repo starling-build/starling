@@ -737,6 +737,15 @@ int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
 // DESKTOP: show at the bottom of the z-order (call on first composite).
 // OVERLAY: show + take foreground + focus the view child.
 void flwin32_surface_show(FlWin32Host* host, int64_t view_id);
+// Where a surface's client area sits, in the HOST window's client logical
+// points — the space popup geometry is expressed in. A tree hosted in a
+// surface computes its menus in its OWN client points, and the host window
+// is somewhere else entirely (in the shell it is the dock), so the offset
+// has to be added on the way to flwin32_popup_open/place. Zero for anything
+// that is not a surface view, so callers can add it unconditionally.
+void flwin32_surface_client_offset(FlWin32Host* host, int64_t view_id,
+                                   double* x_pt, double* y_pt);
+
 int32_t flwin32_surface_is_visible(FlWin32Host* host, int64_t view_id);
 void flwin32_surface_set_visible(FlWin32Host* host, int64_t view_id,
                                  int32_t visible);

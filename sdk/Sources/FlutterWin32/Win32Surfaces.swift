@@ -143,6 +143,19 @@ public enum Win32Surfaces {
         toggleHandlers[id] = handler
     }
 
+    /// Where this surface's client area sits inside the HOST window's client
+    /// space, in logical points — what a tree hosted here must add to any
+    /// geometry it hands to the popup surfaces, whose coordinates are the
+    /// host window's. Zero when the id is not a surface, so a caller that
+    /// may or may not be hosted can add it unconditionally.
+    public static func clientOffset(_ id: Int) -> (x: Double, y: Double) {
+        guard let host = Win32WindowedHost.host else { return (0, 0) }
+        var x = 0.0
+        var y = 0.0
+        flwin32_surface_client_offset(host.cHost, Int64(id), &x, &y)
+        return (x, y)
+    }
+
     public static func isVisible(_ id: Int) -> Bool {
         guard let host = Win32WindowedHost.host else { return false }
         return flwin32_surface_is_visible(host.cHost, Int64(id)) != 0

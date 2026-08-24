@@ -495,6 +495,46 @@ void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
   }
 }
 
+/* WHERE A SURFACE'S CLIENT AREA SITS, in the HOST window's client logical
+ * points.
+ *
+ * Popup geometry crosses the boundary in the host window's client space
+ * (flwin32_popup.c says so, and converts with the host's own DPI). A tree
+ * hosted in a SURFACE does not live in that window: in the shell the host
+ * window is the DOCK, full screen, while the file explorer's view is a
+ * window of its own wherever the user last dragged it. Everything such a
+ * tree computes -- a menu at the pointer, a flyout under a row -- is in its
+ * OWN client points, so it has to add this offset on the way out.
+ *
+ * Without it the menu opens at the pointer's coordinates measured from the
+ * wrong window's corner, which looks like "the menu appears in the wrong
+ * place" and reads like a layout bug: measured, a pointer at screen
+ * (1700,1000) with the explorer's client origin at (893,344) put the menu at
+ * (807,656).
+ *
+ * Zero for a view that is not a surface, so an unhosted caller can add it
+ * unconditionally. */
+void flwin32_surface_client_offset(FlWin32Host* host, int64_t view_id,
+                                   double* x_pt, double* y_pt) {
+  if (x_pt != NULL) *x_pt = 0;
+  if (y_pt != NULL) *y_pt = 0;
+  SurfaceSlot* slot = surface_for_view(view_id);
+  if (slot == NULL || slot->host != host || slot->window == NULL) return;
+  HWND hostw = (HWND)flwin32_host_window(host);
+  if (hostw == NULL) return;
+  /* The HOST's dpi, because that is the scale flwin32_popup.c multiplies
+   * these points back up with -- the two conversions have to agree, and a
+   * surface on another monitor would otherwise disagree by its scale. */
+  UINT dpi = GetDpiForWindow(hostw);
+  double scale = dpi > 0 ? (double)dpi / 96.0 : 1.0;
+  POINT host_origin = {0, 0};
+  POINT surface_origin = {0, 0};
+  ClientToScreen(hostw, &host_origin);
+  ClientToScreen(slot->window, &surface_origin);
+  if (x_pt != NULL) *x_pt = (surface_origin.x - host_origin.x) / scale;
+  if (y_pt != NULL) *y_pt = (surface_origin.y - host_origin.y) / scale;
+}
+
 int32_t flwin32_surface_is_visible(FlWin32Host* host, int64_t view_id) {
   SurfaceSlot* slot = surface_for_view(view_id);
   if (slot == NULL || slot->host != host) return 0;
