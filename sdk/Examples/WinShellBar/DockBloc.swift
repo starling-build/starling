@@ -219,6 +219,13 @@ final class DockBloc: @unchecked Sendable {
             _hideNativeTaskbarIfItCameBack()
             _ = Win32Shell.takeTaskmanWindow()
             Win32WindowedHost.host?.reassertAppbar()
+            // And recompute the reservation from the live bar list. An
+            // explorer that came and went -- which is what every packaged-app
+            // launch now does, briefly -- leaves its taskbar's claim in our
+            // appbar list with no window behind it, and nothing in the
+            // protocol says so. Cheap: it compares, and only writes if the
+            // answer moved.
+            flwin32_tray_reapply_workarea()
 
         case .windowsChanged:
             _queueRefresh()

@@ -52,6 +52,7 @@
 #endif
 
 #include <windows.h>
+#include <objbase.h>
 #include <shellapi.h>
 #include <tlhelp32.h>
 #include <stdlib.h>
@@ -529,34 +530,27 @@ static int explorer_running_in_session(void) {
 }
 
 int32_t flwin32_shell_ensure_explorer_service(void) {
-    /* ON by default, and the reason it can be is that the work area is now
-     * ours.
+    /* OPT-IN, and no longer the way packaged apps get launched.
      *
-     * It was opt-in for one release because of a single unsolved conflict:
-     * with explorer alive the dock's strip stopped being reserved, so
-     * maximized windows ran underneath a dock that was still drawn. The cause
-     * turned out to be our own notification -- SPI_SETWORKAREA with
-     * SPIF_SENDCHANGE is explorer's cue to recompute, and what it computes is
-     * "nothing is reserved". Announcing the change ourselves, to every window
-     * except explorer's, ends it (flwin32_tray.c, workarea_announce), and the
-     * appbar service now serves the dock rather than forwarding a registration
-     * explorer cannot read.
+     * Keeping an explorer alive for the whole session is what made CoreWindow
+     * packaged apps -- Settings, Calculator, the Store generation -- launch at
+     * all. It cost about 227 MB permanently for a process the user never sees.
+     * Measured on the box, that trade was unnecessary: explorer is needed only
+     * for the ACTIVATION, not for running the app. Starting one takes 1.2 s to
+     * make activation succeed, and once the app is up explorer can be killed
+     * and the app carries on working indefinitely. So the shell borrows one per
+     * launch (flwin32_shell_borrow_explorer) and idles with none.
      *
-     * What it buys: CoreWindow packaged apps -- the Store generation, which
-     * includes Calculator and Settings -- launch at all. What it costs,
-     * measured on the box: one explorer process, about 227 MB and 0.05% of a
-     * core, with no chrome of its own on screen.
-     *
-     * STARLING_EXPLORER_SERVICE=0 turns it off for a machine that would rather
-     * have the memory back and does not want Store apps. */
-    /* Only an explicit "0" declines. Unset means the default, and so does
-     * empty -- an empty variable is not an instruction either way, and reading
-     * it as one is how the OTHER direction of this went wrong: while the flag
-     * was opt-in, "0" was read as "on", so the control run of an A/B quietly
-     * started explorer and measured the same configuration twice. */
-    wchar_t off[8];
-    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", off, 8) > 0 &&
-        off[0] == L'0') {
+     * This is still here because a machine that launches packaged apps
+     * constantly may prefer to pay the memory once rather than the 1.2 s every
+     * time. Only an explicit "1" asks for it. Empty is not an instruction, and
+     * reading it as one has already gone wrong in the other direction: while
+     * this was written as "anything non-empty means on", the control run of an
+     * A/B set it to "0", quietly started explorer, and measured the same
+     * configuration twice. */
+    wchar_t on[8];
+    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) == 0 ||
+        on[0] != L'1') {
         return 0;
     }
 
@@ -611,8 +605,155 @@ int32_t flwin32_shell_ensure_explorer_service(void) {
  * uses to keep explorer's chrome down between the hook's notifications. */
 void flwin32_shell_suppress_explorer_chrome(void) {
     if (!g_hide_desktop) return;
+    /* ...and keep our tray window above explorer's while it is up. It is not
+     * only a matter of what the user sees: the topmost Shell_TrayWnd is the
+     * one SHAppBarMessage talks to, so losing that position hands the appbar
+     * protocol -- and with it the dock's own reservation -- to explorer. */
+    flwin32_tray_raise();
     if (flwin32_explorer_taskbar_visible()) flwin32_explorer_taskbar_hide();
     hide_desktop_now();
+}
+
+/* ── borrowing explorer for the length of one launch ──────────────────────
+ *
+ * CoreWindow packaged apps -- Settings and Calculator among them -- cannot be
+ * activated unless explorer is running. Not because the app needs it, and not
+ * because of anything on screen: explorer publishes a background COM component
+ * that the activation machinery asks for by identity, the component exists only
+ * while explorer runs, and without it the launch is refused outright. The app
+ * process is never created at all.
+ *
+ * The whole dependency is at LAUNCH TIME, which is what makes this cheap.
+ * Measured on the box, with our shell running and no explorer:
+ *
+ *     start explorer, poll activation  -> succeeds after 1.2 s
+ *     kill explorer, watch the app     -> window visible and its thread still
+ *                                         answering 25 s later
+ *     activate again with none running -> refused, exactly as before
+ *
+ * So explorer is borrowed for a couple of seconds per launch and dropped, and
+ * an idle session runs none. The alternative was to implement that component
+ * ourselves: it is unnamed, undocumented, has no stable contract, and getting
+ * past its first method call only reveals the next one.
+ *
+ * We borrow ONLY when no explorer is running. One that is already there is
+ * somebody else's -- the opt-in service above, or a user who started it -- and
+ * killing it is not ours to do.
+ */
+static HANDLE g_borrowed = NULL;
+static int g_borrow_saved_hide = 0;
+
+/* Is the borrowed explorer far enough along to serve an activation?
+ *
+ * Two wrong answers were measured before this one. Retrying the ACTIVATION as
+ * the readiness test costs about a second per refusal, so the launch took 46
+ * seconds. Asking COM whether the class exists yet is worse, not better: the
+ * failing create goes to the service control manager and takes most of a
+ * second too, so that timed at 53.
+ *
+ * Explorer's desktop window is the cheap signal. It appears when explorer has
+ * started as the session's shell, which is the same moment the rest of its
+ * shell side comes up, and FindWindow answers instantly whether it is there or
+ * not. It stays findable after we hide it -- hiding is ShowWindow, not
+ * destruction -- so the suppression running alongside this does not blind it.
+ */
+static int32_t explorer_shell_up(void) {
+    return FindWindowW(L"Progman", NULL) != NULL ? 1 : 0;
+}
+
+int32_t flwin32_shell_services_ready(void) {
+    return explorer_shell_up();
+}
+
+int32_t flwin32_shell_borrow_explorer(void) {
+    if (g_borrowed != NULL) return 0;
+    if (explorer_still_alive() || explorer_running_in_session()) return 0;
+
+    wchar_t path[MAX_PATH];
+    UINT n = GetWindowsDirectoryW(path, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH - 16) return 0;
+    wcscat_s(path, MAX_PATH, L"\\explorer.exe");
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (!CreateProcessW(path, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si,
+                        &pi)) {
+        return 0;
+    }
+    CloseHandle(pi.hThread);
+    g_borrowed = pi.hProcess;
+    /* Its chrome has to stay down for the seconds it is up, and that is the
+     * same suppression the opt-in service uses -- so turn that on for the
+     * duration even when the service is off, and put the flag back after. */
+    g_borrow_saved_hide = g_hide_desktop;
+    g_hide_desktop = 1;
+    return 1;
+}
+
+/* Hand it back. The kill runs on its own thread after a grace period, because
+ * the caller is a launch: holding it open for three seconds to watch a process
+ * we are about to kill would put that delay in front of the user's app. The
+ * grace period is not superstition -- activation returning success means the
+ * app was STARTED, and it is still talking to the shell for a moment after. */
+static DWORD WINAPI borrow_end(LPVOID param) {
+    HANDLE h = (HANDLE)param;
+    int i;
+    for (i = 0; i < 12; i++) {
+        Sleep(250);
+        flwin32_shell_suppress_explorer_chrome();
+    }
+    TerminateProcess(h, 0);
+    CloseHandle(h);
+    g_hide_desktop = g_borrow_saved_hide;
+    /* The show-hook was watching a process that no longer exists. */
+    unhook_explorer();
+    /* Its taskbar was a registered appbar and took work area from the dock's.
+     * Nothing announces a bar whose window died with its process, so the
+     * reservation has to be recomputed by hand or the desktop stays short by
+     * a taskbar's height. No-op in a process that does not host the tray. */
+    /* A SWEEP, not one shot. The last word on the work area does not always
+     * land while explorer is still alive -- a single repair 400 ms after the
+     * kill put the reservation back for one app and not for the next, which is
+     * the signature of racing something rather than of a wrong answer. Each
+     * pass is a comparison and writes nothing when the answer already agrees,
+     * so the cost of covering three seconds is three comparisons.
+     *
+     * Locally AND by broadcast: the local call is the one that definitely
+     * arrives, and the broadcast is the one that reaches the dock when the
+     * process that borrowed is somebody else (a one-shot launcher, a test). */
+    {
+        UINT recheck = RegisterWindowMessageW(L"StarlingWorkAreaRecheck");
+        static const int kAt[] = {400, 700, 1000, 1500, 2000, 3000};
+        int prev = 0;
+        int k;
+        for (k = 0; k < (int)(sizeof(kAt) / sizeof(kAt[0])); k++) {
+            Sleep((DWORD)(kAt[k] - prev));
+            prev = kAt[k];
+            flwin32_tray_raise();
+            flwin32_tray_reapply_workarea();
+            SendNotifyMessageW(HWND_BROADCAST, recheck, 0, 0);
+        }
+    }
+    return 0;
+}
+
+void flwin32_shell_return_explorer(void) {
+    HANDLE h = g_borrowed;
+    HANDLE t;
+    if (h == NULL) return;
+    g_borrowed = NULL;
+    t = CreateThread(NULL, 0, borrow_end, h, 0, NULL);
+    if (t != NULL) {
+        CloseHandle(t);
+    } else {
+        TerminateProcess(h, 0);
+        CloseHandle(h);
+        g_hide_desktop = g_borrow_saved_hide;
+    }
 }
 
 /* Whether explorer is running as the shell, by its desktop window. Progman

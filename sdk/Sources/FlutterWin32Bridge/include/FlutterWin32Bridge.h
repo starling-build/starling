@@ -652,6 +652,18 @@ void flwin32_shell_suppress_explorer_chrome(void);
 // Whether explorer is running as the shell (by its Progman desktop window --
 // a class this shell never takes, so it stays honest after the tray is ours).
 int32_t flwin32_shell_explorer_present(void);
+
+// Borrow an explorer for the length of one packaged-app launch, and hand it
+// back. CoreWindow apps (Settings, Calculator) cannot be ACTIVATED without one
+// running, but do not need it once they are up -- so the shell starts one,
+// retries the launch, and drops it, rather than hosting one all session. Borrow
+// returns 1 only if it actually started one; return is a no-op otherwise.
+// Whether the shell COM services a packaged-app activation needs are up yet.
+// The readiness test while waiting on a borrowed explorer -- retrying the
+// activation itself instead costs about a second per failed attempt.
+int32_t flwin32_shell_services_ready(void);
+int32_t flwin32_shell_borrow_explorer(void);
+void flwin32_shell_return_explorer(void);
 // Claim the desktop's "task manager window" on a hidden window of our own.
 // This is what decides WHERE a minimized window goes: with it, user32 parks
 // minimized windows off-screen at -32000 the way it does under explorer; with
@@ -972,6 +984,19 @@ uint64_t flwin32_tray_revision(void);
 // KILLED rather than closed, which leaves every icon registered to a window
 // that no longer exists and a tray that nothing will refill on its own.
 void flwin32_tray_reannounce(void);
+
+// Recompute the work area from the live appbar list, dropping bars whose
+// windows have gone. For changes that happen OUTSIDE the appbar protocol --
+// chiefly a borrowed explorer being killed with its taskbar still registered.
+void flwin32_tray_reapply_workarea(void);
+
+// Put our Shell_TrayWnd back on top. SHAppBarMessage resolves that class by
+// FindWindow, which answers with the TOPMOST window of it -- so an explorer
+// that appears above us silently takes over the appbar protocol.
+void flwin32_tray_raise(void);
+// How many appbars this service holds. The oracle for whether the dock's own
+// registration landed here.
+int32_t flwin32_tray_bar_count(void);
 
 // A diagnostic: takes the class, prints every message that arrives for
 // `seconds` with the wire bytes decoded, then hands it back. This is how the

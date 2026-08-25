@@ -662,12 +662,73 @@ int32_t flwin32_launch_app_id_ex(const char* app_id, char* diag,
                                           (void**)&aam);
         if (SUCCEEDED(create)) {
             DWORD pid = 0;
-            HRESULT hr = aam->lpVtbl->ActivateApplication(aam, wid, NULL,
+            DWORD t_borrow = 0, t_ready = 0, t_act = 0;
+            int ready_tries = 0;
+            int borrowed = 0;
+            HRESULT hr;
+
+            /* MAKE SURE THE SHELL SERVICES ARE THERE BEFORE ASKING, rather
+             * than asking and recovering from the refusal.
+             *
+             * The recovering version is the obvious shape and it is far worse,
+             * because a refused activation does not fail fast: measured on the
+             * box at 45141 ms, twice, to the millisecond -- a DCOM activation
+             * timeout waiting for a server that is never going to appear, not
+             * work being done. Checking first costs a FindWindow.
+             *
+             * A packaged app of the full-trust generation does not need any of
+             * this and would launch without it. It pays the borrow anyway, and
+             * that is the deliberate trade: about a second and a half, against
+             * a branch that would have to know which generation an app belongs
+             * to before launching it, and be wrong 45 seconds at a time when
+             * it guessed low. */
+            if (!flwin32_shell_services_ready()) {
+                DWORD tb = GetTickCount();
+                borrowed = flwin32_shell_borrow_explorer();
+                t_borrow = GetTickCount() - tb;
+                if (borrowed) {
+                    int tries;
+                    DWORD tr = GetTickCount();
+                    for (tries = 0; tries < 80; tries++) {
+                        Sleep(50);
+                        /* Its taskbar and desktop must not surface during the
+                         * couple of seconds it is up. */
+                        flwin32_shell_suppress_explorer_chrome();
+                        if (flwin32_shell_services_ready()) break;
+                    }
+                    ready_tries = tries;
+                    t_ready = GetTickCount() - tr;
+                }
+            }
+
+            {
+                DWORD ta = GetTickCount();
+                int tries;
+                /* Explorer's desktop window appearing is necessary, not
+                 * sufficient -- the rest of its shell side lands a moment
+                 * later -- so give it a few goes rather than one. */
+                hr = E_FAIL;
+                for (tries = 0; tries < 4 && FAILED(hr); tries++) {
+                    if (tries > 0) Sleep(250);
+                    hr = aam->lpVtbl->ActivateApplication(aam, wid, NULL,
                                                           AO_NONE, &pid);
+                }
+                t_act = GetTickCount() - ta;
+            }
+            if (borrowed) flwin32_shell_return_explorer();
             aam->lpVtbl->Release(aam);
             _snprintf_s(notes, sizeof(notes), _TRUNCATE,
-                        "activate=0x%08lX pid=%lu", (unsigned long)hr,
-                        (unsigned long)pid);
+                        "activate=0x%08lX pid=%lu%s "
+                        "[borrow=%lums ready=%lums/%d activate=%lums bars-here=%d]",
+                        (unsigned long)hr, (unsigned long)pid,
+                        borrowed ? " (borrowed an explorer)" : "",
+                        (unsigned long)t_borrow, (unsigned long)t_ready,
+                        ready_tries, (unsigned long)t_act,
+                        /* THIS process's appbar count, which is zero in a
+                         * one-shot launcher and only interesting in the dock.
+                         * Named to say so: reading it as the dock's number
+                         * cost a whole measuring round. */
+                        (int)flwin32_tray_bar_count());
             if (SUCCEEDED(hr)) {
                 flwin32_trace("launch: activation manager started the app");
                 started = 1;

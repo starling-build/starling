@@ -650,6 +650,7 @@ typedef struct {
   UINT edge;              /* granted edge, or (UINT)-1 before any SETPOS */
   RECT rect;              /* granted rect */
   int has_rect;
+  int is_explorer;        /* a claim we grant but do not honour -- see below */
 } FlAppBarEntry;
 
 #define kMaxAppBars 16
@@ -764,6 +765,40 @@ static void appbar_return(UINT64 hshared, UINT64 pid, const FlAppBarData32* abd)
    * our SendMessage return unblocks it to collect. */
 }
 
+/* EXPLORER'S TASKBAR DOES NOT GET TO RESERVE ANYTHING WHILE WE ARE THE SHELL.
+ *
+ * Its window is hidden -- that is the whole arrangement -- but hidden is not
+ * the same as absent, and it registers an appbar like any other client. With
+ * this service answering, that claim came straight out of the desktop: a
+ * borrowed explorer, alive for barely two seconds during a packaged-app
+ * launch, left the work area at 1824 instead of 2048 and it stayed there,
+ * because the bar's window died with the process and nothing in the protocol
+ * announces that.
+ *
+ * So the claim is granted -- the reply says where the bar may sit, which
+ * explorer is entitled to know -- and then left out of the work area. That is
+ * the same thing ABS_AUTOHIDE was being used to achieve, expressed once, here,
+ * rather than depending on a state change landing before the window does. */
+static int bar_is_explorer(HWND hwnd) {
+  DWORD pid = 0;
+  HANDLE proc;
+  wchar_t path[MAX_PATH];
+  DWORD len = MAX_PATH;
+  const wchar_t* leaf;
+  int is_it = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  if (pid == 0 || pid == GetCurrentProcessId()) return 0;
+  proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (proc == NULL) return 0;
+  if (QueryFullProcessImageNameW(proc, 0, path, &len)) {
+    leaf = wcsrchr(path, L'\\');
+    leaf = (leaf != NULL) ? leaf + 1 : path;
+    is_it = (_wcsicmp(leaf, L"explorer.exe") == 0);
+  }
+  CloseHandle(proc);
+  return is_it;
+}
+
 static FlAppBarEntry* bar_find(HWND hwnd) {
   for (int i = 0; i < g_bar_count; i++) {
     if (g_bars[i].hwnd == hwnd) return &g_bars[i];
@@ -801,7 +836,7 @@ static int workarea_wanted(RECT* out) {
   if (!GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) return 0;
   RECT wa = mi.rcMonitor;
   for (int i = 0; i < g_bar_count; i++) {
-    if (!g_bars[i].has_rect) continue;
+    if (!g_bars[i].has_rect || g_bars[i].is_explorer) continue;
     RECT overlap;
     if (!IntersectRect(&overlap, &g_bars[i].rect, &mi.rcMonitor)) continue;
     const RECT* r = &g_bars[i].rect;
@@ -897,6 +932,46 @@ static int workarea_recompute(void) {
   return ok ? 1 : 0;
 }
 
+/* Recompute the reservation from scratch -- for when something OUTSIDE the
+ * appbar protocol changed the answer.
+ *
+ * A borrowed explorer is exactly that. While it is alive its taskbar registers
+ * a bar with this service like any other client, and our work area shrinks to
+ * make room for it; when it is killed the bar goes with the window, but nothing
+ * sends an appbar message to say so, and the reservation stays wrong. Left
+ * alone it read 1824 instead of 2048 on the box -- a dock-height of desktop
+ * missing under the dock -- and stayed there.
+ *
+ * Dead windows are dropped first, which is what makes this correct rather than
+ * merely a retry: the bar is gone because its window is gone. */
+/* Put our tray window back on top.
+ *
+ * SHAppBarMessage resolves Shell_TrayWnd by asking FindWindow, and FindWindow
+ * answers with the topmost window of that class. A borrowed explorer creates
+ * its own and lands above ours, so from that moment the dock's own appbar
+ * calls go to EXPLORER rather than to this service -- the registration ends up
+ * in explorer's list, our list has no dock in it, and the work area we then
+ * compute is the honest answer to the wrong question: nothing is reserved.
+ *
+ * This is why the reservation came back for one app and not the next. It was
+ * never about timing. */
+void flwin32_tray_raise(void) {
+  if (g_tray == NULL) return;
+  SetWindowPos(g_tray, HWND_TOPMOST, 0, 0, 0, 0,
+               SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
+}
+
+/* How many bars this service is holding -- the oracle for "did the dock's
+ * registration land here or somewhere else", which is not otherwise visible
+ * from outside the process. */
+int32_t flwin32_tray_bar_count(void) { return (int32_t)g_bar_count; }
+
+void flwin32_tray_reapply_workarea(void) {
+  if (g_tray == NULL || !appbar_serving()) return;
+  bars_gc();
+  workarea_recompute();
+}
+
 /* Snap a proposed rect to its edge on the monitor it falls on, keeping the
  * proposed thickness, then stack it past every bar already granted the same
  * edge -- which is what explorer grants a second bottom bar. QUERYPOS and
@@ -957,6 +1032,7 @@ static LRESULT appbar_serve(FlAppBarEnvelope* env) {
       e->hwnd = hwnd;
       e->callback = abd.uCallbackMessage;
       e->edge = (UINT)-1;
+      e->is_explorer = bar_is_explorer(hwnd);
       break;
     }
     case ABM_REMOVE: {
@@ -981,6 +1057,7 @@ static LRESULT appbar_serve(FlAppBarEnvelope* env) {
           e = &g_bars[g_bar_count++];
           ZeroMemory(e, sizeof(*e));
           e->hwnd = hwnd;
+          e->is_explorer = bar_is_explorer(hwnd);
         }
         if (e != NULL) {
           int moved = !e->has_rect || e->edge != abd.uEdge ||
@@ -1059,6 +1136,14 @@ static LRESULT appbar_serve(FlAppBarEnvelope* env) {
   return result;
 }
 
+/* One id, resolved from a name, so the sender and the receiver cannot drift
+ * apart -- they only have to agree on the string. */
+static UINT workarea_recheck_message(void) {
+  static UINT msg = 0;
+  if (msg == 0) msg = RegisterWindowMessageW(L"StarlingWorkAreaRecheck");
+  return msg;
+}
+
 static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
                                       LPARAM lparam) {
   /* SOMEBODY ELSE PUT THE WORK AREA BACK.
@@ -1078,6 +1163,18 @@ static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
    * now than it used to: we no longer summon explorer's recompute ourselves
    * (see workarea_announce), so what is left is explorer changing it for its
    * own reasons -- a resolution change, a monitor arriving. */
+  /* "Something outside the appbar protocol moved the work area -- look again."
+   *
+   * Broadcast rather than called, because the process that disturbed it is not
+   * necessarily this one. A borrowed explorer is started by whichever process
+   * is launching an app; the reservation belongs to the process that owns the
+   * dock. Those are the same process in the shell and different ones in a test
+   * harness, and a repair that only works in the first case is a repair that
+   * looks fine right up until it matters. */
+  if (message != 0 && message == workarea_recheck_message()) {
+    flwin32_tray_reapply_workarea();
+    return 0;
+  }
   if (message == WM_SETTINGCHANGE && wparam == SPI_SETWORKAREA) {
     if (g_bar_count > 0 && appbar_serving()) {
       /* Bounded, because the other end of this could be something that

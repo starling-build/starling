@@ -87,7 +87,8 @@ ShellScreen.use(monitor: wantsMonitor)
 let knownFlags: Set<String> = [
     "--", "--all", "--apps-probe", "--background", "--banners", "--desktop",
     "--extended", "--fileop-probe", "--files", "--keep-taskbar", "--keep-tray",
-    "--keep-winkey", "--launcher", "--location", "--menu-flags",
+    "--keep-winkey", "--launch-app", "--launcher", "--location",
+    "--menu-flags",
     "--menu-handlers", "--menu-invoke", "--menu-probe", "--menu-static",
     "--monitor", "--no-appbar", "--notifications", "--ns-probe", "--oneshell",
     "--oneview", "--plain", "--print-desktop", "--print-machine",
@@ -192,6 +193,33 @@ if CommandLine.arguments.contains("--unregister-shell") {
 // themselves were checked against the system independently, by pressing the
 // keyboard's mute key and pulling the network adapter and watching them
 // follow.
+// `--launch-app <id>` runs ONE launch through the shell's own launcher and
+// prints what happened, then exits. It exists because the interesting launch
+// path cannot be reached any other way from a test: a script can call Windows'
+// activation API itself, but that only proves Windows works -- it says nothing
+// about the retry the shell does when a CoreWindow app is refused for want of
+// an explorer, which is the part that can regress. Same readers, same code,
+// one process.
+if let i = CommandLine.arguments.firstIndex(of: "--launch-app") {
+    guard i + 1 < CommandLine.arguments.count else {
+        print("[WinShell] --launch-app needs an app id")
+        exit(2)
+    }
+    let id = CommandLine.arguments[i + 1]
+    var diag = [CChar](repeating: 0, count: 256)
+    let rc = diag.withUnsafeMutableBufferPointer {
+        flwin32_launch_app_id_ex(id, $0.baseAddress, 256)
+    }
+    print("[WinShell] launch \(id) -> rc=\(rc)  \(String(cString: diag))")
+    // Wait before leaving. A borrowed explorer is handed back on a background
+    // thread a few seconds later, and exiting immediately kills that thread
+    // with the process -- which leaks the very explorer the borrow exists to
+    // avoid. The dock, which is what normally launches, is long-lived and has
+    // no such problem; this one-shot process does.
+    Thread.sleep(forTimeInterval: 9)
+    exit(rc != 0 ? 0 : 1)
+}
+
 if CommandLine.arguments.contains("--print-status") {
     let volume = Win32Status.volume()
     let network = Win32Status.network()
