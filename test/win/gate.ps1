@@ -57,6 +57,7 @@ public class Gate {
   [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int size);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(IntPtr h, out int pid);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr p);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr h, StringBuilder s, int n);
@@ -107,6 +108,30 @@ public class Gate {
   // "any class" and writes $null silently asks for a window whose class name
   // is the empty string, and finds nothing. There is no way to write that
   // wrong if the overload exists.
+  // Same trap from the other side: "a window of THIS CLASS, any title" spelt
+  // FindWindowW("Progman", $null) asks for a window whose TITLE is "", and
+  // Progman's is "Program Manager" -- so it answered zero every time and the
+  // check it fed could not fail. Nothing here may pass $null to FindWindowW.
+  public static IntPtr FindClass(string cls) { return FindWindowW(cls, null); }
+  // Explorer's own desktop or taskbar, visible on screen -- the thing the user
+  // must never see once we are the shell. Keyed on the OWNING PROCESS, because
+  // Shell_TrayWnd is a class this shell takes for itself.
+  public static string ExplorerChromeVisible() {
+    var sb = new StringBuilder();
+    EnumWindows((h,p) => {
+      if (!IsWindowVisible(h)) return true;
+      var c = new StringBuilder(64); GetClassNameW(h, c, 64);
+      string cls = c.ToString();
+      if (cls != "Progman" && cls != "Shell_TrayWnd" && cls != "Shell_SecondaryTrayWnd") return true;
+      int pid; GetWindowThreadProcessId(h, out pid);
+      string pn = ""; try { pn = System.Diagnostics.Process.GetProcessById(pid).ProcessName; } catch { return true; }
+      if (!pn.Equals("explorer", StringComparison.OrdinalIgnoreCase)) return true;
+      if (sb.Length > 0) sb.Append(", ");
+      sb.Append(cls);
+      return true;
+    }, IntPtr.Zero);
+    return sb.ToString();
+  }
   public static IntPtr Find(string title) { return Find(title, null); }
   public static IntPtr Find(string title, string cls) {
     IntPtr found = IntPtr.Zero;
@@ -306,26 +331,26 @@ Check "the five session processes are running" {
     "missing: $($missing -join ', ')  duplicated: $($dupes -join ', ')"
 }
 
-# Whether this session runs the explorer service at all. It is opt-in
-# (STARLING_EXPLORER_SERVICE=1) while the work-area conflict is unsolved, so
-# the two checks that depend on it are skipped rather than failed when it is
-# off -- a gate that fails on the shipping configuration is a gate nobody runs.
+# Whether this session runs the explorer service. It is ON by default now that
+# the work area is ours (see flwin32_explorer.c), so these checks normally run;
+# a machine that turned it off with STARLING_EXPLORER_SERVICE=0 gets them
+# skipped rather than failed, because that is a choice, not a fault.
 $explorerService = (Get-Process explorer -EA SilentlyContinue | Measure-Object).Count -ge 1
 
 if (-not $explorerService) {
-  Skip "explorer is alive as a service, and owns no chrome" "the explorer service is off (STARLING_EXPLORER_SERVICE=1 turns it on); packaged apps of the CoreWindow generation cannot launch in this configuration"
+  Skip "explorer is alive as a service, and owns no chrome" "explorer is not running -- this session turned the service off (STARLING_EXPLORER_SERVICE=0); packaged apps of the CoreWindow generation cannot launch in that configuration"
 } else {
 Check "explorer is alive as a service, and owns no chrome" {
     # Packaged apps of the CoreWindow generation need it running; the user must
     # never see it. Both halves, or the check is worthless.
     $n = (Get-Process explorer -EA SilentlyContinue | Measure-Object).Count
     if ($n -lt 1) { return "explorer is not running: packaged apps will not launch" }
-    $prog = [Gate]::FindWindowW("Progman", $null)
-    $tray = [Gate]::FindWindowW("Shell_TrayWnd", $null)
-    $progVisible = ($prog -ne [IntPtr]::Zero) -and [Gate]::IsWindowVisible($prog)
-    $trayVisible = ($tray -ne [IntPtr]::Zero) -and [Gate]::IsWindowVisible($tray)
-    if (-not $progVisible -and -not $trayVisible) { return $true }
-    "explorer chrome on screen -- desktop: $progVisible  taskbar: $trayVisible"
+    # EXPLORER's windows, not the first window of those classes: the tray class
+    # is one WE own too, so asking FindWindow for it and testing visibility
+    # answers a question about our own shell.
+    $shown = [Gate]::ExplorerChromeVisible()
+    if ($shown -eq "") { return $true }
+    "explorer chrome on screen: $shown"
 }
 }
 
@@ -388,7 +413,7 @@ Check "the dock is drawn along the bottom" {
 }
 
 Check "the shell holds the minimize target" {
-    $w = [Gate]::FindWindowW("StarlingTaskmanWindow", $null)
+    $w = [Gate]::FindClass("StarlingTaskmanWindow")
     if ($w -ne [IntPtr]::Zero) { return $true }
     "no taskman window: minimized apps will be left as stubs on the desktop"
 }
