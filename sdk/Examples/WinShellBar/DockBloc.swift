@@ -205,7 +205,20 @@ final class DockBloc: @unchecked Sendable {
         case .statusChanged:
             _readStatus()
         case .taskbarReturned:
+            // EXPLORER HAS (RE)STARTED. It broadcasts TaskbarCreated when it
+            // comes up, and that is the only announcement we get — so this is
+            // where everything explorer takes from us has to be taken back,
+            // whether or not its taskbar is currently visible.
+            //
+            // Not gated on visibility, which is the mistake that let this
+            // through once: the supervisor hides the new explorer's chrome
+            // within a second, so by the time anyone looks, "is the native
+            // taskbar visible" is false and the re-claims never ran. The
+            // reservation stayed dropped, the dock kept drawing, and
+            // maximized windows ran underneath it until the next restart.
             _hideNativeTaskbarIfItCameBack()
+            _ = Win32Shell.takeTaskmanWindow()
+            Win32WindowedHost.host?.reassertAppbar()
 
         case .windowsChanged:
             _queueRefresh()
@@ -398,18 +411,25 @@ final class DockBloc: @unchecked Sendable {
         // the strip stops being reserved with nothing on screen to say so.
         // Measured on the box: work area bottom 2160 instead of 2048, and the
         // overlays sliding down by exactly the dock's height.
-        // THREE TIMES, not once: explorer does not recompute on a schedule we
-        // control -- it depends on when the service explorer finishes coming
-        // up, and a single re-assert at five seconds was measured landing
-        // before that in some runs and after it in others, which reads as an
-        // intermittent dock that sometimes reserves its strip and sometimes
-        // does not.
-        Task.detached {
-            for delay in [5, 10, 20] as [UInt64] {
-                try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
-                await MainActor.run { Win32WindowedHost.host?.reassertAppbar() }
-            }
-        }
+        // SELF-HEALING, because every trigger tried before it was wrong.
+        //
+        // The dock's strip is reserved with whoever answers SHAppBarMessage,
+        // and explorer recomputes the work area from its own list whenever it
+        // starts -- which now happens at shell startup, after an explorer
+        // crash, and at any moment the supervisor decides to restart one. A
+        // re-assert at startup misses the later ones; one keyed on
+        // TaskbarCreated misses the case where the new explorer's chrome is
+        // hidden before anyone looks. Both were tried; both left a dock that
+        // kept drawing while maximized windows ran underneath it, with
+        // nothing on screen to say so.
+        //
+        // So the dock watches the outcome instead of guessing at the causes:
+        // if the work area does not stop where this strip does, take the
+        // reservation again. One SPI_GETWORKAREA read every ten seconds --
+        // a memory read, on a libdispatch timer rather than a Task.sleep
+        // loop, which on Windows costs ~46 context switches a second in an
+        // otherwise sleeping process.
+        _watchReservation()
 
         _rebuild()
         _readStatus()
@@ -556,6 +576,38 @@ final class DockBloc: @unchecked Sendable {
             Win32WindowManager.activate(window.handle)
         }
         _queueRefresh()
+    }
+
+    /// Re-takes the strip's reservation whenever the work area says it has
+    /// been dropped. See the call site for why this is a watcher and not a
+    /// trigger.
+    private func _watchReservation() {
+        guard !keepsNativeTaskbar else { return }
+        let thickness = Int32(Double(kDockHeight) * (ShellScreen.monitor?.scale ?? 2.0))
+        // The first look is SOON, the rest are lazy. After a shell restart with
+        // explorer already alive the reservation can take a few seconds to
+        // settle, and every second of that is a dock with windows running
+        // underneath it.
+        func tick(_ after: Double = 10) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in
+                guard let self else { return }
+                if !state.nativeTaskbarWanted,
+                   let monitor = ShellScreen.monitor {
+                    var x: Int32 = 0, y: Int32 = 0, w: Int32 = 0, h: Int32 = 0
+                    if flwin32_wm_work_area(-1, &x, &y, &w, &h) != 0 {
+                        // Bottom edge only: that is the edge this dock claims,
+                        // and another appbar on a different edge is none of
+                        // our business.
+                        let reserved = Int32(monitor.height) - (y + h)
+                        if state.edge == .bottom, reserved < thickness / 2 {
+                            Win32WindowedHost.host?.reassertAppbar()
+                        }
+                    }
+                }
+                tick()
+            }
+        }
+        tick(3)
     }
 
     /// Coalesces refreshes: a burst of window events is one rebuild.

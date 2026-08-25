@@ -43,12 +43,18 @@ function WinE {
 # Alt+F4 cost a shell: with no Files window up it landed on our own dock, the
 # supervisor lost its child, and the desktop went black mid-run.
 function CloseFileManager {
-  foreach ($cls in @("FlutterSwiftWin32Host", "CabinetWClass")) {
+  # THREE classes, because our file manager has had three shapes: its own
+  # process (FlutterSwiftWin32Host), a surface view inside the shell
+  # (StarlingSurfaceView, which is what it is now), and explorer's own window
+  # for the native contender. A rig that knows only the old one reports
+  # "window up: False" on every rep, closes nothing between them, and measures
+  # a window that was already open -- which is exactly what it did once.
+  foreach ($cls in @("StarlingSurfaceView", "FlutterSwiftWin32Host", "CabinetWClass")) {
     # [NullString]::Value, NOT $null: PowerShell binds $null to a [string]
     # P/Invoke parameter as an EMPTY STRING, so FindWindowW then hunts for a
     # window with an empty title and finds nothing. That silently closed
     # nothing and left eight Explorer windows stacked up mid-benchmark.
-    $name = if ($cls -eq "FlutterSwiftWin32Host") { "Starling Files" } else { [NullString]::Value }
+    $name = if ($cls -eq "CabinetWClass") { [NullString]::Value } else { "Starling Files" }
     for ($k = 0; $k -lt 14; $k++) {
       $h = [FBB]::FindWindowW($cls, $name)
       if ($h -eq [IntPtr]::Zero) { break }
@@ -58,8 +64,14 @@ function CloseFileManager {
   }
 }
 function FileManagerUp {
-  return (([FBB]::FindWindowW("FlutterSwiftWin32Host", "Starling Files") -ne [IntPtr]::Zero) -or
-          ([FBB]::FindWindowW("CabinetWClass", [NullString]::Value) -ne [IntPtr]::Zero))
+  # Visible, not merely present: the hosted file manager is never destroyed,
+  # only hidden, so "does the window exist" is true for the whole run.
+  foreach ($cls in @("StarlingSurfaceView", "FlutterSwiftWin32Host")) {
+    $h = [FBB]::FindWindowW($cls, "Starling Files")
+    if ($h -ne [IntPtr]::Zero -and [FBB]::IsWindowVisible($h)) { return $true }
+  }
+  $h = [FBB]::FindWindowW("CabinetWClass", [NullString]::Value)
+  return ($h -ne [IntPtr]::Zero -and [FBB]::IsWindowVisible($h))
 }
 function KillFiles {
   Get-CimInstance Win32_Process -Filter "Name='WinShellBar.exe'" |

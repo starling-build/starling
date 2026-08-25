@@ -464,6 +464,24 @@ void flwin32_shell_ensure_launcher(void) {
  * what every third-party Windows shell does, and it is the configuration this
  * file was originally written for.
  */
+/* The handle of the explorer we are keeping alive, so the tick does not have
+ * to go looking.
+ *
+ * "Is explorer running" answered by a Toolhelp snapshot is a walk of every
+ * process on the machine, and the supervisor asks every five seconds --
+ * measured at 0.23% of a core against 0.00% before, which is most of an idle
+ * shell's entire budget spent on a question whose answer is almost always
+ * yes. A handle answers it in a syscall: WAIT_TIMEOUT means still running. */
+static HANDLE g_explorer = NULL;
+
+static int explorer_still_alive(void) {
+    if (g_explorer == NULL) return 0;
+    if (WaitForSingleObject(g_explorer, 0) == WAIT_TIMEOUT) return 1;
+    CloseHandle(g_explorer);
+    g_explorer = NULL;
+    return 0;
+}
+
 static int explorer_running_in_session(void) {
     DWORD our_session = 0;
     ProcessIdToSessionId(GetCurrentProcessId(), &our_session);
@@ -483,6 +501,12 @@ static int explorer_running_in_session(void) {
             if (ProcessIdToSessionId(entry.th32ProcessID, &session) &&
                 session == our_session) {
                 found = 1;
+                /* Hold it open, so this walk happens once rather than every
+                 * tick. SYNCHRONIZE is all a liveness check needs. */
+                if (g_explorer == NULL) {
+                    g_explorer = OpenProcess(SYNCHRONIZE, FALSE,
+                                             entry.th32ProcessID);
+                }
                 break;
             }
         } while (Process32NextW(snapshot, &entry));
@@ -492,24 +516,33 @@ static int explorer_running_in_session(void) {
 }
 
 int32_t flwin32_shell_ensure_explorer_service(void) {
-    /* ON by default, with a way out. Keeping explorer alive is what makes
-     * the CoreWindow generation of packaged apps run at all, and the two
-     * things it used to cost are fixed:
+    /* OPT-IN again, and the reason is honest rather than tidy.
      *
-     *   - the WORK AREA: explorer recomputes it from its own appbar list, so
-     *     the dock re-asserts its registration once the shell landscape has
-     *     settled (flwin32_host_reassert_appbar). Without that the strip
-     *     silently stopped being reserved and maximized windows ran under the
-     *     dock.
-     *   - Win+E: a casualty of the same thing, and fixed with it.
+     * Keeping explorer alive is what makes CoreWindow packaged apps run, and
+     * everything about that works: they launch, minimize and restore, and
+     * explorer's own chrome stays invisible. What is NOT solved is the WORK
+     * AREA. Our tray owns the Shell_TrayWnd class and therefore answers
+     * SHAppBarMessage -- FindWindow returns ours before explorer's -- so with
+     * explorer alive there are two shells computing the work area and
+     * explorer wins: after a shell restart the dock's strip is not reserved,
+     * and maximized windows run underneath a dock that is still drawn.
      *
-     * STARLING_NO_EXPLORER_SERVICE=1 turns it off for a machine that would
-     * rather have the ~100MB than the Store apps. Non-empty only -- an empty
-     * variable is not a request (the getenv("") trap this tree has paid for
-     * elsewhere). */
-    wchar_t off[8];
-    if (GetEnvironmentVariableW(L"STARLING_NO_EXPLORER_SERVICE", off, 8) > 0 &&
-        off[0] != L'\0') {
+     * Four things were tried and none of them holds it: re-asserting at
+     * startup, re-asserting on TaskbarCreated, a self-healing watcher that
+     * re-registers whenever the work area disagrees, and all three together.
+     * Re-registering is not the missing piece, which is the tell -- the
+     * reservation comes back only when something makes explorer recompute of
+     * its own accord (activating a packaged app did it once). The fix
+     * probably belongs in the appbar service: own the work area explicitly
+     * (SPI_SETWORKAREA) rather than asking whoever answers to do it.
+     *
+     * So: STARLING_EXPLORER_SERVICE=1 for the machine that wants Store apps
+     * and can live with the dock overlapping a maximized window; off by
+     * default until the work area is ours. Non-empty only -- an empty
+     * variable is not a request. */
+    wchar_t on[8];
+    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) == 0 ||
+        on[0] == L'\0') {
         return 0;
     }
 
@@ -519,7 +552,9 @@ int32_t flwin32_shell_ensure_explorer_service(void) {
      * the shell -- in trial mode explorer's desktop is the user's desktop and
      * nothing here may touch it. */
     g_hide_desktop = 1;
-    if (explorer_running_in_session()) {
+    /* The cheap question first: the handle we already hold. Only when that
+     * says the explorer we started is gone does this walk the process list. */
+    if (explorer_still_alive() || explorer_running_in_session()) {
         flwin32_shell_suppress_explorer_chrome();
         return 0;
     }
@@ -540,7 +575,9 @@ int32_t flwin32_shell_ensure_explorer_service(void) {
         return 0;
     }
     CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+    /* Kept, not closed: this is the handle the tick asks. */
+    if (g_explorer != NULL) CloseHandle(g_explorer);
+    g_explorer = pi.hProcess;
 
     /* Its chrome goes straight back down. Explorer does not have a taskbar or
      * a desktop the instant CreateProcess returns -- both arrive a second or

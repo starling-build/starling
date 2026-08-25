@@ -676,3 +676,78 @@ another top-level window is shown. 0 of 24 after, idle unchanged.
 launch passes even when the bug is present** — the sequence that matters is
 launch → close → launch, repeated.
 
+
+## Addendum, 2026-08-25: re-measured after the minimize / packaged-app work
+
+Everything below is the physical box, one session, same binary, after the
+changes of 2026-08-24 (the minimize target, the file explorer's title and show
+path, and the opt-in explorer service).
+
+### Idle
+
+60 s sample, nothing on screen, per process:
+
+| | CPU (of one core) | working set |
+|---|---|---|
+| shell processes | **0.31%** | 142 MB (settled) |
+| explorer service, when on | 0.05% | 227 MB |
+| dwm | 0.00% | — |
+
+Against the 0.08–0.18% recorded before, and the regression was found and
+fixed in the same sitting: **the supervisor had gone from 0.00% to 0.23%**,
+because its five-second tick asked "is explorer alive" with a Toolhelp
+snapshot — a walk of every process on the machine, twenty times a minute, to
+answer a question whose answer is almost always yes. It holds a handle to the
+process it started and asks `WaitForSingleObject(…, 0)` instead; back to
+0.00%.
+
+What is left is **banners at 0.26%**, which is the notification-store poll
+this document already describes: Windows refuses the arrival event to a
+process with no package identity, so it asks, and asking costs ~6.2 ms of RPC
+whatever you ask for. Unchanged, not a regression.
+
+**Explorer costs 227 MB and 0.05%** when the service is on. That is the price
+of Store apps, and the reason it is opt-in is not this — it is the work area
+(below).
+
+### Win+E → the file explorer, drawn
+
+20 reps, ddagrab, 0.999× timeline, 64×64 signature, n=14 usable:
+
+**median 146 ms** (min 49, max 195). First pixels equals done in every single
+rep — the window arrives fully painted in one composited frame rather than
+appearing and then filling in.
+
+Against 110 ms recorded for the hosted file explorer. The quantum is 33 ms and
+this document's own rule is that anything under ~2 frames is unmeasured until
+it survives a proper A/B; 36 ms is one frame. Not called a regression, and not
+called unchanged either — it wants the A/B against the explorer service off,
+which is the obvious suspect and was not completed.
+
+**The rig was stale and reported nothing wrong.** `capture-launch-winE.ps1`
+looked for the file manager as `FlutterSwiftWin32Host`, which is what it was
+when it had its own process. It is a surface view inside the shell now
+(`StarlingSurfaceView`), so every rep logged "window up: False", nothing was
+closed between reps, and the numbers were of a window that was already open.
+Fixed to know all three shapes. Any bench that identifies a window by class is
+a bench that expires.
+
+### The one that is not fixed: the work area, with explorer alive
+
+With the explorer service on, after a shell restart, **the dock's strip stops
+being reserved** — the work area goes back to full height and maximized
+windows run underneath a dock that is still drawn. Four attempts did not hold
+it: re-assert at startup, re-assert on TaskbarCreated, a watcher that
+re-registers whenever the work area disagrees, and all three at once.
+
+That re-registering is not the missing piece is the tell. The reservation
+appears only when something makes explorer recompute of its own accord —
+activating a packaged app did it once. Our tray owns the `Shell_TrayWnd`
+class, so `SHAppBarMessage` resolves to US before explorer (both windows
+exist; FindWindow returns ours first), and with explorer alive two shells are
+computing the work area. The fix probably belongs in the appbar service: own
+the work area explicitly rather than asking whoever answers to do it.
+
+Until then the explorer service is **opt-in**, `STARLING_EXPLORER_SERVICE=1`,
+and `test/win/run-gate.sh` skips the two checks that depend on it rather than
+failing on the shipping configuration.
