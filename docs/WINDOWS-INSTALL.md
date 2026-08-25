@@ -199,6 +199,57 @@ Every static import resolves before `main`, so if that prints, the package is
 self-contained. (`dumpbin /dependents` will list `api-ms-win-*` entries as
 "missing" — those are API-set contracts resolved by the OS schema, not files.)
 
+## Testing the package on a clean machine
+
+The dev box cannot prove the package is self-contained: it has the Swift
+toolchain, Build Tools and an engine checkout on it. A machine that has never
+had any of that is the only honest test, and there is one a `qemu-img` call
+away — `win11-gpu` carries a **`clean-install` snapshot** taken straight after
+its unattended install.
+
+**Clone out of the snapshot; do not revert to it.** Reverting discards
+everything that VM has done since. Copying out is read-only and took 20
+seconds for 18 GB:
+
+```bash
+qemu-img convert -p -l clean-install -O qcow2 \
+    /var/lib/libvirt/images/win11-gpu.qcow2 \
+    /var/lib/libvirt/images/win11-snap.qcow2
+```
+
+Then define a domain around the copy from `win11-gpu`'s own XML with the name,
+UUID, MAC, nvram path and disk swapped, the second data disk dropped, and the
+answer ISO replaced by one carrying the installer (`docs/WINDOWS-VM.md` covers
+building that ISO — the payload rides along, so the guest needs no network).
+The snapshot already has the QEMU guest agent, so it is drivable immediately.
+
+**The installer is per-user, and `guest-exec` runs as SYSTEM.** Run it through
+a scheduled task in the interactive session or it installs into the SYSTEM
+profile and registers a `Winlogon\Shell` nobody will ever log in as:
+
+```powershell
+schtasks /create /tn StarInstall /ru Administrator /it /rl HIGHEST `
+         /sc once /st 00:00 /tr "...\StarlingSetup-0.1.0.exe /Q:A" /f
+schtasks /run /tn StarInstall
+```
+
+What the 2026-08-24 run proved, on **Windows 11 Pro 26200 with no Swift
+directory, no `swiftCore.dll`, no Build Tools and zero Visual C++
+redistributables installed**:
+
+- setup exits 0; 31 files, 116.4 MB under `%LOCALAPPDATA%\Programs\Starling`
+- `Winlogon\Shell` points at the installed copy
+- after a reboot the desktop is **ours** — dock, clock and tray, no Windows
+  taskbar, `explorer.exe` count 0, ~329 MB across the shell's processes
+- **Win+E opens our file explorer, fully rendered, on a VM with no GPU** —
+  ANGLE falls through hardware D3D11 and feature level 9_3 to WARP, which the
+  trimmed ANGLE still carries (only D3D9, desktop GL and Vulkan were removed)
+- `Uninstall.ps1` then removes the tree, clears the registry value and leaves
+  Explorer running
+
+`win11-snap` is left defined and shut off as a ready-made clean box; delete it
+and its qcow2 to reclaim 18 GB.
+
 ## Traps
 
 - **A quiet iexpress install runs `UserQuietInstCmd`, not `AppLaunched`.**
