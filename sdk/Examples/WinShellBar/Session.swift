@@ -155,6 +155,21 @@ enum SessionSlot {
         "\"\(CommandLine.arguments[0])\" --session"
     }
 
+    /// Whether explorer is running AS THE SHELL, rather than as the
+    /// background service this shell starts for packaged apps.
+    ///
+    /// Every gate that used to ask "is explorer present?" meant this. Since
+    /// the supervisor started running explorer itself, the plain question
+    /// answers yes in a session we are running, and the gates fire the wrong
+    /// way: the desktop surface skips itself and, because we also keep
+    /// explorer's Progman hidden, the machine ends up with NO wallpaper at
+    /// all. The registration is the honest tell -- if Winlogon is configured
+    /// to start us, we are the shell whatever explorer is doing.
+    static var explorerOwnsShell: Bool {
+        guard Win32Shell.explorerPresent else { return false }
+        return !(registeredShell()?.lowercased().contains("winshellbar") ?? false)
+    }
+
     static func registeredShell() -> String? {
         var buffer = [CChar](repeating: 0, count: 2048)
         let n = buffer.withUnsafeMutableBufferPointer {

@@ -290,5 +290,19 @@ public final class Win32Host {
             }
         }
     }
+
+    /// Takes the space reservation again, from whichever shell computes the
+    /// work area now.
+    ///
+    /// A registration belongs to whoever answered `SHAppBarMessage` when it
+    /// was made. If explorer joins a session that started without it, it
+    /// recomputes the work area from its own list of appbars — which has
+    /// never heard of this panel — and the strip silently stops being
+    /// reserved, so maximized windows run underneath the dock. Call this
+    /// once the shell landscape has settled. UI thread.
+    @discardableResult
+    public func reassertAppbar() -> Bool {
+        flwin32_host_reassert_appbar(host) != 0
+    }
 }
 #endif

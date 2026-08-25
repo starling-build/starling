@@ -938,7 +938,10 @@ if wantsFiles {
     // no-explorer endgame; the VM's trial mode (explorer killed) is where
     // it is proven, and STARLING_DESKTOP_TRIAL=1 is the dev-box override
     // for driving it OVER a live explorer, accepted as an approximation.
-    if flwin32_shell_explorer_present() != 0,
+    // "Explorer owns the desktop plane" is the question, not "explorer is
+    // running": the supervisor runs one itself for packaged apps, with its
+    // Progman kept hidden, and in that session this surface IS the desktop.
+    if SessionSlot.explorerOwnsShell,
        ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"] != "1" {
         print("[desktop] explorer is running and owns the desktop plane; "
               + "kill it first (the VM trial), or set "

@@ -388,6 +388,29 @@ final class DockBloc: @unchecked Sendable {
             print("[WinShell] notification area left to Windows (--keep-tray)")
         }
 
+        // ONCE, a few seconds in: take the strip's reservation again.
+        //
+        // An appbar registration belongs to whoever answered SHAppBarMessage
+        // when it was made. This dock registers at startup, and explorer may
+        // arrive a moment later (the packaged-app service starts one) or have
+        // been there all along after a shell restart -- either way it
+        // recomputes the work area from its own list, ours is not in it, and
+        // the strip stops being reserved with nothing on screen to say so.
+        // Measured on the box: work area bottom 2160 instead of 2048, and the
+        // overlays sliding down by exactly the dock's height.
+        // THREE TIMES, not once: explorer does not recompute on a schedule we
+        // control -- it depends on when the service explorer finishes coming
+        // up, and a single re-assert at five seconds was measured landing
+        // before that in some runs and after it in others, which reads as an
+        // intermittent dock that sometimes reserves its strip and sometimes
+        // does not.
+        Task.detached {
+            for delay in [5, 10, 20] as [UInt64] {
+                try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
+                await MainActor.run { Win32WindowedHost.host?.reassertAppbar() }
+            }
+        }
+
         _rebuild()
         _readStatus()
 
@@ -482,7 +505,14 @@ final class DockBloc: @unchecked Sendable {
             // desktop — the stubs would return with the next minimize, long
             // after anyone would connect the two. On the UI thread, because
             // that is the thread the window being re-asserted was made on.
-            await MainActor.run { _ = Win32Shell.takeTaskmanWindow() }
+            await MainActor.run {
+                _ = Win32Shell.takeTaskmanWindow()
+                // And the strip's reservation, for the same reason: explorer
+                // recomputes the work area from its own appbar list, which
+                // this dock's registration is not in. Without this the dock
+                // keeps drawing and maximized windows run underneath it.
+                Win32WindowedHost.host?.reassertAppbar()
+            }
         }
     }
 

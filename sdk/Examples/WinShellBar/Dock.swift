@@ -532,7 +532,7 @@ final class StarlingDockState: State<StatefulWidget> {
     private nonisolated(unsafe) static var shellMenuWarmed = false
 
     private func openOneviewSurfaces() {
-        if !Win32Shell.explorerPresent
+        if !SessionSlot.explorerOwnsShell
             || ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"]
                 == "1" {
             let desk = Win32Surfaces.open(kind: .desktop) { id in
@@ -643,7 +643,7 @@ final class StarlingDockState: State<StatefulWidget> {
         // The desktop keeps its plan-mandated gate: while explorer runs,
         // Progman owns the bottom of the z-order and fighting it is a losing
         // game. Same override as the process-per-surface desktop.
-        if !Win32Shell.explorerPresent
+        if !SessionSlot.explorerOwnsShell
             || ProcessInfo.processInfo.environment["STARLING_DESKTOP_TRIAL"]
                 == "1" {
             let desk = Win32Surfaces.open(kind: .desktop) { id in

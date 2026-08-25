@@ -105,6 +105,11 @@ void flwin32_host_set_panel(FlWin32Host* host,
 // and maximized windows stop at it. Call after flwin32_host_set_panel, which
 // is where the edge and thickness come from. Returns non-zero on success.
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable);
+// Drop this panel's appbar registration and take it again, so the reservation
+// is held by whoever computes the work area NOW. Needed when explorer joins a
+// session that started without it: it recomputes the work area from its own
+// appbar list, and a registration made against our service is not in it.
+int32_t flwin32_host_reassert_appbar(FlWin32Host* host);
 
 // Restyles the window into THE DESKTOP: the full monitor (wallpaper runs
 // under the dock, so rcMonitor, not the work area), pinned to the BOTTOM of
@@ -630,12 +635,13 @@ void flwin32_shell_ensure_run(void);
 // process to receive the toggle broadcast at all under `--session`.
 void flwin32_shell_ensure_launcher(void);
 // Keep explorer.exe ALIVE (not as the shell) if nothing in this session is
-// running it, and put its taskbar back down. CoreWindow-generation packaged
-// apps -- Calculator, the Store, Windows Security -- refuse to start with
-// explorer absent: activation returns 0x80040900 and the process dies in
+// running it, and keep its taskbar and desktop down. CoreWindow-generation
+// packaged apps -- Calculator, the Store, Windows Security -- refuse to start
+// with explorer absent: activation returns 0x80040900 and the process dies in
 // under two seconds. With explorer merely running they start normally, and
 // come back as an ApplicationFrameWindow, which the shell's window list
 // already accepts. Newer packaged apps (Photos, Terminal) never needed it.
+// On by default; STARLING_NO_EXPLORER_SERVICE=1 opts out.
 // Returns 1 if it started explorer, 0 if one was already there or the launch
 // failed. Idempotent; call it from the supervisor's tick.
 int32_t flwin32_shell_ensure_explorer_service(void);

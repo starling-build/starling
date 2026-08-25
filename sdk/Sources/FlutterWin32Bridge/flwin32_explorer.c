@@ -492,26 +492,27 @@ static int explorer_running_in_session(void) {
 }
 
 int32_t flwin32_shell_ensure_explorer_service(void) {
-    /* OPT-IN, and deliberately so. Keeping explorer alive is what makes the
-     * CoreWindow generation of packaged apps run at all, but a live explorer
-     * is not a passive host: measured on the box, with one running,
+    /* ON by default, with a way out. Keeping explorer alive is what makes
+     * the CoreWindow generation of packaged apps run at all, and the two
+     * things it used to cost are fixed:
      *
-     *   - the WORK AREA goes back to the full screen -- explorer recomputes
-     *     it and our dock's appbar reservation stops taking effect, so a
-     *     maximized window runs under the dock. Not a startup race; it
-     *     survives a clean restart.
-     *   - Win+E stops opening our file explorer, and opens nothing at all.
+     *   - the WORK AREA: explorer recomputes it from its own appbar list, so
+     *     the dock re-asserts its registration once the shell landscape has
+     *     settled (flwin32_host_reassert_appbar). Without that the strip
+     *     silently stopped being reserved and maximized windows ran under the
+     *     dock.
+     *   - Win+E: a casualty of the same thing, and fixed with it.
      *
-     * Both are fixable and neither is fixed yet, so this stays behind a flag
-     * rather than changing what every session does. Set
-     * STARLING_EXPLORER_SERVICE=1 to trade those two for Store apps.
-     * Non-empty only -- an empty variable is not a request (the getenv("")
-     * trap this tree has paid for elsewhere). */
-    wchar_t on[8];
-    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) == 0 ||
-        on[0] == L'\0') {
+     * STARLING_NO_EXPLORER_SERVICE=1 turns it off for a machine that would
+     * rather have the ~100MB than the Store apps. Non-empty only -- an empty
+     * variable is not a request (the getenv("") trap this tree has paid for
+     * elsewhere). */
+    wchar_t off[8];
+    if (GetEnvironmentVariableW(L"STARLING_NO_EXPLORER_SERVICE", off, 8) > 0 &&
+        off[0] != L'\0') {
         return 0;
     }
+
     /* Set BEFORE the early return: on a shell restart the service explorer is
      * already there (we started it last time round), and its chrome still has
      * to stay down. The caller is the supervisor, and it only asks when it is

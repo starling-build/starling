@@ -202,6 +202,11 @@ struct FlWin32Host {
   // because the reservation has to be recomputed from scratch every time the
   // desktop changes shape (see WM_STARLING_APPBAR).
   int appbar_registered;
+  /* A reservation was asked for. Kept apart from `appbar_registered` because
+   * the registration can fail, or be quietly dropped by a shell that arrives
+   * later and recomputes the work area from its own list -- and the panel
+   * still wants its strip in both cases. */
+  int appbar_wanted;
   int appbar_edge;
   int appbar_thickness;
   int appbar_overhang;
@@ -1743,10 +1748,50 @@ static void appbar_apply_position(FlWin32Host* host) {
   apply_colour_key(host);
 }
 
+/*
+ * Re-assert the reservation, by dropping it and taking it again.
+ *
+ * An appbar registration belongs to whoever answers SHAppBarMessage, which is
+ * whatever Shell_TrayWnd resolves to at call time. Our own appbar service
+ * answers when explorer is absent -- and if explorer then arrives (the
+ * packaged-app service in flwin32_explorer.c starts one), it recomputes the
+ * work area from ITS list of appbars, which has never heard of this dock. The
+ * strip stops being reserved and maximized windows run underneath it. On the
+ * box: work area bottom 2160 instead of 2048, reproducible by restarting the
+ * shell while explorer is alive, and surviving a clean restart of the shell.
+ *
+ * ABM_SETPOS alone does not fix that, because the registration the new shell
+ * would have to honour does not exist there. Remove and re-add does: the
+ * ABM_NEW lands on whoever is answering NOW.
+ */
+int32_t flwin32_host_reassert_appbar(FlWin32Host* host) {
+  if (host == NULL || host->window == NULL) return 0;
+  /* WANTED, not registered: if the original ABM_NEW failed there is nothing to
+   * remove and every reason to try again. Asking whether we are currently
+   * registered made this a no-op in exactly the case it exists for. */
+  if (!host->appbar_wanted) return 0;
+
+  if (host->appbar_registered) {
+    APPBARDATA gone = {sizeof(APPBARDATA)};
+    gone.hWnd = host->window;
+    SHAppBarMessage(ABM_REMOVE, &gone);
+    host->appbar_registered = 0;
+  }
+
+  APPBARDATA fresh = {sizeof(APPBARDATA)};
+  fresh.hWnd = host->window;
+  fresh.uCallbackMessage = WM_STARLING_APPBAR;
+  if (!SHAppBarMessage(ABM_NEW, &fresh)) return 0;
+  host->appbar_registered = 1;
+  appbar_apply_position(host);
+  return 1;
+}
+
 int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable) {
   if (host == NULL || host->window == NULL) return 0;
 
   if (!enable) {
+    host->appbar_wanted = 0;
     if (host->appbar_registered) {
       APPBARDATA abd = {sizeof(APPBARDATA)};
       abd.hWnd = host->window;
@@ -1755,6 +1800,7 @@ int32_t flwin32_host_set_appbar(FlWin32Host* host, int32_t enable) {
     }
     return 1;
   }
+  host->appbar_wanted = 1;
   if (host->appbar_registered) return 1;
 
   APPBARDATA abd = {sizeof(APPBARDATA)};
