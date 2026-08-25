@@ -331,14 +331,23 @@ Check "the five session processes are running" {
     "missing: $($missing -join ', ')  duplicated: $($dupes -join ', ')"
 }
 
-# Whether this session runs the explorer service. It is ON by default now that
-# the work area is ours (see flwin32_explorer.c), so these checks normally run;
-# a machine that turned it off with STARLING_EXPLORER_SERVICE=0 gets them
-# skipped rather than failed, because that is a choice, not a fault.
+# Whether this session hosts a permanent explorer. It should NOT: packaged apps
+# are launched by borrowing one for a second and dropping it, so an idle session
+# runs none. STARLING_EXPLORER_SERVICE=1 asks for the old arrangement, and then
+# the check below is about explorer being invisible rather than absent.
 $explorerService = (Get-Process explorer -EA SilentlyContinue | Measure-Object).Count -ge 1
 
 if (-not $explorerService) {
-  Skip "explorer is alive as a service, and owns no chrome" "explorer is not running -- this session turned the service off (STARLING_EXPLORER_SERVICE=0); packaged apps of the CoreWindow generation cannot launch in that configuration"
+Check "no explorer is running at idle" {
+    # The point of the borrow: what used to cost 227 MB permanently now costs
+    # a second per launch. If an explorer is sitting here, either the service
+    # was asked for or one was borrowed and never handed back -- and a leaked
+    # borrow is the failure mode worth catching, because nothing else would
+    # ever notice it.
+    $n = (Get-Process explorer -EA SilentlyContinue | Measure-Object).Count
+    if ($n -eq 0) { return $true }
+    "$n explorer process(es) running -- a borrowed one was not handed back"
+}
 } else {
 Check "explorer is alive as a service, and owns no chrome" {
     # Packaged apps of the CoreWindow generation need it running; the user must
@@ -481,16 +490,17 @@ Check "the file explorer opens, minimizes and comes back" {
     "it came back but only $variety distinct colours are in it -- a blank window"
 }
 
-if (-not $explorerService) {
-  Skip "a packaged app launches, minimizes and comes back" "needs the explorer service; without it activation returns 0x80040900 and the app dies in under two seconds"
-} else {
 Check "a packaged app launches, minimizes and comes back" {
-    # Calculator is of the CoreWindow generation, which is the one that does
-    # not run when explorer is absent. Its window is the frame explorer hosts.
+    # Calculator is of the CoreWindow generation -- the one that cannot be
+    # activated at all unless explorer is running. Launched THROUGH THE SHELL,
+    # deliberately: calling Windows' activation API from here would only prove
+    # that Windows works. What can regress is the shell's own borrow, and the
+    # only way to exercise that is to ask the shell to launch it.
     $aumid = 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App'
-    $pid2 = [uint32]0
-    $hr = [Gate]::Activate($aumid, [ref]$pid2)
-    if ($hr -ne 0) { return ("activation failed hr=0x{0:X8}" -f $hr) }
+    $exe = (Get-Process WinShellBar -EA SilentlyContinue | Select-Object -First 1).Path
+    if (-not $exe) { return "no WinShellBar to launch through" }
+    $out = & $exe --launch-app $aumid 2>&1
+    if ($LASTEXITCODE -ne 0) { return "the shell refused the launch: $out" }
 
     # Wait for it to be on screen AND PAINTED. A frame with nothing in it is
     # what a UWP app looks like while it starts -- and what it leaves behind
@@ -500,7 +510,12 @@ Check "a packaged app launches, minimizes and comes back" {
     $variety = 0
     for ($i = 0; $i -lt 12; $i++) {
         Start-Sleep 1
+        # The frame if there is one, otherwise the app's own window. Which of
+        # the two carries the title depends on whether an explorer was around
+        # when it started, and pinning the check to one class made it look for
+        # a window that was never going to exist.
         if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator", "ApplicationFrameWindow") }
+        if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator") }
         if ($w -eq [IntPtr]::Zero -or -not [Gate]::IsWindowVisible($w)) { continue }
         $r = New-Object RECT
         [void][Gate]::GetWindowRect($w, [ref]$r)
@@ -532,7 +547,6 @@ Check "a packaged app launches, minimizes and comes back" {
 
     if ($gone -and $back) { return $true }
     "minimize=$gone restore=$back"
-}
 }
 
 ""

@@ -216,7 +216,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--launch-app") {
     // with the process -- which leaks the very explorer the borrow exists to
     // avoid. The dock, which is what normally launches, is long-lived and has
     // no such problem; this one-shot process does.
-    Thread.sleep(forTimeInterval: 9)
+    Thread.sleep(forTimeInterval: 14)
     exit(rc != 0 ? 0 : 1)
 }
 

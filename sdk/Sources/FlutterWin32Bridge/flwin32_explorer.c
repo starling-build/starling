@@ -702,7 +702,16 @@ int32_t flwin32_shell_borrow_explorer(void) {
 static DWORD WINAPI borrow_end(LPVOID param) {
     HANDLE h = (HANDLE)param;
     int i;
-    for (i = 0; i < 12; i++) {
+    /* TEN SECONDS, not three. Activation returning success means the app was
+     * started, not that it is finished starting: a packaged app's window frame
+     * is built by ApplicationFrameHost in concert with the shell, and dropping
+     * explorer before that lands leaves the app running with no frame -- on the
+     * box, Calculator came up as a bare full-screen surface instead of a window
+     * you can move, and only sometimes, which is what a race looks like.
+     * The cost of being generous is an explorer alive for ten seconds after a
+     * launch; the cost of being tight is an app in the wrong shape. Idle is
+     * unaffected either way -- nothing is running when nothing was launched. */
+    for (i = 0; i < 40; i++) {
         Sleep(250);
         flwin32_shell_suppress_explorer_chrome();
     }
