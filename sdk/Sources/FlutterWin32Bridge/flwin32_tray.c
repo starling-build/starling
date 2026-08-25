@@ -660,17 +660,59 @@ static HWND g_autohide[4];                 /* one slot per ABE_* edge */
 static RECT g_wa_saved;
 static int g_wa_saved_valid;
 static int g_wa_dirty;
+static int g_wa_applying;
+static DWORD g_stomp_since;   /* start of the current burst of repairs */
+static int g_stomp_count;
+static int g_stomp_gave_up;
 static int g_own = -1;
 
+/* WHO OWNS THE WORK AREA -- which is "who is the SHELL", not "does an
+ * explorer process exist".
+ *
+ * The first spelling of this asked whether explorer's Shell_TrayWnd was gone,
+ * and it was wrong in the one configuration that matters. With the
+ * packaged-app explorer service running, explorer IS alive, so every appbar
+ * message was forwarded to it -- and explorer, which is not the shell there,
+ * never recorded the dock. The strip was drawn and nothing was reserved, so
+ * maximized windows ran underneath the dock. Reproducible by restarting the
+ * shell while explorer is alive, which is also what a crash respawn and every
+ * deploy do.
+ *
+ * Why the forward loses OUR registration in particular, while a third-party
+ * appbar forwards through it perfectly well: shell32 hands a SAME-PROCESS
+ * caller a direct heap pointer instead of a shared section (see
+ * appbar_return), and the dock is in this process. Forwarded to explorer that
+ * pointer addresses nothing, SHLockShared fails there, and the call is
+ * dropped -- with TRUE returned to the dock, so it looks like it worked.
+ * Measured on the box: with explorer alive the dock reserves nothing, while a
+ * test appbar registered from ANOTHER process moves the work area exactly as
+ * it should. That asymmetry is the whole bug, and it is invisible from the
+ * dock's side.
+ *
+ * PROGMAN IS NOT THE TELL, however much it looks like one. The obvious rule
+ * is "explorer has a desktop window, so explorer is the shell" -- and the
+ * service explorer HAS a Progman; we hide it rather than prevent it, and
+ * FindWindow finds hidden windows. A comment two files over says it stays
+ * NULL, and a probe agreed, but the probe asked through PowerShell where a
+ * $null string argument marshals as "" -- so it searched for a window TITLED
+ * "" and of course found nothing. That is the same trap this tree has
+ * recorded twice already, and it cost a whole build-and-verify round here.
+ *
+ * The honest tell is our own intent: this process hid explorer's taskbar,
+ * so this process put a bar on that edge and took the minimize target -- it
+ * IS the shell chrome, whatever else is running. A dock started
+ * --keep-taskbar never claims it, and neither does any process that is not
+ * the dock. */
 static int appbar_serving(void) {
   if (g_own < 0) {
     const char* v = getenv("STARLING_TRAY_OWN");
     g_own = (v != NULL && v[0] != '\0' && v[0] != '0') ? 1 : 0;
   }
   if (g_own) return 1;
-  /* Re-checked per message: explorer can exit at any moment, and the first
-   * appbar call after it does is the one that must not be forwarded into
-   * the void. */
+  if (flwin32_explorer_taskbar_hidden_by_us()) return 1;
+  /* Re-checked per message rather than latched: explorer can exit at any
+   * moment, and the first appbar call after it does is the one that must not
+   * be forwarded into the void. */
   return explorer_tray() == NULL;
 }
 
@@ -751,12 +793,12 @@ static void bars_notify(HWND except, UINT code) {
  * taskbar plus every registered appbar, and maximized windows size to it. With
  * explorer out of the picture that duty is ours, or the dock is a strip that
  * maximized windows sit underneath. */
-static void workarea_recompute(void) {
+static int workarea_wanted(RECT* out) {
   POINT origin = {0, 0};
   MONITORINFO mi;
   ZeroMemory(&mi, sizeof(mi));
   mi.cbSize = sizeof(mi);
-  if (!GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) return;
+  if (!GetMonitorInfoW(MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY), &mi)) return 0;
   RECT wa = mi.rcMonitor;
   for (int i = 0; i < g_bar_count; i++) {
     if (!g_bars[i].has_rect) continue;
@@ -770,14 +812,81 @@ static void workarea_recompute(void) {
       case ABE_BOTTOM: if (r->top < wa.bottom) wa.bottom = r->top; break;
     }
   }
+  *out = wa;
+  return 1;
+}
+
+/* Tell everyone the work area moved -- everyone EXCEPT explorer.
+ *
+ * SPI_SETWORKAREA's own SPIF_SENDCHANGE is the obvious way to do this and it
+ * is the entire bug. Measured on the box, explorer alive, our shell not even
+ * running:
+ *
+ *     set 2048, flags 0                -> 2048 for fifteen seconds
+ *     set 2048, flags SPIF_SENDCHANGE  -> 2160 by the next read
+ *     set 2048, SPIF_SENDCHANGE, explorer killed first -> 2048, holds
+ *
+ * So explorer treats the broadcast as its cue to recompute, and what it
+ * computes is "nothing is reserved" -- its own taskbar is autohidden and its
+ * appbar list has never heard of our dock. Every earlier attempt at this
+ * ended in a SPIF_SENDCHANGE, which is why re-registering, re-asserting on
+ * TaskbarCreated, and a self-healing watcher all failed identically: each one
+ * summoned the very stomp it was trying to repair.
+ *
+ * Posting it ourselves, one window at a time, is the whole fix. Apps read the
+ * new work area the same way they always did (SPI_GETWORKAREA is current the
+ * instant it is set, notification or not); explorer simply never learns there
+ * was anything to react to. */
+static BOOL CALLBACK notify_workarea(HWND hwnd, LPARAM shell_pid) {
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  if (shell_pid != 0 && pid == (DWORD)shell_pid) return TRUE;
+  /* Post, not send: a broadcast that blocks on one stuck window would block
+   * the appbar call that started it, and this is a notification -- nothing
+   * here reads a reply. */
+  PostMessageW(hwnd, WM_SETTINGCHANGE, SPI_SETWORKAREA, 0);
+  return TRUE;
+}
+
+static void workarea_announce(void) {
+  DWORD pid = 0;
+  /* Progman first: explorer has one whenever it is running, including the
+   * service explorer whose taskbar we hid, and it is the window we are least
+   * likely to have taken over ourselves. */
+  HWND desktop = FindWindowW(L"Progman", NULL);
+  if (desktop != NULL) {
+    GetWindowThreadProcessId(desktop, &pid);
+  } else {
+    HWND tray = explorer_tray();
+    if (tray != NULL) GetWindowThreadProcessId(tray, &pid);
+  }
+  EnumWindows(notify_workarea, (LPARAM)pid);
+}
+
+/* 1 if the work area was actually changed, 0 if it already agreed or could
+ * not be read -- the caller counts changes, not calls. */
+static int workarea_recompute(void) {
+  RECT wa;
+  if (!workarea_wanted(&wa)) return 0;
+  /* The announcement below reaches this window too -- it is a top-level
+   * window like any other -- so the stomp watcher runs again on the back of
+   * our own change. The equality test one line down ends it either way, since
+   * by then the work area IS what we asked for, and posting rather than
+   * sending means it is not even re-entrant today. The flag costs nothing and
+   * does not rely on that staying true. */
+  if (g_wa_applying) return 0;
   RECT cur;
-  if (SystemParametersInfoW(SPI_GETWORKAREA, 0, &cur, 0) && EqualRect(&cur, &wa)) return;
-  if (!g_wa_saved_valid) {
+  int have_cur = SystemParametersInfoW(SPI_GETWORKAREA, 0, &cur, 0) ? 1 : 0;
+  if (have_cur && EqualRect(&cur, &wa)) return 0;
+  if (!g_wa_saved_valid && have_cur) {
     /* What was there before our first change, so exiting can put it back. */
     g_wa_saved = cur;
     g_wa_saved_valid = 1;
   }
-  BOOL ok = SystemParametersInfoW(SPI_SETWORKAREA, 0, &wa, SPIF_SENDCHANGE);
+  g_wa_applying = 1;
+  BOOL ok = SystemParametersInfoW(SPI_SETWORKAREA, 0, &wa, 0);
+  if (ok) workarea_announce();
+  g_wa_applying = 0;
   if (g_probing || g_debug > 0) {
     printf("[tray] workarea (%ld,%ld,%ld,%ld) -> set=%d err=%lu\n",
            (long)wa.left, (long)wa.top, (long)wa.right, (long)wa.bottom,
@@ -785,6 +894,7 @@ static void workarea_recompute(void) {
     fflush(stdout);
   }
   g_wa_dirty = 1;
+  return ok ? 1 : 0;
 }
 
 /* Snap a proposed rect to its edge on the monitor it falls on, keeping the
@@ -951,6 +1061,48 @@ static LRESULT appbar_serve(FlAppBarEnvelope* env) {
 
 static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
                                       LPARAM lparam) {
+  /* SOMEBODY ELSE PUT THE WORK AREA BACK.
+   *
+   * While we are the shell the reservation is ours to hold, and with the
+   * packaged-app explorer service running there is a second process with an
+   * opinion about it -- explorer's, which is "nothing is reserved", because
+   * its own taskbar is autohidden and its appbar list has never heard of the
+   * dock. It recomputes on its own schedule (a display change, a theme
+   * change, a packaged app activating), and whatever it recomputes lands on
+   * top of ours.
+   *
+   * Whoever changes it announces the change, so there is nothing to poll:
+   * put it back and stop. Re-registering the appbar is what earlier attempts
+   * tried and it was never the missing piece -- the registration was fine,
+   * the work area was simply somebody else's answer. Note this fires far less
+   * now than it used to: we no longer summon explorer's recompute ourselves
+   * (see workarea_announce), so what is left is explorer changing it for its
+   * own reasons -- a resolution change, a monitor arriving. */
+  if (message == WM_SETTINGCHANGE && wparam == SPI_SETWORKAREA) {
+    if (g_bar_count > 0 && appbar_serving()) {
+      /* Bounded, because the other end of this could be something that
+       * re-asserts on every change too, and two shells taking turns at the
+       * work area forever is a busy loop with a flickering desktop on top of
+       * it. Eight repairs in two seconds is far more than any real sequence
+       * of monitor and appbar changes produces, so past that we stop, say so
+       * once, and wait for the next appbar message to settle it. */
+      DWORD now = GetTickCount();
+      if (now - g_stomp_since > 2000) {
+        g_stomp_since = now;
+        g_stomp_count = 0;
+        g_stomp_gave_up = 0;
+      }
+      if (g_stomp_count < 8) {
+        if (workarea_recompute()) g_stomp_count++;
+      } else if (!g_stomp_gave_up) {
+        g_stomp_gave_up = 1;
+        printf("[tray] work area contested -- something else keeps setting "
+               "it; standing down until the next appbar message\n");
+        fflush(stdout);
+      }
+    }
+    return 0;
+  }
   if (message == WM_COPYDATA) {
     COPYDATASTRUCT* cds = (COPYDATASTRUCT*)lparam;
     if (cds != NULL && cds->dwData == 1 && cds->cbData >= 8 + kNidV1Size) {
@@ -982,7 +1134,20 @@ static LRESULT CALLBACK tray_wnd_proc(HWND hwnd, UINT message, WPARAM wparam,
       if (g_probing) dump_unknown(cds);
       FlAppBarEnvelope env;
       memcpy(&env, cds->lpData, sizeof(env));
-      return appbar_serve(&env);
+      LRESULT served = appbar_serve(&env);
+      /* ABM_SETSTATE is the one message we serve AND pass on. It is how
+       * explorer's own taskbar is told to reserve nothing while the
+       * packaged-app service keeps an explorer alive (flwin32_explorer.c sets
+       * ABS_AUTOHIDE on it), and answering it here without telling explorer
+       * would leave that taskbar claiming a strip we then have to fight over.
+       * Unlike the position messages it carries its whole payload inline, so
+       * forwarding it cannot lose anything to the shared-block problem that
+       * made serving necessary in the first place. */
+      if ((UINT)env.dwMessage == ABM_SETSTATE) {
+        HWND real = explorer_tray();
+        if (real != NULL) SendMessageW(real, WM_COPYDATA, wparam, lparam);
+      }
+      return served;
     }
     /* EVERYTHING ELSE GOES ON TO EXPLORER. */
     if (cds != NULL) {
@@ -1079,7 +1244,9 @@ void flwin32_tray_stop(void) {
   g_bar_count = 0;
   ZeroMemory(g_autohide, sizeof(g_autohide));
   if (g_wa_dirty && g_wa_saved_valid) {
-    SystemParametersInfoW(SPI_SETWORKAREA, 0, &g_wa_saved, SPIF_SENDCHANGE);
+    if (SystemParametersInfoW(SPI_SETWORKAREA, 0, &g_wa_saved, 0)) {
+      workarea_announce();
+    }
     g_wa_dirty = 0;
   }
   /* Hand the tray back: apps re-add to whatever answers now, which is

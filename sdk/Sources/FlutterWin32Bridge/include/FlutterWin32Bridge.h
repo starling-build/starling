@@ -1473,6 +1473,10 @@ int32_t flwin32_explorer_taskbar_show(void);
 
 int32_t flwin32_explorer_taskbar_visible(void);
 
+// Whether THIS process hid it -- which is how the appbar service decides
+// the work area is ours to compute. See flwin32_tray.c's appbar_serving.
+int32_t flwin32_explorer_taskbar_hidden_by_us(void);
+
 // -- The session slot (shell-replacement Phase 5) ----------------------------
 //
 // Primitives behind `WinShellBar.exe --session`: spawn a surface of this

@@ -256,6 +256,19 @@ int32_t flwin32_explorer_taskbar_show(void) {
   return 1;
 }
 
+/* "Is this process acting as the shell chrome" -- asked by the appbar service
+ * next door, which has to know whether the work area is ours to compute.
+ *
+ * Hiding explorer's taskbar is the declaration: a process that did it has put
+ * its own bar on that edge and taken the minimize target, and one that did
+ * not (--keep-taskbar, or any process that is not the dock) has no business
+ * touching the work area. The flag is set whether or not a taskbar was
+ * actually found, because "explorer is not running" and "explorer's taskbar
+ * is hidden" are the same intent and the same answer. */
+int32_t flwin32_explorer_taskbar_hidden_by_us(void) {
+  return g_hidden ? 1 : 0;
+}
+
 int32_t flwin32_explorer_taskbar_visible(void) {
   int i;
   for (i = 0; i < kTrayClassCount; i++) {
@@ -516,33 +529,34 @@ static int explorer_running_in_session(void) {
 }
 
 int32_t flwin32_shell_ensure_explorer_service(void) {
-    /* OPT-IN again, and the reason is honest rather than tidy.
+    /* ON by default, and the reason it can be is that the work area is now
+     * ours.
      *
-     * Keeping explorer alive is what makes CoreWindow packaged apps run, and
-     * everything about that works: they launch, minimize and restore, and
-     * explorer's own chrome stays invisible. What is NOT solved is the WORK
-     * AREA. Our tray owns the Shell_TrayWnd class and therefore answers
-     * SHAppBarMessage -- FindWindow returns ours before explorer's -- so with
-     * explorer alive there are two shells computing the work area and
-     * explorer wins: after a shell restart the dock's strip is not reserved,
-     * and maximized windows run underneath a dock that is still drawn.
+     * It was opt-in for one release because of a single unsolved conflict:
+     * with explorer alive the dock's strip stopped being reserved, so
+     * maximized windows ran underneath a dock that was still drawn. The cause
+     * turned out to be our own notification -- SPI_SETWORKAREA with
+     * SPIF_SENDCHANGE is explorer's cue to recompute, and what it computes is
+     * "nothing is reserved". Announcing the change ourselves, to every window
+     * except explorer's, ends it (flwin32_tray.c, workarea_announce), and the
+     * appbar service now serves the dock rather than forwarding a registration
+     * explorer cannot read.
      *
-     * Four things were tried and none of them holds it: re-asserting at
-     * startup, re-asserting on TaskbarCreated, a self-healing watcher that
-     * re-registers whenever the work area disagrees, and all three together.
-     * Re-registering is not the missing piece, which is the tell -- the
-     * reservation comes back only when something makes explorer recompute of
-     * its own accord (activating a packaged app did it once). The fix
-     * probably belongs in the appbar service: own the work area explicitly
-     * (SPI_SETWORKAREA) rather than asking whoever answers to do it.
+     * What it buys: CoreWindow packaged apps -- the Store generation, which
+     * includes Calculator and Settings -- launch at all. What it costs,
+     * measured on the box: one explorer process, about 227 MB and 0.05% of a
+     * core, with no chrome of its own on screen.
      *
-     * So: STARLING_EXPLORER_SERVICE=1 for the machine that wants Store apps
-     * and can live with the dock overlapping a maximized window; off by
-     * default until the work area is ours. Non-empty only -- an empty
-     * variable is not a request. */
-    wchar_t on[8];
-    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) == 0 ||
-        on[0] == L'\0') {
+     * STARLING_EXPLORER_SERVICE=0 turns it off for a machine that would rather
+     * have the memory back and does not want Store apps. */
+    /* Only an explicit "0" declines. Unset means the default, and so does
+     * empty -- an empty variable is not an instruction either way, and reading
+     * it as one is how the OTHER direction of this went wrong: while the flag
+     * was opt-in, "0" was read as "on", so the control run of an A/B quietly
+     * started explorer and measured the same configuration twice. */
+    wchar_t off[8];
+    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", off, 8) > 0 &&
+        off[0] == L'0') {
         return 0;
     }
 
