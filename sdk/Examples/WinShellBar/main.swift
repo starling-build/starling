@@ -75,6 +75,36 @@ let wantsMonitor: Int? = CommandLine.arguments.firstIndex(of: "--monitor")
     .flatMap { i in i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) : nil }
 ShellScreen.use(monitor: wantsMonitor)
 
+// AN ARGUMENT WE DO NOT RECOGNISE IS AN ERROR, NOT A DOCK.
+//
+// Every branch below asks `contains("--something")`, and the last one asks
+// nothing at all -- it is the else. So a typo falls through all of them and
+// starts a COMPLETE SECOND SHELL CHROME: `--hide-taskbar`, a flag that has
+// never existed, came up as a dock beside the real one, took the taskman
+// window off it, and had to be found and killed by hand. Nothing printed a
+// word. Refusing costs one pass over argv, and the list below is the only
+// place that has to be kept honest.
+let knownFlags: Set<String> = [
+    "--", "--all", "--apps-probe", "--background", "--banners", "--desktop",
+    "--extended", "--fileop-probe", "--files", "--keep-taskbar", "--keep-tray",
+    "--keep-winkey", "--launcher", "--location", "--menu-flags",
+    "--menu-handlers", "--menu-invoke", "--menu-probe", "--menu-static",
+    "--monitor", "--no-appbar", "--notifications", "--ns-probe", "--oneshell",
+    "--oneview", "--plain", "--print-desktop", "--print-machine",
+    "--print-modes", "--print-notifications", "--print-recent",
+    "--print-startup", "--print-status", "--register-shell",
+    "--restore-taskbar", "--run", "--session", "--set-mode", "--settings",
+    "--thumb-probe", "--tray-probe", "--unregister-shell",
+]
+let unknownFlags = CommandLine.arguments.dropFirst()
+    .filter { $0.hasPrefix("--") && !knownFlags.contains($0) }
+if !unknownFlags.isEmpty {
+    print("[WinShell] not an option: \(unknownFlags.joined(separator: " "))")
+    print("[WinShell] known options: "
+          + knownFlags.sorted().joined(separator: " "))
+    exit(2)
+}
+
 // `--restore-taskbar` does nothing else and exits, so it can be run from
 // anywhere to recover a machine whose Starling was killed rather than closed
 // (atexit covers the tidy path, and nothing covers taskkill /f).
