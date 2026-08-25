@@ -251,3 +251,15 @@ than testing the wrong machine.
   swift-testing's own `_Testing_Foundation` module — before it reaches any of
   our code. Hence `--sdk` rather than a permanent red: a suite that always
   fails for a known reason is one people stop reading.
+
+## The Windows shell gate
+
+`test/win/run-gate.sh` — eight checks against the Windows shell running on the
+physical box: its processes, the strip it reserves, the wallpaper, minimize
+and restore, and a packaged app that only launches because explorer is kept
+alive. Exits 0 when they all pass and brings back a screenshot when they do
+not. `test/win/README.md` says what each check is protecting and why it runs
+as a scheduled task rather than over ssh.
+
+Z-order is separate and slower: `test/bench/win-latency/zorder-stress.ps1`,
+24 launch/close cycles with three shell restarts.
