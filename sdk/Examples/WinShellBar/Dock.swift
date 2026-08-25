@@ -455,7 +455,13 @@ final class StarlingDockState: State<StatefulWidget> {
     /// it again rather than destroying it, so the second open is free too.
     private func openFilesSurface() {
         guard filesSurfaceId == nil else { return }
+        // The title is the CONTRACT with the dock, not decoration: `_rebuild`
+        // finds this window by our exe plus exactly this string, and the
+        // window list drops untitled windows outright. Without it the file
+        // explorer has no tile, no running indicator, and — since the
+        // minimize stubs went away — no way back once it is minimized.
         let id = Win32Surfaces.open(kind: .app,
+                                    title: "Starling Files",
                                     width: kFilesWidth,
                                     height: kFilesHeight) { _ in
             StarlingFiles()

@@ -69,7 +69,13 @@ public enum Win32Surfaces {
     /// (the launcher asking "am I visible?") can hold it. Width/height/
     /// bottomMargin are LOGICAL POINTS and only meaningful for `.overlay`.
     /// Returns the view id, or nil when the surface could not be created.
+    /// `title` is the window title, and for `.app` it is not decoration: the
+    /// shell's own window list drops any window with an empty title, so an
+    /// untitled app surface gets no dock tile and nothing can raise it once
+    /// it is minimized. Leave it empty for the chrome kinds, which have to
+    /// stay out of that list.
     public static func open(kind: Win32SurfaceKind,
+                            title: String = "",
                             width: Double = 0, height: Double = 0,
                             bottomMargin: Double = 0,
                             content: @escaping (Int) -> Widget) -> Int? {
@@ -82,7 +88,8 @@ public enum Win32Surfaces {
         case .overlay: 1
         case .app:     2
         }
-        let id = flwin32_surface_open(host.cHost, cKind, width, height, bottomMargin)
+        let id = flwin32_surface_open(host.cHost, cKind, width, height,
+                                      bottomMargin, title)
         guard id > 0 else { return nil }
         kinds[Int(id)] = kind
         Win32PopupSurfaces.builders[Int(id)] = { content(Int(id)) }

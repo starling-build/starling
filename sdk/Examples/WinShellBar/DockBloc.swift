@@ -493,10 +493,22 @@ final class DockBloc: @unchecked Sendable {
             Win32Shell.toggleOverlay()
             return
         }
-        // Ours, not Windows': open Starling Files, or fall through to the
-        // ordinary raise/minimize when a window already exists.
-        if item.key == kFilesKey, item.windows.isEmpty {
-            FilesWindow.openFileExplorer()
+        // Ours, not Windows': the file explorer is a surface view in THIS
+        // process, so showing it is FilesWindow's job rather than the window
+        // manager's — `Win32Surfaces.show` sets the force-composite flag the
+        // view needs, and a raise that goes around it paints the window
+        // blank. That covers all three states it can be in (hidden after a
+        // close, minimized, or simply behind something). Clicking it while it
+        // already holds the foreground still puts it away, exactly as a
+        // taskbar button does, which is the one case that stays with the
+        // window manager.
+        if item.key == kFilesKey {
+            if let front = item.windows.first(where: { $0.isForeground }) {
+                Win32WindowManager.minimize(front.handle)
+            } else {
+                FilesWindow.openFileExplorer()
+            }
+            _queueRefresh()
             return
         }
         guard let window = item.windows.first(where: { $0.isForeground })

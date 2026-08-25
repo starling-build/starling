@@ -259,7 +259,8 @@ static void ensure_surface_class(void) {
 
 int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
                              double width_pt, double height_pt,
-                             double bottom_margin_pt) {
+                             double bottom_margin_pt,
+                             const char* title_utf8) {
   if (host == NULL) return -1;
   SurfaceSlot* slot = NULL;
   for (int i = 0; i < kMaxSurfaces; i++) {
@@ -322,8 +323,23 @@ int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
     exstyle |= WS_EX_TOPMOST;
   }
 
+  // The TITLE, which for an app surface is load-bearing rather than cosmetic.
+  // The shell's own window list drops any window whose title is empty
+  // (is_manageable, flwin32_wm.c), so an untitled app surface is invisible to
+  // the dock that is supposed to hold its tile -- no icon, no running
+  // indicator, and no way to raise it. The file explorer lived that way and it
+  // only ever showed while Windows was leaving minimized windows as stubs on
+  // the desktop. The chrome kinds stay untitled on purpose: the desktop and
+  // the launcher are not apps and must NOT appear in that list.
+  wchar_t title[256];
+  title[0] = L'\0';
+  if (title_utf8 != NULL && title_utf8[0] != '\0') {
+    MultiByteToWideChar(CP_UTF8, 0, title_utf8, -1, title, 256);
+    title[255] = L'\0';
+  }
+
   HWND window = CreateWindowExW(
-      exstyle, kSurfaceClass, L"",
+      exstyle, kSurfaceClass, title,
       style, r.left, r.top, r.right - r.left, r.bottom - r.top,
       // UNOWNED, both kinds — and for the overlay that is load-bearing:
       // PostMessage(HWND_BROADCAST) reaches invisible UNOWNED windows but
@@ -450,19 +466,34 @@ static void watch_for_windows_above(HWND desktop) {
 void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
   SurfaceSlot* slot = surface_for_view(view_id);
   if (slot == NULL || slot->host != host) return;
-  if (IsWindowVisible(slot->window)) return;
+
   if (slot->kind == FLWIN32_SURFACE_APP) {
-    ShowWindow(slot->window, SW_SHOW);
+    // THREE STATES, ONE ENTRY POINT: minimized, hidden, or on screen behind
+    // something. The file explorer's tile, Win+E and the dock menu all land
+    // here, and each state needs a different call.
+    //
+    // What was here before was `if (IsWindowVisible(w)) return;` followed by
+    // SW_SHOW, and both halves were wrong for a minimized window. A minimized
+    // window KEEPS WS_VISIBLE, so the guard returned without touching it, and
+    // SW_SHOW would not have helped anyway -- it shows a window in its
+    // CURRENT state, so an iconic window stays iconic. That is the same trap
+    // flwin32_wm_activate documents for other people's windows.
+    //
+    // It survived only because Windows was leaving minimized windows as
+    // title-bar stubs on the desktop, which was itself our bug (nothing had
+    // claimed SetTaskmanWindow -- see flwin32_explorer.c). Clicking the stub
+    // was the only thing that ever brought the file explorer back; fixing the
+    // stubs took that away and left it unreachable.
+    if (IsIconic(slot->window)) {
+      ShowWindow(slot->window, SW_RESTORE);
+    } else if (!IsWindowVisible(slot->window)) {
+      ShowWindow(slot->window, SW_SHOW);
+    } else {
+      BringWindowToTop(slot->window);
+    }
     SetForegroundWindow(slot->window);
     HWND child = GetWindow(slot->window, GW_CHILD);
     if (child != NULL) SetFocus(child);
-    // AND FORCE A REDRAW. The view composited while hidden -- that is the
-    // point of building it at startup -- but nothing has asked the newly
-    // visible window for a frame, and with explorer absent nothing else will:
-    // the window stays the blank rectangle Windows painted. The overlay gets
-    // this for free because overlay_notify makes its tree rebuild; an app
-    // surface has no such signal, so ask the engine directly. Same call, same
-    // reason, as the desktop's in flwin32_host.c.
     // AND FORCE A REDRAW. The view composited while hidden -- that is the
     // point of building it at startup -- but nothing has asked the newly
     // visible window for a frame, and with explorer absent nothing else will:
@@ -477,10 +508,20 @@ void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
     // caller (Win32Surfaces.show) sets the framework's force-composite flag
     // for exactly this reason; without it the window shows the frame it
     // composited while hidden, which for the file explorer is the empty page
-    // it had before its first listing arrived.
+    // it had before its first listing arrived. It is also why the dock must
+    // raise this window through here rather than through the generic window
+    // manager: a raise that skips the flag paints it blank.
     FlutterDesktopViewControllerForceRedraw(slot->controller);
     return;
   }
+
+  // The chrome kinds are never minimized (no caption, no minimize box), but
+  // restoring costs nothing and beats a silent no-op if one ever is.
+  if (IsIconic(slot->window)) {
+    ShowWindow(slot->window, SW_RESTORE);
+    return;
+  }
+  if (IsWindowVisible(slot->window)) return;
   if (slot->kind == FLWIN32_SURFACE_DESKTOP) {
     // Bottom of the z-order, no activation — and the window only exists on
     // screen once its view has composited, so there is no empty first

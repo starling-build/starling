@@ -741,9 +741,14 @@ void flwin32_install_child_cursor_proc(void* child_hwnd);
 // edge, created hidden, activatable (its keyboard rides real Win32 focus on
 // the view child), rounded, dismissing itself on deactivate, and answering
 // the launcher toggle broadcast. Returns the engine view id, or -1.
+// `title_utf8` is the window's title, and for an APP surface it is not
+// cosmetic: the shell's own window list drops any window with an empty title
+// (is_manageable, flwin32_wm.c), so an untitled app surface has no dock tile,
+// no running indicator, and nothing to restore it with once it is minimized.
+// NULL or "" for the chrome kinds, which must stay out of that list.
 int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
                              double width_pt, double height_pt,
-                             double bottom_margin_pt);
+                             double bottom_margin_pt, const char* title_utf8);
 // DESKTOP: show at the bottom of the z-order (call on first composite).
 // OVERLAY: show + take foreground + focus the view child.
 void flwin32_surface_show(FlWin32Host* host, int64_t view_id);
