@@ -254,11 +254,13 @@ than testing the wrong machine.
 
 ## The Windows shell gate
 
-`test/win/run-gate.sh` — eight checks against the Windows shell running on the
+`test/win/run-gate.sh` — ten checks against the Windows shell running on the
 physical box: its processes, the strip it reserves, the wallpaper, minimize
 and restore, and a packaged app that only launches because explorer is kept
-alive. Exits 0 when they all pass and brings back a screenshot when they do
-not. `test/win/README.md` says what each check is protecting and why it runs
+alive. Four of them look at PIXELS, because the two worst bugs this shell has
+had — a black screen with a dock on it, and a window that came back blank —
+pass every handle check there is. Exits 0 when they all pass, and brings back
+a screenshot every run. `test/win/README.md` says what each check is protecting and why it runs
 as a scheduled task rather than over ssh.
 
 Z-order is separate and slower: `test/bench/win-latency/zorder-stress.ps1`,

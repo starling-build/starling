@@ -14,9 +14,12 @@
 # the launch check is closed.
 
 param(
-    # Where a failure screenshot lands. Downscaled on this side on purpose: a
-    # full 4K PNG is ~16MB and has no business crossing the wire for a gate.
-    [string]$FailShot = "C:\dist\gate-fail.png"
+    # Where the screenshot lands. Downscaled on this side on purpose: a full
+    # 4K PNG is ~16MB and has no business crossing the wire for a gate.
+    # Written on every run, pass or fail -- it is the record of what the gate
+    # was looking at, and the only thing that can answer "but does it LOOK
+    # right", which no check here claims to.
+    [string]$Screenshot = "C:\dist\gate-shot.png"
 )
 
 $ErrorActionPreference = 'Continue'
@@ -50,6 +53,8 @@ public class Gate {
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int size);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
@@ -116,6 +121,33 @@ public class Gate {
     }, IntPtr.Zero);
     return found;
   }
+  /// Every window that is minimized and STILL ON SCREEN -- which is what a
+  /// title-bar stub is. Exact where a pixel diff of the desktop cannot be:
+  /// another app repainting behind the check is indistinguishable from a stub
+  /// appearing, and on this box that is exactly what fooled it once.
+  public static string IconicOnScreen(int screenW, int screenH) {
+    var sb = new StringBuilder();
+    EnumWindows((h,p) => {
+      if (!IsIconic(h)) return true;
+      // A stub is DRAWN. Two kinds of minimized window sit at plausible
+      // coordinates without ever appearing: DWM's own notification window,
+      // which is not visible at all, and a suspended packaged app, which is
+      // cloaked -- present to every window API, painted by nobody. Counting
+      // either one makes the check cry wolf on a perfectly clean desktop.
+      if (!IsWindowVisible(h)) return true;
+      int cloaked = 0;
+      DwmGetWindowAttribute(h, 14, out cloaked, 4);
+      if (cloaked != 0) return true;
+      RECT r; GetWindowRect(h, out r);
+      if (r.R <= 0 || r.B <= 0 || r.L >= screenW || r.T >= screenH) return true;
+      var t = new StringBuilder(256); GetWindowTextW(h, t, 256);
+      var c = new StringBuilder(256); GetClassNameW(h, c, 256);
+      sb.AppendFormat("{0} [{1}] at ({2},{3}); ", t.ToString(), c.ToString(), r.L, r.T);
+      return true;
+    }, IntPtr.Zero);
+    return sb.ToString();
+  }
+
   /// The full-monitor surface the shell draws the wallpaper into.
   public static IntPtr DesktopSurface(int monitorW, int monitorH) {
     IntPtr found = IntPtr.Zero;
@@ -168,6 +200,80 @@ function Shot($path) {
     $sg.DrawImage($bmp, 0, 0, 1280, 720)
     $small.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     $sg.Dispose(); $small.Dispose(); $g.Dispose(); $bmp.Dispose()
+}
+
+# ── looking at the screen ────────────────────────────────────────────────────
+#
+# The two worst bugs this shell has had were invisible to every window API and
+# obvious in a screenshot: a black screen with a dock on it (every handle
+# present and correct, nothing drawing a wallpaper), and title-bar stubs left
+# sitting above the dock (real windows, in the right place, that should not
+# have been on screen at all). So the gate looks.
+#
+# The measurements are deliberately coarse -- "is there variety here", "did
+# this band change" -- because a gate that asserts exact pixels fails on a new
+# wallpaper and teaches everyone to ignore it.
+
+function Grab($x, $y, $w, $h) {
+    $bmp = New-Object System.Drawing.Bitmap $w, $h
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($x, $y, 0, 0, (New-Object System.Drawing.Size $w, $h))
+    $g.Dispose()
+    return $bmp
+}
+
+# How many DIFFERENT colours a region has, sampled on a grid and quantized.
+# A blank window, a black screen and a solid fill all answer 1-3; anything
+# actually drawn answers dozens.
+function ColourVariety($bmp, $step = 8) {
+    $seen = New-Object 'System.Collections.Generic.HashSet[int]'
+    for ($y = 0; $y -lt $bmp.Height; $y += $step) {
+        for ($x = 0; $x -lt $bmp.Width; $x += $step) {
+            $c = $bmp.GetPixel($x, $y)
+            # 5 bits a channel: tolerant of dithering and of compression, still
+            # far more than a blank surface can produce.
+            $seen.Add((($c.R -shr 3) -shl 10) -bor (($c.G -shr 3) -shl 5) -bor ($c.B -shr 3)) | Out-Null
+        }
+    }
+    return $seen.Count
+}
+
+function MeanBrightness($bmp, $step = 8) {
+    $sum = 0.0; $n = 0
+    for ($y = 0; $y -lt $bmp.Height; $y += $step) {
+        for ($x = 0; $x -lt $bmp.Width; $x += $step) {
+            $c = $bmp.GetPixel($x, $y)
+            $sum += ($c.R + $c.G + $c.B) / 3.0
+            $n++
+        }
+    }
+    if ($n -eq 0) { return 0 }
+    return [math]::Round($sum / $n, 1)
+}
+
+# The share of sampled pixels that differ between two grabs of the same
+# region. The oracle for "something appeared here that should not have".
+function ChangedFraction($a, $b, $step = 4, $tolerance = 24) {
+    $diff = 0; $n = 0
+    for ($y = 0; $y -lt $a.Height -and $y -lt $b.Height; $y += $step) {
+        for ($x = 0; $x -lt $a.Width -and $x -lt $b.Width; $x += $step) {
+            $p = $a.GetPixel($x, $y); $q = $b.GetPixel($x, $y)
+            $n++
+            if ([math]::Abs($p.R - $q.R) -gt $tolerance -or
+                [math]::Abs($p.G - $q.G) -gt $tolerance -or
+                [math]::Abs($p.B - $q.B) -gt $tolerance) { $diff++ }
+        }
+    }
+    if ($n -eq 0) { return 0 }
+    return [math]::Round($diff / [double]$n, 4)
+}
+
+# The strip the dock reserves, and the band of desktop directly above it --
+# where a minimized window's stub would land.
+function ReservedHeight() {
+    $wa = New-Object RECT
+    [void][Gate]::SystemParametersInfoW(0x0030, 0, [ref]$wa, 0)
+    return ($screen.Height - $wa.B)
 }
 
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -226,6 +332,34 @@ Check "the desktop surface is on screen" {
     "no full-screen Starling desktop surface is visible"
 }
 
+Check "there is a wallpaper, not a black screen" {
+    # The window handle above can be perfectly correct while nothing is drawn.
+    # This is the same bug from the only side that would have caught it: a
+    # band across the upper screen, which a wallpaper fills with variety and a
+    # dead desktop fills with one colour.
+    $band = Grab 0 ([int]($screen.Height * 0.12)) $screen.Width ([int]($screen.Height * 0.25))
+    $variety = ColourVariety $band 12
+    $bright = MeanBrightness $band 12
+    $band.Dispose()
+    if ($variety -ge 12) { return $true }
+    "only $variety distinct colours up there (brightness $bright) -- that is a blank desktop"
+}
+
+Check "the dock is drawn along the bottom" {
+    # Its own strip, by the height the reservation says it claimed: opaque and
+    # dark, with icons in it -- distinctly not the wallpaper it sits over.
+    $reserved = ReservedHeight
+    if ($reserved -lt 20) { return "nothing is reserved, so there is no strip to look at" }
+    $strip = Grab 0 ($screen.Height - $reserved) $screen.Width $reserved
+    $bright = MeanBrightness $strip 6
+    $variety = ColourVariety $strip 6
+    $strip.Dispose()
+    # Dark enough to be the strip rather than wallpaper, varied enough to have
+    # icons and a clock in it rather than being a plain black band.
+    if ($bright -le 90 -and $variety -ge 8) { return $true }
+    "strip brightness $bright, $variety colours -- not the dock"
+}
+
 Check "the shell holds the minimize target" {
     $w = [Gate]::FindWindowW("StarlingTaskmanWindow", $null)
     if ($w -ne [IntPtr]::Zero) { return $true }
@@ -235,18 +369,33 @@ Check "the shell holds the minimize target" {
 # ── what a user does to a window ─────────────────────────────────────────────
 
 Check "a minimized window leaves the screen" {
+    # Two answers, because they failed independently: where Windows PUT the
+    # window, and whether ANY window is left minimized-but-on-screen, which is
+    # exactly what a title-bar stub is. The second is deliberately not a pixel
+    # diff of the desktop -- another app repainting behind the check reads the
+    # same as a stub appearing, and on this box that is what fooled it.
     $h = [Gate]::Probe()
     [Gate]::Pump(700)
     [void][Gate]::ShowWindow($h, 6)   # SW_MINIMIZE
-    [Gate]::Pump(1200)
+    [Gate]::Pump(1500)
+
     $r = New-Object RECT
     [void][Gate]::GetWindowRect($h, [ref]$r)
     $parked = $r.L -le -30000
+    $stubs = [Gate]::IconicOnScreen($screen.Width, $screen.Height)
+
     [void][Gate]::ShowWindow($h, 9)
     [Gate]::Pump(400)
     [void][Gate]::DestroyWindow($h)
-    if ($parked) { return $true }
-    "minimized to ($($r.L),$($r.T)) -- a title-bar stub is sitting on the desktop"
+    [Gate]::Pump(600)
+
+    if (-not $parked) {
+        return "minimized to ($($r.L),$($r.T)) -- a title-bar stub is sitting on the desktop"
+    }
+    if ($stubs.Length -gt 0) {
+        return "minimized windows are still on screen: $stubs"
+    }
+    return $true
 }
 
 Check "the file explorer opens, minimizes and comes back" {
@@ -262,25 +411,53 @@ Check "the file explorer opens, minimizes and comes back" {
     [Gate]::Chord(0x45)
     Start-Sleep 5
     $back = -not [Gate]::IsIconic($f)
+    if (-not $back) {
+        if (-not $wasVisible) { [void][Gate]::ShowWindow($f, 0) }
+        return "Win+E did not bring the minimized Files window back"
+    }
+    # And it has to have PAINTED. A restored surface view that nobody asked
+    # for a frame is a white rectangle with a title bar -- the window checks
+    # all pass and the user is looking at nothing.
+    $r = New-Object RECT
+    [void][Gate]::GetWindowRect($f, [ref]$r)
+    $shot = Grab ($r.L + 8) ($r.T + 8) ([math]::Max(64, $r.R - $r.L - 16)) ([math]::Max(64, $r.B - $r.T - 16))
+    $variety = ColourVariety $shot 10
+    $shot.Dispose()
     # Put it back the way it was found.
     if (-not $wasVisible) { [void][Gate]::ShowWindow($f, 0) }
-    if ($back) { return $true }
-    "Win+E did not bring the minimized Files window back"
+    if ($variety -ge 10) { return $true }
+    "it came back but only $variety distinct colours are in it -- a blank window"
 }
 
 Check "a packaged app launches, minimizes and comes back" {
     # Calculator is of the CoreWindow generation, which is the one that does
     # not run when explorer is absent. Its window is the frame explorer hosts.
     $aumid = 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App'
-    Get-Process CalculatorApp -EA SilentlyContinue | Stop-Process -Force
-    Start-Sleep 2
     $pid2 = [uint32]0
     $hr = [Gate]::Activate($aumid, [ref]$pid2)
-    Start-Sleep 7
     if ($hr -ne 0) { return ("activation failed hr=0x{0:X8}" -f $hr) }
-    $w = [Gate]::Find("Calculator", "ApplicationFrameWindow")
+
+    # Wait for it to be on screen AND PAINTED. A frame with nothing in it is
+    # what a UWP app looks like while it starts -- and what it leaves behind
+    # if it dies -- so a check that only asks "is there a window" passes on a
+    # white rectangle with an icon in the middle.
+    $w = [IntPtr]::Zero
+    $variety = 0
+    for ($i = 0; $i -lt 12; $i++) {
+        Start-Sleep 1
+        if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator", "ApplicationFrameWindow") }
+        if ($w -eq [IntPtr]::Zero -or -not [Gate]::IsWindowVisible($w)) { continue }
+        $r = New-Object RECT
+        [void][Gate]::GetWindowRect($w, [ref]$r)
+        $shot = Grab ($r.L + 12) ($r.T + 40) ([math]::Max(64, $r.R - $r.L - 24)) ([math]::Max(64, $r.B - $r.T - 60))
+        $variety = ColourVariety $shot 10
+        $shot.Dispose()
+        if ($variety -ge 25) { break }
+    }
     if ($w -eq [IntPtr]::Zero) { return "activated, but no window ever appeared" }
     if (-not [Gate]::IsWindowVisible($w)) { return "the window exists but is not on screen" }
+    if ($variety -lt 25) { return "the window is on screen but blank ($variety colours)" }
+
     [void][Gate]::ShowWindow($w, 6)
     Start-Sleep 3
     $gone = [Gate]::IsIconic($w)
@@ -289,16 +466,24 @@ Check "a packaged app launches, minimizes and comes back" {
     [void][Gate]::SetForegroundWindow($w)
     Start-Sleep 3
     $back = -not [Gate]::IsIconic($w)
+
+    # CLOSE IT, do not kill it. The frame window belongs to
+    # ApplicationFrameHost, not to the app: killing the app process leaves the
+    # frame behind as an empty white rectangle over the desktop, which is both
+    # untidy and enough to fool the next check that looks at the screen.
+    [void][Gate]::PostMessageW($w, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_CLOSE
+    Start-Sleep 3
     Get-Process CalculatorApp -EA SilentlyContinue | Stop-Process -Force
+
     if ($gone -and $back) { return $true }
     "minimize=$gone restore=$back"
 }
 
 ""
+Shot $Screenshot
+"screenshot: $Screenshot"
+""
 if ($script:failed -gt 0) {
-    Shot $FailShot
-    "a screenshot of the failing state is at $FailShot"
-    ""
     "GATE FAILED: $($script:passed) passed, $($script:failed) failed -- $($script:failures -join '; ')"
     exit 1
 }

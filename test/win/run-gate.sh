@@ -38,7 +38,7 @@ scp -q "$HERE/gate.ps1" "$HOST:$REMOTE_DIR/gate.ps1" || { say "scp failed"; exit
 scp -q "$runner_vbs" "$HOST:$REMOTE_DIR/gate-run.vbs" || { say "scp failed"; exit 2; }
 rm -f "$runner_vbs"
 
-ssh "$HOST" 'del C:\dist\gate.done C:\dist\gate.log C:\dist\gate-fail.png' >/dev/null 2>&1
+ssh "$HOST" 'del C:\dist\gate.done C:\dist\gate.log C:\dist\gate-shot.png' >/dev/null 2>&1
 ssh "$HOST" "schtasks /create /tn $TASK /ru starling /it /sc once /st 00:00 /tr \"wscript.exe C:\\dist\\gate-run.vbs\" /f" >/dev/null 2>&1 \
   || { say "could not register the task"; exit 2; }
 
@@ -60,16 +60,17 @@ if [ -z "$log" ]; then
 fi
 printf '%s\n' "$log"
 
-if printf '%s' "$log" | grep -q "GATE PASSED"; then
-  exit 0
+# Every run leaves a downscaled screenshot; bring it back either way. On a
+# pass it is the evidence, on a failure it is the diagnosis, and it is small.
+if ssh "$HOST" 'if exist C:\dist\gate-shot.png (echo YES) else (echo NO)' 2>/dev/null | grep -q YES; then
+  out="${TMPDIR:-/tmp}/starling-gate-shot.png"
+  if scp -q "$HOST:C:/dist/gate-shot.png" "$out" 2>/dev/null; then
+    say ""
+    say "screenshot: $out"
+  fi
 fi
 
-# A failure leaves a downscaled screenshot behind; bring it back, it is small.
-if ssh "$HOST" 'if exist C:\dist\gate-fail.png (echo YES) else (echo NO)' 2>/dev/null | grep -q YES; then
-  out="${TMPDIR:-/tmp}/starling-gate-fail.png"
-  if scp -q "$HOST:C:/dist/gate-fail.png" "$out" 2>/dev/null; then
-    say ""
-    say "screenshot of the failing state: $out"
-  fi
+if printf '%s' "$log" | grep -q "GATE PASSED"; then
+  exit 0
 fi
 exit 1

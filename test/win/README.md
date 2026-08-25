@@ -13,18 +13,42 @@ brings back a screenshot of the failing screen.
 
 ## What it checks, and why each one is here
 
-| check | the bug it would have caught |
-|---|---|
-| the five session processes | a supervisor that refused to start, or two shells fighting over one screen |
-| explorer alive, owning no chrome | packaged apps that will not launch; explorer's taskbar or desktop showing over ours |
-| the dock reserves its strip | maximized windows running underneath the dock, with the dock still drawn |
-| the desktop surface is on screen | a black screen with a dock on it — every number green, no wallpaper |
-| the shell holds the minimize target | minimized apps left as title-bar stubs sitting on the dock |
-| a minimized window leaves the screen | the same, from the app's side |
-| the file explorer opens, minimizes, comes back | Files minimized into nowhere, unreachable by any route |
-| a packaged app launches, minimizes, comes back | Calculator and the Store dying two seconds after launch |
+| check | looks at | the bug it would have caught |
+|---|---|---|
+| the five session processes | handles | a supervisor that refused to start, or two shells fighting over one screen |
+| explorer alive, owning no chrome | handles | packaged apps that will not launch; explorer's taskbar or desktop showing over ours |
+| the dock reserves its strip | the work area | maximized windows running underneath the dock, with the dock still drawn |
+| the desktop surface is on screen | handles | nothing drawing a wallpaper |
+| there is a wallpaper, not a black screen | **pixels** | a black screen with a dock on it — every handle correct, nothing drawn |
+| the dock is drawn along the bottom | **pixels** | a reservation that holds while the dock itself never paints |
+| the shell holds the minimize target | handles | minimized apps left as title-bar stubs sitting on the dock |
+| a minimized window leaves the screen | handles | the same, from the app's side |
+| the file explorer opens, minimizes, comes back | handles + **pixels** | Files minimized into nowhere; and a restored window that comes back blank |
+| a packaged app launches, minimizes, comes back | handles + **pixels** | Calculator dying two seconds after launch; and an empty frame that passes for a running app |
 
 Every row is a bug that actually shipped, which is the bar for being in here.
+
+## Why some checks look at pixels
+
+The two worst bugs this shell has had were invisible to every window API. A
+black screen with a dock on it: every handle present, correct and in the right
+place, and nothing drawing a wallpaper. And a window that "came back" from
+minimized as a white rectangle, because a surface view nobody asked for a
+frame paints nothing. Both pass a handle check and fail a person looking at
+the screen, so those checks look at the screen.
+
+The measurements are deliberately coarse — "does this region have variety",
+"is this strip dark" — because a gate that asserts exact pixels fails on a new
+wallpaper and teaches everyone to ignore it.
+
+**What is deliberately NOT a pixel check** is "did minimizing leave something
+on the desktop". The obvious form — diff the band above the dock before and
+after — cannot tell a stub appearing from another app repainting behind it,
+and on this box it cried wolf on exactly that. It asks Windows instead: is any
+window minimized, visible, uncloaked, and still on screen. Two kinds of
+minimized window sit at plausible coordinates and never paint — DWM's
+notification window, and suspended packaged apps, which are cloaked — so both
+are excluded, or the check fails on a clean desktop.
 
 ## Why it runs the way it does
 
@@ -49,7 +73,13 @@ scratch directory and take the tooling down with it.
 
 ## Leaving the machine as it was found
 
-The probe window is destroyed, the file explorer is put back to the
-visibility it had, and the Calculator used for the launch check is closed. A
-failing run may leave an app open — that is deliberate, so the state can be
-looked at.
+The probe window is destroyed, the file explorer is put back to the visibility
+it had, and Calculator is **closed, not killed**: its window belongs to
+ApplicationFrameHost rather than to the app, so killing the process leaves an
+empty white frame sitting over the desktop — untidy, and enough to fool the
+next check that looks at the screen. A failing run may leave an app open, on
+purpose, so the state can be looked at.
+
+A screenshot is written on every run, pass or fail, and `run-gate.sh` copies
+it back. On a pass it is the evidence; on a failure it is the diagnosis. It is
+downscaled on the Windows side first.
