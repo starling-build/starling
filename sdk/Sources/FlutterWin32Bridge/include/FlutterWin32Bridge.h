@@ -1512,6 +1512,12 @@ int32_t flwin32_explorer_taskbar_hidden_by_us(void);
 
 // Spawns this executable with `args`, console-less. Returns a process
 // handle the caller must close, or 0.
+// End any shell process of ours already running in this logon session, and
+// answer how many. A supervisor that dies leaves its children behind and
+// Winlogon starts a replacement, so without this a session accumulates docks --
+// each with its own tray and appbar service, fighting over the work area.
+int32_t flwin32_sessionslot_reap_strays(void);
+
 uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8);
 
 // Waits for any handle to exit: its index, -1 on timeout, -2 on error.

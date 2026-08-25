@@ -246,6 +246,15 @@ enum SessionSlot {
 
         log("session start, trial=\(trial), shell=\(registeredShell() ?? "<machine default>")")
 
+        // NOTHING OF OURS SHOULD ALREADY BE RUNNING. A supervisor that dies
+        // leaves its children behind, and Winlogon starts a replacement within
+        // a second -- so without this a session quietly accumulates docks, each
+        // with its own tray and appbar service, and which one Windows talks to
+        // is decided by window stacking order. It reached five on the box, and
+        // every work-area measurement taken in that state was noise.
+        let reaped = flwin32_sessionslot_reap_strays()
+        if reaped > 0 { log("reaped \(reaped) stray shell process(es) from a previous supervisor") }
+
         for i in children.indices {
             children[i].handle =
                 flwin32_sessionslot_spawn_self(children[i].args)

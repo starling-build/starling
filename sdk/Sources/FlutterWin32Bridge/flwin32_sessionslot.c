@@ -21,6 +21,7 @@
 #ifdef _WIN32
 
 #include <windows.h>
+#include <tlhelp32.h>
 #include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,6 +52,62 @@ static int32_t sess_wide_out(const wchar_t* wide, char* out, int32_t out_size) {
  * process handle for the supervisor to wait on. CreateProcessW rather than
  * ShellExecuteW for exactly that handle; CREATE_NO_WINDOW because this is a
  * console-subsystem binary and each child would otherwise pop one. */
+/* Kill any shell process of ours that is already running, before starting a
+ * session's children.
+ *
+ * A supervisor that dies does NOT take its children with it, and Winlogon
+ * starts a replacement within a second (AutoRestartShell). The replacement
+ * spawns its own dock, the orphaned one keeps running, and now the session has
+ * two -- two appbar services, two tray windows, two answers to "how much of
+ * the screen is reserved", and which one Windows talks to is decided by window
+ * stacking order. Left to accumulate it reached FIVE docks on the box, and
+ * every measurement taken in that state was noise: the work area moved on its
+ * own between two reads, and four correct-looking fixes for it each appeared
+ * to work once and then not.
+ *
+ * A job object with kill-on-close is the tidier-looking answer and is a trap:
+ * everything a child starts joins the job too, so quitting the shell would
+ * take the user's browser with it. Reaping at startup has no such reach -- the
+ * only claim being made is that when a session begins, no shell of ours should
+ * already be running, which is true by construction.
+ *
+ * Scoped to THIS logon session and to processes with our own image name, so a
+ * second user's shell on the same machine is not ours to end. */
+int32_t flwin32_sessionslot_reap_strays(void) {
+    DWORD self = GetCurrentProcessId();
+    DWORD our_session = 0;
+    wchar_t path[MAX_PATH];
+    const wchar_t* leaf;
+    HANDLE snap;
+    PROCESSENTRY32W entry;
+    int32_t killed = 0;
+
+    ProcessIdToSessionId(self, &our_session);
+    if (GetModuleFileNameW(NULL, path, MAX_PATH) == 0) return 0;
+    leaf = wcsrchr(path, L'\\');
+    leaf = (leaf != NULL) ? leaf + 1 : path;
+
+    snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return 0;
+    entry.dwSize = sizeof(entry);
+    if (Process32FirstW(snap, &entry)) {
+        do {
+            DWORD session = 0;
+            HANDLE proc;
+            if (entry.th32ProcessID == self) continue;
+            if (_wcsicmp(entry.szExeFile, leaf) != 0) continue;
+            if (!ProcessIdToSessionId(entry.th32ProcessID, &session)) continue;
+            if (session != our_session) continue;
+            proc = OpenProcess(PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
+            if (proc == NULL) continue;
+            if (TerminateProcess(proc, 0)) killed++;
+            CloseHandle(proc);
+        } while (Process32NextW(snap, &entry));
+    }
+    CloseHandle(snap);
+    return killed;
+}
+
 uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8) {
     wchar_t exe[MAX_PATH];
     if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return 0;
