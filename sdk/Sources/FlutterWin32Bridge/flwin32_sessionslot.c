@@ -73,6 +73,68 @@ static int32_t sess_wide_out(const wchar_t* wide, char* out, int32_t out_size) {
  *
  * Scoped to THIS logon session and to processes with our own image name, so a
  * second user's shell on the same machine is not ours to end. */
+/* ONE SUPERVISOR PER SESSION, and this is what makes the reaper safe.
+ *
+ * The reaper below clears out children left by a supervisor that died. That is
+ * only ever the right thing to do if no OTHER supervisor is alive -- otherwise
+ * it is killing a running shell's children, that shell notices them die,
+ * restarts them, decides it is in a crash loop, and hands the desktop back to
+ * explorer. Measured, twice: two supervisors at logon, both reaping, and the
+ * session ending with our shell unregistered.
+ *
+ * A named mutex settles it without anybody having to kill anybody. The second
+ * supervisor stands down; the name is released when the owner's handles close,
+ * which a dying process does for free, so there is nothing to reset. */
+static HANDLE g_supervisor_mutex = NULL;
+
+int32_t flwin32_sessionslot_claim_supervisor(void) {
+    if (g_supervisor_mutex != NULL) return 1;
+    g_supervisor_mutex = CreateMutexW(NULL, TRUE,
+                                      L"Local\\StarlingSessionSupervisor");
+    /* Cannot tell -- proceed rather than refuse to be a shell at all. */
+    if (g_supervisor_mutex == NULL) return 1;
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(g_supervisor_mutex);
+        g_supervisor_mutex = NULL;
+        return 0;
+    }
+    return 1;
+}
+
+/* A CHILD SAYS SO ITSELF, because the reaper has to tell a child from another
+ * supervisor and cannot do it by process name -- every one of them is this
+ * same binary.
+ *
+ * Getting that wrong is not a small bug. A reaper that kills supervisors kills
+ * the one Winlogon is watching; Winlogon restarts it; the restarted one reaps
+ * the reaper. Measured, once: a new session every thirteen seconds, each
+ * reaping five processes and priming afresh, forever.
+ *
+ * A named event is enough. The child creates one keyed on its own process id
+ * and never touches it again; anyone can ask whether it exists, and it goes
+ * away with the process, so there is nothing to clean up and nothing to go
+ * stale. */
+static HANDLE g_child_mark = NULL;
+
+void flwin32_sessionslot_mark_child(void) {
+    wchar_t name[64];
+    if (g_child_mark != NULL) return;
+    _snwprintf_s(name, 64, _TRUNCATE, L"Local\\StarlingShellChild-%lu",
+                 (unsigned long)GetCurrentProcessId());
+    g_child_mark = CreateEventW(NULL, TRUE, FALSE, name);
+}
+
+static int is_marked_child(DWORD pid) {
+    wchar_t name[64];
+    HANDLE h;
+    _snwprintf_s(name, 64, _TRUNCATE, L"Local\\StarlingShellChild-%lu",
+                 (unsigned long)pid);
+    h = OpenEventW(SYNCHRONIZE, FALSE, name);
+    if (h == NULL) return 0;
+    CloseHandle(h);
+    return 1;
+}
+
 int32_t flwin32_sessionslot_reap_strays(void) {
     DWORD self = GetCurrentProcessId();
     DWORD our_session = 0;
@@ -98,6 +160,8 @@ int32_t flwin32_sessionslot_reap_strays(void) {
             if (_wcsicmp(entry.szExeFile, leaf) != 0) continue;
             if (!ProcessIdToSessionId(entry.th32ProcessID, &session)) continue;
             if (session != our_session) continue;
+            /* Children only. Another supervisor is not ours to end. */
+            if (!is_marked_child(entry.th32ProcessID)) continue;
             proc = OpenProcess(PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
             if (proc == NULL) continue;
             if (TerminateProcess(proc, 0)) killed++;
@@ -351,11 +415,43 @@ int32_t flwin32_sessionslot_exec_command(const char* cmdline_utf8) {
  * terminal, the console is the terminal, and hiding the window the user
  * typed into is not a fix for anything. The VM soak found this: Shell=
  * started the supervisor and the session came up wearing a console. */
+/* The console host's own window, which is NOT what GetConsoleWindow answers
+ * with when Windows Terminal is the host -- and on Windows 11 it is. There the
+ * call hands back a hidden stand-in belonging to the pseudoconsole, so hiding
+ * it hides something nobody could see while Terminal's window stays on screen.
+ * On the box it came up minimized in the bottom-left corner: a visible stub on
+ * the desktop, which is the one thing this shell exists to prevent.
+ *
+ * Detaching from the console instead (FreeConsole) is the tidy-looking answer
+ * and it takes the whole session down -- 0 of 10 checks, nothing on screen at
+ * all. Whatever the supervisor does afterwards needs its console.
+ *
+ * So: find the host's window by the one thing that identifies it as ours, the
+ * title, which the host sets to our command line verbatim. */
+static BOOL CALLBACK hide_console_host(HWND hwnd, LPARAM param) {
+    const wchar_t* mine = (const wchar_t*)param;
+    wchar_t title[512];
+    wchar_t cls[64];
+    if (GetClassNameW(hwnd, cls, 64) <= 0) return TRUE;
+    if (wcscmp(cls, L"CASCADIA_HOSTING_WINDOW_CLASS") != 0 &&
+        wcscmp(cls, L"ConsoleWindowClass") != 0) {
+        return TRUE;
+    }
+    if (GetWindowTextW(hwnd, title, 512) <= 0) return TRUE;
+    if (wcscmp(title, mine) != 0) return TRUE;
+    ShowWindow(hwnd, SW_HIDE);
+    return TRUE;
+}
+
 void flwin32_sessionslot_hide_own_console(void) {
     HWND console = GetConsoleWindow();
     DWORD pids[4];
+    const wchar_t* mine;
     if (console == NULL) return;
-    if (GetConsoleProcessList(pids, 4) == 1) ShowWindow(console, SW_HIDE);
+    if (GetConsoleProcessList(pids, 4) != 1) return;
+    ShowWindow(console, SW_HIDE);
+    mine = GetCommandLineW();
+    if (mine != NULL) EnumWindows(hide_console_host, (LPARAM)mine);
 }
 
 /* The supervisor's bail-out: explorer back as the running shell. A plain

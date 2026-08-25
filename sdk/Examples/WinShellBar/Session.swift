@@ -246,9 +246,19 @@ enum SessionSlot {
 
         log("session start, trial=\(trial), shell=\(registeredShell() ?? "<machine default>")")
 
-        // NOTHING OF OURS SHOULD ALREADY BE RUNNING. A supervisor that dies
-        // leaves its children behind, and Winlogon starts a replacement within
-        // a second -- so without this a session quietly accumulates docks, each
+        // ONE SUPERVISOR. A second one must not reap and must not spawn: both
+        // would be clearing out the other's children, each would see them die
+        // and restart them, and the crash-loop arithmetic below then hands the
+        // desktop back to explorer. Seen exactly that way on the box.
+        guard flwin32_sessionslot_claim_supervisor() != 0 else {
+            log("another supervisor already holds this session; standing down")
+            exit(0)
+        }
+
+        // NOTHING ELSE OF OURS SHOULD BE RUNNING, and now that we know we are
+        // the only supervisor, anything that is belongs to one that died --
+        // Winlogon starts a replacement within a second and the old children
+        // are left behind, so without this a session accumulates docks, each
         // with its own tray and appbar service, and which one Windows talks to
         // is decided by window stacking order. It reached five on the box, and
         // every work-area measurement taken in that state was noise.
@@ -271,6 +281,14 @@ enum SessionSlot {
         // activation with 0x80040900. Measured both ways on the box.
         if !trial, flwin32_shell_ensure_explorer_service() != 0 {
             log("explorer service started (CoreWindow packaged apps need it)")
+        }
+
+        // Where minimized windows GO needs a shell to have come up once. Done
+        // before the startup replay so it overlaps the slowest part of logon
+        // rather than adding to it, and never in trial mode, where explorer is
+        // the shell and has already done it.
+        if !trial, flwin32_shell_prime_shell_services() != 0 {
+            log("primed the shell services (minimize target placement)")
         }
 
         // Startup replays only when we are the real shell: beside explorer

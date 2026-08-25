@@ -662,6 +662,11 @@ int32_t flwin32_shell_explorer_present(void);
 // The readiness test while waiting on a borrowed explorer -- retrying the
 // activation itself instead costs about a second per failed attempt.
 int32_t flwin32_shell_services_ready(void);
+// Let an explorer run for a couple of seconds at session start. Where a
+// minimized window GOES depends on state only a shell coming up establishes,
+// and it persists for the session once set -- without this every minimized
+// window is left as a title-bar stub on the desktop. Returns 1 if it ran one.
+int32_t flwin32_shell_prime_shell_services(void);
 int32_t flwin32_shell_borrow_explorer(void);
 void flwin32_shell_return_explorer(void);
 // Claim the desktop's "task manager window" on a hidden window of our own.
@@ -1516,6 +1521,18 @@ int32_t flwin32_explorer_taskbar_hidden_by_us(void);
 // answer how many. A supervisor that dies leaves its children behind and
 // Winlogon starts a replacement, so without this a session accumulates docks --
 // each with its own tray and appbar service, fighting over the work area.
+// Called by every shell process EXCEPT the supervisor, once, at startup: it is
+// how the reaper tells a child from another supervisor when they are all the
+// same binary. A reaper that cannot tell them apart kills the shell Winlogon is
+// watching, and the restart loop that follows never ends.
+// Claim the session's one supervisor slot. 0 means another supervisor already
+// holds it and this one must stand down without reaping or spawning -- two
+// supervisors both clearing out "strays" kill each other's children, and the
+// crash-loop bail that follows hands the desktop back to explorer.
+int32_t flwin32_sessionslot_claim_supervisor(void);
+
+void flwin32_sessionslot_mark_child(void);
+
 int32_t flwin32_sessionslot_reap_strays(void);
 
 uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8);

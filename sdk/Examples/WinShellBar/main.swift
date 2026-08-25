@@ -122,6 +122,14 @@ if CommandLine.arguments.contains("--restore-taskbar") {
     exit(0)
 }
 
+// EVERY SHELL PROCESS BUT THE SUPERVISOR SAYS SO, here, once. A supervisor
+// starting into a session where an earlier one died has to clear that one's
+// children out of the way, and cannot tell a child from a supervisor by name --
+// they are the same binary. See flwin32_sessionslot_mark_child.
+if !CommandLine.arguments.contains("--session") {
+    flwin32_sessionslot_mark_child()
+}
+
 // The session slot (shell-replacement Phase 5). `--session` is what
 // Winlogon's Shell= points at: the supervisor, which spawns the dock and
 // desktop, replays startup, and never boots the engine -- it must not share

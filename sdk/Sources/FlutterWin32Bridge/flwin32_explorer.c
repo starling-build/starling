@@ -765,6 +765,49 @@ void flwin32_shell_return_explorer(void) {
     }
 }
 
+/* Run an explorer once, at session start, and let it go.
+ *
+ * WHERE A MINIMIZED WINDOW GOES is decided by state that only an explorer
+ * having run puts in place, and none of the obvious levers reproduce it.
+ * Measured on a cold boot with no explorer, on this shell:
+ *
+ *     baseline                        -> (0,1998)      a stub on the desktop
+ *     our taskman claim, verified held -> (0,1998)     no change
+ *     SetShellWindow on a real window -> (0,1998)      no change
+ *     explorer started                -> (-32000,...)  off screen
+ *     explorer then KILLED            -> (-32000,...)  still off screen
+ *
+ * The last line is the one that matters: whatever Windows latches when a shell
+ * comes up, it keeps for the session. We hold the minimize target already --
+ * a stranger asking for it is refused, so that is not the gap -- and being the
+ * shell window is not it either. Rather than keep guessing at which piece of
+ * shell state user32 is really looking for, we let the thing that sets it run
+ * for two seconds at logon.
+ *
+ * It is a blunt instrument and it is honest about being one. The cost is a
+ * couple of seconds of an explorer at session start and nothing afterwards --
+ * the same borrow a packaged-app launch makes, one launch earlier. Without it
+ * every minimized window in the session is left as a title-bar stub sitting on
+ * the desktop, which is the single most visible thing the shell gets wrong.
+ */
+int32_t flwin32_shell_prime_shell_services(void) {
+    int i;
+    if (!flwin32_shell_borrow_explorer()) return 0;
+    for (i = 0; i < 80; i++) {
+        Sleep(50);
+        flwin32_shell_suppress_explorer_chrome();
+        if (flwin32_shell_services_ready()) break;
+    }
+    /* A moment past "the desktop window exists": the state we are here for is
+     * set as the shell finishes coming up, not as it starts. */
+    for (i = 0; i < 8; i++) {
+        Sleep(250);
+        flwin32_shell_suppress_explorer_chrome();
+    }
+    flwin32_shell_return_explorer();
+    return 1;
+}
+
 /* Whether explorer is running as the shell, by its desktop window. Progman
  * exists exactly as long as explorer does, and unlike Shell_TrayWnd it is a
  * class we never take -- so it stays an honest tell after the tray and the
