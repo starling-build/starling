@@ -673,40 +673,57 @@ ICU_UTIL_DATA_FILE`), so `build/win/package-shell.ps1` simply ships the slice
 instead — a packaging choice, no fork divergence, `-FullIcu` to put the big
 one back.
 
-### The Dart VM: what leaves and what cannot
+### The Dart VM: removed, and why the reason is not size
 
 **This engine runs no Dart code at all.** `Shell::CreateSwift` takes an
-injected `RuntimeControllerInterface` — a `SwiftRuntimeController`, whose only
-include from `//flutter/runtime` is the interface header — and leaves the
-`vm_` member empty; the shell's own code null-checks it throughout. Nothing
-calls `DartVMRef::Create` on our path.
+injected `RuntimeControllerInterface` — a `SwiftRuntimeController` — and
+leaves the `vm_` member empty; the shell null-checks it throughout. Nothing
+on our path calls `DartVMRef::Create`.
 
-So everything the VM needs only in order to talk to a network it never opens
-can go, and it is worth almost a megabyte:
+The VM was linked anyway, and the reason to remove it is **audit posture**,
+not the 2 MB. Before, `flutter_engine.dll` imported:
 
-```
-dart_disable_secure_socket = true
-dart_use_fallback_root_certificates = false
-dart_version_git_info = false
-```
+| capability | evidence |
+|---|---|
+| sockets | `ws2_32.dll`, `iphlpapi.dll` |
+| crypto | `bcrypt.dll` |
+| process creation | `CreateProcessW` |
+| RWX pages — the JIT signature | `VirtualAlloc` + `VirtualProtect` |
+| a scripting runtime | `dart:isolate`, `dart:io`, `dart:ffi`, `SecureSocket` |
 
-That is Dart's BoringSSL stack and its embedded root-certificate store —
-`flutter_engine.dll` 9.72 → **8.76 MB**, screenshot byte-identical.
+A binary that *is* the Windows shell, able to open sockets, spawn processes,
+map executable memory and load FFI libraries — none of which it ever does.
+That is a question at code-signing review and a heuristic hit for an AV
+engine. With `flutter_enable_dart = false` the engine library imports **none**
+of those modules or APIs, the strings are gone with them, and it drops
+11.65 → 6.70 MB.
 
-**The VM core cannot leave without splitting `//flutter/lib/ui`**, and that is
-the finding worth writing down, because from a symbol breakdown it looks like
-a megabyte of dead weight behind three guards, the way Impeller did. It is
-not. The shell's *own plumbing types* live in `lib/ui` and are Dart-wrappable
-classes: `PlatformMessage`, `SemanticsNode`, `ViewportMetrics`,
-`FontCollection`, `ImageGeneratorRegistry`, `PointerDataPacket`,
-`KeyDataPacket`, `SnapshotDelegate`, `SceneBuilder`, `MultiFrameCodec`,
-`ImageDecoder`. Eleven files in `shell/common` alone include them, and they
-inherit from Dart wrappable bases, so they drag tonic and `dart_api` in with
-them. Removing the VM therefore means splitting that library into its
-Dart-bound and plain halves — which upstream has not done and this fork has
-not either; the Swift bridge was added *beside* it. That is a project with a
-merge cost forever after, for roughly what the ICU line recovered in one
-commit.
+What made it look impossible from a symbol breakdown: **the shell's own
+plumbing lives in `lib/ui`** — `PlatformMessage`, `SemanticsNode`,
+`ViewportMetrics`, `PointerDataPacket`, `KeyDataPacket`, `ImageDecoder`,
+`ImageDescriptor`, `FontCollection` — eleven files in `shell/common` include
+it, and those classes derive from `RefCountedDartWrappable`. The split is
+`//flutter/lib/ui:ui_plumbing` plus a binding-free base in `dart_wrapper.h`;
+`//flutter/runtime:runtime_interface` does the same for the four runtime
+files that need no VM. See starling-engine `082739678cf`.
+
+Three things that cost a build each, all of which report somewhere other
+than where the problem is:
+
+- The stub `RefCountedDartWrappable` **needs a virtual destructor**. Every
+  derived class declares `~X() override`, which tonic's base was providing;
+  without it they fail on *"only virtual member functions can be marked
+  'override'"* — nothing about Dart.
+- `IsolateConfiguration` is taken **by value as a `unique_ptr`**, so it needs
+  a *complete* type even though the argument is always null. A forward
+  declaration compiles the header and fails the definition.
+- The final link error is `Dart_CurrentIsolate` / `Dart_EnterIsolate` /
+  `Dart_ExitIsolate` unresolved with **no object file named** — because
+  nothing references them: `embedder/BUILD.gn` `/EXPORT:`s them by name, and
+  a Windows DLL asked to export a symbol nothing defines fails exactly like
+  that. `gn path` is also the only sane way to find the last edge dragging
+  tonic in (it was `swift_runtime_controller`'s *private* deps, long after
+  its `public_deps` were switched).
 
 **And the package ships runtime libraries nothing loads.** The Swift toolchain's
 runtime directory is everything Swift on Windows *can* need — networking, XML,
@@ -719,15 +736,16 @@ exclusion list it stays correct when the shell starts using something new.
 turns out to be loaded with `LoadLibrary` rather than linked — the pruner sees
 static imports only, and prints what it dropped for that reason.
 
-Together: an installed tree of 136.5 MB becomes **118.5 MB**, and the setup exe
-47.5 MB becomes **39.9 MB**. **The Linux `build/stage.sh` still copies the full
+Together: an installed tree of 136.5 MB becomes **116.4 MB**, and the setup exe
+47.5 MB becomes **39.1 MB**. **The Linux `build/stage.sh` still copies the full
 set** — the same ~8.8 MB is available there and has not been tested on that
 platform.
 
 For scale, a symbol-size breakdown of `libflutter_engine.so` puts Skia at
 2.9 MB, the Dart VM at 1.1 MB, Impeller at 1.0 MB and the shell/embedder at
-1.0 MB — and the Dart section above is why that 1.1 MB is not the same kind of
-target the other two were.
+1.0 MB. Removing the VM actually recovered 2.06 MB — a symbol breakdown
+undercounts it, because the VM brings its own data, its ICU-adjacent tables
+and the dart:io natives along with the code that carries its name.
 
 ---
 

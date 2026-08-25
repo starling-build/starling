@@ -74,6 +74,12 @@ $trims = @{
     'dart_disable_secure_socket'        = 'true'
     'dart_use_fallback_root_certificates' = 'false'
     'dart_version_git_info'             = 'false'
+
+    # And the VM itself. See //flutter/common/config.gni: the shell drives the
+    # engine from Swift and never creates one, so what this removes is not
+    # dead bytes but capability -- sockets, process creation, dart:ffi and an
+    # RWX page allocator inside the binary that IS the Windows shell.
+    'flutter_enable_dart'               = 'false'
 }
 
 $text = Get-Content $argsFile -Raw
