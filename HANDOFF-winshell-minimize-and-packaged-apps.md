@@ -8,9 +8,10 @@ Box: the physical machine (`starling@192.168.68.60`), running mainline as the
 registered `Winlogon\Shell` with autologon. Mainline is pushed through
 `fa2f00f`.
 
-**The blocker below is fixed.** Issues 1 and 3 are done; the explorer service
-is on by default again and the gate is 10/10 with nothing skipped. What is
-left is issues 2, 4, 5 and 6.
+**The blocker below is fixed.** Issues 1 and 3 are done and the explorer
+service is on by default again. The gate is **9/10 on a fresh boot**, and the
+one failure is new only in the sense that nobody had run the gate on a fresh
+boot before — it is issue 7, and it predates today's work.
 
 ## What landed and is verified
 
@@ -116,6 +117,32 @@ desktop was on screen in a way that always answered no, and it asked about the
 tray using a window class this shell takes for itself. Both fixed in
 `fa2f00f`; worth assuming there are others, and worth testing a gate check by
 breaking the thing it guards.
+
+### 7. A console stub on the desktop, on a real Winlogon boot
+
+**Symptom.** After a genuine boot there is a minimized Windows Terminal window
+at the bottom-left corner of the screen, titled with the supervisor's command
+line. The gate's "a minimized window leaves the screen" check fails on it.
+
+**Not a regression, and measured rather than assumed.** The pre-change build
+(`486930a`) fails the same check on the same boot path — worse, in fact: its
+probe window is left as a stub too, which the fixed build no longer does. The
+gate had only ever been run against a hand-started session, where the console
+is hidden outright, so this never showed.
+
+**What it is.** The supervisor is a console-subsystem binary, so Winlogon
+starting it pops a console. It already tries to hide it — and that works with
+the classic console host. It does not work when Windows Terminal is the
+default host, which it is on Windows 11: there the API that answers "my
+console window" hands back a hidden stand-in owned by the pseudoconsole, so
+the hide lands on a window nobody could see while Terminal's own window stays
+on screen.
+
+**A dead end, so nobody repeats it.** Detaching from the console instead
+(`FreeConsole` after the hide) is the obvious fix and it takes the whole shell
+down: the session came up with nothing at all, 0 of 10 checks passing. Whatever
+the supervisor does after that point needs its console, so the fix has to be
+to find and hide Terminal's window rather than to give up the console.
 
 ## Traps worth not re-learning
 
