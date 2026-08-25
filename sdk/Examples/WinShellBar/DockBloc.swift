@@ -474,7 +474,15 @@ final class DockBloc: @unchecked Sendable {
     private func _hideNativeTaskbarIfItCameBack() {
         guard !keepsNativeTaskbar, !state.nativeTaskbarWanted else { return }
         Task.detached {
-            if Win32Shell.nativeTaskbarIsVisible { _ = Win32Shell.hideNativeTaskbar() }
+            guard Win32Shell.nativeTaskbarIsVisible else { return }
+            _ = Win32Shell.hideNativeTaskbar()
+            // And take the minimize target back. Explorer's shell32 claims it
+            // for itself when explorer starts, so whatever put its taskbar
+            // back also took the thing that keeps minimized windows off the
+            // desktop — the stubs would return with the next minimize, long
+            // after anyone would connect the two. On the UI thread, because
+            // that is the thread the window being re-asserted was made on.
+            await MainActor.run { _ = Win32Shell.takeTaskmanWindow() }
         }
     }
 

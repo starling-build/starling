@@ -632,6 +632,16 @@ void flwin32_shell_ensure_launcher(void);
 // Whether explorer is running as the shell (by its Progman desktop window --
 // a class this shell never takes, so it stays honest after the tray is ours).
 int32_t flwin32_shell_explorer_present(void);
+// Claim the desktop's "task manager window" on a hidden window of our own.
+// This is what decides WHERE a minimized window goes: with it, user32 parks
+// minimized windows off-screen at -32000 the way it does under explorer; with
+// nobody holding it, every minimize leaves a bare title-bar stub tiled along
+// the bottom of the work area, on top of the dock. Owning Shell_TrayWnd does
+// not do it and neither does SetShellWindow -- measured both ways, see
+// flwin32_explorer.c. Idempotent, and safe to call again after explorer has
+// been and gone (it takes the window while it runs). Returns 0 only if the
+// undocumented export is missing or the window could not be made.
+int32_t flwin32_shell_take_taskman_window(void);
 // Whether the named Starling surface ("Starling Notifications", ...) is
 // currently visible on screen. UTF-8 title.
 int32_t flwin32_shell_surface_visible(const char* title_utf8);

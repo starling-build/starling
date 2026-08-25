@@ -1048,6 +1048,14 @@ if wantsFiles {
     if !keepsNativeTaskbar {
         let hidden = Win32Shell.hideNativeTaskbar()
         print("[WinShell] Explorer taskbar hidden: \(hidden)")
+        // And take the minimize target with it. Hiding the taskbar removes the
+        // window a minimized app would have gone to, and user32's fallback for
+        // "no taskbar" is to leave the app as a title-bar stub on the desktop
+        // — a row of them along the top of our own dock. This is the one call
+        // that stops it; the dock tile is what the user restores from, the way
+        // the taskbar button is under explorer.
+        let taskman = Win32Shell.takeTaskmanWindow()
+        print("[WinShell] minimize target taken: \(taskman)")
     }
 
     // The tray class, taken BEFORE the panel registers its appbar below:

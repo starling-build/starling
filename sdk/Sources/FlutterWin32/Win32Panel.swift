@@ -235,6 +235,24 @@ public enum Win32Shell {
         flwin32_shell_explorer_present() != 0
     }
 
+    /// Claims the desktop's "task manager window", which is what Windows uses
+    /// to decide where a MINIMIZED window's rectangle goes.
+    ///
+    /// Held by nobody, user32 falls back to its pre-Win95 placement and every
+    /// minimize leaves a bare title-bar stub sitting on the work area's bottom
+    /// edge — a row of them directly on top of the dock, which is not
+    /// something the dock can draw its way out of. Held by us, minimized
+    /// windows park off-screen exactly as they do under explorer, and the dock
+    /// tile is the restore affordance, exactly as the taskbar button is there.
+    ///
+    /// Idempotent, and worth re-calling after explorer has been up: explorer
+    /// claims this window for itself while it runs. See
+    /// `flwin32_shell_take_taskman_window` for the measurements.
+    @discardableResult
+    public static func takeTaskmanWindow() -> Bool {
+        flwin32_shell_take_taskman_window() != 0
+    }
+
     /// Whether the named Starling surface is currently visible on screen.
     public static func surfaceVisible(_ title: String) -> Bool {
         flwin32_shell_surface_visible(title) != 0

@@ -403,6 +403,91 @@ int32_t flwin32_shell_explorer_present(void) {
     return FindWindowW(L"Progman", NULL) != NULL ? 1 : 0;
 }
 
+/* ---------------------------------------------------------- minimize target */
+
+/*
+ * Where a minimized window GOES, which is not a thing the shell draws.
+ *
+ * With no taskbar registered, user32 falls back to its pre-Win95 iconic
+ * placement: a minimized window becomes a bare title-bar stub, 160x31 logical,
+ * tiled left to right along the bottom of the WORK AREA -- which, because our
+ * appbar reserves the dock's strip, is a neat row of stubs sitting directly on
+ * top of the dock. It is stock user32 behaviour and nothing we draw, so no
+ * amount of dock code makes it go away.
+ *
+ * The switch is SetTaskmanWindow, and only that. Measured on the shipping
+ * shell, one probe window minimized five times in one session:
+ *
+ *     baseline (our shell)     -> (1570,1998)-(1884,2048)   stub, on screen
+ *     a Shell_TrayWnd exists   -> (1570,1998)-(1884,2048)   no change
+ *     SetTaskmanWindow(w)      -> (-32000,-32000)           off screen
+ *     + SetShellWindow(w)      -> (-32000,-32000)           no further change
+ *     probe destroyed          -> (1570,1998)-(1884,2048)   back again
+ *
+ * So owning Shell_TrayWnd -- which the tray already does -- is NOT enough, and
+ * neither is being the shell window. The same probe under explorer parks at
+ * -32000 on the first try, which is what "the native behaviour" means here:
+ * the taskbar button is the entire restore affordance and the desktop stays
+ * clean. shell32.dll is the module that references SetTaskmanWindow; explorer
+ * itself does not, which is why grepping the wrong binary makes this look like
+ * folklore.
+ *
+ * The window this registers is our own hidden one rather than the dock's, for
+ * two reasons: the dock's HWND is a different window in every mode (panel,
+ * one-view chrome), and the registration has to outlive any of them being
+ * re-made. It is invisible and titled nothing, so the shell's own window list
+ * filters it out without being told about it.
+ *
+ * Undocumented, so it is resolved at run time: a Windows that drops the export
+ * should cost us the stubs, not the process.
+ */
+
+typedef BOOL(WINAPI* SetTaskmanWindowFn)(HWND);
+
+static HWND g_taskman = NULL;
+
+static LRESULT CALLBACK taskman_wndproc(HWND hwnd, UINT msg, WPARAM w,
+                                        LPARAM l) {
+    /* Ctrl+Esc. Windows posts SC_TASKLIST to whoever holds this window, which
+     * is how the taskbar opens Start from a key it never registered. Taking
+     * the window and ignoring the message would leave Ctrl+Esc dead, so it
+     * goes where the Windows key already goes. */
+    if (msg == WM_SYSCOMMAND && (w & 0xFFF0) == SC_TASKLIST) {
+        flwin32_shell_broadcast_toggle();
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, w, l);
+}
+
+int32_t flwin32_shell_take_taskman_window(void) {
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    SetTaskmanWindowFn set_taskman =
+        user32 == NULL
+            ? NULL
+            : (SetTaskmanWindowFn)GetProcAddress(user32, "SetTaskmanWindow");
+    if (set_taskman == NULL) return 0;
+
+    if (g_taskman == NULL || !IsWindow(g_taskman)) {
+        WNDCLASSEXW wc;
+        memset(&wc, 0, sizeof(wc));
+        wc.cbSize = sizeof(wc);
+        wc.lpfnWndProc = taskman_wndproc;
+        wc.hInstance = GetModuleHandleW(NULL);
+        wc.lpszClassName = L"StarlingTaskmanWindow";
+        /* A second registration fails with ERROR_CLASS_ALREADY_EXISTS, which
+         * is the right outcome for an idempotent call. */
+        RegisterClassExW(&wc);
+        g_taskman = CreateWindowExW(WS_EX_TOOLWINDOW, L"StarlingTaskmanWindow",
+                                    L"", WS_POPUP, 0, 0, 16, 16, NULL, NULL,
+                                    GetModuleHandleW(NULL), NULL);
+        if (g_taskman == NULL) return 0;
+    }
+    /* Re-asserted rather than remembered: explorer's shell32 takes this window
+     * for itself the moment explorer starts, so a session where explorer came
+     * back (and was hidden again) has to claim it a second time. */
+    return set_taskman(g_taskman) ? 1 : 0;
+}
+
 /* Whether a named Starling surface is currently on screen -- the banner asks
  * about the notification centre, because popping a banner under an open
  * centre that already shows the same toast is what the native shell
