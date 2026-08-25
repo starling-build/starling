@@ -629,6 +629,20 @@ void flwin32_shell_ensure_run(void);
 // so Win/the launcher tile is a show, not an engine boot -- and so there is a
 // process to receive the toggle broadcast at all under `--session`.
 void flwin32_shell_ensure_launcher(void);
+// Keep explorer.exe ALIVE (not as the shell) if nothing in this session is
+// running it, and put its taskbar back down. CoreWindow-generation packaged
+// apps -- Calculator, the Store, Windows Security -- refuse to start with
+// explorer absent: activation returns 0x80040900 and the process dies in
+// under two seconds. With explorer merely running they start normally, and
+// come back as an ApplicationFrameWindow, which the shell's window list
+// already accepts. Newer packaged apps (Photos, Terminal) never needed it.
+// Returns 1 if it started explorer, 0 if one was already there or the launch
+// failed. Idempotent; call it from the supervisor's tick.
+int32_t flwin32_shell_ensure_explorer_service(void);
+// Keep the chrome of an explorer WE started down -- its taskbar and its
+// desktop. No-op unless flwin32_shell_ensure_explorer_service started one, so
+// it never touches the desktop of a session where explorer is the real shell.
+void flwin32_shell_suppress_explorer_chrome(void);
 // Whether explorer is running as the shell (by its Progman desktop window --
 // a class this shell never takes, so it stays honest after the tray is ours).
 int32_t flwin32_shell_explorer_present(void);

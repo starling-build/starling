@@ -53,6 +53,7 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <tlhelp32.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -140,6 +141,27 @@ static void set_appbar_state(int state) {
   SHAppBarMessage(ABM_SETSTATE, &abd);
 }
 
+/* Set when WE started explorer (the packaged-app service). Its desktop then
+ * has to stay down: we draw our own, and two full-screen desktops both
+ * clamping themselves to the bottom of the z-order is a coin toss decided per
+ * activation -- on the box it came up as explorer's wallpaper and explorer's
+ * icons over ours. NOT tied to the ordinary taskbar hide: in trial mode
+ * explorer IS the shell, our desktop surface deliberately does not run, and
+ * hiding Progman there would leave the machine with no desktop at all. */
+static int g_hide_desktop = 0;
+
+static int hide_desktop_now(void) {
+  HWND w = NULL;
+  int touched = 0;
+  if (!g_hide_desktop) return 0;
+  while ((w = FindWindowExW(NULL, w, L"Progman", NULL)) != NULL) {
+    if (!IsWindowVisible(w)) continue;
+    ShowWindow(w, SW_HIDE);
+    touched++;
+  }
+  return touched;
+}
+
 static int is_tray_class(HWND w) {
   wchar_t cls[64];
   int i;
@@ -164,7 +186,20 @@ static void CALLBACK on_explorer_show(HWINEVENTHOOK hook,
    * show from one process is cheap, and the alternative -- caching the HWNDs
    * -- goes stale the moment a monitor is plugged in. */
   if (object_id != OBJID_WINDOW || child_id != CHILDID_SELF) return;
-  if (is_tray_class(hwnd)) ShowWindow(hwnd, SW_HIDE);
+  if (is_tray_class(hwnd)) {
+    ShowWindow(hwnd, SW_HIDE);
+    return;
+  }
+  /* And explorer's desktop, when it is ours to suppress. Explorer re-shows
+   * Progman on its own -- a theme change, a display change, its own restart
+   * -- and a desktop that comes back over ours reads as "the shell lost its
+   * wallpaper". */
+  if (g_hide_desktop) {
+    wchar_t cls[64];
+    if (GetClassNameW(hwnd, cls, 64) > 0 && wcscmp(cls, L"Progman") == 0) {
+      ShowWindow(hwnd, SW_HIDE);
+    }
+  }
 }
 
 /* Watch the process that owns the taskbar, all of its threads. Re-hooks when
@@ -393,6 +428,139 @@ void flwin32_shell_ensure_launcher(void) {
     wchar_t exe[MAX_PATH];
     if (GetModuleFileNameW(NULL, exe, MAX_PATH) == 0) return;
     ShellExecuteW(NULL, L"open", exe, L"--launcher", NULL, SW_HIDE);
+}
+
+/* ------------------------------------------------- explorer as a SERVICE */
+
+/*
+ * Keeping explorer.exe alive without letting it be the shell.
+ *
+ * Packaged apps of the old CoreWindow kind -- Calculator, the Store, Windows
+ * Security, anything whose window class is Windows.UI.Core.CoreWindow -- do
+ * not run with explorer absent. Measured on the box, one A/B in one session,
+ * activating Calculator through IApplicationActivationManager each time:
+ *
+ *   explorer absent   -> hr=0x80040900, the process is created and dies in
+ *                        under two seconds, no window ever appears
+ *   explorer running  -> hr=0, alive, ApplicationFrameWindow + CoreWindow
+ *   explorer running,
+ *   taskbar hidden    -> hr=0, alive, identical
+ *
+ * The AppModel log tells the same story from the other side: a working
+ * activation logs "Created process" AND "Added process ... to Desktop AppX
+ * container"; the failing one logs only the first. So this is not about which
+ * process holds the shell role, it is about explorer.exe being alive to host
+ * the frame -- which is also why the app comes back as an
+ * ApplicationFrameWindow, the window our own list already accepts.
+ *
+ * Not every packaged app needs it: Photos (a WinUI desktop app, class
+ * WinUIDesktopWin32WindowClass) activates fine with explorer absent, and so
+ * does Windows Terminal. It is specifically the CoreWindow generation.
+ *
+ * Started WITHOUT the shell role: Winlogon has already started us as the
+ * session's shell, so an explorer launched here creates no Progman and no
+ * desktop -- verified, Progman stays NULL -- and hiding its taskbar is the
+ * same job flwin32_explorer_taskbar_hide already does, hook and all. This is
+ * what every third-party Windows shell does, and it is the configuration this
+ * file was originally written for.
+ */
+static int explorer_running_in_session(void) {
+    DWORD our_session = 0;
+    ProcessIdToSessionId(GetCurrentProcessId(), &our_session);
+
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return 0;
+
+    PROCESSENTRY32W entry;
+    entry.dwSize = sizeof(entry);
+    int found = 0;
+    if (Process32FirstW(snapshot, &entry)) {
+        do {
+            if (_wcsicmp(entry.szExeFile, L"explorer.exe") != 0) continue;
+            /* Another user's explorer on a shared machine is not ours to
+             * count: the apps we care about activate into THIS session. */
+            DWORD session = 0;
+            if (ProcessIdToSessionId(entry.th32ProcessID, &session) &&
+                session == our_session) {
+                found = 1;
+                break;
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return found;
+}
+
+int32_t flwin32_shell_ensure_explorer_service(void) {
+    /* OPT-IN, and deliberately so. Keeping explorer alive is what makes the
+     * CoreWindow generation of packaged apps run at all, but a live explorer
+     * is not a passive host: measured on the box, with one running,
+     *
+     *   - the WORK AREA goes back to the full screen -- explorer recomputes
+     *     it and our dock's appbar reservation stops taking effect, so a
+     *     maximized window runs under the dock. Not a startup race; it
+     *     survives a clean restart.
+     *   - Win+E stops opening our file explorer, and opens nothing at all.
+     *
+     * Both are fixable and neither is fixed yet, so this stays behind a flag
+     * rather than changing what every session does. Set
+     * STARLING_EXPLORER_SERVICE=1 to trade those two for Store apps.
+     * Non-empty only -- an empty variable is not a request (the getenv("")
+     * trap this tree has paid for elsewhere). */
+    wchar_t on[8];
+    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) == 0 ||
+        on[0] == L'\0') {
+        return 0;
+    }
+    /* Set BEFORE the early return: on a shell restart the service explorer is
+     * already there (we started it last time round), and its chrome still has
+     * to stay down. The caller is the supervisor, and it only asks when it is
+     * the shell -- in trial mode explorer's desktop is the user's desktop and
+     * nothing here may touch it. */
+    g_hide_desktop = 1;
+    if (explorer_running_in_session()) {
+        flwin32_shell_suppress_explorer_chrome();
+        return 0;
+    }
+
+    wchar_t path[MAX_PATH];
+    UINT n = GetWindowsDirectoryW(path, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH - 16) return 0;
+    wcscat_s(path, MAX_PATH, L"\\explorer.exe");
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (!CreateProcessW(path, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si,
+                        &pi)) {
+        return 0;
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+
+    /* Its chrome goes straight back down. Explorer does not have a taskbar or
+     * a desktop the instant CreateProcess returns -- both arrive a second or
+     * two later -- so a single hide here would hide nothing and the user
+     * would watch somebody else's taskbar slide over the dock. Hold it for
+     * three seconds, which covers every start measured on the box; the
+     * EVENT_OBJECT_SHOW hook and the dock's own check carry it from there. */
+    for (int i = 0; i < 12; i++) {
+        Sleep(250);
+        flwin32_explorer_taskbar_hide();
+        hide_desktop_now();
+    }
+    return 1;
+}
+
+/* Idempotent, cheap, and safe to call on a timer: what the supervisor's tick
+ * uses to keep explorer's chrome down between the hook's notifications. */
+void flwin32_shell_suppress_explorer_chrome(void) {
+    if (!g_hide_desktop) return;
+    if (flwin32_explorer_taskbar_visible()) flwin32_explorer_taskbar_hide();
+    hide_desktop_now();
 }
 
 /* Whether explorer is running as the shell, by its desktop window. Progman

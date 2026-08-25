@@ -100,13 +100,23 @@ if CommandLine.arguments.contains("--restore-taskbar") {
 if CommandLine.arguments.contains("--session") {
     let explorerUp = Win32Shell.explorerPresent
     let trial = ProcessInfo.processInfo.environment["STARLING_SESSION_TRIAL"] == "1"
-    if explorerUp && !trial {
+    // "Explorer is running" STOPPED MEANING "explorer is the shell" the day
+    // this supervisor started running explorer itself, for the packaged apps
+    // that will not launch without it. On a restart — a crash respawn through
+    // AutoRestartShell, or a deploy — that explorer is still there, and the
+    // old test would have refused to start: a session with no shell at all,
+    // respawning into the same refusal for ever. The registration is the
+    // honest tell. If Winlogon is configured to start US, we are the shell
+    // whatever explorer happens to be doing.
+    let shellIsOurs = SessionSlot.registeredShell()?
+        .lowercased().contains("winshellbar") ?? false
+    if explorerUp && !trial && !shellIsOurs {
         print("[session] explorer is running; --session is the Shell= "
               + "entry, not a sidecar. STARLING_SESSION_TRIAL=1 to force "
               + "for a smoke test.")
         exit(1)
     }
-    SessionSlot.supervise(trial: explorerUp)
+    SessionSlot.supervise(trial: explorerUp && !shellIsOurs)
 }
 
 // `--print-startup` walks the startup sources in replay order -- HKLM

@@ -238,6 +238,17 @@ enum SessionSlot {
                 + (children[i].handle != 0 ? "ok" : "FAILED"))
         }
 
+        // EXPLORER, ALIVE BUT NOT THE SHELL, before the startup replay — a
+        // packaged app in someone's Run key is exactly the case that needs
+        // it. Winlogon has already given us the shell role, so this explorer
+        // creates no Progman and no desktop; what it does is host the
+        // CoreWindow generation of packaged apps (Calculator, the Store,
+        // Windows Security), which otherwise die two seconds after
+        // activation with 0x80040900. Measured both ways on the box.
+        if !trial, flwin32_shell_ensure_explorer_service() != 0 {
+            log("explorer service started (CoreWindow packaged apps need it)")
+        }
+
         // Startup replays only when we are the real shell: beside explorer
         // (trial) every one of these already ran this logon.
         if trial {
@@ -263,6 +274,19 @@ enum SessionSlot {
                 flwin32_shell_ensure_notification_center()
                 flwin32_shell_ensure_banners()
                 flwin32_shell_ensure_run()
+                // And explorer, alive but not the shell — see
+                // flwin32_shell_ensure_explorer_service. Only logs when it
+                // actually had to start one, which is once a session unless
+                // explorer crashed.
+                // Explorer, and its chrome kept down between the hook's
+                // notifications. Never in trial mode: there explorer IS the
+                // shell and its desktop is the user's desktop.
+                if !trial {
+                    if flwin32_shell_ensure_explorer_service() != 0 {
+                        log("explorer service restarted")
+                    }
+                    flwin32_shell_suppress_explorer_chrome()
+                }
                 continue
             }
             guard index >= 0, Int(index) < children.count else {
