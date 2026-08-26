@@ -104,6 +104,16 @@ static DWORD g_chord_vks[8];
 static int g_chord_count;
 /* The letter whose keyup we still owe a swallow. */
 static DWORD g_chord_eating;
+/* Modifier state for the Ctrl+Esc chord: Windows sends SC_TASKLIST to the
+ * TASKMAN owner, and with the explorer service running that owner is
+ * explorer (flwin32_shell_take_taskman_window declines the claim there, and
+ * a foreign claim is what broke packaged-app presentation) -- so this hook
+ * is what keeps Ctrl+Esc pointed at OUR Start. */
+static BOOL g_ctrl_down;
+static BOOL g_shift_down;
+/* Whether an eaten Ctrl+Esc still owes its keyup (and its auto-repeats) a
+ * swallow. */
+static BOOL g_esc_eating;
 /* Whether THIS hold of the Windows key had one of our chords eaten out of
  * it. The Win keyup after that must be masked from Windows too: we ate the
  * letter, so from Explorer's seat the hold was empty -- a bare tap -- and it
@@ -170,6 +180,31 @@ static LRESULT CALLBACK winkey_hook(int code, WPARAM wparam, LPARAM lparam) {
       return 1;
     }
   } else if (is_down || is_up) {
+    /* Modifier bookkeeping for the Ctrl+Esc chord below. */
+    if (ev->vkCode == VK_LCONTROL || ev->vkCode == VK_RCONTROL) {
+      g_ctrl_down = is_down;
+    } else if (ev->vkCode == VK_LSHIFT || ev->vkCode == VK_RSHIFT) {
+      g_shift_down = is_down;
+    }
+    /* Ctrl+Esc opens Start, and Windows acts on the DOWN: eaten here, the
+     * system never sees the chord and explorer's Start stays closed; our
+     * launcher toggles instead. The up (and any auto-repeat) owes a swallow
+     * too, or the focused window gets an Esc it never saw pressed.
+     * Ctrl+Shift+Esc is Task Manager and passes untouched. */
+    if (ev->vkCode == VK_ESCAPE && !g_win_down) {
+      if (is_up && g_esc_eating) {
+        g_esc_eating = FALSE;
+        return 1;
+      }
+      if (is_down && g_ctrl_down && !g_shift_down) {
+        BOOL repeat = g_esc_eating;
+        g_esc_eating = TRUE;
+        if (!repeat && g_sink != NULL) {
+          PostMessageW(g_sink, WM_STARLING_WINKEY_TAP, 0, 0);
+        }
+        return 1;
+      }
+    }
     /* The keyup owed from a chord eaten below -- swallow it even if the
      * Windows key has already been released, or the focused window gets a
      * keyup for a key it never saw go down. */
@@ -299,6 +334,9 @@ void flwin32_winkey_release(void) {
   g_chord_count = 0;
   g_chord_eating = 0;
   g_win_chorded = FALSE;
+  g_ctrl_down = FALSE;
+  g_shift_down = FALSE;
+  g_esc_eating = FALSE;
 }
 
 int32_t flwin32_winkey_set_chords(const int32_t* vks, int32_t count,

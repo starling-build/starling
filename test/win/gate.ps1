@@ -113,6 +113,17 @@ public class Gate {
   // Progman's is "Program Manager" -- so it answered zero every time and the
   // check it fed could not fail. Nothing here may pass $null to FindWindowW.
   public static IntPtr FindClass(string cls) { return FindWindowW(cls, null); }
+  // Who holds the per-session TASKMAN slot (the minimize target). Resolved at
+  // run time: GetTaskmanWindow is exported but not in any header.
+  delegate IntPtr GetTaskmanFn();
+  public static IntPtr TaskmanWindow() {
+    IntPtr u = GetModuleHandleW("user32.dll");
+    if (u == IntPtr.Zero) return IntPtr.Zero;
+    IntPtr fp = GetProcAddress(u, "GetTaskmanWindow");
+    if (fp == IntPtr.Zero) return IntPtr.Zero;
+    var f = (GetTaskmanFn)Marshal.GetDelegateForFunctionPointer(fp, typeof(GetTaskmanFn));
+    return f();
+  }
   // Explorer's own desktop or taskbar, visible on screen -- the thing the user
   // must never see once we are the shell. Keyed on the OWNING PROCESS, because
   // Shell_TrayWnd is a class this shell takes for itself.
@@ -392,9 +403,21 @@ Check "explorer is alive as a service, and owns no chrome" {
     # EXPLORER's windows, not the first window of those classes: the tray class
     # is one WE own too, so asking FindWindow for it and testing visibility
     # answers a question about our own shell.
-    $shown = [Gate]::ExplorerChromeVisible()
-    if ($shown -eq "") { return $true }
-    "explorer chrome on screen: $shown"
+    #
+    # SAMPLED, not asked once. Since the taskman fix explorer initializes its
+    # shell side fully, and a fully-initialized explorer re-shows its taskbar
+    # on events -- a packaged-app launch is one, and this gate just did one.
+    # The supervisor's 5s tick puts it back down, and even while WS_VISIBLE it
+    # sits in its auto-hidden position: a 2px strip parked under the dock. The
+    # user cannot see the flap, so the steady state is the honest question --
+    # the same reasoning as the work-area check's wait above.
+    $shown = ""
+    for ($i = 0; $i -lt 4; $i++) {
+        $shown = [Gate]::ExplorerChromeVisible()
+        if ($shown -eq "") { return $true }
+        Start-Sleep -Milliseconds 2500
+    }
+    "explorer chrome still on screen after 10s: $shown"
 }
 }
 
@@ -456,10 +479,25 @@ Check "the dock is drawn along the bottom" {
     "strip brightness $bright, $variety colours -- not the dock"
 }
 
-Check "the shell holds the minimize target" {
-    $w = [Gate]::FindClass("StarlingTaskmanWindow")
-    if ($w -ne [IntPtr]::Zero) { return $true }
-    "no taskman window: minimized apps will be left as stubs on the desktop"
+Check "the minimize target has an owner" {
+    # WHO owns it changed on purpose (2026-08-26). The shell's logon-time
+    # claim of the taskman slot was the ROOT CAUSE of packaged apps opening
+    # as eternal splash screens: user32 keeps one slot per session, a live
+    # foreign holder makes explorer's own claim fail, and explorer's
+    # immersive init then never builds the machinery that composes an app's
+    # content into its frame. With the explorer service on (the default),
+    # EXPLORER must own the slot -- that is native minimize parking. In kiosk
+    # mode (STARLING_EXPLORER_SERVICE=0) the shell's StarlingTaskmanWindow
+    # claims it as before. What must never hold is an EMPTY slot, which
+    # leaves minimized apps as title-bar stubs on the desktop.
+    $tm = [Gate]::TaskmanWindow()
+    if ($tm -eq [IntPtr]::Zero) {
+        return "nobody holds the taskman slot: minimized apps will be left as stubs on the desktop"
+    }
+    $op = 0; [void][Gate]::GetWindowThreadProcessId($tm, [ref]$op)
+    $owner = (Get-Process -Id $op -EA SilentlyContinue).ProcessName
+    if ($owner -eq 'explorer' -or $owner -eq 'WinShellBar') { return $true }
+    "the taskman slot is held by '$owner', not explorer or the shell"
 }
 
 # ── what a user does to a window ─────────────────────────────────────────────

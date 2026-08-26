@@ -217,6 +217,10 @@ final class DockBloc: @unchecked Sendable {
             // reservation stayed dropped, the dock kept drawing, and
             // maximized windows ran underneath it until the next restart.
             _hideNativeTaskbarIfItCameBack()
+            // Declines while the explorer service runs — the new explorer
+            // KEEPS the minimize target now, deliberately: our claim was the
+            // root cause of packaged apps never drawing (see
+            // flwin32_shell_take_taskman_window). Kiosk mode still claims.
             _ = Win32Shell.takeTaskmanWindow()
             Win32WindowedHost.host?.reassertAppbar()
             // And recompute the reservation from the live bar list. An

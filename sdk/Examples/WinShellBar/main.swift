@@ -1173,14 +1173,15 @@ if wantsFiles {
     if !keepsNativeTaskbar {
         let hidden = Win32Shell.hideNativeTaskbar()
         print("[WinShell] Explorer taskbar hidden: \(hidden)")
-        // And take the minimize target with it. Hiding the taskbar removes the
-        // window a minimized app would have gone to, and user32's fallback for
-        // "no taskbar" is to leave the app as a title-bar stub on the desktop
-        // — a row of them along the top of our own dock. This is the one call
-        // that stops it; the dock tile is what the user restores from, the way
-        // the taskbar button is under explorer.
+        // And the minimize target. With the explorer service on (the default)
+        // this call intentionally declines — explorer owns the taskman slot
+        // and parks minimized windows natively, and OUR claim here at logon
+        // was the root cause of packaged apps opening as eternal splash
+        // screens (see flwin32_shell_take_taskman_window). It claims only in
+        // the explorer-less kiosk configuration, where user32's no-taskbar
+        // fallback would otherwise leave title-bar stubs on the desktop.
         let taskman = Win32Shell.takeTaskmanWindow()
-        print("[WinShell] minimize target taken: \(taskman)")
+        print("[WinShell] minimize target taken: \(taskman) (false = explorer service owns it)")
     }
 
     // The tray class, taken BEFORE the panel registers its appbar below:

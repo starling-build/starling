@@ -274,3 +274,95 @@ from the dock every time, and it now has a gate check that fails on it.
 - Capture with `ddagrab`, never GDI, and check the app by **clicking its tile**
   rather than by `--launch-app`: the two do not always agree, and the click is
   the path the user takes.
+
+## 2026-08-26 (later) — ROOT CAUSE FOUND AND FIXED: the taskman-window claim
+
+The empty frame above is closed. The cause was one call of ours, made for an
+unrelated feature, and every observation in this file's evidence log follows
+from it.
+
+**Root cause.** user32 keeps ONE "taskman window" per session
+(`SetTaskmanWindow`, the undocumented registration we use as the minimize
+target). A new claim is refused while another process's live window holds the
+slot. Our chrome claimed it ~2 s into logon; the explorer service starts at
+~4 s; explorer's own claim — made by its tray during shell init — was
+refused. Explorer's immersive init treats that refusal as "someone else runs
+view management" and never builds the per-session machinery that presents a
+CoreWindow app's view: the step that reparents the app's CoreWindow into the
+ApplicationFrameHost frame, swaps the splash for the app's visual, and logs
+"Application Shown". Activation still works, the frame is built, the app runs
+and even renders — nothing ever composes it.
+
+**The causal chain, each link measured on the box:**
+
+1. The app is fine. The "blank" Settings has a fully rendered home page in
+   its DWM visual tree — `PrintWindow(PW_RENDERFULLCONTENT)` on the cloaked
+   CoreWindow returns the complete UI (913 distinct colours) while the frame
+   still shows 95% flat splash. Not suspended (no PLM freeze: all threads in
+   ordinary waits at t+12 s and t+72 s). The CoreWindow is sized to the frame
+   but never positioned into it and never reparented; in a working launch it
+   leaves the top-level list (reparented into the frame).
+2. ETW pins the missing step. Working launch (Immersive-Shell provider):
+   activation → "Application Started up" → "Window that application presents
+   to the end-user changed" → **"Application Shown"**. Broken launch:
+   identical through "presents changed", then **"Application Shown" never
+   fires** and the visibility query (event 1611/1612) returns 0. No
+   error-level event anywhere — the state machine waits, it does not fail.
+3. The bad state lives in the SESSION, not in explorer or AFH. Still broken
+   with our shell completely killed (windows destroyed, registrations gone).
+   Still broken after killing ApplicationFrameHost (fresh AFH, same blank).
+   Still broken after explorer restarts while the state is bad; a GOOD state
+   equally survives explorer restarts with our full shell live. Explorer
+   *re-establishes* the machinery only when it initializes with the poison
+   absent; otherwise it inherits whatever the session already had.
+4. The poison is a WINDOW REGISTRATION existing at explorer init, not
+   anything we do. Explorer restarted while every Starling process was
+   frozen (windows present, all actions stopped) → still broken. Explorer
+   restarted with only the chrome process killed (its windows gone;
+   overlays + frozen supervisor still present) → fixed, and stays fixed when
+   the chrome respawns.
+5. Minimal reproduction, both directions, from cold boot. A probe-owned bare
+   `Shell_TrayWnd` window present during explorer init → apps draw (the tray
+   class is innocent — Cairo's ManagedShell is off the hook too). The same
+   probe ALSO holding `SetTaskmanWindow` → eternal splash, and
+   `GetTaskmanWindow` confirms explorer never obtained the slot. One
+   variable, one bit flipped.
+
+**Also explained.** The "cure at ≥2 min / black desktop" trade-off from
+earlier sessions was never about time: any explorer restart that happened
+while the slot was momentarily free (chrome dead or being respawned) fixed
+presentation, and any restart under a live claim preserved the breakage. The
+`--launch-app` frames that came up DWM-cloaked are the same missing
+view-presentation step wearing its other face. The repeated
+StartMenuExperienceHost activation failures (0x80040905) under our shell are
+the same degraded init seen from explorer's own experiences.
+
+**The fix (in tree, gate-verified).**
+`flwin32_shell_take_taskman_window` now declines whenever the explorer
+service is not declined (`STARLING_EXPLORER_SERVICE` anything but "0"):
+explorer owns the slot, which is native minimize parking — the reason the
+claim existed. The claim remains for the explorer-less kiosk configuration.
+Ctrl+Esc follows the slot's owner (SC_TASKLIST), so the keyboard hook now
+eats the Ctrl+Esc chord and opens OUR Start (Ctrl+Shift+Esc passes through to
+Task Manager — verified). The gate's minimize-target check asserts the new
+contract (somebody owns the slot: explorer in service mode, the shell in
+kiosk mode), and the explorer-chrome check samples for steady state, because
+a fully-initialized explorer re-shows its taskbar on events (each show is a
+2 px auto-hidden strip under the dock; the tick re-hides it within 5 s).
+
+**Result.** From a cold boot: taskman owner = explorer, Settings launched
+from the Start-menu tile draws its real UI (28.5% dominant colour, CoreWindow
+hosted), minimize parking works, and `test/win/run-gate.sh` passes **10/10**
+— including "a packaged app launches, minimizes and comes back", the check
+built from this bug.
+
+**Still open.**
+- WHICH check inside explorer/twinui reads the taskman slot is inferred from
+  behaviour, not from a disassembly; the two-sided minimal repro is strong,
+  but the exact code path (shell32 tray init vs twinui.pcshell) is unmapped.
+- The black-desktop cost of the old "restart explorer to cure it" workaround
+  was not re-examined post-fix (the workaround is now pointless).
+- A fully-initialized explorer re-shows its taskbar more often than the
+  degraded one did. Suppression handles it (worst case 5 s at 2 px,
+  auto-hidden, under the dock); if a user-visible flap is ever reported,
+  hook `EVENT_OBJECT_SHOW` re-hiding is where to look first.

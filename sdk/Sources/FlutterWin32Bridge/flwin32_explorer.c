@@ -540,6 +540,15 @@ static int explorer_running_in_session(void) {
     return found;
 }
 
+/* Whether STARLING_EXPLORER_SERVICE=0 declines the hidden explorer. One
+ * reader for the one rule ("0" declines, anything else including unset is
+ * on), because two readers already disagreed about the empty string once. */
+static int explorer_service_declined(void) {
+    wchar_t on[8];
+    return GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) > 0 &&
+           on[0] == L'0';
+}
+
 int32_t flwin32_shell_ensure_explorer_service(void) {
     /* ON BY DEFAULT again, and the reversal is measured, not a moodswing.
      *
@@ -566,9 +575,7 @@ int32_t flwin32_shell_ensure_explorer_service(void) {
      * is not an instruction: an A/B once set "0" while this read "non-empty
      * means on", quietly started explorer, and measured the same
      * configuration twice. */
-    wchar_t on[8];
-    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) > 0 &&
-        on[0] == L'0') {
+    if (explorer_service_declined()) {
         return 0;
     }
 
@@ -1073,6 +1080,28 @@ static LRESULT CALLBACK taskman_wndproc(HWND hwnd, UINT msg, WPARAM w,
 }
 
 int32_t flwin32_shell_take_taskman_window(void) {
+    /* NEVER while the explorer service runs -- this claim was the root cause
+     * of every CoreWindow packaged app (Settings, Calculator, the Store)
+     * opening as an eternal splash screen (2026-08-26, bisected to exactly
+     * this call). user32 keeps ONE taskman window per session and refuses a
+     * new claim while another live window holds the slot. We claimed it at
+     * logon (t+2s); the service explorer started at t+4s and its own claim
+     * was refused; explorer's immersive init treats that refusal as "someone
+     * else runs view management" and never builds the per-session machinery
+     * that swaps a packaged app's splash for its content -- "Application
+     * Shown" never fires, the app renders into a visual tree nothing ever
+     * composes, and the damage survives explorer restarts because we held
+     * the slot the whole session. Reproduced minimally: a bare foreign
+     * window holding the slot during explorer init is sufficient, and the
+     * same boot without the claim is healthy.
+     *
+     * With the service on, explorer owns the slot and minimize parking --
+     * the reason this claim existed -- is native behaviour. The claim
+     * remains for the explorer-less (kiosk) configuration only. Ctrl+Esc
+     * follows the slot's owner, so the keyboard hook now takes that chord
+     * (flwin32_winkey.c) and it keeps opening OUR Start either way. */
+    if (!explorer_service_declined()) return 0;
+
     HMODULE user32 = GetModuleHandleW(L"user32.dll");
     SetTaskmanWindowFn set_taskman =
         user32 == NULL
