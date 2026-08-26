@@ -66,7 +66,7 @@ them (its `.rdata` resolves only to `DllCanUnloadNow+offset`). The parameter
 
 ## How this was recovered (reproducible)
 
-On the Windows build box (`starling@192.168.68.60`), all tooling already
+On the Windows build box (`starling@192.168.68.56`), all tooling already
 present or fetched:
 
 1. `HKCR\Interface\{848EAF0A-...}\ProxyStubClsid32` -> proxy CLSID

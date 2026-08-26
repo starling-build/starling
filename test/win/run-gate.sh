@@ -12,7 +12,10 @@
 # Exit code is the gate's: 0 if every check passed.
 set -uo pipefail
 
-HOST="${STARLING_WIN_HOST:-starling@192.168.68.60}"
+# The box is on DHCP and has moved once (.60 -> .56, over a power cycle).
+# If ssh cannot reach it, sweep the subnet for port 22 and confirm
+# `hostname` reads DESKTOP-URK35LH rather than assuming this is current.
+HOST="${STARLING_WIN_HOST:-starling@192.168.68.56}"
 REMOTE_DIR='C:\dist'
 TASK="StarlingGate"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

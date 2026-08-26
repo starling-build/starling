@@ -425,14 +425,14 @@ the software resolver), else W1 stands as the WSL answer. Estimate: **probe
 
 ## Test plan (the WSL box, xfreerdp harness)
 
-**The target is a physical Windows machine, `starling@192.168.68.60`** — not
+**The target is a physical Windows machine, `starling@192.168.68.56`** — not
 the `win11-gpu` libvirt VM, which has no WSL installed at all (both
 `Microsoft-Windows-Subsystem-Linux` and `VirtualMachinePlatform` read
 `Disabled`). A session that reads "win11-gpu's WSL" here and boots the VM
 loses an hour finding that out.
 
 Loop: `scp` the .deb and the driving scripts to `C:/dist/` → `ssh
-starling@192.168.68.60 'wsl -d Ubuntu-26.04 -u root -- bash -lc "…"'` →
+starling@192.168.68.56 'wsl -d Ubuntu-26.04 -u root -- bash -lc "…"'` →
 `dpkg -i --force-all /mnt/c/dist/starling_0.3.0_amd64.deb` → start
 `DesktopShellApp --rdp` on `STARLING_RDP_PORT=3390`. Strip CRs on arrival
 (`sed -i 's/\r$//'`).
