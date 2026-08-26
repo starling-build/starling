@@ -285,7 +285,7 @@ public final class Win32Host {
         // window's pre-panel rectangle.
         if placement.reserveSpace {
             if flwin32_host_set_appbar(host, 1) == 0 {
-                FileHandle.standardError.write(Data(
+                try? FileHandle.standardError.write(contentsOf: Data(
                     "[Win32Host] appbar registration refused; the bar will overlay\n".utf8))
             }
         }

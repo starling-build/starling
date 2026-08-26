@@ -140,7 +140,7 @@ public enum Win32WindowedHost {
         ]
         guard let icu = icuCandidates.first(where: { fm.fileExists(atPath: $0) })
         else {
-            FileHandle.standardError.write(Data((
+            try? FileHandle.standardError.write(contentsOf: Data((
                 "[Win32WindowedHost] no data/ next to the executable and no "
                 + "engine checkout to copy from — tried "
                 + icuCandidates.joined(separator: ", ") + "\n").utf8))

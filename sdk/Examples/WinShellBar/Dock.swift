@@ -1811,6 +1811,17 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// The hover label. Drawn in the overhang, above the strip.
     private func label(_ index: Int) -> Widget {
+        // `hovered` is only re-derived from the pointer on pointer MOTION,
+        // so a rebuild can arrive while it still names a tile that no longer
+        // exists: launch an unpinned app, rest the pointer on its transient
+        // tile, and when the window goes the tile vanishes under a pointer
+        // that never moved. hasPreview/previewWindows guard exactly this;
+        // the unguarded subscript here was a shell-down trap (0xC000001D in
+        // StarlingDockState.label, dump 7408, 2026-08-26 — index 7, count 7).
+        guard index >= 0, index < bloc.state.items.count else {
+            return Positioned(left: 0, top: 0,
+                              child: SizedBox(width: 0, height: 0))
+        }
         let item = bloc.state.items[index]
         // Rough, because the text is not measured: enough to keep a long name
         // roughly centred over its icon rather than hanging off one side.
@@ -1861,7 +1872,11 @@ final class StarlingDockState: State<StatefulWidget> {
         if (trayOverflowOpen && !hiddenTray.isEmpty) || menuOpen != nil {
             return empty
         }
-        if let over = hovered {
+        // Bounds-checked because `hovered` can go stale between the pointer
+        // resting and the item list shrinking (see label(_:)); a stale index
+        // means "the tile under the pointer is gone", and the honest flyout
+        // for a tile that is gone is no flyout.
+        if let over = hovered, over >= 0, over < bloc.state.items.count {
             return hasPreview(over) ? preview(over) : label(over)
         }
         if let id = hoveredTray,

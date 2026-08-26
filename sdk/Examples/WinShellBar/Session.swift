@@ -201,7 +201,12 @@ enum SessionSlot {
     private static func log(_ line: String) {
         let stamp = ISO8601DateFormatter().string(from: Date())
         let text = "[session] \(stamp) \(line)\n"
-        FileHandle.standardError.write(Data(text.utf8))
+        // try? on every write: the legacy non-throwing FileHandle.write
+        // TRAPS on any I/O error, and this process often has no stderr at
+        // all (GUI subsystem, spawned by Winlogon). A trap here is a shell
+        // crash with a logging line as the last frame (WER 2026-08-25,
+        // swift_unexpectedError under FileHandle.write).
+        try? FileHandle.standardError.write(contentsOf: Data(text.utf8))
         if let data = text.data(using: .utf8) {
             let dir = (ProcessInfo.processInfo.environment["LOCALAPPDATA"]
                        ?? NSTemporaryDirectory()) + "\\Starling"
@@ -209,8 +214,8 @@ enum SessionSlot {
                 atPath: dir, withIntermediateDirectories: true)
             let path = dir + "\\session.log"
             if let handle = FileHandle(forWritingAtPath: path) {
-                handle.seekToEndOfFile()
-                handle.write(data)
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
                 try? handle.close()
             } else {
                 FileManager.default.createFile(atPath: path, contents: data)
