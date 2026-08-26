@@ -51,6 +51,20 @@ import FlutterWin32
 import FlutterWin32Bridge
 import Foundation
 
+// A crash here is otherwise silent: every face of the shell is supervised,
+// so it dies and a fresh one takes its place with nothing left but a WER
+// dump. Install the crash log FIRST, before anything can fail, so the log
+// covers startup too. See flwin32_crashlog_install for why the dump alone is
+// not enough -- and why "illegal instruction" means a Swift precondition
+// failed, not a bad binary.
+do {
+    let dir = (ProcessInfo.processInfo.environment["LOCALAPPDATA"]
+               ?? NSTemporaryDirectory()) + "\\Starling"
+    try? FileManager.default.createDirectory(
+        atPath: dir, withIntermediateDirectories: true)
+    flwin32_crashlog_install(dir + "\\crash.log")
+}
+
 Win32WindowedHost.install()
 
 // Diagnostics. `--plain` skips the panel/overlay restyle entirely and comes
@@ -93,7 +107,7 @@ let knownFlags: Set<String> = [
     "--monitor", "--no-appbar", "--notifications", "--ns-probe", "--oneshell",
     "--oneview", "--plain", "--print-desktop", "--print-machine",
     "--print-modes", "--print-notifications", "--print-recent",
-    "--print-startup", "--print-status", "--register-shell",
+    "--crash-test", "--print-startup", "--print-status", "--register-shell",
     "--restore-taskbar", "--run", "--session", "--set-mode", "--settings",
     "--thumb-probe", "--tray-probe", "--unregister-shell",
 ]
@@ -162,6 +176,30 @@ if CommandLine.arguments.contains("--session") {
 // RunOnce, HKLM Run (both views), HKCU Run, both Startup folders, HKCU
 // RunOnce -- and prints what a real session would run, running nothing and
 // deleting nothing. The startup runner's oracle.
+// `--crash-test` traps on purpose, to prove the crash log works.
+//
+// A safety net nobody has seen catch anything is not a safety net: the log
+// this writes is only useful if the handler is really installed, really
+// resolves symbols, and really flushes before the process goes. So there is
+// one command that walks off the end of an array -- an ordinary Swift
+// precondition failure, the exact shape of every real crash in this shell's
+// WER history (0xC000001D) -- and the check is that
+// %LOCALAPPDATA%\Starling\crash.log then names THIS function.
+//
+// Deliberately not reachable by accident: it exits by crashing, so it only
+// ever belongs on a command line someone typed.
+if CommandLine.arguments.contains("--crash-test") {
+    print("[WinShell] --crash-test: trapping on purpose")
+    fflush(stdout)
+    var numbers = [1, 2, 3]
+    // Read through a variable the optimiser cannot fold away, so this stays a
+    // real bounds check rather than a compile-time error.
+    let index = CommandLine.arguments.count + 100
+    numbers[index] = 0
+    print("[WinShell] unreachable \(numbers)")
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--print-startup") {
     for line in SessionSlot.runStartup(execute: false) { print(line) }
     print("[startup] shell=\(SessionSlot.registeredShell() ?? "<machine default>")")

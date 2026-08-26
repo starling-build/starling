@@ -653,6 +653,23 @@ void flwin32_shell_suppress_explorer_chrome(void);
 // a class this shell never takes, so it stays honest after the tray is ours).
 int32_t flwin32_shell_explorer_present(void);
 
+// Write a named stack trace to `utf8_path` when this process dies of an
+// unhandled exception. Install it once, first thing in main.
+//
+// Every face of the shell is supervised and respawned, so a crash otherwise
+// leaves only a WER dump: ~900 MB, on the machine that crashed, and mute --
+// a release build has no symbols, so the stack reads `WinShellBar+0x63a90a`
+// and naming the function is hours of work per crash. It also reads as
+// 0xC000001D, ILLEGAL INSTRUCTION, which sounds like a corrupt binary and
+// never is: that is how a Swift precondition failure arrives, because the
+// compiler emits `ud2` for one.
+//
+// Names need a .pdb beside the binary -- build with
+// `sdk\tools\build-windows.ps1 -DebugInfo`. Without one the log still gives
+// module+offset for every frame, which stays decodable against that build.
+// WER still gets the exception and still writes its dump.
+void flwin32_crashlog_install(const char* utf8_path);
+
 // Borrow an explorer for the length of one packaged-app launch, and hand it
 // back. CoreWindow apps (Settings, Calculator) cannot be ACTIVATED without one
 // running, but do not need it once they are up -- so the shell starts one,

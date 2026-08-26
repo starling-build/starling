@@ -47,7 +47,14 @@ param(
     # The app packages hit the same bug — they compile the same interop
     # targets through their path dependency on this one — so point this at
     # e.g. ..\apps\TerminalApp rather than keeping a copy of this script there.
-    [string]$PackagePath = ''
+    [string]$PackagePath = '',
+    # Emit a .pdb beside the binary. Optimisation is unchanged -- this only
+    # adds debug info -- and without it a release crash dump is a column of
+    # `WinShellBar+0x63a90a` with no way to name the function that trapped.
+    # A Swift runtime trap (a failed precondition) surfaces as an ILLEGAL
+    # INSTRUCTION, 0xc000001d, because the compiler emits `ud2` for it: the
+    # exception code says only "Swift gave up here", never where.
+    [switch]$DebugInfo
 )
 
 $ErrorActionPreference = 'Continue'
@@ -70,6 +77,16 @@ if ($Product) { $buildArgs += @('--product', $Product) }
 # parked in NtWriteFile. Errors still fail the build normally; this only
 # silences the warning stream that jams the pipe.
 $buildArgs += @('-Xswiftc', '-suppress-warnings')
+
+# Debug info goes in the PDB, not the code: -g leaves -O alone, so a build
+# made with it is the same program. `-debug-info-format=codeview` is what the
+# Windows debuggers read; DWARF (the default on other platforms) leaves cdb
+# with nothing.
+if ($DebugInfo) {
+    $buildArgs += @('-Xswiftc', '-g',
+                    '-Xswiftc', '-debug-info-format=codeview',
+                    '-Xlinker', '-debug')
+}
 
 # The failure is recognisable by the MSVC header and the call that fails; both
 # have to appear for this to count as the known bug.

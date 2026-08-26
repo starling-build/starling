@@ -672,6 +672,9 @@ targets += [
             // SHLockShared/SHUnlockShared, for writing appbar results back
             // through the caller's SHAllocShared block (flwin32_tray.c).
             .linkedLibrary("shlwapi"),
+            // StackWalk64/SymFromAddr, for the crash log's named stack
+            // (flwin32_crashlog.c).
+            .linkedLibrary("dbghelp"),
         ]
     ),
     // The desktop host: the real Flutter Windows embedder, Swift-driven.

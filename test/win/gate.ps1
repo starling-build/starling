@@ -542,6 +542,24 @@ Check "a packaged app launches, minimizes and comes back" {
     if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator") }
     if ($w -eq [IntPtr]::Zero) { return "activated, but no window ever appeared" }
     if (-not [Gate]::IsWindowVisible($w)) { return "the window exists but is not on screen" }
+
+    # NOT CLOAKED, and this has to be asked separately from the pixels.
+    #
+    # A DWM-cloaked window is visible to every window API and painted by
+    # nobody: IsWindowVisible is true, GetWindowRect gives real coordinates,
+    # and a screen grab of those coordinates returns whatever is BEHIND it --
+    # which here is the desktop wallpaper, a photograph, so the colour-variety
+    # test below passes with flying colours on a window the user cannot see.
+    # That is not hypothetical: every packaged app on the box launched
+    # shell-cloaked while this check reported a healthy 12/12, because nothing
+    # in it ever asked. Attribute 14 is DWMWA_CLOAKED; 2 is
+    # DWM_CLOAKED_SHELL, the value a frame nobody uncloaked carries.
+    $cloaked = 0
+    [void][Gate]::DwmGetWindowAttribute($w, 14, [ref]$cloaked, 4)
+    if ($cloaked -ne 0) {
+        return "the frame exists but is DWM-cloaked ($cloaked) -- running, and invisible to the user"
+    }
+
     if ($variety -lt 25) { return "the window is on screen but blank ($variety colours)" }
 
     [void][Gate]::ShowWindow($w, 6)
