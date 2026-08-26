@@ -499,8 +499,18 @@ Check "a packaged app launches, minimizes and comes back" {
     $aumid = 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App'
     $exe = (Get-Process WinShellBar -EA SilentlyContinue | Select-Object -First 1).Path
     if (-not $exe) { return "no WinShellBar to launch through" }
-    $out = & $exe --launch-app $aumid 2>&1
-    if ($LASTEXITCODE -ne 0) { return "the shell refused the launch: $out" }
+    # Start-Process -Wait, NOT the call operator. The shell is a GUI-subsystem
+    # binary (so Winlogon never gives it a console window), and PowerShell's `&`
+    # does not wait for a GUI-subsystem process or capture its stdout -- it
+    # returns instantly with an empty $LASTEXITCODE, which read as "refused" for
+    # a launch that in fact succeeded. Start-Process -Wait -PassThru gives a
+    # real exit code, and the redirect captures the shell's diagnostic line.
+    $so = Join-Path $env:TEMP "starling-gate-launch-out.txt"
+    $se = Join-Path $env:TEMP "starling-gate-launch-err.txt"
+    $proc = Start-Process -FilePath $exe -ArgumentList '--launch-app', $aumid `
+        -Wait -PassThru -RedirectStandardOutput $so -RedirectStandardError $se
+    $out = ((Get-Content $so, $se -EA SilentlyContinue) -join ' ').Trim()
+    if ($proc.ExitCode -ne 0) { return "the shell refused the launch: $out" }
 
     # Wait for it to be on screen AND PAINTED. A frame with nothing in it is
     # what a UWP app looks like while it starts -- and what it leaves behind

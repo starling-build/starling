@@ -1021,7 +1021,23 @@ targets += [
         ],
         path: "Examples/WinShellBar",
         swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
-        linkerSettings: engineLinkSettings
+        linkerSettings: engineLinkSettings + [
+            // Ship the shell as a GUI-subsystem binary. The default is a
+            // console (CUI) subsystem, so when Winlogon launches the shell
+            // Windows allocates a console for it -- and on Win11 the console
+            // host is Windows Terminal, whose window sits minimized in a
+            // corner and cannot be hidden reliably (its GetConsoleWindow is a
+            // hidden pseudoconsole stand-in, so the obvious hide targets
+            // nothing visible; FreeConsole takes the whole session down).
+            // GUI subsystem means no console is ever created, so there is no
+            // host window to fight. /ENTRY:mainCRTStartup keeps the ordinary
+            // C-runtime entry that calls Swift's main(), which /SUBSYSTEM:
+            // WINDOWS would otherwise replace with a WinMain requirement.
+            .unsafeFlags([
+                "-Xlinker", "/SUBSYSTEM:WINDOWS",
+                "-Xlinker", "/ENTRY:mainCRTStartup",
+            ]),
+        ]
     ),
 ]
 #endif
