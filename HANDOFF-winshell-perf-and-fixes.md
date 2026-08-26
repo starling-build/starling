@@ -1,0 +1,122 @@
+# Checkpoint — Windows shell fixes + perf, 2026-08-26
+
+Continues `HANDOFF-winshell-minimize-and-packaged-apps.md` (which is current
+through the "borrow died, explorer service returns" work). This one covers what
+landed AFTER that: the console-window fix, the UI-thread perf fix, the
+Start-menu head-to-head against native Windows, and the file-manager benchmark
+that was interrupted when the box went offline.
+
+Box: the physical machine (`starling@192.168.68.60`). **As of this checkpoint
+the box is DOWN** — see "Box state" at the bottom; that is the first thing to
+deal with.
+
+## Headline
+
+Two shell fixes landed and verified this session; the Start-menu latency now
+beats native Windows ~2–4×; the file-manager comparison is the one unfinished
+piece. Mainline is pushed through `8f79405`.
+
+## What landed this session (all pushed to main)
+
+| | commit | what | verified |
+|---|---|---|---|
+| Explorer service default-on again | `b12ed96` | borrow-per-launch was condemned (flapping frames, blacked desktop); one hidden explorer stays alive for CoreWindow app launch | 12/12 packaged-app launches framed on a cold boot |
+| ImmersiveShell activation decode + survey | `9a69c4a` (+ survey) | decoded the undocumented COM surface CoreWindow apps need (2 interfaces, 1 method each); surveyed how other shells handle it (nobody reimplements it — Cairo/Microsoft's CustomShellHost both keep/consume explorer) | `docs/plans/immersive-shell-activation-decode.md` |
+| No console window | `6ed3326` | shell was a console-subsystem exe, so Winlogon gave it a Windows-Terminal console window in the corner; now linked `/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup` so no console is ever created | gate **10/10** on a cold boot; corner clean |
+| Window-list hooks off the UI thread | `8f79405` | the dock's machine-wide WinEvent hooks (+ their per-event DWM queries) ran on the UI thread; explorer's window-event flood cost the Start-menu render a frame. Moved to a dedicated hook thread; only filtered events cross to the UI thread via a message-only window | Start menu 83→50 ms (High Perf); see below |
+
+`6ed3326` also required a gate fix: PowerShell's `&` does not wait for or
+capture a GUI-subsystem process, so the gate's `--launch-app` check must use
+`Start-Process -Wait -PassThru` (done in `test/win/gate.ps1`). Any script
+driving `WinShellBar.exe --launch-app` must do the same.
+
+## Start-menu latency: the numbers
+
+Measured on the box, warm, `ddagrab`, 8+ reps, `test/bench/win-latency/`.
+
+**Head-to-head, both on High Performance** (the answer to "ours vs native"):
+
+| | first pixels | fully drawn |
+|---|---|---|
+| Starling (with `8f79405`) | ~50–67 ms | **same** — appears complete, no fade |
+| Windows 11 native | 133 ms | **267 ms** — fades in over ~4 frames |
+
+Ours ≈2× faster to first pixels, ≈4× faster to a usable menu.
+
+**Why it had regressed (from the historical tight 67 ms), fully isolated:**
+1. **Power plan.** The box was on **Balanced**, which idle-downclocks the CPU
+   (3046 of 3801 MHz at idle). The menu opens from idle on a cold core →
+   worst-case 133 ms (4-frame) spikes. High Performance removes those.
+2. **The dock's UI-thread WinEvent hooks** (fixed in `8f79405`) — the ~1-frame
+   median cost. After the fix, Balanced is back to 67 ms median (one 133 spike
+   left, which is the power plan, not our code); High Perf is 50 ms.
+
+## The file-manager benchmark — UNFINISHED, how to run it
+
+The one piece left of "do the head-to-head for the file manager too."
+
+Rig: `test/bench/win-latency/capture-launch-winE.ps1` (Win+E trigger, full-screen
+`ddagrab`), analysed by `analyze-launch.py` at **grid 64** (16 flatters explorer
+by 400 ms). extract crops used for the Start menu do NOT apply — this is
+full-screen; use marker-crop `60:60:80:80` and a region starting at x≥400.
+
+Procedure (both shells on High Performance, same box):
+1. Ours: box registered as our shell → `capture-launch-winE.ps1 -Label ours`.
+2. Switch to native: `WinShellBar.exe --unregister-shell` + **reboot** →
+   explorer is the shell. Verify `DefaultPassword` length is 13 (autologon)
+   BEFORE rebooting or the box parks at LogonUI.
+3. Native: `capture-launch-winE.ps1 -Label native`.
+4. Switch back: `WinShellBar.exe --register-shell` + reboot.
+
+Historical numbers to beat (pre-fix, Balanced): ours 500 ms usable vs explorer
+1149 ms. Re-baseline on High Performance with the fix in place.
+
+**Why it stopped:** the box went completely offline mid-capture (see below).
+
+## Box state — DEAL WITH THIS FIRST
+
+**The box is unreachable** as of this checkpoint — 3+ hours of 100% packet loss
+and ARP `FAILED` (not even MAC-resolvable), while the gateway responds fine. A
+Windows update would have returned by now, so it is **hung or powered off** and
+needs a **physical power-cycle**. There is no out-of-band access.
+
+**Suspected cause:** I had switched the box to **High Performance** (CPU pinned
+at 3801 MHz) for the benchmark, and this is a mobile APU (Ryzen 7 8845HS). A
+sustained full-speed load during the repeated Win+E launches may have overheated
+or wedged it. Treat High Performance on this box as suspect for sustained
+benchmarks.
+
+**When it comes back (a recovery watch is running to auto-detect it):**
+1. **FIRST restore Balanced:** `powercfg /setactive
+   381b4222-f694-41f0-9685-ff5bb260df2e`. High Perf persists across reboot and
+   is the suspected culprit.
+2. Verify shipped state: our shell (5 `WinShellBar` procs), explorer service
+   (1), Balanced, and the fix binary — `WinShellBar.exe` SHA256 begins
+   `909D5911D1B86228`.
+3. Then, if desired, resume the file-manager benchmark above.
+
+## Traps re-learned this session (all cost real time)
+
+- **The capture rig leaves a stray `ffmpeg` holding Desktop Duplication.** The
+  next `ddagrab` then silently records nothing AND locks the old mkv (delete
+  fails). Kill ffmpeg and verify the new mkv/stamps are FRESH — qpc resets at
+  boot, so a stale stamps file has a much larger qpc than the new uptime.
+- **The first interactive scheduled task after a reboot often no-ops.** Re-run
+  once the session settles.
+- **Native Win11 Start now has a "View: Category" grid** (Developer Tools /
+  Productivity / …) identical to ours on build 26100 — our launcher mimics it.
+  Identify which shell is running by the PROCESS (`WinShellBar` count) and the
+  taskbar, never by the menu's appearance. Nearly discarded a valid native
+  capture over this.
+- **278 leftover `Star*` test scheduled tasks** had piled up (a real benchmark
+  hazard — a stray one can fire mid-measurement). Cleaned up; Windows' own
+  `Start*` system tasks were kept (they reference neither `C:\st` nor
+  `C:\dist`). ~11 `Star*` remain.
+- **`$null` → `""` for a PowerShell P/Invoke string** bit again in a probe
+  (reported "Progman owner Idle"); use `[NullString]::Value`.
+
+## Memory updated this session
+
+`winshell-borrow-died-service-returns`, `immersive-shell-activation-decode`,
+`windows-shell-gate` (console fix → 10/10), `winshell-start-latency-measurement`
+(perf investigation + the UI-thread fix + the native head-to-head).
