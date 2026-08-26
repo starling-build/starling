@@ -473,14 +473,32 @@ uint64_t flwin32_wm_foreground(void) {
 /* ----------------------------------------------------------------- events */
 
 /* WinEvent hooks, installed OUT_OF_CONTEXT so nothing of ours is injected
- * into other processes: the events are queued to the installing thread and
- * arrive through its message loop, which is the host's. */
+ * into other processes: the events are queued to the INSTALLING thread and
+ * arrive through its message loop.
+ *
+ * That installing thread is a DEDICATED one, not the UI thread -- and that is
+ * the point. These hooks watch window create/show/hide/destroy for every
+ * process on the machine, and win_event_cb filters that firehose with
+ * is_manageable(), which makes DWM cloak and frame-bounds queries per event.
+ * Run on the UI thread (as this once was), an explorer alive in the session
+ * -- and the immersive-shell hosts that wake with it -- flood the UI thread
+ * with those callbacks and their DWM round-trips, and the render misses a
+ * compositor frame: the Start menu measured ~1 frame slower with explorer up
+ * than with it gone. The dedicated thread absorbs the firehose and the
+ * filtering; only surviving, manageable events cross to the UI thread, one
+ * posted message each, to g_marshal_wnd -- a message-only window the UI
+ * thread owns, so its wndproc (and the Swift handler it calls, which touches
+ * the widget tree) runs there. */
 
 #define kMaxHooks 8
 static HWINEVENTHOOK g_hooks[kMaxHooks];
 static int g_hook_count = 0;
 static FlWin32WmEventCallback g_callback = NULL;
 static void* g_callback_user = NULL;
+static HANDLE g_hook_thread = NULL;
+static DWORD g_hook_tid = 0;
+static HWND g_marshal_wnd = NULL;
+#define WM_STARLING_WM_EVENT (WM_APP + 0x51)
 
 static void CALLBACK win_event_cb(HWINEVENTHOOK hook,
                                   DWORD event,
@@ -534,7 +552,13 @@ static void CALLBACK win_event_cb(HWINEVENTHOOK hook,
         default:
             return;
     }
-    g_callback(kind, (uint64_t)(uintptr_t)hwnd, g_callback_user);
+    /* Hand the survivor to the UI thread; the filtering and its DWM queries
+     * stayed on this dedicated thread. PostMessage is FIFO, so add/remove
+     * order is preserved for the dock's reconciliation. */
+    if (g_marshal_wnd != NULL) {
+        PostMessageW(g_marshal_wnd, WM_STARLING_WM_EVENT, (WPARAM)kind,
+                     (LPARAM)hwnd);
+    }
 }
 
 static void install_hook(DWORD min_event, DWORD max_event) {
@@ -545,12 +569,25 @@ static void install_hook(DWORD min_event, DWORD max_event) {
     if (hook != NULL) g_hooks[g_hook_count++] = hook;
 }
 
-int32_t flwin32_wm_watch(FlWin32WmEventCallback callback, void* user) {
-    if (callback == NULL) return 0;
-    flwin32_wm_unwatch();
-    g_callback = callback;
-    g_callback_user = user;
+/* Runs on the UI thread (it owns g_marshal_wnd), delivering the events the
+ * hook thread already filtered to the Swift handler. */
+static LRESULT CALLBACK marshal_wndproc(HWND hwnd, UINT msg, WPARAM w,
+                                        LPARAM l) {
+    if (msg == WM_STARLING_WM_EVENT) {
+        if (g_callback != NULL) {
+            g_callback((int32_t)w, (uint64_t)(uintptr_t)l, g_callback_user);
+        }
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, w, l);
+}
 
+/* The dedicated hook thread. The hooks are installed HERE because
+ * OUT_OF_CONTEXT delivers to the installing thread; pumping messages here is
+ * what keeps the callbacks (and their DWM queries) off the UI thread. Ends on
+ * the WM_QUIT that flwin32_wm_unwatch posts, unhooking on the way out. */
+static DWORD WINAPI hook_thread_proc(LPVOID param) {
+    (void)param;
     /* Narrow ranges rather than EVENT_MIN..EVENT_MAX: the full range carries
      * every accessibility event in every process on the machine, which is a
      * measurable share of a core on a busy desktop. */
@@ -561,7 +598,50 @@ int32_t flwin32_wm_watch(FlWin32WmEventCallback callback, void* user) {
     install_hook(EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE);
     install_hook(EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED);
 
-    if (g_hook_count == 0) {
+    MSG msg;
+    while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    for (int i = 0; i < g_hook_count; i++) {
+        UnhookWinEvent(g_hooks[i]);
+    }
+    g_hook_count = 0;
+    return 0;
+}
+
+int32_t flwin32_wm_watch(FlWin32WmEventCallback callback, void* user) {
+    if (callback == NULL) return 0;
+    flwin32_wm_unwatch();
+    g_callback = callback;
+    g_callback_user = user;
+
+    /* The marshal window is created on THIS thread, so its wndproc runs here;
+     * observe() is called on the message-loop (UI) thread, which is the point
+     * -- the Swift handler must touch the widget tree from the UI thread. */
+    WNDCLASSEXW wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = marshal_wndproc;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.lpszClassName = L"StarlingWmMarshal";
+    RegisterClassExW(&wc); /* ERROR_CLASS_ALREADY_EXISTS is the idempotent case */
+    g_marshal_wnd = CreateWindowExW(0, L"StarlingWmMarshal", L"", 0, 0, 0, 0, 0,
+                                    HWND_MESSAGE, NULL, GetModuleHandleW(NULL),
+                                    NULL);
+    if (g_marshal_wnd == NULL) {
+        g_callback = NULL;
+        g_callback_user = NULL;
+        return 0;
+    }
+
+    /* Start the hook thread only once the marshal window exists, so a callback
+     * can never race a NULL target; unwatch tears them down in reverse. */
+    g_hook_thread = CreateThread(NULL, 0, hook_thread_proc, NULL, 0,
+                                 &g_hook_tid);
+    if (g_hook_thread == NULL) {
+        DestroyWindow(g_marshal_wnd);
+        g_marshal_wnd = NULL;
         g_callback = NULL;
         g_callback_user = NULL;
         return 0;
@@ -570,10 +650,20 @@ int32_t flwin32_wm_watch(FlWin32WmEventCallback callback, void* user) {
 }
 
 void flwin32_wm_unwatch(void) {
-    for (int i = 0; i < g_hook_count; i++) {
-        UnhookWinEvent(g_hooks[i]);
+    if (g_hook_tid != 0) {
+        /* WM_QUIT ends the hook thread's loop; it unhooks on the way out. */
+        PostThreadMessageW(g_hook_tid, WM_QUIT, 0, 0);
     }
-    g_hook_count = 0;
+    if (g_hook_thread != NULL) {
+        WaitForSingleObject(g_hook_thread, 2000);
+        CloseHandle(g_hook_thread);
+        g_hook_thread = NULL;
+    }
+    g_hook_tid = 0;
+    if (g_marshal_wnd != NULL) {
+        DestroyWindow(g_marshal_wnd);
+        g_marshal_wnd = NULL;
+    }
     g_callback = NULL;
     g_callback_user = NULL;
 }
