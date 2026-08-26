@@ -474,11 +474,23 @@ final class StarlingDockState: State<StatefulWidget> {
         // Everything the Files tree does to "its window" must land on THIS
         // window, not on the dock -- see FilesWindow.
         FilesWindow.current = .surface(id)
-        FilesWindow.opener = { Win32Surfaces.show(id) }
-        Win32Surfaces.onClose(id) {
+        // Both transitions POKE the window list. The dock's watcher installs
+        // its WinEvent hooks with WINEVENT_SKIPOWNPROCESS — deliberately, so
+        // the shell's own overlays don't feed back — which means show and
+        // hide of THIS window, the one window of ours that appears in the
+        // list, produce no event at all. Without the pokes the tile and its
+        // hover card keep yesterday's answer until some unrelated app
+        // happens to raise a window event: a closed Files kept a live-looking
+        // preview, and a fresh open could show a black one.
+        FilesWindow.opener = { [weak self] in
+            Win32Surfaces.show(id)
+            self?.bloc.add(.windowsChanged)
+        }
+        Win32Surfaces.onClose(id) { [weak self] in
             // Hidden, not gone. Explorer forgets your tabs on close; this
             // keeps them, which is the trade for opening instantly.
             print("[WinShell] files surface hidden")
+            self?.bloc.add(.windowsChanged)
         }
         print("[WinShell] files surface view: \(id)")
     }
@@ -1876,8 +1888,28 @@ final class StarlingDockState: State<StatefulWidget> {
         // resting and the item list shrinking (see label(_:)); a stale index
         // means "the tile under the pointer is gone", and the honest flyout
         // for a tile that is gone is no flyout.
+        //
+        // The DWM registrations are reconciled HERE, against what this build
+        // actually draws, not only when the card opens. The thumbnails are
+        // painted by DWM directly over the window, so a registration that
+        // outlives its slot keeps showing a picture the tree no longer draws
+        // — hover File Explorer, close it, and the card went on showing the
+        // closed window's last frame for as long as the pointer stayed put,
+        // because nothing between "the window list changed" and "DWM paints"
+        // ever re-asked. sync() is a no-op when nothing changed, so the
+        // once-a-second clock rebuild pays a dictionary walk and no DWM call.
+        if let over = hovered, over >= 0, over < bloc.state.items.count,
+           hasPreview(over) {
+            if previews.sync(previewWindows(over).map(\.handle)) {
+                placePreview(over)
+            }
+            return preview(over)
+        }
+        // Every other outcome draws no thumbnails, so none may stay
+        // registered — including the stale-index fall-through above.
+        previews.releaseAll()
         if let over = hovered, over >= 0, over < bloc.state.items.count {
-            return hasPreview(over) ? preview(over) : label(over)
+            return label(over)
         }
         if let id = hoveredTray,
            let icon = bloc.state.tray.first(where: { $0.id == id }) {
@@ -1988,13 +2020,13 @@ final class StarlingDockState: State<StatefulWidget> {
                y >= origin.y && y < origin.y + size.height
     }
 
-    /// Captures now, and again on a timer while the card is up.
+    /// Registers the card's thumbnails and puts each in its slot.
     ///
-    /// Windows' own previews are live, because DWM already has the pixels and
-    /// hands out a thumbnail for nothing. Ours cost a full render of the
-    /// window, so this is a second apart rather than a frame — visibly live
-    /// for a clock or a build log, and a fraction of the cost of the real
-    /// thing.
+    /// Live DWM thumbnails, the same mechanism the native taskbar uses: DWM
+    /// already has the pixels and paints them straight over our window, so
+    /// there is no capture and no timer. flyoutContent re-syncs the
+    /// registrations on every build while the card is up, so a window that
+    /// closes under the card stops being painted.
     private func openPreview(_ index: Int) {
         previews.sync(previewWindows(index).map(\.handle))
         placePreview(index)

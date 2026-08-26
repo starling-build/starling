@@ -41,21 +41,29 @@ final class PreviewCache {
     private var destination: UInt64 { Win32WindowedHost.host?.windowHandle ?? 0 }
 
     /// Registers anything in `windows` not already registered, and drops
-    /// anything no longer listed. Called when a card opens and whenever its
-    /// window list changes; there is no timer, because there is nothing to
-    /// re-capture.
-    func sync(_ windows: [UInt64]) {
+    /// anything no longer listed. Called when a card opens and on every build
+    /// of the flyout while one is up; there is no timer, because there is
+    /// nothing to re-capture.
+    ///
+    /// Returns whether anything changed, so an unchanged card — the common
+    /// case, rebuilt once a second by the clock — skips re-placing.
+    @discardableResult
+    func sync(_ windows: [UInt64]) -> Bool {
         let dest = destination
-        guard dest != 0 else { return }
+        guard dest != 0 else { return false }
+        var changed = false
         for handle in windows where thumbs[handle] == nil {
             if let thumb = Win32Thumbnail(source: handle, destination: dest) {
                 thumbs[handle] = thumb
+                changed = true
             }
         }
         for (handle, thumb) in thumbs where !windows.contains(handle) {
             thumb.release()
             thumbs.removeValue(forKey: handle)
+            changed = true
         }
+        return changed
     }
 
     /// Puts one window's picture in a slot, aspect-fitted so a wide window in
