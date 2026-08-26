@@ -270,6 +270,41 @@ function ColourVariety($bmp, $step = 8) {
     return $seen.Count
 }
 
+# What SHARE of a region is a single flat colour.
+#
+# The companion to ColourVariety, and the one that catches a packaged app that
+# opened but never drew. Such a window is not blank in the colour-variety
+# sense: ApplicationFrameHost puts up an empty white frame with the APP'S ICON
+# in the middle, and the icon alone answers ~270 distinct colours -- far past
+# any "dozens means it drew" threshold. Measured on the box, frame interiors:
+#
+#   Calculator, opened and never drawn   274 colours, 99.1% one white
+#   Settings,   opened and never drawn   260 colours, 98.1% one white
+#   a CLOAKED frame (wallpaper behind)  6889 colours,  0.2% dominant
+#
+# So variety says "drawn" for all three and share separates them. A real UI
+# has edges everywhere and cannot be one flat colour; 90% leaves room for a
+# light-themed app with a lot of background and still fails the ~99% frames
+# above by a wide margin. (No positive reference was available when this was
+# written -- nothing on that box renders -- so the threshold is set from the
+# failure side, deliberately loose.)
+function DominantShare($bmp, $step = 8) {
+    $counts = @{}
+    $n = 0
+    for ($y = 0; $y -lt $bmp.Height; $y += $step) {
+        for ($x = 0; $x -lt $bmp.Width; $x += $step) {
+            $c = $bmp.GetPixel($x, $y)
+            $k = (($c.R -shr 3) -shl 10) -bor (($c.G -shr 3) -shl 5) -bor ($c.B -shr 3)
+            $counts[$k] = 1 + $counts[$k]
+            $n++
+        }
+    }
+    if ($n -eq 0) { return 1.0 }
+    $top = 0
+    foreach ($v in $counts.Values) { if ($v -gt $top) { $top = $v } }
+    return $top / $n
+}
+
 function MeanBrightness($bmp, $step = 8) {
     $sum = 0.0; $n = 0
     for ($y = 0; $y -lt $bmp.Height; $y += $step) {
@@ -518,6 +553,7 @@ Check "a packaged app launches, minimizes and comes back" {
     # white rectangle with an icon in the middle.
     $w = [IntPtr]::Zero
     $variety = 0
+    $flat = 0.0
     for ($i = 0; $i -lt 12; $i++) {
         Start-Sleep 1
         # THE FRAME, looked for on every pass rather than keeping whatever
@@ -534,8 +570,11 @@ Check "a packaged app launches, minimizes and comes back" {
         [void][Gate]::GetWindowRect($w, [ref]$r)
         $shot = Grab ($r.L + 12) ($r.T + 40) ([math]::Max(64, $r.R - $r.L - 24)) ([math]::Max(64, $r.B - $r.T - 60))
         $variety = ColourVariety $shot 10
+        $flat = DominantShare $shot 10
         $shot.Dispose()
-        if ($variety -ge 25) { break }
+        # Both have to be true before this counts as drawn: enough colours,
+        # AND not one flat fill wearing the app's icon.
+        if ($variety -ge 25 -and $flat -lt 0.90) { break }
     }
     # Only now fall back to the app's own window: with no frame at all the
     # checks below SHOULD fail, and this makes them fail about the right thing.
@@ -561,6 +600,10 @@ Check "a packaged app launches, minimizes and comes back" {
     }
 
     if ($variety -lt 25) { return "the window is on screen but blank ($variety colours)" }
+    if ($flat -ge 0.90) {
+        return ("the frame is on screen but the app never drew into it -- " +
+                "{0:P0} of it is one flat colour (an empty frame with the app's icon)" -f $flat)
+    }
 
     [void][Gate]::ShowWindow($w, 6)
     Start-Sleep 3

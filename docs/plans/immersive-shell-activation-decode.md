@@ -177,92 +177,100 @@ for the dev box. It does not change the conclusion: the provider is
 explorer-class functionality, and keeping explorer (hidden) is what every
 shell, including Microsoft's, effectively does.
 
-## 2026-08-26 — the dependency has a *visible* failure, and it is a trade-off
+## 2026-08-26 — packaged apps open EMPTY, and no test ever looked
 
 Everything above is about whether a packaged app can be **activated** at all.
-Keeping a hidden explorer solves that, and it does: on the box, activation
-returns S_OK, the app process starts, and `ApplicationFrameHost` builds it a
-frame. Measured this session, the shipped mainline build (`8f79405`) still
-fails one step later, and the user sees it.
+Keeping a hidden explorer solves that, and it does: activation returns S_OK,
+the app process starts, `ApplicationFrameHost` builds it a frame, and the
+frame is on screen and uncloaked. It is also **completely empty**.
 
-**The failure.** From a cold logon, every CoreWindow packaged app --
-Settings and Calculator both, reproduced across four clean boots and two
-binaries -- comes up with its `ApplicationFrameWindow` **DWM-cloaked by the
-shell** (`DWMWA_CLOAKED` == 14 reads 2, `DWM_CLOAKED_SHELL`). The app runs, the
-frame exists, every window API says it is visible, and nothing is ever
-painted: *"Settings opens and shows nothing."* It does not clear on its own --
-still cloaked six minutes in.
+Photographed on the box, mainline `8f79405`, by opening Start and clicking the
+tile the way a user does: Settings and Calculator each come up as a white
+window with a title bar and **their own icon in the middle**, and nothing else,
+for as long as you leave them. The app is running; its UI is never composed
+into the frame. That is the user's report — *"Settings opens and shows
+nothing"* — reproduced exactly.
 
-Note which window: a healthy launch has the app's own `Windows.UI.Core
-.CoreWindow` cloaked (that is normal, and `app_window_up` in
-`flwin32_explorer.c` says so) and its **frame** clear. Here the frame is
-cloaked too. Reading the CoreWindow's cloak state answers the wrong question.
+The window state at that moment is the shape this file's earlier work calls
+healthy:
 
-**The trade-off, which is the real finding.** Two cures were measured, and
-they are mutually exclusive:
+```
+ApplicationFrameHost  class=ApplicationFrameWindow  cloak=0  1621x1255 'Settings'
+SystemSettings        class=Windows.UI.Core.CoreWindow cloak=2 1595x1241 'Settings'
+```
+
+Frame present, frame uncloaked, CoreWindow cloaked — which is exactly what a
+*working* launch looks like from the outside. So every structural test passes
+and the user still sees nothing: what is missing is the step where the app's
+visual tree is retargeted into the frame, which is the frame-host half of the
+immersive shell that this document says is not decoded.
+
+### Why it was believed to work
+
+Not one of the checks behind "packaged apps work" ever asked whether the app
+had drawn.
+
+- **"12/12 launches framed on a cold boot"** (`b12ed96`) measured
+  `app_window_up()`, i.e. that an `ApplicationFrameWindow` with a matching
+  title exists. Its own comment says the cloak state is *deliberately* not
+  required. It is a test for the frame EXISTING.
+- **"Settings opens in 0.5 s"** measured `ActivateApplication` returning —
+  a COM call (`t_act` in `flwin32_apps.c`). No pixels are involved.
+- **The gate's "is it blank" check** grabbed the frame's screen rectangle and
+  counted distinct colours, needing 25. Measured on the real failure:
+
+  | region | distinct colours | share of one flat colour |
+  |---|---|---|
+  | Calculator, opened and never drawn | 274 | **99.1% white** |
+  | Settings, opened and never drawn | 260 | **98.1% white** |
+  | a cloaked frame (wallpaper behind it) | 6889 | 0.2% |
+
+  The app's ICON alone answers ~270 colours, so an empty frame sails past a
+  25-colour threshold — and a *cloaked* frame passes from the other direction,
+  because the grab returns the photographic wallpaper behind it. The check
+  could not fail either way.
+
+**The gate now asks two better questions**: that the frame is not DWM-cloaked
+(`DWMWA_CLOAKED == 0`), and that it is not one flat fill (`DominantShare`
+below 90%). With those in, the gate FAILS on the box, reporting *"the frame is
+on screen but the app never drew into it — 99% of it is one flat colour"*.
+That is the first automated signal this bug has ever produced.
+
+### A second state, and a trade-off worth knowing
+
+Separately from the empty frame, driving `--launch-app` by hand often produced
+a frame that was **DWM-cloaked** (attribute 14 == 2) and therefore not on
+screen at all. Two cures were measured, and they are mutually exclusive
+(both pixel-verified with `ddagrab`; GDI capture is useless here — it will
+happily show a wallpaper that is not on the screen):
 
 | what was restarted last | packaged-app frame | our desktop view |
 |---|---|---|
-| the explorer service | **uncloaked, visible** | **black, permanently** |
-| the shell chrome | cloaked, invisible | wallpaper and icons fine |
+| the explorer service | uncloaked | **black, permanently** (luminance 117 → 0) |
+| the shell chrome | re-cloaked | wallpaper and icons fine |
 
-Both directions were confirmed by pixel capture through `ddagrab` (GDI capture
-is useless here -- it misses D3D-composited surfaces and will happily show a
-wallpaper that is not on the screen). Restarting explorer with the session
-settled took the desktop from mean luminance 117 to **0** on the same frame
-that the packaged app became visible, and it stayed 0; restarting the chrome
-afterwards brought 117 back and re-cloaked the app. So this is not an ordering
-race to be papered over with a delay -- whichever of the two started last
-wins, and the two prizes are on opposite ends.
+**Two fixes were written, tested and reverted** — recorded so nobody spends
+the day again: *restart explorer when the supervisor respawns a crashed shell*
+(premise disproved — a clean boot shows the bug with no crash anywhere), and
+*refresh explorer once, 180 s in* (worked, cloak 2 → 0 from cold boot twice,
+and blacked the desktop for the rest of the session). Ruled out as the
+discriminator for the cloaked state, each by measurement: a preceding crash;
+how long the shell has been up (still cloaked at t+316 s); explorer/shell
+start order and age; cold start vs resuming a suspended app; whether the
+launching process owns the foreground.
 
-That is the shape of a genuine conflict over the desktop slot: explorer's
-desktop (Progman/WorkerW) and our own desktop view cannot both be the bottom
-of the stack, and the immersive shell's frame-uncloaking appears to follow
-whichever explorer instance owns it. It belongs with the decode above rather
-than in the supervisor.
+The empty frame is the bug to chase — it is what the user sees, it reproduces
+from the dock every time, and it now has a gate check that fails on it.
 
-**Two fixes were written, tested, and reverted** -- recorded so nobody spends
-the day again:
-1. *Restart the explorer service when the supervisor respawns a crashed
-   shell.* Premise disproved: a clean-boot test showed the bug with no crash
-   anywhere, so the crash was not the trigger.
-2. *Refresh the explorer service once, 180 s into the session.* It worked --
-   verified twice from cold boot, cloak 2 -> 0 -- and blacked the desktop for
-   the rest of the session. That is the same corrosion
-   `flwin32_shell_ensure_explorer_service` already warns about, arriving from
-   a new direction.
+### Harness notes, each of which cost a round trip
 
-**The gate was blind to this, and now is not.** `test/win/gate.ps1` tested the
-frame for blankness by grabbing its screen rectangle and counting distinct
-colours -- but a cloaked window is painted by nobody, so the grab returns what
-is *behind* it, which here is a photographic wallpaper. It scores a healthy
-variety, and the check passed on a window the user could not see. The check now
-asserts `DWMWA_CLOAKED == 0` directly, which is the only honest way to ask.
-
-**What is NOT resolved: the discriminator.** With the assertion in, the gate
-still passes -- and not because the assertion is broken. Instrumented, the
-gate reads `cloak=0` on the frame it launches, in the same session, minutes
-after a hand-driven `--launch-app` of the same app reads `cloak=2`. Both were
-read the same two ways (by owning process, and by title+class the way the gate
-finds it) and agreed with each other. So there are genuinely two states, and
-what selects them is still unknown. Ruled out by measurement, each on the box:
-
-- *a preceding crash* -- reproduced on clean boots with none;
-- *how long the shell has been up* -- still cloaked at t+316 s;
-- *the order or age of explorer vs the shell* -- fails at 4 s apart, fails at
-  35 s and 60 s, works at 2 min and beyond, works with explorer 7 h older;
-- *cold start vs resuming a suspended app* -- killed the app process first;
-  identical either way;
-- *whether the launching process owns the foreground* -- launched with and
-  without a foreground window of our own; identical.
-
-The gate's sequence does one thing the hand-driven probe does not: it opens
-the file explorer view, creates and minimizes a real window, and takes the
-foreground repeatedly before it ever launches a packaged app. Something in
-that traffic puts the session into the state where frames uncloak. Finding
-which is the next step, and it is worth doing from the gate's side --
-bisecting *its* preceding checks -- rather than from the shell's, because the
-gate is the reproducer that WORKS.
-
-Until then, treat a gate PASS on the packaged-app check as "not reproduced",
-not as "the user's apps are visible."
+- A `StringBuilder` P/Invoke against a `-W` entry point **must** carry
+  `CharSet=CharSet.Unicode`. Without it every class name reads back as its
+  first letter ("A" for `ApplicationFrameWindow`) and no comparison matches —
+  which reads as "no window found", not as a marshalling bug.
+- A PowerShell probe is DPI-unaware by default, so on this 4K screen every
+  rectangle it reports is halved. `SetProcessDpiAwarenessContext(-4)` first,
+  or injected clicks land in the wrong place.
+- Capture with `ddagrab`, never GDI, and check the app by **clicking its tile**
+  rather than by `--launch-app`: the two do not always agree, and the click is
+  the path the user takes.
