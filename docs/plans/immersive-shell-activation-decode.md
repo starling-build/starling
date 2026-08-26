@@ -116,3 +116,63 @@ grown only as far as real activations demand — measured, not guessed. Before
 committing to that build, close unknown #1 (a live trace, ~half a day) and
 scope unknown #2 (the frame director), because #2 may be the larger of the
 two and is entirely unmapped.
+
+## How other Windows shells handle this (survey, 2026-08-25)
+
+Short version: **nobody reimplements the immersive shell — everybody keeps
+explorer, and so does Microsoft's own explorer-replacement.** Our hidden-
+explorer service is the industry-standard answer, not a workaround.
+
+- **Cairo Shell** (the most complete open-source desktop-environment /
+  shell replacement; its ManagedShell library backs it). Setting Cairo as the
+  Winlogon shell produces exactly our failure: "Class not registered" when
+  launching UWP apps, and their own issues (#365, #936) call UWP + Settings a
+  *blocker* for using Cairo as the primary shell. Their working configuration
+  keeps Explorer as the shell. No reimplementation of the immersive shell.
+- **RetroBar, Open-Shell, StartAllBack, ExplorerPatcher** — taskbar/Start
+  replacements or explorer patches; explorer stays.
+- **komorebi, GlazeWM** — tiling window managers; explorer stays.
+- **Microsoft Shell Launcher v2 / `CustomShellHost.exe`** — the sanctioned
+  "replace Explorer, still launch UWP (Settings, Touch Keyboard)" host for
+  kiosk/embedded. Analyzed the binary directly on the box (it's on every
+  install at `C:\Windows\System32\CustomShellHost.exe`; the web has no RE of
+  it). Findings:
+  - It imports the classic shell-registration APIs (`SetShellWindow`,
+    `RegisterShellHookWindow`) and the WinRT activation APIs
+    (`RoActivateInstance`), and has a function literally named
+    `_ActivateApplicationForLaunchHelperWithWindowFactory` — it supplies a
+    window factory for the launched app (the frame).
+  - It references `CLSID_ImmersiveShell` and `IID_IServiceProvider`, and the
+    disassembly shows all three sites are
+    `CoCreateInstance(CLSID_ImmersiveShell, NULL,
+    CLSCTX_LOCAL_SERVER|CLSCTX_ENABLE_CLOAKING, IID_IServiceProvider, &psp)`
+    followed by `psp->QueryService` (vtable +0x18). It **consumes** the
+    immersive shell via the documented `IServiceProvider`/`QueryService`
+    pattern; it does **not** `CoRegisterClassObject` the ImmersiveShell CLSID.
+  - So even Microsoft's minimal shell does not provide the immersive shell —
+    it expects one to exist and asks it for services.
+
+- **`CLSID_ImmersiveShell` has no standalone server.** Its registration is
+  just `(default)=ImmersiveShell`, `AppID={316CDED5-...}` whose only value is
+  `RunAs=Interactive User` — **no `LocalServer32`, no `InprocServer32`, no
+  `DllSurrogate`.** COM cannot launch it; it exists only while some running
+  process calls `CoRegisterClassObject(CLSID_ImmersiveShell)` at runtime. On a
+  normal desktop that process is explorer.exe. There is nothing lighter to
+  trigger.
+
+**Consequence.** The immersive shell is intrinsically "whatever process is
+being explorer." Providing it ourselves means registering
+`CLSID_ImmersiveShell` and answering the full `IServiceProvider` service set
+that activation + the frame factory pull — i.e. becoming explorer's immersive
+hat, which is the open-ended contract, not the two internal methods decoded
+above. The documented consumer pattern (what CustomShellHost uses) is
+`IServiceProvider::QueryService`, not the `848eaf0a` route; the `848eaf0a`
+pair is one internal consumer path and not the one to build against.
+
+**Residual unknown:** under Shell Launcher v2, *which* process registers
+`CLSID_ImmersiveShell` for CustomShellHost to consume (Shell Launcher may start
+a background shell-experience host). Not resolved here — it needs the Enterprise
+Shell Launcher feature enabled, which reconfigures logon and is too invasive
+for the dev box. It does not change the conclusion: the provider is
+explorer-class functionality, and keeping explorer (hidden) is what every
+shell, including Microsoft's, effectively does.
