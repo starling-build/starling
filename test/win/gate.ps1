@@ -510,12 +510,15 @@ Check "a packaged app launches, minimizes and comes back" {
     $variety = 0
     for ($i = 0; $i -lt 12; $i++) {
         Start-Sleep 1
-        # The frame if there is one, otherwise the app's own window. Which of
-        # the two carries the title depends on whether an explorer was around
-        # when it started, and pinning the check to one class made it look for
-        # a window that was never going to exist.
-        if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator", "ApplicationFrameWindow") }
-        if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator") }
+        # THE FRAME, looked for on every pass rather than keeping whatever
+        # turned up first. A packaged app puts up TWO windows with the same
+        # title -- its own drawing surface and the frame that hosts it -- and
+        # the surface can appear first. Latching onto that one and never
+        # looking again is what made this check report "restore=False" about an
+        # app that restores perfectly well: only the frame answers a restore
+        # from another process, which is exactly what the dock has to do.
+        $frame = [Gate]::Find("Calculator", "ApplicationFrameWindow")
+        if ($frame -ne [IntPtr]::Zero) { $w = $frame }
         if ($w -eq [IntPtr]::Zero -or -not [Gate]::IsWindowVisible($w)) { continue }
         $r = New-Object RECT
         [void][Gate]::GetWindowRect($w, [ref]$r)
@@ -524,6 +527,9 @@ Check "a packaged app launches, minimizes and comes back" {
         $shot.Dispose()
         if ($variety -ge 25) { break }
     }
+    # Only now fall back to the app's own window: with no frame at all the
+    # checks below SHOULD fail, and this makes them fail about the right thing.
+    if ($w -eq [IntPtr]::Zero) { $w = [Gate]::Find("Calculator") }
     if ($w -eq [IntPtr]::Zero) { return "activated, but no window ever appeared" }
     if (-not [Gate]::IsWindowVisible($w)) { return "the window exists but is not on screen" }
     if ($variety -lt 25) { return "the window is on screen but blank ($variety colours)" }
