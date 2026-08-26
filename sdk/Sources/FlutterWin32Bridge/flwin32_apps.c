@@ -715,7 +715,13 @@ int32_t flwin32_launch_app_id_ex(const char* app_id, char* diag,
                 }
                 t_act = GetTickCount() - ta;
             }
-            if (borrowed) flwin32_shell_return_explorer();
+            /* The pid rides along so the hand-back can wait for the app's
+             * window instead of guessing with a timer; a failed activation
+             * has no window coming and keeps the fixed grace. */
+            if (borrowed) {
+                flwin32_shell_return_explorer_after(
+                    SUCCEEDED(hr) ? (uint32_t)pid : 0);
+            }
             aam->lpVtbl->Release(aam);
             _snprintf_s(notes, sizeof(notes), _TRUNCATE,
                         "activate=0x%08lX pid=%lu%s "

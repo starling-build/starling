@@ -287,7 +287,9 @@ enum SessionSlot {
         // before the startup replay so it overlaps the slowest part of logon
         // rather than adding to it, and never in trial mode, where explorer is
         // the shell and has already done it.
-        if !trial, flwin32_shell_prime_shell_services() != 0 {
+        if !trial,
+           ProcessInfo.processInfo.environment["STARLING_NO_PRIME"] != "1",
+           flwin32_shell_prime_shell_services() != 0 {
             log("primed the shell services (minimize target placement)")
         }
 

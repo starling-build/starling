@@ -219,12 +219,20 @@ if let i = CommandLine.arguments.firstIndex(of: "--launch-app") {
         flwin32_launch_app_id_ex(id, $0.baseAddress, 256)
     }
     print("[WinShell] launch \(id) -> rc=\(rc)  \(String(cString: diag))")
-    // Wait before leaving. A borrowed explorer is handed back on a background
-    // thread a few seconds later, and exiting immediately kills that thread
-    // with the process -- which leaks the very explorer the borrow exists to
-    // avoid. The dock, which is what normally launches, is long-lived and has
-    // no such problem; this one-shot process does.
-    Thread.sleep(forTimeInterval: 14)
+    // Wait for the hand-back to FINISH before leaving, not a fixed time. A
+    // borrowed explorer is ended on a background thread, and exiting kills
+    // that thread with the process -- which leaks the very explorer the
+    // borrow exists to avoid. The wait used to be 14 seconds; now that the
+    // hand-back holds explorer until the launched app has a real window, it
+    // finishes in about ten seconds normally and can honestly take half a
+    // minute when the app never shows one. The dock, which is what normally
+    // launches, is long-lived and has no such problem; this one-shot process
+    // does. The cap is a backstop against the thread itself wedging.
+    var waited = 0.0
+    while flwin32_shell_borrow_outstanding() != 0 && waited < 60 {
+        Thread.sleep(forTimeInterval: 0.5)
+        waited += 0.5
+    }
     exit(rc != 0 ? 0 : 1)
 }
 

@@ -669,6 +669,19 @@ int32_t flwin32_shell_services_ready(void);
 int32_t flwin32_shell_prime_shell_services(void);
 int32_t flwin32_shell_borrow_explorer(void);
 void flwin32_shell_return_explorer(void);
+// The same hand-back, but gated on the launch it served: the borrowed
+// explorer is ended only once the given pid has a visible, uncloaked window
+// -- its own, or hosted inside an ApplicationFrameWindow -- because the frame
+// is built by ApplicationFrameHost in concert with the shell, and a fixed
+// grace races that construction (the loser is an app running invisibly with
+// no frame at all). Capped, and cut short if the app exits. 0 = nothing to
+// watch, fixed grace.
+void flwin32_shell_return_explorer_after(uint32_t app_pid);
+// Whether a hand-back is still running on its background thread. A one-shot
+// process that borrowed must wait for this to clear before exiting: the
+// thread dies with the process, which leaks the very explorer it was about
+// to end. A long-lived shell never needs to ask.
+int32_t flwin32_shell_borrow_outstanding(void);
 // Claim the desktop's "task manager window" on a hidden window of our own.
 // This is what decides WHERE a minimized window goes: with it, user32 parks
 // minimized windows off-screen at -32000 the way it does under explorer; with

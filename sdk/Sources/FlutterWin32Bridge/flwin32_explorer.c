@@ -52,14 +52,25 @@
 #endif
 
 #include <windows.h>
+#include <dwmapi.h>
 #include <objbase.h>
 #include <shellapi.h>
 #include <tlhelp32.h>
+#include <stdio.h> /* _snprintf_s */
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
 #include "include/FlutterWin32Bridge.h"
+
+/* DwmGetWindowAttribute, for the cloak check the hand-back below needs. The
+ * pragma is what links it under the Swift driver's clang; Package.swift names
+ * it too, same as flwin32_wm.c. */
+#pragma comment(lib, "dwmapi.lib")
+
+#ifndef DWMWA_CLOAKED
+#define DWMWA_CLOAKED 14
+#endif
 
 /* The primary taskbar, and one secondary per additional monitor. Both classes
  * have been stable since Windows 7 and are still the classes Windows 11 uses
@@ -530,27 +541,34 @@ static int explorer_running_in_session(void) {
 }
 
 int32_t flwin32_shell_ensure_explorer_service(void) {
-    /* OPT-IN, and no longer the way packaged apps get launched.
+    /* ON BY DEFAULT again, and the reversal is measured, not a moodswing.
      *
-     * Keeping an explorer alive for the whole session is what made CoreWindow
-     * packaged apps -- Settings, Calculator, the Store generation -- launch at
-     * all. It cost about 227 MB permanently for a process the user never sees.
-     * Measured on the box, that trade was unnecessary: explorer is needed only
-     * for the ACTIVATION, not for running the app. Starting one takes 1.2 s to
-     * make activation succeed, and once the app is up explorer can be killed
-     * and the app carries on working indefinitely. So the shell borrows one per
-     * launch (flwin32_shell_borrow_explorer) and idles with none.
+     * The borrow-per-launch idea -- start an explorer for the activation,
+     * kill it, idle with none -- tested clean when it landed and fell apart
+     * under a repeat harness. A CoreWindow app's window frame is built by
+     * shell machinery that lives only while an explorer runs, and repeatedly
+     * starting and TerminateProcess-ing explorers left that machinery
+     * flapping: in one session, four consecutive launches went frame,
+     * no-frame, frame, no-frame -- with which BINARY did the launching ruled
+     * out as the variable. A launch on the wrong beat came up as a
+     * full-screen CoreWindow cloaked by the shell: running, invisible, and
+     * with no frame ever coming. The same start/kill cycling also blacked out
+     * our own desktop view for the rest of the session (pixel-verified;
+     * reboot to clear). None of this happens when one explorer simply stays
+     * alive: yesterday's cold-boot gate passed with the service era's warm
+     * machinery, and the failure appeared exactly when sessions began
+     * cycling explorers.
      *
-     * This is still here because a machine that launches packaged apps
-     * constantly may prefer to pay the memory once rather than the 1.2 s every
-     * time. Only an explicit "1" asks for it. Empty is not an instruction, and
-     * reading it as one has already gone wrong in the other direction: while
-     * this was written as "anything non-empty means on", the control run of an
-     * A/B set it to "0", quietly started explorer, and measured the same
+     * So the session keeps one hidden explorer: about 227 MB and 0.05% of a
+     * core, against packaged apps that reliably get their frame and a desktop
+     * that stays painted. An explicit "0" declines (a kiosk that will never
+     * launch a Store app); anything else -- including unset -- is on. Empty
+     * is not an instruction: an A/B once set "0" while this read "non-empty
+     * means on", quietly started explorer, and measured the same
      * configuration twice. */
     wchar_t on[8];
-    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) == 0 ||
-        on[0] != L'1') {
+    if (GetEnvironmentVariableW(L"STARLING_EXPLORER_SERVICE", on, 8) > 0 &&
+        on[0] == L'0') {
         return 0;
     }
 
@@ -694,28 +712,196 @@ int32_t flwin32_shell_borrow_explorer(void) {
     return 1;
 }
 
-/* Hand it back. The kill runs on its own thread after a grace period, because
- * the caller is a launch: holding it open for three seconds to watch a process
- * we are about to kill would put that delay in front of the user's app. The
- * grace period is not superstition -- activation returning success means the
- * app was STARTED, and it is still talking to the shell for a moment after. */
-static DWORD WINAPI borrow_end(LPVOID param) {
-    HANDLE h = (HANDLE)param;
-    int i;
-    /* TEN SECONDS, not three. Activation returning success means the app was
-     * started, not that it is finished starting: a packaged app's window frame
-     * is built by ApplicationFrameHost in concert with the shell, and dropping
-     * explorer before that lands leaves the app running with no frame -- on the
-     * box, Calculator came up as a bare full-screen surface instead of a window
-     * you can move, and only sometimes, which is what a race looks like.
-     * The cost of being generous is an explorer alive for ten seconds after a
-     * launch; the cost of being tight is an app in the wrong shape. Idle is
-     * unaffected either way -- nothing is running when nothing was launched. */
-    for (i = 0; i < 40; i++) {
-        Sleep(250);
-        flwin32_shell_suppress_explorer_chrome();
+/* Does the launched process have a real window yet -- one the user can see?
+ *
+ * Two shapes count. A full-trust packaged app (Windows Terminal, Photos) puts
+ * up an ordinary top-level window of its own, so a visible, uncloaked window
+ * of the pid is enough -- EXCEPT a bare Windows.UI.Core.CoreWindow, which is
+ * the app's drawing surface and never what the user interacts with. A
+ * CoreWindow-generation app counts once an ApplicationFrameWindow carrying
+ * the SAME TITLE as the pid's CoreWindow is visible. Title is how the frame
+ * and the app connect from outside: the frame belongs to
+ * ApplicationFrameHost and mirrors the app's title, and the CoreWindow stays
+ * a TOP-LEVEL window, cloaked by the shell, even when perfectly framed --
+ * measured on the box, where a healthy Calculator is exactly [frame
+ * 'Calculator' (AFH)] + [top-level CoreWindow 'Calculator', cloak=2]. An
+ * earlier version of this probe looked for the app's pid in the frame's
+ * CHILD tree ("adoption is a reparent") and never matched a healthy frame
+ * once: it burned the whole cap on every good launch and reported broken
+ * ones identically. The frame's cloak state is deliberately not required to
+ * be clear -- a frame animating in reads cloaked for a while -- because the
+ * failure this guards against is the frame never EXISTING at all. */
+typedef struct {
+    DWORD pid;
+    int up;
+    wchar_t title[128]; /* the pid's CoreWindow title, filled by pass one */
+} AppWindowProbe;
+
+static BOOL CALLBACK app_window_scan_cb(HWND hwnd, LPARAM lp) {
+    AppWindowProbe* probe = (AppWindowProbe*)lp;
+    DWORD cloaked = 0;
+    DWORD pid = 0;
+    wchar_t cls[64];
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != probe->pid) return TRUE;
+    if (GetClassNameW(hwnd, cls, 64) == 0) cls[0] = 0;
+    if (wcscmp(cls, L"Windows.UI.Core.CoreWindow") == 0) {
+        if (probe->title[0] == 0) {
+            GetWindowTextW(hwnd, probe->title,
+                           (int)(sizeof(probe->title) / sizeof(wchar_t)));
+        }
+        return TRUE;
     }
-    TerminateProcess(h, 0);
+    if (IsWindowVisible(hwnd) &&
+        !(SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked,
+                                          sizeof(cloaked))) &&
+          cloaked != 0)) {
+        probe->up = 1;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static BOOL CALLBACK app_frame_scan_cb(HWND hwnd, LPARAM lp) {
+    AppWindowProbe* probe = (AppWindowProbe*)lp;
+    wchar_t cls[64];
+    wchar_t title[128];
+    if (!IsWindowVisible(hwnd)) return TRUE;
+    if (GetClassNameW(hwnd, cls, 64) == 0) return TRUE;
+    if (wcscmp(cls, L"ApplicationFrameWindow") != 0) return TRUE;
+    if (GetWindowTextW(hwnd, title,
+                       (int)(sizeof(title) / sizeof(wchar_t))) <= 0) {
+        return TRUE;
+    }
+    if (wcscmp(title, probe->title) == 0) {
+        probe->up = 1;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static int app_window_up(DWORD pid) {
+    AppWindowProbe probe;
+    probe.pid = pid;
+    probe.up = 0;
+    probe.title[0] = 0;
+    EnumWindows(app_window_scan_cb, (LPARAM)&probe);
+    if (!probe.up && probe.title[0] != 0) {
+        EnumWindows(app_frame_scan_cb, (LPARAM)&probe);
+    }
+    return probe.up;
+}
+
+/* What the hand-back thread needs to know, heap-allocated because the thread
+ * outlives the call that starts it. */
+typedef struct {
+    HANDLE explorer;
+    DWORD app_pid; /* the activation's answer; 0 = nothing to watch */
+} BorrowEnd;
+
+/* How many hand-back threads are still running. A LONG-LIVED shell never
+ * needs to ask; the one-shot `--launch-app` process must, because exiting
+ * kills the thread with the process and leaks the very explorer the borrow
+ * exists to avoid. */
+static volatile LONG g_borrow_pending = 0;
+
+int32_t flwin32_shell_borrow_outstanding(void) {
+    return g_borrow_pending > 0 ? 1 : 0;
+}
+
+/* Hand it back. The kill runs on its own thread, because the caller is a
+ * launch: watching the app come up inline would put seconds in front of it. */
+static DWORD WINAPI borrow_end(LPVOID param) {
+    BorrowEnd* job = (BorrowEnd*)param;
+    HANDLE h = job->explorer;
+    DWORD app_pid = job->app_pid;
+    int i;
+    free(job);
+    /* NOT A TIMER ANY MORE, and that is the point. Activation returning
+     * success means the app was STARTED, not that it is finished starting: a
+     * CoreWindow app's window frame is built by ApplicationFrameHost in
+     * concert with the shell, and a fixed grace races that construction. Ten
+     * seconds looked generous and still lost sometimes -- the app came up as
+     * a full-screen CoreWindow cloaked by the shell, running and invisible
+     * with no frame ever coming, and the desktop stopped painting in the same
+     * runs. So the hand-back waits for the thing the grace was guessing at:
+     * the launched pid having a real window on screen, held for a second so a
+     * transient shape mid-adoption cannot fool it, plus a short settle for
+     * the shell work that rides just behind the frame. A cap keeps a launch
+     * that never shows a window from holding an explorer forever -- explorer
+     * is hidden the whole time, so the cost of patience is nothing visible --
+     * and an app that exits straight away stops the wait early. With no pid
+     * to watch (the logon prime, an activation that failed), the old fixed
+     * grace stands. */
+    if (app_pid == 0) {
+        for (i = 0; i < 40; i++) {
+            Sleep(250);
+            flwin32_shell_suppress_explorer_chrome();
+        }
+    } else {
+        HANDLE app = OpenProcess(SYNCHRONIZE, FALSE, app_pid);
+        int held = 0; /* consecutive polls the window was up */
+        int app_gone = 0;
+        int waited_ms = 0;
+        char note[96];
+        for (i = 0; i < 120; i++) {
+            Sleep(250);
+            flwin32_shell_suppress_explorer_chrome();
+            waited_ms = (i + 1) * 250;
+            if (app != NULL &&
+                WaitForSingleObject(app, 0) != WAIT_TIMEOUT) {
+                app_gone = 1;
+                break;
+            }
+            held = app_window_up(app_pid) ? held + 1 : 0;
+            if (held >= 4) break;
+        }
+        if (app != NULL) CloseHandle(app);
+        _snprintf_s(note, sizeof(note), _TRUNCATE,
+                    app_gone   ? "borrow: app %lu exited at %d ms"
+                    : held >= 4 ? "borrow: app %lu window up at %d ms"
+                                : "borrow: app %lu no window by %d ms",
+                    (unsigned long)app_pid, waited_ms);
+        flwin32_trace(note);
+        for (i = 0; i < 8; i++) {
+            Sleep(250);
+            flwin32_shell_suppress_explorer_chrome();
+        }
+    }
+    /* EXPERIMENT (STARLING_BORROW_CLEAN_EXIT=1): ask explorer to leave the
+     * way its own hidden "Exit Explorer" verb does -- WM_USER+436 to ITS
+     * Shell_TrayWnd (ours has the same class; the pid picks explorer's) --
+     * and terminate only if it does not go. The suspicion under test:
+     * TerminateProcess on an explorer that started shell services leaves the
+     * session's frame machinery pointing at a dead process, and every later
+     * CoreWindow launch in the session comes up cloaked with no frame. */
+    {
+        int asked = 0;
+        int clean = 0;
+        wchar_t v[8];
+        if (GetEnvironmentVariableW(L"STARLING_BORROW_CLEAN_EXIT", v, 8) > 0 &&
+            v[0] == L'1') {
+            DWORD epid = GetProcessId(h);
+            HWND w = NULL;
+            while ((w = FindWindowExW(NULL, w, L"Shell_TrayWnd", NULL)) !=
+                   NULL) {
+                DWORD wpid = 0;
+                GetWindowThreadProcessId(w, &wpid);
+                if (wpid == epid) {
+                    PostMessageW(w, WM_USER + 436, 0, 0);
+                    asked = 1;
+                    break;
+                }
+            }
+            if (asked && WaitForSingleObject(h, 5000) == WAIT_OBJECT_0) {
+                clean = 1;
+            }
+        }
+        if (!clean) TerminateProcess(h, 0);
+        flwin32_trace(clean   ? "borrow: explorer exited cleanly"
+                      : asked ? "borrow: explorer ignored the ask; terminated"
+                              : "borrow: explorer terminated");
+    }
     CloseHandle(h);
     g_hide_desktop = g_borrow_saved_hide;
     /* The show-hook was watching a process that no longer exists. */
@@ -747,22 +933,36 @@ static DWORD WINAPI borrow_end(LPVOID param) {
             SendNotifyMessageW(HWND_BROADCAST, recheck, 0, 0);
         }
     }
+    InterlockedDecrement(&g_borrow_pending);
     return 0;
 }
 
-void flwin32_shell_return_explorer(void) {
+void flwin32_shell_return_explorer_after(uint32_t app_pid) {
     HANDLE h = g_borrowed;
     HANDLE t;
+    BorrowEnd* job;
     if (h == NULL) return;
     g_borrowed = NULL;
-    t = CreateThread(NULL, 0, borrow_end, h, 0, NULL);
-    if (t != NULL) {
-        CloseHandle(t);
-    } else {
-        TerminateProcess(h, 0);
-        CloseHandle(h);
-        g_hide_desktop = g_borrow_saved_hide;
+    job = (BorrowEnd*)malloc(sizeof(BorrowEnd));
+    if (job != NULL) {
+        job->explorer = h;
+        job->app_pid = (DWORD)app_pid;
+        InterlockedIncrement(&g_borrow_pending);
+        t = CreateThread(NULL, 0, borrow_end, job, 0, NULL);
+        if (t != NULL) {
+            CloseHandle(t);
+            return;
+        }
+        InterlockedDecrement(&g_borrow_pending);
+        free(job);
     }
+    TerminateProcess(h, 0);
+    CloseHandle(h);
+    g_hide_desktop = g_borrow_saved_hide;
+}
+
+void flwin32_shell_return_explorer(void) {
+    flwin32_shell_return_explorer_after(0);
 }
 
 /* Run an explorer once, at session start, and let it go.
