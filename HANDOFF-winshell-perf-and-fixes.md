@@ -232,20 +232,30 @@ registered shell vs Windows' own shell, `ddagrab`, extraction done **on Linux**.
 
 | | first pixels | window finished | n |
 |---|---|---|---|
-| **Starling** | **97 ms** (IQR 97–146) | **97 ms** — done in the frame it appears | 14 |
+| **Starling** | **83 ms** (IQR 67–100) | **83 ms** — done in the frame it appears | 20 |
 | Windows Explorer | 367 ms (IQR 333–367) | 1116 ms (IQR 1100–1133) | 20 |
-| | **3.8x** | **11.5x** | |
+| | **4.4x** | **13.4x** | |
+
+Ranges are disjoint: ours 33–133 ms, Explorer 333–433 ms.
 
 The historical pre-fix pair was ours 500 ms vs Explorer 1149 ms. Explorer has
 not moved (1149 → 1116); **ours went 500 → 97 ms**, which is the Files-hosted-
 in-the-shell work — Win+E opens a view in a process that is already running, so
 there is no process to create.
 
-**Why n=14 for ours:** the rig sizes its recording as `4 + reps*9` seconds,
-assuming ~9 s per rep. Our reps take ~11 s (the harness's own open/close/settle
-cycle is slower, not the measured latency), so only 14 of 20 fitted inside the
-capture. The measured quantity — first pixels minus t0 — is unaffected. Raise
-the duration if a full 20 is wanted.
+**A rig bug found while chasing "only 14 of 20 reps captured", now fixed.**
+`CloseFileManager` broke out of its retry loop only when `FindWindowW` returned
+null. Our file manager is a surface view that is **hidden, not destroyed** — the
+very fact `FileManagerUp` three lines below is built around — so the handle kept
+answering and the loop ran all 14 retries at 350 ms **on every rep**. That added
+~4.9 s per rep, stretching ours to ~13.6 s against Explorer's ~8.9, so six reps
+fell off the end of a fixed-length recording. It presented as a capture problem
+and was a harness one.
+
+Fixed by breaking on `IsWindowVisible` rather than on a null handle, and the
+per-rep budget went 9 → 10 s for margin. Our reps now pace at 8.93 s, matching
+Explorer's, and 20 of 20 land. The first-pixel median moved 97 → 83 ms with the
+extra reps (the 14-rep figure was not wrong, just short).
 
 ### Context menu (right-click a folder row)
 

@@ -58,6 +58,15 @@ function CloseFileManager {
     for ($k = 0; $k -lt 14; $k++) {
       $h = [FBB]::FindWindowW($cls, $name)
       if ($h -eq [IntPtr]::Zero) { break }
+      # GONE means NOT VISIBLE, not "FindWindowW stopped answering". Our file
+      # manager is a surface view that is HIDDEN rather than destroyed -- the
+      # same fact FileManagerUp below is built around -- so the handle keeps
+      # answering for the whole run. Breaking only on a null handle therefore
+      # ran all 14 iterations on every rep, adding ~4.9 s each, stretching our
+      # reps to ~13.6 s against Explorer's ~8.9, and pushing SIX of twenty reps
+      # past the end of a fixed-length recording. It read as "only 14 opens
+      # captured" and looked like a capture problem.
+      if (-not [FBB]::IsWindowVisible($h)) { break }
       [void][FBB]::PostMessageW($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)   # WM_CLOSE
       Start-Sleep -Milliseconds 350
     }
@@ -99,7 +108,10 @@ $form.Show(); $form.Refresh()
 [System.Windows.Forms.Application]::DoEvents()
 Start-Sleep -Milliseconds 800
 
-$dur = 4 + $Reps * 9
+# 10 s per rep, not 9: the loop below is ~8.9 s of fixed sleeps plus the close,
+# so 9 left no margin at all and any rep that ran long silently fell off the
+# end of the recording rather than failing.
+$dur = 4 + $Reps * 10
 $ff = Start-Process -FilePath "ffmpeg" -PassThru -WindowStyle Hidden -ArgumentList @(
   "-y","-hide_banner","-loglevel","info",
   "-f","lavfi","-i","ddagrab=output_idx=0:framerate=30:draw_mouse=0",
