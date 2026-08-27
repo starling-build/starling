@@ -171,3 +171,54 @@ For reference, ours on High Performance measured **67 ms** median in the same
 session (20 reps) — so the CPU cap costs us about one frame, and reintroduces
 the 133 ms worst case. Windows' own menu was not re-measured on High
 Performance this evening; the 133/267 figures above are from the morning run.
+
+## Addendum 2 — the third hang, and what actually triggers it
+
+**"Boost on demand" (min 5 / max 100 / boost 2 / EPP 0) also hung the box**, ~40
+minutes after being applied. So "pinning the floor removes idle states" — the
+theory in Addendum 1 — is **wrong**. Three hard hangs on 2026-08-26.
+
+**What every run of the day says, together:**
+
+| CPU config | workload | outcome |
+|---|---|---|
+| High Perf | repeated Win+E capture (heavy) | **HUNG** |
+| High Perf | gate, Start-menu recording (light) | ok |
+| High Perf | ffmpeg extract **on the box** (heavy all-core) | **HUNG** (2nd run) |
+| **as-shipped cap** | **recording + ffmpeg extract on the box** | **ok — the control** |
+| boost on demand | short load tests, recording, gate | ok |
+| boost on demand | ffmpeg extract **on the box** | **HUNG** |
+
+**The trigger is sustained all-core load while the chip may draw full power.**
+Light work is fine on any setting. The as-shipped cap survived the exact
+workload that killed the other two.
+
+**And the cap is not slower under load** — capped all-core is 3.0 GHz; boost on
+demand settled at **2.5 GHz** all-core, because with boost on and EPP 0 the chip
+requests its top voltage/current point and then throttles frequency to fit,
+i.e. it sits *on* the VRM limit continuously. Capped, it sits at a defined
+low-voltage P-state well inside the envelope. On a 35–54 W mini-PC that is the
+difference. **Leave the cap alone.**
+
+**Process fix, and it is the avoidable part:** `extract.sh` is meant to run on
+the **Linux** side (this repo's README says so). Running the ffmpeg extraction
+*on the box* to save an 80 MB transfer is implicated in two of the three hangs.
+Copy the `.mkv` back and extract locally. The capture always survives — the
+video is on disk before the heavy step begins.
+
+## Start menu, both shells, on BOTH CPU configurations (20 reps each)
+
+| CPU config | | first pixels | fully drawn |
+|---|---|---|---|
+| **as shipped** (3.0 GHz capped) | Starling | **100 ms** (IQR 67–100) | **100 ms** |
+| | Windows 11 | 167 ms (IQR 150–167) | 300 ms (IQR 283–300) |
+| | | *1.7x* | *3.0x* |
+| **boost on demand** | Starling | **67 ms** (IQR 67–83) | **67 ms** |
+| | Windows 11 | 133 ms (IQR 133–167) | 267 ms (IQR 267–300) |
+| | | *2.0x* | *4.0x* |
+
+Ours is finished in the frame it first appears on every configuration; Windows
+fades in over ~4 more frames, which is why its second column is always the
+worse one. The interquartile ranges are disjoint in every comparison.
+
+**Use the as-shipped row as the headline** — it is what the machine safely runs.
