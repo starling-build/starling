@@ -162,15 +162,28 @@ if CommandLine.arguments.contains("--session") {
     // respawning into the same refusal for ever. The registration is the
     // honest tell. If Winlogon is configured to start US, we are the shell
     // whatever explorer happens to be doing.
-    let shellIsOurs = SessionSlot.registeredShell()?
-        .lowercased().contains("winshellbar") ?? false
-    if explorerUp && !trial && !shellIsOurs {
-        print("[session] explorer is running; --session is the Shell= "
-              + "entry, not a sidecar. STARLING_SESSION_TRIAL=1 to force "
-              + "for a smoke test.")
+    // Refuse only on a READABLE foreign Shell= value. An unreadable one
+    // (nil) must not refuse: early in a logon HKCU has been observed to
+    // read empty from this process even though the value is set (the same
+    // misread the crash-loop unregister documents), and only this shell
+    // ever writes the per-user value — so "cannot tell" means "ours".
+    // Getting this wrong is not a smoke-test nicety: an AutoRestartShell
+    // respawn that refuses leaves the SESSION WITH NO SHELL AT ALL, and
+    // because explorerPresent is true in every session we run (the
+    // explorer service we start for packaged apps owns a Progman), the
+    // refusal used to hinge entirely on that one registry read. And it
+    // must never be silent — print() from a Winlogon spawn goes nowhere.
+    let registered = SessionSlot.registeredShell()
+    let foreignShell = registered.map {
+        !$0.lowercased().contains("winshellbar")
+    } ?? false
+    if explorerUp && !trial && foreignShell {
+        SessionSlot.log("refusing --session: explorer is running and Shell= "
+                        + "is \(registered!) — not ours. "
+                        + "STARLING_SESSION_TRIAL=1 to force for a smoke test.")
         exit(1)
     }
-    SessionSlot.supervise(trial: explorerUp && !shellIsOurs)
+    SessionSlot.supervise(trial: explorerUp && foreignShell)
 }
 
 // `--print-startup` walks the startup sources in replay order -- HKLM

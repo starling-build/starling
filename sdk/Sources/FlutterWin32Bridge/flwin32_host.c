@@ -182,6 +182,15 @@ int32_t flwin32_caption_handle(void* hwnd_v, uint32_t message, uint64_t wparam,
   return 0;
 }
 
+// The pid behind the foreground window — the only fingerprint available for
+// a message whose sender Windows does not record. Best effort.
+static DWORD foreground_pid(void) {
+  DWORD pid = 0;
+  HWND fg = GetForegroundWindow();
+  if (fg != NULL) GetWindowThreadProcessId(fg, &pid);
+  return pid;
+}
+
 void flwin32_trace(const char* label) {
   if (!trace_enabled()) return;
   fprintf(stderr, "[trace] %8.1f ms  qpc=%.3f  %s\n", flwin32_uptime_ms(),
@@ -303,6 +312,16 @@ struct FlWin32Host {
 // for "the launcher must always close". Registered only while the overlay is
 // up, so Escape belongs to everyone else the rest of the time.
 #define kOverlayEscapeHotkey 0xA51
+
+// WM_CLOSE with this wparam is the host's own closeWindow() and is honoured
+// everywhere. Any other WM_CLOSE reaching a SHELL window (panel, desktop,
+// overlay) is refused: DefWindowProc turns WM_CLOSE into DestroyWindow, the
+// loop's WM_QUIT follows, and the whole shell chrome exits code 0 with
+// nothing in the crash log — which is exactly what an Alt+F4 landing on the
+// full-screen chrome (focus falls to it whenever a foreground app closes),
+// a taskkill without /f, or any stray close does. A shell outlives polite
+// closes; explorer's does too. Ordinary app windows keep the default.
+#define kDeliberateClose ((WPARAM)0x53544152) /* 'STAR' */
 
 // A system-wide message id, the documented way for unrelated processes to
 // talk without a socket or a pipe: every process that registers the same
@@ -692,7 +711,68 @@ static LRESULT CALLBACK host_wnd_proc(HWND hwnd,
       }
       break;
 
+    case WM_SYSCOMMAND:
+      // Alt+F4 arrives as SC_CLOSE, and DefWindowProc turns it into
+      // WM_CLOSE. Swallow it here for shell windows so the close below only
+      // ever has to reason about WM_CLOSE senders. The low four bits are
+      // the system's, per the documentation.
+      if (host != NULL && (wparam & 0xFFF0) == SC_CLOSE
+          && (host->panel_active || host->desktop_active
+              || host->overlay_active)) {
+        if (host->overlay_active) {
+          // Dismiss, exactly as the Escape hotkey does: hide AND tell the
+          // tree, or the bloc still thinks the overlay is up and the next
+          // toggle shows nothing.
+          flwin32_host_set_visible(host, 0);
+          if (host->toggle_callback != NULL) {
+            host->toggle_callback(host->toggle_user);
+          }
+        }
+        return 0;
+      }
+      break;
+
+    case WM_CLOSE:
+      // See kDeliberateClose. An overlay treats a close as "dismiss" — the
+      // supervisor's quiet tick would respawn it anyway, but hiding is what
+      // the user meant. The chrome and the desktop just refuse: their
+      // death is the shell restarting under the user.
+      if (host != NULL && wparam != kDeliberateClose) {
+        if (host->overlay_active) {
+          flwin32_host_set_visible(host, 0);
+          if (host->toggle_callback != NULL) {
+            host->toggle_callback(host->toggle_user);
+          }
+          return 0;
+        }
+        if (host->panel_active || host->desktop_active) {
+          // Unconditional and to stderr, which the GUI subsystem redirects
+          // into the shell's log: a close aimed at the chrome is always
+          // someone's bug, and before this refusal existed it was a whole
+          // silent shell restart — worth a line to name the sender's best
+          // available fingerprint.
+          fprintf(stderr,
+                  "[WinShell] shell window refused WM_CLOSE (wparam=%llx, "
+                  "foreground pid=%lu)\n",
+                  (unsigned long long)wparam,
+                  (unsigned long)foreground_pid());
+          fflush(stderr);
+          return 0;
+        }
+      }
+      break;
+
     case WM_DESTROY:
+      // A shell window dying is a shell restart; the exit itself is clean
+      // (PostQuitMessage below), so this line is the only record of WHY the
+      // process went. It rides the same stderr-into-log redirection as the
+      // refusal above.
+      if (host != NULL
+          && (host->panel_active || host->desktop_active
+              || host->overlay_active)) {
+        fprintf(stderr, "[WinShell] shell window destroyed -- exiting\n");
+        fflush(stderr);
+      }
       // Unregister the appbar FIRST. Leaving a registration behind means
       // Windows keeps the strip reserved after we are gone: every maximized
       // window stays short of an edge with nothing on it, until a shell
@@ -2507,7 +2587,9 @@ int32_t flwin32_host_is_maximized(FlWin32Host* host) {
 
 void flwin32_host_close_window(FlWin32Host* host) {
   if (host == NULL || host->window == NULL) return;
-  PostMessageW(host->window, WM_CLOSE, 0, 0);
+  // Marked deliberate so it still works on a shell window — the wndproc
+  // refuses every other WM_CLOSE there (see kDeliberateClose).
+  PostMessageW(host->window, WM_CLOSE, kDeliberateClose, 0);
 }
 
 void flwin32_host_on_toggle(FlWin32Host* host,

@@ -220,6 +220,19 @@ void flwin32_sessionslot_close_handle(uint64_t handle) {
     if (handle != 0) CloseHandle((HANDLE)(uintptr_t)handle);
 }
 
+/* The exit code of a child the wait just reported, for the supervisor's log
+ * line. The one number that separates the families at a glance: 0 is the
+ * polite-close path (a WM_CLOSE the window obeyed), 1 an explicit bail,
+ * 0xC000001D a Swift trap, 0xC00000FD a stack overflow, and anything else
+ * an outside TerminateProcess wearing that caller's code. -1: could not
+ * read. */
+int64_t flwin32_sessionslot_exit_code(uint64_t handle) {
+    DWORD code = 0;
+    if (handle == 0) return -1;
+    if (!GetExitCodeProcess((HANDLE)(uintptr_t)handle, &code)) return -1;
+    return (int64_t)code;
+}
+
 /* The bail-out's reaper: a child left running would fight the returning
  * explorer for the surface it draws (the desktop plane above all). Hard
  * terminate -- the children hold no state worth a graceful anything. */

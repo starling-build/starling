@@ -1584,6 +1584,9 @@ uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8);
 int32_t flwin32_sessionslot_wait_any(const uint64_t* handles, int32_t count,
                                  int32_t timeout_ms);
 void flwin32_sessionslot_close_handle(uint64_t handle);
+
+/* Exit code of an exited child, for the supervisor's log. -1: unreadable. */
+int64_t flwin32_sessionslot_exit_code(uint64_t handle);
 // Hard-terminates a child -- the bail-out's reaper, so nothing of ours is
 // left fighting the returning explorer for the desktop plane.
 void flwin32_sessionslot_kill(uint64_t handle);

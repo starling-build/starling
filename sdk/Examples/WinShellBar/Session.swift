@@ -167,7 +167,16 @@ enum SessionSlot {
     /// to start us, we are the shell whatever explorer is doing.
     static var explorerOwnsShell: Bool {
         guard Win32Shell.explorerPresent else { return false }
-        return !(registeredShell()?.lowercased().contains("winshellbar") ?? false)
+        // An UNREADABLE registration means ours, not explorer's: HKCU has
+        // been observed to read empty from this process early in a logon
+        // even though the value is set, and only this shell ever writes
+        // the per-user value. Defaulting the misread to "explorer's" is
+        // how a respawn used to skip the desktop surface and refuse the
+        // session gate — the wrong answer in the direction that leaves
+        // the machine with no shell. Same rule as the --session gate and
+        // the crash-loop unregister.
+        guard let registered = registeredShell() else { return false }
+        return !registered.lowercased().contains("winshellbar")
     }
 
     static func registeredShell() -> String? {
@@ -198,7 +207,13 @@ enum SessionSlot {
         var exits: [Date] = []
     }
 
-    private static func log(_ line: String) {
+    /// Internal, not private: the --session gate in main.swift logs its
+    /// refusal through this. A refusal that only prints is invisible from a
+    /// Winlogon spawn (GUI subsystem, no console), and an invisible refusal
+    /// is how the 08-27 morning went shell-less for seven minutes: the
+    /// chrome died, AutoRestartShell respawned us, the gate refused in
+    /// silence, and nothing anywhere said why the desktop was explorer's.
+    static func log(_ line: String) {
         let stamp = ISO8601DateFormatter().string(from: Date())
         let text = "[session] \(stamp) \(line)\n"
         // try? on every write: the legacy non-throwing FileHandle.write
@@ -343,14 +358,30 @@ enum SessionSlot {
                 exit(1)
             }
             let i = Int(index)
+            // The exit code first, while the handle is still open: it is the
+            // one number that says WHICH family this death belongs to --
+            // 0 a polite close obeyed, 0xC000001D a Swift trap, anything
+            // else an outside terminate. The 08-27 hunt spent hours on
+            // deaths this line would have named.
+            let code = flwin32_sessionslot_exit_code(children[i].handle)
             flwin32_sessionslot_close_handle(children[i].handle)
             children[i].handle = 0
+            // And the child's log, before the respawn's redirect truncates
+            // it: the dying run's last lines are the only record of why.
+            let dir = (ProcessInfo.processInfo.environment["LOCALAPPDATA"]
+                       ?? NSTemporaryDirectory()) + "\\Starling"
+            try? FileManager.default
+                .removeItem(atPath: dir + "\\WinShellBar.last-exit.log")
+            try? FileManager.default
+                .copyItem(atPath: dir + "\\WinShellBar.log",
+                          toPath: dir + "\\WinShellBar.last-exit.log")
             let now = Date()
             children[i].exits = children[i].exits.filter {
                 now.timeIntervalSince($0) < 60
             } + [now]
-            log("\(children[i].role) exited "
-                + "(\(children[i].exits.count) in the last minute)")
+            log("\(children[i].role) exited code="
+                + (code >= 0 ? String(format: "0x%llX", code) : "<unreadable>")
+                + " (\(children[i].exits.count) in the last minute)")
 
             if children[i].exits.count >= 2 {
                 // Restarting stopped helping. Give the machine back: the

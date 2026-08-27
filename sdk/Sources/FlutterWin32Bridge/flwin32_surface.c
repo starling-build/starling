@@ -188,6 +188,14 @@ static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
       return 0;
     }
   }
+  if (slot != NULL && slot->kind == FLWIN32_SURFACE_DESKTOP) {
+    // The wallpaper plane ignores polite closes outright — DefWindowProc
+    // would destroy it and leave the session with no desktop under the
+    // chrome. Same refusal as the host's shell windows (kDeliberateClose
+    // in flwin32_host.c); nothing legitimate closes this window.
+    if (message == WM_CLOSE) return 0;
+    if (message == WM_SYSCOMMAND && (wparam & 0xFFF0) == SC_CLOSE) return 0;
+  }
 
   switch (message) {
     case WM_WINDOWPOSCHANGING:
