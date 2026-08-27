@@ -222,3 +222,51 @@ fades in over ~4 more frames, which is why its second column is always the
 worse one. The interquartile ranges are disjoint in every comparison.
 
 **Use the as-shipped row as the headline** — it is what the machine safely runs.
+
+## Addendum 3 — the other two benchmarks, finished (2026-08-27)
+
+Both on the box's **as-shipped CPU settings** (the safe ones), ours as the
+registered shell vs Windows' own shell, `ddagrab`, extraction done **on Linux**.
+
+### File manager launch (Win+E) — the one left unfinished
+
+| | first pixels | window finished | n |
+|---|---|---|---|
+| **Starling** | **97 ms** (IQR 97–146) | **97 ms** — done in the frame it appears | 14 |
+| Windows Explorer | 367 ms (IQR 333–367) | 1116 ms (IQR 1100–1133) | 20 |
+| | **3.8x** | **11.5x** | |
+
+The historical pre-fix pair was ours 500 ms vs Explorer 1149 ms. Explorer has
+not moved (1149 → 1116); **ours went 500 → 97 ms**, which is the Files-hosted-
+in-the-shell work — Win+E opens a view in a process that is already running, so
+there is no process to create.
+
+**Why n=14 for ours:** the rig sizes its recording as `4 + reps*9` seconds,
+assuming ~9 s per rep. Our reps take ~11 s (the harness's own open/close/settle
+cycle is slower, not the measured latency), so only 14 of 20 fitted inside the
+capture. The measured quantity — first pixels minus t0 — is unaffected. Raise
+the duration if a full 20 is wanted.
+
+### Context menu (right-click a folder row)
+
+| | first pixels | fully drawn | n |
+|---|---|---|---|
+| **Starling** | **67 ms** (IQR 67–100) | **67 ms** | 20 |
+| Windows Explorer | 233 ms (IQR 233–233) | 267 ms (IQR 267–267) | 20 |
+| | **3.5x** | **4.0x** | |
+
+Reproduces the 2026-08-23 measurement (66.6/66.6 vs 233.2/299.8) almost exactly
+on a different day, a different CPU configuration and a rebuilt shell.
+
+First-pixel ranges are **fully disjoint** in both tables.
+
+### A trap in the analysis, worth writing down
+
+`analyze-menu.py` reported **"0 reps detected"** over 20 clean marker edges for
+both context-menu captures. That phrasing means the REGION never changed — the
+crops carried over from the Start-menu arm do not apply here, because
+`capture-ctxmenu.ps1` computes its own crop from wherever the row turned out to
+be, and prints it. Do not reuse crops between arms. The reliable method is to
+diff a before/after frame and take the bounding box — and **blank the sync
+marker's own square first**, or the marker's black→white flip lands in the
+bounding box and the "region" starts at the marker instead of the menu.
