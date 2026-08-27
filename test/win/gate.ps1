@@ -719,6 +719,153 @@ Check "the dock can tell which app a packaged window belongs to" {
     return $true
 }
 
+# ── survival ─────────────────────────────────────────────────────────────────
+#
+# Everything above asks whether the steady state is right. None of it ever
+# ATTACKED the shell, and the worst bug this shell has shipped lived exactly
+# there: the chrome obeyed any WM_CLOSE -- exit code 0, no crash log, because
+# nothing crashed -- and the session restarted under the user, ~15 times in
+# 36 hours, invisibly. These checks are the attacks: closes the shell must
+# refuse, a kill it must come back from, and the paper trail each death is
+# now required to leave. A gate that only admires the steady state cannot
+# see a resilience bug; this section exists so that class has a home.
+
+$shellLog = Join-Path $env:LOCALAPPDATA 'Starling\WinShellBar.log'
+$sessionLog = Join-Path $env:LOCALAPPDATA 'Starling\session.log'
+
+Check "the chrome refuses a bare WM_CLOSE" {
+    $w = [Gate]::Find('Starling Dock', 'FlutterSwiftWin32Host')
+    if ($w -eq [IntPtr]::Zero) { return "no chrome window to attack" }
+    $pid0 = 0; [void][Gate]::GetWindowThreadProcessId($w, [ref]$pid0)
+    $refusals = @(Select-String -Path $shellLog -Pattern 'refused WM_CLOSE' -EA SilentlyContinue).Count
+    [void][Gate]::PostMessageW($w, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep 2
+    if (-not (Get-Process -Id $pid0 -EA SilentlyContinue)) { return "the chrome EXITED on WM_CLOSE" }
+    if ([Gate]::Find('Starling Dock', 'FlutterSwiftWin32Host') -eq [IntPtr]::Zero) {
+        return "the chrome window was destroyed by WM_CLOSE"
+    }
+    # Surviving is half the contract; the refusal must also be on the record,
+    # because the log line is what names the sender when this fires for real.
+    for ($i = 0; $i -lt 8; $i++) {
+        $now = @(Select-String -Path $shellLog -Pattern 'refused WM_CLOSE' -EA SilentlyContinue).Count
+        if ($now -gt $refusals) { return $true }
+        Start-Sleep 1
+    }
+    "survived, but no new refusal line reached the shell log"
+}
+
+Check "Alt+F4's SC_CLOSE bounces off the chrome too" {
+    # The road every real close takes: SC_CLOSE is what Alt+F4 becomes, and
+    # DefWindowProc turns it into the WM_CLOSE above. Both doors, or the fix
+    # only guards one of them.
+    $w = [Gate]::Find('Starling Dock', 'FlutterSwiftWin32Host')
+    if ($w -eq [IntPtr]::Zero) { return "no chrome window to attack" }
+    $pid0 = 0; [void][Gate]::GetWindowThreadProcessId($w, [ref]$pid0)
+    [void][Gate]::PostMessageW($w, 0x0112, [IntPtr]0xF060, [IntPtr]::Zero)
+    Start-Sleep 2
+    if (-not (Get-Process -Id $pid0 -EA SilentlyContinue)) { return "the chrome EXITED on SC_CLOSE" }
+    if ([Gate]::Find('Starling Dock', 'FlutterSwiftWin32Host') -eq [IntPtr]::Zero) {
+        return "the chrome window was destroyed by SC_CLOSE"
+    }
+    return $true
+}
+
+Check "the desktop surface refuses a close" {
+    $d = [Gate]::DesktopSurface($screen.Width, $screen.Height)
+    if ($d -eq [IntPtr]::Zero) { return "no desktop surface to attack" }
+    [void][Gate]::PostMessageW($d, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep 2
+    if ([Gate]::DesktopSurface($screen.Width, $screen.Height) -eq [IntPtr]::Zero) {
+        return "the desktop surface was destroyed -- the wallpaper died with it"
+    }
+    return $true
+}
+
+Check "an overlay dismisses on close instead of dying" {
+    $w = [Gate]::Find('Starling Notifications', 'FlutterSwiftWin32Host')
+    if ($w -eq [IntPtr]::Zero) { return "no notifications overlay to attack" }
+    $pid0 = 0; [void][Gate]::GetWindowThreadProcessId($w, [ref]$pid0)
+    [void][Gate]::PostMessageW($w, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep 2
+    if (-not (Get-Process -Id $pid0 -EA SilentlyContinue)) {
+        return "the overlay PROCESS died on WM_CLOSE -- dismiss means hide"
+    }
+    return $true
+}
+
+Check "a second --session stands down, and says so" {
+    # The silent-refusal class: a --session start must ALWAYS leave a line in
+    # session.log -- "session start" and "standing down" here, or a logged
+    # refusal -- because the one that says nothing is the one that left the
+    # 08-27 morning shell-less for seven minutes. And it must not disturb the
+    # running set: the five-docks incident started with a second supervisor
+    # that did not stand down.
+    $exe = (Get-Process WinShellBar -EA SilentlyContinue | Select-Object -First 1).Path
+    if (-not $exe) { return "no shell to ask" }
+    if (-not (Test-Path $sessionLog)) { return "no session.log to watch" }
+    $before = @(Get-CimInstance Win32_Process -Filter "Name='WinShellBar.exe'").Count
+    $mark = @(Get-Content $sessionLog).Count
+    $p = Start-Process -FilePath $exe -ArgumentList '--session' -PassThru
+    if (-not $p.WaitForExit(15000)) { $p.Kill(); return "a second supervisor was still running after 15s" }
+    Start-Sleep 1
+    $after = @(Get-CimInstance Win32_Process -Filter "Name='WinShellBar.exe'").Count
+    if ($after -ne $before) { return "the shell process count moved $before -> $after" }
+    $new = (Get-Content $sessionLog | Select-Object -Skip $mark) -join "`n"
+    if ($new -match 'standing down' -or $new -match 'refusing --session') { return $true }
+    "it exited silently -- session.log gained nothing that explains it"
+}
+
+# The kill goes LAST: it perturbs everything the checks above measured. And
+# it is guarded, because the supervisor's crash-loop rule hands the desktop
+# to explorer on the SECOND chrome exit inside a minute -- two gate runs
+# back to back must not do that to a machine.
+$recentExit = $null
+if (Test-Path $sessionLog) {
+    $line = (Select-String -Path $sessionLog -Pattern 'shell exited' | Select-Object -Last 1).Line
+    if ($line -match '^\[session\] (\S+Z)') {
+        try { $recentExit = ([datetime]::Parse($Matches[1])).ToUniversalTime() } catch {}
+    }
+}
+if ($recentExit -and ((Get-Date).ToUniversalTime() - $recentExit).TotalSeconds -lt 90) {
+    Skip "a killed chrome comes back, and the death is named" `
+         "a chrome exit happened in the last 90s -- a second would trip the crash-loop rule"
+} else {
+Check "a killed chrome comes back, and the death is named" {
+    $w = [Gate]::Find('Starling Dock', 'FlutterSwiftWin32Host')
+    if ($w -eq [IntPtr]::Zero) { return "no chrome to kill" }
+    $pid0 = 0; [void][Gate]::GetWindowThreadProcessId($w, [ref]$pid0)
+    Stop-Process -Id $pid0 -Force
+    # Up to 45s: the supervisor's quiet tick can be inside a blocking
+    # explorer call when the child dies, and has been seen 30s late.
+    $newPid = 0
+    for ($i = 0; $i -lt 45; $i++) {
+        Start-Sleep 1
+        $w2 = [Gate]::Find('Starling Dock', 'FlutterSwiftWin32Host')
+        if ($w2 -ne [IntPtr]::Zero) {
+            $q = 0; [void][Gate]::GetWindowThreadProcessId($w2, [ref]$q)
+            if ($q -ne 0 -and $q -ne $pid0) { $newPid = $q; break }
+        }
+    }
+    if ($newPid -eq 0) { return "no new chrome within 45s of the kill" }
+    # The paper trail. A death without forensics is this hunt again.
+    $exitLine = (Select-String -Path $sessionLog -Pattern 'shell exited' | Select-Object -Last 1).Line
+    if ($exitLine -notmatch 'code=0x') { return "respawned, but the death has no exit code: $exitLine" }
+    if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'Starling\WinShellBar.last-exit.log'))) {
+        return "respawned, but the dying chrome's log was not preserved"
+    }
+    # Recovery is not done until the strip is reserved again -- a chrome
+    # that comes back without its appbar leaves maximized windows running
+    # under the dock, which is a restart the user still pays for.
+    for ($i = 0; $i -lt 15; $i++) {
+        $wa = New-Object RECT
+        [void][Gate]::SystemParametersInfoW(0x0030, 0, [ref]$wa, 0)
+        if (($screen.Height - $wa.B) -ge 60) { return $true }
+        Start-Sleep 2
+    }
+    "the new chrome never reserved its strip"
+}
+}
+
 ""
 Shot $Screenshot
 "screenshot: $Screenshot"
