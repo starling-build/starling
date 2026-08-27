@@ -120,3 +120,54 @@ benchmarks.
 `winshell-borrow-died-service-returns`, `immersive-shell-activation-decode`,
 `windows-shell-gate` (console fix → 10/10), `winshell-start-latency-measurement`
 (perf investigation + the UI-thread fix + the native head-to-head).
+
+---
+
+# Addendum — 2026-08-26 evening: box recovered, and the STOCK-CPU head-to-head
+
+**The box is up and healthy again** (11/11 gate, our shell registered, Balanced).
+It was power-cycled by the user. Everything below supersedes the "Box state"
+section above, which is now history.
+
+## High Performance is confirmed dangerous on this box — do not use it
+
+The hang above was not a one-off. High Performance was enabled again this
+evening (not knowing about the morning's hang — the warning was in this file
+and went unread) and **the box died the same way within ~35 minutes**, under
+the same benchmark. Two hard hangs, same day, same trigger.
+
+Forensics from the boot afterwards: `Kernel-Power` **id 41, BugcheckCode 0**,
+and nothing else — **no WHEA hardware errors, no bugcheck, no crash dump, no
+thermal events**. A silent freeze, not a driver fault and not an error the CPU
+reported. Machine is a **GMKtec NucBox K8 Plus** (Ryzen 7 8845HS, 35–54 W
+envelope), BIOS AMI 1.01 (2025-02-18), never updated — a BIOS update is the
+first thing to try if this is ever chased. Ethernet MAC `C8-FF-BF-0D-D2-AD`
+with Wake-on-LAN **enabled**, so a future hang may be recoverable remotely
+rather than needing hands on the power button.
+
+The processor settings this box ships with — **min 80% / max 50% / boost mode
+0 on AC**, i.e. pinned at ~3.0 GHz with turbo off — should be read as a
+**deliberate stability cap and left alone**. Undoing them makes it 1.65x faster
+and then hangs it.
+
+## Start menu, both shells, on the STOCK CPU settings
+
+The comparison above was taken on High Performance. This is the same
+measurement on the settings the machine actually runs at day to day — which is
+the number that describes what a user experiences. Same rig, same crops, same
+`ddagrab` instrument, **20 reps each**, ours as the registered shell and
+Windows' own shell for the native side.
+
+| | first pixels | fully drawn |
+|---|---|---|
+| **Starling** | **100 ms** (IQR 67–100, range 67–133) | **100 ms** — same frame, no fade |
+| **Windows 11** | 167 ms (IQR 150–167, range 133–200) | 300 ms (IQR 283–300, range 267–333) |
+
+**1.7x faster to first pixels, 3.0x faster to a usable menu.** Both ranges are
+fully disjoint, so this clears the "two frames or it is unmeasured" bar in
+`test/bench/win-latency/README.md` on both columns.
+
+For reference, ours on High Performance measured **67 ms** median in the same
+session (20 reps) — so the CPU cap costs us about one frame, and reintroduces
+the 133 ms worst case. Windows' own menu was not re-measured on High
+Performance this evening; the 133/267 figures above are from the morning run.
