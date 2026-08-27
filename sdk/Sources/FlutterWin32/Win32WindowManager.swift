@@ -49,7 +49,18 @@ public struct Win32Window: Sendable, Equatable, Identifiable {
     public let className: String
     /// Full path to the owning process's image, or "" when the process
     /// refused to be opened (a service, or a higher integrity level).
+    ///
+    /// NOT an app identity on its own. A packaged app's path is versioned
+    /// (`...\Microsoft.Paint_11.2605.81.0_x64__8wekyb3d8bbwe\...`) and changes
+    /// under it on every update, and the CoreWindow generation reports
+    /// `ApplicationFrameHost.exe` — the host that draws the frame, shared by
+    /// every such app. Prefer `appUserModelID` when it is set.
     public let executablePath: String
+    /// The packaged app this window belongs to, or "" for an ordinary
+    /// program. `Package_hash!AppId` — the same string `shell:AppsFolder`
+    /// lists it under, which is how a Store app's window is matched to the
+    /// catalog entry that has no file path to match on.
+    public let appUserModelID: String
     /// The frame as the user sees it — DWM's extended bounds, with the
     /// invisible Windows 10+ resize border already taken off.
     public let frame: Win32Rect
@@ -60,10 +71,25 @@ public struct Win32Window: Sendable, Equatable, Identifiable {
     public let isMaximized: Bool
     public let isForeground: Bool
 
+    /// Whether this window belongs to a packaged (Store/MSIX) app, which is
+    /// the case where `executablePath` cannot identify it.
+    public var isPackaged: Bool { !appUserModelID.isEmpty }
+
+    /// The shell's own parsing name for a packaged app — what
+    /// `shell:AppsFolder` lists it under, and what the app catalog keys such
+    /// an entry by. Empty for an ordinary program.
+    public var appsFolderPath: String {
+        appUserModelID.isEmpty ? "" : "shell:AppsFolder\\" + appUserModelID
+    }
+
     /// What a dock would label it: the executable's base name without the
     /// extension, falling back to the window class. Not the title — a title
     /// is a document, not an app (`untitled – Main.java` is the standing
     /// example in the desktop's own notes).
+    ///
+    /// Only a fallback for a packaged app: its executable base name is either
+    /// versioned or `ApplicationFrameHost`, so a caller that can reach the
+    /// catalog should take the name from there.
     public var appName: String {
         guard !executablePath.isEmpty else { return className }
         let base = executablePath.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last
@@ -120,6 +146,7 @@ public enum Win32WindowManager {
                 title: readString(list, Int32(i), flwin32_wm_title),
                 className: readString(list, Int32(i), flwin32_wm_class),
                 executablePath: readString(list, Int32(i), flwin32_wm_exe),
+                appUserModelID: readString(list, Int32(i), flwin32_wm_aumid),
                 frame: Win32Rect(x: Int(info.x), y: Int(info.y),
                                  width: Int(info.width), height: Int(info.height)),
                 monitor: info.monitor >= 0 ? Int(info.monitor) : nil,

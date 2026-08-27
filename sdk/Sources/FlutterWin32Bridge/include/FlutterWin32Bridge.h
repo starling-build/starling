@@ -1119,6 +1119,18 @@ int32_t flwin32_wm_exe(FlWin32WindowList* list,
                        int32_t index,
                        char* out,
                        int32_t out_size);
+// The AppUserModelID of the PACKAGED app this window belongs to, or "" for an
+// ordinary program. This is the only identity a Store app has in common with
+// its catalog entry: a packaged app has no shortcut on disk, so the catalog
+// knows it by id, while flwin32_wm_exe reports either a versioned path under
+// WindowsApps or -- for the CoreWindow generation, whose frame is built by
+// ApplicationFrameHost -- that host's own path, shared by every such app.
+// Matching a window to its app by executable alone therefore cannot work for
+// them; see window_app_id in flwin32_wm.c.
+int32_t flwin32_wm_aumid(FlWin32WindowList* list,
+                         int32_t index,
+                         char* out,
+                         int32_t out_size);
 void flwin32_wm_release(FlWin32WindowList* list);
 
 // Raises `handle` and gives it the keyboard. Returns non-zero on success.

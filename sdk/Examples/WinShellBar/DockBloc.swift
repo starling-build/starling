@@ -654,40 +654,57 @@ final class DockBloc: @unchecked Sendable {
                 windows.append(window)
             }
         }
-        var byExe: [String: [Win32Window]] = [:]
+        // Indexed by EVERY name a window answers to, not just its best one:
+        // a packaged app is known by its id and by the executable behind it,
+        // and which of the two a pin holds depends on where its catalog entry
+        // came from. A pin looks itself up here and finds its windows either
+        // way round.
+        var byKey: [String: [Win32Window]] = [:]
         for window in windows {
-            byExe[IconCache.key(for: window), default: []].append(window)
+            for key in IconCache.keys(for: window) {
+                byKey[key, default: []].append(window)
+            }
         }
 
         var built: [DockItem] = []
         var claimed: Set<String> = []
+        // Windows a pin has already taken. By HANDLE, because the alias above
+        // means a window can be found under a key that is not its own, and
+        // the loop below would otherwise give it a second tile under that
+        // other name — which is the whole bug this is here to prevent.
+        var taken: Set<UInt64> = []
 
         for key in state.pins {
             guard !claimed.contains(key) else { continue }
-            claimed.insert(key)
             let app = state.catalog.first(where: { IconCache.key(for: $0) == key })
-            let windows = byExe[key] ?? []
+            let windows = byKey[key] ?? []
             // A pin whose app is neither installed nor running is a stale
             // entry — usually an app that was uninstalled. Keep it out of the
             // dock rather than drawing a permanent blank tile.
             guard app != nil || !windows.isEmpty else { continue }
+            claimed.insert(key)
+            for window in windows { taken.insert(window.handle) }
             built.append(DockItem(key: key, name: app?.name ?? windows[0].appName,
                                   app: app, windows: windows, isPinned: true))
         }
 
         for window in windows {
+            guard !taken.contains(window.handle) else { continue }
             let key = IconCache.key(for: window)
             guard !claimed.contains(key) else { continue }
             claimed.insert(key)
             let app = state.catalog.first(where: { IconCache.key(for: $0) == key })
+            let mine = byKey[key] ?? []
+            for other in mine { taken.insert(other.handle) }
             built.append(DockItem(key: key, name: app?.name ?? window.appName,
-                                  app: app, windows: byExe[key] ?? [],
+                                  app: app, windows: mine,
                                   isPinned: false))
         }
 
-        // A running app's own window icon beats the Start Menu's: a browser's
-        // window icon is the profile or the site, which is what the user is
-        // actually looking at.
+        // An ordinary running app's own window icon beats the Start Menu's:
+        // a browser's window icon is the profile or the site, which is what
+        // the user is actually looking at. A PACKAGED app is the other way
+        // round -- see the loop below.
         // At the PHYSICAL size the tile will draw, for the same reason the
         // tray rasterizes at its own: 48 is a resample at every scale the
         // dock actually runs at -- 68px on this 200% screen -- and an icon
@@ -696,11 +713,24 @@ final class DockBloc: @unchecked Sendable {
         // The Files tile wears explorer.exe's yellow folder — the icon that
         // has meant "files" on Windows for thirty years.
         icons.ensure(key: kFilesKey, path: "C:\\Windows\\explorer.exe", size: side)
+        // Filed under the ITEM's key, which for a pinned tile is the pin's
+        // spelling of the app and need not be the window's own.
         for item in built {
-            if let window = item.windows.first {
-                icons.ensure(window: window, size: side)
+            let window = item.windows.first
+            if let window, !window.isPackaged {
+                icons.ensure(key: item.key, window: window, size: side)
             } else if let app = item.app {
-                icons.ensure(app: app, size: side)
+                // A packaged app's window icon is not its icon: the frame is
+                // drawn by ApplicationFrameHost, which has none worth showing,
+                // and asking for it is what put the placeholder glyph on the
+                // dock. The catalog entry resolves through the shell's image
+                // factory to the app's own logo — the picture Start draws.
+                icons.ensure(key: item.key, app: app, size: side)
+            } else if let window {
+                // Packaged, and the catalog has not caught up with it (or
+                // never will). Its parsing name resolves the same way.
+                icons.ensure(key: item.key, path: window.appsFolderPath,
+                             size: side)
             }
         }
         // The tray's textures are claimed here too: `retain(only:)` releases

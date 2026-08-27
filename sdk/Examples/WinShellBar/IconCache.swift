@@ -26,20 +26,61 @@ final class IconCache {
     /// with a few hundred entries is not free.
     private var attempted: Set<String> = []
 
-    /// The cache key for a window: its executable, so windows of the same app
-    /// share a texture. The handle is the fallback only for a window whose
-    /// process would not open — a service, or a higher integrity level —
-    /// where sharing would be wrong anyway.
+    /// The cache key for a window: what identifies the APP behind it, so
+    /// windows of the same app share a texture — and, more importantly, so a
+    /// running window and the dock's pin for the same app resolve to the same
+    /// string. `key(for: Win32App)` is the other half of that contract and
+    /// the two must stay in step.
+    ///
+    /// A packaged app is keyed by its AppUserModelID, not its executable,
+    /// because its executable identifies nothing: the path is versioned and
+    /// changes under it on every update, and every CoreWindow-generation app
+    /// (Settings, Calculator, the Store) reports the same
+    /// `ApplicationFrameHost.exe`, which collapsed all of them onto one dock
+    /// tile wearing the placeholder glyph. The `shell:AppsFolder\` prefix is
+    /// not decoration: it is exactly how the catalog spells such an entry, so
+    /// the two sides meet.
+    ///
+    /// The handle is the last fallback, for a window whose process would not
+    /// open — a service, or a higher integrity level — where sharing a
+    /// texture would be wrong anyway.
     static func key(for window: Win32Window) -> String {
-        window.executablePath.isEmpty
+        if !window.appUserModelID.isEmpty {
+            return "shell:appsfolder\\" + window.appUserModelID.lowercased()
+        }
+        return window.executablePath.isEmpty
             ? "hwnd:\(window.handle)" : window.executablePath.lowercased()
+    }
+
+    /// Every string a window may be known by, best first.
+    ///
+    /// A packaged app answers to two: its id, and the executable behind it.
+    /// Which one the dock's pin holds depends on where the catalog entry came
+    /// from — the AppsFolder gives an id, a Start Menu shortcut gives a path,
+    /// and some packaged apps ship both — so a pin claims a window that
+    /// answers to EITHER, and only the first is used to group windows that no
+    /// pin claimed.
+    static func keys(for window: Win32Window) -> [String] {
+        let primary = key(for: window)
+        let exe = window.executablePath.lowercased()
+        guard !exe.isEmpty, exe != primary else { return [primary] }
+        return [primary, exe]
     }
 
     /// The cache key for an installed app: the executable it starts, so a
     /// running app and its dock entry resolve to the SAME texture and the
-    /// dock does not draw two subtly different icons for one thing.
+    /// dock does not draw two subtly different icons for one thing. A
+    /// packaged app has no executable to name, and its `shortcutPath` is the
+    /// `shell:AppsFolder\<id>` parsing name that `key(for: Win32Window)`
+    /// reconstructs from the window.
+    ///
+    /// Lowercased on BOTH branches. The catalog already lowercases every
+    /// target it stores, so this changes no key today — but the window side
+    /// lowercases unconditionally, and a one-sided normalisation is a trap
+    /// waiting for the first target that arrives in the case it was written.
     static func key(for app: Win32App) -> String {
-        app.target.isEmpty ? app.shortcutPath.lowercased() : app.target
+        app.target.isEmpty
+            ? app.shortcutPath.lowercased() : app.target.lowercased()
     }
 
     func texture(_ key: String) -> Int? { textures[key] }
@@ -48,7 +89,16 @@ final class IconCache {
     /// app is running: a window's own icon is the one it chose to show, which
     /// for a browser is the profile or the site, not the generic app icon.
     func ensure(window: Win32Window, size: Int = 32) {
-        let key = Self.key(for: window)
+        ensure(key: Self.key(for: window), window: window, size: size)
+    }
+
+    /// The same, filed under a key the caller chose.
+    ///
+    /// The dock needs this because a tile is drawn from ITS key, which is the
+    /// pin's, and a pin and the window it claims can spell the same app two
+    /// ways (see `keys(for:)`). Registering under the window's own key then
+    /// leaves the tile looking for a texture nobody filed.
+    func ensure(key: String, window: Win32Window, size: Int = 32) {
         guard textures[key] == nil, !attempted.contains(key) else { return }
         attempted.insert(key)
         let handle = window.handle
@@ -65,7 +115,11 @@ final class IconCache {
     /// target keeps Store apps — whose .lnk holds an item-ID list, not a
     /// path — showing something rather than nothing.
     func ensure(app: Win32App, size: Int = 48) {
-        let key = Self.key(for: app)
+        ensure(key: Self.key(for: app), app: app, size: size)
+    }
+
+    /// The same, filed under a key the caller chose — see the window form.
+    func ensure(key: String, app: Win32App, size: Int = 48) {
         guard textures[key] == nil, !attempted.contains(key) else { return }
         attempted.insert(key)
         let source = app.target.isEmpty ? app.shortcutPath : app.target

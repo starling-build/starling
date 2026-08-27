@@ -25,6 +25,7 @@ brings back a screenshot of the failing screen.
 | a minimized window leaves the screen | handles | the same, from the app's side |
 | the file explorer opens, minimizes, comes back | handles + **pixels** | Files minimized into nowhere; and a restored window that comes back blank |
 | a packaged app launches, minimizes, comes back | handles + **pixels** | Calculator dying two seconds after launch; and an empty frame that passes for a running app |
+| the dock knows which app a packaged window is | the shell's own answer | every Store app getting a SECOND dock tile instead of lighting its pinned one — with Settings and Calculator sharing that tile, because both frames belong to ApplicationFrameHost |
 
 Every row is a bug that actually shipped, which is the bar for being in here.
 

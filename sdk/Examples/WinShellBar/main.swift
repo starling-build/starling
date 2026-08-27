@@ -109,6 +109,7 @@ let knownFlags: Set<String> = [
     "--print-modes", "--print-notifications", "--print-recent",
     "--crash-test", "--print-startup", "--print-status", "--register-shell",
     "--restore-taskbar", "--run", "--session", "--set-mode", "--settings",
+    "--dock-probe",
     "--thumb-probe", "--tray-probe", "--unregister-shell",
 ]
 let unknownFlags = CommandLine.arguments.dropFirst()
@@ -514,6 +515,63 @@ if let index = CommandLine.arguments.firstIndex(of: "--apps-probe") {
     let ok = Win32AppCatalog.launch(app)
     print("[apps-probe] shortcut route ok=\(ok)")
     exit(ok ? 0 : 1)
+}
+
+// `--dock-probe` prints, for every window a taskbar would show, the identity
+// the dock resolves it to and the catalog entry that identity finds.
+//
+// It exists because that pairing is the dock's one load-bearing join and it
+// fails SILENTLY: a window whose key matches no app still gets a tile, so the
+// only symptom is a second tile appearing beside the pinned one -- which
+// reads as a cosmetic glitch rather than "the shell cannot tell which app
+// this is". Every packaged app was in that state (Settings and Calculator
+// sharing one tile keyed on ApplicationFrameHost.exe, which is the host that
+// draws both their frames), and nothing in the tree could have said so.
+//
+// Prints one line per window, and exits non-zero on the two ways the join can
+// be MECHANICALLY wrong -- so `test/win/gate.ps1` can ask this rather than
+// counting pictures on a screenshot. Anything softer than those two is
+// printed as a warning and left alone: a gate that cries wolf gets ignored,
+// and "this window matched no app" is ordinary for a program with no Start
+// Menu entry.
+if CommandLine.arguments.contains("--dock-probe") {
+    let catalog = Win32AppCatalog.apps()
+    let windows = Win32WindowManager.windows()
+    var broken: [String] = []
+    print("[dock-probe] \(windows.count) windows, \(catalog.count) apps")
+    for window in windows {
+        let key = IconCache.key(for: window)
+        let app = catalog.first(where: { IconCache.key(for: $0) == key })
+        // The smoking gun of the original bug, worth naming rather than
+        // leaving to be inferred: this key belongs to the host that DRAWS
+        // every CoreWindow app's frame, so any two of them collapse onto one
+        // tile the moment it is used as an identity. Settings and Calculator
+        // shared a tile this way.
+        if key.hasSuffix("\\applicationframehost.exe") {
+            broken.append("[\(window.title)] is keyed on ApplicationFrameHost")
+        }
+        // The same failure from the other side, and the one that would
+        // otherwise go unnoticed: a process running out of WindowsApps IS
+        // packaged, so if we could not read its id, the id lookup is broken
+        // and the window is about to be keyed on a versioned path that
+        // changes under it on the next update. Notepad and Paint are here.
+        if !window.isPackaged,
+           window.executablePath.lowercased().contains("\\windowsapps\\") {
+            broken.append("[\(window.title)] runs from WindowsApps but has no app id")
+        }
+        // Not a failure. A packaged app IS in the AppsFolder by construction,
+        // so this is usually the join breaking -- but a package can ask not
+        // to be listed, and a gate that fails on that is a gate nobody trusts.
+        if window.isPackaged, app == nil {
+            print("  WARN [\(window.title)] is packaged but matched no app")
+        }
+        print("  title=[\(window.title)] class=[\(window.className)] "
+              + "packaged=\(window.isPackaged ? "yes" : "no ") "
+              + "key=[\(key)] app=[\(app?.name ?? "<none>")]")
+    }
+    for problem in broken { print("[dock-probe] BROKEN: " + problem) }
+    print("[dock-probe] \(broken.count) identity failure(s)")
+    exit(broken.isEmpty ? 0 : 1)
 }
 
 // `--menu-probe <path>` prints the shell's context-menu verbs for a path and

@@ -664,6 +664,61 @@ Check "a packaged app launches, minimizes and comes back" {
     "minimize=$gone restore=$back"
 }
 
+Check "the dock can tell which app a packaged window belongs to" {
+    # The dock decides "is this app already running" by matching a window to a
+    # catalog entry. For a Store app the two sides have NO field in common
+    # except the AppUserModelID -- the catalog has no file path for it, and
+    # the window either runs from a versioned WindowsApps directory or, for
+    # the CoreWindow generation, reports ApplicationFrameHost.exe, which every
+    # such app shares. Match on the executable and the join silently fails:
+    # the pinned tile stays dark and the running app gets a SECOND tile,
+    # generic-looking, with Settings and Calculator sharing it.
+    #
+    # Asked of the shell rather than of the screen, because the symptom is one
+    # extra icon in a row of icons and no pixel test can tell that from a
+    # legitimately unpinned app having started.
+    $exe = (Get-Process WinShellBar -EA SilentlyContinue | Select-Object -First 1).Path
+    if (-not $exe) { return "no WinShellBar to ask" }
+    $aumid = 'Microsoft.WindowsCalculator_8wekyb3d8bbwe!App'
+    $so = Join-Path $env:TEMP "starling-gate-dock-out.txt"
+    $se = Join-Path $env:TEMP "starling-gate-dock-err.txt"
+
+    # Something packaged has to be RUNNING or the probe has nothing to resolve.
+    $launch = Start-Process -FilePath $exe -ArgumentList '--launch-app', $aumid `
+        -Wait -PassThru -RedirectStandardOutput $so -RedirectStandardError $se
+    if ($launch.ExitCode -ne 0) { return "could not launch the app to probe" }
+    $w = [IntPtr]::Zero
+    for ($i = 0; $i -lt 12; $i++) {
+        Start-Sleep 1
+        $w = [Gate]::Find("Calculator", "ApplicationFrameWindow")
+        if ($w -ne [IntPtr]::Zero -and [Gate]::IsWindowVisible($w)) { break }
+    }
+    if ($w -eq [IntPtr]::Zero) { return "the app never put up a frame to probe" }
+
+    $probe = Start-Process -FilePath $exe -ArgumentList '--dock-probe' `
+        -Wait -PassThru -RedirectStandardOutput $so -RedirectStandardError $se
+    $out = ((Get-Content $so, $se -EA SilentlyContinue) -join "`n")
+
+    # Same rule as the check above: CLOSE the frame, never kill the app.
+    [void][Gate]::PostMessageW($w, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep 3
+    Get-Process CalculatorApp -EA SilentlyContinue | Stop-Process -Force
+
+    if ($probe.ExitCode -ne 0) {
+        $why = ($out -split "`n" | Where-Object { $_ -match 'BROKEN' }) -join '; '
+        if (-not $why) { $why = "probe exited $($probe.ExitCode)" }
+        return $why
+    }
+    # And the positive half: the window has to have found its OWN app, not
+    # merely avoided the two mechanical traps.
+    $line = ($out -split "`n" | Where-Object { $_ -match 'title=\[Calculator\]' }) | Select-Object -First 1
+    if (-not $line) { return "the probe never saw the app's window" }
+    if ($line -notmatch 'app=\[Calculator\]') {
+        return "the window resolved to the wrong app: $($line.Trim())"
+    }
+    return $true
+}
+
 ""
 Shot $Screenshot
 "screenshot: $Screenshot"

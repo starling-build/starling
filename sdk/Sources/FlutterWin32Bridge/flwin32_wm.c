@@ -45,6 +45,9 @@
 
 #include <windows.h>
 #include <dwmapi.h>
+#include <appmodel.h>
+#include <propsys.h>
+#include <shlobj.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -54,6 +57,10 @@
  * driver's clang; Package.swift names it too, so a toolchain that ignores
  * #pragma comment still resolves. */
 #pragma comment(lib, "dwmapi.lib")
+/* SHGetPropertyStoreForWindow, and PropVariantClear beside it, for the
+ * packaged-app identity below. */
+#pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "ole32.lib")
 
 /* Windows 8 added DWMWA_CLOAKED; the vendored SDK headers have it, but a
  * mismatched one would leave the most important filter silently out. */
@@ -236,6 +243,7 @@ typedef struct {
     char* title;
     char* cls;
     char* exe;
+    char* aumid;
 } WindowEntry;
 
 struct FlWin32WindowList {
@@ -262,6 +270,81 @@ static char* process_image_path(DWORD pid) {
     }
     CloseHandle(process);
     return out;
+}
+
+/* PKEY_AppUserModel_ID and IID_IPropertyStore, spelled out rather than taken
+ * from propkey.h/uuid.lib. Those headers only DEFINE the symbols under
+ * INITGUID, and a translation unit that gets that wrong links against a
+ * different file's copy or against nothing at all -- a failure that shows up
+ * cold, at link, long after the code reads fine. Two literals cost nothing. */
+static const PROPERTYKEY kAppUserModelIdKey = {
+    {0x9F4C2855, 0x9F79, 0x4B39,
+     {0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3}}, 5};
+static const GUID kPropertyStoreIID = {
+    0x886d8eeb, 0x8cf2, 0x4446,
+    {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
+
+/* An AppUserModelID that names a PACKAGE, rather than a label an ordinary
+ * program hung on its own windows for the sake of jump lists.
+ *
+ * The '!' is the discriminator, and it is the same one the catalog already
+ * uses (Win32AppCatalog.AppsFolderEntry.target): a packaged id is
+ * "<family>!<app>", so a window carrying one can be matched against a
+ * "shell:AppsFolder\<id>" catalog entry, while Edge's bare "MSEdge" must not
+ * be -- Edge is matched by its executable, and taking its window id instead
+ * would break the one identity path that was working. */
+static BOOL is_packaged_id(const wchar_t* id) {
+    return id != NULL && id[0] != L'\0' && wcschr(id, L'!') != NULL;
+}
+
+/* Which packaged app a window belongs to, "" when it is an ordinary program.
+ *
+ * Two sources, because no single one answers for every Store app -- measured
+ * on the test machine, with both answers cross-checked against what the
+ * AppsFolder calls the same app:
+ *
+ *  - Notepad, Paint and Terminal have their OWN top-level windows, run in
+ *    their own packaged processes, and carry NO id on the window at all
+ *    (the property store answers VT_EMPTY). The process is the only source.
+ *  - Settings and Calculator are the CoreWindow generation: the window is an
+ *    ApplicationFrameWindow belonging to ApplicationFrameHost.exe, which is
+ *    not packaged and answers APPMODEL_ERROR_NO_APPLICATION. The frame's own
+ *    property store is the only source, and it is what explorer's taskbar
+ *    reads too.
+ *
+ * The process is asked first because it is a plain kernel call; the store is
+ * COM, and is consulted only for the frame class that needs it. That keeps
+ * this off the COM path entirely for every ordinary window -- this runs on
+ * every window event, and the snapshot is meant to stay under a millisecond. */
+static char* window_app_id(HWND hwnd, DWORD pid, const wchar_t* cls) {
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (process != NULL) {
+        wchar_t id[512];
+        UINT32 len = 512;
+        LONG rc = GetApplicationUserModelId(process, &len, id);
+        CloseHandle(process);
+        if (rc == ERROR_SUCCESS && is_packaged_id(id)) return wide_to_utf8(id);
+    }
+
+    if (wcscmp(cls, L"ApplicationFrameWindow") != 0) return wide_to_utf8(NULL);
+
+    flwin32_com_ensure();
+    IPropertyStore* store = NULL;
+    if (FAILED(SHGetPropertyStoreForWindow(hwnd, &kPropertyStoreIID,
+                                           (void**)&store)) ||
+        store == NULL) {
+        return wide_to_utf8(NULL);
+    }
+    PROPVARIANT value;
+    PropVariantInit(&value);
+    char* out = NULL;
+    if (SUCCEEDED(store->lpVtbl->GetValue(store, &kAppUserModelIdKey, &value)) &&
+        value.vt == VT_LPWSTR && is_packaged_id(value.pwszVal)) {
+        out = wide_to_utf8(value.pwszVal);
+    }
+    PropVariantClear(&value);
+    store->lpVtbl->Release(store);
+    return out != NULL ? out : wide_to_utf8(NULL);
 }
 
 static BOOL CALLBACK enum_windows_cb(HWND hwnd, LPARAM data) {
@@ -311,6 +394,7 @@ static BOOL CALLBACK enum_windows_cb(HWND hwnd, LPARAM data) {
     entry->cls = wide_to_utf8(cls);
 
     entry->exe = process_image_path(pid);
+    entry->aumid = window_app_id(hwnd, pid, cls);
 
     list->count++;
     return TRUE;
@@ -368,12 +452,21 @@ int32_t flwin32_wm_exe(FlWin32WindowList* list,
     return copy_out(list->items[index].exe, out, out_size);
 }
 
+int32_t flwin32_wm_aumid(FlWin32WindowList* list,
+                         int32_t index,
+                         char* out,
+                         int32_t out_size) {
+    if (list == NULL || index < 0 || index >= list->count) return -1;
+    return copy_out(list->items[index].aumid, out, out_size);
+}
+
 void flwin32_wm_release(FlWin32WindowList* list) {
     if (list == NULL) return;
     for (int i = 0; i < list->count; i++) {
         free(list->items[i].title);
         free(list->items[i].cls);
         free(list->items[i].exe);
+        free(list->items[i].aumid);
     }
     free(list->items);
     free(list);
