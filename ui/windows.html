@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starling on Windows — a faster shell for the desktop you already run</title>
+<meta name="description" content="Starling replaces the Windows 11 shell — dock, Start, desktop, tray — registered per user with no admin, and Explorer comes back the moment you ask. Start menu finished in 67 ms where Windows takes 300. Filmed side by side on the same machine.">
+<meta property="og:title" content="Starling on Windows — a faster shell for the desktop you already run">
+<meta property="og:description" content="The whole shell — dock, Start, desktop, tray — replaced per user, no admin. Start menu in 67 ms vs 300. Filmed on the same machine.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://starling.build/img/start-latency-poster.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
+<style>
+  :root {
+    --bg:        #0a0e17;
+    --bg-raised: #111726;
+    --bg-sunk:   #070a11;
+    --line:      #1e2739;
+    --line-soft: #182135;
+    --ink:       #eef2f8;
+    --ink-dim:   #97a3b8;
+    --ink-faint: #64708a;
+    --amber:     #f0a02a;
+    --amber-soft:#fbbf5c;
+    --sky:       #5aa9e6;
+    --green:     #7fd1a0;
+    --gh:        #6b7690;
+    --maxw:      1120px;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  img, video { max-width: 100%; height: auto; display: block; }
+  a { color: var(--amber-soft); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  .narrow { max-width: 780px; }
+
+  h1, h2, h3 { margin: 0; line-height: 1.2; font-weight: 640; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(26px, 3.2vw, 34px); }
+  p  { margin: 0; }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(10,14,23,.86); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between;
+         gap: 20px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px;
+           color: var(--ink); font-weight: 640; font-size: 17px; }
+  .brand:hover { text-decoration: none; }
+  .mark { width: 22px; height: 22px; flex: none; }
+  .nav-links { display: flex; gap: 26px; font-size: 15px; }
+  .nav-links a { color: var(--ink-dim); }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-links a.here { color: var(--ink); }
+  .nav-gh {
+    display: inline-flex; align-items: center; gap: 7px; flex: none;
+    font-size: 14.5px; font-weight: 550; color: var(--ink-dim);
+    border: 1px solid var(--line); background: var(--bg-raised);
+    padding: 7px 13px; border-radius: 9px;
+  }
+  .nav-gh:hover { color: var(--ink); border-color: #2c3852; text-decoration: none; }
+  .nav-gh svg { width: 16px; height: 16px; flex: none; }
+  .menu { position: relative; display: none; }
+  .menu summary { list-style: none; cursor: pointer; display: inline-flex;
+                  align-items: center; gap: 8px; font-size: 14.5px;
+                  color: var(--ink-dim); border: 1px solid var(--line);
+                  background: var(--bg-raised); padding: 7px 12px; border-radius: 9px; }
+  .menu summary::-webkit-details-marker { display: none; }
+  .menu summary svg { width: 16px; height: 16px; }
+  .menu-panel { position: absolute; right: 0; top: 44px; min-width: 190px;
+                background: var(--bg-raised); border: 1px solid var(--line);
+                border-radius: 12px; padding: 8px; display: grid; gap: 2px; }
+  .menu-panel a { color: var(--ink-dim); padding: 8px 10px; border-radius: 8px;
+                  font-size: 15px; }
+  .menu-panel a:hover { background: var(--bg-sunk); color: var(--ink);
+                        text-decoration: none; }
+  .menu-panel a.here { color: var(--ink); }
+  @media (max-width: 860px) { .nav-links { display: none; } .menu { display: block; } }
+
+  /* ---------- hero ---------- */
+  .hero { position: relative; padding: 76px 0 0; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -20% -10% auto -10%; height: 380px;
+    background: radial-gradient(60% 60% at 45% 50%, rgba(240,160,42,.11), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; max-width: 820px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 13px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 18px;
+  }
+  .badge { font-size: 12px; font-weight: 640; letter-spacing: .1em;
+           text-transform: uppercase; color: var(--amber);
+           border: 1px solid rgba(240,160,42,.35); border-radius: 999px;
+           padding: 4px 12px; background: rgba(240,160,42,.09); }
+  .hero h1 { font-size: clamp(44px, 7.4vw, 82px); letter-spacing: -0.04em;
+             margin-bottom: 14px; }
+  .tagline { font-size: clamp(21px, 2.7vw, 29px); color: var(--ink);
+             font-weight: 560; letter-spacing: -0.02em; line-height: 1.25;
+             margin-bottom: 16px; }
+  .hero h1 .accent {
+    background: linear-gradient(100deg, var(--amber-soft), var(--sky));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { font-size: clamp(18px, 2.1vw, 20px); color: var(--ink-dim); line-height: 1.55; }
+
+  /* ---------- film frame ---------- */
+  .frame { border: 1px solid var(--line); border-radius: 13px; overflow: hidden;
+           background: var(--bg-sunk); box-shadow: 0 24px 60px -30px rgba(0,0,0,.85); }
+  .shot-label { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
+  .shot-label b { font-size: 16px; color: var(--ink); font-weight: 620; }
+  .shot-label span { font-size: 14px; color: var(--ink-faint); }
+
+  /* ---------- sections ---------- */
+  section { padding: 68px 0; }
+  section + section { border-top: 1px solid var(--line-soft); }
+  .kicker { font-size: 13px; letter-spacing: .09em; text-transform: uppercase;
+            color: var(--amber); margin-bottom: 12px; }
+  .prose p { font-size: 18px; line-height: 1.6; color: var(--ink-dim); }
+  .prose p + p { margin-top: 16px; }
+  .prose strong { color: var(--ink); font-weight: 600; }
+  .prose h2 + p { margin-top: 18px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.87em; color: var(--amber-soft);
+    background: var(--bg-raised); border: 1px solid var(--line-soft);
+    padding: 1px 6px; border-radius: 6px;
+  }
+
+  /* ---------- three points ---------- */
+  .points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 860px) { .points { grid-template-columns: 1fr; } }
+  .point { border: 1px solid var(--line); border-radius: 12px;
+           background: var(--bg-raised); padding: 24px; }
+  .point .big { font-size: 30px; font-weight: 660; letter-spacing: -0.03em;
+                color: var(--amber-soft); font-variant-numeric: tabular-nums; }
+  .point .big small { font-size: 17px; color: var(--ink-faint); font-weight: 500; }
+  .point h3 { font-size: 18px; margin: 10px 0 8px; }
+  .point p { font-size: 15.5px; color: var(--ink-dim); }
+  .os { display: flex; gap: 8px; margin-bottom: 2px; }
+  .os span { font-size: 13px; color: var(--ink-dim); border: 1px solid var(--line);
+             border-radius: 7px; padding: 4px 10px; background: var(--bg-sunk);
+             white-space: nowrap; }
+  .os span.soon { color: var(--ink-faint); border-style: dashed; }
+
+  /* ---------- install ---------- */
+  .inst-list { margin-top: 28px; }
+  .inst { border: 1px solid var(--line); border-radius: 12px;
+          background: var(--bg-raised); padding: 20px 22px 18px; }
+  .inst + .inst { margin-top: 14px; }
+  .inst-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .inst-head h3 { font-size: 19px; }
+  .inst-head span { font-size: 13.5px; color: var(--ink-faint); }
+  .inst pre { margin: 14px 0 0; padding: 13px 16px; border: 1px solid var(--line-soft);
+              border-radius: 9px; background: var(--bg-sunk); }
+  .inst .note { margin-top: 12px; }
+  .inst .body { margin-top: 10px; font-size: 15.5px; color: var(--ink-dim);
+                line-height: 1.6; }
+
+  /* ---------- table ---------- */
+  .tablewrap { margin-top: 30px; border: 1px solid var(--line);
+               border-radius: 12px; overflow-x: auto; background: var(--bg-sunk); }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 15px; }
+  th, td { text-align: right; padding: 11px 16px;
+           border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase;
+             color: var(--ink-faint); font-weight: 600; }
+  tbody td { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.total td { color: var(--ink); font-weight: 640; border-top: 1px solid var(--line); }
+  td.win { color: var(--green); font-weight: 600; }
+  td.loss { color: var(--ink-faint); }
+  .note { margin-top: 16px; font-size: 14.5px; color: var(--ink-faint); line-height: 1.55; }
+  table.wide { min-width: 660px; }
+  table.wide th, table.wide td { padding-left: 10px; padding-right: 10px; }
+  thead tr.grp th { border-bottom: none; padding-bottom: 0; text-align: center;
+                    color: var(--ink-dim); }
+  th.sep, td.sep { border-left: 1px solid var(--line-soft); }
+  .dim-head { font-size: 16px; font-weight: 620; color: var(--ink); margin: 36px 0 0; }
+  .dim-head + .tablewrap { margin-top: 12px; }
+
+  /* ---------- race hero ---------- */
+  .race { margin-top: 44px; }
+  .plat { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .plat span { font-size: 13.5px; color: var(--ink-dim); border: 1px solid var(--line);
+               border-radius: 8px; padding: 5px 12px; background: var(--bg-sunk); }
+  .plat span.active { color: var(--amber-soft); border-color: rgba(240,160,42,.45);
+                      background: rgba(240,160,42,.08); font-weight: 600; }
+  .plat span.soon { color: var(--ink-faint); border-style: dashed; }
+  .plat span[data-src] { cursor: pointer; }
+  .plat span[data-src]:not(.active):hover { color: var(--ink); border-color: #2c3852; }
+
+  /* ---------- charts ---------- */
+  .chart-card { border: 1px solid var(--line); border-radius: 12px;
+                background: var(--bg-sunk); padding: 20px 20px 14px; margin-top: 12px; }
+  .chart-key { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline;
+               font-size: 13px; color: var(--ink-dim); margin-bottom: 16px; }
+  .chart-key .k { display: inline-flex; align-items: center; gap: 7px; }
+  .chart-key .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .chart-key .sw.s { background: var(--amber); }
+  .chart-key .sw.g { background: var(--gh); }
+  .chart-key .hint { color: var(--ink-faint); margin-left: auto; }
+
+  .rchart { display: grid; grid-template-columns: 108px 1fr 1fr 1fr;
+            column-gap: 18px; row-gap: 7px; align-items: center; }
+  .rchart .phead { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase;
+                   color: var(--ink-faint); font-weight: 600; text-align: center;
+                   padding-bottom: 4px; }
+  /* Windows races a different terminal, so its column says so in the head. */
+  .rchart .phead .vs { display: block; font-size: 10px; letter-spacing: .02em;
+                       text-transform: none; font-weight: 500; opacity: .75; }
+  .rlabel { font-size: 13.5px; color: var(--ink-dim); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; }
+  .rlabel.tot { white-space: normal; line-height: 1.25; }
+  .rgroup { grid-column: 1 / -1; font-size: 12px; letter-spacing: .07em;
+            text-transform: uppercase; color: var(--ink-faint); font-weight: 600;
+            border-top: 1px solid var(--line-soft); padding-top: 12px; margin-top: 6px; }
+  .rlabel.tot, .rtrack .v.tot { color: var(--ink); font-weight: 640; }
+  .rtrack { position: relative; height: 22px;
+            background-image: linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(var(--line-soft), var(--line-soft)),
+                              linear-gradient(#2b3652, #2b3652);
+            background-repeat: no-repeat; background-size: 1px 100%;
+            background-position: 11.2% 0, 45.99% 0, 60.43% 0, 80.78% 0, 95.22% 0, 25.64% 0; }
+  .rtrack .bar { position: absolute; top: 5px; height: 12px; }
+  .rtrack .bar.w { background: var(--amber); border-radius: 0 4px 4px 0; }
+  .rtrack .bar.l { background: var(--gh); border-radius: 4px 0 0 4px; }
+  .rtrack .v { position: absolute; top: 50%; transform: translateY(-50%);
+               font-size: 12px; color: var(--ink-dim); white-space: nowrap;
+               font-variant-numeric: tabular-nums; }
+  .rtrack .v.in { color: #16130a; font-weight: 640; transform: translate(-100%, -50%);
+                  padding-right: 7px; }
+  .raxis { position: relative; height: 18px; font-size: 11.5px; color: var(--ink-faint);
+           font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .raxis span { position: absolute; transform: translateX(-50%); }
+  @media (max-width: 720px) {
+    .rchart { grid-template-columns: 76px 1fr 1fr 1fr; column-gap: 8px; }
+    .rlabel { font-size: 12px; }
+    .rtrack .v { font-size: 10.5px; }
+    .raxis .mn { display: none; }
+  }
+
+  .cost-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+               margin-top: 12px; }
+  @media (max-width: 860px) { .cost-grid { grid-template-columns: 1fr; } }
+  .card-title { font-size: 15px; font-weight: 620; color: var(--ink); }
+  .card-sub { font-size: 12.5px; color: var(--ink-faint); margin: 2px 0 14px; }
+  .cpu-plat { display: flex; justify-content: space-between; align-items: baseline;
+              font-size: 13px; color: var(--ink); font-weight: 620; margin: 10px 0 6px; }
+  .cpu-plat span { color: var(--ink-faint); font-weight: 500; font-size: 12.5px; }
+  .cpu-row { display: grid; grid-template-columns: 58px 1fr; align-items: center;
+             gap: 10px; margin-bottom: 5px; }
+  .cpu-row .who { font-size: 12.5px; color: var(--ink-faint); }
+  .cpu-row .track { position: relative; height: 16px; }
+  .cpu-row .bar { position: absolute; top: 2px; height: 12px;
+                  border-radius: 0 4px 4px 0; }
+  .cpu-row .bar.s { background: var(--amber); }
+  .cpu-row .bar.g { background: var(--gh); }
+  .cpu-row .v { position: absolute; top: 50%; transform: translateY(-50%);
+                font-size: 12px; color: var(--ink-dim); white-space: nowrap;
+                font-variant-numeric: tabular-nums; }
+  .card-foot { margin-top: 12px; font-size: 12.5px; color: var(--ink-faint);
+               line-height: 1.55; }
+  .mem-svg { width: 100%; height: auto; display: block; }
+  .cost-grid .chart-card { display: flex; flex-direction: column; }
+  .cost-grid .mem-svg { margin: auto 0; }
+
+  /* ---------- receipts ---------- */
+  details.receipts { margin-top: 36px; border: 1px solid var(--line);
+                     border-radius: 12px; background: var(--bg-raised); }
+  details.receipts > summary { list-style: none; cursor: pointer; padding: 16px 20px;
+                               font-size: 15px; font-weight: 600; color: var(--ink-dim); }
+  details.receipts > summary::-webkit-details-marker { display: none; }
+  details.receipts > summary::before { content: "▸"; margin-right: 10px;
+                                       color: var(--ink-faint); }
+  details.receipts[open] > summary::before { content: "▾"; }
+  details.receipts > summary:hover { color: var(--ink); }
+  details.receipts .inner { padding: 0 20px 20px; }
+  details.receipts .dim-head:first-child { margin-top: 0; }
+
+  /* ---------- code ---------- */
+  .code-col { border: 1px solid var(--line); border-radius: 12px;
+              background: var(--bg-sunk); overflow: hidden; margin-top: 28px; }
+  .code-head { font-size: 12.5px; font-weight: 620; letter-spacing: .05em;
+               text-transform: uppercase; color: var(--ink-faint);
+               padding: 11px 20px; border-bottom: 1px solid var(--line-soft); }
+  pre { margin: 0; padding: 18px 20px; overflow-x: auto;
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 13.5px; line-height: 1.62; color: var(--ink-dim); }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .k { color: var(--sky); }
+  pre .s { color: var(--amber-soft); }
+  pre .t { color: var(--green); }
+  pre .c { color: var(--ink-faint); }
+  .code-col + .note { margin-top: 16px; }
+  .note + .code-col { margin-top: 16px; }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .btn { display: inline-flex; align-items: center; padding: 11px 18px;
+         border-radius: 10px; font-size: 15.5px; font-weight: 570;
+         border: 1px solid var(--line); color: var(--ink-dim); background: var(--bg-raised); }
+  .btn:hover { color: var(--ink); border-color: #2c3852; text-decoration: none; }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: #16130a; }
+  .btn.primary:hover { background: var(--amber-soft); border-color: var(--amber-soft); }
+
+  footer { border-top: 1px solid var(--line-soft); padding: 40px 0 60px;
+           color: var(--ink-faint); font-size: 14.5px; }
+  .foot { display: flex; flex-wrap: wrap; gap: 14px 26px; justify-content: space-between; }
+  footer a { color: var(--ink-faint); }
+  footer a:hover { color: var(--ink-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4"
+              stroke="url(#g)" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M3 15c3.4 3.9 8.2 4.6 11.6 2.4" stroke="url(#g)" stroke-width="1.9" stroke-linecap="round"/>
+        <circle cx="17.4" cy="8.1" r="1.05" fill="#f0a02a"/>
+        <defs><linearGradient id="g" x1="3" y1="5" x2="21" y2="18">
+          <stop stop-color="#fbbf5c"/><stop offset="1" stop-color="#5aa9e6"/>
+        </linearGradient></defs>
+      </svg>
+      Starling
+    </a>
+    <nav class="nav-links">
+      <a href="index.html#idea">The idea</a>
+      <a href="why.html">Why &amp; how</a>
+      <a href="sdk.html">SDK</a>
+      <a href="terminal.html">Terminal</a>
+      <a class="here" href="windows.html">Windows</a>
+      <a href="start.html">Get started</a>
+      <a href="guide.html">Guide</a>
+    </nav>
+    <details class="menu">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg> Menu</summary>
+      <div class="menu-panel">
+        <a href="index.html">Home</a>
+        <a href="why.html">Why &amp; how</a>
+        <a href="sdk.html">SDK</a>
+        <a href="terminal.html">Terminal</a>
+        <a class="here" href="windows.html">Windows</a>
+        <a href="start.html">Get started</a>
+        <a href="guide.html">Guide</a>
+      </div>
+    </details>
+    <a class="nav-gh" href="https://github.com/starling-build/starling">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+      </svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</header>
+
+<!-- ============================ hero ============================ -->
+<div class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow"><span class="badge">Preview</span></div>
+    <h1>Starling on <span class="accent">Windows</span></h1>
+    <p class="tagline">A faster shell for the desktop you already run.</p>
+    <p class="lede">
+      Dock, Start, desktop, tray — Starling replaces the Windows&nbsp;11 shell
+      itself, registered per user with no administrator anywhere, and Explorer
+      comes back the moment you ask. Below: the three things you do most,
+      filmed side by side on the same machine, each shell registered as
+      <em>the</em> shell when it is filmed.
+    </p>
+    <div class="btn-row">
+      <a class="btn primary" href="#try">Try it</a>
+      <a class="btn" href="#films">See the films</a>
+    </div>
+  </div>
+
+  <div class="wrap race" id="films">
+    <div class="plat">
+      <span class="active" data-src="video/start-latency.mp4"
+            data-poster="img/start-latency-poster.jpg"
+            data-title="Pressing the Win key, head to head"
+            data-cap="same machine, same keystroke, played at 1/8 speed — Starling's menu is finished at 67 ms, in the frame it first appears; Windows 11's settles at 300 ms. Median of 20 warm opens each.">Start menu</span>
+      <span data-src="video/file-launch.mp4"
+            data-poster="img/file-launch-poster.jpg"
+            data-title="Opening the file manager — Win+E"
+            data-cap="Starling pays for a whole new process on every open in this take; Explorer opens a window inside its already-running shell — and Starling still lists files at a 500 ms median against Explorer's 1149 ms.">File manager</span>
+      <span data-src="video/ctxmenu-latency.mp4"
+            data-poster="img/ctxmenu-latency-poster.jpg"
+            data-title="Right-click to a finished menu"
+            data-cap="right-click a folder — Starling's menu is finished at 67 ms, in its first frame; Explorer's first pixels land at 233 ms and it settles at 300 ms. Median of 20 warm opens each.">Context menu</span>
+    </div>
+    <div class="frame">
+      <video id="race-video" src="video/start-latency.mp4"
+             poster="img/start-latency-poster.jpg"
+             autoplay loop muted playsinline controls></video>
+    </div>
+    <div class="shot-label"><b id="race-title">Pressing the Win key, head to head</b>
+      <span id="race-cap">same machine, same keystroke, played at 1/8 speed —
+      Starling's menu is finished at 67 ms, in the frame it first appears;
+      Windows 11's settles at 300 ms. Median of 20 warm opens each.</span></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var v = document.getElementById('race-video');
+  var cap = document.getElementById('race-cap');
+  var title = document.getElementById('race-title');
+  var tabs = document.querySelectorAll('.plat [data-src]');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      if (t.classList.contains('active')) return;
+      tabs.forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      v.pause();
+      v.poster = t.dataset.poster;
+      v.src = t.dataset.src;
+      title.textContent = t.dataset.title;
+      cap.textContent = t.dataset.cap;
+      v.load();
+      v.play();
+    });
+  });
+})();
+</script>
+
+<!-- ============================ three points ============================ -->
+<section>
+  <div class="wrap points">
+    <div class="point">
+      <div class="big">4.5&times;</div>
+      <h3>Faster to Start</h3>
+      <p>The Start menu is finished at 67&nbsp;ms — in the frame it first
+         appears — where Windows&nbsp;11's settles at 300&nbsp;ms. Every number
+         on this page is a median of 20 warm runs, filmed on the same machine
+         at matched capture.</p>
+    </div>
+    <div class="point">
+      <div class="big">1 <small>process</small></div>
+      <h3>The whole chrome, one process</h3>
+      <p>Dock, Start, desktop and file manager are one binary and one
+         process — the launcher is a layer of the dock's own widget tree, the
+         desktop a second engine view, the file manager a window of the same
+         process that opens with no process start at all.</p>
+    </div>
+    <div class="point">
+      <div class="big">0 <small>admin</small></div>
+      <h3>Per-user, and reversible</h3>
+      <p>The shell registration is a per-user value: one account opts in,
+         every other account keeps Explorer, and nothing touches Program
+         Files or a service. Uninstall — or one command — and Explorer is
+         back at your next sign-in.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ what you get ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">The shell</div>
+    <h2>The parts of Windows you touch, replaced</h2>
+    <p>
+      Starling takes over the session the way Explorer does — Winlogon starts
+      it as <em>the</em> shell — and stands in for the pieces you actually
+      use: the <strong>dock</strong> with your pinned and running apps, a
+      <strong>Start menu</strong> that searches everything the real one lists,
+      the <strong>desktop</strong> with your wallpaper and icons, the
+      <strong>system tray</strong> with quick settings and notifications,
+      banners, and the Run dialog. Maximized windows stop at the dock's edge;
+      minimized windows park off screen and come back from the dock, exactly
+      as they do under Explorer.
+    </p>
+    <p>
+      The apps keep working, including the awkward ones: Store apps of the
+      CoreWindow generation — Calculator, Settings, Paint, the Store itself —
+      launch, draw and minimize correctly, because Starling keeps a background
+      Explorer alive as a service for the plumbing only they need, while
+      making sure it never shows a taskbar, a desktop, or any chrome of its
+      own. Your startup apps run at sign-in in Explorer's documented order,
+      RunOnce semantics included.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ resilience ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">Resilience</div>
+    <h2>Built to take a punch</h2>
+    <p>
+      A shell is the one program on the machine that is not allowed to leave.
+      Starling's chrome <strong>refuses polite close requests</strong> — a
+      stray Alt+F4, anything posting a close at the shell's window — the way
+      Explorer's taskbar does, and writes down who tried. A supervisor
+      restarts a crashed chrome in seconds, records the exit code, and keeps
+      the dying run's log. And if restarting ever stops helping, the
+      supervisor <strong>hands the machine back</strong>: it unregisters
+      itself and starts Explorer, so the worst case of a bad day is the stock
+      desktop, never a black screen.
+    </p>
+    <p>
+      This is tested by attack, not by hope: the shipping gate is 17 checks
+      on real hardware, and the last six are hostile — closes posted at every
+      shell window, a second shell told to stand down, and the chrome killed
+      outright while the gate times its return and audits the forensics the
+      death left behind.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ try it ============================ -->
+<section id="try">
+  <div class="wrap narrow">
+    <div class="kicker">Get started</div>
+    <h2>Try it, and how to get back out</h2>
+    <div class="inst-list">
+      <div class="inst">
+        <div class="inst-head"><h3>Install, per user</h3><span>no administrator, nothing outside your profile</span></div>
+        <div class="body">The installer copies the shell into your profile and
+          writes one per-user registry value. It takes effect at your next
+          sign-in; add <code>-Now</code> to switch this session.</div>
+        <pre>powershell -File Install.ps1        # register for this user
+powershell -File Install.ps1 -Now   # and switch right now</pre>
+      </div>
+      <div class="inst">
+        <div class="inst-head"><h3>Leave</h3><span>Explorer returns at the next sign-in</span></div>
+        <pre>powershell -File Uninstall.ps1
+# or just unregister, keeping the files:
+WinShellBar.exe --unregister-shell</pre>
+      </div>
+      <div class="inst">
+        <div class="inst-head"><h3>Build it yourself</h3><span>Windows 10/11 x86_64 · Swift 6.2</span></div>
+        <div class="body">The shell is one SwiftPM product in the open
+          repository. The <a href="start.html">getting-started page</a> walks
+          the Windows toolchain setup; then:</div>
+        <pre>sdk\tools\build-windows.ps1 -Product WinShellBar -Configuration release</pre>
+      </div>
+    </div>
+    <p class="note">Starling on Windows is a preview: it is the shell the
+      numbers above were measured on, and it is developed and tested as a
+      daily driver, but it is younger than the Linux desktop it grew from.
+      The films' full frame-by-frame data, the capture rig, and every
+      measurement script live in the repository beside the code.</p>
+    <div class="btn-row">
+      <a class="btn primary" href="https://github.com/starling-build/starling">GitHub</a>
+      <a class="btn" href="start.html">Get started</a>
+      <a class="btn" href="terminal.html">The terminal it ships with</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>Starling — a desktop environment for Linux, and now for Windows.</div>
+    <div>
+      <a href="index.html">Home</a> ·
+      <a href="sdk.html">SDK</a> ·
+      <a href="terminal.html">Terminal</a> ·
+      <a href="start.html">Get started</a> ·
+      <a href="guide.html">Guide</a> ·
+      <a href="https://github.com/starling-build/starling">Desktop source</a> ·
+      <a href="https://github.com/starling-build/starling/tree/main/sdk">SDK source</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Cloudflare Web Analytics — cookieless, no consent banner required. -->
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "44d0e97496854c03b38f4c06ed50f5a8"}'></script>
+
+</body>
+</html>
