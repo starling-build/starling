@@ -328,6 +328,24 @@
   .foot { display: flex; flex-wrap: wrap; gap: 14px 26px; justify-content: space-between; }
   footer a { color: var(--ink-faint); }
   footer a:hover { color: var(--ink-dim); }
+
+  /* ---------- filmstrips ---------- */
+  .strip { margin-top: 12px; border: 1px solid var(--line); border-radius: 13px;
+           overflow-x: auto; background: var(--bg-sunk); }
+  .strip img { min-width: 900px; }
+  .strip-head { font-size: 15.5px; font-weight: 620; color: var(--ink);
+                margin-top: 34px; }
+  .strip-head:first-child { margin-top: 0; }
+
+  /* ---------- benefits ---------- */
+  .ben { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+         margin-top: 26px; }
+  @media (max-width: 860px) { .ben { grid-template-columns: 1fr; } }
+  .bc { border: 1px solid var(--line); border-radius: 12px;
+        background: var(--bg-raised); padding: 22px 24px; }
+  .bc h3 { font-size: 19px; color: var(--ink); }
+  .bc p { font-size: 15.5px; color: var(--ink-dim); line-height: 1.6;
+          margin-top: 9px; }
 </style>
 </head>
 <body>
@@ -473,6 +491,57 @@
   </div>
 </section>
 
+<!-- ============================ filmstrips ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <h2>Ours is finished before theirs appears.</h2>
+  </div>
+  <div class="wrap" style="margin-top:28px">
+    <div class="strip-head">Right-click a folder</div>
+    <div class="strip">
+      <img src="img/ctxmenu-filmstrip.png" loading="lazy"
+           alt="Frames 33 ms apart: Starling's menu is fully drawn by frame 3; Windows shows nothing until frame 7 and completes at frame 9.">
+    </div>
+    <div class="strip-head">Press the Win key</div>
+    <div class="strip">
+      <img src="img/start-latency-filmstrip.png" loading="lazy"
+           alt="Frames 33 ms apart: Starling's Start menu is drawn by frame 3; Windows shows first pixels at frame 5 and settles at frame 9.">
+    </div>
+  </div>
+</section>
+
+<!-- ============================ what it is not ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">Just a shell</div>
+    <h2>Nothing in it is selling you anything.</h2>
+  </div>
+  <div class="wrap ben">
+    <div class="bc">
+      <h3>No web</h3>
+      <p>
+        Your Start menu and its search read what is installed on your PC and
+        nothing else. Windows keeps a web-search host and a news-feed host
+        running whether you open them or not &mdash; 209&nbsp;MB of them.
+      </p>
+    </div>
+    <div class="bc">
+      <h3>No ads</h3>
+      <p>
+        Nothing promoted in Start, nothing suggested in the file explorer,
+        no feed. The menu shows your apps in the order you put them.
+      </p>
+    </div>
+    <div class="bc">
+      <h3>Nothing running</h3>
+      <p>
+        A tenth of one percent of one CPU core when you are not using it, and
+        100&nbsp;MB less memory than the shell it replaces.
+      </p>
+    </div>
+  </div>
+</section>
+
 <!-- ============================ what you get ============================ -->
 <section>
   <div class="wrap narrow prose">
@@ -523,6 +592,39 @@
       shell window, a second shell told to stand down, and the chrome killed
       outright while the gate times its return and audits the forensics the
       death left behind.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ microsoft ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">Not a controversial claim</div>
+    <h2>Microsoft said this needed fixing in March.</h2>
+    <p>
+      They promised <em>&ldquo;substantially lower latency for search, navigation
+      and context menus&rdquo;</em> back in
+      <a href="https://blogs.windows.com/windows-insider/2026/03/20/our-commitment-to-windows-quality/">March 2026</a>,
+      with progress through the year. Five months on, the menu in the film above
+      still takes 300&nbsp;ms.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ seven days ============================ -->
+<section>
+  <div class="wrap narrow prose">
+    <div class="kicker">The actual point</div>
+    <h2>Seven days, not several quarters.</h2>
+    <p>
+      The whole thing &mdash; taskbar, Start, desktop, tray, notifications, and
+      the file explorer &mdash; was built in a week with
+      <a href="https://claude.com/claude-code">Claude&nbsp;Code</a>.
+    </p>
+    <p>
+      The menu was never slow because the problem is hard. It was slow because
+      fixing it costs a company months. When that stops being true, you just fix
+      it.
     </p>
   </div>
 </section>
