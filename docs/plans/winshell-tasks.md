@@ -604,6 +604,30 @@ reach parity.
 
 ## File explorer — functional gaps (medium)
 
+- [ ] **Escape does not close the context menu.** Found 2026-08-28 by the
+      new gate check, then measured directly: **8 fresh menus out of 8
+      ignored Escape**, and every one of them closed on a click elsewhere.
+      Not intermittent — the earlier "sometimes it works" reading came from
+      a check that watched the wrong window (see below). A wedged menu then
+      sits over the file list until the chrome restarts, and because the
+      popup surface is POOLED, the same window comes back on the next
+      right-click.
+      The likely shape, from `flwin32_popup.c`: the popup is
+      `WS_EX_NOACTIVATE` and never takes focus, so its Escape has to be
+      handled by the HOST window's key path — the same "activated is not
+      focus" trap this tree has already paid for on Wayland (see the root
+      `CLAUDE.md`). The host holds the foreground in every failing trial,
+      so it is not a foreground problem.
+      The gate asserts dismissal through the CLICK-AWAY path deliberately,
+      so it does not ship red for this; fixing the keyboard path is what
+      closes this box, and the check should then be pointed back at Escape.
+      Two traps it cost, worth keeping: watching "is any popup visible"
+      latches onto a *pooled, covered* popup left by an earlier run and
+      reports a menu that will not close when the real one closed fine —
+      identify a menu by `WindowFromPoint`, never by class alone. And a
+      stray foreground app (a leftover Notepad) eats the Escape and looks
+      exactly like this bug.
+
 - [x] Multi-select: Ctrl-click toggles, Shift-click spans from the anchor,
       Ctrl+A, "n items selected", background click deselects, right-click
       keeps a selection it lands inside. Delete recycles the set as ONE

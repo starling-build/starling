@@ -103,6 +103,7 @@ let knownFlags: Set<String> = [
     "--extended", "--fileop-probe", "--files", "--keep-taskbar", "--keep-tray",
     "--keep-winkey", "--launch-app", "--launcher", "--location",
     "--menu-flags",
+    "--files-probe",
     "--menu-handlers", "--menu-invoke", "--menu-probe", "--menu-static",
     "--monitor", "--no-appbar", "--notifications", "--ns-probe", "--oneshell",
     "--oneview", "--plain", "--print-desktop", "--print-machine",
@@ -333,6 +334,271 @@ if CommandLine.arguments.contains("--print-notifications") {
 // entirely from these records: if the sink misreports what an operation
 // did, Ctrl+Z deletes the wrong file, and no amount of watching the UI
 // shows why. move and rename round the trip through their inverses too.
+// `--files-probe` runs the file explorer's whole operation set against a
+// throwaway directory and prints one line per feature, then exits non-zero if
+// any of them failed. The oracle `test/win/gate.ps1` asks, so the gate can
+// check the file manager's VERBS rather than count pixels in a screenshot.
+//
+// Every step is the code path the context menu's buttons reach, called at the
+// C boundary the way --fileop-probe does -- NOT through Win32FileOps. That
+// wrapper hands its result back on `DispatchQueue.main`, and a console process
+// has no main run loop to deliver it: every callback would be dropped and
+// every step would report a timeout. What the wrapper adds over this boundary
+// is the dispatch and the journal decode, both of which this file does
+// itself.
+//
+// So what this proves and what it does not, said plainly rather than left for
+// someone to discover: it proves the operations work and that the shell offers
+// the verbs the pill row invokes. It does not prove a click on the "Copy" pill
+// dispatches the copy -- that wiring is Swift-side in FilesMenu/FilesBloc, and
+// the gate's right-click check covers only that the menu opens at all.
+//
+// Nothing here touches a real user directory. It works in a fresh temp tree
+// and removes it, including on the failure paths, so a red gate does not
+// leave litter behind.
+if CommandLine.arguments.contains("--files-probe") {
+    let fm = FileManager.default
+    let root = Win32Files.join(NSTemporaryDirectory(), "starling-files-probe")
+    try? fm.removeItem(atPath: root)
+    guard (try? fm.createDirectory(atPath: root,
+                                   withIntermediateDirectories: true)) != nil else {
+        print("[files-probe] could not make a work directory at \(root)")
+        exit(2)
+    }
+    var passed = 0
+    var failed = 0
+    /// One feature. The body returns nil for a pass, or why it failed.
+    func step(_ name: String, _ body: () -> String?) {
+        if let why = body() {
+            print("  FAIL \(name): \(why)")
+            failed += 1
+        } else {
+            print("  ok   \(name)")
+            passed += 1
+        }
+    }
+    /// The journal the last operation wrote -- what actually happened, in the
+    /// names the shell settled on.
+    func journal() -> [(kind: Int32, src: String, dst: String)] {
+        var out: [(kind: Int32, src: String, dst: String)] = []
+        var srcBuf = [CChar](repeating: 0, count: 1024)
+        var dstBuf = [CChar](repeating: 0, count: 1024)
+        for i in 0..<flwin32_fileop_journal_count() {
+            var kind: Int32 = 0
+            let ok = srcBuf.withUnsafeMutableBufferPointer { s in
+                dstBuf.withUnsafeMutableBufferPointer { d in
+                    flwin32_fileop_journal_get(i, &kind, s.baseAddress, 1024,
+                                               d.baseAddress, 1024)
+                }
+            }
+            if ok != 0 {
+                out.append((kind, String(cString: srcBuf),
+                            String(cString: dstBuf)))
+            }
+        }
+        return out
+    }
+    func write(_ path: String, _ text: String) {
+        try? text.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+    let exists = { (p: String) in fm.fileExists(atPath: p) }
+
+    print("[files-probe] \(root)")
+
+    // The listing itself -- the explorer's floor. Everything below writes
+    // files; this is the only step that proves we can SEE them.
+    let listed = Win32Files.join(root, "listed.txt")
+    write(listed, "listing")
+    step("the listing shows what is on disk") {
+        let names = Win32Files.list(root).map(\.name)
+        return names.contains("listed.txt") ? nil
+            : "list(\(root)) returned \(names)"
+    }
+
+    // New folder: the New > Folder row, and the destination the rest uses.
+    var box = Win32Files.join(root, "New folder")
+    step("new folder") {
+        guard flwin32_fileop_new_folder(root, "New folder", 0) != 0 else {
+            return "new_folder returned 0"
+        }
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: box, isDirectory: &isDir), isDir.boolValue
+        else { return "no folder at \(box)" }
+        return nil
+    }
+
+    // Copy, the pill's Copy+Paste in one operation, and the journal record an
+    // undo would be built from.
+    let source = Win32Files.join(root, "note.txt")
+    write(source, "starling")
+    step("copy a file into a folder") {
+        guard flwin32_fileop_transfer(source, box, 0, 0) != 0 else {
+            return "transfer(copy) returned 0"
+        }
+        guard exists(Win32Files.join(box, "note.txt")) else {
+            return "no copy at \(Win32Files.join(box, "note.txt"))"
+        }
+        guard exists(source) else { return "a copy removed the original" }
+        let records = journal()
+        guard records.count == 1, records[0].kind == 1 else {
+            return "journal is \(records) -- expected one kind=1 copy"
+        }
+        return nil
+    }
+
+    // Move, and then undo it BY ITS JOURNAL -- the Ctrl+Z path, which moves
+    // each item back to its own folder under its own name.
+    step("move a file, and undo the move") {
+        let moved = Win32Files.join(box, "note.txt")
+        try? fm.removeItem(atPath: moved)
+        guard flwin32_fileop_transfer(source, box, 1, 0) != 0 else {
+            return "transfer(move) returned 0"
+        }
+        guard exists(moved), !exists(source) else {
+            return "after the move: at destination=\(exists(moved)) "
+                 + "still at source=\(exists(source))"
+        }
+        let records = journal()
+        guard records.count == 1, records[0].kind == 2 else {
+            return "journal is \(records) -- expected one kind=2 move"
+        }
+        let line = "\(records[0].dst)\t\(root)\tnote.txt"
+        guard flwin32_fileop_undo_moves(line, 0) != 0 else {
+            return "undo_moves returned 0"
+        }
+        guard exists(source), !exists(moved) else {
+            return "undo left it at destination=\(exists(moved)) "
+                 + "source=\(exists(source))"
+        }
+        return nil
+    }
+
+    // Rename, the pill and the inline field, with its own inverse.
+    step("rename a file, and undo the rename") {
+        let renamed = Win32Files.join(root, "renamed.txt")
+        guard flwin32_fileop_rename(source, "renamed.txt", 0) != 0 else {
+            return "rename returned 0"
+        }
+        guard exists(renamed), !exists(source) else {
+            return "after rename: new=\(exists(renamed)) old=\(exists(source))"
+        }
+        let records = journal()
+        guard records.count == 1, records[0].kind == 3 else {
+            return "journal is \(records) -- expected one kind=3 rename"
+        }
+        guard flwin32_fileop_rename(renamed, "note.txt", 0) != 0,
+              exists(source) else { return "the rename would not go back" }
+        return nil
+    }
+
+    // The clipboard pair: Copy then Paste, through the shell's own data
+    // object, which is what makes a paste into Explorer work too.
+    step("copy to the clipboard, and paste into a folder") {
+        let pasted = Win32Files.join(box, "note.txt")
+        try? fm.removeItem(atPath: pasted)
+        guard flwin32_fileop_clip(source, 0) != 0 else {
+            return "clip(copy) returned 0"
+        }
+        guard flwin32_clipboard_has_files() != 0 else {
+            return "the clipboard reports no files after a copy"
+        }
+        guard flwin32_fileop_paste(box, 0) != 0 else {
+            return "paste returned 0"
+        }
+        guard exists(pasted) else { return "nothing arrived at \(pasted)" }
+        guard exists(source) else { return "a copy-paste moved the original" }
+        return nil
+    }
+
+    // And Cut, which differs from Copy in exactly one thing: the original
+    // goes. Pasted into a second folder so the name cannot collide.
+    let cutBox = Win32Files.join(root, "cut-target")
+    try? fm.createDirectory(atPath: cutBox, withIntermediateDirectories: true)
+    let cutFile = Win32Files.join(root, "cut-me.txt")
+    write(cutFile, "cut")
+    step("cut to the clipboard, and paste it away") {
+        guard flwin32_fileop_clip(cutFile, 1) != 0 else {
+            return "clip(cut) returned 0"
+        }
+        guard flwin32_fileop_paste(cutBox, 0) != 0 else {
+            return "paste returned 0"
+        }
+        let landed = Win32Files.join(cutBox, "cut-me.txt")
+        guard exists(landed) else { return "nothing arrived at \(landed)" }
+        guard !exists(cutFile) else { return "a cut left the original behind" }
+        return nil
+    }
+
+    // Delete to the RECYCLE BIN, and the restore Ctrl+Z performs. The record's
+    // dst is the item's $R slot in the bin: empty means the delete was
+    // permanent, which is the one delete undo cannot reverse.
+    step("delete to the recycle bin, and undo the delete") {
+        let doomed = Win32Files.join(root, "doomed.txt")
+        write(doomed, "bin")
+        guard flwin32_fileop_delete(doomed, 0) != 0 else {
+            return "delete returned 0 (a confirmation dialog nobody answered?)"
+        }
+        guard !exists(doomed) else { return "the file is still there" }
+        let records = journal()
+        guard records.count == 1, records[0].kind == 4 else {
+            return "journal is \(records) -- expected one kind=4 delete"
+        }
+        guard !records[0].dst.isEmpty else {
+            return "the delete recorded no recycle-bin slot -- it was permanent"
+        }
+        guard flwin32_fileop_bin_restore(records[0].dst, 0) != 0 else {
+            return "bin_restore returned 0"
+        }
+        guard exists(doomed) else { return "the restore put nothing back" }
+        try? fm.removeItem(atPath: doomed)
+        return nil
+    }
+
+    // Compress to ZIP: the menu row, which is tar.exe underneath because
+    // Windows exposes no API to its own compress handler.
+    step("compress to a zip") {
+        let zip = Win32Files.join(root, "note.zip")
+        try? fm.removeItem(atPath: zip)
+        let code = flwin32_run_hidden("C:\\Windows\\System32\\tar.exe",
+                                      "-a -c -f \"note.zip\" \"note.txt\"",
+                                      root)
+        guard code == 0 else { return "tar exited \(code)" }
+        guard exists(zip) else { return "no archive at \(zip)" }
+        let size = (try? fm.attributesOfItem(atPath: zip))
+            .flatMap { $0[.size] as? Int } ?? 0
+        guard size > 0 else { return "the archive is empty" }
+        return nil
+    }
+
+    // THE BUTTONS. Our context menu draws six pill cells, and four of them
+    // are shell verbs -- if the shell stops offering one, that button is a
+    // picture of a button. The other two (Paste, Rename) are ours and are
+    // covered by the operation steps above. The list rows below the pills
+    // need `open` for their Open row.
+    //
+    // Asked of a real file through the same session the menu itself opens,
+    // because the answer is a property of THIS machine's installed handlers
+    // rather than of our code -- which is exactly why it belongs in a gate.
+    step("the context menu offers the verbs its buttons invoke") {
+        guard let session = Win32ShellMenu(path: source, owner: 0) else {
+            return "no menu session for \(source)"
+        }
+        let verbs = Set(session.itemsSync().map(\.verb))
+        session.close()
+        let needed = ["cut", "copy", "delete", "windows.modernshare", "open"]
+        let missing = needed.filter { !verbs.contains($0) }
+        guard missing.isEmpty else {
+            return "the shell offered no \(missing.joined(separator: ", ")) "
+                 + "-- it gave \(verbs.sorted().joined(separator: " "))"
+        }
+        return nil
+    }
+
+    try? fm.removeItem(atPath: root)
+    print("[files-probe] \(passed) passed, \(failed) failed")
+    exit(failed == 0 ? 0 : 1)
+}
+
 if let index = CommandLine.arguments.firstIndex(of: "--fileop-probe") {
     guard index + 3 < CommandLine.arguments.count else {
         print("usage: --fileop-probe copy|move|rename <src> <dst-dir|name>")

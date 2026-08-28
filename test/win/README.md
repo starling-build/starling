@@ -24,6 +24,13 @@ brings back a screenshot of the failing screen.
 | the shell holds the minimize target | handles | minimized apps left as title-bar stubs sitting on the dock |
 | a minimized window leaves the screen | handles | the same, from the app's side |
 | the file explorer opens, minimizes, comes back | handles + **pixels** | Files minimized into nowhere; and a restored window that comes back blank |
+| a right-click opens its context menu | handles + **pixels** | a file manager with no menu at all, and the menu that opens as a blank panel — the popup is a real window, so this is a window check with a paint check on top |
+| the listing shows what is on disk | the probe | a file manager that opens onto nothing |
+| the context menu offers the verbs its buttons invoke | the probe | Cut/Copy/Delete/Share drawn as pictures of buttons, because the shell stopped offering the verb behind one |
+| copy / move / rename, and their undos | the probe | an operation that reports success and does nothing; a Ctrl+Z that puts the file back in the wrong folder or under the wrong name |
+| Copy/Cut + Paste through the clipboard | the probe | a paste that copies when it should move, or a cut that leaves the original behind |
+| Delete recycles, and Ctrl+Z restores | the probe | a "delete" that destroys instead of recycling — the one operation whose undo cannot be written afterwards |
+| New folder, Compress to ZIP | the probe | the two menu rows that create something, silently creating nothing |
 | a packaged app launches, minimizes, comes back | handles + **pixels** | Calculator dying two seconds after launch; and an empty frame that passes for a running app |
 | the dock knows which app a packaged window is | the shell's own answer | every Store app getting a SECOND dock tile instead of lighting its pinned one — with Settings and Calculator sharing that tile, because both frames belong to ApplicationFrameHost |
 | the chrome refuses a bare WM_CLOSE, and logs it | an attack + the log | the silent restarts: the chrome obeyed any close, exited code 0, and the session restarted under the user ~15 times in 36h with no crash log to show for it |
@@ -33,7 +40,61 @@ brings back a screenshot of the failing screen.
 | a second --session stands down, and says so | the log | the silent-refusal respawn: a --session that exits without writing a line is how a machine sat shell-less on explorer for seven minutes |
 | a killed chrome comes back, and the death is named | a kill + the logs | recovery: respawn within 45s, the strip re-reserved, an exit CODE in session.log, and the dying run's log preserved — a death without forensics is the 08-27 hunt again |
 
-Every row is a bug that actually shipped, which is the bar for being in here.
+Every row is a bug that actually shipped, or one the file explorer has no
+other guard against, which is the bar for being in here.
+
+## The file explorer rows, and what they honestly cover
+
+The operation rows are driven by `WinShellBar.exe --files-probe`, which runs
+the whole set against a throwaway directory under `%TEMP%` and prints a line
+per feature. The gate runs it **once** and each row reads that output, so a
+red gate names the feature rather than one lump called "files".
+
+It calls the operations at the C boundary, like `--fileop-probe` does, and not
+through `Win32FileOps`: that wrapper answers on `DispatchQueue.main`, a
+console process has no main run loop to deliver it, and every step would time
+out. What the wrapper adds over that boundary is dispatch and journal
+decoding, both of which the probe does itself.
+
+**What this does not prove: that clicking the "Copy" pill dispatches a copy.**
+That wiring is Swift-side, between `FilesMenu` and `FilesBloc`; the probe
+proves the operation works and that the shell still offers the verb the pill
+invokes, and the right-click row proves the menu opens and paints. Closing
+that last gap needs a driver that can click a cell *inside* a Flutter view,
+which this gate does not have — so it is stated here rather than implied by a
+row that sounds stronger than it is.
+
+Both new rows were falsified rather than trusted for being green:
+
+- with the Files window hidden, the right-click lands on the desktop, no
+  popup opens, and the row fails — so it is not passing on some other
+  window's menu. It now asserts the click point is over Files, that Files
+  holds the foreground, and identifies the menu by `WindowFromPoint`.
+- feeding the gate's parser a doctored probe output fails the row three ways:
+  a step that reported FAIL (carrying its reason), a step missing from the
+  output, and a probe that never ran.
+
+**Identify a menu by what is under the cursor, never by class alone.** Popup
+surfaces are pooled and reused, so a run that dies mid-menu leaves one behind:
+still `WS_VISIBLE`, not cloaked, sitting behind the Files window where nothing
+draws it. The first spelling of this row asked "is any popup visible", found
+that ghost *before the click had even happened*, and then reported a menu that
+would not close — while the real menu closed fine. `WindowFromPoint` cannot
+make that mistake: a covered window is never the answer.
+
+**Dismissal is asserted through a click away, not Escape, and that is a
+finding rather than a preference.** Measured on the box: 8 fresh menus out of
+8 ignored Escape, and all 8 closed on a click elsewhere. That is a real bug
+(`docs/plans/winshell-tasks.md`, file explorer functional gaps); asserting the
+broken gesture here would ship a gate that is red for a known reason, which is
+the fastest way to teach everyone to ignore it. When the keyboard path is
+fixed, point this row back at Escape.
+
+**The foreground assertion is load-bearing, not tidiness.** The menu is
+`WS_EX_NOACTIVATE`, so its keyboard is handled by the host window — a stray
+app holding the foreground eats the keystroke. A leftover Notepad from another
+test made this row report a menu that would not close on Escape, before the
+real Escape bug above was isolated.
 
 The last six rows are the **survival section**: the earlier checks ask whether
 the steady state is right, and none of them ever attacked the shell — which is
