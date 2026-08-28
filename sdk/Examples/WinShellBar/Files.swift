@@ -579,12 +579,17 @@ final class StarlingFilesState: State<StatefulWidget> {
         menu.target = { [weak self] x, y in self?.targetAt(x, y) }
         bloc.add(.start)
         // Focused text fields (the search box, an inline rename) get every
-        // key first; the shortcuts see only what no field claimed. This
-        // window owns its process, so taking the process-wide hook is not
-        // stepping on anything.
-        PlatformDispatcher.instance.onKeyData = { [weak self] keyData in
-            if FocusManager.instance.dispatchKeyData(keyData) { return true }
-            return self?.handleShortcut(keyData) ?? false
+        // key first; the shortcuts see only what no field claimed.
+        //
+        // THROUGH THE ROUTER, never straight onto the dispatcher. That slot
+        // holds ONE handler, and this surface shares its process with the
+        // desktop, which also has shortcuts: whichever assigned last used to
+        // silently take the keyboard off the other. Hiding this window and
+        // bringing it back was enough to land on the wrong side of that --
+        // every shortcut dead, mouse fine. See ShellKeys.
+        ShellKeys.register(window: { FilesWindow.current.handle }) {
+            [weak self] keyData in
+            self?.handleShortcut(keyData) ?? false
         }
     }
 
@@ -643,6 +648,18 @@ final class StarlingFilesState: State<StatefulWidget> {
                         self.colDrag = (col, e.position.dx, width)
                         return
                     }
+                    // A PRESS ANYWHERE IN THE LISTING ENDS A RENAME IN
+                    // FLIGHT, which is what Explorer does and what this did
+                    // not: the field simply stayed open, and clicking around
+                    // it left an editor sitting in a row nobody was editing.
+                    //
+                    // It also took the keyboard with it. A focused field
+                    // consumes Escape to unfocus itself (FluentTextBox's key
+                    // handler), so the NEXT Escape -- the one meant for a
+                    // context menu -- never reached handleShortcut and the
+                    // menu would not close. Measured on the box: after a
+                    // click away from a rename, the menu needed two Escapes.
+                    self.commitRenameIfEditing()
                     if e.buttons == 2 {
                         // Explorer's rule: a right-click on a row OUTSIDE
                         // the selection moves the selection to it; inside,
@@ -2496,6 +2513,30 @@ final class StarlingFilesState: State<StatefulWidget> {
 
     /// Select on the first tap, open on a second within half a second. See
     /// `lastTapPath` for why this is not `onDoubleTap`.
+    /// Ends an inline rename the way clicking away from one ends it in
+    /// Explorer: by KEEPING what was typed, not by throwing it away. Safe to
+    /// call when nothing is being renamed.
+    ///
+    /// Committing rather than cancelling is deliberate. Explorer commits, and
+    /// the destructive reading of a stray click is losing the name someone
+    /// just typed -- Escape is still there for "I did not mean this", and it
+    /// still cancels.
+    private func commitRenameIfEditing() {
+        guard bloc.state.renaming != nil, let controller = renameController
+        else { return }
+        let text = controller.text.trimmingCharacters(in: .whitespaces)
+        renameController = nil
+        renamePath = nil
+        // An empty or unchanged name is not a rename: end the edit and leave
+        // the file alone, rather than asking the shell to rename it to what
+        // it is already called (which answers with a conflict dialog).
+        if text.isEmpty {
+            bloc.add(.cancelRename)
+        } else {
+            bloc.add(.commitRename(text))
+        }
+    }
+
     private func tapped(_ entry: Win32FileEntry) {
         keyCursor = entry.path
         // Modified clicks are selection surgery, never activation -- and

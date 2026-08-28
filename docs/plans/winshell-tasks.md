@@ -604,29 +604,40 @@ reach parity.
 
 ## File explorer — functional gaps (medium)
 
-- [ ] **Escape does not close the context menu.** Found 2026-08-28 by the
-      new gate check, then measured directly: **8 fresh menus out of 8
-      ignored Escape**, and every one of them closed on a click elsewhere.
-      Not intermittent — the earlier "sometimes it works" reading came from
-      a check that watched the wrong window (see below). A wedged menu then
-      sits over the file list until the chrome restarts, and because the
-      popup surface is POOLED, the same window comes back on the next
-      right-click.
-      The likely shape, from `flwin32_popup.c`: the popup is
-      `WS_EX_NOACTIVATE` and never takes focus, so its Escape has to be
-      handled by the HOST window's key path — the same "activated is not
-      focus" trap this tree has already paid for on Wayland (see the root
-      `CLAUDE.md`). The host holds the foreground in every failing trial,
-      so it is not a foreground problem.
-      The gate asserts dismissal through the CLICK-AWAY path deliberately,
-      so it does not ship red for this; fixing the keyboard path is what
-      closes this box, and the check should then be pointed back at Escape.
-      Two traps it cost, worth keeping: watching "is any popup visible"
-      latches onto a *pooled, covered* popup left by an earlier run and
-      reports a menu that will not close when the real one closed fine —
-      identify a menu by `WindowFromPoint`, never by class alone. And a
-      stray foreground app (a leftover Notepad) eats the Escape and looks
-      exactly like this bug.
+- [x] **The file explorer's keyboard died when its window was hidden and
+      brought back** -- every shortcut, not just one: Ctrl+A, F2, Escape,
+      while the mouse kept working. Found 2026-08-28 by the gate's new
+      right-click check, which saw only the Escape half (a context menu that
+      would not close is the visible face of it).
+      Cause: `PlatformDispatcher.onKeyData` is ONE slot, not a listener list,
+      and two surfaces assigned it directly -- the file explorer and the
+      desktop -- each carrying the same comment, "this window owns its
+      process, so the process-wide hook is ours". True once; false since the
+      shell became one process with several views, and the second assignment
+      takes the keyboard off the first with no warning. Same shape as the
+      font-registration clobbering, where only the last registration
+      survived.
+      Fixed by `ShellKeys`: surfaces register additively and the keys go to
+      the one whose window holds the FOREGROUND, asked at key time (there is
+      no activation callback to track it with, and a stale answer here is a
+      dead keyboard). The gate now asserts the FIRST Escape closes the menu,
+      which is what stops this coming back.
+      Two traps it cost. An ad-hoc `keybd_event` with scan code 0 cannot
+      match a Ctrl+letter chord -- the shell matches those on the PHYSICAL
+      key id, because with Ctrl held the embedder delivers logical == 0 --
+      so a probe that skips `MapVirtualKey` reports working shortcuts as
+      dead and sends you hunting a bug that is in the test. And the state
+      matters more than the gesture: measuring with the window already open
+      showed a healthy keyboard and hid this entirely.
+
+- [x] **An inline rename did not end when you clicked away.** Explorer
+      commits; ours left the editor open in the row, and the still-focused
+      field then ate the next Escape to unfocus itself -- so a context menu
+      opened afterwards needed two Escapes. Found while chasing the above and
+      fixed with it: a press anywhere in the listing commits a rename in
+      flight (keeping what was typed -- Escape still cancels), and opening a
+      context menu takes the keyboard off any focused field, which is what
+      native menus do.
 
 - [x] Multi-select: Ctrl-click toggles, Shift-click spans from the anchor,
       Ctrl+A, "n items selected", background click deselects, right-click

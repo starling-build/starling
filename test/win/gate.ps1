@@ -739,31 +739,28 @@ Check "a right-click in the file explorer opens its context menu" {
     $shot = Grab ($mr.L + 4) ($mr.T + 4) ([math]::Max(32, $mw - 8)) ([math]::Max(32, $mh - 8))
     $variety = ColourVariety $shot 6
     $shot.Dispose()
-    # AND IT GOES AWAY AGAIN. Judged BY THE CURSOR, for the same reason as
+    # AND IT GOES AWAY ON ESCAPE. Judged BY THE CURSOR, for the same reason as
     # above: the pooled window may still exist and still report itself visible
     # after the menu has left the screen, and what a person cares about is
     # that it is no longer over the file list.
     #
-    # The gesture is a CLICK ELSEWHERE, not Escape, and that is a finding
-    # rather than a preference: measured on the box, 8 fresh menus out of 8
-    # ignored Escape and every one of them closed on a click away. Escape is
-    # what this check used at first, and it is why it went red intermittently.
-    # The keyboard path is a real bug (docs/plans/winshell-tasks.md); asserting
-    # it here would ship a gate that is red for a known reason, which is the
-    # fastest way to teach everyone to ignore a gate. Dismissal is asserted
-    # through the gesture that works, and the broken one is written down.
-    $ax = [int]($r.L + ($r.R - $r.L) * 0.18)
-    $ay = [int]($r.T + ($r.B - $r.T) * 0.22)
+    # THE FIRST Escape, deliberately. This row used to assert a click-away
+    # instead, because a menu reliably needed two Escapes: a text field left
+    # focused -- an inline rename that a click never ended -- ate the first
+    # one to unfocus itself. Both halves of that are fixed (a press in the
+    # listing commits a rename in flight; opening a menu takes the keyboard),
+    # and asserting the FIRST Escape is what stops either from coming back.
     [Gate]::Key(0x1B)
-    Start-Sleep 1
-    $gone = ([Gate]::GetAncestor([Gate]::WindowFromPoint($pt), 2) -ne $menu)
-    $byEscape = $gone
+    $gone = $false
+    for ($i = 0; $i -lt 12; $i++) {
+        Start-Sleep -Milliseconds 250
+        if ([Gate]::GetAncestor([Gate]::WindowFromPoint($pt), 2) -ne $menu) { $gone = $true; break }
+    }
     if (-not $gone) {
-        [Gate]::LeftClick($ax, $ay)
-        for ($i = 0; $i -lt 12; $i++) {
-            Start-Sleep -Milliseconds 250
-            if ([Gate]::GetAncestor([Gate]::WindowFromPoint($pt), 2) -ne $menu) { $gone = $true; break }
-        }
+        # Leave no menu behind for the checks that follow, whatever the verdict.
+        [Gate]::LeftClick([int]($r.L + ($r.R - $r.L) * 0.18),
+                          [int]($r.T + ($r.B - $r.T) * 0.22))
+        Start-Sleep 1
     }
     # Back the way it was found. The Escape that dismissed the menu can reach
     # the Files surface too, so a window that WAS up is shown again rather
@@ -773,7 +770,7 @@ Check "a right-click in the file explorer opens its context menu" {
     if ($variety -lt 8) { return "the menu opened ${mw}x${mh} but only $variety distinct colours are in it -- a blank menu" }
     if (-not $gone) {
         $fgNow = [Gate]::GetAncestor([Gate]::GetForegroundWindow(), 2)
-        return "the menu ($menu) is WEDGED -- still under ($x,$y) after Escape and a click away; the foreground is $fgNow and Files is $f"
+        return "the menu ($menu) was still under ($x,$y) 3s after Escape; the foreground is $fgNow and Files is $f. A focused text field eating the first Escape is the known shape of this."
     }
     return $true
 }

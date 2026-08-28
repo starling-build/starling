@@ -547,10 +547,18 @@ final class StarlingDesktopState: State<StatefulWidget> {
         super.initState()
         bloc.surfaceId = (widget as! StarlingDesktop).surfaceId
         bloc.start()
-        // This window owns its process, so the process-wide hook is ours.
-        PlatformDispatcher.instance.onKeyData = { [weak self] keyData in
-            if FocusManager.instance.dispatchKeyData(keyData) { return true }
-            return self?.handleKey(keyData) ?? false
+        // THROUGH THE ROUTER, never straight onto the dispatcher: that slot
+        // holds one handler, and the file explorer in this same process has
+        // shortcuts too. Assigning it here used to take the keyboard off
+        // whichever of the two started first. See ShellKeys.
+        ShellKeys.register(window: {
+            guard let sid = (self.widget as! StarlingDesktop).surfaceId else {
+                // Not a surface: the desktop is the host window's own view.
+                return Win32WindowedHost.host?.windowHandle ?? 0
+            }
+            return Win32Surfaces.windowHandle(sid)
+        }) { [weak self] keyData in
+            self?.handleKey(keyData) ?? false
         }
         menu.target = { [weak self] x, y in
             guard let self else { return nil }

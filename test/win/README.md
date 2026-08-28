@@ -82,13 +82,15 @@ that ghost *before the click had even happened*, and then reported a menu that
 would not close — while the real menu closed fine. `WindowFromPoint` cannot
 make that mistake: a covered window is never the answer.
 
-**Dismissal is asserted through a click away, not Escape, and that is a
-finding rather than a preference.** Measured on the box: 8 fresh menus out of
-8 ignored Escape, and all 8 closed on a click elsewhere. That is a real bug
-(`docs/plans/winshell-tasks.md`, file explorer functional gaps); asserting the
-broken gesture here would ship a gate that is red for a known reason, which is
-the fastest way to teach everyone to ignore it. When the keyboard path is
-fixed, point this row back at Escape.
+**Dismissal is asserted on the FIRST Escape, and that assertion is what
+found the bug this row exists for.** It was briefly relaxed to a click-away
+while the cause was unknown: menus reliably needed two Escapes. The cause
+turned out to be two of them. An inline rename that a click never ended left
+a focused field eating the first Escape; and the file explorer's whole
+keyboard died whenever its window was hidden and brought back, because
+`PlatformDispatcher.onKeyData` is one slot and the desktop surface in the
+same process assigned it too (see `docs/plans/winshell-tasks.md`). Both are
+fixed, and asserting the first Escape is what keeps them fixed.
 
 **The foreground assertion is load-bearing, not tidiness.** The menu is
 `WS_EX_NOACTIVATE`, so its keyboard is handled by the host window — a stray

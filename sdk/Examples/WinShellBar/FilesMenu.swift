@@ -684,6 +684,15 @@ final class ShellMenuModel {
     @discardableResult
     func open(at x: Double, _ y: Double) -> Bool {
         guard let target = target?(x, y) else { return false }
+        // AN OPEN MENU OWNS THE KEYBOARD, so no text field may be left
+        // holding it. A focused field is offered every key first and eats
+        // Escape to unfocus itself, which means the Escape meant for this
+        // menu never reaches the shortcut handler that would close it --
+        // the menu then only closes on a click, and the second Escape is
+        // the one that works. That is what a search box or an address bar
+        // left focused does to this menu, and it is what native menus do
+        // not do: opening one takes the keyboard.
+        FocusManager.instance.focusedNode?.unfocus()
         let entry: Win32FileEntry?
         switch target {
         case .background: entry = nil
