@@ -26,7 +26,16 @@ param(
     # Written on every run, pass or fail -- it is the record of what the gate
     # was looking at, and the only thing that can answer "but does it LOOK
     # right", which no check here claims to.
-    [string]$Screenshot = "C:\dist\gate-shot.png"
+    [string]$Screenshot = "C:\dist\gate-shot.png",
+    # The shell binary to interrogate. Empty means FIND IT, in this order:
+    # the running shell's own image, then the dev box's staging tree, then a
+    # per-user install. Discovery rather than a constant because this gate now
+    # runs in two places -- the dev box, where the shell is staged into
+    # C:\dist\Starling, and a clean VM, where an installed shell lives under
+    # %LOCALAPPDATA%\Programs\Starling. Asking the RUNNING process first is
+    # also the honest order: the gate should interrogate the shell that is
+    # actually up, not a copy on disk that may not be the one running.
+    [string]$ShellExe = ""
 )
 
 $ErrorActionPreference = 'Continue'
@@ -79,6 +88,7 @@ public class Gate {
   [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
   [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint f);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
   [DllImport("user32.dll")] public static extern bool PeekMessageW(out MSG m, IntPtr h, uint a, uint b, uint r);
   [DllImport("user32.dll")] public static extern bool TranslateMessage(ref MSG m);
   [DllImport("user32.dll")] public static extern IntPtr DispatchMessageW(ref MSG m);
@@ -162,6 +172,18 @@ public class Gate {
   // kept alive and hidden between opens (flwin32_popup.c) -- so asking
   // FindClass whether a menu is on screen answers yes about one that closed
   // minutes ago. Titles are no help either: the popup carries none.
+  // Every VISIBLE window of a class, so a caller can tell a popup that is new
+  // since a click from one that was already lying around.
+  public static IntPtr[] VisiblePopups(string cls) {
+    var found = new System.Collections.Generic.List<IntPtr>();
+    EnumWindows((h,p) => {
+      if (!IsWindowVisible(h)) return true;
+      var c = new StringBuilder(256); GetClassNameW(h, c, 256);
+      if (c.ToString() == cls) found.Add(h);
+      return true;
+    }, IntPtr.Zero);
+    return found.ToArray();
+  }
   public static IntPtr FindVisibleClass(string cls) {
     IntPtr found = IntPtr.Zero;
     EnumWindows((h,p) => {
@@ -394,6 +416,19 @@ function ChangedFraction($a, $b, $step = 4, $tolerance = 24) {
     return [math]::Round($diff / [double]$n, 4)
 }
 
+# What the dock's strip SHOULD measure on THIS display. kDockHeight is 56
+# logical points (Dock.swift), so the physical strip scales with the display:
+# 112 px on the dev box at 200%, 56 px on a 100% VM. A fixed floor of 60 px
+# was written on the 4K box and failed a perfectly correct 56 px reservation
+# the first time this gate ran on a clean VM -- twice, since the restart check
+# asserts the same thing.
+function ExpectedStrip() {
+    $dpi = 96
+    try { $dpi = [Gate]::GetDpiForSystem() } catch { }
+    if ($dpi -lt 96) { $dpi = 96 }
+    return [int](56 * $dpi / 96.0)
+}
+
 # The strip the dock reserves, and the band of desktop directly above it --
 # where a minimized window's stub would land.
 function ReservedHeight() {
@@ -404,7 +439,16 @@ function ReservedHeight() {
 
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 "Starling Windows gate -- screen $($screen.Width)x$($screen.Height)"
-"exe " + (Get-FileHash 'C:\dist\Starling\WinShellBar.exe' -Algorithm SHA256 -EA SilentlyContinue).Hash.Substring(0,16)
+if (-not $ShellExe) {
+    $running = Get-Process WinShellBar -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path } | Select-Object -First 1
+    $ShellExe = if ($running) { $running.Path }
+                elseif (Test-Path 'C:\dist\Starling\WinShellBar.exe') { 'C:\dist\Starling\WinShellBar.exe' }
+                else { Join-Path $env:LOCALAPPDATA 'Programs\Starling\WinShellBar.exe' }
+}
+"shell " + $ShellExe
+$exeHash = (Get-FileHash $ShellExe -Algorithm SHA256 -EA SilentlyContinue).Hash
+"exe " + $(if ($exeHash) { $exeHash.Substring(0,16) } else { "NOT FOUND at $ShellExe" })
 ""
 
 # ── the session itself ───────────────────────────────────────────────────────
@@ -481,14 +525,15 @@ Check "the dock reserves its strip" {
     # second one reports a bug that is gone by the time anyone looks -- which
     # it did, twice, before this loop existed.
     $reserved = 0
+    $expected = ExpectedStrip
     for ($i = 0; $i -lt 15; $i++) {
         $wa = New-Object RECT
         [void][Gate]::SystemParametersInfoW(0x0030, 0, [ref]$wa, 0)
         $reserved = $screen.Height - $wa.B
-        if ($reserved -ge 60 -and $reserved -le 300) { return $true }
+        if ($reserved -ge [int]($expected * 0.75) -and $reserved -le [int]($expected * 2)) { return $true }
         Start-Sleep 2
     }
-    "after 30s the work area is still $($screen.Height - $reserved) of $($screen.Height): $reserved px reserved"
+    "after 30s the work area is still $($screen.Height - $reserved) of $($screen.Height): $reserved px reserved, expected about $expected"
 }
 
 Check "the desktop surface is on screen" {
@@ -672,21 +717,22 @@ Check "a right-click in the file explorer opens its context menu" {
     $y = [int]($r.T + ($r.B - $r.T) * 0.72)
     $pt = New-Object POINT
     $pt.X = $x; $pt.Y = $y
-    # A MENU LEFT OVER FROM SOMETHING ELSE gets dismissed first, rather than
-    # failing this check. A popup surface that outlived its opener -- an
-    # interrupted run, a probe that exited mid-menu -- sits over the file list
-    # and would make the assertion below report "the file list is not under
-    # that point", which is true, useless, and not what this check is for.
-    # Escape it and look again; a popup that will NOT go is a real stuck menu
-    # and still fails below, with its handle named.
-    for ($i = 0; $i -lt 3; $i++) {
-        $over = [Gate]::GetAncestor([Gate]::WindowFromPoint($pt), 2)
-        if ($over -eq $f -or $over -eq [IntPtr]::Zero) { break }
-        $cls = New-Object System.Text.StringBuilder 256
-        [void][Gate]::GetClassNameW($over, $cls, 256)
-        if ($cls.ToString() -ne "StarlingPopupSurface") { break }
+    # EVERY LEFTOVER POPUP GOES FIRST, not just one under the cursor.
+    # A popup surface that outlived its opener -- an interrupted run, a probe
+    # that exited mid-menu -- is indistinguishable from the menu this check is
+    # about to open, because the surfaces are POOLED and the same window comes
+    # back. Escaping only the one under the cursor missed a menu that had
+    # flipped upward, and the check then reported that no menu opened when the
+    # real one had simply reused that window.
+    for ($i = 0; $i -lt 4; $i++) {
+        if (([Gate]::VisiblePopups("StarlingPopupSurface")).Count -eq 0) { break }
         [Gate]::Key(0x1B)
         Start-Sleep 1
+    }
+    $stale = [Gate]::VisiblePopups("StarlingPopupSurface")
+    if ($stale.Count -gt 0) {
+        if (-not $wasVisible) { [void][Gate]::ShowWindow($f, 0) }
+        return "a popup ($($stale[0])) was already open before the right-click and would not dismiss"
     }
     # THE CLICK HAS TO LAND ON FILES, and that is asserted rather than assumed.
     # A hidden Files window leaves these coordinates over the desktop -- and
@@ -698,31 +744,38 @@ Check "a right-click in the file explorer opens its context menu" {
         return "the file list is not under ($x,$y) -- that point belongs to window $under, not to Files ($f)"
     }
 
-    # THE MENU IS THE WINDOW UNDER THE CURSOR, not "some visible popup".
+    # THE MENU IS A POPUP THAT IS NEW SINCE THE CLICK AND TOUCHES IT.
     #
-    # Popup surfaces are POOLED and reused (flwin32_popup.c), and a run that
-    # dies mid-menu can leave one behind: still WS_VISIBLE, not cloaked,
-    # sitting BEHIND the Files window where nothing draws it. Two earlier
-    # spellings of this check both latched onto such a ghost -- "is any popup
-    # visible" found it before the click even happened, and the check then
-    # reported a menu that would not close, while a hand-driven repeat closed
-    # the real menu in under half a second every time. Asking what is under
-    # the click point cannot make that mistake: a covered window is never the
-    # answer, and the menu opens AT the cursor.
+    # Both halves are load-bearing. Popup surfaces are POOLED and reused
+    # (flwin32_popup.c), so a run that died mid-menu can leave one behind --
+    # visible, uncloaked, sitting behind the Files window where nothing draws
+    # it. "Is any popup visible" found that ghost before the click had even
+    # happened and then reported a menu that would not close, while the real
+    # menu closed fine; requiring the window to be NEW since the click is what
+    # rejects it.
+    #
+    # And ADJACENCY, not containment: a menu opens at the cursor but FLIPS
+    # when it would fall off the screen, so on a small display it extends
+    # upward and its bottom edge lands exactly on the click -- one pixel
+    # outside its own rect. An earlier spelling asked what was under the
+    # cursor and therefore failed on every 800px-tall screen while passing on
+    # the 4K box, which is the kind of "works here" this gate exists to catch.
     [Gate]::RightClick($x, $y)
     $menu = [IntPtr]::Zero
-    for ($i = 0; $i -lt 20; $i++) {
+    for ($i = 0; $i -lt 40; $i++) {
         Start-Sleep -Milliseconds 250
-        $top = [Gate]::GetAncestor([Gate]::WindowFromPoint($pt), 2)
-        if ($top -ne $f -and $top -ne [IntPtr]::Zero) {
-            $cls = New-Object System.Text.StringBuilder 256
-            [void][Gate]::GetClassNameW($top, $cls, 256)
-            if ($cls.ToString() -eq "StarlingPopupSurface") { $menu = $top; break }
+        foreach ($h in [Gate]::VisiblePopups("StarlingPopupSurface")) {
+            $rr = New-Object RECT
+            [void][Gate]::GetWindowRect($h, [ref]$rr)
+            $ddx = [math]::Max(0, [math]::Max($rr.L - $x, $x - $rr.R))
+            $ddy = [math]::Max(0, [math]::Max($rr.T - $y, $y - $rr.B))
+            if ($ddx -le 32 -and $ddy -le 32) { $menu = $h; break }
         }
+        if ($menu -ne [IntPtr]::Zero) { break }
     }
     if ($menu -eq [IntPtr]::Zero) {
         if (-not $wasVisible) { [void][Gate]::ShowWindow($f, 0) }
-        return "5s after the right-click, the window under ($x,$y) is still not a StarlingPopupSurface"
+        return "10s after the right-click at ($x,$y) no new popup opened next to it"
     }
     $mr = New-Object RECT
     [void][Gate]::GetWindowRect($menu, [ref]$mr)
@@ -754,7 +807,7 @@ Check "a right-click in the file explorer opens its context menu" {
     $gone = $false
     for ($i = 0; $i -lt 12; $i++) {
         Start-Sleep -Milliseconds 250
-        if ([Gate]::GetAncestor([Gate]::WindowFromPoint($pt), 2) -ne $menu) { $gone = $true; break }
+        if (-not [Gate]::IsWindowVisible($menu)) { $gone = $true; break }
     }
     if (-not $gone) {
         # Leave no menu behind for the checks that follow, whatever the verdict.
@@ -770,7 +823,7 @@ Check "a right-click in the file explorer opens its context menu" {
     if ($variety -lt 8) { return "the menu opened ${mw}x${mh} but only $variety distinct colours are in it -- a blank menu" }
     if (-not $gone) {
         $fgNow = [Gate]::GetAncestor([Gate]::GetForegroundWindow(), 2)
-        return "the menu ($menu) was still under ($x,$y) 3s after Escape; the foreground is $fgNow and Files is $f. A focused text field eating the first Escape is the known shape of this."
+        return "the menu ($menu) was still visible 3s after Escape; the foreground is $fgNow and Files is $f. A focused text field eating the first Escape is the known shape of this."
     }
     return $true
 }
@@ -779,7 +832,7 @@ Check "a right-click in the file explorer opens its context menu" {
 # below rather than silently passing them.
 $filesProbe = ""
 try {
-    $filesProbe = (& 'C:\dist\Starling\WinShellBar.exe' --files-probe 2>&1 | Out-String)
+    $filesProbe = (& $ShellExe --files-probe 2>&1 | Out-String)
 } catch {
     $filesProbe = "the probe would not run: " + $_.Exception.Message
 }
@@ -864,6 +917,31 @@ Check "a packaged app launches, minimizes and comes back" {
         if ($w -eq [IntPtr]::Zero -or -not [Gate]::IsWindowVisible($w)) { continue }
         $r = New-Object RECT
         [void][Gate]::GetWindowRect($w, [ref]$r)
+        # GRADE THE APP'S PIXELS ONLY WHERE THE APP IS ACTUALLY ON TOP.
+        # Grabbing the screen at a window's rect grades whatever covers it,
+        # and on a small display our own file explorer covers most of the
+        # screen: this check called Calculator blank on a 1280x800 VM while
+        # Calculator was drawing perfectly underneath it. The 4K dev box
+        # leaves the two side by side, so it never showed there.
+        #
+        # Raising the app does not work -- SetForegroundWindow is refused to a
+        # background process and fails silently -- so the covering window is
+        # moved out of the way instead, and only ours ever is: minimizing a
+        # third party's window to make a test pass would be a lie about what
+        # the user's screen looks like.
+        $mid = New-Object POINT
+        $mid.X = [int](($r.L + $r.R) / 2); $mid.Y = [int](($r.T + $r.B) / 2)
+        for ($k = 0; $k -lt 3; $k++) {
+            $onTop = [Gate]::GetAncestor([Gate]::WindowFromPoint($mid), 2)
+            if ($onTop -eq $w -or $onTop -eq [IntPtr]::Zero) { break }
+            $t = New-Object System.Text.StringBuilder 256
+            [void][Gate]::GetWindowTextW($onTop, $t, 256)
+            if (-not $t.ToString().StartsWith("Starling")) { break }
+            [void][Gate]::ShowWindow($onTop, 6)   # minimize ours, not theirs
+            Start-Sleep 2
+        }
+        [void][Gate]::BringWindowToTop($w)
+        Start-Sleep 2
         $shot = Grab ($r.L + 12) ($r.T + 40) ([math]::Max(64, $r.R - $r.L - 24)) ([math]::Max(64, $r.B - $r.T - 60))
         $variety = ColourVariety $shot 10
         $flat = DominantShare $shot 10
@@ -895,7 +973,16 @@ Check "a packaged app launches, minimizes and comes back" {
         return "the frame exists but is DWM-cloaked ($cloaked) -- running, and invisible to the user"
     }
 
-    if ($variety -lt 25) { return "the window is on screen but blank ($variety colours)" }
+    # TEN, not twenty-five. A window that never painted is one flat fill --
+    # two or three quantised colours at most -- so ten is still miles clear of
+    # blank, and it is what the file explorer's own paint check uses. The old
+    # 25 was picked on the 4K dev box, where Calculator is large and full of
+    # antialiased gradients; a perfectly drawn Calculator on a 1280x800
+    # software-rendered VM measures 19, and this check called it blank while a
+    # screenshot showed every button. Confirmed on top at its own centre
+    # (WindowFromPoint) before the count, so a low number now means the app
+    # really did not paint.
+    if ($variety -lt 10) { return "the window is on screen but blank ($variety colours)" }
     if ($flat -ge 0.90) {
         return ("the frame is on screen but the app never drew into it -- " +
                 "{0:P0} of it is one flat colour (an empty frame with the app's icon)" -f $flat)
@@ -1117,7 +1204,7 @@ Check "a killed chrome comes back, and the death is named" {
     for ($i = 0; $i -lt 15; $i++) {
         $wa = New-Object RECT
         [void][Gate]::SystemParametersInfoW(0x0030, 0, [ref]$wa, 0)
-        if (($screen.Height - $wa.B) -ge 60) { return $true }
+        if (($screen.Height - $wa.B) -ge [int]((ExpectedStrip) * 0.75)) { return $true }
         Start-Sleep 2
     }
     "the new chrome never reserved its strip"

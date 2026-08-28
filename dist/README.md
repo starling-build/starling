@@ -4,11 +4,12 @@
 shell for Windows 11, x86_64: dock, Start menu, desktop, file manager and
 tray, the thing the site's Windows page films. 39.1 / 39.6 MB, checksums in
 `SHA256SUMS`, both produced by `build/win/package-shell.ps1` — the single
-definition of what a Windows install contains — from branch
-`release-winshell-0.1.0` (commit in `BUILD-STAMP.txt` inside; engine pinned
-by the same branch name in starling-engine). The exact `WinShellBar.exe` in
-both passed the 17-check shell gate (`test/win/run-gate.sh`) on the
-physical box before it landed here.
+definition of what a Windows install contains — from mainline (commit in
+`BUILD-STAMP.txt` inside; engine pinned by `release-winshell-0.1.0` in
+starling-engine). The exact `WinShellBar.exe` in both passed the 28-check
+shell gate twice: on the physical box (`test/win/run-gate.sh`), and —
+installed from this very setup exe — on a clean Windows 11 VM that has
+never had a toolchain on it (`test/win/run-gate-vm.sh`).
 
 The setup exe is the zip plus a one-line bootstrap: double-click, and it
 installs to `%LOCALAPPDATA%\Programs\Starling` and registers, effective at

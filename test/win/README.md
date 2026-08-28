@@ -11,6 +11,39 @@ STARLING_WIN_HOST=user@host test/win/run-gate.sh
 It exits 0 when every check passes, prints what failed when they don't, and
 brings back a screenshot of the failing screen.
 
+## Two places to run it
+
+`run-gate.sh` drives the **physical box** over SSH, against the staged tree.
+`run-gate-vm.sh` drives a **libvirt VM** through the QEMU guest agent, against
+an INSTALLED package — no SSH, files in over HTTP from the host:
+
+```bash
+test/win/run-gate-vm.sh -d win11-gate --install dist/StarlingSetup-0.1.0.exe
+test/win/run-gate-vm.sh -d win11-gate          # gate what is already installed
+```
+
+The VM is the honest environment for a release: the dev box has the toolchain,
+an engine checkout and a staged tree on it, so it cannot say whether the
+*package* works. `docs/WINDOWS-INSTALL.md` covers making a clean VM; run the
+gate on a copy-on-write overlay so the clean box stays clean.
+
+**Everything the VM caught the first time it ran was a bug in the GATE, not in
+the shell** — and each was a "works on my 4K screen" assumption:
+
+- the dock-strip check demanded 60 px. The dock is 56 *points*, so it reserves
+  112 px at the dev box's 200% and exactly 56 at a VM's 100%; a correct
+  reservation failed. It scales with the display now (`ExpectedStrip`).
+- the context menu **flips upward** when it will not fit below the cursor, so
+  on a short screen its bottom edge lands *on* the click and "the popup under
+  the cursor" finds the window behind it. Adjacency, not containment.
+- Calculator was graded blank because our own file explorer was on top of it:
+  grabbing the screen at a window's rect grades whatever covers it. The check
+  now confirms the app owns its own centre first, and moves OUR window if not.
+- and the blankness threshold itself was 25 distinct colours, measured on a
+  large antialiased 4K Calculator. A perfectly drawn one on a 1280x800
+  software-rendered VM has 19. It is 10 now, which is still far from the two
+  or three a window that never painted produces.
+
 ## What it checks, and why each one is here
 
 | check | looks at | the bug it would have caught |
