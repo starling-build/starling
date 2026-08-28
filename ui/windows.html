@@ -144,6 +144,9 @@
   }
 
   /* ---------- three points ---------- */
+  .points.four { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 980px) { .points.four { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .points.four { grid-template-columns: 1fr; } }
   .points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
   @media (max-width: 860px) { .points { grid-template-columns: 1fr; } }
   .point { border: 1px solid var(--line); border-radius: 12px;
@@ -416,15 +419,15 @@
       <span class="active" data-src="video/start-latency.mp4"
             data-poster="img/start-latency-poster.jpg"
             data-title="Pressing the Win key, head to head"
-            data-cap="same machine, same keystroke, played at 1/8 speed — Starling's menu is finished at 67 ms, in the frame it first appears; Windows 11's settles at 300 ms. Median of 20 warm opens each.">Start menu</span>
+            data-cap="Win key pressed on both, played at 1/8 speed. Starling is done at 67 ms; Windows settles at 300 ms.">Start menu</span>
       <span data-src="video/file-launch.mp4"
             data-poster="img/file-launch-poster.jpg"
             data-title="Opening the file manager — Win+E"
-            data-cap="Starling pays for a whole new process on every open in this take; Explorer opens a window inside its already-running shell — and Starling still lists files at a 500 ms median against Explorer's 1149 ms.">File manager</span>
+            data-cap="Win+E on both. Starling lists your files while Explorer is still loading.">File manager</span>
       <span data-src="video/ctxmenu-latency.mp4"
             data-poster="img/ctxmenu-latency-poster.jpg"
             data-title="Right-click to a finished menu"
-            data-cap="right-click a folder — Starling's menu is finished at 67 ms, in its first frame; Explorer's first pixels land at 233 ms and it settles at 300 ms. Median of 20 warm opens each.">Context menu</span>
+            data-cap="Right-click a folder. Starling's menu is done at 67 ms; Explorer's settles at 300 ms.">Context menu</span>
     </div>
     <div class="frame">
       <video id="race-video" src="video/start-latency.mp4"
@@ -432,9 +435,8 @@
              autoplay loop muted playsinline controls></video>
     </div>
     <div class="shot-label"><b id="race-title">Pressing the Win key, head to head</b>
-      <span id="race-cap">same machine, same keystroke, played at 1/8 speed —
-      Starling's menu is finished at 67 ms, in the frame it first appears;
-      Windows 11's settles at 300 ms. Median of 20 warm opens each.</span></div>
+      <span id="race-cap">Win key pressed on both, played at 1/8 speed. Starling
+      is done at 67 ms; Windows settles at 300 ms.</span></div>
   </div>
 </div>
 
@@ -461,33 +463,35 @@
 })();
 </script>
 
-<!-- ============================ three points ============================ -->
+<!-- ============================ numbers ============================ -->
 <section>
-  <div class="wrap points">
+  <div class="wrap points four">
     <div class="point">
       <div class="big">4.5&times;</div>
-      <h3>Faster to Start</h3>
-      <p>The Start menu is finished at 67&nbsp;ms — in the frame it first
-         appears — where Windows&nbsp;11's settles at 300&nbsp;ms. Every number
-         on this page is a median of 20 warm runs, filmed on the same machine
-         at matched capture.</p>
+      <h3>Start menu</h3>
+      <p>67 ms vs 300 ms</p>
     </div>
     <div class="point">
-      <div class="big">1 <small>process</small></div>
-      <h3>The whole chrome, one process</h3>
-      <p>Dock, Start, desktop and file manager are one binary and one
-         process — the launcher is a layer of the dock's own widget tree, the
-         desktop a second engine view, the file manager a window of the same
-         process that opens with no process start at all.</p>
+      <div class="big">4.5&times;</div>
+      <h3>Right-click menu</h3>
+      <p>67 ms vs 300 ms</p>
     </div>
     <div class="point">
-      <div class="big">0 <small>admin</small></div>
-      <h3>Per-user, and reversible</h3>
-      <p>The shell registration is a per-user value: one account opts in,
-         every other account keeps Explorer, and nothing touches Program
-         Files or a service. Uninstall — or one command — and Explorer is
-         back at your next sign-in.</p>
+      <div class="big">2.9&times;</div>
+      <h3>File Explorer</h3>
+      <p>483 ms vs 1400 ms</p>
     </div>
+    <div class="point">
+      <div class="big">100 <small>MB</small></div>
+      <h3>Less memory</h3>
+      <p>492 MB vs 595 MB</p>
+    </div>
+  </div>
+  <div class="wrap narrow">
+    <p class="note" style="margin-top:22px">
+      Same PC, twenty runs each.
+      <a href="https://github.com/starling-build/starling/tree/main/docs/perf">All of the numbers.</a>
+    </p>
   </div>
 </section>
 
@@ -496,7 +500,7 @@
   <div class="wrap narrow prose">
     <h2>Ours is finished before theirs appears.</h2>
   </div>
-  <div class="wrap" style="margin-top:28px">
+  <div class="wrap" style="margin-top:26px">
     <div class="strip-head">Right-click a folder</div>
     <div class="strip">
       <img src="img/ctxmenu-filmstrip.png" loading="lazy"
@@ -510,7 +514,7 @@
   </div>
 </section>
 
-<!-- ============================ what it is not ============================ -->
+<!-- ============================ benefits ============================ -->
 <section>
   <div class="wrap narrow prose">
     <div class="kicker">Just a shell</div>
@@ -518,80 +522,32 @@
   </div>
   <div class="wrap ben">
     <div class="bc">
-      <h3>No web</h3>
-      <p>
-        Your Start menu and its search read what is installed on your PC and
-        nothing else. Windows keeps a web-search host and a news-feed host
-        running whether you open them or not &mdash; 209&nbsp;MB of them.
-      </p>
+      <h3>No bloatware</h3>
+      <p>No web search, no news feed, no widgets. Start reads what is
+         installed on your PC &mdash; Windows keeps 209&nbsp;MB of web hosts
+         running for its own.</p>
     </div>
     <div class="bc">
       <h3>No ads</h3>
-      <p>
-        Nothing promoted in Start, nothing suggested in the file explorer,
-        no feed. The menu shows your apps in the order you put them.
-      </p>
+      <p>Nothing promoted, nothing suggested, nothing recommended. Your apps,
+         in the order you put them.</p>
     </div>
     <div class="bc">
       <h3>Nothing running</h3>
-      <p>
-        A tenth of one percent of one CPU core when you are not using it, and
-        100&nbsp;MB less memory than the shell it replaces.
-      </p>
+      <p>A tenth of one percent of your CPU when you are not using it.</p>
     </div>
   </div>
 </section>
 
-<!-- ============================ what you get ============================ -->
+<!-- ============================ replaces ============================ -->
 <section>
   <div class="wrap narrow prose">
     <div class="kicker">The shell</div>
-    <h2>The parts of Windows you touch, replaced</h2>
+    <h2>Everything you touch, replaced.</h2>
     <p>
-      Starling takes over the session the way Explorer does — Winlogon starts
-      it as <em>the</em> shell — and stands in for the pieces you actually
-      use: the <strong>dock</strong> with your pinned and running apps, a
-      <strong>Start menu</strong> that searches everything the real one lists,
-      the <strong>desktop</strong> with your wallpaper and icons, the
-      <strong>system tray</strong> with quick settings and notifications,
-      banners, and the Run dialog. Maximized windows stop at the dock's edge;
-      minimized windows park off screen and come back from the dock, exactly
-      as they do under Explorer.
-    </p>
-    <p>
-      The apps keep working, including the awkward ones: Store apps of the
-      CoreWindow generation — Calculator, Settings, Paint, the Store itself —
-      launch, draw and minimize correctly, because Starling keeps a background
-      Explorer alive as a service for the plumbing only they need, while
-      making sure it never shows a taskbar, a desktop, or any chrome of its
-      own. Your startup apps run at sign-in in Explorer's documented order,
-      RunOnce semantics included.
-    </p>
-  </div>
-</section>
-
-<!-- ============================ resilience ============================ -->
-<section>
-  <div class="wrap narrow prose">
-    <div class="kicker">Resilience</div>
-    <h2>Built to take a punch</h2>
-    <p>
-      A shell is the one program on the machine that is not allowed to leave.
-      Starling's chrome <strong>refuses polite close requests</strong> — a
-      stray Alt+F4, anything posting a close at the shell's window — the way
-      Explorer's taskbar does, and writes down who tried. A supervisor
-      restarts a crashed chrome in seconds, records the exit code, and keeps
-      the dying run's log. And if restarting ever stops helping, the
-      supervisor <strong>hands the machine back</strong>: it unregisters
-      itself and starts Explorer, so the worst case of a bad day is the stock
-      desktop, never a black screen.
-    </p>
-    <p>
-      This is tested by attack, not by hope: the shipping gate is 17 checks
-      on real hardware, and the last six are hostile — closes posted at every
-      shell window, a second shell told to stand down, and the chrome killed
-      outright while the gate times its return and audits the forensics the
-      death left behind.
+      Taskbar, Start menu, desktop, tray, notifications and File Explorer. Your
+      apps keep working &mdash; Store apps included &mdash; and if the shell
+      ever fails, Windows' own desktop comes back on its own.
     </p>
   </div>
 </section>
@@ -600,31 +556,25 @@
 <section>
   <div class="wrap narrow prose">
     <div class="kicker">Not a controversial claim</div>
-    <h2>Microsoft said this needed fixing in March.</h2>
+    <h2>Microsoft agrees Windows should be faster.</h2>
     <p>
       They promised <em>&ldquo;substantially lower latency for search, navigation
-      and context menus&rdquo;</em> back in
-      <a href="https://blogs.windows.com/windows-insider/2026/03/20/our-commitment-to-windows-quality/">March 2026</a>,
-      with progress through the year. Five months on, the menu in the film above
-      still takes 300&nbsp;ms.
+      and context menus&rdquo;</em> in
+      <a href="https://blogs.windows.com/windows-insider/2026/03/20/our-commitment-to-windows-quality/">March</a>.
+      Five months on, the menu in the film above still takes 300&nbsp;ms.
     </p>
   </div>
 </section>
 
-<!-- ============================ seven days ============================ -->
+<!-- ============================ the week ============================ -->
 <section>
   <div class="wrap narrow prose">
     <div class="kicker">The actual point</div>
-    <h2>Seven days, not several quarters.</h2>
+    <h2>Built in a week.</h2>
     <p>
-      The whole thing &mdash; taskbar, Start, desktop, tray, notifications, and
-      the file explorer &mdash; was built in a week with
-      <a href="https://claude.com/claude-code">Claude&nbsp;Code</a>.
-    </p>
-    <p>
-      The menu was never slow because the problem is hard. It was slow because
-      fixing it costs a company months. When that stops being true, you just fix
-      it.
+      All of it &mdash; with <a href="https://claude.com/claude-code">Claude&nbsp;Code</a>.
+      Windows was never slow because the problems are hard. It is slow because
+      fixing them used to take months. It doesn't any more.
     </p>
   </div>
 </section>
@@ -657,11 +607,8 @@ WinShellBar.exe --unregister-shell</pre>
         <pre>sdk\tools\build-windows.ps1 -Product WinShellBar -Configuration release</pre>
       </div>
     </div>
-    <p class="note">Starling on Windows is a preview: it is the shell the
-      numbers above were measured on, and it is developed and tested as a
-      daily driver, but it is younger than the Linux desktop it grew from.
-      The films' full frame-by-frame data, the capture rig, and every
-      measurement script live in the repository beside the code.</p>
+    <p class="note">A preview, developed and tested as a daily driver. Every
+      number on this page has its raw capture in the repository.</p>
     <div class="btn-row">
       <a class="btn primary" href="https://github.com/starling-build/starling">GitHub</a>
       <a class="btn" href="start.html">Get started</a>
