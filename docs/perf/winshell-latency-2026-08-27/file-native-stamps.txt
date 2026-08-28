@@ -1,0 +1,40 @@
+rep 1 qpc_ms 20818126.063
+      window up after rep 1: True
+rep 2 qpc_ms 20827012.817
+      window up after rep 2: True
+rep 3 qpc_ms 20835922.811
+      window up after rep 3: True
+rep 4 qpc_ms 20844800.654
+      window up after rep 4: True
+rep 5 qpc_ms 20853679.490
+      window up after rep 5: True
+rep 6 qpc_ms 20862577.124
+      window up after rep 6: True
+rep 7 qpc_ms 20871489.872
+      window up after rep 7: True
+rep 8 qpc_ms 20880408.438
+      window up after rep 8: True
+rep 9 qpc_ms 20889304.338
+      window up after rep 9: True
+rep 10 qpc_ms 20898218.588
+      window up after rep 10: True
+rep 11 qpc_ms 20907106.222
+      window up after rep 11: True
+rep 12 qpc_ms 20915996.988
+      window up after rep 12: True
+rep 13 qpc_ms 20924914.087
+      window up after rep 13: True
+rep 14 qpc_ms 20933815.321
+      window up after rep 14: True
+rep 15 qpc_ms 20942697.037
+      window up after rep 15: True
+rep 16 qpc_ms 20951598.632
+      window up after rep 16: True
+rep 17 qpc_ms 20960486.788
+      window up after rep 17: True
+rep 18 qpc_ms 20969361.022
+      window up after rep 18: True
+rep 19 qpc_ms 20978245.183
+      window up after rep 19: True
+rep 20 qpc_ms 20987148.965
+      window up after rep 20: True

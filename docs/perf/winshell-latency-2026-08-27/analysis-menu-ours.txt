@@ -1,0 +1,26 @@
+=== OURS — Start menu, Starling shell (Balanced/stock CPU) ===
+  frames 3121, reps detected 20, calibration scale 0.99986 (1.0 = video time == wall time)
+  rep  t0       first    settled    first(ms)   
+  1    82       85       85         100.0        settled 100.0 ms
+  2    233      236      236        100.0        settled 100.0 ms
+  3    383      386      386        100.0        settled 100.0 ms
+  4    533      536      536        100.0        settled 100.0 ms
+  5    683      687      687        133.3        settled 133.3 ms
+  6    835      837      837        66.7         settled 66.7 ms
+  7    985      987      987        66.7         settled 66.7 ms
+  8    1135     1137     1137       66.7         settled 66.7 ms
+  9    1286     1289     1289       100.0        settled 100.0 ms
+  10   1435     1438     1438       100.0        settled 100.0 ms
+  11   1586     1588     1588       66.7         settled 66.7 ms
+  12   1736     1738     1738       66.7         settled 66.7 ms
+  13   1886     1888     1888       66.7         settled 66.7 ms
+  14   2036     2039     2039       100.0        settled 100.0 ms
+  15   2186     2188     2188       66.7         settled 66.7 ms
+  16   2335     2338     2338       100.0        settled 100.0 ms
+  17   2485     2488     2488       100.0        settled 100.0 ms
+  18   2637     2639     2639       66.7         settled 66.7 ms
+  19   2785     2788     2788       100.0        settled 100.0 ms
+  20   2936     2938     2938       66.7         settled 66.7 ms
+  FIRST PIXELS  median 100.0 ms   min 66.7   max 133.3   (n=20)
+  SETTLED       median 100.0 ms   min 66.7   max 133.3
+  frame quantum at 30 fps: 33.3 ms

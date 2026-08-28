@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 T0, N = 8, 12
 SRC_MS = 1000.0 / 30.0
-OURS_OFF, NAT_FIRST_OFF, NAT_SET_OFF = 2, 7, 9
+OURS_OFF, NAT_FIRST_OFF, NAT_SET_OFF = 2, 7, 8
 
 BG, TEXT, DIM = (13,17,23), (230,237,243), (139,148,158)
 GREEN, AMBER, BLUE, LINE = (63,185,80), (210,153,34), (88,166,255), (48,54,61)
@@ -51,7 +51,7 @@ for r, (name, dirn, land, col) in enumerate([("Starling", "fr_ctx_ours", OURS_OF
             d.text((x, y - 30), "first px", font=f_n, fill=AMBER)
 
 d.text((42, Hd - 62),
-       "Starling is finished in 2 frames.  Windows shows its first pixels at frame 7 and is complete at frame 9.",
+       "Starling is finished in 2 frames — 67 ms.  Windows shows its first pixels at frame 7 and is complete at frame 8, 267 ms.",
        font=f_ft, fill=TEXT)
 im.save("filmstrip-ctxmenu.png")
 print("filmstrip-ctxmenu.png", im.size)

@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """File-manager launch, side by side.
 
-Win+E on the same machine. Ours starts a WHOLE NEW PROCESS each time;
-Explorer opens a new window inside the already-running shell, which is its
-best case. Aligned on t0 (the marker frame = the keystroke), 1/6 speed.
+Win+E on the same machine, each shell registered as THE shell when it is
+filmed. Both sides are now like-for-like: our file manager is a view inside the
+running shell, and Explorer hosts folder windows inside the running explorer,
+so neither pays for starting a process. The earlier cut of this film was made
+when ours did start one, and it said so; that caveat is gone and the gap got
+wider, not narrower.
+
+Aligned on t0 (the marker frame = the keystroke), 1/6 speed.
+Take: 2026-08-27, 20 reps per side, the box on its stock CPU settings.
 """
 import os, shutil
 from PIL import Image, ImageDraw, ImageFont
@@ -12,7 +18,10 @@ W, H, FPS = 1920, 1080, 30
 SLOW = 6
 SRC_MS = 1000.0 / 30.0
 T0 = 2                        # index of the marker frame in the extracted sets
-OURS_FIRST, OURS_DONE = 10, 16      # offsets from t0, this take
+# Offsets from t0, in source frames, for THIS take. Ours is deliberately the
+# SLOWER side of its median (3 frames, 100 ms, against a median of 83) so the
+# film cannot be accused of showing our best open.
+OURS_FIRST, OURS_DONE = 3, 3
 NAT_FIRST,  NAT_DONE  = 11, 34
 
 BG, PANEL, TEXT = (13,17,23), (22,27,34), (230,237,243)
@@ -26,7 +35,9 @@ f_big, f_mid = font(88), font(36)
 
 PANE_W, PANE_H, PANE_Y = 880, 575, 208
 PX = [50, 990]
-CROP = (400, 150, 400+2600, 150+1700)     # trim the 4K frame to the action
+# Trim the 4K frame to the action, sized to contain BOTH windows: ours lands
+# at 886,344-2951,2143 and Explorer's at 512,382-2803,1719.
+CROP = (355, 344, 355+2753, 344+1799)
 
 _CACHE = {}
 def load(dirn, i):
@@ -54,7 +65,7 @@ def frame(k):
     im = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(im)
     center(d, "Opening the file manager — Win+E", f_title, 20, TEXT)
     center(d, "same machine · same keystroke · played at 1/6 speed", f_sub, 80, DIM)
-    center(d, "Starling starts a whole new process each time; Explorer opens a window inside the shell that is already running",
+    center(d, "each shell registered as THE shell \u00b7 neither pays to start a process \u00b7 median of 20 opens per side",
            f_small, 116, (110,119,128))
 
     for i, (name, dirn, first, done, col) in enumerate(
@@ -81,10 +92,10 @@ def frame(k):
         d.text((x, by+30), state, font=f_small, fill=sc)
 
     cap = None
-    if off >= NAT_DONE:      cap = "Explorer finally lists its files at 1133 ms."
-    elif off >= OURS_DONE:   cap = "Starling is usable. Explorer has a window frame and 'Working on it…'"
-    elif off >= NAT_FIRST:   cap = "Both have pixels now — neither has files."
-    elif off >= OURS_FIRST:  cap = "Starling starts painting first."
+    if off >= NAT_DONE:      cap = "Explorer finally lists its files, at 1133 ms."
+    elif off >= NAT_FIRST:   cap = "Explorer has a frame and \u2018Working on it\u2026\u2019. Starling has been usable for 267 ms."
+    elif off >= OURS_DONE:   cap = "Starling is already usable \u2014 files listed. Explorer has nothing on screen yet."
+    elif off >= OURS_FIRST:  cap = "Starling is up."
     if cap:
         d.rectangle([0, H-84, W, H], fill=PANEL)
         center(d, cap, f_cap, H-60, TEXT)
@@ -94,21 +105,21 @@ def main():
     shutil.rmtree("frames2", ignore_errors=True); os.makedirs("frames2")
     seq = card([("Opening the file manager", f_title, TEXT, 400),
                 ("Starling Files vs Windows Explorer, same PC, Win+E", f_sub, DIM, 486),
-                ("one representative open of six", f_small, DIM, 534)], 70)
+                ("one representative open of twenty \u00b7 ours is the slower side of its median", f_small, DIM, 534)], 70)
     for k in range(0, 40*SLOW):
         seq.append(frame(k))
         if k == OURS_DONE*SLOW: seq += [seq[-1]]*60
         if k == NAT_DONE*SLOW:  seq += [seq[-1]]*44
     seq += [seq[-1]]*24
-    seq += card([("Keystroke to a usable window — median of 6 launches", f_mid, DIM, 150),
+    seq += card([("Keystroke to a usable window — median of 20 launches", f_mid, DIM, 150),
                  ("Starling Files", f_mid, BLUE, 296),
-                 ("500 ms", f_big, GREEN, 344),
+                 ("83 ms", f_big, GREEN, 344),
                  ("Windows Explorer", f_mid, AMBER, 556),
-                 ("1149 ms", f_big, AMBER, 604),
-                 ("2.3× faster — while paying for a new process that Explorer never pays",
+                 ("1116 ms", f_big, AMBER, 604),
+                 ("13.4× faster — our slowest open still beat Explorer's first pixels by 200 ms",
                   f_cap, TEXT, 830),
                  ("'usable' = the file list is actually on screen, not just a window frame", f_small, DIM, 888)],
-                140, bars=[(500, GREEN, 466), (1149, AMBER, 726)])
+                140, bars=[(83, GREEN, 466), (1116, AMBER, 726)])
     import os as _os
     seen = {}
     for i, im in enumerate(seq):

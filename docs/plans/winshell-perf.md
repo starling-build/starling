@@ -751,3 +751,74 @@ the work area explicitly rather than asking whoever answers to do it.
 Until then the explorer service is **opt-in**, `STARLING_EXPLORER_SERVICE=1`,
 and `test/win/run-gate.sh` skips the two checks that depend on it rather than
 failing on the shipping configuration.
+
+
+# Addendum, 2026-08-27 — all three latencies re-measured at n=20, on the CPU settings the box actually ships with
+
+This supersedes the head-to-head numbers in the 2026-08-23 addendum and the
+Win+E figure in the 2026-08-25 one. Same rig, same box, `ddagrab`, calibration
+0.9998-0.99993, **20 reps a side**, each shell registered as THE shell while it
+was filmed.
+
+| | first pixels | finished | ratio (finished) |
+|---|---|---|---|
+| Start menu — Starling | 100 ms | **100 ms** | — |
+| Start menu — Windows 11 | 167 ms | **300 ms** | **3.0x** |
+| Right-click menu — Starling | 67 ms | **67 ms** | — |
+| Right-click menu — Windows Explorer | 233 ms | **267 ms** | **4.0x** |
+| Win+E file manager — Starling Files | 83 ms | **83 ms** | — |
+| Win+E file manager — Windows Explorer | 367 ms | **1116 ms** | **13.4x** |
+
+First pixels equals finished on our side of all three: the surface arrives
+complete in the frame it appears. Windows fades the Start menu in over four
+more frames, and Explorer's folder window is a frame with "Working on it..."
+for two thirds of a second before the file list lands.
+
+**The Win+E comparison is now like-for-like, and that is why the number moved.**
+Ours is a view inside the running shell, and this take has Explorer running as
+the shell, so it hosts folder windows inside itself -- its best case. Neither
+side pays process creation. The 2026-08-23 pairing (500 vs 1149 ms) had ours
+starting a whole process and said so; removing that caveat widened the gap
+rather than narrowing it. The 146 ms of 2026-08-25 was the same code measured
+before the CPU cap was understood (below), and is superseded, not contradicted.
+
+**The distributions do not touch, with room to spare.** Win+E: ours 33-133 ms
+across twenty, Explorer 1066-1200. Our *slowest* complete open (133 ms) lands
+before Explorer's *fastest first pixel* (333 ms).
+
+**Why the Start menu reads 100 ms here and 67 ms in the older numbers.** The
+67 ms baseline was measured with the CPU pinned to High Performance. That mode
+hangs this box under sustained load (three hangs on 2026-08-26), so the machine
+is left on its as-shipped cap -- min 80 / max 50 / boost off, Balanced -- and
+every number above is on that cap. 100 ms is the honest figure for a box anyone
+can leave running; 67 ms is what the hardware can do in a mode we do not ship
+and cannot keep up. Quote 100.
+
+## The films, and three things they claimed that the measurements did not
+
+`test/bench/win-latency/compose-{menu,ctxmenu,launch}.py`, re-rendered from
+this take. Each carried a number that had not been updated with the rest:
+
+- **The context-menu summary bar was still drawn at 300 ms** while every label
+  beside it read 267. A bar chart is a claim; this one overstated the gap in
+  our favour by a visible 10% of bar width.
+- **The Start-menu film contradicted itself** -- an in-film caption still said
+  "4.5x sooner" from the old 67 ms baseline while its own summary card said 3x.
+  That version had already been rendered and sent.
+- **The launch card said "our slowest open still beat Explorer's fastest by
+  200 ms"**, which against the film's own definition of usable reads as
+  Explorer's fastest usable window (1066 ms, so 933 ms). The 200 ms is against
+  its first *pixels*. Reworded to say which.
+
+The lesson is the cheap one: when a re-measurement moves a headline number,
+grep the whole film for every other number derived from it. Two of these three
+survived a re-render because only the card was checked.
+
+**Post-script, later that day.** The native Start-menu capture above had a
+File Explorer window (left over from the Win+E arm) sitting open behind all
+20 reps — invisible in the numbers, glaring in the film. Re-captured with a
+clean desktop after flipping the box's shell back to explorer for the take:
+the medians reproduced exactly (first 167, settled 300), which doubles as
+evidence the background window never influenced the measurement. The films
+and the site use the clean take; both analyses are in
+`docs/perf/winshell-latency-2026-08-27/`.

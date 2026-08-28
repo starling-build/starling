@@ -9,8 +9,10 @@ white, which is the frame the click went in, and played at 1/8.
 
 The measured numbers this renders (20 warm reps each, median):
 
-    ours       first pixels  66.6 ms   finished  66.6 ms   (the same frame)
-    Explorer   first pixels 233.2 ms   finished 299.8 ms
+    ours       first pixels  66.7 ms   finished  66.7 ms   (the same frame)
+    Explorer   first pixels 233.3 ms   finished 266.6 ms
+
+    Re-measured 2026-08-27, 20 reps a side, the box on its stock CPU settings.
 
 Same devices as compose-menu.py: a per-pane counter that freezes green when
 that pane lands, a photo-finish hold on the frame where ours is done and
@@ -37,7 +39,7 @@ T0 = 8                         # index of the marker frame in the extracted sets
 # offsets FROM t0, in captured frames (rep 2 of each take, the median case)
 OURS_OFF      = 2              # our menu: first pixels and complete, one frame
 NAT_FIRST_OFF = 7              # Windows: first pixels
-NAT_SET_OFF   = 9              # Windows: finished
+NAT_SET_OFF   = 8              # Windows: finished
 
 BG, PANEL, TEXT = (13,17,23), (22,27,34), (230,237,243)
 DIM, GREEN, AMBER, BLUE, LINE = (139,148,158), (63,185,80), (210,153,34), (88,166,255), (48,54,61)
@@ -137,7 +139,7 @@ def main():
         off = k // SLOW
         cap = None
         if off >= NAT_SET_OFF:
-            cap = "Windows: complete at 300 ms.  Starling was done at 67 ms — 4.5× sooner."
+            cap = "Windows: complete at 267 ms.  Starling was done at 67 ms — 4× sooner."
         elif off >= NAT_FIRST_OFF:
             cap = ("Windows: first pixels.  Starling's menu has been readable for %d ms."
                    % round((off - OURS_OFF) * SRC_MS))
@@ -155,11 +157,11 @@ def main():
                     ("Starling", f_mid, BLUE, 296),
                     ("67 ms", f_big, GREEN, 346),
                     ("Windows 11", f_mid, AMBER, 556),
-                    ("300 ms", f_big, AMBER, 606),
-                    ("4.5× faster to a finished menu · 3.5× to first pixels", f_cap, TEXT, 826),
+                    ("267 ms", f_big, AMBER, 606),
+                    ("4× faster to a finished menu · 3.5× to first pixels", f_cap, TEXT, 826),
                     ("both menus carry the same third-party rows — the same shell handlers, asked the same way",
                      f_small, DIM, 884)], 1,
-                   bars=[("Starling", 67, GREEN, 466), ("Windows 11", 300, AMBER, 726)]):
+                   bars=[("Starling", 67, GREEN, 466), ("Windows 11", 267, AMBER, 726)]):
         emit(im, 150)
     total += 150
     sys.stderr.write("streamed %d frames (%.1f s)\n" % (total, total / FPS))

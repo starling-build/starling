@@ -1,0 +1,26 @@
+=== WINDOWS 11 Start menu, native shell (Balanced/stock CPU) ===
+  frames 3121, reps detected 20, calibration scale 0.99987 (1.0 = video time == wall time)
+  rep  t0       first    settled    first(ms)   
+  1    84       90       94         200.0        settled 333.3 ms
+  2    234      239      243        166.6        settled 300.0 ms
+  3    384      389      393        166.6        settled 300.0 ms
+  4    534      539      543        166.6        settled 300.0 ms
+  5    684      688      692        133.3        settled 266.6 ms
+  6    834      838      842        133.3        settled 266.6 ms
+  7    984      989      993        166.6        settled 300.0 ms
+  8    1134     1139     1143       166.6        settled 300.0 ms
+  9    1283     1288     1292       166.6        settled 300.0 ms
+  10   1433     1438     1442       166.6        settled 300.0 ms
+  11   1583     1587     1591       133.3        settled 266.6 ms
+  12   1733     1737     1741       133.3        settled 266.6 ms
+  13   1883     1887     1891       133.3        settled 266.6 ms
+  14   2032     2038     2042       200.0        settled 333.3 ms
+  15   2182     2188     2192       200.0        settled 333.3 ms
+  16   2331     2337     2341       200.0        settled 333.3 ms
+  17   2482     2487     2491       166.6        settled 300.0 ms
+  18   2632     2637     2641       166.6        settled 300.0 ms
+  19   2782     2787     2791       166.6        settled 300.0 ms
+  20   2932     2937     2941       166.6        settled 300.0 ms
+  FIRST PIXELS  median 166.6 ms   min 133.3   max 200.0   (n=20)
+  SETTLED       median 300.0 ms   min 266.6   max 333.3
+  frame quantum at 30 fps: 33.3 ms

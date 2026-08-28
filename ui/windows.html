@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Starling for Windows — the clean, fast Windows shell</title>
-<meta name="description" content="Starling replaces the Windows 11 shell — dock, Start, desktop, tray — registered per user with no admin, and Explorer comes back the moment you ask. Start menu finished in 67 ms where Windows takes 300. Filmed side by side on the same machine.">
+<meta name="description" content="Starling replaces the Windows 11 shell — dock, Start, desktop, tray — registered per user with no admin, and Explorer comes back the moment you ask. Start menu finished in 100 ms where Windows takes 300. Filmed side by side on the same machine.">
 <meta property="og:title" content="Starling for Windows — the clean, fast Windows shell">
-<meta property="og:description" content="The whole shell — dock, Start, desktop, tray — replaced per user, no admin. Start menu in 67 ms vs 300. Filmed on the same machine.">
+<meta property="og:description" content="The whole shell — dock, Start, desktop, tray — replaced per user, no admin. Start menu in 100 ms vs 300. Filmed on the same machine.">
 <meta property="og:type" content="article">
 <meta property="og:image" content="https://starling.build/img/start-latency-poster.jpg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
@@ -419,15 +419,15 @@
       <span class="active" data-src="video/start-latency.mp4"
             data-poster="img/start-latency-poster.jpg"
             data-title="Pressing the Win key, head to head"
-            data-cap="Win key pressed on both, played at 1/8 speed. Starling is done at 67 ms; Windows settles at 300 ms.">Start menu</span>
+            data-cap="Win key pressed on both, played at 1/8 speed. Starling is done at 100 ms; Windows settles at 300 ms. Median of 20 opens each.">Start menu</span>
       <span data-src="video/file-launch.mp4"
             data-poster="img/file-launch-poster.jpg"
             data-title="Opening the file manager — Win+E"
-            data-cap="Win+E on both. Filmed on an older build — Starling now opens in 97 ms, five times faster than in this take.">File manager</span>
+            data-cap="Win+E on both, and neither side starts a process. Starling lists files at 83 ms; Explorer takes 1116 ms to do the same. Median of 20 opens each.">File manager</span>
       <span data-src="video/ctxmenu-latency.mp4"
             data-poster="img/ctxmenu-latency-poster.jpg"
             data-title="Right-click to a finished menu"
-            data-cap="Right-click a folder. Starling's menu is done at 67 ms; Explorer's settles at 300 ms.">Context menu</span>
+            data-cap="Right-click a folder. Starling's menu is done at 67 ms; Explorer's settles at 267 ms. Median of 20 opens each.">Context menu</span>
     </div>
     <div class="frame">
       <video id="race-video" src="video/start-latency.mp4"
@@ -436,7 +436,8 @@
     </div>
     <div class="shot-label"><b id="race-title">Pressing the Win key, head to head</b>
       <span id="race-cap">Win key pressed on both, played at 1/8 speed. Starling
-      is done at 67 ms; Windows settles at 300 ms.</span></div>
+      is done at 100 ms; Windows settles at 300 ms. Median of 20 opens
+      each.</span></div>
   </div>
 </div>
 
@@ -467,19 +468,19 @@
 <section>
   <div class="wrap points four">
     <div class="point">
-      <div class="big">4.5&times;</div>
+      <div class="big">3&times;</div>
       <h3>Start menu</h3>
-      <p>67 ms vs 300 ms</p>
+      <p>100 ms vs 300 ms</p>
     </div>
     <div class="point">
-      <div class="big">4.5&times;</div>
+      <div class="big">4&times;</div>
       <h3>Right-click menu</h3>
-      <p>67 ms vs 300 ms</p>
+      <p>67 ms vs 267 ms</p>
     </div>
     <div class="point">
-      <div class="big">11&times;</div>
+      <div class="big">13.4&times;</div>
       <h3>File Explorer</h3>
-      <p>97 ms vs 1116 ms</p>
+      <p>83 ms vs 1116 ms</p>
     </div>
     <div class="point">
       <div class="big">100 <small>MB</small></div>
@@ -504,12 +505,12 @@
     <div class="strip-head">Right-click a folder</div>
     <div class="strip">
       <img src="img/ctxmenu-filmstrip.png" loading="lazy"
-           alt="Frames 33 ms apart: Starling's menu is fully drawn at frame 2, 67 ms; Windows shows nothing until frame 7 at 233 ms and completes at frame 9, 300 ms.">
+           alt="Frames 33 ms apart: Starling's menu is fully drawn at frame 2, 67 ms; Windows shows nothing until frame 7 at 233 ms and completes at frame 8, 267 ms.">
     </div>
     <div class="strip-head">Press the Win key</div>
     <div class="strip">
       <img src="img/start-latency-filmstrip.png" loading="lazy"
-           alt="Frames 33 ms apart: Starling's Start menu is drawn at frame 2, 67 ms; Windows shows first pixels at frame 5 at 167 ms and settles at frame 9, 300 ms.">
+           alt="Frames 33 ms apart: Starling's Start menu is drawn at frame 3, 100 ms; Windows shows first pixels at frame 5 at 167 ms and settles at frame 9, 300 ms.">
     </div>
   </div>
 </section>

@@ -14,10 +14,14 @@ SLOW = 8                       # each captured frame is held 8 output frames
 SRC_MS = 1000.0 / 30.0         # capture ran at 30 fps -> 33.33 ms per frame
 T0 = 8                         # index of the marker frame in the extracted sets
 
-# offsets FROM t0, in captured frames (measured, rep 1 of each video take)
-OURS_OFF     = 2               # our menu: first pixels and fully drawn, same frame
+# Offsets FROM t0, in captured frames. Take of 2026-08-27, 20 warm opens per
+# side, the box on its STOCK CPU settings -- the earlier cut of this film was
+# made with the CPU pinned to High Performance, which is a mode that hangs this
+# machine, so its 67 ms was not reproducible on a box anyone can leave running.
+# Both reps below sit exactly on their side's median.
+OURS_OFF     = 3               # our menu: first pixels and fully drawn, same frame
 NAT_FIRST_OFF = 5              # Windows: first pixels
-NAT_SET_OFF   = 9              # Windows: settled
+NAT_SET_OFF   = 9              # Windows: settled, after its fade
 
 BG, PANEL, TEXT = (13,17,23), (22,27,34), (230,237,243)
 DIM, GREEN, AMBER, BLUE, LINE = (139,148,158), (63,185,80), (210,153,34), (88,166,255), (48,54,61)
@@ -97,7 +101,7 @@ def main():
         off = k // SLOW
         cap = None
         if off >= NAT_SET_OFF:
-            cap = "Windows: fully drawn at 300 ms.  Starling finished 4.5× sooner."
+            cap = "Windows: fully drawn at 300 ms.  Starling finished 3× sooner."
         elif off >= NAT_FIRST_OFF:
             cap = ("Windows: first faint pixels.  Starling has been readable for %d ms."
                    % round((off - OURS_OFF) * SRC_MS))
@@ -108,14 +112,14 @@ def main():
         if k == NAT_SET_OFF * SLOW: seq += [seq[-1]] * 46
     seq += [seq[-1]] * 26
 
-    seq += card([("Keystroke to a finished menu — median of 6 warm opens", f_mid, DIM, 150),
+    seq += card([("Keystroke to a finished menu — median of 20 warm opens", f_mid, DIM, 150),
                  ("Starling", f_mid, BLUE, 300),
-                 ("67 ms", f_big, GREEN, 350),
+                 ("100 ms", f_big, GREEN, 350),
                  ("Windows 11", f_mid, AMBER, 560),
                  ("300 ms", f_big, AMBER, 610),
-                 ("4.5× faster to a finished menu · 2.8× to first pixels", f_cap, TEXT, 830),
-                 ("30 Hz panel: one composited frame = 33 ms, so ours lands in 2 frames", f_small, DIM, 890)], 140,
-                bars=[("Starling", 67, GREEN, 470), ("Windows 11", 300, AMBER, 730)])
+                 ("3× faster to a finished menu · 1.7× to first pixels", f_cap, TEXT, 830),
+                 ("ours is drawn the frame it appears; Windows fades in over four more", f_small, DIM, 890)], 140,
+                bars=[("Starling", 100, GREEN, 470), ("Windows 11", 300, AMBER, 730)])
 
     for i, im in enumerate(seq): im.save("frames/%05d.png" % i)
     print("wrote %d frames (%.1f s)" % (len(seq), len(seq) / FPS))

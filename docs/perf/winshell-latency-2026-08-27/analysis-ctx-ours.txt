@@ -1,0 +1,26 @@
+=== OURS — context menu, Starling files ===
+  frames 3181, reps detected 20, calibration scale 0.99993 (1.0 = video time == wall time)
+  rep  t0       first    settled    first(ms)   
+  1    115      118      118        100.0        settled 100.0 ms
+  2    243      245      245        66.7         settled 66.7 ms
+  3    371      373      373        66.7         settled 66.7 ms
+  4    499      500      500        33.3         settled 33.3 ms
+  5    626      629      629        100.0        settled 100.0 ms
+  6    753      756      756        100.0        settled 100.0 ms
+  7    880      881      881        33.3         settled 33.3 ms
+  8    1007     1009     1009       66.7         settled 66.7 ms
+  9    1134     1137     1137       100.0        settled 100.0 ms
+  10   1261     1262     1262       33.3         settled 33.3 ms
+  11   1387     1389     1389       66.7         settled 66.7 ms
+  12   1514     1516     1516       66.7         settled 66.7 ms
+  13   1640     1642     1642       66.7         settled 66.7 ms
+  14   1768     1771     1771       100.0        settled 100.0 ms
+  15   1895     1897     1897       66.7         settled 66.7 ms
+  16   2021     2022     2022       33.3         settled 33.3 ms
+  17   2147     2151     2151       133.3        settled 133.3 ms
+  18   2276     2279     2279       100.0        settled 100.0 ms
+  19   2402     2406     2406       133.3        settled 133.3 ms
+  20   2530     2532     2532       66.7         settled 66.7 ms
+  FIRST PIXELS  median 66.7 ms   min 33.3   max 133.3   (n=20)
+  SETTLED       median 66.7 ms   min 33.3   max 133.3
+  frame quantum at 30 fps: 33.3 ms
