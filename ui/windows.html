@@ -594,10 +594,20 @@
     <h2>Try it, and how to get back out</h2>
     <div class="inst-list">
       <div class="inst">
+        <div class="inst-head"><h3>Download 0.1.0</h3><span>Windows 11 x64 · 39 MB · unsigned — SmartScreen will ask once</span></div>
+        <div class="body">
+          <a href="https://github.com/starling-build/starling/releases/download/winshell-v0.1.0/StarlingSetup-0.1.0.exe">StarlingSetup-0.1.0.exe</a>
+          installs and registers in one double-click — sign out and back in.
+          The
+          <a href="https://github.com/starling-build/starling/releases/download/winshell-v0.1.0/Starling-0.1.0-win-x64.zip">zip</a>
+          is the same payload with the options below. Checksums and notes:
+          <a href="https://github.com/starling-build/starling/releases/tag/winshell-v0.1.0">the release page</a>.</div>
+      </div>
+      <div class="inst">
         <div class="inst-head"><h3>Install, per user</h3><span>no administrator, nothing outside your profile</span></div>
-        <div class="body">The installer copies the shell into your profile and
-          writes one per-user registry value. It takes effect at your next
-          sign-in; add <code>-Now</code> to switch this session.</div>
+        <div class="body">From the zip: the installer copies the shell into
+          your profile and writes one per-user registry value. It takes effect
+          at your next sign-in; add <code>-Now</code> to switch this session.</div>
         <pre>powershell -File Install.ps1        # register for this user
 powershell -File Install.ps1 -Now   # and switch right now</pre>
       </div>

@@ -1,31 +1,26 @@
 # dist — prebuilt downloads carried in the tree
 
-`starling-winshell-0.1.0-windows-x86_64.zip` — the Starling shell for
-Windows 11, x86_64: dock, Start menu, desktop, file manager and tray, the
-thing the site's Windows page films. 48.7 MB, 53 entries, checksum in
-`SHA256SUMS`. Built from branch `release-winshell-0.1.0` (commit in
-`BUILD-STAMP.txt` inside the archive, engine pinned by the same branch name
-in starling-engine); the exact binary in this archive passed the 17-check
-shell gate (`test/win/run-gate.sh`) on the physical box before it was
-committed here.
+`StarlingSetup-0.1.0.exe` and `Starling-0.1.0-win-x64.zip` — the Starling
+shell for Windows 11, x86_64: dock, Start menu, desktop, file manager and
+tray, the thing the site's Windows page films. 39.1 / 39.6 MB, checksums in
+`SHA256SUMS`, both produced by `build/win/package-shell.ps1` — the single
+definition of what a Windows install contains — from branch
+`release-winshell-0.1.0` (commit in `BUILD-STAMP.txt` inside; engine pinned
+by the same branch name in starling-engine). The exact `WinShellBar.exe` in
+both passed the 17-check shell gate (`test/win/run-gate.sh`) on the
+physical box before it landed here.
 
-The archive extracts FLAT — make a directory for it. Everything it needs
-travels beside the exe (Swift runtime, engine, CRT), so it runs from any
-folder, but pick the folder first: registration records the absolute path.
-
-- Try it beside Explorer: `WinShellBar.exe` starts the dock alone.
-- Become the shell: `WinShellBar.exe --register-shell`, then log out and
-  back in. Per-user (HKCU) — other accounts keep Explorer, no admin needed.
-- Go back: `WinShellBar.exe --unregister-shell`, same deal at next logon.
-  The shell also un-registers itself if it crash-loops, and Explorer keeps
-  running underneath for packaged apps the whole time.
-- Recovery: `WinShellBar.exe --restore-taskbar` puts Explorer's taskbar and
-  tray back if a Starling process was killed rather than closed.
+The setup exe is the zip plus a one-line bootstrap: double-click, and it
+installs to `%LOCALAPPDATA%\Programs\Starling` and registers, effective at
+the next sign-in. The zip is the same payload with the options:
+`Install.ps1` (`-Now`, `-NoRegister`, `-Destination`), `Uninstall.ps1`
+(`-KeepFiles`), and `WinShellBar.exe --restore-taskbar` as the recovery
+path. Install, uninstall, and what-if-it-breaks in full:
+`docs/WINDOWS-INSTALL.md`.
 
 Unsigned, deliberately for now: SmartScreen will warn on first run, and a
 machine with Smart App Control enforcing will refuse it outright. The
-signing plan exists (`docs/WINDOWS-SIGNING.md`) and 0.1.0 ships
-before it.
+signing plan exists (`docs/WINDOWS-SIGNING.md`) and 0.1.0 ships before it.
 
 `starling-terminal-0.1.1-windows-x86_64.zip` — Starling Terminal for Windows,
 x86_64, rebuilt for 0.1.1 on the respun 0.3.1 SDK bundle beside it. 47.2 MB,
