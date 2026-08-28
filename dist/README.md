@@ -1,5 +1,32 @@
 # dist — prebuilt downloads carried in the tree
 
+`starling-winshell-0.1.0-windows-x86_64.zip` — the Starling shell for
+Windows 11, x86_64: dock, Start menu, desktop, file manager and tray, the
+thing the site's Windows page films. 48.7 MB, 53 entries, checksum in
+`SHA256SUMS`. Built from branch `release-winshell-0.1.0` (commit in
+`BUILD-STAMP.txt` inside the archive, engine pinned by the same branch name
+in starling-engine); the exact binary in this archive passed the 17-check
+shell gate (`test/win/run-gate.sh`) on the physical box before it was
+committed here.
+
+The archive extracts FLAT — make a directory for it. Everything it needs
+travels beside the exe (Swift runtime, engine, CRT), so it runs from any
+folder, but pick the folder first: registration records the absolute path.
+
+- Try it beside Explorer: `WinShellBar.exe` starts the dock alone.
+- Become the shell: `WinShellBar.exe --register-shell`, then log out and
+  back in. Per-user (HKCU) — other accounts keep Explorer, no admin needed.
+- Go back: `WinShellBar.exe --unregister-shell`, same deal at next logon.
+  The shell also un-registers itself if it crash-loops, and Explorer keeps
+  running underneath for packaged apps the whole time.
+- Recovery: `WinShellBar.exe --restore-taskbar` puts Explorer's taskbar and
+  tray back if a Starling process was killed rather than closed.
+
+Unsigned, deliberately for now: SmartScreen will warn on first run, and a
+machine with Smart App Control enforcing will refuse it outright. The
+signing plan exists (`docs/WINDOWS-SIGNING.md`) and 0.1.0 ships
+before it.
+
 `starling-terminal-0.1.1-windows-x86_64.zip` — Starling Terminal for Windows,
 x86_64, rebuilt for 0.1.1 on the respun 0.3.1 SDK bundle beside it. 47.2 MB,
 52 entries, checksum in `SHA256SUMS`. It replaces the 0.1.0 archive, which
