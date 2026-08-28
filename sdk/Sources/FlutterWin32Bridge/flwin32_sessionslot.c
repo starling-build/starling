@@ -199,7 +199,12 @@ uint64_t flwin32_sessionslot_spawn_self(const char* args_utf8) {
 }
 
 /* Wait for any of the handles to exit, or the timeout. Returns the index of
- * the exited child, -1 on timeout, -2 on error. */
+ * the exited child, -1 on timeout, -2 on error.
+ *
+ * Does NOT pump messages, so nothing message-delivered may depend on this
+ * thread -- which is why the explorer taskbar re-hide hook lives on its own
+ * pumping thread (flwin32_explorer.c) rather than on whichever thread asked
+ * for it. */
 int32_t flwin32_sessionslot_wait_any(const uint64_t* handles, int32_t count,
                                  int32_t timeout_ms) {
     HANDLE hs[MAXIMUM_WAIT_OBJECTS];

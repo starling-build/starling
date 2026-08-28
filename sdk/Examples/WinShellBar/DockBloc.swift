@@ -216,7 +216,17 @@ final class DockBloc: @unchecked Sendable {
             // taskbar visible" is false and the re-claims never ran. The
             // reservation stayed dropped, the dock kept drawing, and
             // maximized windows ran underneath it until the next restart.
-            _hideNativeTaskbarIfItCameBack()
+            //
+            // The HIDE is ungated too, not the tick helper: hiding is also
+            // what re-aims the EVENT_OBJECT_SHOW re-hide hook at the new
+            // explorer's pid, and the supervisor winning the race to hide
+            // first used to leave this dock without a working hook for the
+            // rest of the session — explorer's taskbar then popped over the
+            // dock and lingered on every packaged-app launch. Idempotent
+            // and cheap when there is nothing to hide.
+            if !keepsNativeTaskbar, !state.nativeTaskbarWanted {
+                Task.detached { _ = Win32Shell.hideNativeTaskbar() }
+            }
             // Declines while the explorer service runs — the new explorer
             // KEEPS the minimize target now, deliberately: our claim was the
             // root cause of packaged apps never drawing (see

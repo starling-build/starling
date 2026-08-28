@@ -102,21 +102,71 @@ static int g_atexit_installed = 0;
  *
  * The poll is still worth keeping. It covers what the hook cannot: explorer
  * restarting under a new pid, which leaves this hook watching a dead process.
- */
-static HWINEVENTHOOK g_show_hook = NULL;
-static DWORD g_hook_pid = 0;
+ *
+ * THE HOOK LIVES ON ITS OWN THREAD, which exists to pump. An out-of-context
+ * WinEvent hook is delivered through the message loop of the thread that
+ * called SetWinEventHook -- and the callers of the hide are all over the
+ * map: the dock's main thread at startup, a Swift Task.detached pool thread
+ * on the explorer-restart path, the supervisor's wait loop. A pool thread
+ * never pumps, so a re-hook from there did not move the hook, it silently
+ * KILLED it -- and the one hook slot per process means the working
+ * main-thread hook was unhooked to make room for the dead one. One
+ * dedicated thread that only pumps makes the hook's delivery independent
+ * of who asks for it. */
+static HWINEVENTHOOK g_show_hook = NULL; /* hook-thread only */
+static DWORD g_hook_pid = 0;             /* hook-thread only */
+static HANDLE g_hook_thread = NULL;
+static DWORD g_hook_tid = 0;
+static SRWLOCK g_hook_start_lock = SRWLOCK_INIT;
 
-/* Walk the top-level windows of one class. FindWindowEx with a NULL parent
- * searches top-level windows by class, which is far cheaper than EnumWindows
- * plus a GetClassName per window -- and this runs on the bar's one-second
- * tick, because explorer re-shows its taskbar on its own (a display change, a
- * settings round-trip, or explorer restarting after a crash). */
+#define kHookMsgRearm (WM_USER + 401)
+#define kHookMsgUnhook (WM_USER + 402)
+
+/* EXPLORER'S windows only -- and that has to be checked, not assumed.
+ *
+ * Our own tray service window shares the Shell_TrayWnd class on purpose
+ * (flwin32_tray.c: that is how Shell_NotifyIcon and SHAppBarMessage find it)
+ * and is deliberately kept ABOVE explorer's in the topmost band. So from the
+ * day the tray landed, a bare FindWindow("Shell_TrayWnd") answers with OUR
+ * window -- flwin32_tray.c says so about its own search -- and every walk in
+ * this file inherited that trap. The hook below aimed itself at our own pid
+ * for a whole session: explorer's taskbar then slid over the dock on every
+ * show and nothing caught it until a seconds-scale poll, which the user reads
+ * as the dock flickering and Windows' taskbar popping in and out.
+ *
+ * The owning process's image name is the test, not "pid != ours": the
+ * supervisor and the dock are different processes of the same binary, so
+ * from the supervisor's seat the dock's tray window passes a pid check. */
+static int owned_by_explorer(HWND w) {
+  DWORD pid = 0;
+  HANDLE p;
+  wchar_t path[MAX_PATH];
+  DWORD n = MAX_PATH;
+  int ok = 0;
+  GetWindowThreadProcessId(w, &pid);
+  if (pid == 0 || pid == GetCurrentProcessId()) return 0;
+  p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (p == NULL) return 0;
+  if (QueryFullProcessImageNameW(p, 0, path, &n)) {
+    const wchar_t* base = wcsrchr(path, L'\\');
+    ok = _wcsicmp(base != NULL ? base + 1 : path, L"explorer.exe") == 0;
+  }
+  CloseHandle(p);
+  return ok;
+}
+
+/* Walk the top-level windows of one class -- explorer's only, see above.
+ * FindWindowEx with a NULL parent searches top-level windows by class, which
+ * is far cheaper than EnumWindows plus a GetClassName per window; the
+ * OpenProcess per candidate is a handful of syscalls on a seconds-scale
+ * tick. */
 static int for_each_tray(int (*fn)(HWND)) {
   int touched = 0;
   int i;
   for (i = 0; i < kTrayClassCount; i++) {
     HWND w = NULL;
     while ((w = FindWindowExW(NULL, w, kTrayClasses[i], NULL)) != NULL) {
+      if (!owned_by_explorer(w)) continue;
       touched += fn(w);
     }
   }
@@ -124,9 +174,25 @@ static int for_each_tray(int (*fn)(HWND)) {
 }
 
 static int hide_one(HWND w) {
-  if (!IsWindowVisible(w)) return 0;
-  ShowWindow(w, SW_HIDE);
-  return 1;
+  int touched = 0;
+  if (IsWindowVisible(w)) {
+    ShowWindow(w, SW_HIDE);
+    touched = 1;
+  }
+  /* And OUT of the topmost band, visible or not. The hook's re-hide is
+   * delivered through our message loop, so explorer's show gets a frame or
+   * two on screen first -- and the taskbar sits above the dock in the
+   * topmost band, so that frame paints over the dock: the flicker this file
+   * exists to prevent. Demoted to the bottom, a show explorer sneaks in
+   * paints UNDER the shell, and the re-hide is invisible instead of merely
+   * quick. Explorer re-raises it when it animates the bar in, so this is
+   * re-asserted on every hide rather than trusted to hold. */
+  /* ASYNCWINDOWPOS: the request is posted to explorer's own thread, so a
+   * hung explorer cannot wedge the caller -- which is sometimes the hook
+   * thread whose whole job is to keep answering. */
+  SetWindowPos(w, HWND_BOTTOM, 0, 0, 0, 0,
+               SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_ASYNCWINDOWPOS);
+  return touched;
 }
 
 static int show_one(HWND w) {
@@ -134,6 +200,10 @@ static int show_one(HWND w) {
   /* SHOWNA, not SHOW: putting the taskbar back should not also hand it the
    * keyboard and pull the user out of whatever they were typing in. */
   ShowWindow(w, SW_SHOWNA);
+  /* Undo hide_one's demotion: the user is getting their taskbar back, and
+   * explorer's taskbar lives in the topmost band. */
+  SetWindowPos(w, HWND_TOPMOST, 0, 0, 0, 0,
+               SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_ASYNCWINDOWPOS);
   return 1;
 }
 
@@ -199,7 +269,10 @@ static void CALLBACK on_explorer_show(HWINEVENTHOOK hook,
    * -- goes stale the moment a monitor is plugged in. */
   if (object_id != OBJID_WINDOW || child_id != CHILDID_SELF) return;
   if (is_tray_class(hwnd)) {
-    ShowWindow(hwnd, SW_HIDE);
+    /* hide_one, not a bare ShowWindow: the demotion is half the fix. This
+     * callback runs a frame or two after the show, and without the demote
+     * that frame is the taskbar painted over the dock. */
+    hide_one(hwnd);
     return;
   }
   /* And explorer's desktop, when it is ours to suppress. Explorer re-shows
@@ -215,10 +288,20 @@ static void CALLBACK on_explorer_show(HWINEVENTHOOK hook,
 }
 
 /* Watch the process that owns the taskbar, all of its threads. Re-hooks when
- * the pid changes, which is explorer having restarted. */
-static void hook_explorer(void) {
-  HWND tray = FindWindowW(kTrayClasses[0], NULL);
+ * the pid changes, which is explorer having restarted. Runs on the hook
+ * thread, which is the thread the hook is then delivered on.
+ *
+ * The walk skips our own tray window by image name (owned_by_explorer): a
+ * bare FindWindow answers with OUR Shell_TrayWnd, and an earlier version of
+ * this taking that answer is exactly how the hook spent its sessions
+ * watching the shell's own pid while explorer's taskbar flashed over the
+ * dock unrefereed. */
+static void hook_explorer_on_thread(void) {
+  HWND tray = NULL;
   DWORD pid = 0;
+  while ((tray = FindWindowExW(NULL, tray, kTrayClasses[0], NULL)) != NULL) {
+    if (owned_by_explorer(tray)) break;
+  }
   if (tray != NULL) GetWindowThreadProcessId(tray, &pid);
   if (pid == 0 || pid == g_hook_pid) return;
   if (g_show_hook != NULL) UnhookWinEvent(g_show_hook);
@@ -227,10 +310,55 @@ static void hook_explorer(void) {
   g_hook_pid = g_show_hook != NULL ? pid : 0;
 }
 
-static void unhook_explorer(void) {
+static void unhook_explorer_on_thread(void) {
   if (g_show_hook != NULL) UnhookWinEvent(g_show_hook);
   g_show_hook = NULL;
   g_hook_pid = 0;
+}
+
+static DWORD WINAPI hook_thread_main(LPVOID ready) {
+  MSG msg;
+  /* Touching the queue creates it; PostThreadMessage to a thread without one
+   * fails, so the starter waits on this event before posting. */
+  PeekMessageW(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+  SetEvent((HANDLE)ready);
+  while (GetMessageW(&msg, NULL, 0, 0) > 0) {
+    if (msg.message == kHookMsgRearm) {
+      hook_explorer_on_thread();
+    } else if (msg.message == kHookMsgUnhook) {
+      unhook_explorer_on_thread();
+    } else {
+      TranslateMessage(&msg);
+      DispatchMessageW(&msg);
+    }
+  }
+  return 0;
+}
+
+/* Start the hook thread if it is not running, and post it one job. The
+ * thread is deliberately never joined: it is a process-lifetime service,
+ * and the hook it holds is torn down by the OS with the process. */
+static void hook_post(UINT what) {
+  AcquireSRWLockExclusive(&g_hook_start_lock);
+  if (g_hook_thread == NULL) {
+    HANDLE ready = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (ready != NULL) {
+      g_hook_thread =
+          CreateThread(NULL, 0, hook_thread_main, ready, 0, &g_hook_tid);
+      if (g_hook_thread != NULL) WaitForSingleObject(ready, 2000);
+      CloseHandle(ready);
+    }
+  }
+  ReleaseSRWLockExclusive(&g_hook_start_lock);
+  if (g_hook_thread != NULL) PostThreadMessageW(g_hook_tid, what, 0, 0);
+}
+
+static void hook_explorer(void) { hook_post(kHookMsgRearm); }
+
+static void unhook_explorer(void) {
+  /* Nothing to unhook if no thread ever armed one -- and calling here must
+   * not START the thread just to tell it to do nothing. */
+  if (g_hook_thread != NULL) hook_post(kHookMsgUnhook);
 }
 
 static void restore_at_exit(void) {
@@ -286,6 +414,10 @@ int32_t flwin32_explorer_taskbar_visible(void) {
   for (i = 0; i < kTrayClassCount; i++) {
     HWND w = NULL;
     while ((w = FindWindowExW(NULL, w, kTrayClasses[i], NULL)) != NULL) {
+      /* Explorer's only: our own tray window shares the class, and a shown
+       * window of OURS reading as "explorer's taskbar is back" would have
+       * the hide machinery fighting the shell itself. */
+      if (!owned_by_explorer(w)) continue;
       if (IsWindowVisible(w)) return 1;
     }
   }
