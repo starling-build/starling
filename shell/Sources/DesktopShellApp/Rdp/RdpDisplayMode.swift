@@ -45,6 +45,16 @@ nonisolated(unsafe) private var rdpWakeupSource: DispatchSourceRead? = nil
 func runRdpDisplay() -> Never {
     let env = ProcessInfo.processInfo.environment
 
+    // The style and appearance the user picked, before anything is built.
+    //
+    // These used to be restored in `runDRM` only, so display mode always came
+    // up macOS-and-default no matter what the user had chosen — and display
+    // mode is the WHOLE product wherever there is no DRM device, which is to
+    // say every WSL box. Style first: it decides which dark/light pair the
+    // appearance then resolves against.
+    _DesktopShellState.loadPersistedStyle()
+    _DesktopShellState.loadPersistedAppearance()
+
     // Fallback geometry until a client says otherwise. The desktop runs with
     // nobody connected — a client attaching renegotiates, as plugging in a
     // monitor would.

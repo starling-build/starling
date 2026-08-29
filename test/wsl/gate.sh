@@ -19,8 +19,17 @@ mkdir -p "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
 export DISPLAY=:99
 
 say "1. install"
-apt-get install -y --allow-downgrades /mnt/c/dist/starling-gate.deb > /tmp/g-install.log 2>&1
-check $? "the .deb installs on a clean 26.04 (dependencies resolve)"
+# dpkg -i, NOT apt-get install: the version does not change between builds,
+# and apt treats a same-version .deb as already installed and does nothing —
+# silently, with exit 0. That had this gate testing a two-week-old binary
+# while reporting a pass. dpkg reinstalls over an identical version.
+dpkg -i /mnt/c/dist/starling-gate.deb > /tmp/g-install.log 2>&1 \
+  || dpkg -i --force-all /mnt/c/dist/starling-gate.deb >> /tmp/g-install.log 2>&1
+INST=$?
+apt-get -y -f install >> /tmp/g-install.log 2>&1   # pull any missing deps
+check $INST "the .deb installs on a clean 26.04 (dependencies resolve)"
+say "   installed: $(sha256sum /usr/lib/starling/DesktopShellApp | cut -c1-16) \
+$(stat -c%y /usr/lib/starling/DesktopShellApp | cut -d. -f1)"
 ls /dev/dri >/dev/null 2>&1 && say "   NOTE: /dev/dri present — not the headless case" \
                             || say "   /dev/dri absent, as expected"
 

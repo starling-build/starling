@@ -1023,6 +1023,11 @@ func runDRM() -> Never {
 // ─── Headless fallback (--headless flag) ─────────────────────────────────────
 
 func runHeadless() -> Never {
+    // Same restore the DRM and RDP paths do — see the note in
+    // `runRdpDisplay`. A mode that ignores the user's chosen style renders a
+    // desktop they did not ask for.
+    _DesktopShellState.loadPersistedStyle()
+    _DesktopShellState.loadPersistedAppearance()
     runApp(
         MacosApp(
             themeMode: .dark,
