@@ -376,13 +376,28 @@ extension ShellTheme {
         let menuSep    = dark ? Color(0xFF3D3D3D) : Color(0xFFE4E4E4)
         let menuShadow = dark ? Color(0x66000000) : Color(0x2E000000)
 
-        // The acrylic TINT, not the whole surface: every panel that uses
-        // these puts a blur underneath, and the alpha is what lets the
-        // frosted wallpaper through. Opaque here would be a grey slab.
-        let acrylic = mica(dark ? Color(0xE02C2C2C) : Color(0xE0FCFCFC), lean)
-        // The taskbar is thinner acrylic than a flyout — Windows lets more of
-        // the desktop through the bar than through a menu.
-        let barAcrylic = mica(dark ? Color(0xD91F1F1F) : Color(0xD9F3F3F3), lean)
+        // The acrylic tint, and it is MUCH more opaque than a first guess at
+        // "translucent" suggests. Measured off the real thing
+        // (test/win/capture-reference.sh, against a wallpaper running from
+        // near-black to a bright tan): Windows' Start reads a flat 251,251,251
+        // and its taskbar a flat 25,27,32 straight across, with no per-pixel
+        // contribution from the picture behind them at all.
+        //
+        // So the relationship to the wallpaper is carried by MICA — a tint
+        // taken from the average — and not by transmission. The small alpha
+        // left here is the material's hint of depth, not a window onto the
+        // desktop; a genuinely see-through bar is the macOS idea, and putting
+        // one in Windows' colours is how this style went wrong in both
+        // directions in turn.
+        //
+        // NOT leaned toward the wallpaper, and that is the distinction: Mica
+        // is for WINDOW backgrounds, Acrylic is for FLYOUTS, and only the
+        // first takes the wallpaper's tint. The Windows shell's own palette
+        // draws the same line — `windowBg` calls mica(), `menuBg` does not.
+        // Leaning these as well put our Start at 215,215,215 over a dark
+        // wallpaper where the real one measures a flat 251.
+        let acrylic = dark ? Color(0xF52C2C2C) : Color(0xF5FCFCFC)
+        let barAcrylic = dark ? Color(0xF71F1F1F) : Color(0xF7F3F3F3)
 
         return ShellTheme(
             name: dark ? "Dark" : "Light",

@@ -24,10 +24,19 @@ import Foundation
 
 // MARK: - Geometry
 
+// Sized against the real thing rather than guessed: on the reference machine
+// (test/win/capture-reference.sh) Windows' Start measures 830 x 862pt on a
+// 1920x1080 logical desktop — a big panel that owns most of the screen's
+// height, not the small card this started as. Held to a fraction of the
+// display so it stays proportionate on a laptop panel, where a fixed 830
+// would not fit at all.
 private enum StartPanel {
     static let width: Double = 640
     static let minHeight: Double = 320
     static let maxHeight: Double = 640
+    /// Windows' proportions: roughly 43% of the width and 80% of the height.
+    static let widthFraction: Double = 0.43
+    static let heightFraction: Double = 0.80
     static let pad: Double = 20
     static let radius: Double = 8
     /// Gap between the panel and the taskbar.
@@ -90,11 +99,17 @@ class FluentStartMenu: StatelessWidget {
 
     override func build(_ context: any BuildContext) -> Widget {
         let barH = DesktopTheme.kDockHeight
-        let width = min(StartPanel.width, screenWidth - 32)
+        // Windows' proportions where the screen is big enough for them, and
+        // the fixed size where it is not.
+        let width = min(max(StartPanel.width,
+                            screenWidth * StartPanel.widthFraction),
+                        screenWidth - 32)
         let available = screenHeight - barH - StartPanel.gap * 2
         let rows = (max(installedCount, 1) + StartPanel.columns - 1)
             / StartPanel.columns
-        let height = StartPanel.height(rows: rows, available: available)
+        let height = min(available,
+                         max(StartPanel.height(rows: rows, available: available),
+                             screenHeight * StartPanel.heightFraction))
 
         return Stack(
             fit: .expand,
@@ -314,7 +329,18 @@ class FluentStartMenu: StatelessWidget {
             height: StartPanel.footerHeight,
             child: DecoratedBox(
                 decoration: BoxDecoration(
-                    color: shellTheme.controlFill,
+                    // A WASH over the panel, not a fill: Windows' footer is a
+                    // shade DARKER than the body it sits under, and using the
+                    // field colour here made it lighter — white-on-grey where
+                    // the reference is grey-on-white.
+                    //
+                    // Weaker than `hoverFill`, which measured 29 levels down
+                    // from the body against the reference's 16: the wash lands
+                    // on the blurred backdrop rather than on the panel fill,
+                    // so it bites harder here than the same alpha does on a
+                    // plain surface.
+                    color: shellTheme.isDark ? Color(0x0AFFFFFF)
+                                             : Color(0x06000000),
                     border: Border(
                         top: BorderSide(color: shellTheme.panelStroke, width: 1))
                 ),
