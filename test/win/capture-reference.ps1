@@ -15,7 +15,7 @@ Add-Type -AssemblyName System.Windows.Forms
 #
 # PowerShell is DPI-unaware, so on this 3840x2160 panel at 200% Windows tells
 # it the virtual screen is 1920x1080 and CopyFromScreen then copies the
-# top-left 1920x1080 PHYSICAL pixels — a quarter of the desktop, reported as
+# top-left 1920x1080 PHYSICAL pixels -- a quarter of the desktop, reported as
 # the whole of it. The first run of this looked like a Windows with no taskbar
 # and Start jammed against the right edge; both were simply outside the
 # quadrant. Declaring awareness has to happen before the first screen query,
@@ -87,7 +87,7 @@ $appsLight = (Get-ItemProperty $personalize -Name AppsUseLightTheme -ErrorAction
 $sysLight = (Get-ItemProperty $personalize -Name SystemUsesLightTheme -ErrorAction SilentlyContinue).SystemUsesLightTheme
 "  apps theme: $(if ($appsLight -eq 1) {'light'} else {'dark'}); system theme: $(if ($sysLight -eq 1) {'light'} else {'dark'})"
 
-# The wallpaper, so the same picture can be put behind our own chrome — Mica
+# The wallpaper, so the same picture can be put behind our own chrome -- Mica
 # is a function of it, and comparing two desktops over different pictures
 # compares the pictures.
 $wall = (Get-ItemProperty 'HKCU:\Control Panel\Desktop' -Name WallPaper -ErrorAction SilentlyContinue).WallPaper
@@ -96,7 +96,7 @@ if ($wall -and (Test-Path $wall)) { Copy-Item $wall "$out\wallpaper$([System.IO.
 
 # Clear the screen first. A window left over from an earlier run sits behind
 # Start and Quick Settings, and then what is sampled "through" the acrylic is
-# that window rather than the wallpaper — which is the whole measurement.
+# that window rather than the wallpaper -- which is the whole measurement.
 # Win+D shows the desktop; every capture below wants the same clean backdrop.
 [Keys]::WinPlus([Keys]::VK_D)
 Start-Sleep -Milliseconds 1200
@@ -109,7 +109,7 @@ Grab "start"
 [Keys]::Tap([Keys]::VK_ESC)
 Start-Sleep -Milliseconds 900
 
-# Quick Settings (Win+A) — the flyout our control centre stands in for.
+# Quick Settings (Win+A) -- the flyout our control centre stands in for.
 [Keys]::WinPlus([Keys]::VK_A)
 Start-Sleep -Milliseconds 1400
 Grab "quicksettings"

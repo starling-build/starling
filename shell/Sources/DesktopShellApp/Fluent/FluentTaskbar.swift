@@ -26,17 +26,23 @@ import Foundation
 
 // MARK: - Geometry
 
+// The numbers are our WINDOWS shell's, not guesses and not re-derived:
+// `kDockHeight`, `kDockIcon` and `kDockTile` in
+// sdk/Examples/WinShellBar/Dock.swift, which were tuned sitting next to real
+// Explorer. Taking them wholesale is the point -- the two shells should be the
+// same product on two operating systems, and a Linux bar 48 tall with 24pt
+// icons next to a Windows one that is 56 with 34 is simply wrong twice.
 enum FluentBar {
-    /// The strip. 48pt is Windows' own: a solid bar across the screen cannot
-    /// afford the height a floating dock can, because it is always there.
-    static let height: Double = 48
+    /// The strip, and the reason it is not a dock's height: a solid bar
+    /// across the screen cannot afford what a floating slab can.
+    static let height: Double = 56
     /// One tile's box, and the gap between two of them.
-    static let tile: Double = 40
+    static let tile: Double = 48        // kDockTile = kDockIcon + 14
     static let gap: Double = 4
     /// Centre-to-centre.
     static var pitch: Double { tile + gap }
     /// The app icon inside a tile.
-    static let icon: Double = 24
+    static let icon: Double = 34
     /// The running indicator: a rounded bar under the tile, longer for the
     /// window that currently has focus.
     static let indicatorHeight: Double = 3

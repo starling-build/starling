@@ -89,9 +89,9 @@ struct ShellMetrics {
         titleBarHeight: 32.0,
         windowCornerRadius: 8.0,
         panelCornerRadius: 8.0,
-        bottomBarHeight: 48.0,
+        bottomBarHeight: 56.0,
         bottomBarMargin: 0.0,
-        bottomBarContainerHeight: 96.0
+        bottomBarContainerHeight: 112.0
     )
 }
 

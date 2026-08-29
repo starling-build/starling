@@ -31,17 +31,19 @@ import Foundation
 // display so it stays proportionate on a laptop panel, where a fixed 830
 // would not fit at all.
 private enum StartPanel {
-    static let width: Double = 640
+    /// Our Windows shell's own Start, to the point: `kLauncherWidth` and
+    /// `kLauncherHeight` in sdk/Examples/WinShellBar/Launcher.swift. They
+    /// independently agree with what real Windows measures (830 x 862pt, off
+    /// test/win/capture-reference.sh) -- a good sign both were tuned against
+    /// the same thing.
+    static let width: Double = 832
     static let minHeight: Double = 320
-    static let maxHeight: Double = 640
-    /// Windows' proportions: roughly 43% of the width and 80% of the height.
-    static let widthFraction: Double = 0.43
-    static let heightFraction: Double = 0.80
+    static let maxHeight: Double = 864
     static let pad: Double = 20
     static let radius: Double = 8
     /// Gap between the panel and the taskbar.
     static let gap: Double = 12
-    static let columns: Int = 6
+    static let columns: Int = 8   // kPinnedColumns
     static let cellHeight: Double = 88
     static let iconSize: Double = 32
     static let searchHeight: Double = 34
@@ -101,15 +103,21 @@ class FluentStartMenu: StatelessWidget {
         let barH = DesktopTheme.kDockHeight
         // Windows' proportions where the screen is big enough for them, and
         // the fixed size where it is not.
-        let width = min(max(StartPanel.width,
-                            screenWidth * StartPanel.widthFraction),
-                        screenWidth - 32)
+        // Windows' size where it fits and clamped where it does not: 832 x 864
+        // is most of a 1280x800 laptop panel, which is a screen Windows itself
+        // would not be putting this panel on.
+        let width = min(StartPanel.width, screenWidth - 32)
         let available = screenHeight - barH - StartPanel.gap * 2
         let rows = (max(installedCount, 1) + StartPanel.columns - 1)
             / StartPanel.columns
-        let height = min(available,
-                         max(StartPanel.height(rows: rows, available: available),
-                             screenHeight * StartPanel.heightFraction))
+        // The WIDTH is Windows' and the column count with it, because those
+        // are structural. The HEIGHT follows the grid, with Windows' 864 as
+        // the ceiling rather than the floor: Windows fills the space under
+        // Pinned with a Recommended section and had 128 apps to draw on, and
+        // reproducing its height with thirteen gives a panel two thirds void.
+        // Matching the shape is the goal; matching an emptiness that only
+        // exists because we have fewer apps is not.
+        let height = StartPanel.height(rows: rows, available: available)
 
         return Stack(
             fit: .expand,
