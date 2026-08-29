@@ -2956,8 +2956,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 child: SizedBox(
                     width: max(w.rect.width, 1),
                     height: max(w.rect.height, 1),
+                    // `.medium`, not `.low`: a window is minified about
+                    // four times to reach this box, and `.low` is a plain
+                    // bilinear sample that aliases badly that far down --
+                    // text in the preview came out mush. `.medium` mipmaps,
+                    // which is precisely the case mipmaps exist for, and at
+                    // this size costs nothing worth measuring.
                     child: TextureWidget(textureId: texId,
-                                         filterQuality: .low))))
+                                         filterQuality: .medium))))
     }
 
     /// The Windows shell's own preview geometry, so the two shells' previews
