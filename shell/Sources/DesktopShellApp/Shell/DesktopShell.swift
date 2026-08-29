@@ -352,6 +352,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     nonisolated(unsafe) private static var _frameTickRequested: Int32 = 0
     private var _frameTick: Int = 0
     private var _frameTickTimer: DispatchSourceTimer?
+    /// Whether the frame pump is running at its full rate.
+    ///
+    /// The pump exists for riders that need a liveness floor -- a screen
+    /// capture, a recording, RDP -- and at idle it has none, so every one of
+    /// its 30 wakeups a second found nothing to do and went back to sleep.
+    /// That is not free: each is a timerfd re-arm, an epoll round trip and a
+    /// context switch, and at idle it was most of what the main thread cost.
+    /// The rate now follows the riders.
+    private var _pumpFast = false
 
     // Screen recording: 1s repaint tick for the indicator's elapsed time
     // (fires only while recording), and the id counter for shell-posted
@@ -1192,8 +1201,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // ~30fps so screen share is smooth; the poll itself is two int reads.
         signal(36, { _ in _DesktopShellState._frameTickRequested = 1 })
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + .milliseconds(33),
-                       repeating: .milliseconds(33))
+        timer.schedule(deadline: .now() + Self.kPumpIdlePeriod,
+                       repeating: Self.kPumpIdlePeriod)
         timer.setEventHandler { [weak self] in
             var tick = false
             var rebuild = false
@@ -1248,6 +1257,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 rdpService?.pumpTick()
             }
             #endif
+            // Match the rate to the riders, and only when it actually
+            // changes -- rescheduling every tick would put back the
+            // timerfd_settime this exists to remove. Ramping up costs at most
+            // one idle period, which the priming-rebuild phases already
+            // absorb; ramping down happens when the last rider stops.
+            self?._setPumpRate(fast: tick)
             guard tick else { return }
             // The pump is a LIVENESS FLOOR, not a frame source. A present
             // only happens when the tree is dirty, and a full rebuild of
@@ -7660,6 +7675,23 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // answered, or the pane sits there claiming a display that is gone.
         publishDisplaysToChildren()
         #endif
+    }
+
+    /// The frame pump's two rates: full for a rider that needs a liveness
+    /// floor, and a slow poll otherwise so a forced tick or a capture
+    /// starting is still noticed promptly.
+    ///
+    /// 33ms is ~30fps, which is what a screen share wants. The idle period is
+    /// the latency a tooling-forced frame can see, and screenshots already
+    /// wait far longer than that.
+    static let kPumpFullPeriod: DispatchTimeInterval = .milliseconds(33)
+    static let kPumpIdlePeriod: DispatchTimeInterval = .milliseconds(250)
+
+    private func _setPumpRate(fast: Bool) {
+        guard fast != _pumpFast, let timer = _frameTickTimer else { return }
+        _pumpFast = fast
+        let period = fast ? Self.kPumpFullPeriod : Self.kPumpIdlePeriod
+        timer.schedule(deadline: .now() + period, repeating: period)
     }
 
     /// Restore the persisted style before the first build. Must run BEFORE
