@@ -236,18 +236,9 @@ class FluentTaskbar: StatelessWidget {
             }
         ))
 
-        // The hovered tile's name, floating above the bar. Windows shows a
-        // window preview here; a name is the honest subset of that.
-        if let idx = hoveredIndex, idx < count {
-            let name = idx == 0 ? "Start" : tiles[idx - 1].name
-            let cx = FluentBar.tileCenterX(
-                index: idx, count: count, outputWidth: outputWidth)
-            layers.append(Positioned(
-                left: max(4, cx - 90), bottom: FluentBar.height + 6,
-                width: 180,
-                child: Center(child: _nameLabel(name))
-            ))
-        }
+        // The hover preview is NOT drawn here: it is taller than this box
+        // and the shell hangs it above the bar as its own layer. See
+        // `fluentHoverPreview`.
 
         return Stack(fit: .expand, children: layers)
     }

@@ -2859,6 +2859,114 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if next != _fluentHoverIndex { setState { _fluentHoverIndex = next } }
     }
 
+    /// The hovered tile's preview: a LIVE thumbnail of each of the app's
+    /// windows, or just its name when it has none.
+    ///
+    /// "Live" is not a stretch here -- the thumbnail is the very texture the
+    /// compositor is scanning that window out of, the same one Mission
+    /// Control's cards use, so it costs one more quad and is never stale.
+    ///
+    /// Geometry is our Windows shell's (`kPreviewThumb*` in
+    /// sdk/Examples/WinShellBar/Dock.swift), so the two look alike; the panel
+    /// grows to the right as an app collects windows and is clamped to the
+    /// screen so a tile near either edge still shows its whole preview.
+    func fluentHoverPreview() -> Widget? {
+        guard let idx = _fluentHoverIndex, idx > 0 else { return nil }
+        let apps = _dockDisplayApps
+        guard idx - 1 < apps.count else { return nil }
+        let appId = apps[idx - 1]
+        let name = AppRegistry.shared.app(id: appId)?.name ?? appId
+        let wins = windowManager.windows.filter {
+            _appOwning($0)?.id == appId && !_closingWindows.contains($0.id)
+        }
+
+        let count = max(wins.count, 1)
+        let panelW = wins.isEmpty
+            ? 180.0
+            : Double(count) * (Self.kPreviewThumbW + Self.kPreviewPad) + Self.kPreviewPad
+        let panelH = wins.isEmpty
+            ? 30.0
+            : Self.kPreviewPad + Self.kPreviewTitleH + Self.kPreviewThumbH
+                + Self.kPreviewPad
+
+        let cx = FluentBar.tileCenterX(index: idx, count: apps.count + 1,
+                                       outputWidth: screenWidth)
+        let left = max(6, min(cx - panelW / 2, screenWidth - panelW - 6))
+
+        let body: Widget = wins.isEmpty
+            ? Center(child: Text(name, style: fluentType.styled(
+                { $0.body }, shellTheme.fgPrimary)))
+            : Row(mainAxisSize: .min, children: wins.map { w in
+                Padding(
+                    padding: EdgeInsets(left: Self.kPreviewPad, top: Self.kPreviewPad,
+                                        right: 0, bottom: Self.kPreviewPad),
+                    child: Column(mainAxisSize: .min,
+                                  crossAxisAlignment: .start, children: [
+                        SizedBox(
+                            width: Self.kPreviewThumbW, height: Self.kPreviewTitleH,
+                            child: Text(w.title.isEmpty ? name : w.title,
+                                        style: fluentType.styled(
+                                            { $0.caption }, shellTheme.fgSecondary),
+                                        overflow: .ellipsis, maxLines: 1)),
+                        SizedBox(
+                            width: Self.kPreviewThumbW, height: Self.kPreviewThumbH,
+                            child: _fluentThumb(w)),
+                    ]))
+            })
+
+        return Positioned(
+            left: left,
+            bottom: DesktopTheme.kDockHeight + 8,
+            width: panelW, height: panelH,
+            child: IgnorePointer(child: DecoratedBox(
+                decoration: BoxDecoration(
+                    color: shellTheme.panelFill,
+                    border: Border.all(color: shellTheme.panelStroke, width: 1),
+                    borderRadius: BorderRadius.circular(
+                        shellMetrics.panelCornerRadius),
+                    boxShadow: [
+                        BoxShadow(color: shellTheme.popupShadow,
+                                  offset: Offset(0, 4), blurRadius: 16),
+                    ]
+                ),
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                        shellMetrics.panelCornerRadius),
+                    child: body)
+            ))
+        )
+    }
+
+    /// One window's live thumbnail, or a placeholder for a window that has no
+    /// texture yet -- a client that has mapped but not drawn.
+    private func _fluentThumb(_ w: WindowInfo) -> Widget {
+        guard let texId = w.textureId else {
+            return DecoratedBox(
+                decoration: BoxDecoration(color: shellTheme.controlFill),
+                child: SizedBox(expand: ()))
+        }
+        // Fitted, not stretched: the thumbnail box is 16:9 and windows are
+        // not, so scaling the texture to fill it squashes whatever is in
+        // them. Windows letterboxes each preview to its window's shape and
+        // so does this.
+        return DecoratedBox(
+            decoration: BoxDecoration(color: shellTheme.controlFill),
+            child: FittedBox(
+                fit: .contain,
+                child: SizedBox(
+                    width: max(w.rect.width, 1),
+                    height: max(w.rect.height, 1),
+                    child: TextureWidget(textureId: texId,
+                                         filterQuality: .low))))
+    }
+
+    /// The Windows shell's own preview geometry, so the two shells' previews
+    /// are the same size.
+    static let kPreviewThumbW: Double = 208
+    static let kPreviewThumbH: Double = 117
+    static let kPreviewTitleH: Double = 20
+    static let kPreviewPad: Double = 10
+
     /// Open (or close) a status panel from the taskbar. Same reset discipline
     /// as the menu bar's items — every open starts on the panel's own first
     /// screen, never on last week's password prompt or on
@@ -4009,6 +4117,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if dockIsOnHost,
            let bar = chrome.bottomBar(forOutput: dockOutput, opacity: dockOpacity) {
             children.append(bar)
+            // Whatever the bar hangs above itself — Windows' live window
+            // previews. Its own layer, because it is far taller than the bar
+            // and the bar's box is what Mission Control measures against.
+            if dockOpacity > 0.99, let over = chrome.hoverOverlay() {
+                children.append(over)
+            }
         }
 
         // Edge cursor sensors for macOS-style auto-hide. While in fullscreen

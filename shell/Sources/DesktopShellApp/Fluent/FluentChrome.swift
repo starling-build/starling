@@ -61,6 +61,8 @@ final class FluentChrome: ShellChrome {
         shell.fluentNoteBarHover(x: x, y: y, outputId: outputId)
     }
 
+    func hoverOverlay() -> Widget? { shell.fluentHoverPreview() }
+
     func barSlots(forOutput output: DisplayOutput)
         -> [(app: String, x: Double, y: Double, size: Double)] {
         let ids = ["launcher"] + shell._dockDisplayApps

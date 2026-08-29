@@ -172,6 +172,16 @@ protocol ShellChrome: AnyObject {
     /// to show.
     func appIconMenu(forOutput output: DisplayOutput) -> Widget?
 
+    /// Anything the bar hangs ABOVE itself on hover — Windows' live window
+    /// previews. nil in a style that draws its hover feedback inside its own
+    /// box, as the macOS dock does with its name bubble.
+    ///
+    /// A separate layer rather than part of `bottomBar` because a preview is
+    /// far taller than the bar: folding it in would mean inflating the bar's
+    /// layout box, and that box is what Mission Control and the fullscreen
+    /// reveal zone measure themselves against.
+    func hoverOverlay() -> Widget?
+
     /// Global pointer position, for whatever hover effect the bar owns —
     /// dock magnification, taskbar tile highlight. Called for every pointer
     /// move on the desktop, so it must stay cheap.
@@ -351,6 +361,9 @@ final class MacosChrome: ShellChrome {
     func notePointerHover(x: Double, y: Double, outputId: Int) {
         shell._updateDockHover(x: x, y: y, outputId: outputId)
     }
+
+    /// The dock's hover label lives inside its own tall container.
+    func hoverOverlay() -> Widget? { nil }
 
     func barSlots(forOutput output: DisplayOutput)
         -> [(app: String, x: Double, y: Double, size: Double)] {
