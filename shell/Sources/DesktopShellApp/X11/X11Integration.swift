@@ -18,6 +18,17 @@ class X11Integration {
     private var server: OpaquePointer?  // X11Server*
     /// Public access for timerfd registration.
     var serverPointer: OpaquePointer? { server }
+
+    /// Whether any X client is connected.
+    ///
+    /// The shell's frame pump watches for a GetImage screen capture starting,
+    /// and a capture needs a client. With nobody connected -- the normal state
+    /// of a Wayland-only desktop -- the pump can skip that check and the
+    /// wakeup that would carry it.
+    var hasClients: Bool {
+        guard let server else { return false }
+        return x11_server_client_count(server) > 0
+    }
     private let engine: OpaquePointer
     private let textureRegistry: LinuxTextureRegistry
 
@@ -223,10 +234,31 @@ class X11Integration {
         return Int(x11_server_get_fd(server))
     }
 
+    /// Whether the connected-client count changed since last asked, and if so
+    /// tell the shell.
+    ///
+    /// The frame pump only polls for a screen capture starting while an X
+    /// client is connected -- nothing announces a GetImage. A connect is
+    /// therefore what arms that poll, and a disconnect is what stops it; both
+    /// become visible to Swift here, because dispatch is what accepts and
+    /// reaps connections.
+    private var _lastClientCount: Int32 = 0
+    private func _noteClientCount() {
+        guard let server else { return }
+        let n = x11_server_client_count(server)
+        guard n != _lastClientCount else { return }
+        _lastClientCount = n
+        onClientCountChanged?()
+    }
+
+    /// Set by the shell.
+    var onClientCountChanged: (() -> Void)?
+
     /// Dispatch pending X11 events.
     func dispatchEvents() {
         guard let server = server else { return }
         x11_server_dispatch(server)
+        _noteClientCount()
         if flushPendingTextureMarks() {
             // Also schedule via PlatformDispatcher to ensure the engine
             // processes the frame even when called from an epoll callback
@@ -246,6 +278,7 @@ class X11Integration {
     func dispatchAndScheduleFrame() {
         guard let server = server else { return }
         x11_server_dispatch(server)
+        _noteClientCount()
         FlutterEngineScheduleFrame(engine)
     }
 

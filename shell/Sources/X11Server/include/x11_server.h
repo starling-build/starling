@@ -190,6 +190,10 @@ void x11_server_arm_vblank_timer(X11Server* server);
 /// x11_update_vblank_timer).
 void x11_server_disarm_vblank_timer(X11Server* server);
 
+/// Clients connected right now. The shell uses this to decide whether a
+/// screen-capture check is worth making at all.
+int x11_server_client_count(X11Server* server);
+
 /* Process VBlank tick — send queued PresentComplete/IdleNotify events. */
 void x11_server_vblank_tick(X11Server* server);
 

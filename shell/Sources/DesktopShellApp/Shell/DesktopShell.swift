@@ -349,7 +349,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // damage never presents — so the tick dirties a 1px invisible corner
     // overlay to force one. The signal handler just sets a flag; a 100ms
     // GCD timer polls it (signal handlers can't touch widget state).
-    nonisolated(unsafe) private static var _frameTickRequested: Int32 = 0
+    /// eventfd the forced-frame signal writes to, and a static copy of it so
+    /// the signal handler (which cannot capture context) can reach it.
+    var _frameTickEventFd: Int32 = -1
+    nonisolated(unsafe) static var _frameTickFd: Int32 = -1
     private var _frameTick: Int = 0
     private var _frameTickTimer: DispatchSourceTimer?
     /// Whether the frame pump is running at its full rate.
@@ -361,6 +364,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// context switch, and at idle it was most of what the main thread cost.
     /// The rate now follows the riders.
     private var _pumpFast = false
+    /// Whether the pump is currently scheduled at all, and whether the
+    /// DispatchSource has been resumed (suspend/resume must be balanced).
+    private var _pumpRunning = false
+    private var _pumpResumed = false
 
     // Screen recording: 1s repaint tick for the indicator's elapsed time
     // (fires only while recording), and the id counter for shell-posted
@@ -1194,23 +1201,52 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         statusTimer.resume()
         _spaceRepaintTimer = statusTimer
 
-        // Frame tick (see _frameTickRequested): SIGRTMIN+2 = 36 on glibc.
-        // Also pumps presents while an X11 GetImage client (Zoom screen share)
-        // is capturing — an idle desktop never presents, so the capture mirror
-        // would go stale/black; forcing a tick per poll refreshes it. Runs at
-        // ~30fps so screen share is smooth; the poll itself is two int reads.
-        signal(36, { _ in _DesktopShellState._frameTickRequested = 1 })
+        // The tooling-forced frame (SIGRTMIN+2 = 36 on glibc; `shell-drive shot`
+        // sends it before every screenshot, because an idle desktop presents
+        // nothing and the capture would be stale).
+        //
+        // It goes onto the EVENT LOOP rather than into a flag that something
+        // has to notice. `write` is async-signal-safe and the read end is in
+        // the DRM epoll set already, so the frame is forced the moment it is
+        // asked for -- and costs nothing at all when it is not. Watching for
+        // that flag was half the reason the pump ran on an idle desktop.
+        //
+        // A self-pipe, which is the idiom the X11 wakeup here already uses:
+        // Swift's Glibc module does not surface `eventfd`, and a pipe does the
+        // same job.
+        var tickPipe: [Int32] = [-1, -1]
+        if pipe(&tickPipe) == 0 {
+            for fd in tickPipe {
+                _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK)
+                _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+            }
+            _frameTickEventFd = tickPipe[0]
+            _DesktopShellState._frameTickFd = tickPipe[1]
+            signal(36, { _ in
+                var one: UInt8 = 1
+                _ = write(_DesktopShellState._frameTickFd, &one, 1)
+            })
+            if let view = drmViewHandle {
+                fl_drm_view_add_external_fd(view, tickPipe[0], { _ in
+                    guard let shell = _shellState else { return }
+                    var drain = [UInt8](repeating: 0, count: 64)
+                    _ = read(shell._frameTickEventFd, &drain, 64)
+                    // A forced frame is a rebuild, now, once.
+                    shell.setState { shell._frameTick += 1 }
+                }, nil)
+            }
+        }
+        // The frame pump: a LIVENESS FLOOR for the things that need presents to
+        // keep happening on a desktop where nothing is moving -- a recording, a
+        // screencast, an RDP client, an X screen capture. It is created
+        // suspended and armed by `_reevaluateFramePump` when one of those
+        // starts, so a desktop with none of them running does not tick at all.
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + Self.kPumpIdlePeriod,
                        repeating: Self.kPumpIdlePeriod)
         timer.setEventHandler { [weak self] in
             var tick = false
             var rebuild = false
-            if _DesktopShellState._frameTickRequested != 0 {
-                _DesktopShellState._frameTickRequested = 0
-                tick = true
-                rebuild = true
-            }
             #if os(Linux)
             // X11 GetImage (Zoom screen share) reads a CPU mirror refreshed
             // per present and has no timeline of its own — a slow floor
@@ -1257,12 +1293,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 rdpService?.pumpTick()
             }
             #endif
-            // Match the rate to the riders, and only when it actually
-            // changes -- rescheduling every tick would put back the
-            // timerfd_settime this exists to remove. Ramping up costs at most
-            // one idle period, which the priming-rebuild phases already
-            // absorb; ramping down happens when the last rider stops.
-            self?._setPumpRate(fast: tick)
+            // Riders announce themselves, so the rate is not derived here --
+            // with ONE exception. An X client starting a screen capture is
+            // invisible until `fl_drm_view_capture_active` says so, which is
+            // why the slow rate exists at all; re-deciding here is how that
+            // escalates to the full rate. It is a no-op in every other state.
+            self?._reevaluateFramePump()
             guard tick else { return }
             // The pump is a LIVENESS FLOOR, not a frame source. A present
             // only happens when the tree is dirty, and a full rebuild of
@@ -1280,8 +1316,22 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 self?.setState { self?._frameTick += 1 }
             }
         }
-        timer.resume()
+        // NOT resumed here: the pump starts idle and is armed by
+        // `_reevaluateFramePump` when a rider appears. A suspended timer costs
+        // nothing at all, which is the point of the exercise.
         _frameTickTimer = timer
+        // The riders say when they need the pump instead of being asked 30
+        // times a second. They flip state from the engine's threads as well as
+        // the main one, so the re-arm hops to the main queue -- which is where
+        // the timer lives. Reached through the shell global rather than a
+        // captured `self`, the same way the fd handler above does.
+        let pokePump: @Sendable () -> Void = {
+            DispatchQueue.main.async { _shellState?._reevaluateFramePump() }
+        }
+        recordingService?.onFramePumpNeedChanged = pokePump
+        screenCastService?.onFramePumpNeedChanged = pokePump
+        rdpService?.onFramePumpNeedChanged = pokePump
+        _reevaluateFramePump()
 
         // WiFi state: monitor-driven while idle, plus a 5s re-read while the
         // popup is on screen so signal strengths and scan results stay live
@@ -3454,6 +3504,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     private func _setupX11Callbacks() {
         #if os(Linux)
         guard let x11 = x11Integration else { return }
+
+        // A connect arms the capture poll; a disconnect stops it. Nothing else
+        // announces an X screen capture, so this is the pump's only remaining
+        // reason to run on a desktop that is otherwise doing nothing -- and on
+        // a Wayland-only desktop it never runs at all.
+        x11.onClientCountChanged = {
+            DispatchQueue.main.async { _shellState?._reevaluateFramePump() }
+        }
 
         x11.onNewWindow = { [weak self] (windowId: UInt32, textureId: Int, title: String,
                                            x: Int, y: Int, width: Int, height: Int) -> String in
@@ -7687,11 +7745,52 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     static let kPumpFullPeriod: DispatchTimeInterval = .milliseconds(33)
     static let kPumpIdlePeriod: DispatchTimeInterval = .milliseconds(250)
 
-    private func _setPumpRate(fast: Bool) {
-        guard fast != _pumpFast, let timer = _frameTickTimer else { return }
-        _pumpFast = fast
-        let period = fast ? Self.kPumpFullPeriod : Self.kPumpIdlePeriod
-        timer.schedule(deadline: .now() + period, repeating: period)
+    /// Decide whether the frame pump should be running at all, and how fast.
+    ///
+    /// Called when a rider starts or stops -- never on a timer. The pump used
+    /// to ask all of them thirty times a second whether they needed anything;
+    /// on an idle desktop the answer was always no, and asking was most of
+    /// what the desktop cost while doing nothing.
+    ///
+    /// Three states rather than two:
+    ///   fast   a rider needs a liveness floor now.
+    ///   slow   an X client is connected, so a screen capture could start and
+    ///          nothing would announce it -- the one case still worth a poll.
+    ///   off    nobody is riding. No timer, no wakeups.
+    func _reevaluateFramePump() {
+        #if os(Linux)
+        let riding = recordingService?.needsFramePump == true
+            || screenCastService?.needsFramePump == true
+            || rdpService?.needsFramePump == true
+            || fl_drm_view_capture_active() != 0
+        let mayCapture = x11Integration?.hasClients == true
+        #else
+        let riding = false
+        let mayCapture = false
+        #endif
+        guard let timer = _frameTickTimer else { return }
+        if riding {
+            if !_pumpRunning || !_pumpFast {
+                _pumpRunning = true
+                _pumpFast = true
+                timer.schedule(deadline: .now() + Self.kPumpFullPeriod,
+                               repeating: Self.kPumpFullPeriod)
+                if !_pumpResumed { _pumpResumed = true; timer.resume() }
+            }
+        } else if mayCapture {
+            if !_pumpRunning || _pumpFast {
+                _pumpRunning = true
+                _pumpFast = false
+                timer.schedule(deadline: .now() + Self.kPumpIdlePeriod,
+                               repeating: Self.kPumpIdlePeriod)
+                if !_pumpResumed { _pumpResumed = true; timer.resume() }
+            }
+        } else if _pumpRunning {
+            // Nobody riding: stop entirely. A suspended DispatchSourceTimer
+            // costs nothing, which is the whole point.
+            _pumpRunning = false
+            if _pumpResumed { _pumpResumed = false; timer.suspend() }
+        }
     }
 
     /// Restore the persisted style before the first build. Must run BEFORE

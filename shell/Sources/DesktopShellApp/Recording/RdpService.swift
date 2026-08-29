@@ -35,7 +35,17 @@ final class RdpService {
     }
 
     private let lock = NSLock()
-    private var state: State = .idle
+    /// Called whenever `needsFramePump` may have changed.
+    ///
+    /// The shell arms its frame pump from this rather than polling every
+    /// rider thirty times a second: a rider knows when it starts and stops,
+    /// and asking it repeatedly is how an idle desktop ended up paying for
+    /// four services that were all saying no.
+    nonisolated(unsafe) var onFramePumpNeedChanged: (() -> Void)?
+
+    private var state: State = .idle {
+        didSet { onFramePumpNeedChanged?() }
+    }
     private var server: OpaquePointer?
     private var desktopW: UInt32 = 0
     private var desktopH: UInt32 = 0

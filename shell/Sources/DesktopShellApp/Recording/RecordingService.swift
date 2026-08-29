@@ -42,7 +42,17 @@ final class RecordingService {
     enum State { case idle, starting, recording, stopping }
 
     /// Main-thread only.
-    private(set) var state: State = .idle
+    /// Called whenever `needsFramePump` may have changed.
+    ///
+    /// The shell arms its frame pump from this rather than polling every
+    /// rider thirty times a second: a rider knows when it starts and stops,
+    /// and asking it repeatedly is how an idle desktop ended up paying for
+    /// four services that were all saying no.
+    nonisolated(unsafe) var onFramePumpNeedChanged: (() -> Void)?
+
+    private(set) var state: State = .idle {
+        didSet { if oldValue != state { onFramePumpNeedChanged?() } }
+    }
     private(set) var startedAt: Date? = nil
     private(set) var lastSavedPath: String? = nil
     var onChange: (() -> Void)?

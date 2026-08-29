@@ -5403,6 +5403,21 @@ void x11_server_arm_vblank_timer(X11Server* server) {
     timerfd_settime(server->vblank_timer_fd, 0, &its, nullptr);
 }
 
+/* How many clients are connected right now.
+ *
+ * The shell asks so it knows whether it needs to watch for a GetImage capture
+ * starting. With nobody connected there is nothing to capture, and that is the
+ * normal state of a Wayland-only desktop -- so the check, and the wakeup that
+ * would carry it, can be skipped entirely. */
+int x11_server_client_count(X11Server* server) {
+    if (!server) return 0;
+    int live = 0;
+    for (int i = 0; i < server->client_count; i++) {
+        if (server->clients[i].fd >= 0) live++;
+    }
+    return live;
+}
+
 void x11_server_disarm_vblank_timer(X11Server* server) {
     if (!server || server->vblank_timer_fd < 0) return;
     struct itimerspec off = {};          /* all zero disarms a timerfd */
