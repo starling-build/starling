@@ -141,18 +141,29 @@ class FluentTaskbar: StatelessWidget {
         var layers: [Widget] = [
             Positioned(
                 left: 0, right: 0, bottom: 0, height: FluentBar.height,
+                // Acrylic, not a painted slab: the strip is a blur of the
+                // desktop behind it with the bar's tint over the top. That
+                // translucency is most of what makes a Windows taskbar read
+                // as one — an opaque bar in the same colour looks like a
+                // black rectangle laid on the wallpaper.
                 child: Listener(
                     onPointerHover: { _ in DesktopCursor.setShape(.default) },
                     behavior: .opaque,
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: shellTheme.barFill,
-                            border: Border(
-                                top: BorderSide(
-                                    color: shellTheme.barHairline, width: 1)
+                    child: ClipRect(
+                        child: BackdropFilter(
+                            filter: ShellPalette.chromeFilter(blurSigma: 18),
+                            child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                    color: shellTheme.barFill,
+                                    border: Border(
+                                        top: BorderSide(
+                                            color: shellTheme.barHairline,
+                                            width: 1)
+                                    )
+                                ),
+                                child: SizedBox(expand: ())
                             )
-                        ),
-                        child: SizedBox(expand: ())
+                        )
                     )
                 )
             )
@@ -331,9 +342,9 @@ class FluentTaskbar: StatelessWidget {
                 Column(mainAxisAlignment: .center,
                        crossAxisAlignment: .end) {
                     Text(s.clockText, style: TextStyle(
-                        color: shellTheme.fgPrimary, fontSize: 12))
+                        color: shellTheme.fgPrimary, fontSize: 12, fontFamily: shellTheme.fontFamily))
                     Text(s.dateText, style: TextStyle(
-                        color: shellTheme.fgPrimary, fontSize: 12))
+                        color: shellTheme.fgPrimary, fontSize: 12, fontFamily: shellTheme.fontFamily))
                 }
             }
             // No power button: Windows keeps that inside Start, and so do we
@@ -381,7 +392,7 @@ class FluentTaskbar: StatelessWidget {
             child: Padding(
                 padding: EdgeInsets(left: 8, top: 3, right: 8, bottom: 3),
                 child: Text(text, style: TextStyle(
-                    color: shellTheme.fgPrimary, fontSize: 12))
+                    color: shellTheme.fgPrimary, fontSize: 12, fontFamily: shellTheme.fontFamily))
             )
         )
     }

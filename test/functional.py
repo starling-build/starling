@@ -2342,10 +2342,64 @@ CHECKS = [v for v in dict(globals()).values()
           if callable(v) and hasattr(v, "_check_name")]
 
 
+def pin_macos_style() -> str | None:
+    """Put the desktop in the macOS style for the run, and say what it was.
+
+    Every check here but `check_desktop_style` drives the macOS chrome — the
+    menu bar's status items, the dock's slots — and those surfaces do not
+    exist in the Fluent style. Without this the suite's result depends on
+    which style the box happened to be left in, which is how the control
+    centre check started failing on a desktop that was working perfectly.
+
+    Restored in `main`, so a run leaves the desktop as it found it.
+    """
+    style_file = Path(session_home()) / ".config/starling/style"
+    try:
+        was = style_file.read_text().strip()
+    except OSError:
+        was = "macos"
+    if was == "macos":
+        return None
+    s, win = settings_window()
+    try:
+        tap_label(s, win, "Appearance")
+        tap_label(s, win, "macOS")
+        wait_for(lambda: style_file.read_text().strip() == "macos",
+                 "the desktop to return to the macOS style")
+    finally:
+        s.close()
+        quit_app("SettingsApp")
+    return was
+
+
+def restore_style(was: str | None) -> None:
+    if was is None:
+        return
+    style_file = Path(session_home()) / ".config/starling/style"
+    s, win = settings_window()
+    try:
+        tap_label(s, win, "Appearance")
+        tap_label(s, win, "Windows" if was == "fluent" else "macOS")
+        wait_for(lambda: style_file.read_text().strip() == was,
+                 f"the desktop to go back to the {was} style")
+    finally:
+        s.close()
+        quit_app("SettingsApp")
+
+
 def main() -> int:
     if os.geteuid() != 0:
         print("note: not root — the dock-click check needs /dev/uinput\n")
     print("starling functional tests")
+    entry_style = None
+    try:
+        entry_style = pin_macos_style()
+        if entry_style:
+            print(f"  note  desktop was in the {entry_style} style; "
+                  "pinned to macOS for the run")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  note  could not pin the style ({exc}) — "
+              "chrome-driving checks may fail")
     for fn in CHECKS:
         name = fn._check_name
         if ONLY and ONLY not in name:
@@ -2361,6 +2415,11 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001 - report, never abort the run
             results.append((name, "FAIL", str(exc)))
             print(f"  FAIL  {name}\n        {exc}")
+
+    try:
+        restore_style(entry_style)
+    except Exception as exc:  # noqa: BLE001 - never turn cleanup into a failure
+        print(f"  note  could not restore the {entry_style} style ({exc})")
 
     failed = [r for r in results if r[1] == "FAIL"]
     skipped = [r for r in results if r[1] == "SKIP"]

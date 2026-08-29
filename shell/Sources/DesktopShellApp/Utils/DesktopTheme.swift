@@ -89,6 +89,19 @@ enum DesktopTheme {
     static let kDockBlurSigma: Double = 24.0
 }
 
+// MARK: - ShellMaterial
+
+/// What a translucent chrome surface is made of. The two desktops disagree
+/// in kind here, not in degree: macOS's glass boosts the saturation of what
+/// it blurs so the wallpaper reads through vivid, and Windows' acrylic pulls
+/// colour out so the tint dominates. It is one of the clearest tells of which
+/// desktop you are looking at, and the reason a Fluent palette painted onto
+/// glass still reads as macOS.
+enum ShellMaterial {
+    case glass
+    case acrylic
+}
+
 // MARK: - ShellTheme
 
 /// The switchable look of the desktop chrome. Every shell-drawn color
@@ -187,6 +200,20 @@ struct ShellTheme {
     /// The unfilled part of a slider track.
     let trackRest: Color
 
+    /// The face the chrome sets its text in, and the heavier cut for the few
+    /// things that are emphasised. nil means the engine's default, which is
+    /// what the macOS style wants.
+    ///
+    /// Typeface is most of what a desktop's "feel" is — the same layout in
+    /// the wrong face still reads as the wrong desktop — which is why the
+    /// Fluent style ships Selawik, Segoe UI's metric-compatible stand-in,
+    /// rather than borrowing whatever the system happens to default to.
+    let fontFamily: String?
+    let fontFamilyStrong: String?
+
+    /// Glass or acrylic — see `ShellMaterial`.
+    let material: ShellMaterial
+
     /// The shipped dark look.
     static let macosDark = ShellTheme(
         name: "Dark",
@@ -239,7 +266,10 @@ struct ShellTheme {
         controlStroke: Color(0x1FFFFFFF),
         controlHover: Color(0xFF48484A),
         accentInk: Color(0xFFFFFFFF),
-        trackRest: Color(0x4DFFFFFF)
+        trackRest: Color(0x4DFFFFFF),
+        fontFamily: nil,
+        fontFamilyStrong: nil,
+        material: .glass
     )
 
     /// macOS-style light appearance (Big Sur+): crisp near-opaque white
@@ -300,7 +330,10 @@ struct ShellTheme {
         controlStroke: Color(0x1F000000),
         controlHover: Color(0xFFF0F0F0),
         accentInk: Color(0xFFFFFFFF),
-        trackRest: Color(0x59000000)
+        trackRest: Color(0x59000000),
+        fontFamily: nil,
+        fontFamilyStrong: nil,
+        material: .glass
     )
 }
 
@@ -333,6 +366,28 @@ enum ShellPalette {
             colors: [base.mixed(toward: Color(0xFFFFFFFF), by: 0.12),
                      base.mixed(toward: Color(0xFF000000), by: 0.10)]
         )
+    }
+
+    /// Windows' **Acrylic**: a heavier blur that DESATURATES what it blurs,
+    /// with the surface's translucent tint painted over it.
+    ///
+    /// The saturation figure is the whole difference from `frostFilter`, and
+    /// it is not a tuning detail. macOS's glass boosts saturation, so the
+    /// wallpaper reads through it vivid; Windows' acrylic pulls colour out,
+    /// so it reads through muted and the tint dominates. Painting a Fluent
+    /// palette onto a saturated blur is what made the first cut of this style
+    /// look like macOS in grey.
+    static func acrylicFilter(blurSigma: Double = 30) -> any ImageFilter {
+        frostFilter(blurSigma: blurSigma, saturation: 0.75)
+    }
+
+    /// The active style's chrome blur. Anything drawing shell chrome should
+    /// reach for this rather than for either material directly.
+    static func chromeFilter(blurSigma: Double) -> any ImageFilter {
+        switch shellTheme.material {
+        case .glass:   return frostFilter(blurSigma: blurSigma)
+        case .acrylic: return acrylicFilter(blurSigma: blurSigma * 1.6)
+        }
     }
 
     /// Standard chrome frost: blur + gentle saturation boost. The window

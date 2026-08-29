@@ -138,7 +138,12 @@ class FluentStartMenu: StatelessWidget {
                 ),
                 child: ClipRRect(
                     borderRadius: BorderRadius.circular(StartPanel.radius),
-                    child: Column(
+                    // Acrylic under the panel's tint, which is why that tint
+                    // is translucent — Start is a frosted pane over the
+                    // desktop, not a grey card sitting on it.
+                    child: BackdropFilter(
+                        filter: ShellPalette.chromeFilter(blurSigma: 20),
+                        child: Column(
                         crossAxisAlignment: .stretch,
                         children: [
                             Padding(
@@ -159,6 +164,7 @@ class FluentStartMenu: StatelessWidget {
                             Expanded(child: _grid()),
                             _footer(),
                         ]
+                        )
                     )
                 )
             )
@@ -190,13 +196,13 @@ class FluentStartMenu: StatelessWidget {
                              style: TextStyle(
                                 color: empty ? shellTheme.fgTertiary
                                              : shellTheme.fgPrimary,
-                                fontSize: 13),
+                                fontSize: 13, fontFamily: shellTheme.fontFamily),
                              overflow: .ellipsis,
                              maxLines: 1)
                         Text("|", style: TextStyle(
                             color: caretOn ? shellTheme.fgPrimary
                                            : Color(0x00000000),
-                            fontSize: 13), maxLines: 1)
+                            fontSize: 13, fontFamily: shellTheme.fontFamily), maxLines: 1)
                     }
                 )
             )
@@ -207,9 +213,9 @@ class FluentStartMenu: StatelessWidget {
         Row(mainAxisAlignment: .spaceBetween, crossAxisAlignment: .center) {
             Text(query.isEmpty ? "Pinned" : "Results",
                  style: TextStyle(color: shellTheme.fgPrimary,
-                                  fontSize: 13, fontWeight: .w600))
+                                  fontSize: 13, fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong))
             Text("\(apps.count) apps",
-                 style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12))
+                 style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12, fontFamily: shellTheme.fontFamily))
         }
     }
 
@@ -217,7 +223,7 @@ class FluentStartMenu: StatelessWidget {
         if apps.isEmpty {
             return Center(child: Text(
                 "No apps match \u{201C}\(query)\u{201D}",
-                style: TextStyle(color: shellTheme.fgSecondary, fontSize: 13)))
+                style: TextStyle(color: shellTheme.fgSecondary, fontSize: 13, fontFamily: shellTheme.fontFamily)))
         }
         // Rows of `columns`, padded out to a full row so the last row's tiles
         // stay left-aligned under the ones above instead of centring.
@@ -287,7 +293,7 @@ class FluentStartMenu: StatelessWidget {
                                         app.title,
                                         style: TextStyle(
                                             color: shellTheme.fgPrimary,
-                                            fontSize: 11),
+                                            fontSize: 11, fontFamily: shellTheme.fontFamily),
                                         textAlign: .center,
                                         overflow: .ellipsis,
                                         maxLines: 2)
@@ -321,7 +327,7 @@ class FluentStartMenu: StatelessWidget {
                                       color: shellTheme.fgPrimary, size: 18)
                             SizedBox(width: 8)
                             Text(userName, style: TextStyle(
-                                color: shellTheme.fgPrimary, fontSize: 13))
+                                color: shellTheme.fgPrimary, fontSize: 13, fontFamily: shellTheme.fontFamily))
                         }
                         SizedBox(
                             width: 36, height: 36,

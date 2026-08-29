@@ -1136,6 +1136,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // if glyphs from one family ever come up empty.
         CupertinoIcons.registerFont()
         FluentSystemIcons.registerFont()
+        SelawikFont.registerFont()
 
         #if os(Linux)
         // The App Store installs and removes apps while the session is
@@ -1412,8 +1413,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         data: ptr.baseAddress!,
                         width: cropped.width, height: cropped.height)
                 }
+                // Mica's ingredient: the wallpaper's average colour, which
+                // the Fluent chrome leans toward so it looks related to the
+                // picture behind it. Free here — the pixels are already
+                // decoded and in hand.
+                let tint = _DesktopShellState._averageColor(rgba: cropped.data)
                 shell.setState {
                     shell.wallpaperTextureId = texId
+                    shellMica = tint
+                    // The palette is a FUNCTION of this, so re-resolve it —
+                    // the theme built at launch was the untinted fallback.
+                    shellTheme = shellStyle.theme(dark: shellTheme.isDark)
+                    shell._windowChildCache.removeAll()
                     shell._syncSharedWallpaper()
                 }
             } catch {
@@ -1421,6 +1432,31 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             }
         }
         #endif
+    }
+
+    /// The mean colour of raw RGBA pixels — Mica's ingredient.
+    ///
+    /// Sampled on a stride rather than every pixel: a 4K frame is 8.3M of
+    /// them and the answer is a single average, so reading one pixel in every
+    /// few hundred lands within a shade of the true mean for a fraction of
+    /// the work. Alpha is ignored; a wallpaper is opaque.
+    static func _averageColor(rgba: Data) -> Color? {
+        let pixels = rgba.count / 4
+        guard pixels > 0 else { return nil }
+        let stride = max(1, pixels / 20_000)
+        var r = 0, g = 0, b = 0, n = 0
+        var i = 0
+        while i < pixels {
+            let o = i * 4
+            r += Int(rgba[o]); g += Int(rgba[o + 1]); b += Int(rgba[o + 2])
+            n += 1
+            i += stride
+        }
+        guard n > 0 else { return nil }
+        return Color(alpha: 1.0,
+                     red: Double(r / n) / 255.0,
+                     green: Double(g / n) / 255.0,
+                     blue: Double(b / n) / 255.0)
     }
 
     /// Center-crop raw top-down RGBA pixels to a target aspect ratio,
@@ -4349,7 +4385,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     child: Padding(
                         padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4),
                         child: Text(label, style: TextStyle(
-                            color: Color(0xFFFFFFFF), fontSize: 12, fontWeight: .w500))))),
+                            color: Color(0xFFFFFFFF), fontSize: 12, fontWeight: .w500, fontFamily: shellTheme.fontFamily))))),
         ])
     }
 
@@ -4463,7 +4499,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     SizedBox(width: 5)
                     Text(label, style: TextStyle(
                         color: Color(0xFFFF453A), fontSize: 12,
-                        fontWeight: .w600))
+                        fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong))
                 }
             )
         )
@@ -4492,8 +4528,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             style: TextStyle(
                 color: shellTheme.fgPrimary,
                 fontSize: 13,
-                fontWeight: isActive ? .w600 : .w400
-            )
+                fontWeight: isActive ? .w600 : .w400, fontFamily: shellTheme.fontFamily)
         )
         let bg: Widget = isActive
             ? DecoratedBox(
@@ -4606,7 +4641,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             return _statusPopupPanel(popup: .power, children: [
                 _popupSectionHeader(pending.title),
                 Text(pending.prompt,
-                     style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12)),
+                     style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12, fontFamily: shellTheme.fontFamily)),
                 SizedBox(height: 12),
                 Row(
                     mainAxisAlignment: .spaceBetween,
@@ -4646,7 +4681,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     MacosIcon(icon: icon, color: shellTheme.fgPrimary, size: 15),
                     SizedBox(width: 10),
                     Text("\(action.title)\u{2026}",
-                         style: TextStyle(color: shellTheme.fgPrimary, fontSize: 13)),
+                         style: TextStyle(color: shellTheme.fgPrimary, fontSize: 13, fontFamily: shellTheme.fontFamily)),
                 ])
             )
         )
@@ -4667,7 +4702,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     child: Text(label, style: TextStyle(
                         color: destructive ? shellTheme.accentInk
                                            : shellTheme.fgPrimary,
-                        fontSize: 12, fontWeight: .w600))
+                        fontSize: 12, fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong))
                 )
             )
         )
@@ -4770,7 +4805,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     private func _statusPopupPanel(popup: StatusBarPopup, children: [Widget]) -> Widget {
         let radius = shellMetrics.panelCornerRadius
         let geo = _statusPopupGeometry(popup)
-        let shader = _statusPopupHeights[popup] != nil ? _popupGlassShaderIfAvailable() : nil
+        // The refraction shader is macOS's liquid glass — an edge that bends
+        // the wallpaper behind it. Windows' acrylic has no such thing: it is
+        // a flat frosted pane, so the Fluent style takes the blur without the
+        // lensing, and desaturating rather than saturating (see ShellMaterial).
+        let isAcrylic = shellTheme.material == .acrylic
+        let shader = (!isAcrylic && _statusPopupHeights[popup] != nil)
+            ? _popupGlassShaderIfAvailable() : nil
         // The panel's real screen rect, from the same place that positions it.
         // Two answers here means the glass refracts a rectangle the panel is
         // not standing in — which is exactly what happened when this read the
@@ -4782,7 +4823,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             left: origin.dx, top: origin.dy,
             width: geo.width, height: height,
             cornerRadius: radius,
-            blurSigma: 16, saturation: 1.15)
+            blurSigma: isAcrylic ? 30 : 16,
+            saturation: isAcrylic ? 0.75 : 1.15)
         return MeasureSize(
             onSize: { [weak self] size in
                 self?._recordStatusPopupHeight(popup, size)
@@ -4843,8 +4885,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     style: TextStyle(
                         color: shellTheme.fgPrimary,
                         fontSize: 15,
-                        fontWeight: .w600
-                    )
+                        fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong)
                 )
             )
         )
@@ -4861,12 +4902,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     SizedBox(width: 8),
                     Text(
                         label,
-                        style: TextStyle(color: shellTheme.fgSecondary, fontSize: 13)
+                        style: TextStyle(color: shellTheme.fgSecondary, fontSize: 13, fontFamily: shellTheme.fontFamily)
                     ),
                     Expanded(child: SizedBox(width: 0)),
                     Text(
                         value,
-                        style: TextStyle(color: shellTheme.fgTertiary, fontSize: 13)
+                        style: TextStyle(color: shellTheme.fgTertiary, fontSize: 13, fontFamily: shellTheme.fontFamily)
                     ),
                 ]
             )
@@ -4896,8 +4937,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     label,
                     style: TextStyle(
                         color: shellTheme.accent,
-                        fontSize: 13
-                    )
+                        fontSize: 13, fontFamily: shellTheme.fontFamily)
                 )
             )
         )
@@ -5051,7 +5091,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         var trailing: [Widget] = []
         if _wifiConnecting == net.ssid {
             trailing = [Text("Connecting\u{2026}",
-                             style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11))]
+                             style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11, fontFamily: shellTheme.fontFamily))]
         } else {
             if !net.isOpen {
                 trailing.append(MacosIcon(icon: CupertinoIcons.lock_fill,
@@ -5087,7 +5127,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     SizedBox(width: 8),
                     Expanded(child: Text(
                         net.ssid,
-                        style: TextStyle(color: shellTheme.fgPrimary, fontSize: 13),
+                        style: TextStyle(color: shellTheme.fgPrimary, fontSize: 13, fontFamily: shellTheme.fontFamily),
                         overflow: .ellipsis,
                         maxLines: 1
                     )),
@@ -5104,16 +5144,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // Blink by alpha, never by swapping the glyph — a caret that
             // appears and disappears from the layout makes the text shift.
             color: _wifiCaretOn ? shellTheme.fgPrimary : Color(0x00000000),
-            fontSize: 13
-        ))
+            fontSize: 13, fontFamily: shellTheme.fontFamily))
         var fieldChildren: [Widget]
         if _wifiPassword.isEmpty {
             fieldChildren = [caret, Text("Password", style: TextStyle(
-                color: shellTheme.fgTertiary, fontSize: 13))]
+                color: shellTheme.fgTertiary, fontSize: 13, fontFamily: shellTheme.fontFamily))]
         } else {
             fieldChildren = [
                 Text(String(repeating: "\u{2022}", count: _wifiPassword.count),
-                     style: TextStyle(color: shellTheme.fgPrimary, fontSize: 13),
+                     style: TextStyle(color: shellTheme.fgPrimary, fontSize: 13, fontFamily: shellTheme.fontFamily),
                      overflow: .ellipsis, maxLines: 1),
                 caret,
             ]
@@ -5122,7 +5161,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         var children: [Widget] = [
             _popupSectionHeader("Join \(ssid)"),
             Text("Enter the network password.",
-                 style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12)),
+                 style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12, fontFamily: shellTheme.fontFamily)),
             SizedBox(height: 10),
             SizedBox(width: Double.infinity, child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -5138,7 +5177,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if let err = _wifiError {
             children.append(SizedBox(height: 8))
             children.append(Text(err, style: TextStyle(
-                color: Color(0xFFFF6B6B), fontSize: 11)))
+                color: Color(0xFFFF6B6B), fontSize: 11, fontFamily: shellTheme.fontFamily)))
         }
         children.append(SizedBox(height: 12))
         children.append(Row(
@@ -5173,7 +5212,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         "Wired",
                         style: TextStyle(
                             color: shellTheme.fgPrimary, fontSize: 13,
-                            fontWeight: wired.connected ? .w600 : .w400),
+                            fontWeight: wired.connected ? .w600 : .w400, fontFamily: shellTheme.fontFamily),
                         overflow: .ellipsis, maxLines: 1
                     )),
                 ])
@@ -5183,7 +5222,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 child: Row(children: [
                     Expanded(child: Text(
                         wired.connected ? wired.ipAddress : wired.summary,
-                        style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11),
+                        style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11, fontFamily: shellTheme.fontFamily),
                         overflow: .ellipsis, maxLines: 1
                     )),
                     // Nothing to offer without a cable — a Connect button
@@ -5197,7 +5236,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                             behavior: .opaque,
                             child: Text(wired.connected ? "Disconnect" : "Connect",
                                         style: TextStyle(color: shellTheme.accent,
-                                                         fontSize: 11))
+                                                         fontSize: 11, fontFamily: shellTheme.fontFamily))
                           )
                         : SizedBox(width: 0),
                 ])
@@ -5218,7 +5257,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             }
             children.append(Text(
                 "Wi-Fi is not available on this system.",
-                style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12)))
+                style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12, fontFamily: shellTheme.fontFamily)))
             children.append(_popupDivider())
             children.append(_popupActionRow(label: "Network Settings...") { [self] in
                 setState {
@@ -5252,7 +5291,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     children: [
                         Text("Wi-Fi", style: TextStyle(
                             color: shellTheme.fgPrimary,
-                            fontSize: 13, fontWeight: .w600)),
+                            fontSize: 13, fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong)),
                         _wifiToggle(on: snap.wifiEnabled),
                     ]
                 )
@@ -5263,7 +5302,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         _wifiRowCenters = []
         if !snap.wifiEnabled {
             children.append(Text("Wi-Fi is off.", style: TextStyle(
-                color: shellTheme.fgTertiary, fontSize: 12)))
+                color: shellTheme.fgTertiary, fontSize: 12, fontFamily: shellTheme.fontFamily)))
         } else {
             if let active = snap.active {
                 children.append(SizedBox(height: Self.kNetDetailRowH, child: Padding(
@@ -5275,7 +5314,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         Expanded(child: Text(
                             active.ssid,
                             style: TextStyle(color: shellTheme.fgPrimary,
-                                             fontSize: 13, fontWeight: .w600),
+                                             fontSize: 13, fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong),
                             overflow: .ellipsis, maxLines: 1
                         )),
                         SizedBox(width: 8),
@@ -5286,7 +5325,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     padding: EdgeInsets(left: 20, top: 0, right: 0, bottom: 2),
                     child: Row(children: [
                         Text(active.ipAddress,
-                             style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11)),
+                             style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11, fontFamily: shellTheme.fontFamily)),
                         Expanded(child: SizedBox(width: 0)),
                         GestureDetector(
                             onTap: { [self] in
@@ -5294,7 +5333,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                             },
                             behavior: .opaque,
                             child: Text("Disconnect", style: TextStyle(
-                                color: shellTheme.accent, fontSize: 11))
+                                color: shellTheme.accent, fontSize: 11, fontFamily: shellTheme.fontFamily))
                         ),
                     ])
                 )))
@@ -5314,14 +5353,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 }
             } else if snap.active == nil {
                 children.append(Text("No networks found.", style: TextStyle(
-                    color: shellTheme.fgTertiary, fontSize: 12)))
+                    color: shellTheme.fgTertiary, fontSize: 12, fontFamily: shellTheme.fontFamily)))
             }
         }
 
         if let err = _wifiError {
             children.append(SizedBox(height: 6))
             children.append(Text(err, style: TextStyle(
-                color: Color(0xFFFF6B6B), fontSize: 11)))
+                color: Color(0xFFFF6B6B), fontSize: 11, fontFamily: shellTheme.fontFamily)))
         }
 
         children.append(_popupDivider())
@@ -5414,8 +5453,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         style: TextStyle(
                             color: shellTheme.fgPrimary,
                             fontSize: 24,
-                            fontWeight: .w300
-                        )
+                            fontWeight: .w300, fontFamily: shellTheme.fontFamily)
                     ),
                 ]
             ),
@@ -5424,7 +5462,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             SizedBox(height: 6),
             Text(
                 "Power Source: \(snap.acOnline ? "AC Power" : "Battery")",
-                style: TextStyle(color: shellTheme.fgTertiary, fontSize: 12)
+                style: TextStyle(color: shellTheme.fgTertiary, fontSize: 12, fontFamily: shellTheme.fontFamily)
             ),
             _popupDivider(),
             _popupInfoRow(icon: CupertinoIcons.bolt, label: "Status",
@@ -5509,7 +5547,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if _notifications.isEmpty {
             children.append(Text(
                 "No notifications",
-                style: TextStyle(color: shellTheme.fgTertiary, fontSize: 12)))
+                style: TextStyle(color: shellTheme.fgTertiary, fontSize: 12, fontFamily: shellTheme.fontFamily)))
             return _statusPopupPanel(popup: .notifications, children: children)
         }
         let newestFirst = Array(_notifications.reversed())
@@ -5519,7 +5557,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             if !note.appName.isEmpty {
                 lines.append(Text(
                     note.appName,
-                    style: TextStyle(color: shellTheme.fgTertiary, fontSize: 10)))
+                    style: TextStyle(color: shellTheme.fgTertiary, fontSize: 10, fontFamily: shellTheme.fontFamily)))
                 lines.append(SizedBox(height: 2))
             }
             lines.append(Text(
@@ -5527,13 +5565,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 style: TextStyle(
                     color: note.urgency >= 2 ? Color(0xFFE0655A)
                                              : shellTheme.fgPrimary,
-                    fontSize: 13, fontWeight: .w600),
+                    fontSize: 13, fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong),
                 overflow: .ellipsis, maxLines: 1))
             if !note.body.isEmpty {
                 lines.append(SizedBox(height: 2))
                 lines.append(Text(
                     note.body,
-                    style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12),
+                    style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12, fontFamily: shellTheme.fontFamily),
                     overflow: .ellipsis, maxLines: 3))
             }
             children.append(GestureDetector(
@@ -5552,7 +5590,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             children.append(SizedBox(height: 6))
             children.append(Text(
                 "…and \(_notifications.count - 10) older",
-                style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11)))
+                style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11, fontFamily: shellTheme.fontFamily)))
         }
         children.append(_popupDivider())
         children.append(_popupActionRow(label: "Clear All") { [self] in
@@ -5653,7 +5691,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                                 SizedBox(height: 4),
                                 Text(label, style: TextStyle(
                                     color: fg, fontSize: 11,
-                                    fontWeight: .w600)),
+                                    fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong)),
                             ]
                         )
                     )
@@ -5679,7 +5717,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             ),
             SizedBox(width: 10),
             Text("\(Int(value.rounded()))%",
-                 style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11)),
+                 style: TextStyle(color: shellTheme.fgTertiary, fontSize: 11, fontFamily: shellTheme.fontFamily)),
         ])
     }
 
@@ -5816,8 +5854,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     style: TextStyle(
                         color: shellTheme.fgPrimary,
                         fontSize: 48,
-                        fontWeight: .w200
-                    )
+                        fontWeight: .w200, fontFamily: shellTheme.fontFamily)
                 )
             ),
             Center(
@@ -5826,8 +5863,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     style: TextStyle(
                         color: shellTheme.fgTertiary,
                         fontSize: 16,
-                        fontWeight: .w400
-                    )
+                        fontWeight: .w400, fontFamily: shellTheme.fontFamily)
                 )
             ),
             SizedBox(height: 6),
@@ -5836,8 +5872,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     dateString,
                     style: TextStyle(
                         color: shellTheme.fgSecondary,
-                        fontSize: 13
-                    )
+                        fontSize: 13, fontFamily: shellTheme.fontFamily)
                 )
             ),
             _popupDivider(),
@@ -6609,8 +6644,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     style: TextStyle(
                         color: shellTheme.dockLabelText,
                         fontSize: 13,
-                        fontWeight: .w500
-                    )
+                        fontWeight: .w500, fontFamily: shellTheme.fontFamily)
                 )
             )
         )
@@ -6647,8 +6681,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             style: TextStyle(
                 color: Color(0xFFFFFFFF),
                 fontSize: 16,
-                fontWeight: .w500
-            )
+                fontWeight: .w500, fontFamily: shellTheme.fontFamily)
         )
     }
 
@@ -6662,8 +6695,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     style: TextStyle(
                         color: Color(0xFF8AB4F8),
                         fontSize: 16,
-                        fontWeight: .w700
-                    )
+                        fontWeight: .w700, fontFamily: shellTheme.fontFamilyStrong)
                 )
             )
         )
@@ -6689,8 +6721,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                             style: TextStyle(
                                 color: Color(0xFFB0B0B0),
                                 fontSize: 14,
-                                fontWeight: .w400
-                            )
+                                fontWeight: .w400, fontFamily: shellTheme.fontFamily)
                         ),
                     ]
                 )
@@ -7324,7 +7355,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if !_imePreedit.isEmpty {
             rows.append(Row(mainAxisSize: .min, children: [
                 Text(_imePreedit, style: TextStyle(
-                    color: shellTheme.fgPrimary, fontSize: 15)),
+                    color: shellTheme.fgPrimary, fontSize: 15, fontFamily: shellTheme.fontFamily)),
             ]))
         }
         if !_imeCandidates.isEmpty {
@@ -7335,12 +7366,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 let label = candidate.0.isEmpty ? "\(i + 1)." : candidate.0
                 items.append(Row(mainAxisSize: .min, children: [
                     Text(label, style: TextStyle(
-                        color: shellTheme.fgSecondary, fontSize: 13)),
+                        color: shellTheme.fgSecondary, fontSize: 13, fontFamily: shellTheme.fontFamily)),
                     SizedBox(width: 3),
                     Text(candidate.1, style: TextStyle(
                         color: isHighlighted ? Color(0xFF0A84FF) : shellTheme.fgPrimary,
                         fontSize: 15,
-                        fontWeight: isHighlighted ? .w600 : .w400)),
+                        fontWeight: isHighlighted ? .w600 : .w400, fontFamily: shellTheme.fontFamily)),
                 ]))
             }
             if !rows.isEmpty { rows.append(SizedBox(height: 6)) }
@@ -7926,7 +7957,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 Center(
                     child: Text(
                         appId,
-                        style: TextStyle(color: Color(0x80FFFFFF), fontSize: 16)
+                        style: TextStyle(color: Color(0x80FFFFFF), fontSize: 16, fontFamily: shellTheme.fontFamily)
                     )
                 )
             }

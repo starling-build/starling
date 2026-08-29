@@ -131,8 +131,7 @@ class _FluentTitleBarState: State<StatefulWidget> {
                                     style: TextStyle(
                                         color: titleColor,
                                         fontSize: 12,
-                                        fontWeight: .w400
-                                    ),
+                                        fontWeight: .w400, fontFamily: shellTheme.fontFamily),
                                     overflow: .ellipsis,
                                     maxLines: 1
                                 )

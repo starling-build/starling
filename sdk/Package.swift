@@ -504,16 +504,21 @@ var targets: [Target] = [
         ],
         swiftSettings: cxxInteropSettings
     ),
-    // FluentSystemIcons -- Microsoft's Fluent UI System Icons (MIT), the icon
-    // language the desktop's Fluent style draws with. The Swift file is
-    // GENERATED: sdk/tools/gen-fluent-icons.py. Segoe Fluent Icons, which the
-    // Windows shell uses, cannot be redistributed; this can.
+    // FluentSystemIcons -- the Fluent style's TYPEFACES, both of them: the
+    // Fluent UI System Icons glyph font (MIT) and Selawik (SIL OFL),
+    // Microsoft's metric-compatible stand-in for Segoe UI. Neither Segoe UI
+    // nor Segoe Fluent Icons -- the fonts the Windows shell reads off the
+    // machine it runs on -- can be redistributed; these two can, and Selawik
+    // carries Segoe's advance widths so the layout transfers exactly.
+    // FluentSystemIcons.swift is GENERATED: sdk/tools/gen-fluent-icons.py.
     .target(
         name: "FluentSystemIcons",
         dependencies: ["Flutter", "FlutterSwiftBridge"],
         path: "Sources/FluentSystemIcons",
         resources: [
             .copy("Resources/FluentSystemIcons-Regular.ttf"),
+            .copy("Resources/Selawik-Regular.ttf"),
+            .copy("Resources/Selawik-Semibold.ttf"),
         ],
         swiftSettings: cxxInteropSettings
     ),

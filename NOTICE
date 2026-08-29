@@ -104,6 +104,15 @@ Note that this is NOT Segoe Fluent Icons, which is a Windows system font and is
 not redistributable; the Windows shell reads that one off the machine it runs
 on and nothing here ships it.
 
+Selawik (`Selawik-Regular.ttf`, `Selawik-Semibold.ttf`), the text face the
+desktop's Fluent style sets its chrome in — Microsoft's metric-compatible
+substitute for Segoe UI, published for exactly this purpose:
+
+    Copyright 2015 Microsoft Corporation, with Reserved Font Name Selawik
+    SIL Open Font License, Version 1.1
+
+Segoe UI itself is a Windows system font and is likewise not redistributed.
+
 ================================================================================
 5. PDFium — MIT (pdfium-binaries build), BSD-3-Clause (PDFium itself)
 ================================================================================
