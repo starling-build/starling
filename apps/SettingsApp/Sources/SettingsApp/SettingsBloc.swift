@@ -71,6 +71,8 @@ struct SettingsState {
     var tilingWM: Bool = GpuDmaBufRenderer.lastPushedLayoutIsTiling ?? false
     /// Wallpaper preset raw value — the shell owns it and pushes at connect.
     var wallpaper: Int = GpuDmaBufRenderer.lastPushedWallpaper ?? 0
+    /// Desktop style index — the shell owns the list and pushes at connect.
+    var style: Int = GpuDmaBufRenderer.lastPushedStyle ?? 0
     /// Screensaver idle timeout in seconds (0 = never) — the shell owns it
     /// and pushes at connect.
     var screensaverIdle: Int = GpuDmaBufRenderer.lastPushedScreensaver ?? 600
@@ -81,6 +83,7 @@ struct SettingsState {
     var darkMode: Bool = true
     var tilingWM: Bool = false
     var wallpaper: Int = 0
+    var style: Int = 0
     var screensaverIdle: Int = 600
     #endif
 
@@ -158,6 +161,10 @@ enum SettingsEvent {
     case selectWallpaper(Int)
     /// Wallpaper pushed by the shell (no echo back).
     case wallpaperApplied(Int)
+    /// Desktop style index — the shell owns the list.
+    case selectStyle(Int)
+    /// Style pushed by the shell (no echo back).
+    case styleApplied(Int)
     /// Screensaver idle timeout in seconds; 0 = never.
     case selectScreensaverIdle(Int)
     /// Idle timeout pushed by the shell (no echo back).
@@ -261,6 +268,13 @@ final class SettingsBloc: @unchecked Sendable {
             _applyWallpaper(value)
         case .wallpaperApplied(let value):
             state.wallpaper = value
+        case .selectStyle(let value):
+            // Optimistic, like the wallpaper picker: the shell echoes the
+            // choice back and that echo is the truth.
+            state.style = value
+            _applyStyle(value)
+        case .styleApplied(let value):
+            state.style = value
         case .selectScreensaverIdle(let value):
             state.screensaverIdle = value
             _applyScreensaver(value)
@@ -505,6 +519,14 @@ final class SettingsBloc: @unchecked Sendable {
     private func _applyWallpaper(_ preset: Int) {
         #if os(Linux)
         GpuDmaBufRenderer.current?.sendWallpaperChange(preset: preset)
+        #endif
+    }
+
+    /// Forward the style pick to the shell, which rebuilds its whole chrome,
+    /// persists the choice, and pushes it back to every child.
+    private func _applyStyle(_ style: Int) {
+        #if os(Linux)
+        GpuDmaBufRenderer.current?.sendStyleChange(style: style)
         #endif
     }
 

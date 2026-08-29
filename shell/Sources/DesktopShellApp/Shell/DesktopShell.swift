@@ -5,6 +5,7 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 import CupertinoIcons
+import FluentSystemIcons
 import StarlingRegistry
 import StarlingNet
 import StarlingPower
@@ -66,6 +67,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     // Dock icon textures (loaded from PNG-converted RGBA files)
     var iconTextures: [String: Int64] = [:]  // appId → textureId
+
+    /// The active style's chrome — which surfaces the desktop draws and where
+    /// (ShellStyle.swift). Rebuilt by `_setStyle`; it holds `self` unowned, so
+    /// it must never outlive this state.
+    lazy var chrome: any ShellChrome = shellStyle.makeChrome(self)
 
     // Context menu state. The position is LOCAL to the output it opened on —
     // each tree renders its own copy (the dock/launcher pattern), so a
@@ -1104,6 +1110,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         }
         #if os(Linux)
         linuxProcessAppManager?.currentWallpaper = wallpaperPreset.rawValue
+        // Seed the style the same way. Without this the mirror stays at 0 and
+        // every child that connects is told "macOS" — so the Settings picker
+        // came up on the wrong segment on a desktop that had booted into the
+        // other style, and looked like the switch had silently failed.
+        linuxProcessAppManager?.currentStyleIndex = _styleIndex(shellStyle)
         #endif
         windowManager.onWindowsChanged = { [weak self] in
             guard let self else { return }
@@ -1118,7 +1129,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // anything subscribed (the App Store) needs to hear about it.
             self._refreshAppLiveness()
         }
+        // Both icon fonts, both styles, always — a style switch is then a
+        // repaint and not a font load. They carry different family names, so
+        // registering both is safe; that has been a bug in this tree before
+        // (only the LAST font registered survived) and is worth re-checking
+        // if glyphs from one family ever come up empty.
         CupertinoIcons.registerFont()
+        FluentSystemIcons.registerFont()
 
         #if os(Linux)
         // The App Store installs and removes apps while the session is
@@ -2515,16 +2532,340 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
               !windowManager.activeSpace(onOutput: output.id).isSpecial
         else { return nil }
         if fullscreenWindow(onOutput: output) != nil && !_dockRevealed { return nil }
+        // Same builder the host tree uses, so a secondary monitor cannot end
+        // up drawing a different bar from the primary's.
+        return chrome.bottomBar(forOutput: output, opacity: 1)
+    }
+
+    // MARK: - Chrome seam (macOS style)
+    //
+    // The macOS half of `ShellChrome`. These hold the PLACEMENT that used to
+    // sit inline in `_buildShellRoot`; the drawing is still the `_build*`
+    // methods further down. `MacosChrome` (ShellStyle.swift) forwards to them.
+    // They live in this file rather than beside `MacosChrome` because they
+    // reach private builders, and `private` in Swift is file-scoped.
+
+    /// The menu bar: a frosted strip across the top. Blurred and saturated so
+    /// the clock and the status icons stay legible over any wallpaper — or
+    /// over whatever window content has scrolled underneath.
+    func macosTopBar() -> Widget {
+        Positioned(
+            left: 0.0, top: 0.0, right: 0.0,
+            height: DesktopTheme.kStatusBarHeight,
+            child: ClipRect(
+                child: BackdropFilter(
+                    filter: ImageFilterFactory.compose(
+                        outer: ColorFilter(matrix: _saturationMatrix(1.15)),
+                        inner: ImageFilterFactory.blur(sigmaX: 18, sigmaY: 18)
+                    ),
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: shellTheme.barTint,
+                            border: Border(
+                                bottom: BorderSide(
+                                    color: shellTheme.barHairline, width: 1)
+                            )
+                        ),
+                        child: _buildStatusBar()
+                    )
+                )
+            )
+        )
+    }
+
+    /// The dock. The container is taller than the pill: magnified icons and
+    /// the app-name label grow upward out of it.
+    ///
+    /// `opacity` below 1 is a space slide or a fullscreen auto-hide fading it
+    /// out, and a fading dock stops taking input — a half-transparent dock you
+    /// can still click is a dock you click by accident.
+    func macosDock(forOutput output: DisplayOutput, opacity: Double) -> Widget? {
+        guard opacity > 0.01 else { return nil }
         let metrics = _dockMetrics(outputWidth: output.logicalWidth)
-        let dockTop = output.logicalHeight - DesktopTheme.kDockBottomMargin
-            - DesktopTheme.kDockHeight
+        let dock = _buildDock(
+            appIds: _dockDisplayApps, metrics: metrics,
+            dockTop: output.logicalHeight - DesktopTheme.kDockBottomMargin
+                - DesktopTheme.kDockHeight)
         return Positioned(
             left: metrics.left,
-            top: output.logicalHeight - DesktopTheme.kDockBottomMargin
-                - DesktopTheme.kDockContainerHeight,
-            width: metrics.width, height: DesktopTheme.kDockContainerHeight,
-            child: _buildDock(appIds: _dockDisplayApps, metrics: metrics,
-                              dockTop: dockTop))
+            bottom: DesktopTheme.kDockBottomMargin,
+            width: metrics.width,
+            height: DesktopTheme.kDockContainerHeight,
+            child: opacity < 0.99
+                ? IgnorePointer(child: Opacity(opacity: opacity, child: dock))
+                : dock
+        )
+    }
+
+    /// Start: a panel above the taskbar rather than a full screen.
+    func fluentStartMenu() -> Widget {
+        Positioned(
+            fill: (),
+            child: FluentStartMenu(
+                apps: _launcherFilteredApps(),
+                installedCount: AppRegistry.shared.installedApps.count,
+                query: _launcherQuery,
+                caretOn: _launcherCaretOn,
+                userName: LoginUser.name,
+                screenWidth: screenWidth,
+                screenHeight: screenHeight,
+                onLaunch: { [self] appId in _launchFromLauncher(appId) },
+                onPower: { [self] in
+                    setState {
+                        _launcherOpen = false
+                        _launcherQuery = ""
+                        _launcherDriverTarget = nil
+                    }
+                    _fluentOpenPopup(.power)
+                },
+                onDismiss: { [self] in
+                    setState {
+                        _launcherOpen = false
+                        _launcherQuery = ""
+                        _launcherDriverTarget = nil
+                    }
+                }
+            )
+        )
+    }
+
+    /// Launchpad: the full-screen grid over a dimmed wallpaper.
+    func macosLauncher() -> Widget {
+        Positioned(
+            fill: (),
+            child: AppLauncher(
+                apps: _launcherFilteredApps(),
+                query: _launcherQuery,
+                caretOn: _launcherCaretOn,
+                onLaunch: { [self] appId in _launchFromLauncher(appId) },
+                onDismiss: { [self] in
+                    setState {
+                        _launcherOpen = false
+                        _launcherQuery = ""
+                        _launcherDriverTarget = nil
+                    }
+                }
+            )
+        )
+    }
+
+    /// A status-bar panel, hung under the item that opened it, aligned with
+    /// the icon that opened it.
+    func macosStatusFlyout(_ kind: StatusBarPopup) -> Widget {
+        let o = macosStatusFlyoutOrigin(kind)
+        return Positioned(left: o.dx, top: o.dy, child: _buildStatusBarPopup())
+    }
+
+    func macosStatusFlyoutOrigin(_ kind: StatusBarPopup) -> Offset {
+        Offset(_statusPopupGeometry(kind).left, DesktopTheme.kStatusBarHeight + 1)
+    }
+
+    /// The width every status panel is laid out at. One number, shared by the
+    /// panel and by the glass filter under it.
+    func statusFlyoutWidth(_ kind: StatusBarPopup) -> Double {
+        _statusPopupGeometry(kind).width
+    }
+
+    /// The desktop's right-click menu, at the pointer.
+    func macosDesktopMenu() -> Widget {
+        Positioned(
+            left: contextMenuPosition?.dx ?? 0,
+            top: contextMenuPosition?.dy ?? 0,
+            child: SizedBox(width: 200, child: _buildContextMenu())
+        )
+    }
+
+    /// Unmagnified dock slot centres in `output`'s own coordinates. The
+    /// pointer is not over the dock yet when a caller asks where to move, so
+    /// the magnified geometry would be the wrong answer.
+    func macosDockSlots(forOutput output: DisplayOutput)
+        -> [(app: String, x: Double, y: Double, size: Double)] {
+        let metrics = _dockMetrics(outputWidth: output.logicalWidth)
+        let ids = ["launcher"] + _dockDisplayApps
+        let y = output.logicalHeight
+            - DesktopTheme.kDockBottomMargin
+            - DesktopTheme.kDockIconBottomInset - DesktopTheme.kDockIconSize / 2
+        return ids.enumerated().prefix(metrics.baseCenters.count).map { i, id in
+            (app: id,
+             x: metrics.baseLeft + metrics.baseCenters[i],
+             y: y,
+             size: DesktopTheme.kDockIconSize)
+        }
+    }
+
+    // MARK: - Chrome seam (Fluent style)
+
+    /// The taskbar. Unlike the dock it draws for the whole width of the
+    /// output, so there is no centring to compute here — `FluentTaskbar` does
+    /// its own, against the screen rather than against the space left over.
+    func fluentTaskbar(forOutput output: DisplayOutput,
+                       opacity: Double) -> Widget? {
+        guard opacity > 0.01 else { return nil }
+        let focusedApp = windowManager.focusedWindowId.flatMap { id in
+            windowManager.windows.first { $0.id == id }
+        }.flatMap { _appOwning($0)?.id }
+
+        let tiles: [TaskbarTile] = _dockDisplayApps.map { appId in
+            TaskbarTile(
+                appId: appId,
+                name: AppRegistry.shared.app(id: appId)?.name ?? appId,
+                visual: _buildDockIconContent(
+                    appId: appId, iconType: _iconType(for: appId),
+                    cornerRadius: 6),
+                isRunning: _isAppRunning(appId),
+                isFocused: appId == focusedApp
+            )
+        }
+
+        // The readout the status group shows. Volume is deliberately absent:
+        // `_ccAudio` is only refreshed while the control centre is open, so a
+        // speaker glyph here would show last week's mute state. It joins when
+        // Quick Settings brings its own refresh.
+        var statusIcons: [IconData] = [_fluentNetworkIcon()]
+        if batteryService.snapshot.present {
+            statusIcons.append(_fluentBatteryIcon())
+        }
+
+        let now = Date()
+        let timeFmt = DateFormatter()
+        timeFmt.dateFormat = "h:mm a"
+        let dateFmt = DateFormatter()
+        dateFmt.dateFormat = "M/d/yyyy"
+
+        let status = TaskbarStatus(
+            statusIcons: statusIcons,
+            statusActive: activeStatusBarPopup == .controlCenter,
+            clockText: timeFmt.string(from: now),
+            dateText: dateFmt.string(from: now),
+            clockActive: activeStatusBarPopup == .clock,
+            showBell: !_notifications.isEmpty || _notificationsUnseen,
+            bellTinted: _notificationsUnseen,
+            bellActive: activeStatusBarPopup == .notifications
+        )
+
+        let bar = FluentTaskbar(
+            tiles: tiles,
+            status: status,
+            outputWidth: output.logicalWidth,
+            startActive: _launcherOpen,
+            hoveredIndex: _fluentHoverIndex,
+            onStart: { [self] in
+                _loadIconTextures()
+                openLauncher()
+            },
+            onTile: { [self] appId in _launchOrFocusApp(appId) },
+            onTileMenu: { [self] appId in
+                setState {
+                    contextMenuPosition = nil
+                    activeStatusBarPopup = nil
+                    _dockMenuAppId = appId
+                    _dockMenuAnchorX = _dockIconAnchorX(appId: appId)
+                }
+            },
+            onStatus: { [self] in _fluentOpenPopup(.controlCenter) },
+            onClock: { [self] in _fluentOpenPopup(.clock) },
+            onBell: { [self] in _fluentOpenPopup(.notifications) }
+        )
+
+        return Positioned(
+            left: 0, right: 0, bottom: 0,
+            height: DesktopTheme.kDockContainerHeight,
+            child: opacity < 0.99
+                ? IgnorePointer(child: Opacity(opacity: opacity, child: bar))
+                : bar
+        )
+    }
+
+    /// Which taskbar tile the pointer is over (0 = Start), or nil.
+    var _fluentHoverIndex: Int? = nil
+
+    /// Global-hover hook for the taskbar, and the ONLY place a leave is
+    /// visible: a Listener on a tile hears every enter and no exit, so the
+    /// name label would stick there after the pointer moved up onto a window.
+    /// Purely geometric, so it keeps working whatever is under the cursor.
+    func fluentNoteBarHover(x: Double, y: Double, outputId: Int) {
+        let output = dockOutput
+        var next: Int? = nil
+        if outputId == output.id,
+           y >= output.logicalHeight - DesktopTheme.kDockHeight {
+            let count = _dockDisplayApps.count + 1
+            let rel = x - FluentBar.clusterLeft(
+                count: count, outputWidth: output.logicalWidth)
+            let idx = Int((rel / FluentBar.pitch).rounded(.down))
+            // Inside a tile, not in the gap between two of them.
+            if rel >= 0, idx < count,
+               rel - Double(idx) * FluentBar.pitch <= FluentBar.tile {
+                next = idx
+            }
+        }
+        if next != _fluentHoverIndex { setState { _fluentHoverIndex = next } }
+    }
+
+    /// Open (or close) a status panel from the taskbar. Same reset discipline
+    /// as the menu bar's items — every open starts on the panel's own first
+    /// screen, never on last week's password prompt or on
+    /// "Shut down the computer?".
+    private func _fluentOpenPopup(_ kind: StatusBarPopup) {
+        let isActive = activeStatusBarPopup == kind
+        setState {
+            activeStatusBarPopup = isActive ? nil : kind
+            if activeStatusBarPopup == .notifications { _notificationsUnseen = false }
+            if activeStatusBarPopup == .controlCenter { _refreshControlCenter() }
+            contextMenuPosition = nil
+            _powerConfirm = nil
+            _wifiPasswordSSID = nil
+            _wifiPassword = ""
+            _wifiError = nil
+        }
+        if activeStatusBarPopup == .wifi { networkService.refreshWithScan() }
+    }
+
+    /// Status panels come UP from the bottom-right corner, where Windows puts
+    /// them, rather than down from a menu bar that this style does not have.
+    /// They are all anchored to the same corner, unlike the macOS ones, which
+    /// each hang under their own menu-bar icon — Windows has one tray, and
+    /// everything it opens comes from there.
+    func fluentStatusFlyout(_ kind: StatusBarPopup) -> Widget {
+        Positioned(
+            left: fluentStatusFlyoutOrigin(kind, height: 0).dx,
+            bottom: DesktopTheme.kDockHeight + Self.kFluentFlyoutGap,
+            child: _buildStatusBarPopup()
+        )
+    }
+
+    static let kFluentFlyoutGap: Double = 8
+
+    /// The same corner, resolved to a top-left once the panel has measured
+    /// itself — which is what the glass filter underneath needs.
+    func fluentStatusFlyoutOrigin(_ kind: StatusBarPopup,
+                                  height: Double) -> Offset {
+        Offset(
+            max(8, screenWidth - statusFlyoutWidth(kind) - 8),
+            screenHeight - DesktopTheme.kDockHeight - Self.kFluentFlyoutGap - height
+        )
+    }
+
+    /// The network glyph, in the Fluent icon language. Signal strength is not
+    /// modelled yet, so a connected Wi-Fi shows full bars — the states that
+    /// matter (no adapter, radio off, connecting) are the ones that differ.
+    private func _fluentNetworkIcon() -> IconData {
+        let snap = networkService.snapshot
+        if snap.wired?.connected == true { return FluentSystemIcons.ethernet }
+        if !snap.available || !snap.wifiEnabled { return FluentSystemIcons.wifiOff }
+        if snap.active == nil { return FluentSystemIcons.wifiWarning }
+        return FluentSystemIcons.wifiFull
+    }
+
+    /// The same thresholds the menu bar's glyph uses, so the two styles never
+    /// disagree about how full the battery is.
+    private func _fluentBatteryIcon() -> IconData {
+        let snap = batteryService.snapshot
+        if snap.state == .charging { return FluentSystemIcons.batteryCharging }
+        switch snap.percent {
+        case ..<13: return FluentSystemIcons.batteryEmpty
+        case ..<45: return FluentSystemIcons.batteryHalf
+        default:    return FluentSystemIcons.battery
+        }
     }
 
     /// Yellow. Deferred: the scale-effect zoom into the dock plays first;
@@ -3200,54 +3541,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // BISECT: temporarily removed search pill + date label
         // to test whether they trigger the Chrome DMA-BUF crash.
 
-        // Build status bar and dock widgets — both always render above windows
-        // so the desktop's status bar (clock) stays visible. Fullscreen windows
-        // are positioned below the status bar to avoid overlapping it.
-        // Status bar gets a macOS-menu-bar frost: blurred + saturated
-        // backdrop under a faint dark tint and a bottom hairline, so the
-        // clock/icons stay legible over any wallpaper or window content.
-        let statusBarWidget: Widget = Positioned(
-            left: 0.0, top: 0.0, right: 0.0,
-            height: DesktopTheme.kStatusBarHeight,
-            child: ClipRect(
-                child: BackdropFilter(
-                    filter: ImageFilterFactory.compose(
-                        outer: ColorFilter(matrix: _saturationMatrix(1.15)),
-                        inner: ImageFilterFactory.blur(sigmaX: 18, sigmaY: 18)
-                    ),
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: shellTheme.barTint,
-                            border: Border(
-                                bottom: BorderSide(color: shellTheme.barHairline, width: 1)
-                            )
-                        ),
-                        child: _buildStatusBar()
-                    )
-                )
-            )
-        )
-
-        // Dock geometry under the current hover magnification. The container
-        // is taller than the pill: magnified icons and the app-name label
-        // grow upward out of it, macOS style.
-        //
-        // Only when this tree owns the dock. The user can make another monitor
-        // primary, and then the dock is drawn by that output's
-        // SecondaryOutputScreen instead — there is one dock, and it is on the
-        // primary display (macOS).
-        let dockMetrics = _dockMetrics(outputWidth: screenWidth)
-        func makeDockWidget() -> Widget {
-            Positioned(
-                left: dockMetrics.left,
-                bottom: DesktopTheme.kDockBottomMargin,
-                width: dockMetrics.width, height: DesktopTheme.kDockContainerHeight,
-                child: _buildDock(
-                    appIds: _dockDisplayApps, metrics: dockMetrics,
-                    dockTop: screenHeight - DesktopTheme.kDockBottomMargin
-                        - DesktopTheme.kDockHeight)
-            )
-        }
+        // The top bar, if the active style has one — it always renders above
+        // windows so the clock stays visible, and fullscreen windows lay out
+        // below it. nil in a style whose chrome is all on the bottom edge.
+        let topBarWidget: Widget? = chrome.topBar()
 
         // Whether the topmost visible window is fullscreen — gates the
         // macOS-style auto-hide of the desktop status bar.
@@ -3592,21 +3889,23 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 Positioned(fill: (), child: _buildMissionControl(context))
             )
         } else if isFullscreenMode {
-            children.append(
-                Positioned(
-                    left: 0, top: 0, right: 0,
-                    height: DesktopTheme.kStatusBarHeight,
-                    child: ColoredBox(
-                        color: Color(0xFF000000),
-                        child: SizedBox(expand: ())
+            if DesktopTheme.kStatusBarHeight > 0 {
+                children.append(
+                    Positioned(
+                        left: 0, top: 0, right: 0,
+                        height: DesktopTheme.kStatusBarHeight,
+                        child: ColoredBox(
+                            color: Color(0xFF000000),
+                            child: SizedBox(expand: ())
+                        )
                     )
                 )
-            )
-            if _topBarRevealed {
-                children.append(statusBarWidget)
             }
-        } else {
-            children.append(statusBarWidget)
+            if _topBarRevealed, let bar = topBarWidget {
+                children.append(bar)
+            }
+        } else if let bar = topBarWidget {
+            children.append(bar)
         }
         // The dock launches desktop apps — meaningless in a workspace, where
         // every window belongs to an agent. Hide it there, cross-fading with
@@ -3625,20 +3924,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if isFullscreenMode && !_dockRevealed {
             dockOpacity = 0
         }
-        if dockOpacity > 0.01 && dockIsOnHost {
-            children.append(dockOpacity < 0.99
-                ? Positioned(
-                    left: dockMetrics.left,
-                    bottom: DesktopTheme.kDockBottomMargin,
-                    width: dockMetrics.width,
-                    height: DesktopTheme.kDockContainerHeight,
-                    child: IgnorePointer(child: Opacity(
-                        opacity: dockOpacity,
-                        child: _buildDock(
-                            appIds: _dockDisplayApps, metrics: dockMetrics,
-                            dockTop: screenHeight - DesktopTheme.kDockBottomMargin
-                                - DesktopTheme.kDockHeight))))
-                : makeDockWidget())
+        // Only when this tree owns the bar. The user can make another monitor
+        // primary, and then it is drawn by that output's
+        // SecondaryOutputScreen instead — there is one bottom bar, and it is
+        // on the primary display.
+        if dockIsOnHost,
+           let bar = chrome.bottomBar(forOutput: dockOutput, opacity: dockOpacity) {
+            children.append(bar)
         }
 
         // Edge cursor sensors for macOS-style auto-hide. While in fullscreen
@@ -3713,22 +4005,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
         // Context menu (shown at right-click position) — only when it was
         // opened on THIS output; a secondary draws its own copy.
-        if let pos = contextMenuPosition,
+        if contextMenuPosition != nil,
            contextMenuOutputId == (displayLayout?.host.id ?? 0) {
             _appendDismissBarrier(&children) { [self] in
                 self.contextMenuPosition = nil
             }
-
-            children.append(
-                Positioned(
-                    left: pos.dx,
-                    top: pos.dy,
-                    child: SizedBox(
-                        width: 200,
-                        child: _buildContextMenu()
-                    )
-                )
-            )
+            children.append(chrome.desktopMenu())
         }
 
         // Dock icon context menu (right-click on a dock icon), anchored
@@ -3738,7 +4020,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             _appendDismissBarrier(&children) { [self] in
                 self._dockMenuAppId = nil
             }
-            if let menu = dockIconMenuWidget(forOutput: dockOutput) {
+            if let menu = chrome.appIconMenu(forOutput: dockOutput) {
                 children.append(menu)
             }
         }
@@ -3793,48 +4075,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             }
         }
 
-        // Status bar popup (shown below status bar when an icon is tapped)
-        if activeStatusBarPopup != nil {
+        // The panel behind a tapped status item. Where it hangs is the style's
+        // business — under the menu bar, or up from the taskbar.
+        if let popup = activeStatusBarPopup {
             _appendDismissBarrier(&children) { [self] in
                 self.activeStatusBarPopup = nil
             }
-
-            // Position popup below status bar, aligned with the tapped icon
-            // (geometry shared with the liquid-glass shader via
-            // _statusPopupGeometry).
-            let popup = activeStatusBarPopup!
-            let geo = _statusPopupGeometry(popup)
-            children.append(
-                Positioned(
-                    left: geo.left,
-                    top: DesktopTheme.kStatusBarHeight + 1,
-                    child: _buildStatusBarPopup()
-                )
-            )
+            children.append(chrome.statusFlyout(popup))
         }
 
-        // Full-screen app launcher (Launchpad), opened from the dock grid icon.
-        // Above windows + dock; tap an app to launch it, tap empty space to
-        // dismiss.
+        // The app launcher, opened from the bottom bar. Above windows and the
+        // bar itself; tap an app to launch it, tap empty space to dismiss.
         if _launcherOpen && _launcherOutputId == (hostOutput?.id ?? 0) {
-            children.append(
-                Positioned(
-                    fill: (),
-                    child: AppLauncher(
-                        apps: _launcherFilteredApps(),
-                        query: _launcherQuery,
-                        caretOn: _launcherCaretOn,
-                        onLaunch: { [self] appId in _launchFromLauncher(appId) },
-                        onDismiss: { [self] in
-                            setState {
-                                _launcherOpen = false
-                                _launcherQuery = ""
-                                _launcherDriverTarget = nil
-                            }
-                        }
-                    )
-                )
-            )
+            children.append(chrome.launcher())
         }
 
         // Floating dock icon follows cursor during drag
@@ -3946,8 +4199,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         _noteUserActivity()
                     },
                     onPointerHover: { [self] event in
-                        _updateDockHover(x: event.position.dx, y: event.position.dy,
-                                         outputId: displayLayout?.host.id ?? 0)
+                        chrome.notePointerHover(
+                            x: event.position.dx, y: event.position.dy,
+                            outputId: displayLayout?.host.id ?? 0)
                         _noteUserActivity()
                     },
                     onPointerSignal: { [self] _ in _noteUserActivity() },
@@ -3957,11 +4211,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             )
         )
 
-        // Keyed by theme: an appearance switch remounts the whole shell
-        // tree. In-place recolor proved unreliable (title bars rebuilt with
-        // the new theme but their stale layers kept compositing — a
+        // Keyed by style and theme: switching either one remounts the whole
+        // shell tree. In-place recolor proved unreliable (title bars rebuilt
+        // with the new theme but their stale layers kept compositing — a
         // framework layer-retention quirk); a remount repaints everything
-        // from scratch and the switch is a rare, deliberate action. Window
+        // from scratch and both switches are rare, deliberate actions. A
+        // style switch needs it doubly: surfaces do not merely recolour, they
+        // move or stop existing. Window
         // open-zooms stay silent (pendingOpenAnimation already consumed).
         // Which monitor the pointer is on, for whatever needs to open "here"
         // — today that is the workspace toggle. An ancestor Listener sees
@@ -3973,7 +4229,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             onPointerHover: { [self] _ in notePointerOutput(displayLayout?.host.id ?? 0) },
             behavior: .translucent,
             child: Stack(
-                key: ValueKey("shell-\(shellTheme.name)"),
+                key: ValueKey("shell-\(shellStyle.id)-\(shellTheme.name)"),
                 fit: .expand,
                 children: children
             )
@@ -4409,7 +4665,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 child: Padding(
                     padding: EdgeInsets(left: 14, top: 6, right: 14, bottom: 6),
                     child: Text(label, style: TextStyle(
-                        color: destructive ? Color(0xFFFFFFFF) : shellTheme.fgPrimary,
+                        color: destructive ? shellTheme.accentInk
+                                           : shellTheme.fgPrimary,
                         fontSize: 12, fontWeight: .w600))
                 )
             )
@@ -4511,13 +4768,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// panel rect; the height is intrinsic, so it comes from MeasureSize (the
     /// first frame after opening renders with the plain-frost fallback).
     private func _statusPopupPanel(popup: StatusBarPopup, children: [Widget]) -> Widget {
-        let radius: Double = 12
+        let radius = shellMetrics.panelCornerRadius
         let geo = _statusPopupGeometry(popup)
         let shader = _statusPopupHeights[popup] != nil ? _popupGlassShaderIfAvailable() : nil
+        // The panel's real screen rect, from the same place that positions it.
+        // Two answers here means the glass refracts a rectangle the panel is
+        // not standing in — which is exactly what happened when this read the
+        // menu bar's height in a style that has no menu bar.
+        let height = _statusPopupHeights[popup] ?? 0
+        let origin = chrome.statusFlyoutOrigin(popup, height: height)
         let filter = _liquidGlassFilter(
             shader: shader,
-            left: geo.left, top: DesktopTheme.kStatusBarHeight + 1,
-            width: geo.width, height: _statusPopupHeights[popup] ?? 0,
+            left: origin.dx, top: origin.dy,
+            width: geo.width, height: height,
             cornerRadius: radius,
             blurSigma: 16, saturation: 1.15)
         return MeasureSize(
@@ -4742,7 +5005,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                             padding: EdgeInsets(horizontal: 2),
                             child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                    color: Color(0xFFFFFFFF),
+                                    // The knob rides ON the accent when the
+                                    // switch is on, so it takes the on-accent
+                                    // ink rather than a literal white.
+                                    color: on ? shellTheme.accentInk
+                                              : Color(0xFFFFFFFF),
                                     borderRadius: BorderRadius.circular(8)
                                 ),
                                 child: SizedBox(width: 16, height: 16)
@@ -5358,9 +5625,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     private func _ccToggleTile(icon: IconData, label: String, active: Bool,
                                enabled: Bool = true,
                                onTap: @escaping () -> Void) -> Widget {
+        // On an active tile the ink comes from the theme, not from a literal
+        // white: Fluent's dark-mode accent is a LIGHT blue and takes BLACK
+        // glyphs. White here is legible under the macOS accent and close to
+        // invisible under the Fluent one.
         let fg: Color = !enabled
             ? shellTheme.fgTertiary
-            : (active ? Color(0xFFFFFFFF) : shellTheme.fgPrimary)
+            : (active ? shellTheme.accentInk : shellTheme.fgPrimary)
         return GestureDetector(
             onTap: { if enabled { onTap() } },
             behavior: .opaque,
@@ -5819,11 +6090,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// dock is on another monitor.
     private func _dockIconAnchorX(appId: String) -> Double {
         let output = dockOutput
-        let m = _dockMetrics(outputWidth: output.logicalWidth)
-        guard let idx = _dockDisplayApps.firstIndex(of: appId) else {
+        guard let slot = chrome.barSlots(forOutput: output)
+                .first(where: { $0.app == appId }) else {
             return output.logicalWidth / 2
         }
-        return m.baseLeft + m.baseCenters[idx + 1]  // slot 0 is the launcher
+        return slot.x
     }
 
     private func _dockIconCenter(appId: String, title: String) -> Offset? {
@@ -5859,16 +6130,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// output is at the origin and this is unchanged.
     func dockSlots() -> [(app: String, x: Double, y: Double, size: Double)] {
         let output = dockOutput
-        let metrics = _dockMetrics(outputWidth: output.logicalWidth)
-        let ids = ["launcher"] + _dockDisplayApps
-        let y = output.logicalTop + output.logicalHeight
-            - DesktopTheme.kDockBottomMargin
-            - DesktopTheme.kDockIconBottomInset - DesktopTheme.kDockIconSize / 2
-        return ids.enumerated().prefix(metrics.baseCenters.count).map { i, id in
-            (app: id,
-             x: output.logicalLeft + metrics.baseLeft + metrics.baseCenters[i],
-             y: y,
-             size: DesktopTheme.kDockIconSize)
+        // The active style answers for its own layout; this only moves the
+        // answer from the output's coordinates into virtual-desktop ones,
+        // because a caller that clicks these has to aim at the right monitor.
+        return chrome.barSlots(forOutput: output).map {
+            (app: $0.app,
+             x: output.logicalLeft + $0.x,
+             y: output.logicalTop + $0.y,
+             size: $0.size)
         }
     }
 
@@ -5946,7 +6215,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// immediately — without being pinned (macOS-style transient icons).
     /// Transient icons vanish when the app quits; the right-click menu's
     /// "Keep in Dock" pins them.
-    private var _dockDisplayApps: [String] {
+    var _dockDisplayApps: [String] {
         let pinned = Set(dockAppOrder)
         return dockAppOrder + AppRegistry.shared.apps.map { $0.id }.filter { id in
             !pinned.contains(id)
@@ -6671,11 +6940,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// it would be unreadable. MacosMenu's own near-opaque slab is both legible
     /// and closer to AppKit, which keeps menus opaque precisely because they
     /// appear over unknown content.
+    /// A shell menu, in the active style's colours.
+    ///
+    /// The accent comes from the THEME, not from `DesktopTheme.accent` — that
+    /// constant is the macOS blue and is fixed, so a highlighted row went on
+    /// being iOS blue in a desktop whose every other highlight had changed.
     private func _macosMenu(_ items: [MacosMenuEntry]) -> Widget {
         return MacosMenu(
             items: items,
             brightness: shellTheme.isDark ? .dark : .light,
-            accentColor: DesktopTheme.accent
+            accentColor: shellTheme.accent,
+            backgroundColor: shellTheme.panelFill
         )
     }
 
@@ -6698,6 +6973,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     _setAppearance(dark: !shellTheme.isDark)
                 }
             ),
+            MacosMenuSeparator(),
+        ]
+        // One row per style, driven off the registry rather than a list here —
+        // adding a style should not mean remembering to edit this menu.
+        for style in ShellStyles.all {
+            items.append(MacosMenuItem(
+                text: "\(style.name) Style",
+                onPressed: { [self] in
+                    setState { contextMenuPosition = nil }
+                    _setStyle(style.id)
+                },
+                isSelected: style.id == shellStyle.id
+            ))
+        }
+        items.append(contentsOf: [
             MacosMenuSeparator(),
             // Spaces. New desktops append at the end of the strip; removal
             // rehomes the desktop's windows to the nearest user space.
@@ -6725,7 +7015,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     if !windowManager.activeSpace.isWorkspace { _toggleWorkspaceSpace() }
                 }
             ),
-        ]
+        ])
         let active = windowManager.activeSpace
         if active.isUser && windowManager.spaces.filter({ $0.isUser }).count > 1 {
             items.append(MacosMenuItem(
@@ -7076,6 +7366,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         LoginUser.configDir + "/appearance"
     }
 
+    private static var _styleFile: String {
+        LoginUser.configDir + "/style"
+    }
+
     private static var _windowLayoutFile: String {
         LoginUser.configDir + "/window-layout"
     }
@@ -7172,12 +7466,54 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         #endif
     }
 
+    /// Restore the persisted style before the first build. Must run BEFORE
+    /// `loadPersistedAppearance`, which resolves the theme out of whichever
+    /// style is active.
+    static func loadPersistedStyle() {
+        guard let s = try? String(contentsOfFile: _styleFile, encoding: .utf8)
+        else { return }
+        shellStyle = ShellStyles.byId(
+            s.trimmingCharacters(in: .whitespacesAndNewlines))
+        shellTheme = shellStyle.theme(dark: shellTheme.isDark)
+    }
+
     /// Restore the persisted appearance before the first build.
     static func loadPersistedAppearance() {
         if let s = try? String(contentsOfFile: _appearanceFile, encoding: .utf8) {
-            shellTheme = s.trimmingCharacters(in: .whitespacesAndNewlines) == "light"
-                ? .light : .dark
+            shellTheme = shellStyle.theme(
+                dark: s.trimmingCharacters(in: .whitespacesAndNewlines) != "light")
         }
+    }
+
+    /// Switch the desktop style — the whole shape of the chrome, not just its
+    /// colours — and persist the choice. The appearance rides along: each
+    /// style owns its own dark and light pair, so the switch re-resolves the
+    /// theme rather than carrying the old style's colours across.
+    func _setStyle(_ id: String) {
+        let next = ShellStyles.byId(id)
+        guard next.id != shellStyle.id else { return }
+        setState {
+            shellStyle = next
+            shellTheme = next.theme(dark: shellTheme.isDark)
+            chrome = next.makeChrome(self)
+            // Cached window widgets have the old style's title bar baked into
+            // their subtrees.
+            _windowChildCache.removeAll()
+        }
+        #if os(Linux)
+        linuxProcessAppManager?.broadcastStyle(index: _styleIndex(next))
+        #endif
+        let path = Self._styleFile
+        try? FileManager.default.createDirectory(
+            atPath: (path as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true)
+        try? next.id.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    /// A style's position in `ShellStyles.all` — what goes over the wire to
+    /// child apps, which treat it as an opaque small integer.
+    func _styleIndex(_ spec: ShellStyleSpec) -> Int {
+        ShellStyles.all.firstIndex { $0.id == spec.id } ?? 0
     }
 
     /// Switch the desktop appearance (context menu or the Settings app's
@@ -7185,7 +7521,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     func _setAppearance(dark: Bool) {
         guard dark != shellTheme.isDark else { return }
         setState {
-            shellTheme = dark ? .dark : .light
+            shellTheme = shellStyle.theme(dark: dark)
             // Cached window widgets have the old theme baked into their
             // subtrees — drop them so title bars recolor.
             _windowChildCache.removeAll()

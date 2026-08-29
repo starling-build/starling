@@ -975,7 +975,7 @@ class WindowManagerState {
         }
 
         let gap = Self.kTileGap
-        let dockReserve = DesktopTheme.kDockHeight + DesktopTheme.kDockBottomMargin * 2
+        let dockReserve = shellMetrics.bottomInset
         for group in groups {
             let area = Rect.fromLTWH(
                 group.fill.left + gap,

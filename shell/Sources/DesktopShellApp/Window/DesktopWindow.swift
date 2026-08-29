@@ -149,7 +149,9 @@ class DesktopWindow: StatelessWidget {
         let borderColor = isFullscreen ? Color(0x00000000)
             : (isFocused ? shellTheme.windowBorderFocused : shellTheme.windowBorderUnfocused)
 
-        let titleBar = WindowTitleBar(
+        // Traffic lights on the left, or a caption trio on the right: which
+        // one is the active style's business, not this window's.
+        let titleBar = shellStyle.makeTitleBar(TitleBarParams(
             title: windowInfo.title,
             isFocused: isFocused,
             isMaximized: windowInfo.isMaximized,
@@ -159,7 +161,7 @@ class DesktopWindow: StatelessWidget {
             onMaximize: onMaximize,
             onClose: onClose,
             onDoubleTap: onTitleBarDoubleTap
-        )
+        ))
 
         let windowBody: Widget
         if isFullscreen {

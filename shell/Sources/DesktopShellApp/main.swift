@@ -732,6 +732,13 @@ func runDRM() -> Never {
         _shellState?._setWallpaper(preset)
     }
 
+    // Desktop style picks (SettingsApp's Appearance pane). The value is an
+    // index into the shell's own registry — the shell owns the list.
+    processManager.onStyleChangeRequested = { index in
+        guard index >= 0, index < ShellStyles.all.count else { return }
+        _shellState?._setStyle(ShellStyles.all[index].id)
+    }
+
     // Screensaver idle-timeout requests (SettingsApp's Screensaver picker).
     processManager.onScreensaverChangeRequested = { seconds in
         _shellState?._setScreensaverIdle(seconds: Double(seconds))
@@ -944,6 +951,9 @@ func runDRM() -> Never {
     // Advertise the persisted appearance (1 = dark, 2 = light) — Wayland
     // clients (Chrome, GTK/Qt) read org.freedesktop.appearance/color-scheme
     // and follow SettingChanged on switches (_setAppearance emits it).
+    // Style first: it decides which dark/light pair the appearance resolves
+    // against.
+    _DesktopShellState.loadPersistedStyle()
     _DesktopShellState.loadPersistedAppearance()
     portal.setColorScheme(shellTheme.isDark ? 1 : 2)
     // FileChooser: launch FileExplorerApp --picker as a composited DMA-BUF

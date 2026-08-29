@@ -44,7 +44,9 @@ host/       the windowed host (FlutterRunner + GLFWBridge): run a Swift Flutter
 registry/  the app registry — the ONE description of every app the desktop knows
            about (catalog.d/*.app), shared by the shell and the App Store
 shell/     DesktopShellApp package — its own CLAUDE.md in Sources/DesktopShellApp/
-  Sources/DesktopShellApp/   Shell/ Window/ Compositor/ Wayland/ Taskbar/ Launcher/ Portal/ Utils/
+  Sources/DesktopShellApp/   Shell/ Window/ Compositor/ Wayland/ Fluent/ Launcher/ Portal/ Utils/
+                             (Fluent/ is the Windows style's chrome; the macOS
+                              style's lives in Shell/ — see Standing directions)
   Sources/WaylandServer/     the Wayland compositor, in C (~5k lines)
   Sources/PortalService/     xdg-desktop-portal (sd-bus/basu)
   Sources/X11Server/         in-tree X server (DRI3/Present) — do not touch unless asked
@@ -272,20 +274,39 @@ which renders every Android app into one window.
 
 ## Standing directions
 
-- **macOS style by default, everywhere the user can see.** The desktop is
-  macOS-shaped; UI goes through the `Macos*` controls, `CupertinoIcons`
-  glyphs, and the shell's own glass/tile patterns — never FluentUI in the
-  shell or a new app surface. The framework ships both families, so the
-  Fluent name is often the one that autocompletes (`Slider`, `MenuFlyout`)
-  and until recently `MacosSlider` was a display-only stub, which is how
-  Fluent sliders leaked into the control center. If the `Macos*` control you
-  need is missing or a stub, implement it in `sdk/` rather than reaching for
-  the Fluent one — that is where `MacosMenu` and `MacosScrollbar` came from.
-  The shell and every shipped app are now Fluent-free: app shells are
-  `MacosApp`, context menus are `MacosMenu`. Note that `MacosApp` still
-  installs a `FluentTheme` internally, so a stray Fluent widget keeps
-  rendering instead of failing loudly — grep for `Fluent` in `shell/` and
-  `apps/` rather than trusting that it would have broken.
+- **The desktop has STYLES, and which one you are writing for decides the
+  question.** A style is a complete look the user picks at runtime — macOS
+  (the default) and Windows Fluent today, more later. It is defined in
+  `shell/Sources/DesktopShellApp/Utils/ShellStyle.swift` as three separable
+  things: a `ShellTheme` colour pair, a `ShellMetrics` layout set, and a
+  `ShellChrome` that decides which surfaces exist and where. Adding a style is
+  one file plus one entry in `ShellStyles.all`; there is deliberately no
+  `if style == …` anywhere else in the shell, and adding one is a bug.
+  - **Shell chrome** is whatever the active style says. The macOS half lives
+    in `DesktopShell.swift` as the `macos*` builders; the Fluent half is
+    `shell/Sources/DesktopShellApp/Fluent/`. New chrome means an entry in
+    BOTH, or an honest note in `FluentChrome` saying which macOS surface it
+    still falls through to.
+  - **Apps are still macOS-only**, and that is a real constraint rather than a
+    preference: `FluentApp`'s scaffold traps on mount as a DMA-BUF child
+    (`apps/FileExplorerApp/.../main.swift:14`). Until that is fixed, every app
+    shell is `MacosApp`, app UI goes through the `Macos*` controls and
+    `CupertinoIcons`, and a Fluent widget in `apps/` is a bug.
+  - If the `Macos*` control you need is missing or a stub, implement it in
+    `sdk/` rather than reaching for the Fluent one — that is where `MacosMenu`
+    and `MacosScrollbar` came from. The Fluent name is often the one that
+    autocompletes (`Slider`, `MenuFlyout`), and `MacosSlider` was a
+    display-only stub for a while, which is how Fluent sliders once leaked
+    into the control center.
+  - **`grep Fluent` is no longer the check**, and nothing loud replaces it:
+    `MacosApp` installs a `FluentTheme` internally, so a misplaced Fluent
+    widget renders happily instead of failing. The check now is by
+    DIRECTORY — Fluent widgets belong under `shell/…/Fluent/` and nowhere
+    else in `shell/`, and nowhere at all in `apps/`.
+  - Colours come from `shellTheme`, never from a literal. `accentInk` in
+    particular is not a synonym for white: Fluent's dark accent is a light
+    blue that takes BLACK glyphs, and `Color(0xFFFFFFFF)` on an accent fill is
+    legible in one style and invisible in the other.
 - **Wayland only.** Do not read, modify, or reference `X11Server/` or X11 launch
   paths unless explicitly asked.
 - **No security hardening on the app runtime** (`build/app-run.sh` is an app
@@ -295,6 +316,13 @@ which renders every Android app into one window.
 ## Traps that have cost real time
 
 Framework (`sdk/`):
+- **A `Positioned` with `right:` and no width lays out correctly and
+  hit-tests as nothing.** The child sizes itself, paints exactly where you
+  expect, and has no box for the pointer to hit — so the taskbar's clock and
+  status buttons were visible, hovered nothing and did nothing. Span the full
+  width and align inside it (`left: 0, right: 0` + `Row(mainAxisAlignment:
+  .end)`) rather than anchoring by one edge. "Visible but dead to the
+  pointer" is the signature.
 - `ColoredBox` hit-tests **opaque even at alpha 0** — use a bare
   `SizedBox(expand:)` with `Listener(behavior: .translucent)` for overlays.
 - Registering `onDoubleTap` kills **both** tap and double-tap on the DRM

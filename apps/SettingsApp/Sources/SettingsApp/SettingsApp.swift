@@ -726,6 +726,19 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                         SizedBox(height: 12),
                         _macosGroupBox([
                             _settingsRowWithTrailing(
+                                "Desktop Style",
+                                "The shape of the desktop's own chrome",
+                                MacosSegmentedControl(
+                                    labels: Self._styleChoices,
+                                    selectedIndex: min(s.style,
+                                                       Self._styleChoices.count - 1),
+                                    onChanged: { [self] (i: Int) in
+                                        bloc.add(.selectStyle(i))
+                                    }
+                                )
+                            ),
+                            _divider(),
+                            _settingsRowWithTrailing(
                                 "Dark Mode", "Use dark theme for the interface",
                                 MacosSwitch(
                                     value: s.darkMode,
@@ -788,6 +801,12 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             )
         )
     }
+
+    /// The desktop styles, in the shell's own order — this mirrors
+    /// `ShellStyles.all`; the shell owns the list and the index is what goes
+    /// over the wire. A style from a newer shell than this build knows about
+    /// simply selects the last segment rather than crashing the picker.
+    private static let _styleChoices: [String] = ["macOS", "Windows"]
 
     /// The idle timeouts the picker offers. The shell accepts any value —
     /// these are just the ones worth a segment, and an idle timeout it holds

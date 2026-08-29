@@ -296,6 +296,7 @@ var products: [Product] = [
     .library(name: "Flutter", targets: ["Flutter"]),
     .library(name: "SwiftRuntime", targets: ["SwiftRuntime"]),
     .library(name: "CupertinoIcons", targets: ["CupertinoIcons"]),
+    .library(name: "FluentSystemIcons", targets: ["FluentSystemIcons"]),
     // The terminal emulator core: dependency-free C, shared by TerminalApp
     // today and the TerminalView widget to come (docs/plans/terminal-widget.md).
     // Its public header is the compatibility boundary; test/core/conformance.c
@@ -344,7 +345,8 @@ products += [
     // libFlutterShared.so instead of nine statically-duplicated frameworks.
     .library(name: "FlutterShared", type: .dynamic,
              targets: ["Flutter", "SwiftRuntime", "FlutterSwiftBridge",
-                       "CupertinoIcons", "FlutterEmbedderBridge", "DmaBufBridge"]),
+                       "CupertinoIcons", "FluentSystemIcons",
+                       "FlutterEmbedderBridge", "DmaBufBridge"]),
 ]
 #endif
 
@@ -499,6 +501,19 @@ var targets: [Target] = [
         path: "Sources/CupertinoIcons",
         resources: [
             .copy("Resources/CupertinoIcons.ttf"),
+        ],
+        swiftSettings: cxxInteropSettings
+    ),
+    // FluentSystemIcons -- Microsoft's Fluent UI System Icons (MIT), the icon
+    // language the desktop's Fluent style draws with. The Swift file is
+    // GENERATED: sdk/tools/gen-fluent-icons.py. Segoe Fluent Icons, which the
+    // Windows shell uses, cannot be redistributed; this can.
+    .target(
+        name: "FluentSystemIcons",
+        dependencies: ["Flutter", "FlutterSwiftBridge"],
+        path: "Sources/FluentSystemIcons",
+        resources: [
+            .copy("Resources/FluentSystemIcons-Regular.ttf"),
         ],
         swiftSettings: cxxInteropSettings
     ),

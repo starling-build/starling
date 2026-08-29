@@ -1414,6 +1414,14 @@ public class GpuDmaBufRenderer {
         writeControlEvent(&event)
     }
 
+    /// Ask the shell to switch the desktop style (Settings picker). The value
+    /// is the shell's index for the style — opaque here.
+    public func sendStyleChange(style: Int) {
+        var event = DmaBufInputEvent(x: Double(style), y: 0, buttons: 0,
+                                     type: DMABUF_CONTROL_SET_STYLE, phase: 0)
+        writeControlEvent(&event)
+    }
+
     /// Ask the shell to change the screensaver idle timeout (Settings
     /// picker). Seconds of no input before the screensaver appears; 0 = never.
     public func sendScreensaverChange(seconds: Int) {
@@ -1525,6 +1533,33 @@ public class GpuDmaBufRenderer {
             deliverIntChange(cb, preset)
         } else {
             pendingWallpaper = preset
+        }
+    }
+
+    // Desktop style push — same latch/replay contract as the theme. The
+    // value is the shell's own index for the style and is opaque here: the
+    // shell owns the list, and a value this build has never heard of means
+    // "the default", never a crash.
+
+    public nonisolated(unsafe) static var onStyleChanged: ((Int) -> Void)? = nil {
+        didSet {
+            guard let cb = onStyleChanged, let style = pendingStyle else { return }
+            pendingStyle = nil
+            deliverIntChange(cb, style)
+        }
+    }
+
+    /// The most recent style the parent pushed, or nil.
+    public private(set) nonisolated(unsafe) static var lastPushedStyle: Int? = nil
+
+    private nonisolated(unsafe) static var pendingStyle: Int? = nil
+
+    fileprivate static func receiveStylePush(_ style: Int) {
+        lastPushedStyle = style
+        if let cb = onStyleChanged {
+            deliverIntChange(cb, style)
+        } else {
+            pendingStyle = style
         }
     }
 
@@ -2210,6 +2245,11 @@ public class GpuDmaBufRenderer {
 
                     if inputEvent.type == DMABUF_CONTROL_SET_WALLPAPER {
                         GpuDmaBufRenderer.receiveWallpaperPush(Int(inputEvent.x))
+                        continue
+                    }
+
+                    if inputEvent.type == DMABUF_CONTROL_SET_STYLE {
+                        GpuDmaBufRenderer.receiveStylePush(Int(inputEvent.x))
                         continue
                     }
 

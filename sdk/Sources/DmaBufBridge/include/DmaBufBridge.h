@@ -148,6 +148,12 @@ struct DmaBufMeta {
  * actually settled on, so a refused or failed start never leaves the switch
  * showing "on". */
 #define DMABUF_CONTROL_SET_RDP  0x0f
+/* Desktop style — the shape of the shell's chrome, macOS or Fluent (either
+ * direction): x = the style's index in the shell's registry. Same contract as
+ * SET_WALLPAPER: the shell owns the list, children treat it as an opaque
+ * small integer and an unknown value means "the default". Distinct from
+ * SET_THEME, which is only light vs dark WITHIN a style. */
+#define DMABUF_CONTROL_SET_STYLE 0x10
 
 /// Configure message sent from parent to child before the child creates its
 /// buffer. Tells the child the content area dimensions (logical pixels).

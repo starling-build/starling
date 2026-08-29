@@ -155,12 +155,17 @@ class LinuxProcessAppManager {
     /// The shell's current layout, pushed to children at connect so the
     /// Settings toggle reflects reality (kept in sync by _setTiling).
     nonisolated(unsafe) var currentLayoutIsTiling: Bool = false
+    /// The active style's index in the shell's registry, mirrored here so a
+    /// child that connects later inherits it like every other desktop-wide
+    /// setting.
+    nonisolated(unsafe) var currentStyleIndex: Int = 0
 
     private let pendingLayoutRequests = AtomicBox<[Bool]>([])
 
     /// Fired on the platform thread when a child (SettingsApp's wallpaper
     /// picker) asks to switch the desktop wallpaper preset.
     var onWallpaperChangeRequested: ((Int) -> Void)?
+    var onStyleChangeRequested: ((Int) -> Void)?
 
     /// The shell's current wallpaper preset raw value, pushed to children at
     /// connect so the Settings picker reflects reality (kept in sync by
@@ -168,6 +173,7 @@ class LinuxProcessAppManager {
     nonisolated(unsafe) var currentWallpaper: Int = 0
 
     private let pendingWallpaperRequests = AtomicBox<[Int]>([])
+    private let pendingStyleRequests = AtomicBox<[Int]>([])
 
     /// Fired on the platform thread when a child (SettingsApp's Screensaver
     /// picker) asks to change the idle timeout. Seconds; 0 = never.
@@ -283,6 +289,7 @@ class LinuxProcessAppManager {
                 // Newly connected child inherits the current desktop
                 // appearance (further switches arrive via broadcastTheme).
                 sendTheme(textureId: texId, dark: shellTheme.isDark)
+                sendStyle(textureId: texId, index: currentStyleIndex)
                 sendLayout(textureId: texId, tiling: currentLayoutIsTiling)
                 sendWallpaper(textureId: texId, preset: currentWallpaper)
                 sendScreensaver(textureId: texId, seconds: currentScreensaverIdle)
@@ -420,6 +427,13 @@ class LinuxProcessAppManager {
         if !wallpaperRequests.isEmpty {
             if let lastPreset = wallpaperRequests.last {
                 onWallpaperChangeRequested?(lastPreset)
+            }
+        }
+
+        let styleRequests = pendingStyleRequests.take([])
+        if !styleRequests.isEmpty {
+            if let lastStyle = styleRequests.last {
+                onStyleChangeRequested?(lastStyle)
             }
         }
 
@@ -670,6 +684,7 @@ class LinuxProcessAppManager {
         let pendingThemeChanges = self.pendingThemeChanges
         let pendingLayoutRequests = self.pendingLayoutRequests
         let pendingWallpaperRequests = self.pendingWallpaperRequests
+        let pendingStyleRequests = self.pendingStyleRequests
         let pendingScreensaverRequests = self.pendingScreensaverRequests
         let pendingPrimaryDisplayRequests = self.pendingPrimaryDisplayRequests
         let pendingRdpRequests = self.pendingRdpRequests
@@ -786,6 +801,9 @@ class LinuxProcessAppManager {
                     } else if event.type == DMABUF_CONTROL_SET_WALLPAPER {
                         pendingWallpaperRequests.withLock { $0.append(Int(event.x)) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
+                    } else if event.type == DMABUF_CONTROL_SET_STYLE {
+                        pendingStyleRequests.withLock { $0.append(Int(event.x)) }
+                        FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     } else if event.type == DMABUF_CONTROL_SET_SCREENSAVER {
                         pendingScreensaverRequests.withLock { $0.append(Int(event.x)) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
@@ -882,6 +900,24 @@ class LinuxProcessAppManager {
     func broadcastTheme(dark: Bool) {
         for texId in apps.keys {
             sendTheme(textureId: texId, dark: dark)
+        }
+    }
+
+    /// Pushes the desktop style to one child. The value is the style's index
+    /// in the shell's registry; the child treats it as opaque.
+    func sendStyle(textureId: Int64, index: Int) {
+        guard let entry = apps[textureId] else { return }
+        var event = DmaBufInputEvent(x: Double(index), y: 0, buttons: 0,
+                                     type: Int32(DMABUF_CONTROL_SET_STYLE),
+                                     phase: 0)
+        entry.sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
+
+    /// Style switch: push to every child so their own chrome can follow.
+    func broadcastStyle(index: Int) {
+        currentStyleIndex = index
+        for texId in apps.keys {
+            sendStyle(textureId: texId, index: index)
         }
     }
 

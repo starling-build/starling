@@ -11,23 +11,31 @@ enum DesktopTheme {
 
     // MARK: Layout
 
-    static let kTaskbarHeight: Double = 48.0
-    static let kTitleBarHeight: Double = 38.0
-    static let kWindowCornerRadius: Double = 12.0
     static let kMinWindowWidth: Double = 300.0
     static let kMinWindowHeight: Double = 200.0
     static let kDefaultWindowWidth: Double = 600.0
     static let kDefaultWindowHeight: Double = 400.0
 
-    // iPadOS-style status bar (top)
-    static let kStatusBarHeight: Double = 32.0
+    // MARK: Layout that the ACTIVE STYLE decides
+    //
+    // These five were constants until the desktop grew a second style. They
+    // forward to `shellMetrics` now, so every existing reader picks up the
+    // style's numbers without knowing there is a style. The `kDock*` names
+    // are the macOS-era spellings of "the bottom bar" — a taskbar answers to
+    // them too. See ShellStyle.swift.
 
-    // macOS-style dock (bottom, centered)
+    static var kTitleBarHeight: Double { shellMetrics.titleBarHeight }
+    static var kWindowCornerRadius: Double { shellMetrics.windowCornerRadius }
+    /// The strip along the top. 0 in a style that has no top bar.
+    static var kStatusBarHeight: Double { shellMetrics.topInset }
+    static var kDockHeight: Double { shellMetrics.bottomBarHeight }
+    static var kDockBottomMargin: Double { shellMetrics.bottomBarMargin }
+    static var kDockContainerHeight: Double { shellMetrics.bottomBarContainerHeight }
+
+    // macOS-style dock (bottom, centered) — geometry only that style draws.
     static let kDockIconSize: Double = 56.0
     static let kDockIconPadding: Double = 6.0
     static let kDockIconCornerRadius: Double = 12.0
-    static let kDockHeight: Double = 76.0          // unchanged — Chrome height alignment
-    static let kDockBottomMargin: Double = 6.0     // unchanged — Chrome height alignment
     static let kDockCornerRadius: Double = 32.0
     static let kDockHorizontalPadding: Double = 14.0
 
@@ -39,9 +47,6 @@ enum DesktopTheme {
     /// running-indicator dot lives in this strip (as on macOS).
     static let kDockIconBottomInset: Double = 10.0
     static let kDockIndicatorSize: Double = 4.0
-    /// Total height of the dock hit/layout area: pill + headroom for
-    /// magnified icons and the app-name label floating above them.
-    static let kDockContainerHeight: Double = 132.0
     /// Baseline (bottom offset) of the hovered app-name label bubble:
     /// icon inset + max magnified icon + gap.
     static let kDockLabelBottom: Double = kDockIconBottomInset
@@ -147,8 +152,43 @@ struct ShellTheme {
 
     let accent: Color
 
+    // MARK: Tokens the Fluent chrome adds
+    //
+    // The macOS chrome never reads these. They live on the shared struct
+    // anyway so that switching style is a value swap and not a type change —
+    // one `shellTheme` global, one set of call sites, whatever is active.
+    // The names are the ROLE each colour plays, not Windows' own names.
+
+    /// Fill of a bar that sits ON the screen edge and is opaque, as opposed
+    /// to the translucent tint a floating bar gets over its blur.
+    let barFill: Color
+    /// The wash a hovered bar tile or menu row takes.
+    let barHover: Color
+    /// The line under a running app's tile, and the same line for the window
+    /// that currently has focus.
+    let runningIndicator: Color
+    let runningIndicatorActive: Color
+    /// Caption buttons. Close is separate because it alone goes red, and its
+    /// glyph turns white on that red in BOTH appearances.
+    let captionHover: Color
+    let captionCloseHover: Color
+    let captionCloseInk: Color
+    /// Flyout and menu bodies — Start, Quick Settings, context menus.
+    let panelFill: Color
+    let panelStroke: Color
+    /// Controls sitting on those panels: tiles, buttons, fields.
+    let controlFill: Color
+    let controlStroke: Color
+    let controlHover: Color
+    /// Foreground ON the accent. Not reliably white: Fluent's dark-mode
+    /// accent is a LIGHT blue and takes black glyphs. This is the one token
+    /// where light and dark disagree in kind rather than in degree.
+    let accentInk: Color
+    /// The unfilled part of a slider track.
+    let trackRest: Color
+
     /// The shipped dark look.
-    static let dark = ShellTheme(
+    static let macosDark = ShellTheme(
         name: "Dark",
         isDark: true,
         fgPrimary: Color(0xFFFFFFFF),
@@ -185,13 +225,27 @@ struct ShellTheme {
         // iOS-family dark system blue — the same accent family the light
         // theme and the in-app controls (toggles, sliders) use, so the
         // whole desktop highlights with one blue.
-        accent: Color(0xFF0A84FF)
+        accent: Color(0xFF0A84FF),
+        barFill: Color(0xFF1C1C1E),
+        barHover: Color(0x14FFFFFF),
+        runningIndicator: Color(0x99FFFFFF),
+        runningIndicatorActive: Color(0xFF0A84FF),
+        captionHover: Color(0x1AFFFFFF),
+        captionCloseHover: Color(0xFFC42B1C),
+        captionCloseInk: Color(0xFFFFFFFF),
+        panelFill: Color(0xF22C2C2E),
+        panelStroke: Color(0x26FFFFFF),
+        controlFill: Color(0xFF3A3A3C),
+        controlStroke: Color(0x1FFFFFFF),
+        controlHover: Color(0xFF48484A),
+        accentInk: Color(0xFFFFFFFF),
+        trackRest: Color(0x4DFFFFFF)
     )
 
     /// macOS-style light appearance (Big Sur+): crisp near-opaque white
     /// frost chrome so panels read as white over any wallpaper, solid
     /// light title bars, dark-gray dock dots.
-    static let light = ShellTheme(
+    static let macosLight = ShellTheme(
         name: "Light",
         isDark: false,
         fgPrimary: Color(0xD9000000),
@@ -232,13 +286,28 @@ struct ShellTheme {
         overlayTextDim: Color(0x99FFFFFF),
         // Deeper blue than the dark theme's — the pale cyan washes out on
         // light frost panels.
-        accent: Color(0xFF007AFF)
+        accent: Color(0xFF007AFF),
+        barFill: Color(0xFFF6F6F6),
+        barHover: Color(0x14000000),
+        runningIndicator: Color(0x99000000),
+        runningIndicatorActive: Color(0xFF007AFF),
+        captionHover: Color(0x14000000),
+        captionCloseHover: Color(0xFFC42B1C),
+        captionCloseInk: Color(0xFFFFFFFF),
+        panelFill: Color(0xF2F4F4F6),
+        panelStroke: Color(0x1A000000),
+        controlFill: Color(0xFFFBFBFB),
+        controlStroke: Color(0x1F000000),
+        controlHover: Color(0xFFF0F0F0),
+        accentInk: Color(0xFFFFFFFF),
+        trackRest: Color(0x59000000)
     )
 }
 
-/// The active theme. Main-thread only (same discipline as _shellState);
-/// switch via the shell's setState so every tree rebuilds.
-nonisolated(unsafe) var shellTheme: ShellTheme = .dark
+/// The active theme — the ACTIVE STYLE's dark or light half. Main-thread only
+/// (same discipline as _shellState); switch via the shell's setState so every
+/// tree rebuilds. The style it comes from is `shellStyle` (ShellStyle.swift).
+nonisolated(unsafe) var shellTheme: ShellTheme = .macosDark
 
 // MARK: - ShellPalette
 

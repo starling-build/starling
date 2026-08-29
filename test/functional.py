@@ -1298,6 +1298,65 @@ def check_tiling_toggle() -> None:
     wait_for(lambda: not apps()["files"]["window"], "Files to close")
 
 
+@check("style: switching desktop style moves the chrome, not just its colours")
+def check_desktop_style() -> None:
+    """A style is a SHAPE, so a colour-only regression has to fail here.
+
+    The assertion is geometric: the bottom bar's slots sit at a different
+    height in each style — the Windows taskbar is on the screen edge, the
+    macOS dock floats above it — so the tile centres move closer to the
+    bottom under Fluent and back under macOS. A style that only recoloured
+    would leave them exactly where they were and pass every colour check
+    ever written.
+
+    The persisted file is the second half: a switch that does not survive
+    a relogin is not a setting, and that file is the whole of the record.
+    """
+    style_file = Path(session_home()) / ".config/starling/style"
+
+    def persisted() -> str:
+        try:
+            return style_file.read_text().strip()
+        except OSError:
+            return "macos"   # the default, and what an absent file means
+
+    def bar_y() -> float:
+        slots = ask("dock_rects")["slots"]
+        assert slots, "the bottom bar reported no slots"
+        return slots[0]["y"]
+
+    original = persisted()
+    s, win = settings_window()
+    try:
+        tap_label(s, win, "Appearance")
+        tap_label(s, win, "macOS")
+        wait_for(lambda: persisted() == "macos", "the macOS style to persist")
+        time.sleep(1)
+        macos_y, macos_slots = bar_y(), len(ask("dock_rects")["slots"])
+
+        tap_label(s, win, "Windows")
+        wait_for(lambda: persisted() == "fluent", "the Windows style to persist")
+        time.sleep(1)
+        fluent_y, fluent_slots = bar_y(), len(ask("dock_rects")["slots"])
+
+        assert fluent_y > macos_y + 10, (
+            f"the bar did not move: macOS {macos_y:.0f}, Fluent {fluent_y:.0f}"
+            " — a style that only repaints is not a style")
+        assert fluent_slots == macos_slots, (
+            f"slot count changed with the style: {macos_slots} → {fluent_slots}")
+        assert proc_running("SettingsApp"), "Settings died in the style switch"
+        log(f"bar moved {macos_y:.0f} → {fluent_y:.0f}, "
+            f"{fluent_slots} slots either way")
+    finally:
+        # Leave the desktop as it was found, whatever happened above.
+        try:
+            tap_label(s, win, "macOS" if original == "macos" else "Windows")
+            wait_for(lambda: persisted() == original, "the style to restore")
+        finally:
+            s.close()
+            quit_app("SettingsApp")
+
+
 @check("datetime: the pane sets the system timezone when the session may")
 def check_datetime_pane() -> None:
     """Drives the region→city picker and asks timedatectl whether it took.

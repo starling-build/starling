@@ -93,6 +93,17 @@ Cupertino Icons (`CupertinoIcons.ttf`), from Flutter's cupertino_icons package:
     Copyright (c) 2016 Vladimir Kharlampidi
     MIT License
 
+Fluent UI System Icons (`FluentSystemIcons-Regular.ttf`), the icon set the
+desktop's Fluent style draws with, redistributed unmodified from
+microsoft/fluentui-system-icons:
+
+    Copyright (c) 2020 Microsoft Corporation
+    MIT License
+
+Note that this is NOT Segoe Fluent Icons, which is a Windows system font and is
+not redistributable; the Windows shell reads that one off the machine it runs
+on and nothing here ships it.
+
 ================================================================================
 5. PDFium — MIT (pdfium-binaries build), BSD-3-Clause (PDFium itself)
 ================================================================================

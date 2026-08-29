@@ -445,7 +445,10 @@ struct SecondaryOutputScreen {
             layers.append(Positioned(
                 fill: (),
                 child: Builder { ctx in shell._buildMissionControl(ctx) }))
-        } else {
+        } else if DesktopTheme.kStatusBarHeight > 0 {
+            // Only in a style that HAS a top strip. Drawing one at height 0
+            // is not merely invisible — the menu bar's frost and hairline
+            // still composite as a seam across the top of the wallpaper.
             layers.append(Positioned(
                 left: 0, top: 0,
                 width: output.logicalWidth,
