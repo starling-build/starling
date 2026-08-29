@@ -59,6 +59,11 @@ if [ -z "$SWIFT" ]; then
     echo "warning: no swift toolchain found — Swift steps will fail" >&2
     SWIFT=swift
 fi
+# `swiftc` sits beside `swift` in the same toolchain, and needs resolving for
+# exactly the same reason: the standalone compiles below are invoked as the
+# user, whose PATH sudo has already discarded.
+SWIFTC="${SWIFT}c"
+[ -x "$SWIFTC" ] || SWIFTC=swiftc
 
 step "static checks"
 python3 "$REPO/test/lint.py" || fails=$((fails + 1))
@@ -82,8 +87,12 @@ rm -f "$CONF_BIN"
 # format drift. PaneLayout.swift imports nothing but Foundation precisely so
 # this can compile it without the app or the SDK.
 step "unit tests: pane layout codec"
-LAYOUT_BIN=$(mktemp /tmp/starling-layout.XXXXXX)
-(swiftc -O -o "$LAYOUT_BIN" "$REPO/test/layout/layout-test.swift" \
+# Compiled AS THE USER: the whole script runs under sudo for the functional
+# tier, and swiftc is not on root's PATH (sudo's secure_path drops the
+# toolchain). With stderr suppressed below, a root run failed this step
+# silently and looked like a broken codec.
+LAYOUT_BIN=$(as_user mktemp /tmp/starling-layout.XXXXXX)
+(as_user "$SWIFTC" -O -o "$LAYOUT_BIN" "$REPO/test/layout/layout-test.swift" \
      "$REPO/apps/TerminalApp/Sources/TerminalApp/PaneLayout.swift" 2>/dev/null \
      && "$LAYOUT_BIN" | tail -1 | grep -q "all layout checks passed" \
      && echo "  ✔ pane layout codec: all passed" \
@@ -123,8 +132,9 @@ step "unit tests: termd (remote sessions)"
 # like the layout codec above, which is why RemoteWorkspace.swift and
 # TermdLink.swift pull in nothing but Foundation.
 step "unit tests: workspaces (the client's half)"
-WS_DIR=$(mktemp -d /tmp/starling-wstest.XXXXXX)
-(swiftc -O -o "$WS_DIR/workspace-test" "$REPO/test/workspace/workspace-test.swift" \
+# As the user, for the same reason as the layout codec above.
+WS_DIR=$(as_user mktemp -d /tmp/starling-wstest.XXXXXX)
+(as_user "$SWIFTC" -O -o "$WS_DIR/workspace-test" "$REPO/test/workspace/workspace-test.swift" \
      "$REPO/sdk/Sources/Flutter/Terminal/TermdLink.swift" \
      "$REPO/sdk/Sources/Flutter/Terminal/RemoteWorkspace.swift" \
      "$REPO/apps/TerminalApp/Sources/TerminalApp/PaneLayout.swift" 2>/dev/null \
@@ -176,7 +186,13 @@ step "unit tests: clipboard bridge"
 # no display, so it belongs in this tier rather than the functional one.
 # WLCLIP_TIMEOUT_MS is shortened so the deadline cases cost milliseconds.
 if [ -f /usr/include/wayland-client.h ]; then
-    clip_bin="$(mktemp -d)/clipboard_bridge_test"
+    # Traversable by the unprivileged user: this whole script runs under sudo
+    # for the functional tier, so mktemp -d makes a ROOT-owned 0700 directory
+    # and the `as_user` run below then fails with "command not found" — which
+    # reads as a broken test rather than as a permissions problem.
+    clip_dir="$(mktemp -d)"
+    chmod 755 "$clip_dir"
+    clip_bin="$clip_dir/clipboard_bridge_test"
     if "${CC:-cc}" -O1 -DWLCLIP_TIMEOUT_MS=150 -o "$clip_bin" \
             "$REPO/test/clipboard_bridge_test.c" \
             "$REPO/sdk/Sources/WaylandClipboardBridge/wlr-data-control-unstable-v1-protocol.c" \
