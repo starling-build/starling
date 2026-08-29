@@ -178,6 +178,37 @@ that skip your profile are the usual way this bites.
 - `host_release` is what `stage.sh` copies into the shipping tree, and what
   packaging requires.
 
+**A bare `ninja -C out/...` can destroy the out directory it was given, and
+the error it prints is about something else entirely.** GN writes a
+regeneration rule into `build.ninja` carrying the flags of the run that
+created it, and the flutter tool's flags include `--check` — a header-include
+lint. This fork does not pass it: the regen dies on `//flutter/lib/ui`
+plumbing includes that are "not in any dependency of ui_plumbing". GN writes
+the new `build.ninja` header *before* the check runs, so a failed regen leaves
+a 680-byte stub where the build graph used to be, and every later `ninja`
+fails with the same unrelated Dart errors.
+
+The regen fires more often than you would think: the depfile can end up naming
+`nonexistent_file.gn`, GN's sentinel for "always regenerate", and then *every*
+invocation attempts it. The repair is to regenerate by hand without the lint —
+
+    cd engine/src
+    ./flutter/third_party/gn/gn --root=. --export-compile-commands gen out/host_debug
+
+which takes under a second, reuses the `args.gn` already in the directory, and
+writes a regen rule with no `--check` in it, so it stops recurring. Do it for
+both configurations; the intact one is only intact until something runs ninja
+in it. Nothing is lost but the build graph — the objects are still there — but
+a regenerated graph does rebuild everything.
+
+**ninja itself may be missing even though the engine has been built here
+before.** depot_tools' `ninja` is a wrapper that looks for a real binary in the
+project's `third_party` (fetched by `gclient sync`) and then on `PATH`,
+skipping itself; when neither has one it prints "Could not find Ninja in the
+third_party of the current project, nor in your PATH". Any ninja ≥ 1.7.2 will
+do — `apt install ninja-build` is enough, and the wrapper picks it up off
+`PATH` with no further configuration.
+
 Set `$STARLING_ENGINE_OUT` to build only one of them: every `Package.swift`
 and `stage.sh` read it, so pointing all of them at `out/host_release` makes a
 release-only engine build sufficient. That halves the ~4400-step build, which
