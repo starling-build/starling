@@ -54,12 +54,13 @@ idle_cpu() {  # $1 = seconds
 }
 CPU_IDLE=$(idle_cpu 30)
 say "   listener up, no client: ${CPU_IDLE}% of one core"
-# 3% not 1%: display mode free-runs the engine's frame timer at ~30Hz because
-# nothing supplies vsync when there is no display to flip (pre-existing, and
-# separate from the frame pump — STARLING_PUMP_LOG proves the pump stays off).
-# The ceiling is here to catch a REGRESSION, e.g. the pump running for nobody.
-awk -v c="$CPU_IDLE" 'BEGIN{exit !(c+0 < 3.0)}'
-check $? "idle stays under 3% with the listener up"
+# 1%, and it measures 0.00% in practice. An earlier version of this gate set
+# the ceiling at 3% on the strength of a ~1.1% reading that turned out to be a
+# two-week-old binary the install had silently skipped (see above) — on which
+# the frame pump ran at 33ms forever. Do not loosen this without checking the
+# installed hash first.
+awk -v c="$CPU_IDLE" 'BEGIN{exit !(c+0 < 1.0)}'
+check $? "idle stays under 1% with the listener up"
 grep -q "\[pump\]" /tmp/g-shell.log && { say "   pump armed for nobody:"; grep "\[pump\]" /tmp/g-shell.log; }
 grep -q "\[pump\]" /tmp/g-shell.log; [ $? = 1 ]
 check $? "the frame pump does NOT arm with no client (nothing rides it)"
@@ -98,7 +99,7 @@ PID=$(pgrep -x DesktopShellApp | head -1)
 if [ -n "$PID" ]; then
   CPU_AFTER=$(idle_cpu 30)
   say "   after the client left: ${CPU_AFTER}% of one core"
-  awk -v c="$CPU_AFTER" 'BEGIN{exit !(c+0 < 3.0)}'
+  awk -v c="$CPU_AFTER" 'BEGIN{exit !(c+0 < 1.0)}'
   check $? "returns to idle after a session"
   check 0 "the shell survived the whole run"
 else

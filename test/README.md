@@ -274,13 +274,15 @@ Two things worth knowing before debugging a failure here:
   `/tmp/.X11-unix/X0` socket behind that no server is listening on, so a gate
   that trusts `DISPLAY=:0` fails at the capture step for reasons that have
   nothing to do with the desktop.
-- **The idle ceiling is 3%, not 1%.** Display mode free-runs the engine's
-  frame timer at ~30 Hz because nothing supplies vsync when there is no
-  display to flip — pre-existing, and separate from the shell's frame pump,
-  which `STARLING_PUMP_LOG=1` shows staying off. The ceiling is there to
-  catch a regression (the pump running for nobody), not to assert that
-  display mode is as cheap as the DRM path. It is not: ~0.7-1.1% against
-  0.02%.
+- **Check the installed hash before believing an idle number.** The gate
+  used to install with `apt-get install`, which treats a same-version `.deb`
+  as already installed and does nothing — silently, exit 0 — and `VER` has
+  not moved since 0.3.0. Every run was exercising a binary from two weeks
+  earlier while reporting a pass, and its ~1.1% idle got written up here as
+  an inherent cost of display mode. It was not: it was the old always-on
+  frame pump. Installed properly, display mode idles at **0.00%** with the
+  listener up and 0.03% after a session — the same as the DRM path. The gate
+  installs with `dpkg -i` now and prints the binary's hash and mtime.
 
 ## The Windows shell gate
 
