@@ -72,7 +72,7 @@ class FluentStartMenu: StatelessWidget {
     /// under the pointer on every keystroke as results narrow.
     let installedCount: Int
     let query: String
-    let caretOn: Bool
+    let caretResetToken: Int
     let userName: String
     let screenWidth: Double
     let screenHeight: Double
@@ -82,7 +82,7 @@ class FluentStartMenu: StatelessWidget {
     let onDismiss: () -> Void
 
     init(apps: [LauncherApp], installedCount: Int, query: String,
-         caretOn: Bool, userName: String,
+         caretResetToken: Int, userName: String,
          screenWidth: Double, screenHeight: Double,
          onLaunch: @escaping (String) -> Void,
          onPower: @escaping () -> Void,
@@ -90,7 +90,7 @@ class FluentStartMenu: StatelessWidget {
         self.apps = apps
         self.installedCount = installedCount
         self.query = query
-        self.caretOn = caretOn
+        self.caretResetToken = caretResetToken
         self.userName = userName
         self.screenWidth = screenWidth
         self.screenHeight = screenHeight
@@ -216,10 +216,11 @@ class FluentStartMenu: StatelessWidget {
                                       : shellTheme.fgPrimary),
                              overflow: .ellipsis,
                              maxLines: 1)
-                        Text("|", style: TextStyle(
-                            color: caretOn ? shellTheme.fgPrimary
-                                           : Color(0x00000000),
-                            fontSize: 13, fontFamily: shellTheme.fontFamily), maxLines: 1)
+                        // Blinks itself — see `ShellCaret`. As shell state
+                        // this rebuilt the whole desktop twice a second.
+                        ShellCaret(color: shellTheme.fgPrimary, fontSize: 13,
+                                   fontFamily: shellTheme.fontFamily,
+                                   resetToken: caretResetToken)
                     }
                 )
             )

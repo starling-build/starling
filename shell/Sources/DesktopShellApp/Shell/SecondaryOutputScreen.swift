@@ -558,7 +558,7 @@ struct SecondaryOutputScreen {
                 child: AppLauncher(
                     apps: shell._launcherFilteredApps(),
                     query: shell._launcherQuery,
-                    caretOn: shell._launcherCaretOn,
+                    caretResetToken: shell._launcherCaretToken,
                     onLaunch: { appId in shell._launchFromLauncher(appId) },
                     onDismiss: {
                         shell.setState {

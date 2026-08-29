@@ -196,7 +196,6 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // focused while the launcher is open, but it is a drawn pill rather than a
     // real text input, so the caret is the only thing telling a user the
     // keyboard is live — see AppLauncher.searchBar.
-    var _launcherCaretOn: Bool = true
     var _launcherCaretToken: Int = 0
 
     // WiFi: real state behind the status-bar icon and popup. The service
@@ -423,6 +422,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     private var _pumpFast = false
     /// Whether the pump is currently scheduled at all, and whether the
     /// DispatchSource has been resumed (suspend/resume must be balanced).
+    /// STARLING_PUMP_LOG=1: one line whenever the frame pump arms or stops,
+    /// naming which rider asked for it. "Why is an idle desktop still
+    /// presenting" is otherwise unanswerable from outside.
+    nonisolated(unsafe) static let _pumpLog =
+        (ProcessInfo.processInfo.environment["STARLING_PUMP_LOG"] ?? "") == "1"
     private var _pumpRunning = false
     private var _pumpResumed = false
 
@@ -2742,7 +2746,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 apps: _launcherFilteredApps(),
                 installedCount: AppRegistry.shared.installedApps.count,
                 query: _launcherQuery,
-                caretOn: _launcherCaretOn,
+                caretResetToken: _launcherCaretToken,
                 userName: LoginUser.name,
                 screenWidth: screenWidth,
                 screenHeight: screenHeight,
@@ -2773,7 +2777,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             child: AppLauncher(
                 apps: _launcherFilteredApps(),
                 query: _launcherQuery,
-                caretOn: _launcherCaretOn,
+                caretResetToken: _launcherCaretToken,
                 onLaunch: { [self] appId in _launchFromLauncher(appId) },
                 onDismiss: { [self] in
                     setState {
@@ -6232,34 +6236,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// Restart the Launchpad search caret, showing it immediately.
     ///
-    /// Called when the launcher opens and on every keystroke, so the caret sits
-    /// solid while you type and only resumes blinking once you pause — what a
-    /// real text field does, and what makes the pill read as an input rather
-    /// than a label.
+    /// Put the caret solid again and restart its blink — called when the
+    /// launcher opens and on every keystroke, so it sits steady while you
+    /// type and only resumes blinking once you pause. That is what a real
+    /// text field does, and what makes the pill read as an input.
     ///
-    /// The loop stops itself: each tick bails if the launcher has closed or a
-    /// newer restart has bumped the token, so no close path has to remember to
-    /// cancel it (and there are five of them). `Foundation.Timer` never fires
-    /// on the DRM embedder, so this is `asyncAfter` + a generation token — the
-    /// codebase idiom for cancelling an asyncAfter chain.
+    /// This used to OWN the blink: a 530 ms `asyncAfter` chain toggling shell
+    /// state inside `setState`, which rebuilds the whole tree. An open Start
+    /// menu sitting untouched cost 2.35% of a core that way — 1.9 frames a
+    /// second at 9.7 ms each, to flip one glyph between two colours. The
+    /// blink belongs to the caret (`ShellCaret`); all that is left here is
+    /// the nudge that says "the user just typed".
     func _restartLauncherCaret() {
         _launcherCaretToken &+= 1
-        let token = _launcherCaretToken
-        _launcherCaretOn = true
-
-        func schedule() {
-            let next: () -> Void = { [weak self] in
-                guard let self, self._launcherCaretToken == token, self._launcherOpen
-                else { return }
-                self.setState { self._launcherCaretOn.toggle() }
-                schedule()
-            }
-            // Main-queue-only state; @Sendable coercion is the codebase idiom.
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + .milliseconds(530),
-                execute: unsafeBitCast(next, to: (@Sendable () -> Void).self))
-        }
-        schedule()
     }
 
     /// The launcher's app entries — installed apps only (no phantom tiles for
@@ -7788,10 +7777,16 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     ///   off    nobody is riding. No timer, no wakeups.
     func _reevaluateFramePump() {
         #if os(Linux)
-        let riding = recordingService?.needsFramePump == true
-            || screenCastService?.needsFramePump == true
-            || rdpService?.needsFramePump == true
-            || fl_drm_view_capture_active() != 0
+        let rRec = recordingService?.needsFramePump == true
+        let rCast = screenCastService?.needsFramePump == true
+        let rRdp = rdpService?.needsFramePump == true
+        let rCap = fl_drm_view_capture_active() != 0
+        let riding = rRec || rCast || rRdp || rCap
+        if Self._pumpLog, riding != _pumpRunning {
+            FileHandle.standardError.write(Data(
+                ("[pump] \(riding ? "arm" : "stop") rec=\(rRec) cast=\(rCast)"
+                 + " rdp=\(rRdp) cap=\(rCap)\n").utf8))
+        }
         let mayCapture = x11Integration?.hasClients == true
         #else
         let riding = false

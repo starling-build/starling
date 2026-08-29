@@ -42,20 +42,20 @@ class AppLauncher: StatelessWidget {
     /// Blink phase of the search caret, driven by the shell (see
     /// `_restartLauncherCaret`) — the widget is stateless, so the phase has to
     /// come from above.
-    let caretOn: Bool
+    let caretResetToken: Int
     let onLaunch: (String) -> Void
     let onDismiss: () -> Void
 
     init(
         apps: [LauncherApp],
         query: String = "",
-        caretOn: Bool = true,
+        caretResetToken: Int = 0,
         onLaunch: @escaping (String) -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.apps = apps
         self.query = query
-        self.caretOn = caretOn
+        self.caretResetToken = caretResetToken
         self.onLaunch = onLaunch
         self.onDismiss = onDismiss
     }
@@ -157,14 +157,10 @@ class AppLauncher: StatelessWidget {
         // advance width — dropping it, or substituting a space, which is not
         // the same width as "|" — shifts the label a few pixels twice a second.
         // Same glyph, same metrics, alpha 0: the layout cannot move.
-        let caret = Text(
-            "|",
-            style: TextStyle(
-                color: caretOn ? Color(0xFFFFFFFF) : Color(0x00FFFFFF),
-                fontSize: 16
-            ),
-            maxLines: 1
-        )
+        // Blinks itself — see `ShellCaret`. Driving this from shell state
+        // rebuilt the entire desktop twice a second for one glyph.
+        let caret: Widget = ShellCaret(color: Color(0xFFFFFFFF), fontSize: 16,
+                                       resetToken: caretResetToken)
         let label = Text(
             empty ? "Search" : query,
             style: TextStyle(
