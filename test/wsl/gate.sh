@@ -1,0 +1,103 @@
+#!/bin/bash
+# Gate the Starling desktop in WSL.
+#
+# WSL has no /dev/dri, so RDP DISPLAY MODE is the only way the shell can put
+# anything on a screen — which makes this box the real test of that path, and
+# the reason the gate lives here rather than on the dev box. Everything runs
+# inside the distro; the client is driven through WSLg's own X server, so no
+# Windows-side scheduling is needed.
+set -u
+say() { echo "[gate] $*"; }
+fail=0
+check() { if [ "$1" = 0 ]; then echo "  PASS  $2"; else echo "  FAIL  $2"; fail=1; fi; }
+
+export XDG_RUNTIME_DIR=/tmp/xdg-starling-gate
+mkdir -p "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
+# Our OWN X server, not WSLg's. WSLg leaves a /tmp/.X11-unix/X0 socket behind
+# that no server is listening on, so a gate that trusts DISPLAY=:0 fails at
+# the capture step for reasons that have nothing to do with the desktop.
+export DISPLAY=:99
+
+say "1. install"
+apt-get install -y --allow-downgrades /mnt/c/dist/starling-gate.deb > /tmp/g-install.log 2>&1
+check $? "the .deb installs on a clean 26.04 (dependencies resolve)"
+ls /dev/dri >/dev/null 2>&1 && say "   NOTE: /dev/dri present — not the headless case" \
+                            || say "   /dev/dri absent, as expected"
+
+say "2. start in RDP display mode"
+pkill -x DesktopShellApp 2>/dev/null; sleep 2
+LD_LIBRARY_PATH=/usr/lib/starling FLUTTER_ENGINE_OUT=/usr/share/starling \
+STARLING_DATA_DIR=/usr/share/starling FLUTTER_APPS_DIR=/usr/lib/starling/apps \
+STARLING_RDP_PORT=3390 STARLING_RDP_SIZE=1280x800 STARLING_PUMP_LOG=1 \
+  setsid /usr/lib/starling/DesktopShellApp --rdp > /tmp/g-shell.log 2>&1 < /dev/null &
+for i in $(seq 1 40); do grep -q "listening on" /tmp/g-shell.log 2>/dev/null && break; sleep 1; done
+grep -q "listening on" /tmp/g-shell.log; check $? "the shell starts and the RDP listener comes up"
+grep -qi "surfaceless EGL" /tmp/g-shell.log
+check $? "it renders surfacelessly (no DRM, no window system)"
+
+say "3. idle with nobody connected"
+PID=$(pgrep -x DesktopShellApp | head -1)
+idle_cpu() {  # $1 = seconds
+  read -r a b < <(awk '{print $14, $15}' /proc/$PID/stat)
+  sleep "$1"
+  read -r c d < <(awk '{print $14, $15}' /proc/$PID/stat)
+  awk -v x=$((c+d-a-b)) -v s="$1" 'BEGIN{printf "%.2f", x/100/s*100}'
+}
+CPU_IDLE=$(idle_cpu 30)
+say "   listener up, no client: ${CPU_IDLE}% of one core"
+# 3% not 1%: display mode free-runs the engine's frame timer at ~30Hz because
+# nothing supplies vsync when there is no display to flip (pre-existing, and
+# separate from the frame pump — STARLING_PUMP_LOG proves the pump stays off).
+# The ceiling is here to catch a REGRESSION, e.g. the pump running for nobody.
+awk -v c="$CPU_IDLE" 'BEGIN{exit !(c+0 < 3.0)}'
+check $? "idle stays under 3% with the listener up"
+grep -q "\[pump\]" /tmp/g-shell.log && { say "   pump armed for nobody:"; grep "\[pump\]" /tmp/g-shell.log; }
+grep -q "\[pump\]" /tmp/g-shell.log; [ $? = 1 ]
+check $? "the frame pump does NOT arm with no client (nothing rides it)"
+
+say "4. a real client, on our own X display"
+pkill -f "Xvfb :99" 2>/dev/null; sleep 1
+setsid Xvfb :99 -screen 0 1600x1000x24 >/tmp/g-xvfb.log 2>&1 </dev/null &
+sleep 3
+xdpyinfo >/dev/null 2>&1; check $? "the gate's X display is up"
+RDP=$(command -v xfreerdp3 || command -v xfreerdp)
+pkill -x "$(basename ${RDP:-xfreerdp3})" 2>/dev/null; sleep 1
+setsid $RDP /v:127.0.0.1:3390 /u:starling /p:x /cert:ignore /sec:tls \
+    /size:1280x800 /log-level:ERROR > /tmp/g-client.log 2>&1 < /dev/null &
+sleep 15
+pgrep -x "$(basename $RDP)" >/dev/null; check $? "the client connects and stays up"
+grep -qi "client activated" /tmp/g-shell.log; check $? "the shell activated the session"
+
+say "5. what is actually on the client's screen"
+import -window root /tmp/g-shot.png 2>/tmp/g-cap.err || head -2 /tmp/g-cap.err
+if [ -s /tmp/g-shot.png ]; then
+  read -r W H MEAN SD < <(identify -format "%w %h " /tmp/g-shot.png; \
+      convert /tmp/g-shot.png -format "%[fx:mean*255] %[fx:standard_deviation*255]" info:)
+  say "   captured ${W}x${H}, mean ${MEAN}, stddev ${SD}"
+  cp /tmp/g-shot.png /mnt/c/dist/wsl-gate-shot.png 2>/dev/null
+  # A desktop has structure. Black or a flat fill does not.
+  awk -v m="$MEAN" -v s="$SD" 'BEGIN{exit !(m+0 > 8 && s+0 > 8)}'
+  check $? "the client is showing a real desktop, not black or a flat fill"
+else
+  check 1 "captured the client's screen"
+fi
+
+say "6. disconnect and settle"
+pkill -x "$(basename $RDP)" 2>/dev/null; sleep 10
+pkill -f "Xvfb :99" 2>/dev/null
+PID=$(pgrep -x DesktopShellApp | head -1)
+if [ -n "$PID" ]; then
+  CPU_AFTER=$(idle_cpu 30)
+  say "   after the client left: ${CPU_AFTER}% of one core"
+  awk -v c="$CPU_AFTER" 'BEGIN{exit !(c+0 < 3.0)}'
+  check $? "returns to idle after a session"
+  check 0 "the shell survived the whole run"
+else
+  check 1 "the shell survived the whole run"
+fi
+
+cp /tmp/g-shell.log /mnt/c/dist/wsl-gate-shell.log 2>/dev/null
+say "shell log tail:"; tail -5 /tmp/g-shell.log | sed 's/^/        /'
+echo
+[ $fail = 0 ] && echo "WSL GATE PASS" || echo "WSL GATE FAIL"
+exit $fail

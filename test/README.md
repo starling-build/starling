@@ -252,6 +252,36 @@ than testing the wrong machine.
   our code. Hence `--sdk` rather than a permanent red: a suite that always
   fails for a known reason is one people stop reading.
 
+## The WSL gate — `test/wsl/run-gate.sh`
+
+WSL has no `/dev/dri` at all, so the DRM path the desktop normally takes
+cannot start there. **RDP display mode is the whole product on that
+platform**: the RDP surface *is* the display, rendered surfacelessly through
+llvmpipe. Nothing on the dev box exercises that, because the dev box has a
+GPU and takes the other path.
+
+    test/wsl/run-gate.sh                 # build, package, ship, gate
+    test/wsl/run-gate.sh --no-build      # gate whatever .deb is already there
+
+Eleven checks: the .deb installs on a clean 26.04 and its dependencies
+resolve, the shell starts and listens, it renders surfacelessly, a real
+`xfreerdp3` connects and is activated, the pixels it receives are a desktop
+rather than black, and the session leaves the shell alive and back at idle.
+
+Two things worth knowing before debugging a failure here:
+
+- **The gate runs its own `Xvfb`, not WSLg.** WSLg leaves a
+  `/tmp/.X11-unix/X0` socket behind that no server is listening on, so a gate
+  that trusts `DISPLAY=:0` fails at the capture step for reasons that have
+  nothing to do with the desktop.
+- **The idle ceiling is 3%, not 1%.** Display mode free-runs the engine's
+  frame timer at ~30 Hz because nothing supplies vsync when there is no
+  display to flip — pre-existing, and separate from the shell's frame pump,
+  which `STARLING_PUMP_LOG=1` shows staying off. The ceiling is there to
+  catch a regression (the pump running for nobody), not to assert that
+  display mode is as cheap as the DRM path. It is not: ~0.7-1.1% against
+  0.02%.
+
 ## The Windows shell gate
 
 `test/win/run-gate.sh` — ten checks against the Windows shell running on the
