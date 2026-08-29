@@ -1337,6 +1337,10 @@ int x11_server_get_all_fds(X11Server* server, int* fds, int max_fds) {
     return count;
 }
 
+/* Defined further down, beside the timer it drives; used by the connect and
+ * disconnect paths below. */
+static void x11_update_vblank_timer(X11Server* server);
+
 void x11_server_dispatch(X11Server* server) {
     if (!server) return;
 
@@ -1388,6 +1392,8 @@ void x11_server_dispatch(X11Server* server) {
         }
         fprintf(stderr, "[X11Server] Client connected (fd=%d pid=%d)\n",
                 client_fd, client->pid);
+        /* Somebody is here now: the vblank timer has work to do. */
+        x11_update_vblank_timer(server);
     }
     }
 
@@ -1494,6 +1500,8 @@ void x11_server_dispatch(X11Server* server) {
             }
             close(server->clients[i].fd);
             server->clients[i].fd = -1;
+            /* And if that was the last one, the timer goes quiet again. */
+            x11_update_vblank_timer(server);
 
             /* Clean up Present registrations and XI2 subscriptions */
             for (auto& cwin : server->windows) {
@@ -5393,6 +5401,36 @@ void x11_server_arm_vblank_timer(X11Server* server) {
     its.it_value.tv_nsec = 16000000;     /* 16ms initial */
     its.it_interval.tv_nsec = 16000000;  /* 16ms repeat (~60fps) */
     timerfd_settime(server->vblank_timer_fd, 0, &its, nullptr);
+}
+
+void x11_server_disarm_vblank_timer(X11Server* server) {
+    if (!server || server->vblank_timer_fd < 0) return;
+    struct itimerspec off = {};          /* all zero disarms a timerfd */
+    timerfd_settime(server->vblank_timer_fd, 0, &off, nullptr);
+}
+
+/* The vblank timer runs only while somebody is connected.
+ *
+ * It exists so a DRI3 client's fences get triggered and its Present requests
+ * get their IdleNotify/CompleteNotify -- real work, but only ever on behalf of
+ * a client. Armed unconditionally at startup it was the desktop's single
+ * largest idle cost: 62.5 wakeups a second forever, each one dispatching, and
+ * each dispatch calling accept() on both listening sockets. On a Wayland-only
+ * desktop nothing ever connects, so all of it was doomed -- measured at 1252
+ * failed accept() calls in ten idle seconds, over half the shell's entire idle
+ * CPU.
+ *
+ * Driven off the live client count here rather than from a connect callback on
+ * the Swift side, because a count kept in two places is a count that will
+ * eventually disagree with itself. */
+static void x11_update_vblank_timer(X11Server* server) {
+    if (!server) return;
+    int live = 0;
+    for (int i = 0; i < server->client_count; i++) {
+        if (server->clients[i].fd >= 0) { live = 1; break; }
+    }
+    if (live) x11_server_arm_vblank_timer(server);
+    else      x11_server_disarm_vblank_timer(server);
 }
 
 void x11_server_vblank_tick(X11Server* server) {

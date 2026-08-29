@@ -185,6 +185,10 @@ int x11_server_get_vblank_timer_fd(X11Server* server);
 
 /* Arm the VBlank timer at ~60fps (16ms interval). */
 void x11_server_arm_vblank_timer(X11Server* server);
+/// Stops it again. The timer only has work while a client is connected;
+/// left armed it is the desktop's largest idle cost (see the note in
+/// x11_update_vblank_timer).
+void x11_server_disarm_vblank_timer(X11Server* server);
 
 /* Process VBlank tick — send queued PresentComplete/IdleNotify events. */
 void x11_server_vblank_tick(X11Server* server);

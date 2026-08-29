@@ -174,7 +174,11 @@ class X11Integration {
             // Register vblank timer with epoll — triggers shm_fences so Chrome's
             // GPU process doesn't deadlock waiting for buffer completion.
             // Without this, the last PresentPixmap's fence is never triggered.
-            x11_server_arm_vblank_timer(server)
+            // NOT armed here. The timer is armed by the server itself when a
+            // client connects and disarmed when the last one leaves -- armed
+            // from startup it woke the shell 62.5 times a second forever, on a
+            // desktop where nothing ever connects. The fd is still registered
+            // with epoll below; an unarmed timerfd simply never fires.
             let vblankFd = x11_server_get_vblank_timer_fd(server)
             if vblankFd >= 0, let view = drmView {
                 fl_drm_view_add_external_fd(view, vblankFd, { _ in
