@@ -12,6 +12,8 @@
 #include "notification_service.h"
 
 #include <errno.h>
+#include <poll.h>
+#include <time.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -277,6 +279,44 @@ static void _drain_pending(NotificationService *ns) {
     }
 }
 
+/* Block until the bus or `extra_fd` has something, or sd-bus's own deadline.
+ *
+ * The sd-bus event-loop integration, as documented: ask the connection for its
+ * fd, the events it wants, and its next timeout, and poll them yourself. The
+ * alternative (`sd_bus_wait`) can only watch the bus, which is why every
+ * caller of it ends up passing a timeout to cover whatever else it needs to
+ * notice. Returns 0 only on a real error.
+ *
+ * The portal service has the same loop with one more fd — see
+ * shell/Sources/PortalService/portal_service.c. */
+static int _bus_poll(sd_bus *bus, int extra_fd) {
+    int fd = sd_bus_get_fd(bus);
+    int events = sd_bus_get_events(bus);
+    if (fd < 0 || events < 0) return 0;
+
+    uint64_t deadline_usec = 0;
+    int r = sd_bus_get_timeout(bus, &deadline_usec);
+    if (r < 0) return 0;
+
+    int timeout_ms = -1;                    /* nothing due: wait indefinitely */
+    if (deadline_usec != UINT64_MAX) {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        uint64_t now_usec = (uint64_t)ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000;
+        timeout_ms = deadline_usec > now_usec
+            ? (int)((deadline_usec - now_usec + 999) / 1000)
+            : 0;
+    }
+
+    struct pollfd fds[2] = {
+        { fd, (short)events, 0 },
+        { extra_fd, POLLIN, 0 },
+    };
+    int n = poll(fds, extra_fd >= 0 ? 2 : 1, timeout_ms);
+    if (n < 0 && errno != EINTR) return 0;
+    return 1;
+}
+
 static void *_service_thread(void *arg) {
     NotificationService *ns = arg;
     int r = _setup_bus(ns);
@@ -303,8 +343,18 @@ static void *_service_thread(void *arg) {
                 goto done;
         }
 
-        r = sd_bus_wait(ns->bus, 200 * 1000);
-        if (r < 0 && r != -EINTR && r != -ETIMEDOUT) break;
+        // Wait on the bus AND the command pipe together, for as long as
+        // sd-bus says it has nothing due.
+        //
+        // This used to be `sd_bus_wait(bus, 200ms)`, which watches only the
+        // bus fd — so the pipe the shell writes to was noticed on the next
+        // timeout rather than when it was written, and the 200 ms cap was
+        // there to bound that. Five wakeups a second, forever, on a desktop
+        // where nothing is calling us. Polling the pipe alongside the bus
+        // makes the cap unnecessary: `sd_bus_get_timeout` gives the only
+        // deadline sd-bus actually has (a method call's timeout), and
+        // UINT64_MAX means "nothing due", which is the idle case.
+        if (!_bus_poll(ns->bus, ns->pipe_fd[0])) break;
     }
 
 done:

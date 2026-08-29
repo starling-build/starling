@@ -47,9 +47,66 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// its own content, so unrelated churn (dock hover) doesn't re-present.
     override func setState(_ fn: () -> Void) {
         super.setState(fn)
+        // The three periodic timers below tick only while something is
+        // WATCHING them, and this is where that is decided. It has to be a
+        // funnel rather than a hook per gate: the gates are ordinary state
+        // (which space is active, whether a popup is open, whether a
+        // recording runs) mutated from dozens of places, and one missed site
+        // is a timer that never starts -- a recording whose elapsed time
+        // stops moving. Every shell state change comes through here, so
+        // nothing can be missed. Three bool reads.
+        _reevaluateShellTimers()
         if !secondaryScreenInvalidators.isEmpty {
             invalidateSecondaryScreens()
             updateWaylandSurfaceOutputs()
+        }
+    }
+
+    /// Start/stop the watched-only timers. Suspended DispatchSourceTimers
+    /// cost nothing; a running one whose handler returns immediately costs a
+    /// wakeup on the libdispatch timer thread AND one on the main thread,
+    /// every period, forever. Two of these ran at 1 Hz and were the whole of
+    /// what the desktop still did while idle.
+    func _reevaluateShellTimers() {
+        #if os(Linux)
+        // Workspace tiles show working/idle from broker activity and frame
+        // recency, neither of which marks a widget dirty — so a workspace on
+        // screen needs a poke once a second, and nothing else does.
+        _tick(&_spaceRepaintTimer, windowManager.activeSpace.isSpecial,
+              every: 1) { [weak self] in self?.setState {} }
+        // The recording indicator's elapsed time.
+        _tick(&_recordingTickTimer, recordingService?.isRecording == true,
+              every: 1) { [weak self] in self?.setState {} }
+        // Signal strengths and scan results, while the Wi-Fi popup is up.
+        _tick(&_wifiRefreshTimer, activeStatusBarPopup == .wifi,
+              every: 5) { [weak self] in self?.networkService.refreshNow() }
+        #endif
+    }
+
+    /// Create the timer when something starts watching, CANCEL it when the
+    /// last watcher goes.
+    ///
+    /// Cancel, not suspend — that distinction is the whole point and it cost
+    /// a measurement to find. Suspending a `DispatchSourceTimer` stops its
+    /// handler but leaves libdispatch's timerfd armed for the source's next
+    /// deadline: the manager thread still wakes every period, re-arms, and
+    /// goes back to sleep. The main thread goes quiet, the wakeups do not,
+    /// and a CPU sample barely moves. Only cancelling takes the deadline out
+    /// of libdispatch's set. (This is the shape `AgentBroker` already uses.)
+    private func _tick(_ slot: inout DispatchSourceTimer?, _ wanted: Bool,
+                       every seconds: Int, _ body: @escaping () -> Void) {
+        if wanted {
+            guard slot == nil else { return }
+            let t = DispatchSource.makeTimerSource(queue: .main)
+            t.schedule(deadline: .now() + .seconds(seconds),
+                       repeating: .seconds(seconds))
+            t.setEventHandler(
+                handler: unsafeBitCast(body, to: (@Sendable () -> Void).self))
+            t.resume()
+            slot = t
+        } else if let t = slot {
+            t.cancel()
+            slot = nil
         }
     }
 
@@ -1192,14 +1249,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // Murmuration P2: tile status (working/idle) derives from broker op
         // and frame recency, which don't mark widgets dirty — poke a rebuild
         // once a second while a workspace is on screen.
-        let statusTimer = DispatchSource.makeTimerSource(queue: .main)
-        statusTimer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
-        statusTimer.setEventHandler { [weak self] in
-            guard let self, self.windowManager.activeSpace.isSpecial else { return }
-            self.setState {}
-        }
-        statusTimer.resume()
-        _spaceRepaintTimer = statusTimer
+        // (its timer is created on demand — `_reevaluateShellTimers`)
 
         // The tooling-forced frame (SIGRTMIN+2 = 36 on glibc; `shell-drive shot`
         // sends it before every screenshot, because an idle desktop presents
@@ -1340,14 +1390,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             self?.setState {}
         }
         networkService.start()
-        let wifiTimer = DispatchSource.makeTimerSource(queue: .main)
-        wifiTimer.schedule(deadline: .now() + .seconds(5), repeating: .seconds(5))
-        wifiTimer.setEventHandler { [weak self] in
-            guard let self, self.activeStatusBarPopup == .wifi else { return }
-            self.networkService.refreshNow()
-        }
-        wifiTimer.resume()
-        _wifiRefreshTimer = wifiTimer
+        // (its timer is created on demand — `_reevaluateShellTimers`)
 
         // Battery: the service polls on its own (5s) and calls back only on
         // real change — the icon must track plug/unplug with no popup open.
@@ -1376,14 +1419,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                                             body: detail)
             }
         }
-        let recTimer = DispatchSource.makeTimerSource(queue: .main)
-        recTimer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
-        recTimer.setEventHandler { [weak self] in
-            guard let self, recordingService?.isRecording == true else { return }
-            self.setState {}
-        }
-        recTimer.resume()
-        _recordingTickTimer = recTimer
+        // (its timer is created on demand — `_reevaluateShellTimers`)
         #endif
 
         _startIdleDetection()

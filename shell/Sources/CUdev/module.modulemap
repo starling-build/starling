@@ -1,0 +1,5 @@
+module CUdev [system] {
+    header "shim.h"
+    link "udev"
+    export *
+}

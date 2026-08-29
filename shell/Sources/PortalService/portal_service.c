@@ -15,6 +15,7 @@
 #include "include/portal_service.h"
 
 #include <errno.h>
+#include <time.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
@@ -1228,6 +1229,61 @@ static int _setup_bus(PortalService *ps) {
     return 0;
 }
 
+/* Block until the bus, the command pipe, or a helper's exit needs attention.
+ *
+ * The sd-bus event-loop integration, as documented: take the connection's fd,
+ * the events it wants and its next deadline, and poll them yourself alongside
+ * everything else the loop cares about. UINT64_MAX from sd_bus_get_timeout
+ * means nothing is due, which is the idle case and where the -1 comes from.
+ *
+ * The notification service has the same loop with one fewer fd -- see
+ * shell/Sources/NotificationService/notification_service.c. */
+static int _portal_wait(PortalService *ps) {
+    int fd = sd_bus_get_fd(ps->bus);
+    int events = sd_bus_get_events(ps->bus);
+    if (fd < 0 || events < 0) return 0;
+
+    uint64_t deadline_usec = 0;
+    if (sd_bus_get_timeout(ps->bus, &deadline_usec) < 0) return 0;
+
+    int timeout_ms = -1;
+    if (deadline_usec != UINT64_MAX) {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        uint64_t now_usec = (uint64_t)ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000;
+        timeout_ms = deadline_usec > now_usec
+            ? (int)((deadline_usec - now_usec + 999) / 1000)
+            : 0;
+    }
+
+    struct pollfd fds[2 + MAX_PENDING_REQUESTS];
+    int pidfds[MAX_PENDING_REQUESTS];
+    int n = 0;
+    fds[n].fd = fd;              fds[n].events = (short)events; fds[n++].revents = 0;
+    fds[n].fd = ps->pipe_fd[0];  fds[n].events = POLLIN;        fds[n++].revents = 0;
+
+    int npid = 0;
+    for (int i = 0; i < MAX_PENDING_REQUESTS; i++) {
+        PendingRequest *req = &ps->requests[i];
+        if (!req->active || req->child_pid <= 0) continue;
+        int pfd = (int)syscall(SYS_pidfd_open, req->child_pid, 0);
+        if (pfd < 0) {
+            // No pidfd (old kernel, or the child is already gone): fall back
+            // to a bounded wait so the reap still happens promptly. Never
+            // block indefinitely with a child outstanding.
+            timeout_ms = (timeout_ms < 0 || timeout_ms > 200) ? 200 : timeout_ms;
+            continue;
+        }
+        pidfds[npid++] = pfd;
+        fds[n].fd = pfd; fds[n].events = POLLIN; fds[n++].revents = 0;
+    }
+
+    int r = poll(fds, n, timeout_ms);
+    for (int i = 0; i < npid; i++) close(pidfds[i]);
+    if (r < 0 && errno != EINTR) return 0;
+    return 1;
+}
+
 static void *_portal_thread(void *arg) {
     PortalService *ps = arg;
     int r = _setup_bus(ps);
@@ -1282,8 +1338,21 @@ static void *_portal_thread(void *arg) {
         // Check if any file chooser helper exited
         _check_children(ps);
 
-        r = sd_bus_wait(ps->bus, 200 * 1000);  // 200ms max
-        if (r < 0 && r != -EINTR && r != -ETIMEDOUT) break;
+        // Wait on the bus, the command pipe, and any running helper, for as
+        // long as sd-bus says nothing is due.
+        //
+        // This used to be `sd_bus_wait(bus, 200ms)`, which watches only the
+        // bus fd. The other two things this loop must notice -- a command
+        // from the shell, and a file-chooser helper exiting -- had no way in,
+        // so the 200 ms cap stood in for both: five wakeups a second forever,
+        // on a desktop where nobody is opening a file dialog. Both have a
+        // real event. The command pipe is an fd already; a helper's exit
+        // becomes one through pidfd_open, which is readable exactly when the
+        // process dies. (Its STDOUT would be the tempting fd to poll and is
+        // the wrong one: the helper writes its answer before exiting, so a
+        // readable stdout would wake this loop into a waitpid that says
+        // "still running", over and over, as fast as poll can return.)
+        if (!_portal_wait(ps)) break;
     }
 
 done:

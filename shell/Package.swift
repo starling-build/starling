@@ -95,6 +95,7 @@ let shellDeps: [Target.Dependency] = [
     "RdpServer",
     "NotificationService",
     "ImeBridge",
+    "CUdev",
     .product(name: "StarlingRegistry", package: "StarlingRegistry"),
     .product(name: "StarlingNet", package: "StarlingNet"),
     .product(name: "StarlingPower", package: "StarlingPower"),
@@ -128,6 +129,9 @@ let shellLinkerFlags: [String] = [
 ]
 
 targets += [
+    // libudev, so the battery can be told rather than asked. See
+    // Sources/CUdev/shim.h.
+    .systemLibrary(name: "CUdev", path: "Sources/CUdev"),
     // C library implementing a Wayland compositor server
     .target(
         name: "WaylandServer",
