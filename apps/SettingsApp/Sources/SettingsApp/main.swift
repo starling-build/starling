@@ -36,8 +36,12 @@ class _ThemedSettingsRootState: State<StatefulWidget> {
             settingsBlocShared?.add(.layoutApplied(tiling))
         }
         // Wallpaper pushes keep the picker's selection ring live.
-        GpuDmaBufRenderer.onStyleChanged = { style in
+        // A style switch repaints this app as well as the shell's chrome:
+        // the palette is a function of the pushed style, so the tree has to
+        // be rebuilt for it, not merely told about it.
+        GpuDmaBufRenderer.onStyleChanged = { [weak self] style in
             settingsBlocShared?.add(.styleApplied(style))
+            self?.setState {}
         }
         GpuDmaBufRenderer.onWallpaperChanged = { preset in
             settingsBlocShared?.add(.wallpaperApplied(preset))
@@ -62,8 +66,12 @@ class _ThemedSettingsRootState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        // MacosApp whichever style is active -- FluentApp's scaffold traps
+        // on mount as a DMA-BUF child -- but carrying the ACTIVE STYLE's
+        // colours, so the Macos* controls inside come up in WinUI's palette
+        // when the desktop is in the Windows style.
         return MacosApp(
-            theme: _dark ? MacosThemeData.dark() : MacosThemeData.light(),
+            theme: StarlingPalette.current(dark: _dark).macosTheme(),
             home: SettingsApp()
         )
     }

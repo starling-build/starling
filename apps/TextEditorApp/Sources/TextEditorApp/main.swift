@@ -32,7 +32,10 @@ class _ThemedEditorRootState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         return MacosApp(
-            themeMode: _dark ? .dark : .light,
+            // The ACTIVE STYLE's colours -- see StarlingPalette. MacosApp
+            // either way, because FluentApp's scaffold traps on mount as a
+            // DMA-BUF child; only the palette moves.
+            theme: StarlingPalette.current(dark: _dark).macosTheme(),
             home: TextEditorApp(),
             title: "Text Editor"
         )

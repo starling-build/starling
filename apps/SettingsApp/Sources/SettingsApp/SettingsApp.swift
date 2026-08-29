@@ -21,6 +21,17 @@ class SettingsApp: StatefulWidget {
 /// Sidebar tile colors and status colors stay fixed; `accent` tracks the
 /// desktop shell's per-theme system blue so selection pills and links
 /// highlight with the same blue as the rest of the desktop.
+/// Settings' colours, in the roles the pane builders ask for.
+///
+/// The VALUES come from `StarlingPalette`, which answers for whichever
+/// desktop style is active -- the macOS numbers this app shipped with, or
+/// WinUI's own tokens when the desktop is in the Windows style. The field
+/// names are unchanged so the ~55 `pal.textSecondary`-style readers below
+/// never had to learn that styles exist.
+///
+/// Settings paints its surfaces OPAQUE either way. The translucent
+/// liquid-glass haze read as blur over busy backdrops, so the canvas is
+/// solid and the shell's frost simply stays hidden behind it.
 private struct Palette {
     let textStrong: Color
     let textPrimary: Color
@@ -30,36 +41,31 @@ private struct Palette {
     let accent: Color
     let fieldFill: Color
     let fieldBorder: Color
-    /// Window surfaces. Opaque: the see-through liquid-glass haze read as
-    /// blur over busy backdrops, so Settings paints solid (the shell's
-    /// frost stays hidden behind it).
     let glassCanvas: Color
     let glassSidebar: Color
+    /// The face the active style sets its text in, or nil for the default.
+    let fontFamily: String?
+    let fontFamilyStrong: String?
 
     init(dark: Bool) {
-        if dark {
-            textStrong = Color(0xFFFFFFFF)
-            textPrimary = Color(0xFFFFFFFF)
-            textSecondary = Color(0xC7FFFFFF)
-            textTertiary = Color(0x99FFFFFF)
-            textPlaceholder = Color(0x80FFFFFF)
-            accent = Color(0xFF0A84FF)
-            fieldFill = Color(0x14FFFFFF)
-            fieldBorder = Color(0x1FFFFFFF)
-            glassCanvas = Color(0xFF21252C)
-            glassSidebar = Color(0xFF1D2129)
-        } else {
-            textStrong = Color(0xE6000000)
-            textPrimary = Color(0xDD000000)
-            textSecondary = Color(0xB3000000)
-            textTertiary = Color(0x8C000000)
-            textPlaceholder = Color(0x59000000)
-            accent = Color(0xFF007AFF)
-            fieldFill = Color(0x0F000000)
-            fieldBorder = Color(0x1A000000)
-            glassCanvas = Color(0xFFF4F4F6)
-            glassSidebar = Color(0xFFECECEF)
-        }
+        let p = StarlingPalette.current(dark: dark)
+        textStrong = p.textPrimary
+        textPrimary = p.textPrimary
+        textSecondary = p.textSecondary
+        textTertiary = p.textTertiary
+        textPlaceholder = p.textDisabled
+        accent = p.accent
+        fieldFill = p.fieldFill
+        fieldBorder = p.fieldBorder
+        // Opaque: see the note above. The shared palette's macOS canvas
+        // carries the alpha the shell's window frost wants; Settings drops
+        // it and paints the same colour solid.
+        glassCanvas = Color(alpha: 1.0, red: p.canvas.r,
+                            green: p.canvas.g, blue: p.canvas.b)
+        glassSidebar = Color(alpha: 1.0, red: p.sidebar.r,
+                             green: p.sidebar.g, blue: p.sidebar.b)
+        fontFamily = p.fontFamily
+        fontFamilyStrong = p.fontFamilyStrong
     }
 }
 
@@ -200,46 +206,86 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
 
     /// macOS System Settings sidebar row: colored rounded icon tile + label,
     /// with a solid accent-blue selection pill and white text when selected.
+    /// One sidebar row, in whichever desktop style is active.
+    ///
+    /// The two desktops disagree about this row in kind, not degree, and it
+    /// was the loudest remaining macOS tell inside a Windows-styled window:
+    ///
+    ///   macOS    a coloured squircle holding a white glyph, and the whole
+    ///            row fills with the accent when selected.
+    ///   Windows  a flat monochrome glyph with no container, and a selected
+    ///            row takes a SUBTLE fill with a short accent bar down its
+    ///            left edge -- the accent marks the row, it does not become
+    ///            the row.
+    ///
+    /// `tile` is the macOS squircle's colour and is simply unused in the
+    /// Windows style; it stays in the signature because it is the app's own
+    /// per-pane mark and the macOS style still wants it.
     private func _sidebarItem(index: Int, icon: IconData, tile: Color,
                               label: String, selected: Int) -> Widget {
         let isSelected = index == selected
-        let iconTile: Widget = SizedBox(
-            width: 20, height: 20,
-            child: DecoratedBox(
-                decoration: BoxDecoration(
-                    color: tile,
-                    borderRadius: BorderRadius.all(Radius(circular: 5))
-                ),
+        let windows = StarlingStyleId.current == .fluent
+
+        let glyph: Widget = windows
+            ? SizedBox(
+                width: 20, height: 20,
                 child: Center(
-                    child: MacosIcon(icon: icon, color: Color(0xFFFFFFFF), size: 12)
-                )
-            )
-        )
+                    child: MacosIcon(
+                        icon: icon,
+                        color: isSelected ? pal.accent : pal.textSecondary,
+                        size: 15)))
+            : SizedBox(
+                width: 20, height: 20,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: tile,
+                        borderRadius: BorderRadius.all(Radius(circular: 5))
+                    ),
+                    child: Center(
+                        child: MacosIcon(icon: icon, color: Color(0xFFFFFFFF),
+                                         size: 12))))
+
+        // Windows keeps the label's own colour when selected, because the row
+        // behind it has not turned into the accent.
+        let labelColor = windows
+            ? pal.textPrimary
+            : (isSelected ? Color(0xFFFFFFFF) : pal.textPrimary)
+        let rowFill = windows
+            ? (isSelected ? pal.fieldFill : Color(0x00000000))
+            : (isSelected ? pal.accent : Color(0x00000000))
+
+        var row: [Widget] = []
+        if windows {
+            // The accent bar: 3pt, rounded, and present-but-invisible when
+            // the row is not selected so every row keeps the same indent.
+            row.append(SizedBox(
+                width: 3, height: 16,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: isSelected ? pal.accent : Color(0x00000000),
+                        borderRadius: BorderRadius.all(Radius(circular: 2))))))
+            row.append(SizedBox(width: 9))
+        }
+        row.append(glyph)
+        row.append(SizedBox(width: 8))
+        row.append(Expanded(
+            child: Text(label, style: TextStyle(
+                color: labelColor, fontSize: 13,
+                fontFamily: pal.fontFamily))))
+
         return GestureDetector(
-            onTap: { [self] in
-                bloc.add(.selectTab(index))
-            },
+            onTap: { [self] in bloc.add(.selectTab(index)) },
             behavior: .opaque,
             child: DecoratedBox(
                 decoration: BoxDecoration(
-                    color: isSelected ? pal.accent : Color(0x00000000),
+                    color: rowFill,
                     borderRadius: BorderRadius.all(Radius(circular: 5))
                 ),
                 child: Padding(
-                    padding: EdgeInsets(horizontal: 8, vertical: 5),
-                    child: Row(children: [
-                        iconTile,
-                        SizedBox(width: 8),
-                        Expanded(
-                            child: Text(
-                                label,
-                                style: TextStyle(
-                                    color: isSelected ? Color(0xFFFFFFFF) : pal.textPrimary,
-                                    fontSize: 13
-                                )
-                            )
-                        ),
-                    ])
+                    padding: EdgeInsets(
+                        left: windows ? 4 : 8, top: 5,
+                        right: 8, bottom: 5),
+                    child: Row(children: row)
                 )
             )
         )

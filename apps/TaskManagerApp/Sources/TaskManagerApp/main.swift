@@ -441,7 +441,13 @@ private class _ThemedTaskManagerRootState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         return MacosApp(
-            theme: _dark ? MacosThemeData.dark() : MacosThemeData.light(),
+                // The ACTIVE STYLE's colours: `StarlingPalette` answers
+                // with the macOS values this app shipped with, or WinUI's own
+                // tokens when the desktop is in the Windows style. MacosApp
+                // either way -- FluentApp's scaffold traps on mount as a
+                // DMA-BUF child -- so the widget family stays put and only
+                // the palette moves.
+            theme: StarlingPalette.current(dark: _dark).macosTheme(),
             home: TaskManagerPage(),
             title: "Task Manager"
         )

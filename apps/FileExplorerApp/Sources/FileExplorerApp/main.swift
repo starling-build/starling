@@ -41,6 +41,14 @@ class _ThemedFilesRootState: State<StatefulWidget> {
             _dark = dark
             FinderColors.dark = dark
         }
+        // A style switch repaints this app too: the palette is a function of
+        // the pushed style, so the tree is rebuilt for it. The lazy file
+        // list needs the same refresh poke as an appearance change -- its
+        // sliver children do not rebuild on an ancestor rebuild.
+        GpuDmaBufRenderer.onStyleChanged = { [weak self] _ in
+            self?.setState {}
+            filesBlocShared?.add(.refresh)
+        }
         GpuDmaBufRenderer.onThemeChanged = { [weak self] dark in
             guard let self, self._dark != dark else { return }
             FinderColors.dark = dark
@@ -54,8 +62,10 @@ class _ThemedFilesRootState: State<StatefulWidget> {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        // MacosApp in both styles (FluentApp's scaffold traps on mount as a
+        // DMA-BUF child), carrying the active style's colours.
         return MacosApp(
-            theme: _dark ? MacosThemeData.dark() : MacosThemeData.light(),
+            theme: StarlingPalette.current(dark: _dark).macosTheme(),
             home: _root.picker ? FileExplorerPickerApp() : FileExplorerApp()
         )
     }

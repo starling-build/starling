@@ -12,34 +12,45 @@ import Observation
 /// Theme-aware Finder palette: `dark` is flipped by the themed root when
 /// the shell pushes an appearance change. Brand colors (accent, folder
 /// blue, selection) stay fixed.
+/// Files' colours, in the roles the views ask for.
+///
+/// The VALUES come from `StarlingPalette`, which answers for whichever
+/// desktop style is active: the macOS numbers this app shipped with, or
+/// WinUI's own tokens when the desktop is in the Windows style. The names
+/// here are unchanged, so nothing downstream learned about styles.
+///
+/// `folderBlue` stays a literal on purpose -- a folder is that blue on both
+/// desktops, and it is the app's own mark rather than a theme colour.
 enum FinderColors {
     nonisolated(unsafe) static var dark = true
 
-    /// Sidebar / path-bar icon tint and active sort header — the desktop's
-    /// per-theme system blue (same accent the shell and sibling apps use).
-    static var accent: Color { dark ? Color(0xFF0A84FF) : Color(0xFF007AFF) }
-    /// Folder glyph blue used in the content list.
-    static let folderBlue = Color(0xFF54A3F7)
-    /// NSColor.selectedContentBackgroundColor.
-    static let selection = Color(0xFF0058D0)
+    private static var p: StarlingPalette { StarlingPalette.current(dark: dark) }
 
-    static var label: Color { dark ? Color(0xFFE8E8E8) : Color(0xDD000000) }
-    static var secondaryLabel: Color { dark ? Color(0x99FFFFFF) : Color(0x8C000000) }
-    static var tertiaryLabel: Color { dark ? Color(0x66FFFFFF) : Color(0x66000000) }
-    static var disabled: Color { dark ? Color(0x3AFFFFFF) : Color(0x33000000) }
-    static var hairline: Color { dark ? Color(rgbo: 255, 255, 255, 0.08) : Color(rgbo: 0, 0, 0, 0.10) }
-    static var stripe: Color { dark ? Color(rgbo: 255, 255, 255, 0.03) : Color(rgbo: 0, 0, 0, 0.03) }
+    static var accent: Color { p.accent }
+    /// Folder glyph blue used in the content list -- the app's own mark.
+    static let folderBlue = Color(0xFF54A3F7)
+    static var selection: Color { p.selection }
+
+    static var label: Color { p.textPrimary }
+    static var secondaryLabel: Color { p.textSecondary }
+    static var tertiaryLabel: Color { p.textTertiary }
+    static var disabled: Color { p.textDisabled }
+    static var hairline: Color { p.hairline }
+    static var stripe: Color { p.stripe }
     /// Toolbar control glyphs (back/forward, new-folder, eye).
-    static var control: Color { dark ? Color(0xCCFFFFFF) : Color(0xB3000000) }
+    static var control: Color { p.textSecondary }
     /// Faint hero glyphs (empty-folder / search placeholder).
-    static var faintGlyph: Color { dark ? Color(0x33FFFFFF) : Color(0x2E000000) }
+    static var faintGlyph: Color { p.textDisabled }
     /// Path-bar chevrons.
-    static var chevron: Color { dark ? Color(0x44FFFFFF) : Color(0x40000000) }
-    /// Translucent window surfaces: the shell frosts what's behind the
-    /// window; alpha here lets the liquid glass show through (sidebar
-    /// glassier than the content canvas, macOS-style).
-    static var glassCanvas: Color { dark ? Color(0xC221252C) : Color(0xCCF4F4F6) }
-    static var glassSidebar: Color { dark ? Color(0x7A1D2129) : Color(0xA6ECECEF) }
+    static var chevron: Color { p.textTertiary }
+    /// Window surfaces. The shell frosts what is behind the window and the
+    /// macOS palette's alpha lets that liquid glass through, sidebar
+    /// glassier than the canvas; the Fluent palette is opaque, because
+    /// Windows' chrome is.
+    static var glassCanvas: Color { p.canvas }
+    static var glassSidebar: Color { p.sidebar }
+    /// The face the active style sets its text in, or nil for the default.
+    static var fontFamily: String? { p.fontFamily }
 }
 
 // MARK: - Sidebar sections
