@@ -819,12 +819,19 @@ class WindowManagerState {
     /// output is the whole primary, so this equals (0, topInset, W, H-topInset).
     private func _outputFillRect(for ref: Rect, screenWidth: Double, screenHeight: Double) -> Rect {
         let topInset = DesktopTheme.kStatusBarHeight
+        // And the BOTTOM, in a style whose bar reserves its strip. The macOS
+        // dock is an overlay windows pass beneath -- which is what gives its
+        // blur something to blur -- so it reserves nothing and this is 0.
+        // A Windows taskbar does reserve, and a maximised window that ignored
+        // it ran its last 56pt underneath the bar.
+        let bottomInset = shellMetrics.bottomInset
+        let inset = topInset + bottomInset
         if let dl = displayLayout {
             let o = dl.owningOutput(ofRect: ref)
             return Rect.fromLTWH(o.logicalLeft, o.logicalTop + topInset,
-                                 o.logicalWidth, o.logicalHeight - topInset)
+                                 o.logicalWidth, o.logicalHeight - inset)
         }
-        return Rect.fromLTWH(0, topInset, screenWidth, screenHeight - topInset)
+        return Rect.fromLTWH(0, topInset, screenWidth, screenHeight - inset)
     }
 
     func maximizeWindow(_ id: String, screenWidth: Double, screenHeight: Double) {

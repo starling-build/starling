@@ -2945,6 +2945,26 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Green — fullscreen toggle, with the client reconfigured from the rect
     /// the zoom lands on.
     func requestWindowMaximize(_ winId: String) {
+        // What this control MEANS is the style's business. macOS's green
+        // takes the window fullscreen onto its own space; Windows' square
+        // maximises it into the work area and leaves the caption and taskbar
+        // alone. Sending the Windows one to fullscreen hid both, and left no
+        // visible way back short of finding the top-edge reveal.
+        guard shellStyle.maximizeIsFullscreen else {
+            setState {
+                windowManager.maximizeWindow(
+                    winId, screenWidth: screenWidth, screenHeight: screenHeight)
+                _windowChildCache.removeValue(forKey: winId)
+            }
+            if let w = windowManager.windows.first(where: { $0.id == winId }),
+               let surfId = waylandIntegration?.surfaceId(forWindowId: winId) {
+                waylandIntegration?.sendResize(
+                    surfaceId: surfId,
+                    width: Int(w.rect.width),
+                    height: Int(w.rect.height - DesktopTheme.kTitleBarHeight))
+            }
+            return
+        }
         let wasFullscreen = windowManager.windows.first(where: { $0.id == winId })?.isFullscreen ?? false
         setState {
             // The zoom animates win.rect — configure clients from the FINAL
@@ -6160,12 +6180,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         let idx = _dockDisplayApps.firstIndex { id in
             id == appId || id == owner
         }
-        guard let idx else { return nil }
-        let m = _dockMetrics()
-        let x = m.baseLeft + m.baseCenters[idx + 1]  // slot 0 is the launcher
-        let y = screenHeight - DesktopTheme.kDockBottomMargin
-            - DesktopTheme.kDockIconBottomInset - DesktopTheme.kDockIconSize / 2
-        return Offset(x, y)
+        guard idx != nil else { return nil }
+        // The ACTIVE style's slot, not the macOS dock's. This computed the
+        // floating dock's geometry whatever style was up, so in the Windows
+        // style a minimising window flew to a point on the wallpaper where
+        // the dock would have been.
+        guard let slot = chrome.barSlots(forOutput: dockOutput)
+            .first(where: { $0.app == appId || $0.app == owner })
+        else { return nil }
+        return Offset(slot.x, slot.y)
     }
 
     /// The dock as it is on screen right now: every slot's app id and the

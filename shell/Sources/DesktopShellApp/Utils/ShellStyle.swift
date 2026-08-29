@@ -61,10 +61,22 @@ struct ShellMetrics {
     /// app's name floats above that.
     let bottomBarContainerHeight: Double
 
-    /// How much of the bottom edge a maximized window has to stay clear of.
-    /// The floating dock reserves its pill plus both margins; a taskbar
-    /// reserves its strip.
-    var bottomInset: Double { bottomBarHeight + bottomBarMargin * 2 }
+    /// Whether windows must stay CLEAR of the bottom bar, or may run under
+    /// it. This is a real difference and not a detail: the macOS dock is an
+    /// overlay that windows pass beneath -- which is what gives its blur
+    /// something to blur -- and the Windows taskbar reserves its strip, so a
+    /// maximized window stops above it.
+    let bottomBarReserves: Bool
+
+    /// How much of the bottom edge a window has to stay clear of, or 0 where
+    /// the bar is an overlay.
+    var bottomInset: Double {
+        bottomBarReserves ? bottomBarHeight + bottomBarMargin * 2 : 0
+    }
+
+    /// The bar's own footprint, whether or not it reserves it -- what the
+    /// dock's pill or the taskbar's strip actually occupies.
+    var bottomBarFootprint: Double { bottomBarHeight + bottomBarMargin * 2 }
 
     /// Menu bar on top, floating magnifying dock at the bottom.
     static let macos = ShellMetrics(
@@ -74,7 +86,8 @@ struct ShellMetrics {
         panelCornerRadius: 12.0,
         bottomBarHeight: 76.0,          // unchanged — Chrome height alignment
         bottomBarMargin: 6.0,           // unchanged — Chrome height alignment
-        bottomBarContainerHeight: 132.0
+        bottomBarContainerHeight: 132.0,
+        bottomBarReserves: false
     )
 
     /// One full-width taskbar on the bottom edge and nothing on top. Sized
@@ -91,7 +104,8 @@ struct ShellMetrics {
         panelCornerRadius: 8.0,
         bottomBarHeight: 56.0,
         bottomBarMargin: 0.0,
-        bottomBarContainerHeight: 112.0
+        bottomBarContainerHeight: 112.0,
+        bottomBarReserves: true
     )
 }
 
@@ -197,6 +211,17 @@ struct ShellStyleSpec {
     /// wallpaper changes rather than baked once at launch.
     let makeTheme: (_ dark: Bool) -> ShellTheme
 
+    /// Whether the title bar's maximise control means FULLSCREEN.
+    ///
+    /// The two desktops disagree about this button, and it is behaviour
+    /// rather than paint: macOS's green control takes the window fullscreen
+    /// onto its own space, hiding the menu bar, the dock and the title bar
+    /// itself. Windows' square control maximises -- the window fills the work
+    /// area and the caption, taskbar and everything else stay exactly where
+    /// they were. Sending the Windows button to fullscreen left no visible
+    /// way back, which is how this was found.
+    let maximizeIsFullscreen: Bool
+
     let makeTitleBar: (TitleBarParams) -> Widget
     let makeChrome: (_DesktopShellState) -> any ShellChrome
 
@@ -226,6 +251,7 @@ enum ShellStyles {
         name: "macOS",
         metrics: .macos,
         makeTheme: { $0 ? .macosDark : .macosLight },
+        maximizeIsFullscreen: true,
         makeTitleBar: { p in
             WindowTitleBar(
                 title: p.title,
@@ -252,6 +278,7 @@ enum ShellStyles {
         name: "Windows",
         metrics: .fluent,
         makeTheme: { ShellTheme.fluent(dark: $0, mica: shellMica) },
+        maximizeIsFullscreen: false,
         makeTitleBar: { p in
             FluentTitleBar(
                 title: p.title,
