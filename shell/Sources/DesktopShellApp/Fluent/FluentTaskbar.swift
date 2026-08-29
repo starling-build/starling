@@ -24,6 +24,33 @@ import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
 
+/// The Fluent type ramp, rather than point sizes chosen by eye.
+///
+/// `body`, `bodyStrong` and `caption` are a system with sizes and weights
+/// Microsoft picked; the first cut of this chrome set 11, 12 and 13 by hand
+/// and so was approximately right everywhere and exactly right nowhere. The
+/// face is still ours to supply (Selawik, via `shellTheme.fontFamily`) --
+/// the ramp brings the sizes and weights.
+var fluentType: Typography {
+    (shellTheme.isDark ? FluentThemeData.dark() : FluentThemeData.light())
+        .typography
+}
+
+extension Typography {
+    /// One ramp entry, in a colour, in the active style's face.
+    /// `Flutter.TextStyle` spelled out: the bridge exports a `TextStyle` too,
+    /// and while expression position resolves fine, a type annotation is
+    /// ambiguous between them.
+    func styled(_ pick: (Typography) -> Flutter.TextStyle?, _ color: Color,
+                strong: Bool = false) -> Flutter.TextStyle {
+        let base = pick(self) ?? Flutter.TextStyle(color: color, fontSize: 13)
+        return base.copyWith(
+            color: color,
+            fontFamily: strong ? shellTheme.fontFamilyStrong
+                               : shellTheme.fontFamily)
+    }
+}
+
 // MARK: - Geometry
 
 // The numbers are our WINDOWS shell's, not guesses and not re-derived:
@@ -155,21 +182,21 @@ class FluentTaskbar: StatelessWidget {
                 child: Listener(
                     onPointerHover: { _ in DesktopCursor.setShape(.default) },
                     behavior: .opaque,
-                    child: ClipRect(
-                        child: BackdropFilter(
-                            filter: ShellPalette.chromeFilter(blurSigma: 18),
-                            child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                    color: shellTheme.barFill,
-                                    border: Border(
-                                        top: BorderSide(
-                                            color: shellTheme.barHairline,
-                                            width: 1)
-                                    )
-                                ),
-                                child: SizedBox(expand: ())
+                    // SOLID, deliberately. Windows' taskbar measures the same
+                    // colour straight across whatever is behind it -- see the
+                    // reference capture -- so the strip is the flat WinUI
+                    // surface colour and nothing more. Acrylic was tried here
+                    // and is not what the real one looks like; the blur only
+                    // made the bar harder to read against a busy wallpaper.
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: shellTheme.barFill,
+                            border: Border(
+                                top: BorderSide(
+                                    color: shellTheme.barHairline, width: 1)
                             )
-                        )
+                        ),
+                        child: SizedBox(expand: ())
                     )
                 )
             )
@@ -347,10 +374,10 @@ class FluentTaskbar: StatelessWidget {
             _trayButton(active: s.clockActive, onTap: { [self] in onClock() }) {
                 Column(mainAxisAlignment: .center,
                        crossAxisAlignment: .end) {
-                    Text(s.clockText, style: TextStyle(
-                        color: shellTheme.fgPrimary, fontSize: 12, fontFamily: shellTheme.fontFamily))
-                    Text(s.dateText, style: TextStyle(
-                        color: shellTheme.fgPrimary, fontSize: 12, fontFamily: shellTheme.fontFamily))
+                    Text(s.clockText, style: fluentType.styled({ $0.caption },
+                                               shellTheme.fgPrimary))
+                    Text(s.dateText, style: fluentType.styled({ $0.caption },
+                                              shellTheme.fgPrimary))
                 }
             }
             // No power button: Windows keeps that inside Start, and so do we
@@ -397,8 +424,8 @@ class FluentTaskbar: StatelessWidget {
             ),
             child: Padding(
                 padding: EdgeInsets(left: 8, top: 3, right: 8, bottom: 3),
-                child: Text(text, style: TextStyle(
-                    color: shellTheme.fgPrimary, fontSize: 12, fontFamily: shellTheme.fontFamily))
+                child: Text(text, style: fluentType.styled({ $0.body },
+                                           shellTheme.fgPrimary))
             )
         )
     }

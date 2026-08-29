@@ -2731,6 +2731,30 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     // MARK: - Chrome seam (Fluent style)
 
+    /// An app's mark for the Fluent chrome: the GLYPH ALONE, with no tile
+    /// behind it.
+    ///
+    /// This is the single biggest thing that made the taskbar read as the
+    /// wrong desktop. Our first-party icons are macOS-shaped -- a coloured
+    /// rounded square with a white glyph punched out of it -- and a row of
+    /// those is a dock however Windows-like the bar under them is. Windows'
+    /// taskbar icons are free-standing artwork sitting directly on the strip:
+    /// no container, no fill, the mark carries its own colour.
+    ///
+    /// Third-party apps are unaffected either way, because their icon is a
+    /// real image from their own install and already looks like itself.
+    func fluentIconVisual(appId: String, size: Double) -> Widget {
+        if let texId = iconTextures[appId] {
+            return TextureWidget(textureId: Int(texId), filterQuality: .medium)
+        }
+        return SizedBox(
+            width: size, height: size,
+            child: CustomPaint(
+                painter: IconPainter(_iconType(for: appId),
+                                     color: _dockIconColor(for: appId))))
+    }
+
+
     /// The taskbar. Unlike the dock it draws for the whole width of the
     /// output, so there is no centring to compute here — `FluentTaskbar` does
     /// its own, against the screen rather than against the space left over.
@@ -2745,9 +2769,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             TaskbarTile(
                 appId: appId,
                 name: AppRegistry.shared.app(id: appId)?.name ?? appId,
-                visual: _buildDockIconContent(
-                    appId: appId, iconType: _iconType(for: appId),
-                    cornerRadius: 6),
+                visual: fluentIconVisual(appId: appId, size: FluentBar.icon),
                 isRunning: _isAppRunning(appId),
                 isFocused: appId == focusedApp
             )

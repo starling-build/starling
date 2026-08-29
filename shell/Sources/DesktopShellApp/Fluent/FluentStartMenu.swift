@@ -161,12 +161,7 @@ class FluentStartMenu: StatelessWidget {
                 ),
                 child: ClipRRect(
                     borderRadius: BorderRadius.circular(StartPanel.radius),
-                    // Acrylic under the panel's tint, which is why that tint
-                    // is translucent — Start is a frosted pane over the
-                    // desktop, not a grey card sitting on it.
-                    child: BackdropFilter(
-                        filter: ShellPalette.chromeFilter(blurSigma: 20),
-                        child: Column(
+                    child: Column(
                         crossAxisAlignment: .stretch,
                         children: [
                             Padding(
@@ -187,7 +182,6 @@ class FluentStartMenu: StatelessWidget {
                             Expanded(child: _grid()),
                             _footer(),
                         ]
-                        )
                     )
                 )
             )
@@ -216,10 +210,10 @@ class FluentStartMenu: StatelessWidget {
                                   color: shellTheme.fgSecondary, size: 14)
                         SizedBox(width: 8)
                         Text(empty ? "Search for apps" : query,
-                             style: TextStyle(
-                                color: empty ? shellTheme.fgTertiary
-                                             : shellTheme.fgPrimary,
-                                fontSize: 13, fontFamily: shellTheme.fontFamily),
+                             style: fluentType.styled(
+                                { $0.body },
+                                empty ? shellTheme.fgTertiary
+                                      : shellTheme.fgPrimary),
                              overflow: .ellipsis,
                              maxLines: 1)
                         Text("|", style: TextStyle(
@@ -235,10 +229,11 @@ class FluentStartMenu: StatelessWidget {
     private func _sectionHeader() -> Widget {
         Row(mainAxisAlignment: .spaceBetween, crossAxisAlignment: .center) {
             Text(query.isEmpty ? "Pinned" : "Results",
-                 style: TextStyle(color: shellTheme.fgPrimary,
-                                  fontSize: 13, fontWeight: .w600, fontFamily: shellTheme.fontFamilyStrong))
+                 style: fluentType.styled({ $0.bodyStrong },
+                                          shellTheme.fgPrimary, strong: true))
             Text("\(apps.count) apps",
-                 style: TextStyle(color: shellTheme.fgSecondary, fontSize: 12, fontFamily: shellTheme.fontFamily))
+                 style: fluentType.styled({ $0.caption },
+                                          shellTheme.fgSecondary))
         }
     }
 
@@ -270,21 +265,16 @@ class FluentStartMenu: StatelessWidget {
     }
 
     private func _tile(_ app: LauncherApp) -> Widget {
+        // The glyph alone, in the app's own colour -- no tile behind it. See
+        // `fluentIconVisual`: a coloured rounded square with a white glyph
+        // punched out is the macOS icon shape, and a grid of them reads as
+        // Launchpad whatever the panel around it looks like.
         let glyph: Widget
         if let texId = app.textureId {
             glyph = TextureWidget(textureId: Int(texId), filterQuality: .medium)
         } else {
-            glyph = DecoratedBox(
-                decoration: BoxDecoration(
-                    gradient: ShellPalette.tileGradient(app.bgColor)),
-                child: Center(
-                    child: SizedBox(
-                        width: StartPanel.iconSize * 0.55,
-                        height: StartPanel.iconSize * 0.55,
-                        child: CustomPaint(
-                            painter: IconPainter(app.iconType,
-                                                 color: Color(0xFFFFFFFF)))))
-            )
+            glyph = CustomPaint(
+                painter: IconPainter(app.iconType, color: app.bgColor))
         }
 
         return HoverButton(
@@ -304,9 +294,7 @@ class FluentStartMenu: StatelessWidget {
                                 SizedBox(
                                     width: StartPanel.iconSize,
                                     height: StartPanel.iconSize,
-                                    child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: glyph)
+                                    child: glyph
                                 ),
                                 SizedBox(height: 8),
                                 Padding(
@@ -314,9 +302,9 @@ class FluentStartMenu: StatelessWidget {
                                                         right: 4, bottom: 0),
                                     child: Text(
                                         app.title,
-                                        style: TextStyle(
-                                            color: shellTheme.fgPrimary,
-                                            fontSize: 11, fontFamily: shellTheme.fontFamily),
+                                        style: fluentType.styled(
+                                            { $0.caption },
+                                            shellTheme.fgPrimary),
                                         textAlign: .center,
                                         overflow: .ellipsis,
                                         maxLines: 2)
@@ -360,8 +348,8 @@ class FluentStartMenu: StatelessWidget {
                             MacosIcon(icon: FluentSystemIcons.person,
                                       color: shellTheme.fgPrimary, size: 18)
                             SizedBox(width: 8)
-                            Text(userName, style: TextStyle(
-                                color: shellTheme.fgPrimary, fontSize: 13, fontFamily: shellTheme.fontFamily))
+                            Text(userName, style: fluentType.styled(
+                                { $0.body }, shellTheme.fgPrimary))
                         }
                         SizedBox(
                             width: 36, height: 36,

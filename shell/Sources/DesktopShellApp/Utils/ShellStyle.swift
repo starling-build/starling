@@ -333,129 +333,109 @@ final class MacosChrome: ShellChrome {
 
 // MARK: - The Fluent palette
 
-// Windows 11's own colours, and not invented ones: these are the values the
-// Windows shell in this tree sampled off real Explorer, dark and light
-// (`Win11` in sdk/Examples/WinShellBar/Files.swift). Keeping the two in step
-// is the point — the same desktop should not disagree with itself about what
-// either theme is depending on which OS it is impersonating on.
+// Built from the SDK's Fluent design system, not from hand-picked hex.
 //
-// The colours alone are not the look, which is the trap this style fell into
-// first: a Fluent palette painted onto macOS materials still reads as macOS,
-// because what the eye actually identifies is the MATERIAL. Two of them here:
+// `sdk/Sources/Flutter/FluentUI/` is a port of the real thing, and its
+// `ResourceDictionary` is WinUI's own colour resource set -- 88 named tokens,
+// `textFillColorPrimary` and `subtleFillColorSecondary` and the rest, with
+// light and dark values Microsoft chose. The first cut of this style ignored
+// all of it and invented a parallel set of colours by eye, which is most of
+// why it looked wrong: every value was a guess at something that was already
+// sitting in the tree, correct.
 //
-//   Mica     chrome leans toward the wallpaper's average colour, so a Windows
-//            desktop's chrome looks related to the picture behind it rather
-//            than being flat grey sitting on top of it.
-//   Acrylic  flyouts are a blur that DESATURATES what it blurs, with a
-//            translucent tint over it. macOS's glass boosts saturation
-//            instead — the two materials pull in opposite directions, and
-//            that is one of the clearest tells of which desktop you are on.
+// So `ShellTheme`'s tokens are now a MAPPING onto that dictionary rather than
+// a palette of their own. The shell's ~130 existing `shellTheme.fgPrimary`
+// readers are unaffected -- they keep reading semantic names -- but what comes
+// back is WinUI's value for that role. Where a role has an exact counterpart
+// the mapping is one line and the comment says which token; `accentInk` in
+// particular turned out to be `textOnAccentFillColorPrimary`, a token that
+// exists precisely because white-on-accent is wrong in dark mode.
+//
+// Mica stays a function of the wallpaper (see `shellMica`): WinUI names the
+// mica LAYERS but the base tint is the compositor's, and on Linux there is no
+// compositor to ask.
 
 extension ShellTheme {
     static func fluent(dark: Bool, mica tint: Color?) -> ShellTheme {
-        /// `base` leaned toward the wallpaper's average by `amount`, which is
-        /// Mica. Windows leans further in light than in dark.
+        let fluent = dark ? FluentThemeData.dark() : FluentThemeData.light()
+        let r = fluent.resources
+        let accent = fluent.accentColor.normal
+
+        /// Mica: a base leaned toward the wallpaper's average. Windows applies
+        /// it to WINDOW backgrounds only -- flyouts get plain acrylic -- and
+        /// leaning both is what put our Start three shades too dark.
         func mica(_ base: Color, _ amount: Double) -> Color {
             guard let tint else { return base }
             return base.mixed(toward: tint, by: amount)
         }
-        let lean = dark ? 0.15 : 0.20
-
-        // Sampled from Explorer. Named as Windows names them so the mapping
-        // to the shell's own token names below stays checkable.
-        let windowBg   = mica(dark ? Color(0xFF202020) : Color(0xFFF3F3F3), lean)
-        let stroke     = dark ? Color(0xFF383838) : Color(0xFFE5E5E5)
-        let text       = dark ? Color(0xFFFFFFFF) : Color(0xFF1B1B1B)
-        let textDim    = dark ? Color(0xFFC5C5C5) : Color(0xFF5F5F5F)
-        let textFaint  = dark ? Color(0xFF8A8A8A) : Color(0xFF8F8F8F)
-        let accent     = dark ? Color(0xFF4CC2FF) : Color(0xFF005FB8)
-        let hover      = dark ? Color(0x14FFFFFF) : Color(0x0A000000)
-        let fieldFill  = dark ? Color(0xFF2D2D2D) : Color(0xFFFFFFFF)
-        let menuBorder = dark ? Color(0xFF454545) : Color(0xFFD4D4D4)
-        let menuHover  = dark ? Color(0xFF383838) : Color(0xFFF0F0F0)
-        let menuSep    = dark ? Color(0xFF3D3D3D) : Color(0xFFE4E4E4)
-        let menuShadow = dark ? Color(0x66000000) : Color(0x2E000000)
-
-        // The acrylic tint, and it is MUCH more opaque than a first guess at
-        // "translucent" suggests. Measured off the real thing
-        // (test/win/capture-reference.sh, against a wallpaper running from
-        // near-black to a bright tan): Windows' Start reads a flat 251,251,251
-        // and its taskbar a flat 25,27,32 straight across, with no per-pixel
-        // contribution from the picture behind them at all.
-        //
-        // So the relationship to the wallpaper is carried by MICA — a tint
-        // taken from the average — and not by transmission. The small alpha
-        // left here is the material's hint of depth, not a window onto the
-        // desktop; a genuinely see-through bar is the macOS idea, and putting
-        // one in Windows' colours is how this style went wrong in both
-        // directions in turn.
-        //
-        // NOT leaned toward the wallpaper, and that is the distinction: Mica
-        // is for WINDOW backgrounds, Acrylic is for FLYOUTS, and only the
-        // first takes the wallpaper's tint. The Windows shell's own palette
-        // draws the same line — `windowBg` calls mica(), `menuBg` does not.
-        // Leaning these as well put our Start at 215,215,215 over a dark
-        // wallpaper where the real one measures a flat 251.
-        let acrylic = dark ? Color(0xF52C2C2C) : Color(0xF5FCFCFC)
-        let barAcrylic = dark ? Color(0xF71F1F1F) : Color(0xF7F3F3F3)
+        let micaBase = mica(fluent.micaBackgroundColor, dark ? 0.15 : 0.20)
 
         return ShellTheme(
             name: dark ? "Dark" : "Light",
             isDark: dark,
-            fgPrimary: text,
-            fgSecondary: textDim,
-            fgTertiary: textFaint,
-            barTint: barAcrylic,
-            barHairline: dark ? Color(0x1FFFFFFF) : Color(0x14000000),
-            hoverFill: hover,
-            popupTint: acrylic,
-            popupInnerBorder: menuBorder,
-            popupDivider: menuSep,
-            popupShadow: menuShadow,
-            // The taskbar paints no pill, but these must still read as
-            // something sane if anything reaches for them.
-            dockGradientTop: barAcrylic,
-            dockGradientBottom: barAcrylic,
-            dockRim: dark ? Color(0x1FFFFFFF) : Color(0x14000000),
-            dockShadow: menuShadow,
-            dockIndicator: textFaint,
+            fgPrimary: r.textFillColorPrimary,
+            fgSecondary: r.textFillColorSecondary,
+            fgTertiary: r.textFillColorTertiary,
+            // The taskbar is a solid shell surface, not a flyout.
+            barTint: r.solidBackgroundFillColorBase,
+            barHairline: r.dividerStrokeColorDefault,
+            hoverFill: r.subtleFillColorSecondary,
+            // solidBackgroundFillColor*, not `acrylicBackgroundColor`: that
+            // one is a FluentThemeData convenience whose light value is not a
+            // light surface, and mapping the flyouts onto it gave a dark Start
+            // sitting under a light taskbar. Base is the chrome grey
+            // (#F3F3F3 / #202020 -- what real Windows measures), Tertiary the
+            // slightly lifted flyout body.
+            popupTint: r.solidBackgroundFillColorTertiary,
+            popupInnerBorder: r.surfaceStrokeColorFlyout,
+            popupDivider: r.dividerStrokeColorDefault,
+            popupShadow: fluent.shadowColor,
+            // The Fluent bar paints no pill; these read as the bar itself so
+            // anything that does reach for them gets something coherent.
+            dockGradientTop: r.solidBackgroundFillColorBase,
+            dockGradientBottom: r.solidBackgroundFillColorBase,
+            dockRim: r.controlStrokeColorDefault,
+            dockShadow: fluent.shadowColor,
+            dockIndicator: r.textFillColorTertiary,
             dockIndicatorRim: Color(0x00000000),
-            dockLabelTint: acrylic,
-            dockLabelBorder: menuBorder,
-            dockLabelText: text,
-            // Mica, and this is the token that carries it furthest: it is the
-            // material behind every window.
-            windowGlassTint: windowBg,
-            // A Windows caption is the SAME colour as the window under it —
-            // not a darker strip laid across the top, which is the macOS
-            // shape. An unfocused one only loses its text contrast.
-            titleBarActive: windowBg,
-            titleBarInactive: windowBg,
-            titleTextActive: text,
-            titleTextInactive: textFaint,
-            windowBorderFocused: stroke,
-            windowBorderUnfocused: dark ? Color(0xFF2B2B2B) : Color(0xFFEDEDED),
-            trafficLightInactive: dark ? Color(0x40FFFFFF) : Color(0x33000000),
-            overlayScrim: dark ? Color(0xA80E0E12) : Color(0x800E0E12),
-            overlayText: Color(0xE6FFFFFF),
-            overlayTextDim: Color(0x99FFFFFF),
+            dockLabelTint: r.solidBackgroundFillColorTertiary,
+            dockLabelBorder: r.surfaceStrokeColorFlyout,
+            dockLabelText: r.textFillColorPrimary,
+            // Mica, and the token that carries it furthest: the material
+            // behind every window.
+            windowGlassTint: micaBase,
+            // A Windows caption is the SAME surface as the window under it,
+            // not a darker strip laid across the top.
+            titleBarActive: micaBase,
+            titleBarInactive: micaBase,
+            titleTextActive: r.textFillColorPrimary,
+            titleTextInactive: r.textFillColorTertiary,
+            windowBorderFocused: r.surfaceStrokeColorDefault,
+            windowBorderUnfocused: r.controlStrokeColorSecondary,
+            trafficLightInactive: r.controlStrongFillColorDisabled,
+            overlayScrim: r.smokeFillColorDefault,
+            overlayText: r.textFillColorPrimary,
+            overlayTextDim: r.textFillColorSecondary,
             accent: accent,
-            barFill: barAcrylic,
-            barHover: dark ? Color(0x1AFFFFFF) : Color(0x0F000000),
-            runningIndicator: textFaint,
+            barFill: r.solidBackgroundFillColorBase,
+            barHover: r.subtleFillColorSecondary,
+            runningIndicator: r.textFillColorTertiary,
             runningIndicatorActive: accent,
-            captionHover: dark ? Color(0x1AFFFFFF) : Color(0x0F000000),
+            captionHover: r.subtleFillColorSecondary,
+            // Windows' close button is the one caption control with a colour
+            // of its own, and WinUI does not name it: it is not a theme token
+            // on either desktop.
             captionCloseHover: Color(0xFFC42B1C),
             captionCloseInk: Color(0xFFFFFFFF),
-            panelFill: acrylic,
-            panelStroke: menuBorder,
-            controlFill: fieldFill,
-            controlStroke: stroke,
-            controlHover: menuHover,
-            // Black in dark mode, and that is not a typo: Fluent's dark
-            // accent is a LIGHT blue and takes black glyphs.
-            accentInk: dark ? Color(0xFF000000) : Color(0xFFFFFFFF),
-            trackRest: dark ? Color(0xFF9D9D9D) : Color(0xFF868686),
+            panelFill: r.solidBackgroundFillColorTertiary,
+            panelStroke: r.surfaceStrokeColorFlyout,
+            controlFill: r.controlFillColorDefault,
+            controlStroke: r.controlStrokeColorDefault,
+            controlHover: r.controlFillColorSecondary,
+            // The token that exists for exactly this: what reads on the
+            // accent, which is NOT white in dark mode.
+            accentInk: r.textOnAccentFillColorPrimary,
+            trackRest: r.controlStrongFillColorDefault,
             fontFamily: SelawikFont.family,
             fontFamilyStrong: SelawikFont.semibold,
             material: .acrylic
