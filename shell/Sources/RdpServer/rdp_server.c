@@ -48,6 +48,14 @@ struct RdpServer {
     char* key_path;
 
     volatile int running;      // cleared by stop(); both threads watch it
+    /// Signalled by stop() so the two waits below can block indefinitely.
+    ///
+    /// Without it each wait needed a timeout purely so that clearing
+    /// `running` would eventually be noticed -- five wakeups a second, for
+    /// as long as RDP was switched on, on a link with no traffic at all.
+    /// A WinPR event is a HANDLE like any other, so it simply joins the
+    /// array the wait already takes.
+    HANDLE stop_event;
     volatile int peer_active;  // a peer is connected AND activated
     volatile int peer_present; // a peer object exists (pre-activation too)
     // Activate fires again on every deactivation-reactivation sequence,
@@ -417,8 +425,12 @@ static void* peer_thread_main(void* arg) {
             fprintf(stderr, "[Rdp] peer GetEventHandles failed\n");
             break;
         }
-        // The timeout is what lets a stop() be noticed on an idle link.
-        DWORD status = WaitForMultipleObjects(count, handles, FALSE, 200);
+        // stop() signals the event rather than this waiting to notice.
+        if (s->stop_event) {
+            handles[count++] = s->stop_event;
+        }
+        DWORD status = WaitForMultipleObjects(count, handles, FALSE,
+                                              s->stop_event ? INFINITE : 200);
         if (status == WAIT_FAILED) {
             break;
         }
@@ -553,7 +565,11 @@ static void* listen_thread_main(void* arg) {
             fprintf(stderr, "[Rdp] listener GetEventHandles failed\n");
             break;
         }
-        DWORD status = WaitForMultipleObjects(count, handles, FALSE, 200);
+        if (s->stop_event) {
+            handles[count++] = s->stop_event;
+        }
+        DWORD status = WaitForMultipleObjects(count, handles, FALSE,
+                                              s->stop_event ? INFINITE : 200);
         if (status == WAIT_FAILED) {
             break;
         }
@@ -597,6 +613,8 @@ RdpServer* rdp_server_start(const char* bind_addr, int port,
     s->cert_path = strdup(cert_path);
     s->key_path = strdup(key_path);
     pthread_mutex_init(&s->peer_lock, NULL);
+    // Manual-reset: once stop() signals it, every wait stays woken.
+    s->stop_event = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     s->listener = freerdp_listener_new();
     if (!s->listener) {
@@ -628,6 +646,7 @@ fail:
     free(s->cert_path);
     free(s->key_path);
     pthread_mutex_destroy(&s->peer_lock);
+    if (s->stop_event) { CloseHandle(s->stop_event); s->stop_event = NULL; }
     free(s);
     return NULL;
 }
@@ -637,6 +656,9 @@ void rdp_server_stop(RdpServer* s) {
         return;
     }
     s->running = 0;
+    if (s->stop_event) {
+        SetEvent(s->stop_event);
+    }
     pthread_join(s->listen_thread, NULL);
     // The peer thread is detached and watches `running` too; give it the
     // same 200ms window its wait uses before tearing the listener down.
@@ -650,6 +672,7 @@ void rdp_server_stop(RdpServer* s) {
     free(s->cert_path);
     free(s->key_path);
     pthread_mutex_destroy(&s->peer_lock);
+    if (s->stop_event) { CloseHandle(s->stop_event); s->stop_event = NULL; }
     free(s);
 }
 
