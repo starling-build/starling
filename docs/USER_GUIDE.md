@@ -320,7 +320,7 @@ Working the room:
 
 ## Things to know in this release
 
-Starling is an early preview (v0.3.0). A few limits you will notice:
+Starling is an early preview (v0.4.0). A few limits you will notice:
 
 - **No screen lock.** There is a screensaver (below), but it is decoration:
   any key or mouse movement dismisses it, with nothing asked. Do not rely on

@@ -63,10 +63,10 @@ passthrough.
 sudo apt install gdm3
 
 # 2. Download the package (or use the button on https://starling.build):
-curl -fLO https://github.com/starling-build/starling/releases/download/v0.3.0/starling_0.3.0_amd64.deb
+curl -fLO https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb
 
 # 3. Install it. `apt` (not `dpkg -i`) so it also pulls the dependencies:
-sudo apt install ./starling_0.3.0_amd64.deb
+sudo apt install ./starling_0.4.0_amd64.deb
 ```
 
 `apt install ./file.deb` is deliberate — plain `dpkg -i` installs the package
@@ -89,7 +89,7 @@ If you do not see it, see [Troubleshooting](#no-starling-in-the-session-menu).
 ```bash
 dpkg -s starling | grep -E '^(Package|Version|Status)'
 #   Package: starling
-#   Version: 0.3.0
+#   Version: 0.4.0
 #   Status: install ok installed
 ```
 
@@ -207,7 +207,7 @@ metal or a VM. Issues: <https://github.com/starling-build/starling/issues>.
 
 ## A note on what this is
 
-Starling is an **early preview** (v0.3.0). It boots as a real desktop on real
+Starling is an **early preview** (v0.4.0). It boots as a real desktop on real
 hardware and runs real applications, but it is the work of one person over a
 few months — expect rough edges, missing settings, and bugs. It is not meant
 to be anyone's only desktop yet. Installing it is safe and reversible: it adds
