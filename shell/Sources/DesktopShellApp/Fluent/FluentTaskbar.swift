@@ -113,8 +113,10 @@ struct TaskbarTile {
 struct TaskbarStatus {
     let statusIcons: [IconData]
     let statusActive: Bool
-    let clockText: String
-    let dateText: String
+    /// Formats, not rendered text — the clock renders itself so that it can
+    /// keep its own cadence (`ShellClock`).
+    let clockFormat: String
+    let dateFormat: String
     let clockActive: Bool
     /// The bell only appears when something has been collected, and tints
     /// until the user has looked at it.
@@ -363,12 +365,17 @@ class FluentTaskbar: StatelessWidget {
             }
             // Time over date, right-aligned — Windows' two-line clock.
             _trayButton(active: s.clockActive, onTap: { [self] in onClock() }) {
+                // Self-paced leaves, not strings from the status struct:
+                // nothing rebuilds the shell on an idle desktop, so a clock
+                // built from the parent's `Date()` stops. See `ShellClock`.
                 Column(mainAxisAlignment: .center,
                        crossAxisAlignment: .end) {
-                    Text(s.clockText, style: fluentType.styled({ $0.caption },
-                                               shellTheme.fgPrimary))
-                    Text(s.dateText, style: fluentType.styled({ $0.caption },
-                                              shellTheme.fgPrimary))
+                    ShellClock(format: s.clockFormat,
+                               style: fluentType.styled({ $0.caption },
+                                                        shellTheme.fgPrimary))
+                    ShellClock(format: s.dateFormat,
+                               style: fluentType.styled({ $0.caption },
+                                                        shellTheme.fgPrimary))
                 }
             }
             // No power button: Windows keeps that inside Start, and so do we

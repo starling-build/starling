@@ -2849,17 +2849,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             statusIcons.append(_fluentBatteryIcon())
         }
 
-        let now = Date()
-        let timeFmt = DateFormatter()
-        timeFmt.dateFormat = "h:mm a"
-        let dateFmt = DateFormatter()
-        dateFmt.dateFormat = "M/d/yyyy"
-
         let status = TaskbarStatus(
             statusIcons: statusIcons,
             statusActive: activeStatusBarPopup == .controlCenter,
-            clockText: timeFmt.string(from: now),
-            dateText: dateFmt.string(from: now),
+            // The clock renders itself — see `ShellClock`.
+            clockFormat: "h:mm a",
+            dateFormat: "M/d/yyyy",
             clockActive: activeStatusBarPopup == .clock,
             showBell: !_notifications.isEmpty || _notificationsUnseen,
             bellTinted: _notificationsUnseen,
@@ -4756,11 +4751,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         return (wifiLeft - 2 - width / 2, DesktopTheme.kStatusBarHeight / 2)
     }
 
+    /// `dateString` is a FORMAT, not rendered text: the clock is its own
+    /// widget so it can wake on the minute and rebuild only itself.
     private func _statusBarClockItem(dateString: String) -> Widget {
         let isActive = activeStatusBarPopup == .clock
-        let textWidget = Text(
-            dateString,
-            style: TextStyle(
+        let textWidget = ShellClock(
+            format: dateString,
+            style: Flutter.TextStyle(
                 color: shellTheme.fgPrimary,
                 fontSize: 13,
                 fontWeight: isActive ? .w600 : .w400, fontFamily: shellTheme.fontFamily)
@@ -4793,14 +4790,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     }
 
     private func _buildStatusBar() -> Widget {
-        let now = Date()
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm"
-        let timeString = timeFormatter.string(from: now)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "EEE, MMM d"
-        let dateString = dateFormatter.string(from: now)
-        let combined = "\(timeString)   \(dateString)"
+        // One pattern rather than two formatters and a join: the clock is a
+        // widget now and takes the format, so that it can keep its own
+        // cadence instead of freezing whenever the shell stops rebuilding.
+        let combined = "h:mm   EEE, MMM d"
 
         return Padding(
             padding: EdgeInsets(left: 16, top: 0, right: 16, bottom: 0),

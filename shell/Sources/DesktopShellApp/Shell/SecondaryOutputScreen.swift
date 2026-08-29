@@ -282,15 +282,12 @@ struct SecondaryOutputScreen {
     let output: DisplayOutput
 
     private func _statusBar() -> Widget {
-        // Static clock: rendered at build time. Live per-output menu bar
-        // content (frontmost app, ticking clock) arrives with the shared
-        // window state work.
-        let now = Date()
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm"
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "EEE, MMM d"
-        let combined = "\(timeFormatter.string(from: now))   \(dateFormatter.string(from: now))"
+        // The clock ticks here too now (it used to be rendered once at build
+        // time and then sat there): `ShellClock` keeps its own cadence, so a
+        // second monitor's menu bar no longer needs the shell to rebuild.
+        // The rest of this bar — frontmost app, per-output state — still
+        // arrives with the shared window-state work.
+        let combined = "h:mm   EEE, MMM d"
 
         return ClipRect(
             child: BackdropFilter(
@@ -305,7 +302,8 @@ struct SecondaryOutputScreen {
                             mainAxisAlignment: .spaceBetween,
                             crossAxisAlignment: .center,
                             children: [
-                                Text(combined, style: TextStyle(
+                                ShellClock(format: combined,
+                                           style: Flutter.TextStyle(
                                     color: shellTheme.fgPrimary, fontSize: 13,
                                     fontWeight: .w500)),
                                 Text(output.name, style: TextStyle(
