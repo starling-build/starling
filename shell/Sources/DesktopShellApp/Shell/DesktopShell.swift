@@ -3170,12 +3170,25 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     winId, screenWidth: screenWidth, screenHeight: screenHeight)
                 _windowChildCache.removeValue(forKey: winId)
             }
-            if let w = windowManager.windows.first(where: { $0.id == winId }),
-               let surfId = waylandIntegration?.surfaceId(forWindowId: winId) {
-                waylandIntegration?.sendResize(
-                    surfaceId: surfId,
-                    width: Int(w.rect.width),
-                    height: Int(w.rect.height - DesktopTheme.kTitleBarHeight))
+            if let w = windowManager.windows.first(where: { $0.id == winId }) {
+                let contentW = w.rect.width
+                let contentH = w.rect.height - DesktopTheme.kTitleBarHeight
+                if contentW > 0, contentH > 0 {
+                    if let surfId = waylandIntegration?.surfaceId(forWindowId: winId) {
+                        waylandIntegration?.sendResize(
+                            surfaceId: surfId,
+                            width: Int(contentW), height: Int(contentH))
+                    } else {
+                        // DMA-BUF child process (Files, Settings, …) — the
+                        // same reconfigure the fullscreen branch below does.
+                        // Telling only the Wayland half is what made a
+                        // maximised first-party app come up blurry: the child
+                        // kept its launch-size buffer (Files: 980x540) and the
+                        // shell stretched that texture across the work area,
+                        // with hit-testing no longer matching the screen.
+                        w.onContentResize?(contentW, contentH)
+                    }
+                }
             }
             return
         }

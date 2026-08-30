@@ -46,6 +46,14 @@ final class RdpDisplayService {
     private var lastPushMs: Double = 0
     private let minIntervalMs: Double
 
+    /// Asks the engine for one more frame; set by RdpDisplayMode once the
+    /// engine exists. See the capped branch of wantsFrame for why.
+    nonisolated(unsafe) var scheduleCatchUp: (() -> Void)?
+    /// One catch-up in flight at a time (guarded by `lock`) — a burst of
+    /// capped presents must coalesce into a single deferred frame, not queue
+    /// one each.
+    private var catchUpArmed = false
+
     init() {
         let env = ProcessInfo.processInfo.environment
         let fps = env["STARLING_RDP_FPS"].flatMap { Int($0) } ?? 30
@@ -178,9 +186,49 @@ final class RdpDisplayService {
         guard connected else { return false }
         guard minIntervalMs > 0 else { return true }
         let now = Date().timeIntervalSince1970 * 1000
-        if now - lastPushMs < minIntervalMs { return false }
+        if now - lastPushMs < minIntervalMs {
+            // A frame the cap swallows must not be the last word on the
+            // screen. Dropping it is fine mid-burst — another frame is
+            // coming — but the LAST frame of a burst is the one that shows
+            // the settled state, and nothing re-presents an idle desktop.
+            // That is not hypothetical: maximising a window fires a burst
+            // whose final frame (the child's re-rendered content) landed
+            // inside this window and was discarded, so the client kept the
+            // previous frame — the old content stretched to the new size —
+            // until unrelated input forced a repaint. Ask the engine for one
+            // more frame once the cap has elapsed; its present either pushes
+            // (quiet again) or is capped by newer traffic and re-arms.
+            armCatchUp(afterMs: minIntervalMs - (now - lastPushMs))
+            return false
+        }
         lastPushMs = now
         return true
+    }
+
+    private func armCatchUp(afterMs: Double) {
+        lock.lock()
+        if catchUpArmed || scheduleCatchUp == nil {
+            lock.unlock()
+            return
+        }
+        catchUpArmed = true
+        lock.unlock()
+        // +2ms so the rescheduled present lands clearly past the cap, not on
+        // its edge. Main queue: it is serviced in this mode (present already
+        // marshals the Wayland pacing there), and ScheduleFrame is
+        // thread-safe. Same Sendable bitcast as `submit`'s delivery above —
+        // this class is guarded by its own lock.
+        let fire: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            self.catchUpArmed = false
+            let cb = self.scheduleCatchUp
+            self.lock.unlock()
+            cb?()
+        }
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(Int(afterMs) + 2),
+            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
     }
 
     /// Borrow a buffer sized for the current frame; the caller fills it

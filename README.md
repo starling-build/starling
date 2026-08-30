@@ -29,7 +29,7 @@ macos-compat/  research: unmodified Mach-O macOS binaries on Linux
 
 ## Status
 
-**Early development — version 0.3.0.** The desktop boots as a real session, runs
+**Early development — version 0.4.0.** The desktop boots as a real session, runs
 its own compositor and apps, and installs from a `.deb` on a stock Ubuntu
 26.04. It is also the work of one person and a few months, so expect rough
 edges, missing pieces, and bugs. Nothing here is load-bearing for anyone yet,

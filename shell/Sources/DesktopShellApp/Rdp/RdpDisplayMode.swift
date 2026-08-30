@@ -230,6 +230,20 @@ func runRdpDisplay() -> Never {
         fatalError("[RdpDisplay] FlutterEngineRunInitializedSwift failed")
     }
     rdpEngine = engine
+    // A present the rate cap swallowed re-asks for a frame through here —
+    // see wantsFrame. Wired only now, engine in hand, so a cap hit during
+    // startup simply drops (nothing to catch up TO before first paint).
+    //
+    // ScheduleFrame alone is NOT enough: the Adapter skips compositing when
+    // no widget is dirty, so the scheduled frame builds, finds nothing to
+    // do, and never reaches raster or present — measured as exactly this
+    // sequence after a maximise: the old-content frame pushed, the
+    // new-content frame capped, the catch-up firing, and then silence.
+    // Force the composite the same way the screenshot path does.
+    service.scheduleCatchUp = {
+        Flutter._forceNextComposite = true
+        if let e = rdpEngine { FlutterEngineScheduleFrame(e) }
+    }
     pointer.attach(engine: engine)
     keyboard.attach(engine: engine)
 

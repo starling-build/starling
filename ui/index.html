@@ -275,6 +275,12 @@
     color: var(--ink-dim); border-radius: 0 8px 8px 0;
   }
   .install-next { margin-top: 20px; font-size: 15px; color: var(--ink-dim); }
+  /* Second install path (WSL) inside the same card: a rule and a heading so
+     the two recipes read as alternatives, not as one long sequence. */
+  .install-alt {
+    margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--line);
+    font-size: 19px; font-weight: 560; color: var(--ink);
+  }
   .note strong { color: var(--ink); font-weight: 560; }
 
   footer { border-top: 1px solid var(--line); padding: 44px 0 60px;
@@ -365,7 +371,7 @@
 
   <div class="hero">
     <div class="wrap hero-inner">
-      <span class="eyebrow"><span class="dot"></span> Early preview · v0.3.0 · Ubuntu</span>
+      <span class="eyebrow"><span class="dot"></span> Early preview · v0.4.0 · Ubuntu &amp; Windows (WSL)</span>
       <h1>A new way to build<br><span class="accent">a desktop</span></h1>
       <p class="lede">
         Starling draws the whole Linux desktop as one native program — the
@@ -439,6 +445,38 @@
             it can't touch, or even see, yours.
           </p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="styles">
+    <div class="wrap">
+      <div class="feature reverse">
+        <div class="feature-text">
+          <h3>One desktop, more than one look</h3>
+          <p>
+            Settings → Appearance → Desktop Style. Two today: the macOS one
+            above, and a Windows 11 one. The desktop rebuilds into your choice
+            and remembers it.
+          </p>
+          <p>
+            It changes shape, not just colour. The menu bar goes; the taskbar
+            takes the full width and reserves its strip, so a maximised window
+            stops above it instead of sliding under. Start opens as a panel.
+            Window buttons move right and become the caption trio. Hovering a
+            taskbar tile shows a live preview of that window — the real thing,
+            still updating.
+          </p>
+          <p>
+            The first-party apps follow the style too. Adding a third one is a
+            single file.
+          </p>
+        </div>
+        <figure>
+          <img src="img/style-fluent.jpg" width="2400" height="1500" loading="lazy"
+               alt="The Starling desktop in its Windows style: the Files window with minimise, maximise and close buttons at the top right, the Start panel open above a full-width taskbar with centred icons, and pinned apps including Chrome, VS Code, Zoom and Blender.">
+          <figcaption>The same desktop, same session, in the Windows style.</figcaption>
+        </figure>
       </div>
     </div>
   </section>
@@ -553,6 +591,48 @@
     </div>
   </section>
 
+  <section id="wsl">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="kicker">On Windows</div>
+        <h2>You don't need a Linux machine</h2>
+      </div>
+      <div class="feature">
+        <div class="feature-text">
+          <h3>It runs on Windows, through WSL</h3>
+          <p>
+            Install WSL, install the same <code>.deb</code> inside it, and
+            connect with any RDP client — Windows' own Remote Desktop will do.
+            The whole desktop comes up: the shell, the taskbar, the apps, the
+            file manager, the terminal.
+          </p>
+          <p>
+            WSL has no graphics device at all, so the desktop takes a different
+            path entirely: <strong>the remote screen becomes the display</strong>.
+            Nothing is being mirrored to you — the desktop is drawn into the
+            RDP surface in the first place, so what you connect to is the real
+            thing rather than a copy of it.
+          </p>
+          <p>
+            The same path serves any headless Linux box: a machine in a
+            cupboard with no monitor runs the full desktop and you connect to
+            it.
+          </p>
+        </div>
+        <figure>
+          <video controls preload="none" playsinline width="1920" height="1080"
+                 poster="img/wsl-walkthrough-poster.jpg"
+                 aria-label="A two-and-a-half-minute walkthrough of installing Starling inside WSL on a Windows machine and connecting to it with Windows' own Remote Desktop client.">
+            <source src="video/wsl-walkthrough.mp4" type="video/mp4">
+            <img src="img/style-fluent.jpg" width="2400" height="1500"
+                 alt="The Starling desktop running inside a Remote Desktop window on Windows.">
+          </video>
+          <figcaption>Install to connected, end to end. 2½ minutes on a real Windows machine.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
   <section id="install">
     <div class="wrap">
       <div class="section-head">
@@ -560,15 +640,15 @@
         <h2>One package, then pick Starling at login</h2>
       </div>
       <div class="install">
-        <a class="btn btn-primary" href="https://github.com/starling-build/starling/releases/download/v0.3.0/starling_0.3.0_amd64.deb">Download Starling 0.3.0 (.deb, 51 MB) ↓</a>
+        <a class="btn btn-primary" href="https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb">Download Starling 0.4.0 (.deb, 51 MB) ↓</a>
         <pre><span class="c"># Ubuntu 26.04 LTS, amd64. Starling needs a Wayland-capable login</span>
 <span class="c"># manager. Ubuntu Desktop already has one (GDM); on Server or a minimal</span>
 <span class="c"># install, add it first:</span>
 <span class="p">sudo</span> apt install gdm3
 
 <span class="c"># Download and install Starling with its runtime dependencies:</span>
-curl -fLO https://github.com/starling-build/starling/releases/download/v0.3.0/starling_0.3.0_amd64.deb
-<span class="p">sudo</span> apt install ./starling_0.3.0_amd64.deb
+curl -fLO https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb
+<span class="p">sudo</span> apt install ./starling_0.4.0_amd64.deb
 
 <span class="c"># Log out (or reboot). At the login screen click your name, open the</span>
 <span class="c"># session menu (the gear / lower-corner button), pick "Starling", sign in.</span></pre>
@@ -576,9 +656,25 @@ curl -fLO https://github.com/starling-build/starling/releases/download/v0.3.0/st
           <strong>Early preview.</strong> Expect rough edges. Verified on AMD
           graphics under a fresh Ubuntu 26.04.
         </div>
+
+        <h3 class="install-alt">On Windows, inside WSL</h3>
+        <pre><span class="c"># In your WSL distro (Ubuntu 26.04). No login manager and no GPU needed —</span>
+<span class="c"># the remote screen is the display.</span>
+curl -fLO https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb
+<span class="p">sudo</span> apt install ./starling_0.4.0_amd64.deb
+starling-session
+
+<span class="c"># It prints where to connect. From Windows:</span>
+mstsc /v:localhost:3390</pre>
+        <div class="note">
+          <strong>Port 3390, not 3389.</strong> Windows' own Remote Desktop
+          listens on 3389 and WSL forwards localhost both ways, so 3389 would
+          reach your PC instead of Starling.
+        </div>
+
         <p class="install-next">
-          Testing virtually? Use a VM, not a container — Starling needs a real
-          GPU device. Once it's running, the <a href="guide.html">User
+          Testing virtually? Use a VM, not a container — the Ubuntu path needs
+          a real GPU device. Once it's running, the <a href="guide.html">User
           Guide</a> walks you through the desktop.
         </p>
       </div>

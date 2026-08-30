@@ -276,9 +276,9 @@ Two things worth knowing before debugging a failure here:
   nothing to do with the desktop.
 - **Check the installed hash before believing an idle number.** The gate
   used to install with `apt-get install`, which treats a same-version `.deb`
-  as already installed and does nothing — silently, exit 0 — and `VER` has
-  not moved since 0.3.0. Every run was exercising a binary from two weeks
-  earlier while reporting a pass, and its ~1.1% idle got written up here as
+  as already installed and does nothing — silently, exit 0 — and `VER` moves
+  only at a release, so within one it never changes. Every run was exercising
+  a binary from two weeks earlier while reporting a pass, and its ~1.1% idle got written up here as
   an inherent cost of display mode. It was not: it was the old always-on
   frame pump. Installed properly, display mode idles at **0.00%** with the
   listener up and 0.03% after a session — the same as the DRM path. The gate

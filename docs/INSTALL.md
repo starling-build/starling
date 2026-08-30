@@ -63,10 +63,10 @@ passthrough.
 sudo apt install gdm3
 
 # 2. Download the package (or use the button on https://starling.build):
-curl -fLO https://github.com/starling-build/starling/releases/download/v0.3.0/starling_0.3.0_amd64.deb
+curl -fLO https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb
 
 # 3. Install it. `apt` (not `dpkg -i`) so it also pulls the dependencies:
-sudo apt install ./starling_0.3.0_amd64.deb
+sudo apt install ./starling_0.4.0_amd64.deb
 ```
 
 `apt install ./file.deb` is deliberate — plain `dpkg -i` installs the package
@@ -89,7 +89,7 @@ If you do not see it, see [Troubleshooting](#no-starling-in-the-session-menu).
 ```bash
 dpkg -s starling | grep -E '^(Package|Version|Status)'
 #   Package: starling
-#   Version: 0.3.0
+#   Version: 0.4.0
 #   Status: install ok installed
 ```
 
@@ -207,7 +207,50 @@ metal or a VM. Issues: <https://github.com/starling-build/starling/issues>.
 
 ## A note on what this is
 
-Starling is an **early preview** (v0.3.0). It boots as a real desktop on real
+## On Windows, through WSL
+
+Starling runs on a Windows machine inside WSL. There is no graphics device
+there — none, not an empty one — so the desktop takes a different path: it
+renders surfacelessly and **the RDP surface is the display**. What you connect
+to is the real desktop, not a mirror of a local one.
+
+```bash
+# inside your WSL distro (Ubuntu 26.04)
+sudo apt install ./starling_0.4.0_amd64.deb
+starling-session
+```
+
+`starling-session` detects WSL itself and starts in display mode — you do not
+pass a flag or set anything up. It prints where to connect:
+
+**If `wsl` logs you in as root, Starling steps down to your ordinary account
+by itself** and says so. Many distros have no user set up and hand out a root
+shell; the desktop needs nothing root can give it, and browsers refuse to run
+as root at all. If the distro has no ordinary account, Starling says that too
+and carries on — browsers then run without their sandbox, and the fix is
+`adduser <name>` and starting Starling as them.
+
+```
+Starling is starting in RDP display mode (this is WSL -- there is no
+graphics device, so the remote screen is the display).
+
+  From Windows:  mstsc /v:localhost:3390
+  From anywhere: any RDP client, port 3390
+```
+
+**Port 3390, not RDP's usual 3389**, and deliberately: Windows' own Remote
+Desktop listens on 3389, and WSL forwards localhost both ways — so a user told
+to connect to 3389 would reach their Windows machine instead of this desktop,
+and the failure reads as "Starling is showing me my own PC".
+
+Override with `STARLING_RDP_PORT` and `STARLING_RDP_SIZE` if you want a
+different port or resolution. `STARLING_FORCE_DRM=1` makes it take the normal
+graphics path regardless, if you have somehow arranged for one.
+
+[**Watch the walkthrough**](../ui/video/wsl-walkthrough.mp4) — install,
+start, connect, use it, recorded end to end.
+
+Starling is an **early preview** (v0.4.0). It boots as a real desktop on real
 hardware and runs real applications, but it is the work of one person over a
 few months — expect rough edges, missing settings, and bugs. It is not meant
 to be anyone's only desktop yet. Installing it is safe and reversible: it adds

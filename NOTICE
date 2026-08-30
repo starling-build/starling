@@ -91,14 +91,15 @@ Terminal and Text Editor apps:
 Cupertino Icons (`CupertinoIcons.ttf`), from Flutter's cupertino_icons package:
 
     Copyright (c) 2016 Vladimir Kharlampidi
-    MIT License
+    MIT License — full text: licenses/LICENSE.MIT.fluentui-system-icons
+    (the same MIT/Expat terms)
 
 Fluent UI System Icons (`FluentSystemIcons-Regular.ttf`), the icon set the
 desktop's Fluent style draws with, redistributed unmodified from
 microsoft/fluentui-system-icons:
 
     Copyright (c) 2020 Microsoft Corporation
-    MIT License
+    MIT License — full text: licenses/LICENSE.MIT.fluentui-system-icons
 
 Note that this is NOT Segoe Fluent Icons, which is a Windows system font and is
 not redistributable; the Windows shell reads that one off the machine it runs
@@ -110,8 +111,26 @@ substitute for Segoe UI, published for exactly this purpose:
 
     Copyright 2015 Microsoft Corporation, with Reserved Font Name Selawik
     SIL Open Font License, Version 1.1
+    Full text: licenses/LICENSE.OFL-1.1.Selawik
 
 Segoe UI itself is a Windows system font and is likewise not redistributed.
+
+DejaVu (`DejaVuSans.ttf`, `DejaVuSansMono-Regular.ttf`,
+`DejaVuSansMono-Bold.ttf`), the terminal's fallback face — it carries the box,
+block and braille glyphs a TUI draws with, which Roboto Mono does not:
+
+    Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.
+    Bitstream Vera is a trademark of Bitstream, Inc.
+    DejaVu changes are in public domain.
+    Full text: licenses/LICENSE.Bitstream-Vera.DejaVu
+
+A NOTE ON THE THREE LICENCES ABOVE THAT TRAVEL AS FILES
+
+MIT and the SIL Open Font License both require their text to accompany the
+thing they cover, and a `.ttf` cannot carry a notice inside it the way a source
+file can. So the full texts are files in `licenses/`, and the package installs
+them beside the fonts (see build/package-desktop.sh). Naming a licence is not
+the same as shipping it.
 
 ================================================================================
 5. PDFium — MIT (pdfium-binaries build), BSD-3-Clause (PDFium itself)
