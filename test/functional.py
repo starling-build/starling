@@ -840,6 +840,63 @@ def check_agent_launch_scope() -> None:
         s.close()
 
 
+@check("agents: the human can take a window back, until Esc")
+def check_agent_take_over() -> None:
+    """The safety property the design claims and, until now, did not have.
+
+    Take-over shipped, then went out with the AI Space (3776fd6) — the flag
+    lived in that UI. What survived was a doc comment describing a guard the
+    code no longer had. It only became a real regression once agent windows
+    were drawn at all, which is what the workspace rail now does.
+
+    Driven the way a person does it, because that is the only way the flag
+    can be set: the broker deliberately offers no op for it. An agent must
+    not be able to hand itself back a window the human is holding.
+    """
+    # Every agent with a window has a rail entry, and the earlier agent
+    # checks leave theirs behind — the first run of this clicked the pane of
+    # whichever workspace happened to be selected (an earlier agent's Files
+    # window), took THAT, and reported that clicking had not worked. Clearing
+    # them first leaves exactly one agent in the rail, which is then the
+    # selected one, so the click below needs no rail geometry to aim at.
+    quit_app("SettingsApp", "FileExplorerApp")
+    s, win = settings_window()
+    try:
+        assert s.ok("list_windows")["windows"][0]["held"] is False, \
+            "a fresh agent window came back already held"
+
+        # Ctrl+Down enters workspace mode; the agent's rail entry appears
+        # there because its windows are owned by it. One shell-drive
+        # invocation for the whole sequence — a second one delivers no keys
+        # at all (see the input-fault note in shell-drive.py).
+        drive("move 640 400", "sleep 1", "key ctrl+down", "sleep 3",
+              "click 900 400", "sleep 2")
+        held = s.ok("list_windows")["windows"][0]
+        assert held["held"] is True, "clicking the pane did not take the window"
+
+        # Every op that acts on the window or READS it must refuse, and say
+        # which of the two things went wrong: an agent told "no such owned
+        # window" about a window it opened cannot tell revocation from a
+        # crash, and retries forever.
+        for op, kw in (("capture", {}), ("await_settled", {}),
+                       ("inject", {"ev": {"type": "hover", "x": 5, "y": 5}})):
+            r = s.call(op, win=win, **kw)
+            assert not r.get("ok"), f"{op} was allowed while the human held it"
+            assert "taken control" in (r.get("error") or ""), \
+                f"{op} refused with the wrong reason: {r.get('error')!r}"
+
+        drive("move 900 400", "sleep 1", "key esc", "sleep 2")
+        assert s.ok("list_windows")["windows"][0]["held"] is False, \
+            "Esc did not give the window back"
+        assert s.ok("capture", win=win, max_px=64)["w"] > 0, \
+            "capture stayed refused after Esc"
+    finally:
+        # Leave the desktop where it was found, whatever failed above.
+        drive("move 640 400", "sleep 1", "key ctrl+down", "sleep 2")
+        s.close()
+        quit_app("SettingsApp")
+
+
 @check("launcher: typing in the Launchpad filters the app grid")
 def check_launcher_search() -> None:
     """Reported against 0.2.1: "the search bar inside the Launchpad doesn't

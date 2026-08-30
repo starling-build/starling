@@ -83,6 +83,16 @@ class WindowInfo {
     /// drawn nowhere at all and exist to be driven through the semantics
     /// endpoint (see AgentWindows.swift).
     var ownerAgentId: String? = nil
+    /// Set while the HUMAN has taken this window back from its agent, by
+    /// touching it in the agent's workspace. Cleared by Esc.
+    ///
+    /// While it holds, every broker op that acts on the window **or reads its
+    /// contents** refuses — reads included, because a window someone has
+    /// grabbed to type a password into is exactly the one an agent must not
+    /// be screenshotting. `AgentBroker.ownedWindow()` is the single place
+    /// that enforces it, for the same reason it is the single place that
+    /// enforces ownership.
+    var humanHoldsControl: Bool = false
     /// The child app's semantics endpoint socket (Murmuration P3), when the
     /// launcher configured one — the broker proxies semantic_tree /
     /// perform_action to it.
@@ -188,9 +198,24 @@ final class WorkspaceInfo {
     var name: String
     var driverWindowId: String? = nil
 
-    init(id: String, name: String) {
+    /// True when this entry stands for a broker AGENT rather than a workspace
+    /// the human made — its `id` is the agent id.
+    ///
+    /// That identity is the whole trick and not a coincidence: workspace
+    /// membership is `ownerAgentId == workspaceId`, and an agent's windows
+    /// already carry `ownerAgentId == agentId`. So giving the agent a rail
+    /// entry under its own id makes `windows(inWorkspace:)` resolve them with
+    /// no second lookup, and the rail, the tab strip and the panes light up
+    /// unchanged. What the flag is for is the handful of places where an
+    /// agent is NOT a workspace: it cannot be renamed or deleted by hand, and
+    /// its windows must not be resized to the pane (see
+    /// `_applyWorkspaceWindowGeometry`).
+    var isAgent: Bool = false
+
+    init(id: String, name: String, isAgent: Bool = false) {
         self.id = id
         self.name = name
+        self.isAgent = isAgent
     }
 }
 
@@ -203,6 +228,15 @@ final class WorkspaceInfo {
 final class AgentInfo {
     let id: String
     var name: String
+
+    /// The name to put in front of a person. `name` carries a " (socket)"
+    /// suffix that marks how the agent connected — useful in an audit line,
+    /// noise in the workspace rail, where "starling-computer-use (socket)"
+    /// reads as a malfunction rather than as Claude Desktop.
+    var displayName: String {
+        name.hasSuffix(" (socket)")
+            ? String(name.dropLast(" (socket)".count)) : name
+    }
     /// The window id of the agent's TerminalApp window, once its first
     /// frame arrived. The tile's terminal pane composites this window.
     var terminalWindowId: String? = nil
@@ -405,6 +439,39 @@ class WindowManagerState {
         workspaces.append(ws)
         selectWorkspace(ws.id, onOutput: outputId ?? hostOutputId)
         return ws
+    }
+
+    /// Give an agent a rail entry, so what it is doing can be watched. Called
+    /// when an agent's first window appears; idempotent after that.
+    ///
+    /// Deliberately does NOT select it. An agent opening a window must never
+    /// move the human's view — that is the property the whole agent-window
+    /// design rests on, and `addWorkspace` selects, which is why this is not
+    /// written in terms of it.
+    @discardableResult
+    func ensureAgentWorkspace(agentId: String, name: String) -> WorkspaceInfo {
+        if let existing = workspaces.first(where: { $0.id == agentId }) {
+            return existing
+        }
+        let ws = WorkspaceInfo(id: agentId, name: name, isAgent: true)
+        workspaces.append(ws)
+        return ws
+    }
+
+    /// Drop an agent's rail entry once it owns nothing worth looking at.
+    ///
+    /// Unlike `removeWorkspace` this does not refuse to remove the last one:
+    /// that guard exists so the human cannot delete their way to an empty
+    /// rail, and an agent entry is not theirs to keep. `_buildWorkspaceSpace`
+    /// already renders a nil selection as the bare rail.
+    func removeAgentWorkspace(_ agentId: String) {
+        guard let idx = workspaces.firstIndex(where: {
+            $0.id == agentId && $0.isAgent
+        }) else { return }
+        workspaces.remove(at: idx)
+        for (out, id) in selectedWorkspaceIdByOutput where id == agentId {
+            selectedWorkspaceIdByOutput.removeValue(forKey: out)
+        }
     }
 
     /// Drop a workspace from the rail and hand back the outputs that were
@@ -649,6 +716,16 @@ class WindowManagerState {
             info.spaceId = Self.kNoSpaceId
             info.pendingOpenAnimation = false
             windows.append(info)
+            // The rail entry that makes this window watchable. Here rather
+            // than only at the Wayland call site, because a broker agent
+            // opens windows two different ways — a Wayland client's toplevel
+            // arrives later and is tagged after the fact, while a first-party
+            // child is owned right here — and hooking one of them is how
+            // launching Settings through the broker produced a workspace that
+            // never appeared.
+            if let agent = agents.first(where: { $0.id == agentId }) {
+                ensureAgentWorkspace(agentId: agentId, name: agent.displayName)
+            }
             return id
         }
         // A new window joins the active space of the output it OPENS on —
@@ -674,10 +751,18 @@ class WindowManagerState {
     }
 
     func closeWindow(_ id: String) {
+        var ownerId: String? = nil
         if let win = windows.first(where: { $0.id == id }) {
+            ownerId = win.ownerAgentId
             win.onWindowClose?()
         }
         windows.removeAll { $0.id == id }
+        // An agent's rail entry lasts as long as it has something to show.
+        // Read the owner BEFORE the removal above and check after it, or the
+        // window being closed still counts itself.
+        if let ownerId, windows(ownedBy: ownerId).isEmpty {
+            removeAgentWorkspace(ownerId)
+        }
         // A fullscreen window's private space dies with it (macOS). If it was
         // the active space, removeSpace lands us on the fallback neighbour.
         removeFullscreenSpace(ownedBy: id)

@@ -64,6 +64,7 @@ extension _DesktopShellState {
         let w = output.logicalWidth
         let h = output.logicalHeight
         _applyWorkspaceWindowGeometry(output: output)
+        _applyAgentWindowThrottle()
         var layers: [Widget] = []
         let top = DesktopTheme.kStatusBarHeight
 
@@ -81,16 +82,28 @@ extension _DesktopShellState {
             return Stack(children: layers)
         }
 
-        let driverW = _workspaceDriverWidth(forOutputWidth: w)
-        let driverLeft = WS.railW
-        let rightLeft = driverLeft + driverW + WS.dividerW
+        // An AGENT workspace has no driver column. The middle column is
+        // "the app you are working in", and for an agent there is no such
+        // app — the thing driving it is Claude Desktop, which is the human's
+        // own window on their own desktop and does not belong in here. Left
+        // as-is it is two thirds of the screen offering "Choose an app to
+        // work in", next to the agent's actual windows squeezed into a
+        // letter-boxed sliver. So the windows get the whole width instead.
+        if ws.isAgent {
+            layers.append(contentsOf: _workspaceTabColumn(
+                ws, left: WS.railW, width: w - WS.railW, top: top, h: h))
+        } else {
+            let driverW = _workspaceDriverWidth(forOutputWidth: w)
+            let driverLeft = WS.railW
+            let rightLeft = driverLeft + driverW + WS.dividerW
 
-        layers.append(contentsOf: _workspaceDriverColumn(
-            ws, left: driverLeft, width: driverW, top: top, h: h))
-        layers.append(contentsOf: _workspaceDivider(
-            left: driverLeft + driverW, top: top, h: h))
-        layers.append(contentsOf: _workspaceTabColumn(
-            ws, left: rightLeft, width: w - rightLeft, top: top, h: h))
+            layers.append(contentsOf: _workspaceDriverColumn(
+                ws, left: driverLeft, width: driverW, top: top, h: h))
+            layers.append(contentsOf: _workspaceDivider(
+                left: driverLeft + driverW, top: top, h: h))
+            layers.append(contentsOf: _workspaceTabColumn(
+                ws, left: rightLeft, width: w - rightLeft, top: top, h: h))
+        }
         layers.append(contentsOf: _workspaceRenameLayer())
         layers.append(contentsOf: _workspaceMenuLayer(w, h))
         // Topmost, so nothing opaque below can swallow the hover; translucent,
@@ -247,7 +260,8 @@ extension _DesktopShellState {
             key: ValueKey("ws-driver-\(win.id)"),
             left: left + WS.paneGap, top: top + WS.paneGap,
             width: width - WS.paneGap * 2, height: h,
-            child: _workspacePane(win, focused: focused)))
+            child: _workspacePane(win, focused: focused,
+                                  paneW: width - WS.paneGap * 2, paneH: h)))
         return out
     }
 
@@ -406,7 +420,9 @@ extension _DesktopShellState {
             width: width - WS.paneGap * 2,
             height: h - paneTop - WS.paneGap,
             child: _workspacePane(
-                active, focused: windowManager.focusedWindowId == active.id)))
+                active, focused: windowManager.focusedWindowId == active.id,
+                paneW: width - WS.paneGap * 2,
+                paneH: h - paneTop - WS.paneGap)))
         return out
     }
 
@@ -436,11 +452,80 @@ extension _DesktopShellState {
                                   child: SizedBox(expand: ()))))]
     }
 
+    // MARK: Take-over
+
+    /// True when this window belongs to a broker agent rather than to a
+    /// workspace the human made. Both ride `ownerAgentId`, so the rail entry
+    /// is what tells them apart.
+    func _isAgentOwned(_ win: WindowInfo) -> Bool {
+        guard let owner = win.ownerAgentId else { return false }
+        return windowManager.workspaces.first(where: { $0.id == owner })?.isAgent
+            ?? false
+    }
+
+    /// Any window the human currently holds.
+    var _heldWindows: [WindowInfo] {
+        windowManager.windows.filter { $0.humanHoldsControl }
+    }
+
+    /// Frame-throttle every agent window by whether anyone is looking at it.
+    ///
+    /// Broker windows are pinned to 200ms at birth because nothing draws
+    /// them, and until now nothing ever revisited that: the fleet build the
+    /// old comment refers to went with the AI Space. Left alone, the first
+    /// agent window shown in the rail would animate at 5fps, and "watching
+    /// the agent work" would look like the agent hanging.
+    ///
+    /// Diff-guarded — `setSurfaceThrottle` is a round trip to the server's
+    /// loop thread, and this runs on every workspace build. First-party
+    /// children have no surface id and were never throttled; they fall out
+    /// through the lookup rather than needing a case.
+    func _applyAgentWindowThrottle() {
+        guard let wayland = waylandIntegration else { return }
+        var watched = Set<String>()
+        let outputs = displayLayout?.outputs.map(\.id) ?? [0]
+        for out in outputs where windowManager.activeSpace(onOutput: out).isWorkspace {
+            if let ws = windowManager.selectedWorkspace(onOutput: out), ws.isAgent {
+                watched.insert(ws.id)
+            }
+        }
+        for win in windowManager.windows {
+            guard let owner = win.ownerAgentId, _isAgentOwned(win) else { continue }
+            let want: UInt32 = watched.contains(owner) ? 0 : 200
+            guard _agentThrottleApplied[win.id] != want else { continue }
+            guard let sid = wayland.surfaceId(forWindowId: win.id) else { continue }
+            wayland.setSurfaceThrottle(surfaceId: sid, intervalMs: want)
+            _agentThrottleApplied[win.id] = want
+        }
+    }
+
+    /// Touching an agent's window takes it, until Esc.
+    ///
+    /// There is no confirmation and no modifier on purpose: the moment the
+    /// human reaches for a window is the moment they need it, and a
+    /// take-over that has to be armed first is one they will not reach for
+    /// while something is going wrong.
+    func _takeOverIfAgentWindow(_ win: WindowInfo) {
+        guard _isAgentOwned(win), !win.humanHoldsControl else { return }
+        setState { win.humanHoldsControl = true }
+    }
+
+    /// Esc gives every held window back. Returns true when it consumed the
+    /// key, so the caller can stop there.
+    @discardableResult
+    func _releaseTakenOverWindows() -> Bool {
+        let held = _heldWindows
+        guard !held.isEmpty else { return false }
+        setState { for win in held { win.humanHoldsControl = false } }
+        return true
+    }
+
     // MARK: Panes
 
     /// A live window rendered into a pane: texture, Y-flip where the client
     /// needs it, and pointer/scroll forwarded in the window's own coordinates.
-    private func _workspacePane(_ win: WindowInfo, focused: Bool) -> Widget {
+    private func _workspacePane(_ win: WindowInfo, focused: Bool,
+                                paneW: Double, paneH: Double) -> Widget {
         var content: Widget
         if let texId = win.textureId {
             content = TextureWidget(textureId: texId, filterQuality: .low)
@@ -454,48 +539,129 @@ extension _DesktopShellState {
             content = ColoredBox(color: Color(0xFF1A1A20), child: SizedBox(expand: ()))
         }
         let winId = win.id
-        // Panes are laid out at the window's own size (see
-        // _applyWorkspaceWindowGeometry), so there is no scale factor to undo
-        // on the way in: no scale factor to undo.
+
+        // A WORKSPACE window is resized to its pane, so its texture fills the
+        // pane exactly and a pointer position is already in the window's
+        // coordinates — that is what the old comment here meant by "no scale
+        // factor to undo".
+        //
+        // An AGENT's window is deliberately not resized: its size IS the
+        // coordinate space it is mid-task in, and moving it would invalidate
+        // the screenshot the agent is about to click into. So it is fitted
+        // into the pane instead, letter-boxed, and every coordinate the
+        // pointer reports has to have that fit divided back out. Get this
+        // wrong and the picture still looks perfect while every click lands
+        // somewhere else — which is the failure mode worth naming, because
+        // nothing about it looks like a bug.
+        //
+        // The content size is spelled the way the BROKER spells it
+        // (`rect.height - kTitleBarHeight`, AgentBroker's `capture`) rather
+        // than derived some other way, so the human's view and the agent's
+        // coordinate space cannot drift apart. Take-over depends on the two
+        // agreeing.
+        var scale = 1.0
+        var offX = 0.0
+        var offY = 0.0
+        if _isAgentOwned(win), paneW > 1, paneH > 1 {
+            let cw = max(1.0, win.rect.width)
+            let ch = max(1.0, win.rect.height - DesktopTheme.kTitleBarHeight)
+            scale = min(paneW / cw, paneH / ch)
+            offX = (paneW - cw * scale) / 2
+            offY = (paneH - ch * scale) / 2
+            content = Stack(children: [
+                Positioned(left: offX, top: offY,
+                           width: cw * scale, height: ch * scale,
+                           child: content),
+            ])
+        }
+        let toWinX: (Double) -> Double = { ($0 - offX) / scale }
+        let toWinY: (Double) -> Double = { ($0 - offY) / scale }
+
         let forwarded: Widget = Listener(
             onPointerDown: { [self] event in
                 if windowManager.focusedWindowId != winId {
                     setState { windowManager.focusedWindowId = winId }
                 }
-                win.onPointerEvent?(2, event.localPosition.dx,
-                                    event.localPosition.dy, Int64(event.buttons))
+                // Touching an agent's window takes it from the agent until
+                // Esc. Claiming it on the way DOWN rather than on the click
+                // matters: the press itself must already be the human's, or
+                // the agent could be mid-drag in the same window.
+                _takeOverIfAgentWindow(win)
+                win.onPointerEvent?(2, toWinX(event.localPosition.dx),
+                                    toWinY(event.localPosition.dy),
+                                    Int64(event.buttons))
             },
             onPointerMove: { event in
-                win.onPointerEvent?(3, event.localPosition.dx,
-                                    event.localPosition.dy, Int64(event.buttons))
+                win.onPointerEvent?(3, toWinX(event.localPosition.dx),
+                                    toWinY(event.localPosition.dy),
+                                    Int64(event.buttons))
             },
             onPointerUp: { event in
-                win.onPointerEvent?(1, event.localPosition.dx,
-                                    event.localPosition.dy, 0)
+                win.onPointerEvent?(1, toWinX(event.localPosition.dx),
+                                    toWinY(event.localPosition.dy), 0)
             },
             onPointerHover: { event in
                 DesktopCursor.setShape(.default)
-                win.onPointerEvent?(6, event.localPosition.dx,
-                                    event.localPosition.dy, 0)
+                win.onPointerEvent?(6, toWinX(event.localPosition.dx),
+                                    toWinY(event.localPosition.dy), 0)
             },
             onPointerSignal: { event in
                 if let scroll = event as? PointerScrollEvent {
-                    win.onScrollEvent?(scroll.localPosition.dx,
-                                       scroll.localPosition.dy,
+                    win.onScrollEvent?(toWinX(scroll.localPosition.dx),
+                                       toWinY(scroll.localPosition.dy),
                                        scroll.scrollDelta.dx, scroll.scrollDelta.dy)
                 }
             },
             behavior: .opaque,
             child: content)
-        return DecoratedBox(
+        // Held windows say so, and say how to give it back. Without this the
+        // agent simply stops doing anything on that window and there is
+        // nothing on screen to connect that to the click that caused it —
+        // "the agent froze" is what a silent take-over looks like.
+        var pane: Widget = DecoratedBox(
             decoration: BoxDecoration(
                 border: Border.all(
-                    color: focused ? shellTheme.accent : Color(0x40FFFFFF),
-                    width: focused ? 2 : 1),
+                    color: win.humanHoldsControl ? Color(0xFFE0A030)
+                        : (focused ? shellTheme.accent : Color(0x40FFFFFF)),
+                    width: win.humanHoldsControl || focused ? 2 : 1),
                 borderRadius: BorderRadius.all(Radius(circular: 6))),
             child: ClipRRect(
                 borderRadius: BorderRadius.all(Radius(circular: 6)),
                 child: forwarded))
+        if win.humanHoldsControl {
+            pane = Stack(children: [
+                Positioned(fill: (), child: pane),
+                // Along the BOTTOM edge, not the top: centred at the top it
+                // sat squarely on the heading of whatever the agent had open
+                // (Settings' "General", in the first run of this). The
+                // bottom of a window is usually the emptiest part of it.
+                //
+                // Spans the full width and aligns inside it: a Positioned
+                // anchored by one edge with no width lays out correctly and
+                // hit-tests as nothing, and IgnorePointer would hide that.
+                Positioned(
+                    left: 0, right: 0, bottom: 10, height: 24,
+                    child: IgnorePointer(child: Row(
+                        mainAxisAlignment: .center,
+                        children: [
+                            DecoratedBox(
+                                decoration: BoxDecoration(
+                                    color: Color(0xE6E0A030),
+                                    borderRadius: BorderRadius.all(
+                                        Radius(circular: 12))),
+                                child: Padding(
+                                    padding: EdgeInsets(
+                                        horizontal: 10, vertical: 4),
+                                    child: Text(
+                                        "You have this window — Esc to give it back",
+                                        style: TextStyle(
+                                            color: Color(0xFF201400),
+                                            fontSize: 11.5,
+                                            fontWeight: .w600)))),
+                        ]))),
+            ])
+        }
+        return pane
     }
 
     // MARK: Geometry
@@ -524,6 +690,14 @@ extension _DesktopShellState {
         let paneTop = top + WS.tabTop + WS.tabH + WS.paneGap
         let tabSize = (w: out.logicalWidth - rightLeft - WS.paneGap * 2,
                        h: out.logicalHeight - paneTop - WS.paneGap)
+
+        // An agent's windows are NOT resized to their pane. The size a broker
+        // window has is the coordinate space the agent is working in — it
+        // screenshots, computes a click from those pixels, and clicks. Resize
+        // it between those two steps and the click lands somewhere else, for
+        // no reason the agent can see. `_workspacePane` fits them into the
+        // pane instead.
+        guard !ws.isAgent else { return }
 
         for win in windowManager.windows(inWorkspace: ws.id) {
             let isDriver = win.id == ws.driverWindowId

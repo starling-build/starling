@@ -1812,6 +1812,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     win.ownerAgentId = ownerId
                     win.spaceId = WindowManagerState.kNoSpaceId
                     win.pendingOpenAnimation = false
+                    // An agent's first window earns it a rail entry, so the
+                    // human can switch to workspace mode and watch. Not for a
+                    // workspace window: that rail entry already exists and is
+                    // what made this window owned in the first place.
+                    if !isWorkspaceWindow,
+                       let agent = self.windowManager.agents.first(where: {
+                           $0.id == ownerId
+                       }) {
+                        self.windowManager.ensureAgentWorkspace(
+                            agentId: ownerId, name: agent.displayName)
+                    }
+
                     // Agent windows never move the human's view: undo the
                     // user-space hop addWindow performed (e.g. Ctrl+N in a
                     // a broker client's Chrome opening a second window).
@@ -2302,6 +2314,20 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         }
                     }
                 }
+                return true
+            }
+
+            // Esc hands a taken-over window back to its agent, and is checked
+            // before every other Esc on the desktop: this is the most modal
+            // state there is — an agent is being refused everything on that
+            // window for as long as it holds.
+            //
+            // The cost, stated plainly: Esc cannot be typed INTO a window you
+            // have taken. That is the price of a release key that needs no
+            // modifier and no aiming, which is the property that matters when
+            // you are grabbing a window because something is going wrong.
+            if keyData.type == .down, phys == 0x29,
+               self._releaseTakenOverWindows() {
                 return true
             }
 
@@ -3381,6 +3407,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 back = wm.spaces.indices.first(where: { wm.spaces[$0].isUser }) ?? 0
             }
             _switchToSpace(back, onOutput: out)
+            // Leaving workspace mode: nothing draws the agent's windows any
+            // more, so put their throttle back. The entering side is handled
+            // by _buildWorkspaceSpace; this is the only path out.
+            _applyAgentWindowThrottle()
             return
         }
         _workspaceReturnByOutput[out] = wm.spaceIndex(

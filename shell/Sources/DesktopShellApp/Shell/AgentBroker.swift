@@ -604,30 +604,57 @@ final class AgentBroker: @unchecked Sendable {
         agentLastOpMs[agentId] = nowMs
         let wm = shell.windowManager
 
+        /// Why the last `ownedWindow()` came back nil. Read by the callers
+        /// through `failOwned()`, so "you never had it" and "the human has it
+        /// right now" are not the same sentence — an agent told "no such
+        /// owned window" about a window it opened a second ago has no way to
+        /// tell a revocation from a crash, and will retry forever.
+        var ownedWindowError = "no such owned window"
+
         /// Ownership chokepoint: resolve a "win" argument to a window this
-        /// agent owns — anything else is invisible.
+        /// agent owns and the human has not taken — anything else is
+        /// invisible.
         func ownedWindow() -> WindowInfo? {
+            ownedWindowError = "no such owned window"
             guard let winId = req["win"] as? String,
                   let win = wm.windows.first(where: { $0.id == winId }),
                   win.ownerAgentId == agentId else { return nil }
+            // Take-over. This is deliberately INSIDE the ownership chokepoint
+            // rather than beside it: every op that resolves a window is
+            // covered by construction, including the ones that only read, and
+            // a new op cannot forget to check. Reads are covered because a
+            // window the human grabbed to type into is precisely the one that
+            // must not be screenshotted.
+            if win.humanHoldsControl {
+                ownedWindowError = "the human has taken control of this "
+                    + "window; it returns when they press Esc"
+                return nil
+            }
             return win
         }
 
-        // NOTE — take-over is GONE, and this is the only place that says so.
-        // The human used to be able to seize a window's controls until Esc,
-        // and every op that acted on a window or read its contents refused
-        // while that held. The flag lived in the AI Space, so removing that
-        // UI (3776fd6) took the mechanism with it and left the doc comment
-        // behind describing a guard that no longer existed. Nothing is
-        // regressed for now — agent windows are headless, so there is no
-        // surface for a human to take over from — but anything that puts
-        // them on screen has to bring the check back with it.
+        /// The refusal for a `win` argument that did not resolve.
+        func failOwned() { fail(ownedWindowError) }
+
+        // Take-over is BACK, in `ownedWindow()` above. It was lost with the
+        // AI Space (3776fd6) — the flag lived in that UI — and for a while
+        // nothing was regressed, because agent windows were drawn nowhere and
+        // there was no surface to take over from. Agent windows now appear in
+        // the workspace rail, so the guard had to return with them: touching
+        // one takes it until Esc, and while it holds every op that acts on
+        // the window or reads it is refused.
         switch op {
         case "list_windows":
             let wins = wm.windows(ownedBy: agentId).map { w -> [String: Any] in
+                // `held` is reported even though every other op refuses the
+                // window while it is set: an agent that can see the window
+                // still exists, and that a person is holding it, can say so
+                // and wait. One that only ever gets a refusal cannot tell
+                // that from the window having died, and will retry forever.
                 ["win": w.id, "app": w.appId, "title": w.title,
                  "content": [w.rect.width, w.rect.height - DesktopTheme.kTitleBarHeight],
-                 "focused": wm.focusedWindowId == w.id]
+                 "focused": wm.focusedWindowId == w.id,
+                 "held": w.humanHoldsControl]
             }
             conn.send(["id": id, "ok": true, "windows": wins])
             audit(agentId, op, true, "\(wins.count) windows")
@@ -722,7 +749,7 @@ final class AgentBroker: @unchecked Sendable {
             }
 
         case "inject":
-            guard let win = ownedWindow() else { return fail("no such owned window") }
+            guard let win = ownedWindow() else { return failOwned() }
             guard let ev = req["ev"] as? [String: Any],
                   let type = ev["type"] as? String else { return fail("bad ev") }
             lastInjectMs[win.id] = nowMs
@@ -991,7 +1018,7 @@ final class AgentBroker: @unchecked Sendable {
             // declares. Never moved by this agent means never moved: an
             // invented (0,0) reads as "the pointer is in the corner", which
             // is a different and wrong claim.
-            guard let win = ownedWindow() else { return fail("no such owned window") }
+            guard let win = ownedWindow() else { return failOwned() }
             if let p = lastPointerPos[win.id] {
                 conn.send(["id": id, "ok": true, "x": p.x, "y": p.y])
             } else {
@@ -1013,7 +1040,7 @@ final class AgentBroker: @unchecked Sendable {
                 execute: unsafeBitCast(reply, to: (@Sendable () -> Void).self))
 
         case "capture":
-            guard let win = ownedWindow() else { return fail("no such owned window") }
+            guard let win = ownedWindow() else { return failOwned() }
             guard let texId = win.textureId else {
                 return fail("window has no capturable buffer")
             }
@@ -1132,7 +1159,7 @@ final class AgentBroker: @unchecked Sendable {
                 execute: unsafeBitCast(job, to: (@Sendable () -> Void).self))
 
         case "await_settled":
-            guard let win = ownedWindow() else { return fail("no such owned window") }
+            guard let win = ownedWindow() else { return failOwned() }
             guard let texId = win.textureId else { return fail("window has no buffer") }
             let timeout = int64(req["timeout_ms"]) ?? 2000
             let quiet = int64(req["quiet_ms"]) ?? 150
@@ -1176,7 +1203,7 @@ final class AgentBroker: @unchecked Sendable {
             // with a per-agent profile + DevTools port; this returns the
             // endpoint (same ownership chokepoint — the window must be
             // an owned Wayland toplevel).
-            guard let win = ownedWindow() else { return fail("no such owned window") }
+            guard let win = ownedWindow() else { return failOwned() }
             guard win.appId.hasPrefix("wayland-") else {
                 return fail("not a Wayland client window")
             }
@@ -1214,7 +1241,7 @@ final class AgentBroker: @unchecked Sendable {
             // Murmuration P3: proxy to the child's semantics endpoint. The
             // agent addresses labels and node ids — no coordinates, no
             // pixels; the same ownership chokepoint applies.
-            guard let win = ownedWindow() else { return fail("no such owned window") }
+            guard let win = ownedWindow() else { return failOwned() }
             guard let endpoint = win.agentEndpointPath else {
                 return fail("window has no semantics endpoint")
             }
