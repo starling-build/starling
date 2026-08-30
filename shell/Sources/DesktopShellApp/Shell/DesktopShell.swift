@@ -256,6 +256,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // (so the title-bar overlay shows/hides correctly).
     private var _windowChildCache: [String: (widget: DesktopWindow, isFocused: Bool, width: Double, height: Double, isFullscreen: Bool, isTopBarRevealed: Bool)] = [:]
 
+    /// The size a maximised client last committed while disagreeing with the
+    /// size we configured. Only there to keep the corrective configure from
+    /// firing on every frame a non-compliant client draws — see
+    /// `onWindowBufferResized`.
+    private var _maximizedSizeSeen: [String: (Int, Int)] = [:]
+
     /// macOS-style fullscreen auto-hide: when a fullscreen window is on top,
     /// the desktop status bar and the window's title bar are hidden until the
     /// cursor approaches the top edge of the screen. The title bar then
@@ -2055,6 +2061,45 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             let titleBarH = DesktopTheme.kTitleBarHeight
             let newWidth = Double(logicalWidth)
             let newHeight = Double(logicalHeight) + titleBarH
+
+            // Maximised: the size is the shell's, not the client's — the same
+            // rule fullscreen already follows just above.
+            //
+            // Below this point a buffer commit RESIZES THE WINDOW to whatever
+            // the client rendered, which is right while a client is settling
+            // into a size we asked for and wrong for a maximised one, because
+            // a maximised window's size was never the client's to pick. A
+            // client that renders taller than the rect we configured drags the
+            // window off the bottom of the screen and takes the end of its own
+            // layout with it. Claude Desktop does exactly that: configured
+            // 1280x768, it acks and commits a 1280x884 viewport, and its "Get
+            // started" button — the last thing in the layout — ends up below
+            // the screen, so the app cannot be signed into at all. The window
+            // is only reachable again by un-maximising it.
+            //
+            // So hold the rect and re-assert the configure. Re-assert only
+            // when the client's size CHANGES, not on every commit: a client
+            // that ignores us (this one does) would otherwise be sent a
+            // configure for every frame it draws, forever.
+            if win.isMaximized {
+                let wantW = Int(win.rect.width)
+                let wantH = Int(win.rect.height - titleBarH)
+                if logicalWidth != wantW || logicalHeight != wantH {
+                    let seen = self._maximizedSizeSeen[windowId]
+                    if seen == nil || seen! != (logicalWidth, logicalHeight) {
+                        self._maximizedSizeSeen[windowId] = (logicalWidth, logicalHeight)
+                        if let surfId = wayland.surfaceId(forWindowId: windowId) {
+                            wayland.sendResize(surfaceId: surfId,
+                                               width: wantW, height: wantH)
+                        }
+                    }
+                } else {
+                    self._maximizedSizeSeen.removeValue(forKey: windowId)
+                }
+                PlatformDispatcher.instance.scheduleFrame()
+                return
+            }
+            self._maximizedSizeSeen.removeValue(forKey: windowId)
 
             if win.resizeDragEdge != nil {
                 // During active drag: don't update rect (it follows the mouse),
