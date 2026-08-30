@@ -123,10 +123,10 @@ class FakeBroker(threading.Thread):
 class MCP:
     """One MCP client, over the same stdio pipe Claude Desktop would use."""
 
-    def __init__(self, env):
-        self.p = subprocess.Popen([sys.executable, str(SERVER), "serve"],
+    def __init__(self, env, server=None, stderr=subprocess.DEVNULL):
+        self.p = subprocess.Popen([sys.executable, str(server or SERVER), "serve"],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.DEVNULL, env=env, bufsize=0)
+                                  stderr=stderr, env=env, bufsize=0)
         self.n = 0
 
     def rpc(self, method, params=None, notify=False):
@@ -194,6 +194,42 @@ def main():
         check("the per-window tools are exposed too",
               {"computer_launch", "computer_windows", "computer_settled"} - tools,
               set())
+
+        # ── the INSTALLED layout ─────────────────────────────────────────
+        #
+        # stage.sh drops the two scripts into bin/ under their command names,
+        # with no `.py` on the end — and the server loads its client library
+        # by path, which is extension-sensitive. Run the same server out of
+        # that layout, because the repo layout is the only one where the
+        # extension is present and it is therefore the only one where a
+        # loader bug cannot show up. It shipped exactly once for that reason.
+        binroot = root / "bin"
+        binroot.mkdir()
+        for src, dst in ((SERVER, "starling-computer-use"),
+                         (REPO / "build" / "agent-client.py", "agent-client")):
+            (binroot / dst).write_bytes(src.read_bytes())
+            (binroot / dst).chmod(0o755)
+        # A server that dies on import answers nothing at all, so this reads
+        # the reply defensively and reports the traceback rather than raising
+        # one of its own — a failing check tells you what broke, a crashing
+        # test tells you the test broke.
+        installed = MCP(env, server=binroot / "starling-computer-use",
+                        stderr=subprocess.PIPE)
+        try:
+            init2 = installed.rpc("initialize", {"protocolVersion": "2025-06-18",
+                                                 "capabilities": {},
+                                                 "clientInfo": {"name": "t",
+                                                                "version": "0"}})
+            name = init2.get("result", {}).get("serverInfo", {}).get("name")
+        except Exception:
+            name = None
+        if name != "starling-computer-use":
+            installed.p.kill()
+            err = (installed.p.stderr.read() or b"").decode()[-400:]
+            print("        server stderr: %s" % err.strip().replace("\n", "\n        "))
+        check("the server runs from the installed, extensionless layout",
+              name, "starling-computer-use")
+        installed.close()
 
         # ── pixels ───────────────────────────────────────────────────────
         r = mcp.call("computer_launch", app="settings")

@@ -33,6 +33,7 @@ reimplements, so the broker protocol and the identity file have one owner.
 """
 
 import base64
+import importlib.machinery
 import importlib.util
 import json
 import os
@@ -55,7 +56,18 @@ def _load_agent_client():
                  os.path.join(here, "agent-client"),
                  "/usr/bin/agent-client"):
         if os.path.exists(cand):
-            spec = importlib.util.spec_from_file_location("starling_agent_client", cand)
+            # The loader has to be named explicitly. Two of these three
+            # candidates have no `.py` on the end — stage.sh installs the
+            # client as plain `agent-client` — and spec_from_file_location
+            # infers the loader FROM THE EXTENSION, so for those it returns
+            # None and the next line dies on `NoneType has no attribute
+            # loader`. Which meant this worked in the repo and failed in
+            # every install: the only path where the extension is present is
+            # the dev one.
+            loader = importlib.machinery.SourceFileLoader(
+                "starling_agent_client", cand)
+            spec = importlib.util.spec_from_file_location(
+                "starling_agent_client", cand, loader=loader)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             return mod
