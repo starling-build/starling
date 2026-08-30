@@ -487,6 +487,66 @@ it through `starling-computer-use install`.
   semantics; no GPU, no desktop), and three functional checks for capture,
   the inject vocabulary, and the launch scope.
 
+---
+
+# Status (2026-08-30) — the real Claude Desktop
+
+The branch was four commits on a base twelve behind `main`, so it had none of
+0.4.0; it is merged up, and everything below was verified against the packaged
+0.4.0 desktop running **unprivileged through GDM**, not a root tree run.
+
+**Claude Desktop is now an app the desktop knows about.** `claude.app` plus
+the two recipes — the deferred half of milestone 5. Anthropic publishes an apt
+repo, so the install recipe is `vendor_repo`, with one trap worth naming: the
+signing key lives a level ABOVE the suite (`…/claude-desktop/key.asc`), not
+beside the `dists/` tree where every other vendor puts it. The launch recipe
+is VS Code's rather than Chrome's — Electron 42 with a setuid `chrome-sandbox`
+that bwrap's nosuid mounts can never satisfy and no nested-userns zygote to
+fall back on — and deliberately takes **no** per-socket `--user-data-dir`,
+which VS Code needs and which here would ask the human to sign in again on
+every socket.
+
+**Two bugs that only an install could find**, both in the shim, both of which
+made it look like it worked:
+
+1. **The MCP server could not start from an install at all.** It loads
+   `agent-client` by path, and `spec_from_file_location` infers the loader
+   from the file EXTENSION — which `stage.sh` strips when it installs the
+   client as `agent-client`. The spec came back `None` and the server died on
+   `'NoneType' object has no attribute 'loader'` before answering one request.
+   The repo is the only layout where the `.py` survives, so the dev path was
+   the only path that worked.
+2. **`install` wrote the config to a directory nothing reads.** Claude Desktop
+   reads Electron's userData dir, `$XDG_CONFIG_HOME/`**`Claude`** — capitalised.
+   We wrote `~/.config/claude`, which created a second directory beside the
+   real one holding a file the app never opens, and printed "registered". The
+   path had been taken from documentation; running the app is what corrected
+   it.
+
+Both now have checks in the fast tier: the framing test runs the server out of
+a staged extensionless `bin/` copy, and pins the config path plus the merge
+behaviour. Both were falsified against the old code first.
+
+**Verified end to end, up to the sign-in.** Claude Desktop installs from
+Anthropic's repo, launches through `app-run` as a native Wayland client on the
+Starling compositor, and appears in the launcher and dock with its own icon
+(resolved by `app-install --record`, not shipped). `starling-computer-use
+install` merges into the app's real config beside the preferences the app had
+already written there. The shim itself works from `/usr/bin` against the live
+unprivileged session — `selftest` opens Settings, screenshots it per window at
+1280 px, and reports the agent has not moved the pointer. All five `agents:`
+functional checks pass on that build.
+
+**What is left is the account.** Claude Desktop starts its configured MCP
+servers once signed in, and `mcp.log` stays empty until then. Signing in is
+the user's, so the last link — Claude Desktop calling `starling-computer-use`
+and driving a window — is set up but unexercised.
+
+**Cosmetic, found on the way:** Claude Desktop draws its own title bar with
+its own minimise/maximise/close inside the buffer, under ours. The compositor
+forces `zxdg_toplevel_decoration_v1` to SERVER_SIDE, but a frameless Electron
+window never asks, so the protocol cannot help. Two rows of window buttons.
+
 **Open.**
 
 - **The conformance loop has never been run.** `test/computeruse/conformance.py`
