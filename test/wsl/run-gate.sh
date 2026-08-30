@@ -40,7 +40,10 @@ if [ "$BUILD" = 1 ]; then
     "$REPO/build/package-desktop.sh" "$OUT" >/dev/null || exit 1
     DEB=$(ls -t "$OUT"/starling_*.deb | head -1)
     echo "   $DEB"
-    scp -q "$DEB" "$HOST:C:/dist/starling-gate.deb" || exit 1
+    # Under its own name: "starling-gate.deb" was a harness wart that
+    # ended up on camera in the walkthrough, and made a perfectly
+    # ordinary Debian package look like something special.
+    scp -q "$DEB" "$HOST:C:/dist/$(basename "$DEB")" || exit 1
 fi
 
 scp -q "$REPO/test/wsl/gate.sh" "$HOST:C:/dist/wsl-gate.sh" || exit 1

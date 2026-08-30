@@ -7,7 +7,7 @@ alone**.
 
 ## It runs on Windows, through WSL
 
-**[Watch the walkthrough (2:21)](../../../ui/video/wsl-walkthrough.mp4)** —
+**[Watch the walkthrough (2:30)](../../../ui/video/wsl-walkthrough.mp4)** —
 install, start, connect, use it. Recorded end to end on a real Windows machine;
 nothing in it is faked or sped up.
 

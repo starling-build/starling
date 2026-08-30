@@ -23,8 +23,10 @@ say "1. install"
 # and apt treats a same-version .deb as already installed and does nothing —
 # silently, with exit 0. That had this gate testing a two-week-old binary
 # while reporting a pass. dpkg reinstalls over an identical version.
-dpkg -i /mnt/c/dist/starling-gate.deb > /tmp/g-install.log 2>&1 \
-  || dpkg -i --force-all /mnt/c/dist/starling-gate.deb >> /tmp/g-install.log 2>&1
+DEB=$(ls -t /mnt/c/dist/starling_*.deb 2>/dev/null | head -1)
+say "   package: ${DEB:-NONE FOUND}"
+dpkg -i "$DEB" > /tmp/g-install.log 2>&1 \
+  || dpkg -i --force-all "$DEB" >> /tmp/g-install.log 2>&1
 INST=$?
 apt-get -y -f install >> /tmp/g-install.log 2>&1   # pull any missing deps
 check $INST "the .deb installs on a clean 26.04 (dependencies resolve)"

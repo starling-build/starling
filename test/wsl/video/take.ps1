@@ -88,6 +88,10 @@ Get-Process mstsc,mspaint,SystemSettings -ErrorAction SilentlyContinue | Stop-Pr
 Start-Sleep -Seconds 2
 (New-Object -ComObject Shell.Application).MinimizeAll()
 Start-Sleep -Seconds 3
+# Remove it first, off camera, so the install the viewer watches is a real
+# one. apt treats a .deb whose version is already installed as nothing to do.
+Start-Process wsl.exe -Wait -WindowStyle Hidden -ArgumentList "-d","Ubuntu-26.04","-u","root","--","apt-get","purge","-y","starling"
+Start-Sleep -Seconds 3
 
 # ---- the terminal, placed before the camera rolls ---------------------------
 Get-Process conhost,WindowsTerminal -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -139,8 +143,8 @@ Start-Sleep -Seconds 6
 
 # ---- 2. install the desktop inside WSL --------------------------------------
 Mark beat2
-TypeText "wsl -d Ubuntu-26.04 -u root dpkg -i /mnt/c/dist/starling-gate.deb"; Enter
-Start-Sleep -Seconds 26
+TypeText "wsl -d Ubuntu-26.04 -u root apt install -y /mnt/c/dist/starling_0.4.0_amd64.deb"; Enter
+Start-Sleep -Seconds 34
 
 # ---- 3. start it ------------------------------------------------------------
 Mark beat3

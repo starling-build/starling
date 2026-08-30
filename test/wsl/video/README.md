@@ -5,6 +5,7 @@ machine through WSL, recorded end to end on the real box. Nothing in it is
 faked or sped up: the `.deb` really installs, the desktop really starts, and
 Windows' own Remote Desktop really connects to it.
 
+    scp <the .deb> starling@<box>:C:/dist/            # under its OWN name
     scp test/wsl/video/take.ps1 test/wsl/video/take.vbs starling@<box>:C:/dist/vid/
     ssh starling@<box> 'schtasks /create /tn StarVidTake /ru starling /it /sc once /st 00:00 /tr "wscript.exe C:\dist\vid\take.vbs" /f'
     ssh starling@<box> 'schtasks /run /tn StarVidTake'
@@ -13,7 +14,11 @@ Windows' own Remote Desktop really connects to it.
 An **interactive scheduled task**, because ssh lands in session 0, which has
 no desktop — the same reason `test/win/run-gate.sh` does it.
 
-## Eight things that cost takes
+The take **purges the package first, off camera**, so the install the viewer
+watches is a real one: `apt` treats a `.deb` whose version is already
+installed as nothing to do, and would print a no-op.
+
+## Nine things that cost takes
 
 - **`Type` is a built-in PowerShell alias for `Get-Content`**, and aliases beat
   functions in PowerShell's resolution order. A helper called `Type` is never
@@ -39,6 +44,11 @@ no desktop — the same reason `test/win/run-gate.sh` does it.
   loop that finds "the first console with a title" can pick up a *minimized
   leftover from the previous take*, scrollback and all, and dutifully restore
   it. Kill old consoles first and match the process you started, by id.
+- **Copy the .deb under its own name.** An early cut showed
+  `dpkg -i starling-gate.deb`, which was only the filename the gate happened
+  to scp to -- and it made a perfectly ordinary Debian package look like some
+  special build. It is `apt install /path/starling_<ver>_amd64.deb` now, which
+  is what a person would actually type.
 - **The taskbar moves with the session size**, so click coordinates cannot be
   hardcoded from one resolution to another. The Fluent row is centred: for a
   WxH session the first tile is at `(W/2 - 182, H - 28)` and tiles are 52
