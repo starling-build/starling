@@ -209,10 +209,23 @@ else
             # every socket, and the user would be asked to log in again each
             # time. Claude Desktop is the app the human signs into, so the
             # default profile is the right one.
+            # And deliberately NO --force-device-scale-factor, which every
+            # other Chromium recipe here still passes. We advertise
+            # wl_output.scale(2), Chromium applies it, and the flag then
+            # multiplies by 2 AGAIN: measured through Chrome's own DevTools
+            # on this desktop, `--force-device-scale-factor=2.0` gives
+            # devicePixelRatio 4 and innerWidth 532 on a 1280-logical screen,
+            # against 2 and 1280 without it. Everything renders at twice the
+            # size it should, and under half the page fits.
+            #
+            # For Claude Desktop that is not only cosmetic. Doubled, its
+            # layout wanted an 884-logical-tall window where the compositor
+            # had configured 768, and Electron took its own number — pushing
+            # "Get started" off the bottom of the screen, so the app could
+            # not be signed into at all while maximised.
             set -- /usr/lib/claude-desktop/claude-desktop \
                 --ozone-platform=wayland --use-angle=gl \
-                --no-sandbox --disable-gpu-sandbox \
-                --force-device-scale-factor="$SCALE" "$@"
+                --no-sandbox --disable-gpu-sandbox "$@"
             ;;
         gimp)
             # GTK3, native Wayland. GTK3 tolerates our output metadata where
