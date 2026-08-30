@@ -88,6 +88,11 @@ private struct PendingDmaBufResize: @unchecked Sendable {
     let height: Int
     let stride: Int
     let fourcc: UInt32
+    /// The child's DMABUF_META_FLAG_* bits. Carried because a CPU child's
+    /// "fd" is a memfd, not a DMA-BUF, and the two are re-adopted in
+    /// completely different ways — dropping this is what left a resized CPU
+    /// child mapped at its old size.
+    let flags: UInt32
 }
 
 /// Pending DMA-BUF launch result — zero-copy path via Unix socket + SCM_RIGHTS.
@@ -356,6 +361,38 @@ class LinuxProcessAppManager {
                 entry.height = resize.height
                 entry.dmaBufStride = resize.stride
                 entry.dmaBufFourcc = resize.fourcc
+
+                // A CPU child (no DRM device — WSL, and any headless box)
+                // sends a memfd, not a DMA-BUF: it cannot be imported as an
+                // EGLImage, and the mapping we upload from every frame is
+                // the old, smaller one. Re-map before anything reads at the
+                // new size, or the per-frame upload runs off the end of the
+                // old buffer.
+                let isCpuChild = entry.cpuMap != nil
+                    || (resize.flags & UInt32(DMABUF_META_FLAG_CPU)) != 0
+                if isCpuChild {
+                    if let oldMap = entry.cpuMap, entry.cpuMapSize > 0 {
+                        munmap(oldMap, entry.cpuMapSize)
+                    }
+                    entry.cpuMap = nil
+                    entry.cpuMapSize = 0
+                    let size = resize.stride * resize.height
+                    let map = mmap(nil, size, PROT_READ, MAP_SHARED,
+                                   resize.dmaFd, 0)
+                    if map == MAP_FAILED {
+                        FileHandle.standardError.write(Data(
+                            "[ProcessApp] resize: mmap of child memfd failed: \(errno)\n".utf8))
+                    } else {
+                        entry.cpuMap = map
+                        entry.cpuMapSize = size
+                    }
+                    apps[resize.textureId] = entry
+                    FileHandle.standardError.write(Data(
+                        "[ProcessApp] cpu resize tex=\(resize.textureId) -> \(resize.width)x\(resize.height) stride=\(resize.stride) mapped=\(entry.cpuMapSize)\n".utf8))
+                    cpuFrameLogged = 0   // log the next few frames' dimensions
+                    continue
+                }
+
                 apps[resize.textureId] = entry
 
                 textureRegistry.reimportDmaBuf(
@@ -782,7 +819,8 @@ class LinuxProcessAppManager {
                             width: Int(meta.width),
                             height: Int(meta.height),
                             stride: Int(meta.stride),
-                            fourcc: meta.fourcc
+                            fourcc: meta.fourcc,
+                            flags: meta.flags
                         )) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     }

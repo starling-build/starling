@@ -131,6 +131,15 @@ public final class GpuRendererState: @unchecked Sendable {
     nonisolated(unsafe) var cpuFbo: UInt32 = 0
     nonisolated(unsafe) var cpuFboColorRb: UInt32 = 0
     nonisolated(unsafe) var cpuFboStencilRb: UInt32 = 0
+    /// Our end of the memfd the frames land in. Held so a resize can close
+    /// it: the parent keeps its own dup, and without this the fd would leak
+    /// once per resize.
+    nonisolated(unsafe) var cpuMemFd: Int32 = -1
+    /// Frames still owed after a CPU-buffer resize. Decremented in present(),
+    /// which runs BETWEEN frames — scheduling from inside the FBO callback
+    /// instead races the frame already in flight and lands the old picture in
+    /// the new buffer about half the time. See rebuildCpuBuffer.
+    nonisolated(unsafe) var cpuRepaintsOwed: Int = 0
 
     /// Front buffers still locked: the newest (being sent/sampled) and the
     /// previous (the parent may sample it until it processes the newest).
@@ -198,6 +207,97 @@ public final class GpuRendererState: @unchecked Sendable {
         swapFbo = newFbo
         swapFboColorRb = colorRb
         swapFboStencilRb = stencilRb
+    }
+
+    /// CPU mode's equivalent: rebuild the render FBO *and* the memfd that
+    /// present() reads it back into, then hand the parent the new fd.
+    ///
+    /// Both halves are required. The parent maps the memfd once and uploads
+    /// `width*height*4` from that mapping every frame, so growing the FBO
+    /// alone would have it read past the end of a buffer that is still the
+    /// launch size — and leaving both alone is what made a maximised
+    /// first-party app on WSL keep its launch-size picture, stretched across
+    /// the work area. The context is current on this thread: the engine
+    /// called make_current before asking for the FBO.
+    func rebuildCpuBuffer(width: Int, height: Int) {
+        let stride = width * 4
+        let size = stride * height
+        guard width > 0, height > 0 else { return }
+
+        // New memfd first — if this fails, nothing has been torn down yet and
+        // the app keeps rendering at its old size rather than going black.
+        let newFd = dmabuf_create_memfd(size)
+        guard newFd >= 0 else {
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: memfd_create failed\n".utf8))
+            return
+        }
+        let newMap = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, newFd, 0)
+        guard newMap != MAP_FAILED, let newMap else {
+            Glibc.close(newFd)
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: mmap of new memfd failed\n".utf8))
+            return
+        }
+
+        var colorRb: UInt32 = 0
+        var stencilRb: UInt32 = 0
+        let newFbo = dmabuf_create_plain_fbo(Int32(width), Int32(height),
+                                             &colorRb, &stencilRb)
+        guard newFbo != 0 else {
+            munmap(newMap, size)
+            Glibc.close(newFd)
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: dmabuf_create_plain_fbo failed\n".utf8))
+            return
+        }
+
+        // Tell the parent before the first frame lands in the new buffer: it
+        // treats an fd arriving after launch as a resize, re-maps, and only
+        // then uploads at the new size.
+        var meta = DmaBufMeta(
+            width: Int32(width), height: Int32(height),
+            stride: Int32(stride), fourcc: GpuDmaBufRenderer.bufferFormat,
+            flags: UInt32(DMABUF_META_FLAG_CPU)
+        )
+        if dmabuf_send_fd(socketFd, newFd, &meta,
+                          MemoryLayout<DmaBufMeta>.size) != 0 {
+            dmabuf_destroy_plain_fbo(newFbo, colorRb, stencilRb)
+            munmap(newMap, size)
+            Glibc.close(newFd)
+            FileHandle.standardError.write(Data(
+                "[GpuDmaBufRenderer] resize: send of new memfd failed\n".utf8))
+            return
+        }
+
+        dmabuf_destroy_plain_fbo(cpuFbo, cpuFboColorRb, cpuFboStencilRb)
+        if let oldMap = cpuMap, cpuMapSize > 0 { munmap(oldMap, cpuMapSize) }
+        // The parent holds its own dup from SCM_RIGHTS; ours is closed here
+        // rather than leaked once per resize.
+        if cpuMemFd >= 0 { Glibc.close(cpuMemFd) }
+
+        cpuMemFd = newFd
+        cpuMap = newMap
+        cpuMapSize = size
+        cpuFbo = newFbo
+        cpuFboColorRb = colorRb
+        cpuFboStencilRb = stencilRb
+        fboName = newFbo
+        bufferWidth = width
+        bufferHeight = height
+
+        // Owe the new buffer some frames. What present() is about to read
+        // back into it may still be the picture rasterised for the OLD size,
+        // blown up to fill it — and on an idle desktop nothing else asks for
+        // another, so the window keeps that stale image until some unrelated
+        // input repaints it (measured: still wrong 20s after a maximise,
+        // corrected by nothing more than a mouse hover).
+        //
+        // Two, not one, and paid out from present() rather than here.
+        // Scheduling from inside the FBO callback races the frame already in
+        // flight: it settled correctly about half the time, which is worse
+        // than failing outright because it looks fixed.
+        cpuRepaintsOwed = 2
     }
 
     // Thread-safe pending resize (written: platform thread, read: raster thread)
@@ -1275,7 +1375,8 @@ public class GpuDmaBufRenderer {
             return nil
         }
         // The parent holds its own dup from SCM_RIGHTS; ours stays open for
-        // the life of the mapping.
+        // the life of the mapping, and is kept on the state so a resize can
+        // close it (cpuMemFd).
 
         // Release the context: the engine's raster thread binds it through
         // the make_current callback, and EGL refuses a context that is still
@@ -1297,6 +1398,7 @@ public class GpuDmaBufRenderer {
         st.cpuMode = true
         st.cpuMap = map
         st.cpuMapSize = size
+        st.cpuMemFd = memFd
         st.cpuFbo = fbo
         st.cpuFboColorRb = colorRb
         st.cpuFboStencilRb = stencilRb
@@ -1777,6 +1879,13 @@ public class GpuDmaBufRenderer {
                     _ = dmabuf_read_fbo_pixels(s.cpuFbo, Int32(s.bufferWidth),
                                                Int32(s.bufferHeight), map)
                 }
+                // Pay off the frames a resize owes (see rebuildCpuBuffer).
+                // Here, between frames, so the request cannot be swallowed by
+                // the one still in flight.
+                if s.cpuRepaintsOwed > 0 {
+                    s.cpuRepaintsOwed -= 1
+                    if let eng = s.engine { FlutterEngineScheduleFrame(eng) }
+                }
             } else if s.swapchain {
                 // Release older fronts BEFORE the swap: the gbm_surface has a
                 // small fixed pool (3 on NVIDIA), and holding two locked
@@ -1870,10 +1979,23 @@ public class GpuDmaBufRenderer {
             let reqW = frameInfo?.pointee.size.width ?? 0
             let reqH = frameInfo?.pointee.size.height ?? 0
 
-            // CPU mode renders into a plain FBO that present() reads back.
-            // Resizes are not handled yet: the app keeps its launch size,
-            // which is what the shell gives a first-party window anyway.
+            // CPU mode renders into a plain FBO that present() reads back
+            // into a memfd the parent maps. A resize rebuilds both together
+            // (rebuildCpuBuffer). This used to return the launch FBO
+            // unconditionally, on the premise that the shell never resized a
+            // first-party window — which stopped being true when the Windows
+            // style got a working maximise, and left every native app on WSL
+            // maximising into a stretched copy of its launch frame.
             if s.cpuMode {
+                guard let newSize = s.takePendingResize() else { return s.cpuFbo }
+                // Defer until the engine itself asks for the new size, as the
+                // dma-buf paths do: rebuilding now means Skia draws at the old
+                // size into the new buffer, which is blurry in a second way.
+                if Int(reqW) != newSize.width || Int(reqH) != newSize.height {
+                    s.setPendingResize(newSize)
+                    return s.cpuFbo
+                }
+                s.rebuildCpuBuffer(width: newSize.width, height: newSize.height)
                 return s.cpuFbo
             }
 
