@@ -214,6 +214,52 @@ FL_DRM_EXPORT void fl_drm_view_recording_stop(FlDrmView* view);
 // not show up here.
 FL_DRM_EXPORT int fl_drm_view_recording_active(void);
 
+// ─── One-shot window capture ─────────────────────────────────────────────────
+// A single frame of one window's own content, synchronously — the same
+// resolve-and-blit the texture recording sink does per present, without the
+// session. What it is for: an agent, or anything else, asking "what does this
+// window look like right now" and needing the answer before it acts.
+//
+// Why not the recording API: that one is a session (start, frames, stop),
+// arbitrated engine-wide against RDP and ScreenCast because there is only one
+// of it, and it delivers on a writer thread three presents later. None of
+// that suits an on-demand grab, and holding the single capture session open
+// to take one screenshot would lock out the screen recorder.
+//
+// Why not the framebuffer readback (fl_drm_view_read_capture): that reads the
+// PRESENTED DESKTOP, so it shows overlapping windows and needs the window to
+// be on screen. This reads the window's texture, so a covered — or minimized —
+// window still captures, and nothing of the human's is ever in the frame.
+//
+// It also does not need a present, and is therefore not stale on an idle
+// desktop: resolving the texture through the compositor's callback is exactly
+// what refreshes a dirty client buffer, so the resolve IS the refresh.
+//
+// The work runs on the raster thread (posted there, GL context taken for the
+// duration) and the caller blocks until it finishes or ~1s passes. Call it
+// from a worker, never the platform thread: the raster thread may be inside a
+// page flip, and the platform thread is what services it.
+//
+// Scales to |out_w|x|out_h| (GL_LINEAR, letterboxing is the caller's job —
+// pick dimensions in the window's aspect ratio) and writes TOP-DOWN RGBA into
+// |dst|, which must hold out_w*out_h*4 bytes.
+// |content_top_down|: pass the window's flipTextureY, exactly as for
+// fl_drm_view_recording_start_texture — Wayland client buffers are top-down
+// (1), first-party children render bottom-up into GL FBOs (0, blit flips).
+//
+// Returns 0 on success, and a DISTINCT negative code otherwise, because the
+// present path's silent skip is the wrong answer to "capture this window":
+//   -1 bad arguments (null view/dst, non-positive size, dst too small)
+//   -2 no engine        -3 could not post to the raster thread
+//   -4 timed out        -5 could not make the GL context current
+//   -6 no ES3 (no glBlitFramebuffer — same gate as recording)
+//   -7 texture id does not resolve (window gone, or never had a buffer)
+FL_DRM_EXPORT int fl_drm_view_capture_texture_once(FlDrmView* view,
+                                                   int64_t texture_id,
+                                                   int content_top_down,
+                                                   int out_w, int out_h,
+                                                   uint8_t* dst, int dst_len);
+
 // ─── Zero-copy recording (DMA-BUF sink) ──────────────────────────────────────
 // Alternative frame delivery for hardware encoders: instead of reading the
 // capture FBO back to the CPU, the engine blits into a small ring of

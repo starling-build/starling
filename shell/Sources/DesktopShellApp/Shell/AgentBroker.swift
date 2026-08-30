@@ -3,6 +3,7 @@
 
 #if os(Linux)
 import Flutter
+import FlutterDRMBridge
 import FlutterSwiftBridge
 import Foundation
 import Glibc
@@ -20,9 +21,13 @@ import StarlingRegistry
 //
 // Layers (design doc §4):
 //   observe  — list_windows over WindowManagerState (owned scope)
-//   input    — inject over the child's DMA-BUF socket (zero seat interference)
-//   pixels   — capture by mmap of the child's linear DMA-BUF (clean,
-//              unoccluded, content-local; no full-screen screenshots)
+//   input    — inject on the agent's own delivery path: a Wayland client's
+//              surface targeted explicitly, a DMA-BUF child over its own
+//              socket. The human's pointer and keyboard are never touched.
+//   pixels   — capture of the window's OWN texture through the compositor's
+//              resolver (clean, unoccluded, content-local; no full-screen
+//              screenshots, and a covered window captures the same as a bare
+//              one). A first-party child's linear DMA-BUF is the fallback.
 //   settled  — await_settled v0: per-window frame-quiet + shell animations
 //
 // Threading: accept/read run on background GCD queues; every handler is
@@ -85,6 +90,13 @@ final class AgentBroker: @unchecked Sendable {
     /// click must wait for that click's repaint, not match pre-click quiet.
     private var lastInjectMs: [String: Int64] = [:]
 
+    /// Where this agent last put the pointer in each window (main thread,
+    /// content-local logical px). There is no other honest answer to
+    /// `cursor_position`: the hardware cursor belongs to the human, and
+    /// reporting THAT to an agent would both leak where the person is
+    /// pointing and be wrong about the agent's own last move.
+    private var lastPointerPos: [String: (x: Double, y: Double)] = [:]
+
     /// Last broker op per agent (main thread) — the fleet UI derives its
     /// working/idle status from this plus frame recency.
     private(set) var agentLastOpMs: [String: Int64] = [:]
@@ -112,16 +124,22 @@ final class AgentBroker: @unchecked Sendable {
         Int64(DispatchTime.now().uptimeNanoseconds / 1_000_000)
     }
 
-    /// Apps an agent may launch (design: scope.launch). Rects follow the
-    /// dock launch table; position is irrelevant for agent windows.
-    /// Apps an agent may launch. No sizes here on purpose: the window is
-    /// given a nominal size at launch, so the size in this
-    /// table could only ever disagree with the one that gets applied.
-    private static let launchable: [String: (exec: String, title: String)] = [
-        "files": ("FileExplorerApp", "Files"),
-        "settings": ("SettingsApp", "Settings"),
-        "terminal": ("TerminalApp", "Terminal"),
-    ]
+    /// Apps an agent may launch (design: scope.launch) — computed from the
+    /// registry, never listed here. There WAS a table, holding four of the
+    /// catalog's two dozen apps, and an agent that can only open Settings is
+    /// a demo rather than computer use. The rule the rest of the shell
+    /// follows applies to the broker too: the record is the one description
+    /// of an app, and a second list is how the two drift.
+    ///
+    /// Only what an agent can actually be given exclusive ownership of: an
+    /// installed first-party or host app. See the `launch` handler for why
+    /// x11 and android records are refused.
+    private static func launchScope() -> [String] {
+        AppRegistry.shared.apps
+            .filter { $0.installed && ($0.kind == .firstParty || $0.kind == .host) }
+            .map(\.id)
+            .sorted()
+    }
 
     // MARK: Lifecycle
 
@@ -314,7 +332,7 @@ final class AgentBroker: @unchecked Sendable {
                 agentLastOpMs[existing.id] = nowMs
                 conn.send(["id": id, "ok": true, "proto": 1, "agent": existing.id,
                            "token": existing.token, "reattached": true,
-                           "scope": ["launch": (Array(Self.launchable.keys) + ["chrome"]).sorted(),
+                           "scope": ["launch": Self.launchScope(),
                                      "windows": "owned"]])
                 audit(existing.id, op, true, "reattach \(name)")
                 return
@@ -328,7 +346,7 @@ final class AgentBroker: @unchecked Sendable {
             agentLastOpMs[agent.id] = nowMs
             conn.send(["id": id, "ok": true, "proto": 1, "agent": agent.id,
                        "token": agent.token,
-                       "scope": ["launch": (Array(Self.launchable.keys) + ["chrome"]).sorted(),
+                       "scope": ["launch": Self.launchScope(),
                                  "windows": "owned"]])
             audit(agent.id, op, true, name)
             return
@@ -589,14 +607,15 @@ final class AgentBroker: @unchecked Sendable {
             return win
         }
 
-        /// Take-over: the human has the controls of this window until Esc.
-        ///
-        /// Every op that acts on a window OR reads its contents refuses while
-        /// this holds — a hand-off that still let the agent act semantically,
-        /// or screenshot what the human is typing, would be a hint rather than
-        /// a boundary. It was checked only in `inject` before, which by then
-        /// was the one path an agent driving a web page did not use.
-        ///
+        // NOTE — take-over is GONE, and this is the only place that says so.
+        // The human used to be able to seize a window's controls until Esc,
+        // and every op that acted on a window or read its contents refused
+        // while that held. The flag lived in the AI Space, so removing that
+        // UI (3776fd6) took the mechanism with it and left the doc comment
+        // behind describing a guard that no longer existed. Nothing is
+        // regressed for now — agent windows are headless, so there is no
+        // surface for a human to take over from — but anything that puts
+        // them on screen has to bring the check back with it.
         switch op {
         case "list_windows":
             let wins = wm.windows(ownedBy: agentId).map { w -> [String: Any] in
@@ -609,102 +628,234 @@ final class AgentBroker: @unchecked Sendable {
 
         case "launch":
             guard let app = req["app"] as? String else { return fail("launch needs app") }
-            if app == "chrome" {
-                // Wayland client from the app runtime — the arriving
-                // toplevel is claimed for this agent (P4 seed; input rides
-                // the shared seat until the agent wl_seat lands).
+            guard let rec = AppRegistry.shared.app(id: app) else {
+                return fail("unknown app (scope: \(Self.launchScope().joined(separator: ",")))")
+            }
+            guard rec.installed else { return fail("\(app) is not installed") }
+            switch rec.kind {
+            case .host:
+                // A third-party Wayland client out of the app runtime: the
+                // arriving toplevel is claimed for this agent. The claim is a
+                // single global slot, so two launches in flight would hand
+                // the second agent the first one's window — refuse rather
+                // than race. (Only reachable now that the whole registry is
+                // launchable; with three first-party apps it never was.)
+                if shell._pendingAgentWayland != nil {
+                    return fail("another host-app launch is still claiming a window")
+                }
                 let replied = ReplyOnce()
-                let started = shell._launchAgentChrome(
-                    agentId: agentId,
-                    url: req["url"] as? String,
+                let started = shell._launchAgentHostApp(
+                    agentId: agentId, recipe: rec.exec,
+                    arg: req["url"] as? String,
+                    discreteGpu: rec.discreteGpu,
                     onWindow: { [weak self] winId in
                         guard replied.claim() else { return }
                         conn.send(["id": id, "ok": true, "win": winId])
-                        self?.audit(agentId, op, true, "chrome -> \(winId)")
+                        self?.audit(agentId, op, true, "\(app) -> \(winId)")
                     })
-                guard started else { return fail("chrome launch unavailable") }
+                guard started else { return fail("\(app) launch unavailable") }
                 let bail: () -> Void = { [weak self] in
                     guard replied.claim() else { return }
                     // Drop the claim on the next arriving toplevel. Left set,
                     // it is still armed when the human opens a browser later,
                     // and their window becomes the agent's.
                     shell._pendingAgentWayland = nil
-                    conn.send(["id": id, "ok": false, "error": "chrome launch timed out"])
-                    self?.audit(agentId, op, false, "chrome timeout")
+                    conn.send(["id": id, "ok": false,
+                               "error": "\(app) launch timed out"])
+                    self?.audit(agentId, op, false, "\(app) timeout")
                 }
                 DispatchQueue.main.asyncAfter(
                     deadline: .now() + .seconds(25),
                     execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
                 return
-            }
-            guard let spec = Self.launchable[app] else {
-                return fail("unknown app (scope: chrome,\(Self.launchable.keys.sorted().joined(separator: ",")))")
-            }
-            launchSeq += 1
-            let appId = "\(agentId):\(app)#\(launchSeq)"
-            let replied = ReplyOnce()
-            // Launch at the pane size this window will be given, not the
-            // table's nominal size: _agentStageContentSize is what actually
-            // lays out, and a child launched larger draws an overflow marker
-            // on its first frame. It also means the `content` size we report
-            // back is the one the agent will really get.
-            let pane = app == "terminal" ? shell._agentChatContentSize()
-                                         : shell._agentStageContentSize()
-            shell._launchAgentChildApp(
-                agentId: agentId, execName: spec.exec, appId: appId,
-                title: spec.title,
-                rect: Rect.fromLTWH(0, 0, pane.width,
-                                    pane.height + DesktopTheme.kTitleBarHeight),
-                isTerminal: app == "terminal",
-                onWindow: { [weak self] winId in
+
+            case .firstParty:
+                launchSeq += 1
+                let appId = "\(agentId):\(app)#\(launchSeq)"
+                let replied = ReplyOnce()
+                // Launch at the pane size this window will be given, not the
+                // record's `Window=` rect: _agentStageContentSize is what
+                // actually lays out, and a child launched larger draws an
+                // overflow marker on its first frame. It also means the
+                // `content` size we report back is the one the agent gets.
+                let isTerminal = app == "terminal"
+                let pane = isTerminal ? shell._agentChatContentSize()
+                                      : shell._agentStageContentSize()
+                shell._launchAgentChildApp(
+                    agentId: agentId, execName: rec.exec, appId: appId,
+                    title: rec.name,
+                    rect: Rect.fromLTWH(0, 0, pane.width,
+                                        pane.height + DesktopTheme.kTitleBarHeight),
+                    isTerminal: isTerminal,
+                    onWindow: { [weak self] winId in
+                        guard replied.claim() else { return }
+                        conn.send(["id": id, "ok": true, "win": winId,
+                                   "content": [pane.width, pane.height]])
+                        self?.audit(agentId, op, true, "\(app) -> \(winId)")
+                    })
+                // Child never produced a window (missing binary, crash-on-start).
+                let bail: () -> Void = { [weak self] in
                     guard replied.claim() else { return }
-                    conn.send(["id": id, "ok": true, "win": winId,
-                               "content": [pane.width, pane.height]])
-                    self?.audit(agentId, op, true, "\(app) -> \(winId)")
-                })
-            // Child never produced a window (missing binary, crash-on-start).
-            let bail: () -> Void = { [weak self] in
-                guard replied.claim() else { return }
-                conn.send(["id": id, "ok": false, "error": "launch timed out"])
-                self?.audit(agentId, op, false, "\(app) timeout")
+                    conn.send(["id": id, "ok": false, "error": "launch timed out"])
+                    self?.audit(agentId, op, false, "\(app) timeout")
+                }
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + .seconds(15),
+                    execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
+
+            case .x11, .android:
+                // Neither fits the one-client-one-window claim this model is
+                // built on, so ownership could not be established even if the
+                // launch worked. WeChat is a whole rootful Xwayland screen in
+                // a single window; Waydroid renders EVERY Android app into
+                // one window whose title follows whichever is in front — an
+                // agent handed either would be addressing the human's apps
+                // too. Refusing is the scope boundary doing its job.
+                return fail("\(app) cannot be agent-owned (\(rec.kind.rawValue) apps "
+                            + "share one window across the whole session)")
             }
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + .seconds(15),
-                execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
 
         case "inject":
             guard let win = ownedWindow() else { return fail("no such owned window") }
             guard let ev = req["ev"] as? [String: Any],
                   let type = ev["type"] as? String else { return fail("bad ev") }
             lastInjectMs[win.id] = nowMs
+            let winId = win.id
             // Wayland windows take the AGENT SEAT (independent focus stream
             // — the human's pointer/keyboard are never disturbed); DMA-BUF
-            // children keep their per-window sockets.
+            // children keep their per-window sockets. EVERY action below goes
+            // through one of those two, never the shared seat: an action that
+            // reached for the human's pointer would silently reintroduce the
+            // cursor-fighting this whole design exists to avoid.
             let agentSurf: UInt32? = win.appId.hasPrefix("wayland-")
                 ? waylandIntegration?.surfaceId(forWindowId: win.id) : nil
-            switch type {
-            case "click":
-                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
+
+            /// The button in both vocabularies at once: an evdev code for
+            /// Wayland (the C layer passes it through verbatim) and Flutter's
+            /// mask for DMA-BUF children. `rclick`/`mclick` name it; the
+            /// down/up/drag forms take `ev.button`.
+            func buttonCodes(_ name: String?) -> (evdev: UInt32, flutter: Int64) {
+                switch name {
+                case "right": return (WaylandIntegration.agentButtonRight, 2)
+                case "middle": return (WaylandIntegration.agentButtonMiddle, 4)
+                default: return (WaylandIntegration.agentButtonLeft, 1)
+                }
+            }
+
+            /// One pointer event, routed by window kind. Phases match
+            /// sendPointerEvent (2=down 1=up 3=move 6=hover). Re-resolves the
+            /// window each time so a deferred half of a gesture cannot touch
+            /// a window that has closed under it.
+            func point(_ phase: Int32, _ x: Double, _ y: Double,
+                       _ b: (evdev: UInt32, flutter: Int64)) {
                 if let surf = agentSurf {
-                    waylandIntegration?.agentPointerEvent(surfaceId: surf, phase: 2, x: x, y: y)
+                    waylandIntegration?.agentPointerEvent(
+                        surfaceId: surf, phase: phase, x: x, y: y, button: b.evdev)
                 } else {
-                    win.onPointerEvent?(2, x, y, 1)
+                    // Flutter's mask is the state DURING the event: the button
+                    // is held on down and move, and gone on up.
+                    let mask: Int64 = (phase == 1 || phase == 6) ? 0 : b.flutter
+                    wm.windows.first(where: { $0.id == winId })?
+                        .onPointerEvent?(phase, x, y, mask)
                 }
-                let winId = win.id
-                let up: () -> Void = { [weak self, weak wm] in
-                    guard let self else { return }
-                    if let surf = agentSurf {
-                        waylandIntegration?.agentPointerEvent(surfaceId: surf, phase: 1, x: x, y: y)
-                    } else {
-                        wm?.windows.first(where: { $0.id == winId })?.onPointerEvent?(1, x, y, 0)
-                    }
-                    self.lastInjectMs[winId] = self.nowMs
-                    conn.send(["id": id, "ok": true])
-                    self.audit(agentId, op, true, "click \(Int(x)),\(Int(y)) -> \(winId)")
-                }
+                self.lastPointerPos[winId] = (x, y)
+                self.lastInjectMs[winId] = self.nowMs
+            }
+
+            /// Main-queue delay. Gestures are built out of real gaps rather
+            /// than gestures: `onDoubleTap` cannot be used on the DRM embedder
+            /// (Foundation.Timer never fires there — CLAUDE.md), so a double
+            /// click is genuinely two clicks with a plausible interval, which
+            /// is also what a client's own double-click detection expects.
+            func after(_ ms: Int, _ body: @escaping () -> Void) {
                 DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .milliseconds(60),
-                    execute: unsafeBitCast(up, to: (@Sendable () -> Void).self))
+                    deadline: .now() + .milliseconds(ms),
+                    execute: unsafeBitCast(body, to: (@Sendable () -> Void).self))
+            }
+
+            func done(_ what: String) {
+                conn.send(["id": id, "ok": true])
+                self.audit(agentId, op, true, "\(what) -> \(winId)")
+            }
+
+            switch type {
+            case "click", "rclick", "mclick":
+                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
+                let b = buttonCodes(type == "rclick" ? "right"
+                                    : type == "mclick" ? "middle"
+                                    : (ev["button"] as? String))
+                point(2, x, y, b)
+                after(60) { [weak self] in
+                    guard self != nil else { return }
+                    point(1, x, y, b)
+                    done("\(type) \(Int(x)),\(Int(y))")
+                }
+
+            case "dblclick":
+                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
+                let b = buttonCodes(ev["button"] as? String)
+                // 140ms between the two presses: inside every double-click
+                // threshold worth the name (400ms and up), far enough apart
+                // that a client sees two distinct presses rather than one
+                // bounced button.
+                point(2, x, y, b)
+                after(60) { point(1, x, y, b) }
+                after(140) { point(2, x, y, b) }
+                after(200) { [weak self] in
+                    guard self != nil else { return }
+                    point(1, x, y, b)
+                    done("dblclick \(Int(x)),\(Int(y))")
+                }
+
+            case "tripleclick":
+                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
+                let b = buttonCodes(ev["button"] as? String)
+                point(2, x, y, b)
+                for (i, t) in [60, 140, 200, 280].enumerated() {
+                    after(t) { point(i % 2 == 0 ? 1 : 2, x, y, b) }
+                }
+                after(340) { [weak self] in
+                    guard self != nil else { return }
+                    point(1, x, y, b)
+                    done("tripleclick \(Int(x)),\(Int(y))")
+                }
+
+            case "down":
+                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
+                let b = buttonCodes(ev["button"] as? String)
+                point(2, x, y, b)
+                done("down \(Int(x)),\(Int(y))")
+
+            case "up":
+                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
+                let b = buttonCodes(ev["button"] as? String)
+                point(1, x, y, b)
+                done("up \(Int(x)),\(Int(y))")
+
+            case "drag":
+                guard let x = dbl(ev["x"]), let y = dbl(ev["y"]),
+                      let x2 = dbl(ev["x2"]), let y2 = dbl(ev["y2"]) else {
+                    return fail("drag needs x,y,x2,y2")
+                }
+                let b = buttonCodes(ev["button"] as? String)
+                // Glide, don't teleport. A single jump from press to release
+                // is not a drag to anything that reads motion — text
+                // selection, a slider, a window's own move handler all follow
+                // the path, and several stop tracking if they never see one.
+                let steps = 12
+                point(2, x, y, b)
+                for i in 1...steps {
+                    let t = Double(i) / Double(steps)
+                    after(i * 16) {
+                        point(3, x + (x2 - x) * t, y + (y2 - y) * t, b)
+                    }
+                }
+                after(steps * 16 + 40) { [weak self] in
+                    guard self != nil else { return }
+                    point(1, x2, y2, b)
+                    done("drag \(Int(x)),\(Int(y))->\(Int(x2)),\(Int(y2))")
+                }
+
             case "hover", "move":
                 guard let x = dbl(ev["x"]), let y = dbl(ev["y"]) else { return fail("bad coords") }
                 if let surf = agentSurf {
@@ -714,7 +865,9 @@ final class AgentBroker: @unchecked Sendable {
                     win.onPointerEvent?(type == "hover" ? 6 : 3, x, y,
                                         Int64(dbl(ev["buttons"]) ?? 0))
                 }
+                lastPointerPos[winId] = (x, y)
                 conn.send(["id": id, "ok": true])
+
             case "scroll":
                 guard let x = dbl(ev["x"]), let y = dbl(ev["y"]),
                       let dx = dbl(ev["dx"]), let dy = dbl(ev["dy"]) else { return fail("bad coords") }
@@ -724,15 +877,30 @@ final class AgentBroker: @unchecked Sendable {
                 } else {
                     win.onScrollEvent?(x, y, dx, dy)
                 }
+                lastPointerPos[winId] = (x, y)
                 conn.send(["id": id, "ok": true])
                 audit(agentId, op, true, "scroll -> \(win.id)")
-            case "key":
+
+            case "key", "keydown", "keyup":
                 guard let physical = int64(ev["physical"]) else { return fail("bad key") }
+                // keydown/keyup are the halves `hold_key` and chords need:
+                // press Ctrl, press C, release C, release Ctrl. The agent's
+                // modifier state is tracked on its own seat state, so a
+                // modifier held here shifts the agent's keys and nobody
+                // else's.
+                let down = type != "keyup"
+                let up = type != "keydown"
                 if let surf = agentSurf {
-                    waylandIntegration?.agentKeyEvent(surfaceId: surf, physical: physical, isDown: true)
-                    waylandIntegration?.agentKeyEvent(surfaceId: surf, physical: physical, isDown: false)
+                    if down {
+                        waylandIntegration?.agentKeyEvent(
+                            surfaceId: surf, physical: physical, isDown: true)
+                    }
+                    if up {
+                        waylandIntegration?.agentKeyEvent(
+                            surfaceId: surf, physical: physical, isDown: false)
+                    }
                     conn.send(["id": id, "ok": true])
-                    audit(agentId, op, true, "key \(physical) (agent seat) -> \(win.id)")
+                    audit(agentId, op, true, "\(type) \(physical) (agent seat) -> \(win.id)")
                     return
                 }
                 guard let texId = win.textureId, let mgr = linuxProcessAppManager else {
@@ -740,15 +908,62 @@ final class AgentBroker: @unchecked Sendable {
                 }
                 let logical = int64(ev["logical"]) ?? physical
                 let character = UInt32(int64(ev["character"]) ?? 0)
-                mgr.sendKeyEvent(textureId: Int64(texId), physical: physical,
-                                 logical: logical, character: character, phase: 0)
-                mgr.sendKeyEvent(textureId: Int64(texId), physical: physical,
-                                 logical: logical, character: 0, phase: 1)
+                if down {
+                    mgr.sendKeyEvent(textureId: Int64(texId), physical: physical,
+                                     logical: logical, character: character, phase: 0)
+                }
+                if up {
+                    mgr.sendKeyEvent(textureId: Int64(texId), physical: physical,
+                                     logical: logical, character: 0, phase: 1)
+                }
                 conn.send(["id": id, "ok": true])
-                audit(agentId, op, true, "key \(physical) -> \(win.id)")
+                audit(agentId, op, true, "\(type) \(physical) -> \(win.id)")
+
             case "text":
-                guard let texId = win.textureId, let mgr = linuxProcessAppManager,
-                      let text = ev["text"] as? String else { return fail("bad text") }
+                guard let text = ev["text"] as? String else { return fail("bad text") }
+                if let surf = agentSurf {
+                    // A Wayland client learns what was typed ONLY by running
+                    // keys through its own xkb state — there is no "insert
+                    // this string" request. This branch used to be missing
+                    // entirely: `text` fell through to the DMA-BUF path,
+                    // which no-ops for a Wayland window and answered ok:true,
+                    // so typing into Chrome reported success and did nothing.
+                    var unsupported: [String] = []
+                    for scalar in text.unicodeScalars {
+                        guard let k = HidEvdev.asciiKey(scalar) else {
+                            unsupported.append(String(scalar))
+                            continue
+                        }
+                        if k.shift {
+                            waylandIntegration?.agentKeyEvent(
+                                surfaceId: surf, physical: 0xE1, isDown: true)
+                        }
+                        waylandIntegration?.agentKeyEvent(
+                            surfaceId: surf, physical: Int64(k.hid), isDown: true)
+                        waylandIntegration?.agentKeyEvent(
+                            surfaceId: surf, physical: Int64(k.hid), isDown: false)
+                        if k.shift {
+                            waylandIntegration?.agentKeyEvent(
+                                surfaceId: surf, physical: 0xE1, isDown: false)
+                        }
+                    }
+                    if !unsupported.isEmpty {
+                        // Partial typing reported as success is the failure
+                        // mode this branch exists to end. Say what was
+                        // dropped; a keyboard cannot express it.
+                        conn.send(["id": id, "ok": false,
+                                   "error": "typed the ASCII part; no key produces "
+                                            + unsupported.joined()])
+                        audit(agentId, op, false, "text: unmapped \(unsupported.count)")
+                        return
+                    }
+                    conn.send(["id": id, "ok": true])
+                    audit(agentId, op, true, "text(\(text.count)) (agent seat) -> \(win.id)")
+                    return
+                }
+                guard let texId = win.textureId, let mgr = linuxProcessAppManager else {
+                    return fail("bad text")
+                }
                 for scalar in text.unicodeScalars {
                     mgr.sendKeyEvent(textureId: Int64(texId), physical: 0,
                                      logical: Int64(scalar.value),
@@ -759,14 +974,41 @@ final class AgentBroker: @unchecked Sendable {
                 }
                 conn.send(["id": id, "ok": true])
                 audit(agentId, op, true, "text(\(text.count)) -> \(win.id)")
+
             default:
                 fail("unknown ev.type \(type)")
             }
 
+        case "cursor_position":
+            // Where the AGENT's pointer is, not the human's. Content-local
+            // logical px, the same space `inject` takes and `capture`
+            // declares. Never moved by this agent means never moved: an
+            // invented (0,0) reads as "the pointer is in the corner", which
+            // is a different and wrong claim.
+            guard let win = ownedWindow() else { return fail("no such owned window") }
+            if let p = lastPointerPos[win.id] {
+                conn.send(["id": id, "ok": true, "x": p.x, "y": p.y])
+            } else {
+                conn.send(["id": id, "ok": true, "x": NSNull(), "y": NSNull()])
+            }
+
+        case "wait":
+            // A pause the audit log can see. The client could sleep on its
+            // own, but then the one record of what an agent did has a hole in
+            // it exactly where it waited — and `wait` is an action in the
+            // tool contract, not a client-side convenience.
+            let ms = max(0, min(int64(req["ms"]) ?? 500, 10_000))
+            let reply: () -> Void = { [weak self] in
+                conn.send(["id": id, "ok": true, "waited_ms": ms])
+                self?.audit(agentId, op, true, "\(ms)ms")
+            }
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + .milliseconds(Int(ms)),
+                execute: unsafeBitCast(reply, to: (@Sendable () -> Void).self))
+
         case "capture":
             guard let win = ownedWindow() else { return fail("no such owned window") }
-            guard let texId = win.textureId,
-                  let info = linuxProcessAppManager?.dmaBufInfo(textureId: Int64(texId)) else {
+            guard let texId = win.textureId else {
                 return fail("window has no capturable buffer")
             }
             let winId = win.id
@@ -774,13 +1016,84 @@ final class AgentBroker: @unchecked Sendable {
             // (content-local) coordinates — declare the mapping.
             let contentW = win.rect.width
             let contentH = win.rect.height - DesktopTheme.kTitleBarHeight
-            let scale = contentW > 0 ? Double(info.width) / contentW : 1.0
             let flipY = win.flipTextureY
-            // mmap + base64 off the main thread; the fd stays valid for the
-            // window's lifetime (owned by LinuxProcessAppManager). The
-            // @Sendable coercion is the codebase idiom (main-owned values).
+            // What the GPU path renders into. The window's own physical size
+            // by default, optionally capped on the long edge: computer-use
+            // models want ~1280px images from panels three times that, and
+            // the engine's blit is a scaling one, so downscaling HERE costs
+            // nothing and saves base64'ing pixels nobody wants. The aspect
+            // is the CONTENT's, not the texture's — a stretch is exactly
+            // what keeps image px → content-logical a single linear factor.
+            let dpi = currentShellDpi
+            var outW = max(1, Int((contentW * dpi).rounded()))
+            var outH = max(1, Int((contentH * dpi).rounded()))
+            if let cap = int64(req["max_px"]), cap > 0, max(outW, outH) > Int(cap) {
+                let f = Double(cap) / Double(max(outW, outH))
+                outW = max(1, Int((Double(outW) * f).rounded()))
+                outH = max(1, Int((Double(outH) * f).rounded()))
+            }
+            let dmaInfo = linuxProcessAppManager?.dmaBufInfo(textureId: Int64(texId))
+            // Off the main thread: the engine path blocks on the raster
+            // thread (which the platform thread services — calling it from
+            // main is how you deadlock it), and base64 of a few MB is not
+            // main-thread work either. The @Sendable coercion is the
+            // codebase idiom (main-owned values).
             let job: () -> Void = { [weak self] in
                 guard let self else { return }
+
+                // 1. The GPU path: the window's own texture, resolved the way
+                //    compositing resolves it. Works for EVERY window kind —
+                //    Wayland clients included, which is the whole point: their
+                //    buffers are tiled, so the mmap below hands back swizzled
+                //    garbage for them rather than failing. It is also immune
+                //    to the empty-read seen on virtualised GPUs, where the
+                //    compositor imports the buffer as a texture and never maps
+                //    it.
+                if let view = drmViewHandle {
+                    var rgba = [UInt8](repeating: 0, count: outW * outH * 4)
+                    let rc: Int32 = rgba.withUnsafeMutableBufferPointer { buf in
+                        fl_drm_view_capture_texture_once(
+                            view, Int64(texId), flipY ? 1 : 0,
+                            Int32(outW), Int32(outH),
+                            buf.baseAddress, Int32(buf.count))
+                    }
+                    if rc == 0 {
+                        conn.send(["id": id, "ok": true,
+                                   "w": outW, "h": outH,
+                                   "stride": outW * 4,
+                                   // AB24 is R,G,B,A in memory — what
+                                   // glReadPixels(GL_RGBA) produces, and what
+                                   // clients already decode without a swap.
+                                   "fourcc": "AB24",
+                                   "format": "rgba",
+                                   "row_order": "top-down",
+                                   "content": [contentW, contentH],
+                                   "scale": contentW > 0 ? Double(outW) / contentW : 1.0,
+                                   "source": "texture",
+                                   "data": Data(rgba).base64EncodedString()])
+                        self.audit(conn.agentId, "capture", true,
+                                   "\(winId) \(outW)x\(outH) texture")
+                        return
+                    }
+                    // Fall through to the mmap path, but remember why: a
+                    // silent fallback is how "the GPU capture is broken"
+                    // stays invisible behind a path that happens to work for
+                    // first-party windows only.
+                    FileHandle.standardError.write(Data(
+                        ("[AgentBroker] capture_texture_once(\(winId)) failed "
+                         + "rc=\(rc) — falling back to the DMA-BUF mmap\n").utf8))
+                }
+
+                // 2. Fallback: mmap the child's linear DMA-BUF. First-party
+                //    children only (Wayland surfaces never enter that table),
+                //    and only while the engine path is unavailable. The fd
+                //    stays valid for the window's lifetime.
+                guard let info = dmaInfo else {
+                    conn.send(["id": id, "ok": false,
+                               "error": "window has no capturable buffer"])
+                    self.audit(conn.agentId, "capture", false, "\(winId) no buffer")
+                    return
+                }
                 let size = info.stride * info.height
                 // Best-effort CPU-read coherency bracket (DMA_BUF_IOCTL_SYNC).
                 var flags: UInt64 = 1 | 0  // SYNC_START | SYNC_READ
@@ -803,10 +1116,11 @@ final class AgentBroker: @unchecked Sendable {
                            // flipTextureY at composite time instead).
                            "row_order": flipY ? "top-down" : "bottom-up",
                            "content": [contentW, contentH],
-                           "scale": scale,
+                           "scale": contentW > 0 ? Double(info.width) / contentW : 1.0,
+                           "source": "dmabuf",
                            "data": data.base64EncodedString()])
                 self.audit(conn.agentId, "capture", true,
-                           "\(winId) \(info.width)x\(info.height)")
+                           "\(winId) \(info.width)x\(info.height) dmabuf")
             }
             DispatchQueue.global(qos: .userInitiated).async(
                 execute: unsafeBitCast(job, to: (@Sendable () -> Void).self))

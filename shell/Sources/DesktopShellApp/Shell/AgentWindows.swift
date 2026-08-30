@@ -53,30 +53,56 @@ extension _DesktopShellState {
 
     #if os(Linux)
 
-    /// Launch Chrome for a broker client, claiming its Wayland connection.
+    /// Launch a host app for a broker client, claiming its Wayland connection.
+    ///
+    /// `recipe` is the app record's `Exec` — the `app-run` recipe name, which
+    /// owns every per-app flag and env there is. The shell does not know what
+    /// Chrome or IntelliJ need and must not learn: this is the same call the
+    /// dock makes, minus the desktop presence.
     ///
     /// The claim is armed immediately before spawning and consumed by the
     /// first toplevel from a new client (see the onNewToplevel handler). Left
     /// armed it would still be armed when a human opens a browser later, and
     /// their window would become the client's — which is why the broker
     /// disarms it on a launch timeout.
-    func _launchAgentChrome(agentId: String, url: String? = nil,
-                            onWindow: ((String) -> Void)? = nil) -> Bool {
+    func _launchAgentHostApp(agentId: String, recipe: String, arg: String? = nil,
+                             discreteGpu: Bool = false,
+                             onWindow: ((String) -> Void)? = nil) -> Bool {
         guard let wayland = waylandIntegration, let socketName = wayland.socketName else {
             return false
         }
         let xdgDir = LoginUser.runtimeDir
         let appRun = ProcessInfo.processInfo.environment["STARLING_APP_RUN"] ?? "/usr/bin/app-run"
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: appRun)
-        process.arguments = url.map { ["chrome", $0] } ?? ["chrome"]
+        let args = arg.map { [recipe, $0] } ?? [recipe]
+        // setsid, for the same non-optional reason _spawnLauncher does it: an
+        // app left in the SHELL's process group turns any kill(-pgid, …) meant
+        // for the app into one that takes the desktop down. The dock's path
+        // has had this since the quit-by-group work; this one was spawning
+        // Chrome straight into our group.
+        if FileManager.default.isExecutableFile(atPath: "/usr/bin/setsid") {
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/setsid")
+            process.arguments = [appRun] + args
+        } else {
+            process.executableURL = URL(fileURLWithPath: appRun)
+            process.arguments = args
+        }
         var env = ProcessInfo.processInfo.environment
         env["STARLING_WAYLAND"] = socketName
         env["STARLING_XDG_DIR"] = xdgDir
         env["STARLING_APP_SCALE"] = String(currentShellDpi)
+        // PRIME offload, as policy from the record and mechanism in app-run —
+        // the dock's rule, applied here too rather than re-derived.
+        if discreteGpu, DiscreteGpu.renderNode != nil {
+            env["STARLING_APP_GPU"] = "discrete"
+        }
         // Per-client CDP profile: the broker's cdp_endpoint op reads the
-        // DevToolsActivePort this drops in the app home.
-        env["STARLING_CDP"] = agentId
+        // DevToolsActivePort this drops in the app home. Chrome only — for
+        // anything else the variable means nothing and the recipe ignores it,
+        // but setting it would imply a DevTools endpoint that never appears.
+        if recipe == "chrome" {
+            env["STARLING_CDP"] = agentId
+        }
         process.environment = env
         _pendingAgentWayland = (agentId, onWindow)
         do {

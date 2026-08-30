@@ -152,5 +152,53 @@ enum HidEvdev {
     static func hid(fromEvdev evdev: UInt32) -> UInt64 {
         return evdevMap[evdev] ?? (UInt64(evdev) | 0x100000000)
     }
+
+    /// One ASCII character → the key that produces it, and whether Shift is
+    /// held. US layout, which is what the seat's keymap is.
+    ///
+    /// Typing a string has to become key events somewhere. A DMA-BUF child
+    /// takes a character directly on its own socket, but Wayland has no
+    /// "insert this text" request at all — a client only ever learns what was
+    /// typed by running the keys through its own xkb state. So the broker's
+    /// `inject text` synthesises presses, and this is the table that says
+    /// which. Anything outside it (accents, CJK, emoji) returns nil rather
+    /// than a wrong key: those need the text-input protocol, not a keyboard.
+    static func asciiKey(_ scalar: Unicode.Scalar) -> (hid: UInt64, shift: Bool)? {
+        return asciiMap[scalar]
+    }
+
+    private static let asciiMap: [Unicode.Scalar: (hid: UInt64, shift: Bool)] = {
+        var m = [Unicode.Scalar: (hid: UInt64, shift: Bool)]()
+        // a–z are contiguous in the HID table, and so are A–Z with Shift.
+        for i in 0..<26 {
+            let hid = UInt64(0x04 + i)
+            m[Unicode.Scalar(UInt8(0x61 + i))] = (hid, false)
+            m[Unicode.Scalar(UInt8(0x41 + i))] = (hid, true)
+        }
+        // Digit row, whose HID order puts 0 last rather than first.
+        let digits: [(Character, UInt64, Character)] = [
+            ("1", 0x1E, "!"), ("2", 0x1F, "@"), ("3", 0x20, "#"),
+            ("4", 0x21, "$"), ("5", 0x22, "%"), ("6", 0x23, "^"),
+            ("7", 0x24, "&"), ("8", 0x25, "*"), ("9", 0x26, "("),
+            ("0", 0x27, ")"),
+        ]
+        for (plain, hid, shifted) in digits {
+            m[plain.unicodeScalars.first!] = (hid, false)
+            m[shifted.unicodeScalars.first!] = (hid, true)
+        }
+        // Punctuation, each with its shifted twin.
+        let punct: [(Character, UInt64, Character?)] = [
+            ("-", 0x2D, "_"), ("=", 0x2E, "+"), ("[", 0x2F, "{"),
+            ("]", 0x30, "}"), ("\\", 0x31, "|"), (";", 0x33, ":"),
+            ("'", 0x34, "\""), ("`", 0x35, "~"), (",", 0x36, "<"),
+            (".", 0x37, ">"), ("/", 0x38, "?"), (" ", 0x2C, nil),
+            ("\n", 0x28, nil), ("\r", 0x28, nil), ("\t", 0x2B, nil),
+        ]
+        for (plain, hid, shifted) in punct {
+            m[plain.unicodeScalars.first!] = (hid, false)
+            if let s = shifted { m[s.unicodeScalars.first!] = (hid, true) }
+        }
+        return m
+    }()
 }
 #endif

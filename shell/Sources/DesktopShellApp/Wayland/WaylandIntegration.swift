@@ -1469,24 +1469,67 @@ class WaylandIntegration {
     private var agentPointerFocus: UInt32 = 0
     private var agentKeyboardFocus: UInt32 = 0
 
+    /// The agent's own xkb modifier state, kept apart from the human's for
+    /// the same reason the focus trackers are: the person holding Shift must
+    /// not shift what an agent types in another window, and vice versa.
+    private var agentModsDepressed: UInt32 = 0
+    private var agentModsLocked: UInt32 = 0
+
+    /// Modifier bit for a HID usage, in the default us(pc105) keymap the seat
+    /// sends. The human path derives this from the KEYSYM; the agent contract
+    /// carries only a HID usage, so the same table is expressed over usages.
+    /// (Shift=0, Lock=1, Control=2, Mod1/Alt=3, Mod2/Num=4, Mod4/Super=6.)
+    private static func agentModifierBit(forHid hid: UInt64) -> UInt32? {
+        switch hid {
+        case 0xE1, 0xE5: return 1 << 0  // Left/Right Shift
+        case 0xE0, 0xE4: return 1 << 2  // Left/Right Control
+        case 0xE2, 0xE6: return 1 << 3  // Left/Right Alt
+        case 0xE3, 0xE7: return 1 << 6  // Left/Right GUI (Super)
+        default: return nil
+        }
+    }
+
+    /// Buttons, as evdev codes — the C layer passes them through verbatim.
+    static let agentButtonLeft: UInt32 = 0x110
+    static let agentButtonRight: UInt32 = 0x111
+    static let agentButtonMiddle: UInt32 = 0x112
+
     /// Same phase contract as sendPointerEvent (2=down 1=up 3=move 6=hover),
     /// same coordinate scaling, but with independent focus tracking. A
     /// motion always precedes a button so the click lands at (x, y) even
     /// without preceding hovers.
-    func agentPointerEvent(surfaceId: UInt32, phase: Int32, x: Double, y: Double) {
+    func agentPointerEvent(surfaceId: UInt32, phase: Int32, x: Double, y: Double,
+                           button: UInt32 = WaylandIntegration.agentButtonLeft) {
         guard let server = server else { return }
         let timeMs = UInt32(DispatchTime.now().uptimeNanoseconds / 1_000_000)
         let d = shellDpi / fractionalScale
         if agentPointerFocus != surfaceId {
+            // Leave the surface we were on first. Without this a client that
+            // has been left keeps believing the pointer is inside it — it
+            // holds its hover state, and its idea of where the pointer sits
+            // is whatever it last heard, forever.
+            if agentPointerFocus != 0 {
+                wayland_server_pointer_leave(server, agentPointerFocus)
+            }
             wayland_server_pointer_enter(server, surfaceId, x * d, y * d)
             agentPointerFocus = surfaceId
+            // Keyboard enter rides POINTER enter, not the first keystroke.
+            // CLAUDE.md's trap, paid for again here: a client that receives
+            // wl_keyboard.enter AFTER a click has already moved its internal
+            // focus treats the enter as freshly gaining focus and resets to
+            // its default target. Concretely — click Chrome's address bar,
+            // then send Ctrl+A, and the selection lands in the PAGE, because
+            // the enter arrived between the two and put focus back on the web
+            // contents. Establishing keyboard focus with the pointer makes
+            // the click the last word on where the caret is.
+            agentEnsureKeyboardFocus(surfaceId)
         }
         switch phase {
         case 2:
             wayland_server_pointer_motion(server, surfaceId, timeMs, x * d, y * d)
-            wayland_server_pointer_button(server, surfaceId, timeMs, 0x110, 1)
+            wayland_server_pointer_button(server, surfaceId, timeMs, button, 1)
         case 1:
-            wayland_server_pointer_button(server, surfaceId, timeMs, 0x110, 0)
+            wayland_server_pointer_button(server, surfaceId, timeMs, button, 0)
         case 3, 6:
             wayland_server_pointer_motion(server, surfaceId, timeMs, x * d, y * d)
         default:
@@ -1494,19 +1537,69 @@ class WaylandIntegration {
         }
     }
 
+    /// Move the agent's wl_keyboard focus to `surfaceId` if it is not there
+    /// already. Called from pointer enter as well as from the key path — see
+    /// agentPointerEvent for why the pointer must not be the second one.
+    private func agentEnsureKeyboardFocus(_ surfaceId: UInt32) {
+        guard let server = server, agentKeyboardFocus != surfaceId else { return }
+        if agentKeyboardFocus != 0 {
+            wayland_server_keyboard_leave(server, agentKeyboardFocus)
+        }
+        wayland_server_keyboard_enter(server, surfaceId)
+        agentKeyboardFocus = surfaceId
+        // The spec requires a modifiers event after enter so the client
+        // starts from the compositor's current state.
+        wayland_server_keyboard_modifiers(server, surfaceId,
+                                          agentModsDepressed, 0,
+                                          agentModsLocked, 0)
+    }
+
     /// Agent key; `physical` is a HID usage (the broker's key contract),
     /// converted with the same table as the human path.
     func agentKeyEvent(surfaceId: UInt32, physical: Int64, isDown: Bool) {
         guard let server = server else { return }
-        if agentKeyboardFocus != surfaceId {
-            wayland_server_keyboard_enter(server, surfaceId)
-            agentKeyboardFocus = surfaceId
+        agentEnsureKeyboardFocus(surfaceId)
+        let hid = UInt64(bitPattern: physical)
+        // Clients interpret keys through the xkb state that wl_keyboard
+        // .modifiers drives, so a chord sent without this arrives UNMODIFIED
+        // — Ctrl+C as a bare `c`, into whatever has the caret. The human path
+        // has always done this; the agent path never did, which is why
+        // holding a modifier through `keydown` needs it now.
+        var modsChanged = false
+        if let bit = WaylandIntegration.agentModifierBit(forHid: hid) {
+            if isDown && agentModsDepressed & bit == 0 {
+                agentModsDepressed |= bit
+                modsChanged = true
+            } else if !isDown && agentModsDepressed & bit != 0 {
+                agentModsDepressed &= ~bit
+                modsChanged = true
+            }
+        } else if isDown && (hid == 0x39 || hid == 0x53) {
+            // Caps Lock / Num Lock toggle their locked bits on press.
+            agentModsLocked ^= (hid == 0x39 ? (1 << 1) : (1 << 4))
+            modsChanged = true
         }
-        let evdevKey = WaylandIntegration.hidToEvdev(UInt64(bitPattern: physical))
+        if modsChanged {
+            wayland_server_keyboard_modifiers(server, surfaceId,
+                                              agentModsDepressed, 0,
+                                              agentModsLocked, 0)
+        }
+        let evdevKey = WaylandIntegration.hidToEvdev(hid)
         guard evdevKey != 0 else { return }
         let timeMs = UInt32(DispatchTime.now().uptimeNanoseconds / 1_000_000)
         wayland_server_keyboard_key(server, surfaceId, timeMs,
                                     evdevKey, isDown ? 1 : 0)
+    }
+
+    /// Release everything the agent is holding on `surfaceId` — modifiers
+    /// included. A window closing (or an agent disconnecting) mid-chord would
+    /// otherwise leave the client convinced Ctrl is still down.
+    func agentReleaseAll(surfaceId: UInt32) {
+        guard let server = server else { return }
+        guard agentModsDepressed != 0 || agentModsLocked != 0 else { return }
+        agentModsDepressed = 0
+        wayland_server_keyboard_modifiers(server, surfaceId, 0, 0,
+                                          agentModsLocked, 0)
     }
 
     /// Agent scroll (deltas in the same units as sendScrollEvent).
