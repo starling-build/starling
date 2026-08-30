@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Starling
 Comment=Starling desktop shell
-Exec=/usr/libexec/starling-session
+Exec=/usr/bin/starling-session
 Type=Application
 DesktopNames=Starling

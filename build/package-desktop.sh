@@ -193,9 +193,14 @@ install -Dm644 "$SESSION/90-starling-managed-devices.conf" \
 # --- session launcher --------------------------------------------------------
 install -Dm755 "$SESSION/starling-session" \
                "$ROOT/usr/libexec/starling-session"
-# On a normal machine the display manager execs the libexec path and nobody
-# types it. In WSL there IS no display manager: the user runs the session
-# themselves, so it needs to be on PATH under a name worth typing.
+# THIS symlink is what the display manager actually execs: starling.desktop
+# names /usr/bin/starling-session, never the libexec path. /usr/libexec is not
+# universal — Arch merged it into /usr/lib and the AUR refuses to install
+# there — so a shipped session entry that named it forced every non-Debian
+# packager to patch the file after installing it. /usr/bin is the one location
+# every distribution agrees on: point this symlink wherever the real script
+# lives on yours and nothing else needs editing. It doubles as the name a WSL
+# user types, since there is no display manager there to exec anything.
 ln -sf ../libexec/starling-session "$ROOT/usr/bin/starling-session"
 
 install -Dm644 "$SESSION/starling.desktop" \
