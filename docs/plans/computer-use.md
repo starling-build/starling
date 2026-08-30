@@ -537,10 +537,19 @@ unprivileged session — `selftest` opens Settings, screenshots it per window at
 1280 px, and reports the agent has not moved the pointer. All five `agents:`
 functional checks pass on that build.
 
-**What is left is the account.** Claude Desktop starts its configured MCP
-servers once signed in, and `mcp.log` stays empty until then. Signing in is
-the user's, so the last link — Claude Desktop calling `starling-computer-use`
-and driving a window — is set up but unexercised.
+**Done, end to end (2026-08-30, signed in).** Claude Desktop spawned
+`starling-computer-use`, completed the MCP handshake, listed the tools, and
+made four `tools/call` requests in one turn: it opened the Settings app
+itself, screenshotted that window at 1280x1267, and read the contents back
+correctly — the General pane, every sidebar entry, and the System Information
+card down to `Mesa 26.0.3-1ubuntu1`. No VM, no Xvfb, on a desktop the human
+was using, and the human's own windows were not in the screenshot.
+
+Claude Desktop starts its configured MCP servers only once **signed in** —
+`mcp.log` stays empty before that, which is worth knowing when the wiring
+looks right and nothing happens. It also gates each member behind its own
+permission prompt; the connector's Tool permissions page (Settings →
+Customize → Connectors → starling-computer-use) sets all twenty at once.
 
 **And two bugs outside the shim, in the way of the sign-in itself.** Maximised,
 Claude Desktop's "Get started" button was *below the bottom of the screen* —
