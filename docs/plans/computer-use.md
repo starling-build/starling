@@ -96,18 +96,19 @@ see the human's other windows *even if they overlap the one it owns* — a
 stronger privacy property than a VM screenshot, which shows everything inside
 the VM.
 
-**Take-over — GONE, and this document said otherwise.** The design was: the
-human takes a window's controls until Esc, and every op that acts on a window
-**or reads its contents** refuses while it holds. That shipped, and was then
-removed with the AI Space (`3776fd6`) — the flag lived in that UI. What
-survived was the doc comment, still describing a guard the code no longer had,
-which is how this survey came to list it among the properties already
-load-bearing. Only three of the four were.
+**Take-over — lost, and back.** The design was: the human takes a window's
+controls until Esc, and every op that acts on a window **or reads its
+contents** refuses while it holds. That shipped, was removed with the AI Space
+(`3776fd6`) — the flag lived in that UI — and left behind a doc comment
+describing a guard the code no longer had, which is how this survey came to
+list it among the properties already load-bearing when only three of the four
+were.
 
-Nothing is regressed today, because agent windows are headless: there is no
-surface for a human to take over from. But the property is a claim this
-document makes, and anything that puts agent windows on screen has to bring
-the mechanism back with it.
+It is real again (`bcdc754`), because the condition this paragraph set has now
+been met: agent windows are no longer drawn nowhere. They appear in workspace
+mode, and touching one takes it until Esc. The guard sits inside
+`ownedWindow()` rather than beside it, so every op that resolves a window is
+covered by construction and a new op cannot forget to check.
 
 And two escapes from pixels entirely, which matter more than they sound:
 `semantic_tree`/`perform_action` address first-party UI by label and node id
@@ -591,8 +592,15 @@ window never asks, so the protocol cannot help. Two rows of window buttons.
   executor, but this box has no API credentials and no `anthropic` package, so
   only its `--dry-run` has been exercised. Until it runs, the toolset
   declaration shape is taken from this document, not from the wire.
-- **Take-over is gone** (above), and needs to return before agent windows are
-  ever drawn.
+- ~~Take-over is gone~~ — **done** (above). Agent windows now appear in the
+  workspace rail and take-over came back with them. Three things the fit
+  needed, all of which generalise to anything else that draws an agent's
+  windows: their size must not be changed (it is the coordinate space the
+  agent is mid-task in, so the pane fits the texture and divides that fit back
+  out of every pointer coordinate), the 5fps throttle broker windows are born
+  with has to lift while they are on screen, and the refusal has to say
+  "taken" rather than "no such window" or an agent cannot tell a revocation
+  from a crash.
 - **Agent input is still seat 0 with explicit targeting**, not a second
   `wl_seat` — unchanged, and the honesty note above still stands.
 - **CSD margins are not cropped.** The capture blits the whole texture, so a
