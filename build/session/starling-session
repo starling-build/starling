@@ -5,8 +5,32 @@ set -u
 LIB=/usr/lib/starling
 SHARE=/usr/share/starling
 
+# ── Is this WSL? ────────────────────────────────────────────────────────────
+# WSL has no /dev/dri at all -- not an empty one, an absent one -- so the DRM
+# path cannot start there and there is nothing to fall back to locally. What
+# runs instead is DISPLAY MODE: the desktop renders surfacelessly and the RDP
+# surface IS the display, which you connect to from Windows.
+#
+# Detected from the kernel release rather than from the absence of /dev/dri:
+# a Linux box whose GPU driver merely failed to load should report that
+# failure, not quietly start listening on a port nobody asked about.
+IS_WSL=0
+if grep -qiE 'microsoft|WSL' /proc/sys/kernel/osrelease 2>/dev/null; then
+    IS_WSL=1
+fi
+[ -n "${STARLING_FORCE_DRM:-}" ] && IS_WSL=0
+
+if [ "$IS_WSL" = 1 ]; then
+    # 3390, not RDP's usual 3389. Windows' own Remote Desktop listens on 3389
+    # on the host, and WSL forwards localhost both ways -- so a user told to
+    # connect to localhost:3389 would reach their Windows machine instead of
+    # this desktop, and the failure looks like "Starling shows me my own PC".
+    export STARLING_RDP_PORT="${STARLING_RDP_PORT:-3390}"
+    export STARLING_RDP_SIZE="${STARLING_RDP_SIZE:-1920x1080}"
+fi
+
 # First DRM card with a connected connector, unless overridden.
-if [ -z "${FLUTTER_DRM_DEVICE:-}" ]; then
+if [ -z "${FLUTTER_DRM_DEVICE:-}" ] && [ "$IS_WSL" = 0 ]; then
     for st in /sys/class/drm/card*-*/status; do
         [ -e "$st" ] || continue
         if [ "$(cat "$st")" = connected ]; then
@@ -16,7 +40,12 @@ if [ -z "${FLUTTER_DRM_DEVICE:-}" ]; then
         fi
     done
 fi
-export FLUTTER_DRM_DEVICE="${FLUTTER_DRM_DEVICE:-/dev/dri/card0}"
+# Not in WSL: there is no card to name, and pointing the engine at a device
+# that does not exist turns "no graphics hardware" into "failed to open
+# /dev/dri/card0", which sends the reader looking for the wrong thing.
+if [ "$IS_WSL" = 0 ]; then
+    export FLUTTER_DRM_DEVICE="${FLUTTER_DRM_DEVICE:-/dev/dri/card0}"
+fi
 
 # Private runtime dir + session bus for the Starling session. XDG_DATA_HOME
 # below points the bus's servicedir here, and it is searched before
@@ -94,16 +123,34 @@ fi
 # terminal bug. Same shape as the GNOME_DESKTOP_SESSION_ID leak app-run
 # already scrubs — the session's environment is ours to define, not the
 # launching shell's.
+MODE=--drm
+SEAT_ENV=(FLUTTER_DRM_SEAT=libseat)
+if [ "$IS_WSL" = 1 ]; then
+    MODE=--rdp
+    # No logind and no seatd in WSL, so there is no seat to take. Setting
+    # these would only give the engine a seat manager to fail against.
+    SEAT_ENV=()
+    cat <<BANNER
+Starling is starting in RDP display mode (this is WSL -- there is no
+graphics device, so the remote screen is the display).
+
+  From Windows:  mstsc /v:localhost:$STARLING_RDP_PORT
+  From anywhere: any RDP client, port $STARLING_RDP_PORT
+
+Log: /tmp/starling-session-$(id -u).log
+BANNER
+fi
+
 exec env \
     -u TMUX -u TMUX_PANE -u TERM_PROGRAM -u TERM_PROGRAM_VERSION \
     -u STY -u WINDOW \
     "${PW_ENV[@]}" \
+    "${SEAT_ENV[@]+"${SEAT_ENV[@]}"}" \
     LD_LIBRARY_PATH="$LIB" \
-    FLUTTER_DRM_SEAT=libseat \
     FLUTTER_ENGINE_OUT="$SHARE" \
     STARLING_DATA_DIR="$SHARE" \
     FLUTTER_APPS_DIR="$LIB/apps" \
     STARLING_CHILD_HOST_GL=1 \
     XDG_RUNTIME_DIR="$XDG" \
-    "$LIB/DesktopShellApp" --drm "$@" \
+    "$LIB/DesktopShellApp" "$MODE" "$@" \
     > "/tmp/starling-session-$(id -u).log" 2>&1

@@ -37,13 +37,15 @@ ls /dev/dri >/dev/null 2>&1 && say "   NOTE: /dev/dri present — not the headle
 
 say "2. start in RDP display mode"
 pkill -x DesktopShellApp 2>/dev/null; sleep 2
-LD_LIBRARY_PATH=/usr/lib/starling FLUTTER_ENGINE_OUT=/usr/share/starling \
-STARLING_DATA_DIR=/usr/share/starling FLUTTER_APPS_DIR=/usr/lib/starling/apps \
-STARLING_RDP_PORT=3390 STARLING_RDP_SIZE=1280x800 STARLING_PUMP_LOG=1 \
-  setsid /usr/lib/starling/DesktopShellApp --rdp > /tmp/g-shell.log 2>&1 < /dev/null &
-for i in $(seq 1 40); do grep -q "listening on" /tmp/g-shell.log 2>/dev/null && break; sleep 1; done
-grep -q "listening on" /tmp/g-shell.log; check $? "the shell starts and the RDP listener comes up"
-grep -qi "surfaceless EGL" /tmp/g-shell.log
+# The SHIPPED launcher, with no arguments and no environment set up by hand.
+# It detects WSL itself and picks display mode; testing a bespoke invocation
+# here would prove the binary works and say nothing about what a user runs.
+setsid starling-session > /tmp/g-launch.log 2>&1 < /dev/null &
+SHELL_LOG=/tmp/starling-session-$(id -u).log
+for i in $(seq 1 40); do grep -q "listening on" "$SHELL_LOG" 2>/dev/null && break; sleep 1; done
+say "   it told the user:"; sed 's/^/        /' /tmp/g-launch.log | head -6
+grep -q "listening on" "$SHELL_LOG"; check $? "the shipped launcher detects WSL and starts display mode"
+grep -qi "surfaceless EGL" "$SHELL_LOG"
 check $? "it renders surfacelessly (no DRM, no window system)"
 
 say "3. idle with nobody connected"
@@ -63,8 +65,8 @@ say "   listener up, no client: ${CPU_IDLE}% of one core"
 # installed hash first.
 awk -v c="$CPU_IDLE" 'BEGIN{exit !(c+0 < 1.0)}'
 check $? "idle stays under 1% with the listener up"
-grep -q "\[pump\]" /tmp/g-shell.log && { say "   pump armed for nobody:"; grep "\[pump\]" /tmp/g-shell.log; }
-grep -q "\[pump\]" /tmp/g-shell.log; [ $? = 1 ]
+grep -q "\[pump\]" "$SHELL_LOG" && { say "   pump armed for nobody:"; grep "\[pump\]" "$SHELL_LOG"; }
+grep -q "\[pump\]" "$SHELL_LOG"; [ $? = 1 ]
 check $? "the frame pump does NOT arm with no client (nothing rides it)"
 
 say "4. a real client, on our own X display"
@@ -78,7 +80,7 @@ setsid $RDP /v:127.0.0.1:3390 /u:starling /p:x /cert:ignore /sec:tls \
     /size:1280x800 /log-level:ERROR > /tmp/g-client.log 2>&1 < /dev/null &
 sleep 15
 pgrep -x "$(basename $RDP)" >/dev/null; check $? "the client connects and stays up"
-grep -qi "client activated" /tmp/g-shell.log; check $? "the shell activated the session"
+grep -qi "client activated" "$SHELL_LOG"; check $? "the shell activated the session"
 
 say "5. what is actually on the client's screen"
 import -window root /tmp/g-shot.png 2>/tmp/g-cap.err || head -2 /tmp/g-cap.err
@@ -108,8 +110,8 @@ else
   check 1 "the shell survived the whole run"
 fi
 
-cp /tmp/g-shell.log /mnt/c/dist/wsl-gate-shell.log 2>/dev/null
-say "shell log tail:"; tail -5 /tmp/g-shell.log | sed 's/^/        /'
+cp "$SHELL_LOG" /mnt/c/dist/wsl-gate-shell.log 2>/dev/null
+say "shell log tail:"; tail -5 "$SHELL_LOG" | sed 's/^/        /'
 echo
 [ $fail = 0 ] && echo "WSL GATE PASS" || echo "WSL GATE FAIL"
 exit $fail

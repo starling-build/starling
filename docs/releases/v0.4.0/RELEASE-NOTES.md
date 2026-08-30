@@ -12,10 +12,18 @@ install, start, connect, use it. Recorded end to end on a real Windows machine;
 nothing in it is faked or sped up.
 
 
-You do not need a Linux machine to run Starling any more. Install WSL on
-Windows, install the `.deb` inside it, and connect with any RDP client —
-Windows' own Remote Desktop will do. The whole desktop comes up: the shell,
-the dock or taskbar, the apps, the file manager, the terminal.
+You do not need a Linux machine to run Starling any more. It is two commands
+inside your WSL distro:
+
+```bash
+sudo apt install ./starling_0.4.0_amd64.deb
+starling-session
+```
+
+`starling-session` **detects WSL itself** and starts in display mode — no flag,
+no environment to set up — then prints the exact command to connect from
+Windows. The whole desktop comes up: the shell, the taskbar, the apps, the
+file manager, the terminal.
 
 This works because WSL has no graphics device *at all* — not an empty one, an
 absent one — so the desktop takes a different path entirely. **The remote
@@ -38,6 +46,9 @@ Three things that are true of it and were not before:
 - **Idling costs nothing.** With the listener up and nobody connected, the
   desktop uses 0.00% of a core. The listener used to wake five times a second
   just to notice if it had been asked to stop.
+- **It listens on 3390, not 3389**, on purpose: Windows' own Remote Desktop
+  owns 3389 and WSL forwards localhost both ways, so the obvious port would
+  have connected people to their own PC.
 - **It behaves the same as the local desktop**, because it is the same
   desktop — same shell, same apps, same package.
 

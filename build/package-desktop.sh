@@ -193,6 +193,10 @@ install -Dm644 "$SESSION/90-starling-managed-devices.conf" \
 # --- session launcher --------------------------------------------------------
 install -Dm755 "$SESSION/starling-session" \
                "$ROOT/usr/libexec/starling-session"
+# On a normal machine the display manager execs the libexec path and nobody
+# types it. In WSL there IS no display manager: the user runs the session
+# themselves, so it needs to be on PATH under a name worth typing.
+ln -sf ../libexec/starling-session "$ROOT/usr/bin/starling-session"
 
 install -Dm644 "$SESSION/starling.desktop" \
                "$ROOT/usr/share/wayland-sessions/starling.desktop"

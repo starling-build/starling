@@ -91,6 +91,7 @@ Start-Sleep -Seconds 3
 # Remove it first, off camera, so the install the viewer watches is a real
 # one. apt treats a .deb whose version is already installed as nothing to do.
 Start-Process wsl.exe -Wait -WindowStyle Hidden -ArgumentList "-d","Ubuntu-26.04","-u","root","--","apt-get","purge","-y","starling"
+Start-Process wsl.exe -Wait -WindowStyle Hidden -ArgumentList "-d","Ubuntu-26.04","-u","root","--","pkill","-x","DesktopShellApp"
 Start-Sleep -Seconds 3
 
 # ---- the terminal, placed before the camera rolls ---------------------------
@@ -148,12 +149,15 @@ Start-Sleep -Seconds 34
 
 # ---- 3. start it ------------------------------------------------------------
 Mark beat3
-TypeText "wsl -d Ubuntu-26.04 -u root bash /mnt/c/dist/wsl-start-fluent.sh"; Enter
-Start-Sleep -Seconds 30
+TypeText "wsl -d Ubuntu-26.04 -u root starling-session"; Enter
+Start-Sleep -Seconds 34
 
 # ---- 4. connect with Windows' own Remote Desktop ----------------------------
 Mark beat4
-TypeText "mstsc /v:127.0.0.1:3390 /w:1920 /h:1080"; Enter
+# NOT typed: the launcher is running in the foreground now, exactly as it
+# would be for a user, so the console is busy. The banner on screen has just
+# told the viewer this command; here we run it.
+Start-Process mstsc.exe -ArgumentList "/v:127.0.0.1:3390","/w:1920","/h:1080"
 Start-Sleep -Seconds 14
 # Take mstsc where it lands. It puts its session window at the screen's
 # top-left and refuses to be moved -- MoveWindow returns true and the window
