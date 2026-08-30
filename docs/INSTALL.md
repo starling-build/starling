@@ -223,6 +223,13 @@ starling-session
 `starling-session` detects WSL itself and starts in display mode — you do not
 pass a flag or set anything up. It prints where to connect:
 
+**If `wsl` logs you in as root, Starling steps down to your ordinary account
+by itself** and says so. Many distros have no user set up and hand out a root
+shell; the desktop needs nothing root can give it, and browsers refuse to run
+as root at all. If the distro has no ordinary account, Starling says that too
+and carries on — browsers then run without their sandbox, and the fix is
+`adduser <name>` and starting Starling as them.
+
 ```
 Starling is starting in RDP display mode (this is WSL -- there is no
 graphics device, so the remote screen is the display).

@@ -89,6 +89,23 @@ if [ $# -lt 1 ]; then
     echo "usage: app-run.sh <name> [args…]  |  app-run.sh <name> -- <cmd> [args…]" >&2
     exit 2
 fi
+
+# WHO the app will actually run as, resolved once here because two places
+# need the answer: the privilege drop far below, and the Chromium recipes,
+# which have to know whether they are about to be launched as root.
+#
+# On an ordinary install this is moot — the shell runs as the login user and
+# there is no root to drop out of. It is not moot on WSL: `wsl` gives you a
+# ROOT shell unless the distro was set up with a user account, so the
+# documented `starling-session` starts the whole desktop as root. There is
+# then nobody to drop to — SUDO_USER is unset and the session runtime dir is
+# root's own — so LOGIN_USER resolves to root and the app stays there.
+STAY_ROOT=0
+if ! is_starling_os && [ "$(id -u)" -eq 0 ]; then
+    LOGIN_USER="${SUDO_USER:-$(stat -c %U "$XDG_DIR" 2>/dev/null || true)}"
+    [ -n "${LOGIN_USER:-}" ] || LOGIN_USER="$(id -un 1000 2>/dev/null || echo user)"
+    if [ "$LOGIN_USER" = root ]; then STAY_ROOT=1; fi
+fi
 NAME="$1"; shift
 
 # ── App registry ─────────────────────────────────────────────────────────
@@ -106,10 +123,23 @@ else
             # nosuid so the setuid helper can never work — the zygote's
             # nested-userns path must succeed; see the BWRAP selection
             # below for the AppArmor arrangement that permits it.
+            #
+            # As ROOT there is no such path: Chrome refuses to start at all
+            # ("Running as root without --no-sandbox is not supported"),
+            # zygote or no zygote, and exits before it makes a window. That
+            # is not a dev-box curiosity — it is what a WSL user gets from
+            # the documented `starling-session`, because `wsl` hands out a
+            # root shell unless the distro was given a user account. So drop
+            # the sandbox only in the case where the alternative is not
+            # running: Chrome with no sandbox, or no Chrome. (code and teams
+            # below pass these unconditionally; they have no zygote to lose.)
+            CHROME_ROOT_FLAGS=""
+            if [ "$STAY_ROOT" = 1 ]; then CHROME_ROOT_FLAGS="--no-sandbox"; fi
             set -- /opt/google/chrome/chrome \
                 --ozone-platform=wayland \
                 --no-first-run --no-default-browser-check --use-angle=gl \
                 --disable-features=VaapiVideoDecoder,VaapiVideoEncoder \
+                ${CHROME_ROOT_FLAGS} \
                 --force-device-scale-factor="$SCALE" "$@"
             # Agent CDP endpoint (Murmuration): STARLING_CDP=<agent-id> gives
             # this launch its own profile + a DevTools port (Chrome refuses
@@ -381,8 +411,8 @@ fi
 
 if ! is_starling_os; then
     if [ "$(id -u)" -eq 0 ]; then
-        LOGIN_USER="${SUDO_USER:-$(stat -c %U "$XDG_DIR" 2>/dev/null || true)}"
-        [ -n "${LOGIN_USER:-}" ] || LOGIN_USER="$(id -un 1000 2>/dev/null || echo user)"
+        # LOGIN_USER was resolved at the top — the Chromium recipes need the
+        # same answer, and resolving it twice is how the two would drift.
         LOGIN_HOME="$(getent passwd "$LOGIN_USER" | cut -d: -f6)"
         LOGIN_UID="$(id -u "$LOGIN_USER" 2>/dev/null || echo 1000)"
         # Audio: env -i + our private XDG_RUNTIME_DIR ($XDG_DIR, not

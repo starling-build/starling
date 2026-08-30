@@ -20,6 +20,53 @@ if grep -qiE 'microsoft|WSL' /proc/sys/kernel/osrelease 2>/dev/null; then
 fi
 [ -n "${STARLING_FORCE_DRM:-}" ] && IS_WSL=0
 
+# ── WSL logs you in as root; the desktop must not run as it ─────────────────
+# `wsl` gives you a ROOT shell unless the distro was set up with a user
+# account, and plenty are not. The documented `starling-session` would then
+# run the whole desktop — and every app it launches — as root.
+#
+# Nothing here wants that. Display mode takes no DRM master, joins no seat,
+# and binds an unprivileged port, so root buys the session nothing; meanwhile
+# Chrome and every other Chromium app refuse to start as root at all ("Running
+# as root without --no-sandbox is not supported"), which reads to a user as
+# "Chrome won't start". So find an ordinary account and re-exec as it, before
+# anything below creates state owned by the wrong user.
+#
+# Only in WSL, and only from root: everywhere else the display manager has
+# already started this script as the logged-in user.
+if [ "$IS_WSL" = 1 ] && [ "$(id -u)" -eq 0 ] && [ -z "${STARLING_ALLOW_ROOT:-}" ]; then
+    # Lowest ordinary uid with a real login shell. WSL's own first-run setup
+    # creates uid 1000, so that is what this finds on a normal install.
+    starling_user=$(awk -F: \
+        '$3 >= 1000 && $3 < 65534 && $7 !~ /(nologin|false)$/ { print $3" "$1 }' \
+        /etc/passwd 2>/dev/null | sort -n | head -1 | cut -d' ' -f2)
+    if [ -n "$starling_user" ]; then
+        starling_home=$(getent passwd "$starling_user" | cut -d: -f6)
+        # Re-exec by ABSOLUTE path. Invoked as a bare name off PATH (which is
+        # how the docs and the gate both call it), $0 is "starling-session"
+        # and would have to resolve again through the target user's PATH.
+        starling_self="$0"
+        case "$starling_self" in
+            */*) ;;
+            *) starling_self=$(command -v "$starling_self" || echo "$starling_self") ;;
+        esac
+        starling_self=$(readlink -f "$starling_self" 2>/dev/null || echo "$starling_self")
+        echo "Starling: starting as $starling_user rather than root — wsl logs" \
+             "you in as root, and browsers refuse to run as it."
+        # env, not `runuser -l`: a login shell would discard the STARLING_*
+        # overrides the caller set. Only the identity vars need correcting;
+        # everything below re-derives from the new uid.
+        exec runuser -u "$starling_user" -- env \
+            HOME="${starling_home:-/home/$starling_user}" \
+            USER="$starling_user" LOGNAME="$starling_user" \
+            "$starling_self" "$@"
+    fi
+    echo "starling-session: this distro has no ordinary user account, so the" \
+         "desktop is running as root." >&2
+    echo "                  Browsers will run without their sandbox. Create an" \
+         "account with 'adduser <name>' and start Starling as them." >&2
+fi
+
 if [ "$IS_WSL" = 1 ]; then
     # 3390, not RDP's usual 3389. Windows' own Remote Desktop listens on 3389
     # on the host, and WSL forwards localhost both ways -- so a user told to

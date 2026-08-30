@@ -37,13 +37,33 @@ ls /dev/dri >/dev/null 2>&1 && say "   NOTE: /dev/dri present — not the headle
 
 say "2. start in RDP display mode"
 pkill -x DesktopShellApp 2>/dev/null; sleep 2
+# Stale session logs are a trap for everything below: the launcher re-execs
+# as an ordinary user, so the CURRENT run logs under that uid — but a
+# leftover log from an earlier root run also says "listening on", the wait
+# loop latches onto it before the banner has been printed, and every
+# log-based check then grades a different run. Remove them all first.
+rm -f /tmp/starling-session-*.log
 # The SHIPPED launcher, with no arguments and no environment set up by hand.
 # It detects WSL itself and picks display mode; testing a bespoke invocation
 # here would prove the binary works and say nothing about what a user runs.
 setsid starling-session > /tmp/g-launch.log 2>&1 < /dev/null &
-SHELL_LOG=/tmp/starling-session-$(id -u).log
-for i in $(seq 1 40); do grep -q "listening on" "$SHELL_LOG" 2>/dev/null && break; sleep 1; done
-say "   it told the user:"; sed 's/^/        /' /tmp/g-launch.log | head -6
+# Take the log path from the launcher's own banner rather than assuming it is
+# ours. The gate runs as root — which is what `wsl` gives you — and the
+# launcher deliberately re-execs as an ordinary account there, so the session
+# logs under THAT uid. Assuming $(id -u) here would have the gate watch a file
+# nobody writes and fail every check with "NOT UP".
+SHELL_LOG=$(sed -n 's/^Log: //p' /tmp/g-launch.log 2>/dev/null | tail -1)
+[ -n "$SHELL_LOG" ] || SHELL_LOG=/tmp/starling-session-$(id -u).log
+for i in $(seq 1 40); do
+    grep -q "listening on" "$SHELL_LOG" 2>/dev/null && break
+    # The banner is printed after the re-exec, so the path may only appear a
+    # moment in; re-read it while waiting.
+    p=$(sed -n 's/^Log: //p' /tmp/g-launch.log 2>/dev/null | tail -1)
+    [ -n "$p" ] && SHELL_LOG="$p"
+    sleep 1
+done
+say "   session log: $SHELL_LOG  (running as $(stat -c %U "$SHELL_LOG" 2>/dev/null || echo '?'))"
+say "   it told the user:"; sed 's/^/        /' /tmp/g-launch.log | head -10
 grep -q "listening on" "$SHELL_LOG"; check $? "the shipped launcher detects WSL and starts display mode"
 grep -qi "surfaceless EGL" "$SHELL_LOG"
 check $? "it renders surfacelessly (no DRM, no window system)"
