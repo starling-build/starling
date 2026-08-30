@@ -91,6 +91,15 @@ public struct AppRecord: Sendable {
     /// DRI_PRIME/__NV_PRIME_RENDER_OFFLOAD envs via app-run). On a single-GPU
     /// machine it is a no-op.
     public let discreteGpu: Bool
+    /// `Agent=1`: this app drives a computer-use agent, so a new workspace can
+    /// offer to run it. What it means concretely is that the app spawns a
+    /// broker client — Claude Desktop starts the `starling-computer-use` MCP
+    /// server as a child — and the shell pairs the two by process ancestry, so
+    /// the windows that agent opens land in the workspace beside it.
+    ///
+    /// A flag rather than a list in the shell, for the usual reason: the
+    /// second such app must be one file here and nothing else.
+    public let agentApp: Bool
     /// Sealed-image install (Starling OS): the official .deb and the path
     /// inside it that proves the extraction worked.
     public let debURL: String?
@@ -129,6 +138,7 @@ public struct AppRecord: Sendable {
         installRecipe: String?, bins: [String], desktopEntries: [String],
         wmClasses: [String], titleMatches: [String], renameWindows: Bool,
         discreteGpu: Bool = false,
+        agentApp: Bool = false,
         debURL: String?,
         debMarker: String?, desktopFile: String?, iconPath: String?,
         version: String?, installedAt: Int?, installed: Bool, appIds: [String],
@@ -154,6 +164,7 @@ public struct AppRecord: Sendable {
         self.wmClasses = wmClasses
         self.titleMatches = titleMatches
         self.renameWindows = renameWindows
+        self.agentApp = agentApp
         self.discreteGpu = discreteGpu
         self.debURL = debURL
         self.debMarker = debMarker

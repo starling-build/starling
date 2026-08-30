@@ -1199,6 +1199,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // other style, and looked like the switch had silently failed.
         linuxProcessAppManager?.currentStyleIndex = _styleIndex(shellStyle)
         #endif
+        windowManager.onAgentNeedsWorkspace = { [weak self] agentId in
+            self?._retryBindAgent(agentId) ?? false
+        }
         windowManager.onWindowsChanged = { [weak self] in
             guard let self else { return }
             self.windowManager.retileAll(
@@ -1817,6 +1820,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // workspace window: that rail entry already exists and is
                     // what made this window owned in the first place.
                     if !isWorkspaceWindow,
+                       self.windowManager.workspace(forAgent: ownerId) == nil,
+                       !self._retryBindAgent(ownerId),
                        let agent = self.windowManager.agents.first(where: {
                            $0.id == ownerId
                        }) {
@@ -8014,6 +8019,24 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// space). Restore handles the space switch in the model; the plain
     /// focus path slides over explicitly.
     private func _focusWindowAcrossSpaces(_ win: WindowInfo) {
+        // A window that belongs to a workspace lives on no space at all
+        // (spaceId is the kNoSpaceId sentinel), so the space-following code
+        // below finds nothing to switch to and the click does nothing
+        // visible. That is a dead end the moment an app moves in — clicking
+        // Claude Desktop in the launcher, once it has become an agent's
+        // driver, would silently do nothing at all. Go to its workspace.
+        if let owner = win.ownerAgentId,
+           let ws = windowManager.workspaces.first(where: { $0.id == owner }) {
+            let out = _pointerOutputId ?? displayLayout?.primary.id ?? 0
+            setState {
+                windowManager.selectWorkspace(ws.id, onOutput: out)
+                windowManager.focusedWindowId = win.id
+            }
+            if !windowManager.activeSpace(onOutput: out).isWorkspace {
+                _toggleWorkspaceSpace()
+            }
+            return
+        }
         if win.isMinimized {
             windowManager.restoreWindow(win.id)
         } else {

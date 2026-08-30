@@ -248,6 +248,7 @@ public final class AppRegistry: @unchecked Sendable {
             titleMatches: kf.list("TitleMatch"),
             renameWindows: kf.string("RenameWindows") == "1",
             discreteGpu: kf.string("Gpu") == "discrete",
+            agentApp: kf.string("Agent") == "1",
             debURL: kf.string("DebUrl"),
             debMarker: kf.string("DebMarker"),
             desktopFile: desktopFile,

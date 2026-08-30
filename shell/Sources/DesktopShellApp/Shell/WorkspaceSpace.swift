@@ -82,14 +82,11 @@ extension _DesktopShellState {
             return Stack(children: layers)
         }
 
-        // An AGENT workspace has no driver column. The middle column is
-        // "the app you are working in", and for an agent there is no such
-        // app — the thing driving it is Claude Desktop, which is the human's
-        // own window on their own desktop and does not belong in here. Left
-        // as-is it is two thirds of the screen offering "Choose an app to
-        // work in", next to the agent's actual windows squeezed into a
-        // letter-boxed sliver. So the windows get the whole width instead.
-        if ws.isAgent {
+        // An agent workspace with no driver found — a headless client, a CI
+        // harness, agent-client.py — keeps the whole width for its windows
+        // rather than showing two thirds of a screen offering "Choose an app
+        // to work in" next to them squeezed into a sliver.
+        if ws.isAgent, _workspaceDriverWindow(ws) == nil {
             layers.append(contentsOf: _workspaceTabColumn(
                 ws, left: WS.railW, width: w - WS.railW, top: top, h: h))
         } else {
@@ -227,31 +224,62 @@ extension _DesktopShellState {
 
         guard let driverId = ws.driverWindowId,
               let win = windowManager.windows.first(where: { $0.id == driverId }) else {
-            // Empty state: the + is the only thing to do here, so it is the
-            // whole column rather than a control parked in a corner.
+            // Empty state. A new workspace leads with the AGENTS it can run,
+            // because that is the thing a workspace is for now — an agent
+            // with what it opens beside it — and "choose an app" buries the
+            // one answer most people want under a search box. Any other app
+            // is still one click further down.
+            //
+            // The list comes from the registry (`Agent=1`), never from a
+            // table here: a second agent app must be one file in catalog.d
+            // and nothing else.
             let wsId = ws.id
+            let agents = AppRegistry.shared.apps
+                .filter { $0.agentApp && $0.installed }
+                .sorted { $0.order < $1.order }
+            var rows: [Widget] = [
+                Text("Run an agent here", style: TextStyle(
+                    color: shellTheme.overlayText,
+                    fontSize: 15, fontWeight: .w600)),
+                SizedBox(height: 4),
+                Text("It works in this workspace, and what it opens "
+                     + "appears beside it.", style: TextStyle(
+                    color: shellTheme.overlayTextDim,
+                    fontSize: 12, fontWeight: .w400)),
+                SizedBox(height: 14),
+            ]
+            for rec in agents {
+                let appId = rec.id
+                rows.append(SizedBox(
+                    width: 260, height: 40,
+                    child: _workspaceButton(rec.name, fontSize: 13) { [self] in
+                        _launchIntoWorkspace(workspaceId: wsId, appId: appId,
+                                             asDriver: true)
+                    }))
+                rows.append(SizedBox(height: 8))
+            }
+            if agents.isEmpty {
+                rows.append(Text("No agent app is installed — the App Store "
+                                 + "has them.", style: TextStyle(
+                    color: shellTheme.overlayTextDim,
+                    fontSize: 12, fontWeight: .w400)))
+                rows.append(SizedBox(height: 8))
+            }
+            rows.append(SizedBox(
+                width: 260, height: 34,
+                child: _workspaceButton("Choose any app…", fontSize: 12) {
+                    [self] in openLauncher(driverTarget: wsId)
+                }))
             out.append(Positioned(
                 left: left + WS.paneGap, top: top + WS.paneGap,
                 width: width - WS.paneGap * 2, height: h,
-                child: GestureDetector(
-                    onTap: { [self] in openLauncher(driverTarget: wsId) },
-                    behavior: .opaque,
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: Color(0x14FFFFFF),
-                            border: Border.all(color: Color(0x2EFFFFFF), width: 1),
-                            borderRadius: BorderRadius.all(Radius(circular: 10))),
-                        child: Center(child: Column(
-                            mainAxisAlignment: .center,
-                            children: [
-                                Text("+", style: TextStyle(
-                                    color: shellTheme.overlayText,
-                                    fontSize: 40, fontWeight: .w300)),
-                                SizedBox(height: 8),
-                                Text("Choose an app to work in", style: TextStyle(
-                                    color: shellTheme.overlayTextDim,
-                                    fontSize: 12.5, fontWeight: .w400)),
-                            ]))))))
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: Color(0x14FFFFFF),
+                        border: Border.all(color: Color(0x2EFFFFFF), width: 1),
+                        borderRadius: BorderRadius.all(Radius(circular: 10))),
+                    child: Center(child: Column(
+                        mainAxisAlignment: .center, children: rows)))))
             return out
         }
 
@@ -463,6 +491,97 @@ extension _DesktopShellState {
             ?? false
     }
 
+    /// True when the pane must FIT this window rather than be filled by it.
+    ///
+    /// The distinction is the agent's own windows versus the app DRIVING it.
+    /// An agent's window is never resized — its size is the coordinate space
+    /// it is mid-task in. The driver is Claude Desktop, the human's own app,
+    /// which is resized to its pane like any other workspace window and is
+    /// not working from screenshot coordinates. It is also not something to
+    /// take over: it was never the agent's.
+    func _isFittedAgentWindow(_ win: WindowInfo) -> Bool {
+        guard let owner = win.ownerAgentId else { return false }
+        return windowManager.agents.contains { $0.id == owner }
+    }
+
+    /// The process that opened a window, for pairing an agent with the app
+    /// that spawned it. Wayland clients only — a first-party child is the
+    /// shell's own and is never a driver.
+    func _windowPid(_ win: WindowInfo) -> pid_t? {
+        guard let wayland = waylandIntegration,
+              let sid = wayland.surfaceId(forWindowId: win.id) else { return nil }
+        return wayland.clientPid(surfaceId: sid)
+    }
+
+    /// `/proc/<pid>/stat` field 4. nil at the top of the tree.
+    ///
+    /// The comm field is parenthesised AND may itself contain spaces or
+    /// brackets, so the parse starts from the LAST ')' rather than splitting
+    /// the whole line — a process called "claude (beta)" would otherwise
+    /// shift every field after it.
+    static func _parentPid(_ pid: pid_t) -> pid_t? {
+        guard let s = try? String(contentsOfFile: "/proc/\(pid)/stat",
+                                  encoding: .utf8),
+              let close = s.lastIndex(of: ")"),
+              s.index(close, offsetBy: 2, limitedBy: s.endIndex) != nil
+        else { return nil }
+        let rest = s[s.index(close, offsetBy: 2)...].split(separator: " ")
+        guard rest.count > 1, let ppid = pid_t(rest[1]), ppid > 1 else { return nil }
+        return ppid
+    }
+
+    /// The workspace's driver window, if it is still alive. `driverWindowId`
+    /// alone is not enough: nothing clears it when the driver's window simply
+    /// closes (only the explicit move-to-desktop does), so a dead id would
+    /// hold the three-column layout open around an empty middle.
+    func _workspaceDriverWindow(_ ws: WorkspaceInfo) -> WindowInfo? {
+        guard let id = ws.driverWindowId else { return nil }
+        return windowManager.windows.first(where: { $0.id == id })
+    }
+
+    /// Bind a newly connected broker agent to the workspace whose DRIVER
+    /// spawned it, so what it opens appears beside the app driving it rather
+    /// than in a rail entry of its own.
+    ///
+    /// The link is process ancestry, the only honest one available: an MCP
+    /// server is a child of the app that launched it, and Claude Desktop's is
+    /// a DIRECT child of the Electron main process — the same process holding
+    /// the Wayland connection for its window. Nothing is matched on names.
+    ///
+    /// Returns true when a workspace claimed the agent. False means nobody
+    /// launched it from one — agent-client.py from a terminal, a CI harness —
+    /// and the caller falls back to giving it a rail entry of its own, so its
+    /// windows are still watchable somewhere.
+    /// Try the bind again from the agent's recorded pid — see
+    /// `onAgentNeedsWorkspace` for why once is not enough.
+    func _retryBindAgent(_ agentId: String) -> Bool {
+        guard let agent = windowManager.agents.first(where: { $0.id == agentId })
+        else { return false }
+        return _bindAgentToWorkspace(agentId: agentId, pid: agent.clientPid)
+    }
+
+    @discardableResult
+    func _bindAgentToWorkspace(agentId: String, pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        // Up the process tree from the broker client. One hop for Claude
+        // Desktop; the bound guards against a /proc cycle, not a real depth —
+        // nothing legitimate is eight processes deep from its own app.
+        var here: pid_t? = pid
+        for _ in 0..<8 {
+            guard let cur = here else { return false }
+            if let win = windowManager.windows.first(where: { _windowPid($0) == cur }),
+               let owner = win.ownerAgentId,
+               let ws = windowManager.workspaces.first(where: {
+                   $0.id == owner && $0.driverWindowId == win.id
+               }) {
+                setState { ws.agentId = agentId }
+                return true
+            }
+            here = Self._parentPid(cur)
+        }
+        return false
+    }
+
     /// Any window the human currently holds.
     var _heldWindows: [WindowInfo] {
         windowManager.windows.filter { $0.humanHoldsControl }
@@ -490,7 +609,8 @@ extension _DesktopShellState {
             }
         }
         for win in windowManager.windows {
-            guard let owner = win.ownerAgentId, _isAgentOwned(win) else { continue }
+            guard let owner = win.ownerAgentId,
+                  _isFittedAgentWindow(win) else { continue }
             let want: UInt32 = watched.contains(owner) ? 0 : 200
             guard _agentThrottleApplied[win.id] != want else { continue }
             guard let sid = wayland.surfaceId(forWindowId: win.id) else { continue }
@@ -506,7 +626,7 @@ extension _DesktopShellState {
     /// take-over that has to be armed first is one they will not reach for
     /// while something is going wrong.
     func _takeOverIfAgentWindow(_ win: WindowInfo) {
-        guard _isAgentOwned(win), !win.humanHoldsControl else { return }
+        guard _isFittedAgentWindow(win), !win.humanHoldsControl else { return }
         setState { win.humanHoldsControl = true }
     }
 
@@ -562,7 +682,7 @@ extension _DesktopShellState {
         var scale = 1.0
         var offX = 0.0
         var offY = 0.0
-        if _isAgentOwned(win), paneW > 1, paneH > 1 {
+        if _isFittedAgentWindow(win), paneW > 1, paneH > 1 {
             let cw = max(1.0, win.rect.width)
             let ch = max(1.0, win.rect.height - DesktopTheme.kTitleBarHeight)
             scale = min(paneW / cw, paneH / ch)
@@ -691,16 +811,17 @@ extension _DesktopShellState {
         let tabSize = (w: out.logicalWidth - rightLeft - WS.paneGap * 2,
                        h: out.logicalHeight - paneTop - WS.paneGap)
 
-        // An agent's windows are NOT resized to their pane. The size a broker
-        // window has is the coordinate space the agent is working in — it
-        // screenshots, computes a click from those pixels, and clicks. Resize
-        // it between those two steps and the click lands somewhere else, for
-        // no reason the agent can see. `_workspacePane` fits them into the
-        // pane instead.
-        guard !ws.isAgent else { return }
-
         for win in windowManager.windows(inWorkspace: ws.id) {
             let isDriver = win.id == ws.driverWindowId
+            // An AGENT's own windows are not resized to their pane — only the
+            // driver is. The size a broker window has is the coordinate space
+            // the agent is working in: it screenshots, computes a click from
+            // those pixels, and clicks. Resize it between those two steps and
+            // the click lands somewhere else, for no reason the agent can
+            // see. `_workspacePane` fits those into the pane instead. The
+            // driver is the human's own app and is resized like any other
+            // workspace window.
+            if _isFittedAgentWindow(win) { continue }
             let size = isDriver ? driverSize : tabSize
             guard size.w > 1, size.h > 1 else { continue }
             let r = Rect.fromLTWH(0, 0, size.w, size.h)
@@ -1072,11 +1193,38 @@ extension _DesktopShellState {
         #if os(Linux)
         guard let ws = windowManager.workspaces.first(where: { $0.id == workspaceId })
         else { return }
-        guard let rec = AppRegistry.shared.app(id: appId),
-              rec.kind == AppRecord.Kind.firstParty else {
+        guard let rec = AppRegistry.shared.app(id: appId) else { return }
+
+        // A HOST app (Claude Desktop, Chrome) arrives asynchronously as a
+        // Wayland client, so it cannot be composited into a pane the way a
+        // first-party child can. The launch-chain claim closes that gap and
+        // already exists for the broker: arm the next toplevel from this
+        // client for an owner id, and every later window from the same client
+        // follows. Ownership ids are opaque, so a WORKSPACE id works there
+        // exactly as an agent id does — which is what lets a workspace run
+        // Claude Desktop as its driver at all.
+        if rec.kind == .host {
+            let started = _launchAgentHostApp(
+                agentId: ws.id, recipe: rec.exec,
+                discreteGpu: rec.discreteGpu,
+                onWindow: { [weak self] winId in
+                    guard let self else { return }
+                    self.setState {
+                        if asDriver, ws.driverWindowId == nil {
+                            ws.driverWindowId = winId
+                        }
+                    }
+                })
+            if !started {
+                FileHandle.standardError.write(Data((
+                    "[workspace] \(appId) could not be launched\n").utf8))
+            }
+            return
+        }
+        guard rec.kind == AppRecord.Kind.firstParty else {
             FileHandle.standardError.write(Data((
-                "[workspace] \(appId) is not a first-party app — "
-                + "only those can drive a workspace today\n").utf8))
+                "[workspace] \(appId) is neither first-party nor a host app — "
+                + "android and x11 records cannot drive a workspace\n").utf8))
             return
         }
         guard let mgr = linuxProcessAppManager else { return }

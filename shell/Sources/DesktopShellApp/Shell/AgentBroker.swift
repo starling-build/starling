@@ -38,6 +38,12 @@ import StarlingRegistry
 private final class BrokerConn: @unchecked Sendable {
     let fd: Int32
     var agentId: String? = nil
+    /// The connecting process, from the kernel's own peer credentials — the
+    /// same read that authenticates the uid. Kept because it is the only
+    /// honest link back to the APP that spawned this client: an MCP server is
+    /// a child of the desktop app that launched it, so walking up from here
+    /// finds the window to pair the agent's workspace with.
+    var peerPid: pid_t = 0
     private let writeQ = DispatchQueue(label: "starling.agent.conn.write")
     private var closed = false
 
@@ -206,9 +212,20 @@ final class AgentBroker: @unchecked Sendable {
                     close(clientFd)
                     continue
                 }
-                self.serveConnection(BrokerConn(fd: clientFd))
+                let conn = BrokerConn(fd: clientFd)
+                conn.peerPid = Self.peerPid(clientFd)
+                self.serveConnection(conn)
             }
         }
+    }
+
+    /// The connecting process id, or 0 when the kernel will not say.
+    private static func peerPid(_ fd: Int32) -> pid_t {
+        var cred = ucred()
+        var len = socklen_t(MemoryLayout<ucred>.size)
+        guard getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == 0
+        else { return 0 }
+        return pid_t(cred.pid)
     }
 
     /// True when the connected peer runs as the session's own user (or root,
@@ -340,6 +357,12 @@ final class AgentBroker: @unchecked Sendable {
 
             let n = shell.windowManager.agents.count + 1
             let agent = AgentInfo(id: "agent-\(n)", name: "\(name) (socket)")
+            agent.clientPid = conn.peerPid
+            // If a workspace's driver spawned this client, that workspace
+            // claims it and everything it opens lands beside the app driving
+            // it. Done at hello, before any window exists, so the very first
+            // one is already in the right place.
+            shell._bindAgentToWorkspace(agentId: agent.id, pid: conn.peerPid)
             agent.isExternal = true
             shell.setState { shell.windowManager.agents.append(agent) }
             conn.agentId = agent.id

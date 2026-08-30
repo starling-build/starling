@@ -198,6 +198,11 @@ final class WorkspaceInfo {
     var name: String
     var driverWindowId: String? = nil
 
+    /// The broker agent bound to this workspace: the app in the driver slot
+    /// spawned it, so what it opens belongs here. Set by process ancestry
+    /// when the agent connects, never guessed from names.
+    var agentId: String? = nil
+
     /// True when this entry stands for a broker AGENT rather than a workspace
     /// the human made — its `id` is the agent id.
     ///
@@ -244,6 +249,12 @@ final class AgentInfo {
     /// MCP servers, CI harnesses, agent-client.py). They have no terminal
     /// unless they launch one.
     var isExternal: Bool = false
+    /// The process that opened the broker connection, from the kernel's peer
+    /// credentials. An MCP server is a child of the desktop app that spawned
+    /// it — Claude Desktop's is a DIRECT child of its Electron main process,
+    /// which is also the process holding the Wayland connection — so walking
+    /// up from here finds the app to pair the agent's workspace with.
+    var clientPid: pid_t = 0
 
     /// Secret handed out at registration, required to re-attach to this agent
     /// on a later connection. Window ownership is per-agent, so a client that
@@ -384,6 +395,11 @@ class WindowManagerState {
 
     /// Workspaces, in creation order — the rows of the workspace rail.
     var workspaces: [WorkspaceInfo] = []
+    /// Last chance to bind an agent to the workspace whose driver spawned it,
+    /// asked just before it would be given a rail entry of its own. Installed
+    /// by the shell, which is the side that can read process ancestry.
+    /// Returns true when a workspace claimed it.
+    var onAgentNeedsWorkspace: ((String) -> Bool)? = nil
     /// Per-output rail selection (workspace per output): each monitor in
     /// workspace mode shows its own workspace. A workspace displayed on one
     /// output is not offered as another's default, and selecting it on a
@@ -506,7 +522,21 @@ class WindowManagerState {
     /// focus with no new filter sites — and renaming the field is left for
     /// whenever the agent space itself is revisited.
     func windows(inWorkspace workspaceId: String) -> [WindowInfo] {
-        windows.filter { $0.ownerAgentId == workspaceId }
+        // Plus the bound agent's own windows. Those stay owned by the AGENT
+        // rather than by the workspace on purpose: it is what still tells an
+        // agent's window from the app driving it, which decides whether the
+        // pane resizes it and whether touching it is a take-over.
+        let bound = workspaces.first(where: { $0.id == workspaceId })?.agentId
+        return windows.filter {
+            $0.ownerAgentId == workspaceId
+                || ($0.ownerAgentId != nil && $0.ownerAgentId == bound)
+        }
+    }
+
+    /// The workspace a broker agent's windows belong to, if one has claimed
+    /// it. Nil for an agent nobody launched from a workspace.
+    func workspace(forAgent agentId: String) -> WorkspaceInfo? {
+        workspaces.first { $0.agentId == agentId }
     }
 
     var activeSpace: SpaceInfo { spaces[activeSpaceIndex] }
@@ -723,7 +753,21 @@ class WindowManagerState {
             // child is owned right here — and hooking one of them is how
             // launching Settings through the broker produced a workspace that
             // never appeared.
-            if let agent = agents.first(where: { $0.id == agentId }) {
+            // A rail entry of its OWN, but only for an agent no workspace
+            // claimed. One launched from a workspace already has a home, and
+            // giving it a second entry would list the same windows twice.
+            //
+            // The retry is not belt-and-braces. Binding happens when the
+            // agent says hello, and Claude Desktop starts its MCP server as
+            // it boots — possibly BEFORE its own window has arrived and been
+            // claimed as the driver, in which case the walk up the process
+            // tree finds no window and the bind fails. Losing that race would
+            // put a duplicate rail entry beside the workspace that launched
+            // it, intermittently. By the time an agent opens a window the
+            // driver is certainly there.
+            if workspace(forAgent: agentId) == nil,
+               onAgentNeedsWorkspace?(agentId) != true,
+               let agent = agents.first(where: { $0.id == agentId }) {
                 ensureAgentWorkspace(agentId: agentId, name: agent.displayName)
             }
             return id

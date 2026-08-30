@@ -11,6 +11,7 @@ Install=claude
 Bins=/usr/lib/claude-desktop/claude-desktop
 DesktopEntry=com.anthropic.Claude;claude-desktop
 WmClass=com.anthropic.Claude
+Agent=1
 Category=Work
 Publisher=Anthropic
 Subtitle=Claude, on your desktop
