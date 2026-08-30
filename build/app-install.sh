@@ -198,6 +198,7 @@ if [ -n "$REMOVE" ]; then
     fi
     case "$NAME" in
         chrome)       apt-get remove -y -q google-chrome-stable ;;
+        claude)       apt-get remove -y -q claude-desktop ;;
         vscode)       apt-get remove -y -q code ;;
         spotify)      apt-get remove -y -q spotify-client ;;
         slack)        apt-get remove -y -q slack-desktop ;;
@@ -401,6 +402,15 @@ case "$NAME" in
         # Google's deb registers google-chrome.sources -> future `apt
         # upgrade` updates it like any repo package.
         vendor_deb "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+        ;;
+    claude)
+        # Anthropic's own repo. The key is published one level ABOVE the
+        # suite (…/claude-desktop/key.asc, not …/apt/stable/), which is the
+        # one thing about this recipe that is easy to get wrong.
+        vendor_repo claude-desktop \
+            "https://downloads.claude.ai/claude-desktop/key.asc" \
+            "https://downloads.claude.ai/claude-desktop/apt/stable stable main"
+        inst claude-desktop
         ;;
     vscode)
         vendor_repo vscode \

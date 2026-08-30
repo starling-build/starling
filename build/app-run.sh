@@ -166,6 +166,24 @@ else
                 --use-angle=gl --password-store=basic \
                 --force-device-scale-factor="$SCALE" "$@"
             ;;
+        claude)
+            # Anthropic's Claude Desktop — Electron 42, so a native Wayland
+            # client like Chrome, with VS Code's sandbox arrangement rather
+            # than Chrome's: it ships a setuid chrome-sandbox, which cannot
+            # work under bwrap's nosuid mounts, and Electron has no
+            # nested-userns zygote to fall back on.
+            #
+            # Deliberately NO per-socket --user-data-dir. VS Code takes one so
+            # a second shell's instance cannot adopt the first one's window;
+            # here the same trick would put the sign-in in a fresh profile on
+            # every socket, and the user would be asked to log in again each
+            # time. Claude Desktop is the app the human signs into, so the
+            # default profile is the right one.
+            set -- /usr/lib/claude-desktop/claude-desktop \
+                --ozone-platform=wayland --use-angle=gl \
+                --no-sandbox --disable-gpu-sandbox \
+                --force-device-scale-factor="$SCALE" "$@"
+            ;;
         gimp)
             # GTK3, native Wayland. GTK3 tolerates our output metadata where
             # GTK4 does not (see wayland_output.c), so this one just works.
