@@ -4,7 +4,7 @@
 Claude Desktop for Linux ships without computer use. It cannot be handed the
 `computer_toolset_20260801` toolset — a client declares its own tools on its
 own API requests, and no third party can inject one — but it does load MCP
-servers from ~/.config/claude/claude_desktop_config.json. So this is that
+servers from ~/.config/Claude/claude_desktop_config.json. So this is that
 toolset's seventeen members, same names and same semantics, as MCP tools
 backed by the shell's agent broker.
 
@@ -682,10 +682,28 @@ class MCPServer:
 # ── install ──────────────────────────────────────────────────────────────────
 
 
+def config_path():
+    """Where Claude Desktop actually reads its MCP config from.
+
+    It is Electron's `app.getPath("userData")` + claude_desktop_config.json,
+    and on Linux userData is `$XDG_CONFIG_HOME/<productName>` — so the
+    directory is **Claude**, capitalised, not `claude`. Writing the lowercase
+    spelling creates a second directory beside the real one, next to a config
+    nothing ever reads: `starling-computer-use install` reported success and
+    the server never appeared in the app. CLAUDE_USER_DATA_DIR overrides the
+    whole thing, and the app honours it, so we do too.
+    """
+    override = os.environ.get("CLAUDE_USER_DATA_DIR")
+    if override:
+        return os.path.join(override, "claude_desktop_config.json")
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(base, "Claude", "claude_desktop_config.json")
+
+
 def cmd_install(argv):
     """Add ourselves to Claude Desktop's MCP config, MERGING — that file is the
     user's, and other servers in it are not ours to drop."""
-    path = os.path.expanduser("~/.config/claude/claude_desktop_config.json")
+    path = config_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     try:
         with open(path) as fh:
@@ -703,6 +721,12 @@ def cmd_install(argv):
         fh.write("\n")
     os.replace(tmp, path)
     print("registered %s in %s" % (me, path))
+    # Point at the file an earlier version of this command wrote to the wrong
+    # place, rather than deleting something in the user's config directory.
+    stale = os.path.expanduser("~/.config/claude/claude_desktop_config.json")
+    if os.path.exists(stale) and os.path.abspath(stale) != os.path.abspath(path):
+        print("note: %s is read by nothing — an earlier install wrote it "
+              "there. Safe to delete." % stale)
     print("restart Claude Desktop to pick it up.")
 
 

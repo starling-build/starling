@@ -231,6 +231,41 @@ def main():
               name, "starling-computer-use")
         installed.close()
 
+        # ── where `install` puts the config ──────────────────────────────
+        #
+        # Claude Desktop reads Electron's userData dir, which on Linux is
+        # $XDG_CONFIG_HOME/Claude — CAPITALISED. The lowercase spelling makes
+        # a second directory beside the real one holding a file the app never
+        # opens, and `install` still prints success. Pin the exact path.
+        home = root / "installhome"
+        (home / ".config").mkdir(parents=True)
+        subprocess.run([sys.executable, str(SERVER), "install"],
+                       env=dict(os.environ, HOME=str(home),
+                                XDG_CONFIG_HOME=str(home / ".config")),
+                       stdout=subprocess.DEVNULL, check=True)
+        wrote = home / ".config" / "Claude" / "claude_desktop_config.json"
+        check("install writes the config Claude Desktop actually reads",
+              wrote.exists(), True)
+        if wrote.exists():
+            cfg = json.loads(wrote.read_text())
+            check("install registers this server by absolute path",
+                  cfg["mcpServers"]["starling-computer-use"]["command"],
+                  str(SERVER))
+
+        # It also has to MERGE: the file is the user's, and another server in
+        # it is not ours to drop.
+        wrote.write_text(json.dumps({"mcpServers": {"theirs": {"command": "x"}},
+                                     "preferences": {"keep": 1}}))
+        subprocess.run([sys.executable, str(SERVER), "install"],
+                       env=dict(os.environ, HOME=str(home),
+                                XDG_CONFIG_HOME=str(home / ".config")),
+                       stdout=subprocess.DEVNULL, check=True)
+        cfg = json.loads(wrote.read_text())
+        check("install keeps another server that was already there",
+              sorted(cfg["mcpServers"]), ["starling-computer-use", "theirs"])
+        check("install keeps the rest of the user's config",
+              cfg.get("preferences"), {"keep": 1})
+
         # ── pixels ───────────────────────────────────────────────────────
         r = mcp.call("computer_launch", app="settings")
         check("launch reports the window", text_of(r), "launched settings as window-1")
