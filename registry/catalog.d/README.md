@@ -26,6 +26,7 @@ Staged to `<share>/catalog.d`, installed to `/usr/share/starling/catalog.d`.
 | `TitleMatch` | `;`-separated title substrings — **only** for windows that carry no usable app_id |
 | `RenameWindows` | `1` to display `Name` instead of the window's own title |
 | `Gpu` | `discrete` to render on the discrete GPU when there is one (PRIME offload, docs/plans/prime.md); no-op on single-GPU machines |
+| `Agent` | `1` if the app drives a computer-use agent — a new workspace offers to run it, and the agent it spawns is paired to that workspace by process ancestry |
 | `Category` `Publisher` `Subtitle` `Size` `Description` | App Store copy |
 | `DebUrl` `DebMarker` | sealed-image install (Starling OS), where there is no apt |
 
