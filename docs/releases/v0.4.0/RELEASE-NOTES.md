@@ -7,6 +7,11 @@ alone**.
 
 ## It runs on Windows, through WSL
 
+**[Watch the walkthrough (2:27)](../../../ui/video/wsl-walkthrough.mp4)** —
+install, start, connect, use it. Recorded end to end on a real Windows machine;
+nothing in it is faked or sped up.
+
+
 You do not need a Linux machine to run Starling any more. Install WSL on
 Windows, install the `.deb` inside it, and connect with any RDP client —
 Windows' own Remote Desktop will do. The whole desktop comes up: the shell,
