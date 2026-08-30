@@ -253,6 +253,16 @@ class LinuxProcessAppManager {
         return (entry.dmaFd, entry.width, entry.height, entry.dmaBufStride, entry.dmaBufFourcc)
     }
 
+    /// The process behind a child's texture. Used to pair a broker agent with
+    /// the app that spawned it: a first-party child has no Wayland surface, so
+    /// the compositor's surface-pid route finds nothing for it, and an agent
+    /// started from a Terminal (Claude Code) would otherwise never bind to the
+    /// workspace that Terminal is driving.
+    func childPid(textureId: Int64) -> pid_t? {
+        guard let entry = apps[textureId], entry.pid > 0 else { return nil }
+        return entry.pid
+    }
+
     /// Register a callback to fire when the first frame arrives for this texture.
     func onFirstFrame(textureId: Int64, callback: @escaping () -> Void) {
         firstFrameCallbacks[textureId] = callback

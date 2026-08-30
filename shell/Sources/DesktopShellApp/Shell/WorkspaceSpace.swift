@@ -505,12 +505,20 @@ extension _DesktopShellState {
     }
 
     /// The process that opened a window, for pairing an agent with the app
-    /// that spawned it. Wayland clients only — a first-party child is the
-    /// shell's own and is never a driver.
+    /// that spawned it.
+    ///
+    /// Both window kinds, and the second one is not hypothetical: a Terminal
+    /// running Claude Code is a first-party CHILD, which has no Wayland
+    /// surface at all — so a surface-pid-only lookup finds nothing and the
+    /// agent never binds to the workspace that Terminal is driving.
     func _windowPid(_ win: WindowInfo) -> pid_t? {
-        guard let wayland = waylandIntegration,
-              let sid = wayland.surfaceId(forWindowId: win.id) else { return nil }
-        return wayland.clientPid(surfaceId: sid)
+        if let wayland = waylandIntegration,
+           let sid = wayland.surfaceId(forWindowId: win.id),
+           let pid = wayland.clientPid(surfaceId: sid) {
+            return pid
+        }
+        guard let tex = win.textureId else { return nil }
+        return linuxProcessAppManager?.childPid(textureId: Int64(tex))
     }
 
     /// `/proc/<pid>/stat` field 4. nil at the top of the tree.
