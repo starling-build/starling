@@ -561,9 +561,14 @@ the app could not be signed into at all except by un-maximising it.
    logical screen at scale 2: with `=2.0`, `devicePixelRatio` 4 and
    `innerWidth` 532; without it, 2 and 1280. Everything renders at twice its
    size and under half the page fits — and doubled, Claude Desktop's layout is
-   what wanted 884 px of height. Dropped from this recipe. **The other six
-   Chromium recipes still pass it** and are presumably wrong the same way; that
-   was outside what this change verified, so it is flagged rather than swept in.
+   what wanted 884 px of height. Now dropped from **all seven** Chromium
+   recipes (chrome, vscode, slack, teams, discord, spotify, claude). The same
+   trap was already written up for Qt in the Zoom recipe — `QT_SCALE_FACTOR`
+   on top of the `Xft.dpi` we publish also gave `devicePixelRatio` 4.0 — and
+   only that half had been fixed. The override keys on its own variable, not
+   on `STARLING_APP_SCALE`, which the shell sets on every app it launches:
+   keying there left the flag permanently on and the first attempt at this fix
+   changed nothing, which only reading the running process's argv caught.
 
 **Cosmetic, found on the way:** Claude Desktop draws its own title bar with
 its own minimise/maximise/close inside the buffer, under ours. The compositor
