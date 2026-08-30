@@ -542,6 +542,29 @@ servers once signed in, and `mcp.log` stays empty until then. Signing in is
 the user's, so the last link — Claude Desktop calling `starling-computer-use`
 and driving a window — is set up but unexercised.
 
+**And two bugs outside the shim, in the way of the sign-in itself.** Maximised,
+Claude Desktop's "Get started" button was *below the bottom of the screen* —
+the app could not be signed into at all except by un-maximising it.
+
+1. **A buffer commit resized the window to whatever the client rendered**, even
+   when maximised, where the size was never the client's to pick. Fullscreen
+   already had that guard. Configured 1280x768, the client acked and committed
+   a 1280x884 viewport, and the shell grew the window to 916 logical tall on an
+   800-tall screen. Holding the rect also exposed a second, older mistake: the
+   size a toplevel is told at map time is computed before the maximised rect
+   reserves the bottom bar and nothing ever re-sent it, so **every** maximised
+   Wayland client was 56 logical px too tall and ran its last strip under the
+   taskbar. The corrective configure fixes both; Chrome and Claude Desktop are
+   now told 712 and render 712.
+2. **`--force-device-scale-factor` doubles a scale Chromium has already
+   applied.** Measured through Chrome's own DevTools against this 1280x800
+   logical screen at scale 2: with `=2.0`, `devicePixelRatio` 4 and
+   `innerWidth` 532; without it, 2 and 1280. Everything renders at twice its
+   size and under half the page fits — and doubled, Claude Desktop's layout is
+   what wanted 884 px of height. Dropped from this recipe. **The other six
+   Chromium recipes still pass it** and are presumably wrong the same way; that
+   was outside what this change verified, so it is flagged rather than swept in.
+
 **Cosmetic, found on the way:** Claude Desktop draws its own title bar with
 its own minimise/maximise/close inside the buffer, under ours. The compositor
 forces `zxdg_toplevel_decoration_v1` to SERVER_SIDE, but a frameless Electron
