@@ -78,11 +78,17 @@ only if `win.ownerAgentId == agentId`. The human's windows and other agents'
 windows are not listed, not injectable, not capturable — not by policy, by
 lookup failure. This replaces the machine boundary with a per-window one.
 
-**The agent seat.** Wayland windows take an *independent focus stream* —
-`waylandIntegration.agentPointerEvent(...)`, distinct from the human's seat. The
-agent clicks in its window while the person keeps typing in theirs. Nothing else
-in this space does this; it is the reason the desktop does not have to be
-unattended.
+**Agent input does not touch the human's controls.** Wayland windows get
+agent input through `waylandIntegration.agentPointerEvent(...)` and friends —
+per-event surface targeting with separate focus trackers
+(`agentPointerFocus`/`agentKeyboardFocus`), so the agent clicks in its window
+while the person keeps typing in theirs. Honesty note: this is NOT a second
+`wl_seat`. A real seat-1 API exists in C (`wayland_server.c`,
+`wayland_server_agent_*`) and is called from nowhere — Chromium's Ozone is
+single-seat and produced zero DOM events from seat 1, which is why delivery
+rides seat 0 with explicit targeting (`WaylandIntegration.swift:1455-1517`
+records the history). The isolation property holds either way; the mechanism is
+delivery routing, not seat separation.
 
 **Capture is per-window, not per-screen.** The broker reads the window's own
 buffer, so the result is clean, unoccluded, and content-local. An agent cannot
@@ -260,3 +266,162 @@ coordinates after a zoom, so the shim must not rebase them.
 - **Claude Desktop is an Electron app, so it is a Wayland client** — it is
   subject to milestone 1 like everything else, including if we ever want an
   agent to drive Claude Desktop itself.
+
+---
+
+# Implementation plan (approved 2026-08-29)
+
+The survey above is the *why*; this is the *how*, phase by phase. Two decisions
+are fixed: **per-window scope only** (no full-desktop readback mode this pass),
+and deliver the **MCP server plus a conformance loop** (no `claude.app`
+packaging yet). Exploration confirmed the survey's blocker and turned up two
+more, all reflected below.
+
+## Phase 1 — Engine: one-shot per-window texture capture
+
+Repo **starling-engine, branch `starling`**. Files
+`engine/src/flutter/shell/platform/linux_drm/fl_drm_view.{h,cc}`.
+
+New export — the name MUST keep the `fl_drm_view_` prefix (`drm_exports.lst` is
+a wildcard on it; anything else is localized silently):
+
+```c
+// Synchronous one-shot capture of an external texture's current content.
+// Scales to out_w×out_h (GL_LINEAR, same rule as recording_start_texture),
+// writes top-down RGBA into dst. 0 on success; negative for unresolvable
+// texture / no ES3 / timeout.
+FL_DRM_EXPORT int fl_drm_view_capture_texture_once(
+    FlDrmView* view, int64_t texture_id, int content_top_down,
+    int out_w, int out_h, uint8_t* dst, int dst_len);
+```
+
+"Option B" — synchronous readback, no present, no pump, no recording session
+(the session path collides with the engine-wide single-capture arbitration that
+RDP/ScreenCast/Recording already share, and carries a 3-present latency + a
+writer-thread join; wrong tool for an on-demand grab):
+
+- Post a task to the **raster thread** with `FlutterEnginePostRenderThreadTask`
+  (`embedder.h:3365`, currently unused in-tree); block the caller on a condvar
+  with a ~1s timeout.
+- In the task: `v->egl.MakeCurrent()` (the engine clears the context between
+  frames), resolve the texture via `v->external_texture_callback` — the SAME
+  resolver the present path uses (`fl_drm_view.cc:1212-1231`); it also refreshes
+  a dirty client texture, which is what makes this immune to idle-desktop
+  staleness *without* the frame pump. Then reuse the existing blit shape
+  (`:1237-1256`): `src_fbo` + `glFramebufferTexture2D`, scale-blit into a scratch
+  RGBA renderbuffer at `out_w×out_h` honoring the `content_top_down` flip
+  (top-down = straight, bottom-up = flipped), a blocking `glReadPixels`, then
+  `ClearCurrent()`.
+- Gate on `GetEs3Fns()` like the recording path (`:1042-1044`). Return DISTINCT
+  errors for unresolvable / no-ES3 / timeout — resolve failure is silent on the
+  present path and must not be here.
+- Never cache the resolved GL texture name (the registry defers deletions to the
+  next resolve on the GL thread).
+
+Rebuild BOTH outputs — host_debug fails the *link* without the export,
+host_release fails at *runtime*:
+`ninja -C engine/src/out/{host_debug,host_release} libflutter_linux_drm.so libflutter_engine.so`.
+
+## Phase 2 — Shell: broker completeness
+
+This repo, branch `computer-use`. Files `AgentBroker.swift`, `AgentWindows.swift`,
+`WaylandIntegration.swift`, `DesktopShell.swift`.
+
+**2a. `capture` for every window kind** (`AgentBroker.swift:766-812`). Try
+`fl_drm_view_capture_texture_once` first — it works for Wayland clients AND
+first-party children, and it fixes the documented virtualised-GPU empty-mmap
+failure (`agent-client.py:429-440`). Keep the mmap path as a fallback. Accept an
+optional `max_px` long-edge target; the engine blit does the downscale, so the
+shim never rescales pixels. Reply gains `"format":"rgba"` (top-down) + image
+dims alongside the existing `content`/`scale`. Pass `win.flipTextureY` as
+`content_top_down`.
+
+**2b. Fill in `inject`.** All Wayland routing stays on the existing
+agent-targeted delivery (`agentPointerEvent`/`agentKeyEvent`/`agentScrollEvent`).
+- `agentPointerEvent` gains a `button` param (0x110/0x111/0x112); the C layer
+  already passes buttons verbatim (`wayland_server.c:444-452`).
+- New ev types: `rclick`, `mclick`, `dblclick` (two synthesized down/up pairs
+  with a REAL delay — `onDoubleTap` is unusable on DRM per CLAUDE.md), `down`,
+  `up`, `drag` (down → motion glide → up), `keydown`/`keyup` (for `hold_key`).
+- Agent modifier state: mirror the human path's `modifierBit`/`modsDepressed`
+  logic (`WaylandIntegration.swift:1226-1304`) and call
+  `wayland_server_keyboard_modifiers` on the agent path — without it every chord
+  is silently unmodified (Ctrl+C arrives as `c`). Also send pointer leave on
+  agent focus change (a stale enter persists today) and track the last agent
+  (x,y) per window for `cursor_position`.
+- Fix `inject text` on Wayland: it currently passes the textureId guard then
+  no-ops inside `LinuxProcessAppManager.sendKeyEvent` while replying `ok:true`
+  (`AgentBroker.swift:749-761`). Branch on `agentSurf` like `key` does;
+  synthesize per-char key events via an ASCII→HID(+shift) table
+  (precedent: `shell-drive.py` KEYCODES). Keep the DMA-BUF path unchanged.
+
+**2c. Registry-backed `launch`** — delete the `launchable` table
+(`AgentBroker.swift:120-124`):
+- `.firstParty` → existing `_launchAgentChildApp(execName: rec.exec, …)`.
+- `.host` → generalize `_launchAgentChrome` (`AgentWindows.swift:63-89`) to a
+  `_launchAgentHostApp(recipe:)`: recipe = `rec.exec`, `STARLING_CDP` only when
+  recipe == "chrome", ADD `setsid` (without it a `kill(-pgid)` for app-quit
+  takes the shell down — the `_spawnLauncher` hazard, `DesktopShell.swift:7954-7968`),
+  and honor `Gpu=discrete` → `STARLING_APP_GPU`.
+- `.x11` / `.android` → refuse (they don't fit the wl_client-claim model —
+  WeChat is a whole rootful Xwayland screen, Waydroid one window for all apps).
+  Uninstalled → refuse "not installed".
+- Serialize agent launches: `_pendingAgentWayland` is a global one-shot claim;
+  reject a second host-app launch while one is armed (registry breadth makes the
+  race real). Consider keying the claim on child pid
+  (`waylandIntegration.clientPid(surfaceId:)`).
+- Update the scope echo in BOTH hello replies (`AgentBroker.swift:317, 331`) and
+  the error at `:641` to derive from the registry.
+
+## Phase 3 — Executor + MCP server (Path A)
+
+New `build/computer-use-mcp.py`, staged by `stage.sh` next to the
+`agent-client.py` line (`stage.sh:234`) as `$OUT/bin/starling-computer-use`
+(`package-desktop.sh` picks `bin/` up automatically). Python stdlib only,
+importing `agent-client.py`'s `Broker`, `capture_to_rgba`, `write_png` via
+importlib from the installed path.
+
+- MCP stdio server: JSON-RPC 2.0, `initialize` / `tools/list` / `tools/call`.
+  Identity persists through agent-client's state file, so broker re-attach keeps
+  window ownership across Claude Desktop restarts.
+- Tools: the 17 toolset members with matching names/semantics, each taking an
+  explicit `win`, plus `computer_launch(app, url?)` and `computer_windows()` for
+  the per-window model. `screenshot` = broker `capture` with `max_px` 1280 → PNG
+  image block; `zoom` = fresh capture, crop, rescale (coordinates STAY
+  full-screenshot-based per the contract). Screenshot-px → content-local logical
+  mapping lives in exactly one place (reply `content` vs image dims).
+- Batch semantics: sequential, stop at first failure, remaining answered
+  `is_error` "Not executed: an earlier computer action in this turn failed."
+- `install` subcommand: merge (never clobber) an `mcpServers` entry into
+  `~/.config/claude/claude_desktop_config.json`.
+
+## Phase 4 — Conformance loop (Path B)
+
+New `test/computeruse/conformance.py` — manual, needs API credentials, NOT in
+run.sh. Declares the real `computer_toolset_20260801` on `claude-opus-5`
+(adaptive thinking, streaming), drives members through the same executor module,
+runs a scripted task. Purpose: catch drift between our member implementations
+and the real contract before users do.
+
+## Phase 5 — Tests + docs
+
+- `test/functional.py`: new inject actions asserted via `semantic_tree` (the
+  existing no-pixel pattern); a one-shot `capture` on a first-party window
+  asserting dims + non-empty.
+- Fast tier: an MCP-framing test against a fake broker socket (pure Python, no
+  GPU), wired like `xdg_open_routing.py`. `test/run.sh` stays green.
+- This doc: keep the agent-seat honesty note current as the code changes.
+
+## Verification (the Linux dev box — planning happened on macOS)
+
+1. `test/run.sh` after each shell change; engine build for BOTH out dirs.
+2. `build/build-all.sh && build/run-desktop.sh`; then `agent-client.py launch
+   chrome …` + `shot` — the shot must now come from the broker, not the CDP
+   fallback (its own output says which).
+3. Drive the MCP server standalone over stdio; screenshot a launched Settings
+   window, click by coordinate, confirm via `semantic_tree`.
+4. `sudo test/run.sh --functional`.
+5. End to end: install `claude-desktop`, `starling-computer-use install`,
+   restart it, ask Claude to open Settings and act — confirm the human cursor
+   never moves and no human window appears in any screenshot.
+6. Conformance loop against the real API once, with credentials.
