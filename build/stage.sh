@@ -232,6 +232,10 @@ install -m755 "$REPO"/build/appbin/* "$LIB/appbin/"
 # ~/.claude/skills/ (see the README beside it) rather than installed there
 # outright, since that directory belongs to the user, not the package.
 install -m755 "$REPO/build/agent-client.py" "$OUT/bin/agent-client"
+# Computer use for anything that speaks MCP — Claude Desktop for Linux ships
+# without it, and this is the seventeen toolset members over the broker. It
+# imports agent-client from beside it, so the two travel together.
+install -m755 "$REPO/build/computer-use-mcp.py" "$OUT/bin/starling-computer-use"
 mkdir -p "$SHARE/skills/starling-desktop"
 install -m644 "$REPO/build/skills/starling-desktop/SKILL.md" \
     "$SHARE/skills/starling-desktop/"

@@ -213,6 +213,9 @@ fi
 step "xdg-open routing"
 python3 "$REPO/test/xdg_open_routing.py" || fails=$((fails + 1))
 
+step "computer use: MCP framing"
+python3 "$REPO/test/computeruse/mcp_framing.py" || fails=$((fails + 1))
+
 step "unit tests: time"
 (cd "$REPO/time" && as_user "$SWIFT" test 2>&1 \
     | grep -vE "libxml2.so.2: no version information" \

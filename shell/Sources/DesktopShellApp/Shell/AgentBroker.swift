@@ -382,6 +382,12 @@ final class AgentBroker: @unchecked Sendable {
             let apps = AppRegistry.shared.apps.map { app -> [String: Any] in
                 ["app": app.id,
                  "name": app.name,
+                 // How it is installed and launched. Reported because the
+                 // launch scope is derived from it — a test that wants to
+                 // check the scope against the registry would otherwise have
+                 // to re-parse catalog.d itself, which is a second reader of
+                 // the same file and drifts the way the deleted table did.
+                 "kind": app.kind.rawValue,
                  "installed": app.installed,
                  "dock": app.dockOrder ?? -1,
                  "window": live[app.id]?.window ?? false,

@@ -29,6 +29,7 @@ in a real session (the VM tier). The CLI path those buttons invoke is covered
 here.
 """
 
+import base64
 import contextlib
 import glob
 import json
@@ -152,6 +153,9 @@ class Session:
         hello = self.call("hello", **args)
         self.agent_id = hello["agent"]
         self.token = hello["token"]
+        # What the broker says this agent may launch and see. Derived from the
+        # registry now rather than a table, which is the thing worth checking.
+        self.hello_scope = hello.get("scope", {})
 
     def call(self, op, **args):
         self._id += 1
@@ -722,6 +726,118 @@ def check_agent_reattach() -> None:
         log("a wrong token is refused")
     finally:
         impostor.close()
+
+
+@check("agents: capture reads the window's own pixels, at the size asked for")
+def check_agent_capture() -> None:
+    """Milestone 1 of docs/plans/computer-use.md, from the outside.
+
+    `capture` used to mmap the child's linear DMA-BUF, which meant it worked
+    for first-party children and returned "window has no capturable buffer"
+    for every Wayland client — Chrome, VS Code, Claude Desktop itself. It now
+    resolves the window's texture through the compositor, so this asserts the
+    reply says `texture` rather than `dmabuf`: a silent fall back to the mmap
+    would still pass a pixels-are-non-empty check on a first-party window and
+    hide the regression from everything except a Chrome test the fast tiers
+    cannot run.
+    """
+    s, win = settings_window()
+    try:
+        shot = s.ok("capture", win=win)
+        assert shot.get("source") == "texture", \
+            f"capture fell back to {shot.get('source')!r}"
+        assert shot["row_order"] == "top-down", shot["row_order"]
+        assert shot["stride"] == shot["w"] * 4, shot["stride"]
+        data = base64.b64decode(shot["data"])
+        assert len(data) == shot["stride"] * shot["h"], len(data)
+        # An all-zero read is a failed capture, not a black window — and
+        # writing it out as a screenshot is the worst outcome, because an
+        # agent then reasons about an app that looks blank.
+        assert any(data[::499]), "capture read back entirely empty"
+
+        # The cap is what keeps a 2560x1600 panel from base64'ing four
+        # megapixels an agent asked for at 1280.
+        small = s.ok("capture", win=win, max_px=320)
+        assert max(small["w"], small["h"]) == 320, (small["w"], small["h"])
+        assert small["content"] == shot["content"], "the cap moved the window"
+        assert any(base64.b64decode(small["data"])[::499]), "empty at 320px"
+        log(f"{shot['w']}x{shot['h']} from the texture, {small['w']}x{small['h']} capped")
+    finally:
+        s.close()
+
+
+@check("agents: inject drives a window by coordinate, and reports where it did")
+def check_agent_inject_vocabulary() -> None:
+    """Coordinates in, a changed UI out — asserted through the semantic tree
+    rather than pixels, which is what keeps this tier fast and stops it
+    re-blessing whatever the shell happens to draw.
+
+    The click target comes from the tree's own rect, so this also checks the
+    two agree about where things are: a coordinate click that misses would
+    leave the tree unchanged and time out here.
+    """
+    s, win = settings_window()
+    try:
+        nodes = tree_nodes(s, win)
+        target = next(n for n in nodes
+                      if (n.get("label") or "").startswith("Network")
+                      and "tap" in (n.get("actions") or []))
+        x, y, w, h = target["rect"]
+        cx, cy = x + w / 2, y + h / 2
+        before = [n.get("label") for n in nodes]
+
+        s.ok("inject", win=win, ev={"type": "click", "x": cx, "y": cy})
+        wait_for(lambda: [n.get("label") for n in tree_nodes(s, win)] != before,
+                 "a coordinate click to change the pane")
+
+        pos = s.ok("cursor_position", win=win)
+        assert abs(pos["x"] - cx) < 0.5 and abs(pos["y"] - cy) < 0.5, \
+            f"cursor_position says {pos}, click was at {cx},{cy}"
+
+        # The rest of the vocabulary: every member the computer-use contract
+        # names has to be accepted, or the shim answers a model with an error
+        # it can do nothing about. Effects are the previous assertion's job;
+        # this is coverage of the switch.
+        for ev in ({"type": "rclick", "x": cx, "y": cy},
+                   {"type": "mclick", "x": cx, "y": cy},
+                   {"type": "dblclick", "x": cx, "y": cy},
+                   {"type": "tripleclick", "x": cx, "y": cy},
+                   {"type": "down", "x": cx, "y": cy},
+                   {"type": "up", "x": cx, "y": cy},
+                   {"type": "drag", "x": cx, "y": cy, "x2": cx + 20, "y2": cy + 20},
+                   {"type": "keydown", "physical": 0xE0},
+                   {"type": "keyup", "physical": 0xE0},
+                   {"type": "text", "text": "hi"}):
+            s.ok("inject", win=win, ev=ev)
+        s.ok("wait", ms=50)
+        log("click, cursor_position and the ten added actions all answered")
+    finally:
+        s.close()
+
+
+@check("agents: launch offers the registry, not a table")
+def check_agent_launch_scope() -> None:
+    """The scope the broker advertises has to be the registry's answer. It was
+    a hardcoded four, which CLAUDE.md forbids and which made an agent that can
+    only open Settings; the check that matters is that it now tracks what is
+    installed rather than what someone remembered to add."""
+    s = Session(name="launch-scope")
+    try:
+        scope = set(s.hello_scope.get("launch", []))
+        installed = {a["app"] for a in ask("list_apps")["apps"]
+                     if a.get("installed") and a.get("kind") in ("first-party", "host")}
+        assert scope == installed, \
+            f"scope {sorted(scope)} != installed first-party/host {sorted(installed)}"
+        # x11 and android records fit no ownership model — one window covers a
+        # whole rootful Xwayland screen or every Android app at once — so they
+        # must be refused with a reason rather than silently missing.
+        for app in (a["app"] for a in ask("list_apps")["apps"]
+                    if a.get("kind") in ("x11", "android")):
+            denied = s.call("launch", app=app)
+            assert not denied.get("ok"), f"{app} was launchable"
+        log(f"{len(scope)} launchable app(s), from the registry")
+    finally:
+        s.close()
 
 
 @check("launcher: typing in the Launchpad filters the app grid")

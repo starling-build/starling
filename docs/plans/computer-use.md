@@ -96,11 +96,18 @@ see the human's other windows *even if they overlap the one it owns* — a
 stronger privacy property than a VM screenshot, which shows everything inside
 the VM.
 
-**Take-over.** The human takes a window's controls until Esc; every op that acts
-on a window **or reads its contents** refuses while it holds. The comment at
-`AgentBroker.swift:594` records why that is broader than it first was: it was
-checked only in `inject`, "which by then was the one path an agent driving a web
-page did not use."
+**Take-over — GONE, and this document said otherwise.** The design was: the
+human takes a window's controls until Esc, and every op that acts on a window
+**or reads its contents** refuses while it holds. That shipped, and was then
+removed with the AI Space (`3776fd6`) — the flag lived in that UI. What
+survived was the doc comment, still describing a guard the code no longer had,
+which is how this survey came to list it among the properties already
+load-bearing. Only three of the four were.
+
+Nothing is regressed today, because agent windows are headless: there is no
+surface for a human to take over from. But the property is a claim this
+document makes, and anything that puts agent windows on screen has to bring
+the mechanism back with it.
 
 And two escapes from pixels entirely, which matter more than they sound:
 `semantic_tree`/`perform_action` address first-party UI by label and node id
@@ -165,6 +172,9 @@ frontend on one side and a sampling loop on the other.
 Ordered by what will bite, not by size.
 
 **1. `capture` does not work for Wayland clients — the windows that matter.**
+*(Closed — see Status below. Left in place because the reasoning is what the
+fix is built on.)*
+
 The op resolves pixels through `linuxProcessAppManager.dmaBufInfo(textureId:)`
 (`LinuxProcessAppManager.swift:246`), which reads `apps[textureId]` — the
 DMA-BUF *child app* table, first-party only. Wayland surfaces register their
@@ -425,3 +435,72 @@ and the real contract before users do.
    restart it, ask Claude to open Settings and act — confirm the human cursor
    never moves and no human window appears in any screenshot.
 6. Conformance loop against the real API once, with credentials.
+
+---
+
+# Status (2026-08-29)
+
+Milestones 1–5 and 7 are done and verified on the dev box; milestone 6 is
+written but unrun. Branch `computer-use` here, `starling` in the engine.
+
+**What works.** An agent opens a window from the whole registry, screenshots
+it, clicks it by coordinate, types into it, and reads it back — for a Wayland
+client and a first-party child alike. Verified live: Chrome captured per
+window (its first ever), its address bar clicked, Ctrl+A'd, typed into, a word
+double-click-selected, and a link followed; Settings driven to its Network
+pane and asserted through the semantic tree. Claude Desktop can drive all of
+it through `starling-computer-use install`.
+
+**What landed, against the plan.**
+
+- **Engine.** `fl_drm_view_capture_texture_once` — the recording sink's
+  texture blit with the session removed, run on the raster thread. Option B as
+  planned: no present, no pump, distinct error codes. Two things the plan did
+  not call out and the code needed: GL bindings are saved and restored (we are
+  not inside a present where the engine resets them, so a stray pack buffer
+  would send the *next* readback into our scratch), and the request struct is
+  owned by whichever side observes `abandoned`, so a timed-out caller's buffer
+  can never be written after it goes away.
+- **Broker.** `capture` for every window kind with an optional `max_px`; the
+  ten missing inject actions; agent modifier state; `cursor_position`; `wait`;
+  registry-backed `launch` with the table deleted. `list_apps` now reports
+  `kind`, so the launch scope can be checked against the registry rather than
+  re-parsed from `catalog.d`.
+- **Three bugs the plan did not predict**, all found by driving Chrome:
+  1. **`inject text` on a Wayland window answered `ok:true` and did nothing.**
+     It passed the guard and then no-op'd inside the DMA-BUF sender. Typing
+     into Chrome reported success and typed nothing.
+  2. **Every chord arrived unmodified.** The agent path never sent
+     `wl_keyboard.modifiers`, so Ctrl+C reached the client as a bare `c`.
+  3. **Keyboard focus had to move to POINTER enter.** This is CLAUDE.md's own
+     trap, paid for again: click Chrome's address bar, then send Ctrl+A, and
+     the selection landed in the *page* — the keyboard enter arrived between
+     the two, and Chrome treated it as freshly gaining focus and reset to its
+     default target. Establishing keyboard focus with the pointer makes the
+     click the last word on where the caret is.
+- **Shim.** `build/computer-use-mcp.py`, staged as `bin/starling-computer-use`.
+  The seventeen members plus `computer_launch`, `computer_windows`, and
+  `computer_settled` — the last of which is the one worth having: it replaces
+  `wait 2 seconds` with the compositor reporting a fact.
+- **Tests.** `test/computeruse/mcp_framing.py` in the fast tier (23 checks
+  against a fake broker — framing, coordinate mapping, chords, PNG, batch
+  semantics; no GPU, no desktop), and three functional checks for capture,
+  the inject vocabulary, and the launch scope.
+
+**Open.**
+
+- **The conformance loop has never been run.** `test/computeruse/conformance.py`
+  declares `computer_toolset_20260801` on `claude-opus-5` and drives the same
+  executor, but this box has no API credentials and no `anthropic` package, so
+  only its `--dry-run` has been exercised. Until it runs, the toolset
+  declaration shape is taken from this document, not from the wire.
+- **Take-over is gone** (above), and needs to return before agent windows are
+  ever drawn.
+- **Agent input is still seat 0 with explicit targeting**, not a second
+  `wl_seat` — unchanged, and the honesty note above still stands.
+- **CSD margins are not cropped.** The capture blits the whole texture, so a
+  client that draws shadow into its buffer would put shadow in the screenshot
+  and skew the coordinate mapping. Maximized Wayland toplevels skip CSD
+  shadows, which is why this has not bitten; a floating window would.
+- **`GlobalShortcuts`** — the separate, smaller Quick Entry win named at the
+  top of this document — is untouched.
