@@ -45,9 +45,41 @@ RUNTIME="${STARLING_APP_RUNTIME:-/var/lib/starling-apps/runtime}"
 HOMES="${STARLING_APP_HOMES:-/var/lib/starling-apps/homes}"
 XDG_DIR="${STARLING_XDG_DIR:-/tmp/xdg-starling-$(id -u)}"
 SOCKET="${STARLING_WAYLAND:-wayland-0}"
-# Follow the shell's actual DPI (the shell exports FLUTTER_DRM_DPI to every
-# child, so store-launched apps inherit it); 2.0 matches the shell default.
-SCALE="${STARLING_APP_SCALE:-${FLUTTER_DRM_DPI:-2.0}}"
+# ── Chromium scale: DO NOT pass one ──────────────────────────────────────────
+#
+# Every recipe here used to pass --force-device-scale-factor=$SCALE, following
+# the shell's DPI. It DOUBLES the scale, because Chromium has already applied
+# it: we advertise wl_output.scale(2) and wp_fractional_scale_v1's
+# preferred_scale, and Chromium's Ozone honours both. Measured through Chrome's
+# own DevTools against a 1280x800 logical screen at scale 2:
+#
+#     with --force-device-scale-factor=2.0    devicePixelRatio 4, innerWidth 532
+#     without                                 devicePixelRatio 2, innerWidth 1280
+#
+# So every third-party app rendered at TWICE its proper size, with under half
+# the page fitting. It hid for so long because the doubling is uniform — it
+# reads as "big UI", not as a bug — and because the buffer is right either way,
+# so nothing looked blurry or clipped. Two things it did break: a maximised
+# Claude Desktop wanted 884 logical px of height against a configured 768 and
+# put its "Get started" button off the bottom of the screen, and the flag
+# cannot follow a runtime scale change at all (wayland_output.c:267).
+#
+# This is the SAME trap the Zoom recipe documents below for Qt, found earlier
+# and fixed there only: QT_SCALE_FACTOR on top of the Xft.dpi we publish also
+# gave devicePixelRatio 4.0. The Chromium half was never done.
+#
+# Honour an explicit override, for testing a scale by hand — same shape as
+# Zoom's QT_SCALE_FACTOR line. Unset (the normal case) passes no flag at all.
+#
+# The override is keyed on its OWN variable and NOT on STARLING_APP_SCALE,
+# which would look like the obvious choice and is the wrong one: the shell
+# sets STARLING_APP_SCALE to its DPI on every app it launches
+# (DesktopShell.swift, AgentWindows.swift), so keying on that leaves the flag
+# permanently on and the fix does nothing — verified by watching the doubled
+# devicePixelRatio survive the change. STARLING_APP_SCALE stays as it is
+# because wechat-run.sh genuinely needs it: its app is X11 inside a rootful
+# Xwayland, where nothing tells the client the scale.
+APP_SCALE="${STARLING_CHROMIUM_SCALE:-}"
 
 # Starling's xdg-open shim (tools/appbin/) goes FIRST on every app's PATH:
 # URL handoffs (Electron shell.openExternal, Qt QDesktopServices, Chromium
@@ -140,7 +172,7 @@ else
                 --no-first-run --no-default-browser-check --use-angle=gl \
                 --disable-features=VaapiVideoDecoder,VaapiVideoEncoder \
                 ${CHROME_ROOT_FLAGS} \
-                --force-device-scale-factor="$SCALE" "$@"
+                ${APP_SCALE:+--force-device-scale-factor="$APP_SCALE"} "$@"
             # Agent CDP endpoint (Murmuration): STARLING_CDP=<agent-id> gives
             # this launch its own profile + a DevTools port (Chrome refuses
             # remote debugging on the default profile dir; a per-agent
@@ -194,7 +226,7 @@ else
                 --user-data-dir="/tmp/vscode_${WAYLAND_DISPLAY:-wayland-0}" \
                 --disable-features=VaapiVideoDecoder,VaapiVideoEncoder \
                 --use-angle=gl --password-store=basic \
-                --force-device-scale-factor="$SCALE" "$@"
+                ${APP_SCALE:+--force-device-scale-factor="$APP_SCALE"} "$@"
             ;;
         claude)
             # Anthropic's Claude Desktop — Electron 42, so a native Wayland
@@ -209,20 +241,11 @@ else
             # every socket, and the user would be asked to log in again each
             # time. Claude Desktop is the app the human signs into, so the
             # default profile is the right one.
-            # And deliberately NO --force-device-scale-factor, which every
-            # other Chromium recipe here still passes. We advertise
-            # wl_output.scale(2), Chromium applies it, and the flag then
-            # multiplies by 2 AGAIN: measured through Chrome's own DevTools
-            # on this desktop, `--force-device-scale-factor=2.0` gives
-            # devicePixelRatio 4 and innerWidth 532 on a 1280-logical screen,
-            # against 2 and 1280 without it. Everything renders at twice the
-            # size it should, and under half the page fits.
-            #
-            # For Claude Desktop that is not only cosmetic. Doubled, its
-            # layout wanted an 884-logical-tall window where the compositor
-            # had configured 768, and Electron took its own number — pushing
-            # "Get started" off the bottom of the screen, so the app could
-            # not be signed into at all while maximised.
+            # No scale flag either — see APP_SCALE at the top. This is the app
+            # that exposed it: doubled, its layout wanted an 884-logical-tall
+            # window where the compositor had configured 768, and Electron
+            # took its own number, pushing "Get started" off the bottom of the
+            # screen. The app could not be signed into at all while maximised.
             set -- /usr/lib/claude-desktop/claude-desktop \
                 --ozone-platform=wayland --use-angle=gl \
                 --no-sandbox --disable-gpu-sandbox "$@"
@@ -317,7 +340,7 @@ else
             # /usr/lib/slack.
             set -- "$(first_of /opt/slack/slack /usr/lib/slack/slack)" \
                 --ozone-platform=wayland --use-angle=gl \
-                --force-device-scale-factor="$SCALE" "$@"
+                ${APP_SCALE:+--force-device-scale-factor="$APP_SCALE"} "$@"
             ;;
         telegram)
             # Qt6 app with NATIVE Wayland (unlike Zoom's xcb). Runs on the
@@ -365,7 +388,7 @@ else
             set -- /opt/teams-for-linux/teams-for-linux \
                 --ozone-platform=wayland --use-angle=gl \
                 --no-sandbox --disable-gpu-sandbox \
-                --force-device-scale-factor="$SCALE" "$@"
+                ${APP_SCALE:+--force-device-scale-factor="$APP_SCALE"} "$@"
             ;;
         discord)
             # Official Electron app, but shipped as a bootstrapper: the
@@ -374,14 +397,14 @@ else
             # Chrome/Slack. Host vendor deb installs /usr/share/discord.
             set -- "$(first_of /usr/bin/discord /opt/discord/discord /usr/share/discord/Discord)" \
                 --ozone-platform=wayland --use-angle=gl \
-                --force-device-scale-factor="$SCALE" "$@"
+                ${APP_SCALE:+--force-device-scale-factor="$APP_SCALE"} "$@"
             ;;
         spotify)
             # Chromium/CEF app — native Wayland like Chrome. Runtime image:
             # /opt/spotify; the vendor apt repo installs /usr/share/spotify.
             set -- "$(first_of /opt/spotify/spotify /usr/share/spotify/spotify)" \
                 --ozone-platform=wayland --use-angle=gl \
-                --force-device-scale-factor="$SCALE" "$@"
+                ${APP_SCALE:+--force-device-scale-factor="$APP_SCALE"} "$@"
             ;;
         *)
             echo "app-run: unknown app '$NAME'." >&2
