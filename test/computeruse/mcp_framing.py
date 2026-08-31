@@ -116,7 +116,8 @@ class FakeBroker(threading.Thread):
         if op == "wait":
             return {"ok": True, "waited_ms": req.get("ms", 0)}
         if op == "await_settled":
-            return {"ok": True, "settled_in_ms": 12}
+            return {"ok": True, "settled_in_ms": 12,
+                    "repainted": True, "timed_out": False}
         return {"ok": False, "error": "unknown op %s" % op}
 
 
@@ -328,8 +329,41 @@ def main():
         check("an unknown key name is an error, not a wrong keypress",
               (r.get("isError"), "no key named" in text_of(r)), (True, True))
 
+        before = len(broker.seen)
         mcp.call("type", win="window-1", text="hello")
-        check("type goes through as text", broker.seen[-1]["ev"]["type"], "text")
+        seq = broker.seen[before:]
+        check("type goes through as text", seq[0]["ev"]["type"], "text")
+
+        # Typing is chunked and each chunk is waited for. A burst of a whole
+        # paragraph leaves a rich editor repainting nothing for seconds, and
+        # the screenshot after it shows an empty body — the failure that
+        # taught us to type at a keyboard's pace. The chunk size is pinned
+        # here deliberately: raising it silently reintroduces the burst.
+        before = len(broker.seen)
+        long_text = "x" * 200
+        mcp.call("type", win="window-1", text=long_text)
+        seq = broker.seen[before:]
+        typed = [r for r in seq if r["op"] == "inject"]
+        check("a paragraph is typed in chunks, not one burst",
+              (len(typed) > 1, max(len(r["ev"]["text"]) for r in typed) <= 64),
+              (True, True))
+        check("every character still arrives, in order",
+              "".join(r["ev"]["text"] for r in typed), long_text)
+        check("each chunk is followed by a wait for the repaint, and the "
+              "last one by a longer wait",
+              [r["op"] for r in seq],
+              [op for _ in typed for op in ("inject", "await_settled")]
+              + ["await_settled"])
+        check("the wait between chunks is back pressure, not a settle",
+              [r.get("quiet_ms") for r in seq if r["op"] == "await_settled"],
+              [0] * len(typed) + [150])
+
+        # A screenshot waits for the window to finish drawing first: the
+        # capture is fast enough now to photograph a half-drawn frame.
+        before = len(broker.seen)
+        mcp.call("screenshot", win="window-1")
+        check("a screenshot settles before it captures",
+              broker.seen[before]["op"], "await_settled")
 
         # ── scope ────────────────────────────────────────────────────────
         r = mcp.call("screenshot", win="window-99")

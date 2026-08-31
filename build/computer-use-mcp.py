@@ -261,7 +261,25 @@ class Executor:
 
     # -- pixels --
 
+    def _settle(self, win, timeout_ms=2000, quiet_ms=150):
+        """Wait for the window to finish drawing. True if it did.
+
+        Never raises: settling is a courtesy on the way to something else,
+        and a window that cannot settle is still worth screenshotting.
+        """
+        try:
+            r = self._call("await_settled", win=win,
+                           timeout_ms=timeout_ms, quiet_ms=quiet_ms)
+            return not r.get("timed_out")
+        except ActionError:
+            return True
+
     def screenshot(self, win, **_):
+        # Let the window finish what the last action started. The capture
+        # itself is ~60ms now, which is fast enough to photograph a window
+        # mid-repaint — the second of latency it used to carry was hiding
+        # that.
+        self._settle(win, timeout_ms=2500)
         rgba, w, h = self._capture(win)
         return {"image": png_bytes(rgba, w, h),
                 "text": "screenshot of %s (%dx%d)" % (win, w, h)}
@@ -373,11 +391,40 @@ class Executor:
 
     # -- keyboard --
 
+    # A keyboard delivers characters at a keyboard's pace; this used to hand
+    # a whole paragraph over in one burst — 630 characters as 1260 key events
+    # with no gap at all. A rich web editor (Outlook's compose pane) then
+    # spends SECONDS working through that queue with nothing repainted, so
+    # the screenshot straight afterwards shows an empty body. Measured on a
+    # page that costs 8ms a keystroke: 589 characters, five seconds of frozen
+    # UI. Claude read that empty body as the text having missed, typed it a
+    # second time, and had to go back and delete the duplicate.
+    TYPE_CHUNK = 48
+
     def type(self, win, text=None, **_):
         if text is None:
             raise ActionError("type needs text")
-        self._inject(win, type="text", text=text)
-        return {"text": "typed %d character(s) into %s" % (len(text), win)}
+        t0 = time.time()
+        caught_up = True
+        for i in range(0, len(text), self.TYPE_CHUNK):
+            self._inject(win, type="text", text=text[i:i + self.TYPE_CHUNK])
+            # Between chunks, not just at the end: an app still chewing
+            # chunk 3 has no business being handed chunk 4, and a wait per
+            # chunk is what keeps the window drawing as the text goes in —
+            # which is also what a person watching expects to see. Back
+            # pressure only, so quiet_ms=0: all this has to know is that the
+            # window drew SOMETHING since the last chunk. Waiting for it to
+            # go still as well would add a second per chunk for nothing.
+            caught_up &= self._settle(win, timeout_ms=2000, quiet_ms=0)
+        # The one wait that has to be generous is the last: this is what
+        # makes the next screenshot show the text.
+        caught_up &= self._settle(win, timeout_ms=6000)
+        return {"text": "typed %d character(s) into %s%s (%.1fs)"
+                        % (len(text), win,
+                           "" if caught_up else " — the window was still "
+                           "drawing when I stopped waiting, so screenshot "
+                           "again before deciding the text missed",
+                           time.time() - t0)}
 
     def key(self, win, text=None, **_):
         if not text:
@@ -466,8 +513,14 @@ class Executor:
         stopped painting AND when its own animations finished, which is a fact
         rather than a guess."""
         try:
-            r = self._call("await_settled", win=win)
-            return {"text": "settled in %dms" % r.get("settled_in_ms", 0)}
+            r = self._call("await_settled", win=win, timeout_ms=5000)
+            if not r.get("timed_out"):
+                return {"text": "settled in %dms" % r.get("settled_in_ms", 0)}
+            return {"text": "gave up after %dms — %s"
+                            % (r.get("settled_in_ms", 0),
+                               "still repainting" if r.get("repainted") else
+                               "the window never repainted, so the last "
+                               "action may have changed nothing")}
         except ActionError as exc:
             return {"text": "not settled: %s" % exc}
 
