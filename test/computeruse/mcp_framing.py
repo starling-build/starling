@@ -34,6 +34,20 @@ SERVER = REPO / "build" / "computer-use-mcp.py"
 # that quietly assumes scale 2 passes on nice numbers and fails here.
 IMG_W, IMG_H = 1280, 1266
 CONTENT_W, CONTENT_H = 768.0, 760.0
+# What that window comes back as once the shim keeps it inside the model's
+# image budget: near-square at 1.62 MP, it has to shrink (see MAX_AREA in the
+# server). The numbers are computed rather than pasted so the test follows the
+# budget if it moves.
+FIT_PX = None       # filled in from the server's own helper, below
+FIT_W = FIT_H = 0
+
+# The server module itself, so the test can ask it what its own budget is
+# rather than restating it. Importing is side-effect free — the executor is
+# only constructed later, once the fake socket is in the environment.
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location("cu", str(SERVER))
+cu = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(cu)
 
 failures = []
 
@@ -101,13 +115,18 @@ class FakeBroker(threading.Thread):
         if op == "capture":
             if req.get("win") != "window-1":
                 return {"ok": False, "error": "no such owned window"}
+            # Honour max_px the way the shell does — the shim's area cap is a
+            # request, and a fake that ignored it would let a broken cap pass.
+            mp = int(req.get("max_px") or max(IMG_W, IMG_H))
+            k = min(1.0, mp / float(max(IMG_W, IMG_H)))
+            w, h = max(1, int(IMG_W * k)), max(1, int(IMG_H * k))
             # A recognisable image rather than noise: opaque red, so a channel
             # swap or a stride mistake shows up as the wrong pixel value.
-            px = bytes([0xFF, 0x00, 0x00, 0xFF]) * (IMG_W * IMG_H)
-            return {"ok": True, "w": IMG_W, "h": IMG_H, "stride": IMG_W * 4,
+            px = bytes([0xFF, 0x00, 0x00, 0xFF]) * (w * h)
+            return {"ok": True, "w": w, "h": h, "stride": w * 4,
                     "fourcc": "AB24", "format": "rgba", "row_order": "top-down",
                     "content": [CONTENT_W, CONTENT_H],
-                    "scale": IMG_W / CONTENT_W, "source": "texture",
+                    "scale": w / CONTENT_W, "source": "texture",
                     "data": base64.b64encode(px).decode()}
         if op == "inject":
             return {"ok": True}
@@ -163,7 +182,17 @@ def image_of(result):
     return None
 
 
+def _fill_fit_dims():
+    """Ask the server itself what the capped size is, so this test cannot
+    drift from the budget it is checking."""
+    global FIT_PX, FIT_W, FIT_H
+    FIT_PX = cu.Executor._area_capped_px(IMG_W, IMG_H)
+    k = min(1.0, FIT_PX / float(max(IMG_W, IMG_H)))
+    FIT_W, FIT_H = max(1, int(IMG_W * k)), max(1, int(IMG_H * k))
+
+
 def main():
+    _fill_fit_dims()
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         broker = FakeBroker(str(root / "starling-agent.sock"))
@@ -275,7 +304,19 @@ def main():
         png = image_of(r)
         check("screenshot returns a PNG", png[:8], b"\x89PNG\r\n\x1a\n")
         w, h = struct.unpack(">II", png[16:24])
-        check("the PNG is the broker's image, unresized", (w, h), (IMG_W, IMG_H))
+        check("the PNG is the broker's image, unresized", (w, h), (FIT_W, FIT_H))
+        # The bug this guards: an image over the client's ~1.15 MP budget is
+        # resized before the model sees it, and the model then reads its
+        # coordinates off a picture smaller than the one we said we sent.
+        # Every click after that lands short by the resize factor — plausible,
+        # silent, and wrong. It cost a whole session in Outlook, where large
+        # targets absorbed it and toolbar buttons did not.
+        # Pinned to the CLIENT's budget, not to the server's own constant —
+        # asserting against MAX_AREA would pass for any value it was given,
+        # including one that reintroduces the bug.
+        check_true("a screenshot stays inside the model's image budget",
+                   w * h <= 1_150_000,
+                   "%dx%d = %.2f MP" % (w, h, w * h / 1e6))
         # Decode the first pixel the long way, to catch a channel swap.
         i, first = 8, None
         while i < len(png):
@@ -286,8 +327,8 @@ def main():
                 break
             i += 12 + ln
         check("pixels survive the round trip unswapped", first, (0xFF, 0, 0, 0xFF))
-        check("the broker was asked to downscale",
-              broker.seen[-1].get("max_px"), 1280)
+        check("the broker was asked for the area-capped size",
+              broker.seen[-1].get("max_px"), FIT_PX)
 
         # ── coordinates ──────────────────────────────────────────────────
         # The whole coordinate contract in one assertion: the model gives
@@ -296,7 +337,7 @@ def main():
         ev = broker.seen[-1]["ev"]
         check("a click maps screenshot px to content-local logical px",
               (round(ev["x"], 3), round(ev["y"], 3)),
-              (round(640 * CONTENT_W / IMG_W, 3), round(633 * CONTENT_H / IMG_H, 3)))
+              (round(640 * CONTENT_W / FIT_W, 3), round(633 * CONTENT_H / FIT_H, 3)))
         check("left_click is a click", ev["type"], "click")
 
         mcp.call("right_click", win="window-1", coordinate=[0, 0])
@@ -305,7 +346,7 @@ def main():
         check("double_click is dblclick", broker.seen[-1]["ev"]["type"], "dblclick")
 
         mcp.call("left_click_drag", win="window-1",
-                 start_coordinate=[0, 0], coordinate=[1280, 1266])
+                 start_coordinate=[0, 0], coordinate=[FIT_W, FIT_H])
         ev = broker.seen[-1]["ev"]
         check("a drag carries both endpoints",
               (ev["type"], round(ev["x2"]), round(ev["y2"])),
@@ -377,10 +418,6 @@ def main():
         # Not reachable over MCP (one tool per call), so exercise the executor
         # directly — the conformance loop and any future toolset frontend
         # depend on it, and the contract fixes the wording.
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("cu", str(SERVER))
-        cu = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cu)
         # In-process this time, so OUR env decides which socket it finds. A
         # developer with a real desktop up has a real broker socket sitting in
         # the default location, and without this the batch checks would drive

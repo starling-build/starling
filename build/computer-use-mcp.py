@@ -218,6 +218,27 @@ class Executor:
     # capture blit, so no pixel is ever encoded that is not sent.
     MAX_PX = 1280
 
+    # ...and a ceiling on AREA, which is the one that actually bites. The
+    # client resizes any image above roughly 1.15 megapixels before the model
+    # sees it, and the model then reads coordinates off THAT smaller picture
+    # while this shim's contract says the coordinate space is the size we
+    # reported. Nothing errors: every coordinate simply comes back short by
+    # the resize factor, so clicks land somewhere plausible and slightly
+    # wrong. Found the hard way — a 1280x1167 browser window (1.49 MP) was
+    # being shrunk ~11%, which was invisible on list rows and fatal on
+    # toolbar buttons, and cost a whole session's worth of misses in Outlook.
+    # Staying under the budget means no resize, so the two agree again.
+    MAX_AREA = 1_100_000
+
+    @classmethod
+    def _area_capped_px(cls, w: int, h: int) -> int:
+        """Long-edge cap that also keeps w*h under the area budget."""
+        long_side, short_side = max(w, h), min(w, h)
+        if long_side <= 0 or short_side <= 0:
+            return cls.MAX_PX
+        ratio = short_side / float(long_side)
+        return max(1, int(min(cls.MAX_PX, (cls.MAX_AREA / ratio) ** 0.5)))
+
     def __init__(self, name="starling-computer-use"):
         self.broker = ac.connect(name=name)
         # win -> (image_w, image_h, content_w, content_h). The ONE place
@@ -225,6 +246,9 @@ class Executor:
         # broker takes; every action that carries a coordinate goes through
         # to_logical below and nowhere else.
         self._frame = {}
+        # win -> the capture long-edge that keeps this window inside the area
+        # budget, learned on first capture (see MAX_AREA).
+        self._winMaxPx = {}
 
     # -- coordinates --
 
@@ -251,7 +275,17 @@ class Executor:
             raise ActionError(str(exc))
 
     def _capture(self, win, max_px=None):
-        shot = self._call("capture", win=win, max_px=max_px or self.MAX_PX)
+        shot = self._call("capture", win=win,
+                          max_px=max_px or self._winMaxPx.get(win) or self.MAX_PX)
+        # First sight of a window: if the long-edge cap alone put it over the
+        # area budget, take it again smaller and remember that for next time.
+        # One extra capture per window, once — cheaper than every coordinate
+        # after it being wrong.
+        if max_px is None:
+            fitted = self._area_capped_px(shot["w"], shot["h"])
+            if fitted < max(shot["w"], shot["h"]):
+                self._winMaxPx[win] = fitted
+                shot = self._call("capture", win=win, max_px=fitted)
         self._remember(win, shot)
         rgba, w, h = ac.capture_to_rgba(shot)
         return rgba, w, h
@@ -302,7 +336,10 @@ class Executor:
         rh = max(1, min(rh, h - y))
         crop = b"".join(rgba[(y + r) * w * 4 + x * 4:(y + r) * w * 4 + (x + rw) * 4]
                         for r in range(rh))
-        scale = min(4.0, max(1.0, self.MAX_PX / float(max(rw, rh))))
+        # Same budget as a full screenshot: a magnified crop that gets resized
+        # on the way to the model is a crop whose pixels lie about where they
+        # are, and this one is handed straight back as coordinates.
+        scale = min(4.0, max(1.0, self._area_capped_px(rw, rh) / float(max(rw, rh))))
         ow, oh = max(1, int(rw * scale)), max(1, int(rh * scale))
         return {"image": png_bytes(rescale(crop, rw, rh, ow, oh), ow, oh),
                 "text": ("zoom of %s region %d,%d %dx%d — coordinates stay in "
