@@ -761,7 +761,25 @@ def check_agent_capture() -> None:
         assert max(small["w"], small["h"]) == 320, (small["w"], small["h"])
         assert small["content"] == shot["content"], "the cap moved the window"
         assert any(base64.b64decode(small["data"])[::499]), "empty at 320px"
-        log(f"{shot['w']}x{shot['h']} from the texture, {small['w']}x{small['h']} capped")
+
+        # ...and it has to be QUICK. A screenshot is what an agent looks at
+        # between one action and the next, so its cost is added to the age of
+        # everything it sees. This reply used to go through Foundation's JSON
+        # writer whole, which escapes every '/' — and base64 of a
+        # mostly-white UI is mostly '/'. One 1.5-megapixel screenshot took
+        # 970ms to serialize, so an agent that typed and screenshotted was
+        # looking at the window as it had been a second earlier, and read the
+        # empty compose pane it got back as its own typing having missed.
+        # The blob is spliced in by hand now: ~45ms. The threshold is a
+        # tenth of the bug and ten times the fix.
+        t0 = time.monotonic()
+        big = s.ok("capture", win=win, max_px=1280)
+        took = time.monotonic() - t0
+        assert took < 0.4, (
+            f"a {big['w']}x{big['h']} screenshot took {took * 1000:.0f}ms — "
+            "the pixels are going through a JSON escaper again")
+        log(f"{shot['w']}x{shot['h']} from the texture, {small['w']}x{small['h']} "
+            f"capped, {big['w']}x{big['h']} in {took * 1000:.0f}ms")
     finally:
         s.close()
 

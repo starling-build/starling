@@ -55,7 +55,34 @@ private final class BrokerConn: @unchecked Sendable {
     func send(_ obj: [String: Any]) {
         guard JSONSerialization.isValidJSONObject(obj),
               let json = try? JSONSerialization.data(withJSONObject: obj) else { return }
-        let data = json + Data([0x0A])
+        enqueue(json + Data([0x0A]))
+    }
+
+    /// The same, for a reply whose bulk is one base64 field.
+    ///
+    /// Foundation's JSON writer spent **970ms** serializing a single
+    /// 1280x1167 screenshot: it escapes every `/`, and base64 of a
+    /// mostly-white UI is mostly `/`, so the line it produced was nearly
+    /// twice the size of the payload it carried. That one second WAS the
+    /// cost of a screenshot — the GPU readback is 47ms and the base64 itself
+    /// 40 — and it is why an agent that typed and then screenshotted was
+    /// looking at the window as it had been a second earlier. Base64's
+    /// alphabet contains nothing JSON has to escape, so the metadata goes
+    /// through the writer and the blob is spliced in by hand.
+    func send(_ obj: [String: Any], blob key: String, base64 value: String) {
+        guard JSONSerialization.isValidJSONObject(obj),
+              var json = try? JSONSerialization.data(withJSONObject: obj),
+              json.last == 0x7D else { return }   // '}'
+        json.removeLast()
+        var line = json
+        if line.count > 1 { line.append(0x2C) }   // ',' unless the dict was {}
+        line.append(contentsOf: Array("\"\(key)\":\"".utf8))
+        line.append(contentsOf: Array(value.utf8))
+        line.append(contentsOf: Array("\"}\n".utf8))
+        enqueue(line)
+    }
+
+    private func enqueue(_ data: Data) {
         writeQ.async { [self] in
             guard !closed else { return }
             data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
@@ -1125,8 +1152,9 @@ final class AgentBroker: @unchecked Sendable {
                                    "row_order": "top-down",
                                    "content": [contentW, contentH],
                                    "scale": contentW > 0 ? Double(outW) / contentW : 1.0,
-                                   "source": "texture",
-                                   "data": Data(rgba).base64EncodedString()])
+                                   "source": "texture"],
+                                  blob: "data",
+                                  base64: Data(rgba).base64EncodedString())
                         self.audit(conn.agentId, "capture", true,
                                    "\(winId) \(outW)x\(outH) texture")
                         return
@@ -1173,8 +1201,9 @@ final class AgentBroker: @unchecked Sendable {
                            "row_order": flipY ? "top-down" : "bottom-up",
                            "content": [contentW, contentH],
                            "scale": contentW > 0 ? Double(info.width) / contentW : 1.0,
-                           "source": "dmabuf",
-                           "data": data.base64EncodedString()])
+                           "source": "dmabuf"],
+                          blob: "data",
+                          base64: data.base64EncodedString())
                 self.audit(conn.agentId, "capture", true,
                            "\(winId) \(info.width)x\(info.height) dmabuf")
             }
