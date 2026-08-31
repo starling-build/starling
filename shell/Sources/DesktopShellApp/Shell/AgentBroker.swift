@@ -382,6 +382,18 @@ final class AgentBroker: @unchecked Sendable {
                     return fail("bad token for \(want)")
                 }
                 conn.agentId = existing.id
+                // A re-attach is a NEW process — the MCP server Claude
+                // Desktop restarted, the next invocation of a CLI — so its
+                // ancestry is the current truth about who launched it, and
+                // the bind has to be tried again here. Doing it only on
+                // first registration is what put a re-attached agent's
+                // windows outside the workspace that had just launched it,
+                // in an entry of its own, while the workspace sat empty.
+                existing.clientPid = conn.peerPid
+                if shell.windowManager.workspace(forAgent: existing.id) == nil {
+                    shell._bindAgentToWorkspace(agentId: existing.id,
+                                                pid: conn.peerPid)
+                }
                 agentLastOpMs[existing.id] = nowMs
                 conn.send(["id": id, "ok": true, "proto": 1, "agent": existing.id,
                            "token": existing.token, "reattached": true,
