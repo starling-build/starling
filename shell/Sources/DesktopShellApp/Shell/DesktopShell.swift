@@ -1815,6 +1815,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     self._agentWaylandClients[clientId] = pending.agentId
                     ownerId = pending.agentId
                     launchReply = pending.onWindow
+                } else if let pending = self._pendingAgentWayland,
+                          pending.agentId == ownerId {
+                    // The agent's SECOND launch of the same app. Chrome is one
+                    // process per profile, so this window arrives on the
+                    // connection that was claimed the first time — the marker
+                    // above never matched, nothing answered the launch, and
+                    // the agent was told "chrome launch timed out" 25s later
+                    // about a window that had been sitting there, owned by it,
+                    // the whole time.
+                    self._pendingAgentWayland = nil
+                    launchReply = pending.onWindow
                 }
                 // Workspace mode: a window that opens while a workspace is on
                 // screen belongs to it. This is the path a GUI app started

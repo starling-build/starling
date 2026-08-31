@@ -206,7 +206,16 @@ else
                     CDP_GUEST="$_cdp_home/.config/chrome-cdp-$STARLING_CDP"
                     CDP_HOST="$CDP_GUEST"
                 fi
+                # --new-window, because an agent's SECOND launch otherwise
+                # opens nothing it can address. Chrome is one instance per
+                # profile: the second `chrome <url>` hands the URL to the
+                # running one, which puts it in a TAB and exits — no new
+                # toplevel, so the shell's 25s claim on the next window
+                # times out and the agent is told "chrome launch timed out"
+                # while a tab it cannot see holds the page. Harmless on the
+                # first launch, which opens a window either way.
                 set -- "$@" \
+                    --new-window \
                     --user-data-dir="$CDP_GUEST" \
                     --remote-debugging-port=0
                 mkdir -p "$XDG_DIR" 2>/dev/null || true
