@@ -1735,6 +1735,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // left pd.onKeyData unset, so every key vanished silently.
         if let wayland = waylandIntegration {
 
+        // await_settled's raw material for third-party windows. Wired here
+        // rather than in AgentBroker.start because the broker is created
+        // while the compositor may still be nil.
+        wayland.onSurfaceFrame = { [weak self] texId in
+            self?._agentBroker?.noteFrame(textureId: texId)
+        }
+
         wayland.onNewWindow = { [weak self] (surfaceId: UInt32, textureId: Int, title: String, clientId: UInt64) -> String in
             guard let self = self else { return "" }
             let appId = "wayland-\(surfaceId)"

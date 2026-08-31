@@ -474,6 +474,12 @@ class WaylandIntegration {
     // MARK: - UI Thread: Event Processing
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// Every client frame, by texture id — the agent broker's await_settled
+    /// is the consumer. Its own frame bookkeeping only ever saw first-party
+    /// DMA-BUF children, so for a Wayland window "has the app caught up yet"
+    /// had nothing to measure.
+    var onSurfaceFrame: ((Int64) -> Void)?
+
     /// Called from FrameCallbackScheduler on the UI thread.
     /// Drains queued events from the platform thread and processes them.
     func tick() {
@@ -730,6 +736,7 @@ class WaylandIntegration {
 
         flushPendingResize(surfaceId)
         FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
+        onSurfaceFrame?(Int64(textureId))
     }
 
     /// wl_shm commit. `pixels` is this event's tightly-packed copy and is
@@ -771,6 +778,7 @@ class WaylandIntegration {
 
         flushPendingResize(surfaceId)
         FrameCallbackScheduler.shared.noteTextureUpdate(textureId)
+        onSurfaceFrame?(Int64(textureId))
     }
 
     private func processToplevelDestroy(_ surfaceId: UInt32) {

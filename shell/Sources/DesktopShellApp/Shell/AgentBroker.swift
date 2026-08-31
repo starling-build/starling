@@ -153,6 +153,16 @@ final class AgentBroker: @unchecked Sendable {
         return lastFrameMs[tex]
     }
 
+    /// One window drew something. Every window kind must reach this — a
+    /// settle can only mean "the app caught up" for windows whose frames the
+    /// broker can see, and for the whole of computer use so far it could see
+    /// first-party children and nothing else.
+    func noteFrame(textureId: Int64) {
+        frameLock.lock()
+        lastFrameMs[textureId] = nowMs
+        frameLock.unlock()
+    }
+
     private var nowMs: Int64 {
         Int64(DispatchTime.now().uptimeNanoseconds / 1_000_000)
     }
@@ -216,12 +226,11 @@ final class AgentBroker: @unchecked Sendable {
         if getuid() == 0 { _ = chown(socketPath, LoginUser.uid, gid_t(bitPattern: -1)) }
         listenFd = fd
 
-        // Frame-quiet raw material for await_settled.
+        // Frame-quiet raw material for await_settled. First-party children
+        // arrive here; Wayland clients arrive through `noteFrame`, wired in
+        // _setupWaylandCallbacks because the compositor may not exist yet.
         linuxProcessAppManager?.onChildFrame = { [weak self] texId in
-            guard let self else { return }
-            self.frameLock.lock()
-            self.lastFrameMs[texId] = self.nowMs
-            self.frameLock.unlock()
+            self?.noteFrame(textureId: texId)
         }
 
         FileHandle.standardError.write(Data(
@@ -1218,28 +1227,52 @@ final class AgentBroker: @unchecked Sendable {
             let start = nowMs
             let tex = Int64(texId)
             let winId = win.id
+            // What "settled" has to mean after an injection: the window drew
+            // the frame that injection caused, and then went quiet. Quiet
+            // alone was measured from max(lastFrame, lastInject), which
+            // declares an app that has drawn NOTHING settled quiet_ms after
+            // the keystrokes — and that is precisely the case worth waiting
+            // for. A rich web editor handed a paragraph in one burst repaints
+            // nothing for seconds (measured: five, for 589 characters), so
+            // the screenshot after it showed an empty body and the text
+            // looked like it had missed.
+            let injectedAt = lastInjectMs[winId]
+            // ...and a bound on the other half. A window that never stops
+            // drawing — a video, a spinner, a page with an animation loop —
+            // has no quiet for anyone to wait for, so insisting on it spent
+            // the whole timeout on every settle. Once the repaint we were
+            // waiting for has landed, that is the answer; give quiet a
+            // little longer to arrive and then say so.
+            let quietBudget = int64(req["quiet_budget_ms"]) ?? 600
+            var repaintSeenAt: Int64? = nil
             func poll() {
                 guard let shell = self.shell else { return }
                 self.frameLock.lock()
                 let lastFrame = self.lastFrameMs[tex]
                 self.frameLock.unlock()
-                // Quiet is measured from the LATEST activity — a frame or an
-                // injection. A settle issued right after inject waits for the
-                // repaint that injection causes (or quiet_ms if none comes).
-                var last = lastFrame
-                if let inj = self.lastInjectMs[winId] {
-                    last = max(last ?? inj, inj)
-                }
-                let quietFor = last.map { self.nowMs - $0 } ?? Int64.max
-                if quietFor >= quiet && shell._shellQuiescent {
+                let repainted = injectedAt == nil
+                    || (lastFrame ?? Int64.min) > injectedAt!
+                if repainted && repaintSeenAt == nil { repaintSeenAt = self.nowMs }
+                let quietFor = lastFrame.map { self.nowMs - $0 } ?? Int64.max
+                let quietEnough = quietFor >= quiet
+                    || (repaintSeenAt.map { self.nowMs - $0 >= quietBudget } ?? false)
+                if repainted && quietEnough && shell._shellQuiescent {
                     conn.send(["id": id, "ok": true,
-                               "settled_in_ms": self.nowMs - start])
+                               "settled_in_ms": self.nowMs - start,
+                               "repainted": true, "timed_out": false])
                     self.audit(conn.agentId, "await_settled", true,
                                "\(win.id) in \(self.nowMs - start)ms")
                 } else if self.nowMs - start >= timeout {
-                    conn.send(["id": id, "ok": false, "error": "timeout",
-                               "waited_ms": self.nowMs - start])
-                    self.audit(conn.agentId, "await_settled", false, "\(win.id) timeout")
+                    // Not an error: plenty of injections legitimately change
+                    // nothing on screen. Say which of the two happened and
+                    // let the caller decide — an agent told "timeout" about a
+                    // click that simply had no visible effect learns nothing.
+                    conn.send(["id": id, "ok": true,
+                               "settled_in_ms": self.nowMs - start,
+                               "repainted": repainted, "timed_out": true])
+                    self.audit(conn.agentId, "await_settled", true,
+                               "\(win.id) gave up after \(self.nowMs - start)ms"
+                               + (repainted ? " (still busy)" : " (never repainted)"))
                 } else {
                     let again: () -> Void = { poll() }
                     DispatchQueue.main.asyncAfter(
