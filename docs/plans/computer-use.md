@@ -609,3 +609,81 @@ window never asks, so the protocol cannot help. Two rows of window buttons.
   shadows, which is why this has not bitten; a floating window would.
 - **`GlobalShortcuts`** — the separate, smaller Quick Entry win named at the
   top of this document — is untouched.
+
+---
+
+# Status (2026-08-31) — "the compose pane repaints lazily"
+
+The demo run of 08-31 produced a note from Claude worth reading twice:
+
+> My first block of body text did land — the compose pane just hadn't
+> repainted yet, so the screenshot showed an empty body. I read that as a
+> focus failure, clicked in, and typed "Hi," a second time. […] Worth knowing
+> that pane repaints lazily, so a blank-looking body isn't proof the text
+> missed.
+
+It was not Outlook being lazy. It was three of ours, each measured and each
+fixed. The rig that separated them is worth describing first, because "the
+app is slow" and "our screenshot is old" are indistinguishable from the
+inside: a page that paints the wall clock and its own character count into a
+barcode of black and white blocks every animation frame. Decode a capture and
+it tells you WHEN the pixels in it were painted and WHAT the app knew at that
+moment — so the screenshot dates itself.
+
+**1. A screenshot took a second, and Foundation's JSON writer was all of it.**
+`glReadPixels` is 47ms and the base64 is 40; serializing the reply was
+**970ms**. Foundation escapes every `/` in a JSON string, base64 of a
+mostly-white UI is mostly `/` (a white pixel run is `////`), and the line it
+produced was nearly twice the size of the payload — 15.4 MB for a 1280x1167
+window. So every screenshot showed the window as it had been a second
+earlier, and a screenshot taken 2s after typing was really looking 1s after
+typing. Base64's alphabet contains nothing JSON must escape: the metadata
+still goes through the writer and the blob is spliced in by hand
+(`BrokerConn.send(_:blob:base64:)`). **~1000ms → ~45ms.** The functional
+tier now asserts a 1280px capture returns in under 400ms — a tenth of the
+bug, ten times the fix.
+
+**2. `await_settled` was a 150ms sleep for every window computer use is
+for.** `lastFrameMs` was fed by exactly one thing —
+`LinuxProcessAppManager.onChildFrame`, i.e. first-party DMA-BUF children. No
+Wayland client ever reached it, so for Chrome, VS Code or Claude Desktop the
+settle had no frames to measure, fell back to counting quiet from the
+INJECTION, and answered "settled" 150ms later no matter what the app was
+doing. The one tool an agent has for "wait until it caught up" was blind to
+every window it would ever use it on. Wayland commits now feed it
+(`WaylandIntegration.onSurfaceFrame` → `AgentBroker.noteFrame`), and settling
+after an injection waits for the repaint that injection causes before it
+starts counting quiet at all.
+
+  A window that never stops drawing has no quiet to wait for, so once the
+  repaint has landed the extra wait is capped (`quiet_budget_ms`, 600ms
+  default). Without that bound a page with an animation loop spent the whole
+  timeout on every settle — 55s to type a paragraph, which is how the cap got
+  written.
+
+**3. We typed like no keyboard ever has.** `type` handed the whole string to
+one `inject`, so 630 characters went out as ~1260 key events with no gap.
+Measured on a page that costs 8ms a keystroke: **five seconds during which
+the app painted nothing at all**, which is exactly the empty body Claude
+screenshotted. The shim now types in 48-character chunks and waits for the
+window to draw each one (back pressure: `quiet_ms=0`, all it needs to know is
+that something was drawn), with one generous settle at the end — and
+`screenshot` settles before it captures, because at 45ms a capture is now
+fast enough to photograph a half-drawn frame. Before: 0 of 589 characters
+visible when `type` returned. After: 589 of 589.
+
+**Also fixed, from the same run's audit log:** an agent's SECOND
+`launch chrome` always failed with `chrome launch timed out`, 25s after
+asking. Two causes stacked. Chrome is one process per profile, so the second
+launch handed its URL to the running instance, which opened a TAB and exited
+— no new toplevel to claim (`app-run` passes `--new-window` for agent
+launches now). And even with a window, the claim marker only fired for an
+UNCLAIMED client, so a second window on an already-claimed connection was
+correctly owned by the agent and yet nothing ever answered its `launch`.
+0.3s now.
+
+**Still open from this run:** a hidden agent window's pixels are ~400ms old
+even when the capture is instant — a window nobody is looking at is paced by
+the compositor's 100ms fallback timer and the shell's own idle frame rate,
+not by page flips. It does not matter while the settle covers it, and it is
+the reason the settle has to.
