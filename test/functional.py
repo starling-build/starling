@@ -35,6 +35,7 @@ import glob
 import json
 import os
 import pwd
+import re
 import shutil
 import signal
 import socket
@@ -913,6 +914,90 @@ def check_agent_take_over() -> None:
         drive("move 640 400", "sleep 1", "key ctrl+down", "sleep 2")
         s.close()
         quit_app("SettingsApp")
+
+
+@check("agents: a click still lands after the human's pointer has been elsewhere")
+def check_agent_click_after_human_pointer() -> None:
+    """One seat, one pointer focus — and the shell kept two ideas of it.
+
+    The agent's pointer path cached the surface it had last entered, and the
+    human's path cached its own. Whenever the human's pointer crossed from the
+    agent's window onto another one, the client was sent a leave; the agent's
+    cache still said "already in there", so it never re-sent the enter. Every
+    later inject was accepted, audited ok, and delivered as motion+button —
+    and dropped by the client, which believed the pointer was elsewhere.
+    Screenshots kept working, so it read as the agent going blind rather than
+    mute, and moving the real pointer back over the window "fixed" it.
+
+    Driven end to end because nothing smaller can see it: the fault is in what
+    the CLIENT believes, so the only honest oracle is a page reporting what it
+    received. The page counts clicks — and pointer LEAVES — into its own
+    title, which the broker already reports: no DevTools, no second channel.
+    The leave count is what keeps this check honest. The bug's precondition
+    is "the client was sent a leave", and if the drive coordinates below ever
+    drift off the windows they aim at, no leave is sent and the second click
+    lands trivially — the check would keep passing on a shell where the bug
+    is back. So the crossing is asserted, not assumed.
+    """
+    page = ("data:text/html,<title>CLICKS0L0</title><body style='margin:0'>"
+            "<script>let n=0,l=0;const t=()=>"
+            "document.title='CLICKS'+n+'L'+l;"
+            "document.onclick=()=>{n++;t()};"
+            "document.onmouseout=e=>{if(!e.relatedTarget){l++;t()}}</script>")
+
+    def title_of(s, win):
+        for w in s.ok("list_windows")["windows"]:
+            if w["win"] == win:
+                return w.get("title") or ""
+        return ""
+
+    s = Session(name="click-focus-check")
+    desktop_chrome = None
+    try:
+        win = s.ok("launch", app="chrome", url=page)["win"]
+        wait_for(lambda: "CLICKS0" in title_of(s, win), "the test page to load",
+                 timeout=40)
+        # A second Wayland window for the human's pointer to move ON to. It
+        # has to be a real client: the shell's own chrome is not a surface,
+        # so crossing onto it sends nobody a leave and the bug stays hidden.
+        desktop_chrome = app_run("chrome")
+
+        # The agent's FIRST click always worked, even with the bug — its cache
+        # starts empty, so it sends the enter. This is the baseline.
+        s.ok("inject", win=win, ev={"type": "click", "x": 200, "y": 300})
+        wait_for(lambda: "CLICKS1" in title_of(s, win),
+                 "the page to see the agent's first click", timeout=15)
+
+        # Now the human: into the workspace where the agent's window is drawn,
+        # over its pane (the human's pointer enters that surface), back out,
+        # and onto the desktop's own Chrome (which sends the agent's window a
+        # leave). One shell-drive invocation for the lot — a second delivers
+        # no motion at all (see the note in shell-drive.py).
+        drive("move 640 400", "sleep 1", "key ctrl+down", "sleep 3",
+              "move 884 400", "sleep 1", "move 890 405", "sleep 1",
+              "key ctrl+up", "sleep 2",
+              "move 640 400", "sleep 1", "move 645 405", "sleep 1")
+
+        # The client must have SEEN the crossing — a leave with nowhere to
+        # go inside the page. Without this the check can pass vacuously: no
+        # leave means the client still believes the pointer is in, and the
+        # second click lands whether or not the caches are shared.
+        wait_for(lambda: re.search(r"CLICKS\d+L[1-9]", title_of(s, win)),
+                 "the page to see the human's pointer leave", timeout=15)
+
+        s.ok("inject", win=win, ev={"type": "click", "x": 200, "y": 300})
+        wait_for(lambda: "CLICKS2" in title_of(s, win),
+                 "the page to see a click after the human's pointer moved away",
+                 timeout=15)
+    finally:
+        s.close()
+        if desktop_chrome is not None:
+            desktop_chrome.terminate()
+        # Both instances: the agent's and the desktop's. They are separate
+        # processes (the agent's launch takes its own profile), and the next
+        # check should not inherit either.
+        quit_app("chrome")
+        drive("move 640 400", "sleep 1")
 
 
 @check("launcher: typing in the Launchpad filters the app grid")

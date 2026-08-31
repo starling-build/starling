@@ -1341,11 +1341,12 @@ class WaylandIntegration {
 
         let timeMs = UInt32(DispatchTime.now().uptimeNanoseconds / 1_000_000)
 
+        let (sx, sy) = toSurfaceSpace(surfaceId, x, y)
         if pointerFocusSurface != surfaceId {
             if pointerFocusSurface != 0 {
                 wayland_server_pointer_leave(server, pointerFocusSurface)
             }
-            wayland_server_pointer_enter(server, surfaceId, x, y)
+            wayland_server_pointer_enter(server, surfaceId, sx, sy)
             pointerFocusSurface = surfaceId
         }
 
@@ -1354,12 +1355,8 @@ class WaylandIntegration {
             wayland_server_pointer_button(server, surfaceId, timeMs, 0x110, 1)
         case 1: // up
             wayland_server_pointer_button(server, surfaceId, timeMs, 0x110, 0)
-        case 3: // move
-            let d = shellDpi / fractionalScale
-            wayland_server_pointer_motion(server, surfaceId, timeMs, x * d, y * d)
-        case 6: // hover
-            let d = shellDpi / fractionalScale
-            wayland_server_pointer_motion(server, surfaceId, timeMs, x * d, y * d)
+        case 3, 6: // move, hover
+            wayland_server_pointer_motion(server, surfaceId, timeMs, sx, sy)
         default:
             break
         }
@@ -1390,6 +1387,41 @@ class WaylandIntegration {
         return DispatchTime.now().uptimeNanoseconds - t < resizeIntervalNs * 3
     }
 
+    /// What we last asked each surface to be, in the coordinate space the
+    /// shell's own pointer coordinates are in.
+    ///
+    /// A client does not have to comply, and two common cases mean it does
+    /// not: it can enforce a minimum window size, and one that applies its
+    /// own device-scale factor renders a buffer bigger than the size it was
+    /// configured with. The shell draws whatever arrives STRETCHED into the
+    /// box it meant — so the picture looks right while every pointer
+    /// coordinate is wrong by that stretch. See `toSurfaceSpace`.
+    private var configuredSize: [UInt32: (w: Double, h: Double)] = [:]
+
+    /// Map a point in the box the shell DRAWS a surface into onto the
+    /// surface's own coordinate space.
+    ///
+    /// Claude Desktop in a workspace column is the case that found this: it
+    /// refuses to be narrower than 948px and renders at 1.5x, so a 460x1383
+    /// pane held a 948x2075 surface. Clicks were delivered — the compositor
+    /// logged the button reaching the client's pointer — at coordinates a
+    /// third of the way to where the user had aimed, so they hit nothing and
+    /// the window looked dead to the mouse while typing and scrolling worked
+    /// fine. Nothing about that reads as a coordinate bug, which is why it is
+    /// worth doing here, once, for every window kind rather than per caller.
+    private func toSurfaceSpace(_ surfaceId: UInt32,
+                                _ x: Double, _ y: Double) -> (Double, Double) {
+        let d = shellDpi / fractionalScale
+        guard let want = configuredSize[surfaceId], want.w > 1, want.h > 1,
+              let got = surfaceSizes[surfaceId], got.0 > 0, got.1 > 0 else {
+            return (x * d, y * d)
+        }
+        // Surface-local units are buffer pixels divided by buffer_scale.
+        let bs = Double(max(surfaceBufferScales[surfaceId] ?? 1, 1))
+        return (x * (Double(got.0) / bs) / want.w,
+                y * (Double(got.1) / bs) / want.h)
+    }
+
     func sendResize(surfaceId: UInt32, width: Int, height: Int) {
         guard server != nil else { return }
         let now = DispatchTime.now().uptimeNanoseconds
@@ -1401,6 +1433,7 @@ class WaylandIntegration {
         lastResizeTime[surfaceId] = now
         let sw = Int32(Double(width) * shellDpi / fractionalScale)
         let sh = Int32(Double(height) * shellDpi / fractionalScale)
+        configuredSize[surfaceId] = (Double(width), Double(height))
         enqueueCommand(.configureToplevel(surfaceId: surfaceId, width: sw, height: sh))
         enqueueCommand(.flushClients)
     }
@@ -1411,6 +1444,7 @@ class WaylandIntegration {
         lastResizeTime[surfaceId] = DispatchTime.now().uptimeNanoseconds
         let sw = Int32(Double(width) * shellDpi / fractionalScale)
         let sh = Int32(Double(height) * shellDpi / fractionalScale)
+        configuredSize[surfaceId] = (Double(width), Double(height))
         enqueueCommand(.configureToplevel(surfaceId: surfaceId, width: sw, height: sh))
         enqueueCommand(.flushClients)
     }
@@ -1421,6 +1455,7 @@ class WaylandIntegration {
         lastResizeTime[surfaceId] = DispatchTime.now().uptimeNanoseconds
         let sw = Int32(Double(width) * shellDpi / fractionalScale)
         let sh = Int32(Double(height) * shellDpi / fractionalScale)
+        configuredSize[surfaceId] = (Double(width), Double(height))
         enqueueCommand(.configureToplevel(surfaceId: surfaceId, width: sw, height: sh))
         enqueueCommand(.flushClients)
     }
@@ -1431,14 +1466,15 @@ class WaylandIntegration {
         lastResizeTime[surfaceId] = DispatchTime.now().uptimeNanoseconds
         let sw = Int32(Double(width) * shellDpi / fractionalScale)
         let sh = Int32(Double(height) * shellDpi / fractionalScale)
+        configuredSize[surfaceId] = (Double(width), Double(height))
         enqueueCommand(.configureToplevel(surfaceId: surfaceId, width: sw, height: sh))
         enqueueCommand(.flushClients)
     }
 
     func sendPointerEnter(surfaceId: UInt32, x: Double, y: Double) {
         guard let server = server else { return }
-        let d = shellDpi / fractionalScale
-        wayland_server_pointer_enter(server, surfaceId, x * d, y * d)
+        let (sx, sy) = toSurfaceSpace(surfaceId, x, y)
+        wayland_server_pointer_enter(server, surfaceId, sx, sy)
     }
 
     func sendPointerLeave(surfaceId: UInt32) {
@@ -1474,8 +1510,20 @@ class WaylandIntegration {
     // can move to the agent seat later without compositor changes.
     // ═══════════════════════════════════════════════════════════════════════
 
-    private var agentPointerFocus: UInt32 = 0
-    private var agentKeyboardFocus: UInt32 = 0
+    // NOTE: the agent's pointer and keyboard focus are NOT tracked separately
+    // any more, and must not be. There is one wl_seat, so the client has ONE
+    // idea of where the pointer is — two caches of it drift the moment the
+    // other side moves, and the stale one then stops re-asserting the enter
+    // it thinks it already sent. What that looked like: the agent clicked
+    // Chrome fine until the human's pointer crossed onto another window,
+    // which sent Chrome a leave; from then on every agent click was accepted,
+    // audited "ok", delivered as motion+button — and dropped by the client,
+    // because from its seat the pointer was somewhere else entirely. Nothing
+    // logged a refusal, and moving the real pointer back over the window
+    // "fixed" it, which is what made it look like the agent had gone blind.
+    // Both paths now share `pointerFocusSurface` / `keyboardFocusSurface`, so
+    // whichever side moves last re-asserts the enter, and the other side
+    // re-asserts it on its next event.
 
     /// The agent's own xkb modifier state, kept apart from the human's for
     /// the same reason the focus trackers are: the person holding Shift must
@@ -1510,17 +1558,19 @@ class WaylandIntegration {
                            button: UInt32 = WaylandIntegration.agentButtonLeft) {
         guard let server = server else { return }
         let timeMs = UInt32(DispatchTime.now().uptimeNanoseconds / 1_000_000)
-        let d = shellDpi / fractionalScale
-        if agentPointerFocus != surfaceId {
+        // Same stretch, same correction — an agent aims at the coordinate
+        // space `capture` reported, which is the box the shell draws into.
+        let (sx, sy) = toSurfaceSpace(surfaceId, x, y)
+        if pointerFocusSurface != surfaceId {
             // Leave the surface we were on first. Without this a client that
             // has been left keeps believing the pointer is inside it — it
             // holds its hover state, and its idea of where the pointer sits
             // is whatever it last heard, forever.
-            if agentPointerFocus != 0 {
-                wayland_server_pointer_leave(server, agentPointerFocus)
+            if pointerFocusSurface != 0 {
+                wayland_server_pointer_leave(server, pointerFocusSurface)
             }
-            wayland_server_pointer_enter(server, surfaceId, x * d, y * d)
-            agentPointerFocus = surfaceId
+            wayland_server_pointer_enter(server, surfaceId, sx, sy)
+            pointerFocusSurface = surfaceId
             // Keyboard enter rides POINTER enter, not the first keystroke.
             // CLAUDE.md's trap, paid for again here: a client that receives
             // wl_keyboard.enter AFTER a click has already moved its internal
@@ -1534,12 +1584,12 @@ class WaylandIntegration {
         }
         switch phase {
         case 2:
-            wayland_server_pointer_motion(server, surfaceId, timeMs, x * d, y * d)
+            wayland_server_pointer_motion(server, surfaceId, timeMs, sx, sy)
             wayland_server_pointer_button(server, surfaceId, timeMs, button, 1)
         case 1:
             wayland_server_pointer_button(server, surfaceId, timeMs, button, 0)
         case 3, 6:
-            wayland_server_pointer_motion(server, surfaceId, timeMs, x * d, y * d)
+            wayland_server_pointer_motion(server, surfaceId, timeMs, sx, sy)
         default:
             break
         }
@@ -1549,12 +1599,12 @@ class WaylandIntegration {
     /// already. Called from pointer enter as well as from the key path — see
     /// agentPointerEvent for why the pointer must not be the second one.
     private func agentEnsureKeyboardFocus(_ surfaceId: UInt32) {
-        guard let server = server, agentKeyboardFocus != surfaceId else { return }
-        if agentKeyboardFocus != 0 {
-            wayland_server_keyboard_leave(server, agentKeyboardFocus)
+        guard let server = server, keyboardFocusSurface != surfaceId else { return }
+        if keyboardFocusSurface != 0 {
+            wayland_server_keyboard_leave(server, keyboardFocusSurface)
         }
         wayland_server_keyboard_enter(server, surfaceId)
-        agentKeyboardFocus = surfaceId
+        keyboardFocusSurface = surfaceId
         // The spec requires a modifiers event after enter so the client
         // starts from the compositor's current state.
         wayland_server_keyboard_modifiers(server, surfaceId,
