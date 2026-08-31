@@ -2,13 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //
-// Workspace mode: the list of workspaces on the left, the app you are working
-// in down the middle, and whatever it opened on the right as tabs.
+// Workspace mode: the agent you are talking to on the left, and everything it
+// opened on the right as tabs.
 //
-// Three columns rather than two so a workspace is a place you keep, not a mode
-// you toggle: the rail is how you move between them. The middle column is
-// nil-able on purpose — when the driver quits, the workspace and its other
-// windows survive and the middle returns to its empty state.
+// TWO columns, and one workspace. The rail of workspaces this used to lead
+// with is gone: on a 1280x800 laptop panel it spent a fifth of the width on a
+// list that was almost always one row long, and the thing worth seeing —
+// what the agent is doing — was left with a third of the screen. So the
+// workspace is the mode rather than a place you keep, the left column is
+// hideable when the agent's windows want the whole panel, and an agent
+// nobody launched from here has its windows drawn in this one rather than in
+// a row of its own (`_wsVisibleWindows`) — with no rail, that is the only
+// place they would be drawn at all.
+//
+// The left column is nil-able on purpose — when the driver quits, the
+// workspace and its other windows survive and it returns to its empty state.
 //
 // Windows here are owned (WindowInfo.ownerAgentId carries the workspace id),
 // which is what keeps them out of the dock, tiling, Mission Control and focus
@@ -26,12 +34,13 @@ import Foundation
 import StarlingRegistry
 
 private enum WS {
-    static let railW: Double = 260       // workspace list
-    static let driverMin: Double = 420
+    /// Width of the left edge left behind when the driver column is hidden:
+    /// enough for the chip that brings it back, and nothing else.
+    static let collapsedW: Double = 36
+    static let driverMin: Double = 380
     static let driverMax: Double = 1100
     static let dividerW: Double = 8
     static let pad: Double = 14
-    static let rowH: Double = 44
     static let tabH: Double = 26
     static let tabGap: Double = 6
     static let tabTop: Double = 11
@@ -76,32 +85,30 @@ extension _DesktopShellState {
         layers.append(Positioned(fill: (), child: ColoredBox(
             color: Color(0xF20E0F15), child: SizedBox(expand: ()))))
 
-        layers.append(contentsOf: _workspaceRail(top: top, h: h))
-
         guard let ws = windowManager.selectedWorkspace(onOutput: output.id) else {
             return Stack(children: layers)
         }
 
-        // An agent workspace with no driver found — a headless client, a CI
-        // harness, agent-client.py — keeps the whole width for its windows
-        // rather than showing two thirds of a screen offering "Choose an app
-        // to work in" next to them squeezed into a sliver.
-        if ws.isAgent, _workspaceDriverWindow(ws) == nil {
+        // Hidden driver: a slim strip holds the chip that brings it back, and
+        // the agent's windows take everything else. The driver window is not
+        // drawn at all while hidden — it keeps running, and keeps the size it
+        // had, so showing it again costs no reconfigure.
+        if _wsDriverHidden {
+            layers.append(contentsOf: _wsRevealStrip(ws, top: top, h: h))
             layers.append(contentsOf: _workspaceTabColumn(
-                ws, left: WS.railW, width: w - WS.railW, top: top, h: h))
+                ws, left: WS.collapsedW, width: w - WS.collapsedW,
+                top: top, h: h))
         } else {
             let driverW = _workspaceDriverWidth(forOutputWidth: w)
-            let driverLeft = WS.railW
-            let rightLeft = driverLeft + driverW + WS.dividerW
+            let rightLeft = driverW + WS.dividerW
 
             layers.append(contentsOf: _workspaceDriverColumn(
-                ws, left: driverLeft, width: driverW, top: top, h: h))
+                ws, left: 0, width: driverW, top: top, h: h))
             layers.append(contentsOf: _workspaceDivider(
-                left: driverLeft + driverW, top: top, h: h))
+                left: driverW, top: top, h: h))
             layers.append(contentsOf: _workspaceTabColumn(
                 ws, left: rightLeft, width: w - rightLeft, top: top, h: h))
         }
-        layers.append(contentsOf: _workspaceRenameLayer())
         layers.append(contentsOf: _workspaceMenuLayer(w, h))
         // Topmost, so nothing opaque below can swallow the hover; translucent,
         // so every click still lands on whatever is under it.
@@ -115,103 +122,99 @@ extension _DesktopShellState {
     /// cannot push the tab column to zero (or negative) width.
     func _workspaceDriverWidth(forOutputWidth w: Double) -> Double {
         let maxForOutput = max(WS.driverMin,
-                               w - WS.railW - WS.dividerW - WS.minTabColumnW)
+                               w - WS.dividerW - WS.minTabColumnW)
         return min(min(WS.driverMax, maxForOutput), max(WS.driverMin, _workspaceDriverW))
     }
 
-    // MARK: Rail
-
-    private func _workspaceRail(top: Double, h: Double) -> [Widget] {
-        var out: [Widget] = []
-        out.append(Positioned(
-            left: 0, top: top, width: WS.railW, height: h - top,
-            child: DecoratedBox(
-                decoration: BoxDecoration(
-                    color: Color(0xE60F1118),
-                    border: Border(right: BorderSide(color: Color(0x26FFFFFF), width: 1))),
-                child: SizedBox(expand: ()))))
-        out.append(Positioned(
-            left: WS.pad, top: top + 13,
-            child: IgnorePointer(child: Text("Workspaces", style: TextStyle(
-                color: shellTheme.overlayText, fontSize: 15, fontWeight: .w700)))))
-        out.append(Positioned(
-            left: WS.railW - WS.pad - 78, top: top + 9, width: 78, height: 26,
-            child: _workspaceButton("+ New", fontSize: 11) { [self] in
-                setState { windowManager.addWorkspace(onOutput: _wsBuildOutputId) }
-            }))
-
-        let selectedId = windowManager.selectedWorkspace(onOutput: _wsBuildOutputId)?.id
-        let lastWs = windowManager.workspaces.count <= 1
-        var rowY = top + 50
-        for ws in windowManager.workspaces {
-            let isSel = ws.id == selectedId
-            let wsId = ws.id
-            let count = windowManager.windows(inWorkspace: wsId).count
-            let subtitle = count == 0 ? "empty"
-                : (count == 1 ? "1 window" : "\(count) windows")
-            let renaming = _wsRenamingId == wsId
-            let anchor = Offset(20, rowY + WS.rowH + 2)
-            var row: [Widget] = [
-                Positioned(fill: (), child: GestureDetector(
-                    onTap: { [self] in
-                        setState {
-                            windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
-                        }
-                    },
-                    onSecondaryTap: { [self] in
-                        setState {
-                            windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
-                            _wsTabMenuWinId = nil
-                            _wsRailMenuWsId = wsId
-                            _wsMenuAt = anchor
-                        }
-                    },
-                    behavior: .opaque,
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: isSel ? Color(0x26FFFFFF) : Color(0x0DFFFFFF),
-                            border: Border.all(
-                                color: (renaming || isSel) ? shellTheme.accent
-                                                           : Color(0x1FFFFFFF),
-                                width: renaming ? 2 : 1),
-                            borderRadius: BorderRadius.all(Radius(circular: 8))),
-                        child: SizedBox(expand: ())))),
-                Positioned(left: 12, top: 6,
-                    child: IgnorePointer(child: Text(
-                        renaming ? _wsRenameBuffer + "|" : ws.name,
-                        style: TextStyle(
-                            color: shellTheme.overlayText, fontSize: 12,
-                            fontWeight: .w600)))),
-                Positioned(left: 12, top: 24,
-                    child: IgnorePointer(child: Text(
-                        renaming ? "Enter to save · Esc to cancel" : subtitle,
-                        style: TextStyle(
-                            color: shellTheme.overlayTextDim,
-                            fontSize: 10.5, fontWeight: .w400)))),
-            ]
-            // Only the row under the pointer offers them, so the rail reads
-            // as a plain list until you reach for something.
-            if _wsHoverRailId == wsId && !renaming {
-                row.append(Positioned(
-                    left: WS.railW - 20 - 34, top: 10, width: 24, height: 24,
-                    child: _wsRenameAffordance(wsId)))
-                // A single empty workspace is the one row the trash can do
-                // nothing for — Delete has nothing to stop and Remove
-                // refuses the last row — so offering it there would open a
-                // menu that is entirely grey.
-                if !(lastWs && count == 0) {
-                    row.append(Positioned(
-                        left: WS.railW - 20 - 34 - 28, top: 10, width: 24, height: 24,
-                        child: _wsDeleteAffordance(wsId, anchor: anchor)))
-                }
-            }
-            out.append(Positioned(
-                key: ValueKey("ws-row-\(ws.id)"),
-                left: 10, top: rowY, width: WS.railW - 20, height: WS.rowH,
-                child: Stack(children: row)))
-            rowY += WS.rowH + 8
+    /// What the tab column shows: this workspace's windows, plus the windows
+    /// of any agent no workspace has claimed.
+    ///
+    /// The rail used to give such an agent a row of its own. With the rail
+    /// gone this is where they are drawn instead, and it is not a cosmetic
+    /// choice: an agent window drawn nowhere is exactly the state the whole
+    /// take-over property exists to prevent. Ownership is untouched — they
+    /// stay the agent's, so the pane still fits rather than resizes them and
+    /// touching one is still a take-over.
+    func _wsVisibleWindows(_ ws: WorkspaceInfo) -> [WindowInfo] {
+        let own = windowManager.windows(inWorkspace: ws.id)
+        let ownIds = Set(own.map(\.id))
+        return own + windowManager.windows.filter {
+            !ownIds.contains($0.id) && _isAgentOwned($0)
         }
-        return out
+    }
+
+    // MARK: Left column chrome
+
+    /// The one control the left column has: what is in it, and a chip that
+    /// folds it away when the agent's windows want the whole panel.
+    ///
+    /// It also carries the workspace menu on right-click. That used to live
+    /// on the rail row, and something has to keep it: "stop everything in
+    /// here" is the only way to end a run without hunting each window down.
+    private func _wsDriverStrip(_ ws: WorkspaceInfo, left: Double,
+                                width: Double, top: Double) -> [Widget] {
+        let win = _workspaceDriverWindow(ws)
+        let wsId = ws.id
+        let anchor = Offset(left + WS.paneGap, top + WS.tabTop + WS.tabH + 4)
+        var row: [Widget] = []
+        if let win {
+            row.append(SizedBox(width: 13, height: 13, child: CustomPaint(
+                painter: IconPainter(
+                    _iconType(for: _wsBaseAppId(win.appId)),
+                    color: shellTheme.overlayText))))
+            row.append(SizedBox(width: 6))
+        }
+        row.append(Text(
+            win.map { String($0.title.prefix(24)) } ?? "Workspace",
+            style: TextStyle(color: shellTheme.overlayText,
+                             fontSize: 11, fontWeight: .w600)))
+        row.append(SizedBox(width: 8))
+        row.append(Text("‹", style: TextStyle(
+            color: shellTheme.overlayTextDim, fontSize: 13, fontWeight: .w600)))
+
+        return [Positioned(
+            left: left + WS.paneGap, top: top + WS.tabTop,
+            width: min(WS.tabWMax, max(0, width - WS.paneGap * 2)),
+            height: WS.tabH,
+            child: GestureDetector(
+                onTap: { [self] in setState { _wsDriverHidden = true } },
+                onSecondaryTap: { [self] in
+                    setState {
+                        _wsTabMenuWinId = nil
+                        _wsDriverMenuWsId = wsId
+                        _wsMenuAt = anchor
+                    }
+                },
+                behavior: .opaque,
+                child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: Color(0x14FFFFFF),
+                        border: Border.all(color: Color(0x1FFFFFFF), width: 1),
+                        borderRadius: BorderRadius.all(Radius(circular: 6))),
+                    child: Center(child: Row(
+                        mainAxisAlignment: .center, children: row)))))]
+    }
+
+    /// What is left of the column while it is hidden: a strip the width of
+    /// its own chip. Deliberately not zero — a panel that can only be brought
+    /// back by a keystroke nobody was told about is a panel that is gone.
+    private func _wsRevealStrip(_ ws: WorkspaceInfo, top: Double,
+                                h: Double) -> [Widget] {
+        [
+            Positioned(
+                left: 0, top: top, width: WS.collapsedW, height: h - top,
+                child: IgnorePointer(child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: Color(0xE60F1118),
+                        border: Border(
+                            right: BorderSide(color: Color(0x26FFFFFF), width: 1))),
+                    child: SizedBox(expand: ())))),
+            Positioned(
+                left: 6, top: top + WS.tabTop, width: 24, height: WS.tabH,
+                child: _workspaceButton("›", fontSize: 14) { [self] in
+                    setState { _wsDriverHidden = false }
+                }),
+        ]
     }
 
     // MARK: Driver column
@@ -219,8 +222,11 @@ extension _DesktopShellState {
     private func _workspaceDriverColumn(
         _ ws: WorkspaceInfo, left: Double, width: Double, top: Double, h outputH: Double
     ) -> [Widget] {
-        var out: [Widget] = []
-        let h = outputH - top - WS.paneGap * 2
+        // The pane starts where the tab column's does, so the two columns
+        // line up and the strip above each one reads as the same row.
+        var out: [Widget] = _wsDriverStrip(ws, left: left, width: width, top: top)
+        let paneTop = top + WS.tabTop + WS.tabH + WS.paneGap
+        let h = outputH - paneTop - WS.paneGap
 
         guard let driverId = ws.driverWindowId,
               let win = windowManager.windows.first(where: { $0.id == driverId }) else {
@@ -271,7 +277,7 @@ extension _DesktopShellState {
                     [self] in openLauncher(driverTarget: wsId)
                 }))
             out.append(Positioned(
-                left: left + WS.paneGap, top: top + WS.paneGap,
+                left: left + WS.paneGap, top: paneTop,
                 width: width - WS.paneGap * 2, height: h,
                 child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -286,7 +292,7 @@ extension _DesktopShellState {
         let focused = windowManager.focusedWindowId == win.id
         out.append(Positioned(
             key: ValueKey("ws-driver-\(win.id)"),
-            left: left + WS.paneGap, top: top + WS.paneGap,
+            left: left + WS.paneGap, top: paneTop,
             width: width - WS.paneGap * 2, height: h,
             child: _workspacePane(win, focused: focused,
                                   paneW: width - WS.paneGap * 2, paneH: h)))
@@ -299,8 +305,8 @@ extension _DesktopShellState {
         _ ws: WorkspaceInfo, left: Double, width: Double, top: Double, h: Double
     ) -> [Widget] {
         var out: [Widget] = []
-        // The driver is shown in the middle, never as a tab.
-        let tabs = windowManager.windows(inWorkspace: ws.id)
+        // The driver is shown in its own column, never as a tab.
+        let tabs = _wsVisibleWindows(ws)
             .filter { $0.id != ws.driverWindowId }
 
         let paneTop0 = top + WS.tabTop + WS.tabH + WS.paneGap
@@ -398,7 +404,7 @@ extension _DesktopShellState {
                     onSecondaryTap: { [self] in
                         setState {
                             _workspaceActiveTab[wsId] = tabId
-                            _wsRailMenuWsId = nil
+                            _wsDriverMenuWsId = nil
                             _wsTabMenuWinId = tabId
                             _wsMenuAt = anchor
                         }
@@ -463,7 +469,7 @@ extension _DesktopShellState {
                 onPointerDown: { [self] _ in _workspaceDividerDragging = true },
                 onPointerMove: { [self] event in
                     guard _workspaceDividerDragging else { return }
-                    let w = event.position.dx - WS.railW - WS.dividerW / 2
+                    let w = event.position.dx - WS.dividerW / 2
                     setState {
                         _workspaceDriverW = min(WS.driverMax, max(WS.driverMin, w))
                     }
@@ -629,17 +635,21 @@ extension _DesktopShellState {
     /// through the lookup rather than needing a case.
     func _applyAgentWindowThrottle() {
         guard let wayland = waylandIntegration else { return }
-        var watched = Set<String>()
         let outputs = displayLayout?.outputs.map(\.id) ?? [0]
-        for out in outputs where windowManager.activeSpace(onOutput: out).isWorkspace {
-            if let ws = windowManager.selectedWorkspace(onOutput: out), ws.isAgent {
-                watched.insert(ws.id)
-            }
+        // One workspace, and it draws every agent's windows — so "is anyone
+        // looking" is now the whole question. It used to be per rail row.
+        let watching = outputs.contains {
+            windowManager.activeSpace(onOutput: $0).isWorkspace
         }
+        // EVERY owned window, not just the agent's. The driver is claimed
+        // through the same launch path, so it is born at 200ms too — and
+        // nothing ever lifted that, because this loop asked for an AGENT's
+        // window. Claude Desktop therefore ran the whole session at 5fps in
+        // the column the human types into, which reads as the app being slow
+        // rather than as the shell throttling it.
         for win in windowManager.windows {
-            guard let owner = win.ownerAgentId,
-                  _isFittedAgentWindow(win) else { continue }
-            let want: UInt32 = watched.contains(owner) ? 0 : 200
+            guard win.ownerAgentId != nil else { continue }
+            let want: UInt32 = watching ? 0 : 200
             guard _agentThrottleApplied[win.id] != want else { continue }
             guard let sid = wayland.surfaceId(forWindowId: win.id) else { continue }
             wayland.setSurfaceThrottle(surfaceId: sid, intervalMs: want)
@@ -831,11 +841,11 @@ extension _DesktopShellState {
         guard let ws = windowManager.selectedWorkspace(onOutput: out.id) else { return }
         let top = DesktopTheme.kStatusBarHeight
         let driverW = _workspaceDriverWidth(forOutputWidth: out.logicalWidth)
-        let rightLeft = WS.railW + driverW + WS.dividerW
+        let rightLeft = _wsDriverHidden ? WS.collapsedW : driverW + WS.dividerW
+        let paneTop = top + WS.tabTop + WS.tabH + WS.paneGap
 
         let driverSize = (w: driverW - WS.paneGap * 2,
-                          h: out.logicalHeight - top - WS.paneGap * 2)
-        let paneTop = top + WS.tabTop + WS.tabH + WS.paneGap
+                          h: out.logicalHeight - paneTop - WS.paneGap)
         let tabSize = (w: out.logicalWidth - rightLeft - WS.paneGap * 2,
                        h: out.logicalHeight - paneTop - WS.paneGap)
 
@@ -850,6 +860,9 @@ extension _DesktopShellState {
             // driver is the human's own app and is resized like any other
             // workspace window.
             if _isFittedAgentWindow(win) { continue }
+            // Hidden, the driver is not on screen: leave it the size it had,
+            // so folding the column away and back costs no reconfigure.
+            if isDriver && _wsDriverHidden { continue }
             let size = isDriver ? driverSize : tabSize
             guard size.w > 1, size.h > 1 else { continue }
             let r = Rect.fromLTWH(0, 0, size.w, size.h)
@@ -934,6 +947,19 @@ extension _DesktopShellState {
     /// kind's language: destroyApp for a first-party child process, the xdg
     /// close for a Wayland client.
     func _wsDeleteWorkspace(_ wsId: String) {
+        // Ask, then insist — collected BEFORE the close, because the windows
+        // are gone by the time anyone could look. A Wayland client is asked to
+        // go through xdg_toplevel.close, and an Electron app may honour that
+        // by hiding and staying resident: Claude Desktop does exactly that, so
+        // "Stop Everything" left an empty workspace and a live process still
+        // holding the session, its MCP server and half a gigabyte — and
+        // launching it again did nothing visible, because the second instance
+        // just handed off to the first. Anything still alive after the grace
+        // period gets a TERM.
+        let survivors: [pid_t] = windowManager.windows(inWorkspace: wsId)
+            .compactMap { _windowPid($0) }
+            .filter { $0 > 1 }
+
         var ids = windowManager.windows(inWorkspace: wsId).map(\.id)
         if let driverId = windowManager.workspaces
             .first(where: { $0.id == wsId })?.driverWindowId,
@@ -943,159 +969,47 @@ extension _DesktopShellState {
         }
         for id in ids { windowManager.closeWindow(id) }
         _workspaceActiveTab.removeValue(forKey: wsId)
-        // An inline rename pointing at the dead row would keep swallowing
-        // keystrokes until the next click; let it die with the workspace.
-        if _wsRenamingId == wsId { _wsRenamingId = nil }
-        // Deleting the ONLY workspace: removeWorkspace refuses to leave the
-        // rail empty, and "you cannot delete this" is the wrong answer to
-        // "stop all of this" — so the dead row is replaced by a fresh empty
-        // one first. Order matters: add, then remove, so the count guard
-        // in removeWorkspace is satisfied.
+        // There is one workspace, and "stop all of this" must not end with
+        // an empty mode — so a fresh one replaces the emptied one. Order
+        // matters: add, then remove, so removeWorkspace's count guard (it
+        // refuses to remove the last) is satisfied.
         if windowManager.workspaces.count <= 1 {
             windowManager.addWorkspace(onOutput: _wsBuildOutputId)
         }
         windowManager.removeWorkspace(wsId)
+
+        guard !survivors.isEmpty else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
+            for pid in survivors where kill(pid, 0) == 0 {
+                kill(pid, SIGTERM)
+            }
+        }
     }
 
     // MARK: Hover
 
-    /// Which rail row the pointer is over, tracked as ONE translucent probe
-    /// over the whole space rather than a region per row.
+    /// Cursor catch-all for the whole mode.
     ///
-    /// `MouseRegion`'s enter/exit are not the tool here — this shell reads
-    /// hover from `Listener.onPointerHover` everywhere it already does it
-    /// (the dock's magnification, the divider's cursor), and a per-row region
-    /// also gets *leaving* wrong: nothing fires when the pointer exits the
-    /// rail sideways into the driver, so the last row stays lit. Deriving the
-    /// row from the position makes "no row" fall out for free.
+    /// The desktop's lives on the wallpaper, which the scrim buries — so
+    /// without this, crossing the divider once leaves its resize arrows stuck
+    /// to the whole mode. Order keeps the divider working: the probe is
+    /// topmost, so its entry runs FIRST in the hit-test path and anything
+    /// below (divider, panes) overwrites the shape within the same event.
     ///
-    /// It only calls setState when the row actually changes, so this is a
-    /// rebuild per boundary crossed, not per mouse move.
+    /// Translucent, so every click still lands on whatever is under it. It
+    /// tracked the hovered rail row too, until there were no rows.
     private func _workspaceHoverProbe(top: Double) -> Widget {
         return Positioned(fill: (), child: Listener(
-            onPointerHover: { [self] e in
-                // Cursor catch-all. The desktop's lives on the wallpaper,
-                // which the scrim buries — so without this, crossing the
-                // divider once leaves its resize arrows stuck to the whole
-                // mode. Order keeps the divider working: the probe is
-                // topmost, so its entry runs FIRST in the hit-test path
-                // and anything below (divider, panes) overwrites the
-                // shape within the same event.
-                DesktopCursor.setShape(.default)
-                let id = _wsRailRowAt(e.position, top: top)
-                guard id != _wsHoverRailId else { return }
-                setState { _wsHoverRailId = id }
-            },
+            onPointerHover: { _ in DesktopCursor.setShape(.default) },
             behavior: .translucent,
             child: SizedBox(expand: ())))
     }
 
-    private func _wsRailRowAt(_ p: Offset, top: Double) -> String? {
-        guard p.dx >= 10, p.dx <= WS.railW - 10 else { return nil }
-        var rowY = top + 50
-        for ws in windowManager.workspaces {
-            if p.dy >= rowY, p.dy < rowY + WS.rowH { return ws.id }
-            rowY += WS.rowH + 8
-        }
-        return nil
-    }
-
-    // MARK: Inline rename
-
-    /// Open the rail's inline editor on one row. Shared by the hover pencil
-    /// and the context menu's Rename, so the two cannot drift apart.
-    func _wsBeginRename(_ wsId: String) {
-        _wsRailMenuWsId = nil
-        _wsRenamingId = wsId
-        _wsRenameBuffer = windowManager.workspaces
-            .first(where: { $0.id == wsId })?.name ?? ""
-        _wsRenameFresh = true
-    }
-
-    /// The pencil that appears on the hovered row. Renaming a workspace was
-    /// previously only reachable through right-click > Rename, which is not a
-    /// thing anyone finds; this puts it where the pointer already is, and
-    /// only on the row being pointed at so the rail stays a plain list.
-    private func _wsRenameAffordance(_ wsId: String) -> Widget {
-        let fg = shellTheme.overlayText
-        return HoverButton(
-            builder: { _, states in
-                DecoratedBox(
-                    decoration: BoxDecoration(
-                        color: states.isHovered ? Color(0x33FFFFFF)
-                                                : Color(0x14FFFFFF),
-                        borderRadius: BorderRadius.all(Radius(circular: 6))),
-                    child: Center(child: MacosIcon(
-                        icon: CupertinoIcons.pencil,
-                        color: fg, size: 12)))
-            },
-            onPressed: { [self] in setState { _wsBeginRename(wsId) } })
-    }
-
-    /// The trash beside the pencil on the hovered row: the pointer-first
-    /// door to Remove/Delete, since the menu's other door is a right click
-    /// and a laptop trackpad does not offer one readily. It opens the row's
-    /// menu (anchored where the right-click would put it) rather than
-    /// deleting outright — Delete stops every app in the workspace, and a
-    /// stray click on a hover affordance must not be able to do that.
-    private func _wsDeleteAffordance(_ wsId: String, anchor: Offset) -> Widget {
-        let fg = shellTheme.overlayText
-        return HoverButton(
-            builder: { _, states in
-                DecoratedBox(
-                    decoration: BoxDecoration(
-                        color: states.isHovered ? Color(0x40FF6159)
-                                                : Color(0x14FFFFFF),
-                        borderRadius: BorderRadius.all(Radius(circular: 6))),
-                    child: Center(child: MacosIcon(
-                        icon: CupertinoIcons.trash,
-                        color: fg, size: 12)))
-            },
-            onPressed: { [self] in
-                setState {
-                    windowManager.selectWorkspace(wsId, onOutput: _wsBuildOutputId)
-                    _wsTabMenuWinId = nil
-                    _wsRailMenuWsId = wsId
-                    _wsMenuAt = anchor
-                }
-            })
-    }
-
-    /// Commit the rail's inline rename: a non-blank name sticks, a blank one
-    /// leaves the old one alone. Shared by Enter and by the click-away
-    /// catcher below, which have to agree — a name that saves on Enter but
-    /// evaporates on a click elsewhere is the kind of thing nobody reports
-    /// and everybody notices.
-    func _wsCommitRename() {
-        guard let renameId = _wsRenamingId else { return }
-        let name = _wsRenameBuffer.trimmingCharacters(in: .whitespaces)
-        if !name.isEmpty,
-           let ws = windowManager.workspaces.first(where: { $0.id == renameId }) {
-            ws.name = name
-        }
-        _wsRenamingId = nil
-    }
-
-    /// Click-away catcher for the inline rename. Opening the editor
-    /// automatically on `+ New` means the user can now walk away from one
-    /// without pressing Enter, and an armed editor swallows every keystroke
-    /// (see the key handler) — so the next click anywhere has to end it.
-    /// It commits rather than cancels, the way a rename field that loses
-    /// focus does.
-    private func _workspaceRenameLayer() -> [Widget] {
-        guard _wsRenamingId != nil else { return [] }
-        return [Positioned(fill: (), child: GestureDetector(
-            onTap: { [self] in setState { _wsCommitRename() } },
-            onSecondaryTap: { [self] in setState { _wsCommitRename() } },
-            behavior: .opaque,
-            child: SizedBox(expand: ())))]
-    }
-
     // MARK: Context menus
 
-    /// The open tab / rail menu, plus the click-away catcher under it.
+    /// The open tab / left-column menu, plus the click-away catcher under it.
     private func _workspaceMenuLayer(_ w: Double, _ h: Double) -> [Widget] {
-        guard _wsTabMenuWinId != nil || _wsRailMenuWsId != nil else { return [] }
+        guard _wsTabMenuWinId != nil || _wsDriverMenuWsId != nil else { return [] }
         var items: [MacosMenuEntry] = []
 
         if let winId = _wsTabMenuWinId {
@@ -1119,59 +1033,51 @@ extension _DesktopShellState {
                     },
                     isDestructive: true),
             ]
-        } else if let wsId = _wsRailMenuWsId {
-            let count = windowManager.windows(inWorkspace: wsId).count
-            let last = windowManager.workspaces.count <= 1
+        } else if let wsId = _wsDriverMenuWsId,
+                  let ws = windowManager.workspaces.first(where: { $0.id == wsId }) {
+            let count = _wsVisibleWindows(ws).count
+            let driver = _workspaceDriverWindow(ws)
             items = [
-                MacosMenuItem(text: "Rename", onPressed: { [self] in
-                    setState { _wsBeginRename(wsId) }
+                MacosMenuItem(text: "Hide This Column", onPressed: { [self] in
+                    setState { _wsDriverMenuWsId = nil; _wsDriverHidden = true }
                 }),
                 MacosMenuSeparator(),
-                // Removing the last workspace would leave the space with
-                // nothing to show, so it is refused rather than hidden.
+                // Rename and Remove went with the rail: with one workspace, a
+                // name nothing displays is a name nobody needs, and Remove was
+                // refused on the last row anyway. Stop is the item that had to
+                // survive — it is the only way to end a run without hunting
+                // every window down.
                 MacosMenuItem(
-                    text: count == 0 ? "Remove Workspace"
-                                     : "Remove (keeps \(count) open)",
-                    onPressed: last ? nil : { [self] in
+                    text: driver.map { "Close \($0.title.prefix(18))" }
+                        ?? "Close Driver",
+                    onPressed: driver.map { win in { [self] in
                         setState {
-                            _wsRailMenuWsId = nil
-                            // Windows outlive the workspace: they move to the
-                            // desktop rather than being destroyed on a click.
-                            for win in windowManager.windows(inWorkspace: wsId) {
-                                _wsMoveWindowToDesktop(win.id)
-                            }
-                            windowManager.removeWorkspace(wsId)
+                            _wsDriverMenuWsId = nil
+                            windowManager.closeWindow(win.id)
+                        }
+                    } },
+                    isDestructive: true),
+                MacosMenuItem(
+                    text: count == 0 ? "Stop Everything"
+                                     : "Stop Everything (closes \(count))",
+                    onPressed: { [self] in
+                        setState {
+                            _wsDriverMenuWsId = nil
+                            _wsDeleteWorkspace(wsId)
                         }
                     },
                     isDestructive: true),
             ]
-            // Delete is Remove's destructive sibling: stop the apps rather
-            // than rehome them. Only offered when there is something to stop
-            // — on an empty workspace Remove already is the whole delete.
-            // No last-row guard, unlike Remove: deleting the only workspace
-            // stops everything and leaves a fresh empty row in its place
-            // (see _wsDeleteWorkspace), so it is never a dead end.
-            if count > 0 {
-                items.append(MacosMenuItem(
-                    text: "Delete (closes \(count))",
-                    onPressed: { [self] in
-                        setState {
-                            _wsRailMenuWsId = nil
-                            _wsDeleteWorkspace(wsId)
-                        }
-                    },
-                    isDestructive: true))
-            }
         }
 
         let menuW = 210.0
         return [
             Positioned(fill: (), child: GestureDetector(
                 onTap: { [self] in
-                    setState { _wsTabMenuWinId = nil; _wsRailMenuWsId = nil }
+                    setState { _wsTabMenuWinId = nil; _wsDriverMenuWsId = nil }
                 },
                 onSecondaryTap: { [self] in
-                    setState { _wsTabMenuWinId = nil; _wsRailMenuWsId = nil }
+                    setState { _wsTabMenuWinId = nil; _wsDriverMenuWsId = nil }
                 },
                 behavior: .opaque,
                 child: SizedBox(expand: ()))),

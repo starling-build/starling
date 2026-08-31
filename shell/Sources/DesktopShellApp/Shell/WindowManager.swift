@@ -429,8 +429,12 @@ class WindowManagerState {
         // when they are all on screen elsewhere — never the taken one; a
         // client has one buffer size, so one workspace on two panels is the
         // thing this whole model exists to prevent.
+        //
+        // Agent entries are skipped: an agent is not a place to work, and
+        // since the rail went there is nothing to select it FROM. Its windows
+        // are drawn in the human's workspace instead (`_wsVisibleWindows`).
         let taken = displayedWorkspaceIds(excluding: outputId)
-        return workspaces.first(where: { !taken.contains($0.id) })
+        return workspaces.first(where: { !taken.contains($0.id) && !$0.isAgent })
     }
 
     func selectWorkspace(_ workspaceId: String, onOutput outputId: Int) {
