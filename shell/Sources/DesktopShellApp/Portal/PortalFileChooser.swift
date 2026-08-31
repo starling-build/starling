@@ -19,7 +19,7 @@ import Foundation
 /// thread; it copies the arguments and hands off to the main thread, then
 /// returns 0 (launched — the result arrives later via completeRequest).
 let portalChooserLaunchThunk: portal_launch_chooser_fn = {
-    (_ /*userdata*/, handle, _ /*executable*/, title,
+    (_ /*userdata*/, handle, _ /*executable*/, callerPid, title,
      multiple, directory, saveMode, currentFolder, acceptLabel, suggestedName) -> Int32 in
 
     guard let handle = handle else { return -1 }
@@ -38,7 +38,7 @@ let portalChooserLaunchThunk: portal_launch_chooser_fn = {
             return
         }
         shell.launchFileChooser(
-            handle: handleStr, title: titleStr,
+            handle: handleStr, title: titleStr, callerPid: pid_t(callerPid),
             multiple: isMultiple, directory: isDirectory, saveMode: isSave,
             currentFolder: folderStr, acceptLabel: acceptStr, suggestedName: nameStr)
     }
@@ -49,7 +49,7 @@ extension _DesktopShellState {
 
     /// Launch the file-chooser picker as a DMA-BUF child window. Called on the
     /// main thread. The picker prints selected file:// URIs to stdout on exit.
-    func launchFileChooser(handle: String, title: String,
+    func launchFileChooser(handle: String, title: String, callerPid: pid_t,
                            multiple: Bool, directory: Bool, saveMode: Bool,
                            currentFolder: String?, acceptLabel: String?,
                            suggestedName: String?) {
@@ -65,6 +65,18 @@ extension _DesktopShellState {
         if let f = currentFolder, !f.isEmpty { env["PORTAL_FOLDER"] = f }
         if let a = acceptLabel, !a.isEmpty { env["PORTAL_ACCEPT_LABEL"] = a }
         if let n = suggestedName, !n.isEmpty { env["PORTAL_SUGGESTED_NAME"] = n }
+
+        // Whose dialog is this? Walk up from the process that made the D-Bus
+        // call to the window it owns — the same ancestry walk that pairs an
+        // agent with the app driving it. A chooser opened by an AGENT's
+        // browser becomes that agent's window: it appears in the agent's
+        // workspace where the agent can actually drive it, and it stops
+        // landing on the human's desktop, where it blocked the agent forever
+        // and put a browser for the human's files on screen uninvited.
+        //
+        // nil is the ordinary case — the human's own browser asked — and
+        // leaves the dialog exactly where it has always been.
+        let owner = _ownerForRequestingProcess(callerPid)
 
         let appId = "portal-chooser-\(handle)"
         let winRect = Rect.fromLTWH(180, 100, 760, 520)
@@ -107,6 +119,7 @@ extension _DesktopShellState {
                                 mgr.sendResize(textureId: texId,
                                                width: Int(width), height: Int(height))
                             },
+                            ownerAgentId: owner,
                             appBuilder: { _ in SizedBox(expand: ()) }
                         )
                     }

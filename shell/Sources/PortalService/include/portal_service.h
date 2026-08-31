@@ -56,6 +56,7 @@ typedef int (*portal_launch_chooser_fn)(
     void *userdata,
     const char *handle,          // request object path — echo back in completion
     const char *executable,      // path to helper binary
+    int caller_pid,              // the D-Bus client that asked (see below)
     const char *title,
     int multiple,
     int directory,
@@ -64,6 +65,13 @@ typedef int (*portal_launch_chooser_fn)(
     const char *accept_label,
     const char *suggested_name
 );
+
+/// `caller_pid` is the process that made the D-Bus call, from the kernel's own
+/// peer credentials. It exists so the shell can decide WHOSE dialog this is:
+/// a chooser opened by an agent's browser has to land in that agent's
+/// workspace, where the agent can drive it, rather than appearing on the
+/// human's desktop where it blocks the agent forever and shows the human's
+/// files to a window they never asked for. 0 when the bus will not say.
 
 /// Set a custom launcher for the file chooser helper. If set, this async
 /// launcher is used instead of the built-in fork/exec+stdout-reap path.

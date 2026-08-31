@@ -587,6 +587,20 @@ static int _filechooser_common(sd_bus_message *m, void *userdata,
     req->child_pid = -1;
     req->stdout_fd = -1;
 
+    // WHO asked. The kernel supplies this and the client cannot forge it —
+    // the same credential read that authenticates the agent socket. The shell
+    // turns it into an owner: a dialog opened by an agent's browser belongs to
+    // that agent, not to the human whose desktop it would otherwise appear on.
+    int caller_pid = 0;
+    {
+        sd_bus_creds *creds = NULL;
+        if (sd_bus_query_sender_creds(m, SD_BUS_CREDS_PID, &creds) >= 0 && creds) {
+            pid_t p = 0;
+            if (sd_bus_creds_get_pid(creds, &p) >= 0) caller_pid = (int)p;
+            sd_bus_creds_unref(creds);
+        }
+    }
+
     sd_bus_add_object_vtable(ps->bus, &req->slot, handle_path,
                               REQUEST_IFACE, request_vtable, ps);
 
@@ -599,7 +613,7 @@ static int _filechooser_common(sd_bus_message *m, void *userdata,
         // Async path: the launcher composites the helper and later delivers
         // the result via portal_service_complete_request(handle). The portal
         // neither reaps nor reads the child (child_pid/stdout_fd stay -1).
-        int r = launcher(launcher_ud, handle_path, cmd, title,
+        int r = launcher(launcher_ud, handle_path, cmd, caller_pid, title,
                          multiple, directory, save_mode,
                          current_folder[0] ? current_folder : NULL,
                          accept_label[0] ? accept_label : NULL,

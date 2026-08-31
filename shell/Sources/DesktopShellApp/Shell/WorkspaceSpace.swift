@@ -560,6 +560,26 @@ extension _DesktopShellState {
     /// launched it from one — agent-client.py from a terminal, a CI harness —
     /// and the caller falls back to giving it a rail entry of its own, so its
     /// windows are still watchable somewhere.
+    /// Who owns the window belonging to `pid`, or to its nearest ancestor.
+    ///
+    /// Used to decide whose file dialog a portal request is. Chrome may make
+    /// the D-Bus call from a child of the process holding the Wayland
+    /// connection, which is why this walks UP rather than demanding an exact
+    /// match. nil means the human's own app asked, and the dialog belongs
+    /// where it always has: on their desktop.
+    func _ownerForRequestingProcess(_ pid: pid_t) -> String? {
+        guard pid > 0 else { return nil }
+        var here: pid_t? = pid
+        for _ in 0..<8 {
+            guard let cur = here else { return nil }
+            if let win = windowManager.windows.first(where: { _windowPid($0) == cur }) {
+                return win.ownerAgentId
+            }
+            here = Self._parentPid(cur)
+        }
+        return nil
+    }
+
     /// Try the bind again from the agent's recorded pid — see
     /// `onAgentNeedsWorkspace` for why once is not enough.
     func _retryBindAgent(_ agentId: String) -> Bool {

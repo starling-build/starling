@@ -1712,11 +1712,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// file chooser to tear down the picker window when it exits — its
     /// _closingWindows set is private to this state).
     func _portalBeginClosingWindow(appId: String) {
-        setState {
-            if let win = windowManager.windows.first(where: { $0.appId == appId }) {
-                _closingWindows.insert(win.id)
-            }
+        guard let win = windowManager.windows.first(where: { $0.appId == appId })
+        else { return }
+        // An OWNED window is drawn in a workspace, not on the desktop, so the
+        // desktop's close animation — which is what eventually calls
+        // _finalizeWindowClose — never runs for it. Marking it "closing" and
+        // waiting would strand it forever: the picker's process is gone and
+        // its last frame sits in the workspace looking live, with the rail
+        // still counting it. Tear it down directly instead.
+        if win.ownerAgentId != nil {
+            _finalizeWindowClose(win.id)
+            return
         }
+        setState { _closingWindows.insert(win.id) }
     }
 
     private func _setupWaylandCallbacks() {
@@ -7997,7 +8005,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// Real window teardown, fired when the close animation completes:
     /// destroy the app/texture (onWindowClose) and drop the window.
-    private func _finalizeWindowClose(_ winId: String) {
+    func _finalizeWindowClose(_ winId: String) {
         guard let win = windowManager.windows.first(where: { $0.id == winId }) else {
             _closingWindows.remove(winId)
             return
