@@ -1265,16 +1265,19 @@ class WaylandIntegration {
     /// swallows every key: text-input enter rides keyboard enter, and the
     /// lazy enter inside sendKeyEvent would otherwise never fire.
     func ensureKeyboardFocus() {
-        guard let server = server else { return }
-        let surfaceId = pointerFocusSurface
-        guard surfaceId != 0, keyboardFocusSurface != surfaceId else { return }
-        if keyboardFocusSurface != 0 {
-            wayland_server_keyboard_leave(server, keyboardFocusSurface)
-        }
-        wayland_server_keyboard_enter(server, surfaceId)
-        keyboardFocusSurface = surfaceId
-        wayland_server_keyboard_modifiers(server, surfaceId,
-                                          modsDepressed, 0, modsLocked, 0)
+        guard pointerFocusSurface != 0 else { return }
+        ensureKeyboardFocus(pointerFocusSurface, depressed: modsDepressed,
+                            locked: modsLocked)
+    }
+
+    /// The focused WINDOW's surface is about to receive keys: give it the
+    /// keyboard now, so the first one is not what tells it. Called when the
+    /// shell changes focus, which for a Wayland client is the moment its
+    /// toolkit can afford to route focus internally.
+    func focusKeyboard(surfaceId: UInt32) {
+        guard surfaceId != 0 else { return }
+        ensureKeyboardFocus(surfaceId, depressed: modsDepressed,
+                            locked: modsLocked)
     }
 
     /// Deliver a key to a Wayland client. `targetSurface` is the focused
@@ -1632,6 +1635,23 @@ class WaylandIntegration {
     /// already. Called from pointer enter as well as from the key path — see
     /// agentPointerEvent for why the pointer must not be the second one.
     private func agentEnsureKeyboardFocus(_ surfaceId: UInt32) {
+        ensureKeyboardFocus(surfaceId, depressed: agentModsDepressed,
+                            locked: agentModsLocked)
+    }
+
+    /// Hand a surface the keyboard, if it does not already hold it.
+    ///
+    /// Both seats call this, and both must call it from POINTER enter rather
+    /// than from the first keystroke. A client told "the keyboard is yours"
+    /// and handed a key in the same breath routes the focus asynchronously
+    /// and drops that key: type "hello" into a freshly clicked Claude Desktop
+    /// and it reads "ello". Worse than losing it, Chromium may treat a key
+    /// that arrives before its focus lands as a global accelerator — which is
+    /// how typing a prompt opened the app's command palette instead, and how
+    /// the first character of every prompt this desktop has ever typed into a
+    /// Wayland client has been going missing.
+    private func ensureKeyboardFocus(_ surfaceId: UInt32,
+                                     depressed: UInt32, locked: UInt32) {
         guard let server = server, keyboardFocusSurface != surfaceId else { return }
         if keyboardFocusSurface != 0 {
             wayland_server_keyboard_leave(server, keyboardFocusSurface)
@@ -1641,8 +1661,7 @@ class WaylandIntegration {
         // The spec requires a modifiers event after enter so the client
         // starts from the compositor's current state.
         wayland_server_keyboard_modifiers(server, surfaceId,
-                                          agentModsDepressed, 0,
-                                          agentModsLocked, 0)
+                                          depressed, 0, locked, 0)
     }
 
     /// Agent key; `physical` is a HID usage (the broker's key contract),

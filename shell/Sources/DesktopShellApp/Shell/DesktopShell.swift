@@ -1196,6 +1196,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         windowManager.onAgentNeedsWorkspace = { [weak self] agentId in
             self?._retryBindAgent(agentId) ?? false
         }
+        // A Wayland client gets the keyboard when it gets FOCUS, not when the
+        // first key turns up. Chromium routes focus asynchronously, so a
+        // client handed wl_keyboard.enter and a key in the same breath drops
+        // that key — every prompt this desktop typed into Claude Desktop lost
+        // its first character — or, worse, treats it as a global accelerator
+        // and opens something. See WaylandIntegration.ensureKeyboardFocus.
+        windowManager.onFocusedWindowChanged = { [weak self] winId in
+            guard let self,
+                  let win = self.windowManager.windows.first(where: { $0.id == winId }),
+                  win.appId.hasPrefix("wayland-"),
+                  let surface = UInt32(win.appId.dropFirst("wayland-".count))
+            else { return }
+            waylandIntegration?.focusKeyboard(surfaceId: surface)
+        }
+
         windowManager.onWindowsChanged = { [weak self] in
             guard let self else { return }
             self.windowManager.retileAll(

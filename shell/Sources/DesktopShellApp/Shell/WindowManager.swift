@@ -288,7 +288,18 @@ final class AgentInfo {
 /// All mutations should be called from the shell's setState block.
 class WindowManagerState {
     var windows: [WindowInfo] = []
-    var focusedWindowId: String? = nil
+    /// Focus changes are announced, because a Wayland client needs the
+    /// keyboard BEFORE the first key rather than because of it — see
+    /// `WaylandIntegration.focusKeyboard`. Set in a dozen places, so the
+    /// announcement lives here rather than at each of them.
+    var focusedWindowId: String? = nil {
+        didSet {
+            if focusedWindowId != oldValue, let id = focusedWindowId {
+                onFocusedWindowChanged?(id)
+            }
+        }
+    }
+    var onFocusedWindowChanged: ((String) -> Void)?
     private var nextZIndex: Int = 1
     private var nextWindowId: Int = 1
 
