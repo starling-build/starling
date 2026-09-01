@@ -119,6 +119,8 @@ class WaylandIntegration {
     private var surfacePids: [UInt32: pid_t] = [:]        // surfaceId → client pid
     private var surfaceSizes: [UInt32: (Int, Int)] = [:]  // surfaceId → (width, height) in buffer pixels
     private var surfaceBufferScales: [UInt32: Int] = [:]  // surfaceId → buffer_scale from client
+    /// surfaceId → wp_viewporter destination size, when the client set one
+    private var surfaceViewportSizes: [UInt32: (Int, Int)] = [:]
     private var surfaceGeometry: [UInt32: (x: Int, y: Int, width: Int, height: Int)] = [:]
     private var lastEmittedGeometry: [UInt32: (x: Int, y: Int, w: Int, h: Int, bufW: Int, bufH: Int)] = [:]
     private var popupSurfaceIds: Set<UInt32> = []
@@ -612,6 +614,16 @@ class WaylandIntegration {
         let prevScale = surfaceBufferScales[surfaceId]
         surfaceSizes[surfaceId] = (width, height)
         surfaceBufferScales[surfaceId] = bufferScale
+        // The size the client believes its surface IS, which is not the size
+        // of the buffer it drew: a client using wp_viewporter (every Chromium
+        // at a fractional scale) attaches a buffer 1.5x its surface and lets
+        // the viewport scale it down. Pointer coordinates are surface-local,
+        // so this — not the buffer — is what they are measured in.
+        if vpW > 0 && vpH > 0 {
+            surfaceViewportSizes[surfaceId] = (vpW, vpH)
+        } else {
+            surfaceViewportSizes.removeValue(forKey: surfaceId)
+        }
 
         let scale = max(bufferScale, 1)
         let effectiveScale = max(Double(scale), shellDpi)
@@ -1409,17 +1421,35 @@ class WaylandIntegration {
     /// the window looked dead to the mouse while typing and scrolling worked
     /// fine. Nothing about that reads as a coordinate bug, which is why it is
     /// worth doing here, once, for every window kind rather than per caller.
+    /// The size of a surface in its OWN units — what surface-local pointer
+    /// coordinates are measured in.
+    ///
+    /// Three spellings of "how big is this window" meet here and only one is
+    /// the right answer. The buffer is what the client drew (2304 px wide for
+    /// Chrome at 1.5x). `buffer_scale` covers the integer-scale clients. A
+    /// viewport covers the rest, and it is the common case on this desktop:
+    /// every Chromium at a fractional scale attaches an oversized buffer and
+    /// asks wp_viewporter to scale it down, leaving buffer_scale at 1. Read
+    /// the buffer and you conclude the surface is half again as big as the
+    /// client thinks it is — which sends every pointer event 1.5x too far
+    /// down and to the right, into whatever is there instead.
+    private func surfaceLocalSize(_ surfaceId: UInt32) -> (Double, Double)? {
+        if let vp = surfaceViewportSizes[surfaceId], vp.0 > 0, vp.1 > 0 {
+            return (Double(vp.0), Double(vp.1))
+        }
+        guard let buf = surfaceSizes[surfaceId], buf.0 > 0, buf.1 > 0 else { return nil }
+        let bs = Double(max(surfaceBufferScales[surfaceId] ?? 1, 1))
+        return (Double(buf.0) / bs, Double(buf.1) / bs)
+    }
+
     private func toSurfaceSpace(_ surfaceId: UInt32,
                                 _ x: Double, _ y: Double) -> (Double, Double) {
         let d = shellDpi / fractionalScale
         guard let want = configuredSize[surfaceId], want.w > 1, want.h > 1,
-              let got = surfaceSizes[surfaceId], got.0 > 0, got.1 > 0 else {
+              let got = surfaceLocalSize(surfaceId), got.0 > 1, got.1 > 1 else {
             return (x * d, y * d)
         }
-        // Surface-local units are buffer pixels divided by buffer_scale.
-        let bs = Double(max(surfaceBufferScales[surfaceId] ?? 1, 1))
-        return (x * (Double(got.0) / bs) / want.w,
-                y * (Double(got.1) / bs) / want.h)
+        return (x * got.0 / want.w, y * got.1 / want.h)
     }
 
     func sendResize(surfaceId: UInt32, width: Int, height: Int) {

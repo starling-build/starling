@@ -916,6 +916,113 @@ def check_agent_take_over() -> None:
         quit_app("SettingsApp")
 
 
+@check("agents: a click lands where the agent aimed, not merely somewhere")
+def check_agent_click_coordinates() -> None:
+    """The coordinate space the capture promises has to be the one clicks use.
+
+    Every other click check asks "did the page see a click", which a page-wide
+    handler answers yes to however far off the pointer landed. That blind spot
+    shipped a real bug: the shell read a client's BUFFER size as its surface
+    size, and Chromium at a fractional scale draws a buffer 1.5x the surface
+    it asked for (wp_viewporter scales it down, buffer_scale stays 1). So
+    every coordinate went out 1.5x too far — visibly wrong on screen, and
+    invisible to a test that only counted clicks. An agent driving a mail app
+    aimed at a toolbar button, hit something else, and typed a paragraph into
+    whatever it opened.
+
+    So this check asserts the NUMBERS: the page reports the coordinate it was
+    clicked at, in the same space `capture` reports its content size in, and
+    the two have to agree.
+
+    Measured as the DISTANCE between two clicks rather than the absolute
+    position of one, because the page's own coordinates start below the
+    browser's toolbar and the test has no business knowing how tall that is.
+    A distance has no such inset in it: aim 200px further down, the page must
+    see 200px, and the bug this guards turned that into 300.
+
+    Read back through `capture`, deliberately: the property under test is
+    that the picture an agent looks at and the coordinates it clicks with are
+    one space, so the answer belongs in the picture. (The window TITLE, which
+    the neighbouring check uses, is no good here — Chrome hands a title change
+    to the compositor on its own schedule, and an agent window can sit on a
+    stale one until the next click, reporting each click's position one click
+    late.)
+    """
+    # A page whose whole job is to paint a red mark where it was clicked.
+    page = ("data:text/html,<title>CLICKMARK</title>"
+            "<body style='margin:0;background:%23000'>"
+            "<div id=d style='position:fixed;left:-99px;top:0;width:30px;"
+            "height:30px;background:%23ff2020'></div>"
+            "<script>document.onclick=e=>{d.style.left=(e.clientX-15)+'px';"
+            "d.style.top=(e.clientY-15)+'px'}</script>")
+
+    def red_mark(shot):
+        """Centre of the red mark in the capture's CONTENT coordinates."""
+        px = base64.b64decode(shot["data"])
+        w, h = shot["w"], shot["h"]
+        xs, ys, n = 0, 0, 0
+        for row in range(0, h, 2):
+            base = row * w * 4
+            for col in range(0, w, 2):
+                i = base + col * 4
+                if px[i] > 170 and px[i + 1] < 90 and px[i + 2] < 90:
+                    xs += col
+                    ys += row if shot.get("row_order") == "top-down" else h - 1 - row
+                    n += 1
+        if n < 4:
+            return None
+        scale = shot["content"][0] / float(w)
+        return (xs / n * scale, ys / n * scale)
+
+    s = Session(name="click-coords-check")
+    try:
+        win = s.ok("launch", app="chrome", url=page)["win"]
+        time.sleep(6)                       # the page paints nothing to wait on
+        s.call("await_settled", win=win, timeout_ms=8000)
+        first = s.ok("capture", win=win, max_px=640)
+        cw, ch = first["content"]
+        assert cw > 100 and ch > 100, f"implausible content size {cw}x{ch}"
+        assert red_mark(first) is None, "the mark is on screen before any click"
+
+        def click_at(x, y):
+            s.ok("inject", win=win, ev={"type": "click", "x": x, "y": y})
+            s.call("await_settled", win=win, timeout_ms=5000)
+            mark = None
+            deadline = time.time() + 15
+            while mark is None and time.time() < deadline:
+                mark = red_mark(s.ok("capture", win=win, max_px=640))
+                if mark is None:
+                    time.sleep(1)
+            assert mark, f"clicking ({x},{y}) painted no mark — did it land?"
+            return mark
+
+        # Two points, both well inside the page area (the browser's own
+        # toolbar is the top ~10%), and off-centre on both axes so a
+        # transposed mapping cannot coincidentally agree.
+        a1 = (int(cw * 0.30), int(ch * 0.35))
+        a2 = (int(cw * 0.62), int(ch * 0.60))
+        g1 = click_at(*a1)
+        g2 = click_at(*a2)
+        want = (a2[0] - a1[0], a2[1] - a1[1])
+        got = (g2[0] - g1[0], g2[1] - g1[1])
+        # Subsampling the capture puts a couple of pixels of slack in each
+        # centroid; the failure this guards is 50% of the distance.
+        tol = 12
+        assert abs(got[0] - want[0]) <= tol and abs(got[1] - want[1]) <= tol, (
+            f"moved the click {want[0]}x{want[1]}px in a {cw}x{ch} content "
+            f"space, the mark moved {got[0]:.0f}x{got[1]:.0f}px — scale "
+            f"{got[0] / max(want[0], 1):.2f}x{got[1] / max(want[1], 1):.2f}")
+        # Horizontally there is no browser toolbar to absorb an error, so the
+        # absolute coordinate has to agree too.
+        assert abs(g1[0] - a1[0]) <= tol, (
+            f"clicked x={a1[0]}, the mark landed at x={g1[0]:.0f}")
+        log(f"{a1} and {a2} in {cw}x{ch} -> "
+            f"({g1[0]:.0f},{g1[1]:.0f}) and ({g2[0]:.0f},{g2[1]:.0f})")
+    finally:
+        s.close()
+        quit_app("chrome")
+
+
 @check("agents: a click still lands after the human's pointer has been elsewhere")
 def check_agent_click_after_human_pointer() -> None:
     """One seat, one pointer focus — and the shell kept two ideas of it.
