@@ -544,10 +544,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         _restartLauncherCaret()
     }
 
-    /// Width of the left column. Smaller than it was: the workspace rail used
-    /// to take 260px before this one started, and giving that back to the
-    /// agent's own windows was the point of removing it.
-    var _workspaceDriverW: Double = 480
+    /// Width of the left column. Wide by default: it holds the agent you are
+    /// talking to, and reading its reasoning is the point of watching — a
+    /// narrow column renders Claude Desktop below its own 948px minimum and
+    /// scales it down, which is exactly the text you want legible. The tab
+    /// pane keeps the rest, which at 4K is still most of the screen.
+    var _workspaceDriverW: Double = 860
     /// True between pointer-down and pointer-up on the divider.
     var _workspaceDividerDragging: Bool = false
 
