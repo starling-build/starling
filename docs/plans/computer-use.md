@@ -687,3 +687,50 @@ even when the capture is instant — a window nobody is looking at is paced by
 the compositor's 100ms fallback timer and the shell's own idle frame rate,
 not by page flips. It does not matter while the settle covers it, and it is
 the reason the settle has to.
+
+# Status (2026-08-31, later) — the demo re-run, and what it cost to start
+
+Re-recording the demo on the fixed build found two more, one of them a
+regression from the fixes above.
+
+**1. A workspace whose driver quit could never run another one.** The left
+column correctly returned to "Run an agent here" — the column tolerates a
+dead driver id by looking the window up — but the launch path asked a
+different question, taking the driver slot only `if driverWindowId == nil`,
+which a corpse answers no to. So clicking Claude there opened it as a TAB
+while the offer stayed on screen, once per workspace, permanently. Fixed in
+`closeWindow`, which now clears the slot on any workspace pointing at the
+window it removes; both launch decisions ask whether the driver is ALIVE.
+
+**2. A client's buffer is not its coordinate space, and reading it as one
+sent every pointer event 1.5x too far.** The stretch correction added for
+Claude Desktop used the surface's BUFFER size as the space pointer
+coordinates are measured in. Right for a client that scales with
+`buffer_scale`; wrong for every Chromium at a fractional scale, which
+attaches a buffer 1.5x the surface it asked for, leaves `buffer_scale` at 1,
+and lets `wp_viewporter` scale it down. Nothing looked broken — the window
+rendered correctly, hovers highlighted *something*, clicks landed on
+*something* — and in the demo the agent aimed at Chrome's new-tab button,
+hit a mail toolbar, and typed into the draft that opened. `surfaceLocalSize`
+now reads the viewport when the client set one, which is the same source the
+shell already uses to size the window.
+
+  The check that should have caught it could not, and that is the more
+  useful lesson: every click test asked "did the page see a click", which a
+  page-wide handler answers yes to however far off the pointer landed. The
+  new check asserts the NUMBERS, reading a click-mark back through `capture`
+  so the picture the agent looks at and the coordinates it clicks with are
+  compared as the one space they claim to be. Falsified against the bug:
+  "the mark moved 739x511px — scale 1.50x1.49".
+
+**Open: an agent cannot see a native popup.** Right-click in an agent's
+Chrome and the compositor logs the menu arriving —
+`get_popup: surface=39 parent=37 pos=(700,701) size=(445,443)`, correctly
+placed — and the page's own `oncontextmenu` fires, but the menu is a
+separate surface with its own texture and `capture` returns only the parent
+window's. So every native context menu, and every native dropdown, is
+invisible to the agent driving the window: it right-clicks, sees no change,
+and concludes the app suppressed the menu. "Save image as…" is the case that
+found it. Fixing it means compositing a window's popups into its capture and
+routing injection into whichever popup is under the pointer — the screen
+already does both, so the geometry exists; nothing consumes it for capture.
