@@ -333,35 +333,53 @@ def main():
         # ── coordinates ──────────────────────────────────────────────────
         # The whole coordinate contract in one assertion: the model gives
         # screenshot pixels, the broker must receive content-local logical px.
-        mcp.call("left_click", win="window-1", coordinate=[640, 633])
-        ev = broker.seen[-1]["ev"]
+        #
+        # `last_ev` rather than seen[-1]["ev"]: an action's last op is now the
+        # screenshot it answers with, not the injection it performed.
+        def last_ev():
+            return [r for r in broker.seen if r["op"] == "inject"][-1]["ev"]
+
+        r = mcp.call("left_click", win="window-1", coordinate=[640, 633])
+        ev = last_ev()
         check("a click maps screenshot px to content-local logical px",
               (round(ev["x"], 3), round(ev["y"], 3)),
               (round(640 * CONTENT_W / FIT_W, 3), round(633 * CONTENT_H / FIT_H, 3)))
         check("left_click is a click", ev["type"], "click")
 
+        # An action answers with the screen it produced. In the recorded demo
+        # run 36 of 55 screenshots were the very next call after an action —
+        # a round trip each, and a turn each against the client's per-turn
+        # tool budget, spent asking "what happened?".
+        check_true("a click comes back with the screen after it",
+                   image_of(r) is not None)
+        before = len(broker.seen)
+        r = mcp.call("left_click", win="window-1", coordinate=[5, 5], shot=False)
+        check("shot=false does no capture",
+              [x["op"] for x in broker.seen[before:] if x["op"] == "capture"], [])
+        check_true("...and returns no image", image_of(r) is None)
+
         mcp.call("right_click", win="window-1", coordinate=[0, 0])
-        check("right_click is rclick", broker.seen[-1]["ev"]["type"], "rclick")
+        check("right_click is rclick", last_ev()["type"], "rclick")
         mcp.call("double_click", win="window-1", coordinate=[10, 10])
-        check("double_click is dblclick", broker.seen[-1]["ev"]["type"], "dblclick")
+        check("double_click is dblclick", last_ev()["type"], "dblclick")
 
         mcp.call("left_click_drag", win="window-1",
                  start_coordinate=[0, 0], coordinate=[FIT_W, FIT_H])
-        ev = broker.seen[-1]["ev"]
+        ev = last_ev()
         check("a drag carries both endpoints",
               (ev["type"], round(ev["x2"]), round(ev["y2"])),
               ("drag", round(CONTENT_W), round(CONTENT_H)))
 
         mcp.call("scroll", win="window-1", coordinate=[100, 100],
                  scroll_direction="down", scroll_amount=3)
-        ev = broker.seen[-1]["ev"]
+        ev = last_ev()
         check("scrolling down moves content up (negative dy)",
               (ev["type"], ev["dy"] < 0), ("scroll", True))
 
         # ── keyboard ─────────────────────────────────────────────────────
         before = len(broker.seen)
         mcp.call("key", win="window-1", text="ctrl+s")
-        seq = [r["ev"] for r in broker.seen[before:]]
+        seq = [r["ev"] for r in broker.seen[before:] if r["op"] == "inject"]
         check("a chord is held modifier, key, released modifier",
               [(e["type"], e["physical"]) for e in seq],
               [("keydown", 0xE0), ("key", 0x16), ("keyup", 0xE0)])
@@ -390,11 +408,11 @@ def main():
               (True, True))
         check("every character still arrives, in order",
               "".join(r["ev"]["text"] for r in typed), long_text)
-        check("each chunk is followed by a wait for the repaint, and the "
-              "last one by a longer wait",
+        check("each chunk is followed by a wait for the repaint, the last one "
+              "by a longer wait, and the screen comes back with it",
               [r["op"] for r in seq],
               [op for _ in typed for op in ("inject", "await_settled")]
-              + ["await_settled"])
+              + ["await_settled", "capture"])
         check("the wait between chunks is back pressure, not a settle",
               [r.get("quiet_ms") for r in seq if r["op"] == "await_settled"],
               [0] * len(typed) + [150])

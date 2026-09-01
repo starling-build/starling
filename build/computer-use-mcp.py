@@ -308,6 +308,28 @@ class Executor:
         except ActionError:
             return True
 
+    def _acted(self, win, text, settle_ms=2500):
+        """An action's result, carrying the screen that action produced.
+
+        What a model does after acting is look, and it costs a whole round
+        trip to ask. Measured on the recorded demo run: of 55 screenshot
+        calls, 36 were the very next call after an action — a turn each, 5.2
+        minutes of a 21.7 minute run spent asking "what happened?" and waiting
+        to be told. Answering unprompted costs one capture (~45ms) and removes
+        the turn, and it removes it from the client's per-turn tool budget too,
+        which that run exhausted twice.
+
+        Actions do sometimes come in runs, and those pay for an image nobody
+        reads — 13 of them on the same run, against 36 turns saved. That is
+        the trade, and it is a good one; `shot=False` opts out where a caller
+        knows better.
+        """
+        if settle_ms:
+            self._settle(win, timeout_ms=settle_ms)
+        rgba, w, h = self._capture(win)
+        return {"image": png_bytes(rgba, w, h),
+                "text": "%s — screen after it (%dx%d)" % (text, w, h)}
+
     def screenshot(self, win, **_):
         # Let the window finish what the last action started. The capture
         # itself is ~60ms now, which is fast enough to photograph a window
@@ -347,7 +369,7 @@ class Executor:
 
     # -- mouse --
 
-    def _click(self, win, coordinate, kind, text=None):
+    def _click(self, win, coordinate, kind, text=None, shot=True):
         if not coordinate or len(coordinate) != 2:
             raise ActionError("%s needs coordinate [x, y]" % kind)
         lx, ly = self.to_logical(win, coordinate[0], coordinate[1])
@@ -359,22 +381,23 @@ class Executor:
         finally:
             for m in reversed(held):
                 self._inject(win, type="keyup", physical=m)
-        return {"text": "%s at %d,%d in %s" % (kind, coordinate[0], coordinate[1], win)}
+        done = "%s at %d,%d in %s" % (kind, coordinate[0], coordinate[1], win)
+        return self._acted(win, done) if shot else {"text": done}
 
-    def left_click(self, win, coordinate=None, text=None, **_):
-        return self._click(win, coordinate, "click", text)
+    def left_click(self, win, coordinate=None, text=None, shot=True, **_):
+        return self._click(win, coordinate, "click", text, shot)
 
-    def right_click(self, win, coordinate=None, text=None, **_):
-        return self._click(win, coordinate, "rclick", text)
+    def right_click(self, win, coordinate=None, text=None, shot=True, **_):
+        return self._click(win, coordinate, "rclick", text, shot)
 
-    def middle_click(self, win, coordinate=None, text=None, **_):
-        return self._click(win, coordinate, "mclick", text)
+    def middle_click(self, win, coordinate=None, text=None, shot=True, **_):
+        return self._click(win, coordinate, "mclick", text, shot)
 
-    def double_click(self, win, coordinate=None, text=None, **_):
-        return self._click(win, coordinate, "dblclick", text)
+    def double_click(self, win, coordinate=None, text=None, shot=True, **_):
+        return self._click(win, coordinate, "dblclick", text, shot)
 
-    def triple_click(self, win, coordinate=None, text=None, **_):
-        return self._click(win, coordinate, "tripleclick", text)
+    def triple_click(self, win, coordinate=None, text=None, shot=True, **_):
+        return self._click(win, coordinate, "tripleclick", text, shot)
 
     def mouse_move(self, win, coordinate=None, **_):
         if not coordinate:
@@ -438,7 +461,7 @@ class Executor:
     # second time, and had to go back and delete the duplicate.
     TYPE_CHUNK = 48
 
-    def type(self, win, text=None, **_):
+    def type(self, win, text=None, shot=True, **_):
         if text is None:
             raise ActionError("type needs text")
         t0 = time.time()
@@ -456,14 +479,15 @@ class Executor:
         # The one wait that has to be generous is the last: this is what
         # makes the next screenshot show the text.
         caught_up &= self._settle(win, timeout_ms=6000)
-        return {"text": "typed %d character(s) into %s%s (%.1fs)"
-                        % (len(text), win,
-                           "" if caught_up else " — the window was still "
-                           "drawing when I stopped waiting, so screenshot "
-                           "again before deciding the text missed",
-                           time.time() - t0)}
+        done = ("typed %d character(s) into %s%s (%.1fs)"
+                % (len(text), win,
+                   "" if caught_up else " — the window was still drawing when "
+                   "I stopped waiting, so the screen below may be mid-repaint",
+                   time.time() - t0))
+        # No second settle: the generous one above just ran.
+        return self._acted(win, done, settle_ms=0) if shot else {"text": done}
 
-    def key(self, win, text=None, **_):
+    def key(self, win, text=None, shot=True, **_):
         if not text:
             raise ActionError("key needs text, e.g. \"ctrl+s\" or \"Return\"")
         results = []
@@ -480,7 +504,8 @@ class Executor:
                 for m in reversed(mods):
                     self._inject(win, type="keyup", physical=m)
             results.append(chord)
-        return {"text": "pressed %s in %s" % (" ".join(results), win)}
+        done = "pressed %s in %s" % (" ".join(results), win)
+        return self._acted(win, done) if shot else {"text": done}
 
     def hold_key(self, win, text=None, duration=None, **_):
         if not text:
@@ -500,7 +525,7 @@ class Executor:
 
     # -- other --
 
-    def scroll(self, win, coordinate=None, scroll_direction=None,
+    def scroll(self, win, coordinate=None, scroll_direction=None, shot=True,
                scroll_amount=None, text=None, **_):
         if not coordinate:
             raise ActionError("scroll needs coordinate [x, y]")
@@ -521,7 +546,8 @@ class Executor:
         finally:
             for m in reversed(held):
                 self._inject(win, type="keyup", physical=m)
-        return {"text": "scrolled %s %d in %s" % (scroll_direction, amount, win)}
+        done = "scrolled %s %d in %s" % (scroll_direction, amount, win)
+        return self._acted(win, done) if shot else {"text": done}
 
     def wait(self, win=None, duration=None, **_):
         ms = int(max(0.0, min(float(duration or 1), 10.0)) * 1000)
@@ -615,10 +641,19 @@ def _tool(name, desc, props, required):
 
 
 def tool_list():
+    # Every action answers with the screen it produced, so the reflex
+    # "act, then screenshot" is one call instead of two — and one turn
+    # instead of two against this client's per-turn tool budget.
+    AFTER = ("The result INCLUDES a screenshot taken once the window settled, "
+             "so do not follow this with a screenshot call. Pass shot=false "
+             "if you are chaining actions and do not need to see each one.")
+    SHOT = {"type": "boolean",
+            "description": "Include the after-screenshot (default true)."}
     click = lambda verb: _tool(                                     # noqa: E731
-        verb, "%s at a screenshot coordinate in an owned window."
-              % verb.replace("_", " ").capitalize(),
-        {"win": WIN, "coordinate": COORD, "text": MODTEXT}, ["win", "coordinate"])
+        verb, "%s at a screenshot coordinate in an owned window. %s"
+              % (verb.replace("_", " ").capitalize(), AFTER),
+        {"win": WIN, "coordinate": COORD, "text": MODTEXT, "shot": SHOT},
+        ["win", "coordinate"])
     return [
         _tool("screenshot",
               "Capture one owned window's own content. The window's buffer is "
@@ -651,17 +686,20 @@ def tool_list():
               "Where THIS agent last put the pointer in a window. The human's "
               "cursor is not readable and is never moved by these tools.",
               {"win": WIN}, ["win"]),
-        _tool("type", "Type text. US layout; non-ASCII is reported, not guessed.",
-              {"win": WIN, "text": {"type": "string"}}, ["win", "text"]),
+        _tool("type", "Type text. US layout; non-ASCII is reported, not "
+                      "guessed. " + AFTER,
+              {"win": WIN, "text": {"type": "string"}, "shot": SHOT},
+              ["win", "text"]),
         _tool("key", "Press a key or chord in xdotool syntax: \"Return\", "
                      "\"ctrl+s\", \"shift+Tab\". Space-separated chords are "
-                     "pressed in order.",
-              {"win": WIN, "text": {"type": "string"}}, ["win", "text"]),
+                     "pressed in order. " + AFTER,
+              {"win": WIN, "text": {"type": "string"}, "shot": SHOT},
+              ["win", "text"]),
         _tool("hold_key", "Hold a key or chord down for `duration` seconds.",
               {"win": WIN, "text": {"type": "string"},
                "duration": {"type": "number"}}, ["win", "text", "duration"]),
-        _tool("scroll", "Scroll at a coordinate.",
-              {"win": WIN, "coordinate": COORD,
+        _tool("scroll", "Scroll at a coordinate. " + AFTER,
+              {"win": WIN, "coordinate": COORD, "shot": SHOT,
                "scroll_direction": {"type": "string",
                                     "enum": ["up", "down", "left", "right"]},
                "scroll_amount": {"type": "integer",
