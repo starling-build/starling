@@ -442,21 +442,39 @@ def _rule_rows(img, rule_box, line, c):
 def check_reverse(img, cell_box, line):
     """Reverse video must swap the pair, not merge it.
 
-    Both directions are asserted, and that is the point: the cell must be
-    mostly FG colour (the swapped background actually painted) and must still
-    contain BG-coloured pixels (the glyph drawn in what was the background).
-    Resolve the two to the same value — which the split between _paintedBG and
-    the row painter's own loop makes possible — and you get a flat block with
-    invisible text, which every other check in this file happily passes.
+    Both directions are asserted, and that is the point: the cell's background
+    must have become FG (the swap actually painted) and the cell must still
+    contain something that is NOT FG (the glyph, drawn in what was the
+    background). Resolve the two to the same value — which the split between
+    _paintedBG and the row painter's own loop makes possible — and you get a
+    flat block with invisible text, which every other check in this file
+    happily passes.
+
+    The background is read at the four CORNERS, not as a share of the whole
+    cell, and that distinction is the whole reliability of this check. Counting
+    "at least half the cell is FG" sounds equivalent and is not: the row is
+    capital Ms, and at a 7 px cell an M plus its antialiased fringe covers more
+    than half the cell, so a perfectly inverted cell scored 0.35 and this gate
+    failed a terminal that was doing exactly the right thing. (Confirmed by
+    hand at the time: `printf '\\033[45;97mPLAIN\\033[7mREVERSED\\033[0m'`
+    inverted correctly on screen while this check called it broken.) A gate
+    that fires when nothing is wrong is worse than no gate — it is the one
+    people learn to skip. Corners carry no glyph at any cell size, so they
+    answer the question the check is actually asking.
     """
     bad = []
     for c in range(CONTENT_CELLS):
-        px = list(img.crop(cell_box(line, c, 1)).getdata())
+        x0, y0, x1, y1 = cell_box(line, c, 1)
+        if x1 - x0 < 3 or y1 - y0 < 3:
+            continue
+        px = list(img.crop((x0, y0, x1, y1)).getdata())
         if not px:
             continue
-        swapped = sum(1 for p in px if _near(p, FG)) / len(px)
-        glyph = sum(1 for p in px if _near(p, MAGENTA))
-        if swapped < 0.5:
+        corners = [img.getpixel(p) for p in
+                   ((x0, y0), (x1 - 1, y0), (x0, y1 - 1), (x1 - 1, y1 - 1))]
+        inverted = sum(1 for p in corners if _near(p, FG))
+        glyph = sum(1 for p in px if not _near(p, FG))
+        if inverted < 3:
             bad.append(f"cell {c}: background did not invert")
         elif glyph < 2:
             bad.append(f"cell {c}: inverted, but the glyph is not in it")

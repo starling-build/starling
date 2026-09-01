@@ -807,6 +807,7 @@ class WaylandIntegration {
         surfaceSizes.removeValue(forKey: surfaceId)
         surfaceAppIds.removeValue(forKey: surfaceId)
         surfaceBufferScales.removeValue(forKey: surfaceId)
+        surfaceViewportSizes.removeValue(forKey: surfaceId)
         surfaceGeometry.removeValue(forKey: surfaceId)
         lastEmittedGeometry.removeValue(forKey: surfaceId)
         surfaceOutputsMaskCache.removeValue(forKey: surfaceId)
@@ -837,6 +838,7 @@ class WaylandIntegration {
         }
         surfaceSizes.removeValue(forKey: surfaceId)
         surfaceBufferScales.removeValue(forKey: surfaceId)
+        surfaceViewportSizes.removeValue(forKey: surfaceId)
 
         let textureId = textureRegistry.registerTexture(engine: engine)
         textureRegistry.markAsWaylandSurface(id: textureId)
@@ -861,6 +863,7 @@ class WaylandIntegration {
 
         surfaceSizes.removeValue(forKey: surfaceId)
         surfaceBufferScales.removeValue(forKey: surfaceId)
+        surfaceViewportSizes.removeValue(forKey: surfaceId)
     }
 
     private func processFullscreenRequest(_ surfaceId: UInt32) {
