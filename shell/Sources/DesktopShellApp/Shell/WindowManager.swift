@@ -805,6 +805,18 @@ class WindowManagerState {
             win.onWindowClose?()
         }
         windows.removeAll { $0.id == id }
+        // A workspace whose driver window just went away has no driver. The
+        // column already TOLERATES a dead id — it looks the window up and
+        // falls into its empty state — which hid this for as long as it was
+        // only cosmetic: the state that offers "run an agent here" was on
+        // screen, and the id behind it was a corpse. But launching from that
+        // empty state only takes the driver slot `if driverWindowId == nil`,
+        // so the corpse refused it: quit Claude Desktop, click Claude again,
+        // and it opens as a TAB while the left column keeps offering to run
+        // an agent. Once per workspace, permanently, until the shell restarts.
+        for ws in workspaces where ws.driverWindowId == id {
+            ws.driverWindowId = nil
+        }
         // An agent's rail entry lasts as long as it has something to show.
         // Read the owner BEFORE the removal above and check after it, or the
         // window being closed still counts itself.

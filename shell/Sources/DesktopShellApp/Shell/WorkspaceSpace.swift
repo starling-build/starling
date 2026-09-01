@@ -1108,7 +1108,7 @@ extension _DesktopShellState {
             // Already have a driver and launched something else from in here:
             // it belongs beside it, not on the desktop we cannot see.
             _launchIntoWorkspace(workspaceId: ws.id, appId: appId,
-                                 asDriver: ws.driverWindowId == nil)
+                                 asDriver: _workspaceDriverWindow(ws) == nil)
         } else {
             _launchOrFocusApp(appId)
         }
@@ -1144,7 +1144,10 @@ extension _DesktopShellState {
                 onWindow: { [weak self] winId in
                     guard let self else { return }
                     self.setState {
-                        if asDriver, ws.driverWindowId == nil {
+                        // Aliveness, not just nil-ness: an id left behind by a
+                        // driver that has quit must not out-vote the window
+                        // this launch just produced.
+                        if asDriver, self._workspaceDriverWindow(ws) == nil {
                             ws.driverWindowId = winId
                         }
                     }
