@@ -1246,6 +1246,29 @@ class WaylandIntegration {
     private var modsDepressed: UInt32 = 0
     private var modsLocked: UInt32 = 0
 
+    /// The human seat's live modifier state, pushed by the shell on every
+    /// modifier key so it never drifts from the physical keyboard. Replaces
+    /// the old accumulate-on-forward scheme, whose one global mask kept a
+    /// modifier "down" whenever its key-up was consumed by the shell rather
+    /// than forwarded (Ctrl+Down into workspace mode being the everyday case).
+    /// A client that then gained focus was told Ctrl was held, and the
+    /// person's next keystroke became a shortcut.
+    func setHumanModifiers(ctrl: Bool, shift: Bool, alt: Bool, super superKey: Bool) {
+        var mask: UInt32 = 0
+        if shift { mask |= 1 << 0 }
+        if ctrl { mask |= 1 << 2 }
+        if alt { mask |= 1 << 3 }
+        if superKey { mask |= 1 << 6 }
+        guard mask != modsDepressed else { return }
+        modsDepressed = mask
+        // If a client holds the keyboard, tell it now — the change may be a
+        // release it is waiting on before it stops treating letters as chords.
+        if let server = server, keyboardFocusSurface != 0 {
+            wayland_server_keyboard_modifiers(server, keyboardFocusSurface,
+                                              modsDepressed, 0, modsLocked, 0)
+        }
+    }
+
     /// Maps a modifier keysym to its bit in the default keymap
     /// (Shift=0, Lock=1, Control=2, Mod1/Alt=3, Mod2/Num=4, Mod4/Super=6,
     /// Mod5/AltGr=7).

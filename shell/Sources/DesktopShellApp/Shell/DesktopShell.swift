@@ -446,6 +446,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // Modifier key tracking for keyboard shortcuts (Ctrl+Tab, etc.)
     private var _ctrlPressed: Bool = false
     private var _shiftPressed: Bool = false
+    private var _altPressed: Bool = false
+    private var _superPressed: Bool = false
 
     // ── Spaces (virtual desktops) ────────────────────────────────────────
     // macOS-style horizontal slide between spaces. While a slide is running,
@@ -2232,11 +2234,24 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // Track Ctrl/Shift modifier state first (HID: 0xE0/0xE4 = Ctrl,
             // 0xE1/0xE5 = Shift) — the modal layers below rely on it.
             let phys = keyData.physical
-            if phys == 0xE0 || phys == 0xE4 {
-                self._ctrlPressed = (keyData.type == .down || keyData.type == .repeat)
-            }
-            if phys == 0xE1 || phys == 0xE5 {
-                self._shiftPressed = (keyData.type == .down || keyData.type == .repeat)
+            let modDown = keyData.type == .down || keyData.type == .repeat
+            if phys == 0xE0 || phys == 0xE4 { self._ctrlPressed = modDown }
+            if phys == 0xE1 || phys == 0xE5 { self._shiftPressed = modDown }
+            if phys == 0xE2 || phys == 0xE6 { self._altPressed = modDown }
+            if phys == 0xE3 || phys == 0xE7 { self._superPressed = modDown }
+            // Push the true modifier state to the compositor on EVERY key, so
+            // the state clients are told never drifts from the physical keys.
+            // Its own accumulator only updated when a modifier was forwarded
+            // to a client, so a Ctrl-up the shell consumed — every Ctrl+Down
+            // into workspace mode does exactly that — left the client believing
+            // Ctrl was still held. The next window the human typed into then
+            // turned "…com" into Ctrl+O and opened a file dialog; a password
+            // would have become a fistful of shortcuts.
+            if phys == 0xE0 || phys == 0xE4 || phys == 0xE1 || phys == 0xE5
+                || phys == 0xE2 || phys == 0xE6 || phys == 0xE3 || phys == 0xE7 {
+                waylandIntegration?.setHumanModifiers(
+                    ctrl: self._ctrlPressed, shift: self._shiftPressed,
+                    alt: self._altPressed, super: self._superPressed)
             }
 
             // Screensaver: any key wakes it, and nothing reaches apps or the
