@@ -1420,6 +1420,57 @@ def check_portal_chooser() -> None:
     wait_for(lambda: not proc_running("FileExplorerApp"), "the picker to exit")
 
 
+@check("portal: a chooser opened from a window is that window's dialog")
+def check_portal_chooser_dialog() -> None:
+    """A file dialog belongs ON the page that asked for it. It used to open
+    as a free toplevel — a fixed spot on the desktop, and in a workspace a
+    whole new TAB that replaced the page — so 'attach a file' looked like the
+    app vanishing. Now the chooser is created as the requesting window's
+    dialog (parentWindowId), which the pane overlays and the desktop centers.
+
+    Driven the way Chrome really does it: a click on <input type=file> makes
+    the portal OpenFile call, and the resulting picker window must arrive in
+    the same agent's window list marked as the Chrome window's dialog, at its
+    own natural size rather than resized to any pane."""
+    if proc_running("FileExplorerApp"):
+        quit_app("FileExplorerApp")
+        wait_for(lambda: not proc_running("FileExplorerApp"),
+                 "a leftover Files process to exit")
+    page = ("data:text/html,<title>FILEPICK</title><body style='margin:0'>"
+            "<input type=file style='position:fixed;left:0;top:0;"
+            "width:100vw;height:100vh'>")
+    s = Session(name="chooser-dialog-check")
+    try:
+        win = s.ok("launch", app="chrome", url=page)["win"]
+        time.sleep(6)
+        s.call("await_settled", win=win, timeout_ms=8000)
+        shot = s.ok("capture", win=win, max_px=640)
+        cw, ch = shot["content"]
+        s.ok("inject", win=win,
+             ev={"type": "click", "x": cw // 2, "y": int(ch * 0.6)})
+
+        def chooser():
+            for w in s.ok("list_windows")["windows"]:
+                if w["app"].startswith("portal-chooser-"):
+                    return w
+            return None
+        wait_for(lambda: chooser() is not None,
+                 "the chooser to appear in the agent's own window list")
+        c = chooser()
+        assert c["dialog_for"] == win, (
+            f"the chooser is nobody's dialog (dialog_for="
+            f"{c['dialog_for']!r}, wanted {win!r})")
+        assert c["content"][0] == 760, (
+            f"the chooser was resized ({c['content']}) — a dialog keeps its "
+            f"natural size")
+        log(f"chooser {c['win']} is a dialog for {win}")
+    finally:
+        quit_app("FileExplorerApp")
+        s.close()
+        quit_app("chrome")
+    wait_for(lambda: not proc_running("FileExplorerApp"), "the picker to exit")
+
+
 @check("screensaver: it appears on its own when idle, and input wakes it")
 def check_screensaver_idle() -> None:
     """The whole point of the feature is that nobody has to ask for it, so

@@ -722,10 +722,14 @@ final class AgentBroker: @unchecked Sendable {
                 // still exists, and that a person is holding it, can say so
                 // and wait. One that only ever gets a refusal cannot tell
                 // that from the window having died, and will retry forever.
+                // `dialog_for` names the window this one is a dialog FOR
+                // (the portal file chooser over the page that asked for it),
+                // so an agent knows the two windows are one interaction.
                 ["win": w.id, "app": w.appId, "title": w.title,
                  "content": [w.rect.width, w.rect.height - DesktopTheme.kTitleBarHeight],
                  "focused": wm.focusedWindowId == w.id,
-                 "held": w.humanHoldsControl]
+                 "held": w.humanHoldsControl,
+                 "dialog_for": w.parentWindowId ?? ""]
             }
             conn.send(["id": id, "ok": true, "windows": wins])
             audit(agentId, op, true, "\(wins.count) windows")

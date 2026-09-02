@@ -74,12 +74,29 @@ extension _DesktopShellState {
         // landing on the human's desktop, where it blocked the agent forever
         // and put a browser for the human's files on screen uninvited.
         //
-        // nil is the ordinary case — the human's own browser asked — and
-        // leaves the dialog exactly where it has always been.
-        let owner = _ownerForRequestingProcess(callerPid)
+        // nil is the ordinary case for a window-less caller and leaves the
+        // dialog exactly where it has always been.
+        let parent = _windowForRequestingProcess(callerPid)
+        let owner = parent?.ownerAgentId
 
         let appId = "portal-chooser-\(handle)"
-        let winRect = Rect.fromLTWH(180, 100, 760, 520)
+        let chooserW = 760.0
+        let chooserH = 520.0
+        // A file dialog opens ON the window that asked for it, not in a spot
+        // of its own: centered over the parent, and marked as its dialog
+        // (`parentWindowId`) so it rides above the parent on the desktop and
+        // overlays the parent's pane in a workspace. For an owned window the
+        // rect only decides the dialog's SIZE — the pane centers the overlay
+        // itself.
+        let winRect: Rect
+        if let p = parent {
+            winRect = Rect.fromLTWH(
+                p.rect.left + max(0, (p.rect.width - chooserW) / 2),
+                p.rect.top + max(0, (p.rect.height - chooserH) / 2),
+                chooserW, chooserH)
+        } else {
+            winRect = Rect.fromLTWH(180, 100, chooserW, chooserH)
+        }
         let contentW = Int(winRect.width)
         let contentH = Int(winRect.height - DesktopTheme.kTitleBarHeight)
 
@@ -120,8 +137,21 @@ extension _DesktopShellState {
                                                width: Int(width), height: Int(height))
                             },
                             ownerAgentId: owner,
+                            parentWindowId: parent?.id,
                             appBuilder: { _ in SizedBox(expand: ()) }
                         )
+                        // A dialog overlaying a tab nobody is looking at is
+                        // invisible: bring its parent's tab forward. The
+                        // driver has no tab and needs no help.
+                        if let p = parent, let owner = p.ownerAgentId,
+                           let self = self {
+                            let ws = self.windowManager.workspaces
+                                .first(where: { $0.id == owner })
+                                ?? self.windowManager.workspace(forAgent: owner)
+                            if let ws, ws.driverWindowId != p.id {
+                                self._workspaceActiveTab[ws.id] = p.id
+                            }
+                        }
                     }
                 }
             },

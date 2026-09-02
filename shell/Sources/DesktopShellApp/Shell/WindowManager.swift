@@ -75,6 +75,12 @@ class WindowInfo {
     /// consumed by the shell's build so that a mount caused by a space
     /// switch does NOT replay the zoom.
     var pendingOpenAnimation: Bool = true
+    /// The window this one is a dialog FOR (transient-for): set when the
+    /// shell itself opened it on another window's behalf — the portal file
+    /// chooser today. A dialog rides above its parent, is centered over it,
+    /// closes with it, and in a workspace pane it overlays the parent's pane
+    /// instead of becoming a tab of its own. nil for ordinary windows.
+    var parentWindowId: String? = nil
     /// Owner of a window that is not the desktop's: a workspace id, or a
     /// broker client's id. Set at launch time, never inferred afterwards.
     /// Owned windows have NO desktop presence — they live outside every space
@@ -720,6 +726,7 @@ class WindowManagerState {
         onScrollEvent: ((Double, Double, Double, Double) -> Void)? = nil,
         flipTextureY: Bool = false,
         ownerAgentId: String? = nil,
+        parentWindowId: String? = nil,
         appBuilder: @escaping (any BuildContext) -> Widget
     ) -> String {
         let id = "window-\(nextWindowId)"
@@ -752,6 +759,7 @@ class WindowManagerState {
             flipTextureY: flipTextureY,
             appBuilder: appBuilder
         )
+        info.parentWindowId = parentWindowId
         nextZIndex += 1
         // Agent-owned windows are not placed in any space and never steal
         // focus or move the active desktop — they exist only as textures
@@ -816,6 +824,12 @@ class WindowManagerState {
             win.onWindowClose?()
         }
         windows.removeAll { $0.id == id }
+        // A dialog dies with the window it was opened for — a file chooser
+        // whose app is gone has nobody to answer to, and killing the picker
+        // is what delivers the portal's cancel Response.
+        for child in windows.filter({ $0.parentWindowId == id }) {
+            closeWindow(child.id)
+        }
         // A workspace whose driver window just went away has no driver. The
         // column already TOLERATES a dead id — it looks the window up and
         // falls into its empty state — which hid this for as long as it was
@@ -850,6 +864,13 @@ class WindowManagerState {
         win.zIndex = nextZIndex
         nextZIndex += 1
         focusedWindowId = id
+        // A dialog stays above the window it was opened for: raising the
+        // parent must not bury its file chooser, or the dialog looks like it
+        // vanished while the portal request still blocks the app.
+        for child in windows where child.parentWindowId == id {
+            child.zIndex = nextZIndex
+            nextZIndex += 1
+        }
     }
 
     // MARK: - Move & Resize

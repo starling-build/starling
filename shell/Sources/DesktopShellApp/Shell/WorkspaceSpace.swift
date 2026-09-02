@@ -305,9 +305,18 @@ extension _DesktopShellState {
         _ ws: WorkspaceInfo, left: Double, width: Double, top: Double, h: Double
     ) -> [Widget] {
         var out: [Widget] = []
-        // The driver is shown in its own column, never as a tab.
-        let tabs = _wsVisibleWindows(ws)
-            .filter { $0.id != ws.driverWindowId }
+        // The driver is shown in its own column, never as a tab. A DIALOG —
+        // a window opened FOR another one, the portal file chooser — is not a
+        // tab either: it overlays its parent's pane (`_workspacePane`), which
+        // is where a file dialog belongs. It only falls back to a tab of its
+        // own when its parent is nowhere in this workspace to overlay.
+        let visible = _wsVisibleWindows(ws)
+        var hereIds = Set(visible.map(\.id))
+        if let d = ws.driverWindowId { hereIds.insert(d) }
+        let tabs = visible.filter {
+            $0.id != ws.driverWindowId
+                && !($0.parentWindowId.map { hereIds.contains($0) } ?? false)
+        }
 
         let paneTop0 = top + WS.tabTop + WS.tabH + WS.paneGap
         guard !tabs.isEmpty else {
@@ -566,20 +575,22 @@ extension _DesktopShellState {
     /// launched it from one — agent-client.py from a terminal, a CI harness —
     /// and the caller falls back to giving it a rail entry of its own, so its
     /// windows are still watchable somewhere.
-    /// Who owns the window belonging to `pid`, or to its nearest ancestor.
+    /// The window belonging to `pid`, or to its nearest ancestor.
     ///
-    /// Used to decide whose file dialog a portal request is. Chrome may make
-    /// the D-Bus call from a child of the process holding the Wayland
-    /// connection, which is why this walks UP rather than demanding an exact
-    /// match. nil means the human's own app asked, and the dialog belongs
-    /// where it always has: on their desktop.
-    func _ownerForRequestingProcess(_ pid: pid_t) -> String? {
+    /// Used to decide whose file dialog a portal request is — both which
+    /// window it is FOR (the dialog centers over it and overlays its pane)
+    /// and, through the window's owner, whose workspace it lands in. Chrome
+    /// may make the D-Bus call from a child of the process holding the
+    /// Wayland connection, which is why this walks UP rather than demanding
+    /// an exact match. nil means the human's own app asked from no window we
+    /// know, and the dialog belongs where it always has: on their desktop.
+    func _windowForRequestingProcess(_ pid: pid_t) -> WindowInfo? {
         guard pid > 0 else { return nil }
         var here: pid_t? = pid
         for _ in 0..<8 {
             guard let cur = here else { return nil }
             if let win = windowManager.windows.first(where: { _windowPid($0) == cur }) {
-                return win.ownerAgentId
+                return win
             }
             here = Self._parentPid(cur)
         }
@@ -819,6 +830,43 @@ extension _DesktopShellState {
                         ]))),
             ])
         }
+        // A dialog opened FOR this window — the portal file chooser — draws
+        // over its parent's pane, the way a file dialog sits on the page that
+        // asked for it, instead of becoming a tab that replaces the page
+        // wholesale. The scrim swallows pointer events: the request is modal
+        // (the app blocks on the D-Bus response anyway), and letting clicks
+        // through to a page that will ignore them only invites "the window
+        // stopped responding". The dialog keeps its NATURAL size — for an
+        // agent's dialog that size is the coordinate space the agent is
+        // clicking into — and only scales down, uniformly, when the pane
+        // cannot hold it; the recursive pane call divides that fit back out
+        // of pointer coordinates for agent-owned windows.
+        let dialogs = windowManager.windows.filter { $0.parentWindowId == win.id }
+        if !dialogs.isEmpty {
+            var layers: [Widget] = [
+                Positioned(fill: (), child: pane),
+                Positioned(fill: (), child: Listener(
+                    behavior: .opaque,
+                    child: ColoredBox(color: Color(0x59000000),
+                                      child: SizedBox(expand: ())))),
+            ]
+            for d in dialogs {
+                let cw = max(1.0, d.rect.width)
+                let ch = max(1.0, d.rect.height - DesktopTheme.kTitleBarHeight)
+                let s = min(1.0, min(max(1.0, paneW - 24) / cw,
+                                     max(1.0, paneH - 24) / ch))
+                let dw = cw * s
+                let dh = ch * s
+                layers.append(Positioned(
+                    key: ValueKey("ws-dialog-\(d.id)"),
+                    left: (paneW - dw) / 2, top: (paneH - dh) / 2,
+                    width: dw, height: dh,
+                    child: _workspacePane(
+                        d, focused: windowManager.focusedWindowId == d.id,
+                        paneW: dw, paneH: dh)))
+            }
+            pane = Stack(children: layers)
+        }
         return pane
     }
 
@@ -860,6 +908,9 @@ extension _DesktopShellState {
             // driver is the human's own app and is resized like any other
             // workspace window.
             if _isFittedAgentWindow(win) { continue }
+            // A dialog (portal file chooser) is never resized to a pane: it
+            // overlays its parent at its own size, like a dialog.
+            if win.parentWindowId != nil { continue }
             // Hidden, the driver is not on screen: leave it the size it had,
             // so folding the column away and back costs no reconfigure.
             if isDriver && _wsDriverHidden { continue }
