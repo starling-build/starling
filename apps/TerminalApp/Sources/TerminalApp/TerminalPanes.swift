@@ -51,6 +51,20 @@ final class TerminalPane {
     init(id: Int, cols: Int, rows: Int) {
         self.id = id
         self.session = TerminalSession(cols: cols, rows: rows)
+        // Blind prompt answering, and off entirely unless the user wrote
+        // ~/.config/starling-terminal/autoanswer. One matcher per pane rather
+        // than one per window: the latch that stops a prompt being answered
+        // twice is per-screen, so a shared one would let an answer in this
+        // pane swallow the identical question in the pane beside it.
+        //
+        // Read here, which is to say once per pane: an edit to a file that
+        // already has rules in it is picked up live, but a file created after
+        // this pane started is not, and needs a new tab. That is the
+        // difference between a stat at the settle point and a stat on the
+        // byte path, and the byte path is the one that has to keep up with a
+        // flood.
+        let rules = TerminalAutoAnswer(file: TerminalAutoAnswer.defaultPath)
+        if rules.isArmed { session.autoAnswer = rules }
     }
 
     /// What this pane wants to say from across the window.

@@ -58,6 +58,27 @@ public final class TerminalSession {
     /// for a remote session that is a RESIZE frame.
     public var onResize: ((Int, Int) -> Void)?
 
+    /// Rules that type an answer when a prompt they recognise is on screen,
+    /// or nil — the default — for a terminal that answers nothing.
+    ///
+    /// See TerminalAutoAnswer: it is a blind pattern match, it fires only
+    /// after output settles, and it belongs to exactly one session because the
+    /// latch that stops a prompt being answered twice is per-screen.
+    public var autoAnswer: TerminalAutoAnswer?
+
+    /// A rule fired and its keys have been written. Main queue.
+    ///
+    /// Wire this to something the user can see. A machine typing into a
+    /// terminal must be visible as a machine typing into a terminal — the view
+    /// raises its badge, which is the whole reason this callback exists rather
+    /// than the write just happening quietly.
+    public var onAutoAnswer: ((TerminalAutoAnswer.Rule) -> Void)?
+
+    /// Guarded by `lock`. `pending` is the debounce's "a check is already on
+    /// the queue", `lastOutput` what it debounces against.
+    private var _autoAnswerPending = false
+    private var _autoAnswerLastOutput: TimeInterval = 0
+
     var pty: Pty?
 
     #if os(macOS)
@@ -162,6 +183,7 @@ public final class TerminalSession {
 
     private func _start(_ command: String?) -> Bool {
         self.command = command
+        autoAnswer?.reset()
         // Restarting over a live child would leave it holding the far end of
         // a PTY nobody reads any more.
         if pty != nil { terminate() }
@@ -189,6 +211,7 @@ public final class TerminalSession {
             #if os(macOS)
             self._noteOutputActivity()
             #endif
+            self._autoAnswerActivity()
             self.onActivity?()
         }
         pty.onExit = { [weak self, weak pty] in
@@ -209,6 +232,7 @@ public final class TerminalSession {
         lock.lock()
         emulator.feed(bytes)
         lock.unlock()
+        _autoAnswerActivity()
         onActivity?()
     }
 
@@ -228,6 +252,78 @@ public final class TerminalSession {
     public func resizeProcess(cols: Int, rows: Int) {
         if let pty = pty { pty.resize(cols: cols, rows: rows) }
         else { onResize?(cols, rows) }
+    }
+
+    // MARK: - Auto-answer
+
+    /// Output landed. Arm (or re-arm) the settle timer.
+    ///
+    /// This is on the byte path, so it does as little as a debounce can: a
+    /// timestamp and, at most once per burst, one `asyncAfter`. Nothing polls
+    /// — an idle terminal with rules loaded schedules no work at all, which is
+    /// the bar every timer in this desktop is held to.
+    private func _autoAnswerActivity() {
+        guard let auto = autoAnswer, auto.isArmed else { return }
+        lock.lock()
+        _autoAnswerLastOutput = Self._now()
+        let needSchedule = !_autoAnswerPending
+        if needSchedule { _autoAnswerPending = true }
+        lock.unlock()
+        if needSchedule { _scheduleAutoAnswerCheck(after: auto.settle) }
+    }
+
+    /// Read the screen once output has been quiet for the settle interval, and
+    /// type the answer if a rule claims it.
+    ///
+    /// Re-arms itself rather than firing on a fixed delay: output that keeps
+    /// arriving keeps pushing the check back, so a program still painting is
+    /// never answered mid-frame. That is the same shape as the repaint
+    /// throttle and the macOS activity assertion above, for the same reason.
+    private func _scheduleAutoAnswerCheck(after seconds: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            guard let self = self else { return }
+            guard let auto = self.autoAnswer, !self.processExited else {
+                self.lock.lock()
+                self._autoAnswerPending = false
+                self.lock.unlock()
+                return
+            }
+            self.lock.lock()
+            let quiet = Self._now() - self._autoAnswerLastOutput
+            if quiet < auto.settle {
+                self.lock.unlock()
+                self._scheduleAutoAnswerCheck(after: auto.settle - quiet)
+                return
+            }
+            self._autoAnswerPending = false
+            // The scrollback depth goes with the rows: it is what turns "row
+            // 12 of the screen" into a line number that survives the screen
+            // scrolling, which is how a prompt is told apart from the same
+            // prompt asked again.
+            let lines = self.emulator.screenLines
+            let baseLine = self.emulator.scrollbackCount
+            self.lock.unlock()
+
+            switch auto.match(lines: lines, baseLine: baseLine) {
+            case .nothing:
+                return
+            case .tooSoon(let wait):
+                // Come back on our own account. Nothing else will bring us
+                // here: the program is waiting for the answer, so there is no
+                // more output to schedule the next check.
+                self.lock.lock()
+                self._autoAnswerPending = true
+                self.lock.unlock()
+                self._scheduleAutoAnswerCheck(after: wait)
+            case .fire(let rule):
+                self.write(rule.reply)
+                self.onAutoAnswer?(rule)
+            }
+        }
+    }
+
+    private static func _now() -> TimeInterval {
+        Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
     }
 
     /// Terminate the child process, if any.

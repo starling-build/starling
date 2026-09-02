@@ -471,6 +471,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // repaint signal away from the pane already running.
         session.onActivity = { [weak self] in self?._scheduleRepaint() }
         session.activityOwner = self
+        // The auto-answer badge rides the same ownership rule as the repaint
+        // hook, and for a stronger reason: a pane whose badge went to a
+        // disposed view would type answers into the terminal with nothing on
+        // screen to say so.
+        session.onAutoAnswer = { [weak self] rule in self?._autoAnswered(rule) }
 
         let (cols, rows) = _gridSize(for: _viewLogicalSize())
         _lock.lock()
@@ -527,6 +532,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // running but permanently unpainted (see TerminalSession.activityOwner).
         if session.activityOwner === self {
             session.onActivity = nil
+            session.onAutoAnswer = nil
             session.activityOwner = nil
         }
         #if os(Linux)
@@ -1130,6 +1136,21 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         let rows = emulator.rows
         _lock.unlock()
         _showHud("\(_fitColumns ?? emulator.cols) × \(rows)")
+    }
+
+    /// A rule typed an answer into this pane. Say so.
+    ///
+    /// The badge is the entire visible difference between the terminal
+    /// answering a prompt and the user answering it, so it is not optional and
+    /// it names the pattern that fired: "something confirmed that" is only
+    /// useful if you can tell WHICH rule to go and delete. Held longer than
+    /// the size badge because nobody is looking for this one.
+    private func _autoAnswered(_ rule: TerminalAutoAnswer.Rule) {
+        var pattern = rule.pattern
+        // Bounded, because the badge is a bare Text in a Stack — a rule
+        // written as a paragraph would run off the side of the pane.
+        if pattern.count > 34 { pattern = String(pattern.prefix(33)) + "…" }
+        _showHud("auto-answered  \(pattern)", seconds: 2.0)
     }
 
     /// The badge in the corner, for anything that has to be said about the
