@@ -15,12 +15,13 @@
 // program's stdin. A bug in any of those looks identical from the matcher's
 // side: every rule correct, nothing ever typed.
 //
-// The child asks three questions and prints what it received for each, so the
+// The child asks four questions and prints what it received for each, so the
 // checks are made against the CHILD's account of what it got, not against our
-// screen. Two of them match a rule and must be answered; the third does not
-// and must be left alone, which is the half that matters — a terminal that
-// answers questions nobody wrote a rule for is worse than one that answers
-// none at all.
+// screen. Two match a rule and must be answered. One does not and must be left
+// alone, which is the half that matters — a terminal that answers questions
+// nobody wrote a rule for is worse than one that answers none at all. And one
+// is typed into by a person while the countdown is running, which must leave
+// exactly their answer in the child and nothing of ours after it.
 
 import Foundation
 
@@ -47,10 +48,12 @@ struct AutoAnswerLive {
         exit(code)
     }
 
-    // A short settle: this is a test, and the child answers instantly.
+    // Short settle and short wait: this is a test, and the child answers
+    // instantly. The wait is still real — long enough to type into.
     let rulesPath = dir + "/autoanswer"
     try? """
         settle 120ms
+        wait 600ms
         "do you want to proceed?"    yes\\r
         """.write(toFile: rulesPath, atomically: true, encoding: .utf8)
 
@@ -67,6 +70,13 @@ struct AutoAnswerLive {
         printf 'What is your name? '
         read -t 1 c || c=NOANSWER
         echo "THREE:[$c]"
+        printf 'Once more, do you want to proceed? '
+        read d
+        echo "FOUR:[$d]"
+        # Linger, so the tick that notices the keystroke actually runs. Without
+        # it the child exits first and the terminal never gets to say it stood
+        # down — which is right, but proves nothing about the badge.
+        sleep 1
         echo THEEND
         """.write(toFile: scriptPath, atomically: true, encoding: .utf8)
 
@@ -75,12 +85,30 @@ struct AutoAnswerLive {
     check("the rules file armed the session", rules.isArmed, "\(rules.problems)")
     session.autoAnswer = rules
 
-    // Every fire, in order, so a wrong rule firing is visible as itself rather
-    // than as a wrong answer downstream.
+    // Every event, in order, so a wrong rule firing is visible as itself
+    // rather than as a wrong answer downstream.
     let lock = NSLock()
-    var fired: [String] = []
-    session.onAutoAnswer = { rule in
-        lock.lock(); fired.append(rule.pattern); lock.unlock()
+    var events: [String] = []
+    var answers = 0
+    var typedOver = false
+    session.onAutoAnswer = { event in
+        lock.lock()
+        switch event {
+        case .waiting:
+            // The fourth question gets a person: type into the pane while the
+            // countdown is running. `session.write` is what a keystroke goes
+            // through, so this is the same path a human takes.
+            if answers == 2 && !typedOver {
+                typedOver = true
+                lock.unlock()
+                session.write("mine\r")
+                return
+            }
+        case .answered: answers += 1; events.append("answered")
+        case .takenOver: events.append("takenOver")
+        case .gone: events.append("gone")
+        }
+        lock.unlock()
     }
 
     session.onExit = {
@@ -91,7 +119,7 @@ struct AutoAnswerLive {
             session.lock.lock()
             let text = session.emulator.screenText
             session.lock.unlock()
-            lock.lock(); let seen = fired; lock.unlock()
+            lock.lock(); let seen = events; lock.unlock()
 
             check("the child ran to the end", text.contains("THEEND"), text)
             check("the first question was answered with the keys the rule names",
@@ -100,7 +128,13 @@ struct AutoAnswerLive {
                   text.contains("TWO:[yes]"), text)
             check("a question no rule matches is left for a human",
                   text.contains("THREE:[NOANSWER]"), text)
-            check("the rule fired exactly twice", seen.count == 2, "\(seen)")
+            // The one that matters most: a person typed during the countdown,
+            // so the child must hold THEIR answer, with nothing of ours
+            // appended to it or typed into whatever came next.
+            check("typing during the wait wins, and is not typed over",
+                  text.contains("FOUR:[mine]"), text)
+            check("the rule answered twice and stood down once",
+                  seen == ["answered", "answered", "takenOver"], "\(seen)")
 
             print("")
             if failures.isEmpty {

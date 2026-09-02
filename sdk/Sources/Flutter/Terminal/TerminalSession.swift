@@ -66,13 +66,28 @@ public final class TerminalSession {
     /// latch that stops a prompt being answered twice is per-screen.
     public var autoAnswer: TerminalAutoAnswer?
 
-    /// A rule fired and its keys have been written. Main queue.
+    /// Where an auto-answer has got to. Main queue.
+    public enum AutoAnswerEvent {
+        /// A question was found and is being left for a human this much
+        /// longer. Repeats about once a second while the wait runs.
+        case waiting(TerminalAutoAnswer.Rule, TimeInterval)
+        /// The keys have been written.
+        case answered(TerminalAutoAnswer.Rule)
+        /// Someone typed during the wait. Nothing was written, and this
+        /// question will not be offered again.
+        case takenOver(TerminalAutoAnswer.Rule)
+        /// The question left the screen before the wait was up.
+        case gone(TerminalAutoAnswer.Rule)
+    }
+
+    /// Follow an auto-answer from found to typed. Main queue.
     ///
-    /// Wire this to something the user can see. A machine typing into a
-    /// terminal must be visible as a machine typing into a terminal — the view
-    /// raises its badge, which is the whole reason this callback exists rather
-    /// than the write just happening quietly.
-    public var onAutoAnswer: ((TerminalAutoAnswer.Rule) -> Void)?
+    /// Wire this to something the user can see, and not only for the answer: a
+    /// wait nobody can see is a wait nobody can use, and the countdown is the
+    /// entire mechanism by which a person overrules this thing. A machine
+    /// typing into a terminal must be visible as a machine typing into a
+    /// terminal.
+    public var onAutoAnswer: ((AutoAnswerEvent) -> Void)?
 
     /// Guarded by `lock`. `pending` is the debounce's "a check is already on
     /// the queue", `lastOutput` what it debounces against.
@@ -237,12 +252,24 @@ public final class TerminalSession {
     }
 
     /// User input: to the child process, or headless to `onOutput`.
+    ///
+    /// Every call counts as a person typing, and cancels an auto-answer
+    /// waiting on the current prompt. That is deliberately the coarse reading:
+    /// a caller this misjudges loses one automatic answer, while a keystroke
+    /// this MISSES gets typed over. The auto-answer's own reply goes out
+    /// through `_send` and is the one write that is not a person.
     public func write(_ text: String) {
-        if let pty = pty { pty.write(text) } else { onOutput?(text) }
+        autoAnswer?.noteUserActivity()
+        _send(text)
     }
     public func write(_ bytes: [UInt8]) {
+        autoAnswer?.noteUserActivity()
         if let pty = pty { pty.write(bytes) }
         else { onOutput?(String(decoding: bytes, as: UTF8.self)) }
+    }
+
+    private func _send(_ text: String) {
+        if let pty = pty { pty.write(text) } else { onOutput?(text) }
     }
 
     /// Resize the child process's window. The emulator's own resize is the
@@ -290,7 +317,12 @@ public final class TerminalSession {
             }
             self.lock.lock()
             let quiet = Self._now() - self._autoAnswerLastOutput
-            if quiet < auto.settle {
+            // The settle gate is about not reading a half-drawn screen, which
+            // only matters before a question has been found. Once a countdown
+            // is running it must tick regardless: a prompt with a spinner next
+            // to it never goes quiet, and gating on that would freeze the
+            // countdown at whatever second the spinner started.
+            if quiet < auto.settle && !auto.isWaiting {
                 self.lock.unlock()
                 self._scheduleAutoAnswerCheck(after: auto.settle - quiet)
                 return
@@ -307,17 +339,27 @@ public final class TerminalSession {
             switch auto.match(lines: lines, baseLine: baseLine) {
             case .nothing:
                 return
-            case .tooSoon(let wait):
+            case .waiting(let rule, let left):
                 // Come back on our own account. Nothing else will bring us
                 // here: the program is waiting for the answer, so there is no
                 // more output to schedule the next check.
+                //
+                // Once a second rather than once at the deadline, so the pane
+                // can count down — and so a keystroke is noticed while it
+                // still means something rather than after the keys are typed.
                 self.lock.lock()
                 self._autoAnswerPending = true
                 self.lock.unlock()
-                self._scheduleAutoAnswerCheck(after: wait)
+                self._scheduleAutoAnswerCheck(after: min(left, 1))
+                self.onAutoAnswer?(.waiting(rule, left))
+            case .cancelled(let rule, let why):
+                self.onAutoAnswer?(why == .takenOver ? .takenOver(rule) : .gone(rule))
             case .fire(let rule):
-                self.write(rule.reply)
-                self.onAutoAnswer?(rule)
+                // `_send`, not `write`: writing counts as a person typing, and
+                // an answer that cancelled the next answer would let a rule
+                // fire exactly once per session.
+                self._send(rule.reply)
+                self.onAutoAnswer?(.answered(rule))
             }
         }
     }

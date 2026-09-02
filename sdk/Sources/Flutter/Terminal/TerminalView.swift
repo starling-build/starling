@@ -475,7 +475,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         // hook, and for a stronger reason: a pane whose badge went to a
         // disposed view would type answers into the terminal with nothing on
         // screen to say so.
-        session.onAutoAnswer = { [weak self] rule in self?._autoAnswered(rule) }
+        session.onAutoAnswer = { [weak self] event in self?._autoAnswer(event) }
 
         let (cols, rows) = _gridSize(for: _viewLogicalSize())
         _lock.lock()
@@ -1138,19 +1138,44 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         _showHud("\(_fitColumns ?? emulator.cols) × \(rows)")
     }
 
-    /// A rule typed an answer into this pane. Say so.
+    /// An auto-answer is happening to this pane. Say so, at every stage.
     ///
     /// The badge is the entire visible difference between the terminal
-    /// answering a prompt and the user answering it, so it is not optional and
-    /// it names the pattern that fired: "something confirmed that" is only
-    /// useful if you can tell WHICH rule to go and delete. Held longer than
-    /// the size badge because nobody is looking for this one.
-    private func _autoAnswered(_ rule: TerminalAutoAnswer.Rule) {
-        var pattern = rule.pattern
-        // Bounded, because the badge is a bare Text in a Stack — a rule
-        // written as a paragraph would run off the side of the pane.
-        if pattern.count > 34 { pattern = String(pattern.prefix(33)) + "…" }
-        _showHud("auto-answered  \(pattern)", seconds: 2.0)
+    /// answering a prompt and the user answering it, so it is not optional.
+    /// The COUNTDOWN matters most: it is how a person finds out there is a
+    /// decision being made for them while they can still take it back, and
+    /// pressing any key is what takes it back. Without it the pane would
+    /// simply pause and then type, which is the same thing happening with no
+    /// way to disagree.
+    private func _autoAnswer(_ event: TerminalSession.AutoAnswerEvent) {
+        switch event {
+        case .waiting(_, let left):
+            // Sub-second waits are the floor between two answers, not a window
+            // anyone could act in; a badge for those would flicker and mean
+            // nothing. Held slightly longer than the tick so the badge does
+            // not blink between them.
+            guard left >= 1 else { return }
+            _showHud("answering in \(Int(left.rounded()))s — press a key to stop",
+                     seconds: 1.4)
+        case .answered(let rule):
+            // Names the pattern: "something confirmed that" is only useful if
+            // you can tell WHICH rule to go and delete.
+            _showHud("auto-answered  \(Self._badgePattern(rule))", seconds: 2.0)
+        case .takenOver:
+            _showHud("auto-answer stopped — you typed", seconds: 1.6)
+        case .gone:
+            // The question left on its own. Drop the countdown badge rather
+            // than leaving a number ticking over something that is not there.
+            _hudGeneration += 1
+            if _sizeHud != nil { setState { _sizeHud = nil } }
+        }
+    }
+
+    /// Bounded, because the badge is a bare Text in a Stack — a rule written
+    /// as a paragraph would run off the side of the pane.
+    private static func _badgePattern(_ rule: TerminalAutoAnswer.Rule) -> String {
+        rule.pattern.count > 34
+            ? String(rule.pattern.prefix(33)) + "…" : rule.pattern
     }
 
     /// The badge in the corner, for anything that has to be said about the

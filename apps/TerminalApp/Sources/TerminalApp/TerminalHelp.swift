@@ -118,7 +118,9 @@ enum TerminalHelp {
             HelpBinding("—", "\\r is Enter; /…/ is a regex; # is a comment"),
             HelpBinding("—", "it does not read the question — it will confirm"),
             HelpBinding("—", "anything you tell it to, including a delete"),
-            HelpBinding("—", "a badge names the rule each time one fires"),
+            HelpBinding("any key", "stops an answer while the corner counts down"),
+            HelpBinding("—", "it waits 10s first, so you always get a say"),
+            HelpBinding("—", "`wait 30s` above a rule changes that; `wait 0` is now"),
             HelpBinding("—", "new file? open a new tab. edits apply as you go"),
         ]),
         // Last, because it is the one thing here you press when nothing else

@@ -31,10 +31,11 @@ func check(_ name: String, _ ok: Bool, _ detail: @autoclosure () -> String = "")
     }
 }
 
-/// A matcher with the rate limit out of the way — every test that is not
-/// ABOUT the rate limit wants to fire twice in a row without sleeping.
+/// A matcher with the clock out of the way — every test that is not ABOUT
+/// the timing wants to fire twice in a row without sleeping. `wait 0` goes in
+/// front of the rules so they answer as soon as they match.
 func rules(_ text: String) -> TerminalAutoAnswer {
-    let a = TerminalAutoAnswer(text: text)
+    let a = TerminalAutoAnswer(text: "wait 0\n" + text)
     a.minimumInterval = 0
     return a
 }
@@ -53,13 +54,24 @@ extension TerminalAutoAnswer {
         return nil
     }
 
-    /// Whether the screen was refused only for being too soon after the last
-    /// answer — as opposed to holding no question at all. The difference is
-    /// what stops a program that is WAITING for its answer from waiting for
-    /// ever, so it is worth a check of its own.
-    func tooSoon(_ lines: [String], from baseLine: Int = 0) -> Bool {
-        if case .tooSoon = match(lines: lines, baseLine: baseLine) { return true }
-        return false
+    /// Seconds still to wait, if a question was found and is being left for a
+    /// human. The difference between this and "no question here" is what stops
+    /// a program that is WAITING for its answer from waiting for ever, so it
+    /// is worth a check of its own.
+    func waiting(_ lines: [String], from baseLine: Int = 0) -> TimeInterval? {
+        if case .waiting(_, let left) = match(lines: lines, baseLine: baseLine) {
+            return left
+        }
+        return nil
+    }
+
+    /// Why a wait ended with nothing typed, if that is what just happened.
+    func cancelled(_ lines: [String], from baseLine: Int = 0)
+        -> TerminalAutoAnswer.Cancellation? {
+        if case .cancelled(_, let why) = match(lines: lines, baseLine: baseLine) {
+            return why
+        }
+        return nil
     }
 }
 
@@ -71,7 +83,9 @@ struct AutoAnswerTest {
     print("\nparsing")
 
     do {
-        let a = rules("""
+        // Not the `rules` helper here: it prepends a line, and one of these
+        // checks is about which line a rule came from.
+        let a = TerminalAutoAnswer(text: """
             # a comment
             settle 250ms
 
@@ -117,13 +131,19 @@ struct AutoAnswerTest {
     }
 
     do {
-        let a = rules("\"proceed?\" \\r")
-        check("settle has a floor", TerminalAutoAnswer.parseDuration("0")! >= 0.05)
-        check("and a ceiling", TerminalAutoAnswer.parseDuration("600s")! <= 10)
-        check("seconds parse too", TerminalAutoAnswer.parseDuration("0.5s")! == 0.5)
-        check("a bare number is milliseconds", TerminalAutoAnswer.parseDuration("400")! == 0.4)
-        check("a word is not a duration", TerminalAutoAnswer.parseDuration("soon") == nil)
-        _ = a
+        func d(_ s: String, _ lo: Double = 0, _ hi: Double = 3600) -> TimeInterval? {
+            TerminalAutoAnswer.parseDuration(s, min: lo, max: hi)
+        }
+        check("settle has a floor", d("0", 0.05, 10)! >= 0.05)
+        check("and a ceiling", d("600s", 0.05, 10)! <= 10)
+        // A wait may be zero — that is how you ask for the old behaviour —
+        // and may be much longer than a settle ever is.
+        check("a wait may be zero", d("0")! == 0)
+        check("and may be minutes", d("120s")! == 120)
+        check("seconds parse too", d("0.5s")! == 0.5)
+        check("a bare number is milliseconds", d("400")! == 0.4)
+        check("a word is not a duration", d("soon") == nil)
+        check("nor is a negative one", d("-5s") == nil)
     }
 
     print("\nescapes")
@@ -270,20 +290,20 @@ struct AutoAnswerTest {
     }
 
     do {
-        let a = TerminalAutoAnswer(text: "\"proceed?\" \\r\n\"overwrite?\" y\\r")
+        let a = TerminalAutoAnswer(text: "wait 0\n\"proceed?\" \\r\n\"overwrite?\" y\\r")
         check("the floor is on by default",
               a.minimumInterval == TerminalAutoAnswer.defaultMinimumInterval)
         check("one answer goes through", a.match(screen("proceed?")) != nil)
-        // Back to back, a different rule, inside the floor: refused. Two rules
+        // Back to back, a different rule, inside the floor: held. Two rules
         // that paint each other's screen cannot run away.
         check("a second inside the floor does not",
               a.match(screen("proceed?", "overwrite?")) == nil)
-        // And it must say so, rather than reporting an empty screen. The
-        // caller only comes back when more output arrives, and a program
-        // waiting for an answer sends none.
-        check("a refusal for time says it is a refusal for time",
-              a.tooSoon(screen("proceed?", "overwrite?")))
-        check("an empty screen does not", !a.tooSoon(screen("nothing here")))
+        // And it must say it is holding, rather than reporting an empty
+        // screen. The caller only comes back when more output arrives, and a
+        // program waiting for an answer sends none.
+        check("the floor reports as a wait, not as an empty screen",
+              a.waiting(screen("proceed?", "overwrite?")) != nil)
+        check("an empty screen does not", a.waiting(screen("nothing here")) == nil)
         Thread.sleep(forTimeInterval: TerminalAutoAnswer.defaultMinimumInterval + 0.05)
         check("once the floor has passed it does",
               a.match(screen("proceed?", "overwrite?")) != nil)
@@ -294,6 +314,121 @@ struct AutoAnswerTest {
         check("a question is answered", a.match(screen("proceed?")) != nil)
         a.reset()
         check("reset forgets it", a.match(screen("proceed?")) != nil)
+    }
+
+    // MARK: - The head start
+
+    print("\nleaving it for a human first")
+
+    do {
+        let a = TerminalAutoAnswer(text: "\"proceed?\"   y\\r")
+        check("ten seconds by default, not zero",
+              a.rules[0].wait == TerminalAutoAnswer.defaultWait,
+              "\(a.rules[0].wait)")
+        // The whole safety story rests on this: a matched prompt does NOT get
+        // answered on the spot.
+        check("a matched question is not answered straight away",
+              a.match(screen("proceed?")) == nil)
+        let left = a.waiting(screen("proceed?"))
+        check("it reports a wait instead", left != nil, "\(String(describing: left))")
+        check("and the wait is about ten seconds",
+              (left ?? 0) > 9 && (left ?? 0) <= 10, "\(left ?? -1)")
+    }
+
+    do {
+        let a = TerminalAutoAnswer(text: "wait 200ms\n\"proceed?\"   y\\r")
+        a.minimumInterval = 0
+        check("short wait: held at first", a.waiting(screen("proceed?")) != nil)
+        Thread.sleep(forTimeInterval: 0.25)
+        check("and answered once it passes",
+              a.match(screen("proceed?"))?.reply == "y\r")
+    }
+
+    do {
+        // Someone types. The question is theirs — nothing is written, and it
+        // is not offered again even though it is still on screen.
+        let a = TerminalAutoAnswer(text: "wait 200ms\n\"proceed?\"   y\\r")
+        a.minimumInterval = 0
+        check("the wait starts", a.waiting(screen("proceed?")) != nil)
+        a.noteUserActivity()
+        check("a keystroke cancels it",
+              a.cancelled(screen("proceed?")) == .takenOver)
+        Thread.sleep(forTimeInterval: 0.25)
+        check("and it does not come back after the deadline",
+              a.match(screen("proceed?")) == nil)
+        check("nor does it keep reporting a wait",
+              a.waiting(screen("proceed?")) == nil)
+    }
+
+    do {
+        // A keystroke BEFORE the question appeared is not an answer to it.
+        let a = TerminalAutoAnswer(text: "wait 150ms\n\"proceed?\"   y\\r")
+        a.minimumInterval = 0
+        a.noteUserActivity()
+        Thread.sleep(forTimeInterval: 0.02)
+        check("typing before the question does not cancel it",
+              a.waiting(screen("proceed?")) != nil)
+        Thread.sleep(forTimeInterval: 0.2)
+        check("and it is answered", a.match(screen("proceed?")) != nil)
+    }
+
+    do {
+        // The human answered it themselves, or the program moved on. Either
+        // way the keys must not be typed into whatever came next.
+        let a = TerminalAutoAnswer(text: "wait 5s\n\"proceed?\"   y\\r")
+        a.minimumInterval = 0
+        check("the wait starts", a.waiting(screen("proceed?")) != nil)
+        check("the question leaving cancels it",
+              a.cancelled(screen("all done")) == .gone)
+        check("and nothing is left waiting", a.waiting(screen("all done")) == nil)
+    }
+
+    do {
+        // A prompt that redraws while the countdown runs — a spinner beside
+        // it, the box moving down a line — must keep its countdown rather
+        // than starting a new one each frame.
+        let a = TerminalAutoAnswer(text: "wait 400ms\n\"proceed?\"   y\\r")
+        a.minimumInterval = 0
+        let first = a.waiting(screen("proceed?", "⠋ working"))
+        Thread.sleep(forTimeInterval: 0.15)
+        let second = a.waiting(screen("proceed?", "⠙ working"))
+        check("a redraw does not restart the countdown",
+              (second ?? 99) < (first ?? 0), "\(first ?? -1) then \(second ?? -1)")
+        Thread.sleep(forTimeInterval: 0.3)
+        check("and it still answers on time", a.match(screen("proceed?", "⠹ working")) != nil)
+    }
+
+    do {
+        let a = rules("\"proceed?\"   y\\r")
+        check("wait 0 answers as soon as it matches",
+              a.match(screen("proceed?")) != nil)
+    }
+
+    do {
+        // Positional: each rule takes the wait declared above it, so one file
+        // can be quick about a harmless prompt and slow about a dangerous one.
+        let a = TerminalAutoAnswer(text: """
+            wait 2s
+            "proceed?"     \\r
+            wait 30s
+            "delete it?"   \\r
+            """)
+        check("a rule takes the wait above it", a.rules[0].wait == 2, "\(a.rules[0].wait)")
+        check("and the next one takes the next", a.rules[1].wait == 30, "\(a.rules[1].wait)")
+    }
+
+    do {
+        // `settle`/`wait` are directives only as a bare first word. Tested as
+        // a prefix, the rule below reads as a broken `wait`.
+        let a = rules("waiting for you?   y\\r")
+        check("a pattern that starts with a directive name still parses",
+              a.rules.count == 1, "\(a.problems)")
+        check("and matches", a.match(screen("waiting for you?")) != nil)
+        let b = TerminalAutoAnswer(text: "wait nonsense\n\"proceed?\" \\r")
+        check("a bad wait is a complaint, not a crash", b.problems.count == 1,
+              "\(b.problems)")
+        check("and leaves the default in place",
+              b.rules[0].wait == TerminalAutoAnswer.defaultWait)
     }
 
     // MARK: - The file
@@ -315,7 +450,7 @@ struct AutoAnswerTest {
     }
 
     do {
-        try? "\"proceed?\"   y\\r".write(toFile: path, atomically: true, encoding: .utf8)
+        try? "wait 0\n\"proceed?\"   y\\r".write(toFile: path, atomically: true, encoding: .utf8)
         let a = TerminalAutoAnswer(file: path)
         a.minimumInterval = 0
         check("a file with a rule arms", a.isArmed)
@@ -323,7 +458,7 @@ struct AutoAnswerTest {
 
         // Editing the file mid-session is the iteration loop; a stamp that only
         // watched the modification time would miss an edit inside the same second.
-        try? "\"proceed?\"   n\\r".write(toFile: path, atomically: true, encoding: .utf8)
+        try? "wait 0\n\"proceed?\"   n\\r".write(toFile: path, atomically: true, encoding: .utf8)
         let after = a.match(screen("proceed?"))
         check("an edit is picked up without a restart", after?.reply == "n\r",
               "\(after?.reply ?? "nil")")

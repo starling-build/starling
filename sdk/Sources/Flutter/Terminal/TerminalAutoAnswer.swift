@@ -24,6 +24,21 @@
 //     (TerminalView's HUD). Keys typed by a machine must not be
 //     indistinguishable from keys typed by a person.
 //
+// A HEAD START FOR THE HUMAN. A matched prompt is not answered at once. The
+// rule's `wait` — ten seconds unless the file says otherwise — is a window in
+// which the person at the keyboard can answer it themselves, and a single
+// keystroke during that window calls the whole thing off: they have the
+// question, it is theirs, and the rule does not fire for it again. The pane
+// counts down in the corner while it waits, so the window is something you can
+// see and not something you have to know about. `wait 0` answers immediately
+// for anyone who wants the old behaviour.
+//
+// The keystroke test is deliberately crude — ANY input to the session, not
+// just an answer to this prompt. Nothing here can tell an answer from a stray
+// arrow key, and the two ways of being wrong are not equal: backing off when
+// the user was not really engaging costs one unanswered prompt, while typing
+// over someone who was costs whatever the two answers spell together.
+//
 // THE SCREEN, SETTLED. Matching runs over the visible grid only — never the
 // scrollback, so a prompt that has scrolled away cannot fire again — and only
 // once output has stopped for `settle` (300 ms by default). Both halves are
@@ -85,6 +100,9 @@ public final class TerminalAutoAnswer {
         public let reply: String
         /// 1-based line in the file, so a complaint can name it.
         public let line: Int
+        /// How long to leave this prompt for a human first. Zero answers as
+        /// soon as the screen settles.
+        public let wait: TimeInterval
 
         fileprivate let kind: Kind
     }
@@ -107,6 +125,15 @@ public final class TerminalAutoAnswer {
     /// How long output must stop before the screen is read. Long enough for a
     /// TUI to finish painting, short enough not to feel like a hang.
     public private(set) var settle: TimeInterval = 0.3
+
+    /// What a rule waits before answering, unless the file says otherwise.
+    ///
+    /// Ten seconds is long enough to read the question and reach the keyboard,
+    /// and short enough that walking away still gets you an answered prompt —
+    /// which is the entire point of the feature. It is deliberately not zero:
+    /// a blind matcher that answers the instant it recognises something gives
+    /// nobody a chance to disagree with it.
+    public static let defaultWait: TimeInterval = 10
 
     /// Cheap enough for the output path, which asks on every chunk. False
     /// means the session never even schedules a settle check.
@@ -161,6 +188,43 @@ public final class TerminalAutoAnswer {
 
     private var lastFire: TimeInterval = -.greatestFiniteMagnitude
 
+    /// A question found, and being left for a human until `deadline`.
+    ///
+    /// One at a time: a second prompt cannot appear while the first is still
+    /// on screen unanswered, and if it somehow does, the older one is the one
+    /// with a countdown already showing.
+    private var pending: (rule: Rule, line: Int, deadline: TimeInterval,
+                          startedAt: TimeInterval)?
+
+    /// When input last came from outside — which is to say, from a person.
+    /// Compared against the wait's start, so a keystroke before the question
+    /// appeared does not cancel an answer to it.
+    ///
+    /// Guarded by `activityLock`: everything else here is main-queue only, but
+    /// a write can come from whatever thread owns the far end of a remote
+    /// session.
+    private var userActivityAt: TimeInterval = -.greatestFiniteMagnitude
+    private let activityLock = NSLock()
+
+    /// Someone typed. Cancels a wait in progress — see the note at the top
+    /// about why any key at all, rather than an answer-shaped one.
+    public func noteUserActivity() {
+        activityLock.lock()
+        userActivityAt = Self.now()
+        activityLock.unlock()
+    }
+
+    private var lastUserActivity: TimeInterval {
+        activityLock.lock()
+        defer { activityLock.unlock() }
+        return userActivityAt
+    }
+
+    /// True while a countdown is running. The caller is otherwise driven by
+    /// output, and a program waiting for an answer sends none — so this is
+    /// what tells it to keep coming back on its own.
+    public var isWaiting: Bool { pending != nil }
+
     /// Rules from text, for tests and for an embedder with its own storage.
     public init(text: String) {
         path = nil
@@ -174,6 +238,15 @@ public final class TerminalAutoAnswer {
         refreshIfChanged()
     }
 
+    /// Why a wait ended without an answer being typed.
+    public enum Cancellation {
+        /// Someone typed while the countdown was running.
+        case takenOver
+        /// The question left the screen before the countdown finished —
+        /// answered by hand, or the program gave up on it.
+        case gone
+    }
+
     /// What to do about this screen.
     public enum Decision {
         /// Nothing on it is a question anyone wrote a rule for. The usual
@@ -181,16 +254,15 @@ public final class TerminalAutoAnswer {
         case nothing
         /// Type these keys.
         case fire(Rule)
-        /// A rule matched, but the floor between two answers has not passed.
-        /// Ask again after this long.
-        ///
-        /// Not the same as `nothing`, and the difference is a deadlock: the
-        /// caller is driven by output, and a program that has asked a question
-        /// produces none until it is answered. Dropping the match here means
-        /// waiting for a chunk that is never coming — which is exactly how
-        /// this read the first time it ran against a real shell, answering
-        /// the first prompt of three and then sitting there.
-        case tooSoon(TimeInterval)
+        /// A question is being left for a human for this much longer. Come
+        /// back — and come back on your own account, because a program that
+        /// has asked something produces no output until it is answered, and
+        /// waiting for the next chunk means waiting for one that is never
+        /// coming. This read `nothing` once, and answered the first prompt of
+        /// three and then sat there.
+        case waiting(Rule, TimeInterval)
+        /// A wait ended with nothing typed.
+        case cancelled(Rule, Cancellation)
     }
 
     /// The rule to fire for this screen, or why not.
@@ -205,9 +277,38 @@ public final class TerminalAutoAnswer {
     /// path that feeds bytes to the emulator.
     public func match(lines: [String], baseLine: Int) -> Decision {
         refreshIfChanged()
-        guard !rules.isEmpty else { return .nothing }
+        guard !rules.isEmpty else { pending = nil; return .nothing }
 
         let collapsed = lines.map { Self.collapse($0).lowercased() }
+        let now = Self.now()
+
+        // A countdown already running takes the whole answer: whatever else is
+        // on screen, this is the question with a badge on it, and starting a
+        // second one would put two of them on one pane.
+        if let p = pending {
+            if lastUserActivity >= p.startedAt {
+                // They typed. The question is theirs now, and remembering it
+                // as answered stops the next tick offering it straight back.
+                pending = nil
+                remember(p.rule, line: p.line)
+                return .cancelled(p.rule, .takenOver)
+            }
+            let row = p.line - baseLine
+            let stillThere = row >= 0 && row < lines.count
+                && p.rule.matches(collapsed: collapsed[row], raw: lines[row])
+            guard stillThere else {
+                pending = nil
+                return .cancelled(p.rule, .gone)
+            }
+            guard now >= p.deadline else {
+                return .waiting(p.rule, p.deadline - now)
+            }
+            pending = nil
+            remember(p.rule, line: p.line)
+            lastFire = now
+            return .fire(p.rule)
+        }
+
         var matchedSomething = false
 
         for rule in rules {
@@ -226,15 +327,18 @@ public final class TerminalAutoAnswer {
             // rule is waiting for.
             if answered.contains(key) { continue }
 
-            let now = Self.now()
-            let waited = now - lastFire
-            guard waited >= minimumInterval else {
-                return .tooSoon(minimumInterval - waited)
+            // The floor between two answers is folded into the deadline rather
+            // than refusing the match: a refusal has to be retried by someone,
+            // and the only thing that would is more output.
+            let deadline = max(now + rule.wait, lastFire + minimumInterval)
+            guard now < deadline else {
+                remember(rule, line: baseLine + row)
+                lastFire = now
+                return .fire(rule)
             }
-            answered.append(key)
-            if answered.count > Self.answeredLimit { answered.removeFirst() }
-            lastFire = now
-            return .fire(rule)
+            pending = (rule: rule, line: baseLine + row,
+                       deadline: deadline, startedAt: now)
+            return .waiting(rule, deadline - now)
         }
 
         // Nothing on a settled screen is a question at all, so nothing on it
@@ -244,10 +348,16 @@ public final class TerminalAutoAnswer {
         return .nothing
     }
 
+    private func remember(_ rule: Rule, line: Int) {
+        answered.append(Answered(pattern: rule.pattern, line: line))
+        if answered.count > Self.answeredLimit { answered.removeFirst() }
+    }
+
     /// Forget what has been answered — for a session being restarted, or a
     /// screen reset out from under the line numbers that identify a prompt.
     public func reset() {
         answered.removeAll()
+        pending = nil
         lastFire = -.greatestFiniteMagnitude
     }
 
@@ -257,10 +367,11 @@ public final class TerminalAutoAnswer {
         rules = parsed.rules
         settle = parsed.settle
         problems = parsed.problems
-        // A reparse drops what was answered: those keys name rules that may
-        // not exist any more, and a rule the user has just edited is one they
-        // want to see fire.
+        // A reparse drops what was answered AND any countdown: both name rules
+        // that may not exist any more, and a rule the user has just edited is
+        // one they want to see fire.
         answered.removeAll()
+        pending = nil
     }
 
     private func refreshIfChanged() {
@@ -289,6 +400,11 @@ public final class TerminalAutoAnswer {
         var rules: [Rule] = []
         var problems: [String] = []
         var settle: TimeInterval = 0.3
+        // Positional, unlike `settle`: it applies to the rules BELOW it, so a
+        // file can give a harmless prompt two seconds and a destructive one a
+        // minute without inventing a third field on the rule line — where it
+        // would be ambiguous against keys, which may contain anything.
+        var wait = defaultWait
 
         for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false)
             .enumerated() {
@@ -298,18 +414,26 @@ public final class TerminalAutoAnswer {
             // is a character like any other, and prompts are full of them.
             guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
 
-            if trimmed.hasPrefix("settle") {
-                let rest = String(trimmed.dropFirst("settle".count))
-                    .trimmingCharacters(in: .whitespaces)
-                if let seconds = parseDuration(rest) {
-                    settle = seconds
-                } else {
-                    problems.append("line \(number): settle wants a duration, e.g. `settle 300ms`")
+            // A directive is a bare first word. Tested exactly rather than as
+            // a prefix, or the rule `settlement? y` becomes a broken `settle`
+            // — and a pattern that really is one of these words still works
+            // written in quotes, because then the line does not start with a
+            // letter at all.
+            let word = trimmed.prefix { !$0.isWhitespace }
+            let rest = trimmed.dropFirst(word.count).trimmingCharacters(in: .whitespaces)
+            if word == "settle" || word == "wait" {
+                let (lower, upper) = word == "settle" ? (0.05, 10.0) : (0.0, 3600.0)
+                guard let seconds = parseDuration(rest, min: lower, max: upper) else {
+                    problems.append(
+                        "line \(number): \(word) wants a duration, e.g. `\(word) "
+                        + (word == "settle" ? "300ms`" : "10s`"))
+                    continue
                 }
+                if word == "settle" { settle = seconds } else { wait = seconds }
                 continue
             }
 
-            switch parseRule(trimmed, line: number) {
+            switch parseRule(trimmed, line: number, wait: wait) {
             case .rule(let rule): rules.append(rule)
             case .problem(let why): problems.append("line \(number): \(why)")
             }
@@ -317,16 +441,18 @@ public final class TerminalAutoAnswer {
         return (rules, settle, problems)
     }
 
-    /// `300ms`, `0.5s`, or a bare number of milliseconds. Clamped: a settle of
-    /// zero matches half-painted frames, and one of a minute is a hang.
-    static func parseDuration(_ s: String) -> TimeInterval? {
+    /// `300ms`, `0.5s`, or a bare number of milliseconds, clamped to the range
+    /// the caller can actually use — a settle of zero matches half-painted
+    /// frames, and neither of these has any business being an hour.
+    static func parseDuration(_ s: String, min lower: Double, max upper: Double)
+        -> TimeInterval? {
         var text = s
         var scale = 0.001
         if text.hasSuffix("ms") { text.removeLast(2) }
         else if text.hasSuffix("s") { text.removeLast(); scale = 1 }
         guard let value = Double(text.trimmingCharacters(in: .whitespaces)),
-              value.isFinite else { return nil }
-        return min(max(value * scale, 0.05), 10)
+              value.isFinite, value >= 0 else { return nil }
+        return Swift.min(Swift.max(value * scale, lower), upper)
     }
 
     /// A line is either a rule or a complaint about a line. Never both, and
@@ -337,7 +463,8 @@ public final class TerminalAutoAnswer {
         case problem(String)
     }
 
-    private static func parseRule(_ line: String, line number: Int) -> Parsed {
+    private static func parseRule(_ line: String, line number: Int,
+                                  wait: TimeInterval) -> Parsed {
         let cs = Array(line)
         var i = 0
         var pattern = ""
@@ -393,7 +520,8 @@ public final class TerminalAutoAnswer {
             }
             kind = .literal(collapse(literal).lowercased())
         }
-        return .rule(Rule(pattern: pattern, reply: reply, line: number, kind: kind))
+        return .rule(Rule(pattern: pattern, reply: reply, line: number,
+                          wait: wait, kind: kind))
     }
 
     /// Escapes, in patterns and in keys alike. `\r` is the one that matters —
