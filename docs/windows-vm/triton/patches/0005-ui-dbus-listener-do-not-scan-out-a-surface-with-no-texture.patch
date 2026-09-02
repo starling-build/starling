@@ -1,0 +1,28 @@
+Guest reset kills the VM when a GL listener is attached, and 0001 does not
+cover it. On reset the console hands dbus_gl_gfx_switch() a fresh
+DisplaySurface whose GL texture has not been created yet, and it passes
+ds->texture (0) straight to dbus_scanout_texture(), which asserts:
+
+    qemu-system-x86_64: ui/dbus-listener.c:518:
+        dbus_scanout_texture: Assertion `tex_id' failed.
+
+0001 makes the render-node context current inside the DisplayGLCtx texture
+hooks, which fixes the case where the texture is created without a context;
+it does nothing for a switch that arrives before any texture exists. Both
+were reproduced on a 2D (viogpudo) Windows guest: stock Ubuntu QEMU 10.2.1
+and a 0001-patched 10.0.12 crash identically on `virsh reboot`.
+
+There is nothing to show for a surface with no texture, and the next
+gfx_update/switch scans out once one exists, so skip it. With this guard the
+guest reboots with the listener attached and frames resume on the far side.
+
+--- a/ui/dbus-listener.c
++++ b/ui/dbus-listener.c
+@@ -797,7 +797,7 @@
+ 
+     ddl->ds = new_surface;
+     ddl->ds_share = SHARE_KIND_NONE;
+-    if (ddl->ds) {
++    if (ddl->ds && ddl->ds->texture) {
+         int width = surface_width(ddl->ds);
+         int height = surface_height(ddl->ds);
