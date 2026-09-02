@@ -76,9 +76,17 @@ fastest way to see the rest of that list without reading this file. Same `.app`
 shape as the 0.1.0 archive below, and the same Gatekeeper caveat, but **its
 signature survives a plain `unzip`** where 0.1.0's does not (see that entry).
 
-Rebuilt 2026-08-19 from `main` (the `remote-workspace` branch it previewed has
-since merged). Three things are new since the last refresh, and one of them is
-why this build exists:
+Rebuilt 2026-09-02 from `main` (d44ef9b), against the release engine
+(`host_release_arm64`). Everything on mainline since the previous refresh
+rides along — most visibly the terminal's **auto-answer** rules, which watch
+for a prompt and can type the reply for you, after giving you ten seconds to
+do it yourself.
+
+The list below was written for the 2026-08-19 refresh and has not been
+extended; it still describes what that build added over 0.1.0, all of which
+this one also carries. Rebuilt 2026-08-19 from `main` (the
+`remote-workspace` branch it previewed has since merged), three things were
+new then, and one of them is why that build existed:
 
 - **⌘+ / ⌘− change the type size**, ⌘0 returns to 13 pt, and the size is
   remembered in `~/.local/state/starling-terminal-font` — one line you can
