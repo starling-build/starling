@@ -1,0 +1,3 @@
+# /etc/apparmor.d/local/usr.sbin.libvirtd — libvirtd probes and launches the
+# emulator itself; the stock profile allows that only for /usr/bin/*.
+/opt/triton/bin/qemu-system-x86_64 PUx,

@@ -1,0 +1,22 @@
+# Install as /etc/apparmor.d/local/abstractions/libvirt-qemu (the stock
+# abstraction includes it). Every domain profile gets these rules:
+#   abstractions/vulkan  Mesa + Vulkan: the ICD/layer manifests under
+#                        /usr/share/vulkan and /etc/vulkan, /dev/udmabuf (blob=on
+#                        exports guest-memory blobs as dma-bufs through it),
+#                        libdrm/amdgpu.ids, the PCI sysfs reads RADV does, the
+#                        shader caches. libvirt 12's virt-aa-helper adds none of
+#                        it, and the render server -- fork()ed from QEMU, so
+#                        confined by the domain's profile -- cannot create a
+#                        Vulkan instance without the manifests: DXVK logs
+#                        "Failed to create Vulkan instance", the guest gets no
+#                        D3D11 device, and the desktop never draws.
+#   /opt/triton          the Triton host stack (docs/windows-vm/triton/build-host.sh)
+# AppArmor denies most of these WITHOUT a DENIED line in the kernel log on
+# 26.04 (the udmabuf and amdgpu.ids opens logged nothing; the vulkan manifest
+# directory reads did) -- the only reliable symptom is the program's own
+# "Permission denied" / "Found no drivers!" message.
+include <abstractions/vulkan>
+/opt/triton/bin/qemu-system-x86_64 rmix,
+/opt/triton/lib/** rm,
+/opt/triton/libexec/virgl_render_server rmix,
+/opt/triton/share/** r,

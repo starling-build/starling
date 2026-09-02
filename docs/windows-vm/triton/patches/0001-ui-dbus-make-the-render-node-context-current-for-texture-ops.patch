@@ -1,0 +1,45 @@
+--- a/ui/dbus.c	2026-09-02 09:52:27
++++ b/ui/dbus.c	2026-09-02 09:52:47
+@@ -59,17 +59,34 @@
+     return
+         dcl->ops == &dbus_gl_dcl_ops ||
+         dcl->ops == &dbus_console_dcl_ops;
++}
++
++/*
++ * The console switches surfaces from whatever context the guest's last
++ * virgl command left current -- after a guest reset that is no context
++ * at all, and glGenTextures() then hands back 0, which
++ * dbus_scanout_texture() asserts on.  gtk-egl makes its own context
++ * current in every one of these hooks; do the same with the render-node
++ * context this display created its contexts from.
++ */
++static void
++dbus_make_rn_current(void)
++{
++    eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
++                   qemu_egl_rn_ctx);
+ }
+ 
+ static void
+ dbus_create_texture(DisplayGLCtx *ctx, DisplaySurface *surface)
+ {
++    dbus_make_rn_current();
+     surface_gl_create_texture(ctx->gls, surface);
+ }
+ 
+ static void
+ dbus_destroy_texture(DisplayGLCtx *ctx, DisplaySurface *surface)
+ {
++    dbus_make_rn_current();
+     surface_gl_destroy_texture(ctx->gls, surface);
+ }
+ 
+@@ -77,6 +94,7 @@
+ dbus_update_texture(DisplayGLCtx *ctx, DisplaySurface *surface,
+                     int x, int y, int w, int h)
+ {
++    dbus_make_rn_current();
+     surface_gl_update_texture(ctx->gls, surface, x, y, w, h);
+ }
+ 

@@ -1,0 +1,34 @@
+ui/dbus-clipboard: forward grabs and complete requests from a serial-less agent
+
+The Windows spice vd_agent (0.10.0, and master as of 2026-09) never announces
+VD_AGENT_CAP_CLIPBOARD_GRAB_SERIAL, so ui/vdagent.c builds its grab infos with
+has_serial = false.  dbus_clipboard_update_info() then returned before either
+forwarding the guest's Grab to the D-Bus client or completing the client's
+pending Request with the data the agent had already delivered -- the request
+simply timed out after 5 s.  Host-to-guest worked; guest-to-host could not, on
+any Windows guest.  Pass serial 0 for such agents: qemu_clipboard_check_serial()
+already treats a serial-less info as always current.
+
+Observed on QEMU 10.2.1 / Windows 11 with virtio-win 0.1.285's vdagent
+(caps 0x46B7).  See docs/plans/windows-home-vm.md, Results, experiment 6.
+
+--- a/ui/dbus-clipboard.c
++++ b/ui/dbus-clipboard.c
+@@ -72,7 +72,7 @@ dbus_clipboard_update_info(DBusDisplay *dpy, QemuClipboardInfo *info)
+         return;
+     }
+ 
+-    if (self_update || !info->has_serial) {
++    if (self_update) {
+         return;
+     }
+ 
+@@ -93,7 +93,7 @@ dbus_clipboard_update_info(DBusDisplay *dpy, QemuClipboardInfo *info)
+             qemu_dbus_display1_clipboard_call_grab(
+                 dpy->clipboard_proxy,
+                 info->selection,
+-                info->serial,
++                info->has_serial ? info->serial : 0,
+                 mime,
+                 G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
+         }

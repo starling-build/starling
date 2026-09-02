@@ -380,6 +380,82 @@ not for plugging a screen into the VM. And the host loses the card entirely
 while this is in place, which on this desktop means no PRIME render offload
 for apps and no NVENC recording.
 
+## The dbus display, and Triton
+
+`virsh screenshot` and `send-key` are the console channel above; the display
+path the desktop will build on is QEMU's **D-Bus display** — `-display
+dbus,gl=on`, a listener that receives the guest's frames as dma-bufs and
+speaks keyboard/mouse/clipboard back. `docs/plans/windows-home-vm.md` is the
+design and its *Results* section the measurements; what follows is the
+tooling that produced them, so the numbers can be re-taken.
+
+**The domain.** `docs/windows-vm/win11-dbus.xml` is a clone of the install
+above with `<graphics type='dbus' p2p='yes'><gl enable='yes'
+rendernode='/dev/dri/renderD128'/></graphics>`, `virtio-vga-gl` at 1920x1080
+and a `qemu-vdagent` channel (`mouse mode='server'`). Make it an overlay on a
+clean disk (`qemu-img create -f qcow2 -b win11-snap.qcow2 -F qcow2 …`) and
+copy the varstore, as in *Tearing it down*'s inverse. Under `gl=on` there is
+no `virsh screenshot` ("no surface") — the listener is the only picture.
+
+**The client.** `docs/windows-vm/dbus-display.py` (python3-libvirt +
+PyGObject, both stock on 26.04) connects through `virDomainOpenGraphicsFD`
+and is one short-lived control client per run:
+
+```bash
+sudo dbus-display.py -d win11-dbus watch --seconds 20      # what arrives, and how often
+sudo dbus-display.py -d win11-dbus key leftmeta+r; sudo … type notepad; sudo … key enter
+sudo dbus-display.py -d win11-dbus mouse 400 180 --drag 900 500 --seconds 3
+sudo dbus-display.py -d win11-dbus resize 1600 900        # needs vgpusrv in the guest
+sudo dbus-display.py -d win11-dbus clipboard set 'hello'  # host -> guest; get needs patch 0003
+DMABUF_SHOT=/tmp/dmabuf-shot sudo dbus-display.py -d win11-dbus shot /tmp/x.png
+```
+
+`shot` needs `docs/windows-vm/dmabuf-shot.c` built once (`gcc -O2 -o
+dmabuf-shot dmabuf-shot.c $(pkg-config --cflags --libs egl gbm glesv2)`): the
+exported texture has no CPU-mappable modifier, so a screenshot is an EGL
+import and read-back, which is also the proof that the pixels are right.
+**Never run two of these against one domain at once**, and never one against
+a domain the compositor (or a soak script) is attached to: p2p mode keeps one
+control client, and a new one closes the old one's connection.
+
+**Guest setup the drivers do not do for you:** the hardware cursor is opt-in
+(`HWCursor=1` under the adapter's key in
+`HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\000N`,
+then reboot — without it the pointer is painted into the scanout); resize
+needs the resolution service (`vgpusrv.exe -i` from the virtio-win ISO's
+`viogpudo-w11` directory); and turn the display-off timeout off (`powercfg
+/change monitor-timeout-ac 0`, `-dc 0`) or the guest blanks a monitor nobody
+can see and stops sending frames until input wakes it.
+
+**Triton** (UTM's D3D11 driver for the same virtio-gpu device) needs a host
+stack that is not in any distro: `docs/windows-vm/triton/build-host.sh`
+builds DXVK-native, virglrenderer with Neptune and UTM's QEMU fork into
+`/opt/triton` from pinned commits, with four QEMU patches under
+`triton/patches/` (three are stock-QEMU bugs the dbus display has on its
+own; the header of the script says which is which). Then:
+
+- `docs/windows-vm/triton/win11-triton.xml` is the domain: `/opt/triton`'s
+  emulator, `blob='on'`, memfd shared memory, `neptune=on` + `hostmem`
+  (256 MiB; 4 GiB hangs early boot), the DXVK library paths in `qemu:env`,
+  and `pc-q35-10.0` because the fork is 10.0-based.
+- AppArmor denies the custom emulator **silently** — no error, QEMU just
+  never starts or the render server never opens the GPU. The two files
+  `triton/apparmor-libvirt-qemu` (→
+  `/etc/apparmor.d/local/abstractions/libvirt-qemu`) and
+  `triton/apparmor-usr.sbin.libvirtd` add `/opt/triton` and
+  `abstractions/vulkan`. libvirt's default `-sandbox … spawn=deny` also has
+  to go (`seccomp_sandbox = 0` in `/etc/libvirt/qemu.conf`): virglrenderer
+  `fork()`s the render server from inside QEMU, and the denylist makes that
+  `EPERM`. Never turn the AppArmor driver off instead.
+- Guest side: `viogpu3d-x64-signed.zip` from `osy/kvm-guest-drivers-windows`
+  v0.3, `pnputil /add-driver viogpu3d.inf /install`, reboot. It is
+  attestation-signed and loads with Secure Boot on. `dwm.exe` may crash once
+  at the live switch; it restarts.
+
+Both domains stay defined and off between runs; the base image is never
+booted directly. Tear a clone down as below — the overlay, the copied
+varstore, and (for Triton) nothing under `/opt` needs to go.
+
 ## Traps that cost real time
 
 - **A missing `<ProductKey>` stops an unattended install dead.** With a

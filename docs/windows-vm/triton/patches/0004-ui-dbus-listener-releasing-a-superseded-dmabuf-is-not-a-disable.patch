@@ -1,0 +1,60 @@
+--- a/ui/dbus-listener.c
++++ b/ui/dbus-listener.c
+@@ -90,6 +90,11 @@
+     guint dbus_filter;
+     guint32 display_serial_to_discard;
+     guint32 cursor_serial_to_discard;
++
++    /* The dmabuf last sent as ScanoutDMABUF, compared by address only
++     * (never dereferenced): dbus_release_dmabuf uses it to tell a buffer
++     * the guest just flipped away from apart from the one on screen. */
++    QemuDmaBuf *dmabuf;
+ };
+ 
+ G_DEFINE_TYPE(DBusDisplayListener, dbus_display_listener, G_TYPE_OBJECT)
+@@ -118,6 +123,7 @@
+ {
+     DBusDisplayListener *ddl = container_of(dcl, DBusDisplayListener, dcl);
+ 
++    ddl->dmabuf = NULL;
+     ddl_discard_display_messages(ddl);
+ 
+     qemu_dbus_display1_listener_call_disable(
+@@ -307,6 +313,7 @@
+     }
+ 
+     ddl_discard_display_messages(ddl);
++    ddl->dmabuf = dmabuf;
+ 
+     width = qemu_dmabuf_get_width(dmabuf);
+     height = qemu_dmabuf_get_height(dmabuf);
+@@ -521,6 +528,8 @@
+ 
+     dbus_scanout_dmabuf(dcl, dmabuf);
+     qemu_dmabuf_close(dmabuf);
++    /* a temporary: never handed to dpy_gl_release_dmabuf */
++    container_of(dcl, DBusDisplayListener, dcl)->dmabuf = NULL;
+ #endif
+ 
+ #ifdef WIN32
+@@ -597,6 +606,20 @@
+ static void dbus_release_dmabuf(DisplayChangeListener *dcl,
+                                 QemuDmaBuf *dmabuf)
+ {
++    DBusDisplayListener *ddl = container_of(dcl, DBusDisplayListener, dcl);
++
++    /*
++     * A flip-model guest replaces the scanout every frame, and
++     * virtio_gpu_update_dmabuf frees the previous primary right after
++     * scanning out the new one. Releasing that older buffer is not the
++     * display going away: disabling here sent a Disable after every
++     * frame, and its ddl_discard_display_messages dropped the
++     * ScanoutDMABUF just queued for the new buffer, so the listener kept
++     * drawing the buffer the guest had moved on from.
++     */
++    if (ddl->dmabuf != dmabuf) {
++        return;
++    }
+     dbus_scanout_disable(dcl);
+ }
+ #endif /* GBM */
