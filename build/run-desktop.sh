@@ -62,15 +62,27 @@ if [ "$DO_BUILD" = 1 ]; then
     # mtimes looked fresh. Find the user's newest toolchain directly and build
     # as them — which also keeps .build-shared user-owned.
     u_swift=""
-    if ! command -v swift >/dev/null 2>&1 && [ -n "${SUDO_USER:-}" ]; then
-        u_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    u_user="${SUDO_USER:-}"
+    # Under NESTED sudo — functional.sh's as_user runs this script via
+    # `sudo -u <user>` from a root parent — SUDO_USER names ROOT, whose home
+    # has no toolchain. Worse than a skipped build: the probe's failing ls,
+    # under this script's `set -o pipefail`, exited the whole script with
+    # ls's status before a single line of output, and the functional tier
+    # reported only "the shell did not start" over an empty log. The repo's
+    # owner is the honest fallback: their .build-shared is what this build
+    # feeds.
+    if [ -z "$u_user" ] || [ "$u_user" = root ]; then
+        u_user="$(stat -c %U "$REPO")"
+    fi
+    if ! command -v swift >/dev/null 2>&1 && [ "$u_user" != root ]; then
+        u_home="$(getent passwd "$u_user" | cut -d: -f6)"
         u_swift="$(ls -d "$u_home"/.local/share/swiftly/toolchains/*/usr/bin \
-                       2>/dev/null | sort -V | tail -1)"
+                       2>/dev/null | sort -V | tail -1 || true)"
     fi
     if command -v swift >/dev/null 2>&1; then
         "$REPO/build/build-all.sh"
     elif [ -n "$u_swift" ] && [ -x "$u_swift/swift" ]; then
-        sudo -u "$SUDO_USER" env HOME="$u_home" \
+        sudo -u "$u_user" env HOME="$u_home" \
              PATH="$u_swift:/usr/local/bin:/usr/bin:/bin" \
              "$REPO/build/build-all.sh"
     else
