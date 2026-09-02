@@ -31,24 +31,27 @@ extension _DesktopShellState {
 
     // MARK: Sizes
     //
-    // These used to be the workbench's pane sizes. Nothing displays these
-    // windows any more, but the size still decides how the child lays itself
-    // out — a pane asked for its semantic tree at 200x100 would report a
-    // collapsed layout — so they stay screen-derived and generous.
+    // Agent windows are displayed in the workspace's tab pane, which FITS
+    // them (they are never resized after birth — their size is the
+    // coordinate space the agent works in). So the launch size IS the
+    // display size: born at the pane's size a window fills it at scale 1.0;
+    // born at anything else it is letterboxed for its whole life. These
+    // returned the old workbench-stage sizes long after that layout was
+    // gone, which is why a terminal sat in a pillar of scrim while Chrome —
+    // born near the pane's aspect by accident — looked full-pane.
 
-    /// Size for an app window a broker client drives.
+    /// Size for an app window a broker client drives: the workspace tab
+    /// pane it will be shown in.
     func _agentStageContentSize() -> Size {
-        let top = DesktopTheme.kStatusBarHeight
-        return Size(max(320, screenWidth * 0.6),
-                    max(240, screenHeight - top - 40))
+        _workspaceTabPaneContentSize()
     }
 
-    /// Size for a terminal a broker client drives — narrower, so a TUI
-    /// reflows to a plausible column count.
+    /// Size for a terminal a broker client drives. The same pane: the
+    /// "narrower, so a TUI reflows" reasoning belonged to the workbench's
+    /// chat column — in the workspace the terminal gets the whole pane like
+    /// every other window, and a narrow one just letterboxes.
     func _agentChatContentSize() -> Size {
-        let top = DesktopTheme.kStatusBarHeight
-        return Size(max(320, screenWidth * 0.35),
-                    max(240, screenHeight - top - 40))
+        _workspaceTabPaneContentSize()
     }
 
     #if os(Linux)

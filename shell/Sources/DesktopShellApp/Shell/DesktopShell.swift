@@ -572,8 +572,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Last frame-throttle interval applied per agent window (diff guard —
     /// the policy is re-evaluated on every fleet build).
     var _agentThrottleApplied: [String: UInt32] = [:]
-    /// Last content size configured per agent window (diff guard for
-    /// _applyAgentWindowGeometry, which runs on every workbench build).
+    /// Content size an agent window was BORN with (the workspace pane),
+    /// seeded at claim time and consumed by the window's first buffer
+    /// commit: a client that mapped at some other size is re-asserted the
+    /// birth size exactly once (see onWindowBufferResized).
     var _agentSizeApplied: [String: Size] = [:]
     /// True while the divider is being dragged: window re-configures are
     /// deferred to the drop, so clients reflow once instead of per frame.
@@ -1890,11 +1892,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     launchReply?(windowId)
                 }
             }
-            // Agent-owned clients are sized to the workbench stage, so they
-            // fill it exactly at scale 1.0 instead of being letterboxed at
-            // the desktop's aspect. The initial configure must go out before
-            // the first frame; _applyAgentWindowGeometry keeps it in sync
-            // afterwards (its diff guard is seeded here).
+            // Agent-owned clients are sized to the workspace tab pane, so
+            // they fill it exactly at scale 1.0 instead of being letterboxed
+            // at some other aspect. The initial configure must go out before
+            // the first frame; nothing resizes an agent window afterwards.
             if let win = self.windowManager.windows.first(where: { $0.id == windowId }),
                win.ownerAgentId != nil {
                 let stage = self._agentStageContentSize()
@@ -2156,6 +2157,28 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 return
             }
             self._maximizedSizeSeen.removeValue(forKey: windowId)
+
+            // An agent window is born at the pane size the shell chose, and
+            // some clients ignore the initial configure and map at their own
+            // idea of a good size — Blender picks the whole output. Re-assert
+            // the birth size ONCE, on the first commit: an honoring client
+            // settles into the pane and fills it exactly. A client still
+            // committing something else after that gets its size adopted by
+            // the normal path below — the pane letterboxes it, and the
+            // agent's coordinate space (win.rect) keeps telling the truth.
+            if win.ownerAgentId != nil,
+               let want = self._agentSizeApplied[windowId] {
+                self._agentSizeApplied.removeValue(forKey: windowId)
+                if Int(newWidth) != Int(want.width)
+                    || Int(Double(logicalHeight)) != Int(want.height),
+                   let surfId = wayland.surfaceId(forWindowId: windowId) {
+                    wayland.sendResize(surfaceId: surfId,
+                                       width: Int(want.width),
+                                       height: Int(want.height))
+                    PlatformDispatcher.instance.scheduleFrame()
+                    return
+                }
+            }
 
             if win.resizeDragEdge != nil {
                 // During active drag: don't update rect (it follows the mouse),

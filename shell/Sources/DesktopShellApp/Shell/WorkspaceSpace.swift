@@ -872,6 +872,26 @@ extension _DesktopShellState {
 
     // MARK: Geometry
 
+    /// Content size of the workspace's right (tab) pane on `output` — the
+    /// box every agent-launched window is displayed in. This is THE size to
+    /// birth an agent window at: the pane fits rather than resizes those
+    /// windows, so one born at any other size is letterboxed for its whole
+    /// life (the launch sizes dated from the old workbench stage, and a
+    /// terminal at 35% of the screen width sat in a pillar of scrim while
+    /// Chrome, born near the pane's aspect, looked "full screen").
+    /// `_applyWorkspaceWindowGeometry` derives its tab size from here too, so
+    /// the born-at size and the resized-to size cannot drift apart.
+    func _workspaceTabPaneContentSize(output: DisplayOutput? = nil) -> Size {
+        let out = output ?? displayLayout?.host
+        let w = out?.logicalWidth ?? screenWidth
+        let h = out?.logicalHeight ?? screenHeight
+        let driverW = _workspaceDriverWidth(forOutputWidth: w)
+        let rightLeft = _wsDriverHidden ? WS.collapsedW : driverW + WS.dividerW
+        let paneTop = DesktopTheme.kStatusBarHeight + WS.tabTop + WS.tabH + WS.paneGap
+        return Size(max(320, w - rightLeft - WS.paneGap * 2),
+                    max(240, h - paneTop - WS.paneGap))
+    }
+
     /// The pane rect is authoritative and the client follows it. Diff-guarded:
     /// onContentResize reconfigures a live app, so calling it with the size it
     /// already has is a wasted round trip through the child.
@@ -889,13 +909,12 @@ extension _DesktopShellState {
         guard let ws = windowManager.selectedWorkspace(onOutput: out.id) else { return }
         let top = DesktopTheme.kStatusBarHeight
         let driverW = _workspaceDriverWidth(forOutputWidth: out.logicalWidth)
-        let rightLeft = _wsDriverHidden ? WS.collapsedW : driverW + WS.dividerW
         let paneTop = top + WS.tabTop + WS.tabH + WS.paneGap
 
         let driverSize = (w: driverW - WS.paneGap * 2,
                           h: out.logicalHeight - paneTop - WS.paneGap)
-        let tabSize = (w: out.logicalWidth - rightLeft - WS.paneGap * 2,
-                       h: out.logicalHeight - paneTop - WS.paneGap)
+        let tabPane = _workspaceTabPaneContentSize(output: out)
+        let tabSize = (w: tabPane.width, h: tabPane.height)
 
         for win in windowManager.windows(inWorkspace: ws.id) {
             let isDriver = win.id == ws.driverWindowId
