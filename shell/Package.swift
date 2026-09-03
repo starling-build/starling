@@ -95,6 +95,7 @@ let shellDeps: [Target.Dependency] = [
     "RdpServer",
     "NotificationService",
     "ImeBridge",
+    "GuestDisplay",
     "CUdev",
     .product(name: "StarlingRegistry", package: "StarlingRegistry"),
     .product(name: "StarlingNet", package: "StarlingNet"),
@@ -116,6 +117,12 @@ let sdbusCSettings: [CSetting] = [
 let sdbusLinkerSettings: [LinkerSetting] = [
     .linkedLibrary(sdbusLib),
 ] + (starlingDeploy.map { [.unsafeFlags(["-L\($0)/lib"])] } ?? [])
+
+// GuestDisplay is sd-bus plus libvirt. Hoisted and typed for the same reason
+// everything else here is: an inline `sdbusLinkerSettings + [...]` inside the
+// targets literal is enough to make the manifest un-type-checkable.
+let guestDisplayLinkerSettings: [LinkerSetting] =
+    sdbusLinkerSettings + [.linkedLibrary("virt")]
 
 let shellLinkerFlags: [String] = [
     "-L\(engineOutDir)",
@@ -205,6 +212,18 @@ targets += [
             .linkedLibrary("EGL"),
             .linkedLibrary("GLESv2"),
         ]
+    ),
+    // The QEMU p2p D-Bus display (docs/plans/guest-display.md) — a VM guest's
+    // scanout as a dma-buf, its input as scancodes. libvirt is linked rather
+    // than shelled out to because `virsh` cannot hand an fd across exec, and
+    // virDomainOpenGraphicsFD is the only way to the p2p socket. Every use of
+    // it is inside this C target, so nothing Swift-side needs its headers.
+    .target(
+        name: "GuestDisplay",
+        path: "Sources/GuestDisplay",
+        publicHeadersPath: "include",
+        cSettings: sdbusCSettings,
+        linkerSettings: guestDisplayLinkerSettings
     ),
     // Notification daemon (org.freedesktop.Notifications) using sd-bus
     .target(

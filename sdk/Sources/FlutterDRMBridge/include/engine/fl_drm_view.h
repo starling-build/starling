@@ -339,6 +339,22 @@ typedef enum {
 FL_DRM_EXPORT void fl_drm_view_set_cursor_shape(FlDrmView* view,
                                                  int shape);
 
+// Put a caller-supplied bitmap on the hardware cursor plane — a VM guest's
+// own cursor, which arrives as pixels and has no shape enum to name it.
+// |bgra| is width×height straight-alpha BGRA8888 (0xAARRGGBB words on a
+// little-endian host, which is what QEMU's CursorDefine and DRM's ARGB8888
+// both mean), tightly packed, clipped to the 64×64 plane; the engine
+// pre-multiplies for the plane's blend. hot_x/hot_y are in image pixels,
+// clamped to the plane. width == 0 || height == 0 hides the sprite. A later
+// fl_drm_view_set_cursor_shape() replaces the image. Safe to call from the
+// UI thread.
+FL_DRM_EXPORT void fl_drm_view_set_cursor_image(FlDrmView* view,
+                                                 const uint8_t* bgra,
+                                                 int width,
+                                                 int height,
+                                                 int hot_x,
+                                                 int hot_y);
+
 // Present (page-flip) notification — fired on the PLATFORM thread for EVERY
 // output's flips, with the output index (fl_drm_view_get_output_info order),
 // the kernel's scanout timestamp (CLOCK_MONOTONIC ns), that output's OWN
