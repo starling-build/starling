@@ -811,14 +811,16 @@ final class AgentBroker: @unchecked Sendable {
                     deadline: .now() + .seconds(15),
                     execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
 
-            case .x11, .android:
-                // Neither fits the one-client-one-window claim this model is
-                // built on, so ownership could not be established even if the
-                // launch worked. WeChat is a whole rootful Xwayland screen in
-                // a single window; Waydroid renders EVERY Android app into
-                // one window whose title follows whichever is in front — an
-                // agent handed either would be addressing the human's apps
-                // too. Refusing is the scope boundary doing its job.
+            case .x11, .android, .vm:
+                // None of these fits the one-client-one-window claim this
+                // model is built on, so ownership could not be established
+                // even if the launch worked. WeChat is a whole rootful
+                // Xwayland screen in a single window; Waydroid renders EVERY
+                // Android app into one window whose title follows whichever is
+                // in front; a VM console is one window for a whole other
+                // operating system. An agent handed any of them would be
+                // addressing the human's apps too. Refusing is the scope
+                // boundary doing its job.
                 return fail("\(app) cannot be agent-owned (\(rec.kind.rawValue) apps "
                             + "share one window across the whole session)")
             }

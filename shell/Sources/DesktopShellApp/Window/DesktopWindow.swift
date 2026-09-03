@@ -32,7 +32,10 @@ class DesktopWindow: StatelessWidget {
             // for hover so the cursor resets to the default arrow when the
             // mouse leaves a resize edge.
             return Listener(
-                onPointerHover: { _ in DesktopCursor.setShape(.default) },
+                onPointerHover: { [windowInfo] _ in
+                    if let own = windowInfo.onPointerHoverCursor { own() }
+                    else { DesktopCursor.setShape(.default) }
+                },
                 behavior: .deferToChild,
                 child: texture
             )
@@ -85,8 +88,9 @@ class DesktopWindow: StatelessWidget {
                 }
                 forward(1, event.localPosition.dx, event.localPosition.dy, 0)
             },
-            onPointerHover: { event in
-                DesktopCursor.setShape(.default)
+            onPointerHover: { [windowInfo] event in
+                if let own = windowInfo.onPointerHoverCursor { own() }
+                else { DesktopCursor.setShape(.default) }
                 forward(6, event.localPosition.dx, event.localPosition.dy, 0)
             },
             onPointerSignal: { [windowInfo] event in

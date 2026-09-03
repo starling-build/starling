@@ -37,6 +37,10 @@ public struct AppRecord: Sendable {
         /// An X11-only app in its own rootful Xwayland (WeChat); `exec` names
         /// the launcher script.
         case x11
+        /// A virtual machine's console; `domain` names the libvirt domain and
+        /// there is no process to launch — the shell opens the guest's display
+        /// in-process. See docs/plans/guest-display.md.
+        case vm
     }
 
     // ── Catalog: shipped, static ─────────────────────────────────────────
@@ -130,6 +134,11 @@ public struct AppRecord: Sendable {
     /// that declare them.
     public let urlSchemes: [String]
 
+    /// For `Kind=vm`: the libvirt domain whose console this record opens.
+    /// `STARLING_GUEST_DOMAIN` overrides it, for a dev box whose domain is
+    /// not the one the release ships against.
+    public let domain: String?
+
     public init(
         id: String, name: String, kind: Kind, order: Int, glyph: String,
         color: UInt32, dockOrder: Int?, category: String, publisher: String,
@@ -142,7 +151,8 @@ public struct AppRecord: Sendable {
         debURL: String?,
         debMarker: String?, desktopFile: String?, iconPath: String?,
         version: String?, installedAt: Int?, installed: Bool, appIds: [String],
-        urlSchemes: [String] = []
+        urlSchemes: [String] = [],
+        domain: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -157,6 +167,7 @@ public struct AppRecord: Sendable {
         self.sizeLabel = sizeLabel
         self.details = details
         self.exec = exec
+        self.domain = domain
         self.windowRect = windowRect
         self.installRecipe = installRecipe
         self.bins = bins

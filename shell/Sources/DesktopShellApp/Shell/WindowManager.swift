@@ -38,6 +38,12 @@ class WindowInfo {
     /// Callback to forward scroll events to a child process.
     /// Parameters: (x, y, scrollDeltaX, scrollDeltaY)
     var onScrollEvent: ((Double, Double, Double, Double) -> Void)?
+    /// What to put on the cursor plane while the pointer is over this
+    /// window's content. The hover handler resets to the arrow on every tick,
+    /// which is right for a client that has no cursor of its own and wrong
+    /// for a VM guest, whose pointer would survive only until the pointer
+    /// crossed a resize edge. Set: this runs instead of that reset.
+    var onPointerHoverCursor: (() -> Void)?
     /// When true, the texture content is vertically flipped during compositing.
     /// Used for Wayland client DMA-BUF surfaces which have top-left origin.
     var flipTextureY: Bool

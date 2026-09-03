@@ -686,6 +686,19 @@ func runDRM() -> Never {
     DesktopCursor.shapeSetter = { shape in
         fl_drm_view_set_cursor_shape(view, shape.rawValue)
     }
+    // A VM guest draws its own pointer and sends it as pixels, so the plane
+    // has to take a picture as well as a shape.
+    DesktopCursor.imageSetter = { bgra, w, h, hotX, hotY in
+        if bgra.isEmpty {
+            fl_drm_view_set_cursor_image(view, nil, 0, 0, 0, 0)
+        } else {
+            bgra.withUnsafeBufferPointer { buf in
+                fl_drm_view_set_cursor_image(view, buf.baseAddress,
+                                             Int32(w), Int32(h),
+                                             Int32(hotX), Int32(hotY))
+            }
+        }
+    }
     // Export screen resolution so child apps (SettingsApp) can compute max DPI.
     // Fresh reads, not the values captured at create: the persisted-primary
     // rebind above may have moved the implicit view to a different panel.
@@ -845,6 +858,10 @@ func runDRM() -> Never {
             wl.handlePresent(flipTimeNs: flipTimeNs, refreshNs: refreshNs,
                              outputId: Int(outputIndex))
         }
+        // QEMU holds the guest's display pipeline until the damage call is
+        // answered, so a guest console is paced by this flip exactly as a
+        // monitor would pace it.
+        GuestSessions.handlePresent()
         if dropped != 0 {
             let idx = Int(outputIndex)
             DispatchQueue.main.async {

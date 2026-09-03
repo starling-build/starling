@@ -163,7 +163,7 @@ def check_catalog() -> None:
     if not glyphs:
         fail(check, "could not read the glyph vocabulary out of the Swift sources")
 
-    kinds = {"first-party", "host", "android", "x11"}
+    kinds = {"first-party", "host", "android", "x11", "vm"}
     install_recipes = install_recipe_names(REPO / "build/app-install.sh")
     run_recipes = set(case_blocks(REPO / "build/app-run.sh", '"$NAME"'))
 
@@ -235,6 +235,13 @@ def check_catalog() -> None:
             if len(semicolon_list(window.replace(",", ";"))) != 4:
                 fail(check, f"{path.name}: first-party app needs Window=x,y,w,h "
                             f"(got {window!r})")
+
+        # A VM console is named by its domain and nothing else — there is no
+        # Exec recipe, because the shell opens the display in-process.
+        if kind == "vm" and not kf.get("Domain"):
+            fail(check, f"{path.name}: Kind=vm needs Domain=<libvirt domain>")
+        if kind != "vm" and kf.get("Domain"):
+            fail(check, f"{path.name}: Domain= only means something for Kind=vm")
 
         # RenameWindows can only fire through one of these.
         if kf.get("RenameWindows") == "1" and not (kf.get("TitleMatch")

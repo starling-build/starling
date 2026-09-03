@@ -1,6 +1,9 @@
 # Guest display — M1, "Windows in a window"
 
-Implementation plan, proposed 2026-09-02. Not yet approved.
+Implementation plan, approved 2026-09-02. Phases 1–5 are **done and verified
+on the dev box**; §Status at the foot of this file says exactly what was seen
+and what is still open. The three §Open decisions were settled on their
+recommendations.
 
 The design is `docs/plans/windows-home-vm.md`; its verdict after the M0 spike
 is that Layer 1 (QEMU's `-display dbus,gl=on` handing us the guest's scanout as
@@ -646,3 +649,80 @@ New here:
   Starling-built QEMU. **Recommendation: send 0005 upstream now** and decide
   at release on what actually shipped — the answer changes the packaging story
   but nothing in Phases 1–6.
+
+
+---
+
+# Status (2026-09-02)
+
+**Windows runs in a window on the desktop.** Phases 1, 2, 3 and 5 are complete;
+Phase 4 is complete except the clipboard hook it shares with Phase 6. Verified
+live on the Lenovo against `win11-dbus`, on **stock** Ubuntu 26.04 QEMU 10.2.1:
+
+- The launcher shows a **Windows** tile from `registry/catalog.d/windows.app`
+  alone — no table anywhere in the shell.
+- Clicking it opens the domain's display and imports the guest's scanout as a
+  dma-buf: `3840x2112 stride=15360 AB24 modifier=INVALID`. Dock icon, running
+  dot and tooltip resolve through `wmClass`, with no registry special case.
+- **Pointer** — clicking the guest's Start button opened the Start menu.
+- **Keyboard** — typing `notepad` reached Windows Search, which offered
+  Notepad; Escape closed it. Both through `HidQnum`, ahead of fcitx.
+- **Resize** — maximising made the guest re-render at 3840x2112 natively
+  (`SetUIInfo` answered with a fresh scanout), not scale a smaller desktop up.
+- **Close is detach** — `virsh domstate` said `running` afterwards, and
+  reopening from the launcher reconnected and re-imported at once.
+- The C target has its own harness, `build/tools/guest-display-selftest.c`,
+  which drives `GuestDisplay` against a domain with no shell in the way:
+  connect in 10 ms, the placeholder XB24 scanout then the real AB24, SetUIInfo
+  answered in 35 ms, 52 acked frames, a repaint 158 ms after a scancode,
+  reattach after a clean close, and a close that returns in 1 ms having
+  released a held key.
+
+**What the plan got wrong, and the code now records.**
+
+- **`y0_top` maps to `flipTextureY` INVERTED, and the plan said to set it
+  directly.** Two inversions cancel: QEMU's `y0_top` is true for a
+  bottom-up GL texture, and `flipTextureY` is the flip this shell applies to a
+  TOP-DOWN buffer. Setting `flipTextureY = y0_top` puts the Windows taskbar at
+  the top of the window — which is exactly what the first run showed. It is
+  `!y0_top`.
+- **`CLibvirt` is not needed.** Every libvirt call lives inside the
+  `GuestDisplay` C target, so nothing Swift-side wants its headers; one target,
+  not two.
+- **The probe was already written.** `docs/windows-vm/guest-display-probe.c`
+  from the M0 spike answered the sd-bus question, so Phase 2's
+  `GuestDisplayProbe` target was replaced by a selftest of the shipping code.
+- **`Package.swift` cannot take an inline `sdbusLinkerSettings + [...]`** in
+  the targets literal — the manifest stops type-checking, exactly as its own
+  comments warn. Hoisted to `guestDisplayLinkerSettings`.
+
+**Open.**
+
+- **The guest's cursor has not been seen on the panel.** It reaches the plane —
+  the shell logs `first cursor 64x64 hot 0,0` and calls
+  `fl_drm_view_set_cursor_image` — but a screenshot cannot show it: the DRM
+  cursor plane is not in the GL readback, and the capture paths that DO
+  composite it (`RenderSnapshotRGBA`) are the recording ones, which need the
+  shell's own UI to start. This needs eyes on the machine, or a recording made
+  from the desktop.
+- **Drag-resizing by a window edge did not reach the guest** in one attempt,
+  while maximising did. Both go through `onContentResize`/`onResizeComplete`,
+  so the difference is either the grab point or the 150 ms debounce racing the
+  drag's frozen-rect behaviour. Worth one session.
+- **Reopening loses a few pixels of height** (2112 -> 2103): the window is
+  clamped to the usable area on open, the guest follows, and the new size
+  sticks. It converges rather than shrinking without bound, but the title-bar
+  arithmetic in `openWindow` is off by the menu-bar inset.
+- **Phase 6 (clipboard) is half done**: `GuestDisplay` exports the Clipboard
+  object and defers the guest's `Request` the way it defers a frame ack, but
+  nothing on the shell side speaks `zwlr_data_control_v1` to it yet, and
+  `guest_display_clipboard_enable()` is never called.
+- **Phase 7**: `docs/BUILDING.md` has `libvirt-dev`; the functional check, the
+  `docs/WINDOWS-VM.md` guest-prep rewrite and the `windows-home-vm.md`
+  checkbox are not written.
+- **Unprivileged has not been run.** Everything above was under
+  `run-desktop.sh`, i.e. as root, where libvirt access is free. The shipping
+  path needs the session user in `libvirt`, and CLAUDE.md is explicit about
+  what a privilege-gated difference costs.
+- **A guest reboot still needs a patched QEMU** (`triton/patches/0005`). The
+  desktop was tested on stock 10.2.1 and never rebooted the guest.

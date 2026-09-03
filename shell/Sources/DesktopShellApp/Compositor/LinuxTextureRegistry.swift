@@ -317,6 +317,19 @@ class LinuxTextureRegistry: @unchecked Sendable {
         FlutterEngineScheduleFrame(engine)
     }
 
+    /// The buffer is the same one, but what is inside it changed — a VM guest
+    /// scans out into one dma-buf for the life of a resolution and only sends
+    /// damage. Marks the entry dirty so populateTexture re-binds the EGLImage
+    /// (some drivers need that to see a write they did not make), then tells
+    /// the engine there is a new frame.
+    func noteDmaBufContentChanged(engine: OpaquePointer, id: Int64) {
+        lock.lock()
+        entries[id]?.dirty = true
+        lock.unlock()
+        FlutterEngineMarkExternalTextureFrameAvailable(engine, id)
+        FlutterEngineScheduleFrame(engine)
+    }
+
     // ─── DMA-BUF Import ────────────────────────────────────────────────────
 
     /// Stores DMA-BUF fd and metadata for a texture. The actual EGLImage

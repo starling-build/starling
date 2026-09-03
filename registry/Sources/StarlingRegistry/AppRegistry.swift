@@ -257,7 +257,8 @@ public final class AppRegistry: @unchecked Sendable {
             installedAt: rec?.int("InstalledAt"),
             installed: recorded || presentOnDisk,
             appIds: appIds,
-            urlSchemes: kf.list("UrlSchemes"))
+            urlSchemes: kf.list("UrlSchemes"),
+            domain: kf.string("Domain"))
     }
 
     /// `Window=x,y,w,h` — where a first-party app's window opens.
@@ -373,7 +374,12 @@ public final class AppRegistry: @unchecked Sendable {
             // One install serves every Android entry.
             return ["/usr/bin/waydroid", "/usr/local/bin/waydroid"]
                 .contains { fm.isExecutableFile(atPath: $0) }
-        case .host, .x11:
+        case .host, .x11, .vm:
+            // For a VM this is only "is libvirt here" (Bins=/usr/bin/virsh).
+            // Whether the domain exists is the launch arm's answer, in the
+            // shell, where a missing one can be said out loud — the registry
+            // package must not link libvirt, because the App Store loads it
+            // too.
             return bins.contains { fm.isExecutableFile(atPath: $0) }
         }
     }

@@ -13,6 +13,7 @@ import StarlingAudio
 #if os(Linux)
 import FlutterDRMBridge  // fl_drm_view_capture_active (X11 GetImage present pump)
 import FlutterEmbedderBridge  // FlutterEngineScheduleFrame (frame-pump ticks)
+import GuestDisplay  // guest_display_domain_state/_start/_shutdown (Kind=vm)
 #endif
 
 /// Called from main.swift after waylandIntegration is set.
@@ -1209,8 +1210,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // its first character — or, worse, treats it as a global accelerator
         // and opens something. See WaylandIntegration.ensureKeyboardFocus.
         windowManager.onFocusedWindowChanged = { [weak self] winId in
-            guard let self,
-                  let win = self.windowManager.windows.first(where: { $0.id == winId }),
+            guard let self else { return }
+            // Anything a guest still holds comes up when focus leaves it, or
+            // Windows spends the rest of the session believing Ctrl is down.
+            GuestSessions.focusChanged(to: winId)
+            guard let win = self.windowManager.windows.first(where: { $0.id == winId }),
                   win.appId.hasPrefix("wayland-"),
                   let surface = UInt32(win.appId.dropFirst("wayland-".count))
             else { return }
@@ -2508,6 +2512,29 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 return FocusManager.instance.dispatchKeyData(keyData)
             }
 
+
+            // A VM guest runs its own IME, its own shortcuts and its own
+            // everything — so it goes AHEAD of fcitx, which would otherwise
+            // swallow every key before Windows saw one. Shell chords above
+            // still win; Ctrl+Alt+Del is a dock-menu item, because no chord
+            // can carry it.
+            if win.appId.hasPrefix("guest-"),
+               let session = GuestSessions.session(forWindow: focusedId) {
+                switch keyData.type {
+                case .down, .repeat:
+                    // PS/2 typematic IS a repeated press, so a repeat is
+                    // delivered as another press — the X11 branch below set
+                    // the same precedent.
+                    if !session.sendKey(hid: UInt64(bitPattern: keyData.physical),
+                                        down: true) {
+                        self._noteUnmappedGuestKey(keyData.physical)
+                    }
+                case .up:
+                    session.sendKey(hid: UInt64(bitPattern: keyData.physical),
+                                    down: false)
+                }
+                return true
+            }
 
             // IME: while enabled, offer the key to fcitx first — consumed
             // keys are composition input (pinyin letters, candidate digits,
@@ -5919,9 +5946,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// The shell posting to its own bell (recording saved, …) — same upsert
     /// as a bus post, but the id comes from the shell's own high-range
     /// counter so it can never collide with the daemon's.
-    func _postLocalNotification(summary: String, body: String) {
+    func _postLocalNotification(summary: String, body: String,
+                                appName: String = "Screen Recording") {
         _localNoteId += 1
-        _notificationPosted(id: _localNoteId, appName: "Screen Recording",
+        _notificationPosted(id: _localNoteId, appName: appName,
                             summary: summary, body: body, urgency: 1,
                             timeoutMs: -1, replaces: false)
     }
@@ -6624,6 +6652,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             return rec.name
         }
         return title
+    }
+
+    /// HID usages we have already complained about having no scancode.
+    var _unmappedGuestKeys: Set<Int64> = []
+
+    /// A HID usage with no XT scancode. Said once per usage, not per key
+    /// press, so a key held down does not fill the log.
+    func _noteUnmappedGuestKey(_ hid: Int64) {
+        guard _unmappedGuestKeys.insert(hid).inserted else { return }
+        FileHandle.standardError.write(Data(
+            "[guest] HID usage 0x\(String(hid, radix: 16)) has no XT scancode; dropped\n".utf8))
     }
 
     func _appOwning(_ win: WindowInfo) -> AppRecord? {
@@ -7487,6 +7526,45 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 }
             ),
         ]
+        #if os(Linux)
+        // A VM console has no process to quit: closing the window detaches and
+        // the guest keeps running, which is the right default (reopening is
+        // instant, and nothing the user did not ask for shuts their Windows
+        // down). Shutting it down, and the one chord no chord can carry, are
+        // explicit items here.
+        if let rec = _record(appId), rec.kind == .vm {
+            let domain = ProcessInfo.processInfo.environment["STARLING_GUEST_DOMAIN"]
+                .flatMap { $0.isEmpty ? nil : $0 } ?? rec.domain ?? rec.id
+            if let session = GuestSessions.session(forDomain: domain) {
+                items.append(MacosMenuItem(
+                    text: "Send Ctrl+Alt+Del",
+                    onPressed: { [self] in
+                        setState { _dockMenuAppId = nil }
+                        session.sendSecureAttention()
+                    }
+                ))
+                items.append(MacosMenuItem(
+                    text: "Close Window",
+                    onPressed: { [self] in
+                        setState { _dockMenuAppId = nil }
+                        session.close()
+                    }
+                ))
+            }
+            items.append(MacosMenuItem(
+                text: "Shut Down \(rec.name)",
+                onPressed: { [self] in
+                    setState { _dockMenuAppId = nil }
+                    // ACPI, and libvirt round trips take tens of ms.
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        _ = guest_display_domain_shutdown(domain)
+                    }
+                }
+            ))
+            items.append(MacosMenuSeparator())
+            return _macosMenu(items + _dockPinItems(for: appId))
+        }
+        #endif
         if running {
             items.append(MacosMenuItem(
                 text: "Quit",
@@ -7497,8 +7575,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             ))
         }
         items.append(MacosMenuSeparator())
+        return _macosMenu(items + _dockPinItems(for: appId))
+    }
+
+    /// Pin / unpin, which every dock menu ends with whatever the app is.
+    private func _dockPinItems(for appId: String) -> [MacosMenuEntry] {
         if dockAppOrder.contains(appId) {
-            items.append(MacosMenuItem(
+            return [MacosMenuItem(
                 text: "Remove from Dock",
                 onPressed: { [self] in
                     setState {
@@ -7507,23 +7590,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         _dockRemovedByUser.insert(appId)
                     }
                 }
-            ))
-        } else {
-            // Transient icon (running but unpinned) — offer to pin it.
-            items.append(MacosMenuItem(
-                text: "Keep in Dock",
-                onPressed: { [self] in
-                    setState {
-                        _dockMenuAppId = nil
-                        if AppRegistry.shared.app(id: appId) != nil {
-                            dockAppOrder.append(appId)
-                            _dockRemovedByUser.remove(appId)
-                        }
+            )]
+        }
+        // Transient icon (running but unpinned) — offer to pin it.
+        return [MacosMenuItem(
+            text: "Keep in Dock",
+            onPressed: { [self] in
+                setState {
+                    _dockMenuAppId = nil
+                    if AppRegistry.shared.app(id: appId) != nil {
+                        dockAppOrder.append(appId)
+                        _dockRemovedByUser.remove(appId)
                     }
                 }
-            ))
-        }
-        return _macosMenu(items)
+            }
+        )]
     }
 
     /// Quit a running app from its dock menu: tear down every desktop window
@@ -8272,6 +8353,52 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             _spawnLauncher(
                 ProcessInfo.processInfo.environment["STARLING_WECHAT_RUN"]
                     ?? "/usr/bin/wechat-run")
+            return
+        case _ where _record(appId)?.kind == .vm:
+            // A VM console. There is no process to launch and no Wayland
+            // client to point at a socket: the shell opens the guest's display
+            // in-process over QEMU's p2p D-Bus socket, and the window is a
+            // texture like any other. See docs/plans/guest-display.md.
+            guard let rec = _record(appId) else { return }
+            let domain = ProcessInfo.processInfo.environment["STARLING_GUEST_DOMAIN"]
+                .flatMap { $0.isEmpty ? nil : $0 } ?? rec.domain ?? rec.id
+            if GuestSessions.session(forDomain: domain) != nil { return }
+
+            _pendingAppLaunches.insert(appId)
+            let session = GuestSession(domain: domain, appId: rec.id,
+                                       appName: rec.name)
+            session.onFailure = { [weak self] detail in
+                guard let self else { return }
+                self._pendingAppLaunches.remove(appId)
+                GuestSessions.remove(domain: domain)
+                self._postLocalNotification(
+                    summary: "Could not open \(domain)", body: detail,
+                    appName: rec.name)
+            }
+            session.onWindowOpened = { [weak self] _ in
+                self?._pendingAppLaunches.remove(appId)
+            }
+            session.onClosed = { GuestSessions.remove(domain: domain) }
+            GuestSessions.add(session)
+            // Starting a domain is a libvirt round trip and can be seconds;
+            // the UI thread is not the place for it. Only the domain name
+            // crosses the hop — the session itself is main-thread state and is
+            // looked up again on the way back.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let state = guest_display_domain_state(domain)
+                let started = state == 1
+                    || (state >= 0 && guest_display_domain_start(domain) >= 0)
+                DispatchQueue.main.async {
+                    guard let s = GuestSessions.session(forDomain: domain) else { return }
+                    if state < 0 {
+                        s.onFailure?("no such domain")
+                    } else if !started {
+                        s.onFailure?("the domain could not be started")
+                    } else {
+                        s.open()
+                    }
+                }
+            }
             return
         case _ where _record(appId)?.kind == .android:
             // Android apps live inside Waydroid. android-app.sh brings the
