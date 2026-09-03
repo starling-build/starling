@@ -108,9 +108,26 @@ private enum TabChrome {
     static let paneRadius: Double = 6
 
     /// The active tab is the pane's own background, so the two read as one
-    /// surface; everything else is the backdrop.
+    /// surface — that continuity is how you see WHICH tab is active, and it
+    /// is the one place the bar and the content are meant to be the same
+    /// colour.
     static let activeTab: Int = surface
-    static let bar: Int = backdrop
+
+    /// Everywhere else the strip is its own surface, and a LIGHTER one.
+    ///
+    /// It used to be the backdrop, which put the whole bar within eight
+    /// values of the terminal underneath it: measured on screen, the active
+    /// tab came out (22,23,32) against content at (20,21,29). Two points.
+    /// There was no visible edge between the chrome and the text, no visible
+    /// difference between the selected tab and the others, and the row of
+    /// titles floated in the dark with nothing under it.
+    ///
+    /// Lighter rather than darker because this is chrome sitting ON the
+    /// window: going darker would have read as a hole cut through it, and
+    /// there is nowhere darker to go — the backdrop is nearly black already.
+    /// It keeps the same `0xD9` alpha as everything else here, so a
+    /// translucent window stays translucent.
+    static let bar: Int = 0xD9_2E3340
     static let separator: Int = 0xFF_0A0B10
     static let activeText: Int = 0xFF_E9EBF0
     static let text: Int = 0xFF_949AA8
@@ -1126,10 +1143,15 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             row.append(_tab(tab, ordinal: i + 1, active: i == active, width: tabW))
         }
         row.append(_newButton(width: newW))
-        return DecoratedBox(
-            decoration: BoxDecoration(color: Color(TabChrome.bar)),
-            child: Row(children: row)
-        )
+        // No background on the strip itself — each piece paints its own.
+        //
+        // These colours carry alpha, and alpha STACKS: a translucent active
+        // tab over a translucent strip composites lighter than the same
+        // colour over the window alone, so the tab that is supposed to be
+        // flush with the terminal came out six values above it and the seam
+        // reappeared. Painting the strip once, per piece, is what makes
+        // `activeTab == surface` true on screen and not just in the source.
+        return Row(children: row)
     }
 
     private func _tab(_ tab: TerminalTab, ordinal: Int, active: Bool,
@@ -1261,6 +1283,8 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
             behavior: .opaque,
             child: SizedBox(
                 width: width, height: TabChrome.height,
+                child: DecoratedBox(
+                decoration: BoxDecoration(color: Color(TabChrome.bar)),
                 child: Center(
                     child: Text(
                         "+",
@@ -1271,7 +1295,7 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
                             fontFamilyFallback: TerminalFontLoader.fallback
                         )
                     )
-                )
+                ))
             )
         )
     }
