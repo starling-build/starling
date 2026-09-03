@@ -696,6 +696,37 @@ live on the Lenovo against `win11-dbus`, on **stock** Ubuntu 26.04 QEMU 10.2.1:
   the targets literal — the manifest stops type-checking, exactly as its own
   comments warn. Hoisted to `guestDisplayLinkerSettings`.
 
+**The last mile, run 2026-09-02 (second pass).**
+
+- **Unprivileged works.** `STARLING_SEAT_MODE=libseat build/run-desktop.sh`
+  over SSH puts the shell on uid 1000 with no sudo in the launch path, and the
+  guest display connects from there: the cross-uid SASL handshake to QEMU
+  (which runs as `libvirt-qemu`) needs nothing beyond `libvirt` group
+  membership, which is the documented requirement and nothing more. Windows
+  opened, filled the usable area and took input exactly as under root.
+- **Drag-resize does work** — the earlier failure was a grab point, not the
+  code. Dragging the right edge in by 500 logical px logged
+  `ask for 3090x2055` and the guest re-rendered at 3090x2055 (stride 12800,
+  padded from 12360). Note the bottom edge of a full-height window sits under
+  the dock, so it cannot be grabbed; that is the macOS overlay dock behaving
+  as designed, not a guest bug.
+- **The reopen shrink is fixed.** `openWindow` now caps to the USABLE area
+  (`screenH - topInset - bottomInset`), which is what `_outputFillRect` clamps
+  to anyway. A guest bigger than that is asked once for the usable size and
+  then matches it, so the second open asks for nothing. Previously the window
+  was capped to the panel, clamped afterwards, and the guest followed the
+  clamp — losing the inset every time it was reopened.
+- **An invisible guest pointer now falls back to the desktop's arrow.** QEMU
+  reports `MouseSet(on=0)` at connect, before the guest has drawn a pointer —
+  so this is the state on the FIRST hover every time, and uploading a
+  transparent image (the original behaviour) lost the human's pointer inside
+  the window with nothing to aim with. On a real machine "hidden" means no
+  pointer; in a window it has to mean the ordinary one.
+- **QEMU does not replay `CursorDefine` on reconnect.** A fresh session shows
+  the desktop arrow over the guest until Windows next changes cursor shape.
+  Harmless now that the fallback is an arrow rather than nothing, but it is
+  why a reconnected session logs no `first cursor` line.
+
 **Open.**
 
 - **The guest's cursor has not been seen on the panel.** It reaches the plane —
@@ -705,14 +736,6 @@ live on the Lenovo against `win11-dbus`, on **stock** Ubuntu 26.04 QEMU 10.2.1:
   composite it (`RenderSnapshotRGBA`) are the recording ones, which need the
   shell's own UI to start. This needs eyes on the machine, or a recording made
   from the desktop.
-- **Drag-resizing by a window edge did not reach the guest** in one attempt,
-  while maximising did. Both go through `onContentResize`/`onResizeComplete`,
-  so the difference is either the grab point or the 150 ms debounce racing the
-  drag's frozen-rect behaviour. Worth one session.
-- **Reopening loses a few pixels of height** (2112 -> 2103): the window is
-  clamped to the usable area on open, the guest follows, and the new size
-  sticks. It converges rather than shrinking without bound, but the title-bar
-  arithmetic in `openWindow` is off by the menu-bar inset.
 - **Phase 6 (clipboard) is half done**: `GuestDisplay` exports the Clipboard
   object and defers the guest's `Request` the way it defers a frame ack, but
   nothing on the shell side speaks `zwlr_data_control_v1` to it yet, and
@@ -720,9 +743,5 @@ live on the Lenovo against `win11-dbus`, on **stock** Ubuntu 26.04 QEMU 10.2.1:
 - **Phase 7**: `docs/BUILDING.md` has `libvirt-dev`; the functional check, the
   `docs/WINDOWS-VM.md` guest-prep rewrite and the `windows-home-vm.md`
   checkbox are not written.
-- **Unprivileged has not been run.** Everything above was under
-  `run-desktop.sh`, i.e. as root, where libvirt access is free. The shipping
-  path needs the session user in `libvirt`, and CLAUDE.md is explicit about
-  what a privilege-gated difference costs.
 - **A guest reboot still needs a patched QEMU** (`triton/patches/0005`). The
   desktop was tested on stock 10.2.1 and never rebooted the guest.

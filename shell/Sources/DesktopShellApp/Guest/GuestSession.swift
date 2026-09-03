@@ -311,14 +311,21 @@ final class GuestSession: @unchecked Sendable {
         let dpi = currentShellDpi
         let screenW = (PlatformDispatcher.instance.implicitView?.physicalSize.width ?? 3840.0) / dpi
         let screenH = (PlatformDispatcher.instance.implicitView?.physicalSize.height ?? 2160.0) / dpi
+        // The USABLE area, not the panel: the window manager clamps to this
+        // anyway (`_outputFillRect`), and a guest sized to the whole panel is
+        // then clamped, follows the clamp, and comes back a few pixels shorter
+        // every time it is reopened.
+        let topInset = DesktopTheme.kStatusBarHeight
+        let availH = screenH - topInset - shellMetrics.bottomInset
 
         var logW = Double(width) / dpi
         var logH = Double(height) / dpi + DesktopTheme.kTitleBarHeight
-        let capped = logW > screenW || logH > screenH
+        let capped = logW > screenW || logH > availH
         logW = min(logW, screenW)
-        logH = min(logH, screenH)
+        logH = min(logH, availH)
         let rect = Rect.fromLTWH(max(0, (screenW - logW) / 2),
-                                 max(0, (screenH - logH) / 2), logW, logH)
+                                 topInset + max(0, (availH - logH) / 2),
+                                 logW, logH)
 
         var newId: String = ""
         shell.setState {
@@ -401,6 +408,12 @@ final class GuestSession: @unchecked Sendable {
             guard let self, let gd = self.gd else { return }
             self.requestedSize = (Int(w), Int(h))
             self.requestedAt = Date()
+            // One line per settled resize, not per drag event. It is the only
+            // way to tell "the guest ignored us" from "we never asked" — the
+            // two look identical from the outside, and the first drag-resize
+            // that appeared not to work was the second.
+            FileHandle.standardError.write(Data(
+                "[guest] ask for \(w)x\(h)\n".utf8))
             guest_display_set_ui_size(gd, w, h)
         }
         if immediate {
@@ -535,10 +548,15 @@ final class GuestSession: @unchecked Sendable {
         guard force || cursorGenOnPlane != cursorGen else { return }
         cursorGenOnPlane = cursorGen
         if !cursorVisible || cursorW == 0 || cursorH == 0 {
-            // A transparent image rather than hiding the plane: the plane is
-            // shared with the shell, and taking it down would leave the
-            // human's own pointer missing everywhere else.
-            DesktopCursor.setImage([], width: 0, height: 0, hotX: 0, hotY: 0)
+            // The guest says it has no pointer — either it has not drawn one
+            // yet (the state at connect, so this is the FIRST hover every
+            // time) or it deliberately hid it. On a real machine that means
+            // no pointer at all; in a window it would mean the human loses
+            // theirs somewhere inside a rectangle, with nothing to aim with
+            // and no way back except leaving the window blind. So fall back
+            // to the desktop's own arrow, which is what every other window
+            // shows anyway.
+            DesktopCursor.setShape(.default)
         } else {
             DesktopCursor.setImage(cursorBGRA, width: cursorW, height: cursorH,
                                    hotX: cursorHotX, hotY: cursorHotY)
