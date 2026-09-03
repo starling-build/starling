@@ -571,6 +571,80 @@ def check_dock_launch() -> None:
     wait_for(lambda: not apps()["settings"]["window"], "Settings to close")
 
 
+@check("guest: a VM console opens from the launcher, once per domain")
+def check_guest_display() -> None:
+    """M1 — docs/plans/guest-display.md. A VM console is a texture-backed
+    window like any other, so the interesting claims are the ones that are NOT
+    like any other window: it comes from a registry record with no process
+    behind it, a second launch must not take the display away from the first
+    (QEMU allows exactly one control client per domain), and closing the
+    window detaches instead of shutting the guest down.
+
+    Driven through the launcher's search rather than by clicking a tile,
+    because the tile's position moves with the installed app set — and because
+    typing the name is what a person does. Skipped wherever there is no
+    domain, which is every machine except one with libvirt and a prepared
+    guest.
+    """
+    domain = os.environ.get("STARLING_GUEST_DOMAIN") or "windows"
+    if "windows" not in apps():
+        raise Skip("no windows.app in the catalog")
+
+    def domstate() -> str:
+        try:
+            r = subprocess.run(["virsh", "-c", "qemu:///system", "domstate",
+                                domain], capture_output=True, text=True)
+        except OSError:
+            return ""      # no libvirt on this machine at all
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    if not domstate():
+        raise Skip(f"no libvirt domain {domain!r}")
+    before = domstate()
+
+    # The record is searchable, which is the launcher half of "apps are data".
+    drive("move 300 300", "dock launcher", "click", "sleep 1", "type windows")
+    state = ask("launcher_state")
+    assert state.get("query", "").lower() == "windows", \
+        f"the launcher did not take the query: {state!r}"
+    assert "windows" in state.get("filtered", []), \
+        f"windows.app did not survive its own name as a filter: {state!r}"
+
+    drive("key enter")
+    try:
+        # Generous: a shut-off domain is started first, and Windows takes its
+        # time before it scans out anything at all.
+        wait_for(lambda: apps()["windows"]["window"], "the guest window",
+                 timeout=120.0)
+        assert domstate() == "running", \
+            f"the window opened but the domain is {domstate()!r}"
+        log(f"{domain} console open")
+
+        # A second launch focuses the window it already has. If it opened a
+        # second display instead, QEMU would close the first and the window
+        # would go with it — the failure looks like the shell crashing.
+        drive("dock launcher", "click", "sleep 1", "type windows", "key enter",
+              "sleep 3")
+        assert apps()["windows"]["window"], \
+            "a second launch took the display away from the first"
+        log("a second launch focused rather than reconnected")
+    finally:
+        drive("key esc")
+
+    # Deliberately left open. There is no position-independent way to close a
+    # window from here — no close chord, and the dock menu needs a click at a
+    # coordinate — and a flaky close is worse than none, because the next run
+    # would inherit whatever state it left. The check is re-runnable as it is:
+    # a second launch focuses, which is the thing it asserts anyway.
+    #
+    # So the detach contract ("closing the window leaves the VM running") is
+    # NOT asserted here. It is verified by hand and recorded in
+    # docs/plans/guest-display.md; automating it needs a way to ask the shell
+    # to close a window by id.
+    assert domstate() == before == "running", \
+        f"the domain went from {before!r} to {domstate()!r} under us"
+
+
 @check("registry: installing and removing moves the launcher live")
 def check_install_remove_loop() -> None:
     """The install/remove loop with no vendor, no network and nothing real to

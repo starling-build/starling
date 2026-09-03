@@ -553,7 +553,12 @@ as `CursorDefine`. Settles the one fact Layer 1 rests on. **Done 2026-09-02**
 in the registry; launch starts the domain and presents its console; input,
 cursor sprite, clipboard through vdagent; resize through `SetUIInfo` if the
 resolution service cooperates, fixed size otherwise. Replaces `wshot.py` /
-`type-keys.py` for the terminal work's VM too.
+`type-keys.py` for the terminal work's VM too. **Done 2026-09-02** — the plan
+and its status are `docs/plans/guest-display.md`, the guest-side setup is
+`docs/WINDOWS-VM.md` §"Windows in a window". Verified on stock QEMU 10.2.1,
+unprivileged. Open at the end of M1: guest-to-host clipboard (needs
+`patches/0003`), and a guest reboot with the window open still needs
+`patches/0005`.
 
 **M2 — the helper and seamless mode**: the virtio-serial bridge in
 FlutterWin32; window list and events; crop-per-window; z-order mirroring;

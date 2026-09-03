@@ -380,10 +380,70 @@ not for plugging a screen into the VM. And the host loses the card entirely
 while this is in place, which on this desktop means no PRIME render offload
 for apps and no NVENC recording.
 
+## Windows in a window
+
+The desktop can open this VM's console as an ordinary window — dock icon,
+spaces, Mission Control, resize, clipboard. Click **Windows** in the launcher.
+The design is `docs/plans/windows-home-vm.md`, the implementation
+`docs/plans/guest-display.md`; this section is what the GUEST needs, which is
+the part nothing in the repo can do for you.
+
+**Host.** `libvirt-dev` to build, `libvirt0` to run (the .deb picks it up),
+and the session user in the **`libvirt`** group — that is the whole of the
+permission story, and without it the window reports "permission denied" from
+libvirt's own message. The package does not add you to that group: a distro
+package granting VM control silently is the kind of thing a reviewer rejects.
+
+    sudo usermod -aG libvirt "$USER"      # log out and back in
+
+**The domain** must be `Domain=` in the record — `windows` for the shipped
+`registry/catalog.d/windows.app`, overridable with `STARLING_GUEST_DOMAIN` for
+a dev box whose domain is called something else (`win11-dbus` here). It needs
+the dbus display and a vdagent channel, exactly as `docs/windows-vm/win11-dbus.xml`
+has them:
+
+    <graphics type='dbus' p2p='yes'>
+      <gl enable='yes' rendernode='/dev/dri/renderD128'/>
+    </graphics>
+    <channel type='qemu-vdagent'>
+      <source><clipboard copypaste='yes'/><mouse mode='server'/></source>
+    </channel>
+
+**Three settings inside Windows**, each of which looks like a bug in the
+desktop when it is missing:
+
+1. **`HWCursor=1`** under the display-class registry key. Without it the guest
+   paints its pointer into the framebuffer and never sends `CursorDefine`, so
+   the window shows the desktop's arrow over Windows' own — two pointers, or
+   none where you expect one.
+2. **`vgpusrv.exe -i`** (the virtio-gpu resolution service). Without it the
+   guest ignores every resize: the window changes size and the guest's desktop
+   stays the size it was, stretched.
+3. **`powercfg /change monitor-timeout-ac 0`** (and `-dc`). Otherwise the
+   console goes black after ten minutes and it reads as a scanout bug.
+
+The guest also needs the **QEMU guest tools** for the clipboard — `vdagent`
+and `vdservice` running in the session, which is what carries a host copy into
+Windows' own clipboard.
+
+**What works, and what does not.** Copying on the desktop and pasting in
+Windows works on stock QEMU. Copying in Windows and pasting on the desktop
+does not: it needs `docs/windows-vm/triton/patches/0003`, and the desktop logs
+the guest's offer rather than pretending. Rebooting the guest while the window
+is open kills the VM on stock QEMU — that is `patches/0005`, three words of C,
+and until it is upstream a guest reboot means closing the window first.
+
+**One control client per domain.** The window and `dbus-display.py` cannot
+share a domain: opening the second closes the first, and from the desktop's
+side that looks like the window crashing. Close the window before running any
+of the tools below against the same VM.
+
 ## The dbus display, and Triton
 
-`virsh screenshot` and `send-key` are the console channel above; the display
-path the desktop will build on is QEMU's **D-Bus display** — `-display
+The tools below are the protocol reference — they predate the window and are
+how its measurements were taken. `virsh screenshot` and `send-key` are the
+console channel above; the display path the desktop builds on is QEMU's
+**D-Bus display** — `-display
 dbus,gl=on`, a listener that receives the guest's frames as dma-bufs and
 speaks keyboard/mouse/clipboard back. `docs/plans/windows-home-vm.md` is the
 design and its *Results* section the measurements; what follows is the
