@@ -1471,6 +1471,14 @@ int32_t flwin32_shortcut_info(const char* shortcut_path,
                               char* arguments, int32_t arguments_size,
                               char* workdir, int32_t workdir_size);
 
+// What the user has pinned to WINDOWS' taskbar, one per line and in the order
+// the taskbar shows them: either a bare `<name>.lnk` (resolve it against
+// %APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar)
+// or an AppUserModelID. There is no API for this; see flwin32_apps.c for what
+// is being read and why every line still has to be checked against the app
+// catalog before it is believed. Returns bytes written, 0 if there are none.
+int32_t flwin32_taskbar_pins(char* out, int32_t out_size);
+
 int32_t flwin32_shortcut_target(const char* shortcut_path,
                                 char* out,
                                 int32_t out_size);

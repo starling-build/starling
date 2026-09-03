@@ -212,6 +212,49 @@ public enum Win32AppCatalog {
         flwin32_launch(path, arguments, nil) != 0
     }
 
+    /// What the user has pinned to WINDOWS' taskbar, in the order it records
+    /// them: an executable path for a classic pin, an AppUserModelID for a
+    /// packaged one.
+    ///
+    /// For seeding a fresh dock from the bar the person already has. There is
+    /// no API for it — see `flwin32_taskbar_pins` for what is read — and the
+    /// lines it returns are candidates rather than facts. A candidate can
+    /// carry a stray leading character, so a `.lnk` is matched against the
+    /// files that are ACTUALLY in the pinned folder by suffix; anything that
+    /// matches nothing there is dropped rather than guessed at.
+    ///
+    /// Empty is an ordinary answer: a profile that has pinned nothing, or a
+    /// Windows whose format has moved on.
+    public static func windowsTaskbarPins() -> [String] {
+        var buffer = [CChar](repeating: 0, count: 8192)
+        let n = flwin32_taskbar_pins(&buffer, Int32(buffer.count))
+        guard n > 0 else { return [] }
+        let folder = (ProcessInfo.processInfo.environment["APPDATA"] ?? "")
+            + "\\Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar"
+        let pinned = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
+
+        return String(cString: buffer)
+            .split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            .map(String.init)
+            .compactMap { entry -> String? in
+                guard entry.lowercased().hasSuffix(".lnk") else {
+                    return entry          // an AppUserModelID, resolved by the caller
+                }
+                // The real file whose name this line ends with — which is how
+                // `bMicrosoft Edge.lnk` becomes `Microsoft Edge.lnk` without
+                // anyone deciding that the `b` looked wrong.
+                guard let file = pinned.first(where: {
+                    entry.lowercased().hasSuffix($0.lowercased())
+                }) else { return nil }
+                var target = [CChar](repeating: 0, count: 1024)
+                guard flwin32_shortcut_target(folder + "\\" + file, &target,
+                                              Int32(target.count)) != 0
+                else { return nil }
+                let path = String(cString: target)
+                return path.isEmpty ? nil : path
+            }
+    }
+
     // MARK: - Private
 
     private static func knownFolder(_ which: Int32) -> String? {

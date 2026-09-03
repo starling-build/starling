@@ -797,13 +797,57 @@ final class DockBloc: @unchecked Sendable {
             .filter { !$0.isEmpty }
     }
 
-    /// First run: what to pin, resolved against what is actually installed, so
-    /// the dock is never empty on a new machine.
+    /// First run: what to pin.
+    ///
+    /// WINDOWS' OWN TASKBAR FIRST (issue #29). A fresh install used to show
+    /// the same five names on every machine, which is a stranger's dock: the
+    /// person already has a bar they arranged, and it is right there. So the
+    /// pins Explorer holds are read, matched against the catalog, and used in
+    /// the order the taskbar shows them.
+    ///
+    /// Every entry has to RESOLVE before it becomes a pin, which is what makes
+    /// reading an undocumented list safe: an id nothing on this machine
+    /// answers to is dropped, and if nothing resolves at all the built-in
+    /// names are used exactly as before. The worst case is the dock people get
+    /// today.
     private func _defaultPins(from catalog: [Win32App]) -> [String] {
-        kDefaultPins.compactMap { wanted in
+        let borrowed = _pinsFromWindowsTaskbar(catalog)
+        if !borrowed.isEmpty { return borrowed }
+        return kDefaultPins.compactMap { wanted in
             catalog.first(where: { $0.name.lowercased().contains(wanted) })
                 .map { IconCache.key(for: $0) }
         }
+    }
+
+    /// Windows' pins, as far as this machine can account for them.
+    ///
+    /// Matched two ways because a pin arrives as one of two things: a program
+    /// path, which is the dock's own key for an app, and an AppUserModelID,
+    /// which is how a packaged app is known and the only way Windows 11
+    /// records one.
+    private func _pinsFromWindowsTaskbar(_ catalog: [Win32App]) -> [String] {
+        let pins = Win32AppCatalog.windowsTaskbarPins()
+        guard !pins.isEmpty else { return [] }
+        var keys: [String] = []
+        for pin in pins {
+            let wanted = pin.lowercased()
+            // Exact on a program path; for an id, exact OR the line ending
+            // with it — a scraped id can carry a stray leading character, and
+            // an AppUserModelID is long and specific enough that a suffix
+            // match on a whole one is not a coincidence.
+            let match = catalog.first(where: { $0.target.lowercased() == wanted })
+                ?? catalog.first(where: {
+                    !$0.appUserModelID.isEmpty
+                        && (wanted == $0.appUserModelID.lowercased()
+                            || wanted.hasSuffix($0.appUserModelID.lowercased()))
+                })
+            guard let app = match else { continue }
+            let key = IconCache.key(for: app)
+            if !keys.contains(key) { keys.append(key) }
+        }
+        print("[WinShellDock] Windows' taskbar offered \(pins.count) pins, "
+              + "\(keys.count) of them are installed here")
+        return keys
     }
 
     @ObservationIgnored private var edgePath: String {
