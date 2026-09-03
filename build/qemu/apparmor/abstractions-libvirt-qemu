@@ -1,0 +1,10 @@
+# Installed as a snippet inside
+# /etc/apparmor.d/local/abstractions/libvirt-qemu, which the stock abstraction
+# includes, so every domain profile gets these.
+#
+# The emulator has to be readable and executable by the confined domain, and
+# its own share/ has to be readable — this build installs no firmware blobs
+# (Ubuntu's source ships none) and is pointed at the distro's copies instead,
+# but keymaps and the like still live under the prefix.
+/usr/lib/starling/qemu/bin/qemu-system-x86_64 rmix,
+/usr/lib/starling/qemu/share/** r,

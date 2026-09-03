@@ -1,0 +1,12 @@
+# Installed as a snippet inside /etc/apparmor.d/local/usr.sbin.libvirtd.
+#
+# libvirtd probes and launches the emulator itself, and the stock profile
+# allows that only for /usr/bin/*. Without this, `virsh define` on a domain
+# naming the Starling QEMU fails at probe time with
+#
+#   cannot execute binary /usr/lib/starling/qemu/bin/qemu-system-x86_64:
+#   Permission denied
+#
+# which reads as a file-permission problem and is not one — the binary is
+# 0755 and every directory above it is traversable.
+/usr/lib/starling/qemu/bin/qemu-system-x86_64 PUx,

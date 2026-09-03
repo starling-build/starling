@@ -40,6 +40,11 @@
 // QEMU blocks the guest's display pipeline on the UpdateDMABUF reply, so a
 // window nobody is compositing (minimised, covered, another workspace) must
 // not stall the guest: past this the ack goes out unasked.
+// Where build/qemu/build-qemu.sh installs. A domain not using it still runs —
+// every M1 milestone was reached on the distro's QEMU — but two failures are
+// then waiting, and both are silent until they happen.
+#define GD_STARLING_QEMU "/usr/lib/starling/qemu/"
+
 #define GD_ACK_DEADLINE_MS 20
 #define GD_MAX_PENDING 32
 #define GD_MAX_CMDS 256
@@ -543,8 +548,14 @@ static int gd_on_clip_pull_reply(sd_bus_message* m, void* ud,
 
     const sd_bus_error* err = sd_bus_message_get_error(m);
     if (err) {
-        fprintf(stderr, "[guest] clipboard pull failed: %s\n",
-                err->message ? err->message : "?");
+        // A cancelled request is the ORDINARY outcome of a second copy
+        // arriving while the first is being fetched: the guest supersedes it,
+        // and the newer grab is already queued below. Calling that a failure
+        // sends someone hunting a bug that is the design working.
+        const char* msg = err->message ? err->message : "?";
+        int superseded = strstr(msg, "Cancelled") != NULL;
+        fprintf(stderr, "[guest] clipboard pull %s: %s\n",
+                superseded ? "superseded" : "failed", msg);
         if (again) { gd_clip_pull_send(gd, again); free(again); }
         return 0;
     }
@@ -751,6 +762,31 @@ static void gd_release_held(GuestDisplay* gd) {
     }
 }
 
+// Say which QEMU this domain runs on, once, at connect. Both of the things
+// the Starling build fixes are severe and silent — a guest reboot kills the VM
+// outright, and a copy inside the guest simply never arrives — so a line here
+// is the difference between a puzzling afternoon and a known limitation.
+static void gd_report_emulator(GuestDisplay* gd) {
+    char* xml = virDomainGetXMLDesc(gd->dom, 0);
+    if (!xml) {
+        return;
+    }
+    const char* a = strstr(xml, "<emulator>");
+    const char* b = a ? strstr(a, "</emulator>") : NULL;
+    if (a && b) {
+        a += strlen("<emulator>");
+        size_t n = (size_t)(b - a);
+        int ours = n >= strlen(GD_STARLING_QEMU) &&
+                   strncmp(a, GD_STARLING_QEMU, strlen(GD_STARLING_QEMU)) == 0;
+        fprintf(stderr, "[guest] emulator %.*s%s\n", (int)n, a,
+                ours ? "" :
+                " — NOT the Starling build: a guest reboot will kill this VM,"
+                " and copying inside the guest will not reach the desktop"
+                " (build/qemu/README.md)");
+    }
+    free(xml);
+}
+
 static void* gd_thread(void* arg) {
     GuestDisplay* gd = arg;
     int r;
@@ -772,6 +808,7 @@ static void* gd_thread(void* arg) {
                  err && err->message ? err->message : "no such domain");
         return NULL;
     }
+    gd_report_emulator(gd);
     // One call only: a second openGraphicsFD closes the first connection, so
     // a stray dbus-display.py against the same domain takes this window down
     // and it looks like a shell crash.

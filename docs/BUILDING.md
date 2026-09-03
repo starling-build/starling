@@ -256,7 +256,31 @@ compile and link against — the Wayland compositor (`wayland-server`,
 portal's ScreenCast stream (linked, not dlopen'd — `libpipewire-0.3-0` is in
 every Ubuntu desktop install as the audio stack), and `libvirt` for the guest
 display (`virsh` cannot pass an fd across exec, and `virDomainOpenGraphicsFD`
-is the only way to a QEMU domain's p2p display socket — `docs/plans/guest-display.md`). Third: `libva-dev`, which
+is the only way to a QEMU domain's p2p display socket — `docs/plans/guest-display.md`).
+
+### The QEMU the guest windows run on
+
+Only needed if you are running a Windows guest in a desktop window. Starling
+ships its own QEMU, **side by side** with the distro's at
+`/usr/lib/starling/qemu` — the system package is untouched and keeps serving
+every other VM on the machine:
+
+```bash
+build/qemu/build-qemu.sh            # ~10 minutes on 16 cores
+build/qemu/build-qemu.sh --check    # is it there, and what version
+```
+
+It builds from *Ubuntu's* source with two patches on top, so the distro's own
+patch stack is underneath ours. Both patches fix something that is severe and
+silent without them: rebooting the guest kills the whole VM, and copying
+inside the guest never reaches the desktop. `build/qemu/README.md` says what
+each one does and why the other three patches in
+`docs/windows-vm/triton/patches/` are not ours — they are for the virgl path,
+and M1 runs a 2D guest.
+
+A domain opts in by naming it: `<emulator>/usr/lib/starling/qemu/bin/qemu-system-x86_64</emulator>`.
+The shell logs which emulator a domain uses when it opens the display, so a
+domain still on the distro's build says so rather than surprising you later. Third: `libva-dev`, which
 both halves of the hardware video path link directly — the video player's
 `CH264Decoder` and the screen recorder's `CVaapiEncoder`. libva is MIT and
 present wherever VA-API is, so it needs no dlopen dance.
