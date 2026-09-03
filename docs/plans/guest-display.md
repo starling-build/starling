@@ -812,7 +812,30 @@ guest never grabs.
 
 **Open.**
 
-- **The guest's cursor is drawn, but has not been PROVEN to be the guest's.**
+- **The cursor pipeline is proven up to the engine call; only the plane
+  itself is unverified.** Established 2026-09-03, after a false alarm that is
+  worth recording because it wasted most of a session:
+
+  A standalone client on the same domain (`build/tools/guest-display-selftest.c`)
+  receives the guest's bitmaps — `cursor #1 64x64 hot=16,16, 67
+  partially-transparent px` and `cursor #2 hot=0,0, 192`. The `hot=16,16` one
+  is an **I-beam**: the guest changes cursor shape and QEMU forwards it, on
+  stock QEMU, with `HWCursor=1` set. So the guest half works.
+
+  The shell receives them too. It did not appear to, because **the "first
+  cursor" log could never fire**: it was keyed on `cursorGen == 0`, and
+  `handleMouseSet` bumps that same counter — and a `MouseSet` always arrives
+  before the first `CursorDefine`. An afternoon went into believing the guest
+  sent nothing while a standalone client on the same domain was receiving
+  cursors fine. The flag is its own now, and the shell logs
+  `first cursor 64x64 hot 0,0`.
+
+  So: guest → QEMU → `GuestDisplay` → `GuestSession` → `DesktopCursor.setImage`
+  → `fl_drm_view_set_cursor_image` is verified end to end. What is still
+  unwitnessed is the last hop — that `FlDrmCursor::SetImage` puts those pixels
+  on the plane and they are what the panel shows.
+
+- **The recorded cursor could not be attributed.**
   Investigated properly 2026-09-03, and the earlier claim here — "no capture
   can show the cursor plane" — was wrong. The shell's own Control Centre has
   **Record** and **Record App**, and both composite the plane through
@@ -846,6 +869,19 @@ guest never grabs.
   field gives an I-beam, which an arrow can never be blurred into.
 
   Both are half an hour with a working desktop, and neither needs new code.
+  The I-beam attempt was made and the cursor was simply not found in the
+  window recording's frames — the capture is window-space and the pointer
+  mapping into it was never confirmed, so the negative means nothing either
+  way. A full-screen recording sidesteps that mapping entirely and is the
+  thing to try first.
+
+  Note also that the dev box's display stack becomes unstable after many shell
+  restarts — repeated `drmModePageFlip failed: -16` on eDP-1, `amdgpu_dm`
+  warnings in dmesg, and an intermittent general-protection fault in the shell
+  during startup that clears on a retry. It is not caused by the guest code
+  (it happens before any domain is opened) but it makes this kind of
+  many-iteration UI experiment expensive; a reboot first is worth the two
+  minutes.
 - **Phase 6's guest-to-host half** needs a `Request` call out to QEMU and a
   patched build to test against (`win11-dbuspatch` carries 0003).
 - **Phase 7**: `docs/BUILDING.md` has `libvirt-dev`; the functional check, the

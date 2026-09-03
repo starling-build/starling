@@ -67,6 +67,9 @@ final class GuestSession: @unchecked Sendable {
     /// differs from what the plane last got, so hovering does not re-upload a
     /// GBM buffer per pointer event.
     private var cursorGen: UInt64 = 0
+    /// Whether the guest has ever sent a bitmap. Separate from `cursorGen`,
+    /// which counts every reason the plane might need re-asserting.
+    private var sawCursorDefine = false
     private var cursorGenOnPlane: UInt64 = .max
 
     /// Our own data-control client, so the guest's clipboard and the
@@ -660,10 +663,17 @@ final class GuestSession: @unchecked Sendable {
     private func handleCursorDefine(_ bgra: [UInt8], w: Int, h: Int,
                                     hotX: Int, hotY: Int) {
         guard !closed, bgra.count >= w * h * 4 else { return }
-        if cursorGen == 0 {
+        if !sawCursorDefine {
+            sawCursorDefine = true
             // Once, so "the guest window has no pointer" can be told apart
             // from "the guest never sent one" — which is what HWCursor=0 in
             // the guest looks like, and it looks like our bug.
+            //
+            // Keyed on its OWN flag, not on `cursorGen == 0`: MouseSet bumps
+            // the generation too and always arrives first, so the original
+            // condition could never once be true. That cost an afternoon of
+            // believing the guest sent no cursor at all, while a standalone
+            // client on the same domain was receiving them fine.
             FileHandle.standardError.write(Data(
                 "[guest] first cursor \(w)x\(h) hot \(hotX),\(hotY)\n".utf8))
         }
