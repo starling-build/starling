@@ -317,6 +317,29 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size) {
     return n;
 }
 
+/* Hand our foreground rights to whatever is about to be started.
+ *
+ * Windows refuses SetForegroundWindow to a process that does not already own
+ * the foreground. A shell that has just been clicked DOES own it, and the way
+ * it lets a launched app come up in front is to pass that right on -- exactly
+ * what the tray click does before raising an app's menu, and what explorer
+ * does here.
+ *
+ * ASFW_ANY rather than a pid, and that is the whole point. Granting the pid
+ * we start covers only the case that already worked: a program that creates
+ * its own window. It does nothing for the ones that hand off -- Windows
+ * Terminal reuses an existing WindowsTerminal.exe, a packaged app is created
+ * by an activation broker -- because the process that ends up owning the
+ * window is not the process we started, and cannot be known before it exists.
+ * Measured on the test box: mspaint came up on top, Windows Terminal opened
+ * BEHIND everything including the dock, which is issue #28 exactly.
+ *
+ * The grant lapses on the next foreground change, so this is a permission for
+ * the launch in flight and not a standing one. */
+static void allow_launched_app_to_foreground(void) {
+    AllowSetForegroundWindow(ASFW_ANY);
+}
+
 int32_t flwin32_launch(const char* path, const char* arguments,
                        const char* directory) {
     if (path == NULL) return 0;
@@ -342,6 +365,7 @@ int32_t flwin32_launch(const char* path, const char* arguments,
      *
      * The return is a legacy HINSTANCE-shaped error code: anything <= 32 is a
      * failure. */
+    allow_launched_app_to_foreground();
     flwin32_trace("launch: ShellExecuteW begin");
     HINSTANCE rc = ShellExecuteW(NULL, L"open", wpath, wargs, wdir, SW_SHOWNORMAL);
     flwin32_trace("launch: ShellExecuteW end");
@@ -652,6 +676,10 @@ int32_t flwin32_launch_app_id_ex(const char* app_id, char* diag,
     ensure_com();
     wchar_t* wid = utf8_to_wide(app_id);
     if (wid == NULL) return 0;
+
+    /* Same reason as the shell launch below: for a packaged app the window is
+     * made by the activation broker, which is never the process we asked. */
+    allow_launched_app_to_foreground();
 
     int32_t started = 0;
     if (strchr(app_id, '!') != NULL) {
