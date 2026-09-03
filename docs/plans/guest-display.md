@@ -727,6 +727,51 @@ live on the Lenovo against `win11-dbus`, on **stock** Ubuntu 26.04 QEMU 10.2.1:
   Harmless now that the fallback is an arrow rather than nothing, but it is
   why a reconnected session logs no `first cursor` line.
 
+**Phase 6, host to guest, done 2026-09-02.** Copying in a desktop app and
+pasting inside Windows works: `wl-copy` on the host, Ctrl+V in the guest's
+search box, and the text appears. The shell is a `zwlr_data_control_v1` client
+of its own compositor (`WaylandClipboardProvider`), announces a `Grab` when the
+desktop's selection changes to something textual, and answers the guest's
+`Request` with the selection as it is at paste time.
+
+Three things this needed that the plan did not name:
+
+- **The bridge had no selection-changed signal at all** — it could set, read
+  and report ownership, and nothing else. `wlclip_set_selection_callback` is
+  new, and `WaylandClipboardProvider` exposes it as `onSelectionChanged`
+  alongside `ownsSelection`. The `mine` flag is the loop guard: answering the
+  guest's paste makes US the selection owner, and announcing that back would
+  be one announcement per paste, for ever.
+- **A `Grab` with serial 0 is not a grab.** QEMU orders grabs by the serial;
+  the first version passed the unused command token, which is 0, and the guest
+  never saw a thing. Serials now start at 1 and only go up.
+- **`Register` must be async and the reply is worth reading.** QEMU's Register
+  handler does a synchronous `GetAll` on OUR object before replying, so the
+  reply cannot arrive until the bus thread is back in its poll loop — the same
+  rule as the listener. It logs `clipboard Register: ok`, which is what
+  distinguishes "the guest ignored us" from "we were never registered".
+
+Guest to host is still unwired: it needs a `Request` call out to QEMU and the
+patched build (`triton/patches/0003`). The `Grab` arriving from the guest is
+logged and dropped, rather than silently looking like it worked.
+
+**Two bugs the clipboard work uncovered, both unrelated to it.**
+
+- **A resize could leave the window black.** QEMU answers a mode change with
+  its placeholder XB24 buffer and then the guest's real AB24 one AT THE SAME
+  SIZE. The scanout handler chose `reimportDmaBuf` vs `importDmaBuf` on
+  whether the dimensions changed — and only reimport sets `needsReimport`, so
+  the second buffer took the path that rebinds the EGLImage it already has and
+  ignores the new fd. The placeholder stuck. A scanout now ALWAYS reimports:
+  it means "here is a different buffer" by definition, and same-buffer damage
+  goes through `noteDmaBufContentChanged` instead.
+- **Pointer coordinates were mapped by dpi, not by the content rect.** The two
+  agree only while the guest's buffer is exactly the window's content size
+  times the scale — false for the whole interval between asking for a resize
+  and the guest answering, and false for ever if the guest refuses the mode.
+  In that state every click lands somewhere else inside Windows and the window
+  reads as unresponsive rather than mis-aimed.
+
 **Open.**
 
 - **The guest's cursor has not been seen on the panel.** It reaches the plane —
@@ -736,10 +781,8 @@ live on the Lenovo against `win11-dbus`, on **stock** Ubuntu 26.04 QEMU 10.2.1:
   composite it (`RenderSnapshotRGBA`) are the recording ones, which need the
   shell's own UI to start. This needs eyes on the machine, or a recording made
   from the desktop.
-- **Phase 6 (clipboard) is half done**: `GuestDisplay` exports the Clipboard
-  object and defers the guest's `Request` the way it defers a frame ack, but
-  nothing on the shell side speaks `zwlr_data_control_v1` to it yet, and
-  `guest_display_clipboard_enable()` is never called.
+- **Phase 6's guest-to-host half** needs a `Request` call out to QEMU and a
+  patched build to test against (`win11-dbuspatch` carries 0003).
 - **Phase 7**: `docs/BUILDING.md` has `libvirt-dev`; the functional check, the
   `docs/WINDOWS-VM.md` guest-prep rewrite and the `windows-home-vm.md`
   checkbox are not written.

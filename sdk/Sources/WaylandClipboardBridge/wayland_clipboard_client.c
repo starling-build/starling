@@ -92,6 +92,12 @@ struct WlClipboard {
     size_t own_len;
     int    owns_selection;
 
+    /* Mirror hook: see wlclip_set_selection_callback. Read on the bridge
+     * thread, written from the caller's, so it rides the same lock as the
+     * command queue. */
+    WlClipSelectionCallback sel_cb;
+    void*                   sel_ctx;
+
     pthread_t       thread;
     pthread_mutex_t lock;
     int             cmd_fd;      /* eventfd: wakes the thread for commands */
@@ -250,6 +256,20 @@ static void dev_selection(void* data, struct zwlr_data_control_device_v1* dev,
     WlClipboard* c = data;
     if (c->offer && c->offer != offer) offer_drop(c->offer);
     c->offer = offer;   /* may be NULL: the selection was cleared */
+
+    /* The mimes are already in: the protocol sends data_offer, then one offer
+     * event per mime, then this. So "is there text on the clipboard now" is
+     * answerable here and nowhere earlier. */
+    int has_text = 0;
+    if (offer) {
+        struct OfferState* st = zwlr_data_control_offer_v1_get_user_data(offer);
+        has_text = st && st->rank > 0;
+    }
+    pthread_mutex_lock(&c->lock);
+    WlClipSelectionCallback cb = c->sel_cb;
+    void* ctx = c->sel_ctx;
+    pthread_mutex_unlock(&c->lock);
+    if (cb) cb(ctx, has_text, c->owns_selection);
 }
 
 static void dev_primary_selection(void* data,
@@ -529,6 +549,15 @@ int wlclip_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx) {
     pthread_mutex_unlock(&c->lock);
     wake(c);
     return 0;
+}
+
+void wlclip_set_selection_callback(WlClipboard* c, WlClipSelectionCallback cb,
+                                   void* ctx) {
+    if (!c) return;
+    pthread_mutex_lock(&c->lock);
+    c->sel_cb = cb;
+    c->sel_ctx = ctx;
+    pthread_mutex_unlock(&c->lock);
 }
 
 int wlclip_owns_selection(WlClipboard* c) {

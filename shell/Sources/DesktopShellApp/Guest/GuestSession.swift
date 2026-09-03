@@ -69,6 +69,13 @@ final class GuestSession: @unchecked Sendable {
     private var cursorGen: UInt64 = 0
     private var cursorGenOnPlane: UInt64 = .max
 
+    /// Our own data-control client, so the guest's clipboard and the
+    /// desktop's are the same clipboard. The shell is a CLIENT of its own
+    /// compositor here, on the bridge's private thread and connection —
+    /// docs/plans/clipboard.md is explicit that the shell must not broker a
+    /// pull-based clipboard itself.
+    private var clip: WaylandClipboardProvider?
+
     private var resizeDebounce: DispatchWorkItem?
     private var requestedSize: (w: Int, h: Int)?
     private var requestedAt: Date?
@@ -134,6 +141,22 @@ final class GuestSession: @unchecked Sendable {
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
             DispatchQueue.main.async { me.handleMouseSet(visible: visible != 0) }
         }
+        cb.on_clipboard_request = { ctx, token, mime in
+            guard let ctx else { return }
+            let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
+            let m = mime.map { String(cString: $0) } ?? "text/plain;charset=utf-8"
+            DispatchQueue.main.async { me.handleClipboardRequest(token: token, mime: m) }
+        }
+        cb.on_clipboard_grab = { ctx, _, n in
+            guard ctx != nil else { return }
+            // Guest -> host. Answering it means calling Request back on QEMU,
+            // which needs the patched build (triton/patches/0003) and is the
+            // half of Phase 6 that has no plumbing yet — say so once rather
+            // than looking like it silently worked.
+            FileHandle.standardError.write(Data(
+                "[guest] the guest offered \(n) clipboard type(s); guest-to-host is not wired up\n".utf8))
+        }
+        cb.on_clipboard_release = { _ in }
 
         gd = domain.withCString { guest_display_open($0, &cb) }
         if gd == nil {
@@ -148,6 +171,8 @@ final class GuestSession: @unchecked Sendable {
         guard !closed else { return }
         closed = true
         resizeDebounce?.cancel()
+        clip?.onSelectionChanged = nil
+        clip = nil
         if let gd {
             guest_display_close(gd)
             self.gd = nil
@@ -173,6 +198,8 @@ final class GuestSession: @unchecked Sendable {
         case Int(GUEST_DISPLAY_FAILED):
             onFailure?(detail ?? "the guest display could not be opened")
             close()
+        case Int(GUEST_DISPLAY_CONNECTED):
+            startClipboard()
         case Int(GUEST_DISPLAY_DISCONNECTED):
             // No reconnect in M1: one control client per domain, and the
             // window without a connection behind it is a lie.
@@ -187,6 +214,70 @@ final class GuestSession: @unchecked Sendable {
         // The console went away (guest reset, display off). The window stays,
         // showing the last frame, until a scanout comes back — a reboot is not
         // a reason to throw the user's window away.
+    }
+
+    // MARK: - Clipboard
+
+    /// Host -> guest. We announce (`Grab`) whenever the desktop's selection
+    /// changes to something textual; the guest pulls (`Request`) when someone
+    /// actually pastes, and we answer with the selection as it is THEN — which
+    /// is the whole reason this is announce-then-pull and not a copy.
+    private func startClipboard() {
+        guard clip == nil, !closed else { return }
+        guest_display_clipboard_enable(gd)
+        guard let socket = waylandIntegration?.socketName,
+              let provider = WaylandClipboardProvider(display: socket) else {
+            FileHandle.standardError.write(Data(
+                "[guest] no data-control clipboard to bridge\n".utf8))
+            return
+        }
+        clip = provider
+        provider.onSelectionChanged = { [weak self] hasText, mine in
+            // `mine` is the loop guard: answering the guest makes US the
+            // owner, and announcing that back to the guest would be an
+            // announcement per paste, for ever.
+            guard hasText, !mine else { return }
+            // The bridge fires on its own thread and this closure is not
+            // Sendable; the same cast the SDK's clipboard completion uses
+            // (Clipboard.swift's deliverOnMain) carries it to the UI thread.
+            let announce: () -> Void = {
+                guard let self, !self.closed, let gd = self.gd else { return }
+                var mime = strdup("text/plain;charset=utf-8")
+                withUnsafeMutablePointer(to: &mime) { p in
+                    p.withMemoryRebound(to: Optional<UnsafePointer<CChar>>.self,
+                                        capacity: 1) { mimes in
+                        guest_display_clipboard_grab(gd, mimes, 1)
+                    }
+                }
+                free(mime)
+            }
+            DispatchQueue.main.async(
+                execute: unsafeBitCast(announce, to: (@Sendable () -> Void).self))
+        }
+    }
+
+    private func handleClipboardRequest(token: UInt64, mime: String) {
+        FileHandle.standardError.write(Data(
+            "[guest] the guest is pasting; wants \(mime)\n".utf8))
+        guard !closed, let gd, let clip else {
+            // Answer with nothing rather than leave the guest's paste hanging
+            // on a 25 s D-Bus timeout.
+            if let gd { guest_display_clipboard_reply(gd, token, mime, nil, 0) }
+            return
+        }
+        clip.getText { text in
+            guard let text, !text.isEmpty else {
+                guest_display_clipboard_reply(gd, token, mime, nil, 0)
+                return
+            }
+            let bytes = Array(text.utf8)
+            FileHandle.standardError.write(Data(
+                "[guest] answering the paste with \(bytes.count) bytes\n".utf8))
+            bytes.withUnsafeBufferPointer { buf in
+                guest_display_clipboard_reply(gd, token, mime, buf.baseAddress,
+                                              buf.count)
+            }
+        }
     }
 
     // MARK: - Frames
@@ -228,19 +319,21 @@ final class GuestSession: @unchecked Sendable {
         }
         guard let texId = textureId else { Glibc.close(fd); return }
 
-        if sizeChanged {
-            // reimport keeps the old EGLImage alive until the new one binds,
-            // so a resolution change never flashes black.
-            registry.reimportDmaBuf(engine: wl.engine, id: texId, fd: fd,
-                                    width: width, height: height,
-                                    stride: stride, fourcc: fourcc,
-                                    modifier: modifier, ownsFd: true)
-        } else {
-            registry.importDmaBuf(engine: wl.engine, id: texId, fd: fd,
-                                  width: width, height: height,
-                                  stride: stride, fourcc: fourcc,
-                                  modifier: modifier, ownsFd: true)
-        }
+        // ALWAYS reimport. A scanout means "here is a different buffer", and
+        // only reimport sets needsReimport — the plain import path rebinds the
+        // EGLImage it already has and ignores the new fd entirely. That is not
+        // hypothetical: QEMU answers a resize with its placeholder XB24 buffer
+        // and then the guest's real AB24 one AT THE SAME SIZE, so keying the
+        // choice on dimensions dropped the real buffer and left the window
+        // showing the blank placeholder. It looked exactly like the guest had
+        // stopped painting. Damage on the SAME buffer is the other case, and
+        // that goes through noteDmaBufContentChanged, not here — so this
+        // costs one EGLImage per mode change, and the registry's per-buffer
+        // cache makes even that a lookup when the buffer comes back.
+        registry.reimportDmaBuf(engine: wl.engine, id: texId, fd: fd,
+                                width: width, height: height,
+                                stride: stride, fourcc: fourcc,
+                                modifier: modifier, ownsFd: true)
         guestSize = (width, height)
 
         // Two inversions, both of which have to be right or Windows is upside
@@ -433,9 +526,27 @@ final class GuestSession: @unchecked Sendable {
     private func forwardPointer(phase: Int32, x: Double, y: Double,
                                 buttons: Int64) {
         guard !closed, let gd, let size = guestSize else { return }
-        let dpi = currentShellDpi
-        let px = UInt32(max(0, min(Double(size.w - 1), (x * dpi).rounded())))
-        let py = UInt32(max(0, min(Double(size.h - 1), (y * dpi).rounded())))
+        // Map through the CONTENT RECT, not the dpi. The two agree only while
+        // the guest's buffer is exactly the window's content size times the
+        // scale — which is false for the whole interval between asking for a
+        // resize and the guest answering, and false for ever if the guest
+        // refuses the mode. Multiplying by dpi in that state sends clicks to
+        // the wrong place inside Windows, and the window looks unresponsive
+        // rather than mis-aimed. TextureWidget stretches the old scanout to
+        // fill the content area, so this ratio is exactly what the human sees.
+        var scaleX = currentShellDpi
+        var scaleY = currentShellDpi
+        if let winId = windowId,
+           let win = _shellState?.windowManager.windows.first(where: { $0.id == winId }) {
+            let contentW = win.rect.width
+            let contentH = win.rect.height - DesktopTheme.kTitleBarHeight
+            if contentW > 1, contentH > 1 {
+                scaleX = Double(size.w) / contentW
+                scaleY = Double(size.h) / contentH
+            }
+        }
+        let px = UInt32(max(0, min(Double(size.w - 1), (x * scaleX).rounded())))
+        let py = UInt32(max(0, min(Double(size.h - 1), (y * scaleY).rounded())))
         guest_display_mouse_abs(gd, px, py)
 
         // Flutter's mask -> QEMU's button numbers: 0 left, 1 middle, 2 right.

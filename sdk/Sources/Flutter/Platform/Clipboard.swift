@@ -109,6 +109,23 @@ public protocol ClipboardProvider {
 public final class WaylandClipboardProvider: ClipboardProvider {
     private let handle: OpaquePointer?
 
+    /// Raised when the selection changes — a new owner, new content, or a
+    /// clear. `hasText` says whether the new selection carries anything
+    /// readable as text; `mine` says whether we are the new owner, which
+    /// anything mirroring the selection elsewhere (a VM guest's clipboard)
+    /// must check or it announces its own paste back to itself for ever.
+    ///
+    /// Fires on the bridge thread. Hop before touching app state.
+    public var onSelectionChanged: ((_ hasText: Bool, _ mine: Bool) -> Void)? {
+        didSet { _installSelectionCallback() }
+    }
+
+    /// True while this process owns the selection.
+    public var ownsSelection: Bool {
+        guard let h = handle else { return false }
+        return wlclip_owns_selection(h) != 0
+    }
+
     /// Returns nil when there is no data-control compositor to talk to, which
     /// is every environment except the Starling shell. Callers should fall
     /// back to leaving `Clipboard.provider` nil.
@@ -122,7 +139,27 @@ public final class WaylandClipboardProvider: ClipboardProvider {
     }
 
     deinit {
-        if let h = handle { wlclip_destroy(h) }
+        if let h = handle {
+            wlclip_set_selection_callback(h, nil, nil)
+            wlclip_destroy(h)
+        }
+    }
+
+    private func _installSelectionCallback() {
+        guard let h = handle else { return }
+        guard onSelectionChanged != nil else {
+            wlclip_set_selection_callback(h, nil, nil)
+            return
+        }
+        // Unretained: the bridge outlives no provider, and deinit clears the
+        // callback before destroying it — so retaining here would be a cycle
+        // that keeps the provider alive for ever.
+        wlclip_set_selection_callback(h, { ctx, hasText, mine in
+            guard let ctx else { return }
+            let me = Unmanaged<WaylandClipboardProvider>
+                .fromOpaque(ctx).takeUnretainedValue()
+            me.onSelectionChanged?(hasText != 0, mine != 0)
+        }, Unmanaged.passUnretained(self).toOpaque())
     }
 
     public func setText(_ text: String) {

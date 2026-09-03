@@ -57,6 +57,16 @@ void wlclip_set_text(WlClipboard* c, const char* text, size_t len);
  * not be queued at all. Never blocks the caller. */
 int wlclip_read_text(WlClipboard* c, WlClipTextCallback cb, void* ctx);
 
+/* Fires on the bridge thread every time the selection changes — a new owner,
+ * new content, or a clear. `has_text` is 1 when the new offer carries a mime
+ * this bridge can read as text; `mine` is 1 when WE are the new owner, which
+ * anything mirroring the selection somewhere else must check, or it announces
+ * its own paste back to itself for ever. Set it before anything else runs;
+ * passing NULL clears it. */
+typedef void (*WlClipSelectionCallback)(void* ctx, int has_text, int mine);
+void wlclip_set_selection_callback(WlClipboard* c, WlClipSelectionCallback cb,
+                                   void* ctx);
+
 /* 1 while this process is the selection owner. Reading then answers from our
  * own copy instead of round-tripping through the compositor — which would
  * deadlock, since we would be asking ourselves to write while blocked reading. */

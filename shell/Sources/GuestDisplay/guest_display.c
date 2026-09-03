@@ -110,6 +110,9 @@ struct GuestDisplay {
     struct gd_clip_req clip_reqs[8];
     int n_clip_reqs;
     int clip_enabled;
+    /* Grab serials start at 1 and only go up. QEMU orders grabs by this, and
+     * a serial of 0 is not a grab anyone has to believe. */
+    uint32_t clip_serial;
 
     // Keys the guest believes are down, by qnum. Extended scancodes fold
     // into the high bit, so one byte covers the space and 32 bytes covers
@@ -517,6 +520,14 @@ static void gd_clip_reply(GuestDisplay* gd, struct gd_cmd* c) {
     }
 }
 
+static int gd_on_clip_register_reply(sd_bus_message* m, void* ud,
+                                     sd_bus_error* e) {
+    const sd_bus_error* err = sd_bus_message_get_error(m);
+    fprintf(stderr, "[guest] clipboard Register: %s\n",
+            err ? (err->message ? err->message : "failed") : "ok");
+    return 0;
+}
+
 static void gd_enable_clipboard(GuestDisplay* gd) {
     if (gd->clip_enabled || !gd->ctl) {
         return;
@@ -528,8 +539,14 @@ static void gd_enable_clipboard(GuestDisplay* gd) {
         return;
     }
     gd->clip_enabled = 1;
-    sd_bus_call_method_async(gd->ctl, NULL, NULL, GD_CLIPBOARD, IFACE_CLIPBOARD,
-                             "Register", NULL, NULL, NULL);
+    /* Async on purpose: QEMU's Register handler does a synchronous GetAll on
+     * OUR object before it replies, so the reply cannot arrive until this
+     * thread is back in its poll loop. */
+    int r2 = sd_bus_call_method_async(gd->ctl, NULL, NULL, GD_CLIPBOARD,
+                                      IFACE_CLIPBOARD, "Register",
+                                      gd_on_clip_register_reply, gd, NULL);
+    fprintf(stderr, "[guest] clipboard Register -> %s\n",
+            r2 < 0 ? strerror(-r2) : "asked");
 }
 
 static void gd_exec(GuestDisplay* gd, struct gd_cmd* c) {
@@ -565,16 +582,22 @@ static void gd_exec(GuestDisplay* gd, struct gd_cmd* c) {
             gd_enable_clipboard(gd);
             break;
         case GD_CMD_CLIP_GRAB:
-            if (gd->clip_enabled && gd->ctl) {
+            if (!gd->clip_enabled || !gd->ctl) {
+                fprintf(stderr, "[guest] clipboard grab dropped: %s\n",
+                        gd->clip_enabled ? "no bus" : "clipboard not registered");
+                break;
+            } else {
                 sd_bus_message* m = NULL;
                 if (sd_bus_message_new_method_call(gd->ctl, &m, NULL,
                                                    GD_CLIPBOARD,
                                                    IFACE_CLIPBOARD, "Grab") >= 0) {
                     sd_bus_message_append(m, "uu", (uint32_t)0,
-                                          (uint32_t)c->token);
+                                          ++gd->clip_serial);
                     sd_bus_message_append_strv(m, c->mimes);
                     sd_bus_message_set_expect_reply(m, 0);
-                    sd_bus_send(gd->ctl, m, NULL);
+                    int rr = sd_bus_send(gd->ctl, m, NULL);
+                    fprintf(stderr, "[guest] clipboard grab #%u -> %s\n",
+                            gd->clip_serial, rr < 0 ? strerror(-rr) : "sent");
                     sd_bus_message_unref(m);
                 }
             }
