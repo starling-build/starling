@@ -265,6 +265,7 @@ Architecture: $DEB_ARCH
 Maintainer: Starling <dev@starling.build>
 Depends: $DEPS, libseat1, dbus, pkexec
 Recommends: gdm3 | lightdm | sddm, xwayland, x11-utils, xdg-utils, network-manager, ffmpeg, pipewire-pulse, pulseaudio-utils
+Suggests: starling-qemu
 Conflicts: starling-desktop
 Replaces: starling-desktop
 Provides: starling-desktop
@@ -279,6 +280,10 @@ Description: Starling desktop environment
  Needs a Wayland-capable login manager to reach the session menu; the
  gdm3 | lightdm | sddm recommend pulls one in when none is installed
  (satisfied automatically on Ubuntu Desktop).
+ .
+ starling-qemu is suggested, not required: it is only for running a Windows
+ VM in a desktop window, and the feature works on the distro's QEMU apart
+ from two failure modes that package fixes.
 CONTROL
 
 dpkg-deb --build --root-owner-group "$ROOT"

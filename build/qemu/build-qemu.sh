@@ -109,9 +109,14 @@ for f in usr.sbin.libvirtd abstractions/libvirt-qemu; do
         echo "    $dst already names $PREFIX"
         continue
     fi
-    # Appended, never overwritten: these files are shared with whatever else
-    # the machine has taught libvirt about (the Triton stack is in both here).
-    sudo tee -a "$dst" < "$src" >/dev/null
+    # Appended inside markers, never overwritten: these files are shared with
+    # whatever else the machine has taught libvirt about (the Triton stack is
+    # in both here), and the markers are what lets starling-qemu's postrm take
+    # out exactly its own lines. Same block shape as that package writes, so a
+    # dev-box install and a packaged one are interchangeable.
+    { echo '# >>> starling-qemu — do not edit inside these markers'
+      cat "$src"
+      echo '# <<< starling-qemu'; } | sudo tee -a "$dst" >/dev/null
     echo "    appended to $dst"
 done
 sudo systemctl reload apparmor 2>/dev/null || sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.libvirtd 2>/dev/null || true

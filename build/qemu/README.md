@@ -58,6 +58,33 @@ The patches apply with `--fuzz=3` on purpose: they are small hunks in files
 Ubuntu also patches, and demanding exact offsets would fail on a point release
 for no reason. A genuine reject is still fatal.
 
+## Shipping it
+
+`package-qemu.sh` turns the built prefix into `starling-qemu_<ver>_amd64.deb`
+(~4 MB compressed, 32 MB installed — the build follows Ubuntu's
+`--disable-strip`, so the packager strips):
+
+    build/qemu/build-qemu.sh          # produces the prefix
+    build/qemu/package-qemu.sh        # -> /tmp/starling-pkg/starling-qemu_*.deb
+
+**A separate package, and only a `Suggests` of the desktop.** The desktop runs
+on the distro's QEMU — every M1 milestone was reached on it — and only the two
+failures above appear without ours. Someone who never opens a Windows window
+should not download an emulator, and the shell names the emulator a domain is
+using, so the choice is visible rather than silent.
+
+**The AppArmor rules are appended by the maintainer scripts, not installed as
+files.** `/etc/apparmor.d/local/*` is owned by no package but is shared — the
+Triton stack keeps its rules in the same two files — so a .deb that owned them
+would drop somebody else's lines on upgrade. The blocks are fenced with
+`# >>> starling-qemu` / `# <<< starling-qemu`, which is what lets `postrm`
+remove exactly its own and nothing more. `build-qemu.sh` writes the same
+fenced block, so a dev-box install and a packaged one are interchangeable.
+
+Verified end to end on the dev box: install, define and start a domain naming
+the binary (`ps` shows `/usr/lib/starling/qemu/bin/qemu-system-x86_64`), then
+`dpkg -r` and confirm zero Starling lines remain while Triton's are untouched.
+
 ## Matching the machine type
 
 This is a point release of the distro's QEMU, so its machine types are the

@@ -279,6 +279,9 @@ each one does and why the other three patches in
 and M1 runs a 2D guest.
 
 A domain opts in by naming it: `<emulator>/usr/lib/starling/qemu/bin/qemu-system-x86_64</emulator>`.
+`build/qemu/package-qemu.sh` turns the result into `starling-qemu_<ver>_amd64.deb`,
+which the desktop package *suggests* rather than depends on — the guest window
+works without it, minus those two failures.
 The shell logs which emulator a domain uses when it opens the display, so a
 domain still on the distro's build says so rather than surprising you later. Third: `libva-dev`, which
 both halves of the hardware video path link directly — the video player's
