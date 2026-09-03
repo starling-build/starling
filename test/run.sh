@@ -147,6 +147,52 @@ WS_DIR=$(as_user mktemp -d /tmp/starling-wstest.XXXXXX)
      || fails=$((fails + 1))
 rm -rf "$WS_DIR"
 
+# The terminal's auto-answer rules (TerminalAutoAnswer.swift). Standalone for
+# the same reason as the two above — the matching half is Foundation and
+# nothing else — and gated here rather than in the sdk tier because this is the
+# code that decides whether a machine types `y` into something, and that should
+# not wait for a tier people skip.
+step "unit tests: terminal auto-answer"
+AA_DIR=$(as_user mktemp -d "${TMPDIR:-/tmp}/starling-aatest.XXXXXX")
+(as_user "$SWIFTC" -O -o "$AA_DIR/autoanswer-test" \
+     "$REPO/test/autoanswer/autoanswer-test.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/TerminalAutoAnswer.swift" \
+     "$REPO/sdk/Sources/Flutter/Platform/UserHome.swift" 2>/dev/null \
+     && as_user env TMPDIR="$AA_DIR" "$AA_DIR/autoanswer-test" | tail -1 \
+            | grep -q "all autoanswer checks passed" \
+     && echo "  ✔ auto-answer: one prompt, one answer" \
+     || { as_user env TMPDIR="$AA_DIR" "$AA_DIR/autoanswer-test" 2>&1 | grep -E "FAIL"; false; }) \
+     || fails=$((fails + 1))
+
+# And the same feature end to end, on a real PTY with a real child: the settle
+# debounce, the read of the live grid and the write reaching the program's
+# stdin. Worth its ~1.5s — every one of those fails the same way from the
+# matcher's side (every rule correct, nothing ever typed), and the retry after
+# the rate floor exists BECAUSE this test deadlocked without it.
+# -D_GNU_SOURCE for posix_openpt: SwiftPM's C++ interop mode brings it in, and
+# this compile deliberately does not (glibc 2.43's <cmath> clash, see BUILDING).
+step "unit tests: terminal auto-answer (live pty)"
+(gcc -O1 -std=c99 -I "$REPO/sdk/Sources/CTerminalCore/include" -c \
+     "$REPO/sdk/Sources/CTerminalCore/starling_term.c" -o "$AA_DIR/starling_term.o" \
+ && gcc -O1 -std=c99 -I "$REPO/sdk/Sources/CTerminalCore/include" -c \
+     "$REPO/sdk/Sources/CTerminalCore/st_ring.c" -o "$AA_DIR/st_ring.o" \
+ && as_user "$SWIFTC" -O -Xcc -D_GNU_SOURCE -o "$AA_DIR/autoanswer-live" \
+     "$REPO/test/autoanswer/autoanswer-live.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/TerminalAutoAnswer.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/TerminalSession.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/TerminalEmulator.swift" \
+     "$REPO/sdk/Sources/Flutter/Terminal/Pty.swift" \
+     "$REPO/sdk/Sources/Flutter/Platform/UserHome.swift" \
+     "$AA_DIR/starling_term.o" "$AA_DIR/st_ring.o" \
+     -I "$REPO/sdk/Sources/CTerminalCore/include" \
+     -Xcc -I"$REPO/sdk/Sources/CTerminalCore/include" 2>/dev/null \
+ && as_user env TMPDIR="$AA_DIR" "$AA_DIR/autoanswer-live" | tail -1 \
+        | grep -q "all autoanswer live checks passed" \
+ && echo "  ✔ auto-answer: the keys reach the child, and only the right ones" \
+ || { as_user env TMPDIR="$AA_DIR" "$AA_DIR/autoanswer-live" 2>&1 | grep -E "FAIL"; false; }) \
+ || fails=$((fails + 1))
+rm -rf "$AA_DIR"
+
 step "unit tests: registry"
 (cd "$REPO/registry" && as_user "$SWIFT" test 2>&1 \
     | grep -vE "libxml2.so.2: no version information" \

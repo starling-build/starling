@@ -109,6 +109,20 @@ enum TerminalHelp {
             HelpBinding("Shift+PageUp", "page back through scrollback"),
             HelpBinding("Shift+PageDown", "page forward"),
         ]),
+        // No chords at all — but this is where a person goes looking when a
+        // prompt answered itself and they want to know what did it.
+        HelpSection(title: "answering by itself", rows: [
+            HelpBinding("—", "write ~/.config/starling-terminal/autoanswer:"),
+            HelpBinding("—", "   \"Do you want to proceed?\"   \\r"),
+            HelpBinding("—", "a pattern, then the keys to type when it shows"),
+            HelpBinding("—", "\\r is Enter; /…/ is a regex; # is a comment"),
+            HelpBinding("—", "it does not read the question — it will confirm"),
+            HelpBinding("—", "anything you tell it to, including a delete"),
+            HelpBinding("any key", "stops an answer while the corner counts down"),
+            HelpBinding("—", "it waits 10s first, so you always get a say"),
+            HelpBinding("—", "`wait 30s` above a rule changes that; `wait 0` is now"),
+            HelpBinding("—", "new file? open a new tab. edits apply as you go"),
+        ]),
         // Last, because it is the one thing here you press when nothing else
         // in this list is working.
         HelpSection(title: "when it draws the wrong thing", rows: [

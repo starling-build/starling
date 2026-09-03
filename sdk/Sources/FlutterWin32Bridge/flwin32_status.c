@@ -487,6 +487,64 @@ int32_t flwin32_set_dark_mode(int32_t dark) {
     return 1;
 }
 
+/* --------------------------------------------------------- taskbar align */
+
+/* Where Windows keeps the taskbar's icon alignment: 0 left, 1 centred.
+ *
+ * ABSENT MEANS CENTRED, and that is not a guess to be tidied away later — a
+ * profile that has never touched the setting has no such value, which is the
+ * state of every fresh Windows 11 install. Reading a missing value as 0 would
+ * put the icons left on machines whose owner never asked for that.
+ *
+ * The same key holds a few dozen other Explorer preferences, so a change
+ * notification on it says only "one of these moved" — see the watcher. */
+static const wchar_t* const kAdvancedKey =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
+
+int32_t flwin32_taskbar_alignment(void) {
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kAdvancedKey, L"TaskbarAl",
+                     RRF_RT_REG_DWORD, NULL, &value, &size) != ERROR_SUCCESS) {
+        return 1;
+    }
+    return value == 0 ? 0 : 1;
+}
+
+/* Whether the value EXISTS, which is a different question from what it says.
+ * Only one caller: folding an older per-shell setting into this one, where
+ * "Windows has never been told" is the case that may still be overwritten. */
+int32_t flwin32_taskbar_alignment_is_set(void) {
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    return RegGetValueW(HKEY_CURRENT_USER, kAdvancedKey, L"TaskbarAl",
+                        RRF_RT_REG_DWORD, NULL, &value,
+                        &size) == ERROR_SUCCESS ? 1 : 0;
+}
+
+int32_t flwin32_set_taskbar_alignment(int32_t centred) {
+    HKEY key = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, kAdvancedKey, 0, NULL, 0,
+                        KEY_SET_VALUE, NULL, &key, NULL) != ERROR_SUCCESS) {
+        return 0;
+    }
+    DWORD value = centred ? 1 : 0;
+    LSTATUS rc = RegSetValueExW(key, L"TaskbarAl", 0, REG_DWORD,
+                                (const BYTE*)&value, sizeof(value));
+    RegCloseKey(key);
+    if (rc != ERROR_SUCCESS) return 0;
+
+    /* So that Explorer moves its own taskbar to match, on the machines where
+     * it is showing. Ours is told by the registry watcher either way, which
+     * is why this is about the OTHER taskbar and not about us. Timeout, not
+     * Send: see set_dark_mode. */
+    DWORD_PTR result = 0;
+    SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0,
+                        (LPARAM)L"TraySettings",
+                        SMTO_ABORTIFHUNG, 200, &result);
+    return 1;
+}
+
 /* ------------------------------------------------------------ night light */
 
 /* Night light has no API at all: Settings writes an opaque blob into the
@@ -611,6 +669,10 @@ int32_t flwin32_energy_saver(void) {
  *           key with no notification of any kind except the one you ask for:
  *           RegNotifyChangeKeyValue signals an event, which this thread waits
  *           on alongside its message queue.
+ *   PREFS   (Explorer\Advanced, where the taskbar's icon alignment lives) is
+ *           the same shape as TRAY and for the same reason. Settings writes
+ *           the value and tells EXPLORER; nothing reaches a shell that has
+ *           replaced it, so the key is watched directly.
  *
  * The callback says only WHAT KIND of thing moved. Deciding what to re-read is
  * the shell's business, and re-reading everything in that class is cheap --
@@ -620,6 +682,7 @@ int32_t flwin32_energy_saver(void) {
 #define FLWIN32_STATUS_KIND_STATUS   1   /* power, network, theme */
 #define FLWIN32_STATUS_KIND_TRAY     2   /* the promoted/hidden split */
 #define FLWIN32_STATUS_KIND_TASKBAR  4   /* explorer put its taskbar back */
+#define FLWIN32_STATUS_KIND_PREFS    8   /* Explorer\Advanced: icon alignment */
 
 static void (*g_status_cb)(void* user, int32_t kind);
 static void* g_status_user;
@@ -726,17 +789,36 @@ static DWORD WINAPI status_watch_thread(LPVOID param) {
                                 tray_event, TRUE);
     }
 
+    /* Explorer\Advanced, for the icon alignment. Watched the same one-shot
+     * way, and NOT subscribed with REG_NOTIFY_CHANGE_NAME: the key holds
+     * dozens of unrelated preferences and only their VALUES matter here. */
+    HKEY prefs_key = NULL;
+    HANDLE prefs_event = CreateEventW(NULL, FALSE, FALSE, NULL);
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, kAdvancedKey, 0, KEY_NOTIFY,
+                      &prefs_key) == ERROR_SUCCESS) {
+        RegNotifyChangeKeyValue(prefs_key, FALSE, REG_NOTIFY_CHANGE_LAST_SET,
+                                prefs_event, TRUE);
+    }
+
     for (;;) {
-        HANDLE waits[1];
+        HANDLE waits[2];
         DWORD count = 0;
-        if (tray_key != NULL) waits[count++] = tray_event;
+        DWORD tray_slot = (DWORD)-1, prefs_slot = (DWORD)-1;
+        if (tray_key != NULL) { tray_slot = count; waits[count++] = tray_event; }
+        if (prefs_key != NULL) { prefs_slot = count; waits[count++] = prefs_event; }
         DWORD r = MsgWaitForMultipleObjectsEx(count, waits, INFINITE,
                                               QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-        if (count > 0 && r == WAIT_OBJECT_0) {
+        if (tray_key != NULL && r == WAIT_OBJECT_0 + tray_slot) {
             status_fire(FLWIN32_STATUS_KIND_TRAY);
             RegNotifyChangeKeyValue(tray_key, TRUE,
                                     REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET,
                                     tray_event, TRUE);
+            continue;
+        }
+        if (prefs_key != NULL && r == WAIT_OBJECT_0 + prefs_slot) {
+            status_fire(FLWIN32_STATUS_KIND_PREFS);
+            RegNotifyChangeKeyValue(prefs_key, FALSE, REG_NOTIFY_CHANGE_LAST_SET,
+                                    prefs_event, TRUE);
             continue;
         }
         MSG msg;
@@ -754,6 +836,8 @@ static DWORD WINAPI status_watch_thread(LPVOID param) {
     if (ac != NULL) UnregisterPowerSettingNotification(ac);
     if (tray_key != NULL) RegCloseKey(tray_key);
     if (tray_event != NULL) CloseHandle(tray_event);
+    if (prefs_key != NULL) RegCloseKey(prefs_key);
+    if (prefs_event != NULL) CloseHandle(prefs_event);
     return 0;
 }
 

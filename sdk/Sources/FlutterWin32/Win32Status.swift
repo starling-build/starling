@@ -129,6 +129,10 @@ public enum Win32StatusChange: Sendable {
     case tray
     /// Explorer put its taskbar back on screen.
     case taskbar
+    /// A taskbar preference under Explorer\Advanced — the icon alignment.
+    /// Windows tells EXPLORER when Settings writes one of these; a shell that
+    /// has replaced explorer hears nothing, so the key is watched directly.
+    case prefs
 }
 
 extension Win32Status {
@@ -152,10 +156,28 @@ extension Win32Status {
             switch kind {
             case Int32(FLWIN32_STATUS_KIND_TRAY): change = .tray
             case Int32(FLWIN32_STATUS_KIND_TASKBAR): change = .taskbar
+            case Int32(FLWIN32_STATUS_KIND_PREFS): change = .prefs
             default: change = .status
             }
             DispatchQueue.main.async { Win32Status.changeHandler?(change) }
         }, nil) != 0
+    }
+
+    /// Where the taskbar gathers its icons, from Windows' own setting —
+    /// Personalization > Taskbar > "Taskbar alignment".
+    ///
+    /// True (centred) is what a profile that has never touched it reads as,
+    /// because Windows does not write the value until it is changed. A shell
+    /// standing in for explorer has to read this itself: nothing tells it.
+    public static var taskbarIconsCentred: Bool {
+        flwin32_taskbar_alignment() != 0
+    }
+
+    /// Whether Windows holds a value at all, which is not the same as what it
+    /// says: a profile that has never touched the setting has none, and reads
+    /// as centred. For anything folding an older setting into this one.
+    public static var taskbarAlignmentIsSet: Bool {
+        flwin32_taskbar_alignment_is_set() != 0
     }
 
     nonisolated(unsafe) fileprivate static var changeHandler:
@@ -168,6 +190,18 @@ extension Win32Status {
 /// and a status widget that can reach a setter by autocomplete is how a
 /// readout ends up changing the thing it is meant to be reporting.
 public enum Win32Control {
+
+    /// Moves the taskbar's icons, by writing the setting Windows itself
+    /// keeps — so Settings shows the change, and explorer's taskbar follows
+    /// it on the machines where that is showing.
+    ///
+    /// One setting, not two. A shell that kept its own copy would disagree
+    /// with the Settings page the moment either was touched, and the user
+    /// would have two places to set one thing and no way to know which won.
+    @discardableResult
+    public static func setTaskbarIconsCentred(_ centred: Bool) -> Bool {
+        flwin32_set_taskbar_alignment(centred ? 1 : 0) != 0
+    }
 
     /// Sets the primary monitor's backlight. **Slow** — an I2C round trip to
     /// the monitor's firmware; see `Win32Status.brightness()`.

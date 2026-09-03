@@ -240,6 +240,38 @@ public final class TerminalEmulator {
         (0 ..< scrollbackCount).map { _line($0) }
     }
 
+    /// The active screen as plain text, one string per row, trailing blanks
+    /// trimmed. No colours, no attributes, no scrollback.
+    ///
+    /// For anything that has to READ the screen rather than draw it — the
+    /// auto-answer rules, a report, a test. Wide characters contribute once
+    /// (the continuation cell carries scalar 0, which would otherwise put a
+    /// NUL in the middle of a line and break any search across it), and a
+    /// grapheme cluster contributes its whole sequence.
+    ///
+    /// Rows, not one string, because a caller that cares WHERE something is
+    /// would otherwise have to split it straight back apart.
+    public var screenLines: [String] {
+        let sb = scrollbackCount
+        var lines: [String] = []
+        lines.reserveCapacity(rows)
+        for r in 0 ..< rows {
+            var line = ""
+            line.reserveCapacity(cols)
+            for cell in _line(sb + r) {
+                if cell.attrs.contains(.wideCont) { continue }
+                if cell.scalar > 0x10FFFF { line += cellText(cell.scalar) }
+                else { line.append(cell.char) }
+            }
+            while line.hasSuffix(" ") { line.removeLast() }
+            lines.append(line)
+        }
+        return lines
+    }
+
+    /// `screenLines` as one string. Convenience for a report or a test.
+    public var screenText: String { screenLines.joined(separator: "\n") }
+
     /// The `rows` lines visible when scrolled back by `offset` lines
     /// (0 = the live screen). Clamped to the available history.
     public func visibleLines(offset: Int) -> [[TermCell]] {

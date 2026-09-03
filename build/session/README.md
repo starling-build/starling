@@ -7,13 +7,23 @@ They are real files so that every packager installs the same bytes.
 
 | file | installs as | mode |
 | --- | --- | --- |
-| `starling-session` | `/usr/libexec/starling-session` | 755 |
+| `starling-session` | `/usr/libexec/starling-session` + a `/usr/bin/starling-session` symlink to it | 755 |
 | `starling.desktop` | `/usr/share/wayland-sessions/starling.desktop` | 644 |
 | `org.starling.app-install.policy` | `/usr/share/polkit-1/actions/org.starling.app-install.policy` | 644 |
 | `90-starling-managed-devices.conf` | `/usr/lib/NetworkManager/conf.d/90-starling-managed-devices.conf` | 644 |
 
 Install them verbatim. Nothing here is templated — no build-time substitution
 happens, and `package-desktop.sh` copies them unchanged.
+
+**The one path you may move is the session script itself.** `starling.desktop`
+names `/usr/bin/starling-session`, so that is the only location fixed by the
+shipped files; `/usr/libexec` is where the Debian package happens to put the
+real script. `/usr/libexec` is not universal — Arch merged it into `/usr/lib`
+and the AUR refuses to install there — so put the script wherever your
+distribution wants it and make `/usr/bin/starling-session` point at it. Nothing
+else needs editing, and in particular you should not have to patch
+`starling.desktop`. If you find yourself patching any file in this directory,
+that is a bug in the file; please report it.
 
 ## What each one is for
 

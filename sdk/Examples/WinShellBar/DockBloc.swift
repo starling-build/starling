@@ -156,6 +156,9 @@ final class DockBloc: @unchecked Sendable {
         case iconsChanged
         /// An app added, changed or removed a tray icon.
         case trayChanged
+        /// A taskbar preference moved in Windows' own Settings — the icon
+        /// alignment, which is the only one of them the dock reads.
+        case taskbarPrefsChanged
         /// The user pressed one; it is forwarded to the app that owns it.
         case trayClick(UInt64, Win32TrayButton)
     }
@@ -351,6 +354,18 @@ final class DockBloc: @unchecked Sendable {
             }
         case .openSystemSurface(let path):
             Task.detached { Win32AppCatalog.open(path) }
+        case .taskbarPrefsChanged:
+            // The key holds dozens of preferences and the notification names
+            // none of them, so this re-reads the one the dock cares about and
+            // does nothing if it is unchanged — which is the common case, and
+            // costs a registry read.
+            let aligned = Self.loadAlignment()
+            guard aligned != state.alignment else { return }
+            // Assigned, and nothing else: as with `.setAlignment` below, the
+            // strip does not change shape — the icons gather at the other end
+            // on the next frame. Not saved, either; this IS what Windows says.
+            state.alignment = aligned
+
         case .setAlignment(let alignment):
             guard alignment != state.alignment else { return }
             state.alignment = alignment
@@ -393,6 +408,9 @@ final class DockBloc: @unchecked Sendable {
         icons.onTextureReady = { [weak self] in self?.add(.iconsChanged) }
 
         state.edge = _loadEdge()
+        // Before the first read, so a setting made in our own menu before
+        // Windows' became the truth is not silently dropped.
+        Self.migrateAlignment()
         state.alignment = Self.loadAlignment()
 
         // The pins file, if there is one. The DEFAULTS need the catalog and
@@ -779,13 +797,57 @@ final class DockBloc: @unchecked Sendable {
             .filter { !$0.isEmpty }
     }
 
-    /// First run: what to pin, resolved against what is actually installed, so
-    /// the dock is never empty on a new machine.
+    /// First run: what to pin.
+    ///
+    /// WINDOWS' OWN TASKBAR FIRST (issue #29). A fresh install used to show
+    /// the same five names on every machine, which is a stranger's dock: the
+    /// person already has a bar they arranged, and it is right there. So the
+    /// pins Explorer holds are read, matched against the catalog, and used in
+    /// the order the taskbar shows them.
+    ///
+    /// Every entry has to RESOLVE before it becomes a pin, which is what makes
+    /// reading an undocumented list safe: an id nothing on this machine
+    /// answers to is dropped, and if nothing resolves at all the built-in
+    /// names are used exactly as before. The worst case is the dock people get
+    /// today.
     private func _defaultPins(from catalog: [Win32App]) -> [String] {
-        kDefaultPins.compactMap { wanted in
+        let borrowed = _pinsFromWindowsTaskbar(catalog)
+        if !borrowed.isEmpty { return borrowed }
+        return kDefaultPins.compactMap { wanted in
             catalog.first(where: { $0.name.lowercased().contains(wanted) })
                 .map { IconCache.key(for: $0) }
         }
+    }
+
+    /// Windows' pins, as far as this machine can account for them.
+    ///
+    /// Matched two ways because a pin arrives as one of two things: a program
+    /// path, which is the dock's own key for an app, and an AppUserModelID,
+    /// which is how a packaged app is known and the only way Windows 11
+    /// records one.
+    private func _pinsFromWindowsTaskbar(_ catalog: [Win32App]) -> [String] {
+        let pins = Win32AppCatalog.windowsTaskbarPins()
+        guard !pins.isEmpty else { return [] }
+        var keys: [String] = []
+        for pin in pins {
+            let wanted = pin.lowercased()
+            // Exact on a program path; for an id, exact OR the line ending
+            // with it — a scraped id can carry a stray leading character, and
+            // an AppUserModelID is long and specific enough that a suffix
+            // match on a whole one is not a coincidence.
+            let match = catalog.first(where: { $0.target.lowercased() == wanted })
+                ?? catalog.first(where: {
+                    !$0.appUserModelID.isEmpty
+                        && (wanted == $0.appUserModelID.lowercased()
+                            || wanted.hasSuffix($0.appUserModelID.lowercased()))
+                })
+            guard let app = match else { continue }
+            let key = IconCache.key(for: app)
+            if !keys.contains(key) { keys.append(key) }
+        }
+        print("[WinShellDock] Windows' taskbar offered \(pins.count) pins, "
+              + "\(keys.count) of them are installed here")
+        return keys
     }
 
     @ObservationIgnored private var edgePath: String {
@@ -815,30 +877,45 @@ final class DockBloc: @unchecked Sendable {
 
     private func _loadEdge() -> PanelEdge { Self.loadEdge() }
 
-    /// Beside the edge, and stored the same way. Unlike the edge this one
-    /// does NOT have to be read before the window exists: alignment moves the
-    /// icons inside a strip whose shape and reservation are unchanged, so the
-    /// tree can learn about it on its own.
+    /// WINDOWS' setting, not one of ours: Personalization > Taskbar >
+    /// "Taskbar alignment", which is the place a person already knows to look
+    /// and the one the Settings page shows back to them. Issue #26.
+    ///
+    /// It used to be a file beside the edge, which meant two settings for one
+    /// thing: moving it in Windows did nothing here, moving it here left the
+    /// Settings page lying. Anyone who set it in our menu before this is
+    /// carried over once, by `migrateAlignment()`.
+    ///
+    /// Unlike the edge this does NOT have to be read before the window
+    /// exists: alignment moves the icons inside a strip whose shape and
+    /// reservation are unchanged, so the tree can learn about it on its own.
     static func loadAlignment() -> DockAlignment {
+        Win32Status.taskbarIconsCentred ? .center : .start
+    }
+
+    /// The old file, folded into Windows' setting and then removed.
+    ///
+    /// Only when Windows has no value of its own — a profile that has never
+    /// touched the setting has none, and that is exactly the case where our
+    /// file is the only record of what the user asked for. If they have since
+    /// set it in Windows, Windows wins and the file is simply dropped.
+    static func migrateAlignment() {
         let base = ProcessInfo.processInfo.environment["APPDATA"]
             ?? NSTemporaryDirectory()
         let path = base + "\\Starling\\dock-align.txt"
-        guard let text = try? String(contentsOfFile: path, encoding: .utf8),
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        guard !Win32Status.taskbarAlignmentIsSet,
               let raw = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let alignment = DockAlignment(rawValue: raw) else { return .center }
-        return alignment
+              let alignment = DockAlignment(rawValue: raw) else { return }
+        Win32Control.setTaskbarIconsCentred(alignment == .center)
     }
 
     private func _saveAlignment(_ alignment: DockAlignment) {
-        let base = ProcessInfo.processInfo.environment["APPDATA"]
-            ?? NSTemporaryDirectory()
-        let path = base + "\\Starling\\dock-align.txt"
+        // Straight into Windows' own setting, so the Settings page agrees and
+        // explorer's taskbar moves with ours where it is showing.
         Task.detached {
-            let dir = (path as NSString).deletingLastPathComponent
-            try? FileManager.default.createDirectory(atPath: dir,
-                                                     withIntermediateDirectories: true)
-            try? String(alignment.rawValue).write(toFile: path, atomically: true,
-                                                  encoding: .utf8)
+            Win32Control.setTaskbarIconsCentred(alignment == .center)
         }
     }
 

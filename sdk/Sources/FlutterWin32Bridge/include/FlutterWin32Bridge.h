@@ -1364,6 +1364,22 @@ int32_t flwin32_wifi_set_radio(int32_t on);
 int32_t flwin32_dark_mode(void);
 int32_t flwin32_set_dark_mode(int32_t dark);
 
+// Where the taskbar gathers its icons: 1 centred, 0 to the left. The setting
+// Windows keeps under Personalization > Taskbar, read from the registry
+// because a shell that has REPLACED explorer is told nothing when it changes
+// -- see FLWIN32_STATUS_KIND_PREFS.
+//
+// An absent value reads as CENTRED, which is what a Windows 11 profile that
+// has never touched the setting looks like; reading it as left would move the
+// icons on machines whose owner never asked.
+int32_t flwin32_taskbar_alignment(void);
+// Whether the value exists at all -- a different question from what it says,
+// and the one that decides whether an older setting may be folded into it.
+int32_t flwin32_taskbar_alignment_is_set(void);
+// Writes the same value, and broadcasts so explorer's own taskbar follows on
+// the machines where it is showing. Non-zero on success.
+int32_t flwin32_set_taskbar_alignment(int32_t centred);
+
 // Night light -- the blue-light filter Quick Settings toggles. No API
 // exists; this rewrites the CloudStore blob Settings itself writes (see
 // flwin32_status.c for the blob's shape). Read returns 1 on, 0 off, -1 when
@@ -1398,13 +1414,15 @@ int32_t flwin32_notifications_clear(void);
 //
 // `kind` is one of the FLWIN32_STATUS_KIND_* bits: 1 the status reads (power,
 // network, theme), 2 the tray's promoted/hidden split, 4 explorer putting its
-// taskbar back. It says only what CLASS of thing moved — re-reading that class
-// is microseconds, and asking for it on a timer was the cost. Callbacks arrive
-// on the watcher thread (and, for the network ones, on threads Windows owns),
-// so hop before touching UI state.
+// taskbar back, 8 the Explorer\Advanced preferences (the icon alignment). It
+// says only what CLASS of thing moved — re-reading that class is microseconds,
+// and asking for it on a timer was the cost. Callbacks arrive on the watcher
+// thread (and, for the network ones, on threads Windows owns), so hop before
+// touching UI state.
 #define FLWIN32_STATUS_KIND_STATUS   1
 #define FLWIN32_STATUS_KIND_TRAY     2
 #define FLWIN32_STATUS_KIND_TASKBAR  4
+#define FLWIN32_STATUS_KIND_PREFS    8
 int32_t flwin32_status_watch(void (*cb)(void* user, int32_t kind), void* user);
 
 // Milliseconds since the last input in this session (0 if unavailable). Cheap
@@ -1452,6 +1470,14 @@ int32_t flwin32_shortcut_info(const char* shortcut_path,
                               char* target, int32_t target_size,
                               char* arguments, int32_t arguments_size,
                               char* workdir, int32_t workdir_size);
+
+// What the user has pinned to WINDOWS' taskbar, one per line and in the order
+// the taskbar shows them: either a bare `<name>.lnk` (resolve it against
+// %APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar)
+// or an AppUserModelID. There is no API for this; see flwin32_apps.c for what
+// is being read and why every line still has to be checked against the app
+// catalog before it is believed. Returns bytes written, 0 if there are none.
+int32_t flwin32_taskbar_pins(char* out, int32_t out_size);
 
 int32_t flwin32_shortcut_target(const char* shortcut_path,
                                 char* out,

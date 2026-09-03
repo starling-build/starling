@@ -1452,31 +1452,84 @@ static void attach_stdin(void *arg) {
 
 // Blocks until a frame of `want` arrives (or the link dies). Anything else
 // is dropped: nothing but the handshake runs before the pump starts.
+// Consume whole frames from the front of `buf`, forwarding session bytes to
+// stdout. Returns how many bytes were consumed — the caller shifts the rest
+// down — and sets `*ended` when the link is over.
+//
+// A function rather than a block inside the read loop because it has to run
+// in two places: once on the bytes that arrive with the ATTACHED reply, and
+// then on every read after it.
+static size_t attach_parse(struct attach *a, uint8_t *buf, size_t have,
+                           size_t cap, uint64_t *consumed, int *ended) {
+    size_t off = 0;
+    while (have - off >= TERMD_HEADER_LEN) {
+        uint32_t len = get_u32(buf + off + 4);
+        if (len > cap - TERMD_HEADER_LEN) { *ended = 1; break; }
+        if (have - off < TERMD_HEADER_LEN + len) break;
+        uint8_t type = buf[off];
+        const uint8_t *p = buf + off + TERMD_HEADER_LEN;
+        if (type == TERMD_DATA && len > 8) {
+            // The payload past its seq, straight out. This is the only place
+            // session bytes are touched, and they are not read — only
+            // forwarded.
+            (void)plat_stdout_write(p + 8, len - 8);
+            *consumed = get_u64(p) + (len - 8);
+        } else if (type == TERMD_EXIT) {
+            *ended = 1;
+        } else if (type == TERMD_PING) {
+            attach_send(a, TERMD_PONG, p, len);
+        } else if (type == TERMD_ERROR) {
+            *ended = 1;
+        }
+        off += TERMD_HEADER_LEN + len;
+    }
+    if (off && have > off) memmove(buf, buf + off, have - off);
+    return off;
+}
+
+// Read until a frame of `want` arrives; its payload is copied into `reply`.
+//
+// `buf`/`have` are the CALLER's stream buffer and outlive the call: whatever
+// arrived after the frame we wanted is still in them when this returns. That
+// is not tidiness. The daemon answers ATTACHED and then pumps the session's
+// entire backlog in the same write, so both land in one read — and a reader
+// that kept only its own frame threw the replay away and sat there with a
+// blank screen, looking for all the world like a daemon that had stopped
+// sending. It only showed on the SECOND attach to a session, because the
+// first one has no backlog to lose.
+//
+// Frames before the wanted one are dropped, which is safe for the two replies
+// this waits on: nothing can precede a HELLO_OK, and the daemon queues
+// ATTACHED before it pumps anything.
 static int attach_await(sock_t fd, uint8_t want, uint8_t *buf, size_t cap,
+                        size_t *have, uint8_t *reply, size_t reply_cap,
                         uint32_t *out_len) {
-    size_t have = 0;
     for (;;) {
         size_t off = 0;
-        while (have - off >= TERMD_HEADER_LEN) {
+        while (*have - off >= TERMD_HEADER_LEN) {
             uint32_t len = get_u32(buf + off + 4);
             if (len > cap - TERMD_HEADER_LEN) return -1;
-            if (have - off < TERMD_HEADER_LEN + len) break;
+            if (*have - off < TERMD_HEADER_LEN + len) break;
             uint8_t type = buf[off];
             if (type == want || type == TERMD_ERROR) {
-                memmove(buf, buf + off + TERMD_HEADER_LEN, len);
-                *out_len = len;
+                size_t n = len > reply_cap ? reply_cap : len;
+                memcpy(reply, buf + off + TERMD_HEADER_LEN, n);
+                *out_len = (uint32_t)n;
+                off += TERMD_HEADER_LEN + len;
+                memmove(buf, buf + off, *have - off);
+                *have -= off;
                 return type == want ? 0 : -2;
             }
             off += TERMD_HEADER_LEN + len;
         }
-        if (off) { memmove(buf, buf + off, have - off); have -= off; }
-        if (have == cap) return -1;
-        long n = plat_sock_read(fd, buf + have, cap - have);
+        if (off) { memmove(buf, buf + off, *have - off); *have -= off; }
+        if (*have == cap) return -1;
+        long n = plat_sock_read(fd, buf + *have, cap - *have);
         if (n <= 0) {
             if (n < 0 && plat_would_block()) { plat_sleep_ms(5); continue; }
             return -1;
         }
-        have += (size_t)n;
+        *have += (size_t)n;
     }
 }
 
@@ -1520,6 +1573,14 @@ static int attach_session(const char *target) {
     // Static rather than malloc'd because this path runs once per process,
     // from main, on one thread — so there is no free() to get wrong.
     static uint8_t buf[TERMD_MAX_PAYLOAD + TERMD_HEADER_LEN];
+    // Bytes read but not yet consumed. It spans the handshake AND the loop
+    // below, because the backlog the daemon sends behind ATTACHED arrives in
+    // the same read as the reply itself.
+    size_t have = 0;
+    // The handshake replies are tiny — a version, or an id and an offset —
+    // and keeping them out of `buf` is what lets `buf` go on holding the
+    // stream across both calls.
+    uint8_t reply[TERMD_MAX_NAME + 64];
     uint32_t rlen = 0;
     uint8_t hello[2];
     put_u16(hello, TERMD_PROTOCOL_VERSION);
@@ -1527,7 +1588,8 @@ static int attach_session(const char *target) {
     hdr[0] = TERMD_HELLO; hdr[1] = 0; put_u16(hdr + 2, 0); put_u32(hdr + 4, 2);
     attach_write_all(fd, hdr, sizeof(hdr));
     attach_write_all(fd, hello, sizeof(hello));
-    if (attach_await(fd, TERMD_HELLO_OK, buf, sizeof(buf), &rlen) != 0) {
+    if (attach_await(fd, TERMD_HELLO_OK, buf, sizeof(buf), &have,
+                     reply, sizeof(reply), &rlen) != 0) {
         fprintf(stderr, "termd: the daemon refused the handshake"
                         " (version %d here)\n", TERMD_PROTOCOL_VERSION);
         plat_sock_close(fd);
@@ -1559,9 +1621,10 @@ static int attach_session(const char *target) {
     attach_write_all(fd, hdr, sizeof(hdr));
     attach_write_all(fd, req, n);
 
-    int rc = attach_await(fd, TERMD_ATTACHED, buf, sizeof(buf), &rlen);
+    int rc = attach_await(fd, TERMD_ATTACHED, buf, sizeof(buf), &have,
+                          reply, sizeof(reply), &rlen);
     if (rc == -2) {
-        fprintf(stderr, "termd: %.*s\n", (int)(rlen > 2 ? rlen - 2 : 0), buf + 2);
+        fprintf(stderr, "termd: %.*s\n", (int)(rlen > 2 ? rlen - 2 : 0), reply + 2);
         plat_sock_close(fd);
         return 1;
     }
@@ -1570,7 +1633,7 @@ static int attach_session(const char *target) {
         plat_sock_close(fd);
         return 1;
     }
-    uint64_t consumed = rlen >= 12 ? get_u64(buf + 4) : 0;
+    uint64_t consumed = rlen >= 12 ? get_u64(reply + 4) : 0;
 
     struct attach a;
     a.fd = fd;
@@ -1593,9 +1656,16 @@ static int attach_session(const char *target) {
     }
 
     uint64_t acked = consumed;
-    size_t have = 0;
     int ended = 0;
+    // Drain what came in BEHIND the ATTACHED reply before waiting on the
+    // socket. For a reattach that is the whole screen, and it has already
+    // arrived — waiting for a byte to trigger the first parse means waiting
+    // for one that may never come, because a session sitting at a prompt
+    // sends nothing until it is typed at. A blank pane and a dead daemon look
+    // identical from the outside; this is the difference between them.
+    have -= attach_parse(&a, buf, have, sizeof(buf), &consumed, &ended);
     for (;;) {
+        if (ended) break;
         plat_pollfd pf;
         pf.fd = fd;
         pf.events = POLLIN;
@@ -1611,29 +1681,7 @@ static int attach_session(const char *target) {
                 break;
             }
             have += (size_t)got;
-            size_t off = 0;
-            while (have - off >= TERMD_HEADER_LEN) {
-                uint32_t len = get_u32(buf + off + 4);
-                if (len > sizeof(buf) - TERMD_HEADER_LEN) { ended = 1; break; }
-                if (have - off < TERMD_HEADER_LEN + len) break;
-                uint8_t type = buf[off];
-                const uint8_t *p = buf + off + TERMD_HEADER_LEN;
-                if (type == TERMD_DATA && len > 8) {
-                    // The payload past its seq, straight out. This is the
-                    // only place session bytes are touched, and they are not
-                    // read — only forwarded.
-                    (void)plat_stdout_write(p + 8, len - 8);
-                    consumed = get_u64(p) + (len - 8);
-                } else if (type == TERMD_EXIT) {
-                    ended = 1;
-                } else if (type == TERMD_PING) {
-                    attach_send(&a, TERMD_PONG, p, len);
-                } else if (type == TERMD_ERROR) {
-                    ended = 1;
-                }
-                off += TERMD_HEADER_LEN + len;
-            }
-            if (off) { memmove(buf, buf + off, have - off); have -= off; }
+            have -= attach_parse(&a, buf, have, sizeof(buf), &consumed, &ended);
             if (ended) break;
         }
 

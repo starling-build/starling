@@ -114,6 +114,139 @@ void flwin32_com_ensure(void) {
 
 static void ensure_com(void) { flwin32_com_ensure(); }
 
+/* ------------------------------------------------------- the taskbar's pins */
+
+/* What the user has pinned to WINDOWS' taskbar, in the order it shows them.
+ *
+ * There is no API for this, and there are two half-answers rather than one:
+ *
+ *   - `%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar`
+ *     holds a .lnk per CLASSIC pin. It is the well-known one, and on Windows
+ *     11 it is also the smaller half: pinning a packaged app writes no
+ *     shortcut there at all.
+ *   - HKCU ...\Explorer\Taskband\Favorites is the real list, ordered, and an
+ *     undocumented serialized item-ID list.
+ *
+ * So this reads the blob, which is the only source that has everything and
+ * the only one that knows the ORDER, and takes from it just the two shapes it
+ * can be sure of: a bare `<name>.lnk` (a classic pin, resolved by the caller
+ * against the folder above) and an AppUserModelID. Everything else in there —
+ * package full names, logo asset paths, display names — is skipped.
+ *
+ * SCRAPING AN UNDOCUMENTED BLOB IS ONLY SAFE BECAUSE OF WHAT THE CALLER DOES
+ * WITH IT. Every line still has to resolve to something already in the app
+ * catalog before it becomes a pin, and a run that resolves nothing falls back
+ * to the built-in defaults. The worst a format change can do is give the user
+ * the dock they get today.
+ *
+ * One entry per line, UTF-8. Returns the number of bytes written. */
+static int taskbar_pin_line_wanted(const wchar_t* w, size_t len) {
+    if (len < 4 || len > 255) return 0;
+    /* `<name>.lnk` */
+    if (len > 4 && _wcsicmp(w + len - 4, L".lnk") == 0) return 1;
+    /* `<family>_<hash>!<app>` — the AppUserModelID of a packaged app. Both
+     * halves required, and the underscore too, or ordinary prose with an
+     * exclamation mark in it would qualify. */
+    const wchar_t* bang = wcschr(w, L'!');
+    if (bang == NULL || bang == w || bang[1] == L'\0') return 0;
+    if (wcschr(bang + 1, L'!') != NULL) return 0;
+    int underscored = 0;
+    for (const wchar_t* p = w; p < bang; p++) {
+        if (*p == L'_') { underscored = 1; break; }
+    }
+    if (!underscored) return 0;
+    return (bang - w) >= 8;
+}
+
+/* Whole-line membership in the newline-separated list built so far. */
+static int taskbar_pin_listed(const char* list, const char* line) {
+    size_t len = strlen(line);
+    for (const char* p = list; *p != '\0'; ) {
+        const char* end = strchr(p, '\n');
+        size_t n = (end != NULL) ? (size_t)(end - p) : strlen(p);
+        if (n == len && memcmp(p, line, len) == 0) return 1;
+        if (end == NULL) break;
+        p = end + 1;
+    }
+    return 0;
+}
+
+int32_t flwin32_taskbar_pins(char* out, int32_t out_size) {
+    if (out == NULL || out_size <= 0) return 0;
+    out[0] = 0;
+
+    static const wchar_t* kTaskband =
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Taskband";
+    DWORD size = 0;
+    if (RegGetValueW(HKEY_CURRENT_USER, kTaskband, L"Favorites",
+                     RRF_RT_REG_BINARY, NULL, NULL, &size) != ERROR_SUCCESS
+        || size < 4 || size > (1u << 20)) {
+        return 0;
+    }
+    BYTE* blob = (BYTE*)malloc(size);
+    if (blob == NULL) return 0;
+    DWORD got = size;
+    if (RegGetValueW(HKEY_CURRENT_USER, kTaskband, L"Favorites",
+                     RRF_RT_REG_BINARY, NULL, blob, &got) != ERROR_SUCCESS) {
+        free(blob);
+        return 0;
+    }
+
+    /* RUNS OF PRINTABLE UTF-16, not null-terminated strings.
+     *
+     * The obvious version looks for terminated strings and finds NOTHING:
+     * these are item-ID payloads, so a name is followed by more binary rather
+     * than by a 0x0000. What is reliable is the shape of the text itself —
+     * an ASCII character in the low byte and a zero in the high one — so the
+     * scan takes maximal runs of that and lets the caller decide.
+     *
+     * A run can therefore start one character early, when the framing byte
+     * before the name happens to be printable: `bMicrosoft Edge.lnk` is a
+     * real reading of a real blob. That is not corrected here, because
+     * guessing which leading characters are junk is exactly the kind of
+     * cleverness that breaks on the next machine. The caller matches each
+     * line against things that actually exist — files in the pinned folder,
+     * ids in the app catalog — by SUFFIX, which fixes it with evidence. */
+    int32_t written = 0;
+    DWORD i = 0;
+    while (i + 1 < got) {
+        if (!(blob[i] >= 0x20 && blob[i] <= 0x7e && blob[i + 1] == 0)) {
+            i++;
+            continue;
+        }
+        DWORD start = i;
+        size_t len = 0;
+        while (i + 1 < got && blob[i] >= 0x20 && blob[i] <= 0x7e
+               && blob[i + 1] == 0 && len < 256) {
+            len++;
+            i += 2;
+        }
+        wchar_t text[257];
+        memcpy(text, blob + start, len * sizeof(wchar_t));
+        text[len] = L'\0';
+        /* Paths and asset names live in here too; a pin is neither. */
+        if (wcschr(text, L'\\') != NULL || wcschr(text, L'/') != NULL) continue;
+        if (!taskbar_pin_line_wanted(text, len)) continue;
+
+        char utf8[512];
+        int n = WideCharToMultiByte(CP_UTF8, 0, text, (int)len, utf8,
+                                    (int)sizeof(utf8) - 1, NULL, NULL);
+        if (n <= 0) continue;
+        utf8[n] = 0;
+        /* Same pin twice is ordinary — the blob repeats entries. Whole lines,
+         * not strstr: a substring test would drop a pin whose name happens to
+         * contain another's. */
+        if (taskbar_pin_listed(out, utf8)) continue;
+        if (written + n + 2 >= out_size) break;
+        memcpy(out + written, utf8, (size_t)n);
+        written += n;
+        out[written++] = '\n';
+        out[written] = 0;
+    }
+    free(blob);
+    return written;
+}
+
 int32_t flwin32_shortcut_target(const char* shortcut_path,
                                 char* out,
                                 int32_t out_size) {
@@ -317,6 +450,29 @@ int32_t flwin32_known_folder(int32_t which, char* out, int32_t out_size) {
     return n;
 }
 
+/* Hand our foreground rights to whatever is about to be started.
+ *
+ * Windows refuses SetForegroundWindow to a process that does not already own
+ * the foreground. A shell that has just been clicked DOES own it, and the way
+ * it lets a launched app come up in front is to pass that right on -- exactly
+ * what the tray click does before raising an app's menu, and what explorer
+ * does here.
+ *
+ * ASFW_ANY rather than a pid, and that is the whole point. Granting the pid
+ * we start covers only the case that already worked: a program that creates
+ * its own window. It does nothing for the ones that hand off -- Windows
+ * Terminal reuses an existing WindowsTerminal.exe, a packaged app is created
+ * by an activation broker -- because the process that ends up owning the
+ * window is not the process we started, and cannot be known before it exists.
+ * Measured on the test box: mspaint came up on top, Windows Terminal opened
+ * BEHIND everything including the dock, which is issue #28 exactly.
+ *
+ * The grant lapses on the next foreground change, so this is a permission for
+ * the launch in flight and not a standing one. */
+static void allow_launched_app_to_foreground(void) {
+    AllowSetForegroundWindow(ASFW_ANY);
+}
+
 int32_t flwin32_launch(const char* path, const char* arguments,
                        const char* directory) {
     if (path == NULL) return 0;
@@ -342,6 +498,7 @@ int32_t flwin32_launch(const char* path, const char* arguments,
      *
      * The return is a legacy HINSTANCE-shaped error code: anything <= 32 is a
      * failure. */
+    allow_launched_app_to_foreground();
     flwin32_trace("launch: ShellExecuteW begin");
     HINSTANCE rc = ShellExecuteW(NULL, L"open", wpath, wargs, wdir, SW_SHOWNORMAL);
     flwin32_trace("launch: ShellExecuteW end");
@@ -652,6 +809,10 @@ int32_t flwin32_launch_app_id_ex(const char* app_id, char* diag,
     ensure_com();
     wchar_t* wid = utf8_to_wide(app_id);
     if (wid == NULL) return 0;
+
+    /* Same reason as the shell launch below: for a packaged app the window is
+     * made by the activation broker, which is never the process we asked. */
+    allow_launched_app_to_foreground();
 
     int32_t started = 0;
     if (strchr(app_id, '!') != NULL) {
