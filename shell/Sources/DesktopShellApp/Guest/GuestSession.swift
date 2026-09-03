@@ -147,16 +147,38 @@ final class GuestSession: @unchecked Sendable {
             let m = mime.map { String(cString: $0) } ?? "text/plain;charset=utf-8"
             DispatchQueue.main.async { me.handleClipboardRequest(token: token, mime: m) }
         }
-        cb.on_clipboard_grab = { ctx, _, n in
-            guard ctx != nil else { return }
-            // Guest -> host. Answering it means calling Request back on QEMU,
-            // which needs the patched build (triton/patches/0003) and is the
-            // half of Phase 6 that has no plumbing yet — say so once rather
-            // than looking like it silently worked.
+        cb.on_clipboard_grab = { ctx, mimes, n in
+            guard let ctx else { return }
+            let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
+            // The guest copied something. Pull it and make it the desktop's
+            // selection. Only ever arrives from a QEMU carrying patches/0003.
+            var wanted: String? = nil
+            if let mimes {
+                for i in 0..<Int(n) {
+                    guard let m = mimes[i] else { continue }
+                    let s = String(cString: m)
+                    if s.hasPrefix("text/") || s == "UTF8_STRING" {
+                        wanted = s
+                        break
+                    }
+                }
+            }
+            guard let mime = wanted else { return }
             FileHandle.standardError.write(Data(
-                "[guest] the guest offered \(n) clipboard type(s); guest-to-host is not wired up\n".utf8))
+                "[guest] the guest copied \(mime); pulling it\n".utf8))
+            me.pullFromGuest(mime: mime)
         }
         cb.on_clipboard_release = { _ in }
+        cb.on_clipboard_data = { ctx, mime, data, len in
+            guard let ctx, let data, len > 0 else { return }
+            let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
+            let text = String(decoding: UnsafeRawBufferPointer(start: data,
+                                                              count: len),
+                              as: UTF8.self)
+            let deliver: () -> Void = { me.handleClipboardData(text) }
+            DispatchQueue.main.async(
+                execute: unsafeBitCast(deliver, to: (@Sendable () -> Void).self))
+        }
 
         gd = domain.withCString { guest_display_open($0, &cb) }
         if gd == nil {
@@ -254,6 +276,23 @@ final class GuestSession: @unchecked Sendable {
             DispatchQueue.main.async(
                 execute: unsafeBitCast(announce, to: (@Sendable () -> Void).self))
         }
+    }
+
+    /// Bus thread — the command is queued, so this is safe from a callback.
+    private func pullFromGuest(mime: String) {
+        guard let gd else { return }
+        mime.withCString { guest_display_clipboard_pull(gd, $0) }
+    }
+
+    /// The guest's selection, on its way to becoming the desktop's. Setting it
+    /// makes US the owner, so the next `onSelectionChanged` arrives with
+    /// `mine` true and announces nothing back — which is what stops this from
+    /// being a copy that bounces between the two clipboards for ever.
+    private func handleClipboardData(_ text: String) {
+        guard !closed, let clip, !text.isEmpty else { return }
+        FileHandle.standardError.write(Data(
+            "[guest] the guest's clipboard is now the desktop's (\(text.utf8.count) bytes)\n".utf8))
+        clip.setText(text)
     }
 
     private func handleClipboardRequest(token: UInt64, mime: String) {

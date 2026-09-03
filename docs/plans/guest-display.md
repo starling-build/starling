@@ -641,14 +641,24 @@ New here:
   adding the session user to `libvirt` — a distro package granting VM control
   silently is the kind of thing a reviewer rejects; the installer milestone
   is the right place to make it deliberate.
-- **Which QEMU M1 ships against** — settled for development (approved
-  2026-09-02: a patched QEMU is fine), still open for *release*. The desktop
-  needs `0001`+`0005`; `0005` is three words of C and fixes a crash any
-  dbus-display user with `gl=on` can hit, so it should go upstream on its own
-  merits. Options at release time: wait for it to land in Ubuntu, or carry a
-  Starling-built QEMU. **Recommendation: send 0005 upstream now** and decide
-  at release on what actually shipped — the answer changes the packaging story
-  but nothing in Phases 1–6.
+- **Which QEMU M1 ships against — SETTLED 2026-09-02: we ship our own QEMU
+  binary.** Not "wait for Ubuntu", not "upstream first and hope". Upstreaming
+  `0005` is still worth doing on its own merits — it is three words of C and
+  fixes a crash any `dbus-display` user with `gl=on` can hit — but nothing
+  here waits on it.
+
+  What that decision buys, which is more than it looks: a Starling QEMU can
+  carry **`0003`** as well, and `0003` is the whole of guest-to-host
+  clipboard. Phase 6's second half was written up as "built but contingent"
+  purely because it needed a patch we were not going to ship. It is not
+  contingent any more; it is just work.
+
+  What it costs: the .deb has to carry or depend on that binary, and
+  `docs/BUILDING.md` needs the recipe that produces it. The patches are
+  `docs/windows-vm/triton/patches/000{1,3,5}` — the desktop needs `0001`
+  (a texture created without a current context) and `0005` (a `gfx_switch`
+  that arrives before any texture exists, which kills the VM on a guest
+  reboot); `0003` is the clipboard.
 
 
 ---
@@ -751,9 +761,37 @@ Three things this needed that the plan did not name:
   rule as the listener. It logs `clipboard Register: ok`, which is what
   distinguishes "the guest ignored us" from "we were never registered".
 
-Guest to host is still unwired: it needs a `Request` call out to QEMU and the
-patched build (`triton/patches/0003`). The `Grab` arriving from the guest is
-logged and dropped, rather than silently looking like it worked.
+**Phase 6, guest to host, done 2026-09-02** — once the decision to ship our
+own QEMU made `0003` shippable. Copying inside Windows and running `wl-paste`
+on the desktop returns the text. The guest's `Grab` triggers a `Request` back
+out to QEMU, and the answer becomes the desktop's selection through
+`wlclip_set_text`; setting it makes us the owner, so the `mine` guard on the
+next selection change stops the two clipboards announcing to each other for
+ever.
+
+The one thing it needed beyond the plan: **QEMU allows exactly one outstanding
+clipboard `Request`.** A second is refused with "Pending request", which is
+what a burst of guest grabs produces — Ctrl+A then Ctrl+C is two of them. So
+pulls are serialised, and a grab arriving mid-pull is remembered rather than
+dropped, because the content it announced is newer than the one being fetched.
+
+**Testing it needs a domain that has both halves**, and neither dev-box domain
+did: `win11-dbus` has the guest agent but runs stock QEMU, and `win11-dbuspatch`
+runs the patched build but is a separate overlay on `win11-snap` with no agent
+installed. The rig is an overlay on the domain that HAS the agent, run under
+the patched emulator:
+
+    qemu-img create -f qcow2 -b /var/lib/libvirt/images/win11-dbus.qcow2 \
+        -F qcow2 /var/lib/libvirt/images/win11-clip.qcow2
+    virsh dumpxml win11-dbuspatch | sed -e 's|<name>win11-dbuspatch</name>|<name>win11-clip</name>|' \
+        -e '/<uuid>/d' -e 's|win11-dbuspatch.qcow2|win11-clip.qcow2|' > /tmp/win11-clip.xml
+    virsh define /tmp/win11-clip.xml
+
+**Delete it when done** (`virsh undefine win11-clip; rm …win11-clip.qcow2`):
+while that overlay exists, booting `win11-dbus` writes to its backing file and
+corrupts it. Also note `vdservice` starts before `vdagent` — the session agent
+appears a minute or so after the guest agent answers, and until it does the
+guest never grabs.
 
 **Two bugs the clipboard work uncovered, both unrelated to it.**
 

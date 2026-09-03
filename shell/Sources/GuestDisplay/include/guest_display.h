@@ -79,6 +79,11 @@ typedef struct GuestDisplayCallbacks {
     void (*on_clipboard_grab)(void* ctx, const char* const* mimes, int n);
     void (*on_clipboard_release)(void* ctx);
     void (*on_clipboard_request)(void* ctx, uint64_t token, const char* mime);
+    // The answer to guest_display_clipboard_pull: the guest's selection, as
+    // bytes. `data` is owned by the caller of the callback — copy it. `len`
+    // of 0 means the guest had nothing to give.
+    void (*on_clipboard_data)(void* ctx, const char* mime,
+                              const uint8_t* data, size_t len);
 } GuestDisplayCallbacks;
 
 // Returns at once. The connection is made on the display's own thread and
@@ -122,6 +127,11 @@ void guest_display_clipboard_grab(GuestDisplay* gd, const char* const* mimes,
 void guest_display_clipboard_reply(GuestDisplay* gd, uint64_t token,
                                    const char* mime, const void* data,
                                    size_t len);
+// Guest -> host: ask the guest for its selection in `mime`. The answer
+// arrives on on_clipboard_data. Needs a QEMU carrying
+// docs/windows-vm/triton/patches/0003; without it the guest never Grabs, so
+// this is never called in the first place.
+void guest_display_clipboard_pull(GuestDisplay* gd, const char* mime);
 
 // ── libvirt, synchronous and tens of milliseconds each. Not for the UI
 // thread. They open their own connection, so they work before the display is

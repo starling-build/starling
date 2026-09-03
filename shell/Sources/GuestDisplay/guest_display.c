@@ -55,6 +55,7 @@ enum gd_cmd_kind {
     GD_CMD_CLIP_ENABLE,
     GD_CMD_CLIP_GRAB,
     GD_CMD_CLIP_REPLY,
+    GD_CMD_CLIP_PULL,
 };
 
 struct gd_cmd {
@@ -113,6 +114,13 @@ struct GuestDisplay {
     /* Grab serials start at 1 and only go up. QEMU orders grabs by this, and
      * a serial of 0 is not a grab anyone has to believe. */
     uint32_t clip_serial;
+    /* QEMU allows ONE outstanding clipboard Request: a second is refused with
+     * "Pending request", which is what a burst of guest grabs produces (one
+     * per copy, and Ctrl+A/Ctrl+C is two events). So pulls are serialised, and
+     * a grab arriving mid-pull is remembered rather than dropped — the content
+     * it announced is newer than the one being fetched. */
+    int   clip_pull_inflight;
+    char* clip_pull_again;
 
     // Keys the guest believes are down, by qnum. Extended scancodes fold
     // into the high bit, so one byte covers the space and 32 bytes covers
@@ -520,6 +528,70 @@ static void gd_clip_reply(GuestDisplay* gd, struct gd_cmd* c) {
     }
 }
 
+// The guest's answer to our Request. Signature is (say): the mime it chose,
+// then the bytes.
+static void gd_clip_pull_send(GuestDisplay* gd, const char* mime);
+
+static int gd_on_clip_pull_reply(sd_bus_message* m, void* ud,
+                                 sd_bus_error* e) {
+    GuestDisplay* gd = ud;
+    gd->clip_pull_inflight = 0;
+    /* Whatever the outcome, a grab that arrived while this was in flight is
+     * still owed a fetch. */
+    char* again = gd->clip_pull_again;
+    gd->clip_pull_again = NULL;
+
+    const sd_bus_error* err = sd_bus_message_get_error(m);
+    if (err) {
+        fprintf(stderr, "[guest] clipboard pull failed: %s\n",
+                err->message ? err->message : "?");
+        if (again) { gd_clip_pull_send(gd, again); free(again); }
+        return 0;
+    }
+    const char* mime = NULL;
+    const void* data = NULL;
+    size_t len = 0;
+    int r = sd_bus_message_read(m, "s", &mime);
+    if (r < 0) return 0;
+    r = sd_bus_message_read_array(m, 'y', &data, &len);
+    if (r < 0) return 0;
+    if (gd->cb.on_clipboard_data) {
+        gd->cb.on_clipboard_data(gd->cb.ctx, mime ? mime : "", data, len);
+    }
+    if (again) { gd_clip_pull_send(gd, again); free(again); }
+    return 0;
+}
+
+/* Bus thread. Issues one Request, or remembers the mime if one is already
+ * out. */
+static void gd_clip_pull_send(GuestDisplay* gd, const char* mime) {
+    if (!gd->clip_enabled || !gd->ctl) {
+        return;
+    }
+    if (gd->clip_pull_inflight) {
+        free(gd->clip_pull_again);
+        gd->clip_pull_again = strdup(mime ? mime : "");
+        return;
+    }
+    sd_bus_message* m = NULL;
+    if (sd_bus_message_new_method_call(gd->ctl, &m, NULL, GD_CLIPBOARD,
+                                       IFACE_CLIPBOARD, "Request") < 0) {
+        return;
+    }
+    const char* mimes[2] = { mime ? mime : "", NULL };
+    sd_bus_message_append(m, "u", (uint32_t)0);
+    sd_bus_message_append_strv(m, (char**)mimes);
+    /* Async, like everything else after RegisterListener: the guest answers
+     * this by asking Windows, which takes as long as Windows likes. */
+    int rr = sd_bus_call_async(gd->ctl, NULL, m, gd_on_clip_pull_reply, gd, 0);
+    if (rr < 0) {
+        fprintf(stderr, "[guest] clipboard pull: %s\n", strerror(-rr));
+    } else {
+        gd->clip_pull_inflight = 1;
+    }
+    sd_bus_message_unref(m);
+}
+
 static int gd_on_clip_register_reply(sd_bus_message* m, void* ud,
                                      sd_bus_error* e) {
     const sd_bus_error* err = sd_bus_message_get_error(m);
@@ -604,6 +676,9 @@ static void gd_exec(GuestDisplay* gd, struct gd_cmd* c) {
             break;
         case GD_CMD_CLIP_REPLY:
             gd_clip_reply(gd, c);
+            break;
+        case GD_CMD_CLIP_PULL:
+            gd_clip_pull_send(gd, c->mime);
             break;
         default:
             break;
@@ -858,6 +933,7 @@ void guest_display_close(GuestDisplay* gd) {
     for (int i = 0; i < gd->n_cmds; i++) {
         gd_cmd_free(&gd->cmds[i]);
     }
+    free(gd->clip_pull_again);
     if (gd->lis) sd_bus_flush_close_unref(gd->lis);
     if (gd->ctl) sd_bus_flush_close_unref(gd->ctl);
     if (gd->dom) virDomainFree(gd->dom);
@@ -908,6 +984,12 @@ void guest_display_clipboard_grab(GuestDisplay* gd, const char* const* mimes,
         }
         c.n_mimes = n;
     }
+    gd_push(gd, &c);
+}
+
+void guest_display_clipboard_pull(GuestDisplay* gd, const char* mime) {
+    struct gd_cmd c = {.kind = GD_CMD_CLIP_PULL};
+    c.mime = strdup(mime ? mime : "text/plain;charset=utf-8");
     gd_push(gd, &c);
 }
 
