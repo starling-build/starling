@@ -479,6 +479,39 @@ def main():
               alive.get("attach probe") == 1, str(alive))
         probe.close()
 
+        # ATTACHING AGAIN MUST BRING THE SCREEN BACK. The daemon writes
+        # ATTACHED and then pumps the session's whole backlog, and both land
+        # in one read — so a client that kept only its own reply frame threw
+        # the replay away and came up blank. It looked like the daemon had
+        # stopped sending, and it only ever showed on the SECOND attach,
+        # because the first has no backlog to lose. The marker below was
+        # printed while the FIRST client was attached; the second must see it
+        # without anyone typing, since a session at a prompt sends nothing on
+        # its own and a blank pane is indistinguishable from a dead one.
+        ap2 = subprocess.Popen([BIN, "attach probe"], env=att_env,
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+        a2q = queue.Queue()
+        threading.Thread(target=lambda: [a2q.put(c) or (c or None)
+                                         for c in iter(lambda: os.read(
+                                             ap2.stdout.fileno(), 65536), b"")],
+                         daemon=True).start()
+        replay, end2 = b"", time.time() + (BOOT if WINDOWS else 3.0)
+        while time.time() < end2:
+            try:
+                chunk = a2q.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if not chunk:
+                break
+            replay += chunk
+            if b"termd-input-works" in replay:
+                break
+        check("attaching again replays what the session already said",
+              b"termd-input-works" in replay, repr(replay[:200]))
+        ap2.kill()
+        ap2.wait(timeout=5)
+
         # The tty half, which only exists on POSIX. Raw mode is what makes
         # the tunnel byte-exact — and OPOST in particular, without which a
         # tunnelled session prints a staircase — and a client that fails to
