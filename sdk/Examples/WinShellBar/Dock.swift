@@ -344,6 +344,7 @@ final class StarlingDockState: State<StatefulWidget> {
             case .status: self.bloc.add(.statusChanged)
             case .tray: self.bloc.add(.trayChanged)
             case .taskbar: self.bloc.add(.taskbarReturned)
+            case .prefs: self.bloc.add(.taskbarPrefsChanged)
             }
         }) {
             // The watcher could not start. Better a heartbeat than a status
