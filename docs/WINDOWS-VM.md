@@ -433,6 +433,12 @@ the guest's offer rather than pretending. Rebooting the guest while the window
 is open kills the VM on stock QEMU — that is `patches/0005`, three words of C,
 and until it is upstream a guest reboot means closing the window first.
 
+**Seeing the cursor plane.** A screenshot cannot show it — the hardware cursor
+plane is not in a GL readback. The Control Centre's **Record** / **Record App**
+can: both composite the plane into the capture, and the MP4 lands in
+`~/Videos`. That is the only way to check what the pointer actually looks like
+over a guest window.
+
 **One control client per domain.** The window and `dbus-display.py` cannot
 share a domain: opening the second closes the first, and from the desktop's
 side that looks like the window crashing. Close the window before running any

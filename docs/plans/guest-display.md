@@ -812,13 +812,40 @@ guest never grabs.
 
 **Open.**
 
-- **The guest's cursor has not been seen on the panel.** It reaches the plane —
-  the shell logs `first cursor 64x64 hot 0,0` and calls
-  `fl_drm_view_set_cursor_image` — but a screenshot cannot show it: the DRM
-  cursor plane is not in the GL readback, and the capture paths that DO
-  composite it (`RenderSnapshotRGBA`) are the recording ones, which need the
-  shell's own UI to start. This needs eyes on the machine, or a recording made
-  from the desktop.
+- **The guest's cursor is drawn, but has not been PROVEN to be the guest's.**
+  Investigated properly 2026-09-03, and the earlier claim here — "no capture
+  can show the cursor plane" — was wrong. The shell's own Control Centre has
+  **Record** and **Record App**, and both composite the plane through
+  `RenderSnapshotRGBA`, which is exactly the Phase 1 code. Driving that
+  (control centre at logical 2505,15; the tiles at 2292,214 and 2432,214;
+  then a window card in the picker) produces an MP4 under `~/Videos` with a
+  cursor composited at the pointer position over the guest window. So the
+  chain runs end to end: the guest sends `CursorDefine`, the shell calls
+  `fl_drm_view_set_cursor_image`, and something is on the plane and in the
+  capture.
+
+  What could NOT be settled is whether that something is the guest's bitmap
+  or the shell's own baked arrow, because **both are the classic arrow** and
+  H.264 destroys the one property that separates them. The measurements, so
+  nobody repeats them:
+  - anti-aliasing is the real discriminator (the guest's cursor reports 67
+    partially-transparent pixels; `kBitmapDefault` is pure black/white by
+    construction) — but the codec manufactures its own edge ramps, so a grey
+    count proves nothing either way;
+  - shape does not separate them: the baked arrow's left edge is vertical for
+    17 of 21 rows and then notches right by 7, and the recorded cursor is
+    vertical for 13 of 19 and notches right by 8. Different proportions,
+    within what scaling and blur can do.
+
+  The test that WOULD settle it is an A/B against a first-party window, where
+  the plane certainly holds the shell's arrow, through the identical capture
+  and codec path — different cursors means the guest's image is reaching the
+  plane. It was not run because child apps would not launch in that session
+  (`list_apps` kept reporting `settings window=false`). The other decisive
+  option is making the guest's cursor a *different shape* — hovering a text
+  field gives an I-beam, which an arrow can never be blurred into.
+
+  Both are half an hour with a working desktop, and neither needs new code.
 - **Phase 6's guest-to-host half** needs a `Request` call out to QEMU and a
   patched build to test against (`win11-dbuspatch` carries 0003).
 - **Phase 7**: `docs/BUILDING.md` has `libvirt-dev`; the functional check, the
