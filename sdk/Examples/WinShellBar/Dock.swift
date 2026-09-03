@@ -282,8 +282,18 @@ final class StarlingDockState: State<StatefulWidget> {
         case gear
         case output
     }
+    /// What the open right-click menu belongs to, if anything.
+    private enum DockMenu: Equatable {
+        /// A tile, by index.
+        case tile(Int)
+        /// The strip itself, at this position ALONG the dock. Windows keeps
+        /// Task Manager and the taskbar's own settings on the bar's empty
+        /// space, and that is where people reach for them (issue #27).
+        case strip(Double)
+    }
+
     /// The tile whose right-click menu is open, if any.
-    private var menuOpen: Int?
+    private var menuOpen: DockMenu?
     /// One-view shell only: whether the launcher LAYER is up. In every
     /// other mode the launcher is its own window/view and this stays false.
     private var launcherOpen = false
@@ -1619,11 +1629,14 @@ final class StarlingDockState: State<StatefulWidget> {
     /// and mouse-tracker annotations are the missing link, not the host. The
     /// tile is a fixed size and the row is centred, so doing it here costs
     /// four lines and no layout query.
-    private func pointerTile(_ x: Double, _ y: Double) -> Int? {
-        guard !bloc.state.items.isEmpty else { return nil }
-        // The window is the strip PLUS the overhang, and the overhang is a
-        // hole — a press there is not on the dock at all. Which side of the
-        // window the strip occupies depends on the edge.
+    /// How far ALONG the strip a press landed, or nil when it did not land on
+    /// the strip at all.
+    ///
+    /// The window is the strip PLUS the overhang, and the overhang is a hole —
+    /// a press there is not on the dock. Which side of the window the strip
+    /// occupies depends on the edge, which is the whole reason this is one
+    /// function rather than four scattered comparisons.
+    private func stripAlong(_ x: Double, _ y: Double) -> Double? {
         let along: Double
         let across: Double
         switch bloc.state.edge {
@@ -1633,7 +1646,11 @@ final class StarlingDockState: State<StatefulWidget> {
         case .right:  along = y; across = x - Double(dockOverhang)
         }
         guard across >= 0, across <= Double(kDockHeight) else { return nil }
+        return along
+    }
 
+    private func pointerTile(_ x: Double, _ y: Double) -> Int? {
+        guard !bloc.state.items.isEmpty, let along = stripAlong(x, y) else { return nil }
         let start = rowLeft()
         let index = Int((along - start) / kDockTile)
         guard along >= start, index >= 0, index < bloc.state.items.count else { return nil }
@@ -2119,6 +2136,29 @@ final class StarlingDockState: State<StatefulWidget> {
         -> (x: Double, y: Double) {
         flyoutOrigin(centre: tileCentre(index), width: width, height: height)
     }
+    /// A tile's menu hangs under the tile; the strip's hangs where it was
+    /// asked for, which is what a pointer-anchored menu means everywhere else.
+    private func flyoutOrigin(_ target: DockMenu, width: Double, height: Double)
+        -> (x: Double, y: Double) {
+        switch target {
+        case .tile(let index):
+            return flyoutOrigin(centre: tileCentre(index), width: width, height: height)
+        case .strip(let along):
+            return flyoutOrigin(centre: along, width: width, height: height)
+        }
+    }
+
+    /// Wide enough for the longest row it will hold. The dock's own menu says
+    /// things like "Hide the Windows taskbar"; an app's says "New window".
+    private func menuWidth(_ target: DockMenu) -> Double {
+        switch target {
+        case .strip:
+            return 200
+        case .tile(let index):
+            guard index < bloc.state.items.count else { return 168 }
+            return bloc.state.items[index].key == kLauncherKey ? 200 : 168
+        }
+    }
 
     /// The same formula against an arbitrary point along the strip — what the
     /// notification area's tooltips hang off, since they are not tiles.
@@ -2140,10 +2180,16 @@ final class StarlingDockState: State<StatefulWidget> {
         }
     }
 
+    private func flyout(_ target: DockMenu, width: Double, height: Double,
+                        child: Widget) -> Widget {
+        let origin = flyoutOrigin(target, width: width, height: height)
+        return Positioned(left: origin.x, top: origin.y, child: child)
+    }
+    /// Over a tile — the hover label and the preview card, which have no
+    /// menu behind them and only ever hang off one.
     private func flyout(_ index: Int, width: Double, height: Double,
                         child: Widget) -> Widget {
-        let origin = flyoutOrigin(index, width: width, height: height)
-        return Positioned(left: origin.x, top: origin.y, child: child)
+        flyout(.tile(index), width: width, height: height, child: child)
     }
 
     /// The launcher layer's footprint: Start's own geometry, centred above
@@ -2173,12 +2219,12 @@ final class StarlingDockState: State<StatefulWidget> {
 
     /// A press while a tile menu is open. True when the menu consumed it.
     private func handleTileMenu(_ x: Double, _ y: Double) -> Bool {
-        guard let index = menuOpen else { return false }
-        let rows = menuRows(index)
+        guard let target = menuOpen else { return false }
+        let rows = menuRows(target)
         guard !rows.isEmpty else { return false }
-        let width = bloc.state.items[index].key == kLauncherKey ? 200.0 : 168.0
+        let width = menuWidth(target)
         let height = Double(rows.count) * kMenuRowH + 12
-        let origin = flyoutOrigin(index, width: width, height: height)
+        let origin = flyoutOrigin(target, width: width, height: height)
         guard x >= origin.x, x < origin.x + width,
               y >= origin.y, y < origin.y + height else {
             // Outside: close it, and let the press carry on to whatever it hit.
@@ -2209,50 +2255,73 @@ final class StarlingDockState: State<StatefulWidget> {
     /// The right-click menu, also in the overhang.
     /// What a tile's menu offers. ONE list, used to draw the menu and to hit
     /// test it — see `flyoutOrigin` for why they must not be worked out twice.
-    private func menuRows(_ index: Int) -> [DockMenuRow] {
+    private func menuRows(_ target: DockMenu) -> [DockMenuRow] {
+        // Empty bar space carries the dock's own menu, the same list the
+        // launcher tile has always had.
+        guard case .tile(let index) = target else { return dockMenuRows() }
         guard index < bloc.state.items.count else { return [] }
         let item = bloc.state.items[index]
 
-        // The launcher tile carries the DOCK's own menu: where it lives, and
-        // whether it lives at all. It hangs there because it is the one tile
-        // always present — the app tiles come and go with what is running, and
-        // a shell command attached to something that may not be on screen is a
-        // command you cannot reach.
-        guard item.key != kLauncherKey else {
-            // Settings first: it is the thing people come to this menu for
-            // that is not about the menu itself.
-            var rows = [
-                DockMenuRow(label: "     Files") {
-                    self.openFiles()
-                },
-                DockMenuRow(label: "     Settings") {
-                    Task.detached { Win32Shell.openSettings() }
-                },
-            ]
-            rows += kDockEdges.map { choice in
-                DockMenuRow(label: (bloc.state.edge == choice.edge ? "\u{2713}  " : "     ")
-                                + choice.label) { self.bloc.add(.setEdge(choice.edge)) }
-            }
-            // Where the icons gather along that edge — the taskbar setting
-            // Windows keeps under Personalization, in the menu that is already
-            // about where this bar lives.
-            rows += [(DockAlignment.center, "Icons centred"),
-                     (DockAlignment.start, "Icons to the start")].map { choice in
-                DockMenuRow(label: (bloc.state.alignment == choice.0 ? "\u{2713}  " : "     ")
-                                + choice.1) { self.bloc.add(.setAlignment(choice.0)) }
-            }
-            rows.append(DockMenuRow(
-                label: bloc.state.nativeTaskbarWanted
-                    ? "     Hide the Windows taskbar"
-                    : "     Show the Windows taskbar") {
-                self.bloc.add(.setNativeTaskbar(!self.bloc.state.nativeTaskbarWanted))
-            })
-            rows.append(DockMenuRow(label: "     Remove the dock") {
-                self.bloc.add(.removeDock)
-            })
-            return rows
-        }
+        // The launcher tile carries it too. It hung there first because it is
+        // the one TILE always present — the app tiles come and go with what is
+        // running — and it stays because a menu people have learned should not
+        // move out from under them.
+        guard item.key != kLauncherKey else { return dockMenuRows() }
+        return appMenuRows(item)
+    }
 
+    /// The dock's own menu: where it lives, how it is arranged, and the two
+    /// entries Windows keeps on its taskbar.
+    private func dockMenuRows() -> [DockMenuRow] {
+        // Task Manager and the taskbar's settings first, and in that
+        // order, because that is Windows' own menu and this is the
+        // gesture people already know (issue #27). Both open the REAL
+        // Windows ones: the alignment this menu offers below is the same
+        // setting that page writes, so the two cannot disagree.
+        var rows = [
+            DockMenuRow(label: "     Task Manager") {
+                Task.detached { _ = Win32AppCatalog.open("taskmgr.exe") }
+            },
+            DockMenuRow(label: "     Taskbar settings") {
+                // The shell's URL for that exact page, which is what the
+                // Settings app itself links to.
+                Task.detached { _ = Win32AppCatalog.open("ms-settings:taskbar") }
+            },
+        ]
+        rows += [
+            DockMenuRow(label: "     Files") {
+                self.openFiles()
+            },
+            DockMenuRow(label: "     Settings") {
+                Task.detached { Win32Shell.openSettings() }
+            },
+        ]
+        rows += kDockEdges.map { choice in
+            DockMenuRow(label: (bloc.state.edge == choice.edge ? "\u{2713}  " : "     ")
+                            + choice.label) { self.bloc.add(.setEdge(choice.edge)) }
+        }
+        // Where the icons gather along that edge — the taskbar setting
+        // Windows keeps under Personalization, in the menu that is already
+        // about where this bar lives.
+        rows += [(DockAlignment.center, "Icons centred"),
+                 (DockAlignment.start, "Icons to the start")].map { choice in
+            DockMenuRow(label: (bloc.state.alignment == choice.0 ? "\u{2713}  " : "     ")
+                            + choice.1) { self.bloc.add(.setAlignment(choice.0)) }
+        }
+        rows.append(DockMenuRow(
+            label: bloc.state.nativeTaskbarWanted
+                ? "     Hide the Windows taskbar"
+                : "     Show the Windows taskbar") {
+            self.bloc.add(.setNativeTaskbar(!self.bloc.state.nativeTaskbarWanted))
+        })
+        rows.append(DockMenuRow(label: "     Remove the dock") {
+            self.bloc.add(.removeDock)
+        })
+        return rows
+    }
+
+    /// What ONE app's tile offers.
+    private func appMenuRows(_ item: DockItem) -> [DockMenuRow] {
         var rows: [DockMenuRow] = [
             DockMenuRow(label: item.isPinned ? "Unpin from dock" : "Pin to dock") {
                 self.bloc.add(.togglePin(item))
@@ -2273,17 +2342,17 @@ final class StarlingDockState: State<StatefulWidget> {
         return rows
     }
 
-    private func menu(_ index: Int) -> Widget {
-        let rows = menuRows(index)
+    private func menu(_ target: DockMenu) -> Widget {
+        let rows = menuRows(target)
         guard !rows.isEmpty else { return SizedBox(width: 0, height: 0) }
-        let width = bloc.state.items[index].key == kLauncherKey ? 200.0 : 168.0
+        let width = menuWidth(target)
         let height = Double(rows.count) * kMenuRowH + 12
         // A fixed width, and .start rather than .stretch: a Positioned child
         // in a Stack is laid out LOOSE, so its width constraint is infinity,
         // and a stretching Column in infinite width lays out to nothing at all
         // — the menu simply never appears, with no error and no clue that
         // layout is what refused it.
-        return flyout(index, width: width, height: height,
+        return flyout(target, width: width, height: height,
                       child: SizedBox(width: width, height: height) {
             ClipRRect(borderRadius: BorderRadius.circular(8)) {
                 ColoredBox(color: Color(0xF41F2229)) {
@@ -2362,9 +2431,20 @@ final class StarlingDockState: State<StatefulWidget> {
                     // press is what arrives reliably here, and a menu that
                     // opens on press is what every desktop does anyway.
                     if e.buttons == 2 {
-                        let index = self.pointerTile(x, y)
+                        // A tile if there is one under the pointer, otherwise
+                        // the strip's own menu — empty bar space is where
+                        // Windows puts Task Manager and the taskbar settings.
+                        // Neither, in the overhang, closes whatever is open.
+                        let target: DockMenu?
+                        if let index = self.pointerTile(x, y) {
+                            target = .tile(index)
+                        } else if let along = self.stripAlong(x, y) {
+                            target = .strip(along)
+                        } else {
+                            target = nil
+                        }
                         self.setState {
-                            self.menuOpen = (self.menuOpen == index) ? nil : index
+                            self.menuOpen = (self.menuOpen == target) ? nil : target
                         }
                         return
                     }
