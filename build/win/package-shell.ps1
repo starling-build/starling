@@ -15,7 +15,7 @@ param(
     [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
     [string]$EngineOut = "$env:USERPROFILE\dev\starling-engine\engine\src\out\host_release",
     [string]$SwiftRuntime = "$env:LOCALAPPDATA\Programs\Swift\Runtimes\6.2.3\usr\bin",
-    [string]$Version = "0.1.0",
+    [string]$Version = "0.2.0",
     [string]$OutDir = "$env:USERPROFILE\dist",
     [switch]$SkipBuild,
     # Ship Chromium's full 10.5 MB ICU instead of the 1.6 MB desktop slice.
