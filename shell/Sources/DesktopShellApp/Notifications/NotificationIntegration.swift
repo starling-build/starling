@@ -43,14 +43,12 @@ final class NotificationIntegration {
                     id: id, appName: appName, summary: sum, body: bod,
                     urgency: u, timeoutMs: t, replaces: r)
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(call, to: (@Sendable () -> Void).self))
+            onPlatformThread(call)
         }, { _, id in
             let call: () -> Void = {
                 _shellState?._notificationCloseRequested(id)
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(call, to: (@Sendable () -> Void).self))
+            onPlatformThread(call)
         }, nil)
 
         let r: Int32

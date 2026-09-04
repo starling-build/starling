@@ -47,9 +47,9 @@ final class ShellClock: StatefulWidget {
 
 final class ShellClockState: State<StatefulWidget> {
     private var now = Date()
-    /// Retires a pending wake. `DispatchQueue.main.asyncAfter` plus a
-    /// generation token is the house timer idiom — `Foundation.Timer` never
-    /// fires at all on the DRM embedder.
+    /// Retires a pending wake. `onPlatformThread(after:)` plus a generation
+    /// token is the house timer idiom — `Foundation.Timer` never fires at all
+    /// on the DRM embedder, and the main queue is not the framework's thread.
     private var generation = 0
 
     override func initState() {
@@ -86,9 +86,7 @@ final class ShellClockState: State<StatefulWidget> {
             self.setState { self.now = Date() }
             self._scheduleNextTick()
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + delay,
-            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: delay, fire)
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -172,9 +170,7 @@ final class ShellCaretState: State<StatefulWidget> {
             self.setState { self.on.toggle() }
             self._schedule()
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(530),
-            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: Double(530) / 1000.0, fire)
     }
 
     override func build(_ context: any BuildContext) -> Widget {

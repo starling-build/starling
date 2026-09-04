@@ -62,14 +62,14 @@ final class ImeIntegration: @unchecked Sendable {
             let owner = Unmanaged<ImeBridgeBox>.fromOpaque(ctx)
                 .takeUnretainedValue().owner
             let s = String(cString: text)
-            DispatchQueue.main.async { owner.onCommit?(s) }
+            onPlatformThread { owner.onCommit?(s) }
         }
         cbs.preedit = { (ctx, text, _) in
             guard let ctx, let text else { return }
             let owner = Unmanaged<ImeBridgeBox>.fromOpaque(ctx)
                 .takeUnretainedValue().owner
             let s = String(cString: text)
-            DispatchQueue.main.async {
+            onPlatformThread {
                 owner.preedit = s
                 owner.emitPanel()
             }
@@ -87,7 +87,7 @@ final class ImeIntegration: @unchecked Sendable {
                 }
             }
             let hl = Int(highlighted)
-            DispatchQueue.main.async {
+            onPlatformThread {
                 owner.candidates = list
                 owner.highlighted = hl
                 owner.emitPanel()
@@ -102,7 +102,7 @@ final class ImeIntegration: @unchecked Sendable {
             guard let ctx else { return }
             let owner = Unmanaged<ImeBridgeBox>.fromOpaque(ctx)
                 .takeUnretainedValue().owner
-            DispatchQueue.main.async {
+            onPlatformThread {
                 owner.resolveVerdict(cookie: cookie, handled: handled != 0)
             }
         }

@@ -489,12 +489,19 @@ Engine / compositor:
   decodes completed while `initState` was still iterating the same
   dictionary — and a dock that saw two different app lists in one frame.
   Hop with `onPlatformThread` (`Utils/PlatformThread.swift`, over
-  `fl_drm_view_post_task`), never the main queue: the broker's handlers,
-  the guest code, and the icon and wallpaper decodes do now; main.swift's
-  own hotplug hops still use the main queue and are on the list. The ONE
-  thing that must stay off the platform thread is a client of the shell's
-  own compositor — the guest clipboard provider — whose connect round-trip
-  waits on the thread that answers it. The first build that hopped it
+  `fl_drm_view_post_task`), never the main queue — it is also the house
+  timer idiom (`onPlatformThread(after:)` plus a generation token), since
+  `Foundation.Timer` never fires on the DRM embedder. Every state-touching
+  hop in the shell was converted in one audit: the guest code, the broker,
+  the clock and caret ticks, the idle and screensaver timers, the network,
+  battery, notification, portal, IME, recording and RDP services, and the
+  hotplug publishes in main.swift. What legitimately stays on the main
+  queue: the RDP display mode's two hops (no DRM view there — the main
+  queue IS its loop, and `onPlatformThread` falls back to it), the logout
+  and workspace process-signalling timers (no state), the macOS-only app
+  managers, and the ONE thing that must stay off the platform thread — a
+  client of the shell's own compositor, the guest clipboard provider, whose
+  connect round-trip waits on the thread that answers it. The first build that hopped it
   hung on the guest's connect with the scanouts queued behind it. To see a
   crash like these: `sysctl kernel.core_pattern=/tmp/core.%e.%p`, launch
   with `ulimit -c unlimited`, `gdb -batch -ex bt` — apport otherwise

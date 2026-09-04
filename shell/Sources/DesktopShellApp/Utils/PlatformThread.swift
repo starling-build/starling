@@ -63,4 +63,21 @@ private final class PlatformTask {
     let work: () -> Void
     init(_ work: @escaping () -> Void) { self.work = work }
 }
+#else
+// Off Linux the framework runs on the main thread, so the main queue IS the
+// framework's thread and these are the plain hops.
+func onPlatformThread(_ work: @escaping () -> Void) {
+    DispatchQueue.main.async(execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
+}
+
+@discardableResult
+func onPlatformThread(after seconds: Double, execute item: DispatchWorkItem) -> DispatchWorkItem {
+    DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+    return item
+}
+
+@discardableResult
+func onPlatformThread(after seconds: Double, _ work: @escaping () -> Void) -> DispatchWorkItem {
+    onPlatformThread(after: seconds, execute: DispatchWorkItem(block: work))
+}
 #endif

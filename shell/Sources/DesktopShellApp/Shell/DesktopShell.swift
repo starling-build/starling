@@ -98,11 +98,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                        every seconds: Int, _ body: @escaping () -> Void) {
         if wanted {
             guard slot == nil else { return }
-            let t = DispatchSource.makeTimerSource(queue: .main)
+            // A global queue, and the body hops: these ticks touch state.
+            let t = DispatchSource.makeTimerSource(queue: .global())
             t.schedule(deadline: .now() + .seconds(seconds),
                        repeating: .seconds(seconds))
+            let hop: () -> Void = { onPlatformThread(body) }
             t.setEventHandler(
-                handler: unsafeBitCast(body, to: (@Sendable () -> Void).self))
+                handler: unsafeBitCast(hop, to: (@Sendable () -> Void).self))
             t.resume()
             slot = t
         } else if let t = slot {
@@ -941,8 +943,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// time: the generation token invalidates the previous one, so a settings
     /// change or a wake can safely re-arm without stacking.
     ///
-    /// `DispatchQueue.main.asyncAfter`, not `Foundation.Timer` — the latter
-    /// never fires on the DRM embedder.
+    /// `onPlatformThread(after:)`, not `Foundation.Timer` — the latter never
+    /// fires on the DRM embedder (the framework's thread runs no RunLoop),
+    /// and not the main queue, which is not the framework's thread.
     private func _armIdleTimer(after seconds: Double) {
         _idleTimerToken += 1
         let token = _idleTimerToken
@@ -950,9 +953,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             guard let self, token == self._idleTimerToken else { return }
             self._checkIdle()
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + max(1.0, seconds),
-            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: max(1.0, seconds), fire)
     }
 
     /// Has the desktop been idle long enough? Re-arms for whatever time is
@@ -1115,9 +1116,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             self._activateScreensaver()
         }
         // Main-queue-only state; @Sendable coercion is the codebase idiom.
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + secs,
-            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: secs, fire)
     }
 
     // ── Key repeat synthesis ─────────────────────────────────────────────
@@ -1251,10 +1250,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // The handler runs on the main queue and reaches back through
         // _shellState rather than capturing self: the state class is not
         // Sendable (same pattern as the wallpaper and icon decodes).
-        AppRegistry.shared.watch {
-            guard let shell = _shellState else { return }
-            shell.setState { shell._reconcileDock() }
-            shell._loadIconTextures()
+        AppRegistry.shared.watch(queue: .global()) {
+            // The watch fires on a global queue; the dock and the icon
+            // loads are framework state.
+            onPlatformThread {
+                guard let shell = _shellState else { return }
+                shell.setState { shell._reconcileDock() }
+                shell._loadIconTextures()
+            }
         }
         #endif
 
@@ -1323,10 +1326,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // screencast, an RDP client, an X screen capture. It is created
         // suspended and armed by `_reevaluateFramePump` when one of those
         // starts, so a desktop with none of them running does not tick at all.
-        let timer = DispatchSource.makeTimerSource(queue: .main)
+        // A global queue with a hop, not `.main`: the tick drives the
+        // recording and screencast services and ends in a setState, and
+        // those services' frame hops run on the platform thread — a tick on
+        // any other thread has them touched from two threads at once. The
+        // audit that moved the hops left this here, and the recording zoom
+        // stopped finalising while the screencast's first frame never stood
+        // the stream up.
+        let timer = DispatchSource.makeTimerSource(queue: .global())
         timer.schedule(deadline: .now() + Self.kPumpIdlePeriod,
                        repeating: Self.kPumpIdlePeriod)
-        timer.setEventHandler { [weak self] in
+        timer.setEventHandler { [weak self] in onPlatformThread { [weak self] in
             var tick = false
             var rebuild = false
             #if os(Linux)
@@ -1397,18 +1407,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             if rebuild || (self?._pumpTicks ?? 0) % Self.kPumpFloorTicks == 0 {
                 self?.setState { self?._frameTick += 1 }
             }
-        }
+        } }
         // NOT resumed here: the pump starts idle and is armed by
         // `_reevaluateFramePump` when a rider appears. A suspended timer costs
         // nothing at all, which is the point of the exercise.
         _frameTickTimer = timer
         // The riders say when they need the pump instead of being asked 30
         // times a second. They flip state from the engine's threads as well as
-        // the main one, so the re-arm hops to the main queue -- which is where
-        // the timer lives. Reached through the shell global rather than a
+        // the main one, so the re-arm hops to the platform thread -- which is
+        // where the tick runs too. Reached through the shell global rather than a
         // captured `self`, the same way the fd handler above does.
         let pokePump: @Sendable () -> Void = {
-            DispatchQueue.main.async { _shellState?._reevaluateFramePump() }
+            onPlatformThread { _shellState?._reevaluateFramePump() }
         }
         recordingService?.onFramePumpNeedChanged = pokePump
         screenCastService?.onFramePumpNeedChanged = pokePump
@@ -3443,9 +3453,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         }
         // Main-queue-only state; the @Sendable coercion is safe (codebase
         // idiom — see _recordStatusPopupHeight).
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(_edgeCarryDwellMs),
-            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: Double(_edgeCarryDwellMs) / 1000.0, fire)
     }
 
     /// Pointer released anywhere — disarm the dwell.
@@ -3680,9 +3688,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 },
                 windowLabel: label)
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(350),
-            execute: unsafeBitCast(begin, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: Double(350) / 1000.0, begin)
     }
 
     /// Carry the focused window to the space at `index` and follow it there
@@ -3717,7 +3723,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // reason to run on a desktop that is otherwise doing nothing -- and on
         // a Wayland-only desktop it never runs at all.
         x11.onClientCountChanged = {
-            DispatchQueue.main.async { _shellState?._reevaluateFramePump() }
+            onPlatformThread { _shellState?._reevaluateFramePump() }
         }
 
         x11.onNewWindow = { [weak self] (windowId: UInt32, textureId: Int, title: String,
@@ -5234,8 +5240,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         }
         // Same-thread hop out of the layout pass; the state is main-thread
         // only, so the @Sendable coercion is safe (codebase idiom).
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(update, to: (@Sendable () -> Void).self))
+        onPlatformThread(update)
     }
 
     /// macOS-style popup panel — Liquid Glass: blurred + saturation-boosted
@@ -5435,9 +5440,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 schedule()
             }
             // Main-queue-only state; @Sendable coercion is the codebase idiom.
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + .milliseconds(530),
-                execute: unsafeBitCast(next, to: (@Sendable () -> Void).self))
+            onPlatformThread(after: Double(530) / 1000.0, next)
         }
         schedule()
     }
@@ -6080,8 +6083,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 }
                 self._scheduleCcTick()
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
+            onPlatformThread(apply)
             _ = self
         }
         DispatchQueue.global(qos: .userInitiated).async(
@@ -6097,9 +6099,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             guard self.activeStatusBarPopup == .controlCenter else { return }
             self._refreshControlCenter()
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + 2,
-            execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: 2, work)
     }
 
     private func _ccToggleTile(icon: IconData, label: String, active: Bool,
@@ -6210,7 +6210,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     // screen — a recording that opens on the control center
                     // sliding away is footage of the button, not the desktop.
                     setState { activeStatusBarPopup = nil }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(300)) {
+                    onPlatformThread(after: 0.3) {
                         recordingService?.start()
                     }
                 }
@@ -8219,7 +8219,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             let state = guest_display_domain_state(domain)
             let started = state == 1
                 || (state >= 0 && guest_display_domain_start(domain) >= 0)
-            DispatchQueue.main.async {
+            onPlatformThread {
                 guard let s = GuestSessions.session(forDomain: domain) else { return }
                 if state < 0 {
                     s.onFailure?("no such domain")

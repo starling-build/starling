@@ -466,7 +466,7 @@ func performHostOutputSwitch(to outputId: Int) {
     guard let newLayout = computeRealLayoutFromEngine(view) else { return }
     syncEngineViewsAndLayout(view, newLayout)
 
-    DispatchQueue.main.async {
+    onPlatformThread {
         // Before the layout publish: each PANEL keeps the space it was
         // showing across the host identity change (the compat index means
         // "the host's space", and the host just became a different monitor).
@@ -514,7 +514,7 @@ func drmOutputsChanged() {
     // mapping so a later reconnect gets a fresh view.
     secondaryViewOutputs.removeMappings(notIn: Set(dl.outputs.map { $0.id }))
     syncEngineViewsAndLayout(view, dl)
-    DispatchQueue.main.async {
+    onPlatformThread {
         displayLayout = dl
         FileHandle.standardError.write(Data(
             "[DisplayLayout] hotplug: \(dl.describe())\n".utf8))
@@ -864,7 +864,7 @@ func runDRM() -> Never {
         GuestSessions.handlePresent()
         if dropped != 0 {
             let idx = Int(outputIndex)
-            DispatchQueue.main.async {
+            onPlatformThread {
                 secondaryScreenForceRedraws[idx]?()
             }
         }

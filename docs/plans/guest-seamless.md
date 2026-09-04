@@ -423,6 +423,18 @@ as a hung shell with the scanouts posted behind it and never run. After the
 change: five cold starts out of five, the seamless check three times in a
 row, no traps, no watchdog.
 
+The audit then went through the rest of the shell — every timer and service
+callback that ended in a `setState` — and the full functional tier caught
+what a grep for `DispatchQueue.main` could not: dispatch SOURCES created on
+`queue: .main`. The frame pump's timer was one. With the recording and
+screencast services' frame hops moved to the platform thread and the pump
+tick still on the main queue, one island of state was driven from two
+threads, and two checks that pass on the previous binary failed: the
+recording zoom never finalised and the screencast's first frame never stood
+its stream up. The pump, the registry watch, the periodic ticks and the
+battery sources now fire on a global queue and hop; an A/B against the
+previous binary is what told a regression from a pre-existing failure.
+
 ## Traps
 
 - **Minimised windows stop producing frames**, so a crop of one is stale

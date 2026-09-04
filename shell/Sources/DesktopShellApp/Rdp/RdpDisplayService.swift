@@ -137,8 +137,7 @@ final class RdpDisplayService {
         lock.unlock()
         warn("client connected at \(w)x\(h)\(changed ? " (resized)" : "")")
         let apply: () -> Void = { [weak self] in self?.onSizeNegotiated?(w, h) }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
+        onPlatformThread(apply)
     }
 
     private func disconnected() {
@@ -146,22 +145,19 @@ final class RdpDisplayService {
         pending = nil
         lock.unlock()
         let gone: () -> Void = { [weak self] in self?.onClientGone?() }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(gone, to: (@Sendable () -> Void).self))
+        onPlatformThread(gone)
     }
 
     private func key(scancode: UInt32, extended: Bool, down: Bool) {
         let deliver: () -> Void = { [weak self] in
             self?.onKey?(scancode, extended, down)
         }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(deliver, to: (@Sendable () -> Void).self))
+        onPlatformThread(deliver)
     }
 
     private func keySync(_ flags: UInt32) {
         let deliver: () -> Void = { [weak self] in self?.onKeySync?(flags) }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(deliver, to: (@Sendable () -> Void).self))
+        onPlatformThread(deliver)
     }
 
     private func pointer(x: Double, y: Double, buttons: Int64,
@@ -169,8 +165,7 @@ final class RdpDisplayService {
         let deliver: () -> Void = { [weak self] in
             self?.onPointer?(x, y, buttons, wdx, wdy)
         }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(deliver, to: (@Sendable () -> Void).self))
+        onPlatformThread(deliver)
     }
 
     // MARK: Frames (engine raster thread)
@@ -226,9 +221,7 @@ final class RdpDisplayService {
             self.lock.unlock()
             cb?()
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(Int(afterMs) + 2),
-            execute: unsafeBitCast(fire, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: Double(Int(afterMs) + 2) / 1000.0, fire)
     }
 
     /// Borrow a buffer sized for the current frame; the caller fills it

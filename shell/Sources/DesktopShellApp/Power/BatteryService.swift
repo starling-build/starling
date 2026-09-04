@@ -45,7 +45,7 @@ final class BatteryService {
     }
 
     private func _startPoll() {
-        let t = DispatchSource.makeTimerSource(queue: .main)
+        let t = DispatchSource.makeTimerSource(queue: .global())
         // 5s covers the fastest thing worth showing promptly — the charging
         // bolt after plugging in.
         t.schedule(deadline: .now() + .seconds(5), repeating: .seconds(5))
@@ -86,7 +86,7 @@ final class BatteryService {
         }
         udevHandle = u
         monitor = m
-        let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
+        let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .global())
         let handler: () -> Void = { [weak self] in
             guard let self, let m = self.monitor else { return }
             // Drain every queued device or the fd stays readable and this
@@ -115,8 +115,7 @@ final class BatteryService {
                 self.snapshot = status
                 self.onChange?()
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
+            onPlatformThread(apply)
         }
         queue.async(execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
     }

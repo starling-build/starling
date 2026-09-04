@@ -32,7 +32,7 @@ let portalChooserLaunchThunk: portal_launch_chooser_fn = {
     let isDirectory = directory != 0
     let isSave = saveMode != 0
 
-    DispatchQueue.main.async {
+    onPlatformThread {
         guard let shell = _shellState else {
             portalIntegration?.completeRequest(handle: handleStr, uris: [], response: 2)
             return

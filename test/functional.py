@@ -664,6 +664,16 @@ def check_guest_seamless() -> None:
     domain = os.environ.get("STARLING_GUEST_DOMAIN") or "windows"
     if "windows" not in apps():
         raise Skip("no windows.app in the catalog")
+    # Same skip as the M1 check: a catalog record is not a domain. Without
+    # this the check launched a console for a domain that did not exist and
+    # waited two minutes for it.
+    try:
+        r = subprocess.run(["virsh", "-c", "qemu:///system", "domstate", domain],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise Skip(f"no libvirt domain {domain!r}")
+    except OSError:
+        raise Skip("no libvirt on this machine")
 
     def guest() -> dict | None:
         for g in ask("guest_state")["guests"]:
@@ -2475,9 +2485,22 @@ def check_recording_zoom() -> None:
             shot = tempfile.mktemp(suffix=".png")
             drive(f"shot {shot}")
             shots.append(shot)
-            time.sleep(seconds)
+            # The tier runs the shell with a 15 s screensaver idle, and the
+            # saver swallows whatever key wakes it — which was the stop chord
+            # below, so the recording never ended and the screencast check
+            # after this one found the engine's capture still taken. A lone
+            # Shift every few seconds keeps the desktop awake without moving
+            # the pointer, which the zoom crop follows.
+            left = seconds
+            while left > 0:
+                time.sleep(min(8.0, left))
+                left -= 8.0
+                if left > 0:
+                    drive("key shift")
         finally:
-            drive("key ctrl+shift+r")
+            # Wake first if the saver did come up; a lone Shift is harmless
+            # to the terminal underneath if it did not.
+            drive("key shift", "sleep 0.3", "key ctrl+shift+r")
             wait_for(lambda: rec()["state"] == "idle", "the encode to finalize")
         path = rec()["last_file"]
         assert path, "the shell reports no saved file"

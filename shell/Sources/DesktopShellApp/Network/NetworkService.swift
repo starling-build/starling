@@ -47,7 +47,7 @@ final class NetworkService {
         // monitor's @Sendable callback captures only a @Sendable value.
         let toMain: () -> Void = { [weak self] in self?.refreshNow() }
         let onMain = unsafeBitCast(toMain, to: (@Sendable () -> Void).self)
-        let mon = NetworkMonitor { DispatchQueue.main.async(execute: onMain) }
+        let mon = NetworkMonitor { onPlatformThread(onMain) }
         monitor = mon
         mon.start()
         refreshNow()
@@ -77,8 +77,7 @@ final class NetworkService {
                 self.snapshot = snap
                 self.onChange?()
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
+            onPlatformThread(apply)
         }
         queue.async(execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
     }
@@ -91,9 +90,7 @@ final class NetworkService {
         let scan: () -> Void = { WifiManager.requestScan() }
         queue.async(execute: unsafeBitCast(scan, to: (@Sendable () -> Void).self))
         let later: () -> Void = { [weak self] in self?.refreshNow() }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + .seconds(3),
-            execute: unsafeBitCast(later, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: 3, later)
     }
 
     /// Join a network. `completion` runs on the main thread with nil on
@@ -110,8 +107,7 @@ final class NetworkService {
                 completion(err.map(WifiManager.friendlyConnectError))
                 self?.refreshNow()
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
+            onPlatformThread(apply)
         }
         queue.async(execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
     }
@@ -142,8 +138,7 @@ final class NetworkService {
         let work: () -> Void = { [weak self] in
             _ = op()
             let apply: () -> Void = { self?.refreshNow() }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
+            onPlatformThread(apply)
         }
         queue.async(execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
     }

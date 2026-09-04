@@ -190,7 +190,7 @@ final class RdpService {
     func notifyStatus() {
         guard let cb = onStatusChanged else { return }
         let send = unsafeBitCast(cb, to: (@Sendable () -> Void).self)
-        DispatchQueue.main.async { send() }
+        onPlatformThread(send)
     }
 
     // MARK: Peer callbacks (RdpServer threads)

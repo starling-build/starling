@@ -595,9 +595,7 @@ final class RecordingService {
                   self.state == .starting, self.zeroCopy else { return }
             self.endSession(reason: "the engine delivered no frames")
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + 3,
-            execute: unsafeBitCast(check, to: (@Sendable () -> Void).self))
+        onPlatformThread(after: 3, check)
     }
 
     /// Called from the shell's frame-tick pump while recording: end the
@@ -708,8 +706,7 @@ final class RecordingService {
                 self.onChange?()
                 self.onFinished?(saved, detail)
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(finish, to: (@Sendable () -> Void).self))
+            onPlatformThread(finish)
         }
         queue.async(execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
     }
@@ -777,8 +774,7 @@ final class RecordingService {
             guard let self else { return }
             body(self)
         }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(run, to: (@Sendable () -> Void).self))
+        onPlatformThread(run)
     }
 
     // MARK: Root-mode ownership
