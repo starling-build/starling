@@ -697,13 +697,7 @@ extension _DesktopShellState {
                                 paneW: Double, paneH: Double) -> Widget {
         var content: Widget
         if let texId = win.textureId {
-            content = TextureWidget(textureId: texId, filterQuality: .low)
-            if win.flipTextureY {
-                content = Transform(
-                    transform: Matrix4.diagonal3Values(1.0, -1.0, 1.0),
-                    alignment: Alignment.center,
-                    child: content)
-            }
+            content = windowTextureContent(win, textureId: texId, filterQuality: .low)
         } else {
             content = ColoredBox(color: Color(0xFF1A1A20), child: SizedBox(expand: ()))
         }

@@ -191,6 +191,97 @@ worse trade than a missing window. Elevated windows stay in the M1 console.
   the fallback whenever a window cannot be represented (elevated, or the
   helper is not running), and the only way to reach the guest's own UI.
 
+**BUILT 2026-09-04** — `shell/Sources/DesktopShellApp/Guest/GuestSeamless.swift`,
+owned by `GuestSession` as its `.seamless` mode; the dock menu's "Show Apps as
+Windows" / "Show Windows Desktop" switch it, `STARLING_GUEST_SEAMLESS=1` starts
+a launch in it, and the broker's `guest_state` / `guest_mode` / `guest_launch`
+drive it from the functional tier. What the survey's crop primitive turned out
+to need, and what the reconcile does:
+
+- **`TextureWidget(sourceRect:)` was the wrong primitive after all.** It is a
+  fixed paint rect in logical pixels, and Mission Control and the workspace
+  panes draw the same window into a *scaled* box — a crop fixed in logical
+  units shows the wrong region there. The SDK gained `crop:` (unit texture
+  coordinates, scaled to the box); `WindowInfo.textureCrop` carries it, and
+  ONE painter — `windowTextureContent` in `DesktopWindow.swift` — is used by
+  the window, the exposé card and the pane, so the crop cannot be honoured
+  in one and not another. It also folds `flipTextureY` into the crop: the
+  flip is a `Transform` about the box's centre, which mirrors the oversized
+  quad, so a bottom-up buffer's crop has to be mirrored first.
+- **The helper's events carry the whole list, not deltas.** The C# fixture
+  polls (100 ms) and sends `{"event":"windows",…}` whenever the serialised
+  list changes; the shell reconciles against it — add, retitle, re-crop,
+  minimise/restore, remove, and raise the guest's foreground. Idempotent, so
+  it does not matter whether a WinEvent hook or a poll produced the list —
+  the real helper can send the same thing from `observe()`.
+- **Both echo guards.** Our focus → `activate`, the guest's foreground →
+  `bringToFront`; a reconcile marks itself `applying` so the focus and
+  minimise callbacks it fires are not sent back, and a raise the guest asked
+  for is remembered (`expectFocus`) so our own focus change for it is not
+  either. Same shape as the clipboard's `mine`.
+- **Resize is a request, and the guest's answer wins.** Ours → `move` with
+  the same origin and the new size (debounced during a drag); the rect
+  follows only what the next list reports, exactly as M1's `noteGuestResized`,
+  with the request forgotten after a second so a guest that refuses does not
+  freeze the window.
+- **Unrepresentable foregrounds are reported.** The list carries `fg` even
+  when it is not in the list, plus `fgTitle` when it is not furniture; the
+  shell logs it and posts one notification per such window — after 1.5 s,
+  because a launching app is foreground for a tick before it is listable
+  (Calculator, every time) and that is not a UAC prompt.
+
+**VERIFIED 2026-09-04** on the dev box (`win11-dbus`, stock QEMU, the C#
+helper, the shell unprivileged at 1.5x on the 4K output): switching from
+the console closes it and the guest re-renders at 3840x2160; Notepad and
+Calculator each became a desktop window cropped pixel-exact from the one
+scanout, stacked as the guest stacks them; a window dragged on our desktop
+kept its crop; clicking a title bar raised the guest's window too, and
+typing then landed in it; an edge drag resized the guest's window and ours
+followed the size it actually took (1202 → 892 guest px); the yellow button
+minimised it in the guest, relaunching restored it, the red button closed
+Registry Editor and Calculator through `WM_CLOSE`; a window closed inside the
+guest vanished from the desktop; with no helper the switch fell back to the
+console after 15 s with a notice. `test/functional.py --only seamless`
+passes (4.6 s), the M1 check still passes, and the fast tier is green.
+Not seen live: the "foreground we cannot show" notice — the guest's
+Administrator auto-elevates, so `regedit` never raised a UAC prompt.
+
+Four things the live run taught, none visible from the code:
+
+- **A write with no host attached does not pend for .NET, it throws.** The
+  Phase 1 stub made it look like a pend; a synchronous `FileStream` turns
+  the port's `ERROR_IO_PENDING` into an `IOException`, and the helper died
+  on its `helper-up` line every time it started before the desktop
+  connected — the normal order at logon. The scheduled task's last result,
+  `-532462766` (`0xE0434352`, a CLR unhandled exception), is the only
+  trace. The bytes stay in the stream's buffer, so catching it loses
+  nothing; they go out with the next write.
+- **One synchronous handle serialises the reader and the writer.** With the
+  main thread blocked in `ReadLine`, the observer's `WriteFile` queued
+  behind it and completed only when the host next sent something — so
+  every event after the first arrived exactly when the desktop happened to
+  ask for a list, which looks like "events are lost". The port is opened
+  `FILE_FLAG_OVERLAPPED` now, the stream unbuffered. The real helper has the
+  same problem the moment its hooks write from the UI thread.
+- **`SetForegroundWindow` is refused from a windowless helper**, even
+  through `AttachThreadInput`: WinShellBar gets away with the attach alone
+  because it is a window the person just clicked. Measured: Notepad behind
+  Calculator, `activate` → `ok:false`, foreground unchanged, and the
+  keystrokes meant for Notepad went into Calculator. `SwitchToThisWindow`
+  (Alt+Tab's path) is not subject to the lock; an Alt tap is the fallback.
+- **A minimised UWP window is cloaked**, so `is_manageable()` drops it and
+  the desktop window goes away rather than minimising — Calculator's yellow
+  button removes it; relaunching brings it back as a new HWND. Windows'
+  own taskbar keeps a button for it, so the filter (the C bridge's too)
+  should treat cloaked-and-iconic as minimised rather than absent. Left as
+  is here, noted for the real helper.
+
+And two that are not bugs: stale pixels below a window that just animated
+(a duplicated row of Calculator keys) are the guest scanout's own damage
+tracking — the console shows the same — and `shell-drive shot` converts
+whichever output's dump lands first, so on a two-output box a 4K capture
+has to be taken from the leftover dump.
+
 ## Phase 4 — the empty session — **DEFERRED TO M3**
 
 Registering `WinShellBar --session` as the guest's shell is out of M2 by

@@ -113,12 +113,12 @@ def broker_path() -> str:
     sys.exit("no starling-agent.sock — is the shell running?")
 
 
-def ask(op: str, timeout: float = 5.0) -> dict:
+def ask(op: str, timeout: float = 5.0, **fields) -> dict:
     """One request/response against the broker."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.settimeout(timeout)
     sock.connect(broker_path())
-    sock.send(json.dumps({"op": op, "id": 1}).encode() + b"\n")
+    sock.send(json.dumps(dict(fields, op=op, id=1)).encode() + b"\n")
     buf = b""
     while b"\n" not in buf:
         chunk = sock.recv(65536)
@@ -642,7 +642,81 @@ def check_guest_display() -> None:
     # docs/plans/guest-display.md; automating it needs a way to ask the shell
     # to close a window by id.
     assert domstate() == before == "running", \
-        f"the domain went from {before!r} to {domstate()!r} under us"
+        f"the domain moved from {before!r} to {domstate()!r}"
+
+
+@check("guest: seamless mode shows a guest app as a window of its own")
+def check_guest_seamless() -> None:
+    """M2 — docs/plans/guest-seamless.md, Phase 3. With the console open,
+    switching to seamless mode closes it and, once the helper inside the
+    guest answers, shows one Starling window per guest top-level. Launching
+    Notepad through the helper makes such a window; killing it makes it go.
+    Then back to the console, which is the state the M1 check leaves behind.
+
+    Everything here goes through the broker — mode switch, launch, the window
+    list — because none of it has a position-independent gesture: the mode
+    switch is a dock-menu item and the launch happens inside Windows.
+
+    Needs the helper running in the guest (docs/WINDOWS-VM.md, "Apps as
+    windows"); without it the switch falls back to the console and this
+    says so rather than hanging. Skipped wherever there is no domain.
+    """
+    domain = os.environ.get("STARLING_GUEST_DOMAIN") or "windows"
+    if "windows" not in apps():
+        raise Skip("no windows.app in the catalog")
+
+    def guest() -> dict | None:
+        for g in ask("guest_state")["guests"]:
+            if g["domain"] == domain:
+                return g
+        return None
+
+    if guest() is None:
+        # The M1 check opens the console and leaves it open; on its own this
+        # check has to open it itself.
+        drive("move 300 300", "dock launcher", "click", "sleep 1", "type windows",
+              "key enter")
+        try:
+            wait_for(lambda: guest() is not None and guest()["console"],
+                     "the guest console", timeout=120.0)
+        finally:
+            drive("key esc")
+
+    ask("guest_mode", domain=domain, mode="seamless")
+    # The helper answers hello within a couple of seconds when it is running;
+    # the shell gives it 15 s before falling back to the console.
+    wait_for(lambda: guest()["mode"] == "seamless" and not guest()["console"],
+             "seamless mode")
+    log("console closed; seamless mode on")
+
+    def titled(word: str) -> list[dict]:
+        return [w for w in guest()["windows"] if word.lower() in w["title"].lower()]
+
+    try:
+        # The helper has to be ready before it can launch anything. Its
+        # readiness is not reported directly; a launch that goes nowhere is
+        # the symptom, so give it a moment after the switch.
+        time.sleep(3)
+        if guest()["mode"] != "seamless":
+            raise Skip("no helper inside the guest: seamless mode fell back to the console")
+        ask("guest_launch", domain=domain, path="notepad.exe")
+        wait_for(lambda: titled("notepad"), "a Notepad window from the guest",
+                 timeout=30.0)
+        w = titled("notepad")[0]
+        assert w["frame"]["w"] > 0 and w["frame"]["h"] > 0, f"empty frame: {w!r}"
+        assert apps()["windows"]["window"], \
+            "the guest window is not counted as the VM app's (wmClass)"
+        log(f"Notepad is a window: {w['window']} {w['frame']}")
+
+        ask("guest_launch", domain=domain, path="taskkill.exe",
+            args="/IM notepad.exe /F")
+        wait_for(lambda: not titled("notepad"), "the Notepad window to go",
+                 timeout=30.0)
+        log("Notepad closed in the guest; its window went with it")
+    finally:
+        ask("guest_mode", domain=domain, mode="console")
+        wait_for(lambda: guest()["mode"] == "console" and guest()["console"],
+                 "the console back")
 
 
 @check("registry: installing and removing moves the launcher live")

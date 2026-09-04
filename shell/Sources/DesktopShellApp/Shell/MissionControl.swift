@@ -135,15 +135,7 @@ extension _DesktopShellState {
         // `.medium` because these cards MINIFY -- a whole window into a
         // thumbnail -- and `.low` is a plain bilinear sample that aliases
         // when shrinking that far. Same defect the taskbar previews had.
-        var content: Widget = TextureWidget(textureId: texId, filterQuality: .medium)
-        if win.flipTextureY {
-            content = Transform(
-                transform: Matrix4.diagonal3Values(1.0, -1.0, 1.0),
-                alignment: Alignment.center,
-                child: content
-            )
-        }
-        return content
+        return windowTextureContent(win, textureId: texId, filterQuality: .medium)
     }
 
     /// An exposé card: rounded live window content with a hairline border.

@@ -39,12 +39,14 @@ public class TextureWidget: LeafRenderObjectWidget {
         textureId: Int,
         freeze: Bool = false,
         filterQuality: FilterQuality = .low,
-        sourceRect: Rect? = nil
+        sourceRect: Rect? = nil,
+        crop: Rect? = nil
     ) {
         self.textureId = textureId
         self.freeze = freeze
         self.filterQuality = filterQuality
         self.sourceRect = sourceRect
+        self.crop = crop
         super.init(key: key)
     }
 
@@ -71,9 +73,14 @@ public class TextureWidget: LeafRenderObjectWidget {
     /// Optional source rect for UV crop (physical pixels).
     public let sourceRect: Rect?
 
+    /// The part of the texture to show, in unit texture coordinates, scaled
+    /// to fill the widget. See `TextureBox.crop`.
+    public let crop: Rect?
+
     /// **Dart Source:** `texture.dart:62-63`
     public override func createRenderObject(_ context: any BuildContext) -> RenderObject {
-        return TextureBox(textureId: textureId, freeze: freeze, filterQuality: filterQuality, sourceRect: sourceRect)
+        return TextureBox(textureId: textureId, freeze: freeze, filterQuality: filterQuality,
+                          sourceRect: sourceRect, crop: crop)
     }
 
     /// **Dart Source:** `texture.dart:66-70`
@@ -83,5 +90,6 @@ public class TextureWidget: LeafRenderObjectWidget {
         textureBox.freeze = freeze
         textureBox.filterQuality = filterQuality
         textureBox.sourceRect = sourceRect
+        textureBox.crop = crop
     }
 }

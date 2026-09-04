@@ -151,12 +151,14 @@ public class TextureBox: RenderBox {
         textureId: Int,
         freeze: Bool = false,
         filterQuality: FilterQuality = .low,
-        sourceRect: Rect? = nil
+        sourceRect: Rect? = nil,
+        crop: Rect? = nil
     ) {
         self._textureId = textureId
         self._freeze = freeze
         self._filterQuality = filterQuality
         self._sourceRect = sourceRect
+        self._crop = crop
         super.init()
     }
 
@@ -215,6 +217,25 @@ public class TextureBox: RenderBox {
         }
     }
     private var _sourceRect: Rect?
+
+    /// The part of the texture this box shows, in unit texture coordinates
+    /// (0...1 on both axes), scaled to fill the box. nil shows all of it.
+    ///
+    /// Unlike `sourceRect`, which is a fixed paint rect in logical pixels,
+    /// this follows the box: the same value crops the same region whether the
+    /// box is a window's content area or a thumbnail of it. It is how one
+    /// scanout becomes many windows — each shows its own rectangle of a
+    /// texture they all share.
+    public var crop: Rect? {
+        get { _crop }
+        set {
+            if newValue != _crop {
+                _crop = newValue
+                markNeedsPaint()
+            }
+        }
+    }
+    private var _crop: Rect?
 
     // MARK: - RenderBox Overrides
 
@@ -284,6 +305,15 @@ public class TextureBox: RenderBox {
             localOrigin = Offset(src.left, src.top)
             layerRect = Rect.fromLTWH(offset.dx + src.left, offset.dy + src.top,
                                        src.width, src.height)
+        } else if let c = _crop, c.width > 0, c.height > 0 {
+            // The whole texture, drawn so that exactly `crop` of it lands on
+            // this box; the parent clips the rest. Derived from the box's own
+            // size, so a scaled box scales the crop with it.
+            let fullW = size.width / c.width
+            let fullH = size.height / c.height
+            localOrigin = Offset(-c.left * fullW, -c.top * fullH)
+            layerRect = Rect.fromLTWH(offset.dx + localOrigin.dx,
+                                       offset.dy + localOrigin.dy, fullW, fullH)
         } else {
             localOrigin = Offset.zero
             layerRect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height)

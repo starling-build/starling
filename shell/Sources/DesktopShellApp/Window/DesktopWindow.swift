@@ -5,6 +5,40 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+// MARK: - Window content
+
+/// A window's live texture, the way every painter of it must draw it: cropped
+/// to `textureCrop` when the window is one rectangle of a shared texture, and
+/// Y-flipped when the buffer is bottom-up. One function, because the desktop
+/// window, the Mission Control card and the workspace pane each drew this
+/// themselves — and a crop honoured by one of them and not the others shows
+/// a guest app in its window and the whole guest desktop in its thumbnail.
+///
+/// The flip is a `Transform` about the box's centre, which mirrors the WHOLE
+/// oversized quad the crop paints — so the crop itself has to be mirrored
+/// first, or the flipped box shows the region the same distance from the
+/// other edge. `crop` is in upright coordinates; this is where the two meet.
+func windowTextureContent(_ win: WindowInfo, textureId: Int,
+                          filterQuality: FilterQuality) -> Widget {
+    var crop = win.textureCrop
+    if let c = crop, win.flipTextureY {
+        crop = Rect.fromLTWH(c.left, 1.0 - c.top - c.height, c.width, c.height)
+    }
+    var content: Widget = TextureWidget(textureId: textureId,
+                                        filterQuality: filterQuality, crop: crop)
+    if crop != nil {
+        content = ClipRect(child: content)
+    }
+    if win.flipTextureY {
+        content = Transform(
+            transform: Matrix4.diagonal3Values(1.0, -1.0, 1.0),
+            alignment: Alignment.center,
+            child: content
+        )
+    }
+    return content
+}
+
 // MARK: - DesktopWindow
 
 /// A single desktop window with title bar chrome, content area, and resize handles.
@@ -18,15 +52,8 @@ class DesktopWindow: StatelessWidget {
         // No sourceRect needed — MAXIMIZED state tells Chrome to skip CSD
         // shadows, so the buffer matches the content area exactly (like
         // Hyprland). The texture stretches to fill the content area.
-        var content: Widget = TextureWidget(textureId: texId, filterQuality: .low)
-        if windowInfo.flipTextureY {
-            content = Transform(
-                transform: Matrix4.diagonal3Values(1.0, -1.0, 1.0),
-                alignment: Alignment.center,
-                child: content
-            )
-        }
-        let texture = content
+        let texture = windowTextureContent(windowInfo, textureId: texId,
+                                           filterQuality: .low)
         guard let forward = windowInfo.onPointerEvent else {
             // No pointer forwarding (native Flutter content) — still listen
             // for hover so the cursor resets to the default arrow when the

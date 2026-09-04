@@ -485,6 +485,55 @@ final class AgentBroker: @unchecked Sendable {
             return
         }
 
+        // Every open VM guest: its mode, its scanout, and in seamless mode the
+        // guest windows it is showing (docs/plans/guest-seamless.md). The
+        // functional tier's seamless check reads this rather than pixels —
+        // "a window whose title is Notepad's exists" is a claim about the
+        // reconcile, and only the reconcile can answer it.
+        if op == "guest_state" {
+            conn.send(["id": id, "ok": true,
+                       "guests": GuestSessions.byDomain.values
+                           .sorted { $0.domain < $1.domain }
+                           .map { $0.stateSnapshot() }])
+            return
+        }
+        // The dock menu's "Show Apps as Windows" / "Show Windows Desktop",
+        // for a test that has no coordinate to click a menu at.
+        if op == "guest_mode" {
+            guard let domain = req["domain"] as? String,
+                  let session = GuestSessions.session(forDomain: domain) else {
+                conn.send(["id": id, "ok": false, "error": "no such guest session"])
+                return
+            }
+            switch req["mode"] as? String {
+            case "seamless": session.setMode(.seamless)
+            case "console": session.setMode(.console)
+            default:
+                conn.send(["id": id, "ok": false, "error": "mode is seamless or console"])
+                return
+            }
+            conn.send(["id": id, "ok": true])
+            return
+        }
+        // Start a program INSIDE a guest, through its helper — the seamless
+        // check's way of making a guest window appear without a coordinate
+        // to click at. `path` is an exe path or a `shell:AppsFolder\…` name.
+        if op == "guest_launch" {
+            guard let domain = req["domain"] as? String,
+                  let path = req["path"] as? String,
+                  let session = GuestSessions.session(forDomain: domain) else {
+                conn.send(["id": id, "ok": false, "error": "no such guest session"])
+                return
+            }
+            guard session.mode == .seamless else {
+                conn.send(["id": id, "ok": false, "error": "the guest is not in seamless mode"])
+                return
+            }
+            session.launchInGuest(path, args: req["args"] as? String ?? "")
+            conn.send(["id": id, "ok": true])
+            return
+        }
+
         // The WiFi picture the status-bar popup is drawing right now, so a
         // test can assert what the panel shows without reading pixels — and,
         // by comparing it against `nmcli`, that the panel is showing the

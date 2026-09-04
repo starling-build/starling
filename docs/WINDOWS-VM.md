@@ -448,6 +448,53 @@ share a domain: opening the second closes the first, and from the desktop's
 side that looks like the window crashing. Close the window before running any
 of the tools below against the same VM.
 
+### Apps as windows
+
+The dock menu's **Show Apps as Windows** replaces the console with one
+desktop window per Windows app — its own title, its own place in Mission
+Control and the spaces — cropped out of the same scanout, so there is no
+second copy of anything (`docs/plans/guest-seamless.md`). **Show Windows
+Desktop** brings the console back; the two are exclusive, and the console is
+the only way to reach whatever a crop cannot show — an elevated window, a UAC
+prompt, the Start menu. The desktop notices when the guest's foreground is a
+window it is not showing and posts a notification saying so.
+
+It needs a helper inside the guest, answering on a second virtio-serial
+channel beside the guest agent's. The domain gets
+
+    <channel type='unix'>
+      <target type='virtio' name='org.starling.agent.0'/>
+    </channel>
+
+and the guest gets `docs/windows-vm/starling-bridge.cs`, which it compiles
+itself — every Windows install ships `csc.exe` — and runs in the interactive
+session. Both steps go through the guest agent, nothing installed:
+
+    cd docs/windows-vm
+    python3 winput.py -d win11-dbus starling-bridge.cs C:\starling-bridge.cs
+    python3 winrun.py -d win11-dbus --file starling-bridge-up.ps1
+
+The second command is idempotent and is the thing to re-run after a guest
+reboot: the helper is started by a scheduled task marked interactive-only,
+because a guest-agent command lands in session 0, where there are no windows
+to list. Without a helper the switch waits fifteen seconds, says so, and
+falls back to the console. The helper is deliberately unelevated (UIPI: an
+elevated helper driving the human's session is the worse trade), which is why
+elevated windows are the console's business.
+
+On the host, the channel's socket is `libvirt-qemu:kvm` inside a kvm-group
+directory, so the session user needs the **`kvm`** group as well as
+`libvirt` — see *Host* above.
+
+What it is, in this milestone: crop-and-clip. Two overlapping guest windows
+show Windows' stacking where they overlap, a guest window keeps its own
+caption inside ours, and dragging it by that caption moves it in the guest
+rather than on the desktop (the crop follows). A minimised Store app
+(Calculator, Notepad) is cloaked by Windows and therefore leaves the desktop
+rather than minimising; launching it again brings it back.
+`STARLING_GUEST_SEAMLESS=1` starts a launched guest straight into this mode,
+which is how the functional tier reaches it without a dock-menu coordinate.
+
 ## The dbus display, and Triton
 
 The tools below are the protocol reference — they predate the window and are

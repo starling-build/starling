@@ -38,16 +38,31 @@ final class GuestSession: @unchecked Sendable {
     var onWindowOpened: ((String) -> Void)?
     /// Raised when the session has torn itself down and should be forgotten.
     var onClosed: (() -> Void)?
+    /// Something the person should hear about, as a desktop notification:
+    /// (summary, body). Set by the launch arm; seamless mode uses it for
+    /// "the helper is not running" and "the guest is showing a window we
+    /// cannot".
+    var onNotice: ((String, String) -> Void)?
+
+    /// How the guest is presented — the whole desktop in one window, or one
+    /// window per guest app (`GuestSeamless`). Mutually exclusive by decision
+    /// (`docs/plans/guest-seamless.md`): two windows showing the same pixels
+    /// is the confusion that avoids.
+    enum Mode { case console, seamless }
+    private(set) var mode: Mode = .console
+    /// The mode to enter once the display is connected. Set before `open()`.
+    var preferredMode: Mode = .console
+    private var seamless: GuestSeamless?
 
     private var gd: OpaquePointer?
-    private var textureId: Int64?
+    private(set) var textureId: Int64?
     private(set) var windowId: String?
     private var closed = false
 
     /// The scanout's own pixel size — guest pixels, which are also physical
     /// pixels, because the guest renders at content size times our dpi.
-    private var guestSize: (w: Int, h: Int)?
-    private var flipY = false
+    private(set) var guestSize: (w: Int, h: Int)?
+    private(set) var flipY = false
 
     /// Damage tokens waiting for a present. Written on the bus thread, drained
     /// on the platform thread, so it carries its own lock rather than riding
@@ -196,6 +211,8 @@ final class GuestSession: @unchecked Sendable {
         guard !closed else { return }
         closed = true
         resizeDebounce?.cancel()
+        seamless?.stop()
+        seamless = nil
         clip?.onSelectionChanged = nil
         clip = nil
         if let gd {
@@ -225,6 +242,7 @@ final class GuestSession: @unchecked Sendable {
             close()
         case Int(GUEST_DISPLAY_CONNECTED):
             startClipboard()
+            if preferredMode == .seamless { setMode(.seamless) }
         case Int(GUEST_DISPLAY_DISCONNECTED):
             // No reconnect in M1: one control client per domain, and the
             // window without a connection behind it is a lie.
@@ -392,7 +410,11 @@ final class GuestSession: @unchecked Sendable {
         // Per SCANOUT, not per window: the placeholder says one thing and the
         // guest's real buffer another, and both are re-sent on every resize.
         flipY = !y0Top
-        if let winId = windowId,
+        if mode == .seamless {
+            // No console window; every guest window's crop is relative to
+            // this scanout, and the first one cannot be made before it.
+            seamless?.scanoutChanged()
+        } else if let winId = windowId,
            let win = _shellState?.windowManager.windows.first(where: { $0.id == winId }) {
             if win.flipTextureY != flipY {
                 _shellState?.setState { win.flipTextureY = self.flipY }
@@ -402,6 +424,76 @@ final class GuestSession: @unchecked Sendable {
             openWindow(width: width, height: height)
         }
         FrameCallbackScheduler.shared.noteTextureUpdate(texId)
+    }
+
+    // MARK: - Mode
+
+    /// True for the console window and for every seamless window — the
+    /// question the key router and the focus hook ask.
+    func owns(_ id: String) -> Bool {
+        windowId == id || seamless?.owns(id) == true
+    }
+
+    /// Switch between the console and one-window-per-app. Either way the
+    /// display, the texture and the clipboard stay; only the windows change.
+    func setMode(_ new: Mode) {
+        guard !closed, new != mode else { return }
+        switch new {
+        case .seamless:
+            if let winId = windowId, let shell = _shellState {
+                windowId = nil
+                shell.setState {
+                    if let win = shell.windowManager.windows.first(where: { $0.id == winId }) {
+                        // Closing the console must not detach the session.
+                        win.onWindowClose = nil
+                    }
+                    shell.windowManager.closeWindow(winId)
+                }
+            }
+            mode = .seamless
+            let sm = GuestSeamless(session: self)
+            sm.onUnavailable = { [weak self] detail in
+                guard let self, !self.closed else { return }
+                self.onNotice?("Windows apps cannot be shown as windows", detail)
+                self.seamless = nil
+                self.setMode(.console)
+            }
+            seamless = sm
+            sm.start()
+            // The guest's desktop becomes the output: every window it can
+            // open is then somewhere on our screen. Phase 6 in the plan.
+            let dpi = currentShellDpi
+            if let phys = PlatformDispatcher.instance.implicitView?.physicalSize {
+                requestResize(logicalW: phys.width / dpi, logicalH: phys.height / dpi,
+                              immediate: true)
+            }
+        case .console:
+            seamless?.stop()
+            seamless = nil
+            mode = .console
+            if windowId == nil, let size = guestSize {
+                openWindow(width: size.w, height: size.h)
+            }
+        }
+    }
+
+    /// Our focus landed on a window of this session's.
+    func focused(_ id: String) {
+        seamless?.focused(id)
+    }
+
+    /// Open a program inside the guest, through the helper. Seamless only.
+    func launchInGuest(_ target: String, args: String = "") {
+        seamless?.launch(target, args: args)
+    }
+
+    /// For the broker's `guest_state`.
+    func stateSnapshot() -> [String: Any] {
+        ["domain": domain, "app": appId,
+         "mode": mode == .seamless ? "seamless" : "console",
+         "scanout": guestSize.map { ["w": $0.w, "h": $0.h] } ?? [:],
+         "console": windowId ?? "",
+         "windows": seamless?.snapshot() ?? []]
     }
 
     /// Damage. Bus thread — queue the ack for the next present and ask for a
@@ -587,8 +679,16 @@ final class GuestSession: @unchecked Sendable {
                 scaleY = Double(size.h) / contentH
             }
         }
-        let px = UInt32(max(0, min(Double(size.w - 1), (x * scaleX).rounded())))
-        let py = UInt32(max(0, min(Double(size.h - 1), (y * scaleY).rounded())))
+        forwardPointerGuest(phase: phase, gx: x * scaleX, gy: y * scaleY,
+                            buttons: buttons)
+    }
+
+    /// A pointer event already in guest pixels — the console maps through
+    /// its content rect, a seamless window through its crop's frame.
+    func forwardPointerGuest(phase: Int32, gx: Double, gy: Double, buttons: Int64) {
+        guard !closed, let gd, let size = guestSize else { return }
+        let px = UInt32(max(0, min(Double(size.w - 1), gx.rounded())))
+        let py = UInt32(max(0, min(Double(size.h - 1), gy.rounded())))
         guest_display_mouse_abs(gd, px, py)
 
         // Flutter's mask -> QEMU's button numbers: 0 left, 1 middle, 2 right.
@@ -607,7 +707,7 @@ final class GuestSession: @unchecked Sendable {
         buttonMask = mask
     }
 
-    private func forwardScroll(dx: Double, dy: Double) {
+    func forwardScroll(dx: Double, dy: Double) {
         guard !closed, let gd else { return }
         scrollAccumX += dx
         scrollAccumY += dy
@@ -703,7 +803,7 @@ final class GuestSession: @unchecked Sendable {
     /// Re-assert the guest's cursor on the plane. Called from the hover hook,
     /// which fires per pointer event, so it de-duplicates on the generation:
     /// uploading a GBM buffer per motion event would be absurd.
-    private func assertCursor(force: Bool = false) {
+    func assertCursor(force: Bool = false) {
         pointerIsOverGuest = true
         guard force || cursorGenOnPlane != cursorGen else { return }
         cursorGenOnPlane = cursorGen
@@ -743,7 +843,7 @@ enum GuestSessions {
     }
 
     static func session(forWindow windowId: String) -> GuestSession? {
-        byDomain.values.first { $0.windowId == windowId }
+        byDomain.values.first { $0.owns(windowId) }
     }
 
     static func add(_ session: GuestSession) {
@@ -764,12 +864,17 @@ enum GuestSessions {
         for session in byDomain.values { session.ackPresentedFrames() }
     }
 
-    /// Focus moved. Every session that is not the focused window releases what
-    /// it holds.
+    /// Focus moved. Every session that does not own the focused window
+    /// releases what it holds; the one that does mirrors the focus into the
+    /// guest (seamless mode raises the matching guest window).
     static func focusChanged(to windowId: String?) {
-        for session in byDomain.values where session.windowId != windowId {
-            session.releaseHeldKeys()
-            session.pointerLeft()
+        for session in byDomain.values {
+            if let windowId, session.owns(windowId) {
+                session.focused(windowId)
+            } else {
+                session.releaseHeldKeys()
+                session.pointerLeft()
+            }
         }
     }
 }

@@ -7536,6 +7536,19 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             let domain = ProcessInfo.processInfo.environment["STARLING_GUEST_DOMAIN"]
                 .flatMap { $0.isEmpty ? nil : $0 } ?? rec.domain ?? rec.id
             if let session = GuestSessions.session(forDomain: domain) {
+                // The console and per-app windows are mutually exclusive, and
+                // this item is the only way back to whatever seamless mode
+                // cannot show (an elevated window, a UAC prompt, the Start
+                // menu) — so it lives here, reachable at all times, and not
+                // inside any guest window.
+                let seamless = session.mode == .seamless
+                items.append(MacosMenuItem(
+                    text: seamless ? "Show Windows Desktop" : "Show Apps as Windows",
+                    onPressed: { [self] in
+                        setState { _dockMenuAppId = nil }
+                        session.setMode(seamless ? .console : .seamless)
+                    }
+                ))
                 items.append(MacosMenuItem(
                     text: "Send Ctrl+Alt+Del",
                     onPressed: { [self] in
@@ -7544,7 +7557,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     }
                 ))
                 items.append(MacosMenuItem(
-                    text: "Close Window",
+                    text: seamless ? "Close Windows" : "Close Window",
                     onPressed: { [self] in
                         setState { _dockMenuAppId = nil }
                         session.close()
@@ -8379,6 +8392,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 self?._pendingAppLaunches.remove(appId)
             }
             session.onClosed = { GuestSessions.remove(domain: domain) }
+            session.onNotice = { [weak self] summary, body in
+                self?._postLocalNotification(summary: summary, body: body,
+                                             appName: rec.name)
+            }
+            // One window per guest app instead of the console — the dock
+            // menu switches at runtime; this is the starting mode, for a
+            // test tier that has no coordinates to click a menu at.
+            if ProcessInfo.processInfo.environment["STARLING_GUEST_SEAMLESS"] == "1" {
+                session.preferredMode = .seamless
+                // Nothing to wait for: the guest's windows arrive when the
+                // helper lists them, and a guest with none open is not a
+                // failed launch.
+                session.onWindowOpened = nil
+                _pendingAppLaunches.remove(appId)
+            }
             GuestSessions.add(session)
             // Starting a domain is a libvirt round trip and can be seconds;
             // the UI thread is not the place for it. Only the domain name

@@ -122,12 +122,30 @@ final class GuestBridge: @unchecked Sendable {
         }
 
         // The helper announces itself; until it answers, this is just a pipe.
+        hello()
+        return true
+    }
+
+    /// Ask the helper to identify itself, and keep asking every couple of
+    /// seconds until it does. A hello written before the guest opens its end
+    /// of the port is not queued for it — virtio-serial drops host->guest
+    /// data while no guest reader is attached — so one hello at connect time
+    /// only finds a helper that was already running.
+    func hello() {
+        guard !isReady, fd >= 0 else { return }
         send(op: "hello", args: ["client": "starling-shell"]) { [weak self] reply in
-            guard let self, reply["ok"] as? Bool == true else { return }
+            guard let self, !self.isReady, reply["ok"] as? Bool == true else { return }
             self.isReady = true
+            // Earlier hellos still waiting can never matter now.
+            self.lock.lock()
+            self.pending.removeAll()
+            self.lock.unlock()
             self.onReady?(reply["helper"] as? String ?? "?")
         }
-        return true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, !self.isReady, self.fd >= 0 else { return }
+            self.hello()
+        }
     }
 
     func close() {

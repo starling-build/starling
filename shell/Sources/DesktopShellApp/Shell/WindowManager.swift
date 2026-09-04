@@ -47,6 +47,18 @@ class WindowInfo {
     /// When true, the texture content is vertically flipped during compositing.
     /// Used for Wayland client DMA-BUF surfaces which have top-left origin.
     var flipTextureY: Bool
+    /// The part of the texture this window shows, in unit texture coordinates
+    /// (0...1), or nil for all of it. Set for a window that is one rectangle
+    /// of a texture shared with others — a guest app cropped out of its VM's
+    /// scanout. Every painter of window content (`windowTextureContent`)
+    /// honours it, so the crop follows the window into Mission Control and
+    /// the workspace panes. Expressed in UPRIGHT image coordinates; the
+    /// painter accounts for `flipTextureY`.
+    var textureCrop: Rect? = nil
+    /// Fired by `minimizeWindow` / `restoreWindow` with the new state, for a
+    /// window whose content lives in another process that should follow
+    /// (a guest window minimised here is minimised in the guest).
+    var onMinimizedChanged: ((Bool) -> Void)? = nil
     /// During resize drag, holds the target rect (where the user dragged to).
     /// The visual `rect` stays frozen at Chrome's last rendered size.
     /// nil when no drag is active (rect is authoritative).
@@ -989,10 +1001,12 @@ class WindowManagerState {
 
     func minimizeWindow(_ id: String) {
         guard let win = windows.first(where: { $0.id == id }) else { return }
+        let was = win.isMinimized
         win.isMinimized = true
         if focusedWindowId == id {
             focusTopmostInActiveSpace()
         }
+        if !was { win.onMinimizedChanged?(true) }
         onWindowsChanged?()
     }
 
@@ -1088,7 +1102,9 @@ class WindowManagerState {
 
     func restoreWindow(_ id: String) {
         guard let win = windows.first(where: { $0.id == id }) else { return }
+        let was = win.isMinimized
         win.isMinimized = false
+        if was { win.onMinimizedChanged?(false) }
         win.pendingOpenAnimation = true
         // Restoring a window on another space follows it there (macOS dock)
         // — on the window's OWN monitor only.
