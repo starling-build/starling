@@ -41,6 +41,7 @@
 #include <shlobj.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>   /* wcsncat/wcsncpy for the wallpaper fallbacks */
 
 #pragma comment(lib, "ole32.lib")
 
@@ -477,7 +478,40 @@ int32_t flwin32_wallpaper_raster(int32_t want_w, int32_t want_h,
     path[0] = L'\0';
     if (!SystemParametersInfoW(SPI_GETDESKWALLPAPER, MAX_PATH, path, 0)
         || path[0] == L'\0') {
-        return 0;
+        /* NO WALLPAPER SET IS NOT NO WALLPAPER. A profile that has never
+         * changed the background has no path here at all — every fresh
+         * install — and explorer still draws the picture, because it falls
+         * back to the one the default theme names. We did not, so the desktop
+         * came up BLACK on a machine whose own shell shows an image. Caught
+         * by the gate on a fresh Windows 10 VM, where the value is absent and
+         * the file is right there.
+         *
+         * Two fallbacks, most specific first. TranscodedWallpaper is what
+         * Windows writes when a wallpaper IS applied, so it is the user's
+         * own picture whenever it exists; img0.jpg is the stock background,
+         * present on both 10 and 11, and is what explorer would draw. */
+        wchar_t candidate[MAX_PATH];
+        DWORD n = GetEnvironmentVariableW(L"APPDATA", candidate, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            wcsncat(candidate, L"\\Microsoft\\Windows\\Themes\\TranscodedWallpaper",
+                    MAX_PATH - wcslen(candidate) - 1);
+            if (GetFileAttributesW(candidate) != INVALID_FILE_ATTRIBUTES) {
+                wcsncpy(path, candidate, MAX_PATH - 1);
+                path[MAX_PATH - 1] = L'\0';
+            }
+        }
+        if (path[0] == L'\0') {
+            n = GetEnvironmentVariableW(L"SystemRoot", candidate, MAX_PATH);
+            if (n > 0 && n < MAX_PATH) {
+                wcsncat(candidate, L"\\Web\\Wallpaper\\Windows\\img0.jpg",
+                        MAX_PATH - wcslen(candidate) - 1);
+                if (GetFileAttributesW(candidate) != INVALID_FILE_ATTRIBUTES) {
+                    wcsncpy(path, candidate, MAX_PATH - 1);
+                    path[MAX_PATH - 1] = L'\0';
+                }
+            }
+        }
+        if (path[0] == L'\0') return 0;
     }
 
     HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
