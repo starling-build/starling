@@ -137,6 +137,19 @@ void guest_display_clipboard_pull(GuestDisplay* gd, const char* mime);
 // thread. They open their own connection, so they work before the display is
 // opened and after it has failed.
 
+// The host-side unix socket for one of the domain's virtio-serial channels
+// (`org.starling.agent.0` — the seamless bridge). Writes the path into `out`
+// and returns 0; returns -1 when the domain, the channel or the path is not
+// there.
+//
+// It has to be asked for rather than composed, because libvirt puts the
+// domain's RUNTIME id in it — `/run/libvirt/qemu/4-win11-dbus/...` — and that
+// changes every boot. The socket also exists before anything in the guest has
+// opened its end, so reaching it says nothing about whether a helper is
+// running; only a reply does.
+int guest_display_channel_path(const char* domain, const char* channel,
+                               char* out, size_t out_len);
+
 // virDomainState (1 == running), or -1 when there is no such domain.
 int guest_display_domain_state(const char* domain);
 int guest_display_domain_start(const char* domain);

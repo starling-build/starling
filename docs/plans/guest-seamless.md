@@ -1,6 +1,7 @@
 # Guest seamless — M2, "a Windows app is a window"
 
-Implementation plan, proposed 2026-09-03. Not yet approved.
+Implementation plan, approved 2026-09-03. The three open decisions were
+settled at approval; they are recorded at the foot with what each one costs.
 
 M1 put the whole Windows desktop in one window
 (`docs/plans/guest-display.md`). M2 takes it apart: each Windows app becomes
@@ -103,9 +104,26 @@ Host end first, because it is testable with no Windows code at all.
   plus unsolicited `{"event":…}`. Deliberately the same shape as
   `AgentBroker`'s socket, so the vocabulary is already familiar and M3 can
   proxy broker ops through it without translation.
-- Prove it with a stub: `winrun.py` running a five-line PowerShell that opens
-  `\\.\Global\org.starling.agent.0` and echoes. No helper build needed to
-  know the pipe works.
+- Prove it with a stub: `winrun.py` running a PowerShell that opens
+  `\\.\Global\org.starling.agent.0` and writes a line. No helper build
+  needed to know the pipe works.
+
+**DONE 2026-09-03.** A line written inside Windows arrived on the host:
+`GUEST SAID: {"event":"hello-from-guest","helper":"stub"}`. Three things the
+guest side taught, so the helper does not rediscover them:
+
+- .NET's `FileStream` refuses the port by path ("asked to open a device that
+  was not a file"); it needs `CreateFileW` and a handle-based stream.
+- PowerShell reads `0xC0000000` as a **negative Int32**, so the access mask
+  must be written `[uint32]3221225472`.
+- **A write with no host reader attached does not fail, it PENDS.** The first
+  attempt looked like a broken port and was an absent listener. Both ends have
+  to be up to test either.
+
+And one host-side requirement: the socket is `libvirt-qemu:kvm` 0775 inside a
+kvm-group directory, so reaching it needs the **`kvm`** group as well as
+`libvirt`. Any machine that can use `/dev/kvm` already has it, but it is a
+second requirement.
 
 ## Phase 2 — the bridge role in the guest
 
@@ -149,17 +167,17 @@ worse trade than a missing window. Elevated windows stay in the M1 console.
   the fallback whenever a window cannot be represented (elevated, or the
   helper is not running), and the only way to reach the guest's own UI.
 
-## Phase 4 — the empty session
+## Phase 4 — the empty session — **DEFERRED TO M3**
 
-Register `WinShellBar --session --bridge` as the guest's shell, per-user, with
-the existing `--register-shell` / `--unregister-shell`. No wallpaper, no
-explorer taskbar; every guest window is a Starling window and nothing else is
-on the scanout. The supervisor's crash-loop bail already restores explorer, so
-the failure mode is "the guest looks normal again", not "no desktop".
+Registering `WinShellBar --session` as the guest's shell is out of M2 by
+decision. It costs less than it looks: the guest's taskbar and wallpaper stay
+on the scanout, but nothing ever crops *them* into a window, so the human
+never sees them. What is actually lost is tidiness inside the guest — windows
+still avoid a taskbar that is not on screen, and a maximised guest window
+stops short of it.
 
-Until this phase, seamless windows are crops out of a *visible* Windows
-desktop — which is a perfectly good way to develop Phase 3, and is why this
-comes after it.
+The rest of the milestone does not depend on this, which is why it separates
+cleanly.
 
 ## Phase 5 — per-app registry records
 
@@ -199,20 +217,23 @@ gains the bridge bootstrap.
 - **The helper cannot see elevated windows** (UIPI). Not a bug to fix; a
   documented boundary with the M1 console as the fallback.
 
-## Open decisions
+## Decisions, settled at approval
 
-- **The registry kind for a guest app.** M1 shipped `Kind=vm` with `Domain=`
-  for the console. A per-app record needs the domain *and* the app. Options: a
-  new `Kind=guest-app` with `Domain=` + `Exec=` (the AUMID or exe path), or
-  overloading `vm`. **Recommendation: a new kind** — `probe` and the launch
-  arm both switch on it exhaustively, so the compiler finds every site, and
-  the console and an app genuinely launch differently.
-- **Whether Phase 4 is in M2 at all.** Everything through Phase 3 is
-  reversible and leaves the guest usable; Phase 4 changes the guest's shell.
-  **Recommendation: keep it in, behind an explicit opt-in** — seamless with
-  explorer's taskbar still on the scanout is a demo, not the feature, and the
-  soak already proved the bail-out.
-- **Whether the M1 console and seamless mode can be open at once.** They share
-  one texture and one input path, so it is mostly free; but two windows
-  showing the same pixels is confusing. **Recommendation: allow it, and have
-  the console's dock menu offer "Use separate windows" as the switch.**
+- **`Kind=guest-app`**, a new kind carrying `Domain=` plus `Exec=` (the AUMID
+  or exe path). `AppRegistry.probe` and the launch arm both switch
+  exhaustively, so the compiler finds every site that has to learn about it,
+  and a console and an app genuinely launch differently.
+- **Replacing the guest's shell is deferred to M3** (Phase 4 above).
+- **The console and seamless mode are mutually exclusive.** Opening one closes
+  the other; the console's dock menu carries the switch. Two windows showing
+  the same pixels is the confusion this avoids.
+
+  What it costs, stated plainly because it is a real loss: **anything a crop
+  cannot represent has no fallback while seamless is on.** Elevated windows
+  are invisible to an unelevated helper (UIPI), and so is the guest's own UI —
+  its Start menu, its settings, a UAC prompt. The switch back to the console
+  is the answer to all of them, and it has to be reachable from the dock menu
+  at all times, not from inside a guest window. A UAC prompt appearing while
+  seamless is on is the sharpest case: the guest is waiting for a click on a
+  window we are not showing. Phase 3 must detect "the guest has a window we
+  cannot represent" and say so, rather than looking hung.

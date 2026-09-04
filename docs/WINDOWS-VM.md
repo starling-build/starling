@@ -394,7 +394,11 @@ permission story, and without it the window reports "permission denied" from
 libvirt's own message. The package does not add you to that group: a distro
 package granting VM control silently is the kind of thing a reviewer rejects.
 
-    sudo usermod -aG libvirt "$USER"      # log out and back in
+    sudo usermod -aG libvirt,kvm "$USER"  # log out and back in
+
+`kvm` as well as `libvirt`: the guest window needs only the latter, but the
+seamless bridge's channel socket is `libvirt-qemu:kvm` inside a kvm-group
+directory. Anyone who can already use `/dev/kvm` has it.
 
 **The domain** must be `Domain=` in the record — `windows` for the shipped
 `registry/catalog.d/windows.app`, overridable with `STARLING_GUEST_DOMAIN` for

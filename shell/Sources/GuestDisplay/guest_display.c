@@ -1063,6 +1063,54 @@ static virDomainPtr gd_lookup(virConnectPtr* out_conn, const char* domain) {
     return d;
 }
 
+int guest_display_channel_path(const char* domain, const char* channel,
+                               char* out, size_t out_len) {
+    if (!domain || !channel || !out || out_len == 0) {
+        return -1;
+    }
+    virConnectPtr c = NULL;
+    virDomainPtr d = gd_lookup(&c, domain);
+    if (!d) {
+        return -1;
+    }
+    char* xml = virDomainGetXMLDesc(d, 0);
+    virDomainFree(d);
+    virConnectClose(c);
+    if (!xml) {
+        return -1;
+    }
+
+    // The running domain's XML carries, per channel:
+    //     <source mode='bind' path='...'/>
+    //     <target type='virtio' name='org.starling.agent.0' .../>
+    // so find the target by name and walk BACK to its source path. Searching
+    // forward from a path would attach the first channel's socket to whatever
+    // name came next.
+    int rc = -1;
+    char needle[128];
+    snprintf(needle, sizeof(needle), "name='%s'", channel);
+    const char* t = strstr(xml, needle);
+    if (t) {
+        const char* best = NULL;
+        for (const char* p = xml; p < t; ) {
+            const char* q = strstr(p, "path='");
+            if (!q || q >= t) break;
+            best = q + strlen("path='");
+            p = q + 1;
+        }
+        if (best) {
+            const char* end = strchr(best, '\'');
+            if (end && (size_t)(end - best) < out_len) {
+                memcpy(out, best, (size_t)(end - best));
+                out[end - best] = 0;
+                rc = 0;
+            }
+        }
+    }
+    free(xml);
+    return rc;
+}
+
 int guest_display_domain_state(const char* domain) {
     virConnectPtr c = NULL;
     virDomainPtr d = gd_lookup(&c, domain);
