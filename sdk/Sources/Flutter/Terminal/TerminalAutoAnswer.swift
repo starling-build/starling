@@ -167,11 +167,23 @@ public final class TerminalAutoAnswer {
     var minimumInterval: TimeInterval = TerminalAutoAnswer.defaultMinimumInterval
 
     private let path: String?
-    /// Modification time and size of the file as last read. Size is in there
-    /// because a modification time has one-second granularity on some
-    /// filesystems, and two edits inside one second is exactly what iterating
-    /// on a rule looks like.
-    private var stamp: (Double, Int) = (-1, -1)
+    /// Modification time, size and inode of the file as last read.
+    ///
+    /// All three, because the first two are not enough and that was measured,
+    /// not guessed. Linux stamps mtime from the COARSE clock — granularity is
+    /// a timer tick, not a nanosecond — so two writes a few hundred
+    /// microseconds apart get the same modification date; and the canonical
+    /// edit while iterating on a rule is changing its reply from `y` to `n`,
+    /// which does not change the size. Two atomic writes back to back:
+    ///
+    ///     same size: true   same mtime: true   inode CHANGED: true
+    ///
+    /// The inode is what tells them apart, because `write(toFile:atomically:)`
+    /// — and every editor that saves through a temp file and a rename — makes
+    /// a new one each save. Without it, an edit is silently ignored until
+    /// something else touches the file: the exact failure this stamp exists to
+    /// prevent, and `test/autoanswer` caught it about one run in ten.
+    private var stamp: (Double, Int, Int) = (-1, -1, -1)
 
     /// A question already dealt with: which rule, and which line of the
     /// session it was on. Not which line of the SCREEN — a screen that scrolls
@@ -378,7 +390,8 @@ public final class TerminalAutoAnswer {
         guard let path = path else { return }
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         let now = (((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1),
-                   ((attrs?[.size] as? Int) ?? -1))
+                   ((attrs?[.size] as? Int) ?? -1),
+                   ((attrs?[.systemFileNumber] as? Int) ?? -1))
         guard now != stamp else { return }
         stamp = now
         let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
