@@ -562,8 +562,18 @@ final class StarlingDockState: State<StatefulWidget> {
                 StarlingDesktop(surfaceId: id)
             }
             print("[WinShell] oneview desktop view: \(desk.map(String.init) ?? "FAILED")")
+            // Unbuffered twin of the print above: stdout sits in a buffer
+            // until the process dies, and a chrome that is killed takes it
+            // along -- which is how a black desktop on one VM had no log.
+            FileHandle.standardError.write(Data(
+                ("[WinShell \(ProcessInfo.processInfo.processIdentifier)] oneview desktop view: "
+                 + "\(desk.map(String.init) ?? "FAILED")\n").utf8))
         } else {
             print("[WinShell] oneview desktop skipped (explorer present)")
+            FileHandle.standardError.write(Data(
+                ("[WinShell \(ProcessInfo.processInfo.processIdentifier)] oneview desktop SKIPPED: "
+                 + "explorer present and registered shell is "
+                 + "\(SessionSlot.registeredShell() ?? "unreadable")\n").utf8))
         }
         openFilesSurface()
         launcherBloc.add(.start)

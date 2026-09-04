@@ -147,6 +147,26 @@ void flwin32_surface_on_app_closed(void (*cb)(void* user, int64_t view_id),
   app_closed_user = user;
 }
 
+/* The desktop's heal, as timers on its own window: shrink by one pixel,
+ * restore a quarter second later (back to back the two coalesce into "same
+ * size" and rebuild nothing), and the pair again four seconds on. */
+enum {
+  kHealTimerShrink1 = 0x5741,
+  kHealTimerRestore1,
+  kHealTimerShrink2,
+  kHealTimerRestore2,
+};
+
+static void nudge_width(HWND window, int delta) {
+  RECT r;
+  if (!GetWindowRect(window, &r)) return;
+  int w = (int)(r.right - r.left) + delta;
+  int h = (int)(r.bottom - r.top);
+  if (w < 1 || h < 1) return;
+  SetWindowPos(window, NULL, 0, 0, w, h,
+               SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
 static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
                                          WPARAM wparam, LPARAM lparam) {
   SurfaceSlot* slot = surface_for_window(hwnd);
@@ -235,6 +255,25 @@ static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
       }
       break;
     }
+    case WM_TIMER:
+      if (slot != NULL && slot->kind == FLWIN32_SURFACE_DESKTOP) {
+        switch (wparam) {
+          case kHealTimerShrink1:
+          case kHealTimerShrink2:
+            KillTimer(hwnd, (UINT_PTR)wparam);
+            nudge_width(hwnd, -1);
+            SetTimer(hwnd, (UINT_PTR)wparam + 1, 250, NULL);
+            return 0;
+          case kHealTimerRestore1:
+          case kHealTimerRestore2:
+            KillTimer(hwnd, (UINT_PTR)wparam);
+            nudge_width(hwnd, 1);
+            return 0;
+          default:
+            break;
+        }
+      }
+      break;
     case WM_SIZE: {
       HWND child = GetWindow(hwnd, GW_CHILD);
       if (child != NULL) {
@@ -453,6 +492,29 @@ static void CALLBACK on_foreign_window(HWINEVENTHOOK hook, DWORD event,
   /* Top-level only: a child window being shown says nothing about z-order. */
   if (GetAncestor(hwnd, GA_ROOT) != hwnd) return;
   sink_desktop();
+  /* EXPLORER STARTING. Its Progman being shown is the one signal every
+   * explorer gives -- a service explorer restarted hidden after a crash
+   * shows no taskbar and broadcasts nothing we hear -- and an explorer
+   * starting beside the running shell takes the desktop surface's frame off
+   * the screen: measured on a Hyper-V Windows 10 VM (2026-09-04), black
+   * within three seconds of a new explorer and black until the surface is
+   * RESIZED (see flwin32_surface_nudge_width). So a new Progman schedules
+   * the resize, twice: explorer's desktop initialisation runs on for a few
+   * seconds after Progman exists, and a heal that lands before the damage
+   * heals nothing. */
+  if (event == EVENT_OBJECT_SHOW && g_desktop_window != NULL) {
+    wchar_t cls[32];
+    if (GetClassNameW(hwnd, cls, 32) > 0 && wcscmp(cls, L"Progman") == 0) {
+      static const char note[] =
+          "[surface] explorer's Progman appeared; re-presenting the desktop "
+          "in 2s and 6s\n";
+      DWORD wrote = 0;
+      WriteFile(GetStdHandle(STD_ERROR_HANDLE), note, sizeof(note) - 1,
+                &wrote, NULL);
+      SetTimer(g_desktop_window, kHealTimerShrink1, 2000, NULL);
+      SetTimer(g_desktop_window, kHealTimerShrink2, 6000, NULL);
+    }
+  }
 }
 
 void flwin32_desktop_pin_to_bottom(uint64_t desktop_hwnd) {
@@ -469,6 +531,24 @@ void flwin32_desktop_pin_to_bottom(uint64_t desktop_hwnd) {
 
 static void watch_for_windows_above(HWND desktop) {
   flwin32_desktop_pin_to_bottom((uint64_t)(uintptr_t)desktop);
+}
+
+/* Resize a surface window's width by `delta` pixels, in place. A one-pixel
+ * shrink and a one-pixel restore, a moment apart, is how the desktop surface
+ * gets its first frame onto the screen on a display stack that never shows
+ * buffers made while the window was hidden. Measured on a Hyper-V VM
+ * (2026-09-04) with the desktop up and BLACK: RedrawWindow changed nothing,
+ * forcing another composite changed nothing, shrinking the window by one
+ * pixel brought the wallpaper up, hiding and re-showing it made it black
+ * again. A resize is what makes the engine rebuild the view's swapchain
+ * buffers -- a plain present reuses the ones it made while hidden. The two
+ * steps are separate calls a moment apart on purpose: back to back they
+ * coalesce into "same size", which rebuilds nothing. */
+void flwin32_surface_nudge_width(FlWin32Host* host, int64_t view_id,
+                                 int32_t delta) {
+  SurfaceSlot* slot = surface_for_view(view_id);
+  if (slot == NULL || slot->host != host) return;
+  nudge_width(slot->window, (int)delta);
 }
 
 void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
@@ -533,7 +613,9 @@ void flwin32_surface_show(FlWin32Host* host, int64_t view_id) {
   if (slot->kind == FLWIN32_SURFACE_DESKTOP) {
     // Bottom of the z-order, no activation — and the window only exists on
     // screen once its view has composited, so there is no empty first
-    // paint to rescue.
+    // paint to rescue. (What there IS to rescue, on some display stacks, is
+    // that composited frame itself: see flwin32_surface_nudge_width, which
+    // the Swift side calls right after this.)
     ShowWindow(slot->window, SW_SHOWNOACTIVATE);
     SetWindowPos(slot->window, HWND_BOTTOM, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);

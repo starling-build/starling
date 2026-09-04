@@ -1104,49 +1104,6 @@ void flwin32_shell_return_explorer(void) {
     flwin32_shell_return_explorer_after(0);
 }
 
-/* Run an explorer once, at session start, and let it go.
- *
- * WHERE A MINIMIZED WINDOW GOES is decided by state that only an explorer
- * having run puts in place, and none of the obvious levers reproduce it.
- * Measured on a cold boot with no explorer, on this shell:
- *
- *     baseline                        -> (0,1998)      a stub on the desktop
- *     our taskman claim, verified held -> (0,1998)     no change
- *     SetShellWindow on a real window -> (0,1998)      no change
- *     explorer started                -> (-32000,...)  off screen
- *     explorer then KILLED            -> (-32000,...)  still off screen
- *
- * The last line is the one that matters: whatever Windows latches when a shell
- * comes up, it keeps for the session. THAT STATE IS NOW KNOWN: it is the
- * ARW_HIDE bit of the minimized-window metrics, and the shell sets it directly
- * (flwin32_shell_hide_minimized_windows, below). This prime is what found it
- * -- explorer sets the bit as it comes up, which is why letting one run
- * worked and why the placement survived killing it.
- *
- * Kept, for now, as belt and braces in the explorer-less (kiosk) configuration
- * only. With the explorer service on (the default) the borrow declines because
- * an explorer is already up, so this is a no-op there. Taking it out of kiosk
- * mode wants a kiosk-mode gate run first; the cost of keeping it is a couple
- * of seconds of an explorer at session start.
- */
-int32_t flwin32_shell_prime_shell_services(void) {
-    int i;
-    if (!flwin32_shell_borrow_explorer()) return 0;
-    for (i = 0; i < 80; i++) {
-        Sleep(50);
-        flwin32_shell_suppress_explorer_chrome();
-        if (flwin32_shell_services_ready()) break;
-    }
-    /* A moment past "the desktop window exists": the state we are here for is
-     * set as the shell finishes coming up, not as it starts. */
-    for (i = 0; i < 8; i++) {
-        Sleep(250);
-        flwin32_shell_suppress_explorer_chrome();
-    }
-    flwin32_shell_return_explorer();
-    return 1;
-}
-
 /* Whether explorer is running as the shell, by its desktop window. Progman
  * exists exactly as long as explorer does, and unlike Shell_TrayWnd it is a
  * class we never take -- so it stays an honest tell after the tray and the
@@ -1179,9 +1136,11 @@ int32_t flwin32_shell_explorer_present(void) {
  *     ARW_HIDE set,     slot untouched  -> (-32000,-32000)    off screen
  *
  * Identical on both. A session starts with the bit clear and explorer sets it
- * as it comes up -- which is what flwin32_shell_prime_shell_services was
- * borrowing an explorer for, why the placement survived that explorer being
- * killed, and why the taskman claim below was once taken for the switch.
+ * as it comes up -- which is what the old logon "prime" (borrow an explorer
+ * for two seconds, kill it; removed 2026-09-04, it blacked the desktop on a
+ * Windows 10 VM) was borrowing an explorer for, why the placement survived
+ * that explorer being killed, and why the taskman claim below was once taken
+ * for the switch.
  * Windows 10 is where that came apart: its service explorer sets the bit but
  * never claims the slot, so the gate's "somebody owns the slot" check failed
  * on a session whose minimized windows were leaving the screen perfectly.
@@ -1225,7 +1184,9 @@ int32_t flwin32_shell_hide_minimized_windows(void) {
  *     probe destroyed          -> (1570,1998)-(1884,2048)   back again
  *
  * That reading did not hold up. On a cold boot with the bit clear a verified
- * claim changed nothing (the prime's table, above), and with the bit measured
+ * claim changed nothing (measured 2026-08-25: baseline stub, claim held ->
+ * stub, explorer started -> -32000, explorer killed -> still -32000 -- the
+ * table that once justified a logon-time explorer borrow), and with the bit measured
  * directly the placement follows ARW_HIDE with this slot empty, on Windows 10
  * and 11 alike. The third line above has not been reproduced since and stays
  * here as a record, not a rule. shell32.dll is the module that references

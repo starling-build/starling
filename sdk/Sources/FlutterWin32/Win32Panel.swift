@@ -235,6 +235,7 @@ public enum Win32Shell {
         flwin32_shell_explorer_present() != 0
     }
 
+
     /// Sets the session to park minimized windows off screen, the way they go
     /// under explorer, instead of leaving each one as a bare title-bar stub
     /// along the work area's bottom edge — a row of them directly on top of

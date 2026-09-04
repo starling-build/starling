@@ -41,6 +41,7 @@
 #include <shlobj.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>   /* fprintf(stderr): the wallpaper decode reports itself */
 #include <wchar.h>   /* wcsncat/wcsncpy for the wallpaper fallbacks */
 
 #pragma comment(lib, "ole32.lib")
@@ -511,29 +512,49 @@ int32_t flwin32_wallpaper_raster(int32_t want_w, int32_t want_h,
                 }
             }
         }
-        if (path[0] == L'\0') return 0;
+        if (path[0] == L'\0') {
+            static const char none[] =
+                "[wallpaper] no wallpaper set and neither fallback file exists\n";
+            DWORD wrote = 0;
+            WriteFile(GetStdHandle(STD_ERROR_HANDLE), none,
+                      (DWORD)(sizeof(none) - 1), &wrote, NULL);
+            return 0;
+        }
     }
 
     HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     int ok = 0;
+    /* Which step failed, and how. A desktop that came up BLACK on a Hyper-V
+     * VM was invisible to every log -- every exit below was silent -- so the
+     * decode now says what it did, on stderr, which is unbuffered and is
+     * what the supervisor's log pipe reads. One line per session. */
+    const char* stage = "SHCreateItemFromParsingName";
+    HRESULT hr = S_OK;
+    int sw = 0, sh = 0;
     IShellItem* item = NULL;
-    if (SUCCEEDED(SHCreateItemFromParsingName(path, NULL, &IID_IShellItem,
-                                              (void**)&item))) {
+    hr = SHCreateItemFromParsingName(path, NULL, &IID_IShellItem,
+                                     (void**)&item);
+    if (SUCCEEDED(hr)) {
         IShellItemImageFactory* factory = NULL;
-        if (SUCCEEDED(item->lpVtbl->QueryInterface(
-                item, &IID_IShellItemImageFactory, (void**)&factory))) {
+        stage = "QueryInterface(IShellItemImageFactory)";
+        hr = item->lpVtbl->QueryInterface(item, &IID_IShellItemImageFactory,
+                                          (void**)&factory);
+        if (SUCCEEDED(hr)) {
             SIZE want;
             want.cx = want_w;
             want.cy = want_h;
             HBITMAP bitmap = NULL;
-            if (SUCCEEDED(factory->lpVtbl->GetImage(
-                    factory, want, SIIGBF_RESIZETOFIT, &bitmap))
-                && bitmap != NULL) {
+            stage = "GetImage";
+            hr = factory->lpVtbl->GetImage(factory, want, SIIGBF_RESIZETOFIT,
+                                           &bitmap);
+            if (SUCCEEDED(hr) && bitmap != NULL) {
                 BITMAP info;
+                stage = "GetObject";
                 if (GetObjectW(bitmap, sizeof(info), &info)
                     && info.bmWidth > 0 && info.bmHeight > 0) {
-                    int sw = info.bmWidth;
-                    int sh = info.bmHeight;
+                    sw = info.bmWidth;
+                    sh = info.bmHeight;
+                    stage = "GetDIBits";
                     /* GetDIBits with a NEGATIVE height request normalizes
                      * the rows to top-down whatever the factory's section
                      * held -- the same contract the thumbnail above leans
@@ -632,6 +653,26 @@ int32_t flwin32_wallpaper_raster(int32_t want_w, int32_t want_h,
             factory->lpVtbl->Release(factory);
         }
         item->lpVtbl->Release(item);
+    }
+    {
+        /* Straight to the handle: the CRT's stderr is not reliably
+         * unbuffered on a pipe, and this line exists to survive a kill. */
+        char line[640];
+        int n = ok
+            ? snprintf(line, sizeof(line),
+                       "[wallpaper %lu] %ls decoded %dx%d, covered to %dx%d\n",
+                       GetCurrentProcessId(), path, sw, sh, want_w, want_h)
+            : snprintf(line, sizeof(line),
+                       "[wallpaper %lu] %ls: %s failed (hr=0x%08lx, "
+                       "GetLastError=%lu) for %dx%d\n",
+                       GetCurrentProcessId(), path, stage, (unsigned long)hr,
+                       GetLastError(), want_w, want_h);
+        if (n > 0) {
+            DWORD wrote = 0;
+            WriteFile(GetStdHandle(STD_ERROR_HANDLE), line,
+                      (DWORD)(n < (int)sizeof(line) ? n : (int)sizeof(line) - 1),
+                      &wrote, NULL);
+        }
     }
     if (init == S_OK || init == S_FALSE) CoUninitialize();
     return ok;

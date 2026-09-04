@@ -303,15 +303,19 @@ enum SessionSlot {
             log("explorer service started (CoreWindow packaged apps need it)")
         }
 
-        // Where minimized windows GO needs a shell to have come up once. Done
-        // before the startup replay so it overlaps the slowest part of logon
-        // rather than adding to it, and never in trial mode, where explorer is
-        // the shell and has already done it.
-        if !trial,
-           ProcessInfo.processInfo.environment["STARLING_NO_PRIME"] != "1",
-           flwin32_shell_prime_shell_services() != 0 {
-            log("primed the shell services (minimize target placement)")
-        }
+        // There used to be a "prime" here: borrow an explorer for two
+        // seconds and kill it, so that minimized windows would park off
+        // screen for the session. Gone, for two reasons. The state it was
+        // after is one metric (ARW_HIDE), which the chrome now sets itself
+        // (flwin32_shell_hide_minimized_windows). And it was harmful: it ran
+        // whenever no explorer was alive at that instant, which on a Windows
+        // 10 VM was every logon -- the service explorer above crashes twice
+        // as it starts there and comes back on the third try -- so the prime
+        // started an explorer and TerminateProcess'd it right as the desktop
+        // surface was coming up, and the desktop stayed black until the
+        // chrome was restarted (2026-09-04, Hyper-V). An explorer started and
+        // killed beside the running shell blacking out the desktop view is
+        // the same failure the launch-time borrow was retired for.
 
         // Startup replays only when we are the real shell: beside explorer
         // (trial) every one of these already ran this logon.

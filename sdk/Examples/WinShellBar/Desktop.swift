@@ -261,19 +261,66 @@ final class DesktopBloc {
         return icons.texture(Self.iconKey(entry))
     }
 
-    private func loadWallpaper() {
-        guard let size = windowSize else { return }
+    /// Says what it did, on stderr. A desktop that came up BLACK on a
+    /// Hyper-V VM (2026-09-04) was invisible to every log because each exit
+    /// from this path was silent: no window size yet, a decode the shell's
+    /// image factory refused, a texture that never registered. Unbuffered,
+    /// because the supervisor's log is a pipe and print() would sit in a
+    /// buffer until the process died.
+    private func noteWallpaper(_ line: String) {
+        // The non-throwing write, the one the frame log uses: the throwing
+        // `write(contentsOf:)` fails silently on a pipe here. The pid,
+        // because every shell process writes to the same session log.
+        FileHandle.standardError.write(Data(
+            ("[Desktop \(ProcessInfo.processInfo.processIdentifier)] wallpaper: "
+             + line + "\n").utf8))
+    }
+
+    private func loadWallpaper(attempt: Int = 0) {
+        guard let size = windowSize else {
+            // The surface's window has no client size yet. Not a failure:
+            // ask again shortly, a bounded number of times, rather than
+            // leave the session without a wallpaper.
+            if attempt < 40 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    [weak self] in self?.loadWallpaper(attempt: attempt + 1)
+                }
+            } else {
+                noteWallpaper("no window size after \(attempt) tries; giving up")
+            }
+            return
+        }
         let scale = ShellScreen.monitor?.scale ?? 1.0
         let w = Int(size.width * scale)
         let h = Int(size.height * scale)
+        let t0 = DispatchTime.now().uptimeNanoseconds
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let bitmap = Win32Icon.wallpaper(width: w, height: h)
-            else { return }
+            let bitmap = Win32Icon.wallpaper(width: w, height: h)
+            let ms = (DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000
             DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard let bitmap else {
+                    // The shell's image factory can refuse while explorer's
+                    // own machinery is still coming up beside us at logon;
+                    // a second try a moment later is cheap. Bounded.
+                    if attempt < 10 {
+                        self.noteWallpaper(
+                            "decode \(w)x\(h) FAILED after \(ms) ms; retry \(attempt + 1)")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            [weak self] in self?.loadWallpaper(attempt: attempt + 1)
+                        }
+                    } else {
+                        self.noteWallpaper(
+                            "decode \(w)x\(h) FAILED after \(ms) ms; giving up after \(attempt) retries")
+                    }
+                    return
+                }
                 // registerPixels takes ownership either way; a nil id just
                 // leaves the tinted fallback ground.
-                self?.wallpaperTexture =
-                    Win32WindowedHost.host?.registerPixels(bitmap)
+                let tex = Win32WindowedHost.host?.registerPixels(bitmap)
+                self.wallpaperTexture = tex
+                self.noteWallpaper(
+                    "decode \(w)x\(h) ok in \(ms) ms; texture \(tex.map { String($0) } ?? "nil")")
             }
         }
     }
@@ -546,6 +593,10 @@ final class StarlingDesktopState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         bloc.surfaceId = (widget as! StarlingDesktop).surfaceId
+        FileHandle.standardError.write(Data(
+            ("[Desktop \(ProcessInfo.processInfo.processIdentifier)] mounted, surface "
+             + "\(bloc.surfaceId.map { String($0) } ?? "host") size "
+             + "\(bloc.windowSize.map { "\($0.width)x\($0.height)" } ?? "unknown")\n").utf8))
         bloc.start()
         // THROUGH THE ROUTER, never straight onto the dispatcher: that slot
         // holds one handler, and the file explorer in this same process has

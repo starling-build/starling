@@ -679,13 +679,6 @@ void flwin32_crashlog_install(const char* utf8_path);
 // The readiness test while waiting on a borrowed explorer -- retrying the
 // activation itself instead costs about a second per failed attempt.
 int32_t flwin32_shell_services_ready(void);
-// Let an explorer run for a couple of seconds at session start. This used to
-// be how minimized windows were kept off the desktop: the state explorer sets
-// as it comes up is the ARW_HIDE metric, now set directly by
-// flwin32_shell_hide_minimized_windows, and this is kept only as belt and
-// braces for the explorer-less configuration. With the service on it declines
-// (an explorer is already up). Returns 1 if it ran one.
-int32_t flwin32_shell_prime_shell_services(void);
 int32_t flwin32_shell_borrow_explorer(void);
 void flwin32_shell_return_explorer(void);
 // The same hand-back, but gated on the launch it served: the borrowed
@@ -829,6 +822,12 @@ int64_t flwin32_surface_open(FlWin32Host* host, int32_t kind,
 // DESKTOP: show at the bottom of the z-order (call on first composite).
 // OVERLAY: show + take foreground + focus the view child.
 void flwin32_surface_show(FlWin32Host* host, int64_t view_id);
+// Resize a surface window's width by delta pixels in place (position and
+// z-order kept). Shrink by one and restore a moment later is what puts the
+// desktop surface's first frame on screen where buffers made while the
+// window was hidden are never shown (Hyper-V; see flwin32_surface.c).
+void flwin32_surface_nudge_width(FlWin32Host* host, int64_t view_id,
+                                 int32_t delta);
 // Where a surface's client area sits, in the HOST window's client logical
 // points — the space popup geometry is expressed in. A tree hosted in a
 // surface computes its menus in its OWN client points, and the host window

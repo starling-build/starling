@@ -109,6 +109,53 @@ public enum Win32Surfaces {
             return
         }
         flwin32_surface_show(host.cHost, Int64(id))
+        // And make its swapchain buffers anew now that it is visible. The
+        // frame that just composited went to a window that was still hidden,
+        // and on some display stacks buffers made then are never shown once
+        // the window appears: on a Hyper-V VM (2026-09-04) the desktop came
+        // up BLACK and stayed so, a static desktop never presenting again on
+        // its own. Measured there with the window black: a redraw changed
+        // nothing, a forced extra composite changed nothing, a one-pixel
+        // shrink brought the wallpaper up, and hide + show made it black
+        // again. A RESIZE is what rebuilds the buffers, so: one pixel off,
+        // one pixel back a moment later (back to back they coalesce into
+        // "same size" and rebuild nothing). Two frames at startup, unseen.
+        healDesktop()
+    }
+
+    /// Put the desktop surface's frame back on screen after something took
+    /// it off: a one-pixel shrink and, a moment later, a one-pixel restore,
+    /// which is what rebuilds the view's swapchain buffers.
+    ///
+    /// The thing that takes it off is EXPLORER STARTING beside the running
+    /// shell. Measured on a Hyper-V Windows 10 VM (2026-09-04): with the
+    /// desktop healthy, killing the service explorer (the supervisor starts
+    /// another within seconds) turned the desktop black within three seconds
+    /// and it stayed black; with the desktop black, this resize brought the
+    /// wallpaper back and it stayed. Neither a redraw, a forced composite,
+    /// nor a z-order change did anything, and the surface was already above
+    /// Progman -- whatever explorer's desktop initialisation does to the
+    /// composition of a window under it, a fresh swapchain survives it. On
+    /// Windows 11 this never showed because the service explorer starts once,
+    /// before the surface exists; on Windows 10 it crashes as it starts and
+    /// comes back on the third try, after the surface is up -- and any
+    /// explorer crash on any Windows would do the same. The surface's own
+    /// window hook does this whenever a Progman appears (flwin32_surface.c,
+    /// on timers of its own); the first show calls it here. No-op when there
+    /// is no desktop surface in this process.
+    public static func healDesktop() {
+        guard let host = Win32WindowedHost.host,
+              let id = kinds.first(where: { $0.value == .desktop })?.key
+        else { return }
+        FileHandle.standardError.write(Data(
+            "[Desktop \(ProcessInfo.processInfo.processIdentifier)] heal: re-presenting surface \(id)\n".utf8))
+        flwin32_surface_nudge_width(host.cHost, Int64(id), -1)
+        // Back to back the two resizes coalesce into "same size" and rebuild
+        // nothing; a moment apart they are two real frames.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            guard let host = Win32WindowedHost.host else { return }
+            flwin32_surface_nudge_width(host.cHost, Int64(id), 1)
+        }
     }
 
     /// Called when an app surface's close button hid it.
