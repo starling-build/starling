@@ -141,6 +141,30 @@ second requirement.
 Bootstrapping it into a guest is the documented `schtasks /it` trick
 (`docs/WINDOWS-VM.md`), once, after which `--session` starts it every logon.
 
+**DONE 2026-09-03, as a C# prototype** —
+`docs/windows-vm/starling-bridge.cs`, which answers `hello` and
+`list_windows` over the real channel. It exists because building Swift for
+Windows needs a toolchain neither the dev box nor the guest has, while every
+Windows install ships `csc.exe` under `%WINDIR%\Microsoft.NET\Framework64`:
+one file in, an exe out, nothing installed. It is the protocol reference and
+the fixture that unblocks Phase 3 — **not** a second implementation to keep in
+sync, and its filter is a transcription of `flwin32_wm.c`'s `is_manageable()`
+for exactly that reason.
+
+Verified against a live guest: two windows, topmost first, each with hwnd,
+pid, title, class, exe path, DWM frame and the min/max/foreground flags.
+
+Two traps, both of which make a working helper look broken:
+
+- **`guest-exec` runs in session 0**, which has no interactive windows, so the
+  helper enumerates *nothing* there. It has to go through `schtasks /it`, and
+  an empty list from session 0 is indistinguishable from a broken filter.
+- **`guest-exec` cannot carry a large payload on its command line.** A source
+  file's worth of base64 fails with "Failed to execute helper program (Invalid
+  argument)", which says nothing about size. `docs/windows-vm/winput.py`
+  copies files through `guest-file-open`/`write`/`close` instead — the inverse
+  of `winrun.py`, needing nothing installed in the guest.
+
 The helper is **unelevated on purpose**: UIPI means it cannot see or drive
 elevated windows, and an elevated helper driving the human's session is a
 worse trade than a missing window. Elevated windows stay in the M1 console.
