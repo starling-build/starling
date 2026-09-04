@@ -1369,9 +1369,11 @@ int32_t flwin32_set_dark_mode(int32_t dark);
 // because a shell that has REPLACED explorer is told nothing when it changes
 // -- see FLWIN32_STATUS_KIND_PREFS.
 //
-// An absent value reads as CENTRED, which is what a Windows 11 profile that
-// has never touched the setting looks like; reading it as left would move the
-// icons on machines whose owner never asked.
+// An absent value reads as whatever THIS Windows would do: centred on 11,
+// which is its default and where its own taskbar sits, and left on 10, which
+// has no such setting and a taskbar that is always in the corner. Absent is
+// the common case — a fresh profile has no value — so it has to be right on
+// each. See flwin32_status.c.
 int32_t flwin32_taskbar_alignment(void);
 // Whether the value exists at all -- a different question from what it says,
 // and the one that decides whether an older setting may be folded into it.

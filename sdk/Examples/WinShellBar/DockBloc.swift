@@ -886,6 +886,10 @@ final class DockBloc: @unchecked Sendable {
     /// Settings page lying. Anyone who set it in our menu before this is
     /// carried over once, by `migrateAlignment()`.
     ///
+    /// On a Windows with no such setting — 10, whose taskbar is always in the
+    /// corner — this reads as `.start`, so the dock matches the bar the person
+    /// is used to rather than centring on a desktop that never centres.
+    ///
     /// Unlike the edge this does NOT have to be read before the window
     /// exists: alignment moves the icons inside a strip whose shape and
     /// reservation are unchanged, so the tree can learn about it on its own.

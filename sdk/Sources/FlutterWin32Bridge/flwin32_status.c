@@ -491,22 +491,51 @@ int32_t flwin32_set_dark_mode(int32_t dark) {
 
 /* Where Windows keeps the taskbar's icon alignment: 0 left, 1 centred.
  *
- * ABSENT MEANS CENTRED, and that is not a guess to be tidied away later — a
- * profile that has never touched the setting has no such value, which is the
- * state of every fresh Windows 11 install. Reading a missing value as 0 would
- * put the icons left on machines whose owner never asked for that.
+ * ABSENT MEANS WHAT THIS WINDOWS WOULD DO, and that is not the same answer on
+ * both. A profile that has never touched the setting has no such value — the
+ * state of every fresh install — so the missing case is the COMMON one and it
+ * has to be right on each:
+ *
+ *   Windows 11 centres its taskbar and offers the setting. Absent = centred.
+ *   Windows 10 has no such setting at all, and its taskbar is always left. So
+ *     absent means left there. Reading it as centred put our icons in the
+ *     middle of a desktop whose own bar has never been anywhere but the
+ *     corner, which is what a Windows 10 VM showed.
+ *
+ * A value that IS present is obeyed on both. On Windows 10 nothing else reads
+ * it, so it is simply where the user's choice is kept; on 11 it is shared with
+ * explorer and the Settings page.
  *
  * The same key holds a few dozen other Explorer preferences, so a change
  * notification on it says only "one of these moved" — see the watcher. */
 static const wchar_t* const kAdvancedKey =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
 
+/* Build 22000 is the first Windows 11. Read from the registry rather than
+ * GetVersionExW, which lies to a process with no compatibility manifest and
+ * reports 6.2 on Windows 11 — the same reasoning as flwin32_sysinfo.c, which
+ * reads this very value to name the OS.
+ *
+ * A build we cannot read counts as the newer Windows: this decides a default
+ * and nothing else, and the modern default is the one worth guessing. */
+static int windows_11_or_later(void) {
+    wchar_t build[32];
+    DWORD size = sizeof(build);
+    if (RegGetValueW(HKEY_LOCAL_MACHINE,
+                     L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+                     L"CurrentBuildNumber", RRF_RT_REG_SZ, NULL, build,
+                     &size) != ERROR_SUCCESS) {
+        return 1;
+    }
+    return _wtoi(build) >= 22000 ? 1 : 0;
+}
+
 int32_t flwin32_taskbar_alignment(void) {
     DWORD value = 1;
     DWORD size = sizeof(value);
     if (RegGetValueW(HKEY_CURRENT_USER, kAdvancedKey, L"TaskbarAl",
                      RRF_RT_REG_DWORD, NULL, &value, &size) != ERROR_SUCCESS) {
-        return 1;
+        return windows_11_or_later();
     }
     return value == 0 ? 0 : 1;
 }
