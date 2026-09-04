@@ -93,6 +93,18 @@ Anything else you want on the box from the first boot — a payload to test, a
 config file — can ride along on the same ISO; there is a `copy` command in the
 template showing the pattern. The guest needs no network to get it.
 
+**Check the answer file parses before you build the ISO.** An XML comment
+cannot contain `--`, and a template whose prose says "the passwords below --
+they are placeholders" is not XML. Setup does not complain about that: it
+ignores the file and runs the install INTERACTIVELY, so the first thing you see
+is the language page rather than `Installing Windows`, with nothing anywhere
+saying why. This template shipped that way and cost a Windows 10 install to
+find.
+
+```bash
+python3 -c "import xml.dom.minidom as m; m.parse('autounattend.xml')"
+```
+
 ## 3. Build the answer ISO
 
 ```bash

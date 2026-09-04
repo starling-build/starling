@@ -3,13 +3,13 @@
      Used with docs/WINDOWS-VM.md; verified end to end on 2026-08-14.
 
      Change before use:
-       * the two <Value> passwords below -- they are placeholders, and this
+       * the two <Value> passwords below — they are placeholders, and this
          file is in a public repo
        * <ComputerName>
        * /IMAGE/INDEX and <ProductKey> if you want an edition other than
          Windows 11 Pro (`wiminfo install.wim` lists the indices)
        * the FirstLogonCommands payload copy, which is an EXAMPLE of riding a
-         file along on this same ISO -- drop it if you have no payload. -->
+         file along on this same ISO — drop it if you have no payload. -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
           xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
   <settings pass="windowsPE">
