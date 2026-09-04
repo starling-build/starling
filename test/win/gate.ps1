@@ -89,6 +89,7 @@ public class Gate {
   [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint f);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetDpiForSystem();
+  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int i);
   [DllImport("user32.dll")] public static extern bool PeekMessageW(out MSG m, IntPtr h, uint a, uint b, uint r);
   [DllImport("user32.dll")] public static extern bool TranslateMessage(ref MSG m);
   [DllImport("user32.dll")] public static extern IntPtr DispatchMessageW(ref MSG m);
