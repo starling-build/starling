@@ -479,6 +479,27 @@ Engine / compositor:
   protocol error to show for it. Even with both fixed, our RENDER is a drawing
   stub (`CreatePicture` is a no-op), so Java2D needs
   `-Dsun.java2d.xrender=false` to reach the paths we implement.
+- **`DispatchQueue.main` is NOT the framework's thread.** The widget tree,
+  every build and every `setState` run on the ENGINE PLATFORM thread — the
+  epoll loop `fl_drm_view_run` spawns; the process's main thread only runs
+  Foundation's RunLoop. A `DispatchQueue.main.async { shell.setState … }`
+  therefore mutates state a build may be reading at that instant. It works
+  almost always, which is the trap: the failure was a general protection
+  fault in a Dictionary read on roughly every other launch, once 74 icon
+  decodes completed while `initState` was still iterating the same
+  dictionary — and a dock that saw two different app lists in one frame.
+  Hop with `onPlatformThread` (`Utils/PlatformThread.swift`, over
+  `fl_drm_view_post_task`), never the main queue: the broker's handlers,
+  the guest code, and the icon and wallpaper decodes do now; main.swift's
+  own hotplug hops still use the main queue and are on the list. The ONE
+  thing that must stay off the platform thread is a client of the shell's
+  own compositor — the guest clipboard provider — whose connect round-trip
+  waits on the thread that answers it. The first build that hopped it
+  hung on the guest's connect with the scanouts queued behind it. To see a
+  crash like these: `sysctl kernel.core_pattern=/tmp/core.%e.%p`, launch
+  with `ulimit -c unlimited`, `gdb -batch -ex bt` — apport otherwise
+  swallows the dev shell's cores, and the kernel's `traps:` offset is only
+  right for the exact binary that faulted.
 - `EvdevToHID` (engine repo, `fl_drm_input.cc`) and
   `WaylandIntegration.hidToEvdev` (shell) are exact inverses. **Change one,
   change the other**, or letters break for Wayland clients.

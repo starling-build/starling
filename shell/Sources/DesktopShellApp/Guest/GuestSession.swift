@@ -18,8 +18,15 @@ import Glibc
 /// because none of it knows what a texture holds.
 ///
 /// Threading: `GuestDisplay` calls back on its own bus thread. Every callback
-/// here hops to the main thread except the frame ack, which is drained from
-/// the compositor's present callback on the platform thread. `@unchecked`
+/// that touches shell state hops to the PLATFORM thread (`onPlatformThread`
+/// — the framework's thread, which is not the main queue); the frame ack is
+/// drained from the compositor's present callback on that same thread. The
+/// CLIPBOARD is the exception and stays on the main queue: its provider is
+/// a Wayland client of this shell's own compositor, and the compositor runs
+/// on the platform thread — a client connecting from there waits on itself.
+/// That deadlock was measured, not reasoned about: the first build that
+/// hopped everything to the platform thread hung on the guest's connect,
+/// with the scanouts posted behind it and never run. `@unchecked`
 /// because that split is the design and the compiler cannot see it: everything
 /// but the ack queue is main-thread state, and the ack queue carries its own
 /// lock precisely so it does not have to be.
@@ -128,12 +135,14 @@ final class GuestSession: @unchecked Sendable {
             guard let ctx else { return }
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
             let text = detail.map { String(cString: $0) }
-            DispatchQueue.main.async { me.handleState(Int(state), text) }
+            onPlatformThread { me.handleState(Int(state), text) }
         }
         cb.on_scanout = { ctx, fd, w, h, stride, offset, fourcc, modifier, y0Top in
             guard let ctx else { if fd >= 0 { Glibc.close(fd) }; return }
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
-            DispatchQueue.main.async {
+            FileHandle.standardError.write(Data(
+                "[guest] scanout \(w)x\(h) fd \(fd) received on the bus thread\n".utf8))
+            onPlatformThread {
                 me.handleScanout(fd: fd, width: Int(w), height: Int(h),
                                  stride: Int(stride), offset: Int(offset),
                                  fourcc: fourcc, modifier: modifier,
@@ -148,13 +157,13 @@ final class GuestSession: @unchecked Sendable {
         cb.on_disable = { ctx in
             guard let ctx else { return }
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
-            DispatchQueue.main.async { me.handleDisable() }
+            onPlatformThread { me.handleDisable() }
         }
         cb.on_cursor_define = { ctx, w, h, hx, hy, bgra, len in
             guard let ctx, let bgra, len > 0 else { return }
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
             let bytes = [UInt8](UnsafeBufferPointer(start: bgra, count: len))
-            DispatchQueue.main.async {
+            onPlatformThread {
                 me.handleCursorDefine(bytes, w: Int(w), h: Int(h),
                                       hotX: Int(hx), hotY: Int(hy))
             }
@@ -162,12 +171,13 @@ final class GuestSession: @unchecked Sendable {
         cb.on_mouse_set = { ctx, _, _, visible in
             guard let ctx else { return }
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
-            DispatchQueue.main.async { me.handleMouseSet(visible: visible != 0) }
+            onPlatformThread { me.handleMouseSet(visible: visible != 0) }
         }
         cb.on_clipboard_request = { ctx, token, mime in
             guard let ctx else { return }
             let me = Unmanaged<GuestSession>.fromOpaque(ctx).takeUnretainedValue()
             let m = mime.map { String(cString: $0) } ?? "text/plain;charset=utf-8"
+            // Main queue, not the platform thread: see the clipboard note above.
             DispatchQueue.main.async { me.handleClipboardRequest(token: token, mime: m) }
         }
         cb.on_clipboard_grab = { ctx, mimes, n in
@@ -218,8 +228,11 @@ final class GuestSession: @unchecked Sendable {
         resizeDebounce?.cancel()
         seamless?.stop()
         seamless = nil
-        clip?.onSelectionChanged = nil
-        clip = nil
+        // The provider lives on the main queue (clipboard note above).
+        DispatchQueue.main.async { [self] in
+            clip?.onSelectionChanged = nil
+            clip = nil
+        }
         if let gd {
             guest_display_close(gd)
             self.gd = nil
@@ -271,15 +284,25 @@ final class GuestSession: @unchecked Sendable {
     /// actually pastes, and we answer with the selection as it is THEN — which
     /// is the whole reason this is announce-then-pull and not a copy.
     private func startClipboard() {
-        guard clip == nil, !closed else { return }
+        guard !closed else { return }
         guest_display_clipboard_enable(gd)
-        guard let socket = waylandIntegration?.socketName,
-              let provider = WaylandClipboardProvider(display: socket) else {
-            FileHandle.standardError.write(Data(
-                "[guest] no data-control clipboard to bridge\n".utf8))
-            return
+        // Connecting to the compositor is a round trip the compositor has to
+        // answer, and this runs on the compositor's own thread: hop to the
+        // main queue first (clipboard note above), and keep `clip` there.
+        DispatchQueue.main.async { [self] in
+            guard clip == nil, !closed else { return }
+            guard let socket = waylandIntegration?.socketName,
+                  let provider = WaylandClipboardProvider(display: socket) else {
+                FileHandle.standardError.write(Data(
+                    "[guest] no data-control clipboard to bridge\n".utf8))
+                return
+            }
+            clip = provider
+            attachClipboard(provider)
         }
-        clip = provider
+    }
+
+    private func attachClipboard(_ provider: WaylandClipboardProvider) {
         provider.onSelectionChanged = { [weak self] hasText, mine in
             // `mine` is the loop guard: answering the guest makes US the
             // owner, and announcing that back to the guest would be an
@@ -352,6 +375,8 @@ final class GuestSession: @unchecked Sendable {
                                y0Top: Bool) {
         guard !closed, let wl = waylandIntegration,
               let registry = drmTextureRegistry else {
+            FileHandle.standardError.write(Data(
+                "[guest] scanout dropped: closed=\(closed) wayland=\(waylandIntegration != nil) registry=\(drmTextureRegistry != nil)\n".utf8))
             Glibc.close(fd)
             return
         }
@@ -529,7 +554,7 @@ final class GuestSession: @unchecked Sendable {
         markScheduled = true
         ackLock.unlock()
         guard needsHop else { return }
-        DispatchQueue.main.async { [weak self] in
+        onPlatformThread { [weak self] in
             guard let self else { return }
             self.ackLock.lock()
             self.markScheduled = false
@@ -673,7 +698,7 @@ final class GuestSession: @unchecked Sendable {
             // with a mode change that takes tens of milliseconds.
             let work = DispatchWorkItem(block: send)
             resizeDebounce = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+            onPlatformThread(after: 0.15, execute: work)
         }
         _ = gd
     }

@@ -1551,14 +1551,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 // picture behind it. Free here — the pixels are already
                 // decoded and in hand.
                 let tint = _DesktopShellState._averageColor(rgba: cropped.data)
-                shell.setState {
-                    shell.wallpaperTextureId = texId
-                    shellMica = tint
-                    // The palette is a FUNCTION of this, so re-resolve it —
-                    // the theme built at launch was the untinted fallback.
-                    shellTheme = shellStyle.theme(dark: shellTheme.isDark)
-                    shell._windowChildCache.removeAll()
-                    shell._syncSharedWallpaper()
+                // On the framework's thread, not this one — see
+                // onPlatformThread; the icon decode's write is the same hop.
+                onPlatformThread {
+                    shell.setState {
+                        shell.wallpaperTextureId = texId
+                        shellMica = tint
+                        // The palette is a FUNCTION of this, so re-resolve it —
+                        // the theme built at launch was the untinted fallback.
+                        shellTheme = shellStyle.theme(dark: shellTheme.isDark)
+                        shell._windowChildCache.removeAll()
+                        shell._syncSharedWallpaper()
+                    }
                 }
             } catch {
                 // Decode failed — the preset's gradient stand-in stays up.
@@ -1678,7 +1682,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         _iconDecodeAttempted.insert(name)
 
         // Same re-entry pattern as the wallpaper decode: the state class is not
-        // Sendable, so the task reaches back through _shellState.
+        // Sendable, so the task reaches back through _shellState. The decode
+        // runs on the main actor; the STATE WRITE hops to the platform thread,
+        // because this very loop (initState, 74 guest-app icons) was still
+        // reading `iconTextures` there while completions wrote it here — a
+        // general protection fault on every other launch, caught in a core.
         Task { @MainActor in
             do {
                 let codec = try await FlutterSwiftBridge.instantiateImageCodec([UInt8](data))
@@ -1702,7 +1710,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         data: ptr.baseAddress!,
                         width: image.width, height: image.height)
                 }
-                shell.setState { shell.iconTextures[name] = texId }
+                onPlatformThread {
+                    shell.setState { shell.iconTextures[name] = texId }
+                }
             } catch {
                 // Undecodable — the neutral painted glyph stays.
             }
@@ -8247,16 +8257,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         session.whenSeamlessReady { s in
             s.launchInGuest("shell:AppsFolder\\" + rec.exec)
         }
-        // A launch the guest silently swallowed would bounce for ever. The
-        // cast is the file's idiom for a main-queue hop that touches state.
+        // A launch the guest silently swallowed would bounce for ever.
         let id = rec.id
-        let expire: () -> Void = { [weak self] in
+        onPlatformThread(after: 30) { [weak self] in
             guard let self, self._pendingAppLaunches.contains(id) else { return }
             self.setState { self._pendingAppLaunches.remove(id) }
         }
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + 30,
-            execute: unsafeBitCast(expire, to: (@Sendable () -> Void).self))
     }
     #endif
 
@@ -8347,8 +8353,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // _launchFromLauncher, which falls back to this for anything that is not
     // filling a workspace's driver slot.
     func _launchOrFocusApp(_ appId: String, extraArgs: [String] = []) {
-        // Ignore if this app is already being launched
-        if _pendingAppLaunches.contains(appId) { return }
+        // Ignore if this app is already being launched. Not for an app inside
+        // a guest: its launch is a request to a helper, and a second request
+        // for a single-instance app activates it, while a bounce that never
+        // ended (the window arrived under another owner) must not make the
+        // launcher's Enter do nothing for thirty seconds.
+        if _pendingAppLaunches.contains(appId),
+           _record(appId)?.kind != .guestApp { return }
 
         // An app installed since login has no host icon loaded yet, so its
         // transient dock tile would show the neutral glyph. Cheap and idempotent.

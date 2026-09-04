@@ -25,7 +25,8 @@ import StarlingRegistry
 /// echo guard the clipboard uses, because either direction re-entering the
 /// other is a loop.
 ///
-/// Everything here is main-thread state; the bridge delivers there.
+/// Everything here is platform-thread state — the framework's thread, not
+/// the main queue (`onPlatformThread`) — and the bridge delivers there.
 final class GuestSeamless {
 
     private unowned let session: GuestSession
@@ -152,7 +153,7 @@ final class GuestSeamless {
             self.unavailable("no Starling helper answered inside Windows (docs/WINDOWS-VM.md, \"Apps as windows\")")
         }
         readyDeadline = deadline
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: deadline)
+        onPlatformThread(after: 15, execute: deadline)
     }
 
     /// Drops every window and the channel. The session and its texture stay.
@@ -430,7 +431,7 @@ final class GuestSeamless {
                         }
                     }
                     foreignCheck = check
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: check)
+                    onPlatformThread(after: 1.5, execute: check)
                 }
             }
         }
@@ -446,10 +447,13 @@ final class GuestSeamless {
             guard let win = shell.windowManager.windows.first(where: { $0.id == e.windowId }) else { continue }
             let owner = GuestAppRecords.recordId(domain: session.domain,
                                                  aumid: e.aumid, exe: e.exe)
-                ?? session.appId
-            if win.wmClass != owner {
-                win.wmClass = owner
+            let wmClass = owner ?? session.appId
+            if win.wmClass != wmClass {
+                win.wmClass = wmClass
                 changed = true
+                // A launch whose window arrived before its record did ends
+                // its dock bounce here, not never.
+                if let owner { onAppWindow?(owner) }
             }
         }
         if changed { shell.setState {} }
@@ -526,7 +530,7 @@ final class GuestSeamless {
             // guest's window; M1's debounce, per window.
             let work = DispatchWorkItem(block: send)
             resizeDebounce[hwnd] = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+            onPlatformThread(after: 0.15, execute: work)
         }
     }
 

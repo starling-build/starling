@@ -31,7 +31,10 @@ import StarlingRegistry
 //   settled  — await_settled v0: per-window frame-quiet + shell animations
 //
 // Threading: accept/read run on background GCD queues; every handler is
-// marshalled onto the main queue (the codebase @Sendable-coercion idiom).
+// marshalled onto the PLATFORM thread — the framework's, which is not the
+// main queue (Utils/PlatformThread.swift): a handler that adds a window or
+// switches a guest's mode from the main queue races the build in progress,
+// and did (a console window opening inside seamless mode, mid-setMode).
 // Replies are serialized per connection on its write queue.
 
 /// One client connection: fd + registered agent + serialized writer.
@@ -304,8 +307,7 @@ final class AgentBroker: @unchecked Sendable {
                 self.appSubscribers.removeValue(forKey: ObjectIdentifier(conn))
                 self.stopAppTickIfIdle()
             }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(cleanup, to: (@Sendable () -> Void).self))
+            onPlatformThread(cleanup)
         }
     }
 
@@ -331,10 +333,12 @@ final class AgentBroker: @unchecked Sendable {
 
     private func startAppTickIfNeeded() {
         guard appTick == nil, !appSubscribers.isEmpty else { return }
-        let timer = DispatchSource.makeTimerSource(queue: .main)
+        let timer = DispatchSource.makeTimerSource(queue: .global())
         timer.schedule(deadline: .now() + 2, repeating: 2)
         timer.setEventHandler { [weak self] in
-            self?.shell?._refreshAppLiveness()
+            // The tick fires on a global queue; the liveness walk reads
+            // windows, so it runs where they are mutated.
+            onPlatformThread { self?.shell?._refreshAppLiveness() }
         }
         appTick = timer
         timer.resume()
@@ -354,11 +358,10 @@ final class AgentBroker: @unchecked Sendable {
             return
         }
         let work: () -> Void = { [weak self] in self?.dispatch(op, obj, conn) }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(work, to: (@Sendable () -> Void).self))
+        onPlatformThread(work)
     }
 
-    // MARK: Dispatch (main thread)
+    // MARK: Dispatch (platform thread — the framework's; see onPlatformThread)
 
     private func dispatch(_ op: String, _ req: [String: Any], _ conn: BrokerConn) {
         let id = req["id"] ?? NSNull()
@@ -821,9 +824,7 @@ final class AgentBroker: @unchecked Sendable {
                                "error": "\(app) launch timed out"])
                     self?.audit(agentId, op, false, "\(app) timeout")
                 }
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .seconds(25),
-                    execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
+                onPlatformThread(after: 25, bail)
                 return
 
             case .firstParty:
@@ -856,9 +857,7 @@ final class AgentBroker: @unchecked Sendable {
                     conn.send(["id": id, "ok": false, "error": "launch timed out"])
                     self?.audit(agentId, op, false, "\(app) timeout")
                 }
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .seconds(15),
-                    execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
+                onPlatformThread(after: 15, bail)
 
             case .x11, .android, .vm, .guestApp:
                 // None of these fits the one-client-one-window claim this
@@ -927,9 +926,7 @@ final class AgentBroker: @unchecked Sendable {
             /// click is genuinely two clicks with a plausible interval, which
             /// is also what a client's own double-click detection expects.
             func after(_ ms: Int, _ body: @escaping () -> Void) {
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .milliseconds(ms),
-                    execute: unsafeBitCast(body, to: (@Sendable () -> Void).self))
+                onPlatformThread(after: Double(ms) / 1000.0, body)
             }
 
             func done(_ what: String) {
@@ -1161,9 +1158,7 @@ final class AgentBroker: @unchecked Sendable {
                 conn.send(["id": id, "ok": true, "waited_ms": ms])
                 self?.audit(agentId, op, true, "\(ms)ms")
             }
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + .milliseconds(Int(ms)),
-                execute: unsafeBitCast(reply, to: (@Sendable () -> Void).self))
+            onPlatformThread(after: Double(ms) / 1000.0, reply)
 
         case "capture":
             guard let win = ownedWindow() else { return failOwned() }
@@ -1342,9 +1337,7 @@ final class AgentBroker: @unchecked Sendable {
                                + (repainted ? " (still busy)" : " (never repainted)"))
                 } else {
                     let again: () -> Void = { poll() }
-                    DispatchQueue.main.asyncAfter(
-                        deadline: .now() + .milliseconds(40),
-                        execute: unsafeBitCast(again, to: (@Sendable () -> Void).self))
+                    onPlatformThread(after: 0.04, again)
                 }
             }
             poll()

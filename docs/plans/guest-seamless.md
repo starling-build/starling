@@ -398,6 +398,31 @@ a domain): launch an app through the bridge, assert a Starling window appears
 whose `wmClass` is the app's, close it, assert it goes. `docs/WINDOWS-VM.md`
 gains the bridge bootstrap.
 
+## Threading, found after Phase 6
+
+The startup fault that had hit half of the day's launches turned out to be
+the milestone's own doing, and its core dump reset an assumption the whole
+guest code was built on. **The framework runs on the engine platform
+thread**, the epoll loop `fl_drm_view_run` spawns; the process's main thread
+only runs Foundation's RunLoop. So every `DispatchQueue.main.async {
+setState … }` — M1's design, this milestone's, the broker's handlers, the
+icon and wallpaper decodes — mutated state on a thread the framework never
+uses, racing whatever build was in progress. It worked almost always. With
+74 guest-app icons decoding while `initState` still iterated
+`iconTextures`, it faulted on every other launch; with the reconcile adding
+windows mid-build, `_buildDock` saw two app lists in one frame; with
+`guest_mode` switching modes from the main queue while a resize's scanouts
+arrived, a console window opened inside seamless mode.
+
+`onPlatformThread` (`Utils/PlatformThread.swift`, over
+`fl_drm_view_post_task`) is the hop now, in the guest code, the broker and
+the decodes. The exception is the guest clipboard provider, which stays on
+the main queue: it is a Wayland client of this shell's own compositor, and
+a client connecting from the compositor's thread waits on itself — measured
+as a hung shell with the scanouts posted behind it and never run. After the
+change: five cold starts out of five, the seamless check three times in a
+row, no traps, no watchdog.
+
 ## Traps
 
 - **Minimised windows stop producing frames**, so a crop of one is stale

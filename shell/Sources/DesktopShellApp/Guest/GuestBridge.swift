@@ -25,7 +25,8 @@ import GuestDisplay
 ///   reply and not from the connection.
 ///
 /// Threading: one reader thread owns the socket. Callers may send from any
-/// thread; replies and events are delivered on the main queue.
+/// thread; replies and events are delivered on the platform thread — the
+/// framework's, see `onPlatformThread`.
 final class GuestBridge: @unchecked Sendable {
 
     /// The channel a Starling helper answers on. Matches the domain XML's
@@ -34,9 +35,9 @@ final class GuestBridge: @unchecked Sendable {
 
     let domain: String
 
-    /// Raised on the main thread once the helper has answered `hello`.
+    /// Raised on the platform thread once the helper has answered `hello`.
     var onReady: ((_ helperVersion: String) -> Void)?
-    /// Unsolicited `{"event":…}` lines, on the main thread.
+    /// Unsolicited `{"event":…}` lines, on the platform thread.
     var onEvent: (([String: Any]) -> Void)?
     /// The channel went away — the guest closed its end, or the VM stopped.
     var onClosed: (() -> Void)?
@@ -142,7 +143,7 @@ final class GuestBridge: @unchecked Sendable {
             self.lock.unlock()
             self.onReady?(reply["helper"] as? String ?? "?")
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+        onPlatformThread(after: 2) { [weak self] in
             guard let self, !self.isReady, self.fd >= 0 else { return }
             self.hello()
         }
@@ -162,7 +163,7 @@ final class GuestBridge: @unchecked Sendable {
 
     // MARK: - Sending
 
-    /// Any thread. `reply` runs on the main queue; it is never called twice,
+    /// Any thread. `reply` runs on the platform thread; it is never called twice,
     /// and never at all if the channel closes first — a caller that must not
     /// leak on that path should hold no unbounded state.
     func send(op: String, args: [String: Any] = [:],
@@ -219,8 +220,7 @@ final class GuestBridge: @unchecked Sendable {
             self.isReady = false
             self.onClosed?()
         }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(hop, to: (@Sendable () -> Void).self))
+        onPlatformThread(hop)
     }
 
     private func deliver(_ obj: [String: Any]) {
@@ -230,14 +230,12 @@ final class GuestBridge: @unchecked Sendable {
             lock.unlock()
             guard let cb else { return }
             let hop: () -> Void = { cb(obj) }
-            DispatchQueue.main.async(
-                execute: unsafeBitCast(hop, to: (@Sendable () -> Void).self))
+            onPlatformThread(hop)
             return
         }
         guard obj["event"] is String else { return }
         let hop: () -> Void = { [weak self] in self?.onEvent?(obj) }
-        DispatchQueue.main.async(
-            execute: unsafeBitCast(hop, to: (@Sendable () -> Void).self))
+        onPlatformThread(hop)
     }
 }
 #endif
