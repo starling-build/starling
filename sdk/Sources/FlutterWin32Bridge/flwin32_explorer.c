@@ -365,15 +365,65 @@ static void restore_at_exit(void) {
   if (g_hidden) flwin32_explorer_taskbar_show();
 }
 
+/* ── explorer's tray must be BUILT before it hears the appbar protocol ─────
+ *
+ * The Windows 10 logon crash, read from its dump (2026-09-04, explorer
+ * 10.0.19041.6456, twice per logon): explorer!TrayUI::_ShouldAutoHideTray
+ * reading a null member, called from TrayUI::SetAutoHideState <-
+ * CTray::_OnAppBarMessage <- CTray::v_WndProc <- user32!_fnCOPYDATA -- an
+ * ABM_SETSTATE arriving as WM_COPYDATA -- on a thread that was still inside
+ * CTraySearchControl::Initialize, pumping messages in a COM wait
+ * (CoWaitForMultipleHandles). The tray WINDOW exists before the tray is
+ * built; a modal COM call inside its construction delivers whatever is queued
+ * for it; and our ABS_AUTOHIDE, sent within 250 ms of the window appearing by
+ * the start-up hold in flwin32_shell_ensure_explorer_service, was what was
+ * queued. The first fault is caught by the callback dispatcher and reported,
+ * the second is fatal (c000041d), and the supervisor's tick starts a third
+ * explorer eight seconds in -- which then blanked the desktop surface, the
+ * bug the heal in flwin32_surface.c exists for. Windows 11's tray does not
+ * pump there, which is why the box never saw it.
+ *
+ * So the STATE change waits until the tray looks built -- its notification
+ * area child exists, created by the same construction -- and has for two
+ * seconds, four times the gap between the window and the crash here. Hiding
+ * the window meanwhile is fine: ShowWindow runs no tray code that has ever
+ * faulted. Only the appbar state is deferred, and it stays PENDING until a
+ * later call applies it, because a hidden taskbar still holds its work-area
+ * strip until told to auto-hide. No foreign tray at all is "ready":
+ * SHAppBarMessage then lands on our own appbar service. */
+static HWND g_tray_seen;
+static DWORD g_tray_seen_tick;
+static int g_appbar_state_pending;
+
+static int explorer_tray_ready(void) {
+  HWND tray = NULL;
+  HWND w = NULL;
+  while ((w = FindWindowExW(NULL, w, L"Shell_TrayWnd", NULL)) != NULL) {
+    if (owned_by_explorer(w)) { tray = w; break; }
+  }
+  if (tray == NULL) return 1;
+  if (tray != g_tray_seen) {
+    g_tray_seen = tray;
+    g_tray_seen_tick = GetTickCount();
+  }
+  if (FindWindowExW(tray, NULL, L"TrayNotifyWnd", NULL) == NULL) return 0;
+  return (GetTickCount() - g_tray_seen_tick) >= 2000;
+}
+
 int32_t flwin32_explorer_taskbar_hide(void) {
-  if (g_saved_state < 0) g_saved_state = appbar_state();
   if (!g_atexit_installed) {
     atexit(restore_at_exit);
     g_atexit_installed = 1;
   }
-  /* ALWAYSONTOP is kept so the state we restore differs from the saved one in
-   * exactly one bit. AUTOHIDE is the bit that frees the work area. */
-  set_appbar_state(ABS_AUTOHIDE | ABS_ALWAYSONTOP);
+  if (explorer_tray_ready()) {
+    if (g_saved_state < 0) g_saved_state = appbar_state();
+    /* ALWAYSONTOP is kept so the state we restore differs from the saved one
+     * in exactly one bit. AUTOHIDE is the bit that frees the work area. */
+    set_appbar_state(ABS_AUTOHIDE | ABS_ALWAYSONTOP);
+    g_appbar_state_pending = 0;
+  } else {
+    g_appbar_state_pending = 1;
+  }
   g_hidden = 1;
   /* Hook BEFORE hiding: between the two there is a window in which explorer
    * can show the taskbar and nothing would catch it. */
@@ -749,7 +799,10 @@ int32_t flwin32_shell_ensure_explorer_service(void) {
      * two later -- so a single hide here would hide nothing and the user
      * would watch somebody else's taskbar slide over the dock. Hold it for
      * three seconds, which covers every start measured on the box; the
-     * EVENT_OBJECT_SHOW hook and the dock's own check carry it from there. */
+     * EVENT_OBJECT_SHOW hook and the dock's own check carry it from there.
+     * The taskbar's appbar STATE is not set on this cadence any more -- that
+     * is what crashed Windows 10's explorer mid-construction
+     * (explorer_tray_ready); the hide defers it and the tick finishes it. */
     for (int i = 0; i < 12; i++) {
         Sleep(250);
         flwin32_explorer_taskbar_hide();
@@ -767,7 +820,11 @@ void flwin32_shell_suppress_explorer_chrome(void) {
      * one SHAppBarMessage talks to, so losing that position hands the appbar
      * protocol -- and with it the dock's own reservation -- to explorer. */
     flwin32_tray_raise();
-    if (flwin32_explorer_taskbar_visible()) flwin32_explorer_taskbar_hide();
+    /* A hide whose appbar state was deferred (explorer's tray was still being
+     * built, see explorer_tray_ready) is finished here, on the tick. */
+    if (flwin32_explorer_taskbar_visible() || g_appbar_state_pending) {
+        flwin32_explorer_taskbar_hide();
+    }
     hide_desktop_now();
 }
 
