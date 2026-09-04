@@ -167,11 +167,12 @@ public final class TerminalAutoAnswer {
     var minimumInterval: TimeInterval = TerminalAutoAnswer.defaultMinimumInterval
 
     private let path: String?
-    /// Modification time and size of the file as last read. Size is in there
-    /// because a modification time has one-second granularity on some
-    /// filesystems, and two edits inside one second is exactly what iterating
-    /// on a rule looks like.
-    private var stamp: (Double, Int) = (-1, -1)
+    /// The file exactly as it was last read, or "" for a file that is not
+    /// there — which is a state worth remembering too, so a file that appears
+    /// and then vanishes disarms rather than sticking.
+    ///
+    /// Not a modification time and size: see `refreshIfChanged`.
+    private var lastText: String = "\u{0}"   // never equal to a real read
 
     /// A question already dealt with: which rule, and which line of the
     /// session it was on. Not which line of the SCREEN — a screen that scrolls
@@ -376,12 +377,19 @@ public final class TerminalAutoAnswer {
 
     private func refreshIfChanged() {
         guard let path = path else { return }
-        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
-        let now = (((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1),
-                   ((attrs?[.size] as? Int) ?? -1))
-        guard now != stamp else { return }
-        stamp = now
+        // The CONTENTS, not a stamp. A modification time plus a size looks
+        // like enough and is not: swap one rule for another of the same
+        // length inside one filesystem tick and both halves match, so the
+        // edit is invisible and the terminal goes on answering with the old
+        // rules. That is a real edit — `y\r` to `n\r` — and it is exactly
+        // what iterating on a file looks like. It made this module's own test
+        // flaky, which is how it was noticed.
+        //
+        // The file is a few hundred bytes and this runs at the settle point,
+        // never on the byte path, so reading it is cheaper than the mistake.
         let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        guard text != lastText else { return }
+        lastText = text
         apply(Self.parse(text))
         if !problems.isEmpty { logProblems(path) }
     }
