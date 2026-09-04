@@ -679,10 +679,12 @@ void flwin32_crashlog_install(const char* utf8_path);
 // The readiness test while waiting on a borrowed explorer -- retrying the
 // activation itself instead costs about a second per failed attempt.
 int32_t flwin32_shell_services_ready(void);
-// Let an explorer run for a couple of seconds at session start. Where a
-// minimized window GOES depends on state only a shell coming up establishes,
-// and it persists for the session once set -- without this every minimized
-// window is left as a title-bar stub on the desktop. Returns 1 if it ran one.
+// Let an explorer run for a couple of seconds at session start. This used to
+// be how minimized windows were kept off the desktop: the state explorer sets
+// as it comes up is the ARW_HIDE metric, now set directly by
+// flwin32_shell_hide_minimized_windows, and this is kept only as belt and
+// braces for the explorer-less configuration. With the service on it declines
+// (an explorer is already up). Returns 1 if it ran one.
 int32_t flwin32_shell_prime_shell_services(void);
 int32_t flwin32_shell_borrow_explorer(void);
 void flwin32_shell_return_explorer(void);
@@ -699,15 +701,23 @@ void flwin32_shell_return_explorer_after(uint32_t app_pid);
 // thread dies with the process, which leaks the very explorer it was about
 // to end. A long-lived shell never needs to ask.
 int32_t flwin32_shell_borrow_outstanding(void);
+// Set the session to park minimized windows off screen at -32000, the way
+// they go under explorer, instead of leaving each one as a title-bar stub
+// along the bottom of the work area, on top of the dock. This is the ARW_HIDE
+// bit of the minimized-window metrics -- the one piece of state that decides
+// placement, measured directly on Windows 10 and 11 (flwin32_explorer.c). A
+// session starts with it clear and explorer sets it as it comes up; the shell
+// sets it itself and depends on nobody. Flags 0: no registry write, no
+// WM_SETTINGCHANGE broadcast. Idempotent; returns whether the bit is set.
+int32_t flwin32_shell_hide_minimized_windows(void);
 // Claim the desktop's "task manager window" on a hidden window of our own.
-// This is what decides WHERE a minimized window goes: with it, user32 parks
-// minimized windows off-screen at -32000 the way it does under explorer; with
-// nobody holding it, every minimize leaves a bare title-bar stub tiled along
-// the bottom of the work area, on top of the dock. Owning Shell_TrayWnd does
-// not do it and neither does SetShellWindow -- measured both ways, see
-// flwin32_explorer.c. Idempotent, and safe to call again after explorer has
-// been and gone (it takes the window while it runs). Returns 0 only if the
-// undocumented export is missing or the window could not be made.
+// Whoever holds it receives SC_TASKLIST, which is how Ctrl+Esc reaches a
+// Start menu. It was believed to decide where a minimized window goes, and
+// does not -- see flwin32_shell_hide_minimized_windows. Kiosk mode only: a
+// foreign holder during explorer's init breaks packaged apps for the session
+// (flwin32_explorer.c), so this declines while the explorer service runs.
+// Returns 0 when it declines, when the undocumented export is missing, or
+// when the window could not be made.
 int32_t flwin32_shell_take_taskman_window(void);
 // Whether the named Starling surface ("Starling Notifications", ...) is
 // currently visible on screen. UTF-8 title.

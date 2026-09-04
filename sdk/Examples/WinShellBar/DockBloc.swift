@@ -231,7 +231,7 @@ final class DockBloc: @unchecked Sendable {
                 Task.detached { _ = Win32Shell.hideNativeTaskbar() }
             }
             // Declines while the explorer service runs — the new explorer
-            // KEEPS the minimize target now, deliberately: our claim was the
+            // KEEPS the taskman slot now, deliberately: our claim was the
             // root cause of packaged apps never drawing (see
             // flwin32_shell_take_taskman_window). Kiosk mode still claims.
             _ = Win32Shell.takeTaskmanWindow()
@@ -558,12 +558,13 @@ final class DockBloc: @unchecked Sendable {
         Task.detached {
             guard Win32Shell.nativeTaskbarIsVisible else { return }
             _ = Win32Shell.hideNativeTaskbar()
-            // And take the minimize target back. Explorer's shell32 claims it
-            // for itself when explorer starts, so whatever put its taskbar
-            // back also took the thing that keeps minimized windows off the
-            // desktop — the stubs would return with the next minimize, long
-            // after anyone would connect the two. On the UI thread, because
-            // that is the thread the window being re-asserted was made on.
+            // And the taskman slot, in kiosk mode (the call declines while
+            // the explorer service runs): explorer's shell32 claims it for
+            // itself when explorer starts, so whatever put its taskbar back
+            // also took Ctrl+Esc with it. Minimized windows are unaffected —
+            // their placement is a session metric the shell set at startup,
+            // not this slot. On the UI thread, because that is the thread the
+            // window being re-asserted was made on.
             await MainActor.run {
                 _ = Win32Shell.takeTaskmanWindow()
                 // And the strip's reservation, for the same reason: explorer

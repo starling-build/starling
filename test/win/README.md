@@ -54,7 +54,7 @@ the shell** — and each was a "works on my 4K screen" assumption:
 | the desktop surface is on screen | handles | nothing drawing a wallpaper |
 | there is a wallpaper, not a black screen | **pixels** | a black screen with a dock on it — every handle correct, nothing drawn |
 | the dock is drawn along the bottom | **pixels** | a reservation that holds while the dock itself never paints |
-| the shell holds the minimize target | handles | minimized apps left as title-bar stubs sitting on the dock |
+| the session parks minimized windows off screen | a system metric | minimized apps left as title-bar stubs sitting on the dock — and the check it replaced, which asked who owned the taskman slot and failed Windows 10 for a slot nobody there ever claims |
 | a minimized window leaves the screen | handles | the same, from the app's side |
 | the file explorer opens, minimizes, comes back | handles + **pixels** | Files minimized into nowhere; and a restored window that comes back blank |
 | a right-click opens its context menu | handles + **pixels** | a file manager with no menu at all, and the menu that opens as a blank panel — the popup is a real window, so this is a window check with a paint check on top |

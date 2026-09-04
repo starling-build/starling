@@ -1117,17 +1117,17 @@ void flwin32_shell_return_explorer(void) {
  *     explorer then KILLED            -> (-32000,...)  still off screen
  *
  * The last line is the one that matters: whatever Windows latches when a shell
- * comes up, it keeps for the session. We hold the minimize target already --
- * a stranger asking for it is refused, so that is not the gap -- and being the
- * shell window is not it either. Rather than keep guessing at which piece of
- * shell state user32 is really looking for, we let the thing that sets it run
- * for two seconds at logon.
+ * comes up, it keeps for the session. THAT STATE IS NOW KNOWN: it is the
+ * ARW_HIDE bit of the minimized-window metrics, and the shell sets it directly
+ * (flwin32_shell_hide_minimized_windows, below). This prime is what found it
+ * -- explorer sets the bit as it comes up, which is why letting one run
+ * worked and why the placement survived killing it.
  *
- * It is a blunt instrument and it is honest about being one. The cost is a
- * couple of seconds of an explorer at session start and nothing afterwards --
- * the same borrow a packaged-app launch makes, one launch earlier. Without it
- * every minimized window in the session is left as a title-bar stub sitting on
- * the desktop, which is the single most visible thing the shell gets wrong.
+ * Kept, for now, as belt and braces in the explorer-less (kiosk) configuration
+ * only. With the explorer service on (the default) the borrow declines because
+ * an explorer is already up, so this is a no-op there. Taking it out of kiosk
+ * mode wants a kiosk-mode gate run first; the cost of keeping it is a couple
+ * of seconds of an explorer at session start.
  */
 int32_t flwin32_shell_prime_shell_services(void) {
     int i;
@@ -1155,20 +1155,68 @@ int32_t flwin32_shell_explorer_present(void) {
     return FindWindowW(L"Progman", NULL) != NULL ? 1 : 0;
 }
 
-/* ---------------------------------------------------------- minimize target */
+/* ------------------------------------------- minimized window placement */
 
 /*
  * Where a minimized window GOES, which is not a thing the shell draws.
  *
- * With no taskbar registered, user32 falls back to its pre-Win95 iconic
- * placement: a minimized window becomes a bare title-bar stub, 160x31 logical,
- * tiled left to right along the bottom of the WORK AREA -- which, because our
- * appbar reserves the dock's strip, is a neat row of stubs sitting directly on
- * top of the dock. It is stock user32 behaviour and nothing we draw, so no
- * amount of dock code makes it go away.
+ * It is one bit of per-session state: ARW_HIDE in the minimized-window
+ * metrics (MINIMIZEDMETRICS.iArrange, reported by GetSystemMetrics(SM_ARRANGE)).
+ * Set, user32 parks a minimized top-level window at (-32000,-32000), where
+ * nothing draws it and the dock tile is the whole restore affordance -- the
+ * native behaviour. Clear, it falls back to its pre-Win95 iconic placement: a
+ * bare title-bar stub, 160x28 logical, tiled left to right along the bottom
+ * of the WORK AREA -- which, because our appbar reserves the dock's strip, is
+ * a neat row of stubs sitting directly on top of the dock. Stock user32 either
+ * way; no amount of dock code changes it.
  *
- * The switch is SetTaskmanWindow, and only that. Measured on the shipping
- * shell, one probe window minimized five times in one session:
+ * Measured 2026-09-04, one FRESH probe window per line, on Windows 10 22H2
+ * (19045) where nobody holds the taskman slot, and on Windows 11 (26200)
+ * where the service explorer does:
+ *
+ *     as found, SM_ARRANGE = 8          -> (-32000,-32000)    off screen
+ *     ARW_HIDE cleared, slot untouched  -> (0,716)-(160,744)  stub, on screen
+ *     ARW_HIDE set,     slot untouched  -> (-32000,-32000)    off screen
+ *
+ * Identical on both. A session starts with the bit clear and explorer sets it
+ * as it comes up -- which is what flwin32_shell_prime_shell_services was
+ * borrowing an explorer for, why the placement survived that explorer being
+ * killed, and why the taskman claim below was once taken for the switch.
+ * Windows 10 is where that came apart: its service explorer sets the bit but
+ * never claims the slot, so the gate's "somebody owns the slot" check failed
+ * on a session whose minimized windows were leaving the screen perfectly.
+ *
+ * So the shell sets the bit itself. Flags 0, deliberately: no
+ * SPIF_UPDATEINIFILE (this is session state, not a preference to write into
+ * the user's profile) and no SPIF_SENDCHANGE (a WM_SETTINGCHANGE broadcast is
+ * explorer's cue to recompute the work area from its own appbar list, which
+ * un-reserves the dock's strip -- see workarea_announce in flwin32_tray.c).
+ * user32 honours the new value on the next minimize with no broadcast at all.
+ * Per-session and idempotent, so once at startup is enough. Returns whether
+ * the bit is set afterwards.
+ */
+int32_t flwin32_shell_hide_minimized_windows(void) {
+    MINIMIZEDMETRICS mm;
+    memset(&mm, 0, sizeof(mm));
+    mm.cbSize = sizeof(mm);
+    if (!SystemParametersInfoW(SPI_GETMINIMIZEDMETRICS, sizeof(mm), &mm, 0)) {
+        return 0;
+    }
+    if (!(mm.iArrange & ARW_HIDE)) {
+        mm.iArrange |= ARW_HIDE;
+        SystemParametersInfoW(SPI_SETMINIMIZEDMETRICS, sizeof(mm), &mm, 0);
+    }
+    return (GetSystemMetrics(SM_ARRANGE) & ARW_HIDE) ? 1 : 0;
+}
+
+/* ------------------------------------------------------------ taskman slot */
+
+/*
+ * The desktop's "task manager window": whoever holds it receives SC_TASKLIST,
+ * which is how Ctrl+Esc reaches a Start menu.
+ *
+ * It was believed to decide where a minimized window goes, on this probe --
+ * one window minimized five times in one session on the shipping shell:
  *
  *     baseline (our shell)     -> (1570,1998)-(1884,2048)   stub, on screen
  *     a Shell_TrayWnd exists   -> (1570,1998)-(1884,2048)   no change
@@ -1176,13 +1224,13 @@ int32_t flwin32_shell_explorer_present(void) {
  *     + SetShellWindow(w)      -> (-32000,-32000)           no further change
  *     probe destroyed          -> (1570,1998)-(1884,2048)   back again
  *
- * So owning Shell_TrayWnd -- which the tray already does -- is NOT enough, and
- * neither is being the shell window. The same probe under explorer parks at
- * -32000 on the first try, which is what "the native behaviour" means here:
- * the taskbar button is the entire restore affordance and the desktop stays
- * clean. shell32.dll is the module that references SetTaskmanWindow; explorer
- * itself does not, which is why grepping the wrong binary makes this look like
- * folklore.
+ * That reading did not hold up. On a cold boot with the bit clear a verified
+ * claim changed nothing (the prime's table, above), and with the bit measured
+ * directly the placement follows ARW_HIDE with this slot empty, on Windows 10
+ * and 11 alike. The third line above has not been reproduced since and stays
+ * here as a record, not a rule. shell32.dll is the module that references
+ * SetTaskmanWindow; explorer itself does not, which is why grepping the wrong
+ * binary makes the export look like folklore.
  *
  * The window this registers is our own hidden one rather than the dock's, for
  * two reasons: the dock's HWND is a different window in every mode (panel,

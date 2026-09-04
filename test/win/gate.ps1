@@ -572,21 +572,28 @@ Check "the dock is drawn along the bottom" {
     "strip brightness $bright, $variety colours -- not the dock"
 }
 
-Check "the minimize target has an owner" {
-    # WHO owns it changed on purpose (2026-08-26). The shell's logon-time
-    # claim of the taskman slot was the ROOT CAUSE of packaged apps opening
-    # as eternal splash screens: user32 keeps one slot per session, a live
-    # foreign holder makes explorer's own claim fail, and explorer's
-    # immersive init then never builds the machinery that composes an app's
-    # content into its frame. With the explorer service on (the default),
-    # EXPLORER must own the slot -- that is native minimize parking. In kiosk
-    # mode (STARLING_EXPLORER_SERVICE=0) the shell's StarlingTaskmanWindow
-    # claims it as before. What must never hold is an EMPTY slot, which
-    # leaves minimized apps as title-bar stubs on the desktop.
-    $tm = [Gate]::TaskmanWindow()
-    if ($tm -eq [IntPtr]::Zero) {
-        return "nobody holds the taskman slot: minimized apps will be left as stubs on the desktop"
+Check "the session parks minimized windows off screen" {
+    # ONE bit of per-session state decides where a minimized window goes:
+    # ARW_HIDE in the minimized-window metrics, which GetSystemMetrics reports
+    # as SM_ARRANGE. Set, user32 parks minimized windows at -32000; clear, it
+    # leaves each one as a title-bar stub along the bottom of the work area,
+    # on top of the dock. Measured directly on Windows 10 and 11 (2026-09-04):
+    # clearing the bit brings the stubs back with the taskman slot untouched.
+    #
+    # This check used to insist that SOMEBODY owns the taskman slot, on the
+    # belief that the slot was the switch. Windows 10 falsified it: its
+    # service explorer never claims the slot, this check failed, and the very
+    # next one watched a minimized window leave the screen. The slot still
+    # matters for one thing -- a foreign holder during explorer's init breaks
+    # every packaged app for the session (2026-08-26) -- so a STRANGER holding
+    # it is still a failure. Empty, explorer, or the shell (kiosk mode) are
+    # all fine.
+    $arrange = [Gate]::GetSystemMetrics(56)   # SM_ARRANGE
+    if (-not ($arrange -band 8)) {            # ARW_HIDE
+        return "SM_ARRANGE is $arrange, ARW_HIDE clear: minimized apps will be left as stubs on the desktop"
     }
+    $tm = [Gate]::TaskmanWindow()
+    if ($tm -eq [IntPtr]::Zero) { return $true }
     $op = 0; [void][Gate]::GetWindowThreadProcessId($tm, [ref]$op)
     $owner = (Get-Process -Id $op -EA SilentlyContinue).ProcessName
     if ($owner -eq 'explorer' -or $owner -eq 'WinShellBar') { return $true }

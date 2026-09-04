@@ -235,19 +235,29 @@ public enum Win32Shell {
         flwin32_shell_explorer_present() != 0
     }
 
-    /// Claims the desktop's "task manager window", which is what Windows uses
-    /// to decide where a MINIMIZED window's rectangle goes.
+    /// Sets the session to park minimized windows off screen, the way they go
+    /// under explorer, instead of leaving each one as a bare title-bar stub
+    /// along the work area's bottom edge — a row of them directly on top of
+    /// the dock, which is not something the dock can draw its way out of.
     ///
-    /// Held by nobody, user32 falls back to its pre-Win95 placement and every
-    /// minimize leaves a bare title-bar stub sitting on the work area's bottom
-    /// edge — a row of them directly on top of the dock, which is not
-    /// something the dock can draw its way out of. Held by us, minimized
-    /// windows park off-screen exactly as they do under explorer, and the dock
-    /// tile is the restore affordance, exactly as the taskbar button is there.
+    /// One bit of per-session state decides it (the `ARW_HIDE` minimized
+    /// metric); a session starts with it clear and explorer sets it as it
+    /// comes up. The taskman slot was long believed to be the switch and is
+    /// not — `flwin32_shell_hide_minimized_windows` has the measurement, on
+    /// Windows 10 and 11. Idempotent; returns whether the bit is set.
+    @discardableResult
+    public static func hideMinimizedWindows() -> Bool {
+        flwin32_shell_hide_minimized_windows() != 0
+    }
+
+    /// Claims the desktop's "task manager window" — whoever holds it receives
+    /// `SC_TASKLIST`, which is how Ctrl+Esc reaches a Start menu.
     ///
-    /// Idempotent, and worth re-calling after explorer has been up: explorer
-    /// claims this window for itself while it runs. See
-    /// `flwin32_shell_take_taskman_window` for the measurements.
+    /// Declines while the explorer service runs: a foreign holder during
+    /// explorer's init breaks packaged apps for the whole session, and the
+    /// claim's supposed other job — where minimized windows go — was never
+    /// its job at all (that is `hideMinimizedWindows`). Kiosk mode still
+    /// claims it. See `flwin32_shell_take_taskman_window`.
     @discardableResult
     public static func takeTaskmanWindow() -> Bool {
         flwin32_shell_take_taskman_window() != 0

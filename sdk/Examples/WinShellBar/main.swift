@@ -1510,15 +1510,25 @@ if wantsFiles {
     if !keepsNativeTaskbar {
         let hidden = Win32Shell.hideNativeTaskbar()
         print("[WinShell] Explorer taskbar hidden: \(hidden)")
-        // And the minimize target. With the explorer service on (the default)
-        // this call intentionally declines — explorer owns the taskman slot
-        // and parks minimized windows natively, and OUR claim here at logon
-        // was the root cause of packaged apps opening as eternal splash
-        // screens (see flwin32_shell_take_taskman_window). It claims only in
-        // the explorer-less kiosk configuration, where user32's no-taskbar
-        // fallback would otherwise leave title-bar stubs on the desktop.
+        // And where a minimized window GOES. One bit of per-session state
+        // decides it: set, user32 parks minimized windows off screen; clear,
+        // it tiles them as title-bar stubs along the bottom of the work area,
+        // on top of the dock. A session starts clear and explorer sets it as
+        // it comes up — Windows 11's service explorer, and Windows 10's, which
+        // never claims the taskman slot and so showed that the slot was never
+        // the switch (see flwin32_shell_hide_minimized_windows). Set it
+        // ourselves and depend on nobody.
+        let hidesMinimized = Win32Shell.hideMinimizedWindows()
+        print("[WinShell] minimized windows park off screen: \(hidesMinimized)")
+        // The taskman slot routes Ctrl+Esc (SC_TASKLIST) to its holder. With
+        // the explorer service on (the default) this call intentionally
+        // declines — OUR claim here at logon was the root cause of packaged
+        // apps opening as eternal splash screens (see
+        // flwin32_shell_take_taskman_window), and the keyboard hook takes the
+        // chord instead. It claims only in the explorer-less kiosk
+        // configuration.
         let taskman = Win32Shell.takeTaskmanWindow()
-        print("[WinShell] minimize target taken: \(taskman) (false = explorer service owns it)")
+        print("[WinShell] taskman slot taken: \(taskman) (false = explorer service owns it)")
     }
 
     // The tray class, taken BEFORE the panel registers its appbar below:
