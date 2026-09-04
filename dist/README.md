@@ -1,15 +1,28 @@
 # dist — prebuilt downloads carried in the tree
 
-`StarlingSetup-0.1.0.exe` and `Starling-0.1.0-win-x64.zip` — the Starling
-shell for Windows 11, x86_64: dock, Start menu, desktop, file manager and
-tray, the thing the site's Windows page films. 39.1 / 39.6 MB, checksums in
-`SHA256SUMS`, both produced by `build/win/package-shell.ps1` — the single
-definition of what a Windows install contains — from mainline (commit in
-`BUILD-STAMP.txt` inside; engine pinned by `release-winshell-0.1.0` in
-starling-engine). The exact `WinShellBar.exe` in both passed the 28-check
-shell gate twice: on the physical box (`test/win/run-gate.sh`), and —
-installed from this very setup exe — on a clean Windows 11 VM that has
-never had a toolchain on it (`test/win/run-gate-vm.sh`).
+`StarlingSetup-0.2.0.exe` and `Starling-0.2.0-win-x64.zip` — the Starling
+shell for Windows 11 and Windows 10, x86_64: dock, Start menu, desktop, file
+manager and tray, the thing the site's Windows page films. 39.3 / 39.7 MB,
+checksums in `SHA256SUMS`, both produced by `build/win/package-shell.ps1` —
+the single definition of what a Windows install contains — from branch
+`release-winshell-0.2.0` (commit in `BUILD-STAMP.txt` inside; engine pinned
+by the same branch name in starling-engine). The exact `WinShellBar.exe` in
+both passed the 28-check shell gate twice: installed from this very setup
+exe on a clean Windows 11 VM that has never had a toolchain on it
+(`test/win/run-gate-vm.sh --install`), and on a Windows 10 22H2 VM under
+Hyper-V.
+
+**0.2.0 over 0.1.0.** It runs on Windows 10 — same binary, same look; the
+dock's icons start in the corner there, as Windows 10's own do. The four
+issues from the first outside reporter are closed (#26–#29: the taskbar
+alignment follows Windows' own setting, the bar has its own right-click
+menu, an app launched from the dock comes up in front, a new dock seeds
+from the taskbar pins you already had). Minimized windows are parked off
+screen by the setting that actually decides it, on both Windows. A profile
+that never set a wallpaper gets the theme's. The desktop stays painted when
+an explorer starts beside the shell. And Windows 10's explorer no longer
+crashes at logon: that was a message of ours reaching its taskbar before the
+taskbar was built.
 
 The setup exe is the zip plus a one-line bootstrap: double-click, and it
 installs to `%LOCALAPPDATA%\Programs\Starling` and registers, effective at
@@ -17,11 +30,12 @@ the next sign-in. The zip is the same payload with the options:
 `Install.ps1` (`-Now`, `-NoRegister`, `-Destination`), `Uninstall.ps1`
 (`-KeepFiles`), and `WinShellBar.exe --restore-taskbar` as the recovery
 path. Install, uninstall, and what-if-it-breaks in full:
-`docs/WINDOWS-INSTALL.md`.
+`docs/WINDOWS-INSTALL.md`. The 0.1.0 artifacts are removed rather than kept
+beside these; they remain `winshell-v0.1.0` release assets.
 
 Unsigned, deliberately for now: SmartScreen will warn on first run, and a
-machine with Smart App Control enforcing will refuse it outright. The
-signing plan exists (`docs/WINDOWS-SIGNING.md`) and 0.1.0 ships before it.
+machine with Smart App Control enforcing will refuse it. The
+signing plan exists (`docs/WINDOWS-SIGNING.md`) and 0.2.0 ships before it.
 
 `starling-terminal-0.1.1-windows-x86_64.zip` — Starling Terminal for Windows,
 x86_64, rebuilt for 0.1.1 on the respun 0.3.1 SDK bundle beside it. 47.2 MB,

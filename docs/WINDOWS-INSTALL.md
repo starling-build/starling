@@ -35,7 +35,7 @@ back in**, which is the reversible way to try a shell.
 Unattended (deployment, or a machine you are driving over SSH):
 
 ```powershell
-StarlingSetup-0.1.0.exe /Q:A
+StarlingSetup-0.2.0.exe /Q:A
 ```
 
 ### The zip
@@ -44,7 +44,7 @@ Same payload without the wrapper — this is the one to use if you want the
 options.
 
 ```powershell
-Expand-Archive Starling-0.1.0-win-x64.zip -DestinationPath $env:TEMP\starling
+Expand-Archive Starling-0.2.0-win-x64.zip -DestinationPath $env:TEMP\starling
 powershell -ExecutionPolicy Bypass -File $env:TEMP\starling\Install.ps1
 ```
 
@@ -229,7 +229,7 @@ profile and registers a `Winlogon\Shell` nobody will ever log in as:
 
 ```powershell
 schtasks /create /tn StarInstall /ru Administrator /it /rl HIGHEST `
-         /sc once /st 00:00 /tr "...\StarlingSetup-0.1.0.exe /Q:A" /f
+         /sc once /st 00:00 /tr "...\StarlingSetup-0.2.0.exe /Q:A" /f
 schtasks /run /tn StarInstall
 ```
 
