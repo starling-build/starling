@@ -370,6 +370,27 @@ Run the guest at the host output's logical size with Windows' scaling at the
 host's scale, or every crop lands at the wrong size. M1's `set_ui_size`
 already drives the first half; the second is a one-time guest setting.
 
+**BUILT 2026-09-04.** Not a one-time guest setting after all: the helper's
+`set_scale` op changes Windows' display scaling LIVE, through the
+DisplayConfig DPI-scale device-info requests (types -3/-4 — the
+undocumented half the Settings app uses, and what the SetDPI tools wrap).
+No sign-out, DWM re-scales, apps get `WM_DPICHANGED`. The shell asks for its
+own scale (`currentShellDpi` × 100) on every seamless attach, so a guest
+window is the logical size a native one would be instead of physically 1:1
+and small at 1.5x. Windows' scale is a step on a fixed ladder stored
+RELATIVE to the monitor's recommended step; the helper reads the current
+value with `GetDpiForMonitor` — which is why it is per-monitor-DPI-aware
+now rather than system-aware, or the value would be frozen at process
+start — and converts. The scanout stays at the output's physical size; the
+crops did not change, because they were never in dpi units.
+
+**VERIFIED 2026-09-04:** over the channel, 96 → 144 → 96 → 144 dpi with the
+virtual screen fixed at 3840x2160; through the shell, "guest scale asked
+150% -> 150%", and Notepad's frame went from 1270x747 to 1906x1121 guest
+pixels — 1271x785 logical, the size a native window of it would be, its
+menu text the same size as the desktop's title bars. Both checks and the
+fast tier pass.
+
 ## Phase 7 — tests and docs
 
 `test/functional.py` gains a seamless check beside the M1 one (skipped without

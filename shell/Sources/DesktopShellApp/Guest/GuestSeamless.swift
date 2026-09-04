@@ -94,6 +94,15 @@ final class GuestSeamless {
             // two arrives as an event, and one that appears before the
             // observe is in the list. Either order is safe because
             // reconcile is idempotent; this one is the shorter wait.
+            // Phase 6: the guest's scaling follows ours, so a guest window
+            // is the logical size a native one would be — not physically
+            // 1:1 and small at 1.5x. Live in Windows, no sign-out; the
+            // windows re-lay out and the observer reports the new frames.
+            let percent = Int((currentShellDpi * 100).rounded())
+            self.bridge.send(op: "set_scale", args: ["percent": percent]) { reply in
+                FileHandle.standardError.write(Data(
+                    "[seamless] guest scale asked \(percent)% -> \(jsonInt(reply["percent"]) ?? -1)% (ok=\(jsonBool(reply["ok"])))\n".utf8))
+            }
             self.bridge.send(op: "observe", args: ["interval": 100])
             self.bridge.send(op: "list_windows") { [weak self] reply in
                 self?.reconcile(reply)

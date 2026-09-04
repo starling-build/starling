@@ -486,6 +486,12 @@ On the host, the channel's socket is `libvirt-qemu:kvm` inside a kvm-group
 directory, so the session user needs the **`kvm`** group as well as
 `libvirt` — see *Host* above.
 
+**The guest's scaling follows the desktop's.** On every switch to apps-as-
+windows the desktop sets Windows' display scaling to its own (150% on a
+1.5x output), live, no sign-out — so a Notepad window inside the VM is the
+size a native Notepad would be. The console inherits it, which is also the
+better console on a HiDPI output.
+
 **Every app in the guest gets a launcher tile and a dock icon of its own.**
 Once the helper answers, the guest's Start catalog becomes one registry
 record per app under `~/.local/share/starling/guest-apps.d/` (`Kind=guest-app`,

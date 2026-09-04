@@ -28,6 +28,8 @@
 //   activate|close|minimize|maximize|restore {"hwnd":n}
 //   move {"hwnd":n,"x":…,"y":…,"w":…,"h":…}   (the VISIBLE frame)
 //   launch {"path":…,"args":…}  (an exe path, or shell:AppsFolder\… for a Store app)
+//   set_scale {"percent":150}  -> {"ok":true,"percent":<applied>} — the primary
+//                                 display's scaling, applied live (no sign-out)
 //   apps                       -> {"ok":true,"apps":[{id,name,exe,icon}]} — the
 //                                 AppsFolder: every app Start would list, packaged
 //                                 or not, `id` launchable as shell:AppsFolder\<id>,
@@ -126,6 +128,37 @@ static class Bridge {
     [DllImport("ole32.dll")] static extern void CoTaskMemFree(IntPtr p);
     [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr h);
     [DllImport("gdi32.dll")] static extern int GetObject(IntPtr h, int size, out BITMAP bm);
+    [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
+    [DllImport("user32.dll")] static extern IntPtr MonitorFromPoint(POINT p, uint flags);
+    [DllImport("shcore.dll")] static extern int GetDpiForMonitor(IntPtr mon, int type, out uint x, out uint y);
+    [DllImport("user32.dll")]
+    static extern int GetDisplayConfigBufferSizes(uint flags, out uint paths, out uint modes);
+    [DllImport("user32.dll")]
+    static extern int QueryDisplayConfig(uint flags, ref uint paths, [Out] DISPLAYCONFIG_PATH_INFO[] p,
+        ref uint modes, [Out] DISPLAYCONFIG_MODE_INFO[] m, IntPtr topology);
+    [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref DPI_SCALE_GET r);
+    [DllImport("user32.dll")] static extern int DisplayConfigSetDeviceInfo(ref DPI_SCALE_SET r);
+
+    [StructLayout(LayoutKind.Sequential)] struct POINT { public int x, y; }
+    [StructLayout(LayoutKind.Sequential)] struct LUID { public uint low; public int high; }
+    // DISPLAYCONFIG_PATH_INFO (72 bytes) and DISPLAYCONFIG_MODE_INFO (64 bytes),
+    // only the fields that are read; the rest is opaque padding of the right size.
+    [StructLayout(LayoutKind.Sequential, Size = 72)]
+    struct DISPLAYCONFIG_PATH_INFO { public LUID sourceAdapter; public uint sourceId; }
+    [StructLayout(LayoutKind.Sequential, Size = 64)]
+    struct DISPLAYCONFIG_MODE_INFO { public uint infoType; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct DPI_SCALE_GET {   // DISPLAYCONFIG_SOURCE_DPI_SCALE_GET, type -3
+        public int type; public uint size; public LUID adapter; public uint id;
+        public int minRel, curRel, maxRel;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    struct DPI_SCALE_SET {   // DISPLAYCONFIG_SOURCE_DPI_SCALE_SET, type -4
+        public int type; public uint size; public LUID adapter; public uint id;
+        public int rel;
+    }
+    const uint QDC_ONLY_ACTIVE_PATHS = 2;
+    static readonly int[] kScaleSteps = { 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500 };
 
     [StructLayout(LayoutKind.Sequential)]
     struct RECT { public int Left, Top, Right, Bottom; }
@@ -384,6 +417,63 @@ static class Bridge {
         }
     }
 
+    // ── display scaling ─────────────────────────────────────────────────────
+    // Windows' scale is a step in a fixed ladder, stored RELATIVE to the
+    // "recommended" step for the monitor (0 = recommended). The get/set
+    // device-info requests (types -3/-4) are the undocumented half of
+    // DisplayConfigGetDeviceInfo that the Settings app itself uses, and they
+    // apply live — DWM re-scales, apps get WM_DPICHANGED, no sign-out. The
+    // process is per-monitor-DPI-aware (Main), so GetDpiForMonitor reports the
+    // live value rather than the one frozen at process start, and window
+    // rectangles stay physical.
+
+    static int CurrentScalePercent() {
+        try {
+            uint dx, dy;
+            var origin = new POINT();
+            IntPtr mon = MonitorFromPoint(origin, 1 /* MONITOR_DEFAULTTOPRIMARY */);
+            if (GetDpiForMonitor(mon, 0 /* MDT_EFFECTIVE_DPI */, out dx, out dy) == 0)
+                return (int)Math.Round(dx * 100.0 / 96.0);
+        } catch { }
+        return 100;
+    }
+
+    static int StepIndex(int percent) {
+        int best = 0;
+        for (int i = 0; i < kScaleSteps.Length; i++)
+            if (Math.Abs(kScaleSteps[i] - percent) < Math.Abs(kScaleSteps[best] - percent)) best = i;
+        return best;
+    }
+
+    // Returns the percent actually in force afterwards, or -1.
+    static int SetScale(int percent) {
+        uint np, nm;
+        if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out np, out nm) != 0 || np == 0) return -1;
+        var paths = new DISPLAYCONFIG_PATH_INFO[np];
+        var modes = new DISPLAYCONFIG_MODE_INFO[nm];
+        if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0 || np == 0)
+            return -1;
+        var get = new DPI_SCALE_GET();
+        get.type = -3; get.size = (uint)Marshal.SizeOf(typeof(DPI_SCALE_GET));
+        get.adapter = paths[0].sourceAdapter; get.id = paths[0].sourceId;
+        if (DisplayConfigGetDeviceInfo(ref get) != 0) return -1;
+        int currentIdx = StepIndex(CurrentScalePercent());
+        int recommendedIdx = currentIdx - get.curRel;
+        int rel = StepIndex(percent) - recommendedIdx;
+        if (rel < get.minRel) rel = get.minRel;
+        if (rel > get.maxRel) rel = get.maxRel;
+        if (rel != get.curRel) {
+            var set = new DPI_SCALE_SET();
+            set.type = -4; set.size = (uint)Marshal.SizeOf(typeof(DPI_SCALE_SET));
+            set.adapter = get.adapter; set.id = get.id; set.rel = rel;
+            if (DisplayConfigSetDeviceInfo(ref set) != 0) return -1;
+        }
+        int idx = recommendedIdx + rel;
+        if (idx < 0) idx = 0;
+        if (idx >= kScaleSteps.Length) idx = kScaleSteps.Length - 1;
+        return kScaleSteps[idx];
+    }
+
     // ── acting, transcribed from flwin32_wm.c ───────────────────────────────
 
     static bool Activate(IntPtr hwnd) {
@@ -555,7 +645,7 @@ static class Bridge {
 
     static string Screen() {
         uint dpi = 96;
-        try { dpi = GetDpiForSystem(); } catch { }
+        try { dpi = (uint)Math.Round(CurrentScalePercent() * 96.0 / 100.0); } catch { }
         return "{\"x\":" + GetSystemMetrics(SM_XVIRTUALSCREEN) +
                ",\"y\":" + GetSystemMetrics(SM_YVIRTUALSCREEN) +
                ",\"w\":" + GetSystemMetrics(SM_CXVIRTUALSCREEN) +
@@ -661,8 +751,15 @@ static class Bridge {
     static int Main(string[] args) {
         // Physical pixels, whatever the session's scaling: an unaware process
         // is handed virtualised coordinates at anything but 100%, and the
-        // host's crop is in scanout pixels.
-        try { SetProcessDPIAware(); } catch { }
+        // host's crop is in scanout pixels. Per-monitor v2 rather than the
+        // system-DPI awareness, so a scale changed while running (set_scale)
+        // is what GetDpiForMonitor reports afterwards.
+        try {
+            if (!SetProcessDpiAwarenessContext(new IntPtr(-4) /* PER_MONITOR_AWARE_V2 */))
+                SetProcessDPIAware();
+        } catch {
+            try { SetProcessDPIAware(); } catch { }
+        }
 
         bool toStdout = Array.IndexOf(args, "--stdout") >= 0;
         if (toStdout) {
@@ -722,6 +819,12 @@ static class Bridge {
                 case "apps":
                     Emit(head + ",\"ok\":true,\"apps\":" + Apps() + "}");
                     break;
+                case "set_scale": {
+                    int applied = SetScale((int)Num(line, "percent", 100));
+                    Emit(head + ",\"ok\":" + (applied > 0 ? "true" : "false") +
+                         ",\"percent\":" + applied + "}");
+                    break;
+                }
                 case "observe":
                     observeInterval = (int)Num(line, "interval", 100);
                     Emit(head + ",\"ok\":true,\"interval\":" + observeInterval + "}");
