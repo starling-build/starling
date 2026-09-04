@@ -28,6 +28,10 @@
 //   activate|close|minimize|maximize|restore {"hwnd":n}
 //   move {"hwnd":n,"x":…,"y":…,"w":…,"h":…}   (the VISIBLE frame)
 //   launch {"path":…,"args":…}  (an exe path, or shell:AppsFolder\… for a Store app)
+//   apps                       -> {"ok":true,"apps":[{id,name,exe,icon}]} — the
+//                                 AppsFolder: every app Start would list, packaged
+//                                 or not, `id` launchable as shell:AppsFolder\<id>,
+//                                 `icon` a base64 PNG (48px) when the shell has one
 //   quit
 //
 // ONE DIVERGENCE from the real helper, on purpose: events come from a poll
@@ -51,6 +55,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -103,9 +109,61 @@ static class Bridge {
     [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
     [DllImport("dwmapi.dll")]
     static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT v, int size);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetApplicationUserModelId(IntPtr process, ref uint len, StringBuilder id);
+    [DllImport("shell32.dll")]
+    static extern int SHGetPropertyStoreForWindow(IntPtr hwnd, ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out IPropertyStore store);
+    [DllImport("ole32.dll")] static extern int PropVariantClear(ref PROPVARIANT pv);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SHCreateItemFromParsingName(string path, IntPtr ctx, ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out IShellItemImageFactory factory);
+    [DllImport("shell32.dll")]
+    static extern int SHGetKnownFolderPath(ref Guid id, uint flags, IntPtr token, out IntPtr path);
+    [DllImport("ole32.dll")] static extern void CoTaskMemFree(IntPtr p);
+    [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr h);
+    [DllImport("gdi32.dll")] static extern int GetObject(IntPtr h, int size, out BITMAP bm);
 
     [StructLayout(LayoutKind.Sequential)]
     struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct SIZE { public int cx, cy; public SIZE(int w, int h) { cx = w; cy = h; } }
+    [StructLayout(LayoutKind.Sequential)]
+    struct BITMAP {
+        public int bmType, bmWidth, bmHeight, bmWidthBytes;
+        public ushort bmPlanes, bmBitsPixel;
+        public IntPtr bmBits;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    struct PROPERTYKEY { public Guid fmtid; public uint pid; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct PROPVARIANT {
+        public ushort vt; ushort r1, r2, r3;
+        public IntPtr p; IntPtr p2;
+    }
+    [ComImport, Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IPropertyStore {
+        int GetCount(out uint c);
+        int GetAt(uint i, out PROPERTYKEY k);
+        int GetValue(ref PROPERTYKEY k, out PROPVARIANT v);
+        int SetValue(ref PROPERTYKEY k, ref PROPVARIANT v);
+        int Commit();
+    }
+    [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IShellItemImageFactory {
+        int GetImage(SIZE size, int flags, out IntPtr hbitmap);
+    }
+    // PKEY_AppUserModel_ID, spelled out as flwin32_wm.c does.
+    static readonly Guid kAppUserModelFmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");
+    static readonly Guid kIID_IPropertyStore = new Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99");
+    static readonly Guid kIID_IShellItemImageFactory = new Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b");
+    const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    const int SIIGBF_ICONONLY = 0x4, SIIGBF_BIGGERSIZEOK = 0x1;
 
     const int GWL_EXSTYLE = -20;
     const uint GW_OWNER = 4;
@@ -182,6 +240,136 @@ static class Bridge {
         if (!VisibleFrame(h, out r)) return false;
         if (r.Right - r.Left <= 0 || r.Bottom - r.Top <= 0) return false;
         return true;
+    }
+
+    // Which packaged app a window belongs to, "" for an ordinary program —
+    // a transcription of flwin32_wm.c's window_app_id(): the process first (a
+    // plain kernel call; Notepad, Paint, Terminal carry the id there and
+    // nothing on the window), then, only for the CoreWindow generation's
+    // ApplicationFrameWindow (Settings, Calculator — whose host process is
+    // not packaged), the frame's own property store, which is what
+    // explorer's taskbar reads too. A packaged id has a '!' in it; a bare
+    // label like Edge's "MSEdge" is not one, and is not taken.
+    static string WindowAumid(IntPtr h, uint pid, string cls) {
+        IntPtr p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (p != IntPtr.Zero) {
+            var sb = new StringBuilder(512);
+            uint len = 512;
+            int rc = GetApplicationUserModelId(p, ref len, sb);
+            CloseHandle(p);
+            string id = sb.ToString();
+            if (rc == 0 && id.IndexOf('!') >= 0) return id;
+        }
+        if (cls != "ApplicationFrameWindow") return "";
+        try {
+            IPropertyStore store;
+            Guid iid = kIID_IPropertyStore;
+            if (SHGetPropertyStoreForWindow(h, ref iid, out store) != 0 || store == null) return "";
+            var key = new PROPERTYKEY { fmtid = kAppUserModelFmtid, pid = 5 };
+            PROPVARIANT v;
+            string result = "";
+            if (store.GetValue(ref key, out v) == 0) {
+                if (v.vt == 31 /* VT_LPWSTR */ && v.p != IntPtr.Zero) {
+                    string s = Marshal.PtrToStringUni(v.p);
+                    if (s != null && s.IndexOf('!') >= 0) result = s;
+                }
+                PropVariantClear(ref v);
+            }
+            Marshal.ReleaseComObject(store);
+            return result;
+        } catch {
+            return "";
+        }
+    }
+
+    // A known-folder-relative AppsFolder id ("{1AC14E77-…}\cmd.exe" — how
+    // Windows 11 files System32's tools) resolved to a real path, so a
+    // classic app's window (matched by exe) can find its record. "" for any
+    // other shape of id; a plain path is returned as-is.
+    static string ExpandAppId(string id) {
+        if (id.Length > 38 && id[0] == '{' && id[37] == '}' && id[38] == '\\') {
+            Guid g;
+            if (Guid.TryParse(id.Substring(0, 38), out g)) {
+                IntPtr path;
+                if (SHGetKnownFolderPath(ref g, 0, IntPtr.Zero, out path) == 0) {
+                    string root = Marshal.PtrToStringUni(path);
+                    CoTaskMemFree(path);
+                    return root + id.Substring(38);
+                }
+            }
+            return "";
+        }
+        if (id.Length > 2 && id[1] == ':' && id[2] == '\\') return id;
+        return "";
+    }
+
+    // The app's icon as the shell draws it for Start, 48px, as a PNG — the
+    // one source that works for packaged and classic apps alike. The HBITMAP
+    // is a 32-bit DIB with premultiplied alpha; Image.FromHbitmap throws the
+    // alpha away, so the pixels are read straight from the section instead.
+    static string AppIconPng(string id) {
+        try {
+            IShellItemImageFactory f;
+            Guid iid = kIID_IShellItemImageFactory;
+            if (SHCreateItemFromParsingName("shell:AppsFolder\\" + id, IntPtr.Zero, ref iid, out f) != 0 || f == null)
+                return null;
+            IntPtr hbmp;
+            int rc = f.GetImage(new SIZE(48, 48), SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, out hbmp);
+            Marshal.ReleaseComObject(f);
+            if (rc != 0 || hbmp == IntPtr.Zero) return null;
+            try {
+                BITMAP bm;
+                if (GetObject(hbmp, Marshal.SizeOf(typeof(BITMAP)), out bm) == 0 ||
+                    bm.bmBitsPixel != 32 || bm.bmBits == IntPtr.Zero) return null;
+                using (var wrapped = new Bitmap(bm.bmWidth, bm.bmHeight, bm.bmWidthBytes,
+                                                PixelFormat.Format32bppPArgb, bm.bmBits))
+                using (var copy = new Bitmap(wrapped))
+                using (var ms = new MemoryStream()) {
+                    // The section is bottom-up: row 0 in memory is the bottom.
+                    copy.RotateFlip(RotateFlipType.RotateNoneFlipY);
+                    copy.Save(ms, ImageFormat.Png);
+                    return Convert.ToBase64String(ms.ToArray());
+                }
+            } finally {
+                DeleteObject(hbmp);
+            }
+        } catch {
+            return null;
+        }
+    }
+
+    // The AppsFolder, through the same Shell object explorer's Start reads —
+    // packaged apps have no shortcut anywhere and live only here. Late-bound
+    // COM, so the file needs nothing beyond csc's default references. Works
+    // only in an interactive session: from session 0 the folder enumerates
+    // as empty, which looks like a guest with no apps.
+    static string Apps() {
+        var sb = new StringBuilder();
+        sb.Append("[");
+        bool first = true;
+        try {
+            Type t = Type.GetTypeFromProgID("Shell.Application");
+            dynamic shell = Activator.CreateInstance(t);
+            dynamic folder = shell.NameSpace("shell:AppsFolder");
+            dynamic items = folder.Items();
+            foreach (dynamic item in items) {
+                string name = item.Name as string;
+                string id = item.Path as string;
+                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(id)) continue;
+                if (!first) sb.Append(",");
+                first = false;
+                sb.Append("{\"id\":\"").Append(Esc(id))
+                  .Append("\",\"name\":\"").Append(Esc(name))
+                  .Append("\",\"exe\":\"").Append(Esc(ExpandAppId(id))).Append("\"");
+                string png = AppIconPng(id);
+                if (png != null) sb.Append(",\"icon\":\"").Append(png).Append("\"");
+                sb.Append("}");
+            }
+        } catch (Exception e) {
+            Console.Error.WriteLine("apps: " + e.Message);
+        }
+        sb.Append("]");
+        return sb.ToString();
     }
 
     static string ExePath(uint pid) {
@@ -320,6 +508,7 @@ static class Bridge {
           .Append(",\"title\":\"").Append(Esc(title.ToString()))
           .Append("\",\"class\":\"").Append(Esc(cls.ToString()))
           .Append("\",\"exe\":\"").Append(Esc(ExePath(pid)))
+          .Append("\",\"aumid\":\"").Append(Esc(WindowAumid(h, pid, cls.ToString())))
           .Append("\",\"x\":").Append(r.Left)
           .Append(",\"y\":").Append(r.Top)
           .Append(",\"w\":").Append(r.Right - r.Left)
@@ -468,6 +657,7 @@ static class Bridge {
         }
     }
 
+    [STAThread]
     static int Main(string[] args) {
         // Physical pixels, whatever the session's scaling: an unaware process
         // is handed virtualised coordinates at anything but 100%, and the
@@ -528,6 +718,9 @@ static class Bridge {
                     break;
                 case "list_windows":
                     Emit(head + ",\"ok\":true," + ListWindows() + "}");
+                    break;
+                case "apps":
+                    Emit(head + ",\"ok\":true,\"apps\":" + Apps() + "}");
                     break;
                 case "observe":
                     observeInterval = (int)Num(line, "interval", 100);

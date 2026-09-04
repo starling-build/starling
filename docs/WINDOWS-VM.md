@@ -486,6 +486,14 @@ On the host, the channel's socket is `libvirt-qemu:kvm` inside a kvm-group
 directory, so the session user needs the **`kvm`** group as well as
 `libvirt` — see *Host* above.
 
+**Every app in the guest gets a launcher tile and a dock icon of its own.**
+Once the helper answers, the guest's Start catalog becomes one registry
+record per app under `~/.local/share/starling/guest-apps.d/` (`Kind=guest-app`,
+with the guest's own icon beside it), so "Notepad" in the launcher's search
+starts Notepad inside the VM and its window sits under Notepad's icon, not
+Windows'. Records are refreshed on every attach and dropped when the guest
+stops listing the app; delete the directory to start over.
+
 What it is, in this milestone: crop-and-clip. Two overlapping guest windows
 show Windows' stacking where they overlap, a guest window keeps its own
 caption inside ours, and dragging it by that caption moves it in the guest

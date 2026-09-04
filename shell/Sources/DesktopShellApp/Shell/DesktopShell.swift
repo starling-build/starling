@@ -2865,9 +2865,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// can still click is a dock you click by accident.
     func macosDock(forOutput output: DisplayOutput, opacity: Double) -> Widget? {
         guard opacity > 0.01 else { return nil }
-        let metrics = _dockMetrics(outputWidth: output.logicalWidth)
+        let appIds = _dockDisplayApps
+        let metrics = _dockMetrics(outputWidth: output.logicalWidth, appIds: appIds)
         let dock = _buildDock(
-            appIds: _dockDisplayApps, metrics: metrics,
+            appIds: appIds, metrics: metrics,
             dockTop: output.logicalHeight - DesktopTheme.kDockBottomMargin
                 - DesktopTheme.kDockHeight)
         return Positioned(
@@ -2964,8 +2965,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// the magnified geometry would be the wrong answer.
     func macosDockSlots(forOutput output: DisplayOutput)
         -> [(app: String, x: Double, y: Double, size: Double)] {
-        let metrics = _dockMetrics(outputWidth: output.logicalWidth)
-        let ids = ["launcher"] + _dockDisplayApps
+        let apps = _dockDisplayApps
+        let metrics = _dockMetrics(outputWidth: output.logicalWidth, appIds: apps)
+        let ids = ["launcher"] + apps
         let y = output.logicalHeight
             - DesktopTheme.kDockBottomMargin
             - DesktopTheme.kDockIconBottomInset - DesktopTheme.kDockIconSize / 2
@@ -4746,13 +4748,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
         // Dock on the primary output (macOS: single dock, homes on primary).
         let p = dl.primary
-        let dockMetrics = _dockMetrics(outputWidth: p.logicalWidth)
+        let dockAppIds = _dockDisplayApps
+        let dockMetrics = _dockMetrics(outputWidth: p.logicalWidth, appIds: dockAppIds)
         layers.append(Positioned(
             left: (p.logicalLeft - ox) + dockMetrics.left,
             top: (p.logicalBottom - oy) - DesktopTheme.kDockBottomMargin - DesktopTheme.kDockContainerHeight,
             width: dockMetrics.width, height: DesktopTheme.kDockContainerHeight,
             child: _buildDock(
-                appIds: _dockDisplayApps, metrics: dockMetrics,
+                appIds: dockAppIds, metrics: dockMetrics,
                 dockTop: p.logicalHeight - DesktopTheme.kDockBottomMargin - DesktopTheme.kDockHeight)))
 
         // Bezel + label per output (non-interactive overlay on top).
@@ -6484,13 +6487,20 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Dock geometry centred on `outputWidth` — the logical width of the
     /// output the dock is drawn on, which is not `screenWidth` once the
     /// primary is a different monitor from the host.
-    private func _dockMetrics(outputWidth: Double? = nil) -> DockMetrics {
+    /// `appIds` is the list the caller will build the dock FROM, so the two
+    /// agree by construction. `_dockDisplayApps` is recomputed on every read
+    /// from the window list and the pending launches, and a transient icon
+    /// appearing between two reads in one build gave `_buildDock` one more
+    /// icon than this had sized slots for — an index trap in the dock build,
+    /// the moment a second guest app's window arrived.
+    private func _dockMetrics(outputWidth: Double? = nil,
+                              appIds: [String]? = nil) -> DockMetrics {
         let outW = outputWidth ?? dockOutput.logicalWidth
         let hPad = DesktopTheme.kDockHorizontalPadding
         // The launcher (slot 0) is a full tile like the app icons, so it uses
         // the same base slot size and magnifies identically.
         let baseSizes = [DesktopTheme.kDockIconSize]
-            + _dockDisplayApps.map { _ in DesktopTheme.kDockIconSize }
+            + (appIds ?? _dockDisplayApps).map { _ in DesktopTheme.kDockIconSize }
         let n = baseSizes.count
 
         var baseCenters: [Double] = []
@@ -6912,9 +6922,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     duration: animDuration, clipBehavior: .hardEdge
                 ))
             } else {
+                // Never past the slots the metrics sized — see _dockMetrics.
+                let slot = i + 1 < metrics.slotWidths.count
+                    ? metrics.slotWidths[i + 1] : DesktopTheme.kDockIconSize
                 iconWidgets.append(
                     _buildDockIcon(appId: appId, iconType: iconType, index: i,
-                                   slotWidth: metrics.slotWidths[i + 1])
+                                   slotWidth: slot)
                 )
             }
 
@@ -8148,6 +8161,105 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     // MARK: - App Launching
 
+    #if os(Linux)
+    /// Open a VM's display as a session: the domain started if it is not,
+    /// the connection made, the callbacks that turn failures into
+    /// notifications wired. Shared by the console launch (`Kind=vm`) and a
+    /// guest app's (`Kind=guest-app`), which differ only in the mode they
+    /// want and in what ends their dock bounce.
+    @discardableResult
+    func _openGuestSession(domain: String, record rec: AppRecord, launchId: String,
+                           mode: GuestSession.Mode) -> GuestSession {
+        _pendingAppLaunches.insert(launchId)
+        let session = GuestSession(domain: domain, appId: rec.id, appName: rec.name)
+        session.preferredMode = mode
+        session.onFailure = { [weak self] detail in
+            guard let self else { return }
+            self._pendingAppLaunches.remove(launchId)
+            GuestSessions.remove(domain: domain)
+            self._postLocalNotification(
+                summary: "Could not open \(domain)", body: detail,
+                appName: rec.name)
+        }
+        if mode == .console {
+            session.onWindowOpened = { [weak self] _ in
+                self?._pendingAppLaunches.remove(launchId)
+            }
+        } else {
+            // Nothing to wait for: the guest's windows arrive when the
+            // helper lists them, and a guest with none open is not a failed
+            // launch. A guest APP launch ends its own bounce on its window.
+            if launchId == rec.id { _pendingAppLaunches.remove(launchId) }
+        }
+        session.onClosed = { GuestSessions.remove(domain: domain) }
+        session.onNotice = { [weak self] summary, body in
+            self?._postLocalNotification(summary: summary, body: body,
+                                         appName: rec.name)
+        }
+        session.onAppWindow = { [weak self] id in
+            guard let self, self._pendingAppLaunches.contains(id) else { return }
+            self.setState { self._pendingAppLaunches.remove(id) }
+        }
+        GuestSessions.add(session)
+        // Starting a domain is a libvirt round trip and can be seconds;
+        // the UI thread is not the place for it. Only the domain name
+        // crosses the hop — the session itself is main-thread state and is
+        // looked up again on the way back.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let state = guest_display_domain_state(domain)
+            let started = state == 1
+                || (state >= 0 && guest_display_domain_start(domain) >= 0)
+            DispatchQueue.main.async {
+                guard let s = GuestSessions.session(forDomain: domain) else { return }
+                if state < 0 {
+                    s.onFailure?("no such domain")
+                } else if !started {
+                    s.onFailure?("the domain could not be started")
+                } else {
+                    s.open()
+                }
+            }
+        }
+        return session
+    }
+
+    /// Start an app inside its VM and show it as a window: the session
+    /// opened in seamless mode if there is none, switched to it if it is
+    /// showing the console (the two are exclusive), and the launch sent the
+    /// moment the helper answers.
+    func _launchGuestApp(_ rec: AppRecord, domain: String) {
+        let session: GuestSession
+        if let existing = GuestSessions.session(forDomain: domain) {
+            session = existing
+            _pendingAppLaunches.insert(rec.id)
+        } else {
+            // The VM's own record names the session — its dock icon is
+            // where windows without a record of their own go.
+            let vm = AppRegistry.shared.apps.first {
+                $0.kind == .vm && ($0.domain ?? $0.id) == domain
+            }
+            session = _openGuestSession(domain: domain, record: vm ?? rec,
+                                        launchId: rec.id, mode: .seamless)
+        }
+        if session.mode == .console { session.setMode(.seamless) }
+        FileHandle.standardError.write(Data(
+            "[guest-apps] launch \(rec.id) in \(domain) (session \(session.mode == .seamless ? "seamless" : "console"))\n".utf8))
+        session.whenSeamlessReady { s in
+            s.launchInGuest("shell:AppsFolder\\" + rec.exec)
+        }
+        // A launch the guest silently swallowed would bounce for ever. The
+        // cast is the file's idiom for a main-queue hop that touches state.
+        let id = rec.id
+        let expire: () -> Void = { [weak self] in
+            guard let self, self._pendingAppLaunches.contains(id) else { return }
+            self.setState { self._pendingAppLaunches.remove(id) }
+        }
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + 30,
+            execute: unsafeBitCast(expire, to: (@Sendable () -> Void).self))
+    }
+    #endif
+
     /// Focus an existing window, following it to its space when it lives on
     /// another one (macOS dock: clicking an app's icon switches to its
     /// space). Restore handles the space switch in the model; the plain
@@ -8376,57 +8488,22 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             let domain = ProcessInfo.processInfo.environment["STARLING_GUEST_DOMAIN"]
                 .flatMap { $0.isEmpty ? nil : $0 } ?? rec.domain ?? rec.id
             if GuestSessions.session(forDomain: domain) != nil { return }
-
-            _pendingAppLaunches.insert(appId)
-            let session = GuestSession(domain: domain, appId: rec.id,
-                                       appName: rec.name)
-            session.onFailure = { [weak self] detail in
-                guard let self else { return }
-                self._pendingAppLaunches.remove(appId)
-                GuestSessions.remove(domain: domain)
-                self._postLocalNotification(
-                    summary: "Could not open \(domain)", body: detail,
-                    appName: rec.name)
-            }
-            session.onWindowOpened = { [weak self] _ in
-                self?._pendingAppLaunches.remove(appId)
-            }
-            session.onClosed = { GuestSessions.remove(domain: domain) }
-            session.onNotice = { [weak self] summary, body in
-                self?._postLocalNotification(summary: summary, body: body,
-                                             appName: rec.name)
-            }
             // One window per guest app instead of the console — the dock
             // menu switches at runtime; this is the starting mode, for a
             // test tier that has no coordinates to click a menu at.
-            if ProcessInfo.processInfo.environment["STARLING_GUEST_SEAMLESS"] == "1" {
-                session.preferredMode = .seamless
-                // Nothing to wait for: the guest's windows arrive when the
-                // helper lists them, and a guest with none open is not a
-                // failed launch.
-                session.onWindowOpened = nil
-                _pendingAppLaunches.remove(appId)
-            }
-            GuestSessions.add(session)
-            // Starting a domain is a libvirt round trip and can be seconds;
-            // the UI thread is not the place for it. Only the domain name
-            // crosses the hop — the session itself is main-thread state and is
-            // looked up again on the way back.
-            DispatchQueue.global(qos: .userInitiated).async {
-                let state = guest_display_domain_state(domain)
-                let started = state == 1
-                    || (state >= 0 && guest_display_domain_start(domain) >= 0)
-                DispatchQueue.main.async {
-                    guard let s = GuestSessions.session(forDomain: domain) else { return }
-                    if state < 0 {
-                        s.onFailure?("no such domain")
-                    } else if !started {
-                        s.onFailure?("the domain could not be started")
-                    } else {
-                        s.open()
-                    }
-                }
-            }
+            let seamless = ProcessInfo.processInfo.environment["STARLING_GUEST_SEAMLESS"] == "1"
+            _openGuestSession(domain: domain, record: rec, launchId: appId,
+                              mode: seamless ? .seamless : .console)
+            return
+        case _ where _record(appId)?.kind == .guestApp:
+            // An app INSIDE a VM, as a window of its own
+            // (docs/plans/guest-seamless.md, Phase 5). The VM may need
+            // starting first, and the helper answering; the launch waits
+            // for both, then goes through the helper as
+            // `shell:AppsFolder\<id>` — the one spelling that starts a
+            // packaged app and a classic one alike.
+            guard let rec = _record(appId), let domain = rec.domain else { return }
+            _launchGuestApp(rec, domain: domain)
             return
         case _ where _record(appId)?.kind == .android:
             // Android apps live inside Waydroid. android-app.sh brings the

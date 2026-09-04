@@ -41,6 +41,14 @@ public struct AppRecord: Sendable {
         /// there is no process to launch — the shell opens the guest's display
         /// in-process. See docs/plans/guest-display.md.
         case vm
+        /// An app INSIDE a virtual machine, shown as a window of its own
+        /// (docs/plans/guest-seamless.md): `domain` names the VM and `exec`
+        /// is what the guest's helper launches — an AppsFolder id, which is
+        /// the AppUserModelID for a packaged app. Records of this kind are
+        /// not shipped; the shell writes them from the guest's own catalog
+        /// into `AppRegistry.guestAppsDir`, one per app, and they are
+        /// installed by definition.
+        case guestApp = "guest-app"
     }
 
     // ── Catalog: shipped, static ─────────────────────────────────────────
@@ -136,7 +144,8 @@ public struct AppRecord: Sendable {
 
     /// For `Kind=vm`: the libvirt domain whose console this record opens.
     /// `STARLING_GUEST_DOMAIN` overrides it, for a dev box whose domain is
-    /// not the one the release ships against.
+    /// not the one the release ships against. For `Kind=guest-app`: the
+    /// domain the app lives in.
     public let domain: String?
 
     public init(

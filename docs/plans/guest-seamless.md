@@ -301,6 +301,69 @@ app into `/var/lib/starling/installed.d/`, exactly as `app-install` does for
 host apps, and the shell's inotify watch lights them up with no relogin. Kind
 and key naming is the open decision below.
 
+**BUILT 2026-09-04**, with two departures from the paragraph above that the
+code forced:
+
+- **Not `installed.d`, and not looked up by catalog id.** The registry loads
+  the shipped catalog and looks each id up in `installed.d`; a record with no
+  catalog entry was never loaded at all. And `installed.d` is root's —
+  `app-install` writes it under pkexec — while the shell runs as the session
+  user. So `Kind=guest-app` records live in a per-user directory,
+  `AppRegistry.guestAppsDir` (`~/.local/share/starling/guest-apps.d`,
+  `$STARLING_GUEST_APP_RECORDS` to override), which the registry enumerates
+  as a second catalog — self-describing records, installed by definition, a
+  catalog id winning any collision — and watches like the other two. The
+  App Store never sees them: it lists only records with an install recipe.
+- **The AppsFolder, not the Start Menu.** `shell:AppsFolder` is what
+  Explorer's Start enumerates, packaged apps included, and every entry is
+  launchable as `shell:AppsFolder\<id>` whether it is an AppUserModelID, a
+  known-folder-relative path or a registered label. The C# helper reads it
+  through the Shell COM object (interactive session only — from session 0
+  the folder is empty) and hands over each app's icon as the shell draws it
+  for Start, 48px, via `IShellItemImageFactory` — the one icon source that
+  serves packaged and classic apps alike. 74 apps with icons in 4.7 s on the
+  dev guest.
+
+Identity follows the desktop's standing rule. A window's `aumid` (the
+`window_app_id` transcription: the process first, the frame's property store
+for the CoreWindow generation) matches a packaged record's launch id; a
+classic window's executable matches the record's known-folder-expanded path;
+anything else stays under the VM's own record. `GuestAppRecords` keeps that
+table and writes the records — temp file and `rename(2)`, because
+Foundation's `replaceItemAt` refuses a destination that does not exist yet,
+which is every first write, and that cost one round: 74 icons on disk and not
+one record.
+
+Launching is the launch arm's new `Kind=guest-app` case: the VM's session is
+opened in seamless mode if there is none, switched to it if it shows the
+console, and the launch is queued on `whenSeamlessReady` until the helper
+answers. The dock's Quit needs nothing new — it closes each owned window,
+which is a `close` to the guest.
+
+**VERIFIED 2026-09-04:** 74 records with icons appeared in the launcher
+within seconds of the switch; "notepad" in the launcher's search offered
+`guest-win11-dbus-windowsnotepad`, Enter started Notepad inside the VM, and
+its window was counted as that record's (the dock grew a Notepad icon with
+the guest's own artwork and a running dot, not Windows'). The seamless
+functional check covers the launcher launch and passes back to back; the M1
+check and the registry unit test pass.
+
+It found one crash that was not Phase 5's: `_buildDock` read
+`_dockDisplayApps` twice in one build — once to size slots, once to draw
+them — and a second guest app's transient dock icon arriving between the
+two reads indexed past the slot array (an `ud2` at `DesktopShell.swift:6917`,
+symbolised with `addr2line` from the kernel's `traps:` line; the shell's
+own log ends silently). The build now takes one snapshot for both, and the
+icon loop never reads past what was sized. What could mutate the list
+between two synchronous reads is not settled — the registry watch runs on
+the main queue — and is noted rather than explained.
+
+Two things the launcher shows that are decisions, not bugs: a guest app is
+named what Windows names it, so "Calculator" appears twice (ours and the
+guest's, told apart by icon), and every AppsFolder entry becomes a record —
+74 here, Character Map and Recovery Drive included — because that is what
+Start lists.
+
 ## Phase 6 — DPI and resize
 
 Run the guest at the host output's logical size with Windows' scaling at the

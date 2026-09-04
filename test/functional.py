@@ -704,15 +704,42 @@ def check_guest_seamless() -> None:
                  timeout=30.0)
         w = titled("notepad")[0]
         assert w["frame"]["w"] > 0 and w["frame"]["h"] > 0, f"empty frame: {w!r}"
-        assert apps()["windows"]["window"], \
-            "the guest window is not counted as the VM app's (wmClass)"
-        log(f"Notepad is a window: {w['window']} {w['frame']}")
+        # Counted as SOME app's window through wmClass: Notepad's own record
+        # once the guest's catalog has arrived (Phase 5), the VM's until then.
+        rec = f"guest-{domain}-windowsnotepad"
+        owners = [a for a in (apps().get(rec), apps().get("windows")) if a and a["window"]]
+        assert owners, "the guest window is nobody's (wmClass)"
+        log(f"Notepad is a window: {w['window']} {w['frame']}, owned by {owners[0]['app']}")
 
         ask("guest_launch", domain=domain, path="taskkill.exe",
             args="/IM notepad.exe /F")
         wait_for(lambda: not titled("notepad"), "the Notepad window to go",
                  timeout=30.0)
         log("Notepad closed in the guest; its window went with it")
+
+        # Phase 5: the guest's own catalog became registry records, so the
+        # app is launchable the way any app is — by name, from the launcher
+        # — and its window is counted as ITS OWN app's, not the VM's.
+        wait_for(lambda: rec in apps() and apps()[rec]["kind"] == "guest-app",
+                 "the guest's Notepad record", timeout=30.0)
+        assert not apps()[rec]["window"], "no Notepad window should exist yet"
+        drive("dock launcher", "click", "sleep 1", "type notepad")
+        state = ask("launcher_state")
+        assert rec in state.get("filtered", []), \
+            f"the launcher does not offer the guest app: {state!r}"
+        drive("key enter")
+        try:
+            wait_for(lambda: apps()[rec]["window"],
+                     "Notepad, launched from the launcher, as its own app's window",
+                     timeout=45.0)
+            assert titled("notepad"), "the record's window is not a guest window"
+            log("Notepad launched from the launcher and owns its window")
+        finally:
+            drive("key esc")
+        ask("guest_launch", domain=domain, path="taskkill.exe",
+            args="/IM notepad.exe /F")
+        wait_for(lambda: not apps()[rec]["window"], "the Notepad window to go",
+                 timeout=30.0)
     finally:
         ask("guest_mode", domain=domain, mode="console")
         wait_for(lambda: guest()["mode"] == "console" and guest()["console"],

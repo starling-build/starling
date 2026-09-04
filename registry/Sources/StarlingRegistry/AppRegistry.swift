@@ -83,6 +83,28 @@ public final class AppRegistry: @unchecked Sendable {
         return "/var/lib/starling/installed.d"
     }
 
+    /// Where the shell records the apps inside a VM guest (`Kind=guest-app`,
+    /// docs/plans/guest-seamless.md). Per-user, not system-wide, for two
+    /// reasons that agree: the VM is the user's, and `installed.d` is root's
+    /// (`app-install` writes it under pkexec) while the shell runs as the
+    /// session user. `$STARLING_GUEST_APP_RECORDS` overrides; otherwise the
+    /// LOGIN user's data dir — under `sudo` that is still the person's home,
+    /// not root's. Not `$XDG_DATA_HOME`: the session points that at its
+    /// private bus directory.
+    public static var guestAppsDir: String {
+        let env = ProcessInfo.processInfo.environment
+        if let d = env["STARLING_GUEST_APP_RECORDS"], !d.isEmpty { return d }
+        return loginHome + "/.local/share/starling/guest-apps.d"
+    }
+
+    static var loginHome: String {
+        let env = ProcessInfo.processInfo.environment
+        var uid = getuid()
+        if uid == 0, let s = env["SUDO_UID"], let n = UInt32(s) { uid = n }
+        if let pw = getpwuid(uid) { return String(cString: pw.pointee.pw_dir) }
+        return env["HOME"] ?? "/tmp"
+    }
+
     /// `path` if it exists, else the closest ancestor that does (never past
     /// "/", which always exists).
     static func nearestExisting(_ path: String) -> String {
@@ -164,6 +186,7 @@ public final class AppRegistry: @unchecked Sendable {
             .sorted() ?? []
 
         var out: [AppRecord] = []
+        var ids = Set<String>()
         for file in files {
             guard let kf = KeyFile(path: catalog + "/" + file, group: "Starling App")
             else { continue }
@@ -172,6 +195,25 @@ public final class AppRegistry: @unchecked Sendable {
             let installedRecord = KeyFile(
                 path: installedDir + "/" + id + ".app", group: "Starling App")
             out.append(makeRecord(id: id, catalog: kf, installed: installedRecord))
+            ids.insert(id)
+        }
+        // Apps inside a VM guest: standalone records, self-describing, that
+        // the shell wrote from the guest's own catalog. Enumerated like the
+        // shipped catalog because nothing shipped could know them; an id the
+        // catalog already has keeps the catalog's record.
+        let guestDir = Self.guestAppsDir
+        let guestFiles = (try? fm.contentsOfDirectory(atPath: guestDir))?
+            .filter { $0.hasSuffix(".app") }
+            .sorted() ?? []
+        for file in guestFiles {
+            guard let kf = KeyFile(path: guestDir + "/" + file, group: "Starling App")
+            else { continue }
+            let id = kf.string("Id") ?? String(file.dropLast(".app".count))
+            guard !ids.contains(id),
+                  kf.string("Kind") == AppRecord.Kind.guestApp.rawValue
+            else { continue }
+            out.append(makeRecord(id: id, catalog: kf, installed: nil))
+            ids.insert(id)
         }
         out.sort {
             $0.order != $1.order ? $0.order < $1.order : $0.name < $1.name
@@ -381,6 +423,10 @@ public final class AppRegistry: @unchecked Sendable {
             // package must not link libvirt, because the App Store loads it
             // too.
             return bins.contains { fm.isExecutableFile(atPath: $0) }
+        case .guestApp:
+            // The record exists because the guest listed the app. Whether
+            // the guest is running is the launch arm's business.
+            return true
         }
     }
 
@@ -416,7 +462,8 @@ public final class AppRegistry: @unchecked Sendable {
         // and self-correcting, since the watch narrows to installed.d on the
         // first event. The .deb ships the directory, so a packaged install
         // never takes this path at all.
-        for dir in [Self.catalogDir, Self.nearestExisting(Self.installedDir)] {
+        for dir in [Self.catalogDir, Self.nearestExisting(Self.installedDir),
+                    Self.nearestExisting(Self.guestAppsDir)] {
             _ = inotify_add_watch(fd, dir, mask)
         }
 
@@ -431,6 +478,7 @@ public final class AppRegistry: @unchecked Sendable {
             // now. inotify_add_watch on a path already watched just updates
             // the existing watch, so this is safe to repeat.
             _ = inotify_add_watch(fd, Self.nearestExisting(Self.installedDir), mask)
+            _ = inotify_add_watch(fd, Self.nearestExisting(Self.guestAppsDir), mask)
             self.reload()
             onChange()
         }

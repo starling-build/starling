@@ -23,7 +23,7 @@ $build = !(Test-Path $exe) -or ((Get-Item $src).LastWriteTime -gt (Get-Item $exe
 if ($build) {
     Get-Process starling-bridge -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Milliseconds 300
-    $out = & $csc /nologo /target:winexe /out:$exe $src 2>&1
+    $out = & $csc /nologo /target:winexe /r:System.Drawing.dll /out:$exe $src 2>&1
     if (!(Test-Path $exe) -or ($LASTEXITCODE -ne 0)) { "BUILD FAILED"; $out | Select-Object -Last 8; exit 1 }
     "built " + (Get-Item $exe).Length + " bytes"
 } else {

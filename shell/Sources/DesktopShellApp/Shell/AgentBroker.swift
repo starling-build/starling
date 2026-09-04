@@ -860,7 +860,7 @@ final class AgentBroker: @unchecked Sendable {
                     deadline: .now() + .seconds(15),
                     execute: unsafeBitCast(bail, to: (@Sendable () -> Void).self))
 
-            case .x11, .android, .vm:
+            case .x11, .android, .vm, .guestApp:
                 // None of these fits the one-client-one-window claim this
                 // model is built on, so ownership could not be established
                 // even if the launch worked. WeChat is a whole rootful

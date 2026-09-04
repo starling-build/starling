@@ -5,6 +5,7 @@
 import Foundation
 import Flutter
 import FlutterSwiftBridge
+import StarlingRegistry
 
 /// One Starling window per guest app window — M2, Phase 3
 /// (`docs/plans/guest-seamless.md`).
@@ -34,6 +35,12 @@ final class GuestSeamless {
     /// no helper answering, or the channel closed. The session falls back
     /// to the console on it, so a guest with no helper is still reachable.
     var onUnavailable: ((String) -> Void)?
+    /// The helper answered: launches can go. Main thread.
+    var onReady: (() -> Void)?
+    /// A window of a guest APP (one with a record of its own) appeared;
+    /// carries the record id. The launch arm's dock bounce ends on it.
+    var onAppWindow: ((String) -> Void)?
+    private(set) var isReady = false
 
     private struct Entry {
         let hwnd: Int64
@@ -42,6 +49,9 @@ final class GuestSeamless {
         var frame: (x: Int, y: Int, w: Int, h: Int)
         var title: String
         var minimized: Bool
+        /// Identity, kept for `refreshOwnership`.
+        var aumid: String
+        var exe: String
         /// A size we asked the guest for and have not seen answered. While it
         /// stands, the guest's echoes of the OLD size are not applied to our
         /// rect — or the drag would snap back once per event until the guest
@@ -88,6 +98,21 @@ final class GuestSeamless {
             self.bridge.send(op: "list_windows") { [weak self] reply in
                 self?.reconcile(reply)
             }
+            // The guest's own catalog, as registry records (Phase 5). Asked
+            // once per attach: it walks every installed app with an icon
+            // each, which is a second or two inside the guest.
+            self.bridge.send(op: "apps") { [weak self] reply in
+                guard let self, !self.stopped,
+                      let apps = reply["apps"] as? [[String: Any]] else { return }
+                let color = AppRegistry.shared.app(id: self.session.appId)?.color ?? 0x2E6FCC
+                let n = GuestAppRecords.update(domain: self.session.domain, apps: apps,
+                                               color: color)
+                FileHandle.standardError.write(Data(
+                    "[seamless] \(self.session.domain): \(n) app records\n".utf8))
+                self.refreshOwnership()
+            }
+            self.isReady = true
+            self.onReady?()
         }
         bridge.onEvent = { [weak self] ev in
             guard let self, !self.stopped else { return }
@@ -134,6 +159,7 @@ final class GuestSeamless {
         bridge.onReady = nil
         bridge.onEvent = nil
         bridge.onClosed = nil
+        isReady = false
         let ids = byHwnd.values.map(\.windowId)
         byHwnd.removeAll()
         if !ids.isEmpty, let shell = _shellState {
@@ -319,9 +345,16 @@ final class GuestSeamless {
                         appBuilder: { _ in SizedBox(expand: ()) }
                     )
                     if let win = shell.windowManager.windows.first(where: { $0.id == id }) {
-                        // Under the VM's own dock icon until Phase 5 gives
-                        // each app a record of its own.
-                        win.wmClass = session.appId
+                        // The app's own record when the guest listed one
+                        // (Phase 5) — by AppUserModelID or executable, never
+                        // the title — else the VM's, where it would have
+                        // been anyway.
+                        let owner = GuestAppRecords.recordId(
+                            domain: session.domain,
+                            aumid: w["aumid"] as? String ?? "",
+                            exe: w["exe"] as? String ?? "")
+                        win.wmClass = owner ?? session.appId
+                        if let owner { onAppWindow?(owner) }
                         win.textureCrop = crop
                         win.onPointerHoverCursor = { [weak session] in session?.assertCursor() }
                         win.onMinimizedChanged = { [weak self] m in
@@ -331,6 +364,8 @@ final class GuestSeamless {
                     }
                     byHwnd[hwnd] = Entry(hwnd: hwnd, windowId: id, frame: (x, y, wd, ht),
                                          title: title, minimized: minimized,
+                                         aumid: w["aumid"] as? String ?? "",
+                                         exe: w["exe"] as? String ?? "",
                                          requested: nil, requestedAt: nil)
                     FileHandle.standardError.write(Data(
                         "[seamless] + \(title.prefix(40)) (\(wd)x\(ht) at \(x),\(y)) hwnd \(hwnd)\n".utf8))
@@ -363,13 +398,15 @@ final class GuestSeamless {
                             shell.windowManager.bringToFront(e.windowId)
                         }
                     }
-                } else if fg != 0, !noticedForeign.contains(fg) {
+                } else if fg != 0, !noticedForeign.contains(fg),
+                          let what = obj["fgTitle"] as? String, !what.isEmpty {
                     // The guest is showing something we cannot: an elevated
                     // window, a UAC prompt, its own Start menu. Say so — a
                     // guest waiting on a click we are not showing looks hung.
                     // After a moment, not now: a window that becomes
-                    // listable on the next poll was only launching.
-                    let what = obj["fgTitle"] as? String ?? ""
+                    // listable on the next poll was only launching. And
+                    // only when it has a title: none means furniture or a
+                    // transient the helper could not even name.
                     foreignCheck?.cancel()
                     let check = DispatchWorkItem { [weak self] in
                         guard let self, !self.stopped, self.lastFg == fg,
@@ -388,6 +425,25 @@ final class GuestSeamless {
                 }
             }
         }
+    }
+
+    /// Records arrived after windows did: give every window the owner it
+    /// would have had. Called once per `apps` reply, so it re-reads the
+    /// identity the reconcile keeps in `Entry` — which is why it keeps it.
+    private func refreshOwnership() {
+        guard let shell = _shellState else { return }
+        var changed = false
+        for e in byHwnd.values {
+            guard let win = shell.windowManager.windows.first(where: { $0.id == e.windowId }) else { continue }
+            let owner = GuestAppRecords.recordId(domain: session.domain,
+                                                 aumid: e.aumid, exe: e.exe)
+                ?? session.appId
+            if win.wmClass != owner {
+                win.wmClass = owner
+                changed = true
+            }
+        }
+        if changed { shell.setState {} }
     }
 
     /// The scanout changed size or orientation: every crop is relative to
@@ -486,8 +542,15 @@ final class GuestSeamless {
     /// inside the guest. The helper resolves the path; a Store app is its
     /// `shell:AppsFolder\…` name.
     func launch(_ target: String, args: String = "") {
-        guard !stopped, bridge.isReady else { return }
-        bridge.send(op: "launch", args: ["path": target, "args": args])
+        guard !stopped, bridge.isReady else {
+            FileHandle.standardError.write(Data(
+                "[seamless] launch \(target) dropped: helper not ready\n".utf8))
+            return
+        }
+        bridge.send(op: "launch", args: ["path": target, "args": args]) { reply in
+            FileHandle.standardError.write(Data(
+                "[seamless] launch \(target) \(args) -> ok=\(reply["ok"] as? Bool ?? false)\n".utf8))
+        }
     }
 }
 

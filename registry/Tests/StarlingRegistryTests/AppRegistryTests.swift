@@ -10,18 +10,21 @@ final class AppRegistryTests: XCTestCase {
 
     private var catalogDir = ""
     private var recordsDir = ""
+    private var guestDir = ""
 
     override func setUp() {
         super.setUp()
         let base = NSTemporaryDirectory() + "starling-registry-tests-\(getpid())"
         catalogDir = base + "/catalog.d"
         recordsDir = base + "/installed.d"
-        for dir in [catalogDir, recordsDir] {
+        guestDir = base + "/guest-apps.d"
+        for dir in [catalogDir, recordsDir, guestDir] {
             try? FileManager.default.createDirectory(
                 atPath: dir, withIntermediateDirectories: true)
         }
         setenv("STARLING_CATALOG_DIR", catalogDir, 1)
         setenv("STARLING_APP_RECORDS", recordsDir, 1)
+        setenv("STARLING_GUEST_APP_RECORDS", guestDir, 1)
     }
 
     override func tearDown() {
@@ -29,7 +32,13 @@ final class AppRegistryTests: XCTestCase {
             atPath: (catalogDir as NSString).deletingLastPathComponent)
         unsetenv("STARLING_CATALOG_DIR")
         unsetenv("STARLING_APP_RECORDS")
+        unsetenv("STARLING_GUEST_APP_RECORDS")
         super.tearDown()
+    }
+
+    private func writeGuestRecord(_ name: String, _ body: String) {
+        try? body.write(toFile: guestDir + "/" + name + ".app",
+                        atomically: true, encoding: .utf8)
     }
 
     private func writeCatalog(_ name: String, _ body: String) {
@@ -48,6 +57,56 @@ final class AppRegistryTests: XCTestCase {
     }
 
     // MARK: Loading and ordering
+
+    /// A guest app's record is written by the shell, not shipped, and has no
+    /// catalog entry to hang off — so the loader must enumerate the guest
+    /// directory itself, treat the record as self-describing, and count it
+    /// installed. A catalog id that collides keeps the catalog's record.
+    func testGuestAppRecordsLoadStandaloneAndInstalled() {
+        writeCatalog("windows", """
+            [Starling App]
+            Id=windows
+            Name=Windows
+            Kind=vm
+            Domain=windows
+            Order=230
+            """)
+        writeGuestRecord("guest-windows-notepad", """
+            [Starling App]
+            Id=guest-windows-notepad
+            Name=Notepad
+            Kind=guest-app
+            Domain=windows
+            Exec=Microsoft.WindowsNotepad_8wekyb3d8bbwe!App
+            Order=900
+            """)
+        writeGuestRecord("windows", """
+            [Starling App]
+            Id=windows
+            Name=Impostor
+            Kind=guest-app
+            Domain=windows
+            Exec=nothing
+            """)
+        writeGuestRecord("not-a-guest-app", """
+            [Starling App]
+            Id=not-a-guest-app
+            Name=Sneaky host record
+            Kind=host
+            Exec=evil
+            """)
+        let apps = reloaded()
+        XCTAssertEqual(apps.map(\.id), ["windows", "guest-windows-notepad"])
+        let notepad = apps[1]
+        XCTAssertEqual(notepad.kind, .guestApp)
+        XCTAssertTrue(notepad.installed)
+        XCTAssertEqual(notepad.domain, "windows")
+        XCTAssertEqual(notepad.exec, "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")
+        XCTAssertTrue(notepad.matches(appId: "guest-windows-notepad"),
+                      "a window whose wmClass is the record id belongs to it")
+        XCTAssertEqual(apps[0].name, "Windows", "the catalog wins an id collision")
+        XCTAssertNil(notepad.installRecipe, "nothing for the store to install")
+    }
 
     func testLoadsCatalogInOrder() {
         writeCatalog("b", "[Starling App]\nId=b\nName=Bee\nOrder=20\n")

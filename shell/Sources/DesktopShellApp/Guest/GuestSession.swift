@@ -53,6 +53,11 @@ final class GuestSession: @unchecked Sendable {
     /// The mode to enter once the display is connected. Set before `open()`.
     var preferredMode: Mode = .console
     private var seamless: GuestSeamless?
+    /// Work that needs the helper — launching an app inside the guest —
+    /// queued until seamless mode has its helper, dropped if it never does.
+    private var whenReady: [(GuestSession) -> Void] = []
+    /// A guest app's window appeared, by record id (Phase 5).
+    var onAppWindow: ((String) -> Void)?
 
     private var gd: OpaquePointer?
     private(set) var textureId: Int64?
@@ -455,9 +460,17 @@ final class GuestSession: @unchecked Sendable {
             sm.onUnavailable = { [weak self] detail in
                 guard let self, !self.closed else { return }
                 self.onNotice?("Windows apps cannot be shown as windows", detail)
+                self.whenReady.removeAll()
                 self.seamless = nil
                 self.setMode(.console)
             }
+            sm.onReady = { [weak self] in
+                guard let self else { return }
+                let queued = self.whenReady
+                self.whenReady.removeAll()
+                for work in queued { work(self) }
+            }
+            sm.onAppWindow = { [weak self] id in self?.onAppWindow?(id) }
             seamless = sm
             sm.start()
             // The guest's desktop becomes the output: every window it can
@@ -485,6 +498,16 @@ final class GuestSession: @unchecked Sendable {
     /// Open a program inside the guest, through the helper. Seamless only.
     func launchInGuest(_ target: String, args: String = "") {
         seamless?.launch(target, args: args)
+    }
+
+    /// Run `work` once the helper answers — now, if it already has. Nothing
+    /// runs if seamless mode falls back to the console instead.
+    func whenSeamlessReady(_ work: @escaping (GuestSession) -> Void) {
+        if mode == .seamless, seamless?.isReady == true {
+            work(self)
+        } else {
+            whenReady.append(work)
+        }
     }
 
     /// For the broker's `guest_state`.
