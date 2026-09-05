@@ -316,6 +316,28 @@ attach log and a console screenshot rather than a functional check.
 - `docs/WINDOWS-VM.md` "Apps as windows" gains the agent story and the
   lease notice.
 
+**BUILT 2026-09-04 (Phase 6, bar the conformance loop).** The functional
+coverage the plan asked for landed as three checks rather than one, which
+keeps each runnable and legible on its own:
+- "agents: a guest app is launched, owned, typed into, and captured" — the
+  broker launch, sole ownership (`list_windows` shows it, the human's
+  `list_apps` does not count it, it never took focus), `text` reaching the
+  app (Notepad's modified-asterisk), `await_settled` scoped to the scanout,
+  the lease refusing `inject` while a human-owned guest window is focused,
+  and `capture` succeeding anyway (lease-free) as a PNG of the right size.
+- "agents: a guest app answers its accessibility tree, and an action drives
+  it" — the UIA tree carries the menu bar, `perform_action set_value` drives
+  the editor, and the typed text reads back through a second `semantic_tree`.
+- The M2 "seamless" and "VM console" checks still pass beside them; all four
+  pass on a clean shell.
+`docs/WINDOWS-VM.md` "Apps as windows" gained an "Agents drive a guest app
+like any other" subsection with the ops and the lease notice.
+
+Deferred: the computer-use conformance loop (`computer-use.md` Phase 4) run
+against a guest window — it needs credentials on the box that do not exist
+yet, exactly as the plan noted. When they do, the guest window is already a
+first-class broker window, so the loop should run unchanged.
+
 ## Traps
 
 - **One input queue, one foreground window.** `SendInput`-class delivery

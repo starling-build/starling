@@ -509,6 +509,41 @@ rather than minimising; launching it again brings it back.
 `STARLING_GUEST_SEAMLESS=1` starts a launched guest straight into this mode,
 which is how the functional tier reaches it without a dock-menu coordinate.
 
+In seamless mode the guest's own taskbar and desktop icons are hidden, and
+its work area expanded to the whole output, so a maximised app fills the
+screen with no band of Starling desktop where the taskbar used to sit. The
+console brings them back.
+
+### Agents drive a guest app like any other
+
+A computer-use agent addresses a Windows app through the broker exactly as it
+addresses a first-party Starling app — same ops, same ownership, same reply
+shapes — so it never has to know the window is a VM's (`docs/plans/guest-
+agents.md`). It `launch`es a `Kind=guest-app` record and gets back a window
+it alone owns (paired to the launch by app identity, not pid — a packaged
+app's launch pid is a broker's); `capture` returns that window's own pixels
+through the helper's PrintWindow, occlusion-proof and safe on a background
+window (a covered window captures the same as a bare one), as a PNG because
+the channel to the VM is serial; `inject` sends pointer, keys and text
+through the guest; `semantic_tree`/`perform_action` walk and drive the guest's
+UIA tree, in the same flat node shape a Starling app's semantics endpoint
+returns, so "click the button labelled X" and "read the editor's value" work
+without a screenshot; `await_settled` waits on the guest's screen going quiet
+and says `"scope":"scanout"` so the caller knows the quiet is the whole
+guest's.
+
+**The lease.** A Windows session has one input queue and one foreground
+window, so while the person has a window of that guest focused, an agent's
+pointer or keys would land in *their* hands. `inject` on a guest window is
+therefore refused, with a distinct error ("the human is using Windows…"),
+while a human-owned window of that guest is focused; the agent should wait,
+or reach for `semantic_tree`/`perform_action`, which drive controls directly
+and need no foreground. When the human is not in the way, the agent's window
+is raised in the guest first (its input goes wherever the guest's foreground
+is) and the op re-enters once the helper confirms the raise. Capture and the
+semantic ops are read-only for input and need no lease — they work even while
+the human holds the guest.
+
 ## The dbus display, and Triton
 
 The tools below are the protocol reference — they predate the window and are

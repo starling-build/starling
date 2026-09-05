@@ -965,8 +965,18 @@ def check_agent_guest_semantics() -> None:
              action="set_value", value="starling via UIA")
         wait_for(lambda: title(win).startswith("*"),
                  "the editor to report a modified buffer after set_value", timeout=15.0)
+        # Read it back through the SAME tree: the editor's ValuePattern now
+        # carries what we wrote, so semantic_tree closes the loop — an agent
+        # can see what it typed without a screenshot.
+        def editor_value() -> str:
+            for n in a.ok("semantic_tree", win=win)["nodes"]:
+                if "set_value" in n["actions"]:
+                    return n.get("value", "")
+            return ""
+        wait_for(lambda: "starling via UIA" in editor_value(),
+                 "the typed text to read back through the UIA tree", timeout=10.0)
         log(f"{len(nodes)} UIA nodes incl. the menu bar; set_value drove node "
-            f"{doc['node']} -> title {title(win)!r}")
+            f"{doc['node']}, read back as {editor_value()!r}")
     finally:
         try:
             ask("guest_launch", domain=domain, path="taskkill.exe",
