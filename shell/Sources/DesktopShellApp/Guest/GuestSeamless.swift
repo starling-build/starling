@@ -110,6 +110,15 @@ final class GuestSeamless {
                 FileHandle.standardError.write(Data(
                     "[seamless] guest scale asked \(percent)% -> \(jsonInt(reply["percent"]) ?? -1)% (ok=\(jsonBool(reply["ok"])))\n".utf8))
             }
+            // The nearly empty session (Phase 5): hide the guest's taskbar and
+            // desktop icons — each guest window is composited on its own onto
+            // the Starling desktop, so the Windows shell should not be there —
+            // and reclaim the taskbar strip so a maximised app fills the
+            // output. Shown again when we leave seamless (stop()).
+            self.bridge.send(op: "furniture", args: ["hide": 1]) { reply in
+                FileHandle.standardError.write(Data(
+                    "[seamless] furniture hidden (tray_visible=\(jsonBool(reply["tray_visible"])))\n".utf8))
+            }
             self.bridge.send(op: "observe", args: ["interval": 100])
             self.bridge.send(op: "list_windows") { [weak self] reply in
                 self?.reconcile(reply)
@@ -190,6 +199,10 @@ final class GuestSeamless {
                 }
             }
         }
+        // Give the guest its shell back before we drop the channel. Best
+        // effort: if the helper has already died the write is a no-op and the
+        // taskbar returns on the next attach or an explorer restart.
+        bridge.send(op: "furniture", args: ["hide": 0])
         bridge.close()
     }
 

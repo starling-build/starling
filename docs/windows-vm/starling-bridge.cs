@@ -41,6 +41,8 @@
 //                                 the UIA tree, flat, in the shell's semantics shape
 //   perform_action {"hwnd":n,"node":i,"action":..,"value":..}  invoke|set_value|
 //                                 toggle|select|expand|collapse|scroll_into_view
+//   furniture {"hide":1|0}     -> {"ok":true,"tray_visible":bool} — hide/show the
+//                                 taskbar + desktop icons and reclaim the work area
 //   quit
 //
 // ONE DIVERGENCE from the real helper, on purpose: events come from a poll
@@ -76,7 +78,7 @@ using Microsoft.Win32.SafeHandles;
 
 static class Bridge {
 
-    const string Version = "starling-bridge/cs 7";
+    const string Version = "starling-bridge/cs 8";
 
     // ── Win32 ───────────────────────────────────────────────────────────────
 
@@ -116,6 +118,9 @@ static class Bridge {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern bool PostMessageW(IntPtr h, uint msg, IntPtr wp, IntPtr lp);
     [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowW(string cls, string title);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowExW(IntPtr parent, IntPtr after, string cls, string title);
+    [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] static extern bool SystemParametersInfoRect(uint action, uint uiParam, ref RECT pv, uint winIni);
     [DllImport("user32.dll")] static extern uint GetDpiForSystem();
     [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
     [DllImport("dwmapi.dll")]
@@ -213,7 +218,9 @@ static class Bridge {
     const int WS_EX_APPWINDOW  = 0x00040000;
     const int DWMWA_CLOAKED = 14;
     const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
-    const int SW_RESTORE = 9, SW_MINIMIZE = 6, SW_MAXIMIZE = 3;
+    const int SW_RESTORE = 9, SW_MINIMIZE = 6, SW_MAXIMIZE = 3, SW_HIDE = 0, SW_SHOW = 5;
+    const uint SPI_GETWORKAREA = 0x0030, SPI_SETWORKAREA = 0x002F, SPIF_SENDCHANGE = 0x0002;
+    const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     const uint SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010, SWP_NOOWNERZORDER = 0x0200;
     const uint WM_CLOSE = 0x0010;
     const byte VK_MENU = 0x12;
@@ -631,6 +638,38 @@ static class Bridge {
         return false;
     }
 
+    // The nearly empty session (M3 Phase 5). Seamless mode composites each
+    // guest window onto the Starling desktop, so the guest's OWN furniture —
+    // the taskbar and the desktop icons — should not be there: hide it on
+    // attach, show it again when the desktop switches back to the console (or
+    // the helper quits). And reclaim the taskbar's strip into the work area,
+    // so a maximised guest window fills the whole output instead of leaving a
+    // band of Starling desktop where the taskbar used to reserve space. This
+    // is the fixture's stand-in for the real WinShellBar, which replaces the
+    // Windows shell outright.
+    static RECT savedWorkArea;
+    static bool workAreaSaved = false;
+    static bool Furniture(bool hide, out bool trayVisible) {
+        IntPtr tray = FindWindowW("Shell_TrayWnd", null);
+        IntPtr tray2 = FindWindowW("Shell_SecondaryTrayWnd", null);   // second monitor
+        IntPtr progman = FindWindowW("Progman", null);
+        IntPtr defview = progman != IntPtr.Zero
+            ? FindWindowExW(progman, IntPtr.Zero, "SHELLDLL_DefView", null) : IntPtr.Zero;
+        int cmd = hide ? SW_HIDE : SW_SHOW;
+        if (tray != IntPtr.Zero) ShowWindow(tray, cmd);
+        if (tray2 != IntPtr.Zero) ShowWindow(tray2, cmd);
+        if (defview != IntPtr.Zero) ShowWindow(defview, cmd);
+        if (hide) {
+            if (!workAreaSaved) { SystemParametersInfoRect(SPI_GETWORKAREA, 0, ref savedWorkArea, 0); workAreaSaved = true; }
+            var full = new RECT { Left = 0, Top = 0, Right = GetSystemMetrics(SM_CXSCREEN), Bottom = GetSystemMetrics(SM_CYSCREEN) };
+            SystemParametersInfoRect(SPI_SETWORKAREA, 0, ref full, SPIF_SENDCHANGE);
+        } else if (workAreaSaved) {
+            SystemParametersInfoRect(SPI_SETWORKAREA, 0, ref savedWorkArea, SPIF_SENDCHANGE);
+        }
+        trayVisible = tray != IntPtr.Zero && IsWindowVisible(tray);
+        return true;
+    }
+
     static bool Activate(IntPtr hwnd) {
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
         // Restore first: a minimized window can be made foreground and stay
@@ -1038,6 +1077,12 @@ static class Bridge {
                     Emit(head + ",\"ok\":" + (ok ? "true" : "false") + "}");
                     break;
                 }
+                case "furniture": {
+                    bool hide = Num(line, "hide", 1) != 0;
+                    bool tv; Furniture(hide, out tv);
+                    Emit(head + ",\"ok\":true,\"tray_visible\":" + (tv ? "true" : "false") + "}");
+                    break;
+                }
                 case "capture": {
                     var hwnd = new IntPtr(Num(line, "hwnd", 0));
                     if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) {
@@ -1062,9 +1107,12 @@ static class Bridge {
                     Emit(head + ",\"ok\":" + (ok ? "true" : "false") + "}");
                     break;
                 }
-                case "quit":
+                case "quit": {
+                    // Leave the guest's own shell the way we found it.
+                    bool tv; Furniture(false, out tv);
                     Emit(head + ",\"ok\":true}");
                     return 0;
+                }
                 default:
                     Emit(head + ",\"ok\":false,\"error\":\"" +
                          Esc("no such op: " + (op ?? "?")) + "\"}");

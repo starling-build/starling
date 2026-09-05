@@ -287,6 +287,21 @@ bites; scanout-quiet has been enough for every case measured so far.
 - The work area follows: a hidden taskbar returns its strip, so a
   maximised guest window fills the output.
 
+**BUILT 2026-09-04 (Phase 5), verified live.** Helper `furniture {hide:1|0}`
+hides/shows `Shell_TrayWnd`, `Shell_SecondaryTrayWnd` and the desktop
+listview under `Progman`, and moves the work area to the full screen when
+hidden (restored when shown) so a maximised guest window fills the output
+instead of leaving the taskbar's band of Starling desktop. The shell hides it
+on seamless attach (logged `tray_visible=false`) and shows it again on the
+switch back to the console — verified live: the console scanout came back with
+the Windows taskbar present — and the helper also restores it on a graceful
+`quit`. Known limit of the fixture: a helper *killed* (not quit) leaves the
+taskbar hidden until the next attach or an explorer restart; the real
+WinShellBar replaces the Windows shell outright, so this whole op is its
+stand-in. It has no agent-observable surface (the taskbar is neither
+composited in seamless nor a managed window), so it is verified by the
+attach log and a console screenshot rather than a functional check.
+
 ## Phase 6 — tests and docs
 
 - `test/functional.py`: "agents: a guest app is launched, owned, captured,
