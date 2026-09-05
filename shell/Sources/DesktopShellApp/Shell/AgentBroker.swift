@@ -859,7 +859,32 @@ final class AgentBroker: @unchecked Sendable {
                 }
                 onPlatformThread(after: 15, bail)
 
-            case .x11, .android, .vm, .guestApp:
+            case .guestApp:
+                // An app inside a VM, as a window of its own (M3,
+                // docs/plans/guest-agents.md). The helper starts it; the
+                // next window of this record inside ten seconds is the
+                // agent's, by identity — a packaged app's launch pid is a
+                // broker's, so pids pair nothing.
+                guard let domain = rec.domain else { return fail("\(app) has no domain") }
+                let replied = ReplyOnce()
+                shell._launchGuestApp(rec, domain: domain, agent: agentId,
+                                      onWindow: { [weak self] winId in
+                    guard replied.claim() else { return }
+                    conn.send(["id": id, "ok": true, "win": winId])
+                    self?.audit(agentId, op, true, "\(app) -> \(winId) (guest)")
+                })
+                let bail: () -> Void = { [weak self] in
+                    guard replied.claim() else { return }
+                    GuestSessions.session(forDomain: domain)?
+                        .cancelAgentPairing(record: rec.id, agent: agentId)
+                    conn.send(["id": id, "ok": false,
+                               "error": "\(app) launch timed out (is the guest's helper running?)"])
+                    self?.audit(agentId, op, false, "\(app) timeout (guest)")
+                }
+                onPlatformThread(after: 25, bail)
+                return
+
+            case .x11, .android, .vm:
                 // None of these fits the one-client-one-window claim this
                 // model is built on, so ownership could not be established
                 // even if the launch worked. WeChat is a whole rootful
@@ -879,6 +904,38 @@ final class AgentBroker: @unchecked Sendable {
                   let type = ev["type"] as? String else { return fail("bad ev") }
             lastInjectMs[win.id] = nowMs
             let winId = win.id
+            // A guest window (M3): the VM is a SEAT. One input queue, one
+            // foreground window — while the person has a window of that
+            // guest focused, the agent's pointer and keys would land in
+            // their hands, so they are refused with a distinct error and the
+            // batch stops cleanly. And because the guest's input goes
+            // wherever ITS foreground is, the window is raised in the guest
+            // first; the op re-enters once the helper has answered.
+            let guestSession = GuestSessions.session(forWindow: win.id)
+            if let gs = guestSession {
+                if gs.humanIsUsing {
+                    return fail("the human is using Windows: the guest has one input "
+                                + "queue, so agent input would reach their window; "
+                                + "wait, or use semantic_tree/perform_action")
+                }
+                if req["_activated"] == nil {
+                    var again = req
+                    again["_activated"] = true
+                    gs.activateForAgent(windowId: win.id) { [weak self] ok in
+                        guard let self else { return }
+                        if ok {
+                            self.dispatch(op, again, conn)
+                        } else {
+                            // Better refused than typed into whatever the
+                            // guest's foreground is.
+                            conn.send(["id": id, "ok": false,
+                                       "error": "could not raise the window inside the guest"])
+                            self.audit(agentId, op, false, "\(winId): guest activate refused")
+                        }
+                    }
+                    return
+                }
+            }
             // Wayland windows take the AGENT SEAT (independent focus stream
             // — the human's pointer/keyboard are never disturbed); DMA-BUF
             // children keep their per-window sockets. EVERY action below goes
@@ -1059,6 +1116,22 @@ final class AgentBroker: @unchecked Sendable {
                     audit(agentId, op, true, "\(type) \(physical) (agent seat) -> \(win.id)")
                     return
                 }
+                if let gs = guestSession {
+                    // The human's own door: HID usage -> XT scancode -> the
+                    // guest, which is why an agent's chord and a person's
+                    // cannot differ.
+                    var ok = true
+                    if down { ok = gs.sendKey(hid: UInt64(physical), down: true) && ok }
+                    if up { ok = gs.sendKey(hid: UInt64(physical), down: false) && ok }
+                    if ok {
+                        conn.send(["id": id, "ok": true])
+                    } else {
+                        conn.send(["id": id, "ok": false,
+                                   "error": "no scancode for HID usage \(physical)"])
+                    }
+                    audit(agentId, op, ok, "\(type) \(physical) (guest) -> \(win.id)")
+                    return
+                }
                 guard let texId = win.textureId, let mgr = linuxProcessAppManager else {
                     return fail("bad key")
                 }
@@ -1115,6 +1188,31 @@ final class AgentBroker: @unchecked Sendable {
                     }
                     conn.send(["id": id, "ok": true])
                     audit(agentId, op, true, "text(\(text.count)) (agent seat) -> \(win.id)")
+                    return
+                }
+                if let gs = guestSession {
+                    // Typed the way the person's text is: each character as
+                    // its key, shifted where it must be.
+                    var unsupported: [String] = []
+                    for scalar in text.unicodeScalars {
+                        guard let k = HidEvdev.asciiKey(scalar) else {
+                            unsupported.append(String(scalar))
+                            continue
+                        }
+                        if k.shift { gs.sendKey(hid: 0xE1, down: true) }
+                        gs.sendKey(hid: UInt64(k.hid), down: true)
+                        gs.sendKey(hid: UInt64(k.hid), down: false)
+                        if k.shift { gs.sendKey(hid: 0xE1, down: false) }
+                    }
+                    if !unsupported.isEmpty {
+                        conn.send(["id": id, "ok": false,
+                                   "error": "typed the ASCII part; no key produces "
+                                            + unsupported.joined()])
+                        audit(agentId, op, false, "text: unmapped \(unsupported.count) (guest)")
+                        return
+                    }
+                    conn.send(["id": id, "ok": true])
+                    audit(agentId, op, true, "text(\(text.count)) (guest) -> \(win.id)")
                     return
                 }
                 guard let texId = win.textureId, let mgr = linuxProcessAppManager else {
@@ -1285,7 +1383,13 @@ final class AgentBroker: @unchecked Sendable {
             guard let win = ownedWindow() else { return failOwned() }
             guard let texId = win.textureId else { return fail("window has no buffer") }
             let timeout = int64(req["timeout_ms"]) ?? 2000
-            let quiet = int64(req["quiet_ms"]) ?? 150
+            // A guest window's frames are the guest's SCREEN updates, which
+            // arrive 200-500 ms apart while an app is starting (measured:
+            // Notepad restoring its session), so 150 ms of quiet falls into
+            // the gaps and text typed after it was lost; 500 ms waited it
+            // out (2-2.5 s) and the text landed.
+            let guest = GuestSessions.session(forWindow: win.id) != nil
+            let quiet = int64(req["quiet_ms"]) ?? (guest ? 500 : 150)
             let start = nowMs
             let tex = Int64(texId)
             let winId = win.id

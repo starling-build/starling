@@ -750,10 +750,146 @@ def check_guest_seamless() -> None:
             args="/IM notepad.exe /F")
         wait_for(lambda: not apps()[rec]["window"], "the Notepad window to go",
                  timeout=30.0)
+        forget_notepad_session(domain)
     finally:
         ask("guest_mode", domain=domain, mode="console")
         wait_for(lambda: guest()["mode"] == "console" and guest()["console"],
                  "the console back")
+
+
+@check("agents: a guest app is launched, owned, and typed into")
+def check_agent_guest_app() -> None:
+    """M3 — docs/plans/guest-agents.md, Phase 1. An agent launches a Windows
+    app through the broker exactly as it launches Files: the reply names a
+    window, that window is the agent's alone (listed for it, not counted as
+    the human's), and its keys reach the app inside the guest."""
+    domain = os.environ.get("STARLING_GUEST_DOMAIN") or "windows"
+    try:
+        r = subprocess.run(["virsh", "-c", "qemu:///system", "domstate", domain],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise Skip(f"no libvirt domain {domain!r}")
+    except OSError:
+        raise Skip("no libvirt on this machine")
+    rec = f"guest-{domain}-windowsnotepad"
+    if rec not in apps():
+        raise Skip("no guest catalog yet (the seamless check writes it)")
+
+    def guest() -> dict | None:
+        for g in ask("guest_state")["guests"]:
+            if g["domain"] == domain:
+                return g
+        return None
+
+    def mine(win: str) -> dict | None:
+        g = guest()
+        return next((w for w in (g or {}).get("windows", []) if w["window"] == win), None)
+
+    # An agent's launch puts the session in seamless mode, which closes the
+    # person's console if it was open; put things back the way they were.
+    mode_before = (guest() or {}).get("mode")
+    a = Session(name="guest-agent")
+    try:
+        reply = a.call("launch", app=rec)
+        if not reply.get("ok") and "helper" in reply.get("error", ""):
+            raise Skip(f"launch refused: {reply['error']}")
+        assert reply.get("ok"), f"launch failed: {reply.get('error')}"
+        win = reply["win"]
+        # Notepad restores every window of its last session at launch, so
+        # the agent may own several; each is its process's, none the human's.
+        listed = [w["win"] for w in a.ok("list_windows")["windows"]]
+        assert win in listed, f"the agent does not list {win}, only {listed}"
+        w = mine(win)
+        assert w and w["owner"] == a.agent_id, f"guest_state disagrees about the owner: {w!r}"
+        strays = [x for x in guest()["windows"]
+                  if "notepad" in x["title"].lower() and x["owner"] != a.agent_id]
+        assert not strays, f"windows of the launched process fell to the human: {strays!r}"
+        assert not apps()[rec]["window"], "the agent's window is counted as the human's"
+        assert not w["focused"], "the agent's window took the human's focus"
+        log(f"{win} is {a.agent_id}'s ({len(listed)} window(s)): listed for it, none for the desktop")
+
+        # Keys go through the human's own door into the guest. Settle first,
+        # as the shim does: `launch` answers on the first window, and Notepad
+        # takes no text until its startup has stopped painting (typed at
+        # once, the text was lost with ok:true). Notepad marks a modified
+        # buffer with a leading asterisk in its title, which is the guest's
+        # own word that the text arrived.
+        settled = a.ok("await_settled", win=win, timeout_ms=8000)
+        assert not settled["timed_out"], f"the guest never went quiet: {settled!r}"
+        # The window is a freshly launched, empty Notepad (its saved tabs
+        # were cleared at the end of the last run), so typing marks the
+        # buffer modified — Notepad's own leading asterisk in the title,
+        # which is the guest saying the keys reached the edit control. Not
+        # the exact word: a key dropped under first-launch churn would fail
+        # a claim Phase 1 does not make, which is that no key is ever lost.
+        a.ok("inject", win=win, ev={"type": "text", "text": "starling"})
+        wait_for(lambda: (mine(win) or {}).get("title", "").startswith("*"),
+                 "Notepad to report a modified buffer", timeout=15.0)
+        log(f"typed into {win}: title is {mine(win)['title']!r}")
+
+        # The lease. The guest has one input queue: while the person has a
+        # window of it focused (Calculator, launched the human way and
+        # raised by the guest's own foreground change), the agent's input is
+        # refused with the distinct error, and allowed again once they are
+        # done.
+        ask("guest_launch", domain=domain, path="calc.exe")
+
+        def theirs() -> list[dict]:
+            return [x for x in guest()["windows"] if x["owner"] == "" and x["focused"]]
+        wait_for(theirs, "a human-owned, focused Calculator window", timeout=30.0)
+        assert guest()["humanUsing"], "guest_state does not report the human's lease"
+        denied = a.call("inject", win=win, ev={"type": "text", "text": "x"})
+        assert not denied.get("ok"), "the agent typed while the human held the guest"
+        assert "human is using" in denied.get("error", ""), \
+            f"refused for the wrong reason: {denied.get('error')}"
+        log(f"lease held by the human: {denied['error'][:40]}...")
+        ask("guest_launch", domain=domain, path="taskkill.exe",
+            args="/IM CalculatorApp.exe /F")
+        wait_for(lambda: not theirs() and not guest()["humanUsing"],
+                 "the lease back", timeout=30.0)
+        a.ok("inject", win=win, ev={"type": "text", "text": "!"})
+        log("lease released: the agent types again")
+    finally:
+        for exe in ("notepad.exe", "CalculatorApp.exe"):
+            try:
+                ask("guest_launch", domain=domain, path="taskkill.exe",
+                    args=f"/IM {exe} /F")
+            except AssertionError:
+                pass
+        forget_notepad_session(domain)
+        a.close()
+        # Back to the console — the resting state the other guest checks
+        # expect to find or create. Only a session the person had explicitly
+        # in seamless is left as it was.
+        if mode_before != "seamless":
+            ask("guest_mode", domain=domain, mode="console")
+            wait_for(lambda: (guest() or {}).get("mode") == "console"
+                     and (guest() or {}).get("console"), "the console back")
+
+
+def forget_notepad_session(domain: str) -> None:
+    """Notepad restores every buffer a kill left behind, one window each, on
+    its next launch — so each run of these checks would start with one more
+    window than the last. Drop its saved tabs after the process is gone."""
+    time.sleep(1.5)
+    # `if exist`, so the command exits cleanly: Windows 11 opens console
+    # commands in Terminal, which stays open after a FAILED command, and a
+    # focused Terminal window is the human holding the guest's lease.
+    tabs = "%LOCALAPPDATA%\\Packages\\Microsoft.WindowsNotepad_8wekyb3d8bbwe\\LocalState\\TabState"
+    try:
+        ask("guest_launch", domain=domain, path="cmd.exe",
+            args=f'/c if exist "{tabs}" rd /s /q "{tabs}"')
+    except AssertionError:
+        return
+
+    def terminal_open() -> bool:
+        for g in ask("guest_state")["guests"]:
+            if g["domain"] == domain:
+                return any("terminal" in w["title"].lower() for w in g["windows"])
+        return False
+    deadline = time.time() + 10
+    while terminal_open() and time.time() < deadline:
+        time.sleep(0.5)
 
 
 @check("registry: installing and removing moves the launcher live")

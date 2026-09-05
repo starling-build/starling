@@ -162,6 +162,36 @@ Decisions fixed here, each with the reason:
 - `list_windows` already scopes by owner; nothing to do.
 - `guest_state` reports pairings and the lease, for the tier.
 
+**BUILT 2026-09-04 (Phase 1).** `GuestSession` keeps the agent pairings
+(`expectAgentWindow`, ten-second deadline, consumed by the reconcile through
+`takeAgentPairing` by record id) and answers the lease (`humanIsUsing`: the
+focused desktop window is human-owned and this guest's); `GuestSeamless`
+passes the pairing's agent to `addWindow(ownerAgentId:)`, so an agent's
+window has no space, no focus and no dock presence from its first frame,
+and its guest-side foreground raises nothing on the desktop. Ownership
+then follows the PROCESS for the rest of the launch's ten seconds, by the
+window's own pid: Notepad restored four windows of its last session in one
+burst on the first live run and only the first was the agent's, the rest
+fell to the human. Bounded to the ten seconds because a single-instance app
+is one process for everyone, and a person launching Notepad a minute later
+must keep the window they get; a launch that lands in a process the human
+already had pairs its one window only; the broker's
+launch arm handles `Kind=guest-app` with the same `ReplyOnce` shape as a
+host launch (25 s bail cancels the pairing); `inject` refuses with "the
+human is using Windows" while the lease is theirs, activates the window in
+the guest before any input (the op re-enters once the helper has answered;
+`lastFg` is set optimistically so the reconcile's echo raises nothing),
+and routes keys and text through `GuestSession.sendKey`, the human's own
+door. `guest_state` reports `humanUsing`, `pairings` and each window's
+`owner`. Phase 4's half that Phase 1 could not do without landed here too:
+the guest's scanout updates feed `noteFrame`, so `await_settled` on a guest
+window waits for the guest's SCREEN to go quiet (measured: text typed the
+instant `launch` answered was lost with ok:true, Notepad having no edit
+control yet; after a settle, or three seconds, it lands). One consequence worth knowing: an agent launching a guest app
+switches the session to seamless mode, which closes the human's console
+if it was open (the mutual exclusivity of M2 applies to agents too).
+Check: "agents: a guest app is launched, owned, and typed into".
+
 ## Phase 2 — capture through the helper
 
 - Helper: `capture {hwnd, max_side}` → PrintWindow `PW_RENDERFULLCONTENT`
@@ -237,6 +267,12 @@ Decisions fixed here, each with the reason:
   identity rule or the ops' shapes; the C# is the reference, as in M2.
 
 ## Decisions to settle at approval
+
+**Taken as recommended, 2026-09-04.** The reply to this draft was "Continue"
+with no choice on the three; each came with a recommendation, and that is
+what Phase 1 was built on: capture through the helper, the lease per
+domain, furniture hidden. Any of them can still be reversed before the
+phase that depends on it is built (Phases 2, 1 and 5 respectively).
 
 - **Capture: PrintWindow via the helper (recommended) or crop-of-scanout.**
   The crop is a dozen lines in the broker and shows whatever overlaps the

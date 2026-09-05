@@ -8237,26 +8237,41 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// opened in seamless mode if there is none, switched to it if it is
     /// showing the console (the two are exclusive), and the launch sent the
     /// moment the helper answers.
-    func _launchGuestApp(_ rec: AppRecord, domain: String) {
+    func _launchGuestApp(_ rec: AppRecord, domain: String,
+                         agent: String? = nil,
+                         onWindow: ((String) -> Void)? = nil) {
         let session: GuestSession
         if let existing = GuestSessions.session(forDomain: domain) {
             session = existing
-            _pendingAppLaunches.insert(rec.id)
+            if agent == nil { _pendingAppLaunches.insert(rec.id) }
         } else {
             // The VM's own record names the session — its dock icon is
-            // where windows without a record of their own go.
+            // where windows without a record of their own go, and its
+            // identity is the console's. Honouring STARLING_GUEST_DOMAIN as
+            // the console launch does: without it, a dev box whose domain
+            // is not the record's found no VM record, named the session
+            // after the APP, and the console then counted as a Notepad
+            // window (an agent's launch "counted as the human's").
+            let override = ProcessInfo.processInfo.environment["STARLING_GUEST_DOMAIN"]
             let vm = AppRegistry.shared.apps.first {
-                $0.kind == .vm && ($0.domain ?? $0.id) == domain
+                $0.kind == .vm && (override ?? $0.domain ?? $0.id) == domain
             }
             session = _openGuestSession(domain: domain, record: vm ?? rec,
                                         launchId: rec.id, mode: .seamless)
         }
         if session.mode == .console { session.setMode(.seamless) }
         FileHandle.standardError.write(Data(
-            "[guest-apps] launch \(rec.id) in \(domain) (session \(session.mode == .seamless ? "seamless" : "console"))\n".utf8))
+            "[guest-apps] launch \(rec.id) in \(domain) (session \(session.mode == .seamless ? "seamless" : "console"))\(agent.map { " for agent \($0)" } ?? "")\n".utf8))
+        // An agent's launch claims the next window of this record — the
+        // pairing rule of docs/plans/guest-agents.md. Registered before the
+        // launch goes out, so the window cannot beat it.
+        if let agent, let onWindow {
+            session.expectAgentWindow(record: rec.id, agent: agent, onWindow: onWindow)
+        }
         session.whenSeamlessReady { s in
             s.launchInGuest("shell:AppsFolder\\" + rec.exec)
         }
+        if agent != nil { return }
         // A launch the guest silently swallowed would bounce for ever.
         let id = rec.id
         onPlatformThread(after: 30) { [weak self] in

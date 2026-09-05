@@ -43,6 +43,10 @@ final class GuestSeamless {
     var onAppWindow: ((String) -> Void)?
     private(set) var isReady = false
 
+    /// Guest processes an agent's launch created, by pid, and until when a
+    /// new window of theirs is the agent's — see the reconcile.
+    private var agentByPid: [Int: (agent: String, until: Date)] = [:]
+
     private struct Entry {
         let hwnd: Int64
         let windowId: String
@@ -53,6 +57,8 @@ final class GuestSeamless {
         /// Identity, kept for `refreshOwnership`.
         var aumid: String
         var exe: String
+        /// The guest process the window belongs to (0 when unknown).
+        let pid: Int
         /// A size we asked the guest for and have not seen answered. While it
         /// stands, the guest's echoes of the OLD size are not applied to our
         /// rect — or the drag would snap back once per event until the guest
@@ -220,8 +226,31 @@ final class GuestSeamless {
                 d["rect"] = ["x": win.rect.left, "y": win.rect.top,
                              "w": win.rect.width, "h": win.rect.height]
                 d["focused"] = wm?.focusedWindowId == e.windowId
+                d["owner"] = win.ownerAgentId ?? ""
             }
             return d
+        }
+    }
+
+    /// Raise `windowId`'s guest window before an agent's input. Completes
+    /// at once when the guest's foreground already is it (as the last list
+    /// reported), else on the helper's reply — and with its verdict, because
+    /// input after a refused activate lands in whatever IS the foreground.
+    /// `lastFg` follows a successful reply, not the request: the reconcile's
+    /// echo of the change raises nothing for an agent's window anyway.
+    func activate(windowId: String, completion: @escaping (Bool) -> Void) {
+        guard !stopped, let e = byHwnd.values.first(where: { $0.windowId == windowId }) else {
+            completion(false)
+            return
+        }
+        if lastFg == e.hwnd { completion(true); return }
+        let hwnd = e.hwnd
+        bridge.send(op: "activate", args: ["hwnd": hwnd]) { [weak self] reply in
+            let ok = jsonBool(reply["ok"])
+            if ok { self?.lastFg = hwnd }
+            FileHandle.standardError.write(Data(
+                "[seamless] activate \(e.title.prefix(30)) hwnd \(hwnd) for an agent -> ok=\(ok)\n".utf8))
+            completion(ok)
         }
     }
 
@@ -330,6 +359,39 @@ final class GuestSeamless {
                     let left = Double(x) * r.x
                     let top = max(topInset, Double(y) * r.y - titleBar)
                     let rect = Rect.fromLTWH(left, top, logW, logH + titleBar)
+                    // An agent's launch claims the next window of its record
+                    // (M3): owned windows have no desktop presence, exactly
+                    // as a first-party child launched by an agent.
+                    let owner = GuestAppRecords.recordId(
+                        domain: session.domain,
+                        aumid: w["aumid"] as? String ?? "",
+                        exe: w["exe"] as? String ?? "")
+                    // Ownership follows the PROCESS for the rest of the
+                    // launch's ten seconds (M3): Notepad restores every
+                    // window of its last session in one burst and Chrome
+                    // opens several, and those are the launch's windows as
+                    // much as the first. Bounded, because a single-instance
+                    // app is one process for everyone: a person launching
+                    // Notepad a minute later gets a window in the agent's
+                    // process, and that window must stay theirs (an agent's
+                    // own later windows landing on the desktop is the lesser
+                    // wrong: visible, not lost). And a launch that lands in
+                    // a process the human already had pairs its one window
+                    // only.
+                    let pid = Int(jsonInt(w["pid"]) ?? 0)
+                    var pairing: GuestSession.AgentPairing? = nil
+                    var agent: String? = nil
+                    if pid != 0, let known = agentByPid[pid], known.until > Date() {
+                        agent = known.agent
+                    }
+                    if agent == nil, let owner,
+                       let p = session.takeAgentPairing(forRecord: owner) {
+                        pairing = p
+                        agent = p.agentId
+                        if pid != 0, !byHwnd.values.contains(where: { $0.pid == pid }) {
+                            agentByPid[pid] = (p.agentId, p.deadline)
+                        }
+                    }
                     let id = shell.windowManager.addWindow(
                         title: title,
                         appId: "guest-\(session.domain)-\(hwnd)",
@@ -352,6 +414,7 @@ final class GuestSeamless {
                             self?.session.forwardScroll(dx: dx, dy: dy)
                         },
                         flipTextureY: session.flipY,
+                        ownerAgentId: agent,
                         appBuilder: { _ in SizedBox(expand: ()) }
                     )
                     if let win = shell.windowManager.windows.first(where: { $0.id == id }) {
@@ -359,23 +422,25 @@ final class GuestSeamless {
                         // (Phase 5) — by AppUserModelID or executable, never
                         // the title — else the VM's, where it would have
                         // been anyway.
-                        let owner = GuestAppRecords.recordId(
-                            domain: session.domain,
-                            aumid: w["aumid"] as? String ?? "",
-                            exe: w["exe"] as? String ?? "")
                         win.wmClass = owner ?? session.appId
-                        if let owner { onAppWindow?(owner) }
+                        if let owner, agent == nil { onAppWindow?(owner) }
                         win.textureCrop = crop
                         win.onPointerHoverCursor = { [weak session] in session?.assertCursor() }
                         win.onMinimizedChanged = { [weak self] m in
                             self?.minimizeRequested(hwnd, minimized: m)
                         }
-                        if minimized { shell.windowManager.minimizeWindow(id) }
+                        if minimized, agent == nil { shell.windowManager.minimizeWindow(id) }
                     }
+                    if let agent {
+                        FileHandle.standardError.write(Data(
+                            "[seamless] \(title.prefix(40)) is \(agent)'s\(pairing == nil ? " (same process)" : "")\n".utf8))
+                    }
+                    pairing?.onWindow(id)
                     byHwnd[hwnd] = Entry(hwnd: hwnd, windowId: id, frame: (x, y, wd, ht),
                                          title: title, minimized: minimized,
                                          aumid: w["aumid"] as? String ?? "",
                                          exe: w["exe"] as? String ?? "",
+                                         pid: pid,
                                          requested: nil, requestedAt: nil)
                     FileHandle.standardError.write(Data(
                         "[seamless] + \(title.prefix(40)) (\(wd)x\(ht) at \(x),\(y)) hwnd \(hwnd)\n".utf8))
@@ -391,6 +456,10 @@ final class GuestSeamless {
                 }
                 shell.windowManager.closeWindow(e.windowId)
                 byHwnd.removeValue(forKey: hwnd)
+                // Pids are reused; forget a process once its last window went.
+                if e.pid != 0, !byHwnd.values.contains(where: { $0.pid == e.pid }) {
+                    agentByPid.removeValue(forKey: e.pid)
+                }
                 FileHandle.standardError.write(Data(
                     "[seamless] - \(e.title.prefix(40)) hwnd \(hwnd)\n".utf8))
             }
@@ -400,7 +469,11 @@ final class GuestSeamless {
             if fg != lastFg {
                 lastFg = fg
                 if let e = byHwnd[fg] {
-                    if shell.windowManager.focusedWindowId != e.windowId {
+                    // An agent's window has no desktop presence to raise;
+                    // the guest's foreground moving to it is the agent's
+                    // activate, not the person's focus.
+                    let agents = shell.windowManager.windows.first(where: { $0.id == e.windowId })?.ownerAgentId != nil
+                    if !agents, shell.windowManager.focusedWindowId != e.windowId {
                         if let win = shell.windowManager.windows.first(where: { $0.id == e.windowId }),
                            win.isMinimized {
                             shell.windowManager.restoreWindow(e.windowId)

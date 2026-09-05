@@ -66,6 +66,57 @@ final class GuestSession: @unchecked Sendable {
     /// A guest app's window appeared, by record id (Phase 5).
     var onAppWindow: ((String) -> Void)?
 
+    // MARK: - Agents (M3, docs/plans/guest-agents.md)
+
+    /// A launch an agent asked for, waiting for its window. Ownership pairs
+    /// by IDENTITY inside a bounded window, never by pid: a packaged app's
+    /// launch pid is a broker's, and Chrome is many processes.
+    struct AgentPairing {
+        let agentId: String
+        let recordId: String
+        let deadline: Date
+        let onWindow: (String) -> Void
+    }
+    private var agentPairings: [AgentPairing] = []
+
+    /// The next window whose record is `record` belongs to `agent`, if it
+    /// arrives inside ten seconds.
+    func expectAgentWindow(record: String, agent: String,
+                           onWindow: @escaping (String) -> Void) {
+        agentPairings.append(AgentPairing(agentId: agent, recordId: record,
+                                          deadline: Date().addingTimeInterval(10),
+                                          onWindow: onWindow))
+    }
+
+    /// Consume the pairing for a record, if one is live.
+    func takeAgentPairing(forRecord record: String) -> AgentPairing? {
+        let now = Date()
+        agentPairings.removeAll { $0.deadline < now }
+        guard let i = agentPairings.firstIndex(where: { $0.recordId == record }) else { return nil }
+        return agentPairings.remove(at: i)
+    }
+
+    func cancelAgentPairing(record: String, agent: String) {
+        agentPairings.removeAll { $0.recordId == record && $0.agentId == agent }
+    }
+
+    /// The seat lease. A Windows session has one input queue and one
+    /// foreground window, so while the person has a window of this guest
+    /// focused, an agent's pointer or keys would land in their hands.
+    var humanIsUsing: Bool {
+        guard let wm = _shellState?.windowManager, let f = wm.focusedWindowId,
+              let win = wm.windows.first(where: { $0.id == f }) else { return false }
+        return win.ownerAgentId == nil && owns(f)
+    }
+
+    /// Raise a window in the guest before an agent's input, because that
+    /// input goes wherever the guest's foreground is. Completes at once when
+    /// it already is.
+    func activateForAgent(windowId: String, completion: @escaping (Bool) -> Void) {
+        guard let sm = seamless else { completion(false); return }
+        sm.activate(windowId: windowId, completion: completion)
+    }
+
     private var gd: OpaquePointer?
     private(set) var textureId: Int64?
     private(set) var windowId: String?
@@ -454,6 +505,10 @@ final class GuestSession: @unchecked Sendable {
             openWindow(width: width, height: height)
         }
         FrameCallbackScheduler.shared.noteTextureUpdate(texId)
+        // The scanout is the first frame: without it on record, a settle
+        // asked before the first damage update saw a texture that had never
+        // drawn and answered at once (measured on a fresh session: 0 ms).
+        _shellState?._agentBroker?.noteFrame(textureId: Int64(texId))
     }
 
     // MARK: - Mode
@@ -541,6 +596,8 @@ final class GuestSession: @unchecked Sendable {
          "mode": mode == .seamless ? "seamless" : "console",
          "scanout": guestSize.map { ["w": $0.w, "h": $0.h] } ?? [:],
          "console": windowId ?? "",
+         "humanUsing": humanIsUsing,
+         "pairings": agentPairings.map { ["agent": $0.agentId, "record": $0.recordId] },
          "windows": seamless?.snapshot() ?? []]
     }
 
@@ -564,6 +621,13 @@ final class GuestSession: @unchecked Sendable {
             drmTextureRegistry?.noteDmaBufContentChanged(engine: wl.engine,
                                                          id: texId)
             FrameCallbackScheduler.shared.noteTextureUpdate(texId)
+            // await_settled's raw material (M3): a guest window settles when
+            // the guest's SCREEN goes quiet, since one scanout carries every
+            // window of it. Without this the op had no frame to wait for and
+            // answered at once, and an agent's text typed straight after
+            // `launch` reached Notepad before it had an edit control to
+            // take it — lost, with ok:true.
+            _shellState?._agentBroker?.noteFrame(textureId: Int64(texId))
         }
     }
 
