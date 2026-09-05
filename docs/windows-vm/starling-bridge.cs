@@ -68,7 +68,7 @@ using Microsoft.Win32.SafeHandles;
 
 static class Bridge {
 
-    const string Version = "starling-bridge/cs 2";
+    const string Version = "starling-bridge/cs 6";
 
     // ── Win32 ───────────────────────────────────────────────────────────────
 
@@ -95,6 +95,7 @@ static class Bridge {
     [DllImport("user32.dll")]
     static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after,
         int x, int y, int w, int hh, uint flags);
@@ -476,6 +477,61 @@ static class Bridge {
 
     // ── acting, transcribed from flwin32_wm.c ───────────────────────────────
 
+    // PrintWindow one window into a DIB, scaled so its long edge is at most
+    // maxSide, returned as top-down BGRA base64 (fourcc AR24 on the host).
+    // PW_RENDERFULLCONTENT is what makes it capture DirectComposition/WinUI
+    // content — Notepad, Calculator, every modern app — rather than the black
+    // rectangle a plain PrintWindow gives them; and it is occlusion-proof and
+    // works on a background window, which the crop-of-scanout is not: a
+    // covered window captures the same as a bare one. The caller has already
+    // refused a minimised window (nothing to render).
+    const uint PW_RENDERFULLCONTENT = 2;
+    static string Capture(IntPtr hwnd, int maxSide, out int outW, out int outH) {
+        outW = outH = 0;
+        RECT r;
+        if (!GetWindowRect(hwnd, out r)) return null;
+        int w = r.Right - r.Left, h = r.Bottom - r.Top;
+        if (w <= 0 || h <= 0) return null;
+        using (var full = new Bitmap(w, h, PixelFormat.Format32bppArgb)) {
+            using (var g = Graphics.FromImage(full)) {
+                IntPtr hdc = g.GetHdc();
+                bool ok;
+                try { ok = PrintWindow(hwnd, hdc, PW_RENDERFULLCONTENT); }
+                finally { g.ReleaseHdc(hdc); }
+                if (!ok) return null;
+            }
+            int ow = w, oh = h;
+            if (maxSide > 0 && Math.Max(w, h) > maxSide) {
+                double f = (double)maxSide / Math.Max(w, h);
+                ow = Math.Max(1, (int)Math.Round(w * f));
+                oh = Math.Max(1, (int)Math.Round(h * f));
+            }
+            Bitmap outbmp = full, scaled = null;
+            if (ow != w || oh != h) {
+                scaled = new Bitmap(ow, oh, PixelFormat.Format32bppArgb);
+                using (var g2 = Graphics.FromImage(scaled)) {
+                    g2.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g2.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                    g2.DrawImage(full, 0, 0, ow, oh);
+                }
+                outbmp = scaled;
+            }
+            try {
+                // PNG, not raw RGBA. The channel is serial: a 1280px window
+                // as raw base64 is ~5 MB and took over ten seconds to write,
+                // a whole window of an agent's patience for one screenshot; the
+                // same window as PNG is tens of KB — a mostly-flat UI compresses
+                // hard — and goes out in one small line like every other reply.
+                // The host decodes it (agent-client.py's capture_to_rgba).
+                using (var ms = new MemoryStream()) {
+                    outbmp.Save(ms, ImageFormat.Png);
+                    outW = ow; outH = oh;
+                    return Convert.ToBase64String(ms.ToArray());
+                }
+            } finally { if (scaled != null) scaled.Dispose(); }
+        }
+    }
+
     static bool Activate(IntPtr hwnd) {
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
         // Restore first: a minimized window can be made foreground and stay
@@ -720,9 +776,18 @@ static class Bridge {
     // which is the normal order at logon. The bytes stay in the FileStream's
     // buffer on that failure, so dropping the exception loses nothing: they
     // go out with the next write once a host is there.
+    //
+    // The StreamWriter is given a buffer big enough for a whole capture reply
+    // (see the port setup), so a multi-MB line flushes as ONE underlying
+    // write. Its default ~1 KB buffer flushed a 640px window's 1.28 MB as
+    // ~1300 separate overlapped WriteFiles — 9.2 s — and a 1280px one timed
+    // out; one WriteFile is one round trip. Writing the FileStream directly
+    // instead was worse than slow: it raced the reader thread's own
+    // FileStream access and killed the observer thread, so window events
+    // silently stopped while replies kept coming.
     static bool Emit(string line) {
         lock (writeLock) {
-            try { port.WriteLine(line); return true; }
+            try { port.WriteLine(line); port.Flush(); return true; }
             catch (IOException) { return false; }
         }
     }
@@ -790,9 +855,12 @@ static class Bridge {
         }
         var fs = new FileStream(new SafeFileHandle(h, true), FileAccess.ReadWrite,
                                 1, true);
-        // AutoFlush, because a line the host never sees is the same as a line
-        // never written, and virtio-serial gives no push-back to notice it by.
-        port = new StreamWriter(fs) { AutoFlush = true };
+        // A buffer big enough to hold a whole capture reply, so a multi-MB
+        // line goes out as one write (see Emit); AutoFlush off because Emit
+        // flushes each line itself — a line the host never sees is the same as
+        // a line never written, and virtio-serial gives no push-back to notice
+        // it by.
+        port = new StreamWriter(fs, new UTF8Encoding(false), 8 << 20) { AutoFlush = false };
         var r = new StreamReader(fs);
 
         var observer = new Thread(ObserveLoop) { IsBackground = true };
@@ -849,6 +917,24 @@ static class Bridge {
                             break;
                     }
                     Emit(head + ",\"ok\":" + (ok ? "true" : "false") + "}");
+                    break;
+                }
+                case "capture": {
+                    var hwnd = new IntPtr(Num(line, "hwnd", 0));
+                    if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) {
+                        Emit(head + ",\"ok\":false,\"error\":\"no such window\"}");
+                    } else if (IsIconic(hwnd)) {
+                        // The crop cannot show a minimised window either.
+                        Emit(head + ",\"ok\":false,\"error\":\"minimised\"}");
+                    } else {
+                        int cw, ch;
+                        string b64 = Capture(hwnd, (int)Num(line, "max_side", 0), out cw, out ch);
+                        if (b64 == null)
+                            Emit(head + ",\"ok\":false,\"error\":\"capture failed\"}");
+                        else
+                            Emit(head + ",\"ok\":true,\"w\":" + cw + ",\"h\":" + ch +
+                                 ",\"data\":\"" + b64 + "\"}");
+                    }
                     break;
                 }
                 case "launch": {

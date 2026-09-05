@@ -1260,6 +1260,52 @@ final class AgentBroker: @unchecked Sendable {
 
         case "capture":
             guard let win = ownedWindow() else { return failOwned() }
+            // A guest window (M3 Phase 2): its texture is the WHOLE scanout,
+            // so the GPU path would hand back every window of the guest at
+            // once, cropped to show whatever overlaps this one. The helper's
+            // PrintWindow captures this window's own pixels, occlusion-proof
+            // and on a background window — which is the property capture
+            // promises. No lease, no activate: it reads, it touches no input.
+            if let gs = GuestSessions.session(forWindow: win.id) {
+                let contentW = win.rect.width
+                let contentH = win.rect.height - DesktopTheme.kTitleBarHeight
+                let cap = int64(req["max_px"]).map { Int($0) } ?? 0
+                let winId = win.id
+                let replied = ReplyOnce()
+                gs.captureWindow(windowId: win.id, maxSide: cap) { [weak self] reply in
+                    guard let self, replied.claim() else { return }
+                    guard (reply["ok"] as? Bool) == true,
+                          let b64 = reply["data"] as? String,
+                          let w = int64(reply["w"]).map({ Int($0) }),
+                          let h = int64(reply["h"]).map({ Int($0) }) else {
+                        let err = reply["error"] as? String ?? "guest capture failed"
+                        conn.send(["id": id, "ok": false, "error": err])
+                        self.audit(conn.agentId, "capture", false, "\(winId) guest: \(err)")
+                        return
+                    }
+                    conn.send(["id": id, "ok": true,
+                               "w": w, "h": h,
+                               // PNG, self-describing: no stride, no fourcc,
+                               // no row order for the client to apply. The
+                               // channel is serial, so the helper compresses
+                               // (a raw-RGBA window was ~5 MB and >10 s).
+                               "format": "png",
+                               "content": [contentW, contentH],
+                               "scale": contentW > 0 ? Double(w) / contentW : 1.0,
+                               "source": "guest"],
+                              blob: "data", base64: b64)
+                    self.audit(conn.agentId, "capture", true, "\(winId) \(w)x\(h) guest")
+                }
+                // The helper's reply is dropped if the channel closes, so the
+                // agent's call would hang on its own socket timeout; answer.
+                onPlatformThread(after: 10) { [weak self] in
+                    guard let self, replied.claim() else { return }
+                    conn.send(["id": id, "ok": false,
+                               "error": "the guest did not answer the capture in time"])
+                    self.audit(conn.agentId, "capture", false, "\(winId) guest timeout")
+                }
+                return
+            }
             guard let texId = win.textureId else {
                 return fail("window has no capturable buffer")
             }

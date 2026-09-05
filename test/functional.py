@@ -283,6 +283,15 @@ def dock() -> list[str]:
     return [s["app"] for s in ask("dock_rects")["slots"]]
 
 
+def png_dims(b64: str) -> tuple:
+    """(width, height) from a base64 PNG's IHDR, and it validates the magic —
+    enough to prove a capture returned a real image without a decoder here."""
+    import struct
+    data = base64.b64decode(b64)
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
+    return struct.unpack(">II", data[16:24])
+
+
 def wait_for(predicate, what: str, timeout: float = 25.0) -> None:
     """Poll until the shell reports what we expect.
 
@@ -757,7 +766,7 @@ def check_guest_seamless() -> None:
                  "the console back")
 
 
-@check("agents: a guest app is launched, owned, and typed into")
+@check("agents: a guest app is launched, owned, typed into, and captured")
 def check_agent_guest_app() -> None:
     """M3 — docs/plans/guest-agents.md, Phase 1. An agent launches a Windows
     app through the broker exactly as it launches Files: the reply names a
@@ -843,6 +852,21 @@ def check_agent_guest_app() -> None:
         assert "human is using" in denied.get("error", ""), \
             f"refused for the wrong reason: {denied.get('error')}"
         log(f"lease held by the human: {denied['error'][:40]}...")
+
+        # Capture is lease-free: it reads pixels through the helper's
+        # PrintWindow, touches no input, and is occlusion-proof — so it
+        # succeeds on this background window even now, while inject is refused
+        # (M3 Phase 2). It comes back as a PNG, because the channel to the VM
+        # is serial and a raw window would be megabytes.
+        shot = a.ok("capture", win=win, max_px=1280)
+        assert shot.get("format") == "png", f"guest capture is not PNG: {shot!r}"
+        pw, ph = png_dims(shot["data"])
+        assert (pw, ph) == (shot["w"], shot["h"]), \
+            f"PNG IHDR {pw}x{ph} disagrees with w/h {shot['w']}x{shot['h']}"
+        assert max(pw, ph) <= 1280 and pw > 100 and ph > 100, f"odd capture size {pw}x{ph}"
+        assert len(base64.b64decode(shot["data"])) > 1500, "capture is implausibly small (blank?)"
+        log(f"captured {win} at {pw}x{ph} ({len(base64.b64decode(shot['data']))}B PNG) "
+            "while the human held the lease")
         ask("guest_launch", domain=domain, path="taskkill.exe",
             args="/IM CalculatorApp.exe /F")
         wait_for(lambda: not theirs() and not guest()["humanUsing"],

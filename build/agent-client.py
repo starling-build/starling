@@ -384,6 +384,71 @@ def write_png(path: str, rgba: bytes, width: int, height: int):
         fh.write(chunk(b"IEND", b""))
 
 
+def _png_to_rgba(data: bytes) -> tuple:
+    """Decode a PNG (8-bit, colour type 2 or 6) to top-down RGBA. Stdlib only,
+    the mirror of png_bytes above: guest captures arrive as PNG because the
+    channel to the VM is serial and a raw-RGBA window is megabytes (M3 Phase 2,
+    docs/plans/guest-agents.md)."""
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    off, width, height, bit, colour = 8, 0, 0, 0, 0
+    idat = bytearray()
+    while off < len(data):
+        ln = struct.unpack(">I", data[off:off + 4])[0]
+        tag = data[off + 4:off + 8]
+        body = data[off + 8:off + 8 + ln]
+        if tag == b"IHDR":
+            width, height, bit, colour = struct.unpack(">IIBB", body[:10])
+        elif tag == b"IDAT":
+            idat += body
+        elif tag == b"IEND":
+            break
+        off += 12 + ln
+    if bit != 8 or colour not in (2, 6):
+        raise ValueError(f"unsupported PNG (bit={bit} colour={colour})")
+    src = zlib.decompress(bytes(idat))
+    chans = 4 if colour == 6 else 3
+    stride = width * chans
+    out = bytearray(height * width * 4)
+    prev = bytearray(stride)
+    pos = 0
+    for y in range(height):
+        ft = src[pos]; pos += 1
+        row = bytearray(src[pos:pos + stride]); pos += stride
+        # Reverse the PNG filter for this scanline (None/Sub/Up/Average/Paeth).
+        if ft == 1:
+            for i in range(chans, stride):
+                row[i] = (row[i] + row[i - chans]) & 0xFF
+        elif ft == 2:
+            for i in range(stride):
+                row[i] = (row[i] + prev[i]) & 0xFF
+        elif ft == 3:
+            for i in range(stride):
+                a = row[i - chans] if i >= chans else 0
+                row[i] = (row[i] + ((a + prev[i]) >> 1)) & 0xFF
+        elif ft == 4:
+            for i in range(stride):
+                a = row[i - chans] if i >= chans else 0
+                b = prev[i]
+                c = prev[i - chans] if i >= chans else 0
+                pp = a + b - c
+                pa, pb, pc = abs(pp - a), abs(pp - b), abs(pp - c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                row[i] = (row[i] + pr) & 0xFF
+        elif ft != 0:
+            raise ValueError(f"bad PNG filter {ft}")
+        # To RGBA, forcing alpha opaque for a colour-type-2 (no-alpha) image.
+        o = y * width * 4
+        if chans == 4:
+            out[o:o + stride] = row
+        else:
+            for x in range(width):
+                out[o + x * 4:o + x * 4 + 3] = row[x * 3:x * 3 + 3]
+                out[o + x * 4 + 3] = 0xFF
+        prev = row
+    return bytes(out), width, height
+
+
 def capture_to_rgba(shot: dict) -> tuple:
     """Turn a broker capture into (rgba, width, height).
 
@@ -394,6 +459,10 @@ def capture_to_rgba(shot: dict) -> tuple:
     bottom-left, Wayland buffers are top-down). Writing `data` straight to a
     .png produces a file that is not a PNG.
     """
+    # A guest window arrives as PNG (M3 Phase 2) — self-describing, so there
+    # is no stride/fourcc/row_order to apply; decode and we are done.
+    if shot.get("format") == "png":
+        return _png_to_rgba(base64.b64decode(shot["data"]))
     data = base64.b64decode(shot["data"])
     width, height, stride = shot["w"], shot["h"], shot["stride"]
     fourcc = (shot.get("fourcc") or "")

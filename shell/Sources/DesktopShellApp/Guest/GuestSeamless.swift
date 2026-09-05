@@ -232,6 +232,22 @@ final class GuestSeamless {
         }
     }
 
+    /// PrintWindow one window through the helper — the broker's `capture` op
+    /// for a guest window (M3 Phase 2). Occlusion-proof and safe on a
+    /// background window: it reads pixels, it touches no input, so unlike the
+    /// input ops it needs no activate and no lease. `completion` runs on the
+    /// platform thread with the helper's raw reply (or a synthesised failure).
+    func capture(windowId: String, maxSide: Int,
+                 completion: @escaping ([String: Any]) -> Void) {
+        guard !stopped, let e = byHwnd.values.first(where: { $0.windowId == windowId }) else {
+            completion(["ok": false, "error": "no such guest window"])
+            return
+        }
+        bridge.send(op: "capture", args: ["hwnd": e.hwnd, "max_side": maxSide]) { reply in
+            completion(reply)
+        }
+    }
+
     /// Raise `windowId`'s guest window before an agent's input. Completes
     /// at once when the guest's foreground already is it (as the last list
     /// reported), else on the helper's reply — and with its verdict, because

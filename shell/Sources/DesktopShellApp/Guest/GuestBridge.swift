@@ -209,9 +209,12 @@ final class GuestBridge: @unchecked Sendable {
                           as? [String: Any] else { continue }
                 deliver(obj)
             }
-            if acc.count > 1 << 20 {
+            if acc.count > 48 << 20 {
+                // A capture reply is a whole window as base64 RGBA — several
+                // MB on one line (M3 Phase 2), so the guard is generous; it
+                // is here for a helper that wedges mid-line, not a real reply.
                 FileHandle.standardError.write(Data(
-                    "[bridge] a megabyte with no newline — dropping the buffer\n".utf8))
+                    "[bridge] 48 MB with no newline — dropping the buffer\n".utf8))
                 acc.removeAll(keepingCapacity: false)
             }
         }

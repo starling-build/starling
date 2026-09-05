@@ -109,6 +109,18 @@ final class GuestSession: @unchecked Sendable {
         return win.ownerAgentId == nil && owns(f)
     }
 
+    /// Capture one guest window's own pixels through the helper (M3 Phase 2).
+    /// Occlusion-proof, and safe while the human is using Windows — it reads,
+    /// it does not touch input. `completion` runs on the platform thread.
+    func captureWindow(windowId: String, maxSide: Int,
+                       completion: @escaping ([String: Any]) -> Void) {
+        guard let sm = seamless else {
+            completion(["ok": false, "error": "the guest is not in seamless mode"])
+            return
+        }
+        sm.capture(windowId: windowId, maxSide: maxSide, completion: completion)
+    }
+
     /// Raise a window in the guest before an agent's input, because that
     /// input goes wherever the guest's foreground is. Completes at once when
     /// it already is.

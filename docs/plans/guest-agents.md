@@ -204,6 +204,28 @@ Check: "agents: a guest app is launched, owned, and typed into".
 - Measure: bytes and latency at 1280 px; switch to PNG in the helper only
   if a screenshot takes longer than a frame of the agent's patience.
 
+**BUILT 2026-09-04 (Phase 2), verified live.** Helper `capture {hwnd,
+max_side}` → PrintWindow `PW_RENDERFULLCONTENT` into a DIB, scaled so the
+long edge is `max_side`. It returns **PNG**, not raw RGBA: the decision to
+"switch to PNG only if a screenshot takes longer than a frame of the agent's
+patience" was forced immediately — a 1280px window as raw base64 is ~5 MB
+over the serial channel and took **over ten seconds** to write (a 640px one
+9.2 s), where the same window as PNG is ~7.6 KB and arrives in ~240 ms. The
+broker round-trips the helper for a guest window (no GPU path, whose texture
+is the whole scanout; no lease and no activate, because capture reads pixels
+and touches no input) and returns `format:"png"`; `agent-client.py`'s
+`capture_to_rgba` gained a stdlib PNG decoder so every existing consumer
+still gets RGBA. Verified occlusion-proof live: a Notepad window covered by
+Terminal captured its own clean pixels (PW_RENDERFULLCONTENT renders the
+WinUI content, not the black rectangle a plain PrintWindow gives a modern
+app). Two traps found and fixed on the way: writing the FileStream directly
+from Emit raced the reader thread and silently killed the observer (window
+events stopped while replies kept coming); and a helper restarted without
+restarting the shell desyncs the one-client virtio port, so the shell reads
+an empty window list until it reconnects — restart the shell after the
+helper. Check: "agents: a guest app is launched, owned, typed into, and
+captured" also asserts capture succeeds while the human holds the lease.
+
 ## Phase 3 — semantics through the helper
 
 - Helper: `semantic_tree {hwnd}` walks UIA with a `CacheRequest` (Name,
