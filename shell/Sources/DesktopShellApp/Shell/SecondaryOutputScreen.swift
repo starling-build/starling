@@ -378,7 +378,8 @@ struct SecondaryOutputScreen {
                 child: DesktopWindow(
                     windowInfo: win,
                     isFocused: winId == wm.focusedWindowId,
-                    isTopBarRevealed: winId == fullscreenId && shell.topBarRevealed,
+                    isTopBarRevealed: winId == fullscreenId && !win.fillsOutput
+                        && shell.topBarRevealed,
                     onBringToFront: {
                         _shellState?.setState {
                             _shellState?.windowManager.bringToFront(winId)
@@ -498,7 +499,9 @@ struct SecondaryOutputScreen {
         // onto the traffic lights doesn't count as leaving it. Hovering below
         // hides it again. `.translucent` over a bare SizedBox — a ColoredBox
         // would hit-test opaque even at alpha 0 and eat the window's events.
-        if fullscreenWindow(onOutput: output) != nil {
+        // No sensors over a window that owns every pixel (a VM's space) — see
+        // `chromeless` in the primary tree.
+        if let fs = fullscreenWindow(onOutput: output), !fs.fillsOutput {
             let revealed = _shellState?.topBarRevealed == true
             let zoneH = revealed
                 ? DesktopTheme.kStatusBarHeight + DesktopTheme.kTitleBarHeight

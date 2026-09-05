@@ -22,6 +22,11 @@ class WindowInfo {
     var isMinimized: Bool
     var isMaximized: Bool
     var isFullscreen: Bool
+    /// Fullscreen takes EVERY pixel of the output — no status-bar strip, no
+    /// dock inset. A VM console: Windows owns the whole screen in its space,
+    /// side by side with the Linux desktop, and the shell's bar and dock are
+    /// overlays that reveal at the edges. Ordinary fullscreen keeps the strip.
+    var fillsOutput: Bool = false
     var savedRect: Rect?
     /// The floating rect remembered when tiling first captured this window;
     /// restored when the user switches back to the floating layout.
@@ -1014,6 +1019,16 @@ class WindowManagerState {
     /// logical rect minus the menu-bar strip). Falls back to the passed screen
     /// size when no display layout exists (non-DRM dev paths). At N=1 the owning
     /// output is the whole primary, so this equals (0, topInset, W, H-topInset).
+    /// The whole output `ref` lives on — every pixel, for a window that
+    /// `fillsOutput` (see WindowInfo).
+    private func _outputRect(for ref: Rect, screenWidth: Double, screenHeight: Double) -> Rect {
+        if let dl = displayLayout {
+            let o = dl.owningOutput(ofRect: ref)
+            return Rect.fromLTWH(o.logicalLeft, o.logicalTop, o.logicalWidth, o.logicalHeight)
+        }
+        return Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+    }
+
     private func _outputFillRect(for ref: Rect, screenWidth: Double, screenHeight: Double) -> Rect {
         let topInset = DesktopTheme.kStatusBarHeight
         // And the BOTTOM, in a style whose bar reserves its strip. The macOS
@@ -1075,7 +1090,9 @@ class WindowManagerState {
             // auto-hides and overlays within the window when revealed
             // (handled in DesktopWindow).
             win.savedRect = win.rect
-            win.rect = _outputFillRect(for: win.rect, screenWidth: screenWidth, screenHeight: screenHeight)
+            win.rect = win.fillsOutput
+                ? _outputRect(for: win.rect, screenWidth: screenWidth, screenHeight: screenHeight)
+                : _outputFillRect(for: win.rect, screenWidth: screenWidth, screenHeight: screenHeight)
             win.isFullscreen = true
             win.isMaximized = false
             // The window gets its own transient space immediately to the

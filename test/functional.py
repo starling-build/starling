@@ -611,7 +611,17 @@ def check_guest_display() -> None:
         raise Skip(f"no libvirt domain {domain!r}")
     before = domstate()
 
+    def leave_windows_space() -> None:
+        """A console that is already open is a fullscreen Windows space with
+        no Linux chrome — there is no dock there to click, and keys typed
+        into it go to Windows. Step back to the desktop on its left first.
+        A no-op when already on the desktop: the shell swallows Ctrl+arrows
+        at the ends of the strip."""
+        if any(g.get("console") for g in ask("guest_state")["guests"]):
+            drive("move 300 300", "key ctrl+left", "sleep 1.5")
+
     # The record is searchable, which is the launcher half of "apps are data".
+    leave_windows_space()
     drive("move 300 300", "dock launcher", "click", "sleep 1", "type windows")
     state = ask("launcher_state")
     assert state.get("query", "").lower() == "windows", \
@@ -632,6 +642,7 @@ def check_guest_display() -> None:
         # A second launch focuses the window it already has. If it opened a
         # second display instead, QEMU would close the first and the window
         # would go with it — the failure looks like the shell crashing.
+        leave_windows_space()
         drive("dock launcher", "click", "sleep 1", "type windows", "key enter",
               "sleep 3")
         assert apps()["windows"]["window"], \

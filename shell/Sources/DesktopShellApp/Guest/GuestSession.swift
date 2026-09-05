@@ -66,6 +66,18 @@ final class GuestSession: @unchecked Sendable {
     /// A guest app's window appeared, by record id (Phase 5).
     var onAppWindow: ((String) -> Void)?
 
+    /// The console opens FULLSCREEN in a space of its own, owning every pixel
+    /// of the output — Windows and the Linux desktop side by side as spaces,
+    /// a swipe or Ctrl+arrow apart — rather than as a window on the desktop.
+    /// The guest is asked to render at the panel's full size, so it is native
+    /// resolution, not a scaled-down desktop. Exiting fullscreen (the green
+    /// light on the revealed title bar) gives the windowed console back.
+    /// `STARLING_GUEST_WINDOWED=1` opens windowed from the start.
+    var opensFullscreen: Bool = {
+        let v = ProcessInfo.processInfo.environment["STARLING_GUEST_WINDOWED"] ?? ""
+        return v.isEmpty || v == "0"
+    }()
+
     // MARK: - Agents (M3, docs/plans/guest-agents.md)
 
     /// A launch an agent asked for, waiting for its window. Ownership pairs
@@ -477,6 +489,14 @@ final class GuestSession: @unchecked Sendable {
             return
         }
 
+        // One line per mode change, with the buffer's identity: the cold-boot
+        // orientation bug was only findable once this showed the boot and the
+        // re-attach receiving the SAME two buffers (by inode) with the same
+        // y0_top — which put the fault in the shell's rendering, not the flag.
+        var st = stat()
+        let ident = fstat(fd, &st) == 0 ? "ino=\(st.st_ino)" : "ino=?"
+        FileHandle.standardError.write(Data(
+            "[guest] scanout \(width)x\(height) \(ident) fourcc=0x\(String(fourcc, radix: 16)) y0_top=\(y0Top)\n".utf8))
         let sizeChanged = guestSize.map { $0.w != width || $0.h != height } ?? true
         if textureId == nil {
             textureId = registry.registerTexture(engine: wl.engine)
@@ -719,13 +739,27 @@ final class GuestSession: @unchecked Sendable {
                 // window is nobody's and the dock shows a stranger.
                 win.wmClass = self.appId
                 win.onPointerHoverCursor = { [weak self] in self?.assertCursor() }
+                // Windows owns every pixel of its space: no status-bar strip
+                // reserved, no dock inset. The bar and dock still reveal at
+                // the screen edges, as overlays.
+                win.fillsOutput = true
+                if self.opensFullscreen {
+                    shell.windowManager.fullscreenWindow(
+                        newId, screenWidth: shell.screenWidth, screenHeight: shell.screenHeight)
+                }
             }
         }
         windowId = newId
 
-        // The window was capped to the screen — ask the guest to render at
-        // what we can actually show, rather than scaling its desktop down.
-        if capped {
+        if opensFullscreen,
+           let win = shell.windowManager.windows.first(where: { $0.id == newId }),
+           win.isFullscreen {
+            // Native resolution: the whole panel, the content being the
+            // whole rect in fullscreen (no title bar).
+            requestResize(logicalW: win.rect.width, logicalH: win.rect.height, immediate: true)
+        } else if capped {
+            // The window was capped to the screen — ask the guest to render at
+            // what we can actually show, rather than scaling its desktop down.
             requestResize(logicalW: logW, logicalH: logH - DesktopTheme.kTitleBarHeight,
                           immediate: true)
         }
@@ -745,6 +779,12 @@ final class GuestSession: @unchecked Sendable {
             requestedAt = nil
             return
         }
+        requestedSize = nil
+        requestedAt = nil
+        // Fullscreen owns the output whatever the guest draws: the texture
+        // stretches to the rect, and the pointer maps through the rect, so a
+        // guest that answered with some other mode is still right to click.
+        guard !win.isFullscreen else { return }
         // Only snap back when we were waiting on a resize that never came;
         // an unsolicited change (the guest's own display settings) is the
         // guest's business and the window should simply follow it.
@@ -755,8 +795,6 @@ final class GuestSession: @unchecked Sendable {
             win.rect = Rect.fromLTWH(win.rect.left, win.rect.top, logW, logH)
             win.targetRect = nil
         }
-        requestedSize = nil
-        requestedAt = nil
     }
 
     private func requestResize(logicalW: Double, logicalH: Double,
@@ -808,7 +846,11 @@ final class GuestSession: @unchecked Sendable {
         if let winId = windowId,
            let win = _shellState?.windowManager.windows.first(where: { $0.id == winId }) {
             let contentW = win.rect.width
-            let contentH = win.rect.height - DesktopTheme.kTitleBarHeight
+            // Fullscreen content is the whole rect — the title bar is an
+            // overlay there, not an inset — else clicks land a bar too high.
+            let contentH = win.isFullscreen
+                ? win.rect.height
+                : win.rect.height - DesktopTheme.kTitleBarHeight
             if contentW > 1, contentH > 1 {
                 scaleX = Double(size.w) / contentW
                 scaleY = Double(size.h) / contentH

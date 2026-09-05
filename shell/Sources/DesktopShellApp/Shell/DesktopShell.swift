@@ -256,8 +256,14 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // so updateChild short-circuits and skips rebuilding the entire window subtree.
     // The `isFullscreen` and `isTopBarRevealed` keys force a rebuild when the
     // window changes its fullscreen state or when the auto-hide reveal flips
-    // (so the title-bar overlay shows/hides correctly).
-    private var _windowChildCache: [String: (widget: DesktopWindow, isFocused: Bool, width: Double, height: Double, isFullscreen: Bool, isTopBarRevealed: Bool)] = [:]
+    // (so the title-bar overlay shows/hides correctly). `flipTextureY` and
+    // `textureId` are keys because the content bakes them in at build: a VM
+    // console booting cold is built at the firmware's 640x480 tens of seconds
+    // before Windows' real buffer arrives with the opposite orientation, and
+    // with neither in the key that flip was never painted — Windows came up
+    // upside down after every power-on, while re-attaching to a running guest
+    // (both scanouts inside one build) was fine.
+    private var _windowChildCache: [String: (widget: DesktopWindow, isFocused: Bool, width: Double, height: Double, isFullscreen: Bool, isTopBarRevealed: Bool, flipTextureY: Bool, textureId: Int?)] = [:]
 
     /// The size a maximised client last committed while disagreeing with the
     /// size we configured. Only there to keep the corrective configure from
@@ -2835,7 +2841,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         guard output.isPrimary,
               !windowManager.activeSpace(onOutput: output.id).isSpecial
         else { return nil }
-        if fullscreenWindow(onOutput: output) != nil && !_dockRevealed { return nil }
+        if let fs = fullscreenWindow(onOutput: output), fs.fillsOutput || !_dockRevealed {
+            return nil   // hidden under fullscreen; never over a chromeless one
+        }
         // Same builder the host tree uses, so a secondary monitor cannot end
         // up drawing a different bar from the primary's.
         return chrome.bottomBar(forOutput: output, opacity: 1)
@@ -4028,8 +4036,16 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // macOS-style auto-hide of the desktop status bar.
         let topmostWindow = windowManager.visibleWindows.last
         let isFullscreenMode = topmostWindow?.isFullscreen ?? false
-        if !isFullscreenMode && (_topBarRevealed || _dockRevealed) {
-            // No fullscreen window any more — reset reveal state.
+        // A window that owns every pixel of its output — a VM's space —
+        // carries NO Linux chrome: no bar strip, no edge-reveal zones, no
+        // status bar, no dock, no title overlay. Windows' own taskbar lives
+        // on the bottom edge, exactly where the dock's sensor would pop the
+        // dock over it. You leave the space by Ctrl+←/→, Mission Control or
+        // a swipe — navigation on demand, never chrome that appears on hover.
+        let chromeless = isFullscreenMode && (topmostWindow?.fillsOutput ?? false)
+        if (!isFullscreenMode || chromeless) && (_topBarRevealed || _dockRevealed) {
+            // No fullscreen window any more (or one that shows no chrome) —
+            // reset reveal state.
             _topBarRevealed = false
             _dockRevealed = false
         }
@@ -4063,7 +4079,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             let isFocused = win.id == windowManager.focusedWindowId
             // Only the topmost fullscreen window gets the reveal flag — other
             // windows underneath are not affected.
-            let windowTopBarRevealed = win.isFullscreen && win.id == topmostWindow?.id
+            let windowTopBarRevealed = win.isFullscreen && !win.fillsOutput
+                && win.id == topmostWindow?.id
                 ? _topBarRevealed : false
 
             // Reuse cached widget when only position changed (drag).
@@ -4074,7 +4091,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                cached.width == win.rect.width,
                cached.height == win.rect.height,
                cached.isFullscreen == win.isFullscreen,
-               cached.isTopBarRevealed == windowTopBarRevealed {
+               cached.isTopBarRevealed == windowTopBarRevealed,
+               cached.flipTextureY == win.flipTextureY,
+               cached.textureId == win.textureId {
                 window = cached.widget
             } else {
                 window = DesktopWindow(
@@ -4107,7 +4126,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                         requestWindowTitleBarDoubleTap(winId)
                     }
                 )
-                _windowChildCache[winId] = (window, isFocused, win.rect.width, win.rect.height, win.isFullscreen, windowTopBarRevealed)
+                _windowChildCache[winId] = (window, isFocused, win.rect.width, win.rect.height, win.isFullscreen, windowTopBarRevealed, win.flipTextureY, win.textureId)
             }
 
             // Open zoom plays only when the window is genuinely appearing
@@ -4367,20 +4386,25 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 Positioned(fill: (), child: _buildMissionControl(context))
             )
         } else if isFullscreenMode {
-            if DesktopTheme.kStatusBarHeight > 0 {
-                children.append(
-                    Positioned(
-                        left: 0, top: 0, right: 0,
-                        height: DesktopTheme.kStatusBarHeight,
-                        child: ColoredBox(
-                            color: Color(0xFF000000),
-                            child: SizedBox(expand: ())
+            // The reserved strip above an ordinary fullscreen window is
+            // painted black; a chromeless window extends under it and the
+            // strip would cover the guest's top rows.
+            if !chromeless {
+                if DesktopTheme.kStatusBarHeight > 0 {
+                    children.append(
+                        Positioned(
+                            left: 0, top: 0, right: 0,
+                            height: DesktopTheme.kStatusBarHeight,
+                            child: ColoredBox(
+                                color: Color(0xFF000000),
+                                child: SizedBox(expand: ())
+                            )
                         )
                     )
-                )
-            }
-            if _topBarRevealed, let bar = topBarWidget {
-                children.append(bar)
+                }
+                if _topBarRevealed, let bar = topBarWidget {
+                    children.append(bar)
+                }
             }
         } else if let bar = topBarWidget {
             children.append(bar)
@@ -4399,7 +4423,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         }
         // Fullscreen hides the dock like it hides the status bar — it only
         // draws while the cursor holds it revealed (the bottom sensor).
-        if isFullscreenMode && !_dockRevealed {
+        if isFullscreenMode && (!_dockRevealed || chromeless) {
             dockOpacity = 0
         }
         // Only when this tree owns the bar. The user can make another monitor
@@ -4424,7 +4448,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         //   - Bottom region: hovering inside reveals the dock.
         // Using `.translucent` lets the events also reach the window content
         // below so the focused Wayland/X11 client still gets hover events.
-        if isFullscreenMode && !(_missionControlOpen && mcIsOnHost) {
+        if isFullscreenMode && !chromeless && !(_missionControlOpen && mcIsOnHost) {
             // Collapsed: a 4-px sliver at the very top. Expanded: covers the
             // status bar + the title-bar overlay so the user can hover into
             // the title bar (and its traffic-light buttons) without the
