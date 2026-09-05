@@ -1415,7 +1415,24 @@ static void dispatch_csi(StarlingTerm *t, uint8_t final) {
         set_cursor(t, 0, 0);
         break;
     }
-    case 'm': sgr(t, ps, n); break;
+    case 'm':
+        /* SGR only when there is NO private prefix. The same final byte
+           with a prefix is a keyboard-protocol control from xterm's
+           modifyOtherKeys family: ESC[>4;2m sets it, ESC[>4;m clears it,
+           ESC[?4m asks about it -- and vim 9 sends all three (t_TI at
+           start, t_TE at exit, t_RK right after start-up, before it draws
+           the search prompt). Read as SGR, "4" is underline ON and "2" is
+           dim: everything vim painted after its query came out underlined
+           until its next attribute change, and the shell prompt after :q
+           was underlined too. The set is ignored -- modified keys are not
+           encoded that way here -- and the query gets the honest answer,
+           CSI > 4 ; 0 m, so vim does not wait for one. */
+        if (t->csi_private == '?') {
+            if (n > 0 && ps[0] == 4) respond(t, "\033[>4;0m");
+        } else if (!t->csi_private) {
+            sgr(t, ps, n);
+        }
+        break;
     case 'h': set_mode(t, ps, n, 1); break;
     case 'l': set_mode(t, ps, n, 0); break;
     case 'n': {

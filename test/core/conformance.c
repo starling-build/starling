@@ -356,6 +356,31 @@ static void test_osc_command(void) {
     starling_term_free(t);
 }
 
+/* ---- keyboard-protocol controls that end in 'm' ---------------------------- */
+
+static void test_modkeys_are_not_sgr(void) {
+    printf("modifyOtherKeys controls are not SGR:\n");
+    StarlingTerm *t = fresh(80, 24);
+    /* vim's t_TI: set modifyOtherKeys. Read as SGR 4;2 it underlined and
+       dimmed everything after it. */
+    feed(t, "\033[>4;2m" "a");
+    CHECK(cell_at(t, 0, 0).attrs == 0, "ESC[>4;2m (XTMODKEYS set) sets no attribute");
+    /* vim's t_RK: query modifyOtherKeys -- sent right before the search
+       prompt is drawn, which is how a search came out underlined. */
+    resp_clear();
+    feed(t, "\033[?4m" "b");
+    CHECK(cell_at(t, 0, 1).attrs == 0, "ESC[?4m (XTQMODKEYS) sets no attribute");
+    CHECK(strcmp(resp(), "\033[>4;0m") == 0, "XTQMODKEYS is answered: modifyOtherKeys is 0 here");
+    /* vim's t_TE: clear modifyOtherKeys, sent at :q -- read as SGR 4 it
+       underlined the shell prompt that followed. */
+    feed(t, "\033[>4;m" "c");
+    CHECK(cell_at(t, 0, 2).attrs == 0, "ESC[>4;m (XTMODKEYS clear) sets no attribute");
+    feed(t, "\033[4m" "d" "\033[24m" "e");
+    CHECK((cell_at(t, 0, 3).attrs & STARLING_ATTR_UNDERLINE) != 0, "plain SGR 4 still underlines");
+    CHECK(cell_at(t, 0, 4).attrs == 0, "and SGR 24 still clears it");
+    starling_term_free(t);
+}
+
 int main(void) {
     test_widths();
     test_wide_wrap_and_pairs();
@@ -365,6 +390,7 @@ int main(void) {
     test_resize();
     test_osc_cwd();
     test_osc_command();
+    test_modkeys_are_not_sgr();
     if (fails) { printf("%d FAILED\n", fails); return 1; }
     printf("all passed\n");
     return 0;
