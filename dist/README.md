@@ -37,18 +37,23 @@ Unsigned, deliberately for now: SmartScreen will warn on first run, and a
 machine with Smart App Control enforcing will refuse it. The
 signing plan exists (`docs/WINDOWS-SIGNING.md`) and 0.2.0 ships before it.
 
-`starling-terminal-0.1.1-windows-x86_64.zip` — Starling Terminal for Windows,
-x86_64, rebuilt for 0.1.1 on the respun 0.3.1 SDK bundle beside it. 47.2 MB,
-52 entries, checksum in `SHA256SUMS`. It replaces the 0.1.0 archive, which
-remains a `terminal-v0.1.0` release asset.
+`starling-terminal-0.2.0-windows-x86_64.zip` — Starling Terminal for Windows,
+x86_64. 45.3 MB, 52 entries, checksum in `SHA256SUMS`. It replaces the 0.1.1
+archive, which remains a `terminal-v0.1.1` release asset. Built from branch
+`release-terminal-0.2.0`, engine pinned by the same branch name in
+starling-engine, staged by `sdk/tools/stage-windows.ps1` (the single
+definition of the Windows layout): the exe beside its 35 DLLs — the Swift
+runtime, the two engine libraries, and conpty — with `OpenConsole.exe`, the
+engine's `data\`, and the font and icon bundles.
 
-**Nothing behaves differently from 0.1.0 here**, and unlike the other two
-platforms that took some proving. Neither 0.1.1 fix can bite on Windows — the
-resource-bundle fallback is never reached in this layout, and there is no code
-signature to break — so this archive exists to put all three platforms on one
-version and one SDK. What it did catch is that the *first* 0.3.1 bundle broke
-font loading here, which is why this was built on the respun one; the check is
-below, and it is a screenshot.
+**0.2.0 is a real release here, not a rebuild.** It carries the same features
+as the other platforms — remote workspaces (splits that live on the server, a
+switcher, reconnect), the C emulator core, tabs, the find bar, font zoom and
+auto-answer — plus the two fixes that landed last: vim's search is no longer
+underlined (a keyboard-protocol control the core was reading as a text
+attribute), and a dropped connection no longer ends a remote session (the
+daemon ignored the hangup and died with it). Verified rendering a PowerShell
+prompt on Windows 11.
 
 `starling-terminal-0.1.1-macos-arm64.zip` — Starling Terminal for macOS arm64.
 16 MB, checksum in `SHA256SUMS`. Unlike the Windows archive it wraps a `.app`,
@@ -213,12 +218,21 @@ downloaded copy wants right-click → Open, or Privacy & Security →
 **Open Anyway**, or `xattr -dr com.apple.quarantine` once. Removing that step
 means Developer ID signing plus notarization, not a build change.
 
-`starling-terminal_0.1.1_amd64.deb` — Starling Terminal for Linux x86_64,
-rebuilt for 0.1.1 against the 0.3.1 SDK bundle beside it. 52 MB, checksum in
-`SHA256SUMS`. It replaces the 0.1.0 .deb, which remains a `terminal-v0.1.0`
-release asset. The engine is the one 0.1.0 shipped, byte for byte, and the
-version moves so "which build am I on" has one answer across platforms and so
-`dpkg -i` treats it as the upgrade it is.
+`starling-terminal_0.2.0_amd64.deb` — Starling Terminal for Linux x86_64.
+54 MB, checksum in `SHA256SUMS`. It replaces the 0.1.1 .deb, which remains a
+`terminal-v0.1.1` release asset. Built from branch `release-terminal-0.2.0`
+(engine pinned by the same branch name in starling-engine) in the windowed
+GTK configuration, packaged by `build/package-terminal-gtk.sh` — which links
+the engine's two GTK libraries, computes the system dependencies with
+`dpkg-shlibdeps`, and installs onto the applications menu with its icon.
+
+**0.2.0 is a feature release**: remote workspaces (server-side splits, a
+switcher, reconnect), the C emulator core and its read path, tabs, the find
+bar, ⌘±  font zoom, auto-answer rules, and the two disconnect fixes — vim's
+search no longer underlined, and a dropped connection no longer ending a
+remote session. Installs with `sudo dpkg -i` (or `apt install ./…`) on any
+desktop — GNOME, KDE, Wayland or X11 — and `dpkg -i` treats it as the upgrade
+it is.
 
 **Rebuilt on the respun SDK bundle**, and this is not paperwork. The first cut
 of this .deb was built on the 0.3.1 bundle that searched for `<name>.bundle`,
