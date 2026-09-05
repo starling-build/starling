@@ -376,7 +376,15 @@ func syncEngineViewsAndLayout(_ view: OpaquePointer?, _ dl: DisplayLayout) {
             secondaryViewOutputs[viewId] = nil
         }
     }
-    guard dl.outputs.count > 1 else { return }
+    // Every output, the primary included — even when it is the only one.
+    // The engine places the primary at create with the pixel ratio IT
+    // derived, and the input layer's pointer regions carry that scale until
+    // this call replaces it with ours. Skipping a lone primary left its
+    // region at the engine's guess while Flutter ran at the shell's 2.0x:
+    // every pointer coordinate and the hardware cursor came out at 2x, so
+    // the cursor was only on screen while the mouse was in the top-left
+    // quadrant. Two outputs always came through here, which is why it only
+    // showed after the HDMI monitor was unplugged.
     for output in dl.outputs {
         fl_drm_view_set_output_layout(
             view, UInt32(output.id), output.originX, output.originY, output.scale)
