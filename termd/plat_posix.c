@@ -47,6 +47,15 @@ int plat_init(void) {
     return 0;
 }
 
+void plat_daemon_harden(void) {
+    // A dropped ssh session hangs up the daemon's connection; without this a
+    // default SIGHUP would end it and take every session with it. setsid (in
+    // plat_spawn_daemon) already moves it out of the login session's process
+    // group, so this is belt-and-braces for any path that still delivers one.
+    signal(SIGHUP, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
+}
+
 void plat_sock_close(sock_t s) { if (s >= 0) close(s); }
 
 void plat_sock_shutdown(sock_t s) { if (s >= 0) shutdown(s, SHUT_RDWR); }
@@ -359,11 +368,29 @@ int plat_spawn_daemon(int idle_seconds) {
     snprintf(self, sizeof(self), "/proc/self/exe");
 #endif
 
+    // DOUBLE fork, so the daemon reparents to init and NOTHING has to reap
+    // it. A single fork leaves the daemon a child of this caller -- the
+    // `--stdio` bridge -- which only shuttles bytes and never waitpid()s. A
+    // daemon that then exits (idle timeout, or a crash) turns into a <defunct>
+    // zombie hanging off the bridge for as long as the bridge lives, which for
+    // a local workspace is the whole life of the app. The middle child exits
+    // immediately; the grandchild is the daemon, and PPID 1 collects its
+    // corpse whenever it goes. The caller reaps only the middle child, here.
     pid_t pid = fork();
     if (pid < 0) return -1;
-    if (pid != 0) return 0;
+    if (pid != 0) {
+        int st;
+        while (waitpid(pid, &st, 0) < 0 && errno == EINTR) { }
+        return (WIFEXITED(st) && WEXITSTATUS(st) == 0) ? 0 : -1;
+    }
 
+    // Middle child: detach into a new session, then fork the daemon and go.
     setsid();
+    pid_t gpid = fork();
+    if (gpid < 0) _exit(127);
+    if (gpid != 0) _exit(0);
+
+    // Grandchild: the daemon. Reparented to init the instant the middle exits.
     int null = open("/dev/null", O_RDWR);
     if (null >= 0) {
         dup2(null, 0);

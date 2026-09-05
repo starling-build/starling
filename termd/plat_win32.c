@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+void plat_daemon_harden(void) { /* durability is in plat_spawn_daemon's flags */ }
+
 int plat_init(void) {
     static int done = 0;
     if (done) return 0;

@@ -150,6 +150,13 @@ int  plat_tty_size(uint16_t *cols, uint16_t *rows);
 // at the bridge would take the daemon and every session with it.
 int plat_spawn_daemon(int idle_seconds);
 
+// Make the calling process a durable daemon: ignore SIGHUP so a hangup on the
+// controlling connection -- which is what a dropped ssh session delivers --
+// does not end it, and re-ignore SIGPIPE. The POSIX counterpart of the
+// Windows job-breakaway in plat_spawn_daemon; a no-op on Windows, where the
+// same durability comes from the spawn flags. Call it once, in serve().
+void plat_daemon_harden(void);
+
 // The working directory of the process on the other end of this pty, written
 // NUL-terminated into `out`. Returns 1 when it could be read.
 //

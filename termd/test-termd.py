@@ -375,6 +375,31 @@ def main():
               f"{ids} missing one of {sid},{shell_id}")
         d.close()
 
+        # A dropped network connection hangs up the daemon. Nothing should
+        # end because of it -- the whole point is that the session lives on
+        # the server. On POSIX the daemon is this test's own child, so send it
+        # the hangup directly and confirm it, and a running session, are still
+        # there. (Windows has no SIGHUP; there the durability is the spawn
+        # flags, tested by test-ssh-attach.py.)
+        if not USE_STDIO and not WINDOWS and daemon.poll() is None:
+            import signal as _sig
+            os.kill(daemon.pid, _sig.SIGHUP)
+            time.sleep(STEP)
+            check("the daemon survives a SIGHUP (a dropped connection)",
+                  daemon.poll() is None)
+            h = Client(sock_path)
+            ok = h.hello()
+            h.send(LIST)
+            kind, payload = h.recv(LIST_REPLY)
+            live = {e[0]: e for e in list_entries(payload)} if kind == LIST_REPLY else {}
+            h.close()
+            check("it still answers after the hangup", ok and kind == LIST_REPLY)
+            # e = (id, cols, rows, alive, head, name); the shell has no command
+            # and is still sitting at its prompt, so it is alive.
+            check("a running session outlives the hangup",
+                  shell_id in live and live[shell_id][3] == 1,
+                  f"{live.get(shell_id)}")
+
         # Names: the handle a human can remember. `termd "iOS dev"` has to
         # reach the same shell tomorrow without anyone recalling a number,
         # which makes a named OPEN attach-or-create rather than always create.

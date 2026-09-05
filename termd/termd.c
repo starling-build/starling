@@ -968,6 +968,7 @@ static void scrub_multiplexer_env(void) {
 
 static int serve(int idle_exit_seconds) {
     plat_init();
+    plat_daemon_harden();
     plat_set_process_name("starling-termd");
     scrub_multiplexer_env();
     if (!g_lock) g_lock = plat_mutex_new();
@@ -1182,6 +1183,7 @@ struct attach {
     plat_mutex *wlock;
     uint8_t prefix;
     int detached;   // the user asked to leave, so the exit note says so
+    int stopping;   // attach() is returning; the stdin thread must not send
 };
 
 static uint8_t attach_prefix(void) {
@@ -1208,6 +1210,7 @@ static void attach_write_all(sock_t fd, const uint8_t *p, size_t n) {
 
 static void attach_send(struct attach *a, uint8_t type,
                         const void *payload, size_t n) {
+    if (a->stopping) return;
     uint8_t hdr[TERMD_HEADER_LEN];
     hdr[0] = type;
     hdr[1] = 0;
@@ -1635,10 +1638,23 @@ static int attach_session(const char *target) {
     }
     uint64_t consumed = rlen >= 12 ? get_u64(reply + 4) : 0;
 
-    struct attach a;
+    // STATIC, not on the stack. The stdin thread below is detached and blocks
+    // in a read; when this function returns on a detach or a dropped link, it
+    // is usually still parked there, and its next keystroke wakes it to call
+    // attach_send(&a, ...) -- reading a.wlock and a.fd. A stack `a` is gone by
+    // then, so that read lands in reused stack memory and pthread_mutex_unlock
+    // faults on a garbage pointer. It happens on exactly the disconnect this
+    // program is about, and a crash was logged from it in the field
+    // (explorer-free: pthread_mutex_unlock at a wild address). attach() runs
+    // once per process, so one static instance is correct; it outlives the
+    // return, the mutex it names stays valid, and a write to the closed fd
+    // fails harmlessly. `stopping` lets the thread bow out the moment it does
+    // wake, rather than send into a torn-down session.
+    static struct attach a;
     a.fd = fd;
     a.prefix = attach_prefix();
     a.detached = 0;
+    a.stopping = 0;
     a.wlock = plat_mutex_new();
     if (!a.wlock) { plat_sock_close(fd); return 1; }
 
@@ -1704,6 +1720,10 @@ static int attach_session(const char *target) {
         }
     }
 
+    // Tell the detached stdin thread to stop touching `a` before we let the
+    // frame go. It may be blocked in a read and wake later; `stopping` is
+    // what it checks then, and the static `a` is what keeps that check valid.
+    a.stopping = 1;
     if (raw) plat_tty_restore();
     plat_sock_close(fd);
     fprintf(stderr, "termd: %s\n",
