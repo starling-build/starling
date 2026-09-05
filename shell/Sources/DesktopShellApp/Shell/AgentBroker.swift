@@ -1537,6 +1537,42 @@ final class AgentBroker: @unchecked Sendable {
             // agent addresses labels and node ids — no coordinates, no
             // pixels; the same ownership chokepoint applies.
             guard let win = ownedWindow() else { return failOwned() }
+            // A guest window (M3 Phase 3): the tree is UIA, walked by the
+            // helper, and the labels/nodes come back in the SAME shape a
+            // first-party window's do — so the agent cannot tell a Windows
+            // app's tree from a Starling app's. Like inject and unlike
+            // capture, perform_action changes the screen, so it marks the
+            // window for the next settle; the tree walk gets a long timeout,
+            // because a first UIA query on a Chromium window is slow.
+            if let gs = GuestSessions.session(forWindow: win.id) {
+                var extra: [String: Any] = [:]
+                if op == "perform_action" {
+                    guard let node = req["node"] as? Int,
+                          let action = req["action"] as? String else {
+                        return fail("perform_action needs node + action")
+                    }
+                    extra["node"] = node
+                    extra["action"] = action
+                    if let v = req["value"] as? String { extra["value"] = v }
+                    lastInjectMs[win.id] = nowMs
+                }
+                let winId = win.id
+                let replied = ReplyOnce()
+                gs.semantics(op: op, windowId: win.id, extra: extra) { [weak self] reply in
+                    guard let self, replied.claim() else { return }
+                    var out = reply
+                    out["id"] = id
+                    conn.send(out)
+                    self.audit(agentId, op, (reply["ok"] as? Bool) == true, "\(winId) (guest)")
+                }
+                onPlatformThread(after: op == "semantic_tree" ? 20 : 10) { [weak self] in
+                    guard let self, replied.claim() else { return }
+                    conn.send(["id": id, "ok": false,
+                               "error": "the guest did not answer \(op) in time"])
+                    self.audit(agentId, op, false, "\(winId) guest timeout")
+                }
+                return
+            }
             guard let endpoint = win.agentEndpointPath else {
                 return fail("window has no semantics endpoint")
             }

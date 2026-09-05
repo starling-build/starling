@@ -23,7 +23,20 @@ $build = !(Test-Path $exe) -or ((Get-Item $src).LastWriteTime -gt (Get-Item $exe
 if ($build) {
     Get-Process starling-bridge -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Milliseconds 300
-    $out = & $csc /nologo /target:winexe /r:System.Drawing.dll /out:$exe $src 2>&1
+    # UIA (semantic_tree/perform_action) uses System.Windows.Automation, which
+    # lives in UIAutomationClient/UIAutomationTypes, and its BoundingRectangle
+    # is a System.Windows.Rect from WindowsBase. These are in-box assemblies
+    # but not in csc's search path, and their GAC folder names carry a
+    # version hash — so resolve each to its real location rather than hardcode
+    # a path that differs across Windows builds.
+    $refs = @("System.Drawing.dll")
+    foreach ($n in @("UIAutomationClient","UIAutomationTypes","WindowsBase")) {
+        $a = [System.Reflection.Assembly]::LoadWithPartialName($n)
+        if ($a -eq $null) { "MISSING assembly $n"; exit 1 }
+        $refs += $a.Location
+    }
+    $rargs = $refs | ForEach-Object { "/r:$_" }
+    $out = & $csc /nologo /target:winexe @rargs /out:$exe $src 2>&1
     if (!(Test-Path $exe) -or ($LASTEXITCODE -ne 0)) { "BUILD FAILED"; $out | Select-Object -Last 8; exit 1 }
     "built " + (Get-Item $exe).Length + " bytes"
 } else {

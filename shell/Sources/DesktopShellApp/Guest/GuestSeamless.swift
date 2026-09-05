@@ -232,6 +232,22 @@ final class GuestSeamless {
         }
     }
 
+    /// UIA tree / action through the helper — the broker's `semantic_tree`
+    /// and `perform_action` for a guest window (M3 Phase 3). `extra` carries
+    /// node/action/value for perform_action. `completion` runs on the
+    /// platform thread with the helper's reply (already in the broker's shape:
+    /// `{ok, nodes}` / `{ok}`).
+    func semantics(op: String, windowId: String, extra: [String: Any],
+                   completion: @escaping ([String: Any]) -> Void) {
+        guard !stopped, let e = byHwnd.values.first(where: { $0.windowId == windowId }) else {
+            completion(["ok": false, "error": "no such guest window"])
+            return
+        }
+        var args = extra
+        args["hwnd"] = e.hwnd
+        bridge.send(op: op, args: args) { reply in completion(reply) }
+    }
+
     /// PrintWindow one window through the helper — the broker's `capture` op
     /// for a guest window (M3 Phase 2). Occlusion-proof and safe on a
     /// background window: it reads pixels, it touches no input, so unlike the

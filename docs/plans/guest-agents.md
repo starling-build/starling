@@ -238,6 +238,29 @@ captured" also asserts capture succeeds while the human holds the lease.
 - Broker: the proxy chooses the bridge when the window is a guest's; the
   payload is the one it already sends.
 
+**BUILT 2026-09-04 (Phase 3), verified live.** Helper `semantic_tree {hwnd}`
+walks UIA (`System.Windows.Automation`, resolved by the up-script from the
+GAC/WPF folder — a tenth of the code of raw UIAutomationCore COM) and returns
+a FLAT node list in the shell's own semantics shape — `{node, label, role,
+rect, actions, value?}` — so an agent reads a Windows app's controls exactly
+as it reads a Starling app's. Notepad came back as 39 nodes in ~600 ms (a
+warm re-walk 180 ms): the menu bar (File/Edit/View, each invoke/expand/
+collapse), the formatting toolbar (Bold/Italic as toggles), the tab strip
+(TabItem with select), the editor (Document with set_value), the title-bar
+buttons (Minimize/Maximize/Close as invoke). `perform_action {hwnd, node,
+action, value?}` maps invoke/set_value/toggle/select/expand/collapse/
+scroll_into_view onto the patterns; verified live, set_value on the editor
+node marked the buffer modified. Only elements with a label or an action are
+emitted, so a window is a page of controls, not thousands of structural
+panes; node ids are valid until the next walk. The broker chooses the bridge
+when the window is a guest's, gives the tree op a 20 s timeout (a first UIA
+query is slow) and perform_action 10 s, and marks the window for the next
+settle exactly as inject does. `agent-client.py`'s `tree`/`act` need no
+change — the reply is the shape they already read. Check: "agents: a guest
+app answers its accessibility tree, and an action drives it" (pre-cleans to a
+single empty Notepad, because a restored multi-tab session opens windows
+whose editor is not the one `launch` returns).
+
 ## Phase 4 — settled, for a guest
 
 - v1: `await_settled` as it is (scanout frame-quiet). Note it in the reply

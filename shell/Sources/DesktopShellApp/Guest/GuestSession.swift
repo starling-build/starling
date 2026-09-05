@@ -109,6 +109,17 @@ final class GuestSession: @unchecked Sendable {
         return win.ownerAgentId == nil && owns(f)
     }
 
+    /// The guest window's UIA tree, or an action on a node (M3 Phase 3),
+    /// through the helper. `completion` runs on the platform thread.
+    func semantics(op: String, windowId: String, extra: [String: Any],
+                   completion: @escaping ([String: Any]) -> Void) {
+        guard let sm = seamless else {
+            completion(["ok": false, "error": "the guest is not in seamless mode"])
+            return
+        }
+        sm.semantics(op: op, windowId: windowId, extra: extra, completion: completion)
+    }
+
     /// Capture one guest window's own pixels through the helper (M3 Phase 2).
     /// Occlusion-proof, and safe while the human is using Windows — it reads,
     /// it does not touch input. `completion` runs on the platform thread.

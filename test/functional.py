@@ -891,6 +891,92 @@ def check_agent_guest_app() -> None:
                      and (guest() or {}).get("console"), "the console back")
 
 
+@check("agents: a guest app answers its accessibility tree, and an action drives it")
+def check_agent_guest_semantics() -> None:
+    """M3 — docs/plans/guest-agents.md, Phase 3. The broker proxies
+    semantic_tree/perform_action to the guest's helper, which walks UIA; the
+    nodes come back in the SAME flat shape a first-party window's do, so an
+    agent addresses a Windows app's controls by label exactly as it does a
+    Starling app's — and an action performed on a node drives the real app."""
+    domain = os.environ.get("STARLING_GUEST_DOMAIN") or "windows"
+    try:
+        r = subprocess.run(["virsh", "-c", "qemu:///system", "domstate", domain],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise Skip(f"no libvirt domain {domain!r}")
+    except OSError:
+        raise Skip("no libvirt on this machine")
+    rec = f"guest-{domain}-windowsnotepad"
+    if rec not in apps():
+        raise Skip("no guest catalog yet (the seamless check writes it)")
+
+    def guest() -> dict | None:
+        for g in ask("guest_state")["guests"]:
+            if g["domain"] == domain:
+                return g
+        return None
+
+    def title(win: str) -> str:
+        g = guest() or {}
+        return next((w["title"] for w in g.get("windows", []) if w["window"] == win), "")
+
+    mode_before = (guest() or {}).get("mode")
+    # Start from one clean, empty Notepad — a restored multi-tab session opens
+    # windows whose editor is not the one `launch` returns, and its tree then
+    # has no editable node.
+    if mode_before == "seamless":
+        forget_notepad_session(domain)
+    a = Session(name="guest-a11y")
+    try:
+        reply = a.call("launch", app=rec)
+        if not reply.get("ok") and "helper" in reply.get("error", ""):
+            raise Skip(f"launch refused: {reply['error']}")
+        assert reply.get("ok"), f"launch failed: {reply.get('error')}"
+        win = reply["win"]
+        a.ok("await_settled", win=win, timeout_ms=8000)
+
+        # The editor's ValuePattern appears a beat after the window does, so
+        # re-walk until it is there (or give up and assert on what we have).
+        nodes = []
+        doc = None
+        for _ in range(6):
+            nodes = a.ok("semantic_tree", win=win)["nodes"]
+            doc = next((n for n in nodes if "set_value" in n["actions"]), None)
+            if doc:
+                break
+            time.sleep(0.5)
+        assert nodes, "the UIA tree came back empty"
+        labels = {n["label"] for n in nodes}
+        # Notepad's menu bar — the tree reaches the real control hierarchy,
+        # not just the top-level window.
+        assert {"File", "Edit", "View"} <= labels, \
+            f"no menu bar in the tree; got {sorted(l for l in labels if l)[:15]}"
+        # Every node carries the contract's fields.
+        n0 = nodes[0]
+        assert set(("node", "label", "actions", "rect")) <= set(n0), f"node shape: {n0!r}"
+        # A node that takes text (the editor's ValuePattern) — drive it, and
+        # the guest's own asterisk says the buffer changed.
+        assert doc, f"no editable node among {len(nodes)}"
+        a.ok("perform_action", win=win, node=doc["node"],
+             action="set_value", value="starling via UIA")
+        wait_for(lambda: title(win).startswith("*"),
+                 "the editor to report a modified buffer after set_value", timeout=15.0)
+        log(f"{len(nodes)} UIA nodes incl. the menu bar; set_value drove node "
+            f"{doc['node']} -> title {title(win)!r}")
+    finally:
+        try:
+            ask("guest_launch", domain=domain, path="taskkill.exe",
+                args="/IM notepad.exe /F")
+        except AssertionError:
+            pass
+        forget_notepad_session(domain)
+        a.close()
+        if mode_before != "seamless":
+            ask("guest_mode", domain=domain, mode="console")
+            wait_for(lambda: (guest() or {}).get("mode") == "console"
+                     and (guest() or {}).get("console"), "the console back")
+
+
 def forget_notepad_session(domain: str) -> None:
     """Notepad restores every buffer a kill left behind, one window each, on
     its next launch — so each run of these checks would start with one more

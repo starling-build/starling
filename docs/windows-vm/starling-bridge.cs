@@ -34,6 +34,13 @@
 //                                 AppsFolder: every app Start would list, packaged
 //                                 or not, `id` launchable as shell:AppsFolder\<id>,
 //                                 `icon` a base64 PNG (48px) when the shell has one
+//   capture {"hwnd":n,"max_side":px} -> {"ok":true,"w":..,"h":..,"data":<PNG b64>}
+//                                 PrintWindow(PW_RENDERFULLCONTENT), occlusion-proof;
+//                                 PNG because the channel is serial (raw was >10s)
+//   semantic_tree {"hwnd":n}   -> {"ok":true,"nodes":[{node,label,role,rect,actions,value?}]}
+//                                 the UIA tree, flat, in the shell's semantics shape
+//   perform_action {"hwnd":n,"node":i,"action":..,"value":..}  invoke|set_value|
+//                                 toggle|select|expand|collapse|scroll_into_view
 //   quit
 //
 // ONE DIVERGENCE from the real helper, on purpose: events come from a poll
@@ -64,11 +71,12 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Windows.Automation;
 using Microsoft.Win32.SafeHandles;
 
 static class Bridge {
 
-    const string Version = "starling-bridge/cs 6";
+    const string Version = "starling-bridge/cs 7";
 
     // ── Win32 ───────────────────────────────────────────────────────────────
 
@@ -532,6 +540,97 @@ static class Bridge {
         }
     }
 
+    // ── UIA (M3 Phase 3) ─────────────────────────────────────────────────
+    //
+    // The guest's own accessibility tree, in the SAME flat shape a Starling
+    // app's semantics endpoint returns: one JSON node per interesting element
+    // {node,label,role,rect,actions,value?}, node ids valid until the next
+    // walk. Chromium (Edge, WebView2) exposes UIA natively, so this reaches
+    // web content too — the first query on such a window is slow, which is why
+    // the broker gives the tree op a long timeout. Managed System.Windows.
+    // Automation, not raw UIAutomationCore COM, because it is a tenth of the
+    // code; the up-script resolves the reference assemblies.
+    static int uiaCounter = 0;
+    static readonly Dictionary<int, AutomationElement> uiaMap = new Dictionary<int, AutomationElement>();
+
+    static string SemanticTree(IntPtr hwnd) {
+        AutomationElement root;
+        try { root = AutomationElement.FromHandle(hwnd); } catch { return null; }
+        if (root == null) return null;
+        var sb = new StringBuilder("[");
+        lock (uiaMap) {
+            uiaMap.Clear(); uiaCounter = 0;
+            bool[] first = { true };
+            try { UiaWalk(root, sb, 0, first); } catch { }
+        }
+        sb.Append("]");
+        return sb.ToString();
+    }
+
+    static void UiaWalk(AutomationElement el, StringBuilder sb, int depth, bool[] first) {
+        string name = "", role = "", value = null;
+        bool enabled = true;
+        int rx = 0, ry = 0, rw = 0, rh = 0;
+        try { name = el.Current.Name ?? ""; } catch { }
+        try { role = el.Current.ControlType.ProgrammaticName; } catch { }
+        try { enabled = el.Current.IsEnabled; } catch { }
+        try {
+            var r = el.Current.BoundingRectangle;
+            if (!r.IsEmpty && !double.IsInfinity(r.X)) {
+                rx = (int)r.X; ry = (int)r.Y; rw = (int)r.Width; rh = (int)r.Height;
+            }
+        } catch { }
+        var actions = new List<string>();
+        object pat;
+        try { if (el.TryGetCurrentPattern(InvokePattern.Pattern, out pat)) actions.Add("invoke"); } catch { }
+        try { if (el.TryGetCurrentPattern(TogglePattern.Pattern, out pat)) actions.Add("toggle"); } catch { }
+        try { if (el.TryGetCurrentPattern(SelectionItemPattern.Pattern, out pat)) actions.Add("select"); } catch { }
+        try { if (el.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out pat)) { actions.Add("expand"); actions.Add("collapse"); } } catch { }
+        try { if (el.TryGetCurrentPattern(ScrollItemPattern.Pattern, out pat)) actions.Add("scroll_into_view"); } catch { }
+        try { if (el.TryGetCurrentPattern(ValuePattern.Pattern, out pat)) { actions.Add("set_value"); value = ((ValuePattern)pat).Current.Value; } } catch { }
+
+        // Emit only elements that carry something an agent can address — a
+        // label or an action — so a window is a page of controls, not
+        // thousands of structural panes.
+        if (name.Length > 0 || actions.Count > 0) {
+            int nid = uiaCounter++;
+            uiaMap[nid] = el;
+            if (!first[0]) sb.Append(","); first[0] = false;
+            sb.Append("{\"node\":").Append(nid)
+              .Append(",\"label\":\"").Append(Esc(name)).Append("\"")
+              .Append(",\"role\":\"").Append(Esc(role)).Append("\"")
+              .Append(",\"enabled\":").Append(enabled ? "true" : "false")
+              .Append(",\"rect\":[").Append(rx).Append(",").Append(ry).Append(",").Append(rw).Append(",").Append(rh).Append("]")
+              .Append(",\"actions\":[");
+            for (int i = 0; i < actions.Count; i++) { if (i > 0) sb.Append(","); sb.Append("\"").Append(actions[i]).Append("\""); }
+            sb.Append("]");
+            if (value != null) sb.Append(",\"value\":\"").Append(Esc(value)).Append("\"");
+            sb.Append("}");
+        }
+        if (depth >= 14) return;
+        AutomationElementCollection kids = null;
+        try { kids = el.FindAll(TreeScope.Children, Condition.TrueCondition); } catch { }
+        if (kids != null) for (int i = 0; i < kids.Count; i++) UiaWalk(kids[i], sb, depth + 1, first);
+    }
+
+    static bool PerformAction(int node, string action, string value) {
+        AutomationElement el;
+        lock (uiaMap) { if (!uiaMap.TryGetValue(node, out el)) return false; }
+        try {
+            object pat;
+            switch (action) {
+                case "invoke": if (el.TryGetCurrentPattern(InvokePattern.Pattern, out pat)) { ((InvokePattern)pat).Invoke(); return true; } break;
+                case "toggle": if (el.TryGetCurrentPattern(TogglePattern.Pattern, out pat)) { ((TogglePattern)pat).Toggle(); return true; } break;
+                case "select": if (el.TryGetCurrentPattern(SelectionItemPattern.Pattern, out pat)) { ((SelectionItemPattern)pat).Select(); return true; } break;
+                case "expand": if (el.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out pat)) { ((ExpandCollapsePattern)pat).Expand(); return true; } break;
+                case "collapse": if (el.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out pat)) { ((ExpandCollapsePattern)pat).Collapse(); return true; } break;
+                case "scroll_into_view": if (el.TryGetCurrentPattern(ScrollItemPattern.Pattern, out pat)) { ((ScrollItemPattern)pat).ScrollIntoView(); return true; } break;
+                case "set_value": if (value != null && el.TryGetCurrentPattern(ValuePattern.Pattern, out pat)) { ((ValuePattern)pat).SetValue(value); return true; } break;
+            }
+        } catch { }
+        return false;
+    }
+
     static bool Activate(IntPtr hwnd) {
         if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return false;
         // Restore first: a minimized window can be made foreground and stay
@@ -916,6 +1015,26 @@ static class Bridge {
                                       (int)Num(line, "w", 0), (int)Num(line, "h", 0));
                             break;
                     }
+                    Emit(head + ",\"ok\":" + (ok ? "true" : "false") + "}");
+                    break;
+                }
+                case "semantic_tree": {
+                    var hwnd = new IntPtr(Num(line, "hwnd", 0));
+                    if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) {
+                        Emit(head + ",\"ok\":false,\"error\":\"no such window\"}");
+                    } else {
+                        string nodes = SemanticTree(hwnd);
+                        if (nodes == null)
+                            Emit(head + ",\"ok\":false,\"error\":\"no UI automation tree\"}");
+                        else
+                            Emit(head + ",\"ok\":true,\"nodes\":" + nodes + "}");
+                    }
+                    break;
+                }
+                case "perform_action": {
+                    int node = (int)Num(line, "node", -1);
+                    string action = Field(line, "action");
+                    bool ok = action != null && PerformAction(node, action, Field(line, "value"));
                     Emit(head + ",\"ok\":" + (ok ? "true" : "false") + "}");
                     break;
                 }
