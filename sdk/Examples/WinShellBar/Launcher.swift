@@ -361,6 +361,20 @@ final class LauncherBloc: @unchecked Sendable {
             state.editingPins = false
             state.renaming = nil
         case .launch(let app):
+            // OUR file explorer, not Windows'. The Start Menu catalog's "File
+            // Explorer" entry launches explorer.exe; this shell has its own,
+            // reached from the dock's Files tile and Win+E, and the launcher
+            // is the one place it was still missing (the user's report:
+            // "in the start menu, there is no mention of our file explorer").
+            // Redirect the tile rather than inventing a second one, so the
+            // familiar name and yellow folder stay and only the destination
+            // changes. On the UI thread, like the dock: opening it is a
+            // ShowWindow on the hosted surface (--oneview) or a spawn of the
+            // --files window (separate launcher process), both fast.
+            if Self.isWindowsFileExplorer(app) {
+                FilesWindow.openFileExplorer()
+                return
+            }
             // Off the UI thread: the fast path is 8ms but the `.lnk` fallback
             // measured 484ms, and this thread has frames to draw.
             Task.detached { Win32AppCatalog.launch(app) }
@@ -469,6 +483,21 @@ final class LauncherBloc: @unchecked Sendable {
     /// worse first impression than one holding the obvious six.
     private static let kSeedPins = ["edge", "file explorer", "terminal",
                                     "notepad", "settings", "calculator"]
+
+    /// Windows' own File Explorer, however the catalog recorded it: the
+    /// AppsFolder id `Microsoft.Windows.Explorer`, or the Start Menu shortcut
+    /// whose display name is "File Explorer" (empty target, no id). Matched so
+    /// its launcher tile opens THIS shell's file explorer instead of
+    /// explorer.exe — the same redirection the dock's Files tile is. Name is a
+    /// fair signal here: `kSeedPins` already keys on "file explorer", and
+    /// nothing else on a Windows install carries that name.
+    static func isWindowsFileExplorer(_ app: Win32App) -> Bool {
+        if app.appUserModelID.caseInsensitiveCompare("Microsoft.Windows.Explorer")
+            == .orderedSame {
+            return true
+        }
+        return app.name.caseInsensitiveCompare("File Explorer") == .orderedSame
+    }
 
     private func _loadPins() {
         if let text = try? String(contentsOfFile: pinsPath, encoding: .utf8) {

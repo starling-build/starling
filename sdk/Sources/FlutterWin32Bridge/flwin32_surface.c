@@ -167,6 +167,24 @@ static void nudge_width(HWND window, int delta) {
                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+/* Fill the desktop surface's monitor. The window is sized to its monitor once,
+ * at creation (flwin32_surface_open, FLWIN32_SURFACE_DESKTOP -> rcMonitor);
+ * a later MODE CHANGE — a monitor swapped, or a VM console attaching and
+ * bumping the guest from its headless boot resolution to the host's screen —
+ * moves nothing, so the wallpaper covers only the boot-sized top-left and the
+ * rest of the screen shows as bare black desktop. The dock re-parks on the
+ * same WM_DISPLAYCHANGE (panel_apply_placement, flwin32_host.c); this is the
+ * desktop's half of it. The WM_SIZE this triggers carries the new size down to
+ * the view and reloads the wallpaper (Desktop.loadWallpaper keys on the window
+ * size), exactly as the manual resize that healed it did. */
+static void desktop_fill_monitor(HWND window) {
+  HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO info = {sizeof(MONITORINFO)};
+  if (!GetMonitorInfoW(monitor, &info)) return;
+  RECT m = info.rcMonitor;
+  MoveWindow(window, m.left, m.top, m.right - m.left, m.bottom - m.top, TRUE);
+}
+
 static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
                                          WPARAM wparam, LPARAM lparam) {
   SurfaceSlot* slot = surface_for_window(hwnd);
@@ -272,6 +290,15 @@ static LRESULT CALLBACK surface_wnd_proc(HWND hwnd, UINT message,
           default:
             break;
         }
+      }
+      break;
+    case WM_DISPLAYCHANGE:
+      // A monitor changed resolution, or was added/removed. The desktop is
+      // pinned to the whole monitor and nothing else corrects its size, so
+      // re-derive it here — see desktop_fill_monitor.
+      if (slot != NULL && slot->kind == FLWIN32_SURFACE_DESKTOP) {
+        desktop_fill_monitor(hwnd);
+        return 0;
       }
       break;
     case WM_SIZE: {
