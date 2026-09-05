@@ -825,6 +825,10 @@ def check_agent_guest_app() -> None:
         # own word that the text arrived.
         settled = a.ok("await_settled", win=win, timeout_ms=8000)
         assert not settled["timed_out"], f"the guest never went quiet: {settled!r}"
+        # The quiet a guest window reports is the whole guest's screen — one
+        # scanout carries every window — and the reply says so (M3 Phase 4).
+        assert settled.get("scope") == "scanout", \
+            f"guest settle should scope to the scanout: {settled!r}"
         # The window is a freshly launched, empty Notepad (its saved tabs
         # were cleared at the end of the last run), so typing marks the
         # buffer modified — Notepad's own leading asterisk in the title,

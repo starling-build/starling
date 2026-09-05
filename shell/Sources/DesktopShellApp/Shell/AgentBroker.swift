@@ -1471,6 +1471,12 @@ final class AgentBroker: @unchecked Sendable {
                 if repainted && quietEnough && shell._shellQuiescent {
                     conn.send(["id": id, "ok": true,
                                "settled_in_ms": self.nowMs - start,
+                               // For a guest window the quiet is the whole
+                               // guest's SCREEN, not this one window's, since
+                               // one scanout carries every window of it — say
+                               // so, so a caller reading "settled" knows what
+                               // went quiet (M3 Phase 4 v1).
+                               "scope": guest ? "scanout" : "window",
                                "repainted": true, "timed_out": false])
                     self.audit(conn.agentId, "await_settled", true,
                                "\(win.id) in \(self.nowMs - start)ms")
@@ -1481,6 +1487,7 @@ final class AgentBroker: @unchecked Sendable {
                     // click that simply had no visible effect learns nothing.
                     conn.send(["id": id, "ok": true,
                                "settled_in_ms": self.nowMs - start,
+                               "scope": guest ? "scanout" : "window",
                                "repainted": repainted, "timed_out": true])
                     self.audit(conn.agentId, "await_settled", true,
                                "\(win.id) gave up after \(self.nowMs - start)ms"

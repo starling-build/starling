@@ -268,6 +268,16 @@ whose editor is not the one `launch` returns).
 - v2, when it bites: helper `settled {hwnd}` — `WaitForInputIdle` and a UIA
   structure-changed quiescence window.
 
+**BUILT 2026-09-04 (Phase 4 v1).** `await_settled` on a guest window already
+waits on the right signal — the scanout and every damage update feed
+`noteFrame` (landed with Phases 1-2) — so v1 is the honesty label the plan
+asked for: the reply now carries `"scope": "scanout"` for a guest window
+(`"window"` otherwise), because the quiet is the whole guest's SCREEN, one
+scanout carrying every window of it, not this one window's. The Phase 1 check
+asserts it. v2 (a helper `settled {hwnd}` over WaitForInputIdle + UIA
+structure-changed quiescence) stays deferred until per-window quiet actually
+bites; scanout-quiet has been enough for every case measured so far.
+
 ## Phase 5 — the nearly empty session
 
 - Helper: `furniture {hide: true|false}` — the taskbar (`Shell_TrayWnd`,
