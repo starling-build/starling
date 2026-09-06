@@ -3,6 +3,10 @@
 Starling SDK: the Flutter framework ported to Swift, driven by the Flutter
 engine's C core. No Dart VM. (The SwiftPM package name remains `FlutterSwift`.)
 
+`GUIDE.md` is the user-facing tutorial and component catalogue. It lists
+constructor shapes verbatim, so a signature change to a public widget,
+control or platform service is not done until its row there matches.
+
 ## Layout
 
 - `Sources/` — SDK targets only (the framework, bridges, and the three windowed

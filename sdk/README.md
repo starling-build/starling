@@ -12,6 +12,11 @@ thin platform bindings needed to host an engine — nothing desktop-specific.
 
 [starling]: https://github.com/starling-build/starling
 
+**Writing an app?** [GUIDE.md](GUIDE.md) is the tutorial and component
+catalogue — the app skeleton, the widget model, and every widget,
+control and service in the SDK with its constructor shape. This README
+is about building, linking and shipping the package.
+
 ## What is here
 
 | Target | |
