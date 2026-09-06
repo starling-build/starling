@@ -43,8 +43,7 @@ final class FluentChrome: ShellChrome {
         shell.fluentStatusFlyoutOrigin(kind, height: height)
     }
 
-    /// Still the macOS menu; the Fluent one lands with the rest of the menus.
-    func desktopMenu() -> Widget { shell.macosDesktopMenu() }
+    func desktopMenu() -> Widget { shell.fluentDesktopMenu() }
 
     /// The jump list: Windows' menu on a taskbar tile.
     func appIconMenu(forOutput output: DisplayOutput) -> Widget? {

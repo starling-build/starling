@@ -143,6 +143,23 @@ auto-hide and all-displays, the recent-documents section of the jump list
 the bar with two apps running and their indicators, show desktop both
 ways, the jump list, the clock and Start tooltips, Task View from its tile.
 
+**Phase 5, 2026-09-06:** the desktop's right-click menu is a MenuFlyout on
+acrylic with icons (wallpaper, appearance, the styles as radio rows —
+not a submenu, which would need an overlay the shell tree has not —
+Task view, New desktop, Workspace, Remove this desktop, Display
+settings); Task View keeps its desktops strip along the bottom above the
+taskbar with the windows grid above, under a style metric
+(`ShellMetrics.overviewStripAtBottom`; macOS keeps the strip on top), and
+Win+Tab opens it; Alt+Tab is a centred acrylic panel of live thumbnails,
+most recent first, Tab steps (Shift back), letting Alt go lands on the
+ringed window, Esc cancels, a click on a card lands on it — one panel for
+both styles, in the Windows shape. Not done: the `showShellDialog` helper
+(the power confirm is already a ContentDialog over Smoke and the Wi-Fi
+prompt a page of Quick Settings; the guest VM's prompts are not on this
+branch), and the functional checks. Verified on screen: the menu, Task
+View from Win+Tab with the strip below, the switcher with the ring on the
+second window and the switch on releasing Alt.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*

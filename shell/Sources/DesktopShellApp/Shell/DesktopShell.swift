@@ -637,6 +637,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     let _snapDismiss = FluentDelay()
     /// The Windows key (HID 0xE3/0xE7), for Win+arrow window chords.
     var _superPressed = false
+    /// Alt (HID 0xE2/0xE6), for Alt+Tab.
+    var _altPressed = false
+    /// Alt+Tab: up, the windows it offers (most recent first) and the one
+    /// under the ring.
+    var _altTabOpen = false
+    var _altTabOrder: [String] = []
+    var _altTabIndex = 0
 
     /// Start's remembered layout, pins and launch counts (`StartStore`).
     var _startPrefs: StartPrefs = StartStore.loadPrefs()
@@ -1643,7 +1650,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// this state object; they read the engine-global texture id. Publish it
     /// only while the still preset is active so gradient presets show there
     /// too.
-    private func _syncSharedWallpaper() {
+    func _syncSharedWallpaper() {
         sharedWallpaperTextureId =
             (wallpaperPreset == .still) ? wallpaperTextureId : -1
     }
@@ -2189,6 +2196,24 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             if phys == 0xE3 || phys == 0xE7 {
                 self._superPressed = (keyData.type == .down || keyData.type == .repeat)
             }
+            if phys == 0xE2 || phys == 0xE6 {
+                self._altPressed = (keyData.type == .down || keyData.type == .repeat)
+                // Alt let go with the switcher up: land on the ringed window.
+                if keyData.type == .up, self._altTabOpen {
+                    self._altTabCommit()
+                    return true
+                }
+            }
+            // Alt+Tab steps the switcher; Esc puts it away unchanged. While
+            // it is up, nothing else hears the keys.
+            if self._altPressed, phys == 0x2B, keyData.type == .down || keyData.type == .repeat {
+                self._altTabStep(backwards: self._shiftPressed)
+                return true
+            }
+            if self._altTabOpen {
+                if phys == 0x29, keyData.type == .down { self._altTabCancel() }
+                return true
+            }
 
             // Screensaver: any key wakes it, and nothing reaches apps or the
             // shell's own UI while it is up (launcher-style modal swallow).
@@ -2349,13 +2374,18 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // half of the work area, Win+↑ maximises, Win+↓ restores a
             // maximised window and minimises a free one. Swallowed like the
             // Ctrl+arrows below — the system owns them.
-            // Win+A and Win+N open the panels whatever is focused.
+            // Win+A and Win+N open the panels whatever is focused; Win+Tab
+            // the overview.
             if self._superPressed, keyData.type == .down {
                 switch phys {
                 case 0x04:  // A — Quick Settings
                     self._fluentOpenPopup(.controlCenter); return true
                 case 0x11:  // N — notification centre
                     self._fluentOpenPopup(.notifications); return true
+                case 0x2B:  // Tab — Task View
+                    if self._missionControlOpen { self._closeMissionControlAnimated() }
+                    else { self._openMissionControl() }
+                    return true
                 default: break
                 }
             }
@@ -4586,6 +4616,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // Banners for posts that just arrived, above windows and the bar.
         if let toasts = chrome.toasts() {
             children.append(toasts)
+        }
+        // The Alt+Tab switcher, over everything of the desktop's.
+        if let switcher = altTabWidget(context) {
+            children.append(switcher)
         }
 
         // Edge cursor sensors for macOS-style auto-hide. While in fullscreen

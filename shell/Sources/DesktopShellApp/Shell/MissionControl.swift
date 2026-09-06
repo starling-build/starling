@@ -19,7 +19,8 @@ private enum MC {
     static let thumbW: Double = 168
     static let thumbH: Double = 94.5   // 16:9, matches the panel aspect
     static let gap: Double = 18
-    static let stripTop: Double = 22
+    /// The strip's top when the style keeps it at the top of the screen.
+    static let stripTopInset: Double = 22
     static let labelH: Double = 22
     /// Horizontal inset of the exposé area.
     static let exposeInsetX: Double = 64
@@ -56,12 +57,21 @@ extension _DesktopShellState {
                       r.width, r.height)
     }
 
+    /// Where the strip sits: the style's business (`overviewStripAtBottom`).
+    /// Windows' Task View keeps the desktops along the bottom, above the
+    /// taskbar, with the windows above them; macOS's Mission Control the
+    /// other way up.
+    private var _mcStripTop: Double {
+        guard shellMetrics.overviewStripAtBottom else { return MC.stripTopInset }
+        return _mcH - DesktopTheme.kDockContainerHeight - DesktopTheme.kDockBottomMargin
+            - 16 - MC.labelH - MC.thumbH
+    }
     private func _mcThumbRect(_ index: Int) -> Rect {
         let count = _mcStripCount
         let totalW = Double(count + 1) * MC.thumbW + Double(count) * MC.gap
         let left = (_mcW - totalW) / 2
         return Rect.fromLTWH(left + Double(index) * (MC.thumbW + MC.gap),
-                             MC.stripTop, MC.thumbW, MC.thumbH)
+                             _mcStripTop, MC.thumbW, MC.thumbH)
     }
 
     /// The space-thumbnail index containing `p`, or nil (excludes "+").
@@ -76,7 +86,13 @@ extension _DesktopShellState {
     }
 
     private func _mcExposeArea() -> Rect {
-        let top = MC.stripTop + MC.thumbH + MC.labelH + 26
+        if shellMetrics.overviewStripAtBottom {
+            // Windows above, the strip below: the grid takes the screen
+            // down to the strip, with headroom for the top edge.
+            return Rect.fromLTRB(MC.exposeInsetX, MC.stripTopInset + 26,
+                                 _mcW - MC.exposeInsetX, _mcStripTop - 26)
+        }
+        let top = _mcStripTop + MC.thumbH + MC.labelH + 26
         let bottom = _mcH - DesktopTheme.kDockContainerHeight
             - DesktopTheme.kDockBottomMargin - 16
         return Rect.fromLTRB(MC.exposeInsetX, top, _mcW - MC.exposeInsetX, bottom)
@@ -128,7 +144,7 @@ extension _DesktopShellState {
     // MARK: Pieces
 
     /// A window's live content, scaled to whatever box it's placed in.
-    private func _mcWindowContent(_ win: WindowInfo, _ context: any BuildContext) -> Widget {
+    func _mcWindowContent(_ win: WindowInfo, _ context: any BuildContext) -> Widget {
         guard let texId = win.textureId else {
             return win.appBuilder(context)
         }
@@ -437,7 +453,7 @@ extension _DesktopShellState {
         // space management has no business in a "choose a window" moment.
         if picking {
             layers.append(Positioned(
-                left: 0, top: MC.stripTop + 18, width: _mcW, height: 70,
+                left: 0, top: MC.stripTopInset + 18, width: _mcW, height: 70,
                 child: IgnorePointer(child: Column(children: [
                     Text("Choose a window to record",
                          style: TextStyle(color: shellTheme.overlayText,

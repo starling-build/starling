@@ -68,6 +68,11 @@ struct ShellMetrics {
     /// maximized window stops above it.
     let bottomBarReserves: Bool
 
+    /// Where the spaces overview keeps its desktops strip: macOS's Mission
+    /// Control runs it along the top, Windows' Task View along the bottom
+    /// above the taskbar, with the windows grid above it.
+    let overviewStripAtBottom: Bool
+
     /// Whether a maximized window loses its rounded corners. Windows squares
     /// them — a maximized window meets the screen edges and the taskbar and
     /// reads as part of the frame — while macOS keeps its rounding on every
@@ -94,6 +99,7 @@ struct ShellMetrics {
         bottomBarMargin: 6.0,           // unchanged — Chrome height alignment
         bottomBarContainerHeight: 132.0,
         bottomBarReserves: false,
+        overviewStripAtBottom: false,
         squareWhenMaximized: false
     )
 
@@ -115,6 +121,7 @@ struct ShellMetrics {
         bottomBarMargin: 0.0,
         bottomBarContainerHeight: FluentBar.height * 2,
         bottomBarReserves: true,
+        overviewStripAtBottom: true,
         squareWhenMaximized: true
     )
 }
