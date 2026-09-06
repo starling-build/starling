@@ -358,6 +358,16 @@ first-class broker window, so the loop should run unchanged.
 - **The fixture and the real helper must not diverge** on the filter, the
   identity rule or the ops' shapes; the C# is the reference, as in M2.
 
+- **Activate-before-inject is flaky on a freshly cold-booted guest.** The
+  helper's `activate` (SetForegroundWindow / SwitchToThisWindow from a
+  windowless process) is refused by Windows' foreground lock while the guest
+  desktop is still settling after a power-cycle, so Phase 1's verdict-gate
+  ("refuse rather than type into the wrong window") turns it into a hard
+  `inject` failure — "could not raise the window inside the guest". It works
+  once the guest is warm. Found 2026-09-05 after a `virsh destroy`+start;
+  `semantic_tree`/`perform_action` (no foreground needed) work throughout.
+  Robustness follow-up: retry the raise, or fall back to the agent seat.
+
 ## Decisions to settle at approval
 
 **Taken as recommended, 2026-09-04.** The reply to this draft was "Continue"

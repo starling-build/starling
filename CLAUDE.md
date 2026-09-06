@@ -429,7 +429,18 @@ Build / runtime:
       rm -rf .build-shared/*/release/Flutter.build
       build/build-all.sh            # or swift build twice: the first re-plans
 
-- **On Windows a cold `swift build` always fails, and the failure is a lie.**
+- **If `build-all.sh` dies resolving the SDK `FlutterEngineStatic`
+  artifact (a GitHub `404`), build against a local engine to skip the binary
+  target.** SwiftPM fetches that binaryTarget at resolve time; when the
+  published release asset 404s and the extracted-artifact cache has been
+  evicted, every build fails — the SDK manifest chose the URL variant because
+  no local static-engine bundle was present. Point
+  `FLUTTER_SWIFT_ENGINE_OUT`/`STARLING_ENGINE_OUT` at a real engine out-dir
+  (e.g. a sibling checkout's `engine/src/out/host_release`), which forces the
+  *dynamic* link mode and never touches the URL. A git worktree also may have
+  no `engine/src/out` of its own, so `run-desktop.sh`/`stage.sh` need
+  `STARLING_ENGINE_OUT` pointed there as well.
+- - **On Windows a cold `swift build` always fails, and the failure is a lie.**
   It dies inside the MSVC standard library —
   `xmemory: no matching function for call to 'construct_at'`, under an
   instantiation of `std::vector<std::atomic<bool>, _Parallelism_allocator<…>>`
@@ -524,4 +535,24 @@ Engine / compositor:
 - If the shell dies uncleanly it leaves `/tmp/xdg-starling-<uid>/wayland-0.lock`
   and the next run listens on **wayland-1**; clients must use the socket from
   the current run's `wayland_server: listening on wayland-N` log line.
-- `pkill -f <word>` matches its own `bash -c` line — use `pkill -x`.
+- **A window's content bakes its texture orientation in at BUILD, so the
+  window-widget cache must key on `flipTextureY` and `textureId`, not just
+  size/focus/fullscreen.** A VM console built at the firmware's 640x480
+  top-down mode kept that flip when Windows' real bottom-up buffer arrived
+  tens of seconds later — Windows came up **upside down after every cold
+  boot**, while re-attaching to a running guest (both buffers inside one
+  build) was fine, which is what made it look like the y0_top flag. It is not
+  the flag; it is the cache. Proved with a per-scanout inode+y0_top log: the
+  cold boot and the re-attach received the SAME two buffers with the same
+  flags, and only the cold boot inverted. (`DesktopShell._windowChildCache`,
+  6fd9080.)
+- **The per-output pointer-region scale must be installed for a lone primary
+  too, not only when there are two outputs.** `syncEngineViewsAndLayout` gated
+  the `fl_drm_view_set_output_layout` loop on `outputs.count > 1`, so a single
+  output kept the scale the engine derived at create while Flutter and the
+  compositor ran at the shell's (e.g. 2.0x). The hardware cursor plane is
+  placed in physical pixels from that region scale, so at half-scale the
+  cursor was penned into the top-left quadrant of the panel — the "cursor
+  stuck over the Edge icon" that appeared only after an HDMI unplug dropped
+  the box to one output. (97a70af.)
+- - `pkill -f <word>` matches its own `bash -c` line — use `pkill -x`.

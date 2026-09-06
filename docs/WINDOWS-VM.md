@@ -388,6 +388,17 @@ The design is `docs/plans/windows-home-vm.md`, the implementation
 `docs/plans/guest-display.md`; this section is what the GUEST needs, which is
 the part nothing in the repo can do for you.
 
+By default the console opens **fullscreen in a space of its own** — Windows
+owns every pixel, with no Starling bar, dock, or edge-reveal sensors, so Linux
+and Windows sit side by side as spaces a Ctrl+arrow, a swipe, or Mission
+Control apart (Windows' own taskbar is on the bottom edge, exactly where the
+dock's reveal sensor would otherwise pop it up). The guest renders at the
+panel's native resolution. `STARLING_GUEST_WINDOWED=1` opens the old windowed
+console instead. On a cold boot the guest re-modes through the firmware's
+small early resolutions to native as Windows loads; if a resize does not take,
+the culprit is usually the guest's `vdservice`/`vdagent` — restart the SPICE
+agent service and it respawns.
+
 **Host.** `libvirt-dev` to build, `libvirt0` to run (the .deb picks it up),
 and the session user in the **`libvirt`** group — that is the whole of the
 permission story, and without it the window reports "permission denied" from
