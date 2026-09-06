@@ -175,16 +175,21 @@ class HoverButtonState: State<StatefulWidget> {
         // Core content from builder
         var w: Widget = widget.builder(context, states)
 
-        // Wrap with Listener for pointer-down / pointer-up (press detection).
-        // Since GestureDetector is unavailable, we use raw pointer events.
+        // Wrap with Listener for pointer-down / pointer-up (press detection)
+        // on raw pointer events. A press is the PRIMARY button only, as a
+        // `GestureDetector.onTap` is: it used to fire `onPressed` on any
+        // release whatever the button, so a right-click on a Start tile
+        // launched the app instead of opening its menu. And it fires only
+        // for a release that follows a press that started here.
         w = Listener(
-            onPointerDown: { [weak self] _ in
-                guard let self = self, self.enabled else { return }
+            onPointerDown: { [weak self] event in
+                guard let self = self, self.enabled,
+                      event.buttons & kPrimaryButton != 0 else { return }
                 self.setState { self._pressing = true }
                 widget.onTapDown?()
             },
             onPointerUp: { [weak self] _ in
-                guard let self = self, self.enabled else { return }
+                guard let self = self, self.enabled, self._pressing else { return }
                 widget.onTapUp?()
                 widget.onPressed?()
                 self.setState { self._pressing = false }

@@ -81,6 +81,28 @@ ramp into every windowed edge), no shadow maximized, inactive solid; the
 fade itself is too short (167–250 ms) for the 250 ms screenshot path and the
 frame recorder returned black, so it rests on the unit test and the wiring.
 
+**Phase 3, 2026-09-06:** Start is the single scrollable page. Search on
+top (still the shell's key routing into a drawn box, not a `TextBox` — the
+shell has no focus system to hand a real field the keyboard); Pinned as
+rows of tiles, two rows folded with "All"/"Fewer", pin and unpin from a
+tile's right-click menu, the list persisted; Recent with recently added
+apps (from the install records' dates) and recent files (the freedesktop
+recently-used list, opened through the desktop's own `xdg-open`), hideable
+in place; All apps inline in Category (registry `Category=`, most-used
+first from a persisted launch counter), Grid and List views, the choice
+persisted; Small/Large by the screen with a persisted override; the footer
+with the account row and power, whose flyout goes to a `ContentDialog`
+over Smoke for the confirm. Files: `~/.config/starling/start`,
+`start-pins`, `launches` (`FluentStartState.swift`). Not done: the
+Settings pane for Recent/account/size (the toggles live in Start itself
+for now), the launch-time width re-measure against the Windows box, and
+the functional check. A framework fix on the way: `HoverButton` fired
+`onPressed` on ANY button's release, so a right-click on a tile launched
+the app — it is the primary button only now, and only after a press that
+began on it. Verified on screen: page, unfold, all three views (persisted
+across reopen), tile menu, unpin (persisted), typed search, power flyout,
+confirm dialog and its Cancel.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*

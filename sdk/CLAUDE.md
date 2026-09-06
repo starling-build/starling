@@ -180,6 +180,13 @@ error" kind:
   (`Tests/FlutterTests/Rendering/AnimatedOpacityTests.swift` pins it). A
   transition that "does nothing" on this port: check the render object
   pushes its layer before blaming the compositor.
+- **`HoverButton` pressed on ANY button.** Its press detection is raw
+  pointer events (older than `GestureDetector`), and it fired `onPressed`
+  on every pointer release whatever the button — a right-click on a Start
+  tile launched the app under the menu that was opening. It is the primary
+  button only now, and only after a press that began on it, which is what
+  `GestureDetector.onTap` means. A control that wants a secondary action
+  takes its own `Listener` and reads `event.buttons & kSecondaryButton`.
 - **`Text(rich:)` dropped its `style:` and the ambient DefaultTextStyle.**
   Dart hangs a rich span under the effective style; the port handed the
   span over bare, so a tooltip's caption painted in the paragraph default —

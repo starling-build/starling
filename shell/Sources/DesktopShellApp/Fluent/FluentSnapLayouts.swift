@@ -81,13 +81,6 @@ enum SnapFlyoutMetrics {
 
 extension _DesktopShellState {
 
-    /// The SDK's Fluent theme in the shell's appearance and face, for the
-    /// SDK controls the chrome hosts.
-    private func _fluentThemeData() -> FluentThemeData {
-        FluentThemeData(brightness: shellTheme.isDark ? .dark : .light,
-                        fontFamily: shellTheme.fontFamily)
-    }
-
     /// The caption's system menu, or nil when none is open.
     func fluentWindowMenu() -> Widget? {
         guard let menu = _windowMenu,
@@ -119,19 +112,7 @@ extension _DesktopShellState {
                            trailing: Text("Alt+F4"),
                            onPressed: pick { [self] in requestWindowClose(winId) }),
         ]
-        // Content-sized inside WinUI's flyout box, exactly as the SDK's own
-        // flyout positioner does it: a positioned slot hands the menu an
-        // unbounded width, and a menu row's `Expanded` label under that lays
-        // out to nothing — the menu was built, and invisible, until this.
-        return Positioned(
-            left: menu.at.dx,
-            top: menu.at.dy,
-            child: FluentTheme(
-                data: _fluentThemeData(),
-                child: ConstrainedBox(
-                    constraints: kFlyoutThemeConstraints,
-                    child: IntrinsicWidth(child: IntrinsicHeight(
-                        child: FluentEntrance(child: MenuFlyout(items: items)))))))
+        return Positioned(left: menu.at.dx, top: menu.at.dy, child: fluentShellMenu(items))
     }
 
     /// Where the flyout lands for a control at `anchor`: centred under it,

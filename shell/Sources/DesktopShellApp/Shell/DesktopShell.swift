@@ -536,6 +536,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         setState {
             _launcherDriverTarget = driverTarget
             _launcherQuery = ""
+            _refreshStartRecent()
             _launcherOpen = true
             contextMenuPosition = nil
             activeStatusBarPopup = nil
@@ -622,6 +623,22 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     let _snapDismiss = FluentDelay()
     /// The Windows key (HID 0xE3/0xE7), for Win+arrow window chords.
     var _superPressed = false
+
+    /// Start's remembered layout, pins and launch counts (`StartStore`).
+    var _startPrefs: StartPrefs = StartStore.loadPrefs()
+    /// Pinned app ids in order; nil until the user pins or unpins, meaning
+    /// every installed app in registry order.
+    var _startPins: [String]? = StartStore.loadPins()
+    var _launchCounts: [String: Int] = StartStore.loadLaunchCounts()
+    /// Recent, read when Start opens rather than on every keystroke's
+    /// rebuild: two file reads, one of them an XML list.
+    var _startRecentFiles: [RecentFile] = []
+    var _startRecentAppIds: [String] = []
+    /// Start's popups: a tile's pin menu at a point, the power flyout over
+    /// the power control's rect, and the power confirm dialog.
+    var _startTileMenu: (appId: String, at: Offset)? = nil
+    var _startPowerMenu: Rect? = nil
+    var _powerDialog: PowerAction? = nil
 
     var _missionControlOpen = false
     /// The monitor Mission Control was invoked on — its windows, its space
@@ -2780,34 +2797,105 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// Start: a panel above the taskbar rather than a full screen.
     func fluentStartMenu() -> Widget {
-        Positioned(
+        let all = _launcherAllApps()
+        let byId = Dictionary(all.map { ($0.appId, $0) }, uniquingKeysWith: { a, _ in a })
+        let pins = _startPins ?? all.map { $0.appId }
+        let model = StartModel(
+            apps: all,
+            results: _launcherFilteredApps(),
+            pinned: pins.compactMap { byId[$0] },
+            recentApps: _startRecentAppIds.compactMap { byId[$0] },
+            recentFiles: _startRecentFiles,
+            launchCounts: _launchCounts,
+            prefs: _startPrefs,
+            query: _launcherQuery,
+            caretResetToken: _launcherCaretToken,
+            userName: LoginUser.name,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight)
+        return Positioned(
             fill: (),
             child: FluentStartMenu(
-                apps: _launcherFilteredApps(),
-                installedCount: AppRegistry.shared.installedApps.count,
-                query: _launcherQuery,
-                caretResetToken: _launcherCaretToken,
-                userName: LoginUser.name,
-                screenWidth: screenWidth,
-                screenHeight: screenHeight,
+                model: model,
                 onLaunch: { [self] appId in _launchFromLauncher(appId) },
-                onPower: { [self] in
-                    setState {
-                        _launcherOpen = false
-                        _launcherQuery = ""
-                        _launcherDriverTarget = nil
-                    }
-                    _fluentOpenPopup(.power)
+                onOpenFile: { [self] file in
+                    _closeLauncher()
+                    _openRecentFile(file)
                 },
-                onDismiss: { [self] in
+                onTileMenu: { [self] appId, at in
                     setState {
-                        _launcherOpen = false
-                        _launcherQuery = ""
-                        _launcherDriverTarget = nil
+                        _startTileMenu = (appId, at)
+                        _startPowerMenu = nil
                     }
-                }
+                },
+                onPrefs: { [self] prefs in
+                    setState { _startPrefs = prefs }
+                    StartStore.save(prefs)
+                },
+                onPower: { [self] anchor in
+                    setState {
+                        _startPowerMenu = anchor
+                        _startTileMenu = nil
+                    }
+                },
+                onDismiss: { [self] in _closeLauncher() }
             )
         )
+    }
+
+    /// Start goes away, and everything it hung above itself with it.
+    func _closeLauncher() {
+        setState {
+            _launcherOpen = false
+            _launcherQuery = ""
+            _launcherDriverTarget = nil
+            _startTileMenu = nil
+            _startPowerMenu = nil
+        }
+    }
+
+    /// Read what Recent shows, once per opening.
+    func _refreshStartRecent() {
+        _startRecentFiles = StartStore.recentFiles()
+        _startRecentAppIds = StartStore.recentlyInstalled()
+    }
+
+    /// One more launch of `appId`, for the category view's most-used order.
+    func _noteAppLaunch(_ appId: String) {
+        _launchCounts[appId, default: 0] += 1
+        StartStore.save(launchCounts: _launchCounts)
+    }
+
+    /// Pin or unpin an app on Start. The first change materialises the
+    /// default list (every app) so the user's order is kept from then on.
+    func _toggleStartPin(_ appId: String) {
+        var pins = _startPins ?? _launcherAllApps().map { $0.appId }
+        if let i = pins.firstIndex(of: appId) {
+            pins.remove(at: i)
+        } else {
+            pins.append(appId)
+        }
+        setState { _startPins = pins }
+        StartStore.save(pins: pins)
+    }
+
+    /// Open a recent file through the desktop's own `xdg-open`, which lives
+    /// beside the apps directory and resolves handlers from the registry;
+    /// it falls through to the host's for anything unclaimed. Best effort:
+    /// a failure is logged, never shown — Start has already closed.
+    func _openRecentFile(_ file: RecentFile) {
+        let env = ProcessInfo.processInfo.environment
+        guard let appsDir = env["FLUTTER_APPS_DIR"] else { return }
+        let shim = (appsDir as NSString).deletingLastPathComponent + "/appbin/xdg-open"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: shim)
+        process.arguments = [file.path]
+        do {
+            try process.run()
+        } catch {
+            FileHandle.standardError.write(Data(
+                "[shell] open \(file.path) via \(shim) failed: \(error)\n".utf8))
+        }
     }
 
     /// Launchpad: the full-screen grid over a dimmed wallpaper.
@@ -4521,6 +4609,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         if _launcherOpen && _launcherOutputId == (hostOutput?.id ?? 0) {
             children.append(chrome.launcher())
         }
+        // What the launcher hangs above itself; the power confirm outlives
+        // the launcher, so this is not inside the condition above.
+        if let overlays = chrome.launcherOverlays() {
+            children.append(overlays)
+        }
 
         // Floating dock icon follows cursor during drag
         if _dockDragActive, let dragIdx = _dockDragIndex, dragIdx < dockAppOrder.count {
@@ -5116,7 +5209,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Hands the request to systemd and lets it decide. Deliberately no
     /// fallback to `shutdown`/`halt`: if logind refuses, the honest outcome is
     /// nothing happening rather than a second path with different semantics.
-    private func _runPowerAction(_ action: PowerAction) {
+    func _runPowerAction(_ action: PowerAction) {
         #if os(Linux)
         let (path, args) = action.command
         let process = Process()
@@ -6392,16 +6485,22 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// uninstalled apps), in catalog order, filtered by the current search query.
     // Internal, not private: the agent broker reports this so a functional
     // test can assert what the Launchpad is actually showing.
-    func _launcherFilteredApps() -> [LauncherApp] {
-        let all = AppRegistry.shared.installedApps.map { rec in
+    /// Every installed app as the launcher draws it, in registry order.
+    func _launcherAllApps() -> [LauncherApp] {
+        AppRegistry.shared.installedApps.map { rec in
             LauncherApp(
                 appId: rec.id,
                 title: rec.name,
                 iconType: Self.iconType(named: rec.glyph),
                 bgColor: Color(Int(rec.color) | 0xFF00_0000),
-                textureId: iconTextures[rec.id]
+                textureId: iconTextures[rec.id],
+                category: rec.category
             )
         }
+    }
+
+    func _launcherFilteredApps() -> [LauncherApp] {
+        let all = _launcherAllApps()
         let q = _launcherQuery.trimmingCharacters(in: .whitespaces).lowercased()
         if q.isEmpty { return all }
         return all.filter { $0.title.lowercased().contains(q) }

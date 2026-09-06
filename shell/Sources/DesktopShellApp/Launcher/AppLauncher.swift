@@ -18,14 +18,18 @@ struct LauncherApp {
     /// third-party ones that are installed without a resolvable raster icon;
     /// both fall back to `iconType`'s painted glyph.
     let textureId: Int64?
+    /// The registry's `Category=`, for Start's category view; empty when
+    /// the record has none.
+    let category: String
 
     init(appId: String, title: String, iconType: IconType, bgColor: Color,
-         textureId: Int64? = nil) {
+         textureId: Int64? = nil, category: String = "") {
         self.appId = appId
         self.title = title
         self.iconType = iconType
         self.bgColor = bgColor
         self.textureId = textureId
+        self.category = category
     }
 }
 

@@ -256,6 +256,12 @@ protocol ShellChrome: AnyObject {
     /// the pointer rests on it, or nil when closed or in a style without it.
     func snapLayouts() -> Widget?
 
+    /// Whatever the launcher hangs above itself — Start's tile menu, its
+    /// power flyout, the power confirm dialog — or nil when nothing is open.
+    /// Drawn above the launcher, and regardless of whether the launcher
+    /// itself is still up: the dialog outlives Start.
+    func launcherOverlays() -> Widget?
+
     /// Anything the bar hangs ABOVE itself on hover — Windows' live window
     /// previews. nil in a style that draws its hover feedback inside its own
     /// box, as the macOS dock does with its name bubble.
@@ -461,6 +467,8 @@ final class MacosChrome: ShellChrome {
     /// own long-press menu is a later port.
     func windowMenu() -> Widget? { nil }
     func snapLayouts() -> Widget? { nil }
+    /// Launchpad has no menus of its own; power lives in the menu bar.
+    func launcherOverlays() -> Widget? { nil }
 
     func notePointerHover(x: Double, y: Double, outputId: Int) {
         shell._updateDockHover(x: x, y: y, outputId: outputId)

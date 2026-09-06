@@ -866,6 +866,7 @@ extension _DesktopShellState {
     /// immediately: the click path learned about workspaces and Enter did not,
     /// so typing the app's name put it on the desktop instead.
     func _launchFromLauncher(_ appId: String) {
+        _noteAppLaunch(appId)
         let driverTarget = _launcherDriverTarget
         setState {
             _launcherOpen = false
