@@ -3916,6 +3916,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     windowInfo: win,
                     isFocused: isFocused,
                     isTopBarRevealed: windowTopBarRevealed,
+                    appIcon: fluentIconVisual(appId: win.appId, size: 16),
                     onBringToFront: { [self] in
                         setState {
                             windowManager.bringToFront(winId)
@@ -4679,6 +4680,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         return DesktopWindow(
             windowInfo: win,
             isFocused: isFocused,
+            appIcon: fluentIconVisual(appId: win.appId, size: 16),
             onBringToFront: { [self] in setState { windowManager.bringToFront(winId) } },
             onMove: { [self] (delta: Offset) in
                 if windowManager.tilingEnabled { return }

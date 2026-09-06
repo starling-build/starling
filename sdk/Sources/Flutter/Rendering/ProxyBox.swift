@@ -851,14 +851,22 @@ open class RenderAnimatedOpacity: RenderProxyBox, RenderAnimatedOpacityProtocol 
 
     /// Paints the child with the animated opacity.
     ///
-    /// If alpha is 0, painting is skipped entirely.
+    /// Alpha 0 paints nothing and 255 paints the child straight; anything
+    /// between goes through an opacity layer, exactly as `RenderOpacity`
+    /// does. It used to paint the child straight for EVERY non-zero alpha,
+    /// so a `FadeTransition` was a one-frame blink at its end rather than a
+    /// fade — the reason the desktop's window motion was scale-only.
     ///
     /// **Dart Source:** `proxy_box.dart:1072-1077`
     open override func paint(_ context: PaintingContext, _ offset: Offset) {
-        if animatedAlpha == 0 {
+        guard let child, let alpha = animatedAlpha, alpha != 0 else { return }
+        if alpha == 255 {
+            context.paintChild(child, offset)
             return
         }
-        super.paint(context, offset)
+        _ = context.pushOpacity(offset, alpha, { ctx, off in
+            ctx.paintChild(child, off)
+        })
     }
 
     // MARK: - Semantics

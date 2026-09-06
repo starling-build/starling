@@ -172,6 +172,14 @@ error" kind:
   appeared under a resting pointer. Anything in `FluentUI/` that waits uses
   `FluentDelay` (`Styles/FluentDelay.swift`, a one-shot on the frame clock);
   `TextBox`'s caret still has a Foundation timer and is the next to move.
+- **`RenderAnimatedOpacity` never pushed an opacity layer.** It painted
+  its child straight for every non-zero alpha, so a `FadeTransition` was a
+  one-frame blink at its end — the desktop's window motion stayed
+  scale-only for months on the strength of a comment recording exactly
+  that. It now paints through `pushOpacity` like `RenderOpacity`
+  (`Tests/FlutterTests/Rendering/AnimatedOpacityTests.swift` pins it). A
+  transition that "does nothing" on this port: check the render object
+  pushes its layer before blaming the compositor.
 - **`Text(rich:)` dropped its `style:` and the ambient DefaultTextStyle.**
   Dart hangs a rich span under the effective style; the port handed the
   span over bare, so a tooltip's caption painted in the paragraph default —

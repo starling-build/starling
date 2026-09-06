@@ -26,6 +26,8 @@ class FluentTitleBar: StatefulWidget {
     let isFocused: Bool
     let isMaximized: Bool
     let isFullscreen: Bool
+    /// The app's icon, drawn 16px square at the left of the caption.
+    let icon: Widget?
     let onMove: ((Offset) -> Void)?
     let onMinimize: (() -> Void)?
     let onMaximize: (() -> Void)?
@@ -37,6 +39,7 @@ class FluentTitleBar: StatefulWidget {
         isFocused: Bool,
         isMaximized: Bool,
         isFullscreen: Bool = false,
+        icon: Widget? = nil,
         onMove: ((Offset) -> Void)? = nil,
         onMinimize: (() -> Void)? = nil,
         onMaximize: (() -> Void)? = nil,
@@ -47,6 +50,7 @@ class FluentTitleBar: StatefulWidget {
         self.isFocused = isFocused
         self.isMaximized = isMaximized
         self.isFullscreen = isFullscreen
+        self.icon = icon
         self.onMove = onMove
         self.onMinimize = onMinimize
         self.onMaximize = onMaximize
@@ -78,6 +82,11 @@ class _FluentTitleBarState: State<StatefulWidget> {
     private static let kButtonWidth: Double = 46
     private static let kGlyphSize: Double = 12
 
+    /// Windows' caption geometry for the left half: a 16px app icon 16 from
+    /// the edge, and the title 16 from the icon.
+    private static let kIconSize: Double = 16
+    private static let kIconInset: Double = 16
+
     private var w: FluentTitleBar { widget as! FluentTitleBar }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -87,6 +96,51 @@ class _FluentTitleBarState: State<StatefulWidget> {
         let titleColor = w.isFocused
             ? shellTheme.titleTextActive
             : shellTheme.titleTextInactive
+        // Inactive, every element of the caption dims — the icon by the same
+        // ratio the title's ink does, so the two agree.
+        let inactiveOpacity = shellTheme.titleTextActive.alpha == 0 ? 1.0
+            : Double(shellTheme.titleTextInactive.alpha) / Double(shellTheme.titleTextActive.alpha)
+
+        var rowChildren: [Widget] = [SizedBox(width: _FluentTitleBarState.kIconInset)]
+        if let icon = w.icon {
+            rowChildren.append(SizedBox(
+                width: _FluentTitleBarState.kIconSize,
+                height: _FluentTitleBarState.kIconSize,
+                child: Opacity(opacity: w.isFocused ? 1.0 : inactiveOpacity, child: icon)))
+            rowChildren.append(SizedBox(width: _FluentTitleBarState.kIconInset))
+        }
+        rowChildren.append(contentsOf: [
+            // The title is left-aligned, not centred: Windows reads the bar
+            // left to right, and the trio at the right needs the whole rest
+            // of the row.
+            Expanded(
+                child: Text(
+                    w.title,
+                    style: TextStyle(
+                        color: titleColor,
+                        fontSize: 12,
+                        fontWeight: .w400, fontFamily: shellTheme.fontFamily),
+                    overflow: .ellipsis,
+                    maxLines: 1
+                )
+            ),
+            SizedBox(width: 8),
+            _captionButton(
+                icon: FluentSystemIcons.chromeMinimize,
+                onTap: w.onMinimize
+            ),
+            _captionButton(
+                icon: w.isMaximized
+                    ? FluentSystemIcons.chromeRestore
+                    : FluentSystemIcons.chromeMaximize,
+                onTap: w.onMaximize
+            ),
+            _captionButton(
+                icon: FluentSystemIcons.chromeClose,
+                isClose: true,
+                onTap: w.onClose
+            ),
+        ])
 
         return Listener(
             onPointerDown: { [self] event in
@@ -119,41 +173,7 @@ class _FluentTitleBarState: State<StatefulWidget> {
                 height: DesktopTheme.kTitleBarHeight,
                 child: ColoredBox(
                     color: bgColor,
-                    child: Row(
-                        children: [
-                            SizedBox(width: 12),
-                            // The title is left-aligned, not centred: Windows
-                            // reads the bar left to right, and the trio at the
-                            // right needs the whole rest of the row.
-                            Expanded(
-                                child: Text(
-                                    w.title,
-                                    style: TextStyle(
-                                        color: titleColor,
-                                        fontSize: 12,
-                                        fontWeight: .w400, fontFamily: shellTheme.fontFamily),
-                                    overflow: .ellipsis,
-                                    maxLines: 1
-                                )
-                            ),
-                            SizedBox(width: 8),
-                            _captionButton(
-                                icon: FluentSystemIcons.chromeMinimize,
-                                onTap: w.onMinimize
-                            ),
-                            _captionButton(
-                                icon: w.isMaximized
-                                    ? FluentSystemIcons.chromeRestore
-                                    : FluentSystemIcons.chromeMaximize,
-                                onTap: w.onMaximize
-                            ),
-                            _captionButton(
-                                icon: FluentSystemIcons.chromeClose,
-                                isClose: true,
-                                onTap: w.onClose
-                            ),
-                        ]
-                    )
+                    child: Row(children: rowChildren)
                 )
             )
         )

@@ -110,6 +110,8 @@ class DesktopWindow: StatelessWidget {
     /// the cursor is currently in the system status bar area. Ignored when
     /// the window is not fullscreen (title bar is always shown then).
     let isTopBarRevealed: Bool
+    /// The owning app's icon at 16px, for a title bar that shows one.
+    let appIcon: Widget?
     let onBringToFront: (() -> Void)?
     let onMove: ((Offset) -> Void)?
     let onResize: ((ResizeEdge, Offset) -> Void)?
@@ -123,6 +125,7 @@ class DesktopWindow: StatelessWidget {
         windowInfo: WindowInfo,
         isFocused: Bool,
         isTopBarRevealed: Bool = false,
+        appIcon: Widget? = nil,
         onBringToFront: (() -> Void)? = nil,
         onMove: ((Offset) -> Void)? = nil,
         onResize: ((ResizeEdge, Offset) -> Void)? = nil,
@@ -134,6 +137,7 @@ class DesktopWindow: StatelessWidget {
         self.windowInfo = windowInfo
         self.isFocused = isFocused
         self.isTopBarRevealed = isTopBarRevealed
+        self.appIcon = appIcon
         self.onBringToFront = onBringToFront
         self.onMove = onMove
         self.onResize = onResize
@@ -160,6 +164,7 @@ class DesktopWindow: StatelessWidget {
             isFocused: isFocused,
             isMaximized: windowInfo.isMaximized,
             isFullscreen: isFullscreen,
+            icon: appIcon,
             onMove: onMove,
             onMinimize: onMinimize,
             onMaximize: onMaximize,
@@ -217,32 +222,33 @@ class DesktopWindow: StatelessWidget {
 
         var stackChildren: [Widget] = []
 
-        // Liquid-glass backdrop: frost whatever sits behind the window
-        // (wallpaper, other windows) inside the rounded clip. The title bar
-        // and any translucency the app leaves in its buffer show it
-        // through; opaque content simply covers it. Skipped in fullscreen —
-        // content is edge-to-edge and the blur would be pure cost.
+        // The window's material, under the title bar and whatever
+        // translucency the app leaves in its buffer; opaque content simply
+        // covers it. Skipped in fullscreen — content is edge-to-edge.
+        //
+        // Glass (macOS) is a live blur of what sits behind the window,
+        // tinted. Mica (Windows) is NOT a blur: one wallpaper sample resolved
+        // into an opaque colour, once, which is what makes it cheap enough
+        // for every window — so the acrylic material paints a flat fill and
+        // no BackdropFilter at all. The focused window gets the material,
+        // the rest the style's inactive surface.
         if !isFullscreen {
+            let surface = isFocused
+                ? shellTheme.windowGlassTint
+                : shellTheme.windowSurfaceInactive
+            let fill: Widget = ColoredBox(color: surface, child: SizedBox(expand: ()))
+            let material: Widget
+            switch shellTheme.material {
+            case .glass:
+                material = ClipRect(
+                    child: BackdropFilter(
+                        filter: ShellPalette.frostFilter(blurSigma: 18),
+                        child: fill))
+            case .acrylic:
+                material = fill
+            }
             stackChildren.append(
-                Positioned(
-                    fill: (),
-                    child: IgnorePointer(
-                        child: ClipRect(
-                            child: BackdropFilter(
-                                filter: ShellPalette.frostFilter(blurSigma: 18),
-                                child: ColoredBox(
-                                    // The focused window gets the style's
-                                    // material; the rest its inactive surface.
-                                    color: isFocused
-                                        ? shellTheme.windowGlassTint
-                                        : shellTheme.windowSurfaceInactive,
-                                    child: SizedBox(expand: ())
-                                )
-                            )
-                        )
-                    )
-                )
-            )
+                Positioned(fill: (), child: IgnorePointer(child: material)))
         }
         stackChildren.append(windowBody)
 
@@ -289,11 +295,28 @@ class DesktopWindow: StatelessWidget {
                 onBringToFront?()
             },
             behavior: .deferToChild,
-            child: ClipRRect(
-                borderRadius: BorderRadius.all(Radius(circular: cornerRadius)),
-                child: Stack(children: stackChildren)
-            )
+            child: _shadowed(
+                ClipRRect(
+                    borderRadius: BorderRadius.all(Radius(circular: cornerRadius)),
+                    child: Stack(children: stackChildren)
+                ),
+                cornerRadius: cornerRadius,
+                square: isSquare)
         )
+    }
+
+    /// The style's window shadow, painted OUTSIDE the rounded clip (a
+    /// decoration casts beyond its box; the clip inside it does not reach
+    /// the shadow). None for a square window: maximized and fullscreen
+    /// windows meet the work area's edges and cast nothing.
+    private func _shadowed(_ child: Widget, cornerRadius: Double, square: Bool) -> Widget {
+        let shadow = shellTheme.windowShadow
+        guard !square, !shadow.isEmpty else { return child }
+        return DecoratedBox(
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.all(Radius(circular: cornerRadius)),
+                boxShadow: shadow),
+            child: child)
     }
 }
 

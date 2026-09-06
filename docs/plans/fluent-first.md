@@ -52,6 +52,25 @@ fallback) in both its body and its caption; apps assume Fluent when no
 style has been pushed; the styles paragraph in `CLAUDE.md` is rewritten per
 §3 and the 2025 prerequisites audit carries a status header.
 
+**Phase 1, first slice, 2026-09-06:** the framework's `RenderAnimatedOpacity`
+painted its child straight for every non-zero alpha — the documented reason
+window motion was scale-only — and now paints through an opacity layer like
+`RenderOpacity` (unit-tested). On that: window motion is per style
+(`ShellMotion` on the spec): Windows grows a window in place from 94% with a
+fade over the direct entrance, lets it go over the direct exit, and minimise
+flies to the taskbar tile fading; macOS keeps its scale effect untouched.
+Fluent windows sit on Mica proper (the SDK's recipe over the wallpaper
+sample, one opaque colour, no `BackdropFilter` — the glass blur is now
+macOS-only), cast the elevation-128 shadow when windowed and none when
+maximized, and the caption carries the app's 16px icon 16 from the edge with
+the title 16 from it, dimmed with the title when inactive. Still to do in
+this phase: the caption's right-click system menu, snap layouts on hovering
+maximize (and Win+arrows), and the shared flyout entrance for the chrome's
+own panels. Verified on screen: icon, spacing, Mica, shadow (a luminance
+ramp into every windowed edge), no shadow maximized, inactive solid; the
+fade itself is too short (167–250 ms) for the 250 ms screenshot path and the
+frame recorder returned black, so it rests on the unit test and the wiring.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*

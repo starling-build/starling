@@ -7,27 +7,27 @@ import Foundation
 
 // MARK: - WindowLifecycleAnimation
 
-/// macOS "scale effect" window lifecycle animations.
+/// Window lifecycle animations, shaped by the active style's `ShellMotion`.
 ///
-/// Open (and restore from minimize — both mount a fresh element): the
-/// window's rect interpolates from a small rect on its dock icon to its
-/// final position over 380ms of easeInOutCubic — the straight rectangular
-/// zoom of macOS's scale effect (no genie warp). `zoomFrom` is the offset
-/// from the window's center to the icon in global px; without it the
-/// window falls back to an in-place 88% -> 100% pop.
+/// macOS's scale effect: open (and restore from minimize — both mount a
+/// fresh element) interpolates the window's rect from a small rect on its
+/// dock icon to its final position, 380 ms easeInOutCubic, the straight
+/// rectangular zoom (no genie warp). `zoomFrom` is the offset from the
+/// window's centre to the icon in global px; without it the window pops in
+/// place from 88%. Minimize is the same zoom in reverse; close shrinks in
+/// place to 72% in 160 ms (macOS close does not travel to the dock). Opaque
+/// throughout.
 ///
-/// Minimize: the same zoom in reverse — the window flies into its dock
-/// icon with input ignored, then `onMinimized` fires and the owner
-/// actually minimizes it (removal is deferred so the animation plays over
-/// live content).
+/// Windows' direct entrance and exit: the window grows where it is from
+/// 94% with a fade over 250 ms on the decelerate curve, leaves the same way
+/// in 167 ms, and minimize flies to the taskbar tile, fading. The fade is a
+/// `FadeTransition`, which needed the framework's `RenderAnimatedOpacity`
+/// to actually blend partial alpha — it used to gate at 0 and paint straight
+/// otherwise, which is why this was scale-only for so long.
 ///
-/// Close: the child shrinks in place to 72% (160ms, easeIn — macOS close
-/// does not travel to the dock) with input ignored, then `onClosed` fires
-/// for the real teardown.
-///
-/// Scale-only on purpose: this framework's RenderAnimatedOpacity gates at
-/// alpha 0 but doesn't blend partial alpha, so a fade would read as a
-/// one-frame blink rather than a fade — the scale carries the effect.
+/// In both, minimize and close ignore input while they play, and the owner
+/// tears the window down only from `onMinimized`/`onClosed`, so the
+/// animation runs over live content.
 final class WindowLifecycleAnimation: StatefulWidget {
     let closing: Bool
     let minimizing: Bool
@@ -69,14 +69,18 @@ private final class _WindowLifecycleAnimationState: State<StatefulWidget>, Ticke
 
     private var _widget: WindowLifecycleAnimation { widget as! WindowLifecycleAnimation }
 
+    /// The style's motion, read at each transition so a style switch
+    /// mid-life takes effect on the next open, close or minimize.
+    private var motion: ShellMotion { shellStyle.motion }
+
     func createTicker(_ onTick: @escaping TickerCallback) -> Ticker {
         return Ticker(onTick)
     }
 
     override func initState() {
         super.initState()
-        _controller = AnimationController(duration: .milliseconds(380), vsync: self)
-        _curved = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic)
+        _controller = AnimationController(duration: motion.open.duration, vsync: self)
+        _curved = CurvedAnimation(parent: _controller, curve: motion.open.curve)
         _controller.addStatusListener { [weak self] status in
             guard let self, status == .completed else { return }
             if self._closing {
@@ -118,19 +122,19 @@ private final class _WindowLifecycleAnimationState: State<StatefulWidget>, Ticke
     private func _startClose() {
         _closing = true
         _controller.stop()
-        _controller.duration = .milliseconds(160)
-        _closeScale = CurvedAnimation(parent: _controller, curve: Curves.easeIn)
-            .drive(DoubleTween(begin: 1.0, end: 0.72))
+        _controller.duration = motion.close.duration
+        _curved = CurvedAnimation(parent: _controller, curve: motion.close.curve)
+        _closeScale = _curved.drive(DoubleTween(begin: 1.0, end: motion.close.scale))
         _ = _controller.forward(from: 0)
     }
 
-    /// Retarget to the reverse zoom — the window flies into its dock icon.
+    /// Retarget to the reverse zoom — the window flies into its bar tile.
     private func _startMinimize() {
         _minimizing = true
         _openDone = false
         _controller.stop()
-        _controller.duration = .milliseconds(380)
-        _curved = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic)
+        _controller.duration = motion.minimize.duration
+        _curved = CurvedAnimation(parent: _controller, curve: motion.minimize.curve)
         _ = _controller.forward(from: 0)
     }
 
@@ -144,48 +148,58 @@ private final class _WindowLifecycleAnimationState: State<StatefulWidget>, Ticke
     /// the eased parameter — center travels icon -> window while the size
     /// scales 5% -> 100% about that center.
     private func _zoom(_ e: Double, offset: Offset, child: Widget) -> Widget {
-        let s = 0.05 + 0.95 * e
+        let s = motion.barScale + (1 - motion.barScale) * e
         return Transform(
             translate: Offset(offset.dx * (1 - e), offset.dy * (1 - e)),
             child: Transform(scale: s, child: child)
         )
     }
 
+    /// The style's fade, on the current curve: in (0 → 1) for an entrance,
+    /// out (1 → 0) for an exit. A style that does not fade gets the child
+    /// back untouched.
+    private func _faded(_ child: Widget, out: Bool) -> Widget {
+        guard motion.fades else { return child }
+        return FadeTransition(
+            opacity: _curved.drive(DoubleTween(begin: out ? 1.0 : 0.0, end: out ? 0.0 : 1.0)),
+            child: child)
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         if _closing {
             // A closing window no longer accepts input.
             return IgnorePointer(
-                child: ScaleTransition(scale: _closeScale!, child: _widget.child))
+                child: _faded(ScaleTransition(scale: _closeScale!, child: _widget.child), out: true))
         }
         if _minimizing {
-            // Reverse zoom into the dock (in-place shrink if no icon known).
+            // Reverse zoom into the bar tile (in-place shrink if none known).
             let offset = _widget.zoomFrom ?? Offset(0, 0)
             return IgnorePointer(
-                child: AnimatedBuilder(
+                child: _faded(AnimatedBuilder(
                     animation: _controller,
                     builder: { [self] _, child in
                         _zoom(1 - _curved.value, offset: offset, child: child!)
                     },
                     child: _widget.child
-                )
+                ), out: true)
             )
         }
         if _openDone {
             return _widget.child
         }
-        guard let zoom = _widget.zoomFrom else {
-            // No dock origin known: in-place pop.
-            return ScaleTransition(
-                scale: _curved.drive(DoubleTween(begin: 0.88, end: 1.0)),
-                child: _widget.child)
+        guard let zoom = _widget.zoomFrom, motion.opensFromBar else {
+            // Grow in place: the style's way, or no bar origin known.
+            return _faded(ScaleTransition(
+                scale: _curved.drive(DoubleTween(begin: motion.open.scale, end: 1.0)),
+                child: _widget.child), out: false)
         }
-        return AnimatedBuilder(
+        return _faded(AnimatedBuilder(
             animation: _controller,
             builder: { [self] _, child in
                 _zoom(_curved.value, offset: zoom, child: child!)
             },
             child: _widget.child
-        )
+        ), out: false)
     }
 }
 

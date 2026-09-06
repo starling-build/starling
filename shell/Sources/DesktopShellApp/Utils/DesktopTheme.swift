@@ -157,6 +157,9 @@ struct ShellTheme {
     let titleTextInactive: Color
     let windowBorderFocused: Color
     let windowBorderUnfocused: Color
+    /// The shadow under a windowed (not maximized, not fullscreen) window.
+    /// Empty for a style that draws none.
+    let windowShadow: [BoxShadow]
     let trafficLightInactive: Color
 
     // Full-screen overlays (app launcher, Mission Control). The scrim
@@ -218,7 +221,7 @@ struct ShellTheme {
     let material: ShellMaterial
 
     /// The shipped dark look.
-    static let macosDark = ShellTheme(
+    nonisolated(unsafe) static let macosDark = ShellTheme(
         name: "Dark",
         isDark: true,
         fgPrimary: Color(0xFFFFFFFF),
@@ -249,6 +252,7 @@ struct ShellTheme {
         titleTextInactive: Color(0x80FFFFFF),
         windowBorderFocused: Color(0x40FFFFFF),
         windowBorderUnfocused: Color(0x20FFFFFF),
+        windowShadow: [],
         trafficLightInactive: Color(0x40FFFFFF),
         overlayScrim: Color(0xA80E0E12),
         overlayText: Color(0xE6FFFFFF),
@@ -279,7 +283,7 @@ struct ShellTheme {
     /// macOS-style light appearance (Big Sur+): crisp near-opaque white
     /// frost chrome so panels read as white over any wallpaper, solid
     /// light title bars, dark-gray dock dots.
-    static let macosLight = ShellTheme(
+    nonisolated(unsafe) static let macosLight = ShellTheme(
         name: "Light",
         isDark: false,
         fgPrimary: Color(0xD9000000),
@@ -315,6 +319,7 @@ struct ShellTheme {
         titleTextInactive: Color(0x59000000),
         windowBorderFocused: Color(0x30000000),
         windowBorderUnfocused: Color(0x1F000000),
+        windowShadow: [],
         trafficLightInactive: Color(0x33000000),
         overlayScrim: Color(0x800E0E12),
         overlayText: Color(0xE6FFFFFF),

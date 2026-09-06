@@ -120,6 +120,61 @@ struct ShellMetrics {
     )
 }
 
+// MARK: - ShellMotion
+
+/// How a window arrives and leaves, per style. Behaviour rather than paint:
+/// macOS's "scale effect" zooms a window out of its dock icon, opaque the
+/// whole way, and Windows grows it in place from 94% with a fade — 250 ms on
+/// the decelerate curve, the direct entrance every Windows surface shares —
+/// and lets it go the same way in 167 ms.
+struct ShellMotion {
+    struct Step {
+        let duration: Duration
+        let curve: any Curve
+        /// The scale at the far end: where an opening window starts from,
+        /// where a closing one ends up.
+        let scale: Double
+    }
+
+    let open: Step
+    let close: Step
+    let minimize: Step
+
+    /// Whether the window fades as it scales. macOS's effect is opaque
+    /// throughout; Windows' is not.
+    let fades: Bool
+
+    /// Whether opening travels from the bar's tile, as macOS's does, or the
+    /// window grows where it is. Minimising travels to the tile in both.
+    let opensFromBar: Bool
+
+    /// The window's size, as a fraction of itself, when it is at the tile.
+    let barScale: Double
+
+    nonisolated(unsafe) static let macos = ShellMotion(
+        open: Step(duration: .milliseconds(380), curve: Curves.easeInOutCubic, scale: 0.88),
+        close: Step(duration: .milliseconds(160), curve: Curves.easeIn, scale: 0.72),
+        minimize: Step(duration: .milliseconds(380), curve: Curves.easeInOutCubic, scale: 0.05),
+        fades: false,
+        opensFromBar: true,
+        barScale: 0.05
+    )
+
+    /// Windows 11, from the SDK's motion tokens: direct entrance in, direct
+    /// exit out, both fading; minimise flies to the taskbar tile.
+    nonisolated(unsafe) static let fluent = ShellMotion(
+        open: Step(duration: FluentMotion.directEntrance.duration,
+                   curve: FluentMotion.directEntrance.curve, scale: 0.94),
+        close: Step(duration: FluentMotion.directExit.duration,
+                    curve: FluentMotion.directExit.curve, scale: 0.94),
+        minimize: Step(duration: FluentMotion.directEntrance.duration,
+                       curve: FluentMotion.directEntrance.curve, scale: 0.05),
+        fades: true,
+        opensFromBar: false,
+        barScale: 0.05
+    )
+}
+
 // MARK: - TitleBarParams
 
 /// Everything a title bar needs, in one value. A title bar is the one piece of
@@ -131,6 +186,9 @@ struct TitleBarParams {
     let isFocused: Bool
     let isMaximized: Bool
     let isFullscreen: Bool
+    /// The app's icon at 16px, for a style that shows one (Windows does, at
+    /// the left of the caption; macOS does not).
+    let icon: Widget?
     let onMove: ((Offset) -> Void)?
     let onMinimize: (() -> Void)?
     let onMaximize: (() -> Void)?
@@ -226,6 +284,9 @@ struct ShellStyleSpec {
 
     let metrics: ShellMetrics
 
+    /// How its windows open, close and minimise.
+    let motion: ShellMotion
+
     /// Built on demand rather than stored as two values, because a palette
     /// can depend on things outside itself: the Fluent one is a function of
     /// the WALLPAPER (see `shellMica`), so it has to be re-resolved when the
@@ -271,6 +332,7 @@ enum ShellStyles {
         id: "macos",
         name: "macOS",
         metrics: .macos,
+        motion: .macos,
         makeTheme: { $0 ? .macosDark : .macosLight },
         maximizeIsFullscreen: true,
         makeTitleBar: { p in
@@ -298,6 +360,7 @@ enum ShellStyles {
         id: "fluent",
         name: "Windows",
         metrics: .fluent,
+        motion: .fluent,
         makeTheme: { ShellTheme.fluent(dark: $0, mica: shellMica) },
         maximizeIsFullscreen: false,
         makeTitleBar: { p in
@@ -306,6 +369,7 @@ enum ShellStyles {
                 isFocused: p.isFocused,
                 isMaximized: p.isMaximized,
                 isFullscreen: p.isFullscreen,
+                icon: p.icon,
                 onMove: p.onMove,
                 onMinimize: p.onMinimize,
                 onMaximize: p.onMaximize,
@@ -419,14 +483,14 @@ extension ShellTheme {
         let r = fluent.resources
         let accent = fluent.accentColor.normal
 
-        /// Mica: a base leaned toward the wallpaper's average. Windows applies
-        /// it to WINDOW backgrounds only -- flyouts get plain acrylic -- and
-        /// leaning both is what put our Start three shades too dark.
-        func mica(_ base: Color, _ amount: Double) -> Color {
-            guard let tint else { return base }
-            return base.mixed(toward: tint, by: amount)
-        }
-        let micaBase = mica(fluent.micaBackgroundColor, dark ? 0.15 : 0.20)
+        /// Mica proper, from the SDK's recipe — WinUI's MicaController
+        /// defaults, the base tint at its luminosity opacity over the
+        /// wallpaper's sample — in place of a hand-mixed lean toward the
+        /// sample. Windows applies it to WINDOW backgrounds only; flyouts get
+        /// plain acrylic, and leaning both is what put our Start three
+        /// shades too dark.
+        let brightness: Brightness = dark ? .dark : .light
+        let micaBase = Mica.color(kind: .base, brightness: brightness, sample: tint)
 
         return ShellTheme(
             name: dark ? "Dark" : "Light",
@@ -475,6 +539,9 @@ extension ShellTheme {
             titleTextInactive: r.textFillColorTertiary,
             windowBorderFocused: r.surfaceStrokeColorDefault,
             windowBorderUnfocused: r.controlStrokeColorSecondary,
+            // Every window sits at elevation 128, Fluent 2's two-layer
+            // recipe; a maximized one touches the work area and casts none.
+            windowShadow: FluentElevation.shadows(FluentElevation.window, brightness: brightness),
             trafficLightInactive: r.controlStrongFillColorDisabled,
             overlayScrim: r.smokeFillColorDefault,
             overlayText: r.textFillColorPrimary,
