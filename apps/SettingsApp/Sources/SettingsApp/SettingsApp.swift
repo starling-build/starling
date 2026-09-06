@@ -3,7 +3,7 @@
 
 import Flutter
 import FlutterSwiftBridge
-import CupertinoIcons
+import FluentSystemIcons
 import Foundation
 import Observation
 import StarlingNet
@@ -43,6 +43,10 @@ private struct Palette {
     let fieldBorder: Color
     let glassCanvas: Color
     let glassSidebar: Color
+    /// A settings card and its edge, and the rule between rows on one.
+    let cardFill: Color
+    let cardStroke: Color
+    let hairline: Color
     /// The face the active style sets its text in, or nil for the default.
     let fontFamily: String?
     let fontFamilyStrong: String?
@@ -64,6 +68,9 @@ private struct Palette {
                             green: p.canvas.g, blue: p.canvas.b)
         glassSidebar = Color(alpha: 1.0, red: p.sidebar.r,
                              green: p.sidebar.g, blue: p.sidebar.b)
+        cardFill = p.surface
+        cardStroke = p.hairline
+        hairline = p.hairline
         fontFamily = p.fontFamily
         fontFamilyStrong = p.fontFamilyStrong
     }
@@ -73,7 +80,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
 
     let bloc = SettingsBloc()
 
-    /// Refreshed from MacosTheme at every build; read by the section
+    /// Refreshed from the Fluent theme at every build; read by the section
     /// builders (they don't take a BuildContext).
     private var pal = Palette(dark: true)
 
@@ -81,7 +88,6 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         super.initState()
         settingsBlocShared = bloc
         bloc.add(.loadInitialData)
-        CupertinoIcons.registerFont()
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -96,200 +102,84 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
 
     // MARK: - Content
 
+    /// The panes, in the order the sidebar lists them. The index is what the
+    /// bloc stores as `selectedIndex` and what the search box resolves a
+    /// name to.
+    private static let _panes: [(title: String, icon: IconData)] = [
+        ("General",      FluentSystemIcons.system),
+        ("Network",      FluentSystemIcons.wifiFull),
+        ("Displays",     FluentSystemIcons.desktop),
+        ("Sound",        FluentSystemIcons.volume),
+        ("Date & Time",  FluentSystemIcons.clock),
+        ("Default Apps", FluentSystemIcons.appDefault),
+        ("Appearance",   FluentSystemIcons.personalize),
+        ("Power",        FluentSystemIcons.battery),
+        ("Sharing",      FluentSystemIcons.share),
+        ("About",        FluentSystemIcons.info),
+    ]
+
+    /// Windows Settings' shape: a NavigationView with the search box at the
+    /// top of the pane and the categories under it; the selected category's
+    /// page on the right under a 28pt title, its settings on cards.
     private func _buildContent(_ context: any BuildContext) -> Widget {
-        let theme = MacosTheme.of(context)
+        let theme = FluentTheme.of(context)
         pal = Palette(dark: theme.brightness == .dark)
         let s = bloc.state
-
-        return MacosScaffold(
-            children: [
-                // Sidebar (macOS System Settings style: search field on top,
-                // rows with colored rounded icon tiles, blue selection pill)
-                MacosSidebar(
-                    minWidth: 200,
-                    maxWidth: 200,
-                    top: Padding(
-                        padding: EdgeInsets(left: 12, top: 12, right: 12, bottom: 10),
-                        child: _searchField()
-                    ),
-                    decoration: BoxDecoration(
-                        color: pal.glassSidebar,
-                        border: Border(
-                            right: BorderSide(color: theme.dividerColor, width: 1)
-                        )
-                    ),
-                    builder: { [self] (ctx: any BuildContext, _: ScrollController) in
-                        return Padding(
-                            padding: EdgeInsets(horizontal: 8),
-                            child: Column(
-                                children: [
-                                    // Tile hues sit in the same muted band as
-                                    // the shell's dock/launcher icon palette.
-                                    self._sidebarItem(index: 0, icon: CupertinoIcons.gear,
-                                                      tile: Color(0xFF737B89), label: "General", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 1, icon: CupertinoIcons.wifi,
-                                                      tile: Color(0xFF5C8FD6), label: "Network", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 2, icon: CupertinoIcons.desktopcomputer,
-                                                      tile: Color(0xFF4880C8), label: "Displays", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 3, icon: CupertinoIcons.speaker_2_fill,
-                                                      tile: Color(0xFFC9884E), label: "Sound", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 4, icon: CupertinoIcons.clock_fill,
-                                                      tile: Color(0xFF5CA0A8), label: "Date & Time", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 5, icon: CupertinoIcons.square_grid_2x2_fill,
-                                                      tile: Color(0xFF7B8FD0), label: "Default Apps", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 6, icon: CupertinoIcons.paintbrush_fill,
-                                                      tile: Color(0xFF8A70CE), label: "Appearance", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 7, icon: CupertinoIcons.battery_100,
-                                                      tile: Color(0xFF63A56E), label: "Power", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 8, icon: CupertinoIcons.antenna_radiowaves_left_right,
-                                                      tile: Color(0xFFB07BC4), label: "Sharing", selected: s.selectedIndex),
-                                    SizedBox(height: 2),
-                                    self._sidebarItem(index: 9, icon: CupertinoIcons.info_circle_fill,
-                                                      tile: Color(0xFF4FA4B4), label: "About", selected: s.selectedIndex),
-                                ]
-                            )
-                        )
-                    }
-                ),
-                // Content area
-                Expanded(
-                    child: _buildPage(context, index: s.selectedIndex)
-                ),
-            ],
-            toolBar: MacosToolBar(
-                height: 52,
-                title: Text(
-                    _tabTitle(s.selectedIndex),
-                    style: TextStyle(
-                        color: pal.textStrong,
-                        fontSize: 15,
-                        fontWeight: .w600
-                    )
-                ),
-                // Transparent: the glass canvas shows through the toolbar.
-                decoration: BoxDecoration(color: Color(0x00000000)),
-                padding: EdgeInsets(horizontal: 16)
-            ),
-            backgroundColor: pal.glassCanvas
-        )
-    }
-
-    /// Decorative sidebar search field (macOS System Settings signature).
-    private func _searchField() -> Widget {
-        return SizedBox(
-            height: 26,
-            child: DecoratedBox(
-                decoration: BoxDecoration(
-                    color: pal.fieldFill,
-                    border: Border.all(color: pal.fieldBorder, width: 0.5),
-                    borderRadius: BorderRadius.all(Radius(circular: 6))
-                ),
-                child: Padding(
-                    padding: EdgeInsets(horizontal: 7),
-                    child: Row(children: [
-                        MacosIcon(icon: CupertinoIcons.search, color: pal.textPlaceholder, size: 12),
-                        SizedBox(width: 5),
-                        Text("Search", style: TextStyle(color: pal.textPlaceholder, fontSize: 12)),
-                    ])
-                )
-            )
-        )
-    }
-
-    /// macOS System Settings sidebar row: colored rounded icon tile + label,
-    /// with a solid accent-blue selection pill and white text when selected.
-    /// One sidebar row, in whichever desktop style is active.
-    ///
-    /// The two desktops disagree about this row in kind, not degree, and it
-    /// was the loudest remaining macOS tell inside a Windows-styled window:
-    ///
-    ///   macOS    a coloured squircle holding a white glyph, and the whole
-    ///            row fills with the accent when selected.
-    ///   Windows  a flat monochrome glyph with no container, and a selected
-    ///            row takes a SUBTLE fill with a short accent bar down its
-    ///            left edge -- the accent marks the row, it does not become
-    ///            the row.
-    ///
-    /// `tile` is the macOS squircle's colour and is simply unused in the
-    /// Windows style; it stays in the signature because it is the app's own
-    /// per-pane mark and the macOS style still wants it.
-    private func _sidebarItem(index: Int, icon: IconData, tile: Color,
-                              label: String, selected: Int) -> Widget {
-        let isSelected = index == selected
-        let windows = StarlingStyleId.current == .fluent
-
-        let glyph: Widget = windows
-            ? SizedBox(
-                width: 20, height: 20,
-                child: Center(
-                    child: MacosIcon(
-                        icon: icon,
-                        color: isSelected ? pal.accent : pal.textSecondary,
-                        size: 15)))
-            : SizedBox(
-                width: 20, height: 20,
-                child: DecoratedBox(
-                    decoration: BoxDecoration(
-                        color: tile,
-                        borderRadius: BorderRadius.all(Radius(circular: 5))
-                    ),
-                    child: Center(
-                        child: MacosIcon(icon: icon, color: Color(0xFFFFFFFF),
-                                         size: 12))))
-
-        // Windows keeps the label's own colour when selected, because the row
-        // behind it has not turned into the accent.
-        let labelColor = windows
-            ? pal.textPrimary
-            : (isSelected ? Color(0xFFFFFFFF) : pal.textPrimary)
-        let rowFill = windows
-            ? (isSelected ? pal.fieldFill : Color(0x00000000))
-            : (isSelected ? pal.accent : Color(0x00000000))
-
-        var row: [Widget] = []
-        if windows {
-            // The accent bar: 3pt, rounded, and present-but-invisible when
-            // the row is not selected so every row keeps the same indent.
-            row.append(SizedBox(
-                width: 3, height: 16,
-                child: DecoratedBox(
-                    decoration: BoxDecoration(
-                        color: isSelected ? pal.accent : Color(0x00000000),
-                        borderRadius: BorderRadius.all(Radius(circular: 2))))))
-            row.append(SizedBox(width: 9))
+        let selected = s.selectedIndex
+        var items: [NavigationPaneItem] = []
+        for (i, pane) in Self._panes.enumerated() {
+            items.append(PaneItem(
+                icon: Icon(pane.icon, size: 16),
+                title: Text(pane.title),
+                // Only the selected page is built: the others would be
+                // widget trees computed every frame for nothing. A
+                // placeholder rather than nil — the pane counts only items
+                // WITH a body, and a nil one would fall out of its index.
+                body: i == selected ? _page(context, index: i) : SizedBox(shrink: ())))
         }
-        row.append(glyph)
-        row.append(SizedBox(width: 8))
-        row.append(Expanded(
-            child: Text(label, style: TextStyle(
-                color: labelColor, fontSize: 13,
-                fontFamily: pal.fontFamily))))
-
-        return GestureDetector(
-            onTap: { [self] in bloc.add(.selectTab(index)) },
-            behavior: .opaque,
-            child: DecoratedBox(
-                decoration: BoxDecoration(
-                    color: rowFill,
-                    borderRadius: BorderRadius.all(Radius(circular: 5))
-                ),
-                child: Padding(
-                    padding: EdgeInsets(
-                        left: windows ? 4 : 8, top: 5,
-                        right: 8, bottom: 5),
-                    child: Row(children: row)
-                )
-            )
-        )
+        return NavigationView(
+            pane: NavigationPane(
+                selected: selected,
+                onChanged: { [self] (i: Int) in bloc.add(.selectTab(i)) },
+                items: items,
+                header: _searchBox(),
+                displayMode: .open))
     }
+
+    /// One page: Windows' title over the content, which scrolls.
+    private func _page(_ context: any BuildContext, index: Int) -> Widget {
+        return ScaffoldPage(
+            header: PageHeader(title: Text(_tabTitle(index))),
+            content: _buildPage(context, index: index),
+            padding: EdgeInsets(all: 0))
+    }
+
+    /// "Find a setting": the pane names, filtered as you type; picking one
+    /// opens it.
+    private func _searchBox() -> Widget {
+        var items: [AutoSuggestBoxItem] = []
+        for (i, pane) in Self._panes.enumerated() {
+            items.append(AutoSuggestBoxItem(
+                value: pane.title,
+                onTap: { [self] in bloc.add(.selectTab(i)) }))
+        }
+        return Padding(
+            padding: EdgeInsets(left: 12, top: 8, right: 12, bottom: 12),
+            child: AutoSuggestBox(
+                items: items,
+                onSelected: { [self] item in
+                    if let i = Self._panes.firstIndex(where: { $0.title == item.value }) {
+                        bloc.add(.selectTab(i))
+                    }
+                },
+                placeholderText: "Find a setting",
+                leadingIcon: Icon(FluentSystemIcons.search, size: 14),
+                clearOnSelect: true))
+    }
+
+    /// The content's inset under the page title. Windows sets the title and
+    /// the first card on the same left edge.
+    private static let _pagePadding = EdgeInsets(left: 24, top: 4, right: 24, bottom: 24)
 
     private func _tabTitle(_ index: Int) -> String {
         switch index {
@@ -328,14 +218,14 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
     private func _buildGeneralPage() -> Widget {
         let s = bloc.state
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: Column(
                 crossAxisAlignment: .start,
                 children: [
                     // System section
                     _sectionHeader("System Information"),
                     SizedBox(height: 12),
-                    _macosGroupBox([
+                    _card([
                         _settingsRow("Starling OS", "Version \(SystemInfo.starlingVersion())"),
                         _divider(),
                         _settingsRow("OS", s.osVersion),
@@ -367,18 +257,17 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 if i > 0 { rows.append(_divider()) }
                 rows.append(
                     _settingsRowWithTrailingIcon(
-                        CupertinoIcons.globe,
+                        FluentSystemIcons.ethernet,
                         link.device,
                         link.summary,
                         // Without a cable there is nothing a button could do
                         // but fail, so don't offer one.
-                        link.carrier ? PushButton(
-                            child: Text(isUp ? "Disconnect" : "Connect"),
-                            controlSize: .small,
+                        link.carrier ? Button(
                             onPressed: { [self] in
                                 bloc.add(.setWiredConnected(device: dev,
                                                             connected: !isUp))
-                            }
+                            },
+                            child: Text(isUp ? "Disconnect" : "Connect")
                         ) : nil
                     )
                 )
@@ -389,7 +278,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                     rows.append(_detailRow("MAC", link.mac))
                 }
             }
-            children.append(_macosGroupBox(rows))
+            children.append(_card(rows))
             children.append(SizedBox(height: 20))
         }
 
@@ -397,7 +286,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         children.append(_sectionHeader("Wi-Fi"))
         children.append(SizedBox(height: 12))
         children.append(
-            _macosGroupBox([
+            _card([
                 _settingsRowWithTrailing(
                     "Wi-Fi",
                     // "Connected to X" / "On" / "Off" — radio-on is not
@@ -405,12 +294,9 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                     s.wifiEnabled
                         ? (s.connectionInfo.map { "Connected to \($0.ssid)" } ?? "On")
                         : "Off",
-                    MacosSwitch(
-                        value: s.wifiEnabled,
-                        onChanged: { [self] (val: Bool) in
+                    _toggle(s.wifiEnabled, { [self] (val: Bool) in
                             bloc.add(.toggleWifi(val))
-                        }
-                    )
+                        })
                 ),
             ])
         )
@@ -419,7 +305,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             // Scrolls like the main path: with the wired details above it,
             // this branch is no longer guaranteed to be short.
             return Padding(
-                padding: EdgeInsets(all: 24),
+                padding: Self._pagePadding,
                 child: SingleChildScrollView(
                     child: Column(crossAxisAlignment: .start, children: children)
                 )
@@ -432,21 +318,19 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             children.append(_sectionHeader("Current Network"))
             children.append(SizedBox(height: 12))
             children.append(
-                _macosGroupBox([
+                _card([
                     // No emoji in labels — Noto Sans has no glyph for ✅ (or
                     // the block-element bars), and the fallback renders a
-                    // tofu box. Icons come from CupertinoIcons, which the
-                    // app registers at startup.
+                    // tofu box. Icons come from the SDK's icon font.
                     _settingsRowWithTrailingIcon(
-                        CupertinoIcons.checkmark_circle_fill,
+                        FluentSystemIcons.check,
                         info.ssid,
                         "\(info.security.isEmpty ? "Open" : info.security)  \u{2022}  Signal: \(info.signal)%",
-                        PushButton(
-                            child: Text("Disconnect"),
-                            controlSize: .small,
+                        Button(
                             onPressed: { [self] in
                                 bloc.add(.disconnect(connectionName: info.ssid))
-                            }
+                            },
+                            child: Text("Disconnect")
                         )
                     ),
                     _divider(),
@@ -463,7 +347,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         if let status = s.networkStatus {
             children.append(SizedBox(height: 8))
             children.append(
-                Text(status, style: TextStyle(color: Color(0xFFFF8800), fontSize: 11))
+                Text(status, style: TextStyle(color: Color(0xFFFF8800), fontSize: 12, fontFamily: pal.fontFamily))
             )
         }
 
@@ -476,10 +360,9 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 GestureDetector(
                     onTap: { [self] in bloc.add(.scanNetworks) },
                     child: Row(mainAxisSize: .min, children: [
-                        MacosIcon(icon: CupertinoIcons.arrow_clockwise,
-                                  color: pal.accent, size: 12),
+                        Icon(FluentSystemIcons.refresh, size: 12, color: pal.accent),
                         SizedBox(width: 4),
-                        Text("Scan", style: TextStyle(color: pal.accent, fontSize: 12)),
+                        Text("Scan", style: TextStyle(color: pal.accent, fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 ),
             ])
@@ -490,7 +373,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             children.append(
                 Text(
                     "No networks found. Tap Scan to search.",
-                    style: TextStyle(color: pal.textTertiary, fontSize: 12)
+                    style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
                 )
             )
         } else {
@@ -513,12 +396,12 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                     _showConnectDialog(context, ssid: ssid)
                                 }
                             },
-                            child: Text("Connect", style: TextStyle(color: pal.accent, fontSize: 12))
+                            child: Text("Connect", style: TextStyle(color: pal.accent, fontSize: 14, fontFamily: pal.fontFamily))
                         )
                     )
                 )
             }
-            children.append(_macosGroupBox(rows))
+            children.append(_card(rows))
         }
 
         // Saved networks
@@ -535,16 +418,16 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                         name, "",
                         GestureDetector(
                             onTap: { [self] in bloc.add(.forgetNetwork(connectionName: connName)) },
-                            child: Text("Forget", style: TextStyle(color: Color(0xFFFF6666), fontSize: 11))
+                            child: Text("Forget", style: TextStyle(color: Color(0xFFFF6666), fontSize: 14, fontFamily: pal.fontFamily))
                         )
                     )
                 )
             }
-            children.append(_macosGroupBox(rows))
+            children.append(_card(rows))
         }
 
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: .start, children: children)
             )
@@ -580,10 +463,10 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 SizedBox(width: 10),
                 Expanded(
                     child: Column(crossAxisAlignment: .start, children: [
-                        Text(network.ssid, style: TextStyle(color: pal.textPrimary, fontSize: 13)),
+                        Text(network.ssid, style: TextStyle(color: pal.textPrimary, fontSize: 14, fontFamily: pal.fontFamily)),
                         SizedBox(height: 2),
                         Text(network.securityLabel + (network.inUse ? "  \u{2022}  Connected" : ""),
-                             style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+                             style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 ),
                 trailing ?? SizedBox(shrink: ()),
@@ -622,25 +505,24 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 rows.append(GestureDetector(
                     onTap: { [self] in bloc.add(.selectPrimaryDisplay(id)) },
                     child: _settingsRowWithTrailingIcon(
-                        CupertinoIcons.desktopcomputer,
+                        FluentSystemIcons.desktop,
                         display.name,
                         "\(display.physicalWidth)×\(display.physicalHeight)"
                             + "  ·  \(String(format: "%.2g", display.scale))× scale"
                             + (display.isPrimary
                                 ? "  ·  primary" : ""),
                         display.isPrimary
-                            ? MacosIcon(icon: CupertinoIcons.checkmark_circle_fill,
-                                        color: Color(0xFF4880C8), size: 16)
+                            ? _checkmark()
                             : SizedBox(width: 16, height: 16)
                     )
                 ))
             }
-            children.append(_macosGroupBox(rows))
+            children.append(_card(rows))
             children.append(SizedBox(height: 8))
             children.append(Text(
                 "The primary display carries the dock, and new windows open "
                 + "there. The menu bar stays on every screen.",
-                style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
             ))
             children.append(SizedBox(height: 20))
         }
@@ -648,16 +530,16 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         children.append(contentsOf: [
             _sectionHeader("Resolution & Scaling"),
             SizedBox(height: 12),
-            _macosGroupBox([
+            _card([
                 _settingsRow("Scale (DPI)", "\(String(format: "%.2f", s.dpiValue))x"),
                 SizedBox(height: 8),
                 Padding(
                     padding: EdgeInsets(horizontal: 16),
                     child: Row(children: [
-                        Text("1x", style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+                        Text("1x", style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                         SizedBox(
                             width: 300,
-                            child: MacosSlider(
+                            child: Slider(
                                 value: min(s.dpiValue, maxDpi),
                                 onChanged: { [self] (val: Double) in
                                     bloc.add(.previewDpi(val))
@@ -669,7 +551,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                 divisions: max(divisions, 1)
                             )
                         ),
-                        Text("\(String(format: "%.0f", maxDpi))x", style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+                        Text("\(String(format: "%.0f", maxDpi))x", style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 ),
                 SizedBox(height: 4),
@@ -677,13 +559,13 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                     padding: EdgeInsets(horizontal: 16, vertical: 4),
                     child: Text(
                         _dpiDescription(s.dpiValue),
-                        style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                        style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
                     )
                 ),
             ]),
         ])
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: .start, children: children)
             )
@@ -720,7 +602,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                     color: Color(rgbo: 255, 255, 255, 0.06),
                                     border: Border.all(
                                         color: display.isPrimary
-                                            ? Color(0xFF4880C8)
+                                            ? pal.accent
                                             : Color(rgbo: 255, 255, 255, 0.22),
                                         width: display.isPrimary ? 2 : 1),
                                     borderRadius: BorderRadius.all(Radius(circular: 4))),
@@ -734,14 +616,14 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                         child: DecoratedBox(
                                             decoration: BoxDecoration(
                                                 color: display.isPrimary
-                                                    ? Color(0xFF4880C8)
+                                                    ? pal.accent
                                                     : Color(rgbo: 255, 255, 255, 0.12)))),
                                     Expanded(child: SizedBox(shrink: ())),
                                 ]))),
                         SizedBox(height: 6),
                         Text(display.name, style: TextStyle(
                             color: display.isPrimary ? pal.textPrimary : pal.textSecondary,
-                            fontSize: 11)),
+                            fontSize: 12, fontFamily: pal.fontFamily)),
                     ]))))
         }
         return Row(crossAxisAlignment: .end, children: tiles)
@@ -763,47 +645,38 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
     private func _buildAppearancePage() -> Widget {
         let s = bloc.state
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(
                     crossAxisAlignment: .start,
                     children: [
                         _sectionHeader("Appearance"),
                         SizedBox(height: 12),
-                        _macosGroupBox([
+                        _card([
                             _settingsRowWithTrailing(
                                 "Desktop Style",
                                 "The shape of the desktop's own chrome",
-                                MacosSegmentedControl(
-                                    labels: Self._styleChoices,
-                                    selectedIndex: min(s.style,
-                                                       Self._styleChoices.count - 1),
-                                    onChanged: { [self] (i: Int) in
-                                        bloc.add(.selectStyle(i))
-                                    }
-                                )
+                                _choice(Self._styleChoices,
+                                        selected: min(s.style, Self._styleChoices.count - 1),
+                                        onChanged: { [self] (i: Int) in
+                                            bloc.add(.selectStyle(i))
+                                        })
                             ),
                             _divider(),
                             _settingsRowWithTrailing(
                                 "Dark Mode", "Use dark theme for the interface",
-                                MacosSwitch(
-                                    value: s.darkMode,
-                                    onChanged: { [self] (val: Bool) in bloc.add(.toggleDarkMode(val)) }
-                                )
+                                _toggle(s.darkMode, { [self] (val: Bool) in bloc.add(.toggleDarkMode(val)) })
                             ),
                             _divider(),
                             _settingsRowWithTrailing(
                                 "Tiling Windows", "Automatically tile windows instead of free-floating",
-                                MacosSwitch(
-                                    value: s.tilingWM,
-                                    onChanged: { [self] (val: Bool) in bloc.add(.toggleTilingWM(val)) }
-                                )
+                                _toggle(s.tilingWM, { [self] (val: Bool) in bloc.add(.toggleTilingWM(val)) })
                             ),
                         ]),
                         SizedBox(height: 20),
                         _sectionHeader("Wallpaper"),
                         SizedBox(height: 12),
-                        _macosGroupBox([
+                        _card([
                             Padding(
                                 padding: EdgeInsets(horizontal: 16, vertical: 12),
                                 child: Row(children: _wallpaperSwatches(selected: s.wallpaper))
@@ -812,25 +685,23 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                         SizedBox(height: 20),
                         _sectionHeader("Screensaver"),
                         SizedBox(height: 12),
-                        _macosGroupBox([
+                        _card([
                             _settingsRowWithTrailing(
                                 "Start After", "Idle time before the screensaver appears",
-                                MacosSegmentedControl(
-                                    labels: Self._screensaverChoices.map { $0.label },
-                                    selectedIndex: Self._screensaverChoices.firstIndex {
-                                        $0.seconds == s.screensaverIdle
-                                    } ?? -1,
-                                    onChanged: { [self] (i: Int) in
-                                        bloc.add(.selectScreensaverIdle(
-                                            Self._screensaverChoices[i].seconds))
-                                    }
-                                )
+                                _choice(Self._screensaverChoices.map { $0.label },
+                                        selected: Self._screensaverChoices.firstIndex {
+                                            $0.seconds == s.screensaverIdle
+                                        } ?? -1,
+                                        onChanged: { [self] (i: Int) in
+                                            bloc.add(.selectScreensaverIdle(
+                                                Self._screensaverChoices[i].seconds))
+                                        })
                             ),
                             Padding(
                                 padding: EdgeInsets(horizontal: 16, vertical: 4),
                                 child: Text(
                                     _screensaverDescription(s.screensaverIdle),
-                                    style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                                    style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
                                 )
                             ),
                         ]),
@@ -901,7 +772,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                             decoration: BoxDecoration(
                                 color: p.color,
                                 border: selected == p.raw
-                                    ? Border.all(color: Color(0xFF4880C8), width: 2)
+                                    ? Border.all(color: pal.accent, width: 2)
                                     : Border.all(color: Color(0x33808080), width: 1),
                                 borderRadius: BorderRadius.circular(6)
                             ),
@@ -910,7 +781,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                         SizedBox(height: 4),
                         Text(p.name, style: TextStyle(
                             color: selected == p.raw ? pal.textPrimary : pal.textSecondary,
-                            fontSize: 11)),
+                            fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 )
             ))
@@ -927,13 +798,13 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         if !t.available {
             children.append(_sectionHeader("Date & Time"))
             children.append(SizedBox(height: 12))
-            children.append(_macosGroupBox([
+            children.append(_card([
                 _settingsRow("Clock service", "Not running"),
             ]))
             children.append(SizedBox(height: 8))
             children.append(Text(
                 "systemd-timedated is not answering — there is nothing to configure.",
-                style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
             ))
         } else {
             children.append(_sectionHeader("Date & Time"))
@@ -945,20 +816,17 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 clockRows.append(_divider())
                 clockRows.append(_settingsRowWithTrailing(
                     "Set time automatically", "Sync the clock over the network (NTP)",
-                    MacosSwitch(
-                        value: t.ntpEnabled,
-                        onChanged: { [self] (val: Bool) in bloc.add(.toggleNTP(val)) }
-                    )
+                    _toggle(t.ntpEnabled, { [self] (val: Bool) in bloc.add(.toggleNTP(val)) })
                 ))
                 clockRows.append(_divider())
                 clockRows.append(_settingsRow(
                     "Synchronized", t.ntpSynchronized ? "Yes" : "No"))
             }
-            children.append(_macosGroupBox(clockRows))
+            children.append(_card(clockRows))
             children.append(SizedBox(height: 20))
             children.append(_sectionHeader("Time Zone"))
             children.append(SizedBox(height: 12))
-            children.append(_macosGroupBox(_timezoneRows(s)))
+            children.append(_card(_timezoneRows(s)))
         }
         if let error = s.timeError {
             children.append(SizedBox(height: 8))
@@ -967,11 +835,11 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             // worked would be worse than showing why it didn't.
             children.append(Text(
                 error,
-                style: TextStyle(color: Color(0xFFE0655A), fontSize: 11)
+                style: TextStyle(color: Color(0xFFE0655A), fontSize: 12, fontFamily: pal.fontFamily)
             ))
         }
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: .start, children: children)
             )
@@ -990,10 +858,9 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 },
                 child: _settingsRowWithTrailing(
                     "Time Zone", s.time.timezone,
-                    MacosIcon(icon: s.tzPickerOpen
-                                  ? CupertinoIcons.chevron_up
-                                  : CupertinoIcons.chevron_down,
-                              color: pal.textSecondary, size: 12)
+                    Icon(s.tzPickerOpen
+                                  ? FluentSystemIcons.chevronUp
+                                  : FluentSystemIcons.chevronDown, size: 12, color: pal.textSecondary)
                 )
             ),
         ]
@@ -1020,8 +887,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                     child: _settingsRowWithTrailing(
                         city, "",
                         zone == s.time.timezone
-                            ? MacosIcon(icon: CupertinoIcons.checkmark_circle_fill,
-                                        color: Color(0xFF4880C8), size: 16)
+                            ? _checkmark()
                             : SizedBox(width: 16, height: 16)
                     )
                 ))
@@ -1035,8 +901,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                     },
                     child: _settingsRowWithTrailing(
                         region, "",
-                        MacosIcon(icon: CupertinoIcons.chevron_right,
-                                  color: pal.textSecondary, size: 12)
+                        Icon(FluentSystemIcons.chevronRight, size: 12, color: pal.textSecondary)
                     )
                 ))
             }
@@ -1053,14 +918,14 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             SizedBox(height: 12),
         ]
         if s.browserCandidates.isEmpty {
-            children.append(_macosGroupBox([
+            children.append(_card([
                 _settingsRow("Browser", "None installed"),
             ]))
             children.append(SizedBox(height: 8))
             children.append(Text(
                 "No installed app declares itself a browser. Install one from "
                 + "the App Store and it appears here.",
-                style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
             ))
         } else {
             var rows: [Widget] = []
@@ -1073,23 +938,22 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                         candidate.id == s.defaultBrowser
                             ? "Opens web links" : "Tap to make default",
                         candidate.id == s.defaultBrowser
-                            ? MacosIcon(icon: CupertinoIcons.checkmark_circle_fill,
-                                        color: Color(0xFF4880C8), size: 16)
+                            ? _checkmark()
                             : SizedBox(width: 16, height: 16)
                     )
                 ))
             }
-            children.append(_macosGroupBox(rows))
+            children.append(_card(rows))
             children.append(SizedBox(height: 8))
             children.append(Text(
                 "http and https links from every app open here. Deep-link "
                 + "schemes (slack://, zoommtg://, …) always route to their "
                 + "own app — each app's registry record declares its schemes.",
-                style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
             ))
         }
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: .start, children: children)
             )
@@ -1104,26 +968,25 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         if !a.available {
             children.append(_sectionHeader("Sound"))
             children.append(SizedBox(height: 12))
-            children.append(_macosGroupBox([
+            children.append(_card([
                 _settingsRow("Sound system", "Not running"),
             ]))
             children.append(SizedBox(height: 8))
             children.append(Text(
                 "PipeWire is not answering — there is nothing to control.",
-                style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
             ))
         } else {
             children.append(_sectionHeader("Output Volume"))
             children.append(SizedBox(height: 12))
-            children.append(_macosGroupBox([
+            children.append(_card([
                 Padding(
                     padding: EdgeInsets(horizontal: 16, vertical: 10),
                     child: Row(children: [
-                        MacosIcon(icon: CupertinoIcons.speaker_1_fill,
-                                  color: pal.textSecondary, size: 14),
+                        Icon(FluentSystemIcons.volumeLow, size: 14, color: pal.textSecondary),
                         SizedBox(width: 10),
                         Expanded(
-                            child: MacosSlider(
+                            child: Slider(
                                 value: min(a.volume, 1.0) * 100,
                                 onChanged: { [self] (val: Double) in
                                     bloc.add(.changeVolume(val / 100))
@@ -1132,34 +995,30 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                             )
                         ),
                         SizedBox(width: 10),
-                        MacosIcon(icon: CupertinoIcons.speaker_3_fill,
-                                  color: pal.textSecondary, size: 14),
+                        Icon(FluentSystemIcons.volume, size: 14, color: pal.textSecondary),
                         SizedBox(width: 12),
                         Text("\(Int((min(a.volume, 1.0) * 100).rounded()))%",
-                             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+                             style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 ),
                 _divider(),
                 _settingsRowWithTrailing(
                     "Mute", "Silence the current output",
-                    MacosSwitch(
-                        value: a.muted,
-                        onChanged: { [self] (val: Bool) in bloc.add(.toggleMute(val)) }
-                    )
+                    _toggle(a.muted, { [self] (val: Bool) in bloc.add(.toggleMute(val)) })
                 ),
             ]))
             children.append(SizedBox(height: 20))
             children.append(_sectionHeader("Output Device"))
             children.append(SizedBox(height: 12))
             if a.sinks.isEmpty {
-                children.append(_macosGroupBox([
+                children.append(_card([
                     _settingsRow("Output", "No devices"),
                 ]))
                 children.append(SizedBox(height: 8))
                 children.append(Text(
                     "PipeWire reports no output hardware. The volume above still "
                     + "applies to whatever sink is routing.",
-                    style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                    style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
                 ))
             } else {
                 var rows: [Widget] = []
@@ -1171,17 +1030,16 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                             sink.name,
                             sink.isDefault ? "Current output" : "Tap to switch",
                             sink.isDefault
-                                ? MacosIcon(icon: CupertinoIcons.checkmark_circle_fill,
-                                            color: Color(0xFF4880C8), size: 16)
+                                ? _checkmark()
                                 : SizedBox(width: 16, height: 16)
                         )
                     ))
                 }
-                children.append(_macosGroupBox(rows))
+                children.append(_card(rows))
             }
         }
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: .start, children: children)
             )
@@ -1217,22 +1075,19 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             _settingsRowWithTrailing(
                 "Remote Desktop",
                 "Let another computer see and control this desktop over RDP",
-                MacosSwitch(
-                    value: enabled,
-                    onChanged: { [self] (val: Bool) in bloc.add(.toggleRdp(val)) }
-                )
+                _toggle(enabled, { [self] (val: Bool) in bloc.add(.toggleRdp(val)) })
             ),
         ]
 
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(
                     crossAxisAlignment: .start,
                     children: [
                         _sectionHeader("Sharing"),
                         SizedBox(height: 12),
-                        _macosGroupBox(rows),
+                        _card(rows),
                         SizedBox(height: 12),
                         // Said plainly, and on screen rather than only in the
                         // docs: the connection is encrypted but not
@@ -1245,7 +1100,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                 + "connection is encrypted, but access is not "
                                 + "restricted. Leave this off on untrusted networks.",
                                 style: TextStyle(color: pal.textSecondary,
-                                                 fontSize: 11)
+                                                 fontSize: 12, fontFamily: pal.fontFamily)
                             )
                         ),
                     ]
@@ -1263,7 +1118,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         if b.present {
             let barColor: Color = b.state == .discharging && b.percent <= 20
                 ? Color(0xFFFF3B30)
-                : (b.state == .charging ? Color(0xFF34C759) : Color(0xFF4880C8))
+                : (b.state == .charging ? Color(0xFF34C759) : pal.accent)
             var rows: [Widget] = [
                 _settingsRow("Charge", "\(b.percent)%"),
                 Padding(
@@ -1305,15 +1160,15 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                 rows.append(_divider())
                 rows.append(_settingsRow("Time Remaining", _formatMinutes(m)))
             }
-            children.append(_macosGroupBox(rows))
+            children.append(_card(rows))
         } else {
-            children.append(_macosGroupBox([
+            children.append(_card([
                 _settingsRow("Battery", "None detected"),
             ]))
             children.append(SizedBox(height: 8))
             children.append(Text(
                 "This machine reports no system battery — power settings apply to laptops.",
-                style: TextStyle(color: pal.textTertiary, fontSize: 11)
+                style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily)
             ))
         }
         // Brightness exists only where a backlight does — same gate as the
@@ -1323,15 +1178,14 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             children.append(SizedBox(height: 20))
             children.append(_sectionHeader("Display Brightness"))
             children.append(SizedBox(height: 12))
-            children.append(_macosGroupBox([
+            children.append(_card([
                 Padding(
                     padding: EdgeInsets(horizontal: 16, vertical: 10),
                     child: Row(children: [
-                        MacosIcon(icon: CupertinoIcons.sun_min_fill,
-                                  color: pal.textSecondary, size: 14),
+                        Icon(FluentSystemIcons.brightness, size: 14, color: pal.textSecondary),
                         SizedBox(width: 10),
                         Expanded(
-                            child: MacosSlider(
+                            child: Slider(
                                 value: Double(bl.percent),
                                 onChanged: { [self] (val: Double) in
                                     bloc.add(.changeBrightness(Int(val.rounded())))
@@ -1340,11 +1194,10 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                             )
                         ),
                         SizedBox(width: 10),
-                        MacosIcon(icon: CupertinoIcons.sun_max_fill,
-                                  color: pal.textSecondary, size: 14),
+                        Icon(FluentSystemIcons.sun, size: 14, color: pal.textSecondary),
                         SizedBox(width: 12),
                         Text("\(bl.percent)%",
-                             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+                             style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 ),
             ]))
@@ -1353,11 +1206,11 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
             children.append(SizedBox(height: 8))
             children.append(Text(
                 error,
-                style: TextStyle(color: Color(0xFFE0655A), fontSize: 11)
+                style: TextStyle(color: Color(0xFFE0655A), fontSize: 12, fontFamily: pal.fontFamily)
             ))
         }
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: .start, children: children)
             )
@@ -1374,7 +1227,7 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         #endif
 
         return Padding(
-            padding: EdgeInsets(all: 24),
+            padding: Self._pagePadding,
             child: SingleChildScrollView(
                 child: Column(
                     crossAxisAlignment: .start,
@@ -1400,14 +1253,14 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                     SizedBox(height: 4),
                                     Text(
                                         "Version \(SystemInfo.starlingVersion())",
-                                        style: TextStyle(color: pal.textSecondary, fontSize: 13)
+                                        style: TextStyle(color: pal.textSecondary, fontSize: 14, fontFamily: pal.fontFamily)
                                     ),
                                 ]
                             )
                         ),
                         SizedBox(height: 24),
-                        _macosGroupBox([
-                            _settingsRow("Framework", "Flutter Swift + macOS UI"),
+                        _card([
+                            _settingsRow("Framework", "Starling SDK (Fluent)"),
                             _divider(),
                             _settingsRow("Platform", platformName),
                         ]),
@@ -1417,94 +1270,95 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
         )
     }
 
-    // MARK: - macOS-style Helpers
+    // MARK: - Windows Settings' shapes
 
-    /// Section header text (small, gray, uppercase-style).
+    /// A section header: Body Strong, sitting a little above its cards.
     private func _sectionHeader(_ title: String) -> Widget {
-        // macOS-style group header: small and secondary. Note w600 would
-        // render as full Bold — Noto Sans ships no SemiBold face, so
-        // fontconfig substitutes 700 — which reads fat and soft in white.
         return Text(
             title,
             style: TextStyle(
-                color: pal.textSecondary,
-                fontSize: 12,
-                fontWeight: .w600
+                color: pal.textPrimary,
+                fontSize: 14,
+                fontWeight: .w600,
+                fontFamily: pal.fontFamilyStrong ?? pal.fontFamily
             )
         )
     }
 
-    /// A macOS-style grouped box with rounded corners and subtle background.
-    private func _macosGroupBox(_ children: [Widget]) -> Widget {
+    /// A settings card: rows on a raised surface with a hairline edge and
+    /// 4pt corners, rules between the rows — the shape of a SettingsExpander's
+    /// open list in Windows Settings.
+    private func _card(_ children: [Widget]) -> Widget {
+        let radius = BorderRadius.all(Radius(circular: 4))
         return DecoratedBox(
             decoration: BoxDecoration(
-                color: Color(rgbo: 255, 255, 255, 0.06),
-                border: Border.all(
-                    color: Color(rgbo: 255, 255, 255, 0.1),
-                    width: 0.5
-                ),
-                borderRadius: BorderRadius.all(Radius(circular: 8))
+                color: pal.cardFill,
+                border: Border.all(color: pal.cardStroke, width: 1),
+                borderRadius: radius
             ),
-            child: Padding(
-                padding: EdgeInsets(vertical: 4),
+            child: ClipRRect(
+                borderRadius: radius,
                 child: Column(
-                    crossAxisAlignment: .start,
+                    crossAxisAlignment: .stretch,
                     children: children
                 )
             )
         )
     }
 
-    /// A settings row with label and value text.
+    /// A row with a label and a value.
     private func _settingsRow(_ label: String, _ value: String) -> Widget {
         return Padding(
-            padding: EdgeInsets(horizontal: 16, vertical: 8),
+            padding: EdgeInsets(horizontal: 16, vertical: 14),
             child: Row(children: [
-                Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 13)),
+                Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 14, fontFamily: pal.fontFamily)),
                 Expanded(child: SizedBox(shrink: ())),
-                Text(value, style: TextStyle(color: pal.textSecondary, fontSize: 13)),
+                Text(value, style: TextStyle(color: pal.textSecondary, fontSize: 14, fontFamily: pal.fontFamily)),
             ])
         )
     }
 
-    /// A settings row with label, subtitle, and a trailing widget.
+    /// A row with a label, a description under it, and a control at the
+    /// right — Windows' SettingsCard.
     private func _settingsRowWithTrailing(_ label: String, _ subtitle: String, _ trailing: Widget?) -> Widget {
         return Padding(
-            padding: EdgeInsets(horizontal: 16, vertical: 8),
+            padding: EdgeInsets(horizontal: 16, vertical: 12),
             child: Row(children: [
                 Expanded(
                     child: Column(
                         crossAxisAlignment: .start,
                         children: subtitle.isEmpty
-                            ? [Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 13))]
+                            ? [Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 14, fontFamily: pal.fontFamily))]
                             : [
-                                Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 13)),
+                                Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 14, fontFamily: pal.fontFamily)),
                                 SizedBox(height: 2),
-                                Text(subtitle, style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+                                Text(subtitle, style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                               ]
                     )
                 ),
+                SizedBox(width: 16),
                 trailing ?? SizedBox(shrink: ()),
             ])
         )
     }
 
-    /// A settings row led by an icon (label, subtitle, trailing widget).
+    /// The same row led by an icon.
     private func _settingsRowWithTrailingIcon(
         _ icon: IconData, _ label: String, _ subtitle: String, _ trailing: Widget?
     ) -> Widget {
         return Padding(
-            padding: EdgeInsets(horizontal: 16, vertical: 8),
+            padding: EdgeInsets(horizontal: 16, vertical: 12),
             child: Row(children: [
-                MacosIcon(icon: icon, color: pal.accent, size: 15),
-                SizedBox(width: 8),
+                Icon(icon, size: 16, color: pal.textPrimary),
+                SizedBox(width: 16),
                 Expanded(
                     child: Column(crossAxisAlignment: .start, children: [
-                        Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 13)),
+                        Text(label, style: TextStyle(color: pal.textPrimary, fontSize: 14, fontFamily: pal.fontFamily)),
                         SizedBox(height: 2),
-                        Text(subtitle, style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+                        Text(subtitle, style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily)),
                     ])
                 ),
+                SizedBox(width: 16),
                 trailing ?? SizedBox(shrink: ()),
             ])
         )
@@ -1513,30 +1367,52 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
     /// A detail key-value row (used in network info).
     private func _detailRow(_ label: String, _ value: String) -> Widget {
         return Padding(
-            padding: EdgeInsets(left: 16, top: 2, right: 16, bottom: 2),
+            padding: EdgeInsets(left: 48, top: 3, right: 16, bottom: 3),
             child: Row(children: [
                 SizedBox(
-                    width: 80,
-                    child: Text(label, style: TextStyle(color: pal.textTertiary, fontSize: 11))
+                    width: 96,
+                    child: Text(label, style: TextStyle(color: pal.textTertiary, fontSize: 12, fontFamily: pal.fontFamily))
                 ),
                 Expanded(
-                    child: Text(value, style: TextStyle(color: pal.textSecondary, fontSize: 11))
+                    child: Text(value, style: TextStyle(color: pal.textSecondary, fontSize: 12, fontFamily: pal.fontFamily))
                 ),
             ])
         )
     }
 
-    /// A thin divider line.
+    /// The rule between two rows on a card: full width, 1pt.
     private func _divider() -> Widget {
-        return Padding(
-            padding: EdgeInsets(horizontal: 16),
-            child: SizedBox(
-                height: 1,
-                child: DecoratedBox(
-                    decoration: BoxDecoration(color: Color(rgbo: 255, 255, 255, 0.08))
-                )
-            )
+        return SizedBox(
+            height: 1,
+            child: DecoratedBox(decoration: BoxDecoration(color: pal.hairline))
         )
+    }
+
+    /// A ToggleSwitch with Windows' "On"/"Off" beside it.
+    private func _toggle(_ on: Bool, _ onChanged: @escaping (Bool) -> Void) -> Widget {
+        return ToggleSwitch(
+            checked: on,
+            onChanged: onChanged,
+            content: Text(on ? "On" : "Off",
+                          style: TextStyle(color: pal.textPrimary, fontSize: 14, fontFamily: pal.fontFamily)),
+            leadingContent: true)
+    }
+
+    /// A ComboBox over a list of labels, by index; -1 selects nothing.
+    private func _choice(_ labels: [String], selected: Int, onChanged: @escaping (Int) -> Void) -> Widget {
+        var items: [ComboBoxItem<Int>] = []
+        for (i, label) in labels.enumerated() {
+            items.append(ComboBoxItem(value: i, child: Text(label)))
+        }
+        return ComboBox<Int>(
+            value: selected >= 0 && selected < labels.count ? selected : nil,
+            items: items,
+            onChanged: { (v: Int?) in if let v { onChanged(v) } })
+    }
+
+    /// The accent check that marks the chosen row.
+    private func _checkmark() -> Widget {
+        return Icon(FluentSystemIcons.check, size: 16, color: pal.accent)
     }
 }
 
@@ -1558,98 +1434,38 @@ class _WifiPasswordDialog: StatefulWidget {
 }
 
 class _WifiPasswordDialogState: State<StatefulWidget> {
-    var password: String = ""
-
-    /// The framework has no editable text field widget, so the dialog types
-    /// the way TextEditorApp does: a FocusNode receives raw KeyData and this
-    /// state keeps the string, while a controller-driven MacosTextField
-    /// (display-only by design) renders the masked dots.
-    private let focus = FocusNode(debugLabel: "WifiPasswordDialog")
-    private let masked = TextEditingController()
-    /// The build context of the last frame — Enter/Escape need one for
-    /// Navigator.pop and arrive outside any build.
-    private weak var _elementContext: Element?
-
-    override func initState() {
-        super.initState()
-        focus.onKeyData = { [weak self] keyData in
-            return self?._handleKey(keyData) ?? false
-        }
-        focus.requestFocus()
-    }
+    private let password = TextEditingController()
 
     override func dispose() {
-        focus.dispose()
-        masked.dispose()
+        password.dispose()
         super.dispose()
-    }
-
-    private func _handleKey(_ keyData: KeyData) -> Bool {
-        guard keyData.type == .down || keyData.type == .repeat else { return false }
-        // Child apps receive X11 keysyms in `logical` (the DRM embedder's
-        // convention — see TextEditorApp's Keysym table). The shell's own
-        // widgets switch on HID `physical`; do not copy that code here.
-        switch keyData.logical {
-        case 0xFF1B:  // Escape — cancel
-            if let ctx = _elementContext { Navigator.pop(ctx) }
-            return true
-        case 0xFF08:  // Backspace
-            if !password.isEmpty {
-                password.removeLast()
-                _syncMask()
-            }
-            return true
-        case 0xFF0D, 0xFF8D:  // Enter / keypad Enter — connect
-            if let ctx = _elementContext { _connect(ctx) }
-            return true
-        default:
-            if let ch = keyData.character,
-               let s = ch.unicodeScalars.first,
-               s.value >= 0x20, s.value != 0x7F {
-                password += ch
-                _syncMask()
-                return true
-            }
-            return false
-        }
-    }
-
-    private func _syncMask() {
-        masked.text = String(repeating: "\u{2022}", count: password.count)
-        setState {}
     }
 
     override func build(_ context: any BuildContext) -> Widget {
         let dialog = widget as! _WifiPasswordDialog
-        _elementContext = context as? Element
-        return MacosAlertDialog(
-            appIcon: Text("\u{1F512}", style: TextStyle(fontSize: 32)),
+        return ContentDialog(
             title: Text("Connect to \(dialog.ssid)"),
-            message: Column(mainAxisSize: .min, children: [
+            content: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
                 Text("Enter the Wi-Fi password to join this network."),
-                SizedBox(height: 10),
-                MacosTextField(
-                    controller: masked,
-                    placeholder: "Password"
+                SizedBox(height: 12),
+                FluentTextBox(
+                    controller: password,
+                    placeholderText: "Password",
+                    onSubmitted: { [self] _ in _connect(context) },
+                    obscureText: true,
+                    autofocus: true
                 ),
             ]),
-            primaryButton: PushButton(
-                child: Text("Connect"),
-                controlSize: .regular,
-                onPressed: { [self] in _connect(context) }
-            ),
-            secondaryButton: PushButton(
-                child: Text("Cancel"),
-                controlSize: .regular,
-                onPressed: { Navigator.pop(context) },
-                secondary: true
-            )
+            actions: [
+                Button(onPressed: { Navigator.pop(context) }, child: Text("Cancel")),
+                FilledButton(onPressed: { [self] in _connect(context) }, child: Text("Connect")),
+            ]
         )
     }
 
     private func _connect(_ context: any BuildContext) {
         let dialog = widget as! _WifiPasswordDialog
         Navigator.pop(context)
-        dialog.onConnect(password)
+        dialog.onConnect(password.text)
     }
 }

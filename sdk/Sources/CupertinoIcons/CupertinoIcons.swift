@@ -88,22 +88,10 @@ public enum CupertinoIcons {
     /// C++ bridge directly so no async/await is needed.
     @discardableResult
     public static func registerFont() -> Bool {
-        guard !_registered else { return true }
-
-        let data = fontData()
-        guard !data.isEmpty else { return false }
-
-        // Call the C++ bridge directly (synchronous, works after engine init)
-        let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
-            guard let base = buffer.baseAddress else { return false }
-            let ptr = base.assumingMemoryBound(to: UInt8.self)
-            return flutter.swift_bridge.LoadFontFromList(ptr, data.count, _kFontFamily)
-        }
-
-        if success {
-            _registered = true
-        }
-        return success
+        // The loader lives in the framework now, where the `Icon` widget
+        // calls it on first draw; this is the same call for code that
+        // still registers by hand.
+        StarlingFonts.ensure(_kFontFamily)
     }
 
     public static let left_chevron = IconData(0xf3d2, fontFamily: _kFontFamily, matchTextDirection: true)

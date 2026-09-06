@@ -12,10 +12,10 @@
 // `MacosIcon`, and the Fluent controls take a `Widget` for every icon slot
 // precisely so this could be anything.
 //
-// Registering the font is the icon SET's business (`FluentSystemIcons.
-// registerFont()`, `CupertinoIcons.registerFont()`): this widget draws
-// whatever family the `IconData` names and does not know where fonts come
-// from.
+// The glyph's font is loaded on first draw (`StarlingFonts.ensure`), so an
+// icon from one of the SDK's own sets needs no registration call from the
+// app; a family the SDK does not ship is drawn with whatever the engine
+// falls back to, exactly as before.
 
 import FlutterSwiftBridge
 
@@ -48,6 +48,7 @@ public class Icon: StatelessWidget {
             return SizedBox(width: side, height: side)
         }
         let ink = color ?? theme.color ?? Color(0xDD000000)
+        StarlingFonts.ensure(icon.fontFamily)
         return SizedBox(
             width: side, height: side,
             child: Center(child: Text(

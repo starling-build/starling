@@ -15,9 +15,9 @@ import Foundation
 let videoPath = ProcessInfo.processInfo.environment["VIDEO_PATH"] ?? ""
 
 runApp(
-    Directionality(
-        textDirection: .ltr,
-        child: ColoredBox(
+    StarlingApp(
+        title: "Video Player",
+        home: ColoredBox(
             color: Color(0xFF000000),
             child: VideoPlayerWidget(path: videoPath)
         )

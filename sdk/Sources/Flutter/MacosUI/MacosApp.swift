@@ -79,9 +79,11 @@ class _MacosAppState: State<StatefulWidget> {
 
         // Include FluentTheme so FluentUI widgets (e.g. Slider) used inside
         // MacosApp can resolve FluentTheme.of(context).
-        let fluentData = themeData.brightness == .dark
-            ? FluentThemeData.dark()
-            : FluentThemeData.light()
+        // In the app's own accent, so a Fluent button beside a Macos one
+        // is the same blue rather than Windows'.
+        let fluentData = FluentThemeData(
+            brightness: themeData.brightness,
+            accentColor: themeData.primaryColor.toAccentColor())
 
         return Directionality(
             textDirection: .ltr,

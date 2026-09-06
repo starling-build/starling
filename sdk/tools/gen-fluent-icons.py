@@ -167,15 +167,13 @@ private let _kFontFamily = "FluentSystemIcons"
 
 /// Icons from Microsoft's Fluent UI System Icons font.
 ///
-/// Call `FluentSystemIcons.registerFont()` at startup before using any icon,
-/// exactly like `CupertinoIcons`. Both fonts can be registered in the same
-/// process; they carry different family names.
+/// The font loads itself the first time an `Icon` draws one of these
+/// (`StarlingFonts`); `registerFont()` remains for code that registers by
+/// hand. Both icon fonts can live in one process; the family names differ.
 public enum FluentSystemIcons {
 
     /// The font family every icon below is drawn from.
     public static let iconFont = _kFontFamily
-
-    private nonisolated(unsafe) static var _registered = false
 
     /// Returns the raw font data for loading into the engine.
     ///
@@ -233,16 +231,10 @@ public enum FluentSystemIcons {
     /// more than once.
     @discardableResult
     public static func registerFont() -> Bool {
-        guard !_registered else { return true }
-        let data = fontData()
-        guard !data.isEmpty else { return false }
-        let success = data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
-            guard let base = buffer.baseAddress else { return false }
-            let ptr = base.assumingMemoryBound(to: UInt8.self)
-            return flutter.swift_bridge.LoadFontFromList(ptr, data.count, _kFontFamily)
-        }
-        if success { _registered = true }
-        return success
+        // The loader lives in the framework now, where the `Icon` widget
+        // calls it on first draw; this is the same call for code that
+        // still registers by hand.
+        StarlingFonts.ensure(_kFontFamily)
     }
 '''
 

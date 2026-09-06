@@ -171,7 +171,12 @@ public class ScaffoldPage: StatelessWidget {
         // like from the outside.
         return ColoredBox(
             color: FluentTheme.of(context).scaffoldBackgroundColor,
-            child: Column(children: columnChildren)
+            // Stretch, as fluent_ui's ScaffoldPage does: a page's header and
+            // content span its width and lay out from the left. A centred
+            // column would size the content to its widest line and float it
+            // in the middle of the page — a title, a paragraph and a button
+            // stacked in the centre of an otherwise empty window.
+            child: Column(crossAxisAlignment: .stretch, children: columnChildren)
         )
     }
 }

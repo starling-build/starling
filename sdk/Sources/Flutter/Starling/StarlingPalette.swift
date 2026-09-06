@@ -86,6 +86,17 @@ public struct StarlingPalette {
     public let accent: Color
     public let accentInk: Color
 
+    /// The accent's full ramp, for the Fluent controls' hover and pressed
+    /// shades. Windows' own shades in the Fluent style; lerps of the macOS
+    /// blue in the other.
+    public let accentSwatch: AccentColor
+
+    /// A folder's glyph: Finder's blue on one desktop, Explorer's yellow on
+    /// the other. The one "brand" colour that changes with the style,
+    /// because a yellow folder in a macOS window reads as wrong as a blue
+    /// one in Explorer.
+    public let folder: Color
+
     /// The face, or nil for the platform default. macOS has no opinion here;
     /// the Fluent style ships Selawik, Segoe UI's metric-compatible stand-in.
     public let fontFamily: String?
@@ -122,6 +133,8 @@ public struct StarlingPalette {
             selection:     dark ? Color(0xFF0A84FF) : Color(0xFF007AFF),
             accent:        dark ? Color(0xFF0A84FF) : Color(0xFF007AFF),
             accentInk:     Color(0xFFFFFFFF),
+            accentSwatch:  (dark ? Color(0xFF0A84FF) : Color(0xFF007AFF)).toAccentColor(),
+            folder:        Color(0xFF54A3F7),
             fontFamily: nil,
             fontFamilyStrong: nil,
             isDark: dark)
@@ -154,6 +167,8 @@ public struct StarlingPalette {
             // The token that exists precisely because white-on-accent is
             // wrong in dark mode.
             accentInk:     r.textOnAccentFillColorPrimary,
+            accentSwatch:  theme.accentColor,
+            folder:        Color(0xFFF2C14E),
             fontFamily: SelawikFontName.regular,
             fontFamilyStrong: SelawikFontName.semibold,
             isDark: dark)
@@ -161,14 +176,21 @@ public struct StarlingPalette {
 
     // MARK: Handing it to the widgets
 
-    /// A `MacosThemeData` carrying these colours.
-    ///
-    /// The apps stay rooted in `MacosApp` whichever style is active, because
-    /// `FluentApp`'s scaffold traps on mount as a DMA-BUF child. That is a
-    /// smaller compromise than it sounds: the Macos* controls take their
-    /// colours from this theme, so pointing it at WinUI's values gets the
-    /// buttons, fields and scrollbars into the right palette without swapping
-    /// the widget family underneath a working app.
+    /// A `FluentThemeData` carrying these colours: what the Fluent controls
+    /// read. In the Fluent style it is WinUI's theme with Selawik; in the
+    /// macOS style the same controls in the macOS blue and the system face.
+    public func fluentTheme() -> FluentThemeData {
+        FluentThemeData(
+            brightness: isDark ? .dark : .light,
+            fontFamily: fontFamily,
+            accentColor: accentSwatch
+        )
+    }
+
+    /// A `MacosThemeData` carrying these colours: what the remaining Macos*
+    /// controls read. `StarlingApp` installs both themes, so a page can
+    /// mix the two families while it is being converted and each finds
+    /// its own.
     public func macosTheme() -> MacosThemeData {
         let base = isDark ? MacosThemeData.dark() : MacosThemeData.light()
         return MacosThemeData(

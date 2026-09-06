@@ -58,8 +58,7 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
 runStarlingApp(title: "Starling Terminal",
                width: windowMetric("STARLING_WINDOW_W", defaultWindowW),
                height: windowMetric("STARLING_WINDOW_H", defaultWindowH)) {
-    MacosApp(
-        theme: MacosThemeData.dark(),
-        home: TerminalApp()
-    )
+    // The desktop's appearance and style, like every other app; the grid's
+    // own colours are the terminal's scheme and unaffected.
+    StarlingApp(title: "Starling Terminal", home: TerminalApp())
 }

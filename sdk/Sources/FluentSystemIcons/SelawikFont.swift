@@ -16,7 +16,7 @@
 // Two weights, which is all Windows 11's chrome uses: Regular for body and
 // Semibold for the few things that are emphasised. Roughly 44 KB each.
 //
-// The bundle search below is `CupertinoIcons.fontData()`'s, for the same
+// The bundle search below is `StarlingFonts.resourceData`'s, for the same
 // reasons — see the long note there before changing it.
 
 import Flutter
@@ -34,26 +34,12 @@ public enum SelawikFont {
     /// two faces under one name is what once left only the last one loaded.
     public static let semibold = "Selawik Semibold"
 
-    private nonisolated(unsafe) static var _registered = false
-
     /// Registers both cuts with the engine. Safe to call more than once.
+    /// `StarlingApp` does this itself for the palette's face, so an app
+    /// rooted there need not; the call remains for one that is not.
     @discardableResult
     public static func registerFont() -> Bool {
-        guard !_registered else { return true }
-        let ok = load("Selawik-Regular", as: family)
-            && load("Selawik-Semibold", as: semibold)
-        if ok { _registered = true }
-        return ok
-    }
-
-    private static func load(_ resource: String, as familyName: String) -> Bool {
-        let data = fontData(resource)
-        guard !data.isEmpty else { return false }
-        return data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in
-            guard let base = buffer.baseAddress else { return false }
-            let ptr = base.assumingMemoryBound(to: UInt8.self)
-            return flutter.swift_bridge.LoadFontFromList(ptr, data.count, familyName)
-        }
+        StarlingFonts.ensure(family) && StarlingFonts.ensure(semibold)
     }
 
     /// See `CupertinoIcons.fontData()`: deliberately not `Bundle.module`,

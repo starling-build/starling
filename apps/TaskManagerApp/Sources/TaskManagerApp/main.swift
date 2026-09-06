@@ -22,8 +22,9 @@ let taskManagerBloc = TaskManagerBloc()
 // MARK: - Palette and table metrics
 
 private enum Style {
-    /// Follows the shell's appearance — flipped by ThemedTaskManagerRoot
-    /// before the rebuild, so every var below reads the right side.
+    /// Follows the shell's appearance — flipped from the root's
+    /// onThemeChanged before the rebuild, so every var below reads the
+    /// right side.
     nonisolated(unsafe) static var dark = false
 
     static let accent = Color(0xFF007AFF)
@@ -408,52 +409,6 @@ class _TaskManagerPageState: State<StatefulWidget> {
 
 // MARK: - Run
 
-/// Rebuilds MacosApp with the pushed appearance (shell sends the theme at
-/// connect and on every switch) and flips the Style palette — the same
-/// shape as FileExplorer's ThemedFilesRoot, so the app matches the desktop
-/// instead of shipping its standalone-era hardcoded light.
-private class ThemedTaskManagerRoot: StatefulWidget {
-    override func createState() -> State<StatefulWidget> {
-        return _ThemedTaskManagerRootState()
-    }
-}
-
-private class _ThemedTaskManagerRootState: State<StatefulWidget> {
-    private var _dark = false
-
-    override func initState() {
-        super.initState()
-        // The shell pushed the desktop appearance when we connected, before
-        // this tree existed. Seed from it so the first frame is already right.
-        if let dark = GpuDmaBufRenderer.lastPushedThemeIsDark {
-            _dark = dark
-            Style.dark = dark
-        }
-        GpuDmaBufRenderer.onThemeChanged = { [weak self] dark in
-            guard let self, self._dark != dark else { return }
-            Style.dark = dark
-            self.setState { self._dark = dark }
-            // The process table rebuilds every tick anyway; pull the next
-            // one forward so rows re-read the palette immediately.
-            taskManagerBloc.add(.tick)
-        }
-    }
-
-    override func build(_ context: any BuildContext) -> Widget {
-        return MacosApp(
-                // The ACTIVE STYLE's colours: `StarlingPalette` answers
-                // with the macOS values this app shipped with, or WinUI's own
-                // tokens when the desktop is in the Windows style. MacosApp
-                // either way -- FluentApp's scaffold traps on mount as a
-                // DMA-BUF child -- so the widget family stays put and only
-                // the palette moves.
-            theme: StarlingPalette.current(dark: _dark).macosTheme(),
-            home: TaskManagerPage(),
-            title: "Task Manager"
-        )
-    }
-}
-
 // Sample once a second, on whatever loop the host runs the UI on — the BLoC
 // mutates state right where the rebuild happens. Registered before the loop
 // starts; it first fires once the tree is mounted.
@@ -462,7 +417,17 @@ startPeriodicTimer(seconds: 1) {
 }
 
 runStarlingApp(title: "Task Manager", width: 960, height: 700) {
-    ThemedTaskManagerRoot()
+    StarlingApp(
+        title: "Task Manager",
+        // `Style` is a static table the rows read, flipped before the
+        // rebuild; the process table rebuilds every tick anyway, so the
+        // next one is pulled forward to re-read the palette immediately.
+        onThemeChanged: { dark in
+            Style.dark = dark
+            taskManagerBloc.add(.tick)
+        },
+        onStyleChanged: { _ in taskManagerBloc.add(.tick) },
+        home: TaskManagerPage())
 }
 
 #else
