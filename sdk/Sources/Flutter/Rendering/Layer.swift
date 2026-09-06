@@ -1163,6 +1163,17 @@ open class ContainerLayer: Layer {
         addChildrenToScene(builder)
     }
 
+    // MARK: - Transforms
+
+    /// Applies the transform this layer would apply to `child` when
+    /// compositing, to `transform`. The default is none: only layers that
+    /// move their children (`TransformLayer`, `LeaderLayer`, `FollowerLayer`)
+    /// override this. `FollowerLayer` composes a chain of these to find where
+    /// its leader is.
+    ///
+    /// **Dart Source:** `layer.dart` (`ContainerLayer.applyTransform`)
+    open func applyTransform(_ child: Layer?, _ transform: inout Matrix4) {}
+
     // MARK: - Subtree Needs Add To Scene
 
     /// **Dart Source:** `layer.dart:1158-1172`
@@ -1177,25 +1188,27 @@ open class ContainerLayer: Layer {
     }
 }
 
-// MARK: - LeaderLayer (Stub)
+// MARK: - LeaderLayer
 
 /// A composited layer that can be followed by a `FollowerLayer`.
 ///
-/// This layer collapses the accumulated offset into a transform and passes
-/// `Offset.zero` to its child layers in the `addToScene` method, so that
-/// the `FollowerLayer` can pick up the transform as the leader transform.
+/// The leader records where it is: its `offset` is applied as a transform
+/// in `addToScene`, so its children are painted at `Offset.zero` and land in
+/// the right place, and `applyTransform` reports the same offset so a
+/// follower can compose the leader's position out of the layer chain. On
+/// attach it registers itself with the `LayerLink`; that registration is
+/// what a `FollowerLayer` reads.
 ///
-/// NOTE: This is a minimal stub. Full implementation will be provided
-/// in a later subtask.
+/// This used to be a stub that inherited `ContainerLayer.addToScene` and
+/// never applied its offset, so everything under a `CompositedTransformTarget`
+/// (every flyout target: drop-down buttons, combo boxes, date pickers) was
+/// painted at the layer origin instead of where it was laid out, and read as
+/// invisible.
 ///
 /// **Dart Source:** `packages/flutter/lib/src/rendering/layer.dart`
 /// **Original Name:** `LeaderLayer`
-/// **Lines:** 2480-2538
 open class LeaderLayer: ContainerLayer {
-
     /// Creates a leader layer.
-    ///
-    /// **Dart Source:** `layer.dart:2484-2488`
     public init(link: LayerLink, offset: Offset = .zero) {
         self._link = link
         self._offset = offset
@@ -1204,10 +1217,15 @@ open class LeaderLayer: ContainerLayer {
 
     /// The link for connecting with `FollowerLayer`s.
     ///
-    /// **Dart Source:** `layer.dart:2494`
+    /// Reassigning while attached moves the registration to the new link.
     public var link: LayerLink {
         get { _link }
         set {
+            if newValue === _link { return }
+            if attached {
+                _link.leader = nil
+                newValue.leader = self
+            }
             _link = newValue
             markNeedsAddToScene()
         }
@@ -1216,34 +1234,68 @@ open class LeaderLayer: ContainerLayer {
 
     /// The offset from the origin of the leader layer's parent to the
     /// origin of the leader layer.
-    ///
-    /// **Dart Source:** `layer.dart:2500`
     public var offset: Offset {
         get { _offset }
         set {
+            if newValue == _offset { return }
             _offset = newValue
             markNeedsAddToScene()
         }
     }
     private var _offset: Offset
+
+    /// The offset applied the last time this layer was added to a scene.
+    public private(set) var lastOffset: Offset?
+
+    open override func attach(_ owner: AnyObject) {
+        super.attach(owner)
+        lastOffset = nil
+        _link.leader = self
+    }
+
+    open override func detach() {
+        _link.leader = nil
+        lastOffset = nil
+        super.detach()
+    }
+
+    open override func addToScene(_ builder: any SceneBuilder) {
+        if _offset != Offset.zero {
+            engineLayer = builder.pushTransform(
+                Matrix4.translationValues(_offset.dx, _offset.dy, 0).storage,
+                oldLayer: _engineLayer as? TransformEngineLayer
+            )
+        }
+        addChildrenToScene(builder)
+        if _offset != Offset.zero {
+            builder.pop()
+        }
+        lastOffset = _offset
+    }
+
+    open override func applyTransform(_ child: Layer?, _ transform: inout Matrix4) {
+        if _offset != Offset.zero {
+            transform = transform * Matrix4.translationValues(_offset.dx, _offset.dy, 0)
+        }
+    }
 }
 
-// MARK: - FollowerLayer (Stub)
+// MARK: - FollowerLayer
 
 /// A composited layer that applies a transformation computed from a
-/// `LeaderLayer` with the same `LayerLink`.
+/// `LeaderLayer` with the same `LayerLink`, so its children are painted
+/// where the leader is, wherever in the tree the follower itself sits.
 ///
-/// NOTE: This is a minimal stub. Full implementation will be provided
-/// in a later subtask.
+/// The transform is established at scene time: walk from the leader and from
+/// this layer up to their common ancestor, collect each chain's transforms
+/// (`applyTransform`), and compose the inverse of the follower's chain with
+/// the leader's. When there is no leader and `showWhenUnlinked` is false the
+/// children are not added to the scene at all.
 ///
 /// **Dart Source:** `packages/flutter/lib/src/rendering/layer.dart`
 /// **Original Name:** `FollowerLayer`
-/// **Lines:** 2546-2778
 open class FollowerLayer: ContainerLayer {
-
     /// Creates a follower layer.
-    ///
-    /// **Dart Source:** `layer.dart:2551-2558`
     public init(
         link: LayerLink,
         showWhenUnlinked: Bool = true,
@@ -1258,11 +1310,10 @@ open class FollowerLayer: ContainerLayer {
     }
 
     /// The link to the `LeaderLayer`.
-    ///
-    /// **Dart Source:** `layer.dart:2564`
     public var link: LayerLink {
         get { _link }
         set {
+            if newValue === _link { return }
             _link = newValue
             markNeedsAddToScene()
         }
@@ -1271,11 +1322,10 @@ open class FollowerLayer: ContainerLayer {
 
     /// Whether to show the layer's contents when the `LeaderLayer` is not
     /// connected.
-    ///
-    /// **Dart Source:** `layer.dart:2576`
     public var showWhenUnlinked: Bool {
         get { _showWhenUnlinked }
         set {
+            if newValue == _showWhenUnlinked { return }
             _showWhenUnlinked = newValue
             markNeedsAddToScene()
         }
@@ -1284,11 +1334,10 @@ open class FollowerLayer: ContainerLayer {
 
     /// Offset from the origin of the leader layer to the origin of the child
     /// layers, used when the layer is linked.
-    ///
-    /// **Dart Source:** `layer.dart:2590`
     public var linkedOffset: Offset {
         get { _linkedOffset }
         set {
+            if newValue == _linkedOffset { return }
             _linkedOffset = newValue
             markNeedsAddToScene()
         }
@@ -1296,27 +1345,117 @@ open class FollowerLayer: ContainerLayer {
     private var _linkedOffset: Offset
 
     /// Offset from parent in the regular layer tree to the origin of the child
-    /// layers, used when the layer is not linked.
-    ///
-    /// **Dart Source:** `layer.dart:2603`
+    /// layers, used when the layer is not linked. `RenderFollowerLayer` passes
+    /// its own paint offset here, which is also what makes `getLastTransform`
+    /// exact for hit testing.
     public var unlinkedOffset: Offset {
         get { _unlinkedOffset }
         set {
+            if newValue == _unlinkedOffset { return }
             _unlinkedOffset = newValue
             markNeedsAddToScene()
         }
     }
     private var _unlinkedOffset: Offset
 
-    /// Returns the last transform applied by this layer during composition.
-    ///
-    /// Returns nil if the layer has not been composited or the transform
-    /// could not be determined.
-    ///
-    /// **Dart Source:** `layer.dart:2680-2693`
+    private var _lastOffset: Offset?
+    private var _lastTransform: Matrix4?
+    private var _invertedTransform: Matrix4?
+    private var _inverseDirty = true
+
+    /// The transform applied by this layer at the last composition, in the
+    /// follower render object's own coordinates — the transform hit testing
+    /// and `localToGlobal` need. nil when the layer has not been composited
+    /// or is hidden.
     public func getLastTransform() -> Matrix4? {
-        // Stub: full implementation in a later subtask.
-        return nil
+        guard let last = _lastTransform, let lastOffset = _lastOffset else { return nil }
+        return Matrix4.translationValues(-lastOffset.dx, -lastOffset.dy, 0) * last
+    }
+
+    /// Composes the transforms of a chain of layers, from the last (nearest
+    /// the common ancestor) down to the first.
+    private static func _collectTransformForLayerChain(_ layers: [ContainerLayer?]) -> Matrix4 {
+        var result = Matrix4.identity()
+        var index = layers.count - 1
+        while index > 0 {
+            layers[index]?.applyTransform(layers[index - 1], &result)
+            index -= 1
+        }
+        return result
+    }
+
+    /// Walks `a` and `b` up to their common ancestor, appending each step's
+    /// parent to the respective list. Returns the ancestor, or nil.
+    private static func _pathsToCommonAncestor(
+        _ a: Layer?, _ b: Layer?,
+        _ ancestorsA: inout [ContainerLayer?], _ ancestorsB: inout [ContainerLayer?]
+    ) -> Layer? {
+        guard let a, let b else { return nil }
+        if a === b { return a }
+        if a.depth < b.depth {
+            ancestorsB.append(b.parent)
+            return _pathsToCommonAncestor(a, b.parent, &ancestorsA, &ancestorsB)
+        } else if a.depth > b.depth {
+            ancestorsA.append(a.parent)
+            return _pathsToCommonAncestor(a.parent, b, &ancestorsA, &ancestorsB)
+        }
+        ancestorsA.append(a.parent)
+        ancestorsB.append(b.parent)
+        return _pathsToCommonAncestor(a.parent, b.parent, &ancestorsA, &ancestorsB)
+    }
+
+    private func _establishTransform() {
+        _lastTransform = nil
+        guard let leader = _link.leader else { return }
+        var forwardLayers: [ContainerLayer?] = [leader]
+        var inverseLayers: [ContainerLayer?] = [self]
+        guard Self._pathsToCommonAncestor(leader, self, &forwardLayers, &inverseLayers) != nil else {
+            return
+        }
+        var forwardTransform = Self._collectTransformForLayerChain(forwardLayers)
+        // On to a hypothetical child of the leader, so the leader's own offset
+        // counts, then the follower's anchor offset.
+        leader.applyTransform(nil, &forwardTransform)
+        forwardTransform = forwardTransform
+            * Matrix4.translationValues(_linkedOffset.dx, _linkedOffset.dy, 0)
+        let inverseChain = Self._collectTransformForLayerChain(inverseLayers)
+        guard let inverseTransform = Matrix4.tryInvert(inverseChain) else { return }
+        _lastTransform = inverseTransform * forwardTransform
+        _inverseDirty = true
+    }
+
+    open override func addToScene(_ builder: any SceneBuilder) {
+        if _link.leader == nil && !_showWhenUnlinked {
+            _lastTransform = nil
+            _lastOffset = nil
+            _inverseDirty = true
+            engineLayer = nil
+            return
+        }
+        _establishTransform()
+        if let transform = _lastTransform {
+            _lastOffset = _unlinkedOffset
+            engineLayer = builder.pushTransform(
+                transform.storage, oldLayer: _engineLayer as? TransformEngineLayer)
+            addChildrenToScene(builder)
+            builder.pop()
+        } else {
+            _lastOffset = nil
+            let matrix = Matrix4.translationValues(_unlinkedOffset.dx, _unlinkedOffset.dy, 0)
+            engineLayer = builder.pushTransform(
+                matrix.storage, oldLayer: _engineLayer as? TransformEngineLayer)
+            addChildrenToScene(builder)
+            builder.pop()
+        }
+        _inverseDirty = true
+    }
+
+    open override func applyTransform(_ child: Layer?, _ transform: inout Matrix4) {
+        if let last = _lastTransform {
+            transform = transform * last
+        } else {
+            transform = transform * Matrix4.translationValues(_unlinkedOffset.dx, _unlinkedOffset.dy, 0)
+        }
     }
 }
 

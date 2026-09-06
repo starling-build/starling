@@ -1,6 +1,28 @@
 # Fluent first: the Linux desktop adopts the latest Fluent style
 
-Draft for approval, 2026-09-05. Nothing in this plan is built yet.
+Draft for approval, 2026-09-05.
+
+**Status, 2026-09-05 (later the same day):** the user redirected the order —
+**build the Fluent style in the SDK first, independent of the desktop**, and
+grow it into a demo app like Microsoft's WinUI 3 Gallery. That is now the
+first phase, and its first cut is in: the tokens (`FluentTokens.swift`),
+the materials as recipes with real Acrylic, Mica and Smoke widgets
+(`FluentMaterials.swift`, `Surfaces/Acrylic.swift`, `Surfaces/Mica.swift`),
+Windows' accent shades as the default accent, the corrected type ramp, the
+flyout/dialog/tooltip surfaces on the elevation and corner tokens, a
+framework `Icon` widget, a scrolling navigation pane, and
+`sdk/Examples/FluentGallery` — a NavigationView app with eight design pages
+and 44 control pages. 19 unit tests pin the values. Building the gallery
+found and fixed four framework bugs that would have hit the desktop's Fluent
+surfaces too: the leader/follower layers behind every flyout were stubs and
+their children were culled out of their pictures (every drop-down, combo
+box and picker was blank), chevrons and check marks were text glyphs the
+UI font does not carry (now painted by `FluentGlyph`), the navigation
+pane neither scrolled nor top-aligned short pages, and icon buttons had no
+ink in the dark theme. Phase 0 below is
+therefore mostly done on the SDK side; what remains of it is the desktop's
+half (defaults, maximized corners, inactive fallback) and the `CLAUDE.md`
+rewrite.
 
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell

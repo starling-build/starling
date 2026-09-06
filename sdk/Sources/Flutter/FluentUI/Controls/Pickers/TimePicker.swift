@@ -395,14 +395,14 @@ class _TimePickerFlyoutContentState: State<StatefulWidget> {
             mainAxisAlignment: .end,
             children: [
                 _PickerActionButton(
-                    label: "\u{2713}",
+                    icon: FluentGlyph(.check, size: 14),
                     onPressed: { [self] in
                         flyout.onConfirm(_localTime)
                     }
                 ),
                 SizedBox(width: 4),
                 _PickerActionButton(
-                    label: "\u{2715}",
+                    icon: FluentGlyph(.dismiss, size: 14),
                     onPressed: { [self] in
                         flyout.onCancel()
                     }

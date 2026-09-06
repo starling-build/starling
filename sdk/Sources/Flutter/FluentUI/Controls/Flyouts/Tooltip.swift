@@ -200,29 +200,22 @@ public struct TooltipThemeData: Equatable {
     }
 
     /// Creates the standard `TooltipThemeData` based on the given theme.
+    ///
+    /// A ToolTip is the one overlay Windows keeps at the CONTROL radius (4),
+    /// at elevation 16, on the flyout surface colour with the flyout stroke
+    /// — `menuColor` is the acrylic fallback (#F9F9F9 / #2C2C2C), which is
+    /// what a real tooltip measures, and not the white and mid-grey this
+    /// used to paint.
     public static func standard(_ theme: FluentThemeData) -> TooltipThemeData {
-        let radius = BorderRadius.all(Radius(circular: 4))
-        let shadow = [
-            BoxShadow(
-                color: Color(0x33000000),
-                offset: Offset(1, 1),
-                blurRadius: 10.0
-            ),
-        ]
-        let decoration: BoxDecoration
-        if theme.brightness == .light {
-            decoration = BoxDecoration(
-                color: Color(0xFFFFFFFF),
-                borderRadius: radius,
-                boxShadow: shadow
-            )
-        } else {
-            decoration = BoxDecoration(
-                color: Color(0xFF808080),
-                borderRadius: radius,
-                boxShadow: shadow
-            )
-        }
+        let decoration = BoxDecoration(
+            color: theme.menuColor,
+            border: Border.all(
+                color: theme.resources.surfaceStrokeColorFlyout,
+                width: FluentStrokeWidth.thin),
+            borderRadius: FluentCorners.tooltipRadius,
+            boxShadow: FluentElevation.shadows(
+                FluentElevation.tooltip, brightness: theme.brightness)
+        )
 
         return TooltipThemeData(
             height: 32,
@@ -617,8 +610,11 @@ public class TooltipState: State<StatefulWidget> {
         let defaultTextStyle = theme.typography.body ?? TextStyle(color: Color(0xFF000000), fontSize: 14)
         let defaultDecoration = BoxDecoration(
             color: theme.menuColor,
-            border: Border.all(color: theme.resources.surfaceStrokeColorFlyout),
-            borderRadius: BorderRadius.all(Radius(circular: 8))
+            border: Border.all(color: theme.resources.surfaceStrokeColorFlyout,
+                               width: FluentStrokeWidth.thin),
+            borderRadius: FluentCorners.tooltipRadius,
+            boxShadow: FluentElevation.shadows(
+                FluentElevation.tooltip, brightness: theme.brightness)
         )
 
         // Build the overlay widget outside the builder to avoid leaking

@@ -386,10 +386,7 @@ class _TabViewState: State<StatefulWidget> {
                         width: 24,
                         height: 24,
                         child: IconButton(
-                            icon: tab.closeIcon ?? Text(
-                                "\u{2715}",
-                                style: TextStyle(color: foregroundColor, fontSize: 9)
-                            ),
+                            icon: tab.closeIcon ?? FluentGlyph(.dismiss, size: 10, color: foregroundColor),
                             onPressed: { [weak self] in
                                 guard let self = self else { return }
                                 let closedTab = self.tabView.tabs[index]

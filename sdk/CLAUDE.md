@@ -57,6 +57,78 @@ separate `libswift_bridge.dylib`, and `--mac-cpu arm64` decides both the ABI
 and the output directory (`out/host_debug_arm64`). Full commands in the
 README's *Building → macOS*.
 
+## Fluent: the design system lives here, and the gallery is its proof
+
+`Sources/Flutter/FluentUI/` is Windows 11's Fluent, as Microsoft ships it in
+2026, independent of any desktop or app:
+
+- **Tokens are code, never literals.** `Styles/FluentTokens.swift` holds the
+  shape ramp and Windows' corner roles (`FluentCorners.control` 4,
+  `.overlay` 8), the spacing ramp and layout rules (`FluentSpacing`), stroke
+  widths, the Fluent 2 motion ramp plus Windows' named animations
+  (`FluentMotion.directEntrance` = 250 ms on `decelerateMid`), and the
+  elevation roles with Fluent 2's two-layer shadow recipe
+  (`FluentElevation.shadows(32, brightness:)`). Colours are WinUI's own
+  resource dictionary (`Styles/ColorResources.swift`); the default accent is
+  Windows' default blue with Windows' seven shades
+  (`FluentColors.windowsBlue`), and controls take Dark 1 in light and Light 2
+  in dark exactly as `AccentFillColorDefaultBrush` does. A Fluent surface
+  with a bare `8` or `Color(0x…)` in it is a bug.
+- **Materials are recipes.** `Styles/FluentMaterials.swift` carries WinUI's
+  acrylic brushes and the MicaController defaults as `FluentMaterialRecipe`
+  (tint, tint opacity, luminosity opacity, fallback, blur), and the colour
+  arithmetic Windows composes them with (`FluentColorMath.luminosityBlend`).
+  `Controls/Surfaces/Acrylic.swift` is the real recipe over a
+  `BackdropFilter`; `Mica.swift` resolves an OPAQUE colour from one wallpaper
+  sample (`MicaBackdrop` above the tree supplies it, a host's business) and
+  goes to the documented fallback when inactive or when
+  `FluentMaterialSettings` has transparency off; `Smoke` is the modal dim.
+- **Type ramp** is WinUI's (`Styles/FluentTypography.swift`): Caption is
+  Regular, Body Large Strong exists, nothing is Bold or Italic. Selawik
+  (`FluentSystemIcons` target) is Microsoft's own metric-compatible stand-in
+  for Segoe UI Variable; a theme passes it as `fontFamily`.
+- **`Icon`** (`Widgets/Icon.swift`) is the framework's glyph widget, sized
+  and inked by `IconTheme`. The example host's older `Icon` stays for the
+  Material samples' CupertinoIcons auto-registration; do not use both in one
+  file.
+- **`Examples/FluentGallery`** is the WinUI 3 Gallery's shape on this SDK:
+  a NavigationView of design-guidance pages (the tokens, drawn) and one
+  `SamplePage` per ported control, light and dark, over Mica. It is the
+  acceptance test for anything in `FluentUI/`: a token or control change that
+  looks wrong there is wrong. Run it on a live desktop with
+  `swift build -c release --product FluentGallery` and the GTK host;
+  `FLUENT_GALLERY_PAGE=design/Color FLUENT_GALLERY_DARK=1` opens a page
+  directly for screenshots. Adding a control's page is one `GalleryEntry`.
+- Values are pinned by `Tests/FlutterTests/FluentUI/FluentTokensTests.swift`
+  against WinUI's XAML, @fluentui/tokens and `UISettings` — a failure there
+  means the SDK drifted from Windows, not that a test is stale.
+- **Marks are painted, never typed.** `Styles/FluentGlyph.swift` draws the
+  chevrons, check, dismiss, dot, ellipsis and InfoBar badges the controls
+  need. They were text glyphs (`"\u{25BC}"`, a Segoe MDL2 code point for
+  the pane expander) and Selawik has none of them, so a missing glyph drew
+  as nothing — no twisties, no chevrons, a checked box that was a plain
+  square. A `"\u{…}"` in a control is a bug; add a `FluentGlyphKind`.
+
+Two framework traps the gallery found, both of the "blank subtree, no
+error" kind:
+
+- **A `CompositedTransformTarget` painted nothing.** Every flyout-anchored
+  control (drop-down, combo box, split button, the date and time pickers,
+  auto-suggest, teaching tip, menu bar) was invisible. `LeaderLayer` and
+  `FollowerLayer` were stubs that never applied their offset — fixed, they
+  are real ports now — but the deeper cause is this port's painting model:
+  there are no interior repaint boundaries, so every `PaintingContext` is
+  bounded in ABSOLUTE coordinates, while a leader paints its child at the
+  layer origin (Dart's contract). The child's picture was then recorded with
+  a cull rect it lay entirely outside of, and the engine drops such ops at
+  record time. `RenderLeaderLayer.paint` now hands the child a giant
+  `childPaintBounds`, as `RenderFollowerLayer` always did. Anything else that
+  pushes a layer and paints its child at `.zero` needs the same.
+- **`NavigationView` centred short pages and let its pane overflow.** Its
+  body row now stretches and its items scroll; the WinUI Gallery was the
+  first consumer with a page shorter than the window and a pane longer than
+  it.
+
 ## Widget composition: use the trailing-closure result builders
 
 `Sources/Flutter/Widgets/ResultBuilders.swift` gives every common container a

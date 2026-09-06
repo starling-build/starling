@@ -185,13 +185,13 @@ class ExpanderState: State<StatefulWidget>, TickerProvider {
         let w = expander
 
         // -- Chevron icon --
-        let chevronText = _isDown ? "\u{25BC}" : "\u{25B2}"  // ▼ or ▲
         let chevronAngle: Double = _isExpanded ? Double.pi : 0.0
 
         let chevronWidget: Widget = w.icon ?? Transform(
             transform: Matrix4.rotationZ(chevronAngle),
             alignment: Alignment.center,
-            child: Text(chevronText, style: TextStyle(color: theme.resources.textFillColorPrimary, fontSize: 8))
+            child: FluentGlyph(_isDown ? .chevronDown : .chevronUp, size: 12,
+                               color: theme.resources.textFillColorPrimary)
         )
 
         // -- Header --

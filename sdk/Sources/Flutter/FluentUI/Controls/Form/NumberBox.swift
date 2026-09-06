@@ -106,7 +106,7 @@ public class NumberBox: StatelessWidget {
         )
 
         let decrementButton: Widget = _NumberBoxButton(
-            label: "\u{2212}",
+            label: "-",  // hyphen-minus: U+2212 is not in Selawik
             onPressed: isDisabled ? nil : { [self] in
                 _decrement()
             },

@@ -185,7 +185,7 @@ public class MenuFlyout: StatefulWidget {
         items: [MenuFlyoutItemBase] = [],
         color: Color? = nil,
         shadowColor: Color = Color(0xFF000000),
-        elevation: Double = 8.0,
+        elevation: Double = FluentElevation.flyout,
         constraints: BoxConstraints = kFlyoutMinConstraints,
         itemMargin: EdgeInsets = kDefaultMenuFlyoutItemMargin
     ) {
@@ -346,13 +346,9 @@ private class _MenuFlyoutSubItemWidgetState: State<StatefulWidget> {
             ?? (subItem._useIconPlaceholder ? SizedBox(width: 16, height: 16) : nil)
 
         // Right-pointing chevron to indicate submenu
-        let chevron: Widget = Text(
-            "\u{25B6}",
-            style: TextStyle(
-                color: FluentTheme.of(context).resources.textFillColorSecondary,
-                fontSize: 8
-            )
-        )
+        let chevron: Widget = FluentGlyph(
+            .chevronRight, size: 12,
+            color: FluentTheme.of(context).resources.textFillColorSecondary)
 
         let tile: Widget = FlyoutListTile(
             onPressed: { [weak self] in
@@ -447,14 +443,7 @@ public class ToggleMenuFlyoutItem: MenuFlyoutItemBase {
 
         // Checkmark indicator shown when checked
         let checkIcon: Widget? = isChecked
-            ? Text(
-                "\u{2713}",
-                style: TextStyle(
-                    color: theme.resources.textFillColorPrimary,
-                    fontSize: 12,
-                    fontWeight: .w700
-                )
-            )
+            ? FluentGlyph(.check, size: 14, color: theme.resources.textFillColorPrimary)
             : nil
 
         // If a leading widget is provided, use it; otherwise use the checkmark
@@ -551,13 +540,7 @@ public class RadioMenuFlyoutItem: MenuFlyoutItemBase {
 
         // Radio indicator: a bullet character when selected
         let radioIcon: Widget? = isSelected
-            ? Text(
-                "\u{25CF}",
-                style: TextStyle(
-                    color: theme.accentColor.defaultBrushFor(theme.brightness),
-                    fontSize: 10
-                )
-            )
+            ? FluentGlyph(.dot, size: 14, color: theme.accentColor.defaultBrushFor(theme.brightness))
             : nil
 
         // Resolve leading widget

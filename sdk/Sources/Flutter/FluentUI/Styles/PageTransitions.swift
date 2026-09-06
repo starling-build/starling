@@ -41,8 +41,8 @@ public class EntrancePageTransition: ImplicitlyAnimatedWidget {
     public init(
         key: (any Key)? = nil,
         child: Widget,
-        duration: Duration = .milliseconds(200),
-        curve: any Curve = Curves.easeInOut
+        duration: Duration = FluentMotion.directEntrance.duration,
+        curve: any Curve = FluentMotion.directEntrance.curve
     ) {
         self.child = child
         super.init(key: key, curve: curve, duration: duration)
@@ -114,8 +114,8 @@ public class DrillInPageTransition: ImplicitlyAnimatedWidget {
     public init(
         key: (any Key)? = nil,
         child: Widget,
-        duration: Duration = .milliseconds(200),
-        curve: any Curve = Curves.easeInOut
+        duration: Duration = FluentMotion.directEntrance.duration,
+        curve: any Curve = FluentMotion.directEntrance.curve
     ) {
         self.child = child
         super.init(key: key, curve: curve, duration: duration)
@@ -182,8 +182,8 @@ public class HorizontalSlidePageTransition: ImplicitlyAnimatedWidget {
     public init(
         key: (any Key)? = nil,
         child: Widget,
-        duration: Duration = .milliseconds(200),
-        curve: any Curve = Curves.easeInOut
+        duration: Duration = FluentMotion.directEntrance.duration,
+        curve: any Curve = FluentMotion.directEntrance.curve
     ) {
         self.child = child
         super.init(key: key, curve: curve, duration: duration)

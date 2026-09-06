@@ -233,18 +233,12 @@ class _TreeViewState: State<StatefulWidget> {
 
                 // Expand/collapse chevron
                 if item.isExpandable {
-                    let chevronText = item.expanded ? "\u{25BC}" : "\u{25B6}"  // down or right triangle
-                    let chevronButton: Widget = SizedBox(
+                                        let chevronButton: Widget = SizedBox(
                         width: indent,
                         height: itemHeight,
                         child: Center(
-                            child: Text(
-                                chevronText,
-                                style: TextStyle(
-                                    color: fgColor,
-                                    fontSize: _kExpandIconSize
-                                )
-                            )
+                            child: FluentGlyph(item.expanded ? .chevronDown : .chevronRight,
+                                        size: _kExpandIconSize, color: fgColor)
                         )
                     )
                     rowChildren.append(chevronButton)
@@ -260,8 +254,7 @@ class _TreeViewState: State<StatefulWidget> {
 
                 // Selection checkbox (for multiple selection mode)
                 if w.selectionMode == .multiple {
-                    let checkmark = item.selected ? "\u{2713}" : ""
-                    let checkColor = item.selected
+                                        let checkColor = item.selected
                         ? theme.activeColor
                         : Color(0x00000000)
                     let checkBg = item.selected
@@ -281,10 +274,7 @@ class _TreeViewState: State<StatefulWidget> {
                             width: 18,
                             height: 18,
                             child: Center(
-                                child: Text(
-                                    checkmark,
-                                    style: TextStyle(color: checkColor, fontSize: 11, fontWeight: .w700)
-                                )
+                                child: FluentGlyph(.check, size: 11, color: checkColor)
                             )
                         )
                     )

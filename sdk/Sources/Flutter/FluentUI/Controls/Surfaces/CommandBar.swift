@@ -369,14 +369,7 @@ class _CommandBarState: State<StatefulWidget> {
                     ),
                     child: Padding(
                         padding: EdgeInsets(left: 10, top: 6, right: 10, bottom: 6),
-                        child: Text(
-                            "\u{22EF}",
-                            style: TextStyle(
-                                color: foregroundColor,
-                                fontSize: 14,
-                                fontWeight: .w700
-                            )
-                        )
+                        child: FluentGlyph(.more, size: 16, color: foregroundColor)
                     )
                 )
             },

@@ -88,25 +88,25 @@ public class InfoBar: StatelessWidget {
         // -- Severity-based colors --
         let backgroundColor: Color
         let iconColor: Color
-        let iconText: String  // Unicode character for severity icon
+        let iconKind: FluentGlyphKind
 
         switch severity {
         case .info:
             backgroundColor = theme.resources.systemFillColorAttentionBackground
             iconColor = theme.accentColor.defaultBrushFor(theme.brightness)
-            iconText = "\u{2139}"  // ℹ
+            iconKind = .info
         case .warning:
             backgroundColor = theme.resources.systemFillColorCautionBackground
             iconColor = theme.resources.systemFillColorCaution
-            iconText = "\u{26A0}"  // ⚠
+            iconKind = .warning
         case .error:
             backgroundColor = theme.resources.systemFillColorCriticalBackground
             iconColor = theme.resources.systemFillColorCritical
-            iconText = "\u{2716}"  // ✖
+            iconKind = .error
         case .success:
             backgroundColor = theme.resources.systemFillColorSuccessBackground
             iconColor = theme.resources.systemFillColorSuccess
-            iconText = "\u{2714}"  // ✔
+            iconKind = .success
         }
 
         let decoration = BoxDecoration(
@@ -116,10 +116,12 @@ public class InfoBar: StatelessWidget {
         )
 
         // -- Icon --
-        let iconWidget: Widget? = isIconVisible ? Text(
-            iconText,
-            style: TextStyle(color: iconColor, fontSize: 16)
-        ) : nil
+        // A badge: the severity colour filled, the mark in the on-accent ink,
+        // which is what WinUI's InfoBar draws and what stays legible on the
+        // caution yellow in both themes.
+        let iconWidget: Widget? = isIconVisible ? FluentGlyph(
+            iconKind, size: 16, color: iconColor,
+            ink: theme.resources.textOnAccentFillColorPrimary) : nil
 
         // -- Title with bold styling --
         let titleWidget: Widget = Padding(
@@ -166,13 +168,8 @@ public class InfoBar: StatelessWidget {
                             ),
                             child: Padding(
                                 padding: EdgeInsets(all: 4),
-                                child: Text(
-                                    "\u{2715}",  // ✕
-                                    style: TextStyle(
-                                        color: theme.resources.textFillColorPrimary,
-                                        fontSize: 12
-                                    )
-                                )
+                                child: FluentGlyph(.dismiss, size: 12,
+                                                   color: theme.resources.textFillColorPrimary)
                             )
                         )
                     },

@@ -328,6 +328,9 @@ products += [
     .executable(name: "FlutterDemo", targets: ["FlutterDemo"]),
     // Ports of famous Flutter sample apps, hosted the same way as the demo.
     .executable(name: "CounterApp", targets: ["CounterApp"]),
+    // Every Fluent token, material and control on one screen, light beside
+    // dark — the design system's own proof, independent of any desktop.
+    .executable(name: "FluentGallery", targets: ["FluentGallery"]),
     // The twenty-line terminal built on TerminalView (Examples/TerminalDemo).
     .executable(name: "TerminalDemo", targets: ["TerminalDemo"]),
     // The same widget, tiled: a split tree of terminals with draggable seams.
@@ -840,6 +843,24 @@ targets += [
 //
 // App targets live under Examples/ (explicit `path:`), keeping Sources/ to
 // the SDK — the targets a consumer can depend on.
+// Its own statement: one more entry in the literal below and the manifest
+// stops type-checking in reasonable time.
+targets += [
+    // The Fluent design system on one screen (Examples/FluentGallery).
+    .executableTarget(
+        name: "FluentGallery",
+        dependencies: [
+            "Flutter",
+            "ExampleHost",
+            "FlutterSwiftBridge",
+            "FluentSystemIcons",
+        ],
+        path: "Examples/FluentGallery",
+        swiftSettings: cxxInteropSettings + [.swiftLanguageMode(.v5)],
+        linkerSettings: engineLinkSettings
+    ),
+]
+
 targets += [
     // Shared plumbing for the ported example apps: the engine-data bootstrap,
     // the GTK run sequence, and the Material-look chrome the classic samples

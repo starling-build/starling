@@ -161,10 +161,7 @@ class _TeachingTipState: State<StatefulWidget> {
                 let color: Color = states.isHovered
                     ? res.textFillColorSecondary
                     : res.textFillColorPrimary
-                return Text(
-                    "\u{2715}",
-                    style: TextStyle(color: color, fontSize: 14)
-                )
+                return FluentGlyph(.dismiss, size: 12, color: color)
             },
             onPressed: { [weak self] in
                 self?.teachingTip.onClose?()

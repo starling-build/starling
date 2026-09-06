@@ -78,6 +78,15 @@ public class TransformLayer: ContainerLayer {
         addChildrenToScene(builder)
         builder.pop()
     }
+
+    public override func applyTransform(_ child: Layer?, _ transform: inout Matrix4) {
+        guard let t = _transform else { return }
+        var effectiveTransform = t
+        if _offset != Offset.zero {
+            effectiveTransform = Matrix4.translationValues(_offset.dx, _offset.dy, 0) * effectiveTransform
+        }
+        transform = transform * effectiveTransform
+    }
 }
 
 // MARK: - RenderRotatedBox

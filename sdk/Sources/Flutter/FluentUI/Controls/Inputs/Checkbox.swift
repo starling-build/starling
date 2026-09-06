@@ -85,17 +85,14 @@ public class Checkbox: StatelessWidget {
                                 ?? Color(0x00000000)
                         }
                     }()
-                    // Use unicode checkmark character
-                    iconContent = Center(
-                        child: Text(
-                            checked! ? "\u{2713}" : "",
-                            style: TextStyle(
-                                color: iconColor,
-                                fontSize: 12,
-                                fontWeight: .w700
-                            )
-                        )
-                    )
+                    // Painted, not a glyph: U+2713 is not in Selawik (or in
+                    // most UI fonts), and a missing glyph draws as nothing --
+                    // a checked box that is just a filled square.
+                    iconContent = checked!
+                        ? Center(child: CustomPaint(
+                            painter: _CheckMarkPainter(color: iconColor),
+                            size: Size(12, 12)))
+                        : SizedBox(width: 12, height: 12)
                 }
 
                 // Build the checkbox box
@@ -367,4 +364,36 @@ func filledButtonForegroundColor(_ theme: FluentThemeData, _ states: Set<WidgetS
         return res.textOnAccentFillColorDisabled
     }
     return res.textOnAccentFillColorPrimary
+}
+
+
+// MARK: - _CheckMarkPainter
+
+/// WinUI's check mark: a stroked polyline in the box's unit square, round
+/// caps and joins, the ink at the control's stroke width.
+private final class _CheckMarkPainter: CustomPainter {
+    let color: Color
+
+    init(color: Color) {
+        self.color = color
+        super.init()
+    }
+
+    override func paint(_ canvas: any Canvas, _ size: Size) {
+        let paint = Paint()
+        paint.color = color
+        paint.style = .stroke
+        paint.strokeWidth = max(1.5, size.width * 0.14)
+        paint.strokeCap = .round
+        paint.strokeJoin = .round
+        let path = Path()
+        path.moveTo(size.width * 0.18, size.height * 0.52)
+        path.lineTo(size.width * 0.42, size.height * 0.76)
+        path.lineTo(size.width * 0.84, size.height * 0.28)
+        canvas.drawPath(path, paint)
+    }
+
+    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
+        (oldDelegate as? _CheckMarkPainter)?.color != color
+    }
 }

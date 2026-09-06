@@ -1,170 +1,176 @@
-// Ported from: fluent_ui/lib/src/controls/surfaces/acrylic.dart
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Acrylic: Windows' translucent material for transient surfaces — flyouts,
+// menus, Start, anything light-dismiss. Frosted glass, tinted.
 //
-// Simplified acrylic/mica material effect. Real backdrop blur requires
-// engine-level compositor support, so this implementation simulates the
-// effect with a semi-transparent colored overlay.
+// This is the real recipe, not a tinted rectangle: the backdrop is blurred,
+// the tint's LIGHTNESS is blended onto it (a luminosity blend, which is what
+// keeps a dark acrylic dark over a white window and a light one light over
+// a dark wallpaper), then the tint itself is painted over at its own opacity.
+// The ingredients are `FluentMaterialRecipe` (Styles/FluentMaterials.swift),
+// verbatim from WinUI's brush resources; this file only composes them.
+//
+// Two things Windows does that this does not: the 2% noise texture (not
+// visible at UI scale, and a texture asset the framework would have to ship),
+// and going solid when the window deactivates (a window's business, not a
+// surface's — see `FluentMaterialSettings` for the switch a host can throw).
+//
+// The blur is a `BackdropFilter`, and a 30-sigma blur is not free: this is
+// for surfaces that come and go, as the guidance says, not for a window's
+// body. `Mica` is the material for that.
 
 import FlutterSwiftBridge
 
 // MARK: - Acrylic
 
-/// A widget that applies a simplified acrylic material effect to its child.
+/// A surface of acrylic material behind `child`.
 ///
-/// In WinUI 3, Acrylic is a translucent texture that uses backdrop blur,
-/// luminosity, and tint to create a depth effect. Since true backdrop blur
-/// requires engine compositor support, this implementation approximates the
-/// visual by painting a semi-transparent tint layer on top of a solid
-/// background.
-///
-/// Usage:
 /// ```swift
-/// Acrylic(
-///     child: Text("Hello"),
-///     opacity: 0.8,
-///     luminosityOpacity: 0.9
-/// )
+/// Acrylic(borderRadius: FluentCorners.overlayRadius) {
+///     Padding(padding: EdgeInsets(all: 8), child: menuItems)
+/// }
 /// ```
+///
+/// The recipe defaults to the thin `acrylicDefault` of the current theme;
+/// pass `recipe:` for `acrylicBase` (denser, for Start-sized panels) or an
+/// accent acrylic, and any of the four ingredient overrides to tune one.
 public class Acrylic: StatelessWidget {
 
     /// The widget below this widget in the tree.
     public let child: Widget?
 
-    /// The tint color applied over the background.
-    ///
-    /// If nil, uses the theme's `solidBackgroundFillColorBase`.
-    public let color: Color?
+    /// The material. nil picks the theme's default acrylic, or the one an
+    /// enclosing `AcrylicTheme` chose.
+    public let recipe: FluentMaterialRecipe?
 
-    /// The overall tint opacity (0.0 = fully transparent, 1.0 = fully opaque).
-    ///
-    /// Controls how much the tint color shows through. Lower values create
-    /// a more transparent, glass-like appearance. Defaults to 0.8.
-    public let opacity: Double
+    /// Overrides for single ingredients of whichever recipe applies.
+    public let tintColor: Color?
+    public let tintOpacity: Double?
+    public let luminosityOpacity: Double?
+    public let blurAmount: Double?
 
-    /// The luminosity layer opacity.
-    ///
-    /// In WinUI, the luminosity layer controls how much background light
-    /// bleeds through. Here it is applied as a secondary white overlay.
-    /// Defaults to 0.9.
-    public let luminosityOpacity: Double
+    /// The surface's corners. The blur is clipped to them.
+    public let borderRadius: any BorderRadiusGeometry
 
-    /// An optional custom decoration (shape, border, etc.).
-    ///
-    /// When provided, this decoration is used instead of the default
-    /// rounded rectangle. The tint color and opacity are still applied.
-    public let shape: (any Decoration)?
+    /// Draw the material, or its fallback colour. nil follows
+    /// `FluentMaterialSettings`.
+    public let enabled: Bool?
 
-    /// Creates an acrylic material effect widget.
     public init(
         key: (any Key)? = nil,
         child: Widget? = nil,
-        color: Color? = nil,
-        opacity: Double = 0.8,
-        luminosityOpacity: Double = 0.9,
-        shape: (any Decoration)? = nil
+        recipe: FluentMaterialRecipe? = nil,
+        tintColor: Color? = nil,
+        tintOpacity: Double? = nil,
+        luminosityOpacity: Double? = nil,
+        blurAmount: Double? = nil,
+        borderRadius: any BorderRadiusGeometry = BorderRadius.zero,
+        enabled: Bool? = nil
     ) {
         self.child = child
-        self.color = color
-        self.opacity = opacity
+        self.recipe = recipe
+        self.tintColor = tintColor
+        self.tintOpacity = tintOpacity
         self.luminosityOpacity = luminosityOpacity
-        self.shape = shape
+        self.blurAmount = blurAmount
+        self.borderRadius = borderRadius
+        self.enabled = enabled
         super.init(key: key)
     }
 
-    public override func build(_ context: any BuildContext) -> Widget {
+    /// The recipe this widget will draw with at `context`, overrides applied.
+    public func resolvedRecipe(_ context: any BuildContext) -> FluentMaterialRecipe {
         let theme = FluentTheme.of(context)
-
-        // Resolve the tint color
-        let tintColor = color ?? theme.resources.solidBackgroundFillColorBase
-
-        // Apply the tint opacity to the resolved color
-        let tintWithOpacity = tintColor.withOpacity(opacity)
-
-        // Build the luminosity layer as a subtle white overlay
-        let luminosityColor = Color(0xFFFFFFFF).withOpacity(
-            luminosityOpacity * 0.05
-        )
-
-        // If a custom shape/decoration is provided, use it directly with the
-        // tint color baked in. Otherwise build a default rounded container.
-        let decoration: any Decoration
-        if let customShape = shape {
-            decoration = customShape
-        } else {
-            decoration = BoxDecoration(
-                color: tintWithOpacity,
-                border: Border.all(
-                    color: theme.resources.surfaceStrokeColorDefault,
-                    width: 0.5
-                ),
-                borderRadius: BorderRadius.circular(6)
-            )
-        }
-
-        // Stack layers: background decoration -> luminosity overlay -> child
-        var result: Widget = _AcrylicDecoratedBox(
-            decoration: decoration,
-            child: _buildLuminosityAndChild(luminosityColor)
-        )
-
-        return result
+        let base = recipe
+            ?? AcrylicTheme.of(context).recipe
+            ?? FluentMaterialRecipe.acrylicDefault(theme.brightness)
+        return base.copyWith(
+            tintColor: tintColor,
+            tintOpacity: tintOpacity,
+            luminosityOpacity: luminosityOpacity,
+            blurAmount: blurAmount)
     }
 
-    /// Builds the luminosity overlay with the child on top.
-    private func _buildLuminosityAndChild(_ luminosityColor: Color) -> Widget {
-        // If luminosity is effectively zero, skip the overlay
-        if luminosityOpacity <= 0.001 {
-            return child ?? SizedBox(width: 0, height: 0)
+    public override func build(_ context: any BuildContext) -> Widget {
+        let r = resolvedRecipe(context)
+        let live = enabled ?? FluentMaterialSettings.of(context).transparencyEffects
+        let content = child ?? SizedBox(width: 0, height: 0)
+
+        guard live, r.blurAmount > 0 || r.luminosityOpacity > 0 || r.tintOpacity > 0 else {
+            return DecoratedBox(
+                decoration: BoxDecoration(color: r.fallbackColor, borderRadius: borderRadius),
+                child: content)
         }
 
-        // Paint a subtle luminosity layer, then the child
-        let luminosityOverlay: Widget = _AcrylicDecoratedBox(
-            decoration: BoxDecoration(color: luminosityColor),
-            child: child
-        )
+        // Bottom to top: the blurred backdrop with the luminosity layer
+        // blended onto it, the tint over that, and the child. `Positioned`
+        // fills size the layers to the child rather than the other way
+        // round, so an acrylic panel is as big as what it holds.
+        var layers: [Widget] = []
+        let luminosity: Widget = DecoratedBox(
+            decoration: BoxDecoration(
+                color: r.tintColor.withValues(alpha: r.luminosityOpacity),
+                backgroundBlendMode: .luminosity),
+            child: SizedBox(expand: ()))
+        if r.blurAmount > 0 {
+            layers.append(Positioned(fill: (), child: BackdropFilter(
+                filter: ImageFilterFactory.blur(sigmaX: r.blurAmount, sigmaY: r.blurAmount),
+                child: luminosity)))
+        } else {
+            layers.append(Positioned(fill: (), child: luminosity))
+        }
+        if r.tintOpacity > 0 {
+            layers.append(Positioned(fill: (), child: DecoratedBox(
+                decoration: BoxDecoration(color: r.tintColor.withValues(alpha: r.tintOpacity)),
+                child: SizedBox(expand: ()))))
+        }
+        layers.append(content)
 
-        return luminosityOverlay
+        return ClipRRect(borderRadius: borderRadius, child: Stack(children: layers))
     }
 }
 
 // MARK: - AcrylicThemeData
 
-/// Theme data for controlling the default appearance of `Acrylic` widgets.
+/// Theme data for the default appearance of `Acrylic` widgets below an
+/// `AcrylicTheme`: a whole recipe, and/or single ingredients over it.
 public class AcrylicThemeData {
-    /// The default tint color.
+    public let recipe: FluentMaterialRecipe?
     public let tintColor: Color?
-
-    /// The default tint opacity.
     public let tintOpacity: Double?
-
-    /// The default luminosity opacity.
     public let luminosityOpacity: Double?
+    public let blurAmount: Double?
 
-    /// Creates acrylic theme data.
     public init(
+        recipe: FluentMaterialRecipe? = nil,
         tintColor: Color? = nil,
         tintOpacity: Double? = nil,
-        luminosityOpacity: Double? = nil
+        luminosityOpacity: Double? = nil,
+        blurAmount: Double? = nil
     ) {
+        self.recipe = recipe
         self.tintColor = tintColor
         self.tintOpacity = tintOpacity
         self.luminosityOpacity = luminosityOpacity
+        self.blurAmount = blurAmount
     }
 
-    /// Creates the standard theme data based on the given theme.
+    /// The standard theme data: nothing overridden, so `Acrylic` falls
+    /// through to the theme's own default acrylic.
     public static func standard(_ theme: FluentThemeData) -> AcrylicThemeData {
-        return AcrylicThemeData(
-            tintOpacity: 0.8,
-            luminosityOpacity: 0.9
-        )
+        AcrylicThemeData()
     }
 
-    /// Merge this theme data with another, with the other taking precedence.
+    /// Merge this theme data with another, the other taking precedence.
     public func merge(_ other: AcrylicThemeData?) -> AcrylicThemeData {
-        guard let other = other else { return self }
+        guard let other else { return self }
         return AcrylicThemeData(
+            recipe: other.recipe ?? recipe,
             tintColor: other.tintColor ?? tintColor,
             tintOpacity: other.tintOpacity ?? tintOpacity,
-            luminosityOpacity: other.luminosityOpacity ?? luminosityOpacity
+            luminosityOpacity: other.luminosityOpacity ?? luminosityOpacity,
+            blurAmount: other.blurAmount ?? blurAmount
         )
     }
 }
@@ -173,7 +179,6 @@ public class AcrylicThemeData {
 
 /// An inherited theme that controls how descendant `Acrylic` widgets look.
 public class AcrylicTheme: InheritedTheme {
-    /// The theme data for the acrylic theme.
     public let data: AcrylicThemeData
 
     public init(key: (any Key)? = nil, data: AcrylicThemeData, child: Widget) {
@@ -181,11 +186,22 @@ public class AcrylicTheme: InheritedTheme {
         super.init(key: key, child: child)
     }
 
-    /// Returns the closest `AcrylicThemeData` which encloses the given context.
+    /// The closest `AcrylicThemeData` enclosing `context`, with the
+    /// ingredient overrides already folded into `recipe` when one was set.
     public static func of(_ context: any BuildContext) -> AcrylicThemeData {
         let theme = FluentTheme.of(context)
         let inherited = context.dependOnInheritedWidgetOfExactType(AcrylicTheme.self)
-        return AcrylicThemeData.standard(theme).merge(inherited?.data)
+        let merged = AcrylicThemeData.standard(theme).merge(inherited?.data)
+        guard merged.tintColor != nil || merged.tintOpacity != nil
+            || merged.luminosityOpacity != nil || merged.blurAmount != nil else {
+            return merged
+        }
+        let base = merged.recipe ?? FluentMaterialRecipe.acrylicDefault(theme.brightness)
+        return AcrylicThemeData(recipe: base.copyWith(
+            tintColor: merged.tintColor,
+            tintOpacity: merged.tintOpacity,
+            luminosityOpacity: merged.luminosityOpacity,
+            blurAmount: merged.blurAmount))
     }
 
     public override func updateShouldNotify(_ oldWidget: InheritedWidget) -> Bool {
@@ -195,30 +211,5 @@ public class AcrylicTheme: InheritedTheme {
 
     public override func wrap(_ context: any BuildContext, _ child: Widget) -> Widget {
         return AcrylicTheme(data: data, child: child)
-    }
-}
-
-// MARK: - _AcrylicDecoratedBox (private helper)
-
-/// A widget that paints a `Decoration` behind its child.
-private class _AcrylicDecoratedBox: SingleChildRenderObjectWidget {
-    let decoration: any Decoration
-
-    init(
-        key: (any Key)? = nil,
-        decoration: any Decoration,
-        child: Widget? = nil
-    ) {
-        self.decoration = decoration
-        super.init(key: key, child: child)
-    }
-
-    override func createRenderObject(_ context: any BuildContext) -> RenderObject {
-        return RenderDecoratedBox(decoration: decoration)
-    }
-
-    override func updateRenderObject(_ context: any BuildContext, renderObject: RenderObject) {
-        let ro = renderObject as! RenderDecoratedBox
-        ro.decoration = decoration
     }
 }

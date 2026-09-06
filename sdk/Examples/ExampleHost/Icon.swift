@@ -16,6 +16,12 @@ import FlutterSwiftBridge
 /// approach MacosUI's MacosIcon takes). Registers the font with the engine on
 /// first use; widgets first build on the first engine frame, so the engine is
 /// live by then.
+///
+/// The framework has a real `Flutter.Icon` now (Widgets/Icon.swift), which
+/// reads its size and colour from `IconTheme` and registers nothing. This one
+/// stays for the Material-styled examples that lean on its CupertinoIcons
+/// auto-registration; a file that imports ExampleHost AND uses `Icon` gets
+/// this one, so do not write `Icon(` in a file that needs the framework's.
 public class Icon: StatelessWidget {
     public let icon: IconData
     public let size: Double

@@ -720,3 +720,45 @@ extension MacosScaffold {
         )
     }
 }
+
+// MARK: - Fluent materials
+
+extension Acrylic {
+    public convenience init(
+        key: (any Key)? = nil,
+        recipe: FluentMaterialRecipe? = nil,
+        tintColor: Color? = nil,
+        tintOpacity: Double? = nil,
+        luminosityOpacity: Double? = nil,
+        blurAmount: Double? = nil,
+        borderRadius: any BorderRadiusGeometry = BorderRadius.zero,
+        enabled: Bool? = nil,
+        @ChildBuilder child: () -> Widget
+    ) {
+        self.init(
+            key: key, child: child(), recipe: recipe, tintColor: tintColor,
+            tintOpacity: tintOpacity, luminosityOpacity: luminosityOpacity,
+            blurAmount: blurAmount, borderRadius: borderRadius, enabled: enabled)
+    }
+}
+
+extension Mica {
+    public convenience init(
+        key: (any Key)? = nil,
+        kind: MicaKind = .base,
+        active: Bool = true,
+        sample: Color? = nil,
+        @ChildBuilder child: () -> Widget
+    ) {
+        self.init(key: key, child: child(), kind: kind, active: active, sample: sample)
+    }
+}
+
+extension Smoke {
+    public convenience init(
+        key: (any Key)? = nil,
+        @ChildBuilder child: () -> Widget
+    ) {
+        self.init(key: key, child: child())
+    }
+}

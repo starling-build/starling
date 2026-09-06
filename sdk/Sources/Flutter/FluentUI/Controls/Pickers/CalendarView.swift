@@ -200,13 +200,13 @@ class _CalendarViewState: State<StatefulWidget> {
         )
 
         let leftArrow: Widget = _CalendarNavButton(
-            label: "\u{25C0}",
+            icon: FluentGlyph(.chevronLeft, size: 12),
             enabled: _canGoBack,
             onPressed: { [self] in _goToPreviousMonth() }
         )
 
         let rightArrow: Widget = _CalendarNavButton(
-            label: "\u{25B6}",
+            icon: FluentGlyph(.chevronRight, size: 12),
             enabled: _canGoForward,
             onPressed: { [self] in _goToNextMonth() }
         )
@@ -461,17 +461,17 @@ class _CalendarViewState: State<StatefulWidget> {
 
 /// A small navigation arrow button used in the CalendarView header.
 private class _CalendarNavButton: StatelessWidget {
-    let label: String
+    let icon: Widget
     let enabled: Bool
     let onPressed: () -> Void
 
     init(
         key: (any Key)? = nil,
-        label: String,
+        icon: Widget,
         enabled: Bool,
         onPressed: @escaping () -> Void
     ) {
-        self.label = label
+        self.icon = icon
         self.enabled = enabled
         self.onPressed = onPressed
         super.init(key: key)
@@ -509,13 +509,7 @@ private class _CalendarNavButton: StatelessWidget {
                             borderRadius: BorderRadius.circular(4)
                         ),
                         child: Center(
-                            child: Text(
-                                label,
-                                style: TextStyle(
-                                    color: fgColor,
-                                    fontSize: 10
-                                )
-                            )
+                            child: IconTheme(data: IconThemeData(color: fgColor), child: icon)
                         )
                     )
                 )

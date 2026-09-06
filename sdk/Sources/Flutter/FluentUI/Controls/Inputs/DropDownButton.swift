@@ -91,26 +91,21 @@ class _DropDownButtonState: State<StatefulWidget> {
             )
         }
 
+        // The title sits in the row at its own width: an `Expanded` here has
+        // nothing to expand into (the row is min-sized and often unbounded),
+        // and collapsed the whole button to nothing.
         if let title = w.title {
-            rowChildren.append(
-                Expanded(child: title)
-            )
-        } else {
-            rowChildren.append(Expanded(child: SizedBox(width: 0, height: 0)))
+            rowChildren.append(title)
         }
 
         // Chevron indicator (downward arrow)
         let chevron: Widget = Padding(
             padding: EdgeInsets(left: 6),
-            child: Text(
-                "\u{25BC}",
-                style: TextStyle(
-                    color: w.disabled
-                        ? theme.resources.textFillColorDisabled
-                        : theme.resources.textFillColorSecondary,
-                    fontSize: 8
-                )
-            )
+            child: FluentGlyph(
+                .chevronDown, size: 12,
+                color: w.disabled
+                    ? theme.resources.textFillColorDisabled
+                    : theme.resources.textFillColorSecondary)
         )
         rowChildren.append(chevron)
 

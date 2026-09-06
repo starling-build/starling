@@ -377,7 +377,9 @@ public class FlyoutContent: StatelessWidget {
     /// Shadow color. Defaults to black.
     public let shadowColor: Color
 
-    /// Elevation for the shadow. Defaults to 8.
+    /// Elevation for the shadow. Defaults to `FluentElevation.flyout` (32),
+    /// the depth Windows gives every flyout; the shadow itself is the token
+    /// ramp's two-layer recipe for that depth.
     public let elevation: Double
 
     /// Box constraints. Defaults to `kFlyoutMinConstraints`.
@@ -390,7 +392,7 @@ public class FlyoutContent: StatelessWidget {
         color: Color? = nil,
         padding: EdgeInsets = EdgeInsets(all: 8),
         shadowColor: Color = Color(0xFF000000),
-        elevation: Double = 8.0,
+        elevation: Double = FluentElevation.flyout,
         constraints: BoxConstraints = kFlyoutMinConstraints
     ) {
         self.child = child
@@ -407,19 +409,15 @@ public class FlyoutContent: StatelessWidget {
 
         let bgColor = color ?? theme.menuColor
         let borderColor = theme.resources.surfaceStrokeColorFlyout
-        let borderRadius = BorderRadius.circular(8)
+        let borderRadius = FluentCorners.overlayRadius
 
+        let shadows = FluentElevation.shadows(
+            elevation, brightness: theme.brightness, color: shadowColor)
         let decoration = BoxDecoration(
             color: bgColor,
-            border: Border.all(color: borderColor, width: 1),
+            border: Border.all(color: borderColor, width: FluentStrokeWidth.thin),
             borderRadius: borderRadius,
-            boxShadow: elevation > 0 ? [
-                BoxShadow(
-                    color: shadowColor.withOpacity(0.14),
-                    offset: Offset(0, elevation / 2),
-                    blurRadius: elevation * 2
-                )
-            ] : nil
+            boxShadow: shadows.isEmpty ? nil : shadows
         )
 
         var content: Widget = Padding(padding: padding, child: child)

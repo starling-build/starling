@@ -103,13 +103,8 @@ class _CalendarDatePickerState: State<StatefulWidget> {
         }
 
         // Calendar icon (Unicode)
-        let iconWidget: Widget = Text(
-            "\u{1F4C5}",
-            style: TextStyle(
-                color: theme.resources.textFillColorSecondary,
-                fontSize: 14
-            )
-        )
+        let iconWidget: Widget = FluentGlyph(
+            .calendar, size: 14, color: theme.resources.textFillColorSecondary)
 
         let triggerContent: Widget = SizedBox(
             height: 32,
@@ -269,7 +264,7 @@ class _CalendarDatePickerFlyoutContentState: State<StatefulWidget> {
             mainAxisAlignment: .end,
             children: [
                 _PickerActionButton(
-                    label: "\u{2713}",
+                    icon: FluentGlyph(.check, size: 14),
                     onPressed: { [self] in
                         if let date = _pendingDate {
                             flyout.onDateSelected(date)
@@ -280,7 +275,7 @@ class _CalendarDatePickerFlyoutContentState: State<StatefulWidget> {
                 ),
                 SizedBox(width: 4),
                 _PickerActionButton(
-                    label: "\u{2715}",
+                    icon: FluentGlyph(.dismiss, size: 14),
                     onPressed: { [self] in
                         flyout.onCancel()
                     }

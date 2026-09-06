@@ -201,10 +201,13 @@ class _BaseButtonState: State<StatefulWidget> {
                 )
 
                 // Wrap with IconTheme
+                // A style that names no foreground (IconButton at rest) keeps
+                // the enclosing theme's icon ink -- white in the dark theme --
+                // rather than handing `Icon` a nil it fills with black.
                 let iconThemedChild: Widget = IconTheme(
                     data: IconThemeData(
                         size: iconSize,
-                        color: resolvedForegroundColor
+                        color: resolvedForegroundColor ?? IconTheme.of(context).color
                     ),
                     child: styledChild
                 )

@@ -154,10 +154,7 @@ class _SplitButtonState: State<StatefulWidget> {
                         child: Center(
                             widthFactor: 1,
                             heightFactor: 1,
-                            child: Text(
-                                "\u{25BC}",
-                                style: TextStyle(color: arrowColor, fontSize: 8)
-                            )
+                            child: FluentGlyph(.chevronDown, size: 12, color: arrowColor)
                         )
                     )
                 )

@@ -124,7 +124,9 @@ public class InfoBadge: StatelessWidget {
             case .info:
                 return theme.accentColor.defaultBrushFor(theme.brightness)
             case .warning:
-                return theme.resources.systemFillColorSolidAttentionBackground
+                // WinUI's Caution badge: the caution fill, not the attention
+                // background (which is the near-white page grey).
+                return theme.resources.systemFillColorCaution
             case .success:
                 return theme.resources.systemFillColorSuccess
             case .error:

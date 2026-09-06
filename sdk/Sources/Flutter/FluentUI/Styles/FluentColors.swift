@@ -316,3 +316,60 @@ extension Color {
         return computeLuminance() < 0.5 ? lightColor : darkColor
     }
 }
+
+// MARK: - Windows accent shades
+
+// Windows names an accent's shades Light 3..1 and Dark 1..3 around the base,
+// and WinUI picks from them by theme: `AccentFillColorDefaultBrush` is
+// **Dark 1** in the light theme and **Light 2** in the dark theme
+// (Common_themeresources_any.xaml). fluent_ui's swatch keys are the same
+// seven positions under other names, so the mapping is a rename, and
+// `defaultBrushFor` already returns `dark` for light and `lighter` for dark
+// — exactly those two.
+extension AccentColor {
+    /// `SystemAccentColorDark3`.
+    public var dark3: Color { darkest }
+    /// `SystemAccentColorDark2`.
+    public var dark2: Color { darker }
+    /// `SystemAccentColorDark1` — the accent of controls in the light theme.
+    public var dark1: Color { dark }
+    /// `SystemAccentColorLight1`.
+    public var light1: Color { light }
+    /// `SystemAccentColorLight2` — the accent of controls in the dark theme.
+    public var light2: Color { lighter }
+    /// `SystemAccentColorLight3`.
+    public var light3: Color { lightest }
+
+    /// An accent from the seven shades Windows exposes for it
+    /// (`UISettings.GetColorValue`), in Windows' order.
+    public static func windows(
+        light3: Color, light2: Color, light1: Color, normal: Color,
+        dark1: Color, dark2: Color, dark3: Color
+    ) -> AccentColor {
+        AccentColor.swatch([
+            "lightest": light3,
+            "lighter": light2,
+            "light": light1,
+            "normal": normal,
+            "dark": dark1,
+            "darker": dark2,
+            "darkest": dark3,
+        ])
+    }
+}
+
+extension FluentColors {
+    /// Windows 11's default accent, "Default blue" (#0078D4), with the exact
+    /// shades Windows derives for it. Light-theme controls come out
+    /// #0067C0 and dark-theme ones #4CC2FF, which is what a Windows 11
+    /// machine measures on its own toggles and Start tiles.
+    nonisolated(unsafe) public static let windowsBlue = AccentColor.windows(
+        light3: Color(0xFF99EBFF),
+        light2: Color(0xFF4CC2FF),
+        light1: Color(0xFF0091F8),
+        normal: Color(0xFF0078D4),
+        dark1: Color(0xFF0067C0),
+        dark2: Color(0xFF003E92),
+        dark3: Color(0xFF001A68)
+    )
+}

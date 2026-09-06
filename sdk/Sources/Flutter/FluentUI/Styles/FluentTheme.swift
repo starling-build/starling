@@ -126,7 +126,10 @@ public struct FluentThemeData: Equatable {
         let resolvedResources = resources ?? (isLight
             ? ResourceDictionary.light()
             : ResourceDictionary.dark())
-        let resolvedAccentColor = accentColor ?? FluentColors.blue
+        // Windows' own default accent with Windows' own shades, so a theme
+        // that says nothing about its accent looks like a Windows 11 machine
+        // that says nothing about its accent.
+        let resolvedAccentColor = accentColor ?? FluentColors.windowsBlue
         let resolvedFasterDuration = fasterAnimationDuration ?? .milliseconds(83)
         let resolvedFastDuration = fastAnimationDuration ?? .milliseconds(167)
         let resolvedMediumDuration = mediumAnimationDuration ?? .milliseconds(250)

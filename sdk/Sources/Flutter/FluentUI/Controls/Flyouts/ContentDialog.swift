@@ -195,20 +195,21 @@ public class ContentDialog: StatelessWidget {
 /// - Parameters:
 ///   - context: The build context used to look up the Navigator.
 ///   - barrierDismissible: Whether tapping the barrier dismisses the dialog. Defaults to `false`.
-///   - barrierColor: The color of the modal barrier. Defaults to semi-transparent black.
+///   - barrierColor: The color of the modal barrier. Defaults to Smoke
+///     (`SmokeFillColorDefault`), Windows' dim under a modal.
 ///   - builder: A builder that returns the `ContentDialog` widget.
 /// - Returns: The dialog route.
 @discardableResult
 public func showContentDialog(
     context: any BuildContext,
     barrierDismissible: Bool = false,
-    barrierColor: Color? = Color(0x8A000000),
+    barrierColor: Color? = nil,
     builder: @escaping WidgetBuilder
 ) -> Route {
     return showDialog(
         context: context,
         barrierDismissible: barrierDismissible,
-        barrierColor: barrierColor,
+        barrierColor: barrierColor ?? Smoke.color(context),
         builder: builder
     )
 }
@@ -320,7 +321,8 @@ public class ContentDialogThemeData {
     /// Creates the standard `ContentDialogThemeData` based on the given `FluentThemeData`.
     ///
     /// This produces the default appearance matching the Windows design guidelines:
-    /// - Rounded corners (12px radius)
+    /// - Overlay corners (`FluentCorners.overlay`, 8px)
+    /// - Elevation 128 (`FluentElevation.dialog`) over Smoke
     /// - Dialog background uses `menuColor`
     /// - Actions area uses `micaBackgroundColor`
     /// - Title uses the `title` typography style
@@ -331,28 +333,19 @@ public class ContentDialogThemeData {
             titlePadding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 12),
             decoration: BoxDecoration(
                 color: theme.menuColor,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                    BoxShadow(
-                        color: Color(0x33000000),
-                        offset: Offset(0, 8),
-                        blurRadius: 16,
-                        spreadRadius: 0
-                    ),
-                    BoxShadow(
-                        color: Color(0x1A000000),
-                        offset: Offset(0, 2),
-                        blurRadius: 4,
-                        spreadRadius: 0
-                    )
-                ]
+                border: Border.all(
+                    color: theme.resources.surfaceStrokeColorDefault,
+                    width: FluentStrokeWidth.thin),
+                borderRadius: FluentCorners.overlayRadius,
+                boxShadow: FluentElevation.shadows(
+                    FluentElevation.dialog, brightness: theme.brightness)
             ),
-            barrierColor: Color(0xCC808080),
+            barrierColor: theme.resources.smokeFillColorDefault,
             actionsSpacing: 10,
             actionsDecoration: BoxDecoration(
                 color: theme.micaBackgroundColor,
                 borderRadius: BorderRadius.vertical(
-                    bottom: Radius(circular: 12)
+                    bottom: Radius(circular: FluentCorners.overlay)
                 )
             ),
             actionsPadding: EdgeInsets(all: 20),

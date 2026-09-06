@@ -14,15 +14,23 @@ import FlutterSwiftBridge
 /// | titleLarge  | 40px | Semibold |
 /// | title       | 28px | Semibold |
 /// | subtitle    | 20px | Semibold |
+/// | bodyLargeStrong | 18px | Semibold |
 /// | bodyLarge   | 18px | Regular  |
 /// | bodyStrong  | 14px | Semibold |
 /// | body        | 14px | Regular  |
-/// | caption     | 12px | Light    |
+/// | caption     | 12px | Regular  |
+///
+/// Sizes and weights are WinUI's `TextBlock_themeresources.xaml`; line
+/// heights are the Windows 11 type ramp (12/16, 14/20, 18/24, 20/28, 28/36,
+/// 40/52, 68/92). Caption is REGULAR there, not Light — the ramp has no
+/// weight below Regular and no Bold or Italic at all; Semibold is the only
+/// emphasis.
 public struct Typography: Equatable {
     public let display: TextStyle?
     public let titleLarge: TextStyle?
     public let title: TextStyle?
     public let subtitle: TextStyle?
+    public let bodyLargeStrong: TextStyle?
     public let bodyLarge: TextStyle?
     public let bodyStrong: TextStyle?
     public let body: TextStyle?
@@ -34,6 +42,7 @@ public struct Typography: Equatable {
         titleLarge: TextStyle? = nil,
         title: TextStyle? = nil,
         subtitle: TextStyle? = nil,
+        bodyLargeStrong: TextStyle? = nil,
         bodyLarge: TextStyle? = nil,
         bodyStrong: TextStyle? = nil,
         body: TextStyle? = nil,
@@ -43,6 +52,7 @@ public struct Typography: Equatable {
         self.titleLarge = titleLarge
         self.title = title
         self.subtitle = subtitle
+        self.bodyLargeStrong = bodyLargeStrong
         self.bodyLarge = bodyLarge
         self.bodyStrong = bodyStrong
         self.body = body
@@ -89,6 +99,12 @@ public struct Typography: Equatable {
                 fontWeight: .w600,
                 height: 28.0 / 20.0
             ),
+            bodyLargeStrong: TextStyle(
+                color: resolvedColor,
+                fontSize: 18,
+                fontWeight: .w600,
+                height: 24.0 / 18.0
+            ),
             bodyLarge: TextStyle(
                 color: resolvedColor,
                 fontSize: 18,
@@ -110,7 +126,7 @@ public struct Typography: Equatable {
             caption: TextStyle(
                 color: resolvedColor,
                 fontSize: 12,
-                fontWeight: .w300,
+                fontWeight: .normal,
                 height: 16.0 / 12.0
             )
         )
@@ -123,6 +139,7 @@ public struct Typography: Equatable {
             titleLarge: TextStyle.lerp(a?.titleLarge, b?.titleLarge, t),
             title: TextStyle.lerp(a?.title, b?.title, t),
             subtitle: TextStyle.lerp(a?.subtitle, b?.subtitle, t),
+            bodyLargeStrong: TextStyle.lerp(a?.bodyLargeStrong, b?.bodyLargeStrong, t),
             bodyLarge: TextStyle.lerp(a?.bodyLarge, b?.bodyLarge, t),
             bodyStrong: TextStyle.lerp(a?.bodyStrong, b?.bodyStrong, t),
             body: TextStyle.lerp(a?.body, b?.body, t),
@@ -139,6 +156,7 @@ public struct Typography: Equatable {
             titleLarge: other.titleLarge ?? titleLarge,
             title: other.title ?? title,
             subtitle: other.subtitle ?? subtitle,
+            bodyLargeStrong: other.bodyLargeStrong ?? bodyLargeStrong,
             bodyLarge: other.bodyLarge ?? bodyLarge,
             bodyStrong: other.bodyStrong ?? bodyStrong,
             body: other.body ?? body,
@@ -185,6 +203,15 @@ public struct Typography: Equatable {
                 fontSizeDelta: fontSizeDelta
             ),
             subtitle: subtitle?.apply(
+                color: displayColor,
+                decoration: decoration,
+                decorationColor: decorationColor,
+                decorationStyle: decorationStyle,
+                fontFamily: fontFamily,
+                fontSizeFactor: fontSizeFactor,
+                fontSizeDelta: fontSizeDelta
+            ),
+            bodyLargeStrong: bodyLargeStrong?.apply(
                 color: displayColor,
                 decoration: decoration,
                 decorationColor: decorationColor,

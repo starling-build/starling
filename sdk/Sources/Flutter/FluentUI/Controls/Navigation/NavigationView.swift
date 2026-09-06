@@ -944,7 +944,9 @@ class NavigationViewState: State<StatefulWidget> {
         )
 
         // Row: sidebar + content
-        let rowWidget = Row(children: [
+        // `.stretch`: a page shorter than the window is laid out from the
+        // top, not centred in the row -- Row's default cross alignment.
+        let rowWidget = Row(crossAxisAlignment: .stretch, children: [
             SizedBox(width: paneWidth, child: sidebar),
             Expanded(child: body)
         ])
@@ -977,7 +979,7 @@ class NavigationViewState: State<StatefulWidget> {
             showTitles: false
         )
 
-        let rowWidget = Row(children: [
+        let rowWidget = Row(crossAxisAlignment: .stretch, children: [
             SizedBox(width: compactWidth, child: sidebar),
             Expanded(child: body)
         ])
@@ -1085,11 +1087,15 @@ class NavigationViewState: State<StatefulWidget> {
             itemWidgets.append(w)
         }
 
+        // The items scroll and the footer does not — a pane longer than the
+        // window (this is every gallery and most settings apps) must not
+        // paint its footer over its last items, and must not lose them.
         columnChildren.append(
-            Expanded(child: Column(
+            Expanded(child: SingleChildScrollView(child: Column(
+                mainAxisSize: .min,
                 crossAxisAlignment: .start,
                 children: itemWidgets
-            ))
+            )))
         )
 
         // Footer items
@@ -1532,14 +1538,11 @@ private class _PaneItemExpanderWidgetState: State<StatefulWidget> {
                 }
 
                 // Chevron indicator
-                let chevronText = _isExpanded ? "\u{E70D}" : "\u{E70E}"
                 rowChildren.append(
                     Padding(
                         padding: EdgeInsets(left: 0, top: 0, right: 12, bottom: 0),
-                        child: Text(
-                            chevronText,
-                            style: TextStyle(color: textColor, fontSize: 10)
-                        )
+                        child: FluentGlyph(_isExpanded ? .chevronUp : .chevronDown,
+                                           size: 12, color: textColor)
                     )
                 )
 

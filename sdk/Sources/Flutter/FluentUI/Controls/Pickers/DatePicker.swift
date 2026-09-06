@@ -373,14 +373,14 @@ class _DatePickerFlyoutContentState: State<StatefulWidget> {
             mainAxisAlignment: .end,
             children: [
                 _PickerActionButton(
-                    label: "\u{2713}",
+                    icon: FluentGlyph(.check, size: 14),
                     onPressed: { [self] in
                         flyout.onConfirm(_localDate)
                     }
                 ),
                 SizedBox(width: 4),
                 _PickerActionButton(
-                    label: "\u{2715}",
+                    icon: FluentGlyph(.dismiss, size: 14),
                     onPressed: { [self] in
                         flyout.onCancel()
                     }
@@ -590,15 +590,15 @@ class _PickerItem: StatelessWidget {
 /// A small action button (checkmark or X) used in picker OK/Cancel rows.
 /// Internal access so TimePicker can reuse.
 class _PickerActionButton: StatelessWidget {
-    let label: String
+    let icon: Widget
     let onPressed: () -> Void
 
     init(
         key: (any Key)? = nil,
-        label: String,
+        icon: Widget,
         onPressed: @escaping () -> Void
     ) {
-        self.label = label
+        self.icon = icon
         self.onPressed = onPressed
         super.init(key: key)
     }
@@ -626,13 +626,7 @@ class _PickerActionButton: StatelessWidget {
                             borderRadius: BorderRadius.circular(4)
                         ),
                         child: Center(
-                            child: Text(
-                                label,
-                                style: TextStyle(
-                                    color: theme.resources.textFillColorPrimary,
-                                    fontSize: 16
-                                )
-                            )
+                            child: IconTheme(data: IconThemeData(color: theme.resources.textFillColorPrimary), child: icon)
                         )
                     )
                 )

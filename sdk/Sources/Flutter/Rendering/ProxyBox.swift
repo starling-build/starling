@@ -6148,9 +6148,19 @@ open class RenderLeaderLayer: RenderProxyBox {
             leaderLayer.link = link
             leaderLayer.offset = offset
         }
+        // The child paints at the layer's origin, and the layer carries the
+        // offset. That is Dart's contract too, but Dart's painting contexts are
+        // bounded in the nearest repaint boundary's LOCAL space, so (0, 0) is
+        // always inside them; this port has no interior boundaries and every
+        // context is bounded in absolute coordinates, so a leader anywhere but
+        // the top-left corner would hand its child a picture whose cull rect
+        // it lies entirely outside of -- and the engine drops ops outside the
+        // cull rect at record time. Nothing was drawn, with no error: every
+        // flyout target (drop-down, combo box, date picker) was blank. Bound
+        // the child's picture generously, as the follower already does.
         context.pushLayer(_layerHandle.layer!, { ctx, off in
             super.paint(ctx, off)
-        }, .zero)
+        }, .zero, childPaintBounds: Rect.fromLTRB(-1e9, -1e9, 1e9, 1e9))
     }
 
     // MARK: - Disposal
