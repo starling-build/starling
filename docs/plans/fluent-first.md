@@ -31,7 +31,7 @@ not). That found three more framework bugs no screenshot sweep could:
 `setState` — page selection, dark mode, the wallpaper sample — was
 invisible; menu items "closed" themselves by popping a navigator that had
 nothing to pop; and submenus carried a barrier over their parent menu.
-Fixed (58d6e8b): flyouts carry a `FlyoutScope` (`closeAll()` closes a
+Fixed (8b8ecda): flyouts carry a `FlyoutScope` (`closeAll()` closes a
 menu chain), submenus open on hover after Windows' 400 ms `MenuShowDelay`
 and close when another item is hovered, WinUI's edge-aligned placements
 exist and drop-downs use `BottomEdgeAlignedLeft`. All verified on screen.
