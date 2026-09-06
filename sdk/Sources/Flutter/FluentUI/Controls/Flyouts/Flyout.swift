@@ -149,6 +149,8 @@ public class FlyoutController {
     public var isOpen: Bool { return _flyoutEntry != nil }
 
     private var _barrierEntry: OverlayEntry?
+    /// Our place on the Escape stack while the flyout is up.
+    private var _dismissToken: DismissStack.Token?
     private var _flyoutEntry: OverlayEntry?
 
     // MARK: - Show Flyout
@@ -227,12 +229,18 @@ public class FlyoutController {
 
         if let barrierEntry { overlayState.insert(barrierEntry) }
         overlayState.insert(flyoutEntry)
+        // Esc closes the newest flyout first; a submenu goes before its
+        // parent, which is the order they were pushed in.
+        DismissStack.remove(_dismissToken)
+        _dismissToken = DismissStack.push { [weak self] in self?.closeFlyout() }
     }
 
     // MARK: - Close Flyout
 
     /// Closes the currently open flyout.
     public func closeFlyout() {
+        DismissStack.remove(_dismissToken)
+        _dismissToken = nil
         _barrierEntry?.remove()
         _barrierEntry?.dispose()
         _barrierEntry = nil

@@ -78,6 +78,10 @@ struct ShellMetrics {
     /// reads as part of the frame — while macOS keeps its rounding on every
     /// window that is not fullscreen.
     let squareWhenMaximized: Bool
+    /// Whether the Super key, pressed and released on its own, opens the
+    /// launcher — the Windows key's job. macOS's Command key alone does
+    /// nothing, so the macOS style leaves it alone.
+    let superAloneOpensLauncher: Bool
 
     /// How much of the bottom edge a window has to stay clear of, or 0 where
     /// the bar is an overlay.
@@ -100,7 +104,8 @@ struct ShellMetrics {
         bottomBarContainerHeight: 132.0,
         bottomBarReserves: false,
         overviewStripAtBottom: false,
-        squareWhenMaximized: false
+        squareWhenMaximized: false,
+        superAloneOpensLauncher: false
     )
 
     /// One full-width taskbar on the bottom edge and nothing on top, at
@@ -122,7 +127,8 @@ struct ShellMetrics {
         bottomBarContainerHeight: FluentBar.height * 2,
         bottomBarReserves: true,
         overviewStripAtBottom: true,
-        squareWhenMaximized: true
+        squareWhenMaximized: true,
+        superAloneOpensLauncher: true
     )
 }
 

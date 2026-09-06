@@ -86,12 +86,17 @@ public class FocusManager {
         node?.onFocusChange?(true)
     }
 
-    /// Routes a key event to the focused node. Returns `true` if consumed.
+    /// Routes a key event to the focused node; an Escape the node does not
+    /// claim closes the topmost transient surface (`DismissStack`).
+    /// Returns `true` if consumed.
     public func dispatchKeyData(_ data: KeyData) -> Bool {
-        guard let node = focusedNode, let handler = node.onKeyData else {
-            return false
+        if let node = focusedNode, let handler = node.onKeyData, handler(data) {
+            return true
         }
-        return handler(data)
+        if data.type == .down, DismissStack.isEscape(data) {
+            return DismissStack.dismissTop()
+        }
+        return false
     }
 }
 

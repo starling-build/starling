@@ -103,6 +103,23 @@ README's *Building → macOS*.
   `registerFont()` are aliases and an app registers nothing.
   `FluentAppMountTests` mounts `FluentApp`+`ScaffoldPage` and `StarlingApp`
   through the element harness.
+- **Escape is the `DismissStack`** (`Widgets/DismissStack.swift`): whatever
+  opens a transient surface pushes a closer and pops it when the surface
+  goes away by other means; `FocusManager.dispatchKeyData` hands an
+  unclaimed Escape to the top. Flyouts, modal routes and the file dialog's
+  overlay already do this. A control that swallows Esc (returns true from
+  its `onKeyData`) hides it from the stack — `FluentTextBox` unfocuses and
+  returns false for exactly that reason.
+- **Every control must be a tappable semantics node.** `HoverButton`
+  presses on raw pointer events, which the agent endpoint cannot see; it
+  wraps itself in `_GestureSemantics` so the functional tier and any agent
+  can tap what a pointer can. A new control that takes presses some other
+  way needs the same wrapper, or it is a label with nothing to do.
+- **`Controls/Dialogs/FluentFilePanel.swift`** is the desktop's file
+  dialog (open/save/directory, an overlay for apps, full-window for the
+  portal picker). Its glyphs are Fluent System Icons by code point,
+  because `FluentSystemIcons` depends on this module and cannot be
+  imported here — keep them in step with the generated file.
 - **`Examples/FluentGallery`** is the WinUI 3 Gallery's shape on this SDK:
   a NavigationView of design-guidance pages (the tokens, drawn) and one
   `SamplePage` per ported control, light and dark, over Mica. It is the

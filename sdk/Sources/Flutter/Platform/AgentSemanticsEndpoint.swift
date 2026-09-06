@@ -183,7 +183,12 @@ public final class AgentSemanticsEndpoint: @unchecked Sendable {
         func subtreeLabel(_ element: Element) -> String {
             var parts: [String] = []
             func rec(_ e: Element, _ depth: Int) {
-                guard depth < 10, parts.joined(separator: " ").count < 120 else { return }
+                // Deep enough to reach the text inside a Fluent control:
+                // a HoverButton's label sits under MouseRegion, Listener,
+                // clip, fill, box, padding and row before the Text — well
+                // past the ten levels this once allowed, which left every
+                // pane item and button as an unlabeled tap.
+                guard depth < 40, parts.joined(separator: " ").count < 120 else { return }
                 if let roe = e as? RenderObjectElement, let ro = roe.renderObject {
                     let cfg = SemanticsConfiguration()
                     ro.describeSemanticsConfiguration(cfg)

@@ -814,7 +814,7 @@ class _TextEditorAppState: State<StatefulWidget>, @unchecked Sendable {
         )
     }
 
-    // MARK: - File picker (shared MacosFilePanel)
+    // MARK: - File picker (the shared Fluent file dialog)
 
     private func _openPicker(_ mode: PickerMode) {
         let current = NSString(string: pathController.text
@@ -836,12 +836,12 @@ class _TextEditorAppState: State<StatefulWidget>, @unchecked Sendable {
 
     private func _pickerOverlay() -> Widget {
         let mode = _pickerMode ?? .open
-        var opts = MacosFilePanelOptions()
+        var opts = FluentFilePanelOptions()
         opts.mode = mode == .open ? .open : .save
         opts.appearanceDark = _isDark
         opts.initialDirectory = _pickerInitialDir
         if mode == .save { opts.suggestedName = _pickerSuggestedName }
-        return MacosFilePanelOverlay(options: opts) { [self] paths in
+        return FluentFilePanelOverlay(options: opts) { [self] paths in
             setState { _pickerMode = nil }
             guard let path = paths.first else { return }
             pathController.text = path

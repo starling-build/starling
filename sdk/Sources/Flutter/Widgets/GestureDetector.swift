@@ -790,8 +790,10 @@ public class GestureDetector: StatelessWidget {
 ///
 /// **Dart Source:** `gesture_detector.dart` (_GestureSemantics), simplified:
 /// callbacks are mirrored directly instead of going through the recognizers'
-/// semantics delegates.
-private final class _GestureSemantics: SingleChildRenderObjectWidget {
+/// semantics delegates. Module-internal rather than private: `HoverButton`
+/// presses on raw pointer events and wraps itself in this so every Fluent
+/// control is a tappable node in the agent semantics tree too.
+final class _GestureSemantics: SingleChildRenderObjectWidget {
     let onTapCallback: (() -> Void)?
     let onLongPressCallback: (() -> Void)?
 

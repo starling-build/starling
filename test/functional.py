@@ -226,6 +226,17 @@ def session_home() -> str:
     return os.path.expanduser("~")
 
 
+def config_dir() -> Path:
+    """Where the shell under test persists its choices: STARLING_CONFIG_DIR
+    when the shell was started with one (the dev loop runs on a scratch
+    config so the box's own choices are left alone), else the session
+    user's ~/.config/starling."""
+    override = os.environ.get("STARLING_CONFIG_DIR")
+    if override:
+        return Path(override)
+    return Path(session_home()) / ".config/starling"
+
+
 # ── driving Settings' panes ──────────────────────────────────────────────────
 #
 # Checks that need a Settings control use an agent-owned window and its
@@ -247,9 +258,21 @@ def tree_nodes(s, win) -> list:
 
 
 def tap_node_for(nodes: list, label: str):
-    """The first tappable node at-or-after the node whose label starts with
-    `label`. A nav item or row is tappable itself; a switch's tap node is
-    unlabeled and follows its row's text."""
+    """The tappable node for `label`.
+
+    First choice: a tappable node whose own label carries it. A Fluent
+    control (a HoverButton) is one node whose label is borrowed from its
+    subtree — its icon glyph and text together, "\uf593 Appearance" — and
+    it comes BEFORE the text nodes under it in tree order, so the old rule
+    ("the first tappable node at or after the text") landed on the NEXT
+    control. Second choice, for a switch whose tap node is unlabeled and
+    follows its row's text: the first tappable node at-or-after the node
+    whose label starts with `label`."""
+    for n in nodes:
+        node_label = n.get("label") or ""
+        if "tap" in (n.get("actions") or []) and (
+                node_label.startswith(label) or f" {label}" in node_label):
+            return n.get("node")
     seen = False
     for n in nodes:
         node_label = n.get("label") or ""
@@ -261,6 +284,16 @@ def tap_node_for(nodes: list, label: str):
         if seen and "tap" in (n.get("actions") or []):
             return n.get("node")
     return None
+
+
+def pick_style(s, win, wanted: str) -> None:
+    """Choose `wanted` ("macOS" or "Windows") in Appearance's Desktop Style
+    combo box. The box shows the current choice; tapping it opens the list,
+    and the wanted item is only in the tree once the list is open."""
+    other = "Windows" if wanted == "macOS" else "macOS"
+    if tap_node_for(tree_nodes(s, win), wanted) is None:
+        tap_label(s, win, other)
+    tap_label(s, win, wanted)
 
 
 def tap_label(s, win, label: str) -> None:
@@ -1312,7 +1345,7 @@ def check_desktop_style() -> None:
     The persisted file is the second half: a switch that does not survive
     a relogin is not a setting, and that file is the whole of the record.
     """
-    style_file = Path(session_home()) / ".config/starling/style"
+    style_file = config_dir() / "style"
 
     def persisted() -> str:
         try:
@@ -1325,32 +1358,37 @@ def check_desktop_style() -> None:
         assert slots, "the bottom bar reported no slots"
         return slots[0]["y"]
 
+    def app_slots() -> list:
+        return [a for a in dock() if a not in ("search", "taskview")]
+
     original = persisted()
     s, win = settings_window()
     try:
         tap_label(s, win, "Appearance")
-        tap_label(s, win, "macOS")
+        pick_style(s, win, "macOS")
         wait_for(lambda: persisted() == "macos", "the macOS style to persist")
         time.sleep(1)
-        macos_y, macos_slots = bar_y(), len(ask("dock_rects")["slots"])
+        macos_y, macos_apps = bar_y(), app_slots()
 
-        tap_label(s, win, "Windows")
+        pick_style(s, win, "Windows")
         wait_for(lambda: persisted() == "fluent", "the Windows style to persist")
         time.sleep(1)
-        fluent_y, fluent_slots = bar_y(), len(ask("dock_rects")["slots"])
+        fluent_y, fluent_apps = bar_y(), app_slots()
 
         assert fluent_y > macos_y + 10, (
             f"the bar did not move: macOS {macos_y:.0f}, Fluent {fluent_y:.0f}"
             " — a style that only repaints is not a style")
-        assert fluent_slots == macos_slots, (
-            f"slot count changed with the style: {macos_slots} → {fluent_slots}")
+        # The Fluent bar carries two system tiles the dock has no place for
+        # (Search and Task View); the APPS on it are the same set.
+        assert fluent_apps == macos_apps, (
+            f"the bar's apps changed with the style: {macos_apps} → {fluent_apps}")
         assert proc_running("SettingsApp"), "Settings died in the style switch"
         log(f"bar moved {macos_y:.0f} → {fluent_y:.0f}, "
-            f"{fluent_slots} slots either way")
+            f"{len(fluent_apps)} app slots either way")
     finally:
         # Leave the desktop as it was found, whatever happened above.
         try:
-            tap_label(s, win, "macOS" if original == "macos" else "Windows")
+            pick_style(s, win, "macOS" if original == "macos" else "Windows")
             wait_for(lambda: persisted() == original, "the style to restore")
         finally:
             s.close()
@@ -2338,6 +2376,101 @@ def check_glyph_pixels() -> None:
         log(line)
 
 
+@check("chords: the Windows key opens Start, Win+E/I launch, Alt+F4 closes, Win+L locks")
+def check_win_chords() -> None:
+    """Windows' key chords, through the real keyboard path (shell-drive's
+    uinput device), asserted through the broker.
+
+    The Windows key on its own opens Start only in the Fluent style — the
+    macOS style's Command key alone does nothing — so that half reads the
+    persisted style and skips itself under macOS. Win+E and Win+I launch
+    Files and Settings (or focus them if they are up), Alt+F4 closes the
+    focused window, and Win+L is the lock, which on this desktop is the
+    screensaver; pointer travel wakes it as it does in the idle check.
+    """
+    style_file = config_dir() / "style"
+    try:
+        style = style_file.read_text().strip()
+    except OSError:
+        style = "fluent"
+
+    assert not ask("launcher_state")["open"], "Start already open"
+    if style == "fluent":
+        drive("move 300 300", "key meta")
+        wait_for(lambda: ask("launcher_state")["open"], "Start to open on the Windows key")
+        drive("key esc")
+        wait_for(lambda: not ask("launcher_state")["open"], "Esc to close Start")
+        log("Windows key alone opened Start; Esc closed it")
+    else:
+        log(f"style is {style}: the bare Windows key is not a chord there")
+
+    for app_id, chord, proc in (("files", "meta+e", "FileExplorerApp"),
+                                ("settings", "meta+i", "SettingsApp")):
+        assert not apps()[app_id]["window"], f"{app_id} already has a window"
+        drive("move 300 300", f"key {chord}")
+        wait_for(lambda: apps()[app_id]["window"], f"{chord} to open {app_id}")
+        log(f"{chord} opened {app_id}")
+        # The new window is focused, so Alt+F4 lands on it.
+        drive(f"key alt+f4")
+        wait_for(lambda: not apps()[app_id]["window"], f"Alt+F4 to close {app_id}")
+        log(f"Alt+F4 closed {app_id}")
+        quit_app(proc)
+
+    state = ask("screensaver")
+    assert not state["active"], "screensaver already up"
+    drive("move 300 300", "key meta+l")
+    wait_for(lambda: ask("screensaver")["active"], "Win+L to start the screensaver")
+    log("Win+L locked")
+    # The saver ignores the first pointer pixels on purpose; wake it with
+    # travel well past its 24px threshold, as the idle check does.
+    time.sleep(1)
+    drive("move 400 400", "move 900 700")
+    wait_for(lambda: not ask("screensaver")["active"], "pointer travel to wake the desktop")
+    log("pointer travel woke it")
+
+
+@check("escape: Esc closes an app's open popup, a combo box's list in Settings")
+def check_escape_dismisses() -> None:
+    """Windows closes a flyout, a menu, a combo box's list and a dialog on
+    Esc; the SDK's did not until the dismiss stack (DismissStack.swift), so
+    this pins it on the control most easily reached: the Desktop Style
+    combo box on Settings' Appearance page. Opening it puts its items in
+    the semantic tree; Esc must take them out again and leave the choice
+    where it was.
+    """
+    style_file = config_dir() / "style"
+
+    def persisted() -> str:
+        try:
+            return style_file.read_text().strip()
+        except OSError:
+            return "fluent"
+
+    def labels(s, win) -> list:
+        return [n.get("label") or "" for n in tree_nodes(s, win)]
+
+    original = persisted()
+    current = "Windows" if original == "fluent" else "macOS"
+    other = "macOS" if original == "fluent" else "Windows"
+    s, win = settings_window()
+    try:
+        tap_label(s, win, "Appearance")
+        assert other not in labels(s, win), f"{other!r} is on the page before the list opened"
+        tap_label(s, win, current)
+        wait_for(lambda: other in labels(s, win), "the combo box's list to open")
+        log("the list opened")
+        # Into the agent's own window: it lives in the agent space, where the
+        # real keyboard's Esc would land on whatever the user desktop has
+        # focused instead. HID 0x29 and the X11 keysym, as a child app sees.
+        s.ok("inject", win=win, ev={"type": "key", "physical": 0x29, "logical": 0xFF1B})
+        wait_for(lambda: other not in labels(s, win), "Esc to close the list")
+        assert persisted() == original, f"Esc changed the style to {persisted()!r}"
+        log("Esc closed it, and the choice stayed put")
+    finally:
+        s.close()
+        quit_app("SettingsApp")
+
+
 CHECKS = [v for v in dict(globals()).values()
           if callable(v) and hasattr(v, "_check_name")]
 
@@ -2353,7 +2486,7 @@ def pin_macos_style() -> str | None:
 
     Restored in `main`, so a run leaves the desktop as it found it.
     """
-    style_file = Path(session_home()) / ".config/starling/style"
+    style_file = config_dir() / "style"
     try:
         was = style_file.read_text().strip()
     except OSError:
@@ -2363,7 +2496,7 @@ def pin_macos_style() -> str | None:
     s, win = settings_window()
     try:
         tap_label(s, win, "Appearance")
-        tap_label(s, win, "macOS")
+        pick_style(s, win, "macOS")
         wait_for(lambda: style_file.read_text().strip() == "macos",
                  "the desktop to return to the macOS style")
     finally:
@@ -2375,11 +2508,11 @@ def pin_macos_style() -> str | None:
 def restore_style(was: str | None) -> None:
     if was is None:
         return
-    style_file = Path(session_home()) / ".config/starling/style"
+    style_file = config_dir() / "style"
     s, win = settings_window()
     try:
         tap_label(s, win, "Appearance")
-        tap_label(s, win, "Windows" if was == "fluent" else "macOS")
+        pick_style(s, win, "Windows" if was == "fluent" else "macOS")
         wait_for(lambda: style_file.read_text().strip() == was,
                  f"the desktop to go back to the {was} style")
     finally:

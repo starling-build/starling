@@ -637,6 +637,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     let _snapDismiss = FluentDelay()
     /// The Windows key (HID 0xE3/0xE7), for Win+arrow window chords.
     var _superPressed = false
+    /// True from a Super press until another key joins it: a Super that
+    /// is let go still alone opens Start, as the Windows key does.
+    var _superAlone = false
     /// Alt (HID 0xE2/0xE6), for Alt+Tab.
     var _altPressed = false
     /// Alt+Tab: up, the windows it offers (most recent first) and the one
@@ -2194,7 +2197,21 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 self._shiftPressed = (keyData.type == .down || keyData.type == .repeat)
             }
             if phys == 0xE3 || phys == 0xE7 {
+                let wasPressed = self._superPressed
                 self._superPressed = (keyData.type == .down || keyData.type == .repeat)
+                if keyData.type == .down, !wasPressed {
+                    self._superAlone = true
+                } else if keyData.type == .up, self._superAlone {
+                    // Tapped on its own: Start, in the style that has a
+                    // Windows key. A chord partner cleared the flag below.
+                    self._superAlone = false
+                    if shellMetrics.superAloneOpensLauncher, !self._screensaverActive {
+                        if self._launcherOpen { self._closeLauncher() } else { self.openLauncher() }
+                        return true
+                    }
+                }
+            } else if keyData.type == .down, self._superPressed {
+                self._superAlone = false
             }
             if phys == 0xE2 || phys == 0xE6 {
                 self._altPressed = (keyData.type == .down || keyData.type == .repeat)
@@ -2386,8 +2403,22 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     if self._missionControlOpen { self._closeMissionControlAnimated() }
                     else { self._openMissionControl() }
                     return true
+                case 0x07:  // D — show the desktop, and put it back
+                    self._toggleShowDesktop(); return true
+                case 0x08:  // E — Files
+                    self._launchOrFocusApp("files"); return true
+                case 0x0C:  // I — Settings
+                    self._launchOrFocusApp("settings"); return true
+                case 0x0F:  // L — lock, which here is the screensaver
+                    self._activateScreensaver(); return true
                 default: break
                 }
+            }
+            // Alt+F4 closes the focused window, in either style.
+            if self._altPressed, keyData.type == .down, phys == 0x3D,
+               let focused = self.windowManager.focusedWindowId {
+                self.requestWindowClose(focused)
+                return true
             }
             if self._superPressed, keyData.type == .down,
                let focused = self.windowManager.focusedWindowId,

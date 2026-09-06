@@ -541,7 +541,7 @@ class _VideoPlayerState: State<StatefulWidget> {
 
         // Shared system open dialog, filtered to video types.
         if showOpenPanel {
-            var opts = MacosFilePanelOptions()
+            var opts = FluentFilePanelOptions()
             opts.mode = .open
             opts.title = "Open Video"
             opts.appearanceDark = true   // the player chrome is always dark
@@ -551,7 +551,7 @@ class _VideoPlayerState: State<StatefulWidget> {
                 : (currentPath as NSString).deletingLastPathComponent
             children.append(Positioned(
                 fill: (),
-                child: MacosFilePanelOverlay(options: opts) { [self] paths in
+                child: FluentFilePanelOverlay(options: opts) { [self] paths in
                     setState { showOpenPanel = false }
                     if let path = paths.first {
                         _openVideo(path)

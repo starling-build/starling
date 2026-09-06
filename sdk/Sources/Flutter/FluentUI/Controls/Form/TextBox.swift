@@ -296,8 +296,11 @@ class _TextBoxState: State<StatefulWidget> {
             textBox.onSubmitted?(controller.text)
             return true
         case _Keysym.escape, _FlutterKey.escape:
+            // Unfocus, and leave the key unclaimed: Esc in a dialog's field
+            // closes the dialog on Windows, and the DismissStack only hears
+            // what the focused node lets through.
             _focusNode.unfocus()
-            return true
+            return false
         case _Keysym.tab, _FlutterKey.tab:
             return false
         case _Keysym.backspace, _FlutterKey.backspace:

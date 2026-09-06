@@ -187,6 +187,21 @@ open class ModalRoute: OverlayRoute {
 
     private var _modalBarrierEntry: OverlayEntry?
     private var _modalScopeEntry: OverlayEntry?
+    private var _dismissToken: DismissStack.Token?
+
+    open override func install() {
+        super.install()
+        // Esc pops the route, as it does a ContentDialog on Windows and a
+        // dialog on every desktop; the barrier's own dismissibility is
+        // about pointer clicks and is a separate choice.
+        _dismissToken = DismissStack.push { [weak self] in self?.navigator?.pop() }
+    }
+
+    open override func dispose() {
+        DismissStack.remove(_dismissToken)
+        _dismissToken = nil
+        super.dispose()
+    }
 
     /// Creates two overlay entries: the barrier and the content.
     ///

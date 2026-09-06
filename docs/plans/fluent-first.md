@@ -229,6 +229,41 @@ direction in `CLAUDE.md` is rewritten. Still macOS: `MacosFilePanel`, the
 shared file dialog (three apps and the portal picker) — a Fluent file
 dialog is Phase 7 work, listed there.
 
+**Phase 7, first slice, 2026-09-06:** the keyboard and the last two macOS
+holdouts. Chords: the Windows key on its own opens Start (a `ShellMetrics`
+flag, `superAloneOpensLauncher`, so the macOS style's Command key stays
+inert — a Super that another key joins is a chord, not a tap), Win+D shows
+the desktop, Win+E and Win+I launch or focus Files and Settings, Win+L is
+the lock (the screensaver), Alt+F4 closes the focused window; Win+A/N/Tab
+and Win+arrows were already in. Escape dismisses: the SDK gained
+`DismissStack` (Widgets/DismissStack.swift), a stack of "what Esc closes
+now" that `FlyoutController.showFlyout`, `ModalRoute` (so every
+`showDialog`) and the file dialog's overlay push onto and pop from;
+`FocusManager.dispatchKeyData` hands an unclaimed Escape to its top, and
+`FluentTextBox` no longer claims Esc (it unfocuses and lets it through, so
+Esc in a dialog's field closes the dialog, as on Windows). The Fluent file
+dialog (`FluentUI/Controls/Dialogs/FluentFilePanel.swift`): Windows'
+common dialog as a small Explorer — back/forward/up, the address as
+crumbs in a field, the places pane, Details columns, the file-name field
+and Open/Save + Cancel in the footer — over the theme's resources, with
+`FluentFilePanelOverlay` on Smoke at elevation 128; the three apps and the
+portal picker use it, and `MacosFilePanelOptions` is a typealias so
+`MacosFilePanel` keeps compiling for iOS. Found on the way: every Fluent
+control was invisible to the agent semantics tree — `HoverButton` presses
+on raw pointer events and never annotated a tap, so the functional tier
+(and any agent) could see the labels and tap nothing; it now wraps itself
+in the same `_GestureSemantics` a `GestureDetector` uses, and the
+endpoint's subtree-label walk reaches deep enough to name it. The tier's
+Settings driving was rewritten for the new shape (`pick_style` opens the
+combo box; `tap_node_for` prefers a labelled tappable node, because a
+control's node precedes its text in tree order) and gained
+`check_win_chords` and `check_escape_dismisses`. Seen once and not
+reproduced: the shell segfaulted in libswiftCore during the first chord
+run (Win+I, then Alt+F4 within half a second of Settings mapping); core
+dumps are enabled on the dev box for the next time. Still to do in this
+phase: transparency and animation switches, Settings pages for Start and
+the taskbar, accent from wallpaper, cursors, focus visuals.
+
 ## 1. What "the latest Fluent" is, in September 2026
 
 Checked against Microsoft's current guidance rather than memory. Two layers

@@ -12,44 +12,10 @@ import Glibc
 #endif
 
 // MARK: - Options
-
-public struct MacosFilePanelOptions {
-    public enum Mode {
-        /// Choose existing file(s).
-        case open
-        /// Choose a destination: directory navigation + a filename field.
-        case save
-        /// Choose a directory (files are shown but not selectable).
-        case directory
-    }
-
-    public var mode: Mode = .open
-    public var title: String = "Open"
-    public var allowsMultiple: Bool = false
-    /// Lowercase extensions (no dot) selectable in open mode; nil = all.
-    /// Directories always navigate regardless.
-    public var allowedExtensions: [String]? = nil
-    public var initialDirectory: String? = nil
-    /// Seed for the save-mode filename field.
-    public var suggestedName: String? = nil
-    /// Confirm-button label; defaults to Open/Save/Choose per mode.
-    public var confirmLabel: String? = nil
-    /// Explicit dark/light override. Apps without a MacosTheme ancestor
-    /// (custom-chrome apps) must set this or the panel falls back to the
-    /// theme default.
-    public var appearanceDark: Bool? = nil
-
-    public init() {}
-
-    var resolvedConfirmLabel: String {
-        if let l = confirmLabel, !l.isEmpty { return l }
-        switch mode {
-        case .open: return "Open"
-        case .save: return "Save"
-        case .directory: return "Choose"
-        }
-    }
-}
+//
+// `MacosFilePanelOptions` is `FluentFilePanelOptions` (FluentUI/Controls/
+// Dialogs/FluentFilePanel.swift): one options type, two faces. The Linux
+// desktop shows the Fluent one; this stays for iOS.
 
 // MARK: - Palette
 

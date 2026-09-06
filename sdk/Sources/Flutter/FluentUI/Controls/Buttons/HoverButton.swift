@@ -218,6 +218,14 @@ class HoverButtonState: State<StatefulWidget> {
             child: w
         )
 
+        // A tap action in the semantics tree, as GestureDetector gives its
+        // subtree: pressing on raw pointer events is invisible to the agent
+        // endpoint, and without this every Fluent control — pane items,
+        // buttons, rows — was a label with no way to tap it.
+        if enabled, widget.onPressed != nil || widget.onLongPress != nil {
+            w = _GestureSemantics(onTap: widget.onPressed, onLongPress: widget.onLongPress, child: w)
+        }
+
         // Wrap with Padding if margin is specified
         if let margin = widget.margin {
             w = Padding(padding: margin, child: w)

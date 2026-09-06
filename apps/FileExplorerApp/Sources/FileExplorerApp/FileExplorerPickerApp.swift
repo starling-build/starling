@@ -12,15 +12,15 @@ import Glibc
 
 /// The xdg portal file chooser — launched by the shell's FileChooser portal
 /// service (`FileExplorerApp --picker` with PORTAL_* env). A thin shell
-/// around the framework's MacosFilePanel (the same dialog apps embed
+/// around the framework's FluentFilePanel (the same dialog apps embed
 /// in-process), keeping only the portal contract: on confirm, print
 /// selected file:// URIs to stdout (one per line) and exit 0; on cancel,
 /// exit 1.
 class FileExplorerPickerApp: StatelessWidget {
 
-    private static func _options() -> MacosFilePanelOptions {
+    private static func _options() -> FluentFilePanelOptions {
         let env = ProcessInfo.processInfo.environment
-        var opts = MacosFilePanelOptions()
+        var opts = FluentFilePanelOptions()
         if env["PORTAL_SAVE"] == "1" {
             opts.mode = .save
         } else if env["PORTAL_DIRECTORY"] == "1" {
@@ -43,7 +43,7 @@ class FileExplorerPickerApp: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        return MacosFilePanel(options: Self._options()) { paths in
+        return FluentFilePanel(options: Self._options()) { paths in
             guard !paths.isEmpty else { _exit(1) }
             // fflush is essential: print() buffers into the C stdio FILE*,
             // and _exit(0) skips stdio flushing — without this the URIs
