@@ -46,11 +46,9 @@ final class FluentChrome: ShellChrome {
     /// Still the macOS menu; the Fluent one lands with the rest of the menus.
     func desktopMenu() -> Widget { shell.macosDesktopMenu() }
 
-    /// Reused as-is, and it lands in the right place for free: it anchors at
-    /// `bottomBarMargin + bottomBarHeight + 10`, which in this style is just
-    /// above the taskbar.
+    /// The jump list: Windows' menu on a taskbar tile.
     func appIconMenu(forOutput output: DisplayOutput) -> Widget? {
-        shell.dockIconMenuWidget(forOutput: output)
+        shell.fluentJumpList(forOutput: output)
     }
 
     func windowMenu() -> Widget? { shell.fluentWindowMenu() }
@@ -70,11 +68,11 @@ final class FluentChrome: ShellChrome {
         shell._noteSnapPointer(x: x, y: y)
     }
 
-    func hoverOverlay() -> Widget? { shell.fluentHoverPreview() }
+    func hoverOverlay() -> Widget? { shell.fluentHoverOverlay() }
 
     func barSlots(forOutput output: DisplayOutput)
         -> [(app: String, x: Double, y: Double, size: Double)] {
-        let ids = ["launcher"] + shell._dockDisplayApps
+        let ids = ["launcher", "search", "taskview"] + shell._dockDisplayApps
         // Tiles are centred in the strip, and the strip is on the bottom edge.
         let y = output.logicalHeight - FluentBar.height
             + (FluentBar.height - FluentBar.tile) / 2 + FluentBar.tile / 2

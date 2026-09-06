@@ -97,10 +97,9 @@ struct ShellMetrics {
         squareWhenMaximized: false
     )
 
-    /// One full-width taskbar on the bottom edge and nothing on top. Sized
-    /// against Windows' own taskbar (48pt) rather than against a dock: a
-    /// floating slab can afford to be tall because wallpaper surrounds it,
-    /// and a solid strip across the screen cannot.
+    /// One full-width taskbar on the bottom edge and nothing on top, at
+    /// Windows' own 48 (`FluentBar.height`) — a solid strip across the
+    /// screen cannot afford a dock's height.
     /// The container is twice the strip on purpose: the hovered tile's name
     /// floats ABOVE the bar, and a layout box the size of the strip clips it
     /// away silently. The extra height paints nothing and takes no input.
@@ -112,9 +111,9 @@ struct ShellMetrics {
         titleBarHeight: 32.0,
         windowCornerRadius: FluentCorners.window,
         panelCornerRadius: FluentCorners.overlay,
-        bottomBarHeight: 56.0,
+        bottomBarHeight: FluentBar.height,
         bottomBarMargin: 0.0,
-        bottomBarContainerHeight: 112.0,
+        bottomBarContainerHeight: FluentBar.height * 2,
         bottomBarReserves: true,
         squareWhenMaximized: true
     )

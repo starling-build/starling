@@ -53,30 +53,32 @@ extension Typography {
 
 // MARK: - Geometry
 
-// The numbers are our WINDOWS shell's, not guesses and not re-derived:
-// `kDockHeight`, `kDockIcon` and `kDockTile` in
-// sdk/Examples/WinShellBar/Dock.swift, which were tuned sitting next to real
-// Explorer. Taking them wholesale is the point -- the two shells should be the
-// same product on two operating systems, and a Linux bar 48 tall with 24pt
-// icons next to a Windows one that is 56 with 34 is simply wrong twice.
+// Real Windows 11's numbers: the bar is 48 tall and an app's icon 24, the
+// tile around it 40 with a 4 gap. Our Windows shell (sdk/Examples/WinShellBar)
+// runs 56 with 34 and keeps them — this is a deliberate divergence, because
+// matching Windows is the point of this style and the Windows shell has its
+// own reasons (it sits next to Explorer's bar and was tuned against that).
 enum FluentBar {
-    /// The strip, and the reason it is not a dock's height: a solid bar
-    /// across the screen cannot afford what a floating slab can.
-    static let height: Double = 56
+    static let height: Double = 48
     /// One tile's box, and the gap between two of them.
-    static let tile: Double = 48        // kDockTile = kDockIcon + 14
+    static let tile: Double = 40
     static let gap: Double = 4
     /// Centre-to-centre.
     static var pitch: Double { tile + gap }
     /// The app icon inside a tile.
-    static let icon: Double = 34
+    static let icon: Double = 24
     /// The running indicator: a rounded bar under the tile, longer for the
     /// window that currently has focus.
     static let indicatorHeight: Double = 3
     static let indicatorRunning: Double = 6
     static let indicatorFocused: Double = 16
+    /// Start, Search and Task View come before the apps in the cluster; a
+    /// tile index below this is one of them.
+    static let systemTiles = 3
+    /// The show-desktop strip on the far right edge.
+    static let showDesktopWidth: Double = 6
 
-    /// Total width of a cluster of `count` tiles (Start included).
+    /// Total width of a cluster of `count` tiles (the system tiles included).
     static func clusterWidth(count: Int) -> Double {
         count <= 0 ? 0 : Double(count) * pitch - gap
     }
@@ -146,6 +148,12 @@ class FluentTaskbar: StatelessWidget {
     let onStatus: () -> Void
     let onClock: () -> Void
     let onBell: () -> Void
+    let onSearch: () -> Void
+    let onTaskView: () -> Void
+    let onShowDesktop: () -> Void
+    /// A tray control the pointer settled on (its tooltip and the control's
+    /// global rect), or nil when it left.
+    let onTrayHover: (String?, Rect?) -> Void
 
     init(tiles: [TaskbarTile], status: TaskbarStatus, outputWidth: Double,
          startActive: Bool, hoveredIndex: Int?,
@@ -154,7 +162,11 @@ class FluentTaskbar: StatelessWidget {
          onTileMenu: @escaping (String) -> Void,
          onStatus: @escaping () -> Void,
          onClock: @escaping () -> Void,
-         onBell: @escaping () -> Void) {
+         onBell: @escaping () -> Void,
+         onSearch: @escaping () -> Void,
+         onTaskView: @escaping () -> Void,
+         onShowDesktop: @escaping () -> Void,
+         onTrayHover: @escaping (String?, Rect?) -> Void) {
         self.tiles = tiles
         self.status = status
         self.outputWidth = outputWidth
@@ -166,6 +178,10 @@ class FluentTaskbar: StatelessWidget {
         self.onStatus = onStatus
         self.onClock = onClock
         self.onBell = onBell
+        self.onSearch = onSearch
+        self.onTaskView = onTaskView
+        self.onShowDesktop = onShowDesktop
+        self.onTrayHover = onTrayHover
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -204,7 +220,7 @@ class FluentTaskbar: StatelessWidget {
             )
         ]
 
-        let count = tiles.count + 1  // Start, then the apps
+        let count = tiles.count + FluentBar.systemTiles  // Start, Search, Task View, then the apps
         let left = FluentBar.clusterLeft(count: count, outputWidth: outputWidth)
 
         // The status readout spans the FULL width and right-aligns inside it,
@@ -232,10 +248,18 @@ class FluentTaskbar: StatelessWidget {
             width: FluentBar.clusterWidth(count: count), height: FluentBar.tile,
             child: Row(mainAxisSize: .min, spacing: FluentBar.gap) {
                 _startTile()
+                _systemTile(index: 1, icon: FluentSystemIcons.search, onTap: { [self] in onSearch() })
+                _systemTile(index: 2, icon: FluentSystemIcons.window, onTap: { [self] in onTaskView() })
                 for (i, tile) in tiles.enumerated() {
-                    _appTile(tile, index: i + 1)
+                    _appTile(tile, index: i + FluentBar.systemTiles)
                 }
             }
+        ))
+        // Show desktop: the sliver at the far right that Windows keeps
+        // there — a click minimises everything, another brings it back.
+        layers.append(Positioned(
+            right: 0, bottom: 0, width: FluentBar.showDesktopWidth, height: FluentBar.height,
+            child: _showDesktopStrip()
         ))
 
         // The hover preview is NOT drawn here: it is taller than this box
@@ -256,12 +280,39 @@ class FluentTaskbar: StatelessWidget {
             onMenu: nil,
             // Four equal panes — the closest thing in this font to the
             // Windows logo, which it does not (and should not) ship.
-            content: MacosIcon(
-                icon: FluentSystemIcons.grid,
-                color: shellTheme.fgPrimary,
-                size: FluentBar.icon
-            )
+            content: Icon(FluentSystemIcons.grid, size: FluentBar.icon, color: shellTheme.fgPrimary)
         )
+    }
+
+    /// Search and Task View: system tiles beside Start, no indicator.
+    private func _systemTile(index: Int, icon: IconData, onTap: @escaping () -> Void) -> Widget {
+        _tileBox(
+            index: index,
+            active: false,
+            indicator: nil,
+            onTap: onTap,
+            onMenu: nil,
+            content: Icon(icon, size: 20, color: shellTheme.fgPrimary)
+        )
+    }
+
+    private func _showDesktopStrip() -> Widget {
+        let ref = _ContextRef()
+        return HoverButton(
+            builder: { context, states in
+                ref.context = context
+                let hot = states.isHovered || states.isPressed
+                return DecoratedBox(
+                    decoration: BoxDecoration(
+                        color: hot ? shellTheme.barHover : Color(0x00000000),
+                        border: Border(left: BorderSide(
+                            color: hot ? shellTheme.barHairline : Color(0x00000000),
+                            width: FluentStrokeWidth.thin))),
+                    child: SizedBox(expand: ()))
+            },
+            onPressed: { [self] in onShowDesktop() },
+            onPointerEnter: { [self] _ in onTrayHover("Show desktop", ref.rect) },
+            onPointerExit: { [self] _ in onTrayHover(nil, nil) })
     }
 
     private func _appTile(_ tile: TaskbarTile, index: Int) -> Widget {
@@ -347,24 +398,24 @@ class FluentTaskbar: StatelessWidget {
         return Row(mainAxisSize: .min, crossAxisAlignment: .center) {
             // One button for the whole glyph group, Windows-style: the
             // individual icons are a readout, not separate controls.
-            _trayButton(active: s.statusActive, onTap: { [self] in onStatus() }) {
+            _trayButton(active: s.statusActive, tip: "Network and battery",
+                        onTap: { [self] in onStatus() }) {
                 Row(mainAxisSize: .min, crossAxisAlignment: .center, spacing: 8) {
                     for icon in s.statusIcons {
-                        MacosIcon(icon: icon, color: shellTheme.fgPrimary, size: 16)
+                        Icon(icon, size: 16, color: shellTheme.fgPrimary)
                     }
                 }
             }
             if s.showBell {
-                _trayButton(active: s.bellActive, onTap: { [self] in onBell() }) {
-                    MacosIcon(
-                        icon: FluentSystemIcons.bell,
-                        color: s.bellTinted ? shellTheme.accent
-                                            : shellTheme.fgPrimary,
-                        size: 16)
+                _trayButton(active: s.bellActive, tip: "Notifications",
+                            onTap: { [self] in onBell() }) {
+                    Icon(FluentSystemIcons.bell, size: 16,
+                         color: s.bellTinted ? shellTheme.accent : shellTheme.fgPrimary)
                 }
             }
             // Time over date, right-aligned — Windows' two-line clock.
-            _trayButton(active: s.clockActive, onTap: { [self] in onClock() }) {
+            _trayButton(active: s.clockActive, tip: _todayLong(),
+                        onTap: { [self] in onClock() }) {
                 // Self-paced leaves, not strings from the status struct:
                 // nothing rebuilds the shell on an idle desktop, so a clock
                 // built from the parent's `Date()` stops. See `ShellClock`.
@@ -379,21 +430,31 @@ class FluentTaskbar: StatelessWidget {
                 }
             }
             // No power button: Windows keeps that inside Start, and so do we
-            // — see `FluentStartMenu`'s footer.
-            SizedBox(width: 8)
+            // — see `FluentStartMenu`'s footer. The show-desktop strip has
+            // the last few pixels.
+            SizedBox(width: FluentBar.showDesktopWidth + 4)
         }
+    }
+
+    private func _todayLong() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMMM d, yyyy"
+        return f.string(from: Date())
     }
 
     private func _trayButton(
         active: Bool,
+        tip: String,
         onTap: @escaping () -> Void,
         @ChildBuilder content: () -> Widget
     ) -> Widget {
         let child = content()
+        let ref = _ContextRef()
         return SizedBox(
             height: FluentBar.height,
             child: HoverButton(
                 builder: { context, states in
+                    ref.context = context
                     let hot = states.isHovered || states.isPressed || active
                     return DecoratedBox(
                         decoration: BoxDecoration(
@@ -406,7 +467,9 @@ class FluentTaskbar: StatelessWidget {
                         )
                     )
                 },
-                onPressed: onTap
+                onPressed: onTap,
+                onPointerEnter: { [self] _ in onTrayHover(tip, ref.rect) },
+                onPointerExit: { [self] _ in onTrayHover(nil, nil) }
             )
         )
     }
@@ -426,5 +489,16 @@ class FluentTaskbar: StatelessWidget {
                                            shellTheme.fgPrimary))
             )
         )
+    }
+}
+
+/// A control's build context, kept from its builder so a hover can report
+/// the control's global rect — the tooltip hangs from it.
+final class _ContextRef {
+    var context: (any BuildContext)?
+    var rect: Rect? {
+        guard let ctx = context, let box = ctx.findRenderObject() as? RenderBox else { return nil }
+        let o = box.localToGlobal(Offset.zero)
+        return Rect.fromLTWH(o.dx, o.dy, box.size.width, box.size.height)
     }
 }

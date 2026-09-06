@@ -331,7 +331,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// Apps the user took out of the dock by hand. Remembered so that
     /// re-deriving the dock after a registry change can restore an app that
     /// came back without resurrecting one the user deliberately removed.
-    private var _dockRemovedByUser: Set<String> = []
+    var _dockRemovedByUser: Set<String> = []
 
     /// What the shell knows about each app's liveness.
     ///
@@ -364,8 +364,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     // Dock icon context menu (right-click on an icon). The anchor X is the
     // icon's slot center captured at open time, so the menu stays put while
     // hover magnification relaxes underneath the dismiss barrier.
-    private var _dockMenuAppId: String? = nil
-    private var _dockMenuAnchorX: Double = 0
+    var _dockMenuAppId: String? = nil
+    var _dockMenuAnchorX: Double = 0
 
     // IME (fcitx5, toggled with Ctrl+Space). The shell draws the preedit +
     // candidate panel itself — fcitx runs headless and answers over DBus.
@@ -3074,7 +3074,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             },
             onStatus: { [self] in _fluentOpenPopup(.controlCenter) },
             onClock: { [self] in _fluentOpenPopup(.clock) },
-            onBell: { [self] in _fluentOpenPopup(.notifications) }
+            onBell: { [self] in _fluentOpenPopup(.notifications) },
+            // Search is Start with its box live, which it always is.
+            onSearch: { [self] in
+                _loadIconTextures()
+                openLauncher()
+            },
+            onTaskView: { [self] in _openMissionControl() },
+            onShowDesktop: { [self] in _toggleShowDesktop() },
+            onTrayHover: { [self] tip, rect in _noteBarTooltip(tip, anchor: rect) }
         )
 
         return Positioned(
@@ -3088,6 +3096,12 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// Which taskbar tile the pointer is over (0 = Start), or nil.
     var _fluentHoverIndex: Int? = nil
+    /// A tray control's tooltip, once the pointer has rested on it.
+    var _barTooltip: (text: String, anchor: Rect)? = nil
+    let _barTooltipDelay = FluentDelay()
+    /// The windows the show-desktop strip hid, so the next press restores
+    /// exactly those.
+    var _showDesktopStash: [String] = []
 
     /// Global-hover hook for the taskbar, and the ONLY place a leave is
     /// visible: a Listener on a tile hears every enter and no exit, so the
@@ -3098,7 +3112,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         var next: Int? = nil
         if outputId == output.id,
            y >= output.logicalHeight - DesktopTheme.kDockHeight {
-            let count = _dockDisplayApps.count + 1
+            let count = _dockDisplayApps.count + FluentBar.systemTiles
             let rel = x - FluentBar.clusterLeft(
                 count: count, outputWidth: output.logicalWidth)
             let idx = Int((rel / FluentBar.pitch).rounded(.down))
@@ -3108,7 +3122,86 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 next = idx
             }
         }
-        if next != _fluentHoverIndex { setState { _fluentHoverIndex = next } }
+        if next != _fluentHoverIndex {
+            setState { _fluentHoverIndex = next }
+            // The system tiles have no preview; they get a tooltip.
+            if let i = next, i < FluentBar.systemTiles {
+                let names = ["Start", "Search", "Task view"]
+                let cx = FluentBar.tileCenterX(index: i, count: _dockDisplayApps.count + FluentBar.systemTiles,
+                                               outputWidth: output.logicalWidth)
+                _noteBarTooltip(names[i], anchor: Rect.fromLTWH(
+                    cx - FluentBar.tile / 2, output.logicalHeight - FluentBar.height,
+                    FluentBar.tile, FluentBar.height))
+            } else {
+                _noteBarTooltip(nil, anchor: nil)
+            }
+        }
+    }
+
+    /// A tray control or system tile the pointer rests on, or nil when it
+    /// left: Windows' tooltip after a moment, gone at once on leave.
+    func _noteBarTooltip(_ tip: String?, anchor: Rect?) {
+        guard let tip, let anchor else {
+            _barTooltipDelay.cancel()
+            if _barTooltip != nil { setState { _barTooltip = nil } }
+            return
+        }
+        _barTooltipDelay.schedule(after: .milliseconds(500)) { [weak self] in
+            guard let self else { return }
+            self.setState { self._barTooltip = (tip, anchor) }
+        }
+    }
+
+    /// Show desktop: minimise every window on the active space, or bring
+    /// back the ones the last press hid.
+    func _toggleShowDesktop() {
+        if !_showDesktopStash.isEmpty {
+            let ids = _showDesktopStash
+            _showDesktopStash = []
+            setState {
+                for id in ids where windowManager.windows.contains(where: { $0.id == id }) {
+                    windowManager.restoreWindow(id)
+                }
+            }
+            return
+        }
+        let visible = windowManager.visibleWindows.filter { $0.ownerAgentId == nil }.map { $0.id }
+        guard !visible.isEmpty else { return }
+        _showDesktopStash = visible
+        for id in visible { requestWindowMinimize(id) }
+    }
+
+    /// The bar's hover layer: a tooltip when a control has one up, else the
+    /// hovered app's live preview.
+    func fluentHoverOverlay() -> Widget? {
+        // A jump list up over a tile replaces its preview, as on Windows.
+        if _dockMenuAppId != nil { return nil }
+        if let tip = _barTooltip {
+            let padH = FluentSpacing.s, padV = FluentSpacing.xs
+            // Centred on the control, except near the right edge, where the
+            // tip's right edge takes the control's so a long date stays on
+            // screen; the tip sizes itself.
+            let nearRight = tip.anchor.center.dx > screenWidth - 200
+            return Positioned(
+                left: nearRight ? nil : max(FluentSpacing.s, tip.anchor.center.dx - 60),
+                right: nearRight ? max(FluentSpacing.s, screenWidth - tip.anchor.right) : nil,
+                bottom: screenHeight - tip.anchor.top + FluentSpacing.xs,
+                child: FluentEntrance(
+                    child: FluentTheme(
+                        data: fluentThemeData(),
+                        child: DecoratedBox(
+                            decoration: BoxDecoration(
+                                color: shellTheme.panelFill,
+                                border: Border.all(color: shellTheme.panelStroke, width: FluentStrokeWidth.thin),
+                                borderRadius: BorderRadius.circular(FluentCorners.tooltip),
+                                boxShadow: FluentElevation.shadows(
+                                    FluentElevation.tooltip, brightness: shellTheme.isDark ? .dark : .light)),
+                            child: Padding(
+                                padding: EdgeInsets(left: padH, top: padV, right: padH, bottom: padV),
+                                child: Text(tip.text, style: fluentType.styled({ $0.caption }, shellTheme.fgPrimary))))),
+                    slideFrom: Offset(0, 4)))
+        }
+        return fluentHoverPreview()
     }
 
     /// The hovered tile's preview: a LIVE thumbnail of each of the app's
@@ -3123,10 +3216,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// grows to the right as an app collects windows and is clamped to the
     /// screen so a tile near either edge still shows its whole preview.
     func fluentHoverPreview() -> Widget? {
-        guard let idx = _fluentHoverIndex, idx > 0 else { return nil }
+        guard let idx = _fluentHoverIndex, idx >= FluentBar.systemTiles else { return nil }
         let apps = _dockDisplayApps
-        guard idx - 1 < apps.count else { return nil }
-        let appId = apps[idx - 1]
+        guard idx - FluentBar.systemTiles < apps.count else { return nil }
+        let appId = apps[idx - FluentBar.systemTiles]
         let name = AppRegistry.shared.app(id: appId)?.name ?? appId
         let wins = windowManager.windows.filter {
             _appOwning($0)?.id == appId && !_closingWindows.contains($0.id)
@@ -3141,7 +3234,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             : Self.kPreviewPad + Self.kPreviewTitleH + Self.kPreviewThumbH
                 + Self.kPreviewPad
 
-        let cx = FluentBar.tileCenterX(index: idx, count: apps.count + 1,
+        let cx = FluentBar.tileCenterX(index: idx, count: apps.count + FluentBar.systemTiles,
                                        outputWidth: screenWidth)
         let left = max(6, min(cx - panelW / 2, screenWidth - panelW - 6))
 
@@ -7689,7 +7782,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// (teardown fires when the animation completes); minimized, other-space,
     /// or exposé-covered windows have no animatable widget, so they are torn
     /// down immediately. onWindowClose terminates process-backed apps.
-    private func _quitApp(_ appId: String) {
+    func _quitApp(_ appId: String) {
         let targets = windowManager.windows.filter { win in
             win.ownerAgentId == nil && _appOwning(win)?.id == appId
         }

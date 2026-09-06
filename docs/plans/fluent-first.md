@@ -125,6 +125,24 @@ functional tier: with Fluent the default, checks written against the macOS
 panels' geometry (control-centre tile centres, Wi-Fi rows) now run against
 Fluent surfaces unless they pick the style first.
 
+**Phase 2, 2026-09-06:** the bar is Windows' 48 with 24px icons (40px
+tiles, 4 gap) — a deliberate divergence from our Windows shell's 56/34,
+said so in `FluentBar`'s comment. Search (Start with its box live) and
+Task View (the overview) sit beside Start; the show-desktop strip at the
+far right minimises every window on the space and a second press brings
+exactly those back; the tray controls, Start, Search and Task View have
+tooltips (4px corners, elevation 16, after 500 ms, right-aligned near the
+edge); a tile's right-click is the jump list — the app, Close window(s),
+Pin to / Unpin from taskbar — as SDK menu content over the tile, sharing
+the macOS dock's pinned list; the preview hides while it is up.
+`barSlots` answers the new layout (`search` and `taskview` are slots), so
+`shell-drive.py dock NAME` still lands. Not done: the tray overflow
+chevron (nothing to overflow yet), the Settings page for alignment,
+auto-hide and all-displays, the recent-documents section of the jump list
+(apps do not report them), and the functional check. Verified on screen:
+the bar with two apps running and their indicators, show desktop both
+ways, the jump list, the clock and Start tooltips, Task View from its tile.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*
