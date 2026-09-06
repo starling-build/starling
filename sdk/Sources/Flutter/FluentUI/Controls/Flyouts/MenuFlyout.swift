@@ -223,7 +223,7 @@ class _MenuFlyoutState: State<StatefulWidget> {
     /// another item for the menu delay closes it, hovering a different
     /// submenu's item swaps it.
     fileprivate weak var _openSub: _MenuFlyoutSubItemWidgetState?
-    private let _closeDelay = _MenuDelay()
+    private let _closeDelay = FluentDelay()
 
     /// The pointer came onto `item`. An open submenu that is not this
     /// item's closes after the menu delay, so a diagonal move into the
@@ -374,7 +374,7 @@ private class _MenuFlyoutSubItemWidget: StatefulWidget {
 
 private class _MenuFlyoutSubItemWidgetState: State<StatefulWidget> {
     private let _flyoutController = FlyoutController()
-    private let _openDelay = _MenuDelay()
+    private let _openDelay = FluentDelay()
 
     var subItemWidget: _MenuFlyoutSubItemWidget {
         return widget as! _MenuFlyoutSubItemWidget
@@ -664,7 +664,7 @@ public class RadioMenuFlyoutItem: MenuFlyoutItemBase {
     }
 }
 
-// MARK: - Closing, and the menu delay
+// MARK: - Closing
 
 /// Closes the menu an item was chosen from and every menu above it. A menu
 /// is an overlay entry, not a route, so the navigator has nothing to pop;
@@ -678,28 +678,4 @@ private func _closeMenus(_ context: any BuildContext) {
     }
 }
 
-/// A one-shot delay on the frame clock. The port has no post-frame
-/// callback and `Foundation.Timer` never fires on the DRM embedder, so a
-/// `Ticker` is the timer that exists (as `TeachingTip._deferShow`).
-final class _MenuDelay {
-    private var _ticker: Ticker?
 
-    func schedule(after delay: Duration, _ action: @escaping () -> Void) {
-        cancel()
-        let ticker = Ticker { [weak self] elapsed in
-            guard elapsed >= delay else { return }
-            self?.cancel()
-            action()
-        }
-        _ticker = ticker
-        _ = ticker.start()
-    }
-
-    func cancel() {
-        _ticker?.stop()
-        _ticker?.dispose()
-        _ticker = nil
-    }
-
-    deinit { cancel() }
-}

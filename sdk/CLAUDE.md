@@ -166,6 +166,20 @@ error" kind:
   lands on the parent's barrier, which closes both. Submenus sit
   `.rightEdgeAlignedTop`; drop-down buttons and menu-bar items hang
   `.bottomEdgeAlignedLeft`, as WinUI's do.
+- **`Foundation.Timer` fires on no host we run.** Not the DRM embedder
+  (documented) and not the GTK host either — its main loop is GLib's, and
+  Foundation's run loop never turns. `Tooltip` waited on one and never
+  appeared under a resting pointer. Anything in `FluentUI/` that waits uses
+  `FluentDelay` (`Styles/FluentDelay.swift`, a one-shot on the frame clock);
+  `TextBox`'s caret still has a Foundation timer and is the next to move.
+- **`Text(rich:)` dropped its `style:` and the ambient DefaultTextStyle.**
+  Dart hangs a rich span under the effective style; the port handed the
+  span over bare, so a tooltip's caption painted in the paragraph default —
+  white on the light surface, invisible. Fixed in `Widgets/Text.swift`.
+  The other rich-text user is `TerminalView`, whose rows must NOT inherit
+  (a theme body style's line height would stretch them off the grid): its
+  row and run styles are `inherit: false` now, which `TextStyle.merge`
+  honours. Anything laid out on a grid wants the same.
 
 Flyouts are Windows' now in every respect the gallery can show: acrylic
 (`Acrylic` over the thin default recipe, the flyout stroke drawn in the

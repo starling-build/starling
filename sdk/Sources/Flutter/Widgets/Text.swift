@@ -197,9 +197,13 @@ public class Text: StatelessWidget {
             ?? defaultTextStyle.textHeightBehavior
             ?? DefaultTextHeightBehavior.maybeOf(context)
 
+        // A rich span hangs under the effective style, as Dart's does, so
+        // `style:` and the ambient DefaultTextStyle still apply to it. It
+        // used to be handed over bare, which painted a tooltip's caption
+        // in the paragraph default — white on a light surface.
         let span: InlineSpan
         if let textSpan = textSpan {
-            span = textSpan
+            span = TextSpan(children: [textSpan], style: effectiveTextStyle)
         } else {
             span = TextSpan(text: data ?? "", style: effectiveTextStyle)
         }

@@ -2028,7 +2028,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 segments.append(SizedBox(
                     width: Double(runColumns[i]) * cellW,
                     height: cellH,
-                    child: Text(rich: span, softWrap: false, maxLines: 1)))
+                    child: Text(rich: span, style: _rowStyle, softWrap: false, maxLines: 1)))
             }
             head = SizedBox(height: cellH, child: Row(children: segments))
         } else {
@@ -2036,6 +2036,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
                 height: cellH,
                 child: Text(
                     rich: TextSpan(children: spans),
+                    style: _rowStyle,
                     softWrap: false,
                     maxLines: 1
                 )
@@ -2205,6 +2206,16 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
         return spacing
     }
 
+    /// The row's own paragraph style: the grid's font at the fitted size,
+    /// inheriting NOTHING from the app around it — a theme's body style
+    /// carries a line height (Fluent's is 20/14) that would stretch every
+    /// row off the cell grid. `Text(rich:)` hangs its span under the
+    /// ambient `DefaultTextStyle` as Dart's does, so this is what stops it.
+    private var _rowStyle: TextStyle {
+        TextStyle(inherit: false, fontSize: _fontSize,
+                  fontFamily: font.family, fontFamilyFallback: _fontFallback)
+    }
+
     private func _makeTextStyle(_ style: _RunKey) -> TextStyle {
         var fg = style.fg == 0 ? theme.defaultForeground : style.fg
         if style.attrs.contains(.dim) {
@@ -2215,6 +2226,8 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             fg = 0xFF00_0000 | (r << 16) | (g << 8) | b
         }
         return TextStyle(
+            // A run is fully specified; see `_rowStyle`.
+            inherit: false,
             color: Color(Int(fg)),
             // No backgroundColor here: cell backgrounds are grid rects
             // painted under the text (a4543ca — the style's background takes

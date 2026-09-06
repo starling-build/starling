@@ -124,16 +124,6 @@ public func horizontalPositionDependentBox(
     return Offset(x, y)
 }
 
-// MARK: - Duration helper
-
-/// Convert a Swift `Duration` to seconds as `Double`.
-private func _durationToSeconds(_ duration: Duration) -> Double {
-    let components = duration.components
-    let microseconds = components.seconds * 1_000_000
-        + components.attoseconds / 1_000_000_000_000
-    return Double(microseconds) / 1_000_000.0
-}
-
 // MARK: - TooltipThemeData
 
 /// Theme data for `Tooltip` widgets.
@@ -436,8 +426,9 @@ public class TooltipState: State<StatefulWidget> {
     // MARK: - State
 
     private var _entry: OverlayEntry?
-    private var _dismissTimer: Foundation.Timer?
-    private var _showTimer: Foundation.Timer?
+    // On the frame clock, not Foundation's: see `FluentDelay`.
+    private let _dismissDelay = FluentDelay()
+    private let _showDelay = FluentDelay()
     private var _mousePosition: Offset?
     private var _isConcealed: Bool = false
     private var _forceRemoval: Bool = false
@@ -483,8 +474,7 @@ public class TooltipState: State<StatefulWidget> {
         if _entry != nil {
             _dismissTooltip(immediately: true)
         }
-        _showTimer?.invalidate()
-        _showTimer = nil
+        _showDelay.cancel()
         super.deactivate()
     }
 
@@ -500,51 +490,35 @@ public class TooltipState: State<StatefulWidget> {
     }
 
     private func _showTooltip(immediately: Bool = false) {
-        _dismissTimer?.invalidate()
-        _dismissTimer = nil
+        _dismissDelay.cancel()
         if immediately {
             _ensureTooltipVisible()
             return
         }
-        _showTimer?.invalidate()
-        let waitSeconds = _durationToSeconds(_waitDuration)
-        _showTimer = Foundation.Timer.scheduledTimer(
-            withTimeInterval: waitSeconds,
-            repeats: false,
-            block: _sendableTimer { [weak self] (_: Timer) in
-                guard let self = self, self.mounted else { return }
-                self._ensureTooltipVisible()
-            }
-        )
+        _showDelay.schedule(after: _waitDuration) { [weak self] in
+            guard let self, self.mounted else { return }
+            self._ensureTooltipVisible()
+        }
     }
 
     func _dismissTooltip(immediately: Bool = false) {
-        _showTimer?.invalidate()
-        _showTimer = nil
+        _showDelay.cancel()
         if immediately {
             _removeEntry()
             return
         }
         _forceRemoval = true
-        _dismissTimer?.invalidate()
-        let showSeconds = _durationToSeconds(_showDuration)
-        _dismissTimer = Foundation.Timer.scheduledTimer(
-            withTimeInterval: showSeconds,
-            repeats: false,
-            block: _sendableTimer { [weak self] (_: Timer) in
-                guard let self = self, self.mounted else { return }
-                self._removeEntry()
-            }
-        )
+        _dismissDelay.schedule(after: _showDuration) { [weak self] in
+            guard let self, self.mounted else { return }
+            self._removeEntry()
+        }
     }
 
     func _concealTooltip() {
         if _isConcealed || _forceRemoval { return }
         _isConcealed = true
-        _dismissTimer?.invalidate()
-        _dismissTimer = nil
-        _showTimer?.invalidate()
-        _showTimer = nil
+        _dismissDelay.cancel()
+        _showDelay.cancel()
         if _entry != nil {
             _entry!.remove()
         }
@@ -553,10 +527,8 @@ public class TooltipState: State<StatefulWidget> {
     func _revealTooltip() {
         if !_isConcealed { return }
         _isConcealed = false
-        _dismissTimer?.invalidate()
-        _dismissTimer = nil
-        _showTimer?.invalidate()
-        _showTimer = nil
+        _dismissDelay.cancel()
+        _showDelay.cancel()
         if let entry = _entry, !entry.mounted {
             Overlay.of(context!).insert(entry)
         }
@@ -568,8 +540,7 @@ public class TooltipState: State<StatefulWidget> {
     @discardableResult
     public func _ensureTooltipVisible() -> Bool {
         if !_visible { return false }
-        _showTimer?.invalidate()
-        _showTimer = nil
+        _showDelay.cancel()
         _forceRemoval = false
         if _isConcealed {
             Tooltip._concealOtherTooltips(self)
@@ -577,8 +548,7 @@ public class TooltipState: State<StatefulWidget> {
             return true
         }
         if _entry != nil {
-            _dismissTimer?.invalidate()
-            _dismissTimer = nil
+            _dismissDelay.cancel()
             return false  // Already visible.
         }
         _createNewEntry()
@@ -645,10 +615,8 @@ public class TooltipState: State<StatefulWidget> {
 
     private func _removeEntry() {
         Tooltip._openedTooltips.removeAll { $0 === self }
-        _dismissTimer?.invalidate()
-        _dismissTimer = nil
-        _showTimer?.invalidate()
-        _showTimer = nil
+        _dismissDelay.cancel()
+        _showDelay.cancel()
         if !_isConcealed {
             _entry?.remove()
         }
