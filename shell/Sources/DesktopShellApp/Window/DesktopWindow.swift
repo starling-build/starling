@@ -120,6 +120,11 @@ class DesktopWindow: StatelessWidget {
     let onClose: (() -> Void)?
     /// macOS-style: double-click on the title bar toggles maximized state.
     let onTitleBarDoubleTap: (() -> Void)?
+    /// Right-click on the title bar, at the pointer's global position.
+    let onContextMenu: ((Offset) -> Void)?
+    /// The pointer resting on / leaving the maximize control (see
+    /// `TitleBarParams.onMaximizeHover`).
+    let onMaximizeHover: ((Bool, Rect) -> Void)?
 
     init(
         windowInfo: WindowInfo,
@@ -132,7 +137,9 @@ class DesktopWindow: StatelessWidget {
         onMinimize: (() -> Void)? = nil,
         onMaximize: (() -> Void)? = nil,
         onClose: (() -> Void)? = nil,
-        onTitleBarDoubleTap: (() -> Void)? = nil
+        onTitleBarDoubleTap: (() -> Void)? = nil,
+        onContextMenu: ((Offset) -> Void)? = nil,
+        onMaximizeHover: ((Bool, Rect) -> Void)? = nil
     ) {
         self.windowInfo = windowInfo
         self.isFocused = isFocused
@@ -145,6 +152,8 @@ class DesktopWindow: StatelessWidget {
         self.onMaximize = onMaximize
         self.onClose = onClose
         self.onTitleBarDoubleTap = onTitleBarDoubleTap
+        self.onContextMenu = onContextMenu
+        self.onMaximizeHover = onMaximizeHover
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -169,7 +178,9 @@ class DesktopWindow: StatelessWidget {
             onMinimize: onMinimize,
             onMaximize: onMaximize,
             onClose: onClose,
-            onDoubleTap: onTitleBarDoubleTap
+            onDoubleTap: onTitleBarDoubleTap,
+            onContextMenu: onContextMenu,
+            onMaximizeHover: onMaximizeHover
         ))
 
         let windowBody: Widget

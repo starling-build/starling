@@ -197,6 +197,13 @@ struct TitleBarParams {
     /// through `onDoubleTap` — registering that kills tap AND double-tap on
     /// the DRM embedder.
     let onDoubleTap: (() -> Void)?
+    /// A right-click on the bar, with the pointer's global position — the
+    /// caption's system menu on Windows; macOS has none.
+    let onContextMenu: ((Offset) -> Void)?
+    /// The pointer settling on (true) or leaving (false) the maximize
+    /// control, with the control's global rect — Windows' snap layouts
+    /// flyout hangs from it.
+    let onMaximizeHover: ((Bool, Rect) -> Void)?
 }
 
 // MARK: - ShellChrome
@@ -240,6 +247,14 @@ protocol ShellChrome: AnyObject {
     /// The right-click menu on a bottom-bar tile, or nil when there is none
     /// to show.
     func appIconMenu(forOutput output: DisplayOutput) -> Widget?
+
+    /// The caption's right-click menu (Restore/Move/Size/Minimize/Maximize/
+    /// Close on Windows), or nil in a style without one or when none is open.
+    func windowMenu() -> Widget?
+
+    /// Windows' snap layouts flyout, hung under the maximize control while
+    /// the pointer rests on it, or nil when closed or in a style without it.
+    func snapLayouts() -> Widget?
 
     /// Anything the bar hangs ABOVE itself on hover — Windows' live window
     /// previews. nil in a style that draws its hover feedback inside its own
@@ -374,7 +389,9 @@ enum ShellStyles {
                 onMinimize: p.onMinimize,
                 onMaximize: p.onMaximize,
                 onClose: p.onClose,
-                onDoubleTap: p.onDoubleTap
+                onDoubleTap: p.onDoubleTap,
+                onContextMenu: p.onContextMenu,
+                onMaximizeHover: p.onMaximizeHover
             )
         },
         makeChrome: { FluentChrome(shell: $0) }
@@ -439,6 +456,11 @@ final class MacosChrome: ShellChrome {
     func appIconMenu(forOutput output: DisplayOutput) -> Widget? {
         shell.dockIconMenuWidget(forOutput: output)
     }
+
+    /// macOS has no caption menu and no snap layouts; the green control's
+    /// own long-press menu is a later port.
+    func windowMenu() -> Widget? { nil }
+    func snapLayouts() -> Widget? { nil }
 
     func notePointerHover(x: Double, y: Double, outputId: Int) {
         shell._updateDockHover(x: x, y: y, outputId: outputId)

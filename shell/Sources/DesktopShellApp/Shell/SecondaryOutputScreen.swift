@@ -399,6 +399,19 @@ struct SecondaryOutputScreen {
                     onClose: { _shellState?.requestWindowClose(winId) },
                     onTitleBarDoubleTap: {
                         _shellState?.requestWindowTitleBarDoubleTap(winId)
+                    },
+                    // Both popups are drawn by the HOST tree at the global
+                    // point given, which a secondary output does not show;
+                    // the secondary's own copy comes with this phase's
+                    // multi-output pass, as the desktop menu's did.
+                    onContextMenu: { at in
+                        _shellState?.setState {
+                            _shellState?._windowMenu = (winId, at)
+                            _shellState?._snapFlyout = nil
+                        }
+                    },
+                    onMaximizeHover: { entered, anchor in
+                        _shellState?._noteMaximizeHover(winId, entered: entered, anchor: anchor)
                     })))
         }
         return widgets

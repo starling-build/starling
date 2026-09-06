@@ -63,10 +63,20 @@ Fluent windows sit on Mica proper (the SDK's recipe over the wallpaper
 sample, one opaque colour, no `BackdropFilter` — the glass blur is now
 macOS-only), cast the elevation-128 shadow when windowed and none when
 maximized, and the caption carries the app's 16px icon 16 from the edge with
-the title 16 from it, dimmed with the title when inactive. Still to do in
-this phase: the caption's right-click system menu, snap layouts on hovering
-maximize (and Win+arrows), and the shared flyout entrance for the chrome's
-own panels. Verified on screen: icon, spacing, Mica, shadow (a luminance
+the title 16 from it, dimmed with the title when inactive. The second
+slice, same day: the caption's right-click system menu (the SDK's
+`MenuFlyout` content, placed and dismissed by the shell — Restore, Move,
+Size, Minimize, Maximize, Close with Alt+F4; Move and Size present but
+disabled), snap layouts on resting on maximize for 500 ms (six layouts,
+zones fill with the accent, a click puts the window there; the flyout
+lives by the shell's own pointer tracking, since a nested hover region
+never received an enter), Win+←/→ snap halves, Win+↑ maximises, Win+↓
+restores or minimises, and `WindowManager.snapWindow`. Two traps: a menu
+in a positioned slot gets unbounded width and its `Expanded` rows lay out
+to nothing (it needs the positioner's intrinsic wrapper), and `FluentDelay`
+went public so the shell's hovers can wait on the frame clock. Still to do
+in this phase: the shared flyout entrance for the chrome's own panels, and
+the popups' copies on a secondary output. Verified on screen: icon, spacing, Mica, shadow (a luminance
 ramp into every windowed edge), no shadow maximized, inactive solid; the
 fade itself is too short (167–250 ms) for the 250 ms screenshot path and the
 frame recorder returned black, so it rests on the unit test and the wiring.

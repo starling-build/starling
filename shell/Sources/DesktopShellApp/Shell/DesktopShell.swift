@@ -609,6 +609,20 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// flight, short enough that a stop request is consumed promptly.
     static let kPumpFloorTicks = 8
 
+    /// The caption's system menu, open at a global point, for one window.
+    var _windowMenu: (winId: String, at: Offset)? = nil
+    /// Windows' snap layouts flyout, hung from a maximize control's rect;
+    /// `frame` is where the flyout itself lands.
+    var _snapFlyout: (winId: String, anchor: Rect, frame: Rect)? = nil
+    /// The flyout stays while the pointer is on the control OR the flyout,
+    /// judged from the shell's own pointer tracking rather than from hover
+    /// regions on the flyout (a nested region never saw an enter here);
+    /// leaving both closes it after a short grace, so the pointer can cross
+    /// the gap between them.
+    let _snapDismiss = FluentDelay()
+    /// The Windows key (HID 0xE3/0xE7), for Win+arrow window chords.
+    var _superPressed = false
+
     var _missionControlOpen = false
     /// The monitor Mission Control was invoked on — its windows, its space
     /// strip actions, its geometry. The overview draws in that output's tree.
@@ -2141,6 +2155,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             if phys == 0xE1 || phys == 0xE5 {
                 self._shiftPressed = (keyData.type == .down || keyData.type == .repeat)
             }
+            if phys == 0xE3 || phys == 0xE7 {
+                self._superPressed = (keyData.type == .down || keyData.type == .repeat)
+            }
 
             // Screensaver: any key wakes it, and nothing reaches apps or the
             // shell's own UI while it is up (launcher-style modal swallow).
@@ -2295,6 +2312,29 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     }
                 }
                 return true
+            }
+
+            // Windows' window chords: Win+←/→ snap the focused window to a
+            // half of the work area, Win+↑ maximises, Win+↓ restores a
+            // maximised window and minimises a free one. Swallowed like the
+            // Ctrl+arrows below — the system owns them.
+            if self._superPressed, keyData.type == .down,
+               let focused = self.windowManager.focusedWindowId,
+               let win = self.windowManager.windows.first(where: { $0.id == focused }) {
+                switch phys {
+                case 0x50:  // Left
+                    self.requestWindowSnap(focused, .leftHalf); return true
+                case 0x4F:  // Right
+                    self.requestWindowSnap(focused, .rightHalf); return true
+                case 0x52:  // Up
+                    if !win.isMaximized { self.requestWindowMaximize(focused) }
+                    return true
+                case 0x51:  // Down
+                    if win.isMaximized { self.requestWindowMaximize(focused) }
+                    else { self.requestWindowMinimize(focused) }
+                    return true
+                default: break
+                }
             }
 
             // Spaces shortcuts (macOS): Ctrl+←/→ slide to the adjacent
@@ -3158,6 +3198,75 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// Green — fullscreen toggle, with the client reconfigured from the rect
     /// the zoom lands on.
+    /// Tell the window's client its new content size after the shell
+    /// changed the frame — maximize, restore, snap. Both halves must hear:
+    /// a Wayland surface through its configure, a DMA-BUF child through its
+    /// own reconfigure — telling only the Wayland half is what made a
+    /// maximised first-party app come up blurry (the child kept its
+    /// launch-size buffer and the shell stretched that texture across the
+    /// work area, with hit-testing no longer matching the screen).
+    private func _pushContentSize(_ winId: String) {
+        guard let w = windowManager.windows.first(where: { $0.id == winId }) else { return }
+        let contentW = w.rect.width
+        let contentH = w.rect.height - DesktopTheme.kTitleBarHeight
+        guard contentW > 0, contentH > 0 else { return }
+        if let surfId = waylandIntegration?.surfaceId(forWindowId: winId) {
+            waylandIntegration?.sendResize(
+                surfaceId: surfId, width: Int(contentW), height: Int(contentH))
+        } else {
+            w.onContentResize?(contentW, contentH)
+        }
+    }
+
+    /// Windows' snap: put `winId` in `zone` of its output's work area.
+    func requestWindowSnap(_ winId: String, _ zone: SnapZone) {
+        guard let win = windowManager.windows.first(where: { $0.id == winId }) else { return }
+        let area = windowManager.workArea(
+            for: win.rect, screenWidth: screenWidth, screenHeight: screenHeight)
+        setState {
+            windowManager.snapWindow(winId, to: zone.rect(in: area))
+            windowManager.bringToFront(winId)
+            _windowChildCache.removeValue(forKey: winId)
+            _snapFlyout = nil
+        }
+        _pushContentSize(winId)
+    }
+
+    /// The pointer settled on, or left, a window's maximize control.
+    func _noteMaximizeHover(_ winId: String, entered: Bool, anchor: Rect) {
+        if entered {
+            _snapDismiss.cancel()
+            guard _snapFlyout?.winId != winId else { return }
+            setState { _snapFlyout = (winId, anchor, fluentSnapLayoutsFrame(anchor: anchor)) }
+        } else {
+            _scheduleSnapDismiss()
+        }
+    }
+
+    /// Every pointer move on the desktop while the flyout is open: inside
+    /// the control or the flyout keeps it, anywhere else starts the grace.
+    func _noteSnapPointer(x: Double, y: Double) {
+        guard let flyout = _snapFlyout else { return }
+        let p = Offset(x, y)
+        if flyout.anchor.contains(p) || flyout.frame.contains(p) {
+            _snapDismiss.cancel()
+        } else if !_snapDismiss.isScheduled {
+            _scheduleSnapDismiss()
+        }
+    }
+
+    private func _scheduleSnapDismiss() {
+        _snapDismiss.schedule(after: .milliseconds(300)) { [weak self] in
+            self?._dismissSnapFlyout()
+        }
+    }
+
+    func _dismissSnapFlyout() {
+        _snapDismiss.cancel()
+        guard _snapFlyout != nil else { return }
+        setState { _snapFlyout = nil }
+    }
+
     func requestWindowMaximize(_ winId: String) {
         // What this control MEANS is the style's business. macOS's green
         // takes the window fullscreen onto its own space; Windows' square
@@ -3170,26 +3279,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     winId, screenWidth: screenWidth, screenHeight: screenHeight)
                 _windowChildCache.removeValue(forKey: winId)
             }
-            if let w = windowManager.windows.first(where: { $0.id == winId }) {
-                let contentW = w.rect.width
-                let contentH = w.rect.height - DesktopTheme.kTitleBarHeight
-                if contentW > 0, contentH > 0 {
-                    if let surfId = waylandIntegration?.surfaceId(forWindowId: winId) {
-                        waylandIntegration?.sendResize(
-                            surfaceId: surfId,
-                            width: Int(contentW), height: Int(contentH))
-                    } else {
-                        // DMA-BUF child process (Files, Settings, …) — the
-                        // same reconfigure the fullscreen branch below does.
-                        // Telling only the Wayland half is what made a
-                        // maximised first-party app come up blurry: the child
-                        // kept its launch-size buffer (Files: 980x540) and the
-                        // shell stretched that texture across the work area,
-                        // with hit-testing no longer matching the screen.
-                        w.onContentResize?(contentW, contentH)
-                    }
-                }
-            }
+            _pushContentSize(winId)
             return
         }
         let wasFullscreen = windowManager.windows.first(where: { $0.id == winId })?.isFullscreen ?? false
@@ -3941,6 +4031,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     onClose: { [self] in requestWindowClose(winId) },
                     onTitleBarDoubleTap: { [self] in
                         requestWindowTitleBarDoubleTap(winId)
+                    },
+                    onContextMenu: { [self] at in
+                        setState {
+                            _windowMenu = (winId, at)
+                            _snapFlyout = nil
+                            contextMenuPosition = nil
+                            activeStatusBarPopup = nil
+                        }
+                    },
+                    onMaximizeHover: { [self] entered, anchor in
+                        _noteMaximizeHover(winId, entered: entered, anchor: anchor)
                     }
                 )
                 _windowChildCache[winId] = (window, isFocused, win.rect.width, win.rect.height, win.isFullscreen, windowTopBarRevealed)
@@ -4333,6 +4434,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             children.append(chrome.desktopMenu())
         }
 
+        // A caption's system menu, light-dismissed like the desktop's.
+        if _windowMenu != nil, let menu = chrome.windowMenu() {
+            _appendDismissBarrier(&children) { [self] in self._windowMenu = nil }
+            children.append(menu)
+        }
+
+        // Snap layouts: no barrier — it lives and dies by the pointer.
+        if _snapFlyout != nil, let flyout = chrome.snapLayouts() {
+            children.append(flyout)
+        }
+
         // Dock icon context menu (right-click on a dock icon), anchored
         // above the icon's slot, macOS style. It goes wherever the dock is —
         // on the host only while the host is the primary display.
@@ -4701,6 +4813,16 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 setState {
                     windowManager.maximizeWindow(winId, screenWidth: screenWidth, screenHeight: screenHeight)
                 }
+            },
+            onContextMenu: { [self] at in
+                setState {
+                    _windowMenu = (winId, at)
+                    _snapFlyout = nil
+                    contextMenuPosition = nil
+                }
+            },
+            onMaximizeHover: { [self] entered, anchor in
+                _noteMaximizeHover(winId, entered: entered, anchor: anchor)
             })
     }
 

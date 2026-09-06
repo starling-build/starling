@@ -53,12 +53,17 @@ final class FluentChrome: ShellChrome {
         shell.dockIconMenuWidget(forOutput: output)
     }
 
+    func windowMenu() -> Widget? { shell.fluentWindowMenu() }
+
+    func snapLayouts() -> Widget? { shell.fluentSnapLayouts() }
+
     /// Tile hover, and specifically the LEAVE — a per-tile Listener hears
     /// every enter and no exit, so the hover label would stick after the
     /// pointer moved up onto a window. Cheap: it only calls setState when the
     /// tile under the cursor actually changes.
     func notePointerHover(x: Double, y: Double, outputId: Int) {
         shell.fluentNoteBarHover(x: x, y: y, outputId: outputId)
+        shell._noteSnapPointer(x: x, y: y)
     }
 
     func hoverOverlay() -> Widget? { shell.fluentHoverPreview() }

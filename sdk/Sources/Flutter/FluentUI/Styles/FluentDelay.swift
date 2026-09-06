@@ -15,15 +15,16 @@
 
 import FlutterSwiftBridge
 
-final class FluentDelay {
+public final class FluentDelay {
+    public init() {}
     private var _ticker: Ticker?
 
     /// Whether a delay is pending.
-    var isScheduled: Bool { _ticker != nil }
+    public var isScheduled: Bool { _ticker != nil }
 
     /// Runs `action` once `delay` has passed; a delay already pending is
     /// replaced.
-    func schedule(after delay: Duration, _ action: @escaping () -> Void) {
+    public func schedule(after delay: Duration, _ action: @escaping () -> Void) {
         cancel()
         let ticker = Ticker { [weak self] elapsed in
             guard elapsed >= delay else { return }
@@ -35,7 +36,7 @@ final class FluentDelay {
     }
 
     /// Drops a pending delay; its action never runs.
-    func cancel() {
+    public func cancel() {
         _ticker?.stop()
         _ticker?.dispose()
         _ticker = nil

@@ -834,6 +834,24 @@ class WindowManagerState {
         return Rect.fromLTWH(0, topInset, screenWidth, screenHeight - inset)
     }
 
+    /// The area a window on `ref`'s output may fill: the output less the top
+    /// strip and, in a style whose bar reserves one, the bottom strip. What
+    /// maximize fills, and what a snap layout divides.
+    func workArea(for ref: Rect, screenWidth: Double, screenHeight: Double) -> Rect {
+        _outputFillRect(for: ref, screenWidth: screenWidth, screenHeight: screenHeight)
+    }
+
+    /// Windows' snap: the window goes to `rect` exactly, as a free window —
+    /// a maximized one leaves that state. Nothing else is remembered: a
+    /// snapped window is a moved and resized one.
+    func snapWindow(_ id: String, to rect: Rect) {
+        guard let win = windows.first(where: { $0.id == id }) else { return }
+        win.rect = rect
+        win.isMaximized = false
+        win.isFullscreen = false
+        win.savedRect = nil
+    }
+
     func maximizeWindow(_ id: String, screenWidth: Double, screenHeight: Double) {
         guard let win = windows.first(where: { $0.id == id }) else { return }
         if win.isMaximized {

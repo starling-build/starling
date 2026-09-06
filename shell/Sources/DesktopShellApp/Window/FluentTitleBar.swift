@@ -33,6 +33,8 @@ class FluentTitleBar: StatefulWidget {
     let onMaximize: (() -> Void)?
     let onClose: (() -> Void)?
     let onDoubleTap: (() -> Void)?
+    let onContextMenu: ((Offset) -> Void)?
+    let onMaximizeHover: ((Bool, Rect) -> Void)?
 
     init(
         title: String,
@@ -44,7 +46,9 @@ class FluentTitleBar: StatefulWidget {
         onMinimize: (() -> Void)? = nil,
         onMaximize: (() -> Void)? = nil,
         onClose: (() -> Void)? = nil,
-        onDoubleTap: (() -> Void)? = nil
+        onDoubleTap: (() -> Void)? = nil,
+        onContextMenu: ((Offset) -> Void)? = nil,
+        onMaximizeHover: ((Bool, Rect) -> Void)? = nil
     ) {
         self.title = title
         self.isFocused = isFocused
@@ -56,6 +60,8 @@ class FluentTitleBar: StatefulWidget {
         self.onMaximize = onMaximize
         self.onClose = onClose
         self.onDoubleTap = onDoubleTap
+        self.onContextMenu = onContextMenu
+        self.onMaximizeHover = onMaximizeHover
     }
 
     override func createState() -> State<StatefulWidget> {
@@ -87,7 +93,28 @@ class _FluentTitleBarState: State<StatefulWidget> {
     private static let kIconSize: Double = 16
     private static let kIconInset: Double = 16
 
+    /// Windows opens snap layouts once the pointer has RESTED on maximize
+    /// (about half a second — a pass across the control does not); the
+    /// delay is on the frame clock, the one timer every host has.
+    private static let kSnapHoverDelay: Duration = .milliseconds(500)
+    private let _snapHover = FluentDelay()
+    /// The maximize control's build context, kept so the hover can report
+    /// the control's global rect for the flyout to hang from.
+    private var _maximizeContext: (any BuildContext)?
+
     private var w: FluentTitleBar { widget as! FluentTitleBar }
+
+    override func dispose() {
+        _snapHover.cancel()
+        super.dispose()
+    }
+
+    private func _maximizeRect() -> Rect {
+        guard let ctx = _maximizeContext,
+              let box = ctx.findRenderObject() as? RenderBox else { return .zero }
+        let origin = box.localToGlobal(Offset.zero)
+        return Rect.fromLTWH(origin.dx, origin.dy, box.size.width, box.size.height)
+    }
 
     override func build(_ context: any BuildContext) -> Widget {
         let bgColor = w.isFocused
@@ -133,6 +160,7 @@ class _FluentTitleBarState: State<StatefulWidget> {
                 icon: w.isMaximized
                     ? FluentSystemIcons.chromeRestore
                     : FluentSystemIcons.chromeMaximize,
+                isMaximize: true,
                 onTap: w.onMaximize
             ),
             _captionButton(
@@ -144,6 +172,11 @@ class _FluentTitleBarState: State<StatefulWidget> {
 
         return Listener(
             onPointerDown: { [self] event in
+                if event.buttons & kSecondaryButton != 0 {
+                    // The caption's system menu, at the pointer; no drag.
+                    w.onContextMenu?(event.position)
+                    return
+                }
                 lastPointerPos = event.position
                 let now = Date.timeIntervalSinceReferenceDate
                 if now - lastDownTime < _FluentTitleBarState.kDoubleTapThreshold {
@@ -185,13 +218,15 @@ class _FluentTitleBarState: State<StatefulWidget> {
     private func _captionButton(
         icon: IconData,
         isClose: Bool = false,
+        isMaximize: Bool = false,
         onTap: (() -> Void)?
     ) -> Widget {
         return SizedBox(
             width: _FluentTitleBarState.kButtonWidth,
             height: DesktopTheme.kTitleBarHeight,
             child: HoverButton(
-                builder: { context, states in
+                builder: { [self] context, states in
+                    if isMaximize { _maximizeContext = context }
                     let hot = states.isHovered || states.isPressed
                     let fill: Color
                     if !hot {
@@ -217,7 +252,16 @@ class _FluentTitleBarState: State<StatefulWidget> {
                         )
                     )
                 },
-                onPressed: onTap
+                onPressed: onTap,
+                onPointerEnter: isMaximize ? { [self] _ in
+                    _snapHover.schedule(after: _FluentTitleBarState.kSnapHoverDelay) { [self] in
+                        w.onMaximizeHover?(true, _maximizeRect())
+                    }
+                } : nil,
+                onPointerExit: isMaximize ? { [self] _ in
+                    _snapHover.cancel()
+                    w.onMaximizeHover?(false, _maximizeRect())
+                } : nil
             )
         )
     }
