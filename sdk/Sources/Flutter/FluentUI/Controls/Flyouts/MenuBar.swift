@@ -232,7 +232,7 @@ private class _MenuBarItemWidgetState: State<StatefulWidget> {
             builder: { ctx in
                 MenuFlyout(items: item.items)
             },
-            placement: .bottom,
+            placement: .bottomEdgeAlignedLeft,
             additionalOffset: 0
         )
     }

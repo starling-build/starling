@@ -27,9 +27,71 @@ public enum FlyoutPlacement {
     /// Position the flyout to the right of the target, centered vertically.
     case right
 
+    // WinUI's edge-aligned modes: the flyout's edge lines up with the
+    // target's instead of their centres. A drop-down button's menu hangs
+    // from its left edge (`BottomEdgeAlignedLeft`), a submenu opens beside
+    // its item with their tops level (`RightEdgeAlignedTop`).
+
+    /// Below the target, left edges aligned.
+    case bottomEdgeAlignedLeft
+    /// Below the target, right edges aligned.
+    case bottomEdgeAlignedRight
+    /// Above the target, left edges aligned.
+    case topEdgeAlignedLeft
+    /// Above the target, right edges aligned.
+    case topEdgeAlignedRight
+    /// To the right of the target, top edges aligned.
+    case rightEdgeAlignedTop
+    /// To the left of the target, top edges aligned.
+    case leftEdgeAlignedTop
+
     /// Whether this placement is horizontal (left or right).
     public var isHorizontal: Bool {
-        return self == .left || self == .right
+        switch self {
+        case .left, .right, .rightEdgeAlignedTop, .leftEdgeAlignedTop: return true
+        default: return false
+        }
+    }
+}
+
+// MARK: - FlyoutScope
+
+/// The flyout a widget is inside, so content can close it — a menu item
+/// once chosen, a picker's accept button — without holding the controller
+/// that opened it. `closeAll` closes the chain: on Windows, choosing an
+/// item in a submenu dismisses every menu above it too.
+public final class FlyoutScope: InheritedWidget {
+    weak var controller: FlyoutController?
+    let parent: FlyoutScope?
+
+    init(controller: FlyoutController, parent: FlyoutScope?, child: Widget) {
+        self.controller = controller
+        self.parent = parent
+        super.init(child: child)
+    }
+
+    /// The nearest enclosing flyout, or nil outside any.
+    public static func maybeOf(_ context: any BuildContext) -> FlyoutScope? {
+        context.dependOnInheritedWidgetOfExactType(FlyoutScope.self)
+    }
+
+    /// Closes this flyout only; a submenu stays under its open parent.
+    public func close() {
+        controller?.closeFlyout()
+    }
+
+    /// Closes this flyout and every flyout it was opened from.
+    public func closeAll() {
+        var scope: FlyoutScope? = self
+        while let s = scope {
+            s.controller?.closeFlyout()
+            scope = s.parent
+        }
+    }
+
+    public override func updateShouldNotify(_ oldWidget: InheritedWidget) -> Bool {
+        guard let old = oldWidget as? FlyoutScope else { return true }
+        return controller !== old.controller || parent !== old.parent
     }
 }
 
@@ -84,7 +146,7 @@ public class FlyoutController {
     // MARK: - Open / Close State
 
     /// Whether a flyout is currently displayed.
-    public var isOpen: Bool { return _barrierEntry != nil }
+    public var isOpen: Bool { return _flyoutEntry != nil }
 
     private var _barrierEntry: OverlayEntry?
     private var _flyoutEntry: OverlayEntry?
@@ -100,13 +162,19 @@ public class FlyoutController {
     ///   - placement: Where to position the flyout. Defaults to `.auto`.
     ///   - additionalOffset: Extra spacing between the target and flyout. Defaults to `8`.
     ///   - margin: Minimum margin from screen edges. Defaults to `8`.
+    ///   - barrier: Whether to put a barrier under the flyout at all. A
+    ///     submenu opens without one: its parent menu must stay live under
+    ///     it — hovering the parent's other items is what closes a submenu
+    ///     on Windows — and a click anywhere else lands on the parent's own
+    ///     barrier, which closes the parent and the submenu with it.
     public func showFlyout(
         builder: @escaping WidgetBuilder,
         barrierDismissible: Bool = true,
         barrierColor: Color? = nil,
         placement: FlyoutPlacement = .auto,
         additionalOffset: Double = 8.0,
-        margin: Double = 8.0
+        margin: Double = 8.0,
+        barrier: Bool = true
     ) {
         _ensureAttached()
         guard let attachState = _attachState else { return }
@@ -118,8 +186,14 @@ public class FlyoutController {
         let context = attachState.context!
         let overlayState = Overlay.of(context)
 
+        // The flyout this target sits inside, if any, so the new one can
+        // close the chain it hangs from. Read without a dependency: this is
+        // a show, not a build.
+        let parentScope = context.getElementForInheritedWidgetOfExactType(FlyoutScope.self)?
+            .widget as? FlyoutScope
+
         // Create barrier entry
-        let barrierEntry = OverlayEntry(builder: { [weak self] _ in
+        let barrierEntry: OverlayEntry? = barrier ? OverlayEntry(builder: { [weak self] _ in
             return ModalBarrier(
                 color: barrierColor,
                 dismissible: barrierDismissible,
@@ -127,28 +201,31 @@ public class FlyoutController {
                     self?.closeFlyout()
                 }
             )
-        })
+        }) : nil
 
         // Create flyout entry using CompositedTransformFollower
         let link = attachState._layerLink
         let flyoutEntry = OverlayEntry(builder: { [weak self] ctx in
-            guard self != nil else {
+            guard let self else {
                 return SizedBox(width: 0, height: 0)
             }
-            return _FlyoutPositioner(
-                link: link,
-                placement: placement,
-                additionalOffset: additionalOffset,
-                margin: margin,
-                targetContext: attachState.context,
-                builder: builder
-            )
+            return FlyoutScope(
+                controller: self,
+                parent: parentScope,
+                child: _FlyoutPositioner(
+                    link: link,
+                    placement: placement,
+                    additionalOffset: additionalOffset,
+                    margin: margin,
+                    targetContext: attachState.context,
+                    builder: builder
+                ))
         })
 
         _barrierEntry = barrierEntry
         _flyoutEntry = flyoutEntry
 
-        overlayState.insert(barrierEntry)
+        if let barrierEntry { overlayState.insert(barrierEntry) }
         overlayState.insert(flyoutEntry)
     }
 
@@ -283,6 +360,30 @@ private class _FlyoutPositioner: StatelessWidget {
             targetAnchor = .centerRight
             followerAnchor = .centerLeft
             offset = Offset(additionalOffset, 0)
+        case .bottomEdgeAlignedLeft:
+            targetAnchor = .bottomLeft
+            followerAnchor = .topLeft
+            offset = Offset(0, additionalOffset)
+        case .bottomEdgeAlignedRight:
+            targetAnchor = .bottomRight
+            followerAnchor = .topRight
+            offset = Offset(0, additionalOffset)
+        case .topEdgeAlignedLeft:
+            targetAnchor = .topLeft
+            followerAnchor = .bottomLeft
+            offset = Offset(0, -additionalOffset)
+        case .topEdgeAlignedRight:
+            targetAnchor = .topRight
+            followerAnchor = .bottomRight
+            offset = Offset(0, -additionalOffset)
+        case .rightEdgeAlignedTop:
+            targetAnchor = .topRight
+            followerAnchor = .topLeft
+            offset = Offset(additionalOffset, 0)
+        case .leftEdgeAlignedTop:
+            targetAnchor = .topLeft
+            followerAnchor = .topRight
+            offset = Offset(-additionalOffset, 0)
         case .auto:
             // Should not reach here; _resolvePlacement always returns a concrete placement
             targetAnchor = .bottomCenter
@@ -294,9 +395,9 @@ private class _FlyoutPositioner: StatelessWidget {
         // down from just above its final place.
         let slideFrom: Offset
         switch resolvedPlacement {
-        case .top: slideFrom = Offset(0, 8)
-        case .left: slideFrom = Offset(8, 0)
-        case .right: slideFrom = Offset(-8, 0)
+        case .top, .topEdgeAlignedLeft, .topEdgeAlignedRight: slideFrom = Offset(0, 8)
+        case .left, .leftEdgeAlignedTop: slideFrom = Offset(8, 0)
+        case .right, .rightEdgeAlignedTop: slideFrom = Offset(-8, 0)
         default: slideFrom = Offset(0, -8)
         }
         // Loose constraints, on purpose: the overlay lays its entries out
@@ -329,11 +430,20 @@ private class _FlyoutPositioner: StatelessWidget {
     /// Tries bottom first. If the target is in the bottom half of the screen,
     /// flips to top.
     private func _resolvePlacement(_ context: any BuildContext) -> FlyoutPlacement {
-        if placement != .auto { return placement }
+        // The bottom-hanging modes flip above the target when there is no
+        // room below, as `.auto` does; every other mode is taken as given.
+        let flipped: FlyoutPlacement
+        switch placement {
+        case .auto: flipped = .top
+        case .bottomEdgeAlignedLeft: flipped = .topEdgeAlignedLeft
+        case .bottomEdgeAlignedRight: flipped = .topEdgeAlignedRight
+        default: return placement
+        }
+        let wanted: FlyoutPlacement = placement == .auto ? .bottom : placement
 
         // Try to get the target's position on screen
-        guard let targetCtx = targetContext else { return .bottom }
-        guard let renderBox = targetCtx.findRenderObject() as? RenderBox else { return .bottom }
+        guard let targetCtx = targetContext else { return wanted }
+        guard let renderBox = targetCtx.findRenderObject() as? RenderBox else { return wanted }
 
         let targetGlobal = renderBox.localToGlobal(Offset.zero)
         let targetSize = renderBox.size
@@ -353,9 +463,9 @@ private class _FlyoutPositioner: StatelessWidget {
         let spaceAbove = targetGlobal.dy
 
         if spaceBelow < spaceAbove && spaceBelow < 200 {
-            return .top
+            return flipped
         }
-        return .bottom
+        return wanted
     }
 
     /// Walk up to find the root render box for screen size estimation.
@@ -532,6 +642,12 @@ public class FlyoutListTile: StatelessWidget {
     /// Whether to show the selected indicator.
     public let showSelectedIndicator: Bool
 
+    /// Called when the pointer enters the tile — a submenu opens from this.
+    public let onPointerEnter: PointerEnterEventListener?
+
+    /// Called when the pointer leaves the tile.
+    public let onPointerExit: PointerExitEventListener?
+
     /// Creates a flyout list tile.
     public init(
         key: (any Key)? = nil,
@@ -542,10 +658,14 @@ public class FlyoutListTile: StatelessWidget {
         trailing: Widget? = nil,
         margin: EdgeInsets = EdgeInsets(bottom: 5),
         selected: Bool = false,
-        showSelectedIndicator: Bool = true
+        showSelectedIndicator: Bool = true,
+        onPointerEnter: PointerEnterEventListener? = nil,
+        onPointerExit: PointerExitEventListener? = nil
     ) {
         self.onPressed = onPressed
         self.onLongPress = onLongPress
+        self.onPointerEnter = onPointerEnter
+        self.onPointerExit = onPointerExit
         self.icon = icon
         self.text = text
         self.trailing = trailing
@@ -634,7 +754,9 @@ public class FlyoutListTile: StatelessWidget {
                 return Padding(padding: margin, child: tileContent)
             },
             onPressed: onPressed,
-            onLongPress: onLongPress
+            onLongPress: onLongPress,
+            onPointerEnter: onPointerEnter,
+            onPointerExit: onPointerExit
         )
     }
 }

@@ -23,6 +23,10 @@ open class MenuFlyoutItemBase {
     /// An optional key for identifying this item.
     public let key: (any Key)?
 
+    /// The menu this item was last built into; set by `MenuFlyout` so the
+    /// items can share the one-submenu-at-a-time rule.
+    weak var _menu: _MenuFlyoutState?
+
     /// Creates a menu flyout item base.
     public init(key: (any Key)? = nil) {
         self.key = key
@@ -104,10 +108,7 @@ public class MenuFlyoutItem: MenuFlyoutItemBase {
         return FlyoutListTile(
             onPressed: onPressed == nil ? nil : { [weak self] in
                 guard let self = self else { return }
-                if self.closeAfterClick {
-                    // Pop via navigator to close the flyout
-                    Navigator.maybeOf(context)?.maybePop()
-                }
+                if self.closeAfterClick { _closeMenus(context) }
                 self.onPressed?()
             },
             onLongPress: onLongPress,
@@ -116,7 +117,15 @@ public class MenuFlyoutItem: MenuFlyoutItemBase {
             trailing: resolvedTrailing,
             margin: EdgeInsets(),
             selected: selected,
-            showSelectedIndicator: false
+            showSelectedIndicator: false,
+            onPointerEnter: { [weak self] _ in
+                guard let self else { return }
+                self._menu?._hovered(self)
+            },
+            onPointerExit: { [weak self] _ in
+                guard let self else { return }
+                self._menu?._left(self)
+            }
         )
     }
 }
@@ -210,6 +219,41 @@ class _MenuFlyoutState: State<StatefulWidget> {
         return widget as! MenuFlyout
     }
 
+    /// The submenu open under this menu, if any. Windows keeps one: hovering
+    /// another item for the menu delay closes it, hovering a different
+    /// submenu's item swaps it.
+    fileprivate weak var _openSub: _MenuFlyoutSubItemWidgetState?
+    private let _closeDelay = _MenuDelay()
+
+    /// The pointer came onto `item`. An open submenu that is not this
+    /// item's closes after the menu delay, so a diagonal move into the
+    /// submenu across the items below is not a close.
+    func _hovered(_ item: MenuFlyoutItemBase) {
+        guard let open = _openSub, open.subItemWidget.subItem !== item else {
+            _closeDelay.cancel()
+            return
+        }
+        _closeDelay.schedule(after: FluentMotion.menuShowDelay) { [weak self] in
+            self?._openSub?._close()
+        }
+    }
+
+    /// The pointer left `item` before the delay ran out: nothing closes.
+    func _left(_ item: MenuFlyoutItemBase) {
+        _closeDelay.cancel()
+    }
+
+    fileprivate func _subOpened(_ sub: _MenuFlyoutSubItemWidgetState) {
+        if let open = _openSub, open !== sub { open._close() }
+        _openSub = sub
+        _closeDelay.cancel()
+    }
+
+    override func dispose() {
+        _closeDelay.cancel()
+        super.dispose()
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         // Check if any items have a leading icon — if so, reserve space for all
         let hasLeading = menuFlyout.items.contains { item in
@@ -230,6 +274,7 @@ class _MenuFlyoutState: State<StatefulWidget> {
 
         // Build the list of item widgets
         let itemWidgets: [Widget] = menuFlyout.items.map { item in
+            item._menu = self
             if let menuItem = item as? MenuFlyoutItem {
                 menuItem._useIconPlaceholder = hasLeading
             } else if let subItem = item as? MenuFlyoutSubItem {
@@ -329,12 +374,14 @@ private class _MenuFlyoutSubItemWidget: StatefulWidget {
 
 private class _MenuFlyoutSubItemWidgetState: State<StatefulWidget> {
     private let _flyoutController = FlyoutController()
+    private let _openDelay = _MenuDelay()
 
-    private var subItemWidget: _MenuFlyoutSubItemWidget {
+    var subItemWidget: _MenuFlyoutSubItemWidget {
         return widget as! _MenuFlyoutSubItemWidget
     }
 
     override func dispose() {
+        _openDelay.cancel()
         _flyoutController.closeFlyout()
         super.dispose()
     }
@@ -350,16 +397,32 @@ private class _MenuFlyoutSubItemWidgetState: State<StatefulWidget> {
             .chevronRight, size: 12,
             color: FluentTheme.of(context).resources.textFillColorSecondary)
 
+        // Windows opens a submenu two ways: a click, at once, or the pointer
+        // resting on the item for the menu delay. Leaving early cancels.
         let tile: Widget = FlyoutListTile(
             onPressed: { [weak self] in
-                self?._openSubmenu(context)
+                self?._openDelay.cancel()
+                self?._openSubmenu()
             },
             icon: resolvedLeading,
             text: subItem.text,
             trailing: chevron,
             margin: EdgeInsets(),
             selected: _flyoutController.isOpen,
-            showSelectedIndicator: false
+            showSelectedIndicator: false,
+            onPointerEnter: { [weak self] _ in
+                guard let self else { return }
+                subItem._menu?._hovered(subItem)
+                if !self._flyoutController.isOpen {
+                    self._openDelay.schedule(after: FluentMotion.menuShowDelay) { [weak self] in
+                        self?._openSubmenu()
+                    }
+                }
+            },
+            onPointerExit: { [weak self] _ in
+                self?._openDelay.cancel()
+                subItem._menu?._left(subItem)
+            }
         )
 
         return FlyoutTarget(
@@ -368,16 +431,31 @@ private class _MenuFlyoutSubItemWidgetState: State<StatefulWidget> {
         )
     }
 
-    private func _openSubmenu(_ context: any BuildContext) {
+    private func _openSubmenu() {
         let subItem = subItemWidget.subItem
         if _flyoutController.isOpen { return }
+        guard _flyoutController.isAttached else { return }
+        // Beside the item with their tops level, as WinUI's
+        // `RightEdgeAlignedTop`; no barrier of its own, so the parent menu
+        // stays live underneath (see `showFlyout(barrier:)`).
         _flyoutController.showFlyout(
             builder: { ctx in
                 MenuFlyout(items: subItem.items)
             },
-            placement: .right,
-            additionalOffset: 0
+            placement: .rightEdgeAlignedTop,
+            additionalOffset: 0,
+            barrier: false
         )
+        subItem._menu?._subOpened(self)
+        // The tile reads as selected while its submenu is open.
+        if mounted { setState {} }
+    }
+
+    fileprivate func _close() {
+        _openDelay.cancel()
+        guard _flyoutController.isOpen else { return }
+        _flyoutController.closeFlyout()
+        if mounted { setState {} }
     }
 }
 
@@ -468,9 +546,7 @@ public class ToggleMenuFlyoutItem: MenuFlyoutItemBase {
         return FlyoutListTile(
             onPressed: onChanged == nil ? nil : { [weak self] in
                 guard let self = self else { return }
-                if self.closeAfterClick {
-                    Navigator.maybeOf(context)?.maybePop()
-                }
+                if self.closeAfterClick { _closeMenus(context) }
                 self.onChanged?(!self.isChecked)
             },
             icon: resolvedLeading,
@@ -478,7 +554,15 @@ public class ToggleMenuFlyoutItem: MenuFlyoutItemBase {
             trailing: resolvedTrailing,
             margin: EdgeInsets(),
             selected: isChecked,
-            showSelectedIndicator: false
+            showSelectedIndicator: false,
+            onPointerEnter: { [weak self] _ in
+                guard let self else { return }
+                self._menu?._hovered(self)
+            },
+            onPointerExit: { [weak self] _ in
+                guard let self else { return }
+                self._menu?._left(self)
+            }
         )
     }
 }
@@ -560,16 +644,62 @@ public class RadioMenuFlyoutItem: MenuFlyoutItemBase {
         return FlyoutListTile(
             onPressed: onSelected == nil ? nil : { [weak self] in
                 guard let self = self else { return }
-                if self.closeAfterClick {
-                    Navigator.maybeOf(context)?.maybePop()
-                }
+                if self.closeAfterClick { _closeMenus(context) }
                 self.onSelected?()
             },
             icon: resolvedLeading,
             text: text,
             margin: EdgeInsets(),
             selected: isSelected,
-            showSelectedIndicator: false
+            showSelectedIndicator: false,
+            onPointerEnter: { [weak self] _ in
+                guard let self else { return }
+                self._menu?._hovered(self)
+            },
+            onPointerExit: { [weak self] _ in
+                guard let self else { return }
+                self._menu?._left(self)
+            }
         )
     }
+}
+
+// MARK: - Closing, and the menu delay
+
+/// Closes the menu an item was chosen from and every menu above it. A menu
+/// is an overlay entry, not a route, so the navigator has nothing to pop;
+/// the flyout scope is what knows the chain. The pop stays as the fallback
+/// for a menu shown some other way.
+private func _closeMenus(_ context: any BuildContext) {
+    if let scope = FlyoutScope.maybeOf(context) {
+        scope.closeAll()
+    } else {
+        Navigator.maybeOf(context)?.maybePop()
+    }
+}
+
+/// A one-shot delay on the frame clock. The port has no post-frame
+/// callback and `Foundation.Timer` never fires on the DRM embedder, so a
+/// `Ticker` is the timer that exists (as `TeachingTip._deferShow`).
+final class _MenuDelay {
+    private var _ticker: Ticker?
+
+    func schedule(after delay: Duration, _ action: @escaping () -> Void) {
+        cancel()
+        let ticker = Ticker { [weak self] elapsed in
+            guard elapsed >= delay else { return }
+            self?.cancel()
+            action()
+        }
+        _ticker = ticker
+        _ = ticker.start()
+    }
+
+    func cancel() {
+        _ticker?.stop()
+        _ticker?.dispose()
+        _ticker = nil
+    }
+
+    deinit { cancel() }
 }

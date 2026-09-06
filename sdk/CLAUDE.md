@@ -141,6 +141,31 @@ error" kind:
   when the target below was not attached yet; the guard returned and the tip
   never appeared. `addPostFrameCallback` is still a stub, so it defers with a
   one-shot `Ticker` (`_deferShow`) — the frame boundary that exists.
+- **`Navigator(home:)` showed its first `home` forever.** The initial route
+  carried the widget it was created with, and nothing updated it when the
+  app above rebuilt with a new one — so the gallery's page selection, its
+  dark-mode switch and its wallpaper setting all ran `setState` and changed
+  nothing on screen. Every click was arriving (the pane items highlighted,
+  the expanders toggled — those have their own state) and only the
+  app-level state was inert, which is the signature. `NavigatorState.
+  didUpdateWidget` now swaps the route's child and rebuilds its entry.
+  Env-var page selection (`FLUENT_GALLERY_PAGE`) never showed this because
+  it is applied in the first build.
+- **A menu is an overlay entry, not a route.** `MenuFlyoutItem` used to
+  close itself with `Navigator.maybePop`, which pops nothing; the menu stayed
+  open after every click. Content closes the flyout it is in through
+  `FlyoutScope` (`FlyoutScope.of(context).closeAll()` for a menu chain,
+  `.close()` for one), which `showFlyout` puts at the root of every flyout
+  and links to the flyout its target sat inside.
+- **A submenu has no barrier of its own** (`showFlyout(barrier: false)`).
+  With one, the parent menu was covered: its other items could not be
+  hovered, and a click on one dismissed the submenu instead of reaching the
+  item. Without one, the parent stays live — hovering another of its items
+  for `FluentMotion.menuShowDelay` (Windows' 400 ms `MenuShowDelay`) closes
+  the submenu, resting on the sub-item opens it — and a click anywhere else
+  lands on the parent's barrier, which closes both. Submenus sit
+  `.rightEdgeAlignedTop`; drop-down buttons and menu-bar items hang
+  `.bottomEdgeAlignedLeft`, as WinUI's do.
 
 Flyouts are Windows' now in every respect the gallery can show: acrylic
 (`Acrylic` over the thin default recipe, the flyout stroke drawn in the

@@ -123,6 +123,23 @@ public class NavigatorState: State<StatefulWidget> {
         }
     }
 
+    /// `home` is a widget, and an app whose state lives above its navigator
+    /// hands it a fresh one on every rebuild. The initial route was built
+    /// around the first `home` and, left alone, would show it forever: the
+    /// gallery's page selection, its dark-mode toggle and its wallpaper
+    /// setting all rebuilt the app and changed nothing on screen. Dart's
+    /// WidgetsApp gets this for free because its route builder reads
+    /// `widget.home` at build time; here the route carries the widget, so
+    /// it is swapped and the entry asked to rebuild.
+    public override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        guard let home = navigatorWidget.home,
+              let route = _routes.first as? _SimpleRoute,
+              route.child !== home else { return }
+        route.child = home
+        for entry in route.overlayEntries { entry.markNeedsBuild() }
+    }
+
     // MARK: - Public API
 
     /// Push a route onto the navigator's stack.
@@ -299,7 +316,7 @@ private class _NavigatorScope: InheritedWidget {
 ///
 /// Used when `Navigator.home` is provided instead of `onGenerateRoute`.
 private class _SimpleRoute: Route {
-    let child: Widget
+    var child: Widget
     private var _entries: [OverlayEntry] = []
 
     init(child: Widget) {

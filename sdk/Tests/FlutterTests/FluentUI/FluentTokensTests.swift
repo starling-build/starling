@@ -58,6 +58,7 @@ final class FluentTokensTests: XCTestCase {
 
     func testWindowsMotionTable() {
         XCTAssertEqual(FluentMotion.directEntranceFast.duration, .milliseconds(167))
+        XCTAssertEqual(FluentMotion.menuShowDelay, .milliseconds(400))
         XCTAssertEqual(FluentMotion.directEntrance.duration, .milliseconds(250))
         XCTAssertEqual(FluentMotion.directEntranceSlow.duration, .milliseconds(333))
         XCTAssertEqual(FluentMotion.directExit.duration, .milliseconds(167))

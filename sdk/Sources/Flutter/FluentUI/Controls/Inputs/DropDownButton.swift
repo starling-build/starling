@@ -36,7 +36,8 @@ public class DropDownButton: StatefulWidget {
     /// Whether this button is disabled.
     public let disabled: Bool
 
-    /// Where to position the flyout menu. Defaults to `.auto`.
+    /// Where to position the flyout menu. Hangs from the button's left edge
+    /// by default, as WinUI's `BottomEdgeAlignedLeft`.
     public let placement: FlyoutPlacement
 
     /// Whether to close the flyout after an item is clicked. Defaults to `true`.
@@ -49,7 +50,7 @@ public class DropDownButton: StatefulWidget {
         leading: Widget? = nil,
         items: [MenuFlyoutItemBase] = [],
         disabled: Bool = false,
-        placement: FlyoutPlacement = .auto,
+        placement: FlyoutPlacement = .bottomEdgeAlignedLeft,
         closeAfterClick: Bool = true
     ) {
         self.title = title

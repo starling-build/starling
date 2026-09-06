@@ -152,6 +152,11 @@ public enum FluentMotion {
 
     /// Fast in: something appearing where it will stay. Position, scale.
     public static let directEntranceFast = Spec(duration: .milliseconds(167), curve: decelerateMid)
+
+    /// Windows' `MenuShowDelay` (`SPI_GETMENUSHOWDELAY`, 400 ms by default):
+    /// how long the pointer rests on a submenu's item before it opens, and
+    /// on another item before an open submenu closes.
+    public static let menuShowDelay: Duration = .milliseconds(400)
     public static let directEntrance = Spec(duration: .milliseconds(250), curve: decelerateMid)
     public static let directEntranceSlow = Spec(duration: .milliseconds(333), curve: decelerateMid)
 

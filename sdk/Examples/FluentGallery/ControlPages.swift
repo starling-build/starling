@@ -520,20 +520,30 @@ final class MenuFlyoutPage: StatefulWidget {
 final class _MenuFlyoutPageState: State<StatefulWidget> {
     private let controller = FlyoutController()
 
+    // The menu's own state, so its checkable and radio items are live: an
+    // item with no handler is a disabled item, and a disabled item cannot
+    // show that choosing it closes the whole menu chain.
+    private var hidden = true
+    private var sort = 0
+    private static let sorts = ["Name", "Date modified", "Size"]
+
+    private func _items() -> [MenuFlyoutItemBase] {
+        [
+            MenuFlyoutItem(text: Text("Share"), leading: Icon(FluentSystemIcons.share, size: 16), onPressed: {}),
+            MenuFlyoutItem(text: Text("Copy"), leading: Icon(FluentSystemIcons.copy, size: 16), onPressed: {}),
+            MenuFlyoutItem(text: Text("Delete"), leading: Icon(FluentSystemIcons.delete, size: 16), onPressed: {}),
+            MenuFlyoutSeparator(),
+            ToggleMenuFlyoutItem(text: Text("Show hidden files"), isChecked: hidden,
+                                 onChanged: { [weak self] v in self?.setState { self?.hidden = v } }),
+            MenuFlyoutSubItem(text: Text("Sort by"), items: Self.sorts.enumerated().map { i, name in
+                RadioMenuFlyoutItem(text: Text(name), isSelected: sort == i,
+                                    onSelected: { [weak self] in self?.setState { self?.sort = i } })
+            }),
+        ]
+    }
+
     private func _open() {
-        controller.showFlyout(builder: { _ in
-            MenuFlyout(items: [
-                MenuFlyoutItem(text: Text("Share"), leading: Icon(FluentSystemIcons.share, size: 16), onPressed: {}),
-                MenuFlyoutItem(text: Text("Copy"), leading: Icon(FluentSystemIcons.copy, size: 16), onPressed: {}),
-                MenuFlyoutItem(text: Text("Delete"), leading: Icon(FluentSystemIcons.delete, size: 16), onPressed: {}),
-                MenuFlyoutSeparator(),
-                ToggleMenuFlyoutItem(text: Text("Show hidden files"), isChecked: true),
-                MenuFlyoutSubItem(text: Text("Sort by"), items: [
-                    RadioMenuFlyoutItem(text: Text("Name"), isSelected: true),
-                    RadioMenuFlyoutItem(text: Text("Date modified")),
-                ]),
-            ])
-        })
+        controller.showFlyout(builder: { [self] _ in MenuFlyout(items: _items()) })
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -544,20 +554,7 @@ final class _MenuFlyoutPageState: State<StatefulWidget> {
                 Sample("From a button", child: AutoTrigger(action: { [self] _ in _open() }, child: FlyoutTarget(
                     controller: controller,
                     child: Button(onPressed: { [self] in _open() }, child: Text("Open menu"))))),
-                Sample("From a drop-down button", child: LocalState(true) { checked, set in
-                    DropDownButton(title: Text("Options"), items: [
-                        MenuFlyoutItem(text: Text("Share"), leading: Icon(FluentSystemIcons.share), onPressed: {}),
-                        MenuFlyoutItem(text: Text("Copy"), leading: Icon(FluentSystemIcons.copy), onPressed: {}),
-                        MenuFlyoutItem(text: Text("Delete"), leading: Icon(FluentSystemIcons.delete), onPressed: {}),
-                        MenuFlyoutSeparator(),
-                        ToggleMenuFlyoutItem(text: Text("Show hidden files"), isChecked: checked, onChanged: set),
-                        MenuFlyoutSubItem(text: Text("Sort by"), items: [
-                            RadioMenuFlyoutItem(text: Text("Name"), isSelected: true),
-                            RadioMenuFlyoutItem(text: Text("Date modified")),
-                            RadioMenuFlyoutItem(text: Text("Size")),
-                        ]),
-                    ])
-                }),
+                Sample("From a drop-down button", child: DropDownButton(title: Text("Options"), items: _items())),
             ])
     }
 }
