@@ -2335,6 +2335,16 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             // half of the work area, Win+↑ maximises, Win+↓ restores a
             // maximised window and minimises a free one. Swallowed like the
             // Ctrl+arrows below — the system owns them.
+            // Win+A and Win+N open the panels whatever is focused.
+            if self._superPressed, keyData.type == .down {
+                switch phys {
+                case 0x04:  // A — Quick Settings
+                    self._fluentOpenPopup(.controlCenter); return true
+                case 0x11:  // N — notification centre
+                    self._fluentOpenPopup(.notifications); return true
+                default: break
+                }
+            }
             if self._superPressed, keyData.type == .down,
                let focused = self.windowManager.focusedWindowId,
                let win = self.windowManager.windows.first(where: { $0.id == focused }) {
@@ -3226,21 +3236,34 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// each hang under their own menu-bar icon — Windows has one tray, and
     /// everything it opens comes from there.
     func fluentStatusFlyout(_ kind: StatusBarPopup) -> Widget {
-        Positioned(
+        // Quick Settings answers for the status group, the Wi-Fi page and
+        // battery; the rest are still the macOS panels hung in Windows'
+        // corner, until the notification centre lands.
+        let content: Widget = fluentIsQuickSettings(kind)
+            ? fluentQuickSettings(kind)
+            : _buildStatusBarPopup()
+        return Positioned(
             left: fluentStatusFlyoutOrigin(kind, height: 0).dx,
             bottom: DesktopTheme.kDockHeight + Self.kFluentFlyoutGap,
-            child: _buildStatusBarPopup()
+            // Windows' flyouts slide up from the bar and fade.
+            child: FluentEntrance(child: content, slideFrom: Offset(0, 16))
         )
     }
 
     static let kFluentFlyoutGap: Double = 8
+
+    /// A Fluent panel's width: Quick Settings' own, or the macOS panel's
+    /// for the kinds not ported yet.
+    func fluentStatusFlyoutWidth(_ kind: StatusBarPopup) -> Double {
+        fluentIsQuickSettings(kind) ? QuickSettingsMetrics.width : statusFlyoutWidth(kind)
+    }
 
     /// The same corner, resolved to a top-left once the panel has measured
     /// itself — which is what the glass filter underneath needs.
     func fluentStatusFlyoutOrigin(_ kind: StatusBarPopup,
                                   height: Double) -> Offset {
         Offset(
-            max(8, screenWidth - statusFlyoutWidth(kind) - 8),
+            max(8, screenWidth - fluentStatusFlyoutWidth(kind) - 8),
             screenHeight - DesktopTheme.kDockHeight - Self.kFluentFlyoutGap - height
         )
     }
