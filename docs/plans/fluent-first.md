@@ -24,6 +24,21 @@ therefore mostly done on the SDK side; what remains of it is the desktop's
 half (defaults, maximized corners, inactive fallback) and the `CLAUDE.md`
 rewrite.
 
+**Status, 2026-09-06:** the gallery driven with a real pointer (a freshly
+started dev shell delivers `shell-drive` clicks; a long-running one does
+not). That found three more framework bugs no screenshot sweep could:
+`Navigator(home:)` never followed a changed `home`, so every app-level
+`setState` — page selection, dark mode, the wallpaper sample — was
+invisible; menu items "closed" themselves by popping a navigator that had
+nothing to pop; and submenus carried a barrier over their parent menu.
+Fixed (58d6e8b): flyouts carry a `FlyoutScope` (`closeAll()` closes a
+menu chain), submenus open on hover after Windows' 400 ms `MenuShowDelay`
+and close when another item is hovered, WinUI's edge-aligned placements
+exist and drop-downs use `BottomEdgeAlignedLeft`. All verified on screen.
+Every surface the desktop's Fluent chrome will need from the SDK — menus,
+flyouts, dialogs, teaching tips, acrylic, Mica, the entrance motion — now
+works under real input; the desktop phases below can start.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*
