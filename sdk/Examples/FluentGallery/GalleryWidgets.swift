@@ -11,6 +11,7 @@
 import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons
+import Foundation
 
 // MARK: - LocalState
 
@@ -40,6 +41,56 @@ final class _LocalStateState<T>: State<StatefulWidget> {
             self?.setState { self?._value = v }
         }
     }
+}
+
+// MARK: - AutoTrigger
+
+/// Runs `action` a moment after mount when `FLUENT_GALLERY_AUTO=1` is set —
+/// how a screenshot script sees a flyout, a menu or a dialog open without a
+/// pointer to click with. Off, it is its child and nothing else.
+final class AutoTrigger: StatefulWidget {
+    let delay: Duration
+    let action: (any BuildContext) -> Void
+    let child: Widget
+
+    init(delay: Duration = .milliseconds(1500), action: @escaping (any BuildContext) -> Void, child: Widget) {
+        self.delay = delay
+        self.action = action
+        self.child = child
+        super.init()
+    }
+
+    static var enabled: Bool {
+        ProcessInfo.processInfo.environment["FLUENT_GALLERY_AUTO"] == "1"
+    }
+
+    override func createState() -> State<StatefulWidget> { _AutoTriggerState() }
+}
+
+final class _AutoTriggerState: State<StatefulWidget>, TickerProvider {
+    private var _controller: AnimationController?
+    private var trigger: AutoTrigger { widget as! AutoTrigger }
+
+    func createTicker(_ onTick: @escaping TickerCallback) -> Ticker { Ticker(onTick) }
+
+    override func initState() {
+        super.initState()
+        guard AutoTrigger.enabled else { return }
+        let c = AnimationController(duration: trigger.delay, vsync: self)
+        c.addStatusListener { [weak self] status in
+            guard let self, status == .completed, let ctx = self.context else { return }
+            self.trigger.action(ctx)
+        }
+        _controller = c
+        _ = c.forward()
+    }
+
+    override func dispose() {
+        _controller?.dispose()
+        super.dispose()
+    }
+
+    override func build(_ context: any BuildContext) -> Widget { trigger.child }
 }
 
 // MARK: - Sample and SamplePage

@@ -289,13 +289,34 @@ final class _GalleryAppState: State<StatefulWidget> {
         return Mica(child: NavigationView(pane: pane))
     }
 
+    /// The title, and the search box every page is reachable from — the
+    /// WinUI Gallery's "Search controls and samples".
     private func _paneHeader() -> Widget {
-        Builder { context in
+        var entries: [(String, String)] = []   // (title, page id)
+        for e in GalleryCatalog.design.entries { entries.append((e.title, "design/\(e.title)")) }
+        for c in GalleryCatalog.categories {
+            entries.append((c.title, c.title))
+            for e in c.entries { entries.append((e.title, "\(c.title)/\(e.title)")) }
+        }
+        let ids = Dictionary(entries.map { ($0.0, $0.1) }, uniquingKeysWith: { a, _ in a })
+        return Builder { [weak self] context in
             let t = FluentTheme.of(context).typography
-            return Padding(padding: EdgeInsets(left: 12, top: 12, right: 12, bottom: 4)) {
-                Row(spacing: FluentSpacing.m) {
-                    Icon(FluentSystemIcons.grid, size: 20)
-                    Text("Fluent Gallery", style: t.bodyStrong)
+            return Padding(padding: EdgeInsets(left: 12, top: 12, right: 12, bottom: 8)) {
+                Column(crossAxisAlignment: .start, spacing: FluentSpacing.m) {
+                    Row(spacing: FluentSpacing.m) {
+                        Icon(FluentSystemIcons.grid, size: 20)
+                        Text("Fluent Gallery", style: t.bodyStrong)
+                    }
+                    AutoSuggestBox(
+                        items: entries.map { title, id in
+                            AutoSuggestBoxItem(value: title, onTap: { self?.select(id) })
+                        },
+                        onSelected: { item in
+                            if let id = ids[item.value] { self?.select(id) }
+                        },
+                        placeholderText: "Search controls and samples",
+                        leadingIcon: Icon(FluentSystemIcons.search, size: 16),
+                        clearOnSelect: true)
                 }
             }
         }

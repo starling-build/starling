@@ -128,6 +128,30 @@ error" kind:
   body row now stretches and its items scroll; the WinUI Gallery was the
   first consumer with a page shorter than the window and a pane longer than
   it.
+- **A flyout filled the window.** The overlay lays its entries out TIGHT
+  to its own size, so a `CompositedTransformFollower` placed straight in an
+  entry was as big as the overlay, anchored by the overlay's centre, and its
+  content stretched across the whole window. `_FlyoutPositioner` now aligns
+  the follower top-left under loose constraints and sizes the content with
+  `IntrinsicWidth`/`IntrinsicHeight` inside WinUI's flyout box
+  (`kFlyoutThemeConstraints`, 96–456 wide, 40–756 tall). Anything else that
+  puts a follower in an overlay needs the same.
+- **Showing a flyout from inside a build does nothing.** `TeachingTip` asked
+  its controller to show during its first build and in `didUpdateWidget`,
+  when the target below was not attached yet; the guard returned and the tip
+  never appeared. `addPostFrameCallback` is still a stub, so it defers with a
+  one-shot `Ticker` (`_deferShow`) — the frame boundary that exists.
+
+Flyouts are Windows' now in every respect the gallery can show: acrylic
+(`Acrylic` over the thin default recipe, the flyout stroke drawn in the
+foreground so the blur does not soften it, the elevation-32 shadow under),
+and they enter with `FluentEntrance` — Windows' direct entrance, a 167 ms
+slide from the target's side with a fade on the decelerate curve. Wrap any
+transient surface in `FluentEntrance` to make it enter the same way.
+
+The gallery opens its own flyouts, menus, dialog and teaching tip when
+`FLUENT_GALLERY_AUTO=1` is set (`AutoTrigger`), which is how those were
+screenshotted on a shell whose pointer injection had gone stale.
 
 ## Widget composition: use the trailing-closure result builders
 

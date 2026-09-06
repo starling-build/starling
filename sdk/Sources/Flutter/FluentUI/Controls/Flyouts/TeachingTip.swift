@@ -104,22 +104,43 @@ class _TeachingTipState: State<StatefulWidget> {
         super.didUpdateWidget(oldWidget)
         let oldTip = oldWidget as! TeachingTip
         if teachingTip.isOpen && !oldTip.isOpen {
-            _showTip()
+            _deferShow()
         } else if !teachingTip.isOpen && oldTip.isOpen {
             _flyoutController.closeFlyout()
         }
     }
 
+    /// Shows on the next frame, not now: both places that ask to show are
+    /// inside a build (the first build, or `didUpdateWidget`), where the
+    /// target below is not attached yet and the overlay cannot be changed.
+    /// Called from within a build, `_showTip` returned at its attach guard
+    /// and the tip never appeared. A one-shot ticker is the frame boundary.
+    private var _deferTicker: Ticker?
+    private func _deferShow() {
+        _deferTicker?.dispose()
+        let ticker = Ticker { [weak self] _ in
+            guard let self else { return }
+            self._deferTicker?.stop()
+            self._deferTicker?.dispose()
+            self._deferTicker = nil
+            self._showTip()
+        }
+        _deferTicker = ticker
+        _ = ticker.start()
+    }
+
     override func dispose() {
+        _deferTicker?.dispose()
         _flyoutController.closeFlyout()
         super.dispose()
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        // Deferred show: after first build, the controller is attached
+        // Deferred show: on the frame after the first build, once the
+        // controller is attached.
         if _needsShowOnBuild {
             _needsShowOnBuild = false
-            _showTip()
+            _deferShow()
         }
 
         return FlyoutTarget(

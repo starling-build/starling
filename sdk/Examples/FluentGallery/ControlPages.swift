@@ -395,7 +395,7 @@ final class ContentDialogPage: StatelessWidget {
             "ContentDialog",
             "A modal dialog: 8px corners, elevation 128, over Smoke. Up to three buttons, the primary one accent-filled.",
             samples: [
-                Sample("Show a dialog", child: Button(onPressed: {
+                Sample("Show a dialog", child: AutoTrigger(action: { ctx in _showSaveDialog(ctx) }, child: Button(onPressed: {
                     showContentDialog(context: context) { ctx in
                         ContentDialog(
                             title: Text("Save your work?"),
@@ -406,7 +406,21 @@ final class ContentDialogPage: StatelessWidget {
                                 Button(onPressed: { Navigator.pop(ctx) }, child: Text("Cancel")),
                             ])
                     }
-                }, child: Text("Show dialog"))),
+                }, child: Text("Show dialog")))),
+            ])
+    }
+}
+
+/// The same dialog, for the auto-open path.
+private func _showSaveDialog(_ context: any BuildContext) {
+    showContentDialog(context: context) { ctx in
+        ContentDialog(
+            title: Text("Save your work?"),
+            content: Text("Lorem ipsum dolor sit amet, adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."),
+            actions: [
+                FilledButton(onPressed: { Navigator.pop(ctx) }, child: Text("Save")),
+                Button(onPressed: { Navigator.pop(ctx) }, child: Text("Don't save")),
+                Button(onPressed: { Navigator.pop(ctx) }, child: Text("Cancel")),
             ])
     }
 }
@@ -418,21 +432,23 @@ final class FlyoutPage: StatefulWidget {
 final class _FlyoutPageState: State<StatefulWidget> {
     private let controller = FlyoutController()
 
+    private func _open() {
+        controller.showFlyout(builder: { [self] _ in
+            FlyoutContent(child: Column(mainAxisSize: .min, crossAxisAlignment: .start, spacing: FluentSpacing.m) {
+                Text("All items will be removed. Do you want to continue?")
+                FilledButton(onPressed: { [self] in controller.closeFlyout() }, child: Text("Yes, empty my cart"))
+            }, padding: EdgeInsets(all: 16))
+        })
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         SamplePage(
             "Flyout",
             "A light-dismiss popup anchored to the control that opened it: acrylic, 8px corners, elevation 32, a 1px flyout stroke.",
             samples: [
-                Sample("A flyout with a button", child: FlyoutTarget(
+                Sample("A flyout with a button", child: AutoTrigger(action: { [self] _ in _open() }, child: FlyoutTarget(
                     controller: controller,
-                    child: Button(onPressed: { [self] in
-                        controller.showFlyout(builder: { ctx in
-                            FlyoutContent(child: Column(crossAxisAlignment: .start, spacing: FluentSpacing.m) {
-                                Text("All items will be removed. Do you want to continue?")
-                                FilledButton(onPressed: { [self] in controller.closeFlyout() }, child: Text("Yes, empty my cart"))
-                            }, padding: EdgeInsets(all: 16))
-                        })
-                    }, child: Text("Empty cart")))),
+                    child: Button(onPressed: { [self] in _open() }, child: Text("Empty cart"))))),
             ])
     }
 }
@@ -444,13 +460,13 @@ final class TeachingTipPage: StatelessWidget {
             "A tip that points at a control to introduce it. Light-dismiss, with an optional action.",
             samples: [
                 Sample("Show a tip", child: LocalState(false) { open, set in
-                    TeachingTip(
+                    AutoTrigger(action: { _ in set(true) }, child: TeachingTip(
                         target: Button(onPressed: { set(true) }, child: Text("Show teaching tip")),
                         title: Text("Save automatically"),
                         subtitle: Text("Your work is saved as you go; turn this off in Settings."),
                         isOpen: open,
                         onClose: { set(false) },
-                        actions: [Button(onPressed: { set(false) }, child: Text("Got it"))])
+                        actions: [Button(onPressed: { set(false) }, child: Text("Got it"))]))
                 }),
             ])
     }
@@ -497,12 +513,37 @@ final class MenuBarPage: StatelessWidget {
     }
 }
 
-final class MenuFlyoutPage: StatelessWidget {
+final class MenuFlyoutPage: StatefulWidget {
+    override func createState() -> State<StatefulWidget> { _MenuFlyoutPageState() }
+}
+
+final class _MenuFlyoutPageState: State<StatefulWidget> {
+    private let controller = FlyoutController()
+
+    private func _open() {
+        controller.showFlyout(builder: { _ in
+            MenuFlyout(items: [
+                MenuFlyoutItem(text: Text("Share"), leading: Icon(FluentSystemIcons.share, size: 16), onPressed: {}),
+                MenuFlyoutItem(text: Text("Copy"), leading: Icon(FluentSystemIcons.copy, size: 16), onPressed: {}),
+                MenuFlyoutItem(text: Text("Delete"), leading: Icon(FluentSystemIcons.delete, size: 16), onPressed: {}),
+                MenuFlyoutSeparator(),
+                ToggleMenuFlyoutItem(text: Text("Show hidden files"), isChecked: true),
+                MenuFlyoutSubItem(text: Text("Sort by"), items: [
+                    RadioMenuFlyoutItem(text: Text("Name"), isSelected: true),
+                    RadioMenuFlyoutItem(text: Text("Date modified")),
+                ]),
+            ])
+        })
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
         SamplePage(
             "MenuFlyout",
             "A menu of commands: items with 16px icons, separators, checkable and radio items, and submenus. Acrylic, 8px corners.",
             samples: [
+                Sample("From a button", child: AutoTrigger(action: { [self] _ in _open() }, child: FlyoutTarget(
+                    controller: controller,
+                    child: Button(onPressed: { [self] in _open() }, child: Text("Open menu"))))),
                 Sample("From a drop-down button", child: LocalState(true) { checked, set in
                     DropDownButton(title: Text("Options"), items: [
                         MenuFlyoutItem(text: Text("Share"), leading: Icon(FluentSystemIcons.share), onPressed: {}),

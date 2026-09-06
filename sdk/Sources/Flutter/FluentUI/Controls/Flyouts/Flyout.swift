@@ -290,13 +290,37 @@ private class _FlyoutPositioner: StatelessWidget {
             offset = Offset(0, additionalOffset)
         }
 
-        return CompositedTransformFollower(
-            link: link,
-            showWhenUnlinked: false,
-            offset: offset,
-            targetAnchor: targetAnchor,
-            followerAnchor: followerAnchor,
-            child: builder(context)
+        // Slide in from the target's side: a flyout below its target comes
+        // down from just above its final place.
+        let slideFrom: Offset
+        switch resolvedPlacement {
+        case .top: slideFrom = Offset(0, 8)
+        case .left: slideFrom = Offset(8, 0)
+        case .right: slideFrom = Offset(-8, 0)
+        default: slideFrom = Offset(0, -8)
+        }
+        // Loose constraints, on purpose: the overlay lays its entries out
+        // TIGHT to its own size, and a follower that fills the overlay anchors
+        // by the overlay's centre and paints its content across the whole
+        // window. Aligned top-left under loose constraints it is exactly as
+        // big as the flyout, so the anchor arithmetic and the paint offset
+        // are the flyout's own.
+        return Align(
+            alignment: Alignment.topLeft,
+            child: CompositedTransformFollower(
+                link: link,
+                showWhenUnlinked: false,
+                offset: offset,
+                targetAnchor: targetAnchor,
+                followerAnchor: followerAnchor,
+                // Content-sized inside WinUI's flyout box: the intrinsic
+                // wrappers stop a column or a row with `Expanded` from taking
+                // every pixel the loose constraints allow.
+                child: ConstrainedBox(
+                    constraints: kFlyoutThemeConstraints,
+                    child: IntrinsicWidth(child: IntrinsicHeight(
+                        child: FluentEntrance(child: builder(context), slideFrom: slideFrom))))
+            )
         )
     }
 
@@ -353,6 +377,12 @@ private class _FlyoutPositioner: StatelessWidget {
 /// Default minimum constraints for flyout content.
 nonisolated(unsafe) public let kFlyoutMinConstraints = BoxConstraints(minWidth: 118)
 
+/// WinUI's `FlyoutThemeMinWidth/MaxWidth/MinHeight/MaxHeight`: the box a
+/// flyout's content is sized within. A flyout is as big as what it holds,
+/// never bigger than this, and a long line wraps at 456.
+nonisolated(unsafe) public let kFlyoutThemeConstraints = BoxConstraints(
+    minWidth: 96, maxWidth: 456, minHeight: 40, maxHeight: 756)
+
 /// The styled container for flyout popup content.
 ///
 /// `FlyoutContent` renders a rounded rectangle with a border, background color,
@@ -407,21 +437,39 @@ public class FlyoutContent: StatelessWidget {
     public override func build(_ context: any BuildContext) -> Widget {
         let theme = FluentTheme.of(context)
 
-        let bgColor = color ?? theme.menuColor
         let borderColor = theme.resources.surfaceStrokeColorFlyout
         let borderRadius = FluentCorners.overlayRadius
-
         let shadows = FluentElevation.shadows(
             elevation, brightness: theme.brightness, color: shadowColor)
-        let decoration = BoxDecoration(
-            color: bgColor,
-            border: Border.all(color: borderColor, width: FluentStrokeWidth.thin),
-            borderRadius: borderRadius,
-            boxShadow: shadows.isEmpty ? nil : shadows
-        )
 
         var content: Widget = Padding(padding: padding, child: child)
-        content = _FlyoutDecoratedBox(decoration: decoration, child: content)
+        if let color {
+            // A caller's own colour: a solid surface, as before.
+            content = _FlyoutDecoratedBox(
+                decoration: BoxDecoration(
+                    color: color,
+                    border: Border.all(color: borderColor, width: FluentStrokeWidth.thin),
+                    borderRadius: borderRadius,
+                    boxShadow: shadows.isEmpty ? nil : shadows),
+                child: content)
+        } else {
+            // Windows' flyout: acrylic (the thin default recipe, or its solid
+            // fallback when transparency is off), the 1px flyout stroke drawn
+            // over it, and the elevation shadow under it. The stroke sits in
+            // the foreground so the blur does not soften it.
+            content = DecoratedBox(
+                decoration: BoxDecoration(
+                    border: Border.all(color: borderColor, width: FluentStrokeWidth.thin),
+                    borderRadius: borderRadius),
+                position: .foreground,
+                child: content)
+            content = Acrylic(child: content, borderRadius: borderRadius)
+            if !shadows.isEmpty {
+                content = _FlyoutDecoratedBox(
+                    decoration: BoxDecoration(borderRadius: borderRadius, boxShadow: shadows),
+                    child: content)
+            }
+        }
         content = ConstrainedBox(constraints: constraints, child: content)
 
         return content
