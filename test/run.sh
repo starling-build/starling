@@ -265,6 +265,9 @@ python3 "$REPO/test/computeruse/mcp_framing.py" || fails=$((fails + 1))
 step "guest display: the keyboard table"
 python3 "$REPO/test/hid_qnum.py" || fails=$((fails + 1))
 
+step "app store: Windows install recipe"
+python3 "$REPO/test/windows_install.py" || fails=$((fails + 1))
+
 step "unit tests: time"
 (cd "$REPO/time" && as_user "$SWIFT" test 2>&1 \
     | grep -vE "libxml2.so.2: no version information" \

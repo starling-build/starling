@@ -231,6 +231,10 @@ class _AppStoreAppState: State<StatefulWidget>, @unchecked Sendable {
     /// dock shows.
     private var running: Set<String> = []
 
+    /// Build context of the last frame — a `Kind=vm` confirm dialog needs one
+    /// for `showDialog`, and the install fires from a button outside `build`.
+    private weak var _ctx: Element?
+
     override func initState() {
         super.initState()
         ShellLink.shared.onRunningChanged = { [weak self] live in
@@ -278,6 +282,51 @@ class _AppStoreAppState: State<StatefulWidget>, @unchecked Sendable {
 
     private func _install(_ entry: AppRecord) {
         if case .installing = _state(entry) { return }
+        // A VM install downloads several gigabytes and provisions a whole
+        // machine, with a licensing caveat — too much to start on a stray
+        // click. Confirm once first. Every other install is unchanged and
+        // fires immediately, exactly as before.
+        if entry.kind == .vm, let ctx = _ctx {
+            _confirmVMInstall(ctx, entry)
+        } else {
+            _doInstall(entry)
+        }
+    }
+
+    /// The one-time confirm for a `Kind=vm` install. Gated on the kind, so it
+    /// is a small addition that touches nothing else.
+    private func _confirmVMInstall(_ context: any BuildContext, _ entry: AppRecord) {
+        showDialog(context: context, barrierDismissible: true, builder: { [self] ctx in
+            return MacosAlertDialog(
+                appIcon: Text("\u{1FA9F}", style: TextStyle(fontSize: 32)),
+                title: Text("Install \(entry.name)?"),
+                message: Column(mainAxisSize: .min, children: [
+                    Text("This downloads about 6 GB from Microsoft and "
+                         + "provisions a virtual machine. Setup runs unattended "
+                         + "and takes 20–40 minutes."),
+                    SizedBox(height: 8),
+                    Text("You need your own Windows license to activate it.",
+                         style: TextStyle(fontSize: 12)),
+                ]),
+                primaryButton: PushButton(
+                    child: Text("Continue"),
+                    controlSize: .regular,
+                    onPressed: { [self] in
+                        Navigator.pop(ctx)
+                        _doInstall(entry)
+                    }
+                ),
+                secondaryButton: PushButton(
+                    child: Text("Cancel"),
+                    controlSize: .regular,
+                    onPressed: { Navigator.pop(ctx) },
+                    secondary: true
+                )
+            )
+        })
+    }
+
+    private func _doInstall(_ entry: AppRecord) {
         setState {
             states[entry.id] = .installing(progress: nil, status: "Contacting store…")
         }
@@ -328,6 +377,7 @@ class _AppStoreAppState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: Build
 
     override func build(_ context: any BuildContext) -> Widget {
+        _ctx = context as? Element
         let theme = MacosTheme.of(context)
         pal = StorePalette(dark: theme.brightness == .dark)
 

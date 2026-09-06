@@ -13,7 +13,7 @@ Staged to `<share>/catalog.d`, installed to `/usr/share/starling/catalog.d`.
 |---|---|
 | `Id` | app id — also the `app-run` / `app-install` name. Defaults to the filename. |
 | `Name` | what the launcher label and dock tooltip say |
-| `Kind` | `first-party` \| `host` \| `android` \| `x11` — how it launches |
+| `Kind` | `first-party` \| `host` \| `android` \| `x11` \| `vm` — how it launches |
 | `Order` | launcher sort key |
 | `Dock` | position in the default dock; absent = launcher-only until pinned |
 | `Glyph` | painter fallback shape (an `IconType` case). Never a brand mark — see below |
@@ -21,6 +21,7 @@ Staged to `<share>/catalog.d`, installed to `/usr/share/starling/catalog.d`.
 | `Exec` | `app-run` recipe (host), executable name (first-party), `android-app` arg |
 | `Install` | `app-install` recipe name; absent = the store cannot install it |
 | `Bins` | `;`-separated paths whose existence means "installed" |
+| `Domain` | `Kind=vm` only: the libvirt domain whose console this record opens (`STARLING_GUEST_DOMAIN` overrides it for a dev box) |
 | `DesktopEntry` | `;`-separated `.desktop` basenames — where the icon and window class are read from |
 | `WmClass` | `;`-separated app_id fallbacks, for apps that ship no `.desktop` |
 | `TitleMatch` | `;`-separated title substrings — **only** for windows that carry no usable app_id |

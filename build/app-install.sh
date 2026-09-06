@@ -132,9 +132,14 @@ REMOVE=""
 RECORD_ONLY=""
 RUNNING_ONLY=""
 FORCE=""
+CHECK=""
 while [ $# -gt 0 ]; do
     case "${1:-}" in
         --remove) REMOVE=1; shift ;;
+        # Report whether the host can provision a VM, and exit — the `windows`
+        # recipe's dry run. Touches no libvirt state, needs no root, so the
+        # test tier and a curious user can both run it.
+        --check) CHECK=1; shift ;;
         # Re-resolve and rewrite one app's registry record without installing
         # anything: for an app installed by hand, or to repair a record after
         # the app moved. Needs no root when STARLING_APP_RECORDS points
@@ -164,7 +169,7 @@ if [ -n "$RUNNING_ONLY" ]; then
     esac
 fi
 
-[ -n "$RECORD_ONLY" ] || [ "$(id -u)" -eq 0 ] \
+[ -n "$RECORD_ONLY" ] || [ -n "$CHECK" ] || [ "$(id -u)" -eq 0 ] \
     || { echo "app-install: need root (apt)" >&2; exit 1; }
 
 # apt/dpkg poke the controlling terminal when one exists; from a background
@@ -197,6 +202,21 @@ if [ -n "$REMOVE" ]; then
         fi
     fi
     case "$NAME" in
+        windows)
+            # A VM, not a package: force it off, undefine it (with its UEFI
+            # varstore), and delete the disk. The cached ISOs are deliberately
+            # kept — they are expensive and reusable (a later --purge can drop
+            # them). --remove-all-storage is NOT used: it would also delete the
+            # attached install ISOs if a failed install left them attached.
+            _dom="${STARLING_WIN_DOMAIN:-windows}"
+            virsh destroy "$_dom" >/dev/null 2>&1 || true
+            virsh undefine "$_dom" --nvram >/dev/null 2>&1 || true
+            rm -f "/var/lib/libvirt/images/$_dom.qcow2"
+            rm -f /var/lib/starling/vm/windows.installed
+            bump_records_stamp
+            echo "app-install: windows removed"
+            exit 0
+            ;;
         chrome)       apt-get remove -y -q google-chrome-stable ;;
         claude)       apt-get remove -y -q claude-desktop ;;
         vscode)       apt-get remove -y -q code ;;
@@ -397,7 +417,222 @@ if [ -n "$RECORD_ONLY" ]; then
     exit 0
 fi
 
+# ── Windows VM: provision a real guest the desktop opens as a window ─────────
+# Not a package. `Kind=vm` in registry/catalog.d/windows.app; the store's
+# Install button lands here. See docs/plans/windows-store-install.md and
+# docs/WINDOWS-VM.md (the manual steps this automates).
+
+IMAGES_DIR="${STARLING_WIN_IMAGES_DIR:-/var/lib/libvirt/images}"
+WIN_STATE=/var/lib/starling/vm
+WIN_MARKER="$WIN_STATE/windows.installed"
+
+# Where the helper scripts and templates are: beside share/ when staged or
+# packaged, beside docs/ in a dev tree.
+winvm_dir() {
+    for _d in "${STARLING_WINVM_DIR:-}" \
+              "$BINDIR/../share/windows-vm" \
+              "$BINDIR/../share/starling/windows-vm" \
+              /usr/share/starling/windows-vm \
+              "$BINDIR/../docs/windows-vm"; do
+        [ -n "$_d" ] && [ -f "$_d/windows-domain.xml.in" ] && { echo "$_d"; return 0; }
+    done
+    return 1
+}
+
+# Can this host actually run the VM? Prints a readable report; returns non-zero
+# if a hard prerequisite is missing. Touches no libvirt state.
+windows_check() {
+    _fail=0
+    echo "Checking prerequisites…"
+    if [ -e /dev/kvm ]; then
+        echo "  ok  hardware virtualization (/dev/kvm)"
+    else
+        echo "  --  /dev/kvm missing: enable virtualization (VT-x/AMD-V) in firmware" >&2
+        _fail=1
+    fi
+    if command -v virsh >/dev/null 2>&1; then
+        _net="$(virsh -c qemu:///system net-info default 2>/dev/null | awk '/^Active/{print $2}')"
+        if [ "$_net" = "yes" ]; then
+            echo "  ok  libvirt 'default' network is active"
+        else
+            echo "  --  libvirt 'default' network is not active" >&2
+            _fail=1
+        fi
+    else
+        echo "  ..  libvirt not installed yet (the recipe installs it)"
+    fi
+    _avail="$(df -Pk "$IMAGES_DIR" 2>/dev/null | awk 'NR==2{print $4}')"
+    [ -n "$_avail" ] || _avail="$(df -Pk /var/lib 2>/dev/null | awk 'NR==2{print $4}')"
+    if [ -n "$_avail" ] && [ "$_avail" -ge 73400320 ]; then
+        echo "  ok  enough free disk (~70 GB) for the VM"
+    else
+        echo "  --  less than ~70 GB free where the VM image would live" >&2
+        _fail=1
+    fi
+    # The LOGIN user needs libvirt+kvm to LAUNCH the VM later (the install runs
+    # as root under pkexec, but the launch is the session user's).
+    _luser="${SUDO_USER:-}"
+    [ -z "$_luser" ] && [ -n "${PKEXEC_UID:-}" ] && \
+        _luser="$(id -nu "$PKEXEC_UID" 2>/dev/null || true)"
+    if [ -n "$_luser" ]; then
+        _missing=""
+        for _g in libvirt kvm; do
+            id -nG "$_luser" 2>/dev/null | tr ' ' '\n' | grep -qx "$_g" || _missing="$_missing $_g"
+        done
+        if [ -z "$_missing" ]; then
+            echo "  ok  $_luser is in libvirt and kvm"
+        else
+            echo "  ..  $_luser will be added to:$_missing (takes effect next login)"
+        fi
+    fi
+    return $_fail
+}
+
+install_windows() {
+    windows_check || {
+        echo "app-install: prerequisites not met — see the messages above" >&2
+        return 1
+    }
+    _wv="$(winvm_dir)" || {
+        echo "app-install: cannot find the windows-vm scripts/templates" >&2
+        return 1
+    }
+    _dom="${STARLING_WIN_DOMAIN:-windows}"
+    _pass="${STARLING_WIN_PASSWORD:-Starling!2026}"
+    _rnode="${STARLING_WIN_RENDERNODE:-/dev/dri/renderD128}"
+    mkdir -p "$IMAGES_DIR" "$WIN_STATE" /var/lib/libvirt/qemu/nvram
+
+    if [ -f "$WIN_MARKER" ]; then
+        echo "Windows is already installed."
+        return 0
+    fi
+
+    # Host-relative sizing (plan §Open questions): a quarter of host RAM,
+    # clamped to [4,8] GB, and half the cores, clamped to [2,8]. So a store
+    # install does not claim a third of a small laptop.
+    _memtotal="$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 8388608)"
+    _memkib=$(( _memtotal / 4 ))
+    [ "$_memkib" -lt 4194304 ] && _memkib=4194304
+    [ "$_memkib" -gt 8388608 ] && _memkib=8388608
+    _cpus="$(nproc 2>/dev/null || echo 4)"
+    _vcpu=$(( _cpus / 2 ))
+    [ "$_vcpu" -lt 2 ] && _vcpu=2
+    [ "$_vcpu" -gt 8 ] && _vcpu=8
+
+    # 1. The Windows ISO (auto-download, or a user-provided one).
+    echo "Getting the Windows installer…"
+    _iso="$(sh "$_wv/fetch-win-iso.sh" --out "$IMAGES_DIR/starling-windows.iso")" || return 1
+    [ -n "$_iso" ] && [ -f "$_iso" ] || {
+        echo "app-install: no Windows ISO available" >&2
+        return 1
+    }
+
+    # 2. The no-keystroke installer ISO (cached; rebuilt only if stale).
+    echo "Preparing the installer…"
+    _noprompt="$IMAGES_DIR/starling-windows-noprompt.iso"
+    if [ ! -s "$_noprompt" ] || [ "$_iso" -nt "$_noprompt" ]; then
+        python3 "$_wv/make-noprompt-iso.py" "$_iso" "$_noprompt.tmp" >&2 || return 1
+        mv -f "$_noprompt.tmp" "$_noprompt"
+    fi
+
+    # 3. The virtio drivers + guest agent (stable Fedora fetch).
+    _virtio="$IMAGES_DIR/virtio-win.iso"
+    if [ ! -s "$_virtio" ]; then
+        echo "Fetching the guest drivers…"
+        fetch "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso" \
+              "$_virtio" || return 1
+    fi
+
+    # 4. The answer ISO (unattended setup + the two MSIs).
+    _answer="$IMAGES_DIR/starling-answer.iso"
+    sh "$_wv/make-answer-iso.sh" "$_wv/autounattend.xml" "$_virtio" "$_answer" "$_pass" >&2 || return 1
+
+    # 5. The disk and the domain.
+    _qcow="$IMAGES_DIR/$_dom.qcow2"
+    [ -f "$_qcow" ] || qemu-img create -f qcow2 "$_qcow" 64G >&2 || return 1
+    _nvram="/var/lib/libvirt/qemu/nvram/${_dom}_VARS.fd"
+
+    if virsh domstate "$_dom" >/dev/null 2>&1; then
+        echo "Resuming an in-progress install…"
+    else
+        _xml="$(mktemp)"
+        sed -e "s|@NAME@|$_dom|g" \
+            -e "s|@QCOW@|$_qcow|g" \
+            -e "s|@NVRAM@|$_nvram|g" \
+            -e "s|@MEMKIB@|$_memkib|g" \
+            -e "s|@VCPU@|$_vcpu|g" \
+            -e "s|@WINISO@|$_noprompt|g" \
+            -e "s|@ANSWERISO@|$_answer|g" \
+            -e "s|@VIRTIOISO@|$_virtio|g" \
+            -e "s|@RENDERNODE@|$_rnode|g" \
+            "$_wv/windows-domain.xml.in" > "$_xml"
+        virsh define "$_xml" >&2 || { rm -f "$_xml"; return 1; }
+        rm -f "$_xml"
+    fi
+
+    # 6. Boot and wait for the guest agent — one poll that proves setup
+    #    finished, first logon ran, and the agent installed.
+    virsh domstate "$_dom" 2>/dev/null | grep -q running || virsh start "$_dom" >&2 || return 1
+    echo "Installing Windows — this takes 20–40 minutes and needs no input…"
+    _start="$(date +%s)"
+    _deadline=$(( _start + 3600 ))
+    until virsh qemu-agent-command "$_dom" '{"execute":"guest-ping"}' >/dev/null 2>&1; do
+        if [ "$(date +%s)" -ge "$_deadline" ]; then
+            echo "app-install: timed out after 60 min waiting for Windows setup" >&2
+            return 1
+        fi
+        sleep 30
+        echo "…still installing ($(( ($(date +%s) - _start) / 60 )) min elapsed)"
+    done
+
+    # 7. Done: drop the install CD-ROMs from the persistent config so later
+    #    boots don't offer them, then write the marker the store and launcher
+    #    read. Executable so the launcher's probe() (isExecutableFile) and the
+    #    store's fileExists both agree the VM is installed.
+    echo "Finishing up…"
+    for _t in sdb sdc sdd; do
+        virsh detach-disk "$_dom" "$_t" --config >/dev/null 2>&1 || true
+    done
+    : > "$WIN_MARKER"
+    chmod 0755 "$WIN_MARKER"
+    chmod 0755 "$WIN_STATE" 2>/dev/null || true
+    # Add the login user to the groups the LAUNCH needs (install ran as root).
+    _luser="${SUDO_USER:-}"
+    [ -z "$_luser" ] && [ -n "${PKEXEC_UID:-}" ] && \
+        _luser="$(id -nu "$PKEXEC_UID" 2>/dev/null || true)"
+    if [ -n "$_luser" ]; then
+        for _g in libvirt kvm; do
+            id -nG "$_luser" 2>/dev/null | tr ' ' '\n' | grep -qx "$_g" \
+                || usermod -aG "$_g" "$_luser" 2>/dev/null || true
+        done
+    fi
+    bump_records_stamp
+    echo "windows installed"
+    return 0
+}
+
+if [ -n "$CHECK" ]; then
+    case "$NAME" in
+        windows) windows_check; exit $? ;;
+        *) echo "app-install: --check only supports 'windows'" >&2; exit 2 ;;
+    esac
+fi
+
 case "$NAME" in
+    windows)
+        # Prerequisites are an ordinary archive install; the rest is libvirt
+        # provisioning in install_windows.
+        apt-get update -q || true
+        apt-get install -y -q qemu-system-x86 libvirt-daemon-system ovmf \
+            swtpm swtpm-tools genisoimage wimtools || {
+            echo "app-install: could not install VM prerequisites" >&2; exit 1; }
+        systemctl enable --now libvirtd >/dev/null 2>&1 || true
+        virsh -c qemu:///system net-info default >/dev/null 2>&1 \
+            || virsh -c qemu:///system net-start default >/dev/null 2>&1 || true
+        virsh -c qemu:///system net-autostart default >/dev/null 2>&1 || true
+        install_windows
+        exit $?
+        ;;
     chrome)
         # Google's deb registers google-chrome.sources -> future `apt
         # upgrade` updates it like any repo package.

@@ -1,5 +1,18 @@
 # A Windows VM you can drive from Linux
 
+> **The App Store does this for you.** The **Windows** tile in the App Store
+> has an **Install** button that runs the whole recipe below — download the
+> official ISO, build the no-keystroke installer, define the domain, wait for
+> first boot — with no terminal. It is the `windows` recipe in
+> `build/app-install.sh`, and it uses the scripts and templates beside this
+> file (`fetch-win-iso.sh`, `make-noprompt-iso.py`, `make-answer-iso.sh`,
+> `windows-domain.xml.in`, `autounattend.xml`). The design is
+> `docs/plans/windows-store-install.md`. Everything below is the reference the
+> button implements, and the way to do it by hand. The unattended admin
+> password the recipe sets is `Starling!2026` (override with
+> `STARLING_WIN_PASSWORD`); the desktop opens the console with autologon, so
+> it is rarely typed.
+
 How to stand up a Windows guest under libvirt that a Linux host can build on,
 run GUI applications on, screenshot, and type into — with no VNC client, no
 RDP session, and (until you want one) no SSH server. This is the recipe behind

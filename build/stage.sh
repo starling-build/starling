@@ -204,6 +204,16 @@ install -m644 "$REPO"/shell/Resources/Wallpapers/*.jpg "$SHARE/wallpapers/"
 # for any of them to know an app exists.
 mkdir -p "$SHARE/catalog.d"
 install -m644 "$REPO"/registry/catalog.d/*.app "$SHARE/catalog.d/"
+# The Windows-VM provisioning kit: the scripts and templates app-install's
+# `windows` recipe runs to turn the App Store's Install button into a real
+# Windows guest (docs/plans/windows-store-install.md). Shipped here so the
+# recipe finds them the same way it finds the catalog.
+mkdir -p "$SHARE/windows-vm"
+install -m755 "$REPO"/docs/windows-vm/fetch-win-iso.sh     "$SHARE/windows-vm/"
+install -m755 "$REPO"/docs/windows-vm/make-noprompt-iso.py "$SHARE/windows-vm/"
+install -m755 "$REPO"/docs/windows-vm/make-answer-iso.sh   "$SHARE/windows-vm/"
+install -m644 "$REPO"/docs/windows-vm/windows-domain.xml.in "$SHARE/windows-vm/"
+install -m644 "$REPO"/docs/windows-vm/autounattend.xml      "$SHARE/windows-vm/"
 # No third-party app icons are staged: those marks are their owners'
 # trademarks, so the dock reads them from the host's freedesktop icon theme at
 # runtime (DesktopEntry lookup) and falls back to its own neutral glyph.

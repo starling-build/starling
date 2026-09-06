@@ -1,5 +1,17 @@
 # Windows, installable from the App Store
 
+**Status: implemented 2026-09-05.** The recipe, helper scripts, catalog
+record, store confirm, packaging and fast test all landed on `computer-use`.
+Open questions were settled with the recommendations below: **64 GB** disk,
+**host-relative** RAM/vCPU (a quarter of host RAM clamped to 4–8 GB, half the
+cores clamped to 2–8), **Windows 11 Pro**, and the seamless bridge left out of
+scope (the domain is ready for it). A live end-to-end Windows 11 install was
+**not** run at implementation time: no Win11 ISO was cached on the dev box and
+the download endpoint blocks its IP (the `SentinelReject` this plan predicted),
+so the ISO-patch, answer-ISO, domain-define and prerequisite paths were
+verified mechanically instead, against the Win10 media present. The remaining
+verification is a real install on a box that can reach the ISO.
+
 Draft for approval, 2026-09-05. Decisions taken up front (from the user):
 the ISO is **auto-downloaded from Microsoft**, and this plan is written
 **before** any of the recipe is built.

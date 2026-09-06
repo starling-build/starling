@@ -1,0 +1,138 @@
+<!-- Domain template for the App-Store-provisioned Windows VM.
+     build/app-install.sh's `windows` recipe fills the @PLACEHOLDERS@ and
+     `virsh define`s the result. This is the SEAMLESS-CAPABLE shape, distilled
+     from docs/windows-vm/win11-dbus.xml (verified end to end): EFI +
+     Secure Boot, an emulated TPM 2.0, the p2p D-Bus graphics the shell
+     imports as a dma-buf, and three channels — the QEMU guest agent
+     (org.qemu.guest_agent.0), the seamless bridge (org.starling.agent.0),
+     and qemu-vdagent for the clipboard.
+
+     Only the bits that must be pinned are pinned: firmware, TPM, graphics,
+     channels, the boot disk and the install CD-ROMs. Everything else
+     (PCIe root ports, PCI slot assignment) is left for libvirt to expand on
+     `define`, so the template survives a libvirt/QEMU version bump instead
+     of pinning stale slot addresses.
+
+     The three CD-ROMs are for the FIRST boot only; the recipe detaches them
+     from the persistent config once the guest agent answers, so later boots
+     do not offer them. -->
+<domain type='kvm'>
+  <name>@NAME@</name>
+  <metadata>
+    <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
+      <libosinfo:os id="http://microsoft.com/win/11"/>
+    </libosinfo:libosinfo>
+  </metadata>
+  <memory unit='KiB'>@MEMKIB@</memory>
+  <currentMemory unit='KiB'>@MEMKIB@</currentMemory>
+  <vcpu placement='static'>@VCPU@</vcpu>
+  <os firmware='efi'>
+    <type arch='x86_64' machine='q35'>hvm</type>
+    <firmware>
+      <feature enabled='yes' name='enrolled-keys'/>
+      <feature enabled='yes' name='secure-boot'/>
+    </firmware>
+    <loader readonly='yes' secure='yes' type='pflash' format='raw'>/usr/share/OVMF/OVMF_CODE_4M.ms.fd</loader>
+    <nvram template='/usr/share/OVMF/OVMF_VARS_4M.ms.fd' templateFormat='raw' format='raw'>@NVRAM@</nvram>
+    <boot dev='hd'/>
+    <boot dev='cdrom'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <hyperv mode='custom'>
+      <relaxed state='on'/>
+      <vapic state='on'/>
+      <spinlocks state='on' retries='8191'/>
+      <vpindex state='on'/>
+      <runtime state='on'/>
+      <synic state='on'/>
+      <stimer state='on'/>
+      <frequencies state='on'/>
+      <tlbflush state='on'/>
+      <ipi state='on'/>
+    </hyperv>
+    <smm state='on'/>
+  </features>
+  <cpu mode='host-passthrough' check='none' migratable='on'/>
+  <clock offset='localtime'>
+    <timer name='rtc' tickpolicy='catchup'/>
+    <timer name='pit' tickpolicy='delay'/>
+    <timer name='hpet' present='no'/>
+    <timer name='hypervclock' present='yes'/>
+  </clock>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <pm>
+    <suspend-to-mem enabled='no'/>
+    <suspend-to-disk enabled='no'/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' discard='unmap'/>
+      <source file='@QCOW@'/>
+      <target dev='sda' bus='sata'/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='@WINISO@'/>
+      <target dev='sdb' bus='sata'/>
+      <readonly/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='@ANSWERISO@'/>
+      <target dev='sdc' bus='sata'/>
+      <readonly/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='@VIRTIOISO@'/>
+      <target dev='sdd' bus='sata'/>
+      <readonly/>
+    </disk>
+    <controller type='virtio-serial' index='0'/>
+    <interface type='network'>
+      <source network='default'/>
+      <model type='e1000e'/>
+    </interface>
+    <serial type='pty'>
+      <target type='isa-serial' port='0'><model name='isa-serial'/></target>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+    </channel>
+    <channel type='unix'>
+      <target type='virtio' name='org.starling.agent.0'/>
+    </channel>
+    <channel type='qemu-vdagent'>
+      <source>
+        <clipboard copypaste='yes'/>
+        <mouse mode='server'/>
+      </source>
+      <target type='virtio' name='com.redhat.spice.0'/>
+    </channel>
+    <input type='tablet' bus='usb'/>
+    <input type='mouse' bus='ps2'/>
+    <input type='keyboard' bus='ps2'/>
+    <tpm model='tpm-crb'>
+      <backend type='emulator' version='2.0'/>
+    </tpm>
+    <graphics type='dbus' p2p='yes'>
+      <gl enable='yes' rendernode='@RENDERNODE@'/>
+    </graphics>
+    <audio id='1' type='none'/>
+    <video>
+      <model type='virtio' heads='1' primary='yes'>
+        <acceleration accel3d='yes'/>
+        <resolution x='1920' y='1080'/>
+      </model>
+    </video>
+    <memballoon model='virtio'/>
+  </devices>
+</domain>
