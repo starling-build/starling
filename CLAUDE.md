@@ -274,24 +274,42 @@ which renders every Android app into one window.
 
 ## Standing directions
 
-- **The desktop has STYLES, and which one you are writing for decides the
-  question.** A style is a complete look the user picks at runtime — macOS
-  (the default) and Windows Fluent today, more later. It is defined in
-  `shell/Sources/DesktopShellApp/Utils/ShellStyle.swift` as three separable
-  things: a `ShellTheme` colour pair, a `ShellMetrics` layout set, and a
-  `ShellChrome` that decides which surfaces exist and where. Adding a style is
-  one file plus one entry in `ShellStyles.all`; there is deliberately no
-  `if style == …` anywhere else in the shell, and adding one is a bug.
-  - **Shell chrome** is whatever the active style says. The macOS half lives
-    in `DesktopShell.swift` as the `macos*` builders; the Fluent half is
-    `shell/Sources/DesktopShellApp/Fluent/`. New chrome means an entry in
-    BOTH, or an honest note in `FluentChrome` saying which macOS surface it
-    still falls through to.
-  - **Apps are still macOS-only**, and that is a real constraint rather than a
-    preference: `FluentApp`'s scaffold traps on mount as a DMA-BUF child
-    (`apps/FileExplorerApp/.../main.swift:14`). Until that is fixed, every app
-    shell is `MacosApp`, app UI goes through the `Macos*` controls and
-    `CupertinoIcons`, and a Fluent widget in `apps/` is a bug.
+- **The desktop has STYLES, and Fluent is the default.** A style is a
+  complete look the user picks at runtime — Windows Fluent (the default
+  since 2026-09, `ShellStyles.defaultStyle`) and macOS today, more later.
+  It is defined in `shell/Sources/DesktopShellApp/Utils/ShellStyle.swift`
+  as three separable things: a `ShellTheme` colour pair, a `ShellMetrics`
+  layout set, and a `ShellChrome` that decides which surfaces exist and
+  where. Adding a style is one file plus one entry in `ShellStyles.all`;
+  there is deliberately no `if style == …` anywhere else in the shell, and
+  adding one is a bug. The ORDER of `ShellStyles.all` is a wire format
+  (apps receive a style as its index; `StarlingStyleId`'s raw values match
+  it), so the default is named separately and the order never changes.
+  Persisted ids are untouched by a default change: nobody who picked macOS
+  is moved. The plan: `docs/plans/fluent-first.md`.
+  - **New chrome is designed Fluent-first.** A surface lands in
+    `shell/Sources/DesktopShellApp/Fluent/` first; the macOS builder (the
+    `macos*` builders in `DesktopShell.swift`) either follows in the same
+    change or `MacosChrome` carries an honest note naming what it still
+    falls through to.
+  - **Match Windows 11 as shipped in 2026**, measured where we can (the
+    Windows box, `test/win/capture-reference.sh`) and documented where we
+    cannot. When memory and the 2026 docs disagree, the docs win.
+  - **Tokens, not numbers.** Every Fluent radius, spacing, duration, curve
+    and shadow comes from the SDK's `FluentUI/Styles/FluentTokens.swift`
+    (`FluentCorners`, `FluentSpacing`, `FluentMotion`, `FluentElevation`),
+    every colour from WinUI's resource dictionary through `shellTheme`. A
+    literal `8`, `250` or `Color(0x…)` in Fluent chrome is a bug. `accentInk`
+    in particular is not a synonym for white: Fluent's dark accent is a
+    light blue that takes BLACK glyphs, and `Color(0xFFFFFFFF)` on an accent
+    fill is legible in one style and invisible in the other.
+  - **Apps are still macOS-only**, and that is a real constraint rather than
+    a preference: `FluentApp`'s scaffold traps on mount as a DMA-BUF child
+    (`apps/FileExplorerApp/.../main.swift:14`). Until that is fixed (the
+    plan's Phase 6), every app shell is `MacosApp`, app UI goes through the
+    `Macos*` controls and `CupertinoIcons`, and a Fluent widget in `apps/`
+    is a bug. The macOS style recolours apps through `StarlingPalette`,
+    which assumes Fluent when no style has been pushed.
   - If the `Macos*` control you need is missing or a stub, implement it in
     `sdk/` rather than reaching for the Fluent one — that is where `MacosMenu`
     and `MacosScrollbar` came from. The Fluent name is often the one that
@@ -303,10 +321,6 @@ which renders every Android app into one window.
     widget renders happily instead of failing. The check now is by
     DIRECTORY — Fluent widgets belong under `shell/…/Fluent/` and nowhere
     else in `shell/`, and nowhere at all in `apps/`.
-  - Colours come from `shellTheme`, never from a literal. `accentInk` in
-    particular is not a synonym for white: Fluent's dark accent is a light
-    blue that takes BLACK glyphs, and `Color(0xFFFFFFFF)` on an accent fill is
-    legible in one style and invisible in the other.
 - **Wayland only.** Do not read, modify, or reference `X11Server/` or X11 launch
   paths unless explicitly asked.
 - **No security hardening on the app runtime** (`build/app-run.sh` is an app

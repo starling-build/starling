@@ -148,6 +148,9 @@ struct ShellTheme {
     /// Tint over the frosted backdrop the shell draws under every window
     /// (the liquid-glass layer apps show through translucent backgrounds).
     let windowGlassTint: Color
+    /// The same surface for a window that does not have focus. macOS keeps
+    /// one material for both; Windows' Mica falls back to a solid.
+    let windowSurfaceInactive: Color
     let titleBarActive: Color
     let titleBarInactive: Color
     let titleTextActive: Color
@@ -238,6 +241,7 @@ struct ShellTheme {
         dockLabelBorder: Color(0x30FFFFFF),
         dockLabelText: Color(0xFFF2F2F2),
         windowGlassTint: Color(0x3D262A32),
+        windowSurfaceInactive: Color(0x3D262A32),
         // Translucent enough that the window frost reads through the bar.
         titleBarActive: Color(0xA62E323A),
         titleBarInactive: Color(0x8C34383F),
@@ -302,6 +306,7 @@ struct ShellTheme {
         dockLabelBorder: Color(0x1F000000),
         dockLabelText: Color(0xE6262626),
         windowGlassTint: Color(0x59F2F2F5),
+        windowSurfaceInactive: Color(0x59F2F2F5),
         // Near-opaque in light mode (macOS keeps light bars solid), with a
         // hint of the frost through them.
         titleBarActive: Color(0xE6EDEDEF),

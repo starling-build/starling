@@ -37,13 +37,16 @@ public enum StarlingStyleId: Int {
     case fluent = 1
 
     /// What the shell last pushed, or macOS if it has not said.
+    /// The style the shell last pushed, or Fluent where none has been —
+    /// the desktop's default since 2026-09 (docs/plans/fluent-first.md),
+    /// and what a standalone or windowed run of an app assumes.
     public static var current: StarlingStyleId {
         #if os(Linux)
         guard let raw = GpuDmaBufRenderer.lastPushedStyle,
-              let s = StarlingStyleId(rawValue: raw) else { return .macos }
+              let s = StarlingStyleId(rawValue: raw) else { return .fluent }
         return s
         #else
-        return .macos
+        return .fluent
         #endif
     }
 }

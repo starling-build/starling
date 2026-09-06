@@ -3,15 +3,25 @@
 Audit of flutter_swift capabilities required for the Fluent UI port.
 Searched: `Sources/Flutter/` and `Sources/FlutterSwiftBridge/`
 
+**Status, 2026-09-06:** rows 1, 2, 4 and 5 are DONE — `Overlay`/
+`OverlayEntry`, `ImplicitlyAnimatedWidget` and the `Animated*` wrappers,
+`GestureDetector`, and the `BackdropFilter` widget all exist, and
+`FluentUI/Controls` holds 48 ported controls on top of them (`MenuFlyout`,
+`Flyout`, `ContentDialog`, `Tooltip`, `NavigationView`, `TabView`,
+`CommandBar`, `Expander`, `InfoBar`, `ToggleSwitch`, `Slider`, …), proven
+under real input by `Examples/FluentGallery`. Row 3 (Focus) is still stubs.
+The table below is the 2025 audit as written; the rows marked done are kept
+for the record of what was missing.
+
 ## Summary Table
 
 | # | Capability | Status | Notes |
 |---|-----------|--------|-------|
-| 1 | Overlay / OverlayEntry | :x: Missing | No classes found anywhere in the codebase |
-| 2 | Implicit animation widgets (AnimatedContainer, AnimatedOpacity, etc.) | :x: Missing | No widget-level implicit animations. Rendering layer has `RenderAnimatedOpacity` and `RenderSliverAnimatedOpacity`, but no `ImplicitlyAnimatedWidget` base class or any `AnimatedFoo` widget wrappers |
+| 1 | Overlay / OverlayEntry | :white_check_mark: Done (2026) — was: Missing | No classes found anywhere in the codebase |
+| 2 | Implicit animation widgets (AnimatedContainer, AnimatedOpacity, etc.) | :white_check_mark: Done (2026) — was: Missing | No widget-level implicit animations. Rendering layer has `RenderAnimatedOpacity` and `RenderSliverAnimatedOpacity`, but no `ImplicitlyAnimatedWidget` base class or any `AnimatedFoo` widget wrappers |
 | 3 | FocusNode / FocusManager / Focus widget | :warning: Stubs only | `FocusManager` and `FocusScopeNode` are minimal stubs in `Widgets/FocusManagerStubs.swift`. No `FocusNode`, no `Focus` widget, no `FocusScopeWidget` |
-| 4 | GestureDetector widget | :x: Missing | Gesture recognizer infrastructure exists (`Gestures/Recognizer.swift`, `Gestures/Tap.swift`, `Gestures/Multitap.swift`) but no `GestureDetector` widget that wraps them |
-| 5 | BackdropFilter widget | :warning: Partial | `RenderBackdropFilter` exists in `Rendering/ProxyBox.swift` (complete render object). `BackdropFilterLayer` exists. `BackdropFilterEngineLayer` + `SceneBuilder.pushBackdropFilter` exist in `FlutterSwiftBridge/Compositing.swift`. But no `BackdropFilter` **widget** in `Widgets/Basic.swift` |
+| 4 | GestureDetector widget | :white_check_mark: Done (2026) — was: Missing | Gesture recognizer infrastructure exists (`Gestures/Recognizer.swift`, `Gestures/Tap.swift`, `Gestures/Multitap.swift`) but no `GestureDetector` widget that wraps them |
+| 5 | BackdropFilter widget | :white_check_mark: Done (2026) — was: Partial | `RenderBackdropFilter` exists in `Rendering/ProxyBox.swift` (complete render object). `BackdropFilterLayer` exists. `BackdropFilterEngineLayer` + `SceneBuilder.pushBackdropFilter` exist in `FlutterSwiftBridge/Compositing.swift`. But no `BackdropFilter` **widget** in `Widgets/Basic.swift` |
 | 6 | PageStorage / PageStorageBucket | :white_check_mark: Complete | Full implementation in `Widgets/PageStorage.swift` — includes `PageStorageKey`, `PageStorageBucket`, and `PageStorage` widget with `maybeOf`/`of` lookups |
 | 7 | MouseRegion widget | :white_check_mark: Complete | Full implementation in `Widgets/Basic.swift:1743`. Widget creates `RenderMouseRegion` (in `Rendering/ProxyBox.swift:4895`). Supports onEnter, onHover, onExit, cursor, opaque, hitTestBehavior |
 | 8 | Listener widget | :white_check_mark: Complete | Full implementation in `Widgets/Basic.swift:1669`. Widget creates `RenderPointerListener`. Supports onPointerDown, onPointerMove, onPointerUp, onPointerHover, onPointerCancel, onPointerPanZoomStart, onPointerSignal |

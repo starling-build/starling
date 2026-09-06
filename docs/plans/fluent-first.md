@@ -39,6 +39,19 @@ Every surface the desktop's Fluent chrome will need from the SDK — menus,
 flyouts, dialogs, teaching tips, acrylic, Mica, the entrance motion — now
 works under real input; the desktop phases below can start.
 
+**Phase 0, 2026-09-06:** landed on the desktop side. Fluent is the default
+for a machine that has never chosen — through a named `ShellStyles.
+defaultStyle` rather than by reordering `ShellStyles.all`, because that
+order is the wire format apps receive a style as (`StarlingStyleId`'s raw
+values match it) and reordering it would have repainted every app in the
+wrong palette. `ShellMetrics.fluent` reads its corners from `FluentCorners`;
+maximized windows square their corners in Fluent only
+(`ShellMetrics.squareWhenMaximized`); an unfocused window drops to the
+untinted solid (`ShellTheme.windowSurfaceInactive`, the Mica inactive
+fallback) in both its body and its caption; apps assume Fluent when no
+style has been pushed; the styles paragraph in `CLAUDE.md` is rewritten per
+§3 and the 2025 prerequisites audit carries a status header.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*

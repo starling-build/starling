@@ -145,7 +145,11 @@ class DesktopWindow: StatelessWidget {
 
     override func build(_ context: any BuildContext) -> Widget {
         let isFullscreen = windowInfo.isFullscreen
-        let cornerRadius = isFullscreen ? 0.0 : DesktopTheme.kWindowCornerRadius
+        // Fullscreen squares every style's corners; maximized squares them
+        // where the style says so (Windows does, macOS does not).
+        let isSquare = isFullscreen
+            || (windowInfo.isMaximized && shellMetrics.squareWhenMaximized)
+        let cornerRadius = isSquare ? 0.0 : DesktopTheme.kWindowCornerRadius
         let borderColor = isFullscreen ? Color(0x00000000)
             : (isFocused ? shellTheme.windowBorderFocused : shellTheme.windowBorderUnfocused)
 
@@ -227,7 +231,11 @@ class DesktopWindow: StatelessWidget {
                             child: BackdropFilter(
                                 filter: ShellPalette.frostFilter(blurSigma: 18),
                                 child: ColoredBox(
-                                    color: shellTheme.windowGlassTint,
+                                    // The focused window gets the style's
+                                    // material; the rest its inactive surface.
+                                    color: isFocused
+                                        ? shellTheme.windowGlassTint
+                                        : shellTheme.windowSurfaceInactive,
                                     child: SizedBox(expand: ())
                                 )
                             )

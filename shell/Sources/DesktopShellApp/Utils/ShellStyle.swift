@@ -68,6 +68,12 @@ struct ShellMetrics {
     /// maximized window stops above it.
     let bottomBarReserves: Bool
 
+    /// Whether a maximized window loses its rounded corners. Windows squares
+    /// them — a maximized window meets the screen edges and the taskbar and
+    /// reads as part of the frame — while macOS keeps its rounding on every
+    /// window that is not fullscreen.
+    let squareWhenMaximized: Bool
+
     /// How much of the bottom edge a window has to stay clear of, or 0 where
     /// the bar is an overlay.
     var bottomInset: Double {
@@ -87,7 +93,8 @@ struct ShellMetrics {
         bottomBarHeight: 76.0,          // unchanged — Chrome height alignment
         bottomBarMargin: 6.0,           // unchanged — Chrome height alignment
         bottomBarContainerHeight: 132.0,
-        bottomBarReserves: false
+        bottomBarReserves: false,
+        squareWhenMaximized: false
     )
 
     /// One full-width taskbar on the bottom edge and nothing on top. Sized
@@ -97,15 +104,19 @@ struct ShellMetrics {
     /// The container is twice the strip on purpose: the hovered tile's name
     /// floats ABOVE the bar, and a layout box the size of the strip clips it
     /// away silently. The extra height paints nothing and takes no input.
+    /// Corners come from the SDK's Fluent tokens (`FluentCorners`), the one
+    /// place Windows' 8/4/0 geometry is written down; a literal here would be
+    /// a second copy that drifts.
     static let fluent = ShellMetrics(
         topInset: 0.0,
         titleBarHeight: 32.0,
-        windowCornerRadius: 8.0,
-        panelCornerRadius: 8.0,
+        windowCornerRadius: FluentCorners.window,
+        panelCornerRadius: FluentCorners.overlay,
         bottomBarHeight: 56.0,
         bottomBarMargin: 0.0,
         bottomBarContainerHeight: 112.0,
-        bottomBarReserves: true
+        bottomBarReserves: true,
+        squareWhenMaximized: true
     )
 }
 
@@ -305,21 +316,28 @@ enum ShellStyles {
         makeChrome: { FluentChrome(shell: $0) }
     )
 
-    /// Every style the desktop can be switched to, in menu order. The first
-    /// is the default for a machine that has never been switched.
+    /// Every style the desktop can be switched to, in menu order. The ORDER
+    /// is a wire format: a style goes to every app as its index here
+    /// (`broadcastStyle`, `StarlingStyleId`'s raw values), so it does not
+    /// change — the default is named separately.
     nonisolated(unsafe) static let all: [ShellStyleSpec] = [macos, fluent]
+
+    /// What a machine that has never chosen boots into: Fluent, since
+    /// 2026-09 (docs/plans/fluent-first.md). Persisted ids are untouched, so
+    /// nobody who picked macOS is moved.
+    nonisolated(unsafe) static let defaultStyle = fluent
 
     /// Resolve a persisted id, falling back to the default rather than
     /// failing — an id from a newer build, or a hand-edited config file,
     /// should give you a desktop and not a dead session.
     static func byId(_ id: String) -> ShellStyleSpec {
-        all.first { $0.id == id } ?? all[0]
+        all.first { $0.id == id } ?? defaultStyle
     }
 }
 
 /// The active style. Main-thread only, like `shellTheme`; switch it through
 /// the shell's `_setStyle` so the tree remounts.
-nonisolated(unsafe) var shellStyle: ShellStyleSpec = ShellStyles.all[0]
+nonisolated(unsafe) var shellStyle: ShellStyleSpec = ShellStyles.defaultStyle
 
 /// The active style's layout numbers. Computed rather than stored, so it
 /// cannot drift out of sync with `shellStyle`.
@@ -444,10 +462,15 @@ extension ShellTheme {
             // Mica, and the token that carries it furthest: the material
             // behind every window.
             windowGlassTint: micaBase,
+            // Mica is for the ACTIVE window only. Windows drops an unfocused
+            // window to the untinted solid (`SolidBackgroundFillColorBase`)
+            // — the documented inactive fallback, and the reason a stack of
+            // windows on Windows reads as one live one and the rest resting.
+            windowSurfaceInactive: r.solidBackgroundFillColorBase,
             // A Windows caption is the SAME surface as the window under it,
-            // not a darker strip laid across the top.
+            // not a darker strip laid across the top — active or not.
             titleBarActive: micaBase,
-            titleBarInactive: micaBase,
+            titleBarInactive: r.solidBackgroundFillColorBase,
             titleTextActive: r.textFillColorPrimary,
             titleTextInactive: r.textFillColorTertiary,
             windowBorderFocused: r.surfaceStrokeColorDefault,

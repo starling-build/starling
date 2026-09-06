@@ -1318,7 +1318,7 @@ def check_desktop_style() -> None:
         try:
             return style_file.read_text().strip()
         except OSError:
-            return "macos"   # the default, and what an absent file means
+            return "fluent"  # the default, and what an absent file means
 
     def bar_y() -> float:
         slots = ask("dock_rects")["slots"]
