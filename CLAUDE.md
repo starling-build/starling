@@ -443,6 +443,19 @@ Build / runtime:
       rm -rf .build-shared/*/release/Flutter.build
       build/build-all.sh            # or swift build twice: the first re-plans
 
+- **`build-all.sh` can report `shell 21s` and leave yesterday's shell
+  binary in place.** Seen 2026-09-06: `sdk/` and `shell/` had both
+  changed; the sdk step relinked the framework, the shell step "succeeded"
+  in 21 s without compiling, and the staged `DesktopShellApp` kept its
+  previous day's mtime — so the desktop came up without the change and
+  the `BUILD-STAMP` line (git sha + STAGING time, both fresh) said
+  otherwise. A direct `swift build -c release --package-path shell
+  --scratch-path $PWD/.build-shared` then compiled and linked in 59 s.
+  Same shared-scratch planning trap as the stale-`sdk/` one below, from
+  the other side. Before trusting a run: `ls -la --time-style=+%m-%d_%H:%M
+  .build-shared/x86_64-unknown-linux-gnu/release/DesktopShellApp` and
+  compare with your edit's time; if it is older, build that package
+  directly (or run `build-all.sh` twice) and re-stage.
 - **On Windows a cold `swift build` always fails, and the failure is a lie.**
   It dies inside the MSVC standard library —
   `xmemory: no matching function for call to 'construct_at'`, under an
