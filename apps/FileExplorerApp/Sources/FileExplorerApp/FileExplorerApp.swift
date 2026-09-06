@@ -1,81 +1,104 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Files, in Explorer's shape (docs/plans/fluent-first.md, Phase 6): a
+// command bar, a navigation bar carrying the breadcrumb and the search box,
+// the places pane at the left, a Details listing with Explorer's four
+// columns, and a status bar. The Windows shell's Files.swift was built to
+// exactly this spec and is the layout reference — the heights, widths and
+// type sizes below are its. The behaviour is FileExplorerBloc's, unchanged.
+//
+// Not here: the tab strip. Explorer's tabs live in the title bar, and a
+// DMA-BUF child does not own its title bar — the shell draws it. One
+// listing per window, honestly.
+
 import Flutter
 import FlutterSwiftBridge
-import CupertinoIcons
+import FluentSystemIcons
 import Foundation
 import Observation
 
-// MARK: - Finder palette
+// MARK: - Palette
 
-/// Theme-aware Finder palette: `dark` is flipped by the themed root when
-/// the shell pushes an appearance change. Brand colors (accent, folder
-/// blue, selection) stay fixed.
 /// Files' colours, in the roles the views ask for.
 ///
 /// The VALUES come from `StarlingPalette`, which answers for whichever
-/// desktop style is active: the macOS numbers this app shipped with, or
-/// WinUI's own tokens when the desktop is in the Windows style. The names
-/// here are unchanged, so nothing downstream learned about styles.
-///
-/// `folderBlue` stays a literal on purpose -- a folder is that blue on both
-/// desktops, and it is the app's own mark rather than a theme colour.
+/// desktop style is active — WinUI's tokens in the Windows style, the macOS
+/// numbers in the other. `dark` is flipped by the root's onThemeChanged
+/// before the rebuild, so every var here reads the right side.
 enum FinderColors {
     nonisolated(unsafe) static var dark = true
 
     private static var p: StarlingPalette { StarlingPalette.current(dark: dark) }
 
     static var accent: Color { p.accent }
-    /// Folder glyph blue used in the content list -- the app's own mark.
-    static let folderBlue = Color(0xFF54A3F7)
-    static var selection: Color { p.selection }
-
+    /// A folder's glyph — the palette's, because Explorer's are yellow and
+    /// Finder's blue.
+    static var folder: Color { p.folder }
     static var label: Color { p.textPrimary }
     static var secondaryLabel: Color { p.textSecondary }
     static var tertiaryLabel: Color { p.textTertiary }
     static var disabled: Color { p.textDisabled }
     static var hairline: Color { p.hairline }
-    static var stripe: Color { p.stripe }
-    /// Toolbar control glyphs (back/forward, new-folder, eye).
-    static var control: Color { p.textSecondary }
+    static var hover: Color { p.hover }
+    /// A selected row: the accent, faint, under unchanged text — Explorer's
+    /// selection, not Finder's solid bar.
+    static var rowSelection: Color {
+        let a = p.accent
+        return Color(alpha: 0.22, red: a.r, green: a.g, blue: a.b)
+    }
     /// Faint hero glyphs (empty-folder / search placeholder).
     static var faintGlyph: Color { p.textDisabled }
-    /// Path-bar chevrons.
-    static var chevron: Color { p.textTertiary }
-    /// Window surfaces. The shell frosts what is behind the window and the
-    /// macOS palette's alpha lets that liquid glass through, sidebar
-    /// glassier than the canvas; the Fluent palette is opaque, because
-    /// Windows' chrome is.
-    static var glassCanvas: Color { p.canvas }
-    static var glassSidebar: Color { p.sidebar }
+    /// The chrome: command bar, navigation bar, status bar, places pane.
+    static var chrome: Color { p.canvas }
+    static var navPane: Color { p.sidebar }
+    /// The listing, lifted a shade off the chrome as Explorer's is.
+    static var listBg: Color { p.surface }
+    static var fieldFill: Color { p.fieldFill }
+    static var fieldBorder: Color { p.fieldBorder }
     /// The face the active style sets its text in, or nil for the default.
     static var fontFamily: String? { p.fontFamily }
 }
 
-// MARK: - Sidebar sections
+// MARK: - Geometry (Explorer's)
 
-private struct _SidebarEntry {
+private let kCommandBar = 44.0
+private let kNavBar = 44.0
+private let kHeaderRow = 26.0
+private let kRow = 28.0
+private let kSidebar = 220.0
+private let kStatusBar = 34.0
+private let kColModified = 170.0
+private let kColType = 130.0
+private let kColSize = 90.0
+
+// MARK: - Places
+
+private struct _Place {
     let name: String
     let icon: IconData
     let path: String
+    var pinned: Bool = false
 }
 
-private let _sidebarSections: [(title: String, entries: [_SidebarEntry])] = {
-    let realHome = realUserHomeDirectory()
-    return [
-        (title: "Favourites", entries: [
-            _SidebarEntry(name: "Home", icon: CupertinoIcons.home, path: realHome),
-            _SidebarEntry(name: "Desktop", icon: CupertinoIcons.desktopcomputer, path: realHome + "/Desktop"),
-            _SidebarEntry(name: "Documents", icon: CupertinoIcons.doc_text, path: realHome + "/Documents"),
-            _SidebarEntry(name: "Downloads", icon: CupertinoIcons.arrow_down_circle, path: realHome + "/Downloads"),
-            _SidebarEntry(name: "Pictures", icon: CupertinoIcons.photo, path: realHome + "/Pictures"),
-        ]),
-        (title: "Locations", entries: [
-            _SidebarEntry(name: "Root", icon: CupertinoIcons.floppy_disk, path: "/"),
-            _SidebarEntry(name: "Temp", icon: CupertinoIcons.trash, path: "/tmp"),
-        ]),
-    ]
+private let _home = realUserHomeDirectory()
+
+/// Explorer's pane, on a Linux home: Home first, the pinned folders under
+/// it (the ones that exist), then the machine and the bin.
+private let _placesHome = _Place(name: "Home", icon: FluentSystemIcons.home, path: _home)
+private let _placesPinned: [_Place] = [
+    _Place(name: "Desktop",   icon: FluentSystemIcons.desktop,  path: _home + "/Desktop",   pinned: true),
+    _Place(name: "Documents", icon: FluentSystemIcons.document, path: _home + "/Documents", pinned: true),
+    _Place(name: "Downloads", icon: FluentSystemIcons.download, path: _home + "/Downloads", pinned: true),
+    _Place(name: "Pictures",  icon: FluentSystemIcons.pictures, path: _home + "/Pictures",  pinned: true),
+    _Place(name: "Music",     icon: FluentSystemIcons.music,    path: _home + "/Music",     pinned: true),
+    _Place(name: "Videos",    icon: FluentSystemIcons.video,    path: _home + "/Videos",    pinned: true),
+].filter { FileManager.default.fileExists(atPath: $0.path) }
+private let _placesComputer = _Place(name: "This PC", icon: FluentSystemIcons.laptop, path: "/")
+private let _placesTrash: _Place? = {
+    let path = _home + "/.local/share/Trash/files"
+    guard FileManager.default.fileExists(atPath: path) else { return nil }
+    return _Place(name: "Recycle Bin", icon: FluentSystemIcons.delete, path: path)
 }()
 
 // MARK: - FileExplorerApp
@@ -90,11 +113,18 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
 
     let bloc = FileExplorerBloc()
     let scrollController = ScrollController()
+    private let search = TextEditingController()
 
     /// Right-click context menu overlay state (window coordinates).
     var contextMenuPosition: Offset? = nil
     /// Row the context menu was opened on; nil = empty-area menu.
     var contextMenuIndex: Int? = nil
+
+    /// The breadcrumb's edit face: open, its controller, and the directory
+    /// it was opened on (a navigation under it closes it).
+    private var pathEditing = false
+    private var pathController: TextEditingController? = nil
+    private var pathEditDirectory = ""
 
     /// Manual double-click detection: DoubleTapGestureRecognizer relies on
     /// Foundation.Timer, which never fires on the Linux DRM embedder, and a
@@ -106,7 +136,12 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
         super.initState()
         filesBlocShared = bloc
         bloc.add(.loadInitialDirectory)
-        CupertinoIcons.registerFont()
+    }
+
+    override func dispose() {
+        search.dispose()
+        pathController?.dispose()
+        super.dispose()
     }
 
     override func build(_ context: any BuildContext) -> Widget {
@@ -119,18 +154,44 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
         }
     }
 
+    private var selectedEntry: FileEntry? {
+        let s = bloc.state
+        guard let idx = s.selectedIndex, idx < s.entries.count else { return nil }
+        return s.entries[idx]
+    }
+
+    private func _text(_ text: String, size: Double = 12, color: Color? = nil,
+                       weight: FontWeight = .normal) -> Widget {
+        return Text(
+            text,
+            style: TextStyle(color: color ?? FinderColors.label, fontSize: size,
+                             fontWeight: weight, fontFamily: FinderColors.fontFamily),
+            overflow: .ellipsis, maxLines: 1)
+    }
+
     // MARK: - Content
 
     private func _buildContent(_ context: any BuildContext) -> Widget {
+        let s = bloc.state
+        let main: Widget = s.errorMessage.map { _buildErrorPage($0) }
+            ?? Column(children: [
+                _buildColumnHeaders(),
+                Expanded(child: _buildFileList(context)),
+            ])
+
         var layers: [Widget] = [
-            MacosScaffold(
-                children: [
-                    _buildSidebar(),
-                    Expanded(child: _buildMainContent(context)),
-                ],
-                toolBar: _buildToolBar(context),
-                backgroundColor: FinderColors.glassCanvas
-            )
+            ColoredBox(
+                color: FinderColors.chrome,
+                child: Column(children: [
+                    _buildCommandBar(context),
+                    _buildNavigationBar(),
+                    Expanded(child: Row(children: [
+                        _buildSidebar(),
+                        Expanded(child: ColoredBox(color: FinderColors.listBg, child: main)),
+                    ])),
+                    _buildStatusBar(),
+                ])
+            ),
         ]
 
         if let pos = contextMenuPosition {
@@ -154,7 +215,7 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                 Positioned(
                     left: pos.dx,
                     top: pos.dy,
-                    child: SizedBox(width: 200, child: _buildContextMenu(context))
+                    child: _menu(_contextMenuItems(context))
                 )
             )
         }
@@ -162,227 +223,354 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
         return Stack(children: layers)
     }
 
-    // MARK: - Toolbar
+    /// A MenuFlyout as plain content in the window's own Stack — the shape
+    /// the shell uses for its popups. The intrinsic wrappers are what give
+    /// the flyout a size to lay out in; without them it renders as nothing.
+    private func _menu(_ items: [MenuFlyoutItemBase]) -> Widget {
+        return ConstrainedBox(
+            constraints: kFlyoutThemeConstraints,
+            child: IntrinsicWidth(child: IntrinsicHeight(
+                child: FluentEntrance(child: MenuFlyout(items: items)))))
+    }
 
-    private func _buildToolBar(_ context: any BuildContext) -> MacosToolBar {
+    // MARK: - Command bar
+
+    /// New, then the verbs the listing supports, then Sort and View —
+    /// Explorer's order, without the verbs this app cannot do (cut, copy,
+    /// paste, share): a lit button that fails is worse than its absence.
+    private func _buildCommandBar(_ context: any BuildContext) -> Widget {
         let s = bloc.state
-        let folderName = (s.currentPath as NSString).lastPathComponent
-
-        return MacosToolBar(
-            height: 52,
-            title: Text(
-                (folderName.isEmpty || folderName == "/") ? "Root" : folderName,
-                style: TextStyle(
-                    color: FinderColors.label,
-                    fontSize: 15,
-                    fontWeight: .w600
-                ),
-                overflow: .ellipsis,
-                maxLines: 1
-            ),
-            leading: Row(
-                children: [
-                    _toolbarIconButton(
-                        CupertinoIcons.chevron_left,
-                        enabled: s.canGoBack
-                    ) { [self] in bloc.add(.goBack) },
+        let selected = selectedEntry
+        let sortItems: [MenuFlyoutItemBase] = [
+            _sortItem("Name", .name, s),
+            _sortItem("Date modified", .modified, s),
+            _sortItem("Type", .type, s),
+            _sortItem("Size", .size, s),
+            MenuFlyoutSeparator(),
+            MenuFlyoutItem(text: Text("Ascending"),
+                           onPressed: { [self] in _setSortOrder(ascending: true) },
+                           selected: s.sortOrder == .ascending),
+            MenuFlyoutItem(text: Text("Descending"),
+                           onPressed: { [self] in _setSortOrder(ascending: false) },
+                           selected: s.sortOrder == .descending),
+        ]
+        return SizedBox(
+            height: kCommandBar,
+            child: Padding(
+                padding: EdgeInsets(horizontal: 10),
+                child: Row(children: [
+                    DropDownButton(
+                        title: Text("New"),
+                        leading: Icon(FluentSystemIcons.add, size: 14),
+                        items: [
+                            MenuFlyoutItem(
+                                text: Text("Folder"),
+                                leading: Icon(FluentSystemIcons.folder, size: 14),
+                                onPressed: { [self] in _showNewFolderDialog(context) }),
+                        ]),
+                    _barSeparator(),
+                    IconButton(
+                        icon: Icon(FluentSystemIcons.rename, size: 14),
+                        onPressed: selected == nil ? nil : { [self] in _showRenameDialog(context) }),
                     SizedBox(width: 2),
-                    _toolbarIconButton(
-                        CupertinoIcons.chevron_right,
-                        enabled: s.canGoForward
-                    ) { [self] in bloc.add(.goForward) },
-                ]
-            ),
-            actions: [
-                _toolbarIconButton(CupertinoIcons.folder_badge_plus) { [self] in
-                    _showNewFolderDialog(context)
-                },
-                SizedBox(width: 2),
-                _toolbarIconButton(
-                    s.showHidden ? CupertinoIcons.eye : CupertinoIcons.eye_slash
-                ) { [self] in bloc.add(.toggleHidden) },
-                SizedBox(width: 10),
-                SizedBox(
-                    width: 170,
-                    child: MacosTextField(
-                        placeholder: "Search",
-                        onChanged: { [self] (text: String) in
-                            bloc.add(.search(text))
-                        }
-                    )
-                ),
-            ],
-            titleAlignment: .centerLeft,
-            // Transparent: the glass canvas shows through the toolbar.
-            decoration: BoxDecoration(color: Color(0x00000000)),
-            padding: EdgeInsets(horizontal: 12)
-        )
-    }
-
-    private func _toolbarIconButton(_ icon: IconData, enabled: Bool = true, action: @escaping () -> Void) -> Widget {
-        return MacosIconButton(
-            icon: MacosIcon(
-                icon: icon,
-                color: enabled ? FinderColors.control : FinderColors.disabled,
-                size: 16
-            ),
-            onPressed: enabled ? action : nil,
-            disabledColor: MacosColors.transparent,
-            shape: .rectangle,
-            borderRadius: BorderRadius.all(Radius(circular: 5)),
-            padding: EdgeInsets(all: 6)
-        )
-    }
-
-    // MARK: - Sidebar
-
-    private func _buildSidebar() -> MacosSidebar {
-        let s = bloc.state
-        return MacosSidebar(
-            minWidth: 190,
-            maxWidth: 190,
-            decoration: BoxDecoration(
-                color: FinderColors.glassSidebar,
-                border: Border(right: BorderSide(color: FinderColors.hairline, width: 1))
-            ),
-            builder: { [self] (ctx: any BuildContext, _: ScrollController) in
-                var children: [Widget] = []
-                for (i, section) in _sidebarSections.enumerated() {
-                    children.append(
-                        Padding(
-                            padding: EdgeInsets(left: 10, top: i == 0 ? 10 : 16, bottom: 3),
-                            child: Text(
-                                section.title,
-                                style: TextStyle(
-                                    color: FinderColors.tertiaryLabel,
-                                    fontSize: 11,
-                                    fontWeight: .w600
-                                )
-                            )
-                        )
-                    )
-                    for entry in section.entries {
-                        children.append(
-                            self._sidebarItem(entry, currentPath: s.currentPath)
-                        )
-                    }
-                }
-                return Padding(
-                    padding: EdgeInsets(horizontal: 8),
-                    child: Column(crossAxisAlignment: .start, children: children)
-                )
-            }
-        )
-    }
-
-    private func _sidebarItem(_ entry: _SidebarEntry, currentPath: String) -> Widget {
-        let isSelected = currentPath == entry.path
-        return SidebarItem(
-            leading: MacosIcon(icon: entry.icon, color: FinderColors.accent, size: 16),
-            label: Text(
-                entry.name,
-                style: TextStyle(
-                    color: isSelected ? MacosColors.white : FinderColors.label,
-                    fontSize: 13
-                )
-            ),
-            selected: isSelected,
-            onTap: { [self] in bloc.add(.navigateTo(entry.path)) }
-        )
-    }
-
-    // MARK: - Main Content
-
-    private func _buildMainContent(_ context: any BuildContext) -> Widget {
-        let s = bloc.state
-
-        if let error = s.errorMessage {
-            return _buildErrorPage(error)
-        }
-
-        return Column(
-            children: [
-                _buildColumnHeaders(),
-                _hairline(),
-                Expanded(child: _buildFileList(context)),
-                _hairline(),
-                _buildPathBar(),
-                _buildStatusBar(),
-            ]
-        )
-    }
-
-    // MARK: - Column Headers
-
-    private let _dateColumnWidth: Double = 150
-    private let _sizeColumnWidth: Double = 75
-    private let _kindColumnWidth: Double = 100
-
-    private func _buildColumnHeaders() -> Widget {
-        let s = bloc.state
-        return Padding(
-            padding: EdgeInsets(left: 16, top: 5, right: 16, bottom: 5),
-            child: Row(
-                children: [
-                    Expanded(child: _sortableHeader("Name", .name, s: s)),
-                    _headerSeparator(),
-                    SizedBox(width: _dateColumnWidth, child: _sortableHeader("Date Modified", .modified, s: s)),
-                    _headerSeparator(),
-                    SizedBox(
-                        width: _sizeColumnWidth,
-                        child: Align(alignment: Alignment.centerRight, child: _sortableHeader("Size", .size, s: s))
-                    ),
-                    _headerSeparator(),
-                    SizedBox(width: _kindColumnWidth, child: _sortableHeader("Kind", .type, s: s)),
-                ]
+                    IconButton(
+                        icon: Icon(FluentSystemIcons.delete, size: 14),
+                        onPressed: selected == nil ? nil : { [self] in _showDeleteDialog(context) }),
+                    _barSeparator(),
+                    DropDownButton(
+                        title: Text("Sort"),
+                        leading: Icon(FluentSystemIcons.sort, size: 14),
+                        items: sortItems),
+                    SizedBox(width: 2),
+                    DropDownButton(
+                        title: Text("View"),
+                        leading: Icon(FluentSystemIcons.grid, size: 14),
+                        items: [
+                            MenuFlyoutItem(
+                                text: Text("Show hidden items"),
+                                onPressed: { [self] in bloc.add(.toggleHidden) },
+                                selected: s.showHidden),
+                        ]),
+                ])
             )
         )
     }
 
-    private func _headerSeparator() -> Widget {
+    private func _sortItem(_ label: String, _ column: SortColumn, _ s: FileExplorerState) -> MenuFlyoutItem {
+        return MenuFlyoutItem(
+            text: Text(label),
+            onPressed: { [self] in
+                if bloc.state.sortColumn != column { bloc.add(.toggleSort(column)) }
+            },
+            selected: s.sortColumn == column)
+    }
+
+    private func _setSortOrder(ascending: Bool) {
+        let s = bloc.state
+        if (s.sortOrder == .ascending) != ascending {
+            bloc.add(.toggleSort(s.sortColumn))
+        }
+    }
+
+    private func _barSeparator() -> Widget {
         return Padding(
-            padding: EdgeInsets(horizontal: 6),
+            padding: EdgeInsets(horizontal: 6, vertical: 10),
             child: SizedBox(
                 width: 1,
-                height: 12,
-                child: DecoratedBox(decoration: BoxDecoration(color: FinderColors.hairline))
+                child: DecoratedBox(decoration: BoxDecoration(color: FinderColors.hairline))))
+    }
+
+    // MARK: - Navigation bar
+
+    /// Back, forward, up, refresh, the breadcrumb, and search.
+    private func _buildNavigationBar() -> Widget {
+        let s = bloc.state
+        return SizedBox(
+            height: kNavBar,
+            child: Padding(
+                padding: EdgeInsets(left: 10, top: 0, right: 10, bottom: 6),
+                child: Row(children: [
+                    _navIcon(FluentSystemIcons.back, enabled: s.canGoBack) { [self] in bloc.add(.goBack) },
+                    _navIcon(FluentSystemIcons.forward, enabled: s.canGoForward) { [self] in bloc.add(.goForward) },
+                    _navIcon(FluentSystemIcons.up, enabled: s.canGoUp) { [self] in bloc.add(.goUp) },
+                    _navIcon(FluentSystemIcons.refresh, enabled: true) { [self] in bloc.add(.refresh) },
+                    SizedBox(width: 6),
+                    Expanded(child: _breadcrumb()),
+                    SizedBox(width: 8),
+                    _searchBox(),
+                ])
             )
         )
     }
 
-    private func _sortableHeader(_ label: String, _ column: SortColumn, s: FileExplorerState) -> Widget {
-        let isActive = s.sortColumn == column
+    private func _navIcon(_ icon: IconData, enabled: Bool, _ action: @escaping () -> Void) -> Widget {
+        return IconButton(
+            icon: Icon(icon, size: 15),
+            onPressed: enabled ? action : nil)
+    }
 
-        var children: [Widget] = [
-            Text(
-                label,
-                style: TextStyle(
-                    color: isActive ? FinderColors.label : FinderColors.secondaryLabel,
-                    fontSize: 11,
-                    fontWeight: isActive ? .w600 : .normal
-                )
-            )
-        ]
-        if isActive {
-            children.append(SizedBox(width: 3))
-            children.append(
-                MacosIcon(
-                    icon: s.sortOrder == .ascending
-                        ? CupertinoIcons.chevron_up
-                        : CupertinoIcons.chevron_down,
-                    color: FinderColors.secondaryLabel,
-                    size: 9
-                )
-            )
+    /// The address bar, as Explorer draws it: the path broken into
+    /// segments with chevrons between them, each one a place you can go
+    /// back to — and, on a click in its empty space, an edit field over the
+    /// same footprint. Enter navigates; losing focus puts the crumbs back.
+    private func _breadcrumb() -> Widget {
+        let s = bloc.state
+        // A navigation that lands UNDER the edit closes it: the field was
+        // editing a directory this window is no longer in.
+        if pathEditing && s.currentPath != pathEditDirectory {
+            pathEditing = false
+            pathController = nil
         }
+        if pathEditing { return _pathField() }
 
+        let parts = FileSystem.pathComponents(s.currentPath)
+        var crumbs: [Widget] = [
+            Icon(FluentSystemIcons.laptop, size: 13, color: FinderColors.secondaryLabel),
+            SizedBox(width: 4),
+        ]
+        for (i, part) in parts.enumerated() {
+            if i > 0 {
+                crumbs.append(Icon(FluentSystemIcons.chevronRight, size: 9,
+                                   color: FinderColors.tertiaryLabel))
+            }
+            let isLast = i == parts.count - 1
+            let label = i == 0 ? "This PC" : part.name
+            crumbs.append(GestureDetector(
+                onTap: isLast ? nil : { [self] in bloc.add(.navigateTo(part.path)) },
+                child: Padding(
+                    padding: EdgeInsets(horizontal: 5, vertical: 3),
+                    child: _text(label, size: 12,
+                                 color: isLast ? FinderColors.label : FinderColors.secondaryLabel))))
+        }
+        // The empty remainder of the bar IS the edit affordance. A
+        // transparent ColoredBox, because a bare SizedBox hit-tests as
+        // nothing and this framework's ColoredBox hit-tests opaque at any
+        // alpha — the documented trap, here load-bearing.
+        crumbs.append(Expanded(child: GestureDetector(
+            onTap: { [self] in _openPathEdit() },
+            child: ColoredBox(color: Color(0x00000000), child: SizedBox(height: 32)))))
+
+        return ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: DecoratedBox(
+                decoration: BoxDecoration(
+                    color: FinderColors.fieldFill,
+                    border: Border.all(color: FinderColors.fieldBorder, width: 1),
+                    borderRadius: BorderRadius.circular(4)),
+                child: SizedBox(
+                    height: 32,
+                    child: Padding(
+                        padding: EdgeInsets(horizontal: 10),
+                        child: Row(children: crumbs)))))
+    }
+
+    private func _pathField() -> Widget {
+        return SizedBox(
+            height: 32,
+            child: FluentTextBox(
+                controller: pathController!,
+                onSubmitted: { [self] text in _commitPath(text) },
+                autofocus: true,
+                // Losing focus IS the dismissal: Explorer's bar folds back
+                // to crumbs the moment the edit stops being the focus.
+                onFocusChanged: { [self] focused in
+                    guard !focused, pathEditing else { return }
+                    setState {
+                        pathEditing = false
+                        pathController = nil
+                    }
+                }))
+    }
+
+    private func _openPathEdit() {
+        let directory = bloc.state.currentPath
+        setState {
+            pathController = TextEditingController(text: directory)
+            pathEditing = true
+            pathEditDirectory = directory
+        }
+    }
+
+    /// Enter in the address field: expand a leading ~, then go if the
+    /// directory exists. A typo stays in the field to be fixed.
+    private func _commitPath(_ text: String) {
+        var path = text.trimmingCharacters(in: .whitespaces)
+        if path.hasPrefix("~") { path = _home + path.dropFirst() }
+        guard !path.isEmpty else {
+            setState { pathEditing = false; pathController = nil }
+            return
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return }
+        setState { pathEditing = false; pathController = nil }
+        bloc.add(.navigateTo(path))
+    }
+
+    private func _searchBox() -> Widget {
+        let folder = (bloc.state.currentPath as NSString).lastPathComponent
+        return SizedBox(
+            width: 220, height: 32,
+            child: FluentTextBox(
+                controller: search,
+                placeholderText: "Search \(folder.isEmpty ? "This PC" : folder)",
+                onChanged: { [self] (text: String) in bloc.add(.search(text)) },
+                prefix: Padding(
+                    padding: EdgeInsets(left: 8),
+                    child: Icon(FluentSystemIcons.search, size: 12,
+                                color: FinderColors.tertiaryLabel))))
+    }
+
+    // MARK: - Places pane
+
+    private func _buildSidebar() -> Widget {
+        let s = bloc.state
+        var rows: [Widget] = [_placeRow(_placesHome, current: s.currentPath)]
+        if !_placesPinned.isEmpty {
+            rows.append(_sidebarRule())
+            for place in _placesPinned {
+                rows.append(_placeRow(place, current: s.currentPath))
+            }
+        }
+        rows.append(_sidebarRule())
+        rows.append(_placeRow(_placesComputer, current: s.currentPath))
+        if let trash = _placesTrash {
+            rows.append(_placeRow(trash, current: s.currentPath))
+        }
+        return SizedBox(
+            width: kSidebar,
+            child: ColoredBox(
+                color: FinderColors.navPane,
+                child: Padding(
+                    padding: EdgeInsets(left: 8, top: 10, right: 8, bottom: 8),
+                    child: Column(crossAxisAlignment: .stretch, children: rows))))
+    }
+
+    /// The hairline between pane groups, inset the way Explorer's are.
+    private func _sidebarRule() -> Widget {
+        return Padding(
+            padding: EdgeInsets(left: 10, top: 8, right: 10, bottom: 8),
+            child: SizedBox(
+                height: 1,
+                child: DecoratedBox(decoration: BoxDecoration(color: FinderColors.hairline))))
+    }
+
+    private func _placeRow(_ place: _Place, current: String) -> Widget {
+        let selected = current == place.path
+        return Padding(
+            padding: EdgeInsets(vertical: 1),
+            child: HoverButton(
+                builder: { _, states in
+                    var cells: [Widget] = [
+                        Icon(place.icon, size: 14,
+                             color: place.pinned || place.path == _home
+                                 ? FinderColors.folder : FinderColors.secondaryLabel),
+                        SizedBox(width: 9),
+                        Expanded(child: self._text(place.name, size: 13)),
+                    ]
+                    if place.pinned {
+                        cells.append(Icon(FluentSystemIcons.pin, size: 11,
+                                          color: FinderColors.tertiaryLabel))
+                    }
+                    return ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: ColoredBox(
+                            color: selected ? FinderColors.rowSelection
+                                : (states.isHovered ? FinderColors.hover : Color(0x00000000)),
+                            child: SizedBox(
+                                height: 30,
+                                child: Padding(
+                                    padding: EdgeInsets(horizontal: 10),
+                                    child: Row(children: cells)))))
+                },
+                onPressed: { [self] in bloc.add(.navigateTo(place.path)) }))
+    }
+
+    // MARK: - Column headers
+
+    /// Name / Date modified / Type / Size, and a click sorts by one.
+    private func _buildColumnHeaders() -> Widget {
+        let s = bloc.state
+        return SizedBox(
+            height: kHeaderRow,
+            child: Padding(
+                padding: EdgeInsets(horizontal: 16),
+                child: Row(children: [
+                    SizedBox(width: 18, height: 1),
+                    SizedBox(width: 10),
+                    Expanded(child: _headerCell("Name", .name, s: s, leading: true)),
+                    SizedBox(width: 10),
+                    SizedBox(width: kColModified, child: _headerCell("Date modified", .modified, s: s, leading: true)),
+                    SizedBox(width: 10),
+                    SizedBox(width: kColType, child: _headerCell("Type", .type, s: s, leading: true)),
+                    SizedBox(width: 10),
+                    SizedBox(width: kColSize, child: _headerCell("Size", .size, s: s, leading: false)),
+                ])))
+    }
+
+    private func _headerCell(_ label: String, _ column: SortColumn, s: FileExplorerState,
+                             leading: Bool) -> Widget {
+        let active = s.sortColumn == column
+        var children: [Widget] = [
+            _text(label, size: 11, color: active ? FinderColors.label : FinderColors.tertiaryLabel),
+        ]
+        if active {
+            // The arrow is the only thing that says which way a re-click
+            // will flip it.
+            children.append(SizedBox(width: 4))
+            children.append(Icon(
+                s.sortOrder == .ascending ? FluentSystemIcons.chevronUp : FluentSystemIcons.chevronDown,
+                size: 8, color: FinderColors.accent))
+        }
         return GestureDetector(
             onTap: { [self] in bloc.add(.toggleSort(column)) },
-            child: Row(mainAxisSize: .min, children: children)
-        )
+            behavior: .opaque,
+            child: Align(
+                alignment: leading ? Alignment.centerLeft : Alignment.centerRight,
+                child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: children)))
     }
 
-    // MARK: - File List
+    // MARK: - Listing
 
     private func _buildFileList(_ context: any BuildContext) -> Widget {
         let s = bloc.state
@@ -408,78 +596,54 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                 color: Color(0x00000000),
                 child: SingleChildScrollView(
                     controller: scrollController,
-                    child: Column(crossAxisAlignment: .start, children: rows)
+                    child: Column(crossAxisAlignment: .stretch, children: rows)
                 )
             )
         )
 
-        return MacosScrollbar(controller: scrollController, child: list)
+        return FluentScrollbar(controller: scrollController, child: list)
     }
 
     private func _buildFileRow(_ entry: FileEntry, index: Int, isSelected: Bool) -> Widget {
         let idx = index
+        let dim = FinderColors.secondaryLabel
 
-        let cells = Row(
-            children: [
-                // Icon + Name
-                Expanded(
-                    child: Row(
-                        children: [
-                            _fileIcon(entry),
-                            SizedBox(width: 7),
-                            Expanded(
-                                child: Text(
-                                    entry.name,
-                                    style: TextStyle(
-                                        color: isSelected ? MacosColors.white : FinderColors.label,
-                                        fontSize: 13
-                                    ),
-                                    overflow: .ellipsis,
-                                    maxLines: 1
-                                )
-                            ),
-                        ]
-                    )
-                ),
-                // Date Modified
-                SizedBox(
-                    width: _dateColumnWidth + 13,
-                    child: Text(
-                        FileSystem.formatDate(entry.modified),
-                        style: _secondaryCellStyle(isSelected),
-                        overflow: .ellipsis,
-                        maxLines: 1
-                    )
-                ),
-                // Size
-                SizedBox(
-                    width: _sizeColumnWidth,
-                    child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                            entry.isDirectory ? "--" : FileSystem.formatSize(entry.size),
-                            style: _secondaryCellStyle(isSelected)
-                        )
-                    )
-                ),
-                // Kind
-                Padding(
-                    padding: EdgeInsets(left: 13),
+        let row = HoverButton(
+            builder: { [self] _, states in
+                ColoredBox(
+                    color: isSelected ? FinderColors.rowSelection
+                        : (states.isHovered ? FinderColors.hover : Color(0x00000000)),
                     child: SizedBox(
-                        width: _kindColumnWidth,
-                        child: Text(
-                            _kindLabel(entry),
-                            style: _secondaryCellStyle(isSelected),
-                            overflow: .ellipsis,
-                            maxLines: 1
-                        )
-                    )
-                ),
-            ]
-        )
-
-        return GestureDetector(
-            onTap: { [self] in
+                        height: kRow,
+                        child: Padding(
+                            padding: EdgeInsets(horizontal: 16),
+                            child: Row(children: [
+                                SizedBox(width: 18, height: 18, child: Center(child: _fileIcon(entry))),
+                                SizedBox(width: 10),
+                                Expanded(child: _text(entry.name, size: 12)),
+                                SizedBox(width: 10),
+                                SizedBox(
+                                    width: kColModified,
+                                    child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: _text(FileSystem.formatDate(entry.modified), size: 12, color: dim))),
+                                SizedBox(width: 10),
+                                SizedBox(
+                                    width: kColType,
+                                    child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: _text(_kindLabel(entry), size: 12, color: dim))),
+                                SizedBox(width: 10),
+                                SizedBox(
+                                    width: kColSize,
+                                    child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: _text(entry.isDirectory ? "" : FileSystem.formatSize(entry.size),
+                                                     size: 12, color: dim))),
+                            ]))))
+            },
+            onPressed: { [self] in
+                // Select on the first click, open on a second within 0.4s.
                 let now = Date()
                 if _lastClickIndex == idx, now.timeIntervalSince(_lastClickTime) < 0.4 {
                     _lastClickTime = .distantPast
@@ -490,7 +654,9 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                     _lastClickIndex = idx
                     bloc.add(.select(idx))
                 }
-            },
+            })
+
+        return GestureDetector(
             onSecondaryTapUp: { [self] (details: TapUpDetails) in
                 bloc.add(.select(idx))
                 setState {
@@ -498,30 +664,7 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                     contextMenuPosition = details.globalPosition
                 }
             },
-            child: ColoredBox(
-                color: index % 2 == 1 ? FinderColors.stripe : Color(0x00000000),
-                child: Padding(
-                    padding: EdgeInsets(horizontal: 4),
-                    child: DecoratedBox(
-                        decoration: BoxDecoration(
-                            color: isSelected ? FinderColors.selection : Color(0x00000000),
-                            borderRadius: BorderRadius.all(Radius(circular: 5))
-                        ),
-                        child: Padding(
-                            padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 4),
-                            child: cells
-                        )
-                    )
-                )
-            )
-        )
-    }
-
-    private func _secondaryCellStyle(_ isSelected: Bool) -> Flutter.TextStyle {
-        return TextStyle(
-            color: isSelected ? Color(0xCCFFFFFF) : FinderColors.secondaryLabel,
-            fontSize: 12
-        )
+            child: row)
     }
 
     private func _buildEmptyState(_ s: FileExplorerState) -> Widget {
@@ -539,16 +682,11 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                     child: Column(
                         mainAxisSize: .min,
                         children: [
-                            MacosIcon(
-                                icon: isSearch ? CupertinoIcons.search : CupertinoIcons.folder_open,
-                                color: FinderColors.faintGlyph,
-                                size: 48
-                            ),
+                            Icon(isSearch ? FluentSystemIcons.search : FluentSystemIcons.folderOpen,
+                                 size: 48, color: FinderColors.faintGlyph),
                             SizedBox(height: 12),
-                            Text(
-                                isSearch ? "No results for \"\(s.searchQuery)\"" : "Empty Folder",
-                                style: TextStyle(color: FinderColors.tertiaryLabel, fontSize: 13)
-                            ),
+                            _text(isSearch ? "No items match your search." : "This folder is empty.",
+                                  size: 13, color: FinderColors.tertiaryLabel),
                         ]
                     )
                 )
@@ -560,255 +698,158 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
         let icon: IconData
         let color: Color
         if entry.isDirectory {
-            icon = CupertinoIcons.folder_fill
-            color = FinderColors.folderBlue
+            icon = FluentSystemIcons.folder
+            color = FinderColors.folder
         } else {
             switch entry.fileExtension {
-            case "swift", "c", "cc", "cpp", "h", "py", "js", "ts", "rs", "go", "java", "rb", "sh":
-                icon = CupertinoIcons.chevron_left_slash_chevron_right
-                color = Color(0xFFB0B0B0)
             case "png", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "webp":
-                icon = CupertinoIcons.photo
+                icon = FluentSystemIcons.pictures
                 color = Color(0xFF4CD964)
             case "mp3", "wav", "flac", "aac", "ogg", "m4a":
-                icon = CupertinoIcons.music_note
+                icon = FluentSystemIcons.music
                 color = Color(0xFFFF2D55)
             case "mp4", "mkv", "avi", "mov", "webm":
-                icon = CupertinoIcons.film
+                icon = FluentSystemIcons.video
                 color = Color(0xFFAF52DE)
             case "zip", "tar", "gz", "bz2", "xz", "7z", "rar", "deb", "rpm":
-                icon = CupertinoIcons.archivebox
+                icon = FluentSystemIcons.zip
                 color = Color(0xFFFF9500)
-            case "pdf":
-                icon = CupertinoIcons.doc_text
-                color = Color(0xFFFF3B30)
-            case "txt", "md", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf", "log":
-                icon = CupertinoIcons.doc_plaintext
-                color = Color(0xFFB0B0B0)
             default:
-                icon = CupertinoIcons.doc
-                color = Color(0xFF8E8E93)
+                icon = FluentSystemIcons.document
+                color = FinderColors.secondaryLabel
             }
         }
-        return MacosIcon(icon: icon, color: color, size: 16)
+        return Icon(icon, size: 16, color: color)
     }
 
+    /// Explorer's Type column: "File folder", then the kind by extension.
     private func _kindLabel(_ entry: FileEntry) -> String {
-        if entry.isSymlink { return "Alias" }
-        if entry.isDirectory { return "Folder" }
+        if entry.isSymlink { return "Shortcut" }
+        if entry.isDirectory { return "File folder" }
         switch entry.fileExtension {
-        case "swift": return "Swift"
-        case "c", "cc", "cpp": return "C/C++"
-        case "h": return "Header"
-        case "py": return "Python"
-        case "js": return "JavaScript"
-        case "ts": return "TypeScript"
-        case "rs": return "Rust"
-        case "go": return "Go"
-        case "java": return "Java"
-        case "sh": return "Script"
-        case "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp": return "Image"
-        case "mp3", "wav", "flac", "aac", "ogg", "m4a": return "Audio"
-        case "mp4", "mkv", "avi", "mov", "webm": return "Video"
+        case "swift": return "Swift source"
+        case "c", "cc", "cpp": return "C/C++ source"
+        case "h": return "C header"
+        case "py": return "Python source"
+        case "js": return "JavaScript source"
+        case "ts": return "TypeScript source"
+        case "rs": return "Rust source"
+        case "go": return "Go source"
+        case "java": return "Java source"
+        case "sh": return "Shell script"
+        case "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp":
+            return "\(entry.fileExtension.uppercased()) image"
+        case "mp3", "wav", "flac", "aac", "ogg", "m4a":
+            return "\(entry.fileExtension.uppercased()) audio"
+        case "mp4", "mkv", "avi", "mov", "webm":
+            return "\(entry.fileExtension.uppercased()) video"
         case "zip", "tar", "gz", "bz2", "xz", "7z", "rar": return "Archive"
         case "deb", "rpm": return "Package"
-        case "pdf": return "PDF"
-        case "txt": return "Text"
-        case "md": return "Markdown"
-        case "json": return "JSON"
-        case "xml": return "XML"
-        case "yaml", "yml": return "YAML"
-        case "toml": return "TOML"
-        case "log": return "Log"
-        case "so", "dylib": return "Library"
-        case "o", "a": return "Object"
+        case "pdf": return "PDF document"
+        case "txt": return "Text document"
+        case "md": return "Markdown document"
+        case "json": return "JSON file"
+        case "xml": return "XML file"
+        case "yaml", "yml": return "YAML file"
+        case "toml": return "TOML file"
+        case "log": return "Log file"
+        case "so", "dylib": return "Shared library"
+        case "o", "a": return "Object file"
         case "": return "File"
-        default: return entry.fileExtension.uppercased()
+        default: return "\(entry.fileExtension.uppercased()) file"
         }
     }
 
-    // MARK: - Context Menu
+    // MARK: - Context menu
 
-    private func _buildContextMenu(_ context: any BuildContext) -> Widget {
+    private func _contextMenuItems(_ context: any BuildContext) -> [MenuFlyoutItemBase] {
         let s = bloc.state
-        var items: [MacosMenuEntry] = []
+        var items: [MenuFlyoutItemBase] = []
+        let close: () -> Void = { [self] in setState { contextMenuPosition = nil } }
 
         if let idx = contextMenuIndex, idx < s.entries.count {
             let entry = s.entries[idx]
             if entry.isDirectory {
-                items.append(MacosMenuItem(
-                    text: "Open",
-                    onPressed: { [self] in
-                        setState { contextMenuPosition = nil }
-                        bloc.add(.doubleClick(idx))
-                    }
-                ))
-                items.append(MacosMenuSeparator())
+                items.append(MenuFlyoutItem(
+                    text: Text("Open"),
+                    leading: Icon(FluentSystemIcons.folderOpen, size: 14),
+                    onPressed: { [self] in close(); bloc.add(.doubleClick(idx)) }))
+                items.append(MenuFlyoutSeparator())
             }
-            items.append(MacosMenuItem(
-                text: "Rename\u{2026}",
-                onPressed: { [self] in
-                    setState { contextMenuPosition = nil }
-                    _showRenameDialog(context)
-                }
-            ))
-            items.append(MacosMenuItem(
-                text: "Delete",
-                onPressed: { [self] in
-                    setState { contextMenuPosition = nil }
-                    _showDeleteDialog(context)
-                }
-            ))
-            items.append(MacosMenuSeparator())
+            items.append(MenuFlyoutItem(
+                text: Text("Rename"),
+                leading: Icon(FluentSystemIcons.rename, size: 14),
+                onPressed: { [self] in close(); _showRenameDialog(context) }))
+            items.append(MenuFlyoutItem(
+                text: Text("Delete"),
+                leading: Icon(FluentSystemIcons.delete, size: 14),
+                onPressed: { [self] in close(); _showDeleteDialog(context) }))
+            items.append(MenuFlyoutSeparator())
         }
 
-        items.append(MacosMenuItem(
-            text: "New Folder\u{2026}",
-            onPressed: { [self] in
-                setState { contextMenuPosition = nil }
-                _showNewFolderDialog(context)
-            }
-        ))
-        items.append(MacosMenuItem(
-            text: "Refresh",
-            onPressed: { [self] in
-                setState { contextMenuPosition = nil }
-                bloc.add(.refresh)
-            }
-        ))
-        items.append(MacosMenuSeparator())
-        items.append(MacosMenuItem(
-            text: s.showHidden ? "Hide Hidden Files" : "Show Hidden Files",
-            onPressed: { [self] in
-                setState { contextMenuPosition = nil }
-                bloc.add(.toggleHidden)
-            }
-        ))
-
-        return MacosMenu(items: items)
+        items.append(MenuFlyoutItem(
+            text: Text("New folder"),
+            leading: Icon(FluentSystemIcons.add, size: 14),
+            onPressed: { [self] in close(); _showNewFolderDialog(context) }))
+        items.append(MenuFlyoutItem(
+            text: Text("Refresh"),
+            leading: Icon(FluentSystemIcons.refresh, size: 14),
+            onPressed: { [self] in close(); bloc.add(.refresh) }))
+        items.append(MenuFlyoutSeparator())
+        items.append(MenuFlyoutItem(
+            text: Text("Show hidden items"),
+            onPressed: { [self] in close(); bloc.add(.toggleHidden) },
+            selected: s.showHidden))
+        return items
     }
 
-    // MARK: - Path Bar
+    // MARK: - Status bar
 
-    private func _buildPathBar() -> Widget {
-        let s = bloc.state
-        let components = FileSystem.pathComponents(s.currentPath)
-
-        var widgets: [Widget] = []
-        for (i, comp) in components.enumerated() {
-            if i > 0 {
-                widgets.append(
-                    Padding(
-                        padding: EdgeInsets(horizontal: 5),
-                        child: MacosIcon(
-                            icon: CupertinoIcons.chevron_right,
-                            color: FinderColors.chevron,
-                            size: 8
-                        )
-                    )
-                )
-            }
-            let isLast = i == components.count - 1
-            let isRoot = i == 0
-            widgets.append(
-                GestureDetector(
-                    onTap: isLast ? nil : { [self] in bloc.add(.navigateTo(comp.path)) },
-                    child: Row(
-                        mainAxisSize: .min,
-                        children: [
-                            MacosIcon(
-                                icon: isRoot ? CupertinoIcons.floppy_disk : CupertinoIcons.folder_fill,
-                                color: isRoot ? FinderColors.secondaryLabel : FinderColors.folderBlue,
-                                size: 11
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                                isRoot ? "Root" : comp.name,
-                                style: TextStyle(
-                                    color: isLast ? FinderColors.label : FinderColors.secondaryLabel,
-                                    fontSize: 11
-                                )
-                            ),
-                        ]
-                    )
-                )
-            )
-        }
-
-        return DecoratedBox(
-            decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: FinderColors.hairline, width: 0.5))
-            ),
-            child: SizedBox(
-                height: 24,
-                child: Padding(
-                    padding: EdgeInsets(horizontal: 12),
-                    child: SingleChildScrollView(
-                        scrollDirection: .horizontal,
-                        child: Row(children: widgets)
-                    )
-                )
-            )
-        )
-    }
-
-    // MARK: - Status Bar
-
+    /// Explorer's status bar: how many things are here, what is picked,
+    /// and how much room is left.
     private func _buildStatusBar() -> Widget {
         let s = bloc.state
-
-        var text = "\(s.entries.count) item\(s.entries.count == 1 ? "" : "s")"
-        if let idx = s.selectedIndex, idx < s.entries.count {
-            text = "\u{201C}\(s.entries[idx].name)\u{201D} selected of " + text
+        let count = s.entries.count
+        var cells: [Widget] = [
+            _text("\(count) item\(count == 1 ? "" : "s")", size: 11, color: FinderColors.secondaryLabel),
+        ]
+        if let entry = selectedEntry {
+            cells.append(Padding(
+                padding: EdgeInsets(horizontal: 12),
+                child: SizedBox(
+                    width: 1, height: 14,
+                    child: DecoratedBox(decoration: BoxDecoration(color: FinderColors.hairline)))))
+            cells.append(Flexible(child: _text(
+                entry.isDirectory ? "1 item selected"
+                    : "1 item selected  \(FileSystem.formatSize(entry.size))",
+                size: 11, color: FinderColors.secondaryLabel)))
         }
         if let free = FileSystem.freeSpace(at: s.currentPath) {
-            text += ", \(FileSystem.formatSize(free)) available"
+            cells.append(Expanded(child: Align(
+                alignment: Alignment.centerRight,
+                child: _text("\(FileSystem.formatSize(free)) free", size: 11,
+                             color: FinderColors.secondaryLabel))))
         }
-
-        return DecoratedBox(
-            decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: FinderColors.hairline, width: 0.5))
-            ),
-            child: SizedBox(
-                height: 22,
-                child: Center(
-                    child: Text(
-                        text,
-                        style: TextStyle(color: FinderColors.secondaryLabel, fontSize: 11)
-                    )
-                )
-            )
-        )
+        return SizedBox(
+            height: kStatusBar,
+            child: Padding(
+                padding: EdgeInsets(left: 14, top: 0, right: 10, bottom: 0),
+                child: Row(crossAxisAlignment: .center, children: cells)))
     }
 
-    // MARK: - Error Page
+    // MARK: - Error page
 
     private func _buildErrorPage(_ error: String) -> Widget {
         return Center(
             child: Column(
                 mainAxisSize: .min,
                 children: [
-                    MacosIcon(icon: CupertinoIcons.exclamationmark_triangle, color: Color(0xFFFF6666), size: 48),
+                    Icon(FluentSystemIcons.info, size: 48, color: FinderColors.faintGlyph),
                     SizedBox(height: 12),
-                    Text(error, style: TextStyle(color: Color(0xFFFF6666), fontSize: 13)),
+                    _text(error, size: 13, color: FinderColors.secondaryLabel),
                     SizedBox(height: 16),
-                    PushButton(
-                        child: Text("Go Up"),
-                        controlSize: .regular,
-                        onPressed: { [self] in bloc.add(.goUp) }
-                    ),
+                    Button(onPressed: { [self] in bloc.add(.goUp) }, child: Text("Go up")),
                 ]
-            )
-        )
-    }
-
-    // MARK: - Helpers
-
-    private func _hairline() -> Widget {
-        return SizedBox(
-            height: 1,
-            child: DecoratedBox(
-                decoration: BoxDecoration(color: FinderColors.hairline)
             )
         )
     }
@@ -824,9 +865,7 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _showRenameDialog(_ context: any BuildContext) {
-        let s = bloc.state
-        guard let idx = s.selectedIndex, idx < s.entries.count else { return }
-        let entry = s.entries[idx]
+        guard let entry = selectedEntry else { return }
         showDialog(context: context, barrierDismissible: true, builder: { [self] ctx in
             return _RenameDialog(entry: entry, onRenamed: { [self] in
                 bloc.add(.refresh)
@@ -835,9 +874,7 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     }
 
     private func _showDeleteDialog(_ context: any BuildContext) {
-        let s = bloc.state
-        guard let idx = s.selectedIndex, idx < s.entries.count else { return }
-        let entry = s.entries[idx]
+        guard let entry = selectedEntry else { return }
         showDialog(context: context, barrierDismissible: true, builder: { [self] ctx in
             return _DeleteDialog(entry: entry, onDeleted: { [self] in
                 bloc.add(.delete(path: entry.path))
@@ -864,58 +901,45 @@ class _NewFolderDialog: StatefulWidget {
 }
 
 class _NewFolderDialogState: State<StatefulWidget> {
-    var folderName: String = ""
+    private let name = TextEditingController(text: "New folder")
     var error: String? = nil
 
+    override func dispose() {
+        name.dispose()
+        super.dispose()
+    }
+
     override func build(_ context: any BuildContext) -> Widget {
-        return MacosAlertDialog(
-            appIcon: MacosIcon(icon: CupertinoIcons.folder_badge_plus, color: Color(0xFF007AFF), size: 40),
-            title: Text("New Folder"),
-            message: Column(
-                mainAxisSize: .min,
-                children: [
-                    MacosTextField(
-                        placeholder: "Folder name",
-                        onChanged: { [self] (text: String) in
-                            setState {
-                                folderName = text
-                                error = nil
-                            }
-                        },
-                        onSubmitted: { [self] (_: String) in
-                            _create(context)
-                        }
-                    ),
-                    error != nil
-                        ? Padding(
-                            padding: EdgeInsets(top: 8),
-                            child: Text(error!, style: TextStyle(color: Color(0xFFFF6666), fontSize: 11))
-                          )
-                        : SizedBox(shrink: ()),
-                ]
-            ),
-            primaryButton: PushButton(
-                child: Text("Create"),
-                controlSize: .regular,
-                onPressed: { [self] in _create(context) }
-            ),
-            secondaryButton: PushButton(
-                child: Text("Cancel"),
-                controlSize: .regular,
-                onPressed: { Navigator.pop(context) },
-                secondary: true
-            )
-        )
+        var content: [Widget] = [
+            FluentTextBox(
+                controller: name,
+                placeholderText: "Folder name",
+                onChanged: { [self] _ in if error != nil { setState { error = nil } } },
+                onSubmitted: { [self] _ in _create(context) },
+                autofocus: true),
+        ]
+        if let error {
+            content.append(Padding(
+                padding: EdgeInsets(top: 8),
+                child: Text(error, style: TextStyle(color: Color(0xFFE0655A), fontSize: 12))))
+        }
+        return ContentDialog(
+            title: Text("New folder"),
+            content: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: content),
+            actions: [
+                Button(onPressed: { Navigator.pop(context) }, child: Text("Cancel")),
+                FilledButton(onPressed: { [self] in _create(context) }, child: Text("Create")),
+            ])
     }
 
     private func _create(_ context: any BuildContext) {
         let dialog = widget as! _NewFolderDialog
-        let name = folderName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else {
+        let folder = name.text.trimmingCharacters(in: .whitespaces)
+        guard !folder.isEmpty else {
             setState { error = "Name cannot be empty" }
             return
         }
-        if let err = FileSystem.createDirectory(at: dialog.parentPath, name: name) {
+        if let err = FileSystem.createDirectory(at: dialog.parentPath, name: folder) {
             setState { error = err }
         } else {
             dialog.onCreated()
@@ -942,69 +966,55 @@ class _RenameDialog: StatefulWidget {
 }
 
 class _RenameDialogState: State<StatefulWidget> {
-    var newName: String = ""
+    private var name: TextEditingController? = nil
     var error: String? = nil
 
     override func initState() {
         super.initState()
-        newName = (widget as! _RenameDialog).entry.name
+        name = TextEditingController(text: (widget as! _RenameDialog).entry.name)
+    }
+
+    override func dispose() {
+        name?.dispose()
+        super.dispose()
     }
 
     override func build(_ context: any BuildContext) -> Widget {
         let dialog = widget as! _RenameDialog
-
-        return MacosAlertDialog(
-            appIcon: MacosIcon(icon: CupertinoIcons.pencil, color: Color(0xFF007AFF), size: 40),
+        var content: [Widget] = [
+            FluentTextBox(
+                controller: name!,
+                placeholderText: "New name",
+                onChanged: { [self] _ in if error != nil { setState { error = nil } } },
+                onSubmitted: { [self] _ in _rename(context) },
+                autofocus: true),
+        ]
+        if let error {
+            content.append(Padding(
+                padding: EdgeInsets(top: 8),
+                child: Text(error, style: TextStyle(color: Color(0xFFE0655A), fontSize: 12))))
+        }
+        return ContentDialog(
             title: Text("Rename \"\(dialog.entry.name)\""),
-            message: Column(
-                mainAxisSize: .min,
-                children: [
-                    MacosTextField(
-                        placeholder: "New name",
-                        onChanged: { [self] (text: String) in
-                            setState {
-                                newName = text
-                                error = nil
-                            }
-                        },
-                        onSubmitted: { [self] (_: String) in
-                            _rename(context)
-                        }
-                    ),
-                    error != nil
-                        ? Padding(
-                            padding: EdgeInsets(top: 8),
-                            child: Text(error!, style: TextStyle(color: Color(0xFFFF6666), fontSize: 11))
-                          )
-                        : SizedBox(shrink: ()),
-                ]
-            ),
-            primaryButton: PushButton(
-                child: Text("Rename"),
-                controlSize: .regular,
-                onPressed: { [self] in _rename(context) }
-            ),
-            secondaryButton: PushButton(
-                child: Text("Cancel"),
-                controlSize: .regular,
-                onPressed: { Navigator.pop(context) },
-                secondary: true
-            )
-        )
+            content: Column(mainAxisSize: .min, crossAxisAlignment: .stretch, children: content),
+            actions: [
+                Button(onPressed: { Navigator.pop(context) }, child: Text("Cancel")),
+                FilledButton(onPressed: { [self] in _rename(context) }, child: Text("Rename")),
+            ])
     }
 
     private func _rename(_ context: any BuildContext) {
         let dialog = widget as! _RenameDialog
-        let name = newName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else {
+        let newName = (name?.text ?? "").trimmingCharacters(in: .whitespaces)
+        guard !newName.isEmpty else {
             setState { error = "Name cannot be empty" }
             return
         }
-        guard name != dialog.entry.name else {
+        guard newName != dialog.entry.name else {
             Navigator.pop(context)
             return
         }
-        if let err = FileSystem.rename(at: dialog.entry.path, to: name) {
+        if let err = FileSystem.rename(at: dialog.entry.path, to: newName) {
             setState { error = err }
         } else {
             dialog.onRenamed()
@@ -1026,28 +1036,18 @@ class _DeleteDialog: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        let typeLabel = entry.isDirectory ? "folder" : "file"
-        return MacosAlertDialog(
-            appIcon: MacosIcon(icon: CupertinoIcons.trash, color: Color(0xFFFF3B30), size: 40),
-            title: Text("Delete \(typeLabel)?"),
-            message: Text(
-                "Are you sure you want to delete \"\(entry.name)\"? This cannot be undone.",
-                style: TextStyle(color: FinderColors.label, fontSize: 13)
-            ),
-            primaryButton: PushButton(
-                child: Text("Delete"),
-                controlSize: .regular,
-                onPressed: { [self] in
-                    onDeleted()
-                    Navigator.pop(context)
-                }
-            ),
-            secondaryButton: PushButton(
-                child: Text("Cancel"),
-                controlSize: .regular,
-                onPressed: { Navigator.pop(context) },
-                secondary: true
-            )
-        )
+        let kind = entry.isDirectory ? "folder" : "file"
+        return ContentDialog(
+            title: Text("Delete \(kind)?"),
+            content: Text("Are you sure you want to permanently delete \"\(entry.name)\"?"),
+            actions: [
+                Button(onPressed: { Navigator.pop(context) }, child: Text("Cancel")),
+                FilledButton(
+                    onPressed: { [self] in
+                        onDeleted()
+                        Navigator.pop(context)
+                    },
+                    child: Text("Delete")),
+            ])
     }
 }

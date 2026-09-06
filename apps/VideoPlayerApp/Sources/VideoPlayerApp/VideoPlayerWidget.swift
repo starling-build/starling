@@ -3,7 +3,7 @@
 
 import Flutter
 import FlutterSwiftBridge
-import CupertinoIcons
+import FluentSystemIcons
 import Foundation
 
 // MARK: - VideoPlayerWidget
@@ -498,12 +498,12 @@ class _VideoPlayerState: State<StatefulWidget> {
                                     behavior: .opaque,
                                     child: Padding(
                                         padding: EdgeInsets(left: 2, top: 8, right: 10, bottom: 8),
-                                        child: MacosIcon(
-                                            icon: isPlaying
-                                                ? CupertinoIcons.pause_fill
-                                                : CupertinoIcons.play_fill,
-                                            color: Color(0xFFFFFFFF),
-                                            size: 16
+                                        child: Icon(
+                                            isPlaying
+                                                ? FluentSystemIcons.pause
+                                                : FluentSystemIcons.play,
+                                            size: 16,
+                                            color: Color(0xFFFFFFFF)
                                         )
                                     )
                                 ),

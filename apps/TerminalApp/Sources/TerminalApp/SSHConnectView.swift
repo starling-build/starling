@@ -138,9 +138,9 @@ private class _SSHConnectViewState: State<StatefulWidget>, @unchecked Sendable {
                     Text(label, style: TextStyle(
                         color: Color(0xFF98989D), fontSize: 12))
                 }
-                MacosTextField(
+                FluentTextBox(
                     controller: controller,
-                    placeholder: placeholder,
+                    placeholderText: placeholder,
                     // The rebuild is only so the button can re-read
                     // `canConnect`; the text itself lives in the controller
                     // and is not touched by it.
@@ -166,13 +166,12 @@ private class _SSHConnectViewState: State<StatefulWidget>, @unchecked Sendable {
                               obscure: true)
                         field("PORT", portField, placeholder: "22")
                         Padding(padding: EdgeInsets(top: 10)) {
-                            PushButton(
-                                child: Text(canConnect ? "Connect"
-                                                       : "Host, user and password"),
-                                controlSize: .large,
+                            FilledButton(
                                 onPressed: canConnect
                                     ? { (self.widget as! SSHConnectView).onConnect(self.target) }
-                                    : nil)
+                                    : nil,
+                                child: Text(canConnect ? "Connect"
+                                                       : "Host, user and password"))
                         }
                     }
                 }

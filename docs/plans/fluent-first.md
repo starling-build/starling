@@ -183,6 +183,52 @@ today every unported Fluent surface falls through to a macOS builder; after
 this, new chrome is designed Fluent-first and macOS is the style that has to
 keep up.
 
+**Phase 6, 2026-09-06:** the apps are Fluent. Step 1 first: the recorded
+trap — `FluentApp`'s scaffold trapping on mount as a DMA-BUF child — did
+not reproduce. `FluentApp` + `ScaffoldPage` + `NavigationView` +
+`Button`/`ToggleSwitch`/`DropDownButton` mounted and rendered in the Text
+Editor's window through the real child path (hot-swapped binary, screenshot
+r3-fluent-nav), so whatever it was, the SDK's element work since fixed it in
+passing; `FluentAppMountTests` mounts `FluentApp`+`ScaffoldPage` and
+`StarlingApp` through the element harness so a regression fails in the fast
+tier. Two real bugs surfaced instead: `ScaffoldPage`'s column was centred,
+floating a page's content in the middle of the window (now `.stretch`, as
+fluent_ui's is), and the pane icons drew as tofu because the app had never
+registered the icon font — fixed at the root by `StarlingFonts`, which loads
+an SDK face by family the first time `Icon` draws with it or `StarlingApp`
+needs the palette's; the three modules' `registerFont()` are aliases now.
+Step 2: `StarlingApp` is the one root (the ten hand-written themed roots are
+gone). It does not build `FluentApp` OR `MacosApp` from the style — a root
+whose widget type changed on a push would remount `home` and drop the
+editor's buffer for a colour change — it installs both families' themes
+over one `Navigator` and only the theme data moves; what an app keeps
+outside the tree (Files' colour table, Task Manager's, Settings' bloc
+events) arrives through `onThemeChanged`/`onStyleChanged`, seeded
+synchronously because the renderer replays a push on the main queue, after
+the first frame. `StarlingPalette` gained the accent ramp and a `fluentTheme()`,
+and a `folder` colour (Explorer's yellow, Finder's blue). Step 3: Settings
+is Windows Settings' shape — `NavigationView` with "Find a setting" over the
+categories, a 28pt page title, settings on cards with rules between rows,
+`ToggleSwitch` with On/Off, `ComboBox` for the choices, and a
+`ContentDialog` with a real `FluentTextBox` for the Wi-Fi password (the
+manual keystroke handling went with it). Trap: the pane indexes only items
+WITH a body, so an unselected pane gets a placeholder body, never nil.
+Step 4: Files is Explorer's — command bar (New ▾, Rename, Delete, Sort ▾,
+View ▾; no cut/copy/paste/share because the bloc has none), navigation bar
+with the breadcrumb (crumbs in a field, click its empty space to type a
+path) and search, the places pane (Home, the pinned folders that exist,
+This PC, the bin), Details columns in Explorer's order and widths, 28pt
+rows with hover and a faint-accent selection, a status bar with counts and
+free space; the context menu is a `MenuFlyout` as content in the window's
+own Stack. Not the tab strip: it lives in the title bar, which the shell
+draws. Step 5: the other apps' `Macos*` calls are swapped (Task Manager's
+bar and checkbox, the Terminal's connect form, the editor's path field, the
+player's transport glyphs — `play`/`pause`/`stop` roles added to the icon
+set), and every theme read is `FluentTheme.of`. Step 6: the standing
+direction in `CLAUDE.md` is rewritten. Still macOS: `MacosFilePanel`, the
+shared file dialog (three apps and the portal picker) — a Fluent file
+dialog is Phase 7 work, listed there.
+
 ## 1. What "the latest Fluent" is, in September 2026
 
 Checked against Microsoft's current guidance rather than memory. Two layers
@@ -551,6 +597,19 @@ functional tier's app checks.
 - Focus visuals: the 2px black/white focus ring on keyboard focus, from the
   SDK's `FocusBorder`, once `Focus`/`FocusNode` are real (SDK work, tracked
   separately).
+- **Escape dismisses.** Windows closes a flyout, a menu, a combo box's
+  list and a ContentDialog on Esc; the SDK's do not (seen on the Files
+  Sort menu and its New-folder dialog: Esc only unfocused the text box).
+  A dismiss action on the flyout's `FlyoutScope` and on the dialog route,
+  fed from the app's key events — the shell's own popups already do this
+  in `DesktopShell`'s key handling, so it is the SDK's turn.
+- **A Fluent file dialog.** `MacosFilePanel` is the one `Macos*` widget the
+  apps still hold: Files' `--picker` mode (the portal's FileChooser), the
+  editor's Open/Save, the player's Open. Windows' common file dialog is a
+  small Explorer — places pane, breadcrumb, Details listing, name field,
+  Open/Cancel — so the Files rebuild (Phase 6) is most of it; the SDK gets
+  a `FluentFilePanel` with `MacosFilePanel`'s options and completion, and
+  `MacosApp` can then go iOS-only.
 
 ## Files this touches (by phase)
 

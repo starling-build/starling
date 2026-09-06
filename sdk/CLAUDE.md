@@ -91,6 +91,18 @@ README's *Building → macOS*.
   and inked by `IconTheme`. The example host's older `Icon` stays for the
   Material samples' CupertinoIcons auto-registration; do not use both in one
   file.
+- **`StarlingApp`** (`Sources/Flutter/Starling/StarlingApp.swift`) is the
+  root a Starling desktop app hangs from: it seeds light/dark and the style
+  from what the shell pushed over the DMA-BUF socket, rebuilds on a push
+  WITHOUT changing the tree's shape (a root that swapped `FluentApp` for
+  `MacosApp` would remount `home` and drop the app's state for a colour
+  change), and installs both `AnimatedFluentTheme` and `AnimatedMacosTheme`
+  over one `Navigator`, each from `StarlingPalette`. `StarlingFonts` loads
+  the SDK's own faces by family on first use — `Icon` asks for its glyph's
+  family, `StarlingApp` for the palette's — so the three icon modules'
+  `registerFont()` are aliases and an app registers nothing.
+  `FluentAppMountTests` mounts `FluentApp`+`ScaffoldPage` and `StarlingApp`
+  through the element harness.
 - **`Examples/FluentGallery`** is the WinUI 3 Gallery's shape on this SDK:
   a NavigationView of design-guidance pages (the tokens, drawn) and one
   `SamplePage` per ported control, light and dark, over Mica. It is the
@@ -171,7 +183,10 @@ error" kind:
   Foundation's run loop never turns. `Tooltip` waited on one and never
   appeared under a resting pointer. Anything in `FluentUI/` that waits uses
   `FluentDelay` (`Styles/FluentDelay.swift`, a one-shot on the frame clock);
-  `TextBox`'s caret still has a Foundation timer and is the next to move.
+  `FluentTextBox`'s caret still has a Foundation timer and is the next to
+  move. (The control is `FluentTextBox`, not `TextBox` — that name is the
+  framework's text-layout struct, and `Scrollbar` is likewise
+  `FluentScrollbar`.)
 - **`RenderAnimatedOpacity` never pushed an opacity layer.** It painted
   its child straight for every non-zero alpha, so a `FadeTransition` was a
   one-frame blink at its end — the desktop's window motion stayed

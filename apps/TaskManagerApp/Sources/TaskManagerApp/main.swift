@@ -11,7 +11,6 @@
 // GTK-linked build of the same sources runs it windowed.
 
 #if os(Linux)
-import CupertinoIcons
 import Flutter
 import FlutterSwiftBridge
 import Foundation
@@ -194,21 +193,27 @@ class _TaskManagerPageState: State<StatefulWidget> {
             _divider()
             _buildFooter(s)
         }
-        return MacosScaffold(
-            children: [content],
-            toolBar: MacosToolBar(
-                title: Text("Task Manager"),
-                actions: [
-                    PushButton(
-                        child: Text("End Process"),
-                        onPressed: s.selectedPid != nil
-                            ? { taskManagerBloc.add(.terminateSelected) }
-                            : nil,
-                        secondary: true
-                    )
-                ]
-            )
-        )
+        // Windows' Task Manager: the page title at the left of a 44pt bar
+        // and "End task" at its right, lit only with a row picked.
+        return Column {
+            SizedBox(height: 44) {
+                ColoredBox(color: Style.chrome) {
+                    Padding(padding: EdgeInsets(horizontal: 12)) {
+                        Row(crossAxisAlignment: .center) {
+                            Text("Task Manager", style: TextStyle(
+                                color: Style.body, fontSize: 14, fontWeight: .w600))
+                            Expanded { SizedBox(width: 1, height: 1) }
+                            Button(
+                                onPressed: s.selectedPid != nil
+                                    ? { taskManagerBloc.add(.terminateSelected) }
+                                    : nil,
+                                child: Text("End task"))
+                        }
+                    }
+                }
+            }
+            Expanded { content }
+        }
     }
 
     // MARK: Overview strip
@@ -386,13 +391,12 @@ class _TaskManagerPageState: State<StatefulWidget> {
             ColoredBox(color: Style.chrome) {
                 Padding(padding: EdgeInsets(horizontal: 12)) {
                     Row {
-                        MacosCheckbox(
-                            value: s.showKernelThreads,
-                            onChanged: { taskManagerBloc.add(.setShowKernelThreads($0)) }
+                        Checkbox(
+                            checked: s.showKernelThreads,
+                            onChanged: { taskManagerBloc.add(.setShowKernelThreads($0 ?? false)) },
+                            content: Text("Kernel tasks",
+                                          style: TextStyle(color: Style.dim, fontSize: 12))
                         )
-                        SizedBox(width: 6, height: 1)
-                        Text("Kernel tasks",
-                             style: TextStyle(color: Style.dim, fontSize: 11))
                         Expanded { SizedBox(width: 1, height: 1) }
                         Text(
                             "\(s.processes.count) processes · "

@@ -303,24 +303,39 @@ which renders every Android app into one window.
     in particular is not a synonym for white: Fluent's dark accent is a
     light blue that takes BLACK glyphs, and `Color(0xFFFFFFFF)` on an accent
     fill is legible in one style and invisible in the other.
-  - **Apps are still macOS-only**, and that is a real constraint rather than
-    a preference: `FluentApp`'s scaffold traps on mount as a DMA-BUF child
-    (`apps/FileExplorerApp/.../main.swift:14`). Until that is fixed (the
-    plan's Phase 6), every app shell is `MacosApp`, app UI goes through the
-    `Macos*` controls and `CupertinoIcons`, and a Fluent widget in `apps/`
-    is a bug. The macOS style recolours apps through `StarlingPalette`,
-    which assumes Fluent when no style has been pushed.
-  - If the `Macos*` control you need is missing or a stub, implement it in
-    `sdk/` rather than reaching for the Fluent one — that is where `MacosMenu`
-    and `MacosScrollbar` came from. The Fluent name is often the one that
-    autocompletes (`Slider`, `MenuFlyout`), and `MacosSlider` was a
-    display-only stub for a while, which is how Fluent sliders once leaked
-    into the control center.
-  - **`grep Fluent` is no longer the check**, and nothing loud replaces it:
-    `MacosApp` installs a `FluentTheme` internally, so a misplaced Fluent
-    widget renders happily instead of failing. The check now is by
-    DIRECTORY — Fluent widgets belong under `shell/…/Fluent/` and nowhere
-    else in `shell/`, and nowhere at all in `apps/`.
+  - **Apps are Fluent.** Every first-party app hangs from `StarlingApp`
+    (`sdk/Sources/Flutter/Starling/StarlingApp.swift`), which follows the
+    shell's appearance and style pushes and installs BOTH control
+    families' themes over one `Navigator`; app UI is the Fluent controls
+    (`NavigationView`, `ScaffoldPage`, `Button`, `ToggleSwitch`,
+    `ComboBox`, `FluentTextBox`, `ContentDialog`, `MenuFlyout`…) and
+    `FluentSystemIcons`. The macOS style does not swap widget trees; it
+    RECOLOURS the same controls through `StarlingPalette` (macOS blue,
+    macOS greys, the system face instead of Selawik, blue folders). A
+    `Macos*` widget in `apps/` is a bug — the one exception, for now, is
+    `MacosFilePanel`, the shared file dialog (Files' picker mode, the
+    editor's Open/Save, the player's Open), which has no Fluent counterpart
+    yet and is on the plan's Phase 7 list. `MacosApp` stays in the SDK for
+    iOS and for the file panel's sake. The recorded reason apps were
+    macOS-only — `FluentApp`'s scaffold trapping on mount as a DMA-BUF
+    child — no longer reproduces; `FluentAppMountTests` pins the mount in
+    the fast tier.
+  - **Icon fonts load themselves.** `StarlingFonts` (in the `Flutter`
+    module) loads an SDK face by family the first time an `Icon` draws with
+    it, and `StarlingApp` loads the palette's face; an app registers
+    nothing. Tofu where a glyph should be now means the family is not one
+    the SDK ships, not a missing `registerFont()` call.
+  - **Two Fluent controls carry a `Fluent` prefix because the plain name
+    is taken**: `TextBox` is the framework's text-layout struct (Dart's
+    `ui.TextBox`) and `Scrollbar` a Material name, so the controls are
+    `FluentTextBox` and `FluentScrollbar`. A `TextBox(` in an app fails
+    with `missing argument for parameter 'fromLTRBD'`, which is that
+    struct's initialiser, not a hint about your arguments.
+  - **The check is by DIRECTORY, in both trees.** Fluent widgets belong
+    under `shell/…/Fluent/` and nowhere else in `shell/`; `Macos*` widgets
+    belong nowhere in `apps/`. Nothing loud enforces either: `StarlingApp`
+    installs both themes, so a misplaced widget of either family renders
+    happily instead of failing.
 - **Wayland only.** Do not read, modify, or reference `X11Server/` or X11 launch
   paths unless explicitly asked.
 - **No security hardening on the app runtime** (`build/app-run.sh` is an app

@@ -192,4 +192,12 @@ public enum FluentSystemIcons {
     public static let laptop = IconData(0xf4c4, fontFamily: _kFontFamily)
     public static let cloud = IconData(0xf2e5, fontFamily: _kFontFamily)
     public static let drive = IconData(0xf0306, fontFamily: _kFontFamily)
+    public static let folderAdd = IconData(0xf41d, fontFamily: _kFontFamily)
+
+    // Media
+    public static let play = IconData(0xf606, fontFamily: _kFontFamily)
+    public static let pause = IconData(0xf5a2, fontFamily: _kFontFamily)
+    public static let stop = IconData(0xf72b, fontFamily: _kFontFamily)
+    public static let volumeMute = IconData(0xeb4b, fontFamily: _kFontFamily)
+    public static let fullScreen = IconData(0xe685, fontFamily: _kFontFamily)
 }

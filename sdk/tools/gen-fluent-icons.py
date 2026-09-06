@@ -139,6 +139,15 @@ ROLES = [
     ("laptop",          "laptop"),
     ("cloud",           "cloud"),
     ("drive",           "hard_drive"),
+    ("folderAdd",       "folder_add"),
+
+    # Media transport, for the player's own controls
+    ("— Media", None),
+    ("play",            "play"),
+    ("pause",           "pause"),
+    ("stop",            "stop"),
+    ("volumeMute",      "speaker_mute"),
+    ("fullScreen",      "full_screen_maximize"),
 ]
 
 SIZE_PREFERENCE = (24, 20, 28, 32, 16)

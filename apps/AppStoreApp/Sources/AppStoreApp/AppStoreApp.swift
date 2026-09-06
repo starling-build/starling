@@ -328,7 +328,7 @@ class _AppStoreAppState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: Build
 
     override func build(_ context: any BuildContext) -> Widget {
-        let theme = MacosTheme.of(context)
+        let theme = FluentTheme.of(context)
         pal = StorePalette(dark: theme.brightness == .dark)
 
         return ColoredBox(

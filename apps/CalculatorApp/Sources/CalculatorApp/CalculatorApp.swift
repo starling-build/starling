@@ -58,7 +58,7 @@ class _CalculatorAppState: State<StatefulWidget>, @unchecked Sendable {
     private var pal = CalcPalette(dark: true)
 
     override func build(_ context: any BuildContext) -> Widget {
-        let theme = MacosTheme.of(context)
+        let theme = FluentTheme.of(context)
         pal = CalcPalette(dark: theme.brightness == .dark)
 
         return DecoratedBox(

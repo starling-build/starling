@@ -1091,7 +1091,7 @@ class _ImageViewerAppState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: - Build
 
     override func build(_ context: any BuildContext) -> Widget {
-        let theme = MacosTheme.of(context)
+        let theme = FluentTheme.of(context)
         pal = ViewerPalette(dark: theme.brightness == .dark)
 
         // Build the canvas FIRST: it updates the current-page indicator the
