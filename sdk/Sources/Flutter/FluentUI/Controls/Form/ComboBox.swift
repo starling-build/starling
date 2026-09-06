@@ -110,7 +110,7 @@ public class ComboBox<T: Equatable>: StatefulWidget {
         icon: Widget? = nil,
         iconEnabledColor: Color? = nil,
         iconDisabledColor: Color? = nil,
-        iconSize: Double = 8.0
+        iconSize: Double = 12.0
     ) {
         self.value = value
         self.items = items
@@ -150,19 +150,44 @@ class _ComboBoxState<T: Equatable>: State<StatefulWidget> {
 
     // MARK: - Open/Close
 
+    /// Opens the list the way WinUI's ComboBox does: at least as wide as
+    /// the box, its left edge on the box's, and OVER the box rather than
+    /// under it — the selected item (the first, with none selected) sits
+    /// exactly where the box is, so the list reads as the box unfolding.
+    /// A placement other than the default `.bottom` is honoured as given.
     func _openPopup() {
         guard !isDisabled else { return }
 
+        let box = context?.findRenderObject() as? RenderBox
+        let width = box?.size.width ?? 0
+        let height = box?.size.height ?? FluentSpacing.controlHeight
+        let index = comboBox.value.flatMap { v in comboBox.items.firstIndex { $0.value == v } } ?? 0
+
+        let placement: FlyoutPlacement
+        let offset: Double
+        if comboBox.placement == .bottom {
+            placement = .bottomEdgeAlignedLeft
+            // From the box's bottom edge, back up over the box, the list's
+            // border and padding, and the items above the selected one.
+            let pitch = FluentSpacing.controlHeight
+                + kDefaultMenuFlyoutItemMargin.top + kDefaultMenuFlyoutItemMargin.bottom
+            offset = -(height + FluentStrokeWidth.thin + kDefaultMenuFlyoutPadding.top
+                       + kDefaultMenuFlyoutItemMargin.top + Double(index) * pitch)
+        } else {
+            placement = comboBox.placement
+            offset = 4.0
+        }
+
         _flyoutController.showFlyout(
             builder: { [self] context in
-                _buildDropdown(context)
+                _buildDropdown(context, minWidth: width)
             },
-            placement: comboBox.placement,
-            additionalOffset: 4.0
+            placement: placement,
+            additionalOffset: offset
         )
     }
 
-    func _buildDropdown(_ context: any BuildContext) -> Widget {
+    func _buildDropdown(_ context: any BuildContext, minWidth: Double = 0) -> Widget {
         let menuItems: [MenuFlyoutItemBase] = comboBox.items.map { item in
             let isSelected = comboBox.value != nil && item.value == comboBox.value!
             return _ComboBoxMenuItem(
@@ -179,7 +204,9 @@ class _ComboBoxState<T: Equatable>: State<StatefulWidget> {
             )
         }
 
-        return MenuFlyout(items: menuItems)
+        return MenuFlyout(
+            items: menuItems,
+            constraints: BoxConstraints(minWidth: max(minWidth, kFlyoutMinConstraints.minWidth)))
     }
 
     // MARK: - Build
@@ -211,11 +238,12 @@ class _ComboBoxState<T: Equatable>: State<StatefulWidget> {
         }
 
         // Chevron icon
-        let chevron: Widget = comboBox.icon ?? _ComboBoxChevron(
+        let chevron: Widget = comboBox.icon ?? FluentGlyph(
+            .chevronDown,
+            size: comboBox.iconSize,
             color: isDisabled
                 ? (comboBox.iconDisabledColor ?? theme.resources.textFillColorDisabled)
-                : (comboBox.iconEnabledColor ?? theme.resources.textFillColorSecondary),
-            size: comboBox.iconSize
+                : (comboBox.iconEnabledColor ?? theme.resources.textFillColorSecondary)
         )
 
         // Build the button content
@@ -279,73 +307,17 @@ private class _ComboBoxMenuItem: MenuFlyoutItemBase {
     }
 
     override func buildItem(_ context: any BuildContext) -> Widget {
-        return FlyoutListTile(
-            onPressed: enabled ? { [self] in onPressed() } : nil,
-            text: text,
-            margin: EdgeInsets(),
-            selected: selected,
-            showSelectedIndicator: true
-        )
-    }
-}
-
-// MARK: - _ComboBoxChevron
-
-/// A simple chevron/arrow indicator for the ComboBox.
-private class _ComboBoxChevron: StatelessWidget {
-    let color: Color
-    let size: Double
-
-    init(
-        color: Color,
-        size: Double
-    ) {
-        self.color = color
-        self.size = size
-        super.init()
-    }
-
-    override func build(_ context: any BuildContext) -> Widget {
-        // Simple downward-pointing triangle indicator using a custom-painted widget
+        // A fixed row height, so the box knows where each item will land
+        // when it opens the list over itself.
         return SizedBox(
-            width: size,
-            height: size,
-            child: CustomPaint(
-                painter: _ChevronPainter(color: color)
-            )
-        )
+            height: FluentSpacing.controlHeight,
+            child: FlyoutListTile(
+                onPressed: enabled ? { [self] in onPressed() } : nil,
+                text: text,
+                margin: EdgeInsets(),
+                selected: selected,
+                showSelectedIndicator: true
+            ))
     }
 }
 
-// MARK: - _ChevronPainter
-
-/// Paints a simple downward chevron.
-private class _ChevronPainter: CustomPainter {
-    let color: Color
-
-    init(color: Color) {
-        self.color = color
-    }
-
-    override func paint(_ canvas: any Canvas, _ size: Size) {
-        let paint = Paint()
-        paint.color = color
-        paint.strokeWidth = 1.5
-        paint.style = .stroke
-
-        let path = Path()
-        // Draw a "V" shape for a down chevron
-        path.moveTo(0, size.height * 0.25)
-        path.lineTo(size.width * 0.5, size.height * 0.75)
-        path.lineTo(size.width, size.height * 0.25)
-
-        canvas.drawPath(path, paint)
-    }
-
-    override func shouldRepaint(_ oldDelegate: CustomPainter) -> Bool {
-        if let old = oldDelegate as? _ChevronPainter {
-            return old.color != color
-        }
-        return true
-    }
-}
