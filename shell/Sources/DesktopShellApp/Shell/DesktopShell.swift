@@ -214,7 +214,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         var summary: String
         var body: String
         var urgency: Int      // 0 low / 1 normal / 2 critical
+        /// When it arrived, for the centre's "3m" and a toast's expiry.
+        var postedAt: Date = Date()
     }
+    /// Do not disturb: posts still collect, but none tints the bell or
+    /// toasts. Windows' focus assist, at its simplest.
+    var _doNotDisturb = false
+    /// The notification centre's calendar: unfolded, and which month it
+    /// shows as an offset from this one (so today stays right past
+    /// midnight under an open panel).
+    var _calendarExpanded = true
+    var _calendarMonthOffset = 0
     var _notifications: [ShellNotification] = []
     /// A post arrived while the popup was closed — tints the bell until the
     /// user looks. Opening the popup is "looking"; it clears the tint, not
@@ -3216,10 +3226,16 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// screen, never on last week's password prompt or on
     /// "Shut down the computer?".
     private func _fluentOpenPopup(_ kind: StatusBarPopup) {
+        // The bell and the clock open the same centre: either closes it.
         let isActive = activeStatusBarPopup == kind
+            || (fluentIsNotificationCentre(kind)
+                && activeStatusBarPopup.map(fluentIsNotificationCentre) == true)
         setState {
             activeStatusBarPopup = isActive ? nil : kind
-            if activeStatusBarPopup == .notifications { _notificationsUnseen = false }
+            if let open = activeStatusBarPopup, fluentIsNotificationCentre(open) {
+                _notificationsUnseen = false
+                _calendarMonthOffset = 0
+            }
             if activeStatusBarPopup == .controlCenter { _refreshControlCenter() }
             contextMenuPosition = nil
             _powerConfirm = nil
@@ -3241,7 +3257,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // corner, until the notification centre lands.
         let content: Widget = fluentIsQuickSettings(kind)
             ? fluentQuickSettings(kind)
-            : _buildStatusBarPopup()
+            : (fluentIsNotificationCentre(kind)
+               ? fluentNotificationCentre()
+               : _buildStatusBarPopup())
         return Positioned(
             left: fluentStatusFlyoutOrigin(kind, height: 0).dx,
             bottom: DesktopTheme.kDockHeight + Self.kFluentFlyoutGap,
@@ -3250,12 +3268,15 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         )
     }
 
-    static let kFluentFlyoutGap: Double = 8
+    /// Windows' flyouts sit 12 above the bar and 12 in from the edge.
+    static let kFluentFlyoutGap: Double = 12
 
-    /// A Fluent panel's width: Quick Settings' own, or the macOS panel's
-    /// for the kinds not ported yet.
+    /// A Fluent panel's width: Quick Settings' or the notification centre's
+    /// own, or the macOS panel's for the kinds not ported yet.
     func fluentStatusFlyoutWidth(_ kind: StatusBarPopup) -> Double {
-        fluentIsQuickSettings(kind) ? QuickSettingsMetrics.width : statusFlyoutWidth(kind)
+        if fluentIsQuickSettings(kind) { return QuickSettingsMetrics.width }
+        if fluentIsNotificationCentre(kind) { return NotificationCentreMetrics.width }
+        return statusFlyoutWidth(kind)
     }
 
     /// The same corner, resolved to a top-left once the panel has measured
@@ -3263,7 +3284,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     func fluentStatusFlyoutOrigin(_ kind: StatusBarPopup,
                                   height: Double) -> Offset {
         Offset(
-            max(8, screenWidth - fluentStatusFlyoutWidth(kind) - 8),
+            max(Self.kFluentFlyoutGap, screenWidth - fluentStatusFlyoutWidth(kind) - Self.kFluentFlyoutGap),
             screenHeight - DesktopTheme.kDockHeight - Self.kFluentFlyoutGap - height
         )
     }
@@ -6030,7 +6051,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             } else {
                 _notifications.append(note)
             }
-            if activeStatusBarPopup != .notifications {
+            if activeStatusBarPopup != .notifications, !_doNotDisturb {
                 _notificationsUnseen = true
             }
         }
