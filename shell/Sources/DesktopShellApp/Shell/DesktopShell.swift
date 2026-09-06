@@ -225,6 +225,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// midnight under an open panel).
     var _calendarExpanded = true
     var _calendarMonthOffset = 0
+    /// Toasts on screen, oldest first, by notification id; each has the
+    /// delay that will take it down.
+    var _toasts: [UInt32] = []
+    var _toastTimers: [UInt32: FluentDelay] = [:]
     var _notifications: [ShellNotification] = []
     /// A post arrived while the popup was closed — tints the bell until the
     /// user looks. Opening the popup is "looking"; it clears the tint, not
@@ -4486,6 +4490,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             }
         }
 
+        // Banners for posts that just arrived, above windows and the bar.
+        if let toasts = chrome.toasts() {
+            children.append(toasts)
+        }
+
         // Edge cursor sensors for macOS-style auto-hide. While in fullscreen
         // mode, three translucent Listeners sit on top of everything:
         //   - Top region: hovering inside reveals the bars.
@@ -6055,6 +6064,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 _notificationsUnseen = true
             }
         }
+        _showToast(id: id, timeoutMs: timeoutMs)
     }
 
     /// The shell posting to its own bell (recording saved, …) — same upsert
@@ -6075,6 +6085,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     }
 
     func _dismissNotification(id: UInt32, reason: UInt32) {
+        _hideToast(id)
         setState { _notifications.removeAll { $0.id == id } }
         notificationIntegration?.emitClosed(id: id, reason: reason)
     }

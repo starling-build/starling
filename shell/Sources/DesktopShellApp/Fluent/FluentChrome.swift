@@ -59,6 +59,8 @@ final class FluentChrome: ShellChrome {
 
     func launcherOverlays() -> Widget? { shell.fluentStartOverlays() }
 
+    func toasts() -> Widget? { shell.fluentToasts(anchor: .bottomRight) }
+
     /// Tile hover, and specifically the LEAVE — a per-tile Listener hears
     /// every enter and no exit, so the hover label would stick after the
     /// pointer moved up onto a window. Cheap: it only calls setState when the

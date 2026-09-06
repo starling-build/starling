@@ -262,6 +262,11 @@ protocol ShellChrome: AnyObject {
     /// itself is still up: the dialog outlives Start.
     func launcherOverlays() -> Widget?
 
+    /// The banners of notifications that just arrived, or nil when none is
+    /// up. Where they sit is the style's: Windows' bottom right above the
+    /// bar, macOS's top right under the menu bar.
+    func toasts() -> Widget?
+
     /// Anything the bar hangs ABOVE itself on hover — Windows' live window
     /// previews. nil in a style that draws its hover feedback inside its own
     /// box, as the macOS dock does with its name bubble.
@@ -469,6 +474,9 @@ final class MacosChrome: ShellChrome {
     func snapLayouts() -> Widget? { nil }
     /// Launchpad has no menus of its own; power lives in the menu bar.
     func launcherOverlays() -> Widget? { nil }
+
+    /// Under the menu bar at the right, as macOS puts its banners.
+    func toasts() -> Widget? { shell.fluentToasts(anchor: .topRight) }
 
     func notePointerHover(x: Double, y: Double, outputId: Int) {
         shell._updateDockHover(x: x, y: y, outputId: outputId)

@@ -103,6 +103,28 @@ began on it. Verified on screen: page, unfold, all three views (persisted
 across reopen), tile menu, unpin (persisted), typed search, power flyout,
 confirm dialog and its Cancel.
 
+**Phase 4, 2026-09-06:** Quick Settings (tiles three across on the accent
+with `accentInk`, brightness and volume on the SDK's Slider, battery and
+the gear in the bottom row, the Wi-Fi page behind the chevron with the
+list, a password prompt and a back arrow — the shell's `.wifi` popup kind
+so the key routing is untouched), the notification centre (332 wide,
+notifications with per-card dismiss, Clear all and a do-not-disturb bell,
+the month calendar beneath with today on the accent disc, folding to its
+date header), and toasts (bottom right above the bar in Fluent, top right
+in macOS; expire_timeout honoured, click opens the centre, X puts the
+banner away; do-not-disturb and an open centre keep a post from
+toasting). Win+A and Win+N open the panels. All three are the SDK's flyout
+surface — Acrylic, the flyout stroke, elevation 32 — sliding up from the
+bar. Left out rather than drawn dead: the edit pencil, Night light. Not
+done: the functional checks, and Wi-Fi row centres for the broker on the
+Fluent panel (it hangs from the bar, the macOS bookkeeping is top-anchored).
+Verified on screen: every panel from its button and its chord, the Wi-Fi
+page and its error path, a card's dismiss, Clear all, do-not-disturb, the
+calendar folded and unfolded, a toast and its expiry. Note for the
+functional tier: with Fluent the default, checks written against the macOS
+panels' geometry (control-centre tile centres, Wi-Fi rows) now run against
+Fluent surfaces unless they pick the style first.
+
 **Scope: the Linux desktop, and only it** — the shell in `shell/`, its
 chrome, and the first-party apps in `apps/`. The Windows shell
 (`sdk/Examples/WinShellBar`, the Explorer replacement that runs *on*
