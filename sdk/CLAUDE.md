@@ -109,6 +109,20 @@ README's *Building → macOS*.
   turns transparency and animations into `FluentMaterialSettings` over the
   tree; a page that shows a switch mirrors the rest through
   `onPrefChanged` and asks for a change with `sendPrefChange`.
+- **A context menu is a `CommandBarFlyout`, not a `MenuFlyout`.** That is
+  Microsoft's own guidance and the reason Windows 11's right-click menus
+  look as they do: the commands people reach for (cut, copy, paste,
+  rename, share, delete) go in `primaryCommands` and draw as one row of
+  icons, everything else in `secondaryCommands` and draws as a menu under
+  it. The items are the `CommandBarItem`s a `CommandBar` takes —
+  `CommandBarButton`, `CommandBarToggleButton`, `CommandBarSeparator`,
+  WinUI's app-bar buttons by another name — and invoking one dismisses
+  the flyout. A context menu opens expanded (`initiallyExpanded: true`);
+  commands offered beside a selection open collapsed, behind the "see
+  more" ellipsis. A flyout with only secondary commands IS a plain menu,
+  which is the documented way to write one. `MenuFlyout` stays for a
+  menu hanging off a button, and for the shell, whose popups it places by
+  hand.
 - **Escape is the `DismissStack`** (`Widgets/DismissStack.swift`): whatever
   opens a transient surface pushes a closer and pops it when the surface
   goes away by other means; `FocusManager.dispatchKeyData` hands an

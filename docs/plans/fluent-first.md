@@ -281,6 +281,33 @@ and asks the shell. Still to do: accent from wallpaper, cursors, focus
 visuals, and the taskbar's own page (alignment, badges) once the bar has
 choices to offer.
 
+**Phase 7, third slice, 2026-09-06:** the context menu, in Windows' own
+shape. Asked whether menus are still a Fluent element, the answer from
+Microsoft's current docs is yes but with the emphasis moved: menus are
+core (acrylic is for "menus, flyouts, Start"; the base layer carries
+"commands, navigation, menus"), the recommended control for a context
+menu is now **CommandBarFlyout** rather than MenuFlyout ("we recommend
+using CommandBarFlyout because it provides more functionality than
+MenuFlyout"), and common commands belong in it as primary commands "shown
+as a single, horizontal row". Menu BARS are still supported but framed as
+the option "for apps that might need more organization or grouping" —
+Windows' own apps went to command bars with an overflow instead, so the
+earlier note here about giving our apps File/Edit/View bars is withdrawn.
+So: `FluentUI/Controls/Flyouts/CommandBarFlyout.swift` ports the control —
+collapsed and expanded modes, the "see more" ellipsis, `alwaysExpanded`,
+secondary-only as a plain menu, and dismissal when a command is invoked.
+Its items are the `CommandBarItem`s `CommandBar` already had (WinUI uses
+the same app-bar buttons in both), plus a new `CommandBarToggleButton`
+for a command that is on or off — accent-filled in the row, check-marked
+in the menu, as WinUI's AppBarToggleButton is. Two measurements came from
+our own Windows shell rather than guesswork: the icon row divides the
+menu's inner width by the number of cells, and every label starts at one
+16pt icon column whether its command has an icon or not. Files' context
+menu is the first consumer (rename and delete in the row — the row is
+short because this app has no clipboard for files, and a lit button that
+fails is worse than its absence), the gallery gained a page with all four
+shapes, and six unit tests pin the display-mode rules.
+
 ## 1. What "the latest Fluent" is, in September 2026
 
 Checked against Microsoft's current guidance rather than memory. Two layers
@@ -655,6 +682,11 @@ functional tier's app checks.
   A dismiss action on the flyout's `FlyoutScope` and on the dialog route,
   fed from the app's key events — the shell's own popups already do this
   in `DesktopShell`'s key handling, so it is the SDK's turn.
+- **Menus: keyboard navigation.** Arrow keys, Enter, type-to-select and
+  Alt+letter mnemonics reach no menu in either tree; Escape is the only
+  key a menu hears. The framework's focus system routes to one focused
+  node, so this is a `FocusNode` per open menu plus a highlighted index,
+  and it wants the same work `FocusBorder` needs below.
 - **A Fluent file dialog.** `MacosFilePanel` is the one `Macos*` widget the
   apps still hold: Files' `--picker` mode (the portal's FileChooser), the
   editor's Open/Save, the player's Open. Windows' common file dialog is a

@@ -580,6 +580,67 @@ final class CommandBarPage: StatelessWidget {
     }
 }
 
+final class CommandBarFlyoutPage: StatelessWidget {
+    override func build(_ context: any BuildContext) -> Widget {
+        SamplePage(
+            "CommandBarFlyout",
+            "Microsoft's recommended control for a context menu: the common commands as a row "
+                + "of icons, the rest as a menu under them.",
+            samples: [
+                Sample("A context menu", child: LocalState(true) { expanded, setExpanded in
+                    CommandBarFlyout(
+                        primaryCommands: [
+                            CommandBarButton(icon: Icon(FluentSystemIcons.cut), onPressed: {}, tooltip: "Cut"),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.copy), onPressed: {}, tooltip: "Copy"),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.paste), onPressed: {}, tooltip: "Paste"),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.rename), onPressed: {}, tooltip: "Rename"),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.share), onPressed: {}, tooltip: "Share"),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.delete), onPressed: {}, tooltip: "Delete"),
+                        ],
+                        secondaryCommands: [
+                            CommandBarButton(icon: Icon(FluentSystemIcons.folderOpen), label: Text("Open"), onPressed: {}),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.openExternal), label: Text("Open with"), onPressed: {}),
+                            CommandBarSeparator(),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.info), label: Text("Properties"), onPressed: {}),
+                        ],
+                        initiallyExpanded: true)
+                }),
+                Sample("Collapsed, as commands offered beside a selection",
+                       child: CommandBarFlyout(
+                        primaryCommands: [
+                            CommandBarButton(icon: Icon(FluentSystemIcons.copy), onPressed: {}, tooltip: "Copy"),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.share), onPressed: {}, tooltip: "Share"),
+                        ],
+                        secondaryCommands: [
+                            CommandBarButton(icon: Icon(FluentSystemIcons.delete), label: Text("Delete"), onPressed: {}),
+                        ],
+                        initiallyExpanded: false)),
+                Sample("Secondary commands only — a plain menu",
+                       child: CommandBarFlyout(secondaryCommands: [
+                            CommandBarButton(icon: Icon(FluentSystemIcons.copy), label: Text("Copy"), onPressed: {}),
+                            CommandBarButton(icon: Icon(FluentSystemIcons.print), label: Text("Print"), onPressed: {}),
+                            CommandBarSeparator(),
+                            CommandBarButton(label: Text("Properties"), onPressed: {}),
+                       ])),
+                Sample("A toggle command, on in both places",
+                       child: LocalState(true) { on, setOn in
+                    CommandBarFlyout(
+                        primaryCommands: [
+                            CommandBarToggleButton(icon: Icon(FluentSystemIcons.favorite),
+                                                   isChecked: on, onChanged: { setOn($0) },
+                                                   tooltip: "Favourite"),
+                        ],
+                        secondaryCommands: [
+                            CommandBarToggleButton(icon: Icon(FluentSystemIcons.grid),
+                                                   label: Text("Show hidden items"),
+                                                   isChecked: on, onChanged: { setOn($0) }),
+                        ],
+                        alwaysExpanded: true)
+                }),
+            ])
+    }
+}
+
 // MARK: - Navigation
 
 final class BreadcrumbBarPage: StatelessWidget {

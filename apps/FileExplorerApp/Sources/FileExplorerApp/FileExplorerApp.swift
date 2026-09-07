@@ -215,7 +215,7 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                 Positioned(
                     left: pos.dx,
                     top: pos.dy,
-                    child: _menu(_contextMenuItems(context))
+                    child: _menu(_contextMenu(context))
                 )
             )
         }
@@ -223,14 +223,15 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
         return Stack(children: layers)
     }
 
-    /// A MenuFlyout as plain content in the window's own Stack — the shape
-    /// the shell uses for its popups. The intrinsic wrappers are what give
-    /// the flyout a size to lay out in; without them it renders as nothing.
-    private func _menu(_ items: [MenuFlyoutItemBase]) -> Widget {
+    /// A flyout as plain content in the window's own Stack, placed at the
+    /// pointer — the shape the shell uses for its popups. The intrinsic
+    /// wrappers are what give it a size to lay out in; without them it
+    /// renders as nothing.
+    private func _menu(_ content: Widget) -> Widget {
         return ConstrainedBox(
             constraints: kFlyoutThemeConstraints,
             child: IntrinsicWidth(child: IntrinsicHeight(
-                child: FluentEntrance(child: MenuFlyout(items: items)))))
+                child: FluentEntrance(child: content))))
     }
 
     // MARK: - Command bar
@@ -762,45 +763,56 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
 
     // MARK: - Context menu
 
-    private func _contextMenuItems(_ context: any BuildContext) -> [MenuFlyoutItemBase] {
+    /// Explorer's context menu: the commands that act on the item as a row
+    /// of icons across the top, everything else as a menu under them
+    /// (`CommandBarFlyout`, which is what Microsoft recommends a context
+    /// menu be built from). Right-clicking the empty area below the rows
+    /// acts on the folder, so it gets the menu alone — as Explorer's own
+    /// background menu has no icon row either.
+    ///
+    /// The row is short because the row is honest: Windows puts cut, copy
+    /// and paste there too, and this app has no clipboard for files.
+    private func _contextMenu(_ context: any BuildContext) -> Widget {
         let s = bloc.state
-        var items: [MenuFlyoutItemBase] = []
         let close: () -> Void = { [self] in setState { contextMenuPosition = nil } }
+        var primary: [CommandBarItem] = []
+        var secondary: [CommandBarItem] = []
 
         if let idx = contextMenuIndex, idx < s.entries.count {
             let entry = s.entries[idx]
+            primary.append(CommandBarButton(
+                icon: Icon(FluentSystemIcons.rename), onPressed: { [self] in close(); _showRenameDialog(context) },
+                tooltip: "Rename"))
+            primary.append(CommandBarButton(
+                icon: Icon(FluentSystemIcons.delete), onPressed: { [self] in close(); _showDeleteDialog(context) },
+                tooltip: "Delete"))
             if entry.isDirectory {
-                items.append(MenuFlyoutItem(
-                    text: Text("Open"),
-                    leading: Icon(FluentSystemIcons.folderOpen, size: 14),
+                secondary.append(CommandBarButton(
+                    icon: Icon(FluentSystemIcons.folderOpen), label: Text("Open"),
                     onPressed: { [self] in close(); bloc.add(.doubleClick(idx)) }))
-                items.append(MenuFlyoutSeparator())
+                secondary.append(CommandBarSeparator())
             }
-            items.append(MenuFlyoutItem(
-                text: Text("Rename"),
-                leading: Icon(FluentSystemIcons.rename, size: 14),
-                onPressed: { [self] in close(); _showRenameDialog(context) }))
-            items.append(MenuFlyoutItem(
-                text: Text("Delete"),
-                leading: Icon(FluentSystemIcons.delete, size: 14),
-                onPressed: { [self] in close(); _showDeleteDialog(context) }))
-            items.append(MenuFlyoutSeparator())
         }
 
-        items.append(MenuFlyoutItem(
-            text: Text("New folder"),
-            leading: Icon(FluentSystemIcons.add, size: 14),
+        secondary.append(CommandBarButton(
+            icon: Icon(FluentSystemIcons.folderAdd), label: Text("New folder"),
             onPressed: { [self] in close(); _showNewFolderDialog(context) }))
-        items.append(MenuFlyoutItem(
-            text: Text("Refresh"),
-            leading: Icon(FluentSystemIcons.refresh, size: 14),
+        secondary.append(CommandBarButton(
+            icon: Icon(FluentSystemIcons.refresh), label: Text("Refresh"),
             onPressed: { [self] in close(); bloc.add(.refresh) }))
-        items.append(MenuFlyoutSeparator())
-        items.append(MenuFlyoutItem(
-            text: Text("Show hidden items"),
-            onPressed: { [self] in close(); bloc.add(.toggleHidden) },
-            selected: s.showHidden))
-        return items
+        secondary.append(CommandBarSeparator())
+        secondary.append(CommandBarToggleButton(
+            label: Text("Show hidden items"), isChecked: s.showHidden,
+            onChanged: { [self] _ in close(); bloc.add(.toggleHidden) }))
+
+        return CommandBarFlyout(
+            primaryCommands: primary,
+            secondaryCommands: secondary,
+            // A context menu opens showing everything, and Explorer's
+            // cannot be folded back up.
+            initiallyExpanded: true,
+            alwaysExpanded: true,
+            onDismiss: close)
     }
 
     // MARK: - Status bar

@@ -26,6 +26,12 @@ open class CommandBarItem {
     /// An optional key for identifying this item.
     public let key: (any Key)?
 
+    /// The `CommandBarFlyout` this item is being built for, stamped by that
+    /// flyout as `MenuFlyout` stamps its own items. Invoking a command
+    /// dismisses the flyout it came from, which is WinUI's behaviour; an
+    /// item in a plain `CommandBar` has none and dismisses nothing.
+    var _flyout: _CommandBarFlyoutState?
+
     /// Creates a command bar item.
     public init(key: (any Key)? = nil) {
         self.key = key
@@ -161,7 +167,7 @@ public class CommandBarButton: CommandBarItem {
                     child: content
                 )
             },
-            onPressed: onPressed
+            onPressed: _invoke
         )
 
         if let tooltip = tooltip {
@@ -171,11 +177,25 @@ public class CommandBarButton: CommandBarItem {
         return button
     }
 
+    /// The press: the command, and then the flyout it was invoked from
+    /// goes away, as WinUI's does. nil for a disabled command, so the
+    /// button stays inert rather than dismissing on a dead click.
+    var _invoke: (() -> Void)? {
+        guard let onPressed else { return nil }
+        return { [self] in
+            onPressed()
+            _flyout?.commandInvoked()
+        }
+    }
+
     /// Builds the secondary (overflow menu) representation as a MenuFlyoutItem-style tile.
     private func _buildSecondaryItem(_ context: any BuildContext) -> Widget {
         return FlyoutListTile(
-            onPressed: onPressed,
-            icon: icon,
+            onPressed: _invoke,
+            // A fixed 16pt slot, WinUI's icon size: a command with no icon
+            // then reserves the same column and every label starts at the
+            // same x, which is what `MenuFlyout` does for its own items.
+            icon: SizedBox(width: 16, height: 16, child: Center(child: icon ?? SizedBox(width: 0, height: 0))),
             text: label ?? SizedBox(width: 0, height: 0),
             margin: EdgeInsets()
         )

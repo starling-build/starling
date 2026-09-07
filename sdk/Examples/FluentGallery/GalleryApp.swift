@@ -136,6 +136,8 @@ enum GalleryCatalog {
                              icon: FluentSystemIcons.more) { MenuFlyoutPage() },
                 GalleryEntry(title: "CommandBar", subtitle: "A toolbar of commands with an overflow.",
                              icon: FluentSystemIcons.edit) { CommandBarPage() },
+                GalleryEntry(title: "CommandBarFlyout", subtitle: "The recommended context menu: an icon row and a menu.",
+                             icon: FluentSystemIcons.more) { CommandBarFlyoutPage() },
             ]),
         GalleryCategory(
             title: "Navigation", subtitle: "Ways around an app",
