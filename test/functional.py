@@ -286,14 +286,28 @@ def tap_node_for(nodes: list, label: str):
     return None
 
 
+def tap_exact(s, win, label: str) -> bool:
+    """Tap the first tappable node whose label IS `label`. False if none.
+    For a combo box's value and its list items, whose labels are exactly the
+    choice — `tap_node_for`'s "first tappable after a text starting with
+    the label" rule is for switches, and on a page where a description
+    begins "Windows and surfaces…" it lands on that row's switch instead."""
+    for n in tree_nodes(s, win):
+        if (n.get("label") or "") == label and "tap" in (n.get("actions") or []):
+            s.ok("perform_action", win=win, node=n.get("node"), action="tap")
+            time.sleep(1)
+            return True
+    return False
+
+
 def pick_style(s, win, wanted: str) -> None:
     """Choose `wanted` ("macOS" or "Windows") in Appearance's Desktop Style
     combo box. The box shows the current choice; tapping it opens the list,
     and the wanted item is only in the tree once the list is open."""
     other = "Windows" if wanted == "macOS" else "macOS"
-    if tap_node_for(tree_nodes(s, win), wanted) is None:
-        tap_label(s, win, other)
-    tap_label(s, win, wanted)
+    if not tap_exact(s, win, wanted):
+        assert tap_exact(s, win, other), f"no Desktop Style box showing {other!r}"
+        assert tap_exact(s, win, wanted), f"{wanted!r} is not in the opened list"
 
 
 def tap_label(s, win, label: str) -> None:
