@@ -33,13 +33,39 @@ struct FileExplorerState {
     var showHidden: Bool = false
     var searchQuery: String = ""
 
+    // What cut or copy put aside, and whether it was a cut. Windows keeps
+    // this on the system clipboard so any app can paste it; ours is the
+    // app's own, so a copy here pastes here — see the note on `clip`.
+    var clipboard: FileClipboard? = nil
+    /// The names already taken at the destination, when a paste is waiting
+    /// for the user to say replace, keep both or skip.
+    var pasteConflicts: [String] = []
+    /// A copy or move in flight, as the status bar says it.
+    var busy: String? = nil
+
     // Error
     var errorMessage: String? = nil
+    /// A failed copy, move or delete. Separate from `errorMessage`, which
+    /// replaces the whole listing with an error page — a paste that failed
+    /// on one file should not take the folder away.
+    var operationError: String? = nil
 
     // Computed
+    var canPaste: Bool {
+        clipboard != nil && busy == nil && FileSystem.isWritable(currentPath)
+    }
     var canGoBack: Bool { historyIndex > 0 }
     var canGoForward: Bool { historyIndex < history.count - 1 }
     var canGoUp: Bool { currentPath != "/" }
+}
+
+/// What a cut or copy set aside.
+struct FileClipboard {
+    var paths: [String]
+    /// A cut, rather than a copy: the source goes away on paste, and the
+    /// clipboard is emptied afterwards so a second paste cannot try to move
+    /// a file that has already moved. Explorer's own rule.
+    var cut: Bool
 }
 
 // MARK: - File Explorer Events
@@ -70,6 +96,15 @@ enum FileExplorerEvent {
     case createFolder(name: String)
     case rename(path: String, newName: String)
     case delete(path: String)
+    /// Put a path aside for pasting. `cut` moves it rather than copying.
+    case clip(path: String, cut: Bool)
+    /// Paste into the current folder. Stops and fills `pasteConflicts` when
+    /// a name is already taken, so the UI can ask.
+    case paste
+    /// The answer to that question; the paste then runs.
+    case resolvePaste(FileSystem.ConflictPolicy)
+    /// The user backed out of the conflict dialog.
+    case cancelPaste
 }
 
 // MARK: - File Explorer BLoC
@@ -116,6 +151,56 @@ final class FileExplorerBloc: @unchecked Sendable {
             _rename(path: path, newName: newName)
         case .delete(let path):
             _delete(path: path)
+        case .clip(let path, let cut):
+            state.operationError = nil
+            state.clipboard = FileClipboard(paths: [path], cut: cut)
+        case .paste:
+            _paste()
+        case .resolvePaste(let policy):
+            state.pasteConflicts = []
+            _performPaste(policy)
+        case .cancelPaste:
+            state.pasteConflicts = []
+        }
+    }
+
+    // MARK: - Paste
+
+    /// Look before writing: a paste onto names that are already taken asks
+    /// first, exactly as Explorer's does, and only then does any work.
+    private func _paste() {
+        guard let clip = state.clipboard, state.busy == nil else { return }
+        state.operationError = nil
+        let conflicts = FileSystem.conflicts(clip.paths, in: state.currentPath)
+        if conflicts.isEmpty {
+            _performPaste(.keepBoth)  // nothing in the way; the policy is moot
+        } else {
+            state.pasteConflicts = conflicts
+        }
+    }
+
+    /// The copy or move itself, off the UI thread — a folder of a thousand
+    /// files must not freeze the window, and the status bar says what is
+    /// happening while it runs.
+    private func _performPaste(_ policy: FileSystem.ConflictPolicy) {
+        guard let clip = state.clipboard else { return }
+        let destination = state.currentPath
+        state.busy = clip.cut ? "Moving…" : "Copying…"
+        Task.detached {
+            var failure: String? = nil
+            for path in clip.paths {
+                let error = clip.cut
+                    ? FileSystem.move(path, into: destination, policy: policy)
+                    : FileSystem.copy(path, into: destination, policy: policy)
+                if failure == nil { failure = error }
+            }
+            await MainActor.run { [self] in
+                state.busy = nil
+                // A cut is spent once pasted; a copy can be pasted again.
+                if clip.cut { state.clipboard = nil }
+                _loadDirectory(destination)
+                state.operationError = failure
+            }
         }
     }
 

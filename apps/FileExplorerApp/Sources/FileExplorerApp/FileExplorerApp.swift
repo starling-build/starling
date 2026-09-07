@@ -132,15 +132,53 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     private var _lastClickTime: Date = .distantPast
     private var _lastClickIndex: Int? = nil
 
+    /// Ctrl+X/C/V over the listing. The framework routes keys to one
+    /// focused node, so the listing holds one and gives it up whenever the
+    /// search box or a dialog field takes focus — which is exactly right:
+    /// Ctrl+C in the search box belongs to the search box.
+    private let _keys = FocusNode(debugLabel: "FilesListing")
+    /// Whether Ctrl is down. Child apps are sent X11 keysyms in `logical`
+    /// (the DRM embedder's convention — the shell's own widgets switch on
+    /// HID `physical` instead, and copying that here would match nothing).
+    private var _ctrlDown = false
+
     override func initState() {
         super.initState()
         filesBlocShared = bloc
         bloc.add(.loadInitialDirectory)
+        _keys.onKeyData = { [weak self] key in self?._handleKey(key) ?? false }
+        _keys.requestFocus()
+    }
+
+    /// Returns true when the key was ours; anything else falls through —
+    /// Escape especially, which the dismiss stack needs to hear.
+    private func _handleKey(_ key: KeyData) -> Bool {
+        let down = key.type == .down || key.type == .repeat
+        switch key.logical {
+        case 0xFFE3, 0xFFE4:  // Control_L / Control_R
+            _ctrlDown = down
+            return false
+        default:
+            break
+        }
+        guard down, _ctrlDown else { return false }
+        switch key.logical {
+        case 0x63, 0x43:  // c / C
+            _clip(cut: false); return true
+        case 0x78, 0x58:  // x / X
+            _clip(cut: true); return true
+        case 0x76, 0x56:  // v / V
+            if bloc.state.canPaste { bloc.add(.paste) }
+            return true
+        default:
+            return false
+        }
     }
 
     override func dispose() {
         search.dispose()
         pathController?.dispose()
+        _keys.dispose()
         super.dispose()
     }
 
@@ -194,6 +232,14 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
             ),
         ]
 
+        if !s.pasteConflicts.isEmpty {
+            layers.append(Positioned(fill: (), child: _ConflictOverlay(
+                names: s.pasteConflicts,
+                cut: s.clipboard?.cut ?? false,
+                onResolve: { [self] policy in bloc.add(.resolvePaste(policy)) },
+                onCancel: { [self] in bloc.add(.cancelPaste) })))
+        }
+
         if let pos = contextMenuPosition {
             // Full-window barrier that dismisses the menu on any click.
             layers.append(
@@ -223,6 +269,13 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
         return Stack(children: layers)
     }
 
+    /// Cut or copy the selection. One item, because the listing selects
+    /// one — the clipboard itself holds a list and is ready for more.
+    private func _clip(cut: Bool) {
+        guard let entry = selectedEntry else { return }
+        bloc.add(.clip(path: entry.path, cut: cut))
+    }
+
     /// A flyout as plain content in the window's own Stack, placed at the
     /// pointer — the shape the shell uses for its popups. The intrinsic
     /// wrappers are what give it a size to lay out in; without them it
@@ -237,8 +290,7 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     // MARK: - Command bar
 
     /// New, then the verbs the listing supports, then Sort and View —
-    /// Explorer's order, without the verbs this app cannot do (cut, copy,
-    /// paste, share): a lit button that fails is worse than its absence.
+    /// Explorer's order, without Share, which needs somewhere to share to.
     private func _buildCommandBar(_ context: any BuildContext) -> Widget {
         let s = bloc.state
         let selected = selectedEntry
@@ -270,6 +322,18 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                                 onPressed: { [self] in _showNewFolderDialog(context) }),
                         ]),
                     _barSeparator(),
+                    IconButton(
+                        icon: Icon(FluentSystemIcons.cut, size: 14),
+                        onPressed: selected == nil ? nil : { [self] in _clip(cut: true) }),
+                    SizedBox(width: 2),
+                    IconButton(
+                        icon: Icon(FluentSystemIcons.copy, size: 14),
+                        onPressed: selected == nil ? nil : { [self] in _clip(cut: false) }),
+                    SizedBox(width: 2),
+                    IconButton(
+                        icon: Icon(FluentSystemIcons.paste, size: 14),
+                        onPressed: s.canPaste ? { [self] in bloc.add(.paste) } : nil),
+                    SizedBox(width: 2),
                     IconButton(
                         icon: Icon(FluentSystemIcons.rename, size: 14),
                         onPressed: selected == nil ? nil : { [self] in _showRenameDialog(context) }),
@@ -426,7 +490,14 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     private func _openPathEdit() {
         let directory = bloc.state.currentPath
         setState {
-            pathController = TextEditingController(text: directory)
+            let controller = TextEditingController(text: directory)
+            // Everything selected, as Explorer opens it: the common gesture
+            // is typing a whole new path over the old one, not appending to
+            // it. Without this the first keystroke lands after the path and
+            // types "/home/starling/home/starling/…".
+            controller.selection = TextSelection(baseOffset: 0,
+                                                 extentOffset: directory.count)
+            pathController = controller
             pathEditing = true
             pathEditDirectory = directory
         }
@@ -644,6 +715,9 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
                             ]))))
             },
             onPressed: { [self] in
+                // A click in the listing takes the keyboard back from the
+                // search box, so Ctrl+C works again without a detour.
+                _keys.requestFocus()
                 // Select on the first click, open on a second within 0.4s.
                 let now = Date()
                 if _lastClickIndex == idx, now.timeIntervalSince(_lastClickTime) < 0.4 {
@@ -770,8 +844,9 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     /// acts on the folder, so it gets the menu alone — as Explorer's own
     /// background menu has no icon row either.
     ///
-    /// The row is short because the row is honest: Windows puts cut, copy
-    /// and paste there too, and this app has no clipboard for files.
+    /// The row is Windows' own, minus Share, which needs a target to share
+    /// with. Paste belongs to the FOLDER rather than to an item, so it is
+    /// in the background menu rather than the row — as Explorer has it.
     private func _contextMenu(_ context: any BuildContext) -> Widget {
         let s = bloc.state
         let close: () -> Void = { [self] in setState { contextMenuPosition = nil } }
@@ -780,6 +855,12 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
 
         if let idx = contextMenuIndex, idx < s.entries.count {
             let entry = s.entries[idx]
+            primary.append(CommandBarButton(
+                icon: Icon(FluentSystemIcons.cut),
+                onPressed: { [self] in close(); _clip(cut: true) }, tooltip: "Cut"))
+            primary.append(CommandBarButton(
+                icon: Icon(FluentSystemIcons.copy),
+                onPressed: { [self] in close(); _clip(cut: false) }, tooltip: "Copy"))
             primary.append(CommandBarButton(
                 icon: Icon(FluentSystemIcons.rename), onPressed: { [self] in close(); _showRenameDialog(context) },
                 tooltip: "Rename"))
@@ -794,6 +875,14 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
             }
         }
 
+        // Paste acts on the FOLDER, so Explorer offers it when the click
+        // landed on the background and not when it landed on an item.
+        if contextMenuIndex == nil, s.canPaste {
+            secondary.append(CommandBarButton(
+                icon: Icon(FluentSystemIcons.paste), label: Text("Paste"),
+                onPressed: { [self] in close(); bloc.add(.paste) }))
+            secondary.append(CommandBarSeparator())
+        }
         secondary.append(CommandBarButton(
             icon: Icon(FluentSystemIcons.folderAdd), label: Text("New folder"),
             onPressed: { [self] in close(); _showNewFolderDialog(context) }))
@@ -822,9 +911,28 @@ class _FileExplorerAppState: State<StatefulWidget>, @unchecked Sendable {
     private func _buildStatusBar() -> Widget {
         let s = bloc.state
         let count = s.entries.count
+        // A copy in flight, or the last one's failure, says so here rather
+        // than in the error page — a paste that failed on one file must not
+        // take the folder listing away.
+        if let busy = s.busy {
+            return SizedBox(
+                height: kStatusBar,
+                child: Padding(
+                    padding: EdgeInsets(horizontal: 14),
+                    child: Row(crossAxisAlignment: .center, children: [
+                        SizedBox(width: 14, height: 14,
+                                 child: ProgressRing(strokeWidth: 2)),
+                        SizedBox(width: 10),
+                        _text(busy, size: 11, color: FinderColors.secondaryLabel),
+                    ])))
+        }
         var cells: [Widget] = [
             _text("\(count) item\(count == 1 ? "" : "s")", size: 11, color: FinderColors.secondaryLabel),
         ]
+        if let failure = s.operationError {
+            cells.append(SizedBox(width: 12))
+            cells.append(Flexible(child: _text(failure, size: 11, color: Color(0xFFE0655A))))
+        }
         if let entry = selectedEntry {
             cells.append(Padding(
                 padding: EdgeInsets(horizontal: 12),
@@ -1061,5 +1169,73 @@ class _DeleteDialog: StatelessWidget {
                     },
                     child: Text("Delete")),
             ])
+    }
+}
+
+// MARK: - Replace or skip
+
+/// Explorer's question when a paste lands on a name that is already taken,
+/// and its three answers. Shown in the window's own Stack rather than
+/// through `showDialog`, because the pending paste is BLOC state: a route
+/// popped by Escape would be rebuilt from that state and reappear. Esc
+/// cancels the paste instead, through the dismiss stack.
+private final class _ConflictOverlay: StatefulWidget {
+    let names: [String]
+    let cut: Bool
+    let onResolve: (FileSystem.ConflictPolicy) -> Void
+    let onCancel: () -> Void
+
+    init(names: [String], cut: Bool,
+         onResolve: @escaping (FileSystem.ConflictPolicy) -> Void,
+         onCancel: @escaping () -> Void) {
+        self.names = names
+        self.cut = cut
+        self.onResolve = onResolve
+        self.onCancel = onCancel
+        super.init()
+    }
+
+    override func createState() -> State<StatefulWidget> { _ConflictOverlayState() }
+}
+
+private final class _ConflictOverlayState: State<StatefulWidget> {
+    private var overlay: _ConflictOverlay { widget as! _ConflictOverlay }
+    private var _dismiss: DismissStack.Token?
+
+    override func initState() {
+        super.initState()
+        _dismiss = DismissStack.push { [weak self] in self?.overlay.onCancel() }
+    }
+
+    override func dispose() {
+        DismissStack.remove(_dismiss)
+        super.dispose()
+    }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let names = overlay.names
+        let verb = overlay.cut ? "moving" : "copying"
+        let what = names.count == 1
+            ? "There is already a file named \"\(names[0])\" here."
+            : "\(names.count) items here already have the same names."
+        return Stack(fit: .expand, children: [
+            Listener(
+                onPointerDown: { [self] _ in overlay.onCancel() },
+                behavior: .opaque,
+                child: Smoke()),
+            Center(child: ContentDialog(
+                title: Text("Replace or skip?"),
+                content: Column(mainAxisSize: .min, crossAxisAlignment: .start, children: [
+                    Text("\(what) Choose what to do while \(verb)."),
+                ]),
+                actions: [
+                    FilledButton(onPressed: { [self] in overlay.onResolve(.replace) },
+                                 child: Text("Replace")),
+                    Button(onPressed: { [self] in overlay.onResolve(.keepBoth) },
+                           child: Text("Keep both")),
+                    Button(onPressed: { [self] in overlay.onResolve(.skip) },
+                           child: Text("Skip")),
+                ])),
+        ])
     }
 }

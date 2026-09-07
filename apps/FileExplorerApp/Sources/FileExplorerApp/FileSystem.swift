@@ -203,6 +203,146 @@ struct FileSystem {
         }
     }
 
+    // MARK: - Copy, move and their conflicts
+    //
+    // Windows does all of this through one shell interface (IFileOperation),
+    // which brings the progress window, the replace/skip/keep-both dialog,
+    // the recycle bin and an undo stack with it. Linux has no such shared
+    // engine — every file manager writes its own — so this is ours, and it
+    // is deliberately the small honest subset: copy, move, and the three
+    // answers Windows offers when a name is already taken.
+
+    /// What to do when the destination already holds that name. Windows'
+    /// own three, in its words.
+    enum ConflictPolicy {
+        /// Overwrite what is there.
+        case replace
+        /// Keep both, the new one renamed "report (2).txt".
+        case keepBoth
+        /// Leave the destination alone and move on.
+        case skip
+    }
+
+    /// The names among `paths` that already exist in `directory` — what the
+    /// conflict dialog asks about, computed before anything is written.
+    static func conflicts(_ paths: [String], in directory: String) -> [String] {
+        let fm = FileManager.default
+        return paths.compactMap { path in
+            let name = (path as NSString).lastPathComponent
+            let dest = (directory as NSString).appendingPathComponent(name)
+            // Pasting a copy back into the same folder is not a conflict with
+            // itself; it is the ordinary "make me a second copy" case.
+            if dest == path { return nil }
+            return fm.fileExists(atPath: dest) ? name : nil
+        }
+    }
+
+    /// Explorer's keep-both name: "report.txt" becomes "report (2).txt", and
+    /// keeps counting while the name is taken. A dotfile has no extension to
+    /// preserve, so the number goes on the end.
+    static func uniqueName(for name: String, in directory: String) -> String {
+        let fm = FileManager.default
+        let ns = name as NSString
+        let ext = ns.pathExtension
+        let stem = ext.isEmpty || name.hasPrefix(".") ? name : ns.deletingPathExtension
+        let suffix = ext.isEmpty || name.hasPrefix(".") ? "" : ".\(ext)"
+        var n = 2
+        while true {
+            let candidate = "\(stem) (\(n))\(suffix)"
+            let path = (directory as NSString).appendingPathComponent(candidate)
+            if !fm.fileExists(atPath: path) { return candidate }
+            n += 1
+            // A folder with two thousand "(n)" copies in it is a bug
+            // somewhere else; stop rather than spin.
+            if n > 2000 { return candidate }
+        }
+    }
+
+    /// Whether new files can be created in `directory`.
+    static func isWritable(_ path: String) -> Bool {
+        FileManager.default.isWritableFile(atPath: path)
+    }
+
+    /// Where `path` lands in `directory` under `policy`, or nil to skip.
+    /// Removes what is in the way for `.replace`.
+    private static func _destination(_ path: String, in directory: String,
+                                     policy: ConflictPolicy) throws -> String? {
+        let fm = FileManager.default
+        let name = (path as NSString).lastPathComponent
+        var dest = (directory as NSString).appendingPathComponent(name)
+        // Copying something back into the folder it is already in always
+        // keeps both — there is nothing else it could mean.
+        if dest == path {
+            return (directory as NSString)
+                .appendingPathComponent(uniqueName(for: name, in: directory))
+        }
+        guard fm.fileExists(atPath: dest) else { return dest }
+        switch policy {
+        case .skip:
+            return nil
+        case .keepBoth:
+            dest = (directory as NSString)
+                .appendingPathComponent(uniqueName(for: name, in: directory))
+        case .replace:
+            try fm.removeItem(atPath: dest)
+        }
+        return dest
+    }
+
+    /// A folder cannot be copied into itself or into its own subtree —
+    /// Windows refuses this too, and without the check the copy walks into
+    /// what it is writing and never finishes.
+    private static func _isInside(_ directory: String, _ path: String) -> Bool {
+        directory == path || directory.hasPrefix(path.hasSuffix("/") ? path : path + "/")
+    }
+
+    /// Copy `path` into `directory`. nil on success, a message on failure.
+    static func copy(_ path: String, into directory: String,
+                     policy: ConflictPolicy) -> String? {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else {
+            return "\((path as NSString).lastPathComponent) no longer exists"
+        }
+        if isDir.boolValue, _isInside(directory, path) {
+            return "A folder cannot be copied into itself"
+        }
+        do {
+            guard let dest = try _destination(path, in: directory, policy: policy) else {
+                return nil  // skipped
+            }
+            try FileManager.default.copyItem(atPath: path, toPath: dest)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Move `path` into `directory` — a cut, pasted. nil on success.
+    ///
+    /// `moveItem` is a rename within one filesystem and a copy across two,
+    /// which is what makes a cut from an SD card work at all.
+    static func move(_ path: String, into directory: String,
+                     policy: ConflictPolicy) -> String? {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else {
+            return "\((path as NSString).lastPathComponent) no longer exists"
+        }
+        if isDir.boolValue, _isInside(directory, path) {
+            return "A folder cannot be moved into itself"
+        }
+        // Cutting and pasting into the same folder is a no-op, not a copy.
+        if (path as NSString).deletingLastPathComponent == directory { return nil }
+        do {
+            guard let dest = try _destination(path, in: directory, policy: policy) else {
+                return nil
+            }
+            try FileManager.default.moveItem(atPath: path, toPath: dest)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     /// Check if path is readable.
     static func isReadable(_ path: String) -> Bool {
         return FileManager.default.isReadableFile(atPath: path)

@@ -99,6 +99,15 @@ LAYOUT_BIN=$(as_user mktemp /tmp/starling-layout.XXXXXX)
      || { "$LAYOUT_BIN" 2>/dev/null | grep FAIL; false; }) || fails=$((fails + 1))
 rm -f "$LAYOUT_BIN"
 
+# The file manager's copy and move. Same standalone shape as the codec above,
+# and for a sharper reason: these write to the user's disk, so a replace that
+# removes the wrong side or a folder copied into its own subtree is a bug you
+# only get to make once. Foundation-only, so no SDK and no engine.
+step "unit tests: file operations"
+FILEOPS_BIN=$(as_user mktemp /tmp/starling-fileops.XXXXXX)
+(as_user "$SWIFTC" -O -o "$FILEOPS_BIN" "$REPO/test/fileops/fileops-test.swift"      "$REPO/apps/FileExplorerApp/Sources/FileExplorerApp/FileSystem.swift" 2>/dev/null      && "$FILEOPS_BIN" | tail -1 | grep -q "all file operation checks passed"      && echo "  ✔ file operations: all passed"      || { "$FILEOPS_BIN" 2>/dev/null | grep FAIL; false; }) || fails=$((fails + 1))
+rm -f "$FILEOPS_BIN"
+
 # The conformance suite above proves the GRID is right. This proves the grid
 # can be SEEN: the engine has no system font fallback, so a codepoint missing
 # from every loaded face paints nothing while the cell holds the right

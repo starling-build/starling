@@ -303,10 +303,32 @@ in the menu, as WinUI's AppBarToggleButton is. Two measurements came from
 our own Windows shell rather than guesswork: the icon row divides the
 menu's inner width by the number of cells, and every label starts at one
 16pt icon column whether its command has an icon or not. Files' context
-menu is the first consumer (rename and delete in the row — the row is
-short because this app has no clipboard for files, and a lit button that
-fails is worse than its absence), the gallery gained a page with all four
+menu is the first consumer, the gallery gained a page with all four
 shapes, and six unit tests pin the display-mode rules.
+
+**Phase 7, fourth slice, 2026-09-06:** cut, copy and paste in Files, which
+filled that icon row out to Windows' own (minus Share, which needs
+somewhere to share to). Windows does all of this through one shell
+interface, `IFileOperation`, which brings the progress window, the
+replace/skip/keep-both dialog, the recycle bin and an undo stack with it;
+Linux has no such shared engine, so this is the honest subset written by
+hand: recursive copy, move with a rename fast path, the three conflict
+answers, and the two refusals that matter (a folder into itself, or into
+its own subtree). The clipboard is the APP's, not the system's — a copy
+here pastes here; interoperating with GTK apps needs `text/uri-list` on
+the Wayland clipboard, which the framework's text-only clipboard cannot
+carry yet, and that is the next piece if this is wanted between apps.
+Explorer's conventions are kept where they show: a cut is spent once
+pasted (the clipboard clears, so a second paste cannot move a file that
+has already moved), a copy can be pasted again, pasting into the source
+folder makes "note (2).txt", Paste is in the folder's menu and not an
+item's, and the paste runs off the UI thread with the status bar saying
+so. Ctrl+X/C/V reach the listing through a focus node the search box
+takes and gives back. Twenty-one standalone checks in the fast tier
+(`test/fileops/`) cover the engine; every flow was driven on the dev box.
+Found and fixed on the way: the address bar appended rather than replaced,
+because the field opened without its text selected — Explorer opens it
+selected, and our Windows shell already did.
 
 ## 1. What "the latest Fluent" is, in September 2026
 
