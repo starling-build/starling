@@ -1240,6 +1240,10 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
            let preset = WallpaperPreset(rawValue: raw) {
             wallpaperPreset = preset
         }
+        // The transparency and animation switches persist too.
+        if let s = try? String(contentsOfFile: Self._prefsFile, encoding: .utf8) {
+            shellPrefs = ShellPrefs.parse(s)
+        }
         #if os(Linux)
         linuxProcessAppManager?.currentWallpaper = wallpaperPreset.rawValue
         // Seed the style the same way. Without this the mirror stays at 0 and
@@ -1247,6 +1251,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // came up on the wrong segment on a desktop that had booted into the
         // other style, and looked like the switch had silently failed.
         linuxProcessAppManager?.currentStyleIndex = _styleIndex(shellStyle)
+        linuxProcessAppManager?.currentPrefs = _prefsSnapshot()
         #endif
         windowManager.onWindowsChanged = { [weak self] in
             guard let self else { return }
@@ -2916,6 +2921,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 onPrefs: { [self] prefs in
                     setState { _startPrefs = prefs }
                     StartStore.save(prefs)
+                    _broadcastStartPrefs()
                 },
                 onPower: { [self] anchor in
                     setState {
@@ -4131,7 +4137,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             onPointerMove: { [self] e in _lastPointer = e.position },
             onPointerHover: { [self] e in _lastPointer = e.position },
             behavior: .translucent,
-            child: _buildShellRoot(context))
+            // The transparency and animation switches, above every piece
+            // of chrome: the SDK's Acrylic, Mica and FluentEntrance read
+            // them from here.
+            child: FluentMaterialSettings(
+                transparencyEffects: shellPrefs.transparency,
+                animationEffects: shellPrefs.animations,
+                child: _buildShellRoot(context)))
     }
 
     private func _buildShellRoot(_ context: any BuildContext) -> Widget {
@@ -8314,6 +8326,77 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// child apps, which treat it as an opaque small integer.
     func _styleIndex(_ spec: ShellStyleSpec) -> Int {
         ShellStyles.all.firstIndex { $0.id == spec.id } ?? 0
+    }
+
+    // MARK: Preferences (StarlingPref ids, DMABUF_CONTROL_SET_PREF)
+
+    static var _prefsFile: String { LoginUser.configDir + "/prefs" }
+
+    /// Every preference as the shell holds it, by wire id.
+    func _prefsSnapshot() -> [Int: Int] {
+        [
+            StarlingPref.transparency.rawValue: shellPrefs.transparency ? 1 : 0,
+            StarlingPref.animations.rawValue: shellPrefs.animations ? 1 : 0,
+            StarlingPref.startView.rawValue: Self._startViews.firstIndex(of: _startPrefs.view) ?? 0,
+            StarlingPref.startRecent.rawValue: _startPrefs.showRecent ? 1 : 0,
+            StarlingPref.startSize.rawValue: Self._startSizes.firstIndex(of: _startPrefs.size) ?? 0,
+        ]
+    }
+
+    /// The wire order of Start's layouts and sizes (the raw values are
+    /// strings in the pref file; the wire carries positions).
+    static let _startViews: [StartView] = [.category, .grid, .list]
+    static let _startSizes: [StartSize] = [.auto, .small, .large]
+
+    /// Settings' switches and Start's preferences, from a child or from
+    /// Start itself: apply, persist, and push to every child so Settings'
+    /// page shows what the desktop is doing.
+    func _setPref(_ id: Int, _ value: Int) {
+        guard let pref = StarlingPref(rawValue: id) else { return }
+        switch pref {
+        case .transparency, .animations:
+            var next = shellPrefs
+            if pref == .transparency { next.transparency = value != 0 } else { next.animations = value != 0 }
+            guard next != shellPrefs else { return }
+            setState {
+                shellPrefs = next
+                // Cached window widgets carry the old materials.
+                _windowChildCache.removeAll()
+            }
+            let path = Self._prefsFile
+            try? FileManager.default.createDirectory(
+                atPath: (path as NSString).deletingLastPathComponent,
+                withIntermediateDirectories: true)
+            try? next.serialized.write(toFile: path, atomically: true, encoding: .utf8)
+        case .startView, .startRecent, .startSize:
+            var prefs = _startPrefs
+            switch pref {
+            case .startView:
+                guard value >= 0, value < Self._startViews.count else { return }
+                prefs.view = Self._startViews[value]
+            case .startRecent:
+                prefs.showRecent = value != 0
+            default:
+                guard value >= 0, value < Self._startSizes.count else { return }
+                prefs.size = Self._startSizes[value]
+            }
+            guard prefs != _startPrefs else { return }
+            setState { _startPrefs = prefs }
+            StartStore.save(prefs)
+        }
+        #if os(Linux)
+        linuxProcessAppManager?.broadcastPref(id: id, value: value)
+        #endif
+    }
+
+    /// Start changed its own preferences (its view switcher, the Recent
+    /// fold): push the lot so Settings' Start section follows.
+    func _broadcastStartPrefs() {
+        #if os(Linux)
+        for (id, value) in _prefsSnapshot() where id >= StarlingPref.startView.rawValue {
+            linuxProcessAppManager?.broadcastPref(id: id, value: value)
+        }
+        #endif
     }
 
     /// Switch the desktop appearance (context menu or the Settings app's

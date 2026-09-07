@@ -70,8 +70,9 @@ private final class _WindowLifecycleAnimationState: State<StatefulWidget>, Ticke
     private var _widget: WindowLifecycleAnimation { widget as! WindowLifecycleAnimation }
 
     /// The style's motion, read at each transition so a style switch
-    /// mid-life takes effect on the next open, close or minimize.
-    private var motion: ShellMotion { shellStyle.motion }
+    /// mid-life takes effect on the next open, close or minimize — or none
+    /// at all, when the user has turned animation effects off.
+    private var motion: ShellMotion { shellPrefs.animations ? shellStyle.motion : ShellMotion.instant }
 
     func createTicker(_ onTick: @escaping TickerCallback) -> Ticker {
         return Ticker(onTick)

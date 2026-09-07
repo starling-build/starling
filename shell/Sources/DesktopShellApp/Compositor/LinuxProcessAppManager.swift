@@ -171,6 +171,13 @@ class LinuxProcessAppManager {
     /// picker) asks to switch the desktop wallpaper preset.
     var onWallpaperChangeRequested: ((Int) -> Void)?
     var onStyleChangeRequested: ((Int) -> Void)?
+    /// A child (Settings) asks to change a desktop preference: (id, value),
+    /// ids as `StarlingPref`.
+    var onPrefChangeRequested: ((Int, Int) -> Void)?
+    /// Every preference as the shell holds it, pushed to a child at connect
+    /// (kept in sync by `broadcastPref`).
+    nonisolated(unsafe) var currentPrefs: [Int: Int] = [:]
+    private let pendingPrefRequests = AtomicBox<[(Int, Int)]>([])
 
     /// The shell's current wallpaper preset raw value, pushed to children at
     /// connect so the Settings picker reflects reality (kept in sync by
@@ -295,6 +302,9 @@ class LinuxProcessAppManager {
                 // appearance (further switches arrive via broadcastTheme).
                 sendTheme(textureId: texId, dark: shellTheme.isDark)
                 sendStyle(textureId: texId, index: currentStyleIndex)
+                for (id, value) in currentPrefs.sorted(by: { $0.key < $1.key }) {
+                    sendPref(textureId: texId, id: id, value: value)
+                }
                 sendLayout(textureId: texId, tiling: currentLayoutIsTiling)
                 sendWallpaper(textureId: texId, preset: currentWallpaper)
                 sendScreensaver(textureId: texId, seconds: currentScreensaverIdle)
@@ -472,6 +482,10 @@ class LinuxProcessAppManager {
             if let lastStyle = styleRequests.last {
                 onStyleChangeRequested?(lastStyle)
             }
+        }
+
+        for (id, value) in pendingPrefRequests.take([]) {
+            onPrefChangeRequested?(id, value)
         }
 
         let screensaverRequests = pendingScreensaverRequests.take([])
@@ -722,6 +736,7 @@ class LinuxProcessAppManager {
         let pendingLayoutRequests = self.pendingLayoutRequests
         let pendingWallpaperRequests = self.pendingWallpaperRequests
         let pendingStyleRequests = self.pendingStyleRequests
+        let pendingPrefRequests = self.pendingPrefRequests
         let pendingScreensaverRequests = self.pendingScreensaverRequests
         let pendingPrimaryDisplayRequests = self.pendingPrimaryDisplayRequests
         let pendingRdpRequests = self.pendingRdpRequests
@@ -842,6 +857,9 @@ class LinuxProcessAppManager {
                     } else if event.type == DMABUF_CONTROL_SET_STYLE {
                         pendingStyleRequests.withLock { $0.append(Int(event.x)) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
+                    } else if event.type == DMABUF_CONTROL_SET_PREF {
+                        pendingPrefRequests.withLock { $0.append((Int(event.phase), Int(event.x))) }
+                        FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
                     } else if event.type == DMABUF_CONTROL_SET_SCREENSAVER {
                         pendingScreensaverRequests.withLock { $0.append(Int(event.x)) }
                         FlutterEngineScheduleFrame(unsafeBitCast(capturedEngine, to: OpaquePointer.self))
@@ -956,6 +974,24 @@ class LinuxProcessAppManager {
         currentStyleIndex = index
         for texId in apps.keys {
             sendStyle(textureId: texId, index: index)
+        }
+    }
+
+    /// Pushes one desktop preference to one child (ids as `StarlingPref`).
+    func sendPref(textureId: Int64, id: Int, value: Int) {
+        guard let entry = apps[textureId] else { return }
+        var event = DmaBufInputEvent(x: Double(value), y: 0, buttons: 0,
+                                     type: Int32(DMABUF_CONTROL_SET_PREF),
+                                     phase: Int32(id))
+        entry.sock.write(&event, MemoryLayout<DmaBufInputEvent>.size)
+    }
+
+    /// A preference changed: every child hears it, and a child connecting
+    /// later inherits it.
+    func broadcastPref(id: Int, value: Int) {
+        currentPrefs[id] = value
+        for texId in apps.keys {
+            sendPref(textureId: texId, id: id, value: value)
         }
     }
 

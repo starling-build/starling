@@ -79,12 +79,24 @@ struct SettingsState {
     /// Remote desktop, as the shell reports it — never as the switch was
     /// last clicked. A start that fails leaves this false.
     var rdpEnabled: Bool = GpuDmaBufRenderer.lastPushedRdpEnabled ?? false
+    /// The desktop preferences (StarlingPref), seeded from what the shell
+    /// pushed at connect; the shell owns them and echoes every change.
+    var transparency: Bool = StarlingPrefs.isOn(.transparency)
+    var animations: Bool = StarlingPrefs.isOn(.animations)
+    var startView: Int = StarlingPrefs.current(.startView) ?? 0
+    var startRecent: Bool = StarlingPrefs.isOn(.startRecent)
+    var startSize: Int = StarlingPrefs.current(.startSize) ?? 0
     #else
     var darkMode: Bool = true
     var tilingWM: Bool = false
     var wallpaper: Int = 0
     var style: Int = 0
     var screensaverIdle: Int = 600
+    var transparency: Bool = true
+    var animations: Bool = true
+    var startView: Int = 0
+    var startRecent: Bool = true
+    var startSize: Int = 0
     #endif
 
     // Power. Seeded synchronously — a handful of sysfs reads — so the pane
@@ -169,6 +181,10 @@ enum SettingsEvent {
     case selectScreensaverIdle(Int)
     /// Idle timeout pushed by the shell (no echo back).
     case screensaverApplied(Int)
+    /// A desktop preference (transparency, animations, Start's), by wire id.
+    case setPref(StarlingPref, Int)
+    /// A preference pushed by the shell (no echo back).
+    case prefApplied(StarlingPref, Int)
 
     // Sharing (remote desktop)
     case toggleRdp(Bool)
@@ -275,6 +291,14 @@ final class SettingsBloc: @unchecked Sendable {
             _applyStyle(value)
         case .styleApplied(let value):
             state.style = value
+        case .setPref(let pref, let value):
+            // Optimistic, like the style: the shell echoes the choice back.
+            _storePref(pref, value)
+            #if os(Linux)
+            GpuDmaBufRenderer.current?.sendPrefChange(id: pref.rawValue, value: value)
+            #endif
+        case .prefApplied(let pref, let value):
+            _storePref(pref, value)
         case .selectScreensaverIdle(let value):
             state.screensaverIdle = value
             _applyScreensaver(value)
@@ -520,6 +544,16 @@ final class SettingsBloc: @unchecked Sendable {
         #if os(Linux)
         GpuDmaBufRenderer.current?.sendWallpaperChange(preset: preset)
         #endif
+    }
+
+    private func _storePref(_ pref: StarlingPref, _ value: Int) {
+        switch pref {
+        case .transparency: state.transparency = value != 0
+        case .animations: state.animations = value != 0
+        case .startView: state.startView = value
+        case .startRecent: state.startRecent = value != 0
+        case .startSize: state.startSize = value
+        }
     }
 
     /// Forward the style pick to the shell, which rebuilds its whole chrome,

@@ -1299,7 +1299,7 @@ def check_tiling_toggle() -> None:
     user window's renderer mid-flight, which once corrupted child heaps
     (the reassemble-off-the-UI-thread bug). Both apps surviving both flips
     IS the assertion; the persisted file proves the flips happened."""
-    layout = Path(session_home()) / ".config/starling/window-layout"
+    layout = config_dir() / "window-layout"
     def persisted() -> str:
         try:
             return layout.read_text().strip()
@@ -2467,6 +2467,39 @@ def check_escape_dismisses() -> None:
         assert persisted() == original, f"Esc changed the style to {persisted()!r}"
         log("Esc closed it, and the choice stayed put")
     finally:
+        s.close()
+        quit_app("SettingsApp")
+
+
+@check("prefs: Settings' transparency, animation and Start switches reach the shell and come back")
+def check_prefs() -> None:
+    """The desktop preferences travel Settings → shell → every app as one
+    small message each (DMABUF_CONTROL_SET_PREF). This flips each switch on
+    the Appearance page and asks the SHELL what it holds — the switch's own
+    face is the shell's echo, so a preference the shell never applied would
+    show as a switch that springs back. Restores every one it touched.
+    """
+    before = ask("prefs")
+    s, win = settings_window()
+    try:
+        tap_label(s, win, "Appearance")
+        for label, key in (("Transparency effects", "transparency"),
+                           ("Animation effects", "animations"),
+                           ("Show recently added", "start_recent")):
+            was = before[key]
+            tap_label(s, win, label)
+            wait_for(lambda: ask("prefs")[key] == (not was), f"{label!r} to flip in the shell")
+            log(f"{label} → {not was}")
+            tap_label(s, win, label)
+            wait_for(lambda: ask("prefs")[key] == was, f"{label!r} to flip back")
+        assert proc_running("SettingsApp"), "Settings died flipping a switch"
+    finally:
+        # Whatever happened, leave the desktop as it was found.
+        now = ask("prefs")
+        for key, pref_id in (("transparency", 1), ("animations", 2), ("start_recent", 4)):
+            if now[key] != before[key]:
+                s.close()
+                raise AssertionError(f"{key} left as {now[key]}, was {before[key]}")
         s.close()
         quit_app("SettingsApp")
 

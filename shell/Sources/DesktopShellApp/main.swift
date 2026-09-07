@@ -739,6 +739,12 @@ func runDRM() -> Never {
         _shellState?._setStyle(ShellStyles.all[index].id)
     }
 
+    // Desktop preferences (SettingsApp's transparency, animation and Start
+    // switches).
+    processManager.onPrefChangeRequested = { id, value in
+        _shellState?._setPref(id, value)
+    }
+
     // Screensaver idle-timeout requests (SettingsApp's Screensaver picker).
     processManager.onScreensaverChangeRequested = { seconds in
         _shellState?._setScreensaverIdle(seconds: Double(seconds))

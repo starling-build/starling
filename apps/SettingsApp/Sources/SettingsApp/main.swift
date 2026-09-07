@@ -38,4 +38,5 @@ runApp(StarlingApp(
     // step with what the desktop is actually showing.
     onThemeChanged: { dark in settingsBlocShared?.add(.themeApplied(dark)) },
     onStyleChanged: { style in settingsBlocShared?.add(.styleApplied(style.rawValue)) },
+    onPrefChanged: { pref, value in settingsBlocShared?.add(.prefApplied(pref, value)) },
     home: SettingsApp()))

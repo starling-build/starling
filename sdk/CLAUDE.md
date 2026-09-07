@@ -103,6 +103,12 @@ README's *Building → macOS*.
   `registerFont()` are aliases and an app registers nothing.
   `FluentAppMountTests` mounts `FluentApp`+`ScaffoldPage` and `StarlingApp`
   through the element harness.
+- **Desktop preferences are `StarlingPref`s** (`Starling/StarlingPrefs.swift`):
+  small integers pushed by the shell over `DMABUF_CONTROL_SET_PREF` and
+  latched by `GpuDmaBufRenderer.lastPushedPrefs`. `StarlingApp` already
+  turns transparency and animations into `FluentMaterialSettings` over the
+  tree; a page that shows a switch mirrors the rest through
+  `onPrefChanged` and asks for a change with `sendPrefChange`.
 - **Escape is the `DismissStack`** (`Widgets/DismissStack.swift`): whatever
   opens a transient surface pushes a closer and pops it when the surface
   goes away by other means; `FocusManager.dispatchKeyData` hands an

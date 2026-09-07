@@ -57,17 +57,24 @@ public final class StarlingApp: StatefulWidget {
     /// Called after the tree has been rebuilt for a pushed style.
     public let onStyleChanged: ((StarlingStyleId) -> Void)?
 
+    /// Called after the tree has been rebuilt for a pushed preference
+    /// (`StarlingPref`, its value). The root already honours transparency
+    /// and animations itself; this is for a page that shows the switch.
+    public let onPrefChanged: ((StarlingPref, Int) -> Void)?
+
     public init(
         key: (any Key)? = nil,
         title: String = "",
         onThemeChanged: ((Bool) -> Void)? = nil,
         onStyleChanged: ((StarlingStyleId) -> Void)? = nil,
+        onPrefChanged: ((StarlingPref, Int) -> Void)? = nil,
         home: Widget
     ) {
         self.home = home
         self.title = title
         self.onThemeChanged = onThemeChanged
         self.onStyleChanged = onStyleChanged
+        self.onPrefChanged = onPrefChanged
         super.init(key: key)
     }
 
@@ -106,6 +113,9 @@ final class _StarlingAppState: State<StatefulWidget> {
         // value, which every listener has to be able to take twice.
         app.onThemeChanged?(_dark)
         app.onStyleChanged?(StarlingStyleId.current)
+        for (id, value) in GpuDmaBufRenderer.lastPushedPrefs {
+            if let pref = StarlingPref(rawValue: id) { app.onPrefChanged?(pref, value) }
+        }
         GpuDmaBufRenderer.onThemeChanged = { [weak self] dark in
             guard let self else { return }
             if self._dark != dark {
@@ -120,6 +130,13 @@ final class _StarlingAppState: State<StatefulWidget> {
             self.setState {}
             self.app.onStyleChanged?(StarlingStyleId.current)
         }
+        GpuDmaBufRenderer.onPrefChanged = { [weak self] id, value in
+            guard let self else { return }
+            // Transparency and animations sit above the tree as
+            // FluentMaterialSettings; a rebuild is what applies them.
+            self.setState {}
+            if let pref = StarlingPref(rawValue: id) { self.app.onPrefChanged?(pref, value) }
+        }
         #endif
     }
 
@@ -128,18 +145,25 @@ final class _StarlingAppState: State<StatefulWidget> {
         StarlingFonts.ensure(palette.fontFamily)
         StarlingFonts.ensure(palette.fontFamilyStrong)
         let fluent = palette.fluentTheme()
-        return Directionality(
-            textDirection: .ltr,
-            child: AnimatedFluentTheme(
-                data: fluent,
-                child: AnimatedMacosTheme(
-                    data: palette.macosTheme(),
-                    // One Navigator (with its own Overlay) so showDialog /
-                    // Navigator.push work from either control family.
-                    child: Navigator(home: app.home),
-                    curve: Curves.easeInOut
-                ),
-                curve: fluent.animationCurve
+        // The user's transparency and animation switches, as the SDK's
+        // materials and entrances read them: acrylic falls to its solid
+        // fallback and a FluentEntrance lands without moving when off.
+        return FluentMaterialSettings(
+            transparencyEffects: StarlingPrefs.isOn(.transparency),
+            animationEffects: StarlingPrefs.isOn(.animations),
+            child: Directionality(
+                textDirection: .ltr,
+                child: AnimatedFluentTheme(
+                    data: fluent,
+                    child: AnimatedMacosTheme(
+                        data: palette.macosTheme(),
+                        // One Navigator (with its own Overlay) so showDialog /
+                        // Navigator.push work from either control family.
+                        child: Navigator(home: app.home),
+                        curve: Curves.easeInOut
+                    ),
+                    curve: fluent.animationCurve
+                )
             )
         )
     }

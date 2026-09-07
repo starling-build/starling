@@ -567,6 +567,18 @@ final class AgentBroker: @unchecked Sendable {
         // this rather than on pixels — a screensaver IS a full-screen visual
         // change, and a screenshot check for one would re-bless itself into
         // meaninglessness the first time the shader is tuned.
+        // The desktop preferences, for the functional tier: what Settings'
+        // switches should show, straight from the shell.
+        if op == "prefs" {
+            conn.send(["id": id, "ok": true,
+                       "transparency": shellPrefs.transparency,
+                       "animations": shellPrefs.animations,
+                       "start_view": shell._startPrefs.view.rawValue,
+                       "start_recent": shell._startPrefs.showRecent,
+                       "start_size": shell._startPrefs.size.rawValue])
+            return
+        }
+
         if op == "screensaver" {
             conn.send(["id": id, "ok": true,
                        "active": shell._screensaverActive,

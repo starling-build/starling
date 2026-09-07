@@ -260,9 +260,26 @@ control's node precedes its text in tree order) and gained
 `check_win_chords` and `check_escape_dismisses`. Seen once and not
 reproduced: the shell segfaulted in libswiftCore during the first chord
 run (Win+I, then Alt+F4 within half a second of Settings mapping); core
-dumps are enabled on the dev box for the next time. Still to do in this
-phase: transparency and animation switches, Settings pages for Start and
-the taskbar, accent from wallpaper, cursors, focus visuals.
+dumps are enabled on the dev box for the next time. 
+
+**Phase 7, second slice, 2026-09-06:** the switches. One new message on the
+DMA-BUF control channel, `DMABUF_CONTROL_SET_PREF` (id in `phase`, value in
+`x`; `StarlingPref` names the ids: transparency, animations, Start's
+layout, Recent and size), in both directions like the style: Settings
+asks, the shell applies, persists (`prefs` beside `style` in the config
+dir; Start's in its own file as before) and pushes to every child, and a
+child connecting later inherits the lot. The shell honours the two
+accessibility switches by putting `FluentMaterialSettings` above its root
+(the SDK's Acrylic, Mica and `FluentEntrance` read it) and by swapping the
+window motion for `ShellMotion.instant` (one-millisecond steps, so the
+controllers still complete); `StarlingApp` does the same over every app's
+tree. Settings' Appearance page grew "Transparency effects" and "Animation
+effects" rows and a Start section (Show recently added, Layout, Size —
+Windows' own three); Start's own changes broadcast back so the page
+follows. The broker answers `prefs`, and `check_prefs` flips each switch
+and asks the shell. Still to do: accent from wallpaper, cursors, focus
+visuals, and the taskbar's own page (alignment, badges) once the bar has
+choices to offer.
 
 ## 1. What "the latest Fluent" is, in September 2026
 

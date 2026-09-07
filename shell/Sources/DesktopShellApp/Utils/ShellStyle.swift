@@ -172,6 +172,18 @@ struct ShellMotion {
         barScale: 0.05
     )
 
+    /// Animation effects off: every transition lands on its end state in
+    /// one frame. A one-millisecond step rather than zero, so the
+    /// controllers still complete and their completion handlers still run.
+    nonisolated(unsafe) static let instant = ShellMotion(
+        open: Step(duration: .milliseconds(1), curve: Curves.linear, scale: 1.0),
+        close: Step(duration: .milliseconds(1), curve: Curves.linear, scale: 1.0),
+        minimize: Step(duration: .milliseconds(1), curve: Curves.linear, scale: 1.0),
+        fades: false,
+        opensFromBar: false,
+        barScale: 1.0
+    )
+
     /// Windows 11, from the SDK's motion tokens: direct entrance in, direct
     /// exit out, both fading; minimise flies to the taskbar tile.
     nonisolated(unsafe) static let fluent = ShellMotion(
@@ -442,6 +454,38 @@ enum ShellStyles {
 /// The active style. Main-thread only, like `shellTheme`; switch it through
 /// the shell's `_setStyle` so the tree remounts.
 nonisolated(unsafe) var shellStyle: ShellStyleSpec = ShellStyles.defaultStyle
+
+/// Windows' two accessibility switches, as the desktop keeps them: whether
+/// acrylic and Mica draw their materials or their solid fallbacks, and
+/// whether anything moves. Read by the shell's own chrome through
+/// `FluentMaterialSettings` at the root and by `WindowLifecycleAnimation`
+/// for the window motion; pushed to every app as `StarlingPref`s. Settings
+/// changes them through `_setPref`, which also persists them.
+struct ShellPrefs: Equatable {
+    var transparency = true
+    var animations = true
+
+    static func parse(_ text: String) -> ShellPrefs {
+        var p = ShellPrefs()
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            switch parts[0] {
+            case "transparency": p.transparency = parts[1] != "off"
+            case "animations": p.animations = parts[1] != "off"
+            default: break
+            }
+        }
+        return p
+    }
+
+    var serialized: String {
+        "transparency=\(transparency ? "on" : "off")\nanimations=\(animations ? "on" : "off")\n"
+    }
+}
+
+/// Main-thread only, like `shellStyle`.
+nonisolated(unsafe) var shellPrefs = ShellPrefs()
 
 /// The active style's layout numbers. Computed rather than stored, so it
 /// cannot drift out of sync with `shellStyle`.

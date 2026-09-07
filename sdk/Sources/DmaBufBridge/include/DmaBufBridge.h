@@ -154,6 +154,13 @@ struct DmaBufMeta {
  * small integer and an unknown value means "the default". Distinct from
  * SET_THEME, which is only light vs dark WITHIN a style. */
 #define DMABUF_CONTROL_SET_STYLE 0x10
+/* A desktop preference (either direction): phase = which one, x = its
+ * value.  1 transparency effects (0/1)   2 animation effects (0/1)
+ *         3 Start layout (0 category, 1 grid, 2 list)
+ *         4 Start shows recent (0/1)     5 Start size (0 auto, 1 small, 2 large)
+ * The shell owns the list (StarlingPref in the framework names them); a
+ * child ignores an id it does not know. */
+#define DMABUF_CONTROL_SET_PREF 0x11
 
 /// Configure message sent from parent to child before the child creates its
 /// buffer. Tells the child the content area dimensions (logical pixels).

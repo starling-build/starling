@@ -1524,6 +1524,14 @@ public class GpuDmaBufRenderer {
         writeControlEvent(&event)
     }
 
+    /// Ask the shell to change a desktop preference (Settings' switches):
+    /// `id` is a `StarlingPref` raw value, `value` its new setting.
+    public func sendPrefChange(id: Int, value: Int) {
+        var event = DmaBufInputEvent(x: Double(value), y: 0, buttons: 0,
+                                     type: DMABUF_CONTROL_SET_PREF, phase: Int32(id))
+        writeControlEvent(&event)
+    }
+
     /// Ask the shell to change the screensaver idle timeout (Settings
     /// picker). Seconds of no input before the screensaver appears; 0 = never.
     public func sendScreensaverChange(seconds: Int) {
@@ -1663,6 +1671,39 @@ public class GpuDmaBufRenderer {
         } else {
             pendingStyle = style
         }
+    }
+
+    // Desktop preference push (transparency, animations, Start's prefs) —
+    // same latch/replay contract as the theme, one latch per preference id.
+    // `StarlingPref` names the ids.
+
+    public nonisolated(unsafe) static var onPrefChanged: ((Int, Int) -> Void)? = nil {
+        didSet {
+            guard let cb = onPrefChanged, !pendingPrefs.isEmpty else { return }
+            let replay = pendingPrefs
+            pendingPrefs = [:]
+            for (id, value) in replay { deliverPrefChange(cb, id, value) }
+        }
+    }
+
+    /// Every preference the parent has pushed, by id.
+    public private(set) nonisolated(unsafe) static var lastPushedPrefs: [Int: Int] = [:]
+
+    private nonisolated(unsafe) static var pendingPrefs: [Int: Int] = [:]
+
+    fileprivate static func receivePrefPush(_ id: Int, _ value: Int) {
+        lastPushedPrefs[id] = value
+        if let cb = onPrefChanged {
+            deliverPrefChange(cb, id, value)
+        } else {
+            pendingPrefs[id] = value
+        }
+    }
+
+    private static func deliverPrefChange(_ cb: @escaping (Int, Int) -> Void, _ id: Int, _ value: Int) {
+        let call: () -> Void = { cb(id, value) }
+        DispatchQueue.main.async(
+            execute: unsafeBitCast(call, to: (@Sendable () -> Void).self))
     }
 
     // Screensaver idle timeout push — same latch/replay contract as the
@@ -2372,6 +2413,11 @@ public class GpuDmaBufRenderer {
 
                     if inputEvent.type == DMABUF_CONTROL_SET_STYLE {
                         GpuDmaBufRenderer.receiveStylePush(Int(inputEvent.x))
+                        continue
+                    }
+
+                    if inputEvent.type == DMABUF_CONTROL_SET_PREF {
+                        GpuDmaBufRenderer.receivePrefPush(Int(inputEvent.phase), Int(inputEvent.x))
                         continue
                     }
 

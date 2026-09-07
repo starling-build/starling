@@ -672,6 +672,45 @@ class _SettingsAppState: State<StatefulWidget>, @unchecked Sendable {
                                 "Tiling Windows", "Automatically tile windows instead of free-floating",
                                 _toggle(s.tilingWM, { [self] (val: Bool) in bloc.add(.toggleTilingWM(val)) })
                             ),
+                            _divider(),
+                            // Windows' two accessibility switches, where
+                            // Windows keeps them (Personalization > Colors
+                            // and Accessibility > Visual effects): the
+                            // shell honours both, and so does every app.
+                            _settingsRowWithTrailing(
+                                "Transparency effects", "Windows and surfaces appear translucent",
+                                _toggle(s.transparency, { [self] (val: Bool) in
+                                    bloc.add(.setPref(.transparency, val ? 1 : 0)) })
+                            ),
+                            _divider(),
+                            _settingsRowWithTrailing(
+                                "Animation effects", "Windows and menus move as they open and close",
+                                _toggle(s.animations, { [self] (val: Bool) in
+                                    bloc.add(.setPref(.animations, val ? 1 : 0)) })
+                            ),
+                        ]),
+                        SizedBox(height: 20),
+                        _sectionHeader("Start"),
+                        SizedBox(height: 12),
+                        _card([
+                            _settingsRowWithTrailing(
+                                "Show recently added apps and recent files",
+                                "The Recent section under Pinned",
+                                _toggle(s.startRecent, { [self] (val: Bool) in
+                                    bloc.add(.setPref(.startRecent, val ? 1 : 0)) })
+                            ),
+                            _divider(),
+                            _settingsRowWithTrailing(
+                                "Layout", "How All apps is arranged",
+                                _choice(["Category", "Grid", "List"], selected: s.startView,
+                                        onChanged: { [self] (i: Int) in bloc.add(.setPref(.startView, i)) })
+                            ),
+                            _divider(),
+                            _settingsRowWithTrailing(
+                                "Size", "How much of the screen Start takes",
+                                _choice(["Automatic", "Small", "Large"], selected: s.startSize,
+                                        onChanged: { [self] (i: Int) in bloc.add(.setPref(.startSize, i)) })
+                            ),
                         ]),
                         SizedBox(height: 20),
                         _sectionHeader("Wallpaper"),
