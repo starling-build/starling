@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
-"""Make the voxel world: a blocky city for the desktop to stand in.
+"""Make the sunset waterfront: a blocky city for the desktop to stand in.
 
     voxel-world.py [--out <dir>] [--size 96] [--seed 3]
 
-A street grid with blocky buildings in several styles — concrete,
-brick, painted plaster, sandstone, glass towers with setbacks — their
-doors facing the square under awnings and shop signs, windows lit here
-and there, roofs with parapets, water tanks and aerials; crosswalks and
-lamp posts at the corners, street trees; and a square in the middle
-with a low pool, lamps and trees, where the open windows stand. Every
-block face is a quad with a pixel-art tile from an atlas drawn here,
-sampled with NEAREST so the pixels stay pixels. One glTF, one material,
-plus a gradient sky with a square sun for cmgen, and world.json with
-the ground height so the viewer can walk on it, and the block tile the
-window frames are made of.
+The composition in city-night.py follows the city-night wallpaper with
+terraced Victorian houses, a downhill trolley route, Ferry Building,
+bay and bridge. One glTF with animated actors, emissive window textures
+and six punctual street lights, plus an early-evening sky for cmgen.
+world.json supplies fractional walking heights and the app anchors.
+The earlier daylight layout helpers remain available for experiments.
 
 Outputs: room.glb, room_ibl.ktx, room_skybox.ktx, world.json, atlas.png,
 frame.png (the renderer's names for any world).
 """
 import argparse
+import importlib.util
+import io
 import json
 import os
 import struct
@@ -44,7 +41,7 @@ TILES = [
     "sign_yellow", "sign_white", "sandstone", "sandstone_window", "flowers", "tank",
     "vent", "planks", "brick_window", "plaster_window", "cornice",
     "copper", "limestone", "paving_border", "bridge_red", "plaster_rose", "bronze",
-    "cloud",
+    "cloud", "water_glint", "hill", "hill_far", "reflection_amber",
 ]
 T = {name: i for i, name in enumerate(TILES)}
 assert len(TILES) <= ATLAS * ATLAS
@@ -227,7 +224,15 @@ def make_tiles(seed=1):
     t["bridge_red"] = noise_tile(rng, (0.72, 0.22, 0.12), 0.008)
     t["plaster_rose"] = noise_tile(rng, (0.78, 0.57, 0.55), 0.01)
     t["bronze"] = noise_tile(rng, (0.34, 0.25, 0.15), 0.006)
-    t["cloud"] = noise_tile(rng, (0.93, 0.96, 1.0), 0.001)
+    t["cloud"] = noise_tile(rng, (0.78, 0.70, 0.68), 0.001)
+    t["asphalt"] = noise_tile(rng, (0.14, 0.17, 0.22), 0.0)
+    t["water"] = noise_tile(rng, (0.13, 0.23, 0.31), 0.002)
+    t["water_glint"] = noise_tile(rng, (0.45, 0.55, 0.65), 0.001)
+    t["hill"] = noise_tile(rng, (0.20, 0.28, 0.34), 0.001)
+    t["hill_far"] = noise_tile(rng, (0.28, 0.36, 0.48), 0.001)
+    t["reflection_amber"] = noise_tile(rng, (0.34, 0.19, 0.08), 0.002)
+    t["leaves"] = noise_tile(rng, (0.20, 0.34, 0.28), 0.018)
+    t["lamp"] = noise_tile(rng, (1.0, 0.65, 0.29), 0.005)
     return t
 
 
@@ -752,10 +757,10 @@ def mesh_props(props, origin, out):
     for prop in props:
         if prop[0] == "beam":
             _, tile, start, end, width = prop
-            start, end = np.array(start), np.array(end)
+            start, end = np.array(start, dtype=float), np.array(end, dtype=float)
             axis = end - start
             axis /= np.linalg.norm(axis)
-            side = np.cross(axis, (0, 0, 1))
+            side = np.cross(axis, (0, 1, 0) if abs(axis[2]) > .95 else (0, 0, 1))
             side /= np.linalg.norm(side)
             up = np.cross(axis, side)
             local = {"pos": [], "nrm": [], "uv": [], "count": 0}
@@ -844,22 +849,24 @@ def ambient_actors():
         positions = np.column_stack((65 * np.sin(a),
             np.full_like(a, 24 + (i % 3) * 4), -83 + 12 * np.cos(a)))
         # Layered cream voxel clouds, no transparency sorting or billboards.
-        actor(f"cloud-{i}", [
-            ("cloud", (-6, 0, -2, 6, 1.1, 2)),
-            ("cloud", (-4, 1.1, -1.6, 3.5, 2.4, 1.6)),
-            ("cloud", (-1.5, 2.4, -1, 1.8, 3.2, 1)),
-        ], times, positions)
+        cloud_boxes = []
+        for k in range(9):
+            x = -6+k*1.4
+            crown = 1.0+1.3*np.sin((k+.5)/9*np.pi)
+            cloud_boxes.append(("cloud",(x,.18*np.sin(k*2+i),-1.3,
+                                          x+2.1,crown,1.2)))
+        actor(f"cloud-{i}", cloud_boxes, times, positions)
 
     times = np.linspace(0, 150, 301)
     a = times / 150 * 2 * np.pi
     positions = np.column_stack((32 * np.sin(a),
-        G + .12 + .10 * np.sin(a * 24), -45 + 5 * np.cos(a)))
+        -2.25 + .10 * np.sin(a * 24), -79 + 5 * np.cos(a)))
     actor("bay-ferry", [
         ("bridge_red", (-4.2, 0, -1.3, 4.2, .65, 1.3)),
         ("limestone", (-3.7, .65, -1.25, 3.7, .95, 1.25)),
         ("plaster_cream", (-2.6, .95, -.95, 2.6, 2.3, .95)),
-        ("glass", (-2.4, 1.35, .96, 2.4, 2.05, .99)),
-        ("glass", (-2.4, 1.35, -.99, 2.4, 2.05, -.96)),
+        ("glass_lit", (-2.4, 1.35, .96, 2.4, 2.05, .99)),
+        ("glass_lit", (-2.4, 1.35, -.99, 2.4, 2.05, -.96)),
         ("limestone", (-2.9, 2.3, -1.1, 2.9, 2.5, 1.1)),
         ("bridge_red", (-.4, 2.5, -.4, .4, 3.2, .4)),
     ], times, positions)
@@ -873,14 +880,20 @@ def ambient_actors():
     ]
     for x in (-1.3, -.45, .4, 1.25):
         for z in (-.735, .72):
-            boxes.append(("glass", (x - .31, 1.3, z, x + .31, 2.15, z + .015)))
+            boxes.append(("glass_lit", (x - .31, 1.3, z, x + .31, 2.15, z + .015)))
     for x in (-1.25, 1.25):
         for z in (-.78, .55):
             boxes.append(("dark", (x - .26, 0, z, x + .26, .52, z + .23)))
+    # Rotate the double-ended car to run down the sloping street (-Z).
+    boxes = [(tile, (-b[5], b[1], b[0], -b[2], b[4], b[3])) for tile,b in boxes]
+    boxes.append(("lamp", (-.22,.85,1.91,.22,1.25,1.94)))
+    for z in (-1.82,1.80):
+        for x in (-.61,.08):
+            boxes.append(("glass_lit", (x,1.30,z,x+.53,2.12,z+.02)))
+    def car(z):
+        return [-4, 5+(z+8)*.19+.06, z]
     actor("plaza-cable-car", boxes, [0, 6, 36, 44, 74, 80],
-          [[-12, G + 1.05, -7], [-12, G + 1.05, -7],
-           [12, G + 1.05, -7], [12, G + 1.05, -7],
-           [-12, G + 1.05, -7], [-12, G + 1.05, -7]])
+          [car(-12),car(-12),car(-37),car(-37),car(-12),car(-12)])
     return actors
 
 
@@ -909,6 +922,24 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
         {"bufferView": view(idx.tobytes(), 34963), "componentType": 5125, "count": len(idx), "type": "SCALAR"},
     ]
     img_view = view(png)
+    # Only glass and lantern texels emit; the masonry remains physically lit.
+    emissive = np.zeros((ATLAS*TILE, ATLAS*TILE,3),np.uint8)
+    tiles = make_tiles()
+    for name in ("lamp", "window_lit", "glass_lit"):
+        row,col = divmod(T[name],ATLAS)
+        tile = tiles[name]
+        mask = np.ones((TILE,TILE),bool) if name == "lamp" else (
+            (tile[:,:,0]>.85) & (tile[:,:,1]>.7) & (tile[:,:,2]<.8))
+        emissive[row*TILE:(row+1)*TILE,col*TILE:(col+1)*TILE][mask] = (255,166,74)
+    # Restrained distance haze and water glints: these surfaces must not
+    # disappear into black just because the moon is behind them.
+    for name,color in (("hill",(9,15,24)),("hill_far",(16,24,36)),
+                       ("water_glint",(19,30,43)),("reflection_amber",(69,39,17))):
+        row,col = divmod(T[name],ATLAS)
+        emissive[row*TILE:(row+1)*TILE,col*TILE:(col+1)*TILE] = color
+    encoded = io.BytesIO()
+    Image.fromarray(emissive).save(encoded,format="PNG")
+    emission_view = view(encoded.getvalue())
     j = {
         "asset": {"version": "2.0", "generator": "starling voxel-world.py"},
         "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"mesh": 0, "name": "land"}],
@@ -916,10 +947,14 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
                                     "indices": 3, "material": 0, "mode": 4}]}],
         # NEAREST both ways: the pixels are the point.
         "samplers": [{"magFilter": 9728, "minFilter": 9728, "wrapS": 33071, "wrapT": 33071}],
-        "images": [{"bufferView": img_view, "mimeType": "image/png"}],
-        "textures": [{"sampler": 0, "source": 0}],
+        "images": [{"bufferView": img_view, "mimeType": "image/png"},
+                   {"bufferView": emission_view, "mimeType": "image/png"}],
+        "textures": [{"sampler": 0, "source": 0}, {"sampler": 0, "source": 1}],
+        "extensionsUsed": ["KHR_materials_emissive_strength", "KHR_lights_punctual"],
         "materials": [{"name": "blocks", "pbrMetallicRoughness": {
-            "baseColorTexture": {"index": 0}, "metallicFactor": 0.0, "roughnessFactor": 1.0}}],
+            "baseColorTexture": {"index": 0}, "metallicFactor": 0.0, "roughnessFactor": .85},
+            "emissiveTexture": {"index": 1}, "emissiveFactor": [1,1,1],
+            "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": .55}}}],
         "accessors": accessors, "bufferViews": views, "buffers": [{"byteLength": len(bin_)}],
     }
     def accessor(data, kind, component=5126, target=None):
@@ -932,6 +967,18 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
         accessors.append(item)
         return len(accessors) - 1
 
+    # Actual pools of lamplight, limited to six lights near the viewing terrace.
+    lights = []
+    for z in (2, -10, -22):
+        for x in (-7.8, 8.8):
+            lights.append({"type": "point", "color": [1.0,.57,.25],
+                           "intensity": 550, "range": 11})
+            node = len(j["nodes"])
+            j["nodes"].append({"name": "street-lantern", "translation":
+                [x,max(-2.2,5+min(0,z+8)*.19)+3.2,z+.5],
+                "extensions": {"KHR_lights_punctual": {"light": len(lights)-1}}})
+            j["scenes"][0]["nodes"].append(node)
+    j["extensions"] = {"KHR_lights_punctual": {"lights": lights}}
     j["animations"] = []
     for name, (p, n, u, indices), times, positions in ambient_actors():
         mesh = len(j["meshes"])
@@ -943,6 +990,9 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
         node = len(j["nodes"])
         j["nodes"].append({"name": name, "mesh": mesh,
                            "translation": np.asarray(positions[0]).tolist()})
+        if name == "plaza-cable-car":
+            angle = -np.arctan(.19)/2
+            j["nodes"][-1]["rotation"] = [float(np.sin(angle)),0,0,float(np.cos(angle))]
         j["scenes"][0]["nodes"].append(node)
         j["animations"].append({"name": name, "samplers": [{
             "input": accessor(times, "SCALAR"), "output": accessor(positions, "VEC3"),
@@ -981,8 +1031,8 @@ def write_hdr(path, img):
 
 
 def sky(w=1024, h=512, sun_dir=(0.55, 0.75, 0.45), with_sun=True):
-    """A clear blocky-world sky: blue above, pale at the horizon, a warm
-    ground below (for the bounce light), and a SQUARE sun. Directions in
+    """Early-evening sky: blue overhead, peach at the horizon and warm
+    ground bounce below. Directions in
     cmgen's convention: u = (atan2(x, z) / pi + 1) / 2, v down from +y."""
     v = (np.arange(h) + 0.5) / h
     u = (np.arange(w) + 0.5) / w
@@ -990,14 +1040,14 @@ def sky(w=1024, h=512, sun_dir=(0.55, 0.75, 0.45), with_sun=True):
     phi = (u * 2 - 1) * np.pi
     img = np.zeros((h, w, 3), np.float32)
     up = np.clip(np.sin(lat), 0, 1)[:, None]
-    zenith = np.array([0.1, 0.28, 0.85]); horizon = np.array([0.5, 0.68, 0.95])
-    skyc = horizon[None, None, :] * (1 - up[..., None] ** 0.6) + zenith[None, None, :] * up[..., None] ** 0.6
-    ground = np.array([0.42, 0.5, 0.3])
+    zenith = np.array([0.07, 0.18, 0.36]); horizon = np.array([0.48, 0.22, 0.12])
+    skyc = horizon[None, None, :] * (1 - up[..., None] ** 0.35) + zenith[None, None, :] * up[..., None] ** 0.35
+    ground = np.array([0.095, 0.075, 0.065])
     below = (lat < 0)[:, None, None]
     img = np.where(below, ground[None, None, :] * 0.9, skyc * 1.2)
     img = np.broadcast_to(img, (h, w, 3)).copy()
     if with_sun:
-        # The sun as a square patch of directions, Minecraft-style.
+        # A low warm sun; no stars in the early-evening sky.
         sd = np.array(sun_dir) / np.linalg.norm(sun_dir)
         dx = np.cos(lat)[:, None] * np.sin(phi)[None, :]
         dy = np.sin(lat)[:, None] * np.ones_like(phi)[None, :]
@@ -1008,8 +1058,8 @@ def sky(w=1024, h=512, sun_dir=(0.55, 0.75, 0.45), with_sun=True):
         t2 = np.cross(sd, t1)
         a = np.abs(dirs @ t1); b = np.abs(dirs @ t2)
         front = dirs @ sd > 0
-        sun = front & (np.maximum(a, b) < 0.045)
-        img[sun] = (60.0, 55.0, 42.0)
+        sun = front & (a*a+b*b < 0.019**2)
+        img[sun] = (2.5, 1.5, .65)
     return img.astype(np.float32)
 
 
@@ -1026,16 +1076,21 @@ def main() -> int:
     os.makedirs(a.out, exist_ok=True)
     atlas = os.path.join(a.out, "atlas.png")
     make_atlas(atlas, os.path.join(a.out, "frame.png"), a.seed)
-    blocks, props = build_city(a.size, a.seed)
+    spec = importlib.util.spec_from_file_location("city_night", os.path.join(HERE,"city-night.py"))
+    city_night = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(city_night)
+    blocks, props = city_night.build(sys.modules[__name__], a.size, a.seed)
     origin = (-a.size // 2, -a.size // 2)          # the square at x = z = 0
     pos, nrm, uv, idx = mesh_blocks(blocks, origin, props)
     write_glb(os.path.join(a.out, "room.glb"), pos, nrm, uv, idx, atlas)
     plaza_h = G
     print(f"  {a.size}x{a.size} columns, ground at y={G}, {len(idx)//3} triangles")
 
-    sun_dir = (0.55, 0.75, 0.45)
+    sun_dir = (-0.6, 0.28, 0.75)
     if not a.no_sky:
-        write_hdr(os.path.join(a.out, "sky-full.hdr"), sky(sun_dir=sun_dir, with_sun=True))
+        # Separate sky brightness from the ambient-light bake: readable
+        # readable architecture and a restrained sunset background.
+        write_hdr(os.path.join(a.out, "sky-full.hdr"), sky(sun_dir=sun_dir, with_sun=True)*.22)
         write_hdr(os.path.join(a.out, "sky-nosun.hdr"), sky(sun_dir=sun_dir, with_sun=False))
         for sub, src, size in (("ibl", "sky-nosun.hdr", 64), ("sky", "sky-full.hdr", 512)):
             subprocess.run([a.cmgen, "--quiet", "--format=ktx", f"--size={size}",
@@ -1044,19 +1099,20 @@ def main() -> int:
         os.replace(os.path.join(a.out, "sky", "sky_skybox.ktx"), os.path.join(a.out, "room_skybox.ktx"))
 
     # Where feet go: the ground is level, and buildings are not climbed.
-    surface = np.full((a.size, a.size), G + 1, int)
+    surface = np.array([[city_night.ground(z-a.size//2) for z in range(a.size)]
+                        for x in range(a.size)],float)
     world = {
         "kind": "voxel",
         "ambient_animation": True,
-        "exposure": [16.0, 1.0 / 125.0, 100.0],
-        "ibl_intensity": 22000.0,
-        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.96, 0.9], "lux": 90000.0},
+        "exposure": [8.0, 1.0 / 60.0, 100.0],
+        "ibl_intensity": 24000.0,
+        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.72, 0.46], "lux": 6500.0},
         "hub": [0.0, float(plaza_h + 1), 0.0],
         "eye_height": 1.62,
         "ring_radius": 7.5,
         "heightmap": {"origin": [origin[0], origin[1]], "size": [a.size, a.size],
-                      "heights": surface.T.reshape(-1).tolist()},   # [x][z] order
-        "camera_home": {"radius": 13.0, "height": 0.0, "dolly": 6.0},
+                      "heights": surface.reshape(-1).tolist()},   # [x][z] order
+        "camera_home": {"radius": 13.0, "height": 3.5, "dolly": 6.0},
         # The windows' frames use a fine bronze tile,
         # one per `block` metres, a `margin` wide and `depth` deep.
         "pane_frame": {"texture": "frame.png", "block": 0.18, "margin": 0.012, "depth": 0.025},
@@ -1064,7 +1120,7 @@ def main() -> int:
         "workspaceRail": workspace_rail(),
         # The clock tower's band: the shell hangs a face on each side,
         # `half` from the centre, `size` metres square.
-        "clock": {"x": 0.5, "y": float(G + 1 + 8.5), "z": float(-CLOCK_Z + 0.5),
+        "clock": {"x": 10.0, "y": 11.5, "z": -49.0,
                   "half": 1.5, "size": 2.6},
     }
     with open(os.path.join(a.out, "world.json"), "w") as f:

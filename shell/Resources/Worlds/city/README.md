@@ -1,12 +1,27 @@
 # The 3D desktop's city
 
-The world the Filament renderer walks you into when the 3D desktop is
-on: a Minecraft-style city round a square, with a clock tower, a fountain
-and a curved workspace rail. The city takes its architectural cues from San Francisco: a waterfront
-row of pastel Painted Ladies with projecting bay windows, deep cornices,
-copper-green roofs and iron balconies, and a red suspension bridge across
-the bay. Warm stone paving, full tree canopies, benches and planted beds
-frame the square. It is a stylized neighborhood, not a geographic replica.
+The world the Filament renderer walks you into when the 3D desktop is on.
+Its composition follows `Wallpapers/city-night.png`: Victorian
+houses frame a downhill street, the Ferry Building and clock tower sit at
+the waterfront, and a red suspension bridge crosses the bay in front of
+layered headlands. This is real, walkable geometry, not a projected image.
+It interprets the wallpaper rather than claiming an exact reconstruction.
+`build/tools/city-night.py` authors the layout; `voxel-world.py` supplies
+the mesh, atlas, animation and sky exporters. Lighting now evokes early
+evening, around sunset: low warm sunlight, a peach-to-blue sky, brighter
+ambient fill and restrained window/lantern emission. It is an art-directed
+lighting preset, not a geographic or seasonal simulation of 6 pm. The
+matching 2D wallpaper is `Wallpapers/city-sunset.png`; the original dark
+version remains available as an alternate asset.
+
+The refinement pass adds inward-facing multi-storey bays, transoms,
+layered cornices and dentils, parapets, chimneys, planted window boxes,
+iron garden rails, staggered paving and geometric stone arcade arches.
+Broken low-luminance reflection trails sit on the bay surface. The
+headlands have smoother stepped silhouettes, scattered settlement lights
+and restrained distance-color emission; these are stylized atmospheric
+cues, not volumetric fog or physically traced reflections. The animated
+clouds use smaller overlapping volumes instead of three broad slabs.
 
 The central brick pile and storefront prototype have been replaced by a
 low bronze rail with warm stone supports. `world.json` supplies the rail's
@@ -23,7 +38,7 @@ window brought forward. Alt+Tab retains the ring and brings the selection
 forward without moving the camera. A bottom-center launcher opens the app
 grid. Its cream enamel button has a bronze rim and four inset city-colored
 squares, with warm hover and pressed feedback. The flat desktop's launcher
-is unchanged. Closing an app removes its card. The center has a low fountain.
+is unchanged. Closing an app removes its card. The center is an open overlook.
 
 In 3D the launcher opens a centered cream app-directory panel with bronze
 trim, matching search and close controls, and muted enamel app tiles.
@@ -43,17 +58,20 @@ the trim while terminal output, media pixels and document formatting keep
 their original colors. The rendering diagnostic app is intentionally not
 recolored, nor are third-party applications.
 
-The clock faces and window ring retain their original coordinates. The
-entrance camera stands 13 m back to show the rail and city together;
+The window ring retains its original coordinates; the live clock moves
+with the Ferry Building to the waterfront. The
+entrance camera stands 13 m back with a 3.5 m elevated viewing offset and
+a slight downward pitch to show the descending street and bay together;
 selected windows are centered at reading distance with thin bronze frames.
 Window title bars use cream enamel with dark lettering, a fine bronze edge,
 and muted terracotta/ochre/sage controls with always-visible action glyphs.
 The scene texture and interactive title bar share the same painters; button
 hit targets, dragging, double-click maximize and depth scrolling are unchanged.
-Decorative benches and planters sit outside the window ring;
-like the existing buildings, these details do not add collision geometry.
-The bridge cables are oriented beams; the rest uses exposed voxel faces
-and small architectural boxes in the same single-material mesh.
+Trees and lamps sit outside the window ring. Buildings remain decorative,
+without collision geometry; the fractional height map supplies the walking surface.
+The bridge cables and trolley rails are oriented beams; the buildings
+use architectural boxes in the same atlas material. Six nearby lanterns
+are actual glTF punctual lights, registered alongside the renderables.
 
 Everything here is **generated**, not authored: `build/tools/
 voxel-world.py` writes the glTF (`room.glb`), the block atlas and the
@@ -61,10 +79,11 @@ frame tile, `world.json` (where the square, the pool, the clock and the
 camera's home are), and — through Filament's `cmgen` — the sky's two
 KTX files. Regenerate with
 
-    python3 build/tools/voxel-world.py --no-sky     # ~10 s, keeps the sky
+    python3 build/tools/voxel-world.py             # includes the sunset sky
+    python3 build/tools/voxel-world.py --no-sky     # geometry-only iteration
 
 and commit what it writes; `--no-sky` skips `cmgen`, which is only on a
-box with a Filament build. The sky is procedural (a gradient and a sun),
+box with a Filament build. The sky is procedural (a sunset gradient and sun),
 so nothing here is anyone else's.
 
 `build/stage.sh` installs this directory as `share/starling/worlds/city`,
@@ -75,8 +94,8 @@ shell's own GL room; `STARLING_ROOM_DIR` points at a world elsewhere).
 ### Ambient motion
 
 Ambient life is built into the glTF: five drifting voxel clouds, a gently
-bobbing bay ferry, and a double-ended red-and-cream cable car with pauses
-at its two stops. All tracks loop continuously and stay behind the app
+bobbing bay ferry, and a double-ended red-and-cream cable car descending
+the street with pauses at its two stops. All tracks loop continuously and stay behind the app
 interaction plane. The renderer samples independent glTF animation clips
 on one shared monotonic clock, so motion agrees across displays.
 

@@ -198,7 +198,7 @@ done
 # deleting all three and booting both engines.
 install -m644 "$E/icudtl.dat" "$SHARE/"
 cp -r "$REPO/build/flutter_assets" "$SHARE/"
-# Wallpapers: the bundled JPEGs, decoded and center-cropped at runtime,
+# Wallpapers: the bundled images, decoded and center-cropped at runtime,
 # and the depth map beside each one — the 3D desktop's relief, which the
 # shell looks for as <wallpaper>.depth.png next to the picture. Generated
 # out of process by build/tools/wallpaper-depth.py and checked in; a
@@ -209,7 +209,7 @@ cp -r "$REPO/build/flutter_assets" "$SHARE/"
 # the bundled default never loads (and it costs 33 MB).
 mkdir -p "$SHARE/wallpapers"
 install -m644 "$REPO"/shell/Resources/Wallpapers/*.jpg "$SHARE/wallpapers/"
-for d in "$REPO"/shell/Resources/Wallpapers/*.depth.png; do
+for d in "$REPO"/shell/Resources/Wallpapers/*.png; do
     [ -e "$d" ] && install -m644 "$d" "$SHARE/wallpapers/"
 done
 

@@ -212,8 +212,8 @@ extension _DesktopShellState {
         }
         if let w = _desktop3DWorld, w.kind == .voxel {
             let z = w.hub.z + w.cameraRadius
-            return Camera3D(x: w.hub.x, y: w.ground(w.hub.x, z) + w.eyeHeight,
-                            z: z, yaw: 0, pitch: 0)
+            return Camera3D(x: w.hub.x, y: w.ground(w.hub.x, z) + w.eyeHeight + w.cameraHeight,
+                            z: z, yaw: 0, pitch: atan2(w.cameraHeight, w.cameraRadius + 35))
         }
         return Camera3D(x: 0, y: Self.k3DEyeHeight, z: Self.k3DHomeZ, yaw: 0, pitch: 0)
     }
@@ -1028,7 +1028,7 @@ extension _DesktopShellState {
             let z0 = Double(w.heightOrigin.z) + 1, z1 = Double(w.heightOrigin.z + w.heightSize.z) - 1
             c.x = min(x1, max(x0, c.x))
             c.z = min(z1, max(z0, c.z))
-            c.y = w.ground(c.x, c.z) + w.eyeHeight
+            c.y = w.ground(c.x, c.z) + w.eyeHeight + w.cameraHeight
             c.pitch = min(1.2, max(-1.2, c.pitch))
         } else {
             // Stay inside the room, and out of the walls.

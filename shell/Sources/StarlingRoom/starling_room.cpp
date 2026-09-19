@@ -334,6 +334,8 @@ int sr_room_load(sr_room* r, const char* glb_path, const char* ibl_ktx_path,
         r->asset->releaseSourceData();
         r->scene->addEntities(r->asset->getRenderableEntities(),
                               r->asset->getRenderableEntityCount());
+        r->scene->addEntities(r->asset->getLightEntities(),
+                              r->asset->getLightEntityCount());
     }
     double t1 = nowMs();
 
@@ -1083,6 +1085,8 @@ void sr_room_destroy(sr_room* r) {
         if (r->asset) {
             r->scene->removeEntities(r->asset->getRenderableEntities(),
                                      r->asset->getRenderableEntityCount());
+            r->scene->removeEntities(r->asset->getLightEntities(),
+                                     r->asset->getLightEntityCount());
             r->loader->destroyAsset(r->asset);
         }
         delete r->resources;

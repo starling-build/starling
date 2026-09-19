@@ -85,14 +85,14 @@ struct World3D {
     /// The ground: the y of the surface a walker stands on, per column.
     var heightOrigin = (x: 0, z: 0)
     var heightSize = (x: 0, z: 0)
-    var heights: [Int] = []
+    var heights: [Double] = []
 
     /// The ground height at a world position, or the hub's level.
     func ground(_ x: Double, _ z: Double) -> Double {
         guard heightSize.x > 0, heightSize.z > 0 else { return hub.y }
         let ix = min(heightSize.x - 1, max(0, Int(floor(x)) - heightOrigin.x))
         let iz = min(heightSize.z - 1, max(0, Int(floor(z)) - heightOrigin.z))
-        return Double(heights[ix * heightSize.z + iz])
+        return heights[ix * heightSize.z + iz]
     }
     var exposure: [Double] = [16, 1.0 / 125, 100]
     var iblIntensity = 30000.0
@@ -188,7 +188,7 @@ struct World3D {
         if let hm = j["heightmap"] as? [String: Any],
            let o = hm["origin"] as? [Int], o.count == 2,
            let sz = hm["size"] as? [Int], sz.count == 2,
-           let hs = hm["heights"] as? [Int], hs.count == sz[0] * sz[1] {
+           let hs = hm["heights"] as? [Double], hs.count == sz[0] * sz[1] {
             w.heightOrigin = (o[0], o[1]); w.heightSize = (sz[0], sz[1]); w.heights = hs
         }
         return w

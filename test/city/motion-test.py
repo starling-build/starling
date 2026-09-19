@@ -19,6 +19,7 @@ class CityMotionTests(unittest.TestCase):
         binary_size, kind = struct.unpack_from("<II", data, 20 + size)
         assert kind == 0x004E4942
         cls.binary = data[28 + size:28 + size + binary_size]
+        cls.world = json.loads((root / "shell/Resources/Worlds/city/world.json").read_text())
 
     def values(self, index):
         acc = self.doc["accessors"][index]
@@ -67,8 +68,45 @@ class CityMotionTests(unittest.TestCase):
                     self.assertLess(z, -28)
                     self.assertLess(y, 5)
                 else:
-                    self.assertAlmostEqual(z, -7)
-                    self.assertLessEqual(abs(x), 12)
+                    self.assertAlmostEqual(x, -4)
+                    self.assertGreaterEqual(z, -37)
+                    self.assertLessEqual(z, -12)
+                    self.assertAlmostEqual(y, 5+(z+8)*.19+.06, places=5)
+
+    def test_geometry_is_finite_and_indexed(self):
+        for mesh in self.doc["meshes"]:
+            for primitive in mesh["primitives"]:
+                vertices = self.values(primitive["attributes"]["POSITION"])
+                normals = self.values(primitive["attributes"]["NORMAL"])
+                self.assertEqual(len(vertices),len(normals))
+                for normal in normals:
+                    self.assertAlmostEqual(math.sqrt(sum(x*x for x in normal)),1,places=5)
+                acc = self.doc["accessors"][primitive["indices"]]
+                view = self.doc["bufferViews"][acc["bufferView"]]
+                indices = struct.unpack_from("<"+"I"*acc["count"],self.binary,view["byteOffset"])
+                self.assertLess(max(indices),len(vertices))
+
+    def test_evening_lighting_and_walkable_slope(self):
+        self.assertGreater(self.world["sun"]["lux"],2000)
+        self.assertLess(self.world["sun"]["lux"],20000)
+        self.assertGreater(self.world["sun"]["colour"][0],self.world["sun"]["colour"][2])
+        material = self.doc["materials"][0]
+        self.assertIn("emissiveTexture",material)
+        self.assertGreater(material["extensions"]["KHR_materials_emissive_strength"]["emissiveStrength"],0)
+        self.assertLess(material["extensions"]["KHR_materials_emissive_strength"]["emissiveStrength"],1)
+        lights = self.doc["extensions"]["KHR_lights_punctual"]["lights"]
+        self.assertEqual(len(lights),6)
+        light_nodes = [n for n in self.doc["nodes"] if "KHR_lights_punctual" in n.get("extensions",{})]
+        self.assertEqual(len(light_nodes),len(lights))
+        hm = self.world["heightmap"]
+        def height(x,z):
+            return hm["heights"][(x-hm["origin"][0])*hm["size"][1]+z-hm["origin"][1]]
+        for x in (-8,0,8):
+            for z in (-8,0,13):
+                self.assertEqual(height(x,z),5)
+            self.assertAlmostEqual(height(x,-35),-.13)
+            self.assertAlmostEqual(height(x,-20),2.72)
+        self.assertEqual(self.world["clock"]["z"],-49)
 
 
 if __name__ == "__main__":

@@ -1624,7 +1624,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// Load the still wallpaper and upload it as a GL texture: a
     /// pre-rendered raw RGBA file if one is staged (legacy path), else the
-    /// bundled JPEG, decoded via the image codec and center-cropped to the
+    /// bundled image, decoded via the image codec and center-cropped to the
     /// screen's aspect so TextureWidget's stretch-to-fill stays uniform.
     func _loadWallpaperTexture() {
         #if os(Linux)
@@ -1649,11 +1649,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             return
         }
 
-        // Bundled JPEG: packaged share dir first, then the dev tree
+        // Bundled image: packaged share dir first, then the dev tree
         // (the shell runs from apps/DesktopShellApp in dev).
         let candidates = [
-            Self.dataFilePath("wallpapers/golden-gate-dark.jpg"),
-            "Resources/Wallpapers/golden-gate-dark.jpg",
+            Self.dataFilePath("wallpapers/city-sunset.png"),
+            "Resources/Wallpapers/city-sunset.png",
         ].compactMap { $0 }
         guard let jpg = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }),
               let data = try? Data(contentsOf: URL(fileURLWithPath: jpg)) else { return }

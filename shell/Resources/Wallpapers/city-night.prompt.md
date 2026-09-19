@@ -1,0 +1,8 @@
+Use case: stylized-concept
+Asset type: high-resolution desktop wallpaper, wide 16:9 composition, ideally 3840x2160.
+Primary request: A beautiful dark-mode San Francisco 3D voxel city wallpaper matching a handcrafted miniature desktop environment.
+Scene: A quiet San Francisco waterfront neighborhood at night: stepped hills with small Victorian bay-window houses, a modest waterfront clock tower, a red cable car on a gently sloping street, blocky trees, a small ferry on the bay and a distant muted vermilion suspension bridge softened by marine mist.
+Style: polished geometric 3D miniature, chunky voxel-inspired architecture, crisp carefully beveled forms, matte materials, charming but sophisticated, not a photo and not pixel art.
+Composition: expansive cohesive environment viewed from a slightly elevated street-level camera, foreground plaza and neighborhood framing a calm bay, buildings mostly lower half, generous dark navy sky and uncluttered low-contrast breathing room. Full-bleed landscape, not an isolated floating island. Keep the central area calm enough for desktop windows.
+Lighting and palette: true dark mode, midnight navy sky, deep slate streets, desaturated teal water and trees, muted sage and terracotta houses in shadow, small warm amber window lights and pools of lamplight, subtle cool moonlit edges and soft ambient occlusion. Cozy restrained lighting, no intense neon or blown highlights.
+Constraints: wallpaper only, no text, letters, logos, watermarks, desktop UI, frames, app icons or people. Clean high-quality 3D render with sharp architecture and gentle atmospheric depth.
