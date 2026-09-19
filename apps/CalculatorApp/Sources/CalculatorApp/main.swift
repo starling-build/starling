@@ -19,6 +19,11 @@ class _ThemedCalculatorRootState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         #if os(Linux)
+        GpuDmaBufRenderer.onDesktop3DChanged = { [weak self] _ in
+            self?.setState {}
+        }
+        #endif
+        #if os(Linux)
         if let dark = GpuDmaBufRenderer.lastPushedThemeIsDark {
             _dark = dark
         }

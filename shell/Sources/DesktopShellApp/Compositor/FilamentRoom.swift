@@ -26,6 +26,8 @@ import Glibc
 /// goes (below the title bar, which stays the shell's).
 struct ScenePane: Equatable {
     var id: Int64
+    /// A second scene instance may show the same client (workspace-rail preview).
+    var textureId: Int64? = nil
     var x = 0.0, y = 0.0, z = 0.0, yaw = 0.0
     var width = 0.0, height = 0.0
     var contentDy = 0.0, contentWidth = 0.0, contentHeight = 0.0
@@ -67,6 +69,11 @@ struct SceneBlock: Equatable {
 /// world (a glTF lit by a captured sky); the orrery has no geometry of
 /// its own and lays the desktop out round a sun.
 struct World3D {
+    struct WorkspaceRail {
+        var x: Double, y: Double, z: Double
+        var width: Double, height: Double
+    }
+    var workspaceRail: [WorkspaceRail] = []
     enum Kind: String { case room, orrery, voxel }
     var kind: Kind = .room
     /// A directional sun given by the world itself (else the room's bake).
@@ -101,6 +108,7 @@ struct World3D {
     /// Entering is a dolly: the viewer starts this many metres behind the
     /// home spot and glides up to it over the tween (0: no dolly).
     var cameraDolly = 0.0
+    var ambientAnimation = false
     /// What the windows' frames are made of, if not the plain slab: a
     /// block tile image in the world's directory, laid `block` metres to
     /// a tile over a frame `margin` wide and `depth` deep.
@@ -121,6 +129,16 @@ struct World3D {
         guard let d = try? Data(contentsOf: URL(fileURLWithPath: dir + "/world.json")),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return w }
         if let k = j["kind"] as? String, let kind = Kind(rawValue: k) { w.kind = kind }
+        w.ambientAnimation = j["ambient_animation"] as? Bool ?? false
+        if let bays = j["workspaceRail"] as? [[String: Double]] {
+            w.workspaceRail = bays.compactMap { b in
+                guard let x = b["x"], let y = b["y"], let z = b["z"],
+                      let width = b["width"], let height = b["height"],
+                      [x, y, z, width, height].allSatisfy({ $0.isFinite }),
+                      width > 0, height > 0 else { return nil }
+                return WorkspaceRail(x: x, y: y, z: z, width: width, height: height)
+            }
+        }
         if let e = j["exposure"] as? [Double], e.count == 3 { w.exposure = e }
         if let i = j["ibl_intensity"] as? Double { w.iblIntensity = i }
         if let p = j["point_light"] as? [String: Any],
@@ -343,6 +361,8 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
         guard fnSetOutput(room, textureName, Int32(width), Int32(height)) == 0 else { return }
         var proj = Self.projection(aspect: Double(width) / Double(height),
                                    tanHalfFovX: cam.tanHalfFovX)
+        proj[8] = Float(cam.lensShiftX)
+        proj[9] = Float(cam.lensShiftY)
         var view = Self.view(cam)
         fnSetCamera(room, &view, &proj, 0.08, 4000)
         syncPanes()
@@ -403,7 +423,7 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
         }
         var live = Set<Int64>()
         for p in panes {
-            guard let tex = sceneTexture?(p.id), tex.name != 0 else { continue }
+            guard let tex = sceneTexture?(p.textureId ?? p.id), tex.name != 0 else { continue }
             var c: [Float] = [Float(p.x), Float(p.y), Float(p.z)]
             let rc = fnSetPane(room, p.id, &c, Float(p.yaw), Float(p.width), Float(p.height),
                                Float(p.contentDy), Float(p.contentWidth), Float(p.contentHeight),

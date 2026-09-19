@@ -27,6 +27,8 @@
 #include <filament/View.h>
 #include <filament/Viewport.h>
 #include <gltfio/AssetLoader.h>
+#include <gltfio/Animator.h>
+#include <gltfio/FilamentInstance.h>
 #include <gltfio/FilamentAsset.h>
 #include <gltfio/MaterialProvider.h>
 #include <gltfio/ResourceLoader.h>
@@ -158,6 +160,8 @@ struct sr_room {
     gltfio::ResourceLoader* resources = nullptr;
     gltfio::TextureProvider* stb = nullptr;
     gltfio::FilamentAsset* asset = nullptr;
+    gltfio::Animator* animator = nullptr; // owned by the asset
+    double animationStart = 0;
 
     image::Ktx1Bundle* iblBundle = nullptr;
     image::Ktx1Bundle* skyBundle = nullptr;
@@ -325,6 +329,8 @@ int sr_room_load(sr_room* r, const char* glb_path, const char* ibl_ktx_path,
             fprintf(stderr, "[room] resources of %s failed to load\n", glb_path);
             return -3;
         }
+        r->animator = r->asset->getInstance()->getAnimator();
+        r->animationStart = nowMs();
         r->asset->releaseSourceData();
         r->scene->addEntities(r->asset->getRenderableEntities(),
                               r->asset->getRenderableEntityCount());
@@ -441,6 +447,15 @@ void sr_room_set_camera(sr_room* r, const float view[16], const float proj[16],
 int sr_room_render(sr_room* r) {
     if (!r->target) return -1;
     double t0 = nowMs();
+    // One animation clock for the shared scene, never one per monitor.
+    // Independent clips loop at their own duration; static worlds cost nothing.
+    if (r->animator) {
+        const double seconds = (t0 - r->animationStart) / 1000.0;
+        for (size_t i = 0; i < r->animator->getAnimationCount(); ++i) {
+            const float duration = r->animator->getAnimationDuration(i);
+            if (duration > 0) r->animator->applyAnimation(i, float(fmod(seconds, duration)));
+        }
+    }
     if (!r->labels.empty()) {
         // A label wears the viewer's own rotation, so its face is toward
         // the viewer wherever the viewer stands.

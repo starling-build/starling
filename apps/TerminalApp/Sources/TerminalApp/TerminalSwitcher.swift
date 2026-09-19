@@ -232,13 +232,13 @@ private enum SwitcherChrome {
     /// Lifted a step ABOVE a pane rather than matched to it, which is what
     /// makes it read as a sheet over the terminal instead of another panel
     /// beside it. Still near-opaque: this is a surface to read.
-    static let panel: Int = 0xF2_1E212B
-    static let edge: Int = 0xFF_333947
-    static let input: Int = 0xFF_E9EBF0
-    static let hint: Int = 0xFF_858B99
-    static let item: Int = 0xFF_C3C8D3
-    static let pick: Int = 0xFF_8AA0FF
-    static let pickBg: Int = 0x33_8AA0FF
+    static var panel: Int { StarlingPalette.isCity ? 0xFF_E8DFC9 : 0xF2_1E212B }
+    static var edge: Int { StarlingPalette.isCity ? 0xFF_806342 : 0xFF_333947 }
+    static var input: Int { StarlingPalette.isCity ? 0xFF_40392F : 0xFF_E9EBF0 }
+    static var hint: Int { StarlingPalette.isCity ? 0xFF_726C61 : 0xFF_858B99 }
+    static var item: Int { StarlingPalette.isCity ? 0xFF_625747 : 0xFF_C3C8D3 }
+    static var pick: Int { StarlingPalette.isCity ? 0xFF_52766A : 0xFF_8AA0FF }
+    static var pickBg: Int { StarlingPalette.isCity ? 0xFF_D4C7AB : 0x33_8AA0FF }
     static let row: Double = 26
 }
 

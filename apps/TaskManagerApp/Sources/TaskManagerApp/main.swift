@@ -25,16 +25,17 @@ private enum Style {
     /// Follows the shell's appearance — flipped by ThemedTaskManagerRoot
     /// before the rebuild, so every var below reads the right side.
     nonisolated(unsafe) static var dark = false
+    private static var p: StarlingPalette { StarlingPalette.city }
 
-    static let accent = Color(0xFF007AFF)
-    static var body: Color { dark ? Color(0xDDFFFFFF) : Color(0xDD000000) }
-    static var dim: Color { dark ? Color(0x8AFFFFFF) : Color(0x8A000000) }
-    static var faint: Color { dark ? Color(0x61FFFFFF) : Color(0x61000000) }
-    static var cardBorder: Color { dark ? Color(0x26FFFFFF) : Color(0x1F000000) }
-    static var card: Color { dark ? Color(0xFF232326) : Color(0xFFFFFFFF) }
-    static var chrome: Color { dark ? Color(0xFF2A2A2D) : Color(0xFFF5F5F5) }
-    static var stripe: Color { dark ? Color(0x0AFFFFFF) : Color(0x05000000) }
-    static var divider: Color { dark ? Color(0x1FFFFFFF) : Color(0x14000000) }
+    static var accent: Color { StarlingPalette.isCity ? p.accent : Color(0xFF007AFF) }
+    static var body: Color { StarlingPalette.isCity ? p.textPrimary : (dark ? Color(0xDDFFFFFF) : Color(0xDD000000)) }
+    static var dim: Color { StarlingPalette.isCity ? p.textSecondary : (dark ? Color(0x8AFFFFFF) : Color(0x8A000000)) }
+    static var faint: Color { StarlingPalette.isCity ? p.textTertiary : (dark ? Color(0x61FFFFFF) : Color(0x61000000)) }
+    static var cardBorder: Color { StarlingPalette.isCity ? p.fieldBorder : (dark ? Color(0x26FFFFFF) : Color(0x1F000000)) }
+    static var card: Color { StarlingPalette.isCity ? p.surface : (dark ? Color(0xFF232326) : Color(0xFFFFFFFF)) }
+    static var chrome: Color { StarlingPalette.isCity ? p.canvas : (dark ? Color(0xFF2A2A2D) : Color(0xFFF5F5F5)) }
+    static var stripe: Color { StarlingPalette.isCity ? p.stripe : (dark ? Color(0x0AFFFFFF) : Color(0x05000000)) }
+    static var divider: Color { StarlingPalette.isCity ? p.hairline : (dark ? Color(0x1FFFFFFF) : Color(0x14000000)) }
 
     static let cpuSeries = Color(0xFF2E7CF6)
     static let memorySeries = Color(0xFF34A853)
@@ -205,7 +206,11 @@ class _TaskManagerPageState: State<StatefulWidget> {
                             : nil,
                         secondary: true
                     )
-                ]
+                ],
+                decoration: StarlingPalette.isCity
+                    ? BoxDecoration(color: StarlingPalette.city.canvas,
+                        border: Border(bottom: BorderSide(color: StarlingPalette.city.hairline)))
+                    : nil
             )
         )
     }
@@ -423,6 +428,11 @@ private class _ThemedTaskManagerRootState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        #if os(Linux)
+        GpuDmaBufRenderer.onDesktop3DChanged = { [weak self] _ in
+            self?.setState {}
+        }
+        #endif
         // The shell pushed the desktop appearance when we connected, before
         // this tree existed. Seed from it so the first frame is already right.
         if let dark = GpuDmaBufRenderer.lastPushedThemeIsDark {

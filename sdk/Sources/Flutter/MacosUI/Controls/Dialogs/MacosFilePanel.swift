@@ -58,22 +58,23 @@ public struct MacosFilePanelOptions {
 /// desktop's per-theme system blue.
 private struct _PanelColors {
     let dark: Bool
-    var surface: Color    { dark ? Color(0xF7262930) : Color(0xFAF5F5F7) }
-    var sidebar: Color    { dark ? Color(0xFF20232A) : Color(0xFFEBEBEE) }
-    var footer: Color     { dark ? Color(0xFF22252C) : Color(0xFFEFEFF2) }
-    var hairline: Color   { dark ? Color(0x1FFFFFFF) : Color(0x1A000000) }
-    var text: Color       { dark ? Color(0xFFE8E8E8) : Color(0xDD000000) }
-    var secondary: Color  { dark ? Color(0x99FFFFFF) : Color(0x8C000000) }
-    var tertiary: Color   { dark ? Color(0x66FFFFFF) : Color(0x66000000) }
-    var disabled: Color   { dark ? Color(0x3AFFFFFF) : Color(0x33000000) }
-    var rowAlt: Color     { dark ? Color(0x0AFFFFFF) : Color(0x08000000) }
-    var hover: Color      { dark ? Color(0x14FFFFFF) : Color(0x0F000000) }
-    var selection: Color  { dark ? Color(0x4D0A84FF) : Color(0x33007AFF) }
-    var accent: Color     { dark ? Color(0xFF0A84FF) : Color(0xFF007AFF) }
-    var accentText: Color { Color(0xFFFFFFFF) }
-    var button: Color     { dark ? Color(0xFF3A3E46) : Color(0xFFE3E3E6) }
-    var buttonText: Color { dark ? Color(0xFFDDDDDD) : Color(0xCC000000) }
-    var fieldFill: Color  { dark ? Color(0x14FFFFFF) : Color(0x0F000000) }
+    private var p: StarlingPalette { StarlingPalette.city }
+    var surface: Color { StarlingPalette.isCity ? p.surface : (dark ? Color(0xF7262930) : Color(0xFAF5F5F7)) }
+    var sidebar: Color { StarlingPalette.isCity ? p.sidebar : (dark ? Color(0xFF20232A) : Color(0xFFEBEBEE)) }
+    var footer: Color { StarlingPalette.isCity ? p.canvas : (dark ? Color(0xFF22252C) : Color(0xFFEFEFF2)) }
+    var hairline: Color { StarlingPalette.isCity ? p.hairline : (dark ? Color(0x1FFFFFFF) : Color(0x1A000000)) }
+    var text: Color { StarlingPalette.isCity ? p.textPrimary : (dark ? Color(0xFFE8E8E8) : Color(0xDD000000)) }
+    var secondary: Color { StarlingPalette.isCity ? p.textSecondary : (dark ? Color(0x99FFFFFF) : Color(0x8C000000)) }
+    var tertiary: Color { StarlingPalette.isCity ? p.textTertiary : (dark ? Color(0x66FFFFFF) : Color(0x66000000)) }
+    var disabled: Color { StarlingPalette.isCity ? p.textDisabled : (dark ? Color(0x3AFFFFFF) : Color(0x33000000)) }
+    var rowAlt: Color { StarlingPalette.isCity ? p.stripe : (dark ? Color(0x0AFFFFFF) : Color(0x08000000)) }
+    var hover: Color { StarlingPalette.isCity ? p.hover : (dark ? Color(0x14FFFFFF) : Color(0x0F000000)) }
+    var selection: Color { StarlingPalette.isCity ? p.hover : (dark ? Color(0x4D0A84FF) : Color(0x33007AFF)) }
+    var accent: Color { StarlingPalette.isCity ? p.accent : (dark ? Color(0xFF0A84FF) : Color(0xFF007AFF)) }
+    var accentText: Color { StarlingPalette.isCity ? p.accentInk : (Color(0xFFFFFFFF)) }
+    var button: Color { StarlingPalette.isCity ? p.canvas : (dark ? Color(0xFF3A3E46) : Color(0xFFE3E3E6)) }
+    var buttonText: Color { StarlingPalette.isCity ? p.textPrimary : (dark ? Color(0xFFDDDDDD) : Color(0xCC000000)) }
+    var fieldFill: Color { StarlingPalette.isCity ? p.fieldFill : (dark ? Color(0x14FFFFFF) : Color(0x0F000000)) }
 }
 
 // MARK: - Directory listing

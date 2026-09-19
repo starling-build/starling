@@ -38,8 +38,9 @@ class _ThemedSettingsRootState: State<StatefulWidget> {
         // The 3D desktop can also be entered from the desktop's context
         // menu, the control centre, a key or the door in the world; every
         // one of those flips the switch here.
-        GpuDmaBufRenderer.onDesktop3DChanged = { on in
+        GpuDmaBufRenderer.onDesktop3DChanged = { [weak self] on in
             settingsBlocShared?.add(.desktop3DApplied(on))
+            self?.setState {}
         }
         // Wallpaper pushes keep the picker's selection ring live.
         // A style switch repaints this app as well as the shell's chrome:

@@ -88,13 +88,13 @@ class _MacosTextFieldState: State<StatefulWidget> {
         let isDark = theme.brightness == .dark
 
         let bgDecoration = field.decoration ?? BoxDecoration(
-            color: isDark
+            color: StarlingPalette.isCity ? StarlingPalette.city.fieldFill : (isDark
                 ? Color(rgbo: 30, 30, 30, 1.0)
-                : MacosColors.white,
+                : MacosColors.white),
             border: Border.all(
-                color: isDark
+                color: StarlingPalette.isCity ? StarlingPalette.city.fieldBorder : (isDark
                     ? Color(rgbo: 255, 255, 255, 0.15)
-                    : Color(rgbo: 0, 0, 0, 0.15),
+                    : Color(rgbo: 0, 0, 0, 0.15)),
                 width: 0.5
             ),
             borderRadius: BorderRadius.all(Radius(circular: 5)),
@@ -109,9 +109,9 @@ class _MacosTextFieldState: State<StatefulWidget> {
 
         // The macOS focus ring: accent-colored border on the same shape.
         let focusedDecoration = field.decoration ?? BoxDecoration(
-            color: isDark
+            color: StarlingPalette.isCity ? StarlingPalette.city.fieldFill : (isDark
                 ? Color(rgbo: 30, 30, 30, 1.0)
-                : MacosColors.white,
+                : MacosColors.white),
             border: Border.all(color: theme.primaryColor, width: 1.5),
             borderRadius: BorderRadius.all(Radius(circular: 5))
         )
@@ -189,13 +189,13 @@ public class MacosSearchField: StatelessWidget {
             onChanged: onChanged,
             onSubmitted: onSubmitted,
             decoration: BoxDecoration(
-                color: isDark
+                color: StarlingPalette.isCity ? StarlingPalette.city.fieldFill : (isDark
                     ? Color(rgbo: 30, 30, 30, 1.0)
-                    : MacosColors.white,
+                    : MacosColors.white),
                 border: Border.all(
-                    color: isDark
+                    color: StarlingPalette.isCity ? StarlingPalette.city.fieldBorder : (isDark
                         ? Color(rgbo: 255, 255, 255, 0.15)
-                        : Color(rgbo: 0, 0, 0, 0.15),
+                        : Color(rgbo: 0, 0, 0, 0.15)),
                     width: 0.5
                 ),
                 borderRadius: BorderRadius.all(Radius(circular: 7))

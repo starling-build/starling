@@ -199,6 +199,7 @@ class _SecondaryScreenHostState: State<StatefulWidget> {
     /// the active theme (an appearance switch must re-present).
     private func _signature() -> String {
         var sig = "wp:\(sharedWallpaperTextureId):\(shellTheme.name)"
+        sig += "|city:\(_shellState?._desktop3DActive == true)"
         if let wm = _shellState?.windowManager {
             for win in wm.visibleWindows where _intersectsOutput(win.rect) {
                 let r = win.rect
@@ -247,7 +248,8 @@ class _SecondaryScreenHostState: State<StatefulWidget> {
         // is this output's own, and dropping it freezes magnification, the
         // running-app dots, and drag reordering mid-gesture.
         if workspaceIsOn(output: output) || launcherIsOn(output: output)
-            || missionControlIsOn(output: output) || output.isPrimary {
+            || missionControlIsOn(output: output) || output.isPrimary
+            || _shellState?._desktop3DActive == true {
             setState {}
             return
         }
@@ -318,7 +320,9 @@ struct SecondaryOutputScreen {
         // rebuild gate). `.slate` is only the nothing-to-show fallback now.
         let base: Widget
         #if os(Linux)
-        if _shellState?.wallpaperPreset == .still, sharedWallpaperTextureId >= 0 {
+        if let shell = _shellState, shell._desktop3DActive, shell._ensureEnvironment() {
+            base = shell._desktop3DViewport(on: output.logicalRect)
+        } else if _shellState?.wallpaperPreset == .still, sharedWallpaperTextureId >= 0 {
             base = TextureWidget(
                 textureId: Int(sharedWallpaperTextureId), filterQuality: .low)
         } else {
@@ -336,6 +340,8 @@ struct SecondaryOutputScreen {
                 if event.buttons & kSecondaryButton != 0 {
                     _shellState?.openContextMenu(
                         at: event.position, onOutput: outputId)
+                } else if let shell = _shellState, shell._desktop3DActive {
+                    shell.setState { shell.windowManager.focusedWindowId = nil }
                 }
             },
             onPointerHover: { _ in DesktopCursor.setShape(.default) },
@@ -366,16 +372,27 @@ struct SecondaryOutputScreen {
         var widgets: [Widget] = []
         for win in wins {
             let r = win.rect
-            guard r.right > output.logicalLeft, r.left < output.logicalRight,
-                  r.bottom > output.logicalTop, r.top < output.logicalBottom
+            let city = shell._desktop3DActive && !win.isFullscreen
+            if city && !shell._desktop3DIsShown(win) { continue }
+            guard city || (r.right > output.logicalLeft && r.left < output.logicalRight &&
+                  r.bottom > output.logicalTop && r.top < output.logicalBottom)
             else { continue }
+            let placement: Desktop3DPlacement = city
+                ? shell._desktop3DPlacement(rect: r, t: shell._desktop3DT,
+                    camera: shell._desktop3DEffectiveCamera(shell._desktop3DT), pose: win.pose3D)
+                : .flat
+            if case .hidden = placement { continue }
+            var matrix = Matrix4.identity()
+            var pivot: Offset? = nil
+            if case let .posed(m, p) = placement { matrix = m; pivot = p - r.topLeft }
+            let inScene = city && shell._desktop3DScene && win.textureId != nil && shell._desktop3DT >= 1
             let winId = win.id
             widgets.append(Positioned(
                 key: ValueKey("sec\(output.id)-\(winId)"),
                 left: r.left - output.originX,
                 top: r.top - output.originY,
                 width: r.width, height: r.height,
-                child: DesktopWindow(
+                child: Transform(transform: matrix, origin: pivot, child: DesktopWindow(
                     windowInfo: win,
                     isFocused: winId == wm.focusedWindowId,
                     isTopBarRevealed: winId == fullscreenId && shell.topBarRevealed,
@@ -385,6 +402,10 @@ struct SecondaryOutputScreen {
                         }
                     },
                     onMove: { delta in
+                        if inScene {
+                            shell._desktop3DDragPane(winId, delta: delta)
+                            return
+                        }
                         _shellState?.setState {
                             _shellState?.windowManager.moveWindowByDelta(winId, delta: delta)
                         }
@@ -402,7 +423,16 @@ struct SecondaryOutputScreen {
                     },
                     onDepthScroll: { delta in
                         _shellState?._desktop3DScroll(winId, delta: delta)
-                    })))
+                    },
+                    sceneContent: inScene,
+                    revealInset: shell._desktop3DActive ? 0 : DesktopTheme.kStatusBarHeight,
+                    decoration: shell._desktop3DVoxel && shell._desktop3DT >= 1 ? .blocky : .style,
+                    decorationTile: shell._worldFrameTile,
+                    onHoverTitleBlock: { block in
+                        if shell._sceneTitleHover[winId] != block {
+                            shell.setState { shell._sceneTitleHover[winId] = block }
+                        }
+                    }))))
         }
         return widgets
     }
@@ -446,7 +476,7 @@ struct SecondaryOutputScreen {
             layers.append(Positioned(
                 fill: (),
                 child: Builder { ctx in shell._buildMissionControl(ctx) }))
-        } else if DesktopTheme.kStatusBarHeight > 0 {
+        } else if DesktopTheme.kStatusBarHeight > 0, _shellState?._desktop3DActive != true {
             // Only in a style that HAS a top strip. Drawing one at height 0
             // is not merely invisible — the menu bar's frost and hairline
             // still composite as a seam across the top of the wallpaper.
@@ -462,6 +492,17 @@ struct SecondaryOutputScreen {
         // the moment that is not the host output, so exactly one tree draws it.
         if let dock = _shellState?.dockWidget(forOutput: output) {
             layers.append(dock)
+        }
+        if let shell = _shellState, shell._desktop3DActive,
+           fullscreenWindow(onOutput: output) == nil {
+            layers.append(Positioned(left: (output.logicalWidth - 52) / 2,
+                bottom: 24, width: 52, height: 52 + DesktopTheme.kDockIconBottomInset,
+                child: shell._buildLauncherIcon(slotWidth: 52, city: true)))
+        }
+
+        if let shell = _shellState, shell._desktop3DActive {
+            layers.append(contentsOf: shell._buildPopupWidgets(
+                origin: Offset(output.originX, output.originY)).window)
         }
 
         // The desktop context menu, when it was opened on this output —
@@ -561,6 +602,7 @@ struct SecondaryOutputScreen {
                 child: AppLauncher(
                     apps: shell._launcherFilteredApps(),
                     query: shell._launcherQuery,
+                    city: shell._desktop3DActive,
                     caretResetToken: shell._launcherCaretToken,
                     onLaunch: { appId in shell._launchFromLauncher(appId) },
                     onDismiss: {
@@ -581,9 +623,35 @@ struct SecondaryOutputScreen {
         return Directionality(
             textDirection: .ltr,
             child: Listener(
-                onPointerDown: { _ in _shellState?.notePointerOutput(output.id) },
+                onPointerDown: { event in
+                    guard let shell = _shellState else { return }
+                    shell.notePointerOutput(output.id)
+                    let p = event.position + Offset(output.originX, output.originY)
+                    shell._lastPointer = p; shell._lastButtons = event.buttons
+                    waylandIntegration?.notePointerDown()
+                    shell._desktop3DSignDown(p)
+                },
+                onPointerMove: { event in
+                    guard let shell = _shellState else { return }
+                    let p = event.position + Offset(output.originX, output.originY)
+                    shell._lastPointer = p; shell._lastButtons = event.buttons
+                    shell._desktop3DSignMove(p)
+                },
+                onPointerUp: { event in
+                    guard let shell = _shellState else { return }
+                    let p = event.position + Offset(output.originX, output.originY)
+                    shell._lastPointer = p; shell._lastButtons = 0
+                    shell._desktop3DSignUp(p)
+                    shell._desktop3DNotePointer()
+                },
                 onPointerHover: { event in
                     _shellState?.notePointerOutput(output.id)
+                    if let shell = _shellState, shell._desktop3DActive {
+                        let p = event.position + Offset(output.originX, output.originY)
+                        shell._lastPointer = p
+                        shell._desktop3DNotePointer()
+                        shell._desktop3DSignHover(p)
+                    }
                     _shellState?._updateDockHover(
                         x: event.position.dx, y: event.position.dy,
                         outputId: output.id)

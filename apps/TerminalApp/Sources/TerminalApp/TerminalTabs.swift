@@ -90,7 +90,7 @@ private enum TabChrome {
     /// the desktop composites the wallpaper behind this window — an opaque
     /// backdrop would quietly turn a translucent window solid, and the gaps
     /// are exactly where that would show most.
-    static let backdrop: Int = 0xD9_0E1017
+    static var backdrop: Int { StarlingPalette.isCity ? 0xFF_D8CCB3 : 0xD9_0E1017 }
 
     /// A pane's own background. Must stay in step with
     /// `TerminalTheme.starlingDark.background` in the sdk, which is what the
@@ -101,8 +101,8 @@ private enum TabChrome {
     /// The ring around the pane with the keyboard, and the seam while it is
     /// dragged. Both are quiet on purpose: a terminal is a rectangle of text
     /// and a loud border competes with it.
-    static let activePaneEdge: Int = 0x66_8AA0FF
-    static let seamHot: Int = 0xFF_373D4B
+    static var activePaneEdge: Int { StarlingPalette.isCity ? 0xFF_806342 : 0x66_8AA0FF }
+    static var seamHot: Int { StarlingPalette.isCity ? 0xFF_A68A5F : 0xFF_373D4B }
     /// How much of a pane's corner is rounded off. Only ever applied when
     /// there is more than one pane — see `_pane`.
     static let paneRadius: Double = 6
@@ -111,7 +111,7 @@ private enum TabChrome {
     /// surface — that continuity is how you see WHICH tab is active, and it
     /// is the one place the bar and the content are meant to be the same
     /// colour.
-    static let activeTab: Int = surface
+    static var activeTab: Int { StarlingPalette.isCity ? 0xFF_F8F2E4 : surface }
 
     /// Everywhere else the strip is its own surface, and a LIGHTER one.
     ///
@@ -127,11 +127,11 @@ private enum TabChrome {
     /// there is nowhere darker to go — the backdrop is nearly black already.
     /// It keeps the same `0xD9` alpha as everything else here, so a
     /// translucent window stays translucent.
-    static let bar: Int = 0xD9_2E3340
-    static let separator: Int = 0xFF_0A0B10
-    static let activeText: Int = 0xFF_E9EBF0
-    static let text: Int = 0xFF_949AA8
-    static let button: Int = 0xFF_949AA8
+    static var bar: Int { StarlingPalette.isCity ? 0xFF_E8DFC9 : 0xD9_2E3340 }
+    static var separator: Int { StarlingPalette.isCity ? 0xFF_A68A5F : 0xFF_0A0B10 }
+    static var activeText: Int { StarlingPalette.isCity ? 0xFF_40392F : 0xFF_E9EBF0 }
+    static var text: Int { StarlingPalette.isCity ? 0xFF_625747 : 0xFF_949AA8 }
+    static var button: Int { StarlingPalette.isCity ? 0xFF_625747 : 0xFF_949AA8 }
     /// Pane status (OSC 133). Amber for working, green for finished cleanly,
     /// red for a non-zero exit — the macOS traffic-light order, which is the
     /// one reading people already have.
@@ -194,6 +194,9 @@ final class _TerminalTabsState: State<StatefulWidget>, @unchecked Sendable {
 
     override func initState() {
         super.initState()
+        #if os(Linux)
+        GpuDmaBufRenderer.onDesktop3DChanged = { [weak self] _ in self?.setState {} }
+        #endif
         // A launch is a LOCAL SHELL. `--workspace remote:host/ws:dev` (or
         // STARLING_WORKSPACE) asks for an arrangement instead, and ⌘O reaches
         // one at any moment — but nothing dials a machine merely because the

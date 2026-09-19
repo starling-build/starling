@@ -151,6 +151,9 @@ struct EnvironmentCamera: Equatable {
     var roomDepth: Double = 16
     /// The lens, shared with the windows so the two agree exactly.
     var tanHalfFovX: Double = 0.7002
+    /// Off-axis lens for a shared desktop spanning several outputs.
+    var lensShiftX: Double = 0
+    var lensShiftY: Double = 0
     /// The daylight's colour, taken from the wallpaper: the room is lit by
     /// what is outside its window, so a dusk view gives a dim warm room
     /// and a noon view a bright one. This is the wallpaper's average —
@@ -440,6 +443,8 @@ class EnvironmentRenderer: GLRenderer {
 
             var proj = Self.projection(aspect: Double(width) / Double(height),
                                        tanHalfFovX: cam.tanHalfFovX)
+            proj[8] = Float(cam.lensShiftX)
+            proj[9] = Float(cam.lensShiftY)
             var view = Self.view(cam)
             _glUniformMatrix4fv(uProj, 1, 0, &proj)
             _glUniformMatrix4fv(uView, 1, 0, &view)

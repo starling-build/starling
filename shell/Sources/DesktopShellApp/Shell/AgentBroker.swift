@@ -560,8 +560,20 @@ final class AgentBroker: @unchecked Sendable {
             } else if req["query"] as? Bool != true {
                 shell._setDesktop3D(!shell._desktop3DOn)
             }
-            conn.send(["id": id, "ok": true, "on": shell._desktop3DOn,
-                       "t": shell._desktop3DT])
+            var result: [String: Any] = ["id": id, "ok": true, "on": shell._desktop3DOn,
+                                        "t": shell._desktop3DT]
+            if req["query"] as? Bool == true {
+                result["pointer"] = [shell._lastPointer.dx, shell._lastPointer.dy]
+                result["outputs"] = displayLayout?.outputs.map {
+                    ["id": $0.id, "primary": $0.isPrimary,
+                     "rect": [$0.originX, $0.originY, $0.logicalWidth, $0.logicalHeight]] as [String: Any]
+                } ?? []
+                result["panes"] = shell.windowManager.visibleWindows.map {
+                    ["app": $0.appId, "output": shell._desktop3DOutputId(for: $0),
+                     "shown": shell._desktop3DIsShown($0)] as [String: Any]
+                }
+            }
+            conn.send(result)
             return
         }
 

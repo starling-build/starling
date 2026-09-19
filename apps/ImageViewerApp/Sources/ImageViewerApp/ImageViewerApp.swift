@@ -19,6 +19,19 @@ private struct ViewerPalette {
     let accent: Color
 
     init(dark: Bool) {
+        if StarlingPalette.isCity {
+            let p = StarlingPalette.city
+            background = p.canvas
+            canvas = Color(0xFF302E29)
+            toolbar = p.canvas
+            toolbarLine = p.hairline
+            text = p.textPrimary
+            dimText = p.textSecondary
+            control = p.surface
+            controlText = p.textPrimary
+            accent = p.accent
+            return
+        }
         if dark {
             background = Color(0xA6262930)
             canvas = Color(0xD91B1B1D)
@@ -1443,7 +1456,8 @@ class _ImageViewerAppState: State<StatefulWidget>, @unchecked Sendable {
         if image == nil && !isPdf && statusMessage.isEmpty {
             stack.append(Center(child: Text(
                 "Open an image  (Ctrl+O)",
-                style: TextStyle(color: pal.dimText, fontSize: 15))))
+                style: TextStyle(color: StarlingPalette.isCity
+                    ? StarlingPalette.city.accentInk : pal.dimText, fontSize: 15))))
         }
         return Stack(children: stack)
     }

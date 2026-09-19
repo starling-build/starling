@@ -719,14 +719,17 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// The last click on a brick, so the second click of a double-click
     /// does not open the app twice.
     var _desktop3DBrickClick: (app: String, at: Double)? = nil
-    /// The one window the city shows (Desktop3D, "One window on screen").
-    var _desktop3DShownWindowId: String? = nil
-    /// The shown window's flat size when its pane was last aimed.
-    var _desktop3DShownSize: (Double, Double)? = nil
+    /// One active pane per display, all occupying the same world.
+    var _desktop3DShownByOutput: [Int: String] = [:]
+    var _desktop3DShownRectByOutput: [Int: Rect] = [:]
+    var _desktop3DDisplaySignature = ""
+    var _desktop3DLaunchOutputs: [String: Int] = [:]
     /// The city's window switcher while Alt+Tab holds it open: the windows
     /// in their order round the ring, which is chosen, and where each stood
     /// before — to go back to on Escape (Desktop3D, "The switcher").
     var _desktop3DSwitcher: (ids: [String], selected: Int, before: [String: WindowPose3D])? = nil
+    var _desktop3DRailStart = 0
+    var _desktop3DRailWheel = 0.0
     /// Windows gliding to new places in the city, by window id.
     var _desktop3DPoseTweens: [String: (from: WindowPose3D, to: WindowPose3D, start: Double, ms: Double)] = [:]
     var _poseTicker: Ticker? = nil
@@ -750,6 +753,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     var _environment: EnvironmentRenderer? = nil
     /// Drives the sky's cloud while the room is open.
     var _sceneTicker: Ticker? = nil
+    var _sceneAmbientTimer: DispatchSourceTimer? = nil
+    var _sceneRepaints: [String: () -> Void] = [:]
     /// The baked room, once it has been read off disk.
     var _roomAsset: (mesh: Room3D.Asset,
                      diffuse: (data: [UInt8], w: Int, h: Int),
@@ -3200,6 +3205,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             child: AppLauncher(
                 apps: _launcherFilteredApps(),
                 query: _launcherQuery,
+                city: _desktop3DActive,
                 caretResetToken: _launcherCaretToken,
                 onLaunch: { [self] appId in _launchFromLauncher(appId) },
                 onDismiss: { [self] in
@@ -4552,7 +4558,8 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                _ensureEnvironment() {
                 // The room, or the wallpaper mid-unfold: the environment
                 // renderer's texture stands in the wallpaper's slot.
-                let room = TextureWidget(textureId: Int(environmentTextureId), filterQuality: .low)
+                let room = _desktop3DViewport(on: displayLayout?.host.logicalRect
+                    ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight))
                 if _desktop3DScene && _desktop3DT < 1 {
                     // The GL room unfolds out of the wallpaper geometrically;
                     // the Filament room has no picture wall to unfold from,
@@ -4982,6 +4989,37 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                 children.append(over)
             }
         }
+        if _desktop3DChromeless, let world = _desktop3DWorld,
+           !world.workspaceRail.isEmpty, !isFullscreenMode {
+            children.append(Positioned(
+                left: (screenWidth - 52) / 2, bottom: 24, width: 52,
+                height: 52 + DesktopTheme.kDockIconBottomInset,
+                child: _buildLauncherIcon(slotWidth: 52, city: true)))
+            let page = WorkspaceRailPage(count: _desktop3DRailApps().count, start: _desktop3DRailStart)
+            if page.count > WorkspaceRailPage.capacity {
+                func railLabel(_ text: String) -> Widget {
+                    DecoratedBox(decoration: BoxDecoration(
+                        color: shellTheme.dockLabelTint,
+                        borderRadius: BorderRadius.all(Radius(circular: 12))),
+                        child: Center(child: Text(text,
+                            style: TextStyle(color: shellTheme.dockLabelText, fontSize: 13))))
+                }
+                for direction in [-1, 1] {
+                    children.append(Positioned(
+                        left: screenWidth / 2 + (direction < 0 ? -166 : 46),
+                        bottom: 30, width: 120, height: 44,
+                        child: GestureDetector(
+                            onTap: { [self] in _desktop3DRailMove(direction) },
+                            behavior: .opaque,
+                            child: Opacity(
+                                opacity: (direction < 0 ? page.start > 0 : page.end < page.count) ? 1 : 0.4,
+                                child: railLabel(direction < 0 ? "‹ Previous" : "Next ›")))))
+                }
+                children.append(Positioned(
+                    left: (screenWidth - 200) / 2, bottom: 88, width: 200, height: 24,
+                    child: railLabel("\(page.start + 1)–\(page.end) of \(page.count) apps")))
+            }
+        }
         // [N+1..] Client popups (menus, tooltips, free-standing override-
         // redirect X windows) sit above the bar and the dock: a menu is
         // above the chrome on every desktop (macOS, GNOME), and a dropdown
@@ -5161,7 +5199,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // The app launcher, opened from the bottom bar. Above windows and the
         // bar itself; tap an app to launch it, tap empty space to dismiss.
         if _launcherOpen && _launcherOutputId == (hostOutput?.id ?? 0) {
-            children.append(chrome.launcher())
+            // In a 3D world the directory belongs to the environment, for
+            // both shell styles. Flat desktops keep their own launcher.
+            children.append(_desktop3DActive ? macosLauncher() : chrome.launcher())
         }
 
         // Floating dock icon follows cursor during drag
@@ -5281,7 +5321,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                     onPointerSignal: { [self] e in
                         _noteUserActivity()
                         // The wheel pushes a carried brick away or pulls it in.
-                        if let scroll = e as? PointerScrollEvent { _desktop3DBrickWheel(scroll.scrollDelta.dy) }
+                        if let scroll = e as? PointerScrollEvent {
+                            if !_desktop3DRailScroll(scroll) { _desktop3DBrickWheel(scroll.scrollDelta.dy) }
+                        }
                     },
                     behavior: .translucent,
                     child: SizedBox(expand: ())
@@ -7774,7 +7816,29 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
 
     /// 3×3 dot grid "launcher" icon at the left of the dock (Chrome OS style).
     /// `slotWidth` is the magnified slot size; the glyph scales with it.
-    private func _buildLauncherIcon(slotWidth: Double) -> Widget {
+    func _buildLauncherIcon(slotWidth: Double, city: Bool = false) -> Widget {
+        if city {
+            return SizedBox(
+                width: slotWidth, height: slotWidth + DesktopTheme.kDockIconBottomInset,
+                child: Column(children: [
+                    SizedBox(width: slotWidth, height: slotWidth,
+                        child: HoverButton(
+                            builder: { _, states in
+                                DecoratedBox(decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.all(Radius(circular: slotWidth / 2)),
+                                    boxShadow: [BoxShadow(color: Color(0x35000000),
+                                        offset: Offset(0, 2), blurRadius: 6)]),
+                                    child: CustomPaint(painter: CityLauncherPainter(
+                                        hovered: states.isHovered, pressed: states.isPressed),
+                                        child: SizedBox(expand: ())))
+                            },
+                            onPressed: { [self] in
+                                _loadIconTextures()
+                                openLauncher()
+                            })),
+                    SizedBox(height: DesktopTheme.kDockIconBottomInset),
+                ]))
+        }
         // The launcher shares the app icons' slot geometry and tile treatment
         // (see _buildDockIcon / _buildDockIconContent) so it lines up with the
         // rest of the dock: a rounded, shadowed tile with a white glyph — here
@@ -7808,7 +7872,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
             child: ClipRRect(
                 borderRadius: BorderRadius.all(Radius(circular: cornerRadius)),
                 child: ColoredBox(
-                    color: Color(0xFF5A5A5F),  // neutral graphite — a "system" tile
+                    color: Color(0xFF5A5A5F),
                     child: Center(child: grid)
                 )
             )

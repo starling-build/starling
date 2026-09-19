@@ -106,6 +106,22 @@ rm -f "$LAYOUT_BIN"
 # on a terminal drawing a blank screen, and the benchmark rewards it — not
 # drawing is cheaper. Two of these shipped: Roboto Mono has no box drawing at
 # all, and braille (every TUI spinner) was in none of the four faces.
+step "unit tests: city ambient motion"
+python3 "$REPO/test/city/motion-test.py" || fails=$((fails + 1))
+step "unit tests: shared desktop scene lens"
+LENS_BIN=$(as_user mktemp /tmp/starling-scene-lens.XXXXXX)
+(as_user "$SWIFTC" -O -o "$LENS_BIN" "$REPO/test/displays/scene-lens-test.swift" \
+     "$REPO/shell/Sources/DesktopShellApp/Shell/DesktopSceneLens.swift" \
+     && "$LENS_BIN") || fails=$((fails + 1))
+rm -f "$LENS_BIN"
+
+step "unit tests: workspace rail paging"
+RAIL_BIN=$(as_user mktemp /tmp/starling-rail.XXXXXX)
+(as_user "$SWIFTC" -O -o "$RAIL_BIN" "$REPO/test/rail/rail-test.swift" \
+     "$REPO/shell/Sources/DesktopShellApp/Shell/WorkspaceRailPage.swift" \
+     && "$RAIL_BIN") || fails=$((fails + 1))
+rm -f "$RAIL_BIN"
+
 step "glyph coverage: what a TUI draws"
 GLYPH_OUT=$(mktemp /tmp/starling-glyph.XXXXXX)
 (python3 "$REPO/test/bench/glyph-gate.py" > "$GLYPH_OUT" 2>&1 \

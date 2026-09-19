@@ -7,10 +7,9 @@ import Foundation
 
 // MARK: - BlockyTitleBar
 
-/// A window's title bar in a block world: planks from the world's own
-/// frame tile, the title in white with the hard drop shadow of the
-/// game's text, and three block buttons — red, gold, emerald — with a
-/// one-texel outline and a bevel. The same contract as the style's
+/// The city's window trim: warm cream enamel, a fine bronze cornice,
+/// and muted terracotta, ochre and sage controls with persistent glyphs.
+/// The same contract as the style's
 /// title bar (drag, double-click, depth scroll), so the window knows no
 /// difference; it is the WORLD that asks for this look, not the style,
 /// the way the world already supplies the frame the pane hangs in.
@@ -19,7 +18,7 @@ class BlockyTitleBar: StatefulWidget {
     let title: String
     let isFocused: Bool
     let isFullscreen: Bool
-    /// The world's frame tile (pixel art, 16 texels), or nil for plain planks.
+    /// Retained for the shared world-decoration interface; the city bar is enamel.
     let tile: FlutterSwiftBridge.Image?
     /// Paint nothing: the bar is drawn in the scene by the room renderer,
     /// where a brick in front of the window covers it; the widget stays
@@ -83,11 +82,11 @@ class _BlockyTitleBarState: State<StatefulWidget> {
     static let kGap = 8.0
     static let kLead = 12.0
 
-    // The blocks: redstone, gold, emerald — and stone when unfocused.
-    static let closeFace = Color(0xFFD9473A)
-    static let minimizeFace = Color(0xFFE6B422)
-    static let maximizeFace = Color(0xFF3FB950)
-    static let stoneFace = Color(0xFF8C8C8C)
+    // Painted-Lady accents, with neutral stone for an inactive window.
+    static let closeFace = Color(0xFFAF604D)
+    static let minimizeFace = Color(0xFF96783F)
+    static let maximizeFace = Color(0xFF52766A)
+    static let stoneFace = Color(0xFF999387)
 
     override func build(_ context: any BuildContext) -> Widget {
         let focused = w.isFocused
@@ -145,7 +144,7 @@ class _BlockyTitleBarState: State<StatefulWidget> {
 
     /// The bar as a picture, for the scene: what `build` paints, drawn
     /// once into a canvas at `scale` pixels per logical pixel. `hovered`
-    /// is the block the pointer is over, whose glyph shows.
+    /// is the block the pointer is over, whose enamel brightens.
     static func paint(_ canvas: any Canvas, width: Double, tile: FlutterSwiftBridge.Image?,
                       title: String, focused: Bool, hovered: Int?, scale: Double) {
         canvas.save()
@@ -162,32 +161,27 @@ class _BlockyTitleBarState: State<StatefulWidget> {
                           hovered: hovered == i, pressed: false).paint(canvas, Size(kButton, kButton))
             canvas.restore()
         }
-        let ink = focused ? Color(0xFFFFFFFF) : Color(0xFFBDBDBD)
-        for (dx, dy, c) in [(2.0, 2.0, Color(0xB0000000)), (0.0, 0.0, ink)] {
-            let pb = NativeParagraphBuilder(ParagraphStyle(textAlign: .center, fontSize: 13, fontWeight: .w700))
-            pb.pushStyle(TextStyle(color: c, fontWeight: .w700, fontSize: 13, letterSpacing: 0.5))
+        let ink = focused ? Color(0xFF40392F) : Color(0xFF726C61)
+        let inset = kLead + kButton * 3 + kGap * 2 + 8
+        let titleWidth = max(0, width - inset * 2)
+        if titleWidth > 0 {
+            canvas.save()
+            canvas.clipRect(Rect.fromLTWH(inset, 2, titleWidth, h - 4))
+            let pb = NativeParagraphBuilder(ParagraphStyle(textAlign: .center, fontSize: 13, fontWeight: .w600))
+            pb.pushStyle(TextStyle(color: ink, fontWeight: .w600, fontSize: 13))
             pb.addText(title)
             let para = pb.build()
-            para.layout(ParagraphConstraints(width: width))
-            canvas.drawParagraph(para, Offset(dx, (h - 17) / 2 + dy))
+            para.layout(ParagraphConstraints(width: titleWidth))
+            canvas.drawParagraph(para, Offset(inset, (h - 17) / 2))
+            canvas.restore()
         }
         canvas.restore()
     }
 
-    /// The title, white over a hard one-texel-offset shadow: the game's
-    /// text, which has no anti-aliasing to soften and reads on any block.
+    /// Dark lettering on cream enamel, matching the scene's title texture.
     private func _shadowedTitle(focused: Bool) -> Widget {
-        let ink = focused ? Color(0xFFFFFFFF) : Color(0xFFBDBDBD)
-        let shade = Color(0xB0000000)
-        func text(_ c: Color) -> Widget {
-            Text(w.title, style: TextStyle(color: c, fontSize: 13, fontWeight: .w700, letterSpacing: 0.5))
-        }
-        return Stack(
-            children: [
-                Padding(padding: EdgeInsets(left: 2, top: 2), child: text(shade)),
-                Padding(padding: EdgeInsets(right: 2, bottom: 2), child: text(ink)),
-            ]
-        )
+        let ink = focused ? Color(0xFF40392F) : Color(0xFF726C61)
+        return Text(w.title, style: TextStyle(color: ink, fontSize: 13, fontWeight: .w600))
     }
 
     private func _block(_ index: Int, face: Color, glyph: _BlockGlyph, onTap: (() -> Void)?) -> Widget {
@@ -213,10 +207,8 @@ class _BlockyTitleBarState: State<StatefulWidget> {
 
 enum _BlockGlyph { case close, minimize, maximize }
 
-/// A block seen face-on: a two-texel outline, a lit top-left bevel and a
-/// shaded bottom-right one, a few darker texels for grain, and, when the
-/// pointer is over it, its glyph in white. Pressed, the bevel flips and
-/// the face darkens: pushed in.
+/// An enamel control with a fine bevel and a permanent cream glyph.
+/// Hover brightens it; pressing reverses the bevel and darkens the face.
 class _BlockPainter: CustomPainter {
     let face: Color
     let glyph: _BlockGlyph
@@ -232,7 +224,7 @@ class _BlockPainter: CustomPainter {
     }
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
-        let t = 2.0                                  // one texel
+        var t = 1.0                                  // fine enamel bevel
         let base = pressed ? scaled(face, 0.8) : (hovered ? scaled(face, 1.15) : face)
         let p = Paint()
         p.color = scaled(face, 0.38)
@@ -247,15 +239,10 @@ class _BlockPainter: CustomPainter {
         p.color = pressed ? light : dark
         canvas.drawRect(Rect.fromLTWH(t, size.height - 2 * t, size.width - 2 * t, t), p)
         canvas.drawRect(Rect.fromLTWH(size.width - 2 * t, t, t, size.height - 2 * t), p)
-        // Grain: a fixed sprinkle of darker texels.
-        p.color = scaled(base, 0.88)
-        for (gx, gy) in [(3, 5), (6, 2), (5, 7), (2, 3), (7, 4), (4, 4)] {
-            canvas.drawRect(Rect.fromLTWH(Double(gx) * t, Double(gy) * t, t, t), p)
-        }
-        guard hovered || pressed else { return }
-        // The glyph, in white texels.
-        p.color = Color(0xFFFFFFFF)
-        let n = Int(size.width / t)                  // texels across (10)
+        // Always-visible cream glyphs; color is not the only action cue.
+        p.color = Color(0xFFF7F0DE)
+        t = 2.0
+        let n = Int(size.width / t)
         switch glyph {
         case .close:
             for i in 3..<(n - 3) {
@@ -279,9 +266,9 @@ class _BlockPainter: CustomPainter {
     }
 }
 
-/// The bar itself: the world's tile laid two screen pixels to a texel,
-/// crisp, with a dark two-texel edge along the bottom; dimmed when the
-/// window is not the one with the keyboard.
+/// Cream enamel with a light upper edge and a bronze lower edge.
+/// Inactive windows use quieter stone tones. The legacy painter name is
+/// retained for the shared widget/scene call sites.
 class _PlankPainter: CustomPainter {
     let tile: FlutterSwiftBridge.Image?
     let focused: Bool
@@ -291,39 +278,15 @@ class _PlankPainter: CustomPainter {
     }
 
     override func paint(_ canvas: any Canvas, _ size: Size) {
-        let t = 2.0
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
         let p = Paint()
-        if let tile {
-            p.filterQuality = .none
-            let src = Rect.fromLTWH(0, 0, Double(tile.width), Double(tile.height))
-            let step = Double(tile.width) * t
-            var y = 0.0
-            while y < size.height {
-                var x = 0.0
-                while x < size.width {
-                    canvas.drawImageRect(tile, src, Rect.fromLTWH(x, y, step, step), p)
-                    x += step
-                }
-                y += step
-            }
-        } else {
-            p.color = Color(0xFF946B40)
-            canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), p)
-            p.color = Color(0xFF5A3D20)
-            var y = 0.0
-            while y < size.height {
-                canvas.drawRect(Rect.fromLTWH(0, y, size.width, t), p)
-                y += 4 * t
-            }
-        }
-        p.color = Color(0xFF2E2013)
-        canvas.drawRect(Rect.fromLTWH(0, size.height - t, size.width, t), p)
-        if !focused {
-            p.color = Color(0x59000000)
-            canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), p)
-        }
+        p.color = focused ? Color(0xFFE8DFC9) : Color(0xFFD4CEBF)
+        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), p)
+        p.color = Color(0xFFF7F0DE)
+        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, 1), p)
+        p.color = focused ? Color(0xFF806342) : Color(0xFFA49B88)
+        canvas.drawRect(Rect.fromLTWH(0, size.height - 1, size.width, 1), p)
         canvas.restore()
     }
 

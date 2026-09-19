@@ -28,6 +28,19 @@ private struct CalcPalette {
     let keyGap: Color
 
     init(dark: Bool) {
+        if StarlingPalette.isCity {
+            let p = StarlingPalette.city
+            background = p.canvas
+            displayText = p.textPrimary
+            digitKey = p.surface
+            digitKeyText = p.textPrimary
+            functionKey = p.sidebar
+            functionKeyText = p.textPrimary
+            operatorKey = p.accent
+            operatorKeyText = p.accentInk
+            keyGap = p.hairline
+            return
+        }
         if dark {
             background = Color(0xA62A2C33)
             displayText = Color(0xFFFFFFFF)

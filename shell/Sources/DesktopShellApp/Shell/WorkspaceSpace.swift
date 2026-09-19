@@ -881,6 +881,9 @@ extension _DesktopShellState {
             _launchIntoWorkspace(workspaceId: ws.id, appId: appId,
                                  asDriver: ws.driverWindowId == nil)
         } else {
+            if _desktop3DActive, !windowManager.windows.contains(where: { _desktop3DAppId(of: $0) == appId }) {
+                _desktop3DLaunchOutputs[appId] = _launcherOutputId
+            }
             _launchOrFocusApp(appId)
         }
     }

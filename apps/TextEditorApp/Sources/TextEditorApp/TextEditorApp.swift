@@ -22,6 +22,22 @@ private struct EditorPalette {
     let selection: Color
 
     init(dark: Bool) {
+        if StarlingPalette.isCity {
+            let p = StarlingPalette.city
+            background = p.canvas
+            page = p.surface
+            toolbar = p.canvas
+            toolbarLine = p.hairline
+            text = p.textPrimary
+            dimText = p.textSecondary
+            caret = p.accent
+            control = p.surface
+            controlActive = p.hover
+            controlText = p.textPrimary
+            accent = p.accent
+            selection = Color(0x4052766A)
+            return
+        }
         if dark {
             background = Color(0xA6262930)
             page = Color(0xFF1E1E20)

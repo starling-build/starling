@@ -74,6 +74,9 @@ class _VideoPlayerState: State<StatefulWidget> {
 
     override func initState() {
         super.initState()
+        #if os(Linux)
+        GpuDmaBufRenderer.onDesktop3DChanged = { [weak self] _ in self?.setState {} }
+        #endif
 
         #if os(Linux)
         if let rendererState = gpuDmaBufRendererState {
@@ -487,7 +490,7 @@ class _VideoPlayerState: State<StatefulWidget> {
                 left: 0, right: 0, bottom: 0,
                 height: 44,
                 child: ColoredBox(
-                    color: Color(rgbo: 22, 22, 24, 0.72),
+                    color: StarlingPalette.isCity ? StarlingPalette.city.canvas : Color(rgbo: 22, 22, 24, 0.72),
                     child: Padding(
                         padding: EdgeInsets(left: 14, right: 14),
                         child: Row(
@@ -502,21 +505,21 @@ class _VideoPlayerState: State<StatefulWidget> {
                                             icon: isPlaying
                                                 ? CupertinoIcons.pause_fill
                                                 : CupertinoIcons.play_fill,
-                                            color: Color(0xFFFFFFFF),
+                                            color: StarlingPalette.isCity ? StarlingPalette.city.accent : Color(0xFFFFFFFF),
                                             size: 16
                                         )
                                     )
                                 ),
                                 Text(
                                     _formatTime(scrubPosition ?? position),
-                                    style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 12)
+                                    style: TextStyle(color: StarlingPalette.isCity ? StarlingPalette.city.textSecondary : Color(0xFFDDDDDD), fontSize: 12)
                                 ),
                                 SizedBox(width: 10),
                                 Expanded(child: _scrubber()),
                                 SizedBox(width: 10),
                                 Text(
                                     _formatTime(info.duration),
-                                    style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 12)
+                                    style: TextStyle(color: StarlingPalette.isCity ? StarlingPalette.city.textSecondary : Color(0xFFDDDDDD), fontSize: 12)
                                 ),
                                 SizedBox(width: 6),
                                 GestureDetector(
@@ -528,7 +531,7 @@ class _VideoPlayerState: State<StatefulWidget> {
                                         padding: EdgeInsets(all: 6),
                                         child: Text(
                                             "Open\u{2026}",
-                                            style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 12)
+                                            style: TextStyle(color: StarlingPalette.isCity ? StarlingPalette.city.accent : Color(0xFFFFFFFF), fontSize: 12)
                                         )
                                     )
                                 ),
@@ -544,7 +547,7 @@ class _VideoPlayerState: State<StatefulWidget> {
             var opts = MacosFilePanelOptions()
             opts.mode = .open
             opts.title = "Open Video"
-            opts.appearanceDark = true   // the player chrome is always dark
+            opts.appearanceDark = !StarlingPalette.isCity
             opts.allowedExtensions = Self.kVideoExtensions
             opts.initialDirectory = currentPath.isEmpty
                 ? nil
@@ -621,7 +624,7 @@ class _VideoPlayerState: State<StatefulWidget> {
                             height: trackH,
                             child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                    color: Color(rgbo: 255, 255, 255, 0.25),
+                                    color: StarlingPalette.isCity ? StarlingPalette.city.sidebar : Color(rgbo: 255, 255, 255, 0.25),
                                     borderRadius: BorderRadius.circular(trackH / 2)
                                 )
                             )
@@ -632,7 +635,7 @@ class _VideoPlayerState: State<StatefulWidget> {
                             height: trackH,
                             child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                    color: Color(rgbo: 255, 255, 255, 0.9),
+                                    color: StarlingPalette.isCity ? StarlingPalette.city.accent : Color(rgbo: 255, 255, 255, 0.9),
                                     borderRadius: BorderRadius.circular(trackH / 2)
                                 )
                             )

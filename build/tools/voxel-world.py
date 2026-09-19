@@ -43,6 +43,8 @@ TILES = [
     "awning_red", "awning_green", "awning_blue", "sign_red", "sign_blue", "sign_green",
     "sign_yellow", "sign_white", "sandstone", "sandstone_window", "flowers", "tank",
     "vent", "planks", "brick_window", "plaster_window", "cornice",
+    "copper", "limestone", "paving_border", "bridge_red", "plaster_rose", "bronze",
+    "cloud",
 ]
 T = {name: i for i, name in enumerate(TILES)}
 assert len(TILES) <= ATLAS * ATLAS
@@ -137,9 +139,9 @@ def make_tiles(seed=1):
     bw[14, 1:15] = (0.8, 0.76, 0.7)
     t["brick_window"] = bw
     t["roof"] = noise_tile(rng, (0.24, 0.23, 0.22), 0.03, (0.18, 0.17, 0.16), (0.32, 0.31, 0.3))
-    plaza = noise_tile(rng, (0.58, 0.56, 0.52), 0.02)
-    for k in (0, 8):
-        plaza[k, :] = (0.42, 0.4, 0.38); plaza[:, k] = (0.42, 0.4, 0.38)
+    plaza = noise_tile(rng, (0.76, 0.71, 0.61), 0.008)
+    plaza[0, :] = (0.64, 0.59, 0.50)
+    plaza[:, 0] = (0.64, 0.59, 0.50)
     t["plaza"] = plaza
     t["grass"] = noise_tile(rng, (0.36, 0.62, 0.22), 0.04, (0.28, 0.5, 0.16), (0.46, 0.7, 0.3))
     flowers = t["grass"].copy()
@@ -154,7 +156,9 @@ def make_tiles(seed=1):
     t["log"] = log
     t["leaves"] = noise_tile(rng, (0.2, 0.48, 0.14), 0.05, (0.12, 0.34, 0.08), (0.3, 0.6, 0.22))
     t["lamp"] = noise_tile(rng, (1.0, 0.92, 0.6), 0.02)
-    t["water"] = noise_tile(rng, (0.2, 0.42, 0.85), 0.03, (0.16, 0.36, 0.78), (0.3, 0.52, 0.92))
+    t["water"] = noise_tile(rng, (0.14, 0.48, 0.53), 0.012)
+    for row in (3, 11):
+        t["water"][row, 3:10] = (0.25, 0.58, 0.61)
     t["dark"] = noise_tile(rng, (0.12, 0.12, 0.14), 0.02)
     t["stone"] = noise_tile(rng, (0.5, 0.5, 0.5), 0.035, (0.4, 0.4, 0.42), (0.58, 0.58, 0.58))
     # Painted plaster in a few colours, with a tall window that suits it.
@@ -216,6 +220,14 @@ def make_tiles(seed=1):
         vent[y, 1:15] = (0.24, 0.25, 0.27)
     t["vent"] = vent
     t["planks"] = planks_tile(rng)
+    t["copper"] = noise_tile(rng, (0.25, 0.43, 0.39), 0.012)
+    t["copper"][:, 0] = (0.17, 0.31, 0.28)
+    t["limestone"] = noise_tile(rng, (0.86, 0.80, 0.67), 0.008)
+    t["paving_border"] = noise_tile(rng, (0.39, 0.43, 0.41), 0.009)
+    t["bridge_red"] = noise_tile(rng, (0.72, 0.22, 0.12), 0.008)
+    t["plaster_rose"] = noise_tile(rng, (0.78, 0.57, 0.55), 0.01)
+    t["bronze"] = noise_tile(rng, (0.34, 0.25, 0.15), 0.006)
+    t["cloud"] = noise_tile(rng, (0.93, 0.96, 1.0), 0.001)
     return t
 
 
@@ -226,7 +238,8 @@ def make_atlas(path, frame_path, seed=1):
         r, c = divmod(i, ATLAS)
         atlas[r * TILE:(r + 1) * TILE, c * TILE:(c + 1) * TILE] = tiles[name]
     Image.fromarray((atlas * 255).astype(np.uint8)).save(path)
-    Image.fromarray((tiles["planks"] * 255).astype(np.uint8)).save(frame_path)
+    bronze = noise_tile(np.random.default_rng(seed), (0.34, 0.25, 0.15), 0.006)
+    Image.fromarray((bronze * 255).astype(np.uint8)).save(frame_path)
 
 
 def tile_uv(i):
@@ -287,6 +300,9 @@ BLOCKS = [
     ("tank", ("tank", "tank", "tank")),
     ("vent", ("vent", "vent", "vent")),
     ("planks", ("planks",) * 3),
+    ("limestone", ("limestone",) * 3),
+    ("paving_border", ("paving_border",) * 3),
+    ("plaster_rose", ("plaster_rose",) * 3),
 ]
 B = {name: i for i, (name, _) in enumerate(BLOCKS)}
 AIR, WATER = B["air"], B["water"]
@@ -300,6 +316,13 @@ SOLID = np.array([i for i, (name, faces) in enumerate(BLOCKS) if faces and name 
 CELL = 12        # a city block: 4 of street, then the lot
 CLOCK_Z = 10     # the clock tower's centre column, this far from the square's middle, away from the door
 G = 4            # ground level: the surface block's y
+PAINTED_LADIES = ((-23, 8, "plaster_rose"), (-16, 11, "plaster_cream"),
+                 (9, 11, "plaster_sage"), (16, 8, "plaster_blue"))
+
+
+def workspace_rail():
+    """Center and maximum card dimensions; shell distributes running apps."""
+    return [dict(x=0, y=G + 3.45, z=-4, width=3.8, height=2.1)]
 
 # Building styles: the wall block, its window, its lit window, how the
 # windows are laid out, and the roof parapet.
@@ -310,6 +333,7 @@ STYLES = {
     "plaster_terra": dict(wall="plaster_terra", win="plaster_window", lit="window_lit", rows=2, gap=2, top="cornice"),
     "plaster_sage": dict(wall="plaster_sage", win="plaster_window", lit="window_lit", rows=2, gap=2, top="cornice"),
     "plaster_blue": dict(wall="plaster_blue", win="plaster_window", lit="window_lit", rows=2, gap=2, top="cornice"),
+    "plaster_rose": dict(wall="plaster_rose", win="plaster_window", lit="window_lit", rows=3, gap=2, top="cornice"),
     "sandstone": dict(wall="sandstone", win="sandstone_window", lit="sandstone_window_lit", rows=3, gap=2, top="sandstone"),
     "glass": dict(wall="glass", win="glass", lit="glass_lit", rows=1, gap=0, top="steel"),
 }
@@ -320,11 +344,12 @@ SIGNS = ("sign_red", "sign_blue", "sign_green", "sign_yellow", "sign_white")
 def plant_tree(blocks, rng, x, base, z):
     trunk = int(rng.integers(4, 6))
     blocks[x, base:base + trunk, z] = B["log"]
-    for dy, r in ((trunk - 2, 2), (trunk - 1, 2), (trunk, 1), (trunk + 1, 0)):
+    for dy, r in ((trunk - 3, 1), (trunk - 2, 2), (trunk - 1, 3),
+                  (trunk, 3), (trunk + 1, 2), (trunk + 2, 1)):
         y = base + dy
         for dx in range(-r, r + 1):
             for dz in range(-r, r + 1):
-                if abs(dx) == r and abs(dz) == r and r == 2:
+                if dx * dx + dz * dz > r * r + 1:
                     continue
                 xx, zz = x + dx, z + dz
                 if 0 <= xx < blocks.shape[0] and 0 <= zz < blocks.shape[2] and blocks[xx, y, zz] == AIR:
@@ -387,6 +412,85 @@ def build_tier(blocks, rng, x0, z0, x1, z1, y0, h, style, facing, door, shop):
                 blocks[sx, y0 + 3, sz] = sign
 
 
+def detail_box(props, tile, x0, y0, z0, x1, y1, z1):
+    """Sub-block architectural detail, in the same coordinates as the land."""
+    props.append(("box", tile, x0, y0, z0, x1, y1, z1))
+
+
+def dress_building(props, x0, z0, x1, z1, h, style, facing, tower):
+    """Deep cornices, window sills and roof profiles that catch real shadows."""
+    base, roof = G + 1, G + 2 + h
+    def box(tile, xa, ya, za, xb, yb, zb):
+        detail_box(props, tile, xa, ya, za, xb, yb, zb)
+    trim = "steel" if style == "glass" else "limestone"
+    # A grounded base and horizontal courses wrap all four elevations.
+    for y, thickness in ((base, 0.35), (base + 2.8, 0.18), (roof - 0.15, 0.3)):
+        if tower and y > base + h * 0.55:
+            continue
+        box(trim, x0 - 0.12, y, z0 - 0.12, x1 + 0.12, y + thickness, z1 + 0.12)
+    if style != "glass":
+        for x in (x0, x1 - 0.22):
+            for z in (z0, z1 - 0.22):
+                box(trim, x - 0.06, base, z - 0.06, x + 0.28, roof, z + 0.28)
+        for y in range(base + 3, roof - 1, STYLES[style]["rows"]):
+            for x in range(x0 + 1, x1 - 1):
+                if (x - x0) % (STYLES[style]["gap"] + 1):
+                    for z in (z0 - 0.18, z1 - 0.03):
+                        box(trim, x - 0.04, y, z, x + 1.04, y + 0.13, z + 0.21)
+    # Low masonry buildings get stepped hipped roofs; taller ones keep
+    # their usable terraces and roof equipment.
+    if not tower and style != "glass" and h <= 13:
+        for step in range(5):
+            inset = step * 0.55
+            box("copper", x0 - 0.28 + inset, roof + step * 0.38, z0 - 0.28 + inset,
+                x1 + 0.28 - inset, roof + (step + 1) * 0.38, z1 + 0.28 - inset)
+        box("brick", x0 + 0.7, roof + 0.7, z0 + 0.8, x0 + 1.35, roof + 2.5, z0 + 1.45)
+    # Small iron balconies on the inward-facing upper floor.
+    if not tower and style.startswith("plaster"):
+        fx, fz = facing
+        cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+        # San Francisco's projecting bays: three glazed sides, deep sills,
+        # painted spandrels and a small stepped cap. Facade-local u/v
+        # keeps the same model on streets facing either axis.
+        front_x = x1 if fx > 0 else x0 if fx < 0 else cx
+        front_z = z1 if fz > 0 else z0 if fz < 0 else cz
+        def facade(tile, u0, y0, v0, u1, y1, v1):
+            points = [(front_x + fz * u + fx * v, front_z + fx * u + fz * v)
+                      for u in (u0, u1) for v in (v0, v1)]
+            box(tile, min(p[0] for p in points), y0, min(p[1] for p in points),
+                max(p[0] for p in points), y1, max(p[1] for p in points))
+        for by in range(base + 3, roof - 2, 3):
+            facade(style, -1.15, by, 0, 1.15, by + 2.6, .68)
+            facade("glass", -1, by + .35, .68, 1, by + 2.15, .72)
+            for u in (-1.17, 1.13):
+                facade("glass", u, by + .35, .12, u + .04, by + 2.15, .65)
+            for u in (-1.14, -.38, .38, 1.1):
+                facade("limestone", u, by + .2, .72, u + .08, by + 2.3, .8)
+            for yy in (by + .15, by + 1.25, by + 2.25):
+                facade("limestone", -1.24, yy, -.02, 1.24, yy + .12, .85)
+        for step in range(3):
+            facade("copper", -1.35 + step * .25, roof + step * .25, -.05,
+                   1.35 - step * .25, roof + (step + 1) * .25, .95 - step * .2)
+        if fx:
+            xa, xb = (x1, x1 + 0.8) if fx > 0 else (x0 - 0.8, x0)
+            za, zb = cz - 1.5, cz + 1.5
+        else:
+            xa, xb = cx - 1.5, cx + 1.5
+            za, zb = (z1, z1 + 0.8) if fz > 0 else (z0 - 0.8, z0)
+        y = base + 4
+        box(trim, xa, y, za, xb, y + 0.16, zb)
+        for x in np.linspace(xa, xb, 5):
+            for z in (za, zb):
+                box("dark", x, y + 0.16, z, x + 0.045, y + 0.95, z + 0.045)
+        for z in np.linspace(za, zb, 7):
+            for x in (xa, xb):
+                box("dark", x, y + 0.16, z, x + 0.045, y + 0.95, z + 0.045)
+        for z in (za, zb):
+            box("dark", xa, y + 0.95, z, xb + 0.045, y + 1, z + 0.045)
+        for x in (xa, xb):
+            box("dark", x, y + 0.95, za, x + 0.045, y + 1, zb + 0.045)
+
+
 def build_city(size, seed, plaza_r=13):
     """The blocks, and the props too thin to be blocks: lamp posts and
     masts, as (kind, x, y, z, height) with x/z the column they stand in."""
@@ -401,7 +505,12 @@ def build_city(size, seed, plaza_r=13):
             d = max(abs(x - c), abs(z - c))
             cx, cz = x % CELL, z % CELL
             if d < plaza_r:
-                blocks[x, G, z] = B["plaza"]
+                # A framed square and broad axial paths, not a carpet of
+                # identical tiny tiles. All walking surfaces stay level.
+                border = d in (5, 12) and min(abs(x - c), abs(z - c)) > 2
+                blocks[x, G, z] = B["paving_border" if border else "plaza"]
+            elif z < c - 28:
+                blocks[x, G, z] = B["water"]
             elif cx < 4 and cz < 4:
                 blocks[x, G, z] = B["asphalt"]
             elif cx < 4:
@@ -419,7 +528,7 @@ def build_city(size, seed, plaza_r=13):
     # Buildings: one per lot, its footprint the lot less the pavement,
     # taller toward the middle, a few towers with setbacks.
     styles = list(STYLES)
-    weights = np.array([3, 2.5, 1, 1, 1, 1, 1.5, 1.5]); weights /= weights.sum()
+    weights = np.array([.4, 1, 3, 2, 2, 2, 2, .8, .35]); weights /= weights.sum()
     lots = []
     for lx in range(0, size, CELL):
         for lz in range(0, size, CELL):
@@ -428,12 +537,19 @@ def build_city(size, seed, plaza_r=13):
             if x1 - x0 < 4 or z1 - z0 < 4:
                 continue
             mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
+            if mz < c - 25:
+                continue  # the northern waterfront opens onto the bay
+            if z0 < c - 16 and z1 > c - 24 and any(
+                    x0 < c + dx + 7 and x1 > c + dx - 1 for dx, _, _ in PAINTED_LADIES):
+                continue
             if max(abs(mx - c), abs(mz - c)) < plaza_r + 4:
                 continue
             near = max(abs(mx - c), abs(mz - c)) / (size / 2)
             style = styles[int(rng.choice(len(styles), p=weights))]
             h = int(rng.integers(5, 10) + (1 - near) * rng.integers(4, 14))
-            tower = near < 0.55 and rng.random() < 0.3
+            if style.startswith("plaster"):
+                h = int(rng.choice((8, 11, 14)))
+            tower = near < 0.55 and style == "glass" and rng.random() < 0.3
             if tower:
                 style = "glass" if rng.random() < 0.5 else style
                 h = int(rng.integers(16, 26))
@@ -442,6 +558,7 @@ def build_city(size, seed, plaza_r=13):
             facing = (int(np.sign(dx)), 0) if abs(dx) > abs(dz) else (0, int(np.sign(dz)))
             lots.append((x0, z0, x1, z1, h, style, facing, tower))
     for x0, z0, x1, z1, h, style, facing, tower in lots:
+        dress_building(props, x0, z0, x1, z1, h, style, facing, tower)
         shop = style != "glass" and rng.random() < 0.55
         if tower and h > 14:
             h1 = int(h * 0.55)
@@ -454,7 +571,9 @@ def build_city(size, seed, plaza_r=13):
             build_tier(blocks, rng, x0, z0, x1, z1, G + 1, h, style, facing, True, shop)
             top = G + 1 + h
             r = rng.random()
-            if r < 0.35:
+            if style != "glass" and h <= 13:
+                pass  # pitched roof and chimney supplied by dress_building
+            elif r < 0.35:
                 # A water tank on legs.
                 tx, tz = x0 + 1, z0 + 1
                 blocks[tx:tx + 2, top + 1, tz:tz + 2] = B["log"]
@@ -462,31 +581,42 @@ def build_city(size, seed, plaza_r=13):
             elif r < 0.65:
                 # An air handler.
                 blocks[x1 - 3:x1 - 1, top + 1, z1 - 3:z1 - 1] = B["vent"]
+    # A waterfront row of Painted Ladies frames the clock from the entry.
+    # These sit in the lots deliberately left open around the square.
+    for dx, h, style in PAINTED_LADIES:
+        xa, za = c + dx, c - 23
+        blocks[xa:xa + 6, G + 1:, za:za + 6] = AIR
+        build_tier(blocks, rng, xa, za, xa + 6, za + 6, G + 1, h, style, (0, 1), True, True)
+        dress_building(props, xa, za, xa + 6, za + 6, h, style, (0, 1), False)
     # A lamp post at every corner, a street tree on a few lots.
     for lx in range(0, size, CELL):
         for lz in range(0, size, CELL):
             for (px, pz) in ((lx + 4, lz + 4), (lx + 11, lz + 11)):
-                if px >= size or pz >= size or max(abs(px - c), abs(pz - c)) < plaza_r + 2:
+                if px >= size or pz >= size or pz < c - 27 or max(abs(px - c), abs(pz - c)) < plaza_r + 2:
                     continue
                 if blocks[px, G + 1, pz] != AIR:
                     continue
                 props.append(("lamp", px, G + 1, pz, 3))
             tx, tz = (lx + 11, lz + 4) if rng.random() < 0.5 else (lx + 4, lz + 11)
-            if tx < size and tz < size and max(abs(tx - c), abs(tz - c)) >= plaza_r + 2 \
+            if tx < size and c - 27 <= tz < size and max(abs(tx - c), abs(tz - c)) >= plaza_r + 2 \
                     and rng.random() < 0.15 and blocks[tx, G + 1, tz] == AIR:
                 blocks[tx, G, tz] = B["grass"]
                 plant_tree(blocks, rng, tx, G + 1, tz)
-    # The square: a pool in the middle, where the desktop's apps stand
-    # stacked as blocks (the shell's sculpture — the launcher); lamp
-    # posts; trees in beds of flowers at the corners. The windows stand
-    # round the sculpture, never straight behind it from the door.
-    for dx in range(-3, 4):
-        for dz in range(-3, 4):
-            r = max(abs(dx), abs(dz))
-            if r == 3:
-                blocks[c + dx, G + 1, c + dz] = B["concrete"]
-            elif r <= 2:
-                blocks[c + dx, G + 1, c + dz] = B["water"]
+    # The square: a fountain, a low workspace rail, lamps and trees.
+    # A low reflecting basin leaves the working area and sightlines open.
+    detail_box(props, "limestone", c - 1.4, G + 1, c - 1.4, c + 1.4, G + 1.22, c + 1.4)
+    detail_box(props, "water", c - 1.18, G + 1.22, c - 1.18, c + 1.18, G + 1.25, c + 1.18)
+    # A shallow curved rail, not a wall: open underneath and no empty bays.
+    for x in np.arange(-8, 8, .25):
+        props.append(("beam", "bronze", (c + x, G + 2.05, c - 4 + .04 * x * x),
+                      (c + x + .25, G + 2.05, c - 4 + .04 * (x + .25) ** 2), .22))
+    for x in (-8, -4, 0, 4, 8):
+        z = c - 4 + .04 * x * x
+        detail_box(props, "limestone", c + x - .22, G + 1, z - .22,
+                   c + x + .22, G + 1.96, z + .22)
+    # Small stepped water feature leaves the plaza's foreground clear.
+    detail_box(props, "limestone", c - .32, G + 1.25, c - .32, c + .32, G + 1.65, c + .32)
+    detail_box(props, "water", c - .18, G + 1.65, c - .18, c + .18, G + 1.9, c + .18)
     for sx, sz in ((-9, -9), (9, -9), (-9, 9), (9, 9)):
         props.append(("lamp", c + sx, G + 1, c + sz, 3))
     for sx, sz in ((-12, -12), (12, -12), (-12, 12), (12, 12)):
@@ -494,6 +624,25 @@ def build_city(size, seed, plaza_r=13):
             for dz in range(-1, 2):
                 blocks[c + sx + dx, G, c + sz + dz] = B["flowers"] if (dx or dz) else B["grass"]
         plant_tree(blocks, rng, c + sx, G + 1, c + sz)
+    # Benches and low planted beds on the square's flanks, outside the
+    # 7.5 m app-window ring and clear of the entrance and exit block.
+    for sx in (-11, 11):
+        for sz in (-5, 5):
+            x, z, y = c + sx, c + sz, G + 1
+            for dx in (-1, 1):
+                detail_box(props, "dark", x + dx - .08, y, z - .25,
+                           x + dx + .08, y + .48, z + .25)
+            for dz in (-.24, -.06, .12):
+                detail_box(props, "planks", x - 1.4, y + .45, z + dz,
+                           x + 1.4, y + .55, z + dz + .14)
+            detail_box(props, "planks", x - 1.4, y + .68, z - .32,
+                       x + 1.4, y + 1.02, z - .20)
+        for sz in (-9, 9):
+            x, z = c + sx, c + sz
+            detail_box(props, "limestone", x - 1.2, G + 1, z - 1.2,
+                       x + 1.2, G + 1.45, z + 1.2)
+            detail_box(props, "leaves", x - 1, G + 1.45, z - 1,
+                       x + 1, G + 1.85, z + 1)
     # The clock tower: on the far side of the square from the door, in
     # the gap the windows keep clear, three blocks square and twelve
     # high — a stone footing with a door toward the square, sandstone
@@ -515,6 +664,49 @@ def build_city(size, seed, plaza_r=13):
     blocks[tx0:tx0 + 3, y0 + 12, tz0:tz0 + 3] = B["roof"]
     blocks[c, y0 + 13, tz0 + 1] = B["dark"]
     props.append(("mast", c, y0 + 14, tz0 + 1, 3))
+    # Crown and corner pilasters frame the live clock faces without
+    # changing their positions or covering the clock's band.
+    for x in (tx0 - .12, tx0 + 2.9):
+        for z in (tz0 - .12, tz0 + 2.9):
+            detail_box(props, "limestone", x, y0, z, x + .22, y0 + 7, z + .22)
+    for y in (y0 + 7, y0 + 10.9):
+        detail_box(props, "limestone", tx0 - .22, y, tz0 - .22,
+                   tx0 + 3.22, y + .2, tz0 + 3.22)
+    for step in range(4):
+        inset = step * .4
+        detail_box(props, "copper", tx0 - .3 + inset, y0 + 13 + step * .4, tz0 - .3 + inset,
+                   tx0 + 3.3 - inset, y0 + 13.4 + step * .4, tz0 + 3.3 - inset)
+    # A Golden Gate-inspired silhouette across the bay. The roadway,
+    # open portal towers, suspended main cables and vertical hangers are
+    # real geometry, so it reads from any walking position.
+    bz, deck = c - 66, G + 6
+    detail_box(props, "water", c - 150, G - .2, c - 150, c + 150, G + .01, c - 28)
+    def bridge(tile, xa, ya, za, xb, yb, zb):
+        detail_box(props, tile, c + xa, ya, bz + za, c + xb, yb, bz + zb)
+    bridge("asphalt", -46, deck, -1.7, 46, deck + .4, 1.7)
+    for z in (-1.8, 1.65):
+        bridge("bridge_red", -46, deck + .4, z, 46, deck + .8, z + .15)
+    for x in (-20, 20):
+        for z in (-2.2, 1.5):
+            bridge("stone", x - 1.1, G, z - .35, x + 1.1, G + 2, z + 1.05)
+            bridge("bridge_red", x - .6, G + 2, z, x + .6, deck + 20, z + .7)
+        for y in (deck + 5, deck + 11, deck + 17, deck + 19):
+            bridge("bridge_red", x - .6, y, -2.2, x + .6, y + .6, 2.2)
+    def cable_y(x):
+        return deck + 7 + 12 * (x / 20) ** 2 if abs(x) <= 20 else deck + 19 - (abs(x) - 20) * .57
+    for x in np.arange(-45, 45, .5):
+        for z in (-1.9, 1.9):
+            props.append(("beam", "bridge_red",
+                          (c + x, cable_y(x), bz + z),
+                          (c + x + .5, cable_y(x + .5), bz + z), .16))
+    for x in range(-44, 45, 2):
+        for z in (-1.9, 1.9):
+            bridge("bridge_red", x - .035, deck + .5, z - .035,
+                   x + .035, cable_y(x), z + .035)
+    # A short double-ended cable-car line behind the interaction rail.
+    for z in (-7.48, -6.52):
+        detail_box(props, "bronze", c - 14, G + 1.012, c + z,
+                   c + 14, G + 1.035, c + z + .055)
     return blocks, props
 
 
@@ -526,8 +718,8 @@ FACES = [
     ((0, -1, 0), [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], (0, -1, 0), 2),
     ((1, 0, 0), [(1, 0, 1), (1, 0, 0), (1, 1, 0), (1, 1, 1)], (1, 0, 0), 1),
     ((-1, 0, 0), [(0, 0, 0), (0, 0, 1), (0, 1, 1), (0, 1, 0)], (-1, 0, 0), 1),
-    ((0, 0, 1), [(1, 0, 1), (0, 0, 1), (0, 1, 1), (1, 1, 1)], (0, 0, 1), 1),
-    ((0, 0, -1), [(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], (0, 0, -1), 1),
+    ((0, 0, 1), [(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)], (0, 0, 1), 1),
+    ((0, 0, -1), [(1, 0, 0), (0, 0, 0), (0, 1, 0), (1, 1, 0)], (0, 0, -1), 1),
 ]
 
 
@@ -557,11 +749,36 @@ def box_quads(x0, y0, z0, x1, y1, z1, tile, out):
 def mesh_props(props, origin, out):
     """Lamp posts (a thin log with a glowing block on top) and masts."""
     ox, oz = origin
-    for kind, x, y, z, h in props:
+    for prop in props:
+        if prop[0] == "beam":
+            _, tile, start, end, width = prop
+            start, end = np.array(start), np.array(end)
+            axis = end - start
+            axis /= np.linalg.norm(axis)
+            side = np.cross(axis, (0, 0, 1))
+            side /= np.linalg.norm(side)
+            up = np.cross(axis, side)
+            local = {"pos": [], "nrm": [], "uv": [], "count": 0}
+            box_quads(0, -width / 2, -width / 2, np.linalg.norm(end - start),
+                      width / 2, width / 2, T[tile], local)
+            basis = np.column_stack((axis, side, up))
+            shift = start + np.array([ox, 0, oz])
+            out["pos"].extend([(p @ basis.T + shift).astype(np.float32) for p in local["pos"]])
+            out["nrm"].extend([(n @ basis.T).astype(np.float32) for n in local["nrm"]])
+            out["uv"].extend(local["uv"])
+            out["count"] += local["count"]
+            continue
+        if prop[0] == "box":
+            _, tile, x0, y0, z0, x1, y1, z1 = prop
+            box_quads(x0 + ox, y0, z0 + oz, x1 + ox, y1, z1 + oz, T[tile], out)
+            continue
+        kind, x, y, z, h = prop
         cx, cz = x + ox + 0.5, z + oz + 0.5
         if kind == "lamp":
-            box_quads(cx - 0.1, y, cz - 0.1, cx + 0.1, y + h, cz + 0.1, T["log"], out)
+            box_quads(cx - 0.16, y, cz - 0.16, cx + 0.16, y + .3, cz + 0.16, T["dark"], out)
+            box_quads(cx - 0.06, y, cz - 0.06, cx + 0.06, y + h, cz + 0.06, T["dark"], out)
             box_quads(cx - 0.25, y + h, cz - 0.25, cx + 0.25, y + h + 0.5, cz + 0.25, T["lamp"], out)
+            box_quads(cx - .32, y + h + .5, cz - .32, cx + .32, y + h + .62, cz + .32, T["copper"], out)
         elif kind == "mast":
             box_quads(cx - 0.08, y, cz - 0.08, cx + 0.08, y + h, cz + 0.08, T["dark"], out)
             box_quads(cx - 0.3, y + h - 0.6, cz - 0.05, cx + 0.3, y + h - 0.5, cz + 0.05, T["dark"], out)
@@ -603,6 +820,70 @@ def mesh_blocks(blocks, origin, props=()):
     return pos, nrm, uv, idx
 
 
+def ambient_actors():
+    """Local-space meshes and closed glTF translation tracks (seconds).
+
+    No actor crosses the app plane: clouds stay over the bay, the ferry
+    below the bridge, and the double-ended trolley on its plaza track.
+    """
+    actors = []
+    def actor(name, boxes, times, positions):
+        out = {"pos": [], "nrm": [], "uv": [], "count": 0}
+        for tile, bounds in boxes:
+            box_quads(*bounds, T[tile], out)
+        p = np.concatenate(out["pos"]).astype(np.float32)
+        n = np.concatenate(out["nrm"]).astype(np.float32)
+        u = np.concatenate(out["uv"]).astype(np.float32)
+        b = np.arange(out["count"], dtype=np.uint32)[:, None] * 4
+        indices = (b + np.array([0, 1, 2, 0, 2, 3], np.uint32)).reshape(-1)
+        actors.append((name, (p, n, u, indices), times, positions))
+
+    for i in range(5):
+        times = np.linspace(0, 240, 121)
+        a = times / 240 * 2 * np.pi + i * 2 * np.pi / 5
+        positions = np.column_stack((65 * np.sin(a),
+            np.full_like(a, 24 + (i % 3) * 4), -83 + 12 * np.cos(a)))
+        # Layered cream voxel clouds, no transparency sorting or billboards.
+        actor(f"cloud-{i}", [
+            ("cloud", (-6, 0, -2, 6, 1.1, 2)),
+            ("cloud", (-4, 1.1, -1.6, 3.5, 2.4, 1.6)),
+            ("cloud", (-1.5, 2.4, -1, 1.8, 3.2, 1)),
+        ], times, positions)
+
+    times = np.linspace(0, 150, 301)
+    a = times / 150 * 2 * np.pi
+    positions = np.column_stack((32 * np.sin(a),
+        G + .12 + .10 * np.sin(a * 24), -45 + 5 * np.cos(a)))
+    actor("bay-ferry", [
+        ("bridge_red", (-4.2, 0, -1.3, 4.2, .65, 1.3)),
+        ("limestone", (-3.7, .65, -1.25, 3.7, .95, 1.25)),
+        ("plaster_cream", (-2.6, .95, -.95, 2.6, 2.3, .95)),
+        ("glass", (-2.4, 1.35, .96, 2.4, 2.05, .99)),
+        ("glass", (-2.4, 1.35, -.99, 2.4, 2.05, -.96)),
+        ("limestone", (-2.9, 2.3, -1.1, 2.9, 2.5, 1.1)),
+        ("bridge_red", (-.4, 2.5, -.4, .4, 3.2, .4)),
+    ], times, positions)
+
+    boxes = [
+        ("dark", (-1.8, .15, -.7, 1.8, .45, .7)),
+        ("bridge_red", (-1.9, .45, -.75, 1.9, 1.1, .75)),
+        ("plaster_cream", (-1.8, 1.1, -.72, 1.8, 2.35, .72)),
+        ("copper", (-2.05, 2.35, -.9, 2.05, 2.55, .9)),
+        ("bronze", (-.04, 2.55, -.04, .04, 3.3, .04)),
+    ]
+    for x in (-1.3, -.45, .4, 1.25):
+        for z in (-.735, .72):
+            boxes.append(("glass", (x - .31, 1.3, z, x + .31, 2.15, z + .015)))
+    for x in (-1.25, 1.25):
+        for z in (-.78, .55):
+            boxes.append(("dark", (x - .26, 0, z, x + .26, .52, z + .23)))
+    actor("plaza-cable-car", boxes, [0, 6, 36, 44, 74, 80],
+          [[-12, G + 1.05, -7], [-12, G + 1.05, -7],
+           [12, G + 1.05, -7], [12, G + 1.05, -7],
+           [-12, G + 1.05, -7], [-12, G + 1.05, -7]])
+    return actors
+
+
 def write_glb(path, pos, nrm, uv, idx, atlas_path):
     with open(atlas_path, "rb") as f:
         png = f.read()
@@ -641,6 +922,33 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
             "baseColorTexture": {"index": 0}, "metallicFactor": 0.0, "roughnessFactor": 1.0}}],
         "accessors": accessors, "bufferViews": views, "buffers": [{"byteLength": len(bin_)}],
     }
+    def accessor(data, kind, component=5126, target=None):
+        data = np.asarray(data, dtype=np.uint32 if component == 5125 else np.float32)
+        item = {"bufferView": view(data.tobytes(), target), "componentType": component,
+                "count": len(data), "type": kind}
+        if kind in ("SCALAR", "VEC3"):
+            item["min"] = np.atleast_1d(data.min(axis=0)).tolist()
+            item["max"] = np.atleast_1d(data.max(axis=0)).tolist()
+        accessors.append(item)
+        return len(accessors) - 1
+
+    j["animations"] = []
+    for name, (p, n, u, indices), times, positions in ambient_actors():
+        mesh = len(j["meshes"])
+        j["meshes"].append({"primitives": [{"attributes": {
+            "POSITION": accessor(p, "VEC3", target=34962),
+            "NORMAL": accessor(n, "VEC3", target=34962),
+            "TEXCOORD_0": accessor(u, "VEC2", target=34962)},
+            "indices": accessor(indices, "SCALAR", 5125, 34963), "material": 0}]})
+        node = len(j["nodes"])
+        j["nodes"].append({"name": name, "mesh": mesh,
+                           "translation": np.asarray(positions[0]).tolist()})
+        j["scenes"][0]["nodes"].append(node)
+        j["animations"].append({"name": name, "samplers": [{
+            "input": accessor(times, "SCALAR"), "output": accessor(positions, "VEC3"),
+            "interpolation": "LINEAR"}],
+            "channels": [{"sampler": 0, "target": {"node": node, "path": "translation"}}]})
+    j["buffers"][0]["byteLength"] = len(bin_)
     js = json.dumps(j, separators=(",", ":")).encode()
     while len(js) % 4:
         js += b" "
@@ -739,6 +1047,7 @@ def main() -> int:
     surface = np.full((a.size, a.size), G + 1, int)
     world = {
         "kind": "voxel",
+        "ambient_animation": True,
         "exposure": [16.0, 1.0 / 125.0, 100.0],
         "ibl_intensity": 22000.0,
         "sun": {"dir": list(sun_dir), "colour": [1.0, 0.96, 0.9], "lux": 90000.0},
@@ -747,13 +1056,12 @@ def main() -> int:
         "ring_radius": 7.5,
         "heightmap": {"origin": [origin[0], origin[1]], "size": [a.size, a.size],
                       "heights": surface.T.reshape(-1).tolist()},   # [x][z] order
-        "camera_home": {"radius": 10.5, "height": 0.0, "dolly": 6.0},
-        # The windows' frames are blocks of this world: a plank tile,
+        "camera_home": {"radius": 13.0, "height": 0.0, "dolly": 6.0},
+        # The windows' frames use a fine bronze tile,
         # one per `block` metres, a `margin` wide and `depth` deep.
-        "pane_frame": {"texture": "frame.png", "block": 0.25, "margin": 0.25, "depth": 0.25},
-        # The sculpture: the launcher's app bricks stand here, in courses
-        # like a small building, from the water's top up.
-        "sculpture": {"x": 0.0, "z": 0.0, "radius": 0.0, "base": float(G + 2)},
+        "pane_frame": {"texture": "frame.png", "block": 0.18, "margin": 0.012, "depth": 0.025},
+        # Running-app previews share the low rail's center and curvature.
+        "workspaceRail": workspace_rail(),
         # The clock tower's band: the shell hangs a face on each side,
         # `half` from the centre, `size` metres square.
         "clock": {"x": 0.5, "y": float(G + 1 + 8.5), "z": float(-CLOCK_Z + 0.5),

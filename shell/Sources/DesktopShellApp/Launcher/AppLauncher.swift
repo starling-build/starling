@@ -39,6 +39,7 @@ class AppLauncher: StatelessWidget {
 
     let apps: [LauncherApp]
     let query: String
+    let city: Bool
     /// Blink phase of the search caret, driven by the shell (see
     /// `_restartLauncherCaret`) — the widget is stateless, so the phase has to
     /// come from above.
@@ -49,12 +50,14 @@ class AppLauncher: StatelessWidget {
     init(
         apps: [LauncherApp],
         query: String = "",
+        city: Bool = false,
         caretResetToken: Int = 0,
         onLaunch: @escaping (String) -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.apps = apps
         self.query = query
+        self.city = city
         self.caretResetToken = caretResetToken
         self.onLaunch = onLaunch
         self.onDismiss = onDismiss
@@ -67,6 +70,7 @@ class AppLauncher: StatelessWidget {
     /// One app tile: large rounded icon (bg colour + glyph) with a label under
     /// it. The whole tile is tappable and launches the app.
     private func tile(_ app: LauncherApp) -> Widget {
+        if city { return cityTile(app) }
         let radius = AppLauncher.kIconSize * 0.225
         let glyph = AppLauncher.kIconSize * 0.52
 
@@ -159,20 +163,21 @@ class AppLauncher: StatelessWidget {
         // Same glyph, same metrics, alpha 0: the layout cannot move.
         // Blinks itself — see `ShellCaret`. Driving this from shell state
         // rebuilt the entire desktop twice a second for one glyph.
-        let caret: Widget = ShellCaret(color: Color(0xFFFFFFFF), fontSize: 16,
+        let caret: Widget = ShellCaret(color: city ? Color(0xFF574028) : Color(0xFFFFFFFF), fontSize: 16,
                                        resetToken: caretResetToken)
         let label = Text(
             empty ? "Search" : query,
             style: TextStyle(
-                color: empty ? Color(0x80FFFFFF) : Color(0xFFFFFFFF),
+                color: city ? Color(0xFF625747) : (empty ? Color(0x80FFFFFF) : Color(0xFFFFFFFF)),
                 fontSize: 16
             ),
             maxLines: 1
         )
         return DecoratedBox(
             decoration: BoxDecoration(
-                color: Color(0x24FFFFFF),
-                borderRadius: BorderRadius.all(Radius(circular: 20))
+                color: city ? Color(0xFFF8F2E4) : Color(0x24FFFFFF),
+                border: city ? Border.all(color: Color(0xFFA68A5F), width: 1) : nil,
+                borderRadius: BorderRadius.all(Radius(circular: city ? 8 : 20))
             ),
             child: Padding(
                 padding: EdgeInsets(left: 20, top: 10, right: 20, bottom: 10),
@@ -181,13 +186,15 @@ class AppLauncher: StatelessWidget {
                 child: Row(
                     mainAxisAlignment: .center,
                     mainAxisSize: .min,
-                    children: empty ? [caret, label] : [label, caret]
+                    children: empty ? [caret, city ? Flexible(child: label) : label]
+                        : [city ? Flexible(child: label) : label, caret]
                 )
             )
         )
     }
 
     override func build(_ context: any BuildContext) -> Widget {
+        if city { return cityPanel() }
         let appArea: Widget = apps.isEmpty
             ? Text(
                 "No apps match \u{201C}\(query)\u{201D}",
@@ -246,5 +253,77 @@ class AppLauncher: StatelessWidget {
                 grid,
             ]
         )
+    }
+
+    /// The city's app directory: architectural trim, not a blurred screen.
+    private func cityPanel() -> Widget {
+        return Stack(fit: .expand, children: [
+                GestureDetector(onTap: onDismiss, behavior: .opaque,
+                    child: ColoredBox(color: Color(0x66312C24), child: SizedBox(expand: ()))),
+                Padding(padding: EdgeInsets(left: 24, top: 24, right: 24, bottom: 24), child: Center(child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 1000, maxHeight: 780),
+                    child: SizedBox(expand: (),
+                    child: DecoratedBox(decoration: BoxDecoration(
+                        color: Color(0xFFE8DFC9),
+                        border: Border.all(color: Color(0xFF806342), width: 2),
+                        borderRadius: BorderRadius.all(Radius(circular: 12)),
+                        boxShadow: [BoxShadow(color: Color(0x55000000), offset: Offset(0, 12), blurRadius: 32)]),
+                        child: Padding(padding: EdgeInsets(left: 24, top: 24, right: 24, bottom: 24), child: Column(children: [
+                            Row(children: [
+                                SizedBox(width: 48, height: 48,
+                                    child: CustomPaint(painter: CityLauncherPainter(hovered: false, pressed: false))),
+                                SizedBox(width: 16),
+                                Expanded(child: Text("Applications", style: TextStyle(
+                                    color: Color(0xFF40392F), fontSize: 24, fontWeight: .w600))),
+                                HoverButton(builder: { _, states in
+                                    DecoratedBox(decoration: BoxDecoration(
+                                        color: states.isHovered ? Color(0xFFAF604D) : Color(0xFFF8F2E4),
+                                        border: Border.all(color: Color(0xFFA68A5F), width: 1),
+                                        borderRadius: BorderRadius.all(Radius(circular: 6))),
+                                        child: SizedBox(width: 40, height: 40,
+                                            child: Center(child: Text("×", style: TextStyle(
+                                                color: states.isHovered ? Color(0xFFF8F2E4) : Color(0xFF574028), fontSize: 24)))))
+                                }, onPressed: onDismiss),
+                            ]),
+                            SizedBox(height: 20),
+                            SizedBox(width: 520, child: searchBar()),
+                            SizedBox(height: 20),
+                            Expanded(child: SingleChildScrollView(
+                                padding: EdgeInsets(left: 8, top: 8, right: 8, bottom: 8),
+                                child: Center(child: apps.isEmpty
+                                    ? Text("No matching apps", style: TextStyle(color: Color(0xFF625747), fontSize: 16))
+                                    : Wrap(alignment: .center, spacing: 20, runSpacing: 16,
+                                        children: apps.map { tile($0) })))),
+                            SizedBox(height: 12),
+                            Text("Type to search · Enter to open · Esc to clear / close",
+                                style: TextStyle(color: Color(0xFF726C61), fontSize: 12)),
+                        ])))))))
+            ])
+    }
+
+    private func cityTile(_ app: LauncherApp) -> Widget {
+        let enamel = Color(alpha: 1, red: app.bgColor.r * 0.62 + 0.20,
+            green: app.bgColor.g * 0.62 + 0.18, blue: app.bgColor.b * 0.62 + 0.14)
+        return SizedBox(width: 150, height: 136, child: HoverButton(builder: { _, states in
+            DecoratedBox(decoration: BoxDecoration(
+                color: states.isHovered ? Color(0xFFF8F2E4) : Color(0x00FFFFFF),
+                borderRadius: BorderRadius.all(Radius(circular: 8))),
+                child: Column(mainAxisAlignment: .center, children: [
+                    DecoratedBox(decoration: BoxDecoration(
+                        color: states.isPressed ? Color(0xFF806342) : enamel,
+                        border: Border.all(color: Color(0xFF806342), width: 1),
+                        borderRadius: BorderRadius.all(Radius(circular: 8)),
+                        boxShadow: [BoxShadow(color: Color(0x25000000), offset: Offset(0, 3), blurRadius: 4)]),
+                        child: SizedBox(width: 80, height: 80, child: Center(child:
+                            app.textureId.map { tex in
+                                SizedBox(width: 62, height: 62,
+                                    child: TextureWidget(textureId: Int(tex), filterQuality: .medium)) as Widget
+                            } ?? SizedBox(width: 42, height: 42, child: CustomPaint(
+                                painter: IconPainter(app.iconType, color: Color(0xFFF8F2E4))))))),
+                    SizedBox(height: 10),
+                    Text(app.title, style: TextStyle(color: Color(0xFF40392F), fontSize: 13),
+                        textAlign: .center, overflow: .ellipsis, maxLines: 1),
+                ]))
+        }, onPressed: { [self] in onLaunch(app.appId) }))
     }
 }

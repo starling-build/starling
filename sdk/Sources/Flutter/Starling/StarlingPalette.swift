@@ -94,10 +94,34 @@ public struct StarlingPalette {
 
     /// The active style's palette for the given appearance.
     public static func current(dark: Bool) -> StarlingPalette {
+        if isCity { return city }
         switch StarlingStyleId.current {
         case .macos:  return macos(dark: dark)
         case .fluent: return fluent(dark: dark)
         }
+    }
+
+    /// A presentation mode, independent of the user's selected 2D style.
+    public static var isCity: Bool {
+        #if os(Linux)
+        return GpuDmaBufRenderer.lastPushedDesktop3D == true
+        #else
+        return false
+        #endif
+    }
+
+    /// Cream enamel, bronze trim and painted sage, shared with the city launcher.
+    public static var city: StarlingPalette {
+        StarlingPalette(
+            textPrimary: Color(0xFF40392F), textSecondary: Color(0xFF5F5444),
+            textTertiary: Color(0xFF726C61), textDisabled: Color(0xFF998C78),
+            canvas: Color(0xFFE8DFC9), sidebar: Color(0xFFD8CCB3),
+            surface: Color(0xFFF8F2E4), hairline: Color(0xFFA68A5F),
+            stripe: Color(0x14806342), fieldFill: Color(0xFFF8F2E4),
+            fieldBorder: Color(0xFFA68A5F), hover: Color(0xFFD4C7AB),
+            selection: Color(0xFF52766A), accent: Color(0xFF52766A),
+            accentInk: Color(0xFFF8F2E4), fontFamily: nil,
+            fontFamilyStrong: nil, isDark: false)
     }
 
     /// What the apps already shipped, unchanged -- these were tuned against
@@ -168,15 +192,19 @@ public struct StarlingPalette {
     /// the widget family underneath a working app.
     public func macosTheme() -> MacosThemeData {
         let base = isDark ? MacosThemeData.dark() : MacosThemeData.light()
+        let cityPresentation = canvas == Self.city.canvas
         return MacosThemeData(
             brightness: isDark ? .dark : .light,
             primaryColor: accent,
             canvasColor: canvas,
-            typography: base.typography,
+            typography: cityPresentation ? MacosTypography(color: textPrimary) : base.typography,
             dividerColor: hairline,
-            pushButtonTheme: base.pushButtonTheme,
-            iconButtonTheme: base.iconButtonTheme,
-            iconTheme: base.iconTheme,
+            pushButtonTheme: cityPresentation ? MacosPushButtonThemeData(
+                color: accent, secondaryColor: surface, disabledColor: sidebar) : base.pushButtonTheme,
+            iconButtonTheme: cityPresentation ? MacosIconButtonThemeData(
+                backgroundColor: Color(0x00000000), disabledColor: sidebar,
+                hoverColor: hover) : base.iconButtonTheme,
+            iconTheme: cityPresentation ? IconThemeData(size: 20, color: accent) : base.iconTheme,
             accentColor: base.accentColor,
             isMainWindow: base.isMainWindow
         )

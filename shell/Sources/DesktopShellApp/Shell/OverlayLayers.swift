@@ -108,6 +108,7 @@ extension _DesktopShellState {
     /// that draws it. Both are cheap, so both are refreshed rather than
     /// walking the parent chain to pick one.
     func _popupsDidChange() {
+        if _desktop3DActive { invalidateSecondaryScreens() }
         guard let layer = _popupLayerState else {
             setState {}
             return
@@ -131,7 +132,7 @@ extension _DesktopShellState {
     /// chain — a toplevel window, another popup, or a layer surface. Popups
     /// under a top/overlay layer surface come back stashed by that surface
     /// rather than in `window`, so the layer's group draws them above it.
-    func _buildPopupWidgets() -> (window: [Widget], layerStashed: [UInt32: [Widget]]) {
+    func _buildPopupWidgets(origin: Offset = .zero) -> (window: [Widget], layerStashed: [UInt32: [Widget]]) {
         var children: [Widget] = []
         var stashedLayerPopups: [UInt32: [Widget]] = [:]
         #if os(Linux)
@@ -216,7 +217,11 @@ extension _DesktopShellState {
 
             // Popups live on their toplevel's space: a menu opened on space 1
             // must not float over space 2 after a switch.
-            if let sid = popupSpaceId, sid != windowManager.activeSpace.id { continue }
+            if let pid = parentWindowId,
+               let win = windowManager.windows.first(where: { $0.id == pid }) {
+                if win.spaceId != windowManager.activeSpaceId(onOutput: _desktop3DOutputId(for: win)) { continue }
+                if _desktop3DActive && !_desktop3DIsShown(win) { continue }
+            } else if let sid = popupSpaceId, sid != windowManager.activeSpace.id { continue }
 
             // Compute immediate parent popup's absolute x for flip.
             if !isFirstParent {
@@ -373,8 +378,8 @@ extension _DesktopShellState {
             }
             let positioned = Positioned(
                 key: ValueKey(popupId),
-                left: absX,
-                top: absY,
+                left: absX - origin.dx,
+                top: absY - origin.dy,
                 width: popup.width,
                 height: popup.height,
                 child: popupBody

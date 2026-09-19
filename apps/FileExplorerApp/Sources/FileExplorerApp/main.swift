@@ -35,6 +35,12 @@ class _ThemedFilesRootState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         #if os(Linux)
+        GpuDmaBufRenderer.onDesktop3DChanged = { [weak self] _ in
+            self?.setState {}
+            filesBlocShared?.add(.refresh)
+        }
+        #endif
+        #if os(Linux)
         // The shell pushed the desktop appearance when we connected, before
         // this tree existed. Seed from it so the first frame is already right.
         if let dark = GpuDmaBufRenderer.lastPushedThemeIsDark {

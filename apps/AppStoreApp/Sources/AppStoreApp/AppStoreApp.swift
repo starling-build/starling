@@ -29,6 +29,25 @@ private struct StorePalette {
     let destructiveText: Color
 
     init(dark: Bool) {
+        if StarlingPalette.isCity {
+            let p = StarlingPalette.city
+            background = p.canvas
+            sidebar = p.sidebar
+            sidebarSelected = p.hover
+            card = p.surface
+            textPrimary = p.textPrimary
+            textSecondary = p.textSecondary
+            accent = p.accent
+            buttonIdle = p.hover
+            buttonIdleText = p.accent
+            separator = p.hairline
+            progressTrack = p.sidebar
+            installedGreen = p.accent
+            failedRed = Color(0xFFAF604D)
+            destructiveBg = Color(0x20AF604D)
+            destructiveText = Color(0xFFAF604D)
+            return
+        }
         if dark {
             background = Color(0xC221252C)
             sidebar = Color(0x7A1D2129)
