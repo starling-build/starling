@@ -327,7 +327,7 @@ CAMERA = {'position':[0,40,18], 'yaw':0, 'pitch':7.5, 'size':[1672,941]}
 DETAIL_CAMERA = {'position':[-5,34,1], 'yaw':-40, 'pitch':-5, 'size':[1400,1000]}
 WATERFRONT_CAMERA = {'position':[90,16,-107], 'yaw':-64, 'pitch':7, 'size':[1400,1000]}
 LIGHTING = {'ROOMTEST_SUN':'0.56,0.025,-1', 'ROOMTEST_SUN_COLOUR':'1,0.72,0.45',
-            'ROOMTEST_SUN_LUX':'12000', 'ROOMTEST_IBL_LUX':'6500',
+            'ROOMTEST_SUN_LUX':'22000', 'ROOMTEST_IBL_LUX':'5000',
             'ROOMTEST_EXPOSURE':'8,0.0166667,100',
             'ROOMTEST_FOG':'0.003,160,0,0.07,0.42,0.65,0.75,0.9',
             'ROOMTEST_TIME':'0', 'ROOMTEST_REFLECTIONS':'0'}
@@ -478,7 +478,8 @@ def main():
     water_normal(out/'water-normal.png')
     v.write_glb(out/'room.glb',*mesh,out/'atlas.png',actors=actors(),actor_rotations={name:track[2] for name,track in tracks.items()},
                 light_positions=[[side*9.3,ground(z+2)+2.95,z+2]
-                                 for z in (-5,-17,-29) for side in (-1,1)],
+                                 for z in (-5,-17,-29,-41,-53) for side in (-1,1)]
+                                + [[x,2,-134.5] for x in (20,34,48,62)],
                 material_options={
                     'surface_overrides': {
                         'water': (None,(.035,.12,.19),.29,0.,144.),
@@ -493,6 +494,7 @@ def main():
                     },
                     'normal_maps': {'water': (out/'water-normal.png',1.4)},
                     'material_extras': {
+                        'interior_warm': {'emissiveFactor':[.60,.21,.035]},
                         'hill': {'emissiveFactor':[.006,.007,.009]},
                         'hill_far': {'emissiveFactor':[.012,.012,.016]},
                         'reflection_amber': {'emissiveFactor':[.32,.13,.04]},

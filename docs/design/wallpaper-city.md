@@ -31,7 +31,7 @@ workspace placement and multiple display integration remain unimplemented here.
 
 - Descending cobblestone street with a curved crest, rails, retaining walls,
   planting and framed lanterns with slender posts, caps and finials. Preview
-  point lights are centered in the six nearest lanterns.
+  point lights are centered in ten street lanterns and four terminal arcade bays.
 - Stepped Victorian rows, projecting windows, cornices, stoops and smaller leaf
   voxels; ten foreground houses now use three-sided bay windows, recessed
   sashes and curtains, paneled doors, continuous stair rails, cornice brackets,
@@ -57,6 +57,13 @@ workspace placement and multiple display integration remain unimplemented here.
   while retaining visible waves at the reference distance.
 - Optional height-based haze that starts 160 metres from the preview camera,
   softening the bay while preserving the foreground and skybox.
+
+The sunset preview balances 22,000 lux of warm direct sunlight with 5,000 lux
+of environment illumination. Compared with the earlier 12,000/6,500 setting,
+this gives the cornices and foliage stronger edge light while retaining
+environment illumination in the shadows. Amber window emission and local lights down the street and
+under the terminal canopy preserve warmth in shaded areas. These are art-directed
+preview settings; they have not been accepted for the installed desktop.
 
 The sky is a raster environment; all city geometry remains 3D. Source images and
 exact generation/edit prompts are in
