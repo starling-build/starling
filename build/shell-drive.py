@@ -423,15 +423,18 @@ def shot(mouse, path):
               for p in glob.glob("/tmp/drm_screenshot_*.ppm")}
     pid = shell_pid()
     os.kill(pid, signal.SIGUSR1)
-    deadline = time.time() + 6
+    # llvmpipe may compile the city shaders on its first present (measured
+    # at 15 seconds in the no-GPU gate). Wait for that real frame rather than
+    # declaring a live shell dead after six seconds. The wait stays bounded.
+    deadline = time.monotonic() + 30
     new = None
-    while time.time() < deadline and not new:
+    while time.monotonic() < deadline and not new:
         frame_tick(pid)
         time.sleep(0.25)
         new = next((p for p in glob.glob("/tmp/drm_screenshot_*.ppm")
                     if os.path.getmtime(p) > before.get(p, 0)), None)
     if not new:
-        raise SystemExit("screenshot never appeared — is the shell running?")
+        raise SystemExit("screenshot did not arrive within 30 seconds — is the shell running?")
     time.sleep(0.3)  # let the 25MB write finish
     with open(path, "wb") as out:
         subprocess.run(["pnmtopng", new], stdout=out, check=True)
