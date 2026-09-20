@@ -16,10 +16,9 @@ the desktop once it is running, see the [User Guide](USER_GUIDE.md).
 - **A Wayland-capable login manager** — GDM, or LightDM/SDDM configured for
   Wayland. Ubuntu Desktop already has GDM. On Server or a minimal install you
   add one (below); the package will also pull one in if you have none.
-- **Graphics**: verified on **AMD** (Radeon 780M) and on **virtio-gpu / virgl**
-  in a VM. Intel and NVIDIA are not yet tested — Starling may or may not come
-  up on them. See [Troubleshooting](#troubleshooting) if the screen stays
-  black.
+- **Graphics**: tested with **AMD**, **Intel**, and **NVIDIA** graphics,
+  plus **virtio-gpu / virgl** in a VM. See
+  [Troubleshooting](#troubleshooting) if the screen stays black.
 - **~130 MB** of disk for the package and its dependencies. The `.deb` itself
   is about 51 MB and pulls in roughly 26 dependency packages on a minimal
   image.
@@ -167,8 +166,9 @@ Almost always the GPU or the display connector. Check the log
   Then set `FLUTTER_DRM_DEVICE=/dev/dri/cardN` in the session launcher
   (`/usr/libexec/starling-session`) for the card that shows `connected`.
 
-- **No `[EGL] Initialized` line** — the GPU driver did not come up. Intel and
-  NVIDIA are not yet tested; on those, a black screen is expected for now.
+- **No `[EGL] Initialized` line** — graphics initialization did not complete.
+  Check that the GPU driver is installed and loaded, and inspect the session
+  log for EGL or device-access errors.
 
 ### It runs but an app won't launch
 
