@@ -230,10 +230,10 @@ def make_tiles(seed=1):
     t["cloud"] = noise_tile(rng, (0.78, 0.70, 0.68), 0.001)
     t["asphalt"] = noise_tile(rng, (0.14, 0.17, 0.22), 0.0)
     t["water"] = noise_tile(rng, (0.13, 0.23, 0.31), 0.002)
-    t["water_glint"] = noise_tile(rng, (0.45, 0.55, 0.65), 0.001)
+    t["water_glint"] = noise_tile(rng, (0.57, 0.51, 0.40), 0.001)
     t["hill"] = noise_tile(rng, (0.20, 0.28, 0.34), 0.001)
     t["hill_far"] = noise_tile(rng, (0.28, 0.36, 0.48), 0.001)
-    t["reflection_amber"] = noise_tile(rng, (0.34, 0.19, 0.08), 0.002)
+    t["reflection_amber"] = noise_tile(rng, (0.58, 0.35, 0.13), 0.002)
     t["leaves"] = noise_tile(rng, (0.20, 0.34, 0.28), 0.018)
     t["leaves_light"] = noise_tile(rng, (0.30, 0.43, 0.29), 0.008)
     t["leaves_dark"] = noise_tile(rng, (0.13, 0.26, 0.22), 0.008)
@@ -1030,7 +1030,7 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
     # Restrained distance haze and water glints: these surfaces must not
     # disappear into black just because the moon is behind them.
     for name,color in (("hill",(9,15,24)),("hill_far",(16,24,36)),
-                       ("water_glint",(19,30,43)),("reflection_amber",(69,39,17))):
+                       ("water_glint",(35,30,22)),("reflection_amber",(125,72,25))):
         row,col = divmod(T[name],ATLAS)
         emissive[row*TILE:(row+1)*TILE,col*TILE:(col+1)*TILE] = color
     encoded = io.BytesIO()
@@ -1143,14 +1143,14 @@ def sky(w=1024, h=512, sun_dir=(0.55, 0.75, 0.45), with_sun=True):
     phi = (u * 2 - 1) * np.pi
     img = np.zeros((h, w, 3), np.float32)
     up = np.clip(np.sin(lat), 0, 1)[:, None]
-    zenith = np.array([0.08, 0.18, 0.32])
-    horizon = np.array([0.72, 0.32, 0.14])
+    zenith = np.array([0.09, 0.20, 0.39])
+    horizon = np.array([0.90, 0.42, 0.18])
     # A warm horizon and cleaner blue zenith avoid the previous
     # near-uniform mauve after exposure and tone mapping. The smooth blend
     # is continuous around the equirectangular seam.
-    blend = 1-np.exp(-up[..., None]/0.12)
+    blend = 1-np.exp(-up[..., None]/0.17)
     skyc = horizon[None, None, :] * (1-blend) + zenith[None, None, :] * blend
-    ground = np.array([0.095, 0.075, 0.065])
+    ground = np.array([0.16, 0.105, 0.065])
     below = (lat < 0)[:, None, None]
     img = np.where(below, ground[None, None, :] * 0.9, skyc * 1.2)
     img = np.broadcast_to(img, (h, w, 3)).copy()
@@ -1197,7 +1197,9 @@ def main() -> int:
     plaza_h = G
     print(f"  {a.size}x{a.size} columns, ground at y={G}, {len(idx)//3} triangles")
 
-    sun_dir = (-0.6, 0.28, 0.75)
+    # Light the inward-facing western facades from the viewer's right,
+    # rather than leaving the main street elevation in blue ambient shade.
+    sun_dir = (0.65, 0.23, 0.72)
     if not a.no_sky:
         # Separate sky brightness from the ambient-light bake: readable
         # architecture and a restrained sunset background. Keep cmgen's
@@ -1218,8 +1220,8 @@ def main() -> int:
         "kind": "voxel",
         "ambient_animation": True,
         "exposure": [8.0, 1.0 / 60.0, 100.0],
-        "ibl_intensity": 12000.0,
-        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.72, 0.46], "lux": 14000.0},
+        "ibl_intensity": 11000.0,
+        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.69, 0.38], "lux": 16000.0},
         "hub": [0.0, float(plaza_h + 1), 0.0],
         "eye_height": 1.62,
         "ring_radius": 7.5,

@@ -14,7 +14,10 @@ and metallic settings. Images contain surface detail only, not scene shadows.
 These are albedo-only materials, not scanned PBR sets or normal maps.
 
 Window sills and inner jambs have extra geometry. Sun/ambient intensities are
-14000/12000 lux to give the existing shadow pass more contrast. A narrow peach
+16000/11000 lux to give the existing shadow pass more contrast. The sun comes
+from the viewer's right to light the inward-facing western façades directly.
+Honey-colored stone, warm paving and olive/sage foliage replace the earlier
+blue-gray and teal palette. Amber bay highlights echo the light. A broad peach
 horizon blends into blue overhead, and a restrained halo follows the sun.
 Both the skybox and ambient-light map are regenerated from the same palette.
 The blue bay,
