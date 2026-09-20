@@ -99,7 +99,7 @@ PAGE = '''<!doctype html><meta charset="utf-8"><title>Wallpaper city — walking
 header{padding:16px}img{display:block;width:min(100%,1200px,calc((100dvh - 180px)*1.6));margin:auto;cursor:grab}
 p{margin:8px}button{font:inherit;padding:6px 14px;background:#f6d8b7;border:0;border-radius:6px}</style>
 <header><b>Wallpaper city · interactive walking preview</b><p>WASD walk · Shift faster · arrows look · drag to look · Home reset</p>
-<p>Follow the right sidewalk downhill, through the shops and onto the quay.</p>
+<p>Walk right to the sidewalk, then head downhill through the shops to the quay.</p>
 <button id="reset">Return to hillside</button> <span id="status">Loading the world…</span></header>
 <img id="view" draggable="false" alt="Live rendering of the sunset city">
 <script>

@@ -147,6 +147,52 @@ int main(int argc, char** argv) {
     }
     if (sr_room_set_output(room, tex, W, H) != 0) return 1;
 
+    // A placement audit with several explicit panes. Each CSV row is
+    // x,y,z,yawDegrees,width,height,focused,texture.ppm (binary P6 RGB).
+    // Unlike ROOMTEST_PANE this preserves the caller's camera.
+    if (const char* layout = getenv("ROOMTEST_PANES")) {
+        FILE* input = fopen(layout, "r");
+        if (!input) { perror(layout); return 2; }
+        char line[2048]; int id = 100;
+        while (fgets(line, sizeof(line), input)) {
+            float c[3], angle, width, height; int focused;
+            char path[1600];
+            if (sscanf(line, "%f,%f,%f,%f,%f,%f,%d,%1599[^\n]",
+                       &c[0], &c[1], &c[2], &angle, &width, &height, &focused, path) != 8 ||
+                !std::isfinite(c[0]) || !std::isfinite(c[1]) || !std::isfinite(c[2]) ||
+                !std::isfinite(angle) || !std::isfinite(width) || !std::isfinite(height) ||
+                width <= 0 || height <= 0 || id >= 116) {
+                fprintf(stderr, "invalid pane layout\n"); fclose(input); return 2;
+            }
+            FILE* file = fopen(path, "rb"); int tw = 0, th = 0, maximum = 0;
+            if (!file || fscanf(file, "P6 %d %d %d", &tw, &th, &maximum) != 3 ||
+                fgetc(file) < 0 || tw < 1 || th < 1 || tw > 4096 || th > 4096 || maximum != 255) {
+                if (file) fclose(file);
+                fclose(input); fprintf(stderr, "invalid pane texture: %s\n", path); return 2;
+            }
+            std::vector<unsigned char> rgb(size_t(tw)*th*3), rgba(size_t(tw)*th*4);
+            if (fread(rgb.data(), 1, rgb.size(), file) != rgb.size()) {
+                fclose(file); fclose(input); fprintf(stderr, "truncated pane texture\n"); return 2;
+            }
+            fclose(file);
+            for (int y=0; y<th; ++y) for (int x=0; x<tw; ++x) {
+                size_t to=(size_t(y)*tw+x)*4, from=(size_t(y)*tw+x)*3;
+                memcpy(rgba.data()+to, rgb.data()+from, 3); rgba[to+3]=255;
+            }
+            GLuint texture=0; glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glBindTexture(GL_TEXTURE_2D, 0); glFinish();
+            if (sr_room_set_pane(room, id++, c, angle*float(M_PI)/180, width, height,
+                                 0, width, height, texture, tw, th, 0, focused) != 0) {
+                fclose(input); return 1;
+            }
+        }
+        fclose(input);
+    }
+
     // ROOMTEST_PANE=1: hang a test picture (a gradient with a checker
     // corner) on the left wall and look straight at it from the 1:1 spot.
     GLuint paneTex = 0;

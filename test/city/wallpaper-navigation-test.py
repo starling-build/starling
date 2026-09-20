@@ -12,6 +12,8 @@ spec.loader.exec_module(preview)
 class NavigationTest(unittest.TestCase):
     def test_walk_to_quay(self):
         w = preview.Walker()
+        w.x,w.z=9.8,-5.
+        w.y=w.floor(w.z)+1.7
         for _ in range(435): w.update(['KeyW'], .1, [0, 0])
         self.assertAlmostEqual(w.z, -83.3)
         for _ in range(7): w.update(['KeyA'], .1, [0, 0])
@@ -25,6 +27,15 @@ class NavigationTest(unittest.TestCase):
         for _ in range(100): w.update(['KeyS'], .1, [0, 0])
         self.assertLessEqual(w.z, -129)
         self.assertTrue(w.allowed(w.x, w.z))
+
+    def test_workspace_connects_to_sidewalk(self):
+        w=preview.Walker()
+        self.assertTrue(w.allowed(w.x,w.z))
+        for _ in range(55): w.update(['KeyD'],.1,[0,0])
+        self.assertAlmostEqual(w.x,9.9)
+        for _ in range(30): w.update(['KeyW'],.1,[0,0])
+        self.assertAlmostEqual(w.z,-4.4)
+        self.assertTrue(w.allowed(w.x,w.z))
 
     def test_floor_matches_pavement_geometry(self):
         nav = preview.Walker().navigation
@@ -52,7 +63,7 @@ class NavigationTest(unittest.TestCase):
         for _ in range(200): w.update(['KeyD','KeyW'], .1, [0, 0])
         self.assertTrue(w.allowed(w.x,w.z))
         w.update(['Home'], .1, [0,0])
-        self.assertEqual((w.x,w.z,w.pitch), (9.8,-5.,12.))
+        self.assertEqual((w.x,w.z,w.pitch), (0,1,5.))
 
 
 if __name__ == '__main__': unittest.main()

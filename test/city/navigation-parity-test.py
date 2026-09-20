@@ -13,7 +13,7 @@ data=city.navigation.description(city.ground,city.waterfront)
 nav=city.navigation.Navigation(data)
 rng=random.Random(52)
 samples=[]
-for x,z in [(9.8,-5),(9.8,-40),(9.8,-82),(8.5,-100),(8.5,-121),
+for x,z in [(0,1),(9.8,-5),(9.8,-40),(9.8,-82),(8.5,-100),(8.5,-121),
             (8.5,-127.8),(8.5,-129.5),(34,-130),(73.8,-130)]:
     for _ in range(150):
         dx,dz=rng.uniform(-2,2),rng.uniform(-2,2)

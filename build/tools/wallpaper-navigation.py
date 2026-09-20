@@ -18,12 +18,12 @@ def description(ground, waterfront):
             surfaces.append([p[2], p[5], p[4], p[7], p[6]])
     return dict(
         version=1,
-        areas=[[9.76,10.35,-82,8], [8,10.35,-84.5,-81],
+        areas=[[-1,10.35,-2,4], [9.76,10.35,-82,8], [8,10.35,-84.5,-81],
                [8,9.25,-128.8,-83.5], [8,74,-132,-129], [8,9.25,-132,-128]],
         obstacles=[[9.3,z+2,.45] for z in (-5,-17,-29,-41,-53,-65,-77)]
                   + [[x,-131,.45] for x in range(10,77,7)],
         surfaces=surfaces,
-        spawn=[9.8,-5,0,12], eye_height=1.7)
+        spawn=[0,1,0,5], eye_height=1.7)
 
 
 class Navigation:

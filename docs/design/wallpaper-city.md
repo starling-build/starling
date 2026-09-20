@@ -219,3 +219,28 @@ review remain necessary before enabling this prototype in the desktop.
 navigation code and compares 1,350 swept moves and resulting floor heights with
 Python. The pedestrian test also checks the full route, all street-strip
 midpoints, and 441 samples across the actual quay stairs and exit.
+
+### Workspace placement audit
+
+`build/tools/wallpaper-workspace.py --world DIR --out AUDIT` renders four labeled
+application fixtures with the same Filament pane API used by desktop windows.
+`ROOMTEST_PANES` accepts a CSV of x, y, z, yaw degrees, width, height, focus, and
+P6 texture path. It preserves the supplied camera and supports up to 16 panes.
+Fixture textures are visibly labeled; these are not captures of running apps.
+
+The sidewalk spawn hid the right-hand rail and switcher pane behind the nearest
+tree. The initial workspace is now at (0, 1) in the clear center of the upper
+street, facing downhill with a five-degree downward pitch. A short cross-street
+walking area connects it to the existing right-side sidewalk. The proposed rail
+is 17 m ahead and 2 m above eye height, clearing the foreground trolley as well
+as the trees. The audit uses the existing desktop switcher radius/spacing and
+records the proposed rail configuration in `placement.json`; this is still a
+study, not an enabled desktop world manifest.
+
+`test/city/workspace-clearance-test.py --world DIR --audit AUDIT` compares every
+rail pane's interior with a control rendered without city geometry. All four
+panes fit inside the viewport, with under 0.1% of interior pixels differing by
+more than 12/255 at the audited initial actor time. This is a fixed-view smoke
+check, not a guarantee for all actor positions or camera movement. The expanded
+navigation route passes 1,500 Python/Swift movement comparisons and includes a
+walking test from the new workspace to the sidewalk.

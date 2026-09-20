@@ -14,7 +14,7 @@ import Foundation
         }
         // Invalid data must not enter the movement loop or index a malformed row.
         var json = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath:path))) as! [String:Any]
-        for mutation in [["areas":[[1,2]]], ["spawn":[0,0,0,0]], ["version":2], ["eye_height":-1]] as [[String:Any]] {
+        for mutation in [["areas":[[1,2]]], ["spawn":[500,500,0,0]], ["version":2], ["eye_height":-1]] as [[String:Any]] {
             var broken = json
             for (key,value) in mutation { broken[key] = value }
             let bytes = try JSONSerialization.data(withJSONObject:broken)
