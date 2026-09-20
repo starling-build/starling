@@ -286,7 +286,7 @@ ssh_vm 'sudo cp ~/fixtures/*.app /usr/share/starling/catalog.d/'
 # only way to work out which check that was.
 FUNC_LOG=$(mktemp)
 ssh_vm 'sudo XDG_RUNTIME_DIR=/run/user/1000 STARLING_TEST_INSTALL=1 \
-        python3 ~/functional.py' >"$FUNC_LOG" 2>&1
+        python3 -u ~/functional.py' >"$FUNC_LOG" 2>&1
 # No pipeline any more, so this is $? and NOT ${PIPESTATUS[0]} — the old form
 # read tail's status, which is why the capture had to be commented at all.
 functional=$?
@@ -355,7 +355,7 @@ ssh_vm 'pgrep -x DesktopShellApp >/dev/null' \
 
 step "functional checks with no GPU"
 NOGL_LOG=$(mktemp)
-ssh_vm 'sudo XDG_RUNTIME_DIR=/run/user/1000 python3 ~/functional.py' \
+ssh_vm 'sudo XDG_RUNTIME_DIR=/run/user/1000 python3 -u ~/functional.py' \
     >"$NOGL_LOG" 2>&1
 nogl=$?
 tail -24 "$NOGL_LOG"

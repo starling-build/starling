@@ -1905,6 +1905,13 @@ def check_recording_zoom() -> None:
         raise Skip("no ffmpeg on this machine")
     assert rec()["state"] == "idle", f"a recording is already {rec()['state']}"
 
+    # The preceding motion check decodes its recording with no input. On the
+    # gate's 15-second idle timeout the saver is now up; the first dock click
+    # only dismisses it. Wake explicitly before asking that click to launch.
+    if ask("screensaver")["active"]:
+        drive("key esc")
+        wait_for(lambda: not ask("screensaver")["active"], "the saver to clear")
+
     # Still, dense, high-contrast content: edge density is the measure, so the
     # screen needs detail to have any, and it must not move or the two takes
     # differ for reasons that have nothing to do with the crop.
