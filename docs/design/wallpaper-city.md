@@ -387,3 +387,19 @@ This is an editable Blender study, not a runtime replacement or animated boat.
 Fresh-process validation passed with 814 objects, 196,706 base mesh vertices,
 two packed images, finite mesh coordinates, OpenImageDenoise and fully framed
 cable-car geometry. Builder compilation and git diff whitespace checks passed.
+
+### Blender architecture and sunset pass — 2026-09-20
+
+The Victorian facades now mix dim, cool and warm window panes rather than using
+one emissive pane everywhere. Added fine siding, colored bay apron panels,
+shutters on selected houses, four hipped roofs and railings on other rooftops.
+The bay material combines broad swell normals with the existing finer ripples.
+A warm area light above the distant bay places the sunset reflection in open
+water; its intensity was reduced after review to retain surface detail.
+
+The saved project was reopened successfully: 833 objects, 206,554 base mesh
+vertices, two packed images, finite mesh coordinates, working denoising and
+fully framed cable-car geometry. The new roof and window components were also
+checked. The scene remains a Blender study. Building proportions, detailed
+terminal architecture, cloud shapes and the wallpaper's sparkling water still
+need work before runtime integration.

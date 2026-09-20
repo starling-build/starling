@@ -42,6 +42,12 @@ leaves=[material('Foliage '+str(i),c) for i,c in enumerate([(.12,.19,.07),(.20,.
 wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.34,.055,.035),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
 bridge=material('Bridge vermilion',(.40,.13,.09),.55);land=material('Distant hillside',(.20,.27,.24));lamp=material('Lantern glow',(1,.57,.19),.3,emission=4)
 cobbles=[material('Cobble '+str(i),(.27+i*.021,.25+i*.019,.23+i*.018),.5) for i in range(7)]
+window_moods=[
+    material('Window • dusk blue',(.18,.25,.30),.22,emission=.035),
+    material('Window • dim interior',(.38,.25,.13),.3,emission=.16),
+    material('Window • warm room',(.70,.37,.12),.3,emission=.6),
+    glass,
+]
 # Each architectural component is a mesh batch, editable independently in Blender.
 class Batch:
     def __init__(self,name,coll):self.name=name;self.coll=coll;self.v=[];self.f=[];self.mi=[];self.m=[]
@@ -95,20 +101,22 @@ for side in [-1,1]:
         front=y-depth/2;windows=Batch(name+' / bay windows and sash',coll)
         for floor in range(3 if h >= 11 else 2):
             zz=z+2.2+floor*3.65
-            for xx in [x-2.35,x,x+2.35]:
+            for wi,xx in enumerate([x-2.35,x,x+2.35]):
+                pane=window_moods[(row*3+floor+wi+(side>0))%4]
                 # Projecting bay gives the facade depth and an articulated silhouette.
                 bay=.65 if abs(xx-x)<.1 else .18
                 windows.box((xx,front-bay/2,zz),(1.65,bay,2.65),trim)
-                windows.box((xx,front-bay-.025,zz),(1.32,.07,2.26),glass)
+                windows.box((xx,front-bay-.025,zz),(1.32,.07,2.26),pane)
                 for dx in [-.71,0,.71]:windows.box((xx+dx,front-bay-.09,zz),(.085,.10,2.48),trim)
                 windows.box((xx,front-bay-.09,zz+.02),(1.5,.1,.09),trim)
                 windows.box((xx,front-bay-.04,zz-1.27),(1.9,.42,.14),trim)
             # Street-facing side windows make walking views useful too.
             sx=x-side*(w/2+.035)
-            for yy in [y-2.6,y,y+2.6]:
+            for wi,yy in enumerate([y-2.6,y,y+2.6]):
+                pane=window_moods[(row+floor*2+wi+(side>0))%4]
                 # Deep street-facing bays, stacked through the three storeys.
                 windows.box((sx-side*.45,yy,zz),(.9,1.95,2.6),trim)
-                windows.box((sx-side*.94,yy,zz),(.06,1.54,2.22),glass)
+                windows.box((sx-side*.94,yy,zz),(.06,1.54,2.22),pane)
                 for dy in [-.87,0,.87]:windows.box((sx-side*1.02,yy+dy,zz),(.13,.10,2.5),trim)
                 windows.box((sx-side*1.02,yy,zz),(.13,1.85,.10),trim)
                 for dz in [-1.3,1.3]:windows.box((sx-side*.52,yy,zz+dz),(1.2,2.2,.16),trim)
@@ -120,6 +128,33 @@ for side in [-1,1]:
         # Dentil cornice and recessed entry break up the repeated facade.
         for xx in range(12):windows.box((x-w/2+xx*w/11,front-.2,z+h-.15),(.22,.3,.25),trim)
         windows.box((x,front-.09,z+1.1),(1.2,.22,2.1),wood)
+        # Colored apron panels, occasional shutters and fine siding break up
+        # the continuous ivory window strips without changing walkable space.
+        siding=Batch(name+' / siding and apron panels',coll)
+        facade=facades[(row+(side>0))%5]
+        for k in range(1,int(h/.32)):
+            siding.box((x,front-.018,z+k*.32),(w,.035,.023),stone)
+            siding.box((x-side*(w/2+.018),y,z+k*.32),(.035,depth,.023),stone)
+        for floor in range(1,3 if h>=11 else 2):
+            zz=z+2.2+floor*3.65
+            for yy in [y-2.6,y,y+2.6]:
+                siding.box((sx-side*.96,yy,zz-1.67),(.08,1.6,.48),facade)
+                siding.box((sx-side*1.015,yy,zz-1.67),(.035,1.28,.27),stone)
+        if row%3==1:
+            for yy in [y-2.6,y,y+2.6]:
+                for dy in [-1.1,1.1]:
+                    siding.box((sx-side*.98,yy+dy,z+2.2),(.10,.30,2.3),facades[0])
+                    for k in range(7):siding.box((sx-side*1.05,yy+dy,z+1.3+k*.28),(.08,.31,.06),trim)
+        siding.finish(.008)
+        if row%3==1:
+            # A hipped roof with a short ridge, distinct from neighboring flat roofs.
+            rz=z+h+.65;rw=w/2+.1;rd=depth/2+.1
+            verts=[(x-rw,y-rd,rz),(x+rw,y-rd,rz),(x+rw,y+rd,rz),(x-rw,y+rd,rz),(x,y-2,rz+1.8),(x,y+2,rz+1.8)]
+            mesh=bpy.data.meshes.new(name+' roof');mesh.from_pydata(verts,[],[(0,1,4),(1,2,5,4),(2,3,5),(3,0,4,5)]);mesh.materials.append(roof)
+            obj=bpy.data.objects.new(name+' / hipped roof',mesh);group(coll).objects.link(obj)
+        elif row%3==2:
+            for k in range(9):windows.box((x-w/2+k*w/8,front,z+h+1),(.10,.14,.8),dark)
+            windows.box((x,front,z+h+1.4),(w,.17,.10),dark)
         windows.finish(.018)
         # Terraces step naturally between houses.
         wall=Batch(name+' / terrace', '01 • Street and retaining walls')
@@ -324,6 +359,11 @@ from mathutils import Matrix
 turn=Matrix.Rotation(math.radians(65),4,'Z');anchor=Vector((fx,fy,-1.2))
 for o in group('08 • Ferry').objects:
     for v in o.data.vertices:v.co=anchor+(turn @ (v.co-anchor))*1.35
+# A broad low-frequency swell bends the fine wave normals.
+swell=n.new('ShaderNodeTexNoise');swell.inputs['Scale'].default_value=.075;swell.inputs['Detail'].default_value=2
+l.new(geo.outputs['Position'],swell.inputs['Vector'])
+wide_bump=n.new('ShaderNodeBump');wide_bump.inputs['Strength'].default_value=.6;wide_bump.inputs['Distance'].default_value=.65
+l.new(swell.outputs['Fac'],wide_bump.inputs['Height']);l.new(bump.outputs['Normal'],wide_bump.inputs['Normal']);l.new(wide_bump.outputs['Normal'],s.inputs['Normal'])
 # Camera and lighting are saved with the source scene.
 scene=bpy.context.scene
 bpy.ops.object.camera_add(location=(2,-28,38));cam=bpy.context.object;cam.name='Wallpaper comparison camera';cam.rotation_euler=(Vector((3,225,4))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.lens=35;cam.data.clip_end=4000;scene.camera=cam
@@ -337,6 +377,9 @@ haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=Tr
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
 bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=14,location=(650,1500,80));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.57,.18),emission=6));move(o,'09 • Render atmosphere')
 bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-650,-1500,-80)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(4)
+# Warm sky patch creates a broad reflected sunset in the bay, with actual
+# light transport rather than painted highlights on the water surface.
+bpy.ops.object.light_add(type='AREA',location=(130,1000,100));bounce=bpy.context.object;bounce.name='Sunset cloud bounce over bay';bounce.rotation_euler=(Vector((35,280,-1))-bounce.location).to_track_quat('-Z','Y').to_euler();bounce.data.energy=450000;bounce.data.shape='DISK';bounce.data.size=300;bounce.data.color=(1,.43,.18)
 # Broad sky fill retains detail on the shaded facades.
 bpy.ops.object.light_add(type='AREA',location=(0,-10,65));fill=bpy.context.object;fill.name='Warm facade bounce';fill.data.energy=30000;fill.data.shape='DISK';fill.data.size=75;fill.data.color=(1,.78,.54)
 scene.render.engine='CYCLES';scene.cycles.samples=a.samples;scene.cycles.use_denoising=True;scene.cycles.denoiser='OPENIMAGEDENOISE';scene.cycles.max_bounces=6;scene.cycles.volume_bounces=0

@@ -48,3 +48,8 @@ roof, stone quay coping and moorings, and a ferry in the open bay with a tapered
 bow, deck railings, funnel and broken wake. Stepped woodland follows the terrain
 surface on the island and both headlands; rocks articulate the island shoreline.
 These are editable study meshes. The ferry and wake are static in this source.
+
+The architecture and sunset pass varies window brightness, adds siding and bay
+apron panels, and mixes hipped roofs with roof railings. A broad warm area light
+above the distant bay and two scales of water bump are Blender lighting studies;
+the reflection depends on camera position and is not painted into a texture.
