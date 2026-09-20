@@ -334,3 +334,20 @@ Previously it could select `/tmp/drm_screenshot_eDP-1.ppm` when the secondary
 finished first, making apparently clear captures misleading. Verified the
 selection against live captures and checked Python compilation. The black
 rectangle remains unresolved; no rendering fix is claimed.
+
+
+### Blender source scene — 2026-09-20
+
+At the user's request, modelling now has a native Blender source study in
+`design/blender/wallpaper-city.blend`, with a camera render alongside it.
+The scene was built in Blender from separate editable meshes, not imported
+from the earlier generated GLB. It includes a packed wallpaper camera overlay,
+terraced houses with bay-window components, street paving/rails, the cable car,
+waterfront/clock tower, a continuous island and hills, suspension bridge and ferry.
+`build/tools/blender-wallpaper-city.py` reproduces the initial study.
+
+This remains a composition study: the architecture, vegetation and reference
+alignment need further work. Cycles lighting, procedural surfaces and the bay
+volume are Blender features that need baking or matching for the runtime.
+The study has not replaced the installed world or its navigation. The separate
+live renderer black-rectangle issue remains open.

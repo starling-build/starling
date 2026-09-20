@@ -1,0 +1,2 @@
+# Blender's automatic previous-save backups.
+*.blend[0-9]
