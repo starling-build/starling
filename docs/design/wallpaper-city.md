@@ -351,3 +351,22 @@ alignment need further work. Cycles lighting, procedural surfaces and the bay
 volume are Blender features that need baking or matching for the runtime.
 The study has not replaced the installed world or its navigation. The separate
 live renderer black-rectangle issue remains open.
+
+
+### Blender refinement pass — 2026-09-20
+
+The second study adds deep street-facing bay windows, entry steps and planters,
+stepped foliage, and a continuous lower-street connection. The camera now
+reveals both bridge towers, and the enlarged cable car remains wholly within
+the frame. Distant settlement geometry follows the hillside's radial height
+function. Palette values are explicitly converted from sRGB to scene-linear;
+the previous direct assignment washed out the intended colors.
+
+The installed system Blender 5.0 reported an invalid current denoiser value.
+Rendering now uses the installed Blender 5.2.2 LTS at `/snap/bin/blender`, with
+OpenImageDenoise explicitly selected. The saved 1400x788 render was inspected.
+A fresh-process asset audit passed: 864 objects, 127,271 base mesh vertices,
+two packed images, finite vertex coordinates, and the entire cable car within
+the comparison camera. The saved project remains a study; the waterfront,
+landscape, boat, water and overall reference match still require refinement.
+No runtime-world replacement was made.

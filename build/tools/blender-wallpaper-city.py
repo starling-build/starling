@@ -23,9 +23,12 @@ def move(obj,coll):
     for c in list(obj.users_collection): c.objects.unlink(obj)
     group(coll).objects.link(obj)
 def material(name,color,rough=.65,metal=0,emission=0):
+    # Palette values are sRGB swatches; shader inputs are scene-linear.
+    swatch=color
+    color=tuple(v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in color)
     m=bpy.data.materials.new(name);m.diffuse_color=(*color,1);m.use_nodes=True
     s=m.node_tree.nodes.get('Principled BSDF');s.inputs['Base Color'].default_value=(*color,1);s.inputs['Roughness'].default_value=rough;s.inputs['Metallic'].default_value=metal
-    if emission:s.inputs['Emission Color'].default_value=(*color,1);s.inputs['Emission Strength'].default_value=emission
+    if emission:s.inputs['Emission Color'].default_value=(*swatch,1);s.inputs['Emission Strength'].default_value=emission
     if not emission and not metal:
         nodes=m.node_tree.nodes;links=m.node_tree.links
         noise=nodes.new('ShaderNodeTexNoise');noise.inputs['Scale'].default_value=3;noise.inputs['Detail'].default_value=2
@@ -72,7 +75,7 @@ for j in range(216):
         road.box((x,y,ground(y)+rng.uniform(-.013,.013)),(.77,.64,.15),rng.choice(cobbles))
 road.finish(.022)
 # Rails follow the slope instead of floating as straight bars.
-for x in [-5.5,-4.35]:
+for x in [-6.9,-5.1]:
     for j in range(107):
         y=-57+j*1.4
         beam('Tram rail',(x,y,ground(y)+.10),(x,y+1.4,ground(y+1.4)+.10),.045,brass,'01 • Street and retaining walls')
@@ -82,15 +85,15 @@ for side in [-1,1]:
         y=-54+j*.95;paving.box((side*10.4,y,ground(y)+.16),(3.0,.93,.22),trim)
     paving.finish(.035)
     for row,y in enumerate([0,13,26,39,52,65,78]):
-        x=side*(16.0+max(0,row-3)*1.2);w=7.8;depth=10.;z=ground(y);h=14.2-row*.6
+        x=side*(16.0+max(0,row-2)*(2.5 if side>0 else 1.3));w=7.8;depth=10.;z=ground(y);h=12.0-row*.5
         coll='02 • Victorian street';name=f'{"West" if side<0 else "East"} house {row+1}'
         b=Batch(name+' / masonry',coll);b.box((x,y,z+h/2),(w,depth,h),facades[(row+(side>0))%5]);b.box((x,y,z+.35),(w+.5,depth+.4,.7),stone)
         for k in range(4):b.box((x,y,z+h+k*.15),(w+.15+k*.16,depth+.15+k*.16,.14),trim)
         b.box((x,y,z+h+.62),(w-.3,depth-.3,.13),roof);b.box((x+2,y+2,z+h+1.2),(.6,.7,1.4),stone)
-        for level in range(1,4):b.box((x,y,z+level*3.6),(w+.18,depth+.18,.17),trim)
+        for level in range(1,3):b.box((x,y,z+level*3.6),(w+.18,depth+.18,.17),trim)
         b.finish(.035)
         front=y-depth/2;windows=Batch(name+' / bay windows and sash',coll)
-        for floor in range(3):
+        for floor in range(3 if h >= 11 else 2):
             zz=z+2.2+floor*3.65
             for xx in [x-2.35,x,x+2.35]:
                 # Projecting bay gives the facade depth and an articulated silhouette.
@@ -103,6 +106,12 @@ for side in [-1,1]:
             # Street-facing side windows make walking views useful too.
             sx=x-side*(w/2+.035)
             for yy in [y-2.6,y,y+2.6]:
+                # Deep street-facing bays, stacked through the three storeys.
+                windows.box((sx-side*.45,yy,zz),(.9,1.95,2.6),trim)
+                windows.box((sx-side*.94,yy,zz),(.06,1.54,2.22),glass)
+                for dy in [-.87,0,.87]:windows.box((sx-side*1.02,yy+dy,zz),(.13,.10,2.5),trim)
+                windows.box((sx-side*1.02,yy,zz),(.13,1.85,.10),trim)
+                for dz in [-1.3,1.3]:windows.box((sx-side*.52,yy,zz+dz),(1.2,2.2,.16),trim)
                 windows.box((sx,yy,zz),(.12,1.38,2.22),glass)
                 for dy in [-.77,0,.77]:windows.box((sx-side*.10,yy+dy,zz),(.24,.095,2.46),trim)
                 windows.box((sx-side*.10,yy,zz),(.24,1.6,.09),trim)
@@ -118,13 +127,29 @@ for side in [-1,1]:
             yy=y-5+k*.65;zz=ground(yy)
             wall.box((side*12.1,yy,zz+.45),(.38,.64,.9),stone)
         wall.finish(.03)
+        garden=Batch(name+' / entry stairs and planters','01 • Street and retaining walls')
+        for step in range(6):
+            garden.box((side*(11.3+step*.30),y-3,ground(y-3)+step*.12),(.32,1.5,.20+step*.12),stone)
+        for yy in [y-4,y+3]:
+            garden.box((side*12.3,yy,ground(yy)+.62),(1.1,1.3,.8),stone)
+            for k in range(9):garden.box((side*12.3+rng.uniform(-.4,.4),yy+rng.uniform(-.5,.5),ground(yy)+1.12+rng.random()*.25),(.23,.24,.23),rng.choice(leaves))
+        garden.finish(.03)
 
 def tree(x,y,z,size=1):
     coll='03 • Trees and lanterns';beam('Branching tree trunk',(x,y,z),(x+.15,y,z+4*size),.22*size,wood,coll)
     for dx,dy,dz,r in [(-.9,0,3.7,1.25),(.8,.15,4.0,1.3),(0,-.7,4.7,1.35),(.15,.7,4.5,1.1)]:
         c=(x+dx*size,y+dy*size,z+dz*size);beam('Branch',(x,y,z+2*size),c,.10*size,wood,coll)
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=r*size,location=c)
-        o=bpy.context.object;o.name='Faceted foliage canopy';o.scale=(1,.85,.93);o.data.materials.append(rng.choice(leaves));move(o,coll)
+        foliage=Batch('Layered foliage cluster',coll)
+        step=.38*size
+        for ix in range(-3,4):
+            for iy in range(-3,4):
+                for iz in range(-3,4):
+                    q=(ix*step,iy*step,iz*step)
+                    if sum(v*v for v in q)>(r*size)**2*rng.uniform(.78,1.08):continue
+                    if abs(ix)<2 and abs(iy)<2 and abs(iz)<2:continue
+                    foliage.box((c[0]+q[0],c[1]+q[1],c[2]+q[2]),(step*1.04,)*3,rng.choice(leaves))
+        foliage.finish(.025*size)
+
 for side in [-1,1]:
     for y in [1,18,34,50,67,81]:
         tree(side*11.7,y,ground(y)+.25,1.1 if y<20 else .9)
@@ -134,6 +159,11 @@ for side in [-1,1]:
         box('Lantern cap',(x,yy,z+3.69),(.52,.52,.13),dark,coll,.03)
         for dx in [-.19,.19]:
             for dy in [-.19,.19]:beam('Lantern frame',(x+dx,yy+dy,z+3.03),(x+dx,yy+dy,z+3.65),.025,dark,coll)
+b=Batch('Lower street connection','01 • Street and retaining walls')
+for j in range(38):
+    yy=88+j
+    b.box((0,yy,ground(yy)-.12),(19,1.02,.24),stone)
+b.finish()
 # Low blocks near the waterfront preserve the middle-distance street view.
 for row,y in enumerate([94,107]):
     for x in [-35,-23,-12,12,23,35,47]:
@@ -155,7 +185,7 @@ b.finish(.04)
 bpy.ops.mesh.primitive_cylinder_add(vertices=64,radius=1.12,depth=.10,location=(x,y-2.58,14),rotation=(math.pi/2,0,0));o=bpy.context.object;o.name='Illuminated clock dial';o.data.materials.append(lamp);move(o,'04 • Waterfront')
 beam('Clock minute hand',(x,y-2.66,14),(x,y-2.66,14.88),.045,dark,'04 • Waterfront');beam('Clock hour hand',(x,y-2.67,14),(x-.57,y-2.67,14.28),.06,dark,'04 • Waterfront')
 # Cable car aligned to the grade, with readable window frames and a curved roof.
-coll='05 • Cable car';y=15;x=-4.92;z=ground(y);b=Batch('Cable car body',coll)
+coll='05 • Cable car';y=29;x=-6;z=ground(y);b=Batch('Cable car body',coll)
 b.box((x,y,z+1.8),(2.8,5.3,3.2),red);b.box((x,y,z+3.5),(3.3,5.8,.24),roof);b.box((x,y,z+3.8),(2.1,4.9,.38),red)
 for xx in [-.87,0,.87]:
     b.box((x+xx,y-2.68,z+2.3),(.72,.07,1.53),glass)
@@ -164,6 +194,13 @@ for yy in [-1.8,-.6,.6,1.8]:
     for side in [-1,1]:b.box((x+side*1.42,y+yy,z+2.3),(.08,.9,1.55),glass)
 b.box((x,y-2.8,z+1.16),(2.9,.3,.16),brass);b.box((x,y-2.84,z+.38),(3.05,.3,.25),dark);b.finish(.025)
 bpy.ops.mesh.primitive_uv_sphere_add(segments=16,ring_count=8,radius=.28,location=(x,y-2.92,z+1));o=bpy.context.object;o.name='Cable car headlamp';o.data.materials.append(lamp);move(o,coll)
+# Turn the car into a larger foreground landmark without raising it off the rails.
+for o in group('05 • Cable car').objects:
+    if o.type=='MESH':
+        anchor=Vector((x,y,z))
+        for v in o.data.vertices:
+            world=o.matrix_world @ v.co
+            v.co=o.matrix_world.inverted() @ (anchor+(world-anchor)*1.45)
 # Continuous terrain, rather than a cloud of disconnected distant cubes.
 def island(name,x,y,rx,ry,height):
     vertices=[(x,y,height)];faces=[];rings=16;steps=64
@@ -185,8 +222,12 @@ b.box((-40,300,20),(2.5,2.5,14),trim);b.finish()
 # Small grouped buildings and tree crowns articulate the continuous hills.
 b=Batch('Distant settlement lights','06 • Bay and distant landscape')
 for i in range(160):
-    xx=rng.uniform(-360,-50);yy=rng.uniform(530,590)
-    t=abs((xx+190)/230);zz=48*max(0,1-t*t)**1.6
+    while True:
+        xx=rng.uniform(-380,-20);yy=rng.uniform(490,615)
+        nx=(xx+190)/230;ny=(yy-560)/95;ang=math.atan2(ny,nx)
+        t=math.hypot(nx,ny)/(1+.05*math.sin(ang*5)+.03*math.cos(ang*9))
+        if t < .94:break
+    zz=48*max(0,1-t*t)**1.6+math.sin(ang*4)*t*(1-t)*48*.12-.5
     b.box((xx,yy,zz+1),(2.5,2,2),rng.choice(facades))
     b.box((xx,yy-1.05,zz+1),(.7,.05,.65),glass)
 b.finish()
@@ -212,9 +253,9 @@ for yy in [552,558]:
         beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.06,bridge,coll)
 # Water uses a subtle anisotropic bump; geometry and base PBR export separately.
 water=material('Bay water • Blender procedural study',(.13,.24,.31),.24,.35)
-n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=1.7;tex.inputs['Detail'].default_value=3
+n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=.7;tex.inputs['Detail'].default_value=3
 coord=n.new('ShaderNodeTexCoord');mapping=n.new('ShaderNodeVectorMath');mapping.operation='MULTIPLY';mapping.inputs[1].default_value=(.65,4,1);l.new(coord.outputs['Object'],mapping.inputs[0]);l.new(mapping.outputs[0],tex.inputs['Vector'])
-bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.22;bump.inputs['Distance'].default_value=.09;l.new(tex.outputs['Fac'],bump.inputs['Height']);l.new(bump.outputs['Normal'],s.inputs['Normal'])
+bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.5;bump.inputs['Distance'].default_value=.3;l.new(tex.outputs['Fac'],bump.inputs['Height']);l.new(bump.outputs['Normal'],s.inputs['Normal'])
 box('Bay water',(0,900,-1.3),(2500,1560,.15),water,'06 • Bay and distant landscape')
 # A ferry with three decks, windows and lights.
 b=Batch('Ferry at sunset','08 • Ferry')
@@ -224,7 +265,7 @@ for zz in [1.4,2.8]:
 b.finish(.06)
 # Camera and lighting are saved with the source scene.
 scene=bpy.context.scene
-bpy.ops.object.camera_add(location=(0,-28,39));cam=bpy.context.object;cam.name='Wallpaper comparison camera';cam.rotation_euler=(Vector((1,230,4))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.lens=35;cam.data.clip_end=4000;scene.camera=cam
+bpy.ops.object.camera_add(location=(2,-28,38));cam=bpy.context.object;cam.name='Wallpaper comparison camera';cam.rotation_euler=(Vector((3,225,4))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.lens=35;cam.data.clip_end=4000;scene.camera=cam
 ref=bpy.data.images.load(str(ROOT/'shell/Resources/Wallpapers/city-sunset.png'));ref.pack();cam.data.show_background_images=True;bg=cam.data.background_images.new();bg.image=ref;bg.alpha=.35;bg.display_depth='FRONT'
 world=bpy.data.worlds.new('Peach sunset environment');scene.world=world;world.use_nodes=True;n=world.node_tree.nodes;l=world.node_tree.links
 sky=n.new('ShaderNodeTexEnvironment');sky.image=bpy.data.images.load(str(ROOT/'shell/Resources/Worlds/wallpaper-city/materials/sunset-sky-v4.png'));sky.image.pack();l.new(sky.outputs['Color'],n.get('Background').inputs['Color']);n.get('Background').inputs['Strength'].default_value=.65
@@ -234,13 +275,13 @@ l.new(coords.outputs['Generated'],stretch.inputs[0]);l.new(stretch.outputs[0],sk
 haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0006;vol.inputs['Color'].default_value=(.64,.60,.67,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
 bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=14,location=(650,1500,80));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.57,.18),emission=6));move(o,'09 • Render atmosphere')
-bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-1,-.6,-.16)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(4)
+bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-650,-1500,-80)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(4)
 # Broad sky fill retains detail on the shaded facades.
-bpy.ops.object.light_add(type='AREA',location=(0,-10,65));fill=bpy.context.object;fill.name='Cool open sky fill';fill.data.energy=65000;fill.data.shape='DISK';fill.data.size=75;fill.data.color=(1,.78,.54)
-scene.render.engine='CYCLES';scene.cycles.samples=a.samples;scene.cycles.use_denoising=True;scene.cycles.max_bounces=6;scene.cycles.volume_bounces=0
+bpy.ops.object.light_add(type='AREA',location=(0,-10,65));fill=bpy.context.object;fill.name='Warm facade bounce';fill.data.energy=30000;fill.data.shape='DISK';fill.data.size=75;fill.data.color=(1,.78,.54)
+scene.render.engine='CYCLES';scene.cycles.samples=a.samples;scene.cycles.use_denoising=True;scene.cycles.denoiser='OPENIMAGEDENOISE';scene.cycles.max_bounces=6;scene.cycles.volume_bounces=0
 scene.render.threads_mode='FIXED';scene.render.threads=8
 scene.render.resolution_x=a.width;scene.render.resolution_y=round(a.width*941/1672);scene.render.resolution_percentage=100
-scene.view_settings.view_transform='AgX';scene.view_settings.look='AgX - Medium High Contrast';scene.view_settings.exposure=.9
+scene.view_settings.view_transform='AgX';scene.view_settings.look='AgX - Medium High Contrast';scene.view_settings.exposure=.55
 scene.render.image_settings.file_format='PNG';scene.render.filepath=str(a.out/'camera-study.png')
 # Open directly into the reference camera, with meaningful collection names.
 for screen in bpy.data.screens:
