@@ -30,6 +30,9 @@ final class RdpDisplayService {
     /// Client left, on the main queue.
     var onClientGone: (() -> Void)?
 
+    /// Main-queue visibility state, published before the connection callbacks.
+    private(set) var hasClient = false
+
     private var server: OpaquePointer?
     private let lock = NSLock()
     private var width: UInt32 = 0
@@ -136,7 +139,10 @@ final class RdpDisplayService {
         pending = nil
         lock.unlock()
         warn("client connected at \(w)x\(h)\(changed ? " (resized)" : "")")
-        let apply: () -> Void = { [weak self] in self?.onSizeNegotiated?(w, h) }
+        let apply: () -> Void = { [weak self] in
+            self?.hasClient = true
+            self?.onSizeNegotiated?(w, h)
+        }
         DispatchQueue.main.async(
             execute: unsafeBitCast(apply, to: (@Sendable () -> Void).self))
     }
@@ -145,7 +151,10 @@ final class RdpDisplayService {
         lock.lock()
         pending = nil
         lock.unlock()
-        let gone: () -> Void = { [weak self] in self?.onClientGone?() }
+        let gone: () -> Void = { [weak self] in
+            self?.hasClient = false
+            self?.onClientGone?()
+        }
         DispatchQueue.main.async(
             execute: unsafeBitCast(gone, to: (@Sendable () -> Void).self))
     }

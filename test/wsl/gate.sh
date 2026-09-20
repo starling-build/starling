@@ -68,6 +68,33 @@ grep -q "listening on" "$SHELL_LOG"; check $? "the shipped launcher detects WSL 
 grep -qi "surfaceless EGL" "$SHELL_LOG"
 check $? "it renders surfacelessly (no DRM, no window system)"
 
+# Exercise the animated city explicitly; a 2D session cannot catch an unseen
+# city's ambient timer continuing to render after its viewer disconnects.
+python3 - "$SHELL_LOG" <<'CITY'
+import json, os, socket, sys
+uid = os.stat(sys.argv[1]).st_uid
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+    conn.settimeout(10)
+    conn.connect(f"/tmp/xdg-starling-{uid}/starling-agent.sock")
+    conn.sendall(b'{"id":1,"op":"desktop_3d","on":true}\n')
+    with conn.makefile("rb") as reply:
+        result = json.loads(reply.readline())
+    assert result.get("ok") and result.get("on"), result
+CITY
+check $? "the animated 3D desktop is enabled for the idle regression"
+sleep 3
+
+city_motion() {
+    import -window root /tmp/g-city-a.png 2>/dev/null || return 1
+    sleep 3
+    import -window root /tmp/g-city-b.png 2>/dev/null || return 1
+    local delta
+    delta=$(convert /tmp/g-city-a.png /tmp/g-city-b.png \
+        -compose difference -composite -format "%[fx:mean]" info:) || return 1
+    say "   city frame difference: $delta"
+    awk -v d="$delta" 'BEGIN{exit !(d+0 > 0.00001)}'
+}
+
 say "3. idle with nobody connected"
 PID=$(pgrep -x DesktopShellApp | head -1)
 idle_cpu() {  # $1 = seconds
@@ -116,6 +143,8 @@ else
   check 1 "captured the client's screen"
 fi
 
+city_motion; check $? "the city animates while a client is connected"
+
 say "6. disconnect and settle"
 pkill -x "$(basename $RDP)" 2>/dev/null; sleep 10
 pkill -f "Xvfb :99" 2>/dev/null
@@ -129,6 +158,17 @@ if [ -n "$PID" ]; then
 else
   check 1 "the shell survived the whole run"
 fi
+
+say "7. reconnect to the animated city"
+setsid Xvfb :99 -screen 0 1600x1000x24 >/tmp/g-xvfb.log 2>&1 </dev/null &
+sleep 3
+setsid $RDP /v:127.0.0.1:3390 /u:starling /p:x /cert:ignore /sec:tls \
+    /size:1280x800 /log-level:ERROR > /tmp/g-client.log 2>&1 < /dev/null &
+sleep 15
+pgrep -x "$(basename $RDP)" >/dev/null; check $? "the client reconnects"
+city_motion; check $? "city animation resumes after reconnect"
+pkill -x "$(basename $RDP)" 2>/dev/null
+pkill -f "Xvfb :99" 2>/dev/null
 
 cp "$SHELL_LOG" /mnt/c/dist/wsl-gate-shell.log 2>/dev/null
 say "shell log tail:"; tail -5 "$SHELL_LOG" | sed 's/^/        /'

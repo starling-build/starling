@@ -2913,6 +2913,10 @@ extension _DesktopShellState {
     /// nothing else is happening: a full-screen pass per frame.
     func _startSceneClock() {
         #if os(Linux)
+        // In RDP display mode there is no physical viewer. Do not animate
+        // an unseen city; connection callbacks restart it when a client returns.
+        guard _environment != nil else { return }
+        if let display = rdpDisplayService, !display.hasClient { return }
         if let scene = _environment as? FilamentRoomRenderer {
             guard scene.world.ambientAnimation, _sceneAmbientTimer == nil else { return }
             // Ambient motion needs only 20 Hz. Dirty each output texture,
@@ -3008,11 +3012,17 @@ extension _DesktopShellState {
         #endif
     }
 
-    func _releaseEnvironment() {
+    func _stopSceneClock() {
         #if os(Linux)
         _sceneTicker?.stop()
         _sceneAmbientTimer?.cancel()
         _sceneAmbientTimer = nil
+        #endif
+    }
+
+    func _releaseEnvironment() {
+        #if os(Linux)
+        _stopSceneClock()
         _sceneRepaints.removeAll()
         for id in Array(_environments.keys) {
             _withDesktop3DOutput(id) { _releaseEnvironmentOutput() }

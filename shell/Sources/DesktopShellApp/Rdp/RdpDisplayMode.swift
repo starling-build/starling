@@ -316,6 +316,9 @@ func runRdpDisplay() -> Never {
     // force a composite so it sees the desktop immediately rather than after
     // the next thing that happens to change.
     service.onSizeNegotiated = { w, h in
+        if let shell = _shellState, shell._desktop3DActive {
+            shell._startSceneClock()
+        }
         rdpSizeLock.lock()
         rdpPendingSize = (w, h)
         rdpSizeLock.unlock()
@@ -337,6 +340,7 @@ func runRdpDisplay() -> Never {
         rdpKeyboard?.sync(toggleFlags: flags)
     }
     service.onClientGone = {
+        _shellState?._stopSceneClock()
         // Release both devices: a client that disappears mid-drag or
         // mid-chord must not leave a button or a modifier stuck down.
         rdpPointer?.reset()
