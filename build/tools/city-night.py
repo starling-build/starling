@@ -10,6 +10,14 @@ def ground(z):
     return max(-2.2, 5.0 + min(0.0, z + 8.0) * .19)
 
 
+def house_x(side, row, column, z):
+    """Keep the east panorama clear through the adjacent display's lens."""
+    distance = 14+column*8.0+row*1.4
+    if side > 0:
+        distance = max(distance, (13-z)*1.32+8+column*8)
+    return side*distance
+
+
 def build(v, size, seed):
     rng = np.random.default_rng(seed)
     props = []
@@ -34,9 +42,9 @@ def build(v, size, seed):
     # Fine terracing beyond it forms the downhill street visible in the image.
     for z in np.arange(-45, size/2, .5):
         y = ground(z)
-        box("asphalt", -size/2, y-.6, z, size/2, y, z+.5)
+        box("asphalt", -size/2, y-.6, z, size, y, z+.5)
         for x in (-size/2, 9):
-            xx = -9 if x < 0 else size/2
+            xx = -9 if x < 0 else size
             box("sidewalk", x, y, z, xx, y+.13, z+.5)
         for x in (-9.2, 9):
             box("limestone", x, y+.05, z, x+.2, y+.23, z+.5)
@@ -54,13 +62,27 @@ def build(v, size, seed):
             box("paving_border",xx,5.002,z,min(xx+1.72,9.5),5.012,z+.035)
             box("paving_border",xx,5.002,z,xx+.035,5.012,z+1.12)
 
+    # A low, open eastern overlook rather than a wall of nearby houses.
+    # It belongs to the same terrain and camera as the main app terrace.
+    for x in np.arange(10,39,1.8):
+        box("paving_border",x,5.135,-7,x+.035,5.145,7)
+    beam("bronze",(10,6.05,-8),(40,6.05,-8),.10)
+    for x in range(10,41,5):
+        box("limestone",x-.10,ground(-8),-8.1,x+.10,6,-7.9)
+    for x in (18,32):
+        for z in (3,3.25,3.5):
+            box("planks",x-1.5,5.65,z,x+1.5,5.77,z+.18)
+        for dx in (-1.2,1.2):
+            box("bronze",x+dx,5.13,3,x+dx+.10,5.65,3.7)
+        box("planks",x-1.5,5.95,3.65,x+1.5,6.25,3.8)
+
     # Architectural houses are smaller, more detailed units than the old grid.
     # Their fronts face the viewer, with bay windows on the street-facing side.
     palette = ("plaster_sage", "plaster_rose", "plaster_cream", "plaster_blue", "plaster_terra")
     for side in (-1, 1):
         for row, z in enumerate((2, -10, -22, -34)):
             for column in range(3):
-                x = side*(14+column*8.0+row*1.4)
+                x = house_x(side,row,column,z)
                 y = ground(z)+.15
                 h = (10.4, 11.5, 10.0)[(row+column)%3]
                 wall = palette[(row+column+(side==1))%len(palette)]
@@ -128,11 +150,13 @@ def build(v, size, seed):
                 box("door_top",dx-.45,y+1.65,z+3.41,dx+.45,y+2.7,z+3.45)
                 for step in range(3):
                     box("stone",dx-.7,y+step*.2,z+3.45,dx+.7,y+(step+1)*.2,z+4.5-step*.3)
-            tree(side*10.3,z-2,ground(z-2)+.13,.8)
-            lamp(side*8.3,z)
+            # Leave the east outlook's distant sightline open as well.
+            edge = side*10.3 if side < 0 else house_x(side,row,0,z)-4
+            tree(edge,z-2,ground(z-2)+.13,.8)
+            lamp(side*8.3 if side < 0 else edge-1.5,z)
             # Iron garden railings and stone planters break up the street edge.
             py = ground(z-2)+.13
-            px = side*10.7
+            px = edge
             box("stone",px-.65,py,z-3,px+.65,py+.45,z-1)
             box("leaves",px-.52,py+.45,z-2.9,px+.52,py+.75,z-1.1)
             for zz in np.arange(z-4,z+3,.45):
@@ -142,9 +166,10 @@ def build(v, size, seed):
     # Long Ferry Building, arcade and stepped clock tower at the waterfront.
     tx,tz,y = 10,-49,-2.2
     box("stone",-36,y-.5,-55,40,y,-44.8)
-    box("limestone",-22,y,-53,35,y+5,-47)
-    box("copper",-22.4,y+5,-53.4,35.4,y+5.4,-46.6)
-    for x in np.arange(-20,35,2.8):
+    # Shorter terminal wings leave open water on both sides of the tower.
+    box("limestone",2,y,-53,24,y+5,-47)
+    box("copper",1.6,y+5,-53.4,24.4,y+5.4,-46.6)
+    for x in np.arange(3,23,2.8):
         box("dark",x,y+.15,-46.98,x+1.65,y+2.75,-46.92)
         box("lamp",x+.22,y+.5,-46.9,x+1.43,y+2.2,-46.88)
         box("limestone",x-.18,y,-46.85,x+.1,y+4.8,-46.5)
@@ -173,7 +198,7 @@ def build(v, size, seed):
         lamp(x,-45,-2.2)
 
     # Bay: broad dark water with sparse directional glints, not a tiled carpet.
-    box("water",-230,-3.0,-260,230,-2.45,-55)
+    box("water",-600,-3.0,-600,600,-2.45,-55)
     for _ in range(400):
         x,z = rng.uniform(-140,140),rng.uniform(-200,-56)
         box("water_glint",x,-2.44,z,x+rng.uniform(.4,2.8),-2.435,z+.07)
@@ -203,7 +228,7 @@ def build(v, size, seed):
                 box("lamp",x-.07,deck+.55,z-.07,x+.07,deck+.69,z+.07)
     # Layered headlands and scattered hillside windows beyond the bridge.
     for layer,z in enumerate((-182,-222)):
-        for x in range(-220,221,3):
+        for x in range(-540,541,3):
             h = 4+15*(.5+.5*np.sin(x*.024+layer*1.6))+1.2*np.sin(x*.11)
             box("hill_far" if layer else "hill",x,-3,z,x+3,h,z+18)
             for _ in range(int(rng.integers(1,4))):

@@ -108,7 +108,7 @@ rm -f "$LAYOUT_BIN"
 # all, and braille (every TUI spinner) was in none of the four faces.
 step "unit tests: city ambient motion"
 python3 "$REPO/test/city/motion-test.py" || fails=$((fails + 1))
-step "unit tests: shared desktop scene lens"
+step "unit tests: independent desktop scene lenses"
 LENS_BIN=$(as_user mktemp /tmp/starling-scene-lens.XXXXXX)
 (as_user "$SWIFTC" -O -o "$LENS_BIN" "$REPO/test/displays/scene-lens-test.swift" \
      "$REPO/shell/Sources/DesktopShellApp/Shell/DesktopSceneLens.swift" \

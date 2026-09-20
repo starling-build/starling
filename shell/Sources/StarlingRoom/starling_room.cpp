@@ -55,6 +55,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <memory>
 #include <vector>
 
 using namespace filament;
@@ -69,7 +70,44 @@ namespace {
 class StarlingPlatform final : public PlatformEGLHeadless {
 public:
     explicit StarlingPlatform(EGLDisplay display) { setEglDisplay(display); }
+
+    // PlatformEGL normally owns its display and calls eglTerminate. Here the
+    // display belongs to Flutter: release only our driver context/surfaces.
+    // Calling the base terminate invalidates Flutter's context on leaving 3D.
+    void terminate() noexcept override {
+        EGLDisplay display = getEglDisplay();
+        EGLSurface draw = eglGetCurrentSurface(EGL_DRAW);
+        EGLSurface read = eglGetCurrentSurface(EGL_READ);
+        releaseContext();
+        if (draw != EGL_NO_SURFACE) eglDestroySurface(display, draw);
+        if (read != EGL_NO_SURFACE && read != draw) eglDestroySurface(display, read);
+    }
 };
+
+// All display scenes are driven by the same raster thread and share its EGL
+// context. Keep a single backend alive until the last scene is released.
+// This also avoids the renderer teardown hang seen with separate Engines.
+struct RoomEngine {
+    EGLDisplay display;
+    void* context;
+    StarlingPlatform platform;
+    Engine* engine;
+    RoomEngine(EGLDisplay display, void* context)
+        : display(display), context(context), platform(display),
+          engine(Engine::Builder().backend(Engine::Backend::OPENGL)
+              .platform(&platform).sharedContext(context).build()) {}
+    ~RoomEngine() { if (engine) Engine::destroy(&engine); }
+};
+
+std::shared_ptr<RoomEngine> roomEngine(EGLDisplay display, void* context) {
+    static thread_local std::weak_ptr<RoomEngine> cached;
+    auto shared = cached.lock();
+    if (!shared || shared->display != display || shared->context != context) {
+        shared = std::make_shared<RoomEngine>(display, context);
+        cached = shared;
+    }
+    return shared;
+}
 
 bool readFile(const char* path, std::vector<uint8_t>& out) {
     std::ifstream f(path, std::ios::binary | std::ios::ate);
@@ -146,7 +184,7 @@ struct Pane {
 };
 
 struct sr_room {
-    StarlingPlatform* platform = nullptr;
+    std::shared_ptr<RoomEngine> backend;
     Engine* engine = nullptr;
     Renderer* renderer = nullptr;
     Scene* scene = nullptr;
@@ -232,12 +270,8 @@ extern "C" {
 
 sr_room* sr_room_create(void* egl_display, void* shared_egl_context) {
     auto* r = new sr_room();
-    r->platform = new StarlingPlatform(static_cast<EGLDisplay>(egl_display));
-    r->engine = Engine::Builder()
-            .backend(Engine::Backend::OPENGL)
-            .platform(r->platform)
-            .sharedContext(shared_egl_context)
-            .build();
+    r->backend = roomEngine(static_cast<EGLDisplay>(egl_display), shared_egl_context);
+    r->engine = r->backend->engine;
     if (!r->engine) {
         fprintf(stderr, "[room] Filament engine failed to start\n");
         delete r;
@@ -449,7 +483,7 @@ void sr_room_set_camera(sr_room* r, const float view[16], const float proj[16],
 int sr_room_render(sr_room* r) {
     if (!r->target) return -1;
     double t0 = nowMs();
-    // One animation clock for the shared scene, never one per monitor.
+    // Each display scene owns its animation clock.
     // Independent clips loop at their own duration; static worlds cost nothing.
     if (r->animator) {
         const double seconds = (t0 - r->animationStart) / 1000.0;
@@ -1069,6 +1103,7 @@ void sr_room_destroy(sr_room* r) {
         if (r->havePointLight) {
             r->scene->remove(r->pointLight);
             r->engine->getLightManager().destroy(r->pointLight);
+            utils::EntityManager::get().destroy(r->pointLight);
         }
         if (r->sphereVb) r->engine->destroy(r->sphereVb);
         if (r->sphereIb) r->engine->destroy(r->sphereIb);
@@ -1093,7 +1128,11 @@ void sr_room_destroy(sr_room* r) {
         delete r->stb;
         if (r->materials) { r->materials->destroyMaterials(); delete r->materials; }
         if (r->loader) gltfio::AssetLoader::destroy(&r->loader);
-        if (r->haveSun) { r->scene->remove(r->sun); r->engine->getLightManager().destroy(r->sun); }
+        if (r->haveSun) {
+            r->scene->remove(r->sun);
+            r->engine->getLightManager().destroy(r->sun);
+            utils::EntityManager::get().destroy(r->sun);
+        }
         if (r->target) r->engine->destroy(r->target);
         if (r->output) r->engine->destroy(r->output);
         if (r->skybox) r->engine->destroy(r->skybox);
@@ -1101,15 +1140,14 @@ void sr_room_destroy(sr_room* r) {
         if (r->iblTexture) r->engine->destroy(r->iblTexture);
         if (r->skyTexture) r->engine->destroy(r->skyTexture);
         r->engine->destroyCameraComponent(r->cameraEntity);
+        utils::EntityManager::get().destroy(r->cameraEntity);
         r->engine->destroy(r->view);
         r->engine->destroy(r->scene);
         r->engine->destroy(r->renderer);
         r->engine->destroy(r->swapChain);
-        Engine::destroy(&r->engine);
     }
     delete r->iblBundle;
     delete r->skyBundle;
-    delete r->platform;
     delete r;
 }
 

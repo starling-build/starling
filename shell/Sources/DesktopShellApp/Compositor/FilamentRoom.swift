@@ -203,6 +203,7 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
     private typealias SetExposureFn = @convention(c) (OpaquePointer?, Float, Float, Float) -> Void
     private typealias SetOutputFn = @convention(c) (OpaquePointer?, UInt32, Int32, Int32) -> Int32
     private typealias SetCameraFn = @convention(c) (OpaquePointer?, UnsafePointer<Float>?, UnsafePointer<Float>?, Float, Float) -> Void
+    private typealias DestroyFn = @convention(c) (OpaquePointer?) -> Void
     private typealias RenderFn = @convention(c) (OpaquePointer?) -> Int32
     private typealias EGLGetCurrentFn = @convention(c) () -> UnsafeMutableRawPointer?
     private typealias SetPaneFn = @convention(c) (OpaquePointer?, Int64, UnsafePointer<Float>?, Float, Float, Float, Float, Float, Float, UInt32, Int32, Int32, Int32, Int32) -> Int32
@@ -307,6 +308,14 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
     private var fnSetOutput: SetOutputFn!
     private var fnSetCamera: SetCameraFn!
     private var fnRender: RenderFn!
+    private var fnDestroy: DestroyFn!
+
+    /// Called by the registry on the raster thread, after the last callback.
+    /// An output resize/disconnect must release its native scene on that thread.
+    func releaseScene() {
+        if let room { fnDestroy?(room); self.room = nil }
+        if let lib { dlclose(lib); self.lib = nil }
+    }
 
     init(width: Int, height: Int, roomDir: String) {
         self.roomDir = roomDir
@@ -473,6 +482,7 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
               let setOutput = sym("sr_room_set_output", SetOutputFn.self),
               let setCamera = sym("sr_room_set_camera", SetCameraFn.self),
               let render = sym("sr_room_render", RenderFn.self),
+              let destroy = sym("sr_room_destroy", DestroyFn.self),
               let setPane = sym("sr_room_set_pane", SetPaneFn.self),
               let removePane = sym("sr_room_remove_pane", RemovePaneFn.self),
               let setPaneStyle = sym("sr_room_set_pane_style", SetPaneStyleFn.self),
@@ -484,7 +494,7 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
               let setBlock = sym("sr_room_set_block", SetBlockFn.self),
               let removeBlock = sym("sr_room_remove_block", RemoveIdFn.self) else { return false }
         fnLoad = load; fnSetLight = setLight; fnSetExposure = setExposure
-        fnSetOutput = setOutput; fnSetCamera = setCamera; fnRender = render
+        fnSetOutput = setOutput; fnSetCamera = setCamera; fnRender = render; fnDestroy = destroy
         fnSetPane = setPane; fnRemovePane = removePane; fnSetPaneStyle = setPaneStyle
         fnSetPointLight = setPointLight; fnSetOrb = setOrb; fnRemoveOrb = removeOrb
         fnSetLabel = setLabel; fnRemoveLabel = removeLabel

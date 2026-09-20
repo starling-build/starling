@@ -2097,3 +2097,26 @@ numbers are here so nobody re-derives them.
   detection the bake could supply.
 - Whether walking is the right verb. Stepping up to a window works well;
   free walking is pleasant but nobody needs it to get work done.
+
+### Independent cities on multiple displays (2026-09-19)
+
+Each output now renders its own city scene into a display-sized texture with a
+centered lens. Camera position, pointer lean, orbit state, camera glides, hovered
+sign and rail page belong to that output. Navigation follows the pointer's
+output; widget builds explicitly scope their projection to the output being
+built. Window placement and hit testing use that output's logical bounds, so
+mixed DPI and offset monitors no longer inherit the primary monitor's lens.
+
+The city assets are the same on each display. Native scenes, cameras and targets
+are separate, while Filament's backend engine is shared on the raster thread.
+The GPU regression exposed a renderer teardown hang with separate Engines.
+Scene texture subscriptions now support multiple targets so client frames update
+all previews that reference them. Retired scenes are destroyed on the raster
+thread before deleting their imported textures. The native platform borrows
+Flutter's EGL display: teardown releases its context without terminating that
+display, so leaving and re-entering 3D remains safe.
+
+`test/displays/README.md` documents the lens, offscreen GPU and live-input checks.
+The `desktop_3d` broker query reports each output's camera, effective eye and
+texture ID for checking independent navigation without relying on screenshots of
+animated clouds or water.

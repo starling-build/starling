@@ -269,8 +269,7 @@ extension _DesktopShellState {
     /// settles on the first build and does nothing on every later one.
     @discardableResult
     func _desktop3DPlaceWindows() -> Bool {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         guard host.width > 0 else { return false }
         let fresh = windowManager.visibleWindows
             .filter { !$0.pose3D.placed }
@@ -285,15 +284,19 @@ extension _DesktopShellState {
             // the flat desktop.
             var taken = windowManager.visibleWindows.filter { $0.pose3D.placed }.count
             for win in fresh {
+                let previousView = _desktop3DViewOverride
+                _desktop3DViewOverride = _desktop3DOutputId(for: win)
+                defer { _desktop3DViewOverride = previousView }
                 if let outputId = _desktop3DLaunchOutputs.removeValue(forKey: _desktop3DAppId(of: win)),
                    let output = displayLayout?.outputs.first(where: { $0.id == outputId }) {
                     let delta = output.logicalRect.center - win.rect.center
                     windowManager.moveWindowByDelta(win.id, delta: delta)
                     win.spaceId = windowManager.activeSpaceId(onOutput: outputId)
+                    _desktop3DViewOverride = outputId
                 }
                 if _desktop3DPopUp == _desktop3DAppId(of: win) {
                     _desktop3DPopUp = nil
-                    _desktop3DPopUpWindow(win, host: host, w: w)
+                    _desktop3DPopUpWindow(win, host: _desktop3DHost, w: w)
                     let id = win.id
                     // After this build: focus is state, and this runs inside one.
                     let work: () -> Void = { [weak self] in
@@ -399,7 +402,7 @@ extension _DesktopShellState {
         // The pile: every other placed window within a few steps of the
         // plane, nearest first, the higher of two at one depth first.
         var pile: [(win: WindowInfo, at: Double)] = []
-        for other in windowManager.visibleWindows where other.id != win.id && other.pose3D.placed {
+        for other in windowManager.visibleWindows where other.id != win.id && other.pose3D.placed && _desktop3DOutputId(for: other) == _desktop3DViewId {
             let at: Double = along(other.pose3D)
             if at > front - step / 2, at < front + 6 * step { pile.append((other, at)) }
         }
@@ -450,13 +453,13 @@ extension _DesktopShellState {
     func _desktop3DOpenApp(_ app: String) {
         _desktop3DLog("open \(app)")
         guard let w = _desktop3DWorld else { return }
-        let host = displayLayout?.primary.logicalRect ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
         let candidates = w.workspaceRail.isEmpty ? windowManager.visibleWindows : _desktop3DRailWindows()
-        if let win = candidates.filter({ _desktop3DAppId(of: $0) == app && !$0.isFullscreen })
+        if let win = candidates.filter({ _desktop3DAppId(of: $0) == app && !$0.isFullscreen
+                && _desktop3DOutputId(for: $0) == _desktop3DViewId })
             .max(by: { $0.zIndex < $1.zIndex }) {
             setState {
                 if win.isMinimized { windowManager.restoreWindow(win.id) }
-                _desktop3DPopUpWindow(win, host: host, w: w)
+                _desktop3DPopUpWindow(win, host: _desktop3DHost, w: w)
                 windowManager.bringToFront(win.id)
                 windowManager.focusedWindowId = win.id
             }
@@ -476,6 +479,7 @@ extension _DesktopShellState {
     /// always drawn; nothing is hidden on the flat desktop, nor while the
     /// city is being left, so windows fly home with the rest.
     func _desktop3DIsShown(_ win: WindowInfo) -> Bool {
+        guard _desktop3DOutputId(for: win) == _desktop3DViewId else { return false }
         guard _desktop3DVoxel, _desktop3DOn, _desktop3DT > 0 else { return true }
         if win.isFullscreen || _desktop3DShownByOutput.values.contains(win.id) { return true }
         if let sw = _desktop3DSwitcher, sw.ids.contains(win.id) { return true }
@@ -503,8 +507,11 @@ extension _DesktopShellState {
         }
         let groups = Dictionary(grouping: candidates, by: { _desktop3DOutputId(for: $0) })
         _desktop3DShownByOutput = _desktop3DShownByOutput.filter { groups[$0.key] != nil }
-        let host = displayLayout?.primary.logicalRect ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
         for (output, windows) in groups {
+            let previousView = _desktop3DViewOverride
+            _desktop3DViewOverride = output
+            defer { _desktop3DViewOverride = previousView }
+            let host = _desktop3DHost
             let shown = windows.first { $0.id == windowManager.focusedWindowId }
                 ?? windows.first { $0.id == _desktop3DShownByOutput[output] }
                 ?? windows.max { $0.zIndex < $1.zIndex }
@@ -594,7 +601,7 @@ extension _DesktopShellState {
         // press means "the one before this".
         let wins = (_desktop3DWorld?.workspaceRail.isEmpty == false
             ? _desktop3DRailWindows() : windowManager.visibleWindows)
-            .filter { !$0.isFullscreen && $0.pose3D.placed }
+            .filter { !$0.isFullscreen && $0.pose3D.placed && _desktop3DOutputId(for: $0) == _desktop3DViewId }
             .sorted { $0.zIndex > $1.zIndex }
         guard !wins.isEmpty else { return }
         var before: [String: WindowPose3D] = [:]
@@ -652,7 +659,7 @@ extension _DesktopShellState {
             if let b = sw.before[id] { w.pose3D = b }
         }
         guard let win = find(chosenId), let world = _desktop3DWorld else { return }
-        let host = displayLayout?.primary.logicalRect ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         _desktop3DPopUpWindow(win, host: host, w: world)
         for id in sw.ids {
             guard let w = find(id), let from = ring[id] else { continue }
@@ -688,12 +695,11 @@ extension _DesktopShellState {
 
     var _camera3D: Camera3D {
         get {
-            let id = displayLayout?.host.id ?? 0
+            let id = _desktop3DViewId
             if let c = _cameras3D[id] { return c }
-            return _desktop3DHomeCamera(displayLayout?.primary.logicalRect
-                ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight))
+            return _desktop3DHomeCamera(_desktop3DHost)
         }
-        set { _cameras3D[displayLayout?.host.id ?? 0] = newValue }
+        set { _cameras3D[_desktop3DViewId] = newValue }
     }
 
     /// The camera as this frame should see it: folded back toward the
@@ -711,8 +717,7 @@ extension _DesktopShellState {
     /// to wherever they are standing. Entering, that is a glide up to the
     /// home spot; leaving, it walks them back from wherever they wandered.
     func _desktop3DTweenCamera(_ t: Double) -> Camera3D {
-        let start = _desktop3DDollyStart(displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight))
+        let start = _desktop3DDollyStart(_desktop3DHost)
         guard t > 0 else { return start }
         if t >= 1 { return _camera3D }
         let c = _camera3D
@@ -803,7 +808,9 @@ extension _DesktopShellState {
         // follow the pointer and nothing else; a scene that leans under
         // the drag makes the target move as you reach for it.
         guard _lastButtons == 0 else { return }
-        let f = _pointerFraction
+        let host = _desktop3DHost
+        let f = (x: (_lastPointer.dx - host.left) / max(1, host.width),
+                 y: (_lastPointer.dy - host.top) / max(1, host.height))
         let want = (x: max(-1, min(1, (f.x - 0.5) * 2)),
                     y: max(-1, min(1, (f.y - 0.5) * 2)))
         guard abs(want.x - _lean3DTarget.x) > 0.001
@@ -830,13 +837,17 @@ extension _DesktopShellState {
                     self._lean3DTarget = (0, 0)
                     return
                 }
-                let k = 1 - exp(-dt / Self.k3DLeanTau)
-                var next = (x: self._lean3D.x + (self._lean3DTarget.x - self._lean3D.x) * k,
-                            y: self._lean3D.y + (self._lean3DTarget.y - self._lean3D.y) * k)
-                let done = abs(next.x - self._lean3DTarget.x) < Self.k3DLeanSettled
-                    && abs(next.y - self._lean3DTarget.y) < Self.k3DLeanSettled
-                if done { next = self._lean3DTarget; self._lean3DTicker?.stop() }
-                self.setState { self._lean3D = next }
+                var settled = true
+                self._forEachDesktop3DOutput {
+                    let k = 1 - exp(-dt / Self.k3DLeanTau)
+                    var next = (x: self._lean3D.x + (self._lean3DTarget.x - self._lean3D.x) * k,
+                                y: self._lean3D.y + (self._lean3DTarget.y - self._lean3D.y) * k)
+                    let done = abs(next.x - self._lean3DTarget.x) < Self.k3DLeanSettled
+                        && abs(next.y - self._lean3DTarget.y) < Self.k3DLeanSettled
+                    if done { next = self._lean3DTarget } else { settled = false }
+                    self.setState { self._lean3D = next }
+                }
+                if settled { self._lean3DTicker?.stop() }
                 self._desktop3DPublishCamera()
             }
         }
@@ -893,8 +904,7 @@ extension _DesktopShellState {
     /// off the flat desktop from precisely where it was.
     func _desktop3DPlacement(rect: Rect, t: Double, camera: Camera3D,
                              pose: WindowPose3D) -> Desktop3DPlacement {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         guard host.width > 0, host.height > 0, t > 0 else { return .flat }
         let p = _desktop3DLerpPose(rect: rect, host: host, t: t, pose: pose)
 
@@ -953,8 +963,7 @@ extension _DesktopShellState {
     /// its children.
     func _desktop3DDistance(rect: Rect, t: Double, camera: Camera3D,
                             pose: WindowPose3D) -> Double {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let p = _desktop3DLerpPose(rect: rect, host: host, t: t, pose: pose)
         let dx = camera.x - p.x, dy = camera.y - p.y, dz = camera.z - p.z
         return (dx * dx + dy * dy + dz * dz).squareRoot()
@@ -1016,8 +1025,7 @@ extension _DesktopShellState {
         case 0x15:       c.y += step                            // R, rise
         case 0x09:       c.y -= step                            // F, sink
         case 0x4A:                                              // Home
-            c = _desktop3DHomeCamera(displayLayout?.primary.logicalRect
-                ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight))
+            c = _desktop3DHomeCamera(_desktop3DHost)
         case 0x2C:       return _desktop3DStepUp()               // Space
         default:         return false
         }
@@ -1050,8 +1058,7 @@ extension _DesktopShellState {
     /// can give and a flat desktop cannot: you step up to the thing.
     @discardableResult
     func _desktop3DStepUp() -> Bool {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let c = _camera3D
         let fx = sin(c.yaw), fz = -cos(c.yaw)
         var best: (WindowInfo, Double)? = nil
@@ -1077,8 +1084,7 @@ extension _DesktopShellState {
     /// the 1:1 spot — so that a click on it means "take me there" rather
     /// than a click on its content.
     func _desktop3DFarFromPane(_ win: WindowInfo) -> Bool {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         guard win.pose3D.placed else { return false }
         let d1 = _desktop3DFocalPx(host) * Self.k3DMetresPerPx
         let c = _camera3D, p = win.pose3D
@@ -1090,6 +1096,9 @@ extension _DesktopShellState {
     /// it the focus. In the orrery this is also what a click on a moon
     /// does: the moon grows to a window and the viewer steps up to it.
     func _desktop3DStepUp(to winner: WindowInfo) {
+        let previousView = _desktop3DViewOverride
+        _desktop3DViewOverride = _desktop3DOutputId(for: winner)
+        defer { _desktop3DViewOverride = previousView }
         // On the ring, a click on a window is a choice, not a walk.
         if var sw = _desktop3DSwitcher, let i = sw.ids.firstIndex(of: winner.id) {
             sw.selected = i
@@ -1097,8 +1106,7 @@ extension _DesktopShellState {
             _desktop3DSwitcherCommit()
             return
         }
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let p = winner.pose3D
         let d1 = _desktop3DFocalPx(host) * Self.k3DMetresPerPx
         _desktop3DLog("step up to \(winner.title): pose=\(p) cam=\(_camera3D)")
@@ -1130,10 +1138,15 @@ extension _DesktopShellState {
         to.yaw = from.yaw + atan2(sin(dyaw), cos(dyaw))
         _desktop3DGlidePath = (from, to)
         if _desktop3DGlide == nil {
+            let outputId = _desktop3DViewId
             let c = AnimationController(duration: .milliseconds(Self.k3DGlideMs), vsync: self)
             let curve = CurvedAnimation(parent: c, curve: Curves.easeInOutCubic)
             curve.addListener { [weak self] in
-                guard let self, let p = self._desktop3DGlidePath else { return }
+                guard let self else { return }
+                let previousView = self._desktop3DViewOverride
+                self._desktop3DViewOverride = outputId
+                defer { self._desktop3DViewOverride = previousView }
+                guard let p = self._desktop3DGlidePath else { return }
                 let k = curve.value
                 self.setState {
                     self._camera3D = Camera3D(
@@ -1254,8 +1267,7 @@ extension _DesktopShellState {
                              pose: WindowPose3D) -> RoomLight? {
         #if os(Linux)
         guard t > 0, let grid = _wallpaperLight, grid.cols > 0, grid.rows > 0 else { return nil }
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         guard host.width > 0, host.height > 0 else { return nil }
         let p = _desktop3DLerpPose(rect: rect, host: host, t: t, pose: pose)
 
@@ -1326,8 +1338,7 @@ extension _DesktopShellState {
             // for good, and the walls stayed bare.
             _ = _ensureEnvironment()
             _orbit3D = nil
-            _camera3D = _desktop3DHomeCamera(displayLayout?.primary.logicalRect
-                ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight))
+            _camera3D = _desktop3DHomeCamera(_desktop3DHost)
             _desktop3DPlaceWindows()
             // The window that had the keyboard on the flat desktop keeps
             // it: the city shows it in front at full size, so the keys
@@ -1406,16 +1417,18 @@ extension _DesktopShellState {
     /// Hand the environment what the platform thread decided; it renders
     /// on the raster thread at the next engine frame.
     func _desktop3DPublishCamera() {
+        _forEachDesktop3DOutput { _desktop3DPublishCameraOutput() }
+    }
+
+    private func _desktop3DPublishCameraOutput() {
         #if os(Linux)
         guard let env = _environment, let registry = drmTextureRegistry,
               let wl = waylandIntegration, environmentTextureId >= 0 else { return }
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let c = _desktop3DEffectiveCamera(_desktop3DT)
         let canvas = _desktop3DCanvas
         let lens = DesktopSceneLens(width: canvas.width, height: canvas.height,
-            focal: _desktop3DFocalPx(host), centreX: host.center.dx - canvas.left,
-            centreY: host.center.dy - canvas.top)
+            focal: _desktop3DFocalPx(host))
         let sky = shellMica ?? Color(alpha: 1, red: 0.55, green: 0.60, blue: 0.70)
         let changed = env.setCamera(EnvironmentCamera(
             t: _desktop3DT, x: c.x, y: c.y, z: c.z, yaw: c.yaw, pitch: c.pitch,
@@ -1430,12 +1443,15 @@ extension _DesktopShellState {
     /// every visible window with a client texture, at the pose the layer
     /// tree is about to give its widget, so the two coincide.
     func _desktop3DPublishPanes() {
+        _forEachDesktop3DOutput { _desktop3DPublishPanesOutput() }
+    }
+
+    private func _desktop3DPublishPanesOutput() {
         #if os(Linux)
         guard let env = _environment as? FilamentRoomRenderer,
               let registry = drmTextureRegistry, let wl = waylandIntegration,
               environmentTextureId >= 0 else { return }
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let t = _desktop3DT
         let s = Self.k3DMetresPerPx
         let titleH = shellMetrics.titleBarHeight
@@ -1492,12 +1508,16 @@ extension _DesktopShellState {
     /// function of what is open — and handed to the renderer with the
     /// orbs and the labels.
     func _desktop3DLayoutOrrery() {
+        _forEachDesktop3DOutput { _desktop3DLayoutOrreryOutput() }
+    }
+
+    private func _desktop3DLayoutOrreryOutput() {
         #if os(Linux)
         guard let env = _environment as? FilamentRoomRenderer, env.world.kind == .orrery,
               let registry = drmTextureRegistry, let wl = waylandIntegration,
               environmentTextureId >= 0 else { return }
         let w = env.world
-        let windows = windowManager.visibleWindows.filter { !$0.isFullscreen }
+        let windows = windowManager.visibleWindows.filter { !$0.isFullscreen && _desktop3DOutputId(for: $0) == _desktop3DViewId }
         let apps = Array(Set(windows.map { $0.appId })).sorted()
         var orbs: [SceneOrb] = [
             SceneOrb(id: 1, x: w.hub.x, y: w.hub.y, z: w.hub.z, radius: w.sunRadius,
@@ -1542,6 +1562,25 @@ extension _DesktopShellState {
     /// nameplate floating over its group. Recomputed every build, like
     /// the orrery.
     func _desktop3DLayoutVoxel() {
+        _forEachDesktop3DOutput { _desktop3DLayoutVoxelOutput() }
+        #if os(Linux)
+        // The cache belongs to all outputs. An output's own label list must
+        // not release a title bar that another scene still displays.
+        let liveBars = Set(windowManager.visibleWindows.filter {
+            !$0.isFullscreen && $0.pose3D.placed && $0.textureId != nil
+        }.map { $0.id })
+        if let registry = drmTextureRegistry, let wl = waylandIntegration {
+            for id in _sceneTitleBars.keys where !liveBars.contains(id) {
+                if let old = _sceneTitleBars[id] {
+                    registry.unregisterTexture(engine: wl.engine, id: old.tex)
+                }
+                _sceneTitleBars[id] = nil
+            }
+        }
+        #endif
+    }
+
+    private func _desktop3DLayoutVoxelOutput() {
         #if os(Linux)
         guard let env = _environment as? FilamentRoomRenderer, env.world.kind == .voxel,
               let registry = drmTextureRegistry, let wl = waylandIntegration,
@@ -1561,10 +1600,8 @@ extension _DesktopShellState {
         // Each window's title bar, in the scene on its pane — where a brick
         // in front of the window covers it, as it covers the picture.
         let titleH = shellMetrics.titleBarHeight
-        var liveBars = Set<String>()
         for win in windows where win.pose3D.placed && win.textureId != nil {
             guard let tex = _desktop3DTitleBarTexture(win) else { continue }
-            liveBars.insert(win.id)
             let p = win.pose3D
             let k = s * p.scale
             let up = (win.rect.height / 2 - titleH / 2) * k
@@ -1573,10 +1610,6 @@ extension _DesktopShellState {
             labels.append(SceneLabel(id: Self.k3DTitleIdBase + tex, texture: tex,
                                      x: p.x + n.x * 0.005, y: p.y + up, z: p.z + n.z * 0.005,
                                      width: win.rect.width * k, height: titleH * k, yaw: p.yaw))
-        }
-        for id in _sceneTitleBars.keys where !liveBars.contains(id) {
-            if let old = _sceneTitleBars[id] { registry.unregisterTexture(engine: wl.engine, id: old.tex) }
-            _sceneTitleBars[id] = nil
         }
         // The signs: the dock's apps, standing round the near side of the
         // pool. Their key is offset from the nameplates', which share the
@@ -1589,13 +1622,6 @@ extension _DesktopShellState {
                                      x: s.x, y: s.y, z: s.z, width: s.w, height: s.h, yaw: s.yaw))
         }
         for bay in _desktop3DWorkspaceRails() {
-            let title = AppRegistry.shared.app(id: bay.app)?.name
-                ?? String(bay.app.split(separator: ".").last ?? Substring(bay.app))
-            if let tex = _desktop3DNameTexture("workspace-rail:" + bay.app, title) {
-                labels.append(SceneLabel(id: 8_000_000 + tex, texture: tex,
-                    x: bay.x, y: bay.y - bay.height / 2 - 0.18, z: bay.z + 0.03,
-                    width: min(2.3, bay.width), height: 0.28, yaw: 0))
-            }
             let count = _desktop3DRailWindows().filter { _desktop3DAppId(of: $0) == bay.app }.count
             if count > 1, let tex = _desktop3DNameTexture("rail-count:\(count)", "\(count)") {
                 labels.append(SceneLabel(id: 9_000_000 + Int64(labels.count), texture: tex,
@@ -1940,7 +1966,7 @@ extension _DesktopShellState {
         guard !apps.isEmpty else { return [] }
         let s = Self.k3DSculptSize
         _desktop3DSettleBricks(apps, sc: sc)
-        let host = displayLayout?.primary.logicalRect ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         return apps.compactMap { app in
             guard var b = _desktop3DBricks[app] else { return nil }
             if b.mode == .held, let d = _desktop3DBrickDrag, d.app == app {
@@ -2439,7 +2465,8 @@ extension _DesktopShellState {
     func _desktop3DRailWindows() -> [WindowInfo] {
         windowManager.windows.filter {
             $0.textureId != nil && $0.ownerAgentId == nil
-                && $0.spaceId == windowManager.activeSpaceId(onOutput: _desktop3DOutputId(for: $0))
+                && _desktop3DOutputId(for: $0) == _desktop3DViewId
+                && $0.spaceId == windowManager.activeSpaceId(onOutput: _desktop3DViewId)
         }
     }
 
@@ -2460,7 +2487,7 @@ extension _DesktopShellState {
               _desktop3DBrickDrag == nil, let world = _desktop3DWorld,
               let rail = world.workspaceRail.first, _desktop3DRailApps().count > 5,
               _desktop3DPaneUnder(event.position) == nil else { return false }
-        let host = displayLayout?.primary.logicalRect ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let pose = WindowPose3D(x: rail.x, y: rail.y, z: rail.z, placed: true)
         guard let (x, y) = _desktop3DPlaneHit(event.position,
             camera: _desktop3DEffectiveCamera(_desktop3DT), host: host, pose: pose),
@@ -2537,8 +2564,7 @@ extension _DesktopShellState {
     }
 
     func _desktop3DSignAtDepth(_ screen: Offset, excluding: String? = nil) -> (app: String, depth: Double)? {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         guard host.width > 0, _desktop3DT >= 1 else { return nil }
         let cam = _desktop3DEffectiveCamera(_desktop3DT)
         let view = Self._view(cam)
@@ -2582,8 +2608,7 @@ extension _DesktopShellState {
 
     /// The nearest window pane under a screen point, and how far it is.
     func _desktop3DPaneUnder(_ screen: Offset) -> (win: WindowInfo, depth: Double)? {
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         guard host.width > 0 else { return nil }
         let cam = _desktop3DEffectiveCamera(_desktop3DT)
         let s = Self.k3DMetresPerPx
@@ -2709,6 +2734,8 @@ extension _DesktopShellState {
         #if os(Linux)
         guard let frame = fr.world.paneFrame else { return }
         let path = frame.texture
+        let outputId = _desktop3DViewId
+        let rendererId = ObjectIdentifier(fr)
         Task { @MainActor in
             guard let d = try? Data(contentsOf: URL(fileURLWithPath: path)),
                   let codec = try? await FlutterSwiftBridge.instantiateImageCodec([UInt8](d)),
@@ -2719,7 +2746,7 @@ extension _DesktopShellState {
             codec.dispose()
             let image = f.image
             // The renderer that asked, if it is still the one on the desktop.
-            guard let shell = _shellState, let fr = shell._environment as? FilamentRoomRenderer,
+            guard let shell = _shellState, let fr = shell._environments[outputId] as? FilamentRoomRenderer, ObjectIdentifier(fr) == rendererId,
                   fr.world.paneFrame?.texture == path,
                   let registry = drmTextureRegistry, let wl = waylandIntegration,
                   let bytes = try? image.toByteData(format: .rawRgba) else { image.dispose(); return }
@@ -2732,8 +2759,8 @@ extension _DesktopShellState {
                                          width: image.width, height: image.height)
             }
             fr.frameTextureId = id
-            if shell.environmentTextureId >= 0 {
-                registry.markGLTextureDirty(engine: wl.engine, id: shell.environmentTextureId)
+            if let texture = shell._environmentTextures[outputId] {
+                registry.markGLTextureDirty(engine: wl.engine, id: texture)
             }
         }
         #endif
@@ -2801,18 +2828,32 @@ extension _DesktopShellState {
     @discardableResult
     func _ensureEnvironment() -> Bool {
         #if os(Linux)
+        let live = Set(displayLayout?.outputs.map { $0.id } ?? [0])
+        for id in Array(_environments.keys) where !live.contains(id) {
+            _withDesktop3DOutput(id) { _releaseEnvironmentOutput() }
+        }
+        var ready = true
+        _forEachDesktop3DOutput { if !_ensureEnvironmentOutput() { ready = false } }
+        return ready
+        #else
+        return false
+        #endif
+    }
+
+    private func _ensureEnvironmentOutput() -> Bool {
+        #if os(Linux)
         let canvas = _desktop3DCanvas
-        // Bound the single render target while preserving its aspect ratio.
-        let scale = min(displayLayout?.host.scale ?? 1,
+        // Bound each output target independently, preserving its aspect ratio.
+        let scale = min(displayLayout?.outputs.first(where: { $0.id == _desktop3DViewId })?.scale ?? 1,
                         8192 / max(1, max(canvas.width, canvas.height)))
         let renderWidth = max(1, Int((canvas.width * scale).rounded()))
         let renderHeight = max(1, Int((canvas.height * scale).rounded()))
         if environmentTextureId >= 0 {
             if _environment?.width == renderWidth, _environment?.height == renderHeight {
-                _desktop3DPublishCamera()
+                _desktop3DPublishCameraOutput()
                 return true
             }
-            _releaseEnvironment()
+            _releaseEnvironmentOutput()
         }
         guard let registry = drmTextureRegistry, let wl = waylandIntegration,
               wallpaperTextureId >= 0,
@@ -2853,8 +2894,8 @@ extension _DesktopShellState {
         environmentTextureId = id
         _startSceneClock()
         _loadRoomAsset()
-        _applyRoomAsset()
-        _desktop3DPublishCamera()
+        _applyRoomAssetOutput()
+        _desktop3DPublishCameraOutput()
         registry.markGLTextureDirty(engine: wl.engine, id: id)
         return true
         #else
@@ -2874,7 +2915,7 @@ extension _DesktopShellState {
         #if os(Linux)
         if let scene = _environment as? FilamentRoomRenderer {
             guard scene.world.ambientAnimation, _sceneAmbientTimer == nil else { return }
-            // Ambient motion needs only 20 Hz. Dirty the shared GPU texture,
+            // Ambient motion needs only 20 Hz. Dirty each output texture,
             // not the shell widget tree; static worlds remain event-driven.
             let timer = DispatchSource.makeTimerSource(queue: .main)
             timer.schedule(deadline: .now(), repeating: .milliseconds(50),
@@ -2884,9 +2925,11 @@ extension _DesktopShellState {
                       !self._screensaverActive,
                       let registry = drmTextureRegistry, let wl = waylandIntegration,
                       self.environmentTextureId >= 0 else { return }
-                self._environment?.dirty = true
+                self._forEachDesktop3DOutput {
+                    self._environment?.dirty = true
+                    registry.markGLTextureDirty(engine: wl.engine, id: self.environmentTextureId)
+                }
                 for repaint in self._sceneRepaints.values { repaint() }
-                registry.markGLTextureDirty(engine: wl.engine, id: self.environmentTextureId)
             }
             _sceneAmbientTimer = timer
             timer.resume()
@@ -2894,14 +2937,15 @@ extension _DesktopShellState {
         }
         if _sceneTicker == nil {
             _sceneTicker = createTicker { [weak self] elapsed in
-                guard let self, let env = self._environment,
+                guard let self, self._environment != nil,
                       let registry = drmTextureRegistry,
                       let wl = waylandIntegration,
                       self.environmentTextureId >= 0 else { return }
-                env.tick(Double(elapsed.components.seconds)
+                self._forEachDesktop3DOutput {
+                    self._environment?.tick(Double(elapsed.components.seconds)
                          + Double(elapsed.components.attoseconds) * 1e-18)
-                registry.markGLTextureDirty(engine: wl.engine,
-                                            id: self.environmentTextureId)
+                    registry.markGLTextureDirty(engine: wl.engine, id: self.environmentTextureId)
+                }
             }
         }
         if !(_sceneTicker?.isActive ?? false) { _ = _sceneTicker?.start() }
@@ -2951,6 +2995,10 @@ extension _DesktopShellState {
 
     /// Hand the room to the renderer, whenever both exist.
     func _applyRoomAsset() {
+        _forEachDesktop3DOutput { _applyRoomAssetOutput() }
+    }
+
+    private func _applyRoomAssetOutput() {
         #if os(Linux)
         guard let env = _environment, let asset = _roomAsset,
               let registry = drmTextureRegistry, let wl = waylandIntegration,
@@ -2962,14 +3010,31 @@ extension _DesktopShellState {
 
     func _releaseEnvironment() {
         #if os(Linux)
-        guard environmentTextureId >= 0, let registry = drmTextureRegistry,
-              let wl = waylandIntegration else { return }
-        _desktop3DLog("release environment t=\(_desktop3DT)")
         _sceneTicker?.stop()
         _sceneAmbientTimer?.cancel()
         _sceneAmbientTimer = nil
         _sceneRepaints.removeAll()
-        registry.setSceneMirror(ids: [], target: -1)
+        for id in Array(_environments.keys) {
+            _withDesktop3DOutput(id) { _releaseEnvironmentOutput() }
+        }
+        #endif
+    }
+
+    private func _releaseEnvironmentOutput() {
+        #if os(Linux)
+        guard environmentTextureId >= 0, let registry = drmTextureRegistry,
+              let wl = waylandIntegration else { return }
+        _desktop3DLog("release environment t=\(_desktop3DT)")
+        _desktop3DGlideCurve?.dispose()
+        _desktop3DGlide?.dispose()
+        _desktop3DGlideCurve = nil
+        _desktop3DGlide = nil
+        _desktop3DGlidePath = nil
+        if let frameId = (_environment as? FilamentRoomRenderer)?.frameTextureId, frameId >= 0 {
+            registry.unregisterTexture(engine: wl.engine, id: frameId)
+        }
+        registry.setSceneMirror(ids: [], target: environmentTextureId)
+        _sceneRepaints.removeValue(forKey: "\(_desktop3DViewId)")
         registry.unregisterTexture(engine: wl.engine, id: environmentTextureId)
         environmentTextureId = -1
         _environment = nil
@@ -3039,8 +3104,7 @@ extension _DesktopShellState {
     func _desktop3DDragPane(_ winId: String, delta: Offset) {
         guard let win = windowManager.windows.first(where: { $0.id == winId }),
               win.pose3D.placed else { return }
-        let host = displayLayout?.primary.logicalRect
-            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+        let host = _desktop3DHost
         let cam = _desktop3DEffectiveCamera(_desktop3DT)
         let a = _lastPointer
         let b = Offset(a.dx + delta.dx, a.dy + delta.dy)

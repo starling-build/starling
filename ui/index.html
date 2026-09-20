@@ -1,706 +1,123 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0a0e17">
-<title>Starling — a new way to build a desktop</title>
-<meta name="description" content="Starling is a Linux desktop drawn by one native program — every window is a widget. No web tech in the rendering path, native Wayland and X11, 60,000 lines, built by one person with AI.">
-<meta property="og:title" content="Starling — a new way to build a desktop">
-<meta property="og:description" content="One native program draws the whole desktop — every window is a widget, Chrome and Zoom included. 60,000 lines, built by one person with AI.">
-<meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230a0e17'/><g fill='none' stroke='%23fbbf5c' stroke-width='2.4' stroke-linecap='round'><path d='M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4'/><path d='M3 15c3.4 3.9 8.2 4.6 11.6 2.4'/></g><circle cx='17.4' cy='8.1' r='1.2' fill='%23f0a02a'/></svg>">
-<style>
-  :root {
-    --bg:        #0a0e17;
-    --bg-raised: #111726;
-    --bg-sunk:   #070a11;
-    --line:      #1e2739;
-    --line-soft: #182135;
-    --ink:       #eef2f8;
-    --ink-dim:   #97a3b8;
-    --ink-faint: #7987a6;
-    --amber:     #f0a02a;
-    --amber-soft:#fbbf5c;
-    --sky:       #5aa9e6;
-    --maxw:      1120px;
-  }
-
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-  :focus-visible {
-    outline: 2px solid var(--amber-soft);
-    outline-offset: 3px;
-    border-radius: 4px;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-    *, *::before, *::after { transition: none !important; }
-    .btn:hover { transform: none; }
-  }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
-                 "Helvetica Neue", Arial, sans-serif;
-    font-size: 17px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-  }
-  img { max-width: 100%; height: auto; display: block; }
-  a { color: var(--amber-soft); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-  .narrow { max-width: 780px; }
-
-  h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0; }
-  h2 { font-size: clamp(28px, 4vw, 42px); }
-  h3 { font-size: 19px; letter-spacing: -0.01em; }
-  p  { margin: 0; }
-  em { font-style: normal; color: var(--ink); }
-
-  /* ---------- header ---------- */
-  header {
-    position: sticky; top: 0; z-index: 10;
-    background: rgba(10, 14, 23, 0.82);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--line);
-  }
-  .nav { display: flex; align-items: center; justify-content: space-between;
-         height: 62px; gap: 16px; }
-  .brand { display: flex; align-items: center; gap: 10px;
-           font-weight: 650; letter-spacing: -0.02em; font-size: 17px;
-           color: var(--ink); }
-  .brand:hover { text-decoration: none; }
-  .mark { width: 22px; height: 22px; flex: none; }
-  .nav-links { display: flex; gap: 26px; font-size: 15px; }
-  .nav-links a { color: var(--ink-dim); transition: color .15s ease; }
-  .nav-links a:hover { color: var(--ink); text-decoration: none; }
-  @media (max-width: 780px) { .nav-links { display: none; } }
-  .nav-gh {
-    display: inline-flex; align-items: center; gap: 8px; flex: none;
-    font-size: 14.5px; font-weight: 550; color: var(--ink-dim);
-    border: 1px solid var(--line); background: var(--bg-raised);
-    padding: 7px 13px; border-radius: 9px;
-  }
-  .nav-gh { transition: color .15s ease, border-color .15s ease; }
-  .nav-gh:hover { color: var(--ink); border-color: #2c3852; text-decoration: none; }
-  .nav-gh svg { width: 16px; height: 16px; flex: none; }
-  @media (max-width: 420px) { .nav-gh span { display: none; } }
-
-  /* ---------- hero ---------- */
-  .hero { position: relative; padding: 88px 0 0; overflow: hidden; }
-  .hero::before {
-    content: ""; position: absolute; inset: -20% 0 auto 0; height: 620px;
-    background:
-      radial-gradient(60% 70% at 50% 0%, rgba(240,160,42,0.13), transparent 70%),
-      radial-gradient(50% 60% at 15% 10%, rgba(90,169,230,0.10), transparent 70%);
-    pointer-events: none;
-  }
-  .hero-inner { position: relative; text-align: center; }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 9px;
-    font-size: 13px; font-weight: 550; letter-spacing: 0.02em;
-    color: var(--ink-dim);
-    border: 1px solid var(--line); background: var(--bg-raised);
-    padding: 6px 14px; border-radius: 999px; margin-bottom: 26px;
-  }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
-         box-shadow: 0 0 0 3px rgba(240,160,42,0.18); }
-  .hero h1 {
-    font-size: clamp(38px, 6.6vw, 68px); font-weight: 680;
-    letter-spacing: -0.035em; margin-bottom: 22px;
-  }
-  .hero h1 .accent {
-    background: linear-gradient(100deg, var(--amber-soft), var(--sky));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .lede {
-    font-size: clamp(17px, 2.2vw, 21px); color: var(--ink-dim);
-    max-width: 700px; margin: 0 auto 34px;
-  }
-  .lede strong { color: var(--ink); font-weight: 600; }
-  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 22px; border-radius: 10px; font-size: 15px; font-weight: 560;
-    border: 1px solid transparent; transition: transform .12s ease, background .15s ease;
-  }
-  .btn:hover { text-decoration: none; transform: translateY(-1px); }
-  .btn-primary { background: var(--amber); color: #17120a; }
-  .btn-primary:hover { background: var(--amber-soft); }
-  .btn-ghost { border-color: var(--line); color: var(--ink); background: var(--bg-raised); }
-  .btn-ghost:hover { border-color: #2c3852; }
-
-  .shot {
-    margin-top: 56px; border-radius: 12px 12px 0 0;
-    border: 1px solid var(--line); border-bottom: none;
-    overflow: hidden; box-shadow: 0 -1px 60px rgba(0,0,0,0.6);
-  }
-  .shot img { border-radius: 11px 11px 0 0; }
-
-  /* ---------- sections ---------- */
-  section { padding: 96px 0; border-top: 1px solid var(--line); }
-  .section-head { max-width: 700px; margin-bottom: 52px; }
-  .kicker {
-    font-size: 13px; font-weight: 620; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--amber); margin-bottom: 14px;
-  }
-  .section-head p { color: var(--ink-dim); margin-top: 16px; font-size: 18px; }
-
-  /* ---------- prose ---------- */
-  .thesis p { font-size: clamp(18px, 2.2vw, 21px); line-height: 1.58;
-              color: var(--ink-dim); }
-  .thesis p + p { margin-top: 22px; }
-  .thesis strong { color: var(--ink); font-weight: 600; }
-
-  code {
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.88em; color: var(--ink);
-    background: var(--bg-sunk); border: 1px solid var(--line-soft);
-    border-radius: 5px; padding: 1px 6px;
-  }
-
-  .pull {
-    border-left: 2px solid var(--amber); padding: 4px 0 4px 24px;
-    margin: 40px 0; font-size: clamp(20px, 2.7vw, 27px); line-height: 1.38;
-    color: var(--ink); letter-spacing: -0.015em; font-weight: 560;
-  }
-
-  /* ---------- scale strip ---------- */
-  .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
-           background: var(--line); border: 1px solid var(--line);
-           border-radius: 12px; overflow: hidden; }
-  @media (max-width: 780px) { .specs { grid-template-columns: repeat(2, 1fr); } }
-  .spec { background: var(--bg-raised); padding: 26px 22px; }
-  .spec .n { font-size: 30px; font-weight: 650; letter-spacing: -0.025em; color: var(--ink); }
-  .spec .l { font-size: 14px; color: var(--ink-faint); margin-top: 6px; }
-  .specs-note { font-size: 14px; color: var(--ink-faint); margin-top: 14px; }
-
-  /* ---------- cards ---------- */
-  .grid { display: grid; gap: 22px; grid-template-columns: repeat(2, 1fr); }
-  .grid.three { grid-template-columns: repeat(3, 1fr); }
-  @media (max-width: 900px) { .grid.three { grid-template-columns: 1fr; } }
-  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
-  .card {
-    background: var(--bg-raised); border: 1px solid var(--line);
-    border-radius: 12px; padding: 30px;
-  }
-  .card h3 { margin-bottom: 12px; }
-  .card p { color: var(--ink-dim); font-size: 15.5px; }
-  .card p + p { margin-top: 12px; }
-  .icon { width: 26px; height: 26px; margin-bottom: 18px; color: var(--amber); }
-
-  /* ---------- alternating feature blocks ---------- */
-  .feature {
-    display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 52px;
-    align-items: center; margin-bottom: 72px;
-  }
-  .feature:last-child { margin-bottom: 0; }
-  .feature.reverse .feature-text { order: 2; }
-  @media (max-width: 900px) {
-    .feature { grid-template-columns: 1fr; gap: 28px; margin-bottom: 56px; }
-    .feature.reverse .feature-text { order: 0; }
-  }
-  .feature h3 { font-size: 24px; margin-bottom: 14px; }
-  .feature .feature-text p { color: var(--ink-dim); font-size: 16px; }
-  .feature .feature-text p + p { margin-top: 14px; }
-  .feature figure { margin: 0; }
-  .feature figure img,
-  .feature figure video {
-    display: block; width: 100%; height: auto;
-    border-radius: 10px; border: 1px solid var(--line);
-    box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-    background: var(--bg-sunk);
-  }
-  .feature figcaption {
-    font-size: 14px; color: var(--ink-faint); margin-top: 12px; text-align: center;
-  }
-  /* ---------- hero video ---------- */
-  /* The hero carries the demo instead of a screenshot. preload="none" keeps
-     the 19 MB off the initial load — the poster is a 94 KB still, so the hero
-     paints as fast as the old <img> did and the video is fetched only when
-     someone presses play. */
-  /* The screenshot this replaced bled into the section below — square bottom,
-     no bottom border, shadow thrown upward. That reads as unfinished once a
-     caption sits underneath, so the video is a closed card instead. */
-  .shot.shot-video {
-    border-radius: 12px; border-bottom: 1px solid var(--line);
-    box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-  }
-  .shot video {
-    display: block; width: 100%; height: auto;
-    background: var(--bg-sunk); border-radius: 11px;
-  }
-  .shot-note {
-    max-width: 62ch; margin: 18px auto 0; text-align: center;
-    font-size: 14px; line-height: 1.6; color: var(--ink-faint);
-  }
-  .card.wide { max-width: 100%; }
-  .card.wide p { max-width: 68ch; }
-
-  /* ---------- bridge to the essay ---------- */
-  .bridge {
-    margin-top: 64px; padding: 36px 38px;
-    border: 1px solid var(--line); border-radius: 14px;
-    background:
-      radial-gradient(120% 150% at 0% 0%, rgba(240,160,42,0.07), transparent 62%),
-      var(--bg-raised);
-    display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center;
-  }
-  .bridge h3 { font-size: 22px; margin-bottom: 12px; }
-  .bridge p { color: var(--ink-dim); font-size: 16px; max-width: 64ch; }
-  .bridge .btn { white-space: nowrap; }
-  @media (max-width: 820px) {
-    .bridge { grid-template-columns: 1fr; gap: 24px; padding: 30px 26px; }
-    .bridge .btn { justify-self: start; }
-  }
-
-  /* ---------- install ---------- */
-  .install { background: var(--bg-raised); border: 1px solid var(--line);
-             border-radius: 14px; padding: 38px; }
-  pre {
-    background: var(--bg-sunk); border: 1px solid var(--line); border-radius: 9px;
-    padding: 18px 20px; overflow-x: auto; margin: 22px 0 0;
-    font-size: 14px; line-height: 1.7;
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    color: #cfd8e6;
-  }
-  pre .c { color: var(--ink-faint); }
-  pre .p { color: var(--amber-soft); }
-  .note {
-    margin-top: 22px; padding: 16px 18px; font-size: 14.5px;
-    border-left: 2px solid var(--amber); background: rgba(240,160,42,0.06);
-    color: var(--ink-dim); border-radius: 0 8px 8px 0;
-  }
-  .install-next { margin-top: 20px; font-size: 15px; color: var(--ink-dim); }
-  /* Second install path (WSL) inside the same card: a rule and a heading so
-     the two recipes read as alternatives, not as one long sequence. */
-  .install-alt {
-    margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--line);
-    font-size: 19px; font-weight: 560; color: var(--ink);
-  }
-  .note strong { color: var(--ink); font-weight: 560; }
-
-  footer { border-top: 1px solid var(--line); padding: 44px 0 60px;
-           color: var(--ink-faint); font-size: 14.5px; }
-  .foot { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-  .foot a { color: var(--ink-dim); }
-
-  /* ---------- mobile menu (replaces .nav-links below 860px) ---------- */
-  .menu { display: none; position: relative; }
-  @media (max-width: 860px) { .menu { display: block; } }
-  .menu > summary {
-    list-style: none; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 7px 13px; border: 1px solid var(--line); border-radius: 9px;
-    color: var(--ink-dim); font-size: 14px; user-select: none;
-  }
-  .menu > summary::-webkit-details-marker { display: none; }
-  .menu > summary::marker { content: ""; }
-  .menu > summary svg { width: 15px; height: 15px; flex: none; }
-  .menu[open] > summary { color: var(--ink); border-color: #2c3852; }
-  .menu-panel {
-    position: absolute; right: 0; top: calc(100% + 9px); z-index: 40;
-    min-width: 196px; padding: 6px;
-    background: var(--bg-raised); border: 1px solid var(--line);
-    border-radius: 12px; box-shadow: 0 18px 44px rgba(0,0,0,.55);
-    display: flex; flex-direction: column;
-  }
-  .menu-panel a {
-    padding: 10px 14px; border-radius: 8px;
-    color: var(--ink-dim); font-size: 15.5px;
-    transition: color .15s ease, background .15s ease;
-  }
-  .menu-panel a:hover { background: var(--bg-sunk); color: var(--ink);
-                        text-decoration: none; }
-  .menu-panel a.here { color: var(--amber-soft); }
-  @media (max-width: 430px) { .nav-gh span { display: none; } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f2e4">
+  <title>Starling — a desktop you can walk into</title>
+  <meta name="description" content="A familiar 2D desktop. A living 3D city. Switch perspectives, walk to the waterfront, and bring your real apps with you. Meet Starling.">
+  <meta property="og:title" content="Starling — a desktop you can walk into">
+  <meta property="og:description" content="Your everyday desktop, in a whole new dimension. Watch the 2D and 3D desktop in action.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://starling.build/img/desktop-3d.webp">
+  <meta property="og:url" content="https://starling.build/">
+  <link rel="icon" href="img/starling.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preload" href="img/desktop-3d.webp" as="image" fetchpriority="high">
+  <script src="main.js" defer></script>
 </head>
 <body>
-
-<header>
-  <div class="wrap nav">
-    <a class="brand" href="#top">
-      <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M3 15c4.5 0 7-2.2 9-5.2C13.6 7.4 15.7 5 18.4 5c1.7 0 2.6 1 2.6 2.3 0 3.6-3.4 5.4-6.2 5.4"
-              stroke="url(#g)" stroke-width="1.9" stroke-linecap="round"/>
-        <path d="M3 15c3.4 3.9 8.2 4.6 11.6 2.4" stroke="url(#g)" stroke-width="1.9" stroke-linecap="round"/>
-        <circle cx="17.4" cy="8.1" r="1.05" fill="#f0a02a"/>
-        <defs><linearGradient id="g" x1="3" y1="5" x2="21" y2="18">
-          <stop stop-color="#fbbf5c"/><stop offset="1" stop-color="#5aa9e6"/>
-        </linearGradient></defs>
-      </svg>
-      Starling
-    </a>
-    <nav class="nav-links">
-      <a href="#idea">The idea</a>
-      <a href="#agents">Agents</a>
-      <a href="why.html">Why &amp; how</a>
-      <a href="sdk.html">SDK</a>
-      <a href="terminal.html">Terminal</a>
-      <a href="windows.html">Windows</a>
-      <a href="start.html">Get started</a>
-      <a href="guide.html">Guide</a>
-      <a href="#install">Install</a>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header wrap">
+    <a class="brand" href="#" aria-label="Starling home"><img src="img/starling.svg" width="35" height="35" alt="">starling<span class="brand-dot">.</span></a>
+    <nav aria-label="Main navigation">
+      <a href="#perspectives">The desktop</a>
+      <a href="#film">Watch the film <span aria-hidden="true">↗</span></a>
     </nav>
-    <details class="menu">
-      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg> Menu</summary>
-      <div class="menu-panel">
-        <a class="here" href="index.html">Home</a>
-        <a href="why.html">Why &amp; how</a>
-        <a href="sdk.html">SDK</a>
-        <a href="terminal.html">Terminal</a>
-        <a href="windows.html">Windows</a>
-        <a href="start.html">Get started</a>
-        <a href="guide.html">Guide</a>
-      </div>
-    </details>
-    <a class="nav-gh" href="https://github.com/starling-build/starling">
-      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
-      </svg>
-      <span>GitHub</span>
-    </a>
-  </div>
-</header>
+    <a class="source-link" href="https://github.com/starling-build/starling">Explore the project <span aria-hidden="true">↗</span></a>
+  </header>
 
-<main id="top">
-
-  <div class="hero">
-    <div class="wrap hero-inner">
-      <span class="eyebrow"><span class="dot"></span> Early preview · v0.4.0 · Ubuntu &amp; Windows (WSL)</span>
-      <h1>A new way to build<br><span class="accent">a desktop</span></h1>
-      <p class="lede">
-        Starling draws the whole Linux desktop as one native program — the
-        dock, the menus and every window are widgets in a single app. Sixty
-        thousand lines, six months, one person directing AI.
-      </p>
-      <div class="cta">
-        <a class="btn btn-primary" href="#install">Install Starling</a>
-        <a class="btn btn-ghost" href="#agents">See the agent desktop</a>
-      </div>
-    </div>
-    <div class="wrap">
-      <div class="shot shot-video">
-        <video controls preload="none" playsinline width="1280" height="800"
-               poster="img/demo-poster.jpg"
-               aria-label="A four-minute tour of the Starling desktop: a terminal, the file manager, tiling and dark mode, the App Store installing Chrome and VS Code, and both apps running afterwards.">
-          <source src="video/starling-demo.mp4" type="video/mp4">
-          <img src="img/desktop.jpg" width="2400" height="1350"
-               alt="The Starling desktop: the Files, Terminal and Settings apps open in a cascade over a Golden Gate Bridge wallpaper, with a menu bar on top and a glass dock along the bottom.">
-        </video>
-      </div>
-      <p class="shot-note">
-        Four minutes, one take — recorded by the desktop's own screen recorder.
-        The App Store really installs Chrome and VS Code.
-      </p>
-    </div>
-  </div>
-
-  <section id="benefits">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="kicker">Why it's different</div>
-        <h2>What one program buys you</h2>
-      </div>
-      <div class="grid three">
-        <div class="card">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-          <h3>Fast, native, small</h3>
-          <p>
-            Every pixel is drawn by compiled code on the GPU — no CSS, no
-            JavaScript, no browser engine in the rendering path. The whole
-            desktop keeps a small memory footprint.
-          </p>
-        </div>
-        <div class="card">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-            <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-          </svg>
-          <h3>Your apps just work</h3>
-          <p>
-            Chrome, Zoom and VS Code run out of the box. Starling speaks both
-            Wayland and X11 natively — no XWayland layer, no manual setup.
-          </p>
-        </div>
-        <div class="card">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 8V4"/>
-            <rect x="4" y="8" width="16" height="12" rx="2"/>
-            <path d="M2 14h2"/><path d="M20 14h2"/>
-            <path d="M9 13v2"/><path d="M15 13v2"/>
-          </svg>
-          <h3>Built for AI agents</h3>
-          <p>
-            Agents get a dedicated workspace, fully separated from your
-            desktop. An agent can only operate on the apps it opened itself —
-            it can't touch, or even see, yours.
-          </p>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> A NEW PERSPECTIVE ON THE DESKTOP</div>
+      <div class="hero-intro">
+        <h1 id="hero-title">A desktop you<br>can <em>walk into.</em></h1>
+        <div class="hero-aside">
+          <p>A familiar workspace. A living city.<br>Your everyday apps, in a whole new dimension.</p>
+          <a class="text-link" href="#film">See it in action <span class="circle-arrow" aria-hidden="true">↘</span></a>
         </div>
       </div>
-    </div>
-  </section>
 
-  <section id="styles">
-    <div class="wrap">
-      <div class="feature reverse">
-        <div class="feature-text">
-          <h3>One desktop, more than one look</h3>
-          <p>
-            Settings → Appearance → Desktop Style. Two today: the macOS one
-            above, and a Windows 11 one. The desktop rebuilds into your choice
-            and remembers it.
-          </p>
-          <p>
-            It changes shape, not just colour. The menu bar goes; the taskbar
-            takes the full width and reserves its strip, so a maximised window
-            stops above it instead of sliding under. Start opens as a panel.
-            Window buttons move right and become the caption trio. Hovering a
-            taskbar tile shows a live preview of that window — the real thing,
-            still updating.
-          </p>
-          <p>
-            The first-party apps follow the style too. Adding a third one is a
-            single file.
-          </p>
+      <div class="desktop-preview" id="perspectives">
+        <div class="preview-toolbar">
+          <div class="preview-heading"><span class="tiny-mark" aria-hidden="true">✳</span> ONE DESKTOP. TWO PERSPECTIVES.</div>
+          <div class="mode-switch" role="group" aria-label="Preview desktop mode">
+            <button type="button" data-mode="2d" aria-pressed="false" disabled><span aria-hidden="true">▱</span> 2D Desktop</button>
+            <button type="button" data-mode="3d" aria-pressed="true" disabled><span aria-hidden="true">◇</span> 3D Desktop</button>
+          </div>
         </div>
-        <figure>
-          <img src="img/style-fluent.jpg" width="2400" height="1500" loading="lazy"
-               alt="The Starling desktop in its Windows style: the Files window with minimise, maximise and close buttons at the top right, the Start panel open above a full-width taskbar with centred icons, and pinned apps including Chrome, VS Code, Zoom and Blender.">
-          <figcaption>The same desktop, same session, in the Windows style.</figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
-
-  <section id="idea">
-    <div class="wrap narrow thesis">
-      <div class="kicker">The idea</div>
-      <h2 style="margin-bottom:28px">One program, all the way down</h2>
-      <p>
-        A desktop is normally a committee of programs negotiating over
-        protocols. Starling is one program: the dock, the menu bar and every
-        window — even Chrome — are widgets in a single tree.
-      </p>
-
-      <div class="pull">
-        Windows become widgets. Management becomes layout.
-        Effects become animation.
-      </div>
-    </div>
-  </section>
-
-  <section id="agents">
-    <div class="wrap">
-      <div class="feature">
-        <div class="feature-text">
-          <h3>Agent workspace mode — watch it work, step in anytime</h3>
-          <p>
-            An agent drives down the middle, and every app it opens — an
-            editor, a browser — lands as a live tab beside it, not on top of
-            your work. You can watch every move it makes and intervene the
-            moment you need to: its windows are real apps, yours to click.
-          </p>
+        <div class="preview-stage">
+          <img id="desktop-image" src="img/desktop-3d.webp" width="1920" height="1080" alt="Starling's empty 3D desktop: a walkable city overlooking the waterfront and a red suspension bridge." fetchpriority="high">
+          <div class="scene-label"><span class="status-dot" aria-hidden="true"></span><span id="scene-name">THE CITY IS YOUR WORKSPACE</span></div>
+          <a class="preview-play" href="#film" aria-label="Watch the full desktop demo"><span aria-hidden="true">▶</span> Watch the full film <span class="play-duration">02:50</span></a>
         </div>
-        <figure>
-          <video controls preload="none" playsinline width="1920" height="1080"
-                 poster="img/agent-workspace-poster.jpg"
-                 aria-label="A three-and-a-half-minute narrated demo of agent workspace mode: an agent builds a web app in a terminal down the middle, opens Chrome and VS Code as tabs beside it, and the user steps in while their own desktop stays untouched.">
-            <source src="video/agent-workspace.mp4" type="video/mp4">
-            <img src="img/workspace.jpg" width="2000" height="1125"
-                 alt="Starling in workspace mode: a workspace list on the left, a coding agent running in a terminal down the middle, and VS Code captured as a tab on the right.">
+        <div class="preview-caption"><p id="mode-caption" aria-live="polite">Step into the city. Change your point of view.</p><span>Actual desktop capture <span aria-hidden="true">↗</span></span></div>
+      </div>
+
+      <div class="perspective-copy">
+        <p class="section-index">01 / A CHANGE OF SCENE</p>
+        <h2>Same desktop.<br><span>A different dimension.</span></h2>
+        <p>Start with the desktop you know. Open the control panel, choose 3D Desktop, and the city becomes a place to explore. Walk down the street. Stop by the sea. Make yourself at home.</p>
+      </div>
+    </section>
+
+    <section class="film-section" id="film" aria-labelledby="film-title">
+      <div class="wrap">
+        <div class="film-heading">
+          <div><p class="section-index">02 / SEE IT FOR YOURSELF</p><h2 id="film-title">This is a desktop.<br><span>Yes, really.</span></h2></div>
+          <p>From an empty workspace to a city in motion.<br>Then Chrome, a film, your files, and a terminal.<br><span class="film-meta">2 MIN 50 SEC <i aria-hidden="true">·</i> MUSIC &amp; NARRATION</span></p>
+        </div>
+        <div class="film-player">
+          <video id="demo-video" controls playsinline preload="none" poster="img/film-poster.webp" width="1920" height="1080" aria-label="Starling desktop demo with music and English narration">
+            <source src="video/starling-desktop.mp4" type="video/mp4">
+            <track kind="captions" src="video/narration.vtt" srclang="en" label="English narration">
+            <p>Your browser cannot play this video. <a href="video/starling-desktop.mp4">Download the demo instead.</a></p>
           </video>
-          <figcaption>Watch it happen — an agent builds and ships a page in its own room. 3½ minutes, narrated.</figcaption>
-        </figure>
-      </div>
-
-      <div class="bridge">
-        <div>
-          <div class="kicker">Curious?</div>
-          <h3>How one program replaces four</h3>
-          <p>
-            The architecture, the AI process, and the rest of the engineering
-            story.
-          </p>
+          <button class="film-play" id="film-play" type="button" hidden aria-label="Play the Starling desktop film with sound"><span class="big-play" aria-hidden="true">▶</span><span>Enter the desktop<span class="film-play-note">Sound on. Take a look around.</span></span></button>
         </div>
-        <a class="btn btn-primary" href="why.html">How it's built →</a>
-      </div>
-    </div>
-  </section>
-
-  <section id="scale">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="kicker">The size of it</div>
-        <h2>A desktop you could read in a weekend</h2>
-        <p>
-          Every number can be checked in a public repository.
-        </p>
-      </div>
-      <div class="specs">
-        <div class="spec">
-          <div class="n">24,431</div>
-          <div class="l">Lines of code — the desktop itself: windows, dock, menus, effects</div>
-        </div>
-        <div class="spec">
-          <div class="n">6,935</div>
-          <div class="l">Lines of C — the Wayland server, how modern apps connect</div>
-        </div>
-        <div class="spec">
-          <div class="n">5,712</div>
-          <div class="l">Lines of C — the X11 server, how older apps connect</div>
-        </div>
-        <div class="spec">
-          <div class="n">13,407</div>
-          <div class="l">Lines of code — nine apps that ship with it</div>
+        <div class="film-bottom"><p>Recorded on the running Starling desktop.</p><a href="video/starling-desktop.mp4" download>Download the film <span aria-hidden="true">↓</span></a></div>
+        <div class="chapters" aria-label="Jump to a moment in the film">
+          <a href="video/starling-desktop.mp4#t=0" data-time="0"><span>00:00</span>The transformation <span aria-hidden="true">↗</span></a>
+          <a href="video/starling-desktop.mp4#t=25" data-time="25"><span>00:25</span>Down to the waterfront <span aria-hidden="true">↗</span></a>
+          <a href="video/starling-desktop.mp4#t=64.2" data-time="64.2"><span>01:04</span>Your apps, in the city <span aria-hidden="true">↗</span></a>
+          <a href="video/starling-desktop.mp4#t=142.3" data-time="142.3"><span>02:22</span>Switch your perspective <span aria-hidden="true">↗</span></a>
         </div>
       </div>
-      <p class="specs-note">
-        Plus a 7,500-line layer that drives the display hardware: about
-        <strong>60,000 lines</strong> all told, built on a 211,000-line
-        translation of Flutter into Swift.
-        <a href="https://github.com/starling-build/starling">Desktop</a> and
-        <a href="https://github.com/starling-build/starling-engine">engine</a>
-        are both public.
-      </p>
-    </div>
-  </section>
+    </section>
 
-  <section id="velocity">
-    <div class="wrap narrow thesis">
-      <div class="kicker">Why it matters</div>
-      <h2 style="margin-bottom:28px">A desktop one person could actually build</h2>
-      <p>
-        For thirty years, a Linux desktop has been the work of institutions.
-        Starling took one person directing AI, six months — without cutting
-        scope: it drives the GPU, runs Chrome and Zoom, survives a monitor
-        being unplugged.
-      </p>
-
-      <div class="pull" style="border-color:var(--sky)">
-        This is the time to build.
+    <section class="workspace-section wrap" aria-labelledby="workspace-title">
+      <div class="workspace-intro"><p class="section-index">03 / REAL APPS. ROOM TO EXPLORE.</p><h2 id="workspace-title">A new world.<br><span>Your usual windows.</span></h2><p>Browse in Chrome. Play a film. Find a file. Open a terminal. Your apps belong here—and moving between them is as familiar as Alt + Tab.</p><a class="text-link" href="#film" data-film-time="142.3">Watch the workspace come together <span aria-hidden="true">↗</span></a></div>
+      <figure class="workspace-image"><img src="img/workspace.webp" width="1920" height="1080" loading="lazy" alt="Chrome, Video Player, Files, and Terminal arranged in Starling's 3D window switcher, with the city behind them."><figcaption><span>YOUR APPS, AT A GLANCE</span><span>Alt + Tab <span aria-hidden="true">↗</span></span></figcaption></figure>
+      <div class="details">
+        <article><span class="detail-number">01</span><h3>Familiar when you need it.</h3><p>A straightforward 2D workspace. Switch into 3D from the control panel whenever you want a change of scene.</p></article>
+        <article><span class="detail-number">02</span><h3>A city that keeps moving.</h3><p>Follow the streets to the waterfront. Watch the ferry cross the bay. The scene moves around your workspace.</p></article>
+        <article><span class="detail-number">03</span><h3>Keep your apps in view.</h3><p>Live previews sit along the rail. Bring a window forward or use Alt + Tab to find your next task.</p></article>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="wsl">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="kicker">On Windows</div>
-        <h2>You don't need a Linux machine</h2>
+    <section class="closing wrap" aria-labelledby="closing-title"><div><p class="section-index">MEET YOUR NEXT POINT OF VIEW</p><h2 id="closing-title">Step into <em>Starling.</em></h2></div><a class="button-primary" href="#install">Install Starling <span aria-hidden="true">↓</span></a></section>
+    <section class="install-section wrap" id="install" aria-labelledby="install-title">
+      <div class="install-intro">
+        <p class="section-index">04 / MAKE YOURSELF AT HOME</p>
+        <h2 id="install-title">Your next desktop.<br><em>Start here.</em></h2>
+        <p>For Ubuntu 26.04 LTS on an Intel or AMD 64-bit PC (amd64). Starling adds a session you can choose at login, alongside your existing desktop.</p>
+        <a class="text-link" href="https://github.com/starling-build/starling/blob/main/docs/INSTALL.md">Full installation guide <span aria-hidden="true">↗</span></a>
       </div>
-      <div class="feature">
-        <div class="feature-text">
-          <h3>It runs on Windows, through WSL</h3>
-          <p>
-            Install WSL, install the same <code>.deb</code> inside it, and
-            connect with any RDP client — Windows' own Remote Desktop will do.
-            The whole desktop comes up: the shell, the taskbar, the apps, the
-            file manager, the terminal.
-          </p>
-          <p>
-            WSL has no graphics device at all, so the desktop takes a different
-            path entirely: <strong>the remote screen becomes the display</strong>.
-            Nothing is being mirrored to you — the desktop is drawn into the
-            RDP surface in the first place, so what you connect to is the real
-            thing rather than a copy of it.
-          </p>
-          <p>
-            The same path serves any headless Linux box: a machine in a
-            cupboard with no monitor runs the full desktop and you connect to
-            it.
-          </p>
-        </div>
-        <figure>
-          <video controls preload="none" playsinline width="1920" height="1080"
-                 poster="img/wsl-walkthrough-poster.jpg"
-                 aria-label="A two-and-a-half-minute walkthrough of installing Starling inside WSL on a Windows machine and connecting to it with Windows' own Remote Desktop client.">
-            <source src="video/wsl-walkthrough.mp4" type="video/mp4">
-            <img src="img/style-fluent.jpg" width="2400" height="1500"
-                 alt="The Starling desktop running inside a Remote Desktop window on Windows.">
-          </video>
-          <figcaption>Install to connected, end to end. 2½ minutes on a real Windows machine.</figcaption>
-        </figure>
+      <div class="install-steps">
+        <ol>
+          <li><h3>Download the desktop</h3><p>Get the Ubuntu package from the desktop release.</p><a class="button-primary" href="https://github.com/starling-build/starling/releases/download/v0.5.0/starling_0.5.0_amd64.deb">Download Starling v0.5.0 <span aria-hidden="true">↓</span></a></li>
+          <li><h3>Install the package</h3><p>Open a terminal in the folder where you saved the download, then run:</p><pre aria-label="Installation command"><code>sudo apt install ./starling_0.5.0_amd64.deb</code></pre><p class="install-note">Ubuntu Desktop includes the login manager. On a minimal or Server install, add it with <code>sudo apt install gdm3</code>.</p></li>
+          <li><h3>Sign in to Starling</h3><p>Log out, select your name, and open the session menu (usually the gear icon). Choose <strong>Starling</strong>, then sign in.</p></li>
+        </ol>
+        <div class="install-preview-note"><strong>v0.5.0 is coming soon.</strong><p>The download link is a placeholder and will work once the release is published. To try the development version today, follow the <a href="https://github.com/starling-build/starling/blob/main/docs/BUILDING.md">build-from-source guide</a>.</p></div>
+        <p class="install-note">Early preview. Verified graphics: AMD Radeon 780M and VirtIO-GPU / virgl in a VM. Intel and NVIDIA graphics are not yet verified. See the installation guide for requirements and troubleshooting.</p>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 
-  <section id="install">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="kicker">Install</div>
-        <h2>One package, then pick Starling at login</h2>
-      </div>
-      <div class="install">
-        <a class="btn btn-primary" href="https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb">Download Starling 0.4.0 (.deb, 51 MB) ↓</a>
-        <pre><span class="c"># Ubuntu 26.04 LTS, amd64. Starling needs a Wayland-capable login</span>
-<span class="c"># manager. Ubuntu Desktop already has one (GDM); on Server or a minimal</span>
-<span class="c"># install, add it first:</span>
-<span class="p">sudo</span> apt install gdm3
-
-<span class="c"># Download and install Starling with its runtime dependencies:</span>
-curl -fLO https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb
-<span class="p">sudo</span> apt install ./starling_0.4.0_amd64.deb
-
-<span class="c"># Log out (or reboot). At the login screen click your name, open the</span>
-<span class="c"># session menu (the gear / lower-corner button), pick "Starling", sign in.</span></pre>
-        <div class="note">
-          <strong>Early preview.</strong> Expect rough edges. Verified on AMD
-          graphics under a fresh Ubuntu 26.04.
-        </div>
-
-        <h3 class="install-alt">On Windows, inside WSL</h3>
-        <pre><span class="c"># In your WSL distro (Ubuntu 26.04). No login manager and no GPU needed —</span>
-<span class="c"># the remote screen is the display.</span>
-curl -fLO https://github.com/starling-build/starling/releases/download/v0.4.0/starling_0.4.0_amd64.deb
-<span class="p">sudo</span> apt install ./starling_0.4.0_amd64.deb
-starling-session
-
-<span class="c"># It prints where to connect. From Windows:</span>
-mstsc /v:localhost:3390</pre>
-        <div class="note">
-          <strong>Port 3390, not 3389.</strong> Windows' own Remote Desktop
-          listens on 3389 and WSL forwards localhost both ways, so 3389 would
-          reach your PC instead of Starling.
-        </div>
-
-        <p class="install-next">
-          Testing virtually? Use a VM, not a container — the Ubuntu path needs
-          a real GPU device. Once it's running, the <a href="guide.html">User
-          Guide</a> walks you through the desktop.
-        </p>
-      </div>
-    </div>
-  </section>
-
-</main>
-
-<footer>
-  <div class="wrap foot">
-    <div>Starling — a desktop environment for Linux.</div>
-    <div>
-      <a href="sdk.html">SDK</a> ·
-      <a href="terminal.html">Terminal</a> ·
-      <a href="windows.html">Windows</a> ·
-      <a href="start.html">Get started</a> ·
-      <a href="guide.html">Guide</a> ·
-      <a href="https://github.com/starling-build/starling">Desktop source</a> ·
-      <a href="https://github.com/starling-build/starling-engine">Engine source</a>
-    </div>
-  </div>
-</footer>
-
-<!-- Cloudflare Web Analytics — cookieless, no consent banner required. -->
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js"
-        data-cf-beacon='{"token": "44d0e97496854c03b38f4c06ed50f5a8"}'></script>
-
+  <footer class="site-footer wrap">
+    <div class="footer-top"><a class="brand" href="#"><img src="img/starling.svg" width="29" height="29" alt="">starling<span class="brand-dot">.</span></a><p>A little more room for possibility.</p><a href="https://github.com/starling-build/starling">GitHub <span aria-hidden="true">↗</span></a></div>
+    <p class="credits">Demo: original instrumental music and AI-generated English narration. Sample film: <a href="https://www.bigbuckbunny.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>, resized for playback.</p>
+  </footer>
 </body>
 </html>

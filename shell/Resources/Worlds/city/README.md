@@ -23,6 +23,14 @@ and restrained distance-color emission; these are stylized atmospheric
 cues, not volumetric fog or physically traced reflections. The animated
 clouds use smaller overlapping volumes instead of three broad slabs.
 
+The eastern neighborhood is set back beyond the adjacent display's home
+sightlines. A low overlook with benches continues the main terrace into
+that open side of the scene; the camera and app anchors remain shared.
+The terminal's shortened wings expose water beside the clock tower, while
+extended water and headlands prevent the wider view revealing scenery edges.
+The city tests guard three eastward sightlines against nearby facade
+occlusion, in addition to validating geometry, lighting and animation.
+
 The central brick pile and storefront prototype have been replaced by a
 low bronze rail with warm stone supports. `world.json` supplies the rail's
 card origin and maximum size. Only running apps appear, centered along the

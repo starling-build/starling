@@ -86,6 +86,24 @@ class CityMotionTests(unittest.TestCase):
                 indices = struct.unpack_from("<"+"I"*acc["count"],self.binary,view["byteOffset"])
                 self.assertLess(max(indices),len(vertices))
 
+    def test_east_panorama_has_no_nearby_facade_at_eye_level(self):
+        primitive = self.doc["meshes"][0]["primitives"][0]
+        vertices = self.values(primitive["attributes"]["POSITION"])
+        # Authored boxes have four vertices per face. Conservatively test
+        # face bounds along three horizontal rays through the east monitor.
+        eye = 5+self.world["eye_height"]+self.world["camera_home"]["height"]
+        for slope in (.65,.85,1.05):
+            for i in range(0,len(vertices),4):
+                face = vertices[i:i+4]
+                if not min(p[1] for p in face) <= eye <= max(p[1] for p in face):
+                    continue
+                lo,hi = .1,55.0
+                for axis,origin,direction in ((0,0,slope),(2,13,-1)):
+                    a = (min(p[axis] for p in face)-origin)/direction
+                    b = (max(p[axis] for p in face)-origin)/direction
+                    lo,hi = max(lo,min(a,b)),min(hi,max(a,b))
+                self.assertGreater(lo,hi,"A nearby face blocks the east panorama")
+
     def test_evening_lighting_and_walkable_slope(self):
         self.assertGreater(self.world["sun"]["lux"],2000)
         self.assertLess(self.world["sun"]["lux"],20000)

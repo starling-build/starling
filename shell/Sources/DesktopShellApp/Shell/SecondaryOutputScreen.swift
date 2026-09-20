@@ -438,6 +438,9 @@ struct SecondaryOutputScreen {
     }
 
     func build() -> Widget {
+        let previousView = _shellState?._desktop3DViewOverride
+        _shellState?._desktop3DViewOverride = output.id
+        defer { _shellState?._desktop3DViewOverride = previousView }
         var layers: [Widget] = []
         if let shell = _shellState, let slide = shell._secondarySlides[output.id] {
             // Mid space-switch: two full-screen layers (wallpaper + that

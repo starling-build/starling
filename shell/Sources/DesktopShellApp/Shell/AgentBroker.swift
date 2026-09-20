@@ -565,8 +565,16 @@ final class AgentBroker: @unchecked Sendable {
             if req["query"] as? Bool == true {
                 result["pointer"] = [shell._lastPointer.dx, shell._lastPointer.dy]
                 result["outputs"] = displayLayout?.outputs.map {
-                    ["id": $0.id, "primary": $0.isPrimary,
-                     "rect": [$0.originX, $0.originY, $0.logicalWidth, $0.logicalHeight]] as [String: Any]
+                    let output = $0
+                    return shell._withDesktop3DOutput(output.id) {
+                        let camera = shell._camera3D
+                        let eye = shell._desktop3DEffectiveCamera(shell._desktop3DT)
+                        return ["id": output.id, "primary": output.isPrimary,
+                            "rect": [output.originX, output.originY, output.logicalWidth, output.logicalHeight],
+                            "camera": [camera.x, camera.y, camera.z, camera.yaw, camera.pitch],
+                            "eye": [eye.x, eye.y, eye.z, eye.yaw, eye.pitch],
+                            "texture": shell.environmentTextureId] as [String: Any]
+                    }
                 } ?? []
                 result["panes"] = shell.windowManager.visibleWindows.map {
                     ["app": $0.appId, "output": shell._desktop3DOutputId(for: $0),

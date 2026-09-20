@@ -29,24 +29,38 @@ private final class CitySceneTexture: LeafRenderObjectWidget {
 }
 
 extension _DesktopShellState {
-    /// All monitors are crops of ONE render, with a single optical centre
-    /// on the primary display. Logical coordinates keep mixed-DPI seams
-    /// continuous; no camera or world is duplicated for another output.
-    var _desktop3DCanvas: Rect {
-        displayLayout?.virtualBounds ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+    var _desktop3DViewId: Int {
+        _desktop3DViewOverride ?? _pointerOutputId ?? displayLayout?.host.id ?? 0
     }
 
+    var _desktop3DHost: Rect {
+        displayLayout?.outputs.first(where: { $0.id == _desktop3DViewId })?.logicalRect
+            ?? Rect.fromLTWH(0, 0, screenWidth, screenHeight)
+    }
+
+    @discardableResult
+    func _withDesktop3DOutput<T>(_ id: Int, _ body: () -> T) -> T {
+        let previous = _desktop3DViewOverride
+        _desktop3DViewOverride = id
+        defer { _desktop3DViewOverride = previous }
+        return body()
+    }
+
+    func _forEachDesktop3DOutput(_ body: () -> Void) {
+        for id in displayLayout?.outputs.map({ $0.id }) ?? [0] {
+            _withDesktop3DOutput(id, body)
+        }
+    }
+
+    var _desktop3DCanvas: Rect { _desktop3DHost }
+
     func _desktop3DViewport(on output: Rect) -> Widget {
-        let canvas = _desktop3DCanvas
-        return ClipRect(child: Stack(fit: .expand, children: [
-            Positioned(left: canvas.left - output.left, top: canvas.top - output.top,
-                       width: canvas.width, height: canvas.height,
-                       child: CitySceneTexture(textureId: Int(environmentTextureId)) { [weak self] box in
-                           self?._sceneRepaints["\(output.left),\(output.top)"] = { [weak box] in
-                               box?.markNeedsPaint()
-                           }
-                       }),
-        ]))
+        let id = displayLayout?.owningOutput(ofRect: output).id ?? 0
+        return _withDesktop3DOutput(id) {
+            CitySceneTexture(textureId: Int(environmentTextureId)) { [weak self] box in
+                self?._sceneRepaints["\(id)"] = { [weak box] in box?.markNeedsPaint() }
+            }
+        }
     }
 
     func _desktop3DOutputId(for win: WindowInfo) -> Int {

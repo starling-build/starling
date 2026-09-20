@@ -261,6 +261,9 @@ class LinuxTextureRegistry: @unchecked Sendable {
 
         lock.lock()
         let entry = entries.removeValue(forKey: id)
+        if let scene = entry?.glRenderer as? FilamentRoomRenderer {
+            _pendingSceneReleases.append(scene)
+        }
         lock.unlock()
 
         if let entry = entry {
@@ -287,6 +290,7 @@ class LinuxTextureRegistry: @unchecked Sendable {
         }
     }
 
+    private var _pendingSceneReleases: [FilamentRoomRenderer] = []
     private var _pendingDeleteTextures: [UInt32] = []
     private var _pendingDestroyEglImages: [UnsafeMutableRawPointer] = []
 
@@ -381,11 +385,12 @@ class LinuxTextureRegistry: @unchecked Sendable {
     /// new frame of the scene's own texture, or the scene would keep
     /// showing the client's last picture while the engine, no longer
     /// compositing that client itself, never asked for a newer one.
-    private var sceneMirror: (ids: Set<Int64>, target: Int64) = ([], -1)
+    private var sceneMirrors: [Int64: Set<Int64>] = [:]
 
     func setSceneMirror(ids: Set<Int64>, target: Int64) {
         lock.lock()
-        sceneMirror = (ids, target)
+        if ids.isEmpty { sceneMirrors.removeValue(forKey: target) }
+        else { sceneMirrors[target] = ids }
         lock.unlock()
     }
 
@@ -404,7 +409,7 @@ class LinuxTextureRegistry: @unchecked Sendable {
     private func frameAvailable(engine: OpaquePointer, id: Int64) {
         FlutterEngineMarkExternalTextureFrameAvailable(engine, id)
         lock.lock()
-        let mirror = sceneMirror
+        let targets = sceneMirrors.compactMap { $0.value.contains(id) ? $0.key : nil }
         // A client's new picture is a change to the SCENE it is drawn in:
         // the scene renderer has to draw again, not merely be composited
         // again. Marking the scene's texture available did the second and
@@ -412,12 +417,12 @@ class LinuxTextureRegistry: @unchecked Sendable {
         // drawn only when something else — the camera leaning after the
         // mouse — made the scene redraw: typing with the mouse still put
         // nothing on screen, and read as a slow keyboard.
-        if mirror.target >= 0, mirror.ids.contains(id) {
-            entries[mirror.target]?.glRenderer?.dirty = true
+        for target in targets {
+            entries[target]?.glRenderer?.dirty = true
         }
         lock.unlock()
-        if mirror.target >= 0, mirror.ids.contains(id) {
-            markGLTextureDirty(engine: engine, id: mirror.target)
+        for target in targets {
+            markGLTextureDirty(engine: engine, id: target)
         }
     }
 
@@ -620,6 +625,14 @@ class LinuxTextureRegistry: @unchecked Sendable {
         textureOut: UnsafeMutablePointer<FlutterOpenGLTexture>
     ) -> Bool {
         ensureGLLoaded()
+
+        // Retired scenes must die on the same raster thread that created them,
+        // before deleting the shared textures they imported.
+        lock.lock()
+        let pendingScenes = _pendingSceneReleases
+        _pendingSceneReleases.removeAll()
+        lock.unlock()
+        for scene in pendingScenes { scene.releaseScene() }
 
         // Delete any pending textures (we have GL context here)
         lock.lock()

@@ -969,8 +969,9 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
 
     # Actual pools of lamplight, limited to six lights near the viewing terrace.
     lights = []
-    for z in (2, -10, -22):
-        for x in (-7.8, 8.8):
+    for row,z in enumerate((2, -10, -22)):
+        east_lamp = max(14+row*1.4,(13-z)*1.32+8)-5
+        for x in (-7.8, east_lamp):
             lights.append({"type": "point", "color": [1.0,.57,.25],
                            "intensity": 550, "range": 11})
             node = len(j["nodes"])

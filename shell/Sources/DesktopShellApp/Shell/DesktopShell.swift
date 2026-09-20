@@ -678,25 +678,52 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     var _desktop3DController: AnimationController? = nil
     var _desktop3DCurve: CurvedAnimation? = nil
     /// The short glide a step-up takes (Desktop3D._desktop3DGlide).
-    var _desktop3DGlide: AnimationController? = nil
-    var _desktop3DGlideCurve: CurvedAnimation? = nil
-    var _desktop3DGlidePath: (from: Camera3D, to: Camera3D)? = nil
-    /// One camera per output, keyed by output id. Pointer parallax writes
-    /// the host's; the arc and the environment read it.
+    var _desktop3DGlideByOutput: [Int: AnimationController] = [:]
+    var _desktop3DGlide: AnimationController? {
+        get { _desktop3DGlideByOutput[_desktop3DViewId] }
+        set { _desktop3DGlideByOutput[_desktop3DViewId] = newValue }
+    }
+    var _desktop3DGlideCurveByOutput: [Int: CurvedAnimation] = [:]
+    var _desktop3DGlideCurve: CurvedAnimation? {
+        get { _desktop3DGlideCurveByOutput[_desktop3DViewId] }
+        set { _desktop3DGlideCurveByOutput[_desktop3DViewId] = newValue }
+    }
+    var _desktop3DGlidePathByOutput: [Int: (from: Camera3D, to: Camera3D)] = [:]
+    var _desktop3DGlidePath: (from: Camera3D, to: Camera3D)? {
+        get { _desktop3DGlidePathByOutput[_desktop3DViewId] }
+        set { _desktop3DGlidePathByOutput[_desktop3DViewId] = newValue }
+    }
+    /// Navigation stays with the output even when the pointer changes displays.
     var _cameras3D: [Int: Camera3D] = [:]
     var _cameraQuantum3D: (Int, Int) = (0, 0)
     /// The lean: where the eye has leaned to follow the pointer, and where
     /// it is heading, each in [-1, 1] across the screen. Not part of the
     /// camera — the walked camera is where the viewer STANDS, and a lean
     /// must never accumulate into it.
-    var _lean3D: (x: Double, y: Double) = (0, 0)
-    var _lean3DTarget: (x: Double, y: Double) = (0, 0)
+    var _lean3DByOutput: [Int: (x: Double, y: Double)] = [:]
+    var _lean3D: (x: Double, y: Double) {
+        get { _lean3DByOutput[_desktop3DViewId] ?? (0, 0) }
+        set { _lean3DByOutput[_desktop3DViewId] = newValue }
+    }
+    var _lean3DTargetByOutput: [Int: (x: Double, y: Double)] = [:]
+    var _lean3DTarget: (x: Double, y: Double) {
+        get { _lean3DTargetByOutput[_desktop3DViewId] ?? (0, 0) }
+        set { _lean3DTargetByOutput[_desktop3DViewId] = newValue }
+    }
     /// The orrery's viewer: on a circle round the hub.
-    var _orbit3D: (theta: Double, radius: Double, height: Double)? = nil
+    var _orbit3DByOutput: [Int: (theta: Double, radius: Double, height: Double)] = [:]
+    var _orbit3D: (theta: Double, radius: Double, height: Double)? {
+        get { _orbit3DByOutput[_desktop3DViewId] }
+        set { _orbit3DByOutput[_desktop3DViewId] = newValue }
+    }
     /// App labels drawn for the scene, by app id.
     var _appLabelTextures: [String: Int64] = [:]
     /// The app whose sign in the square the pointer is over (Desktop3D).
-    var _desktop3DHoveredSign: String? = nil
+    var _desktop3DHoveredSignByOutput: [Int: String] = [:]
+    var _desktop3DHoveredSign: String? {
+        get { _desktop3DHoveredSignByOutput[_desktop3DViewId] }
+        set { _desktop3DHoveredSignByOutput[_desktop3DViewId] = newValue }
+    }
     /// Per app, the texture its block in the sculpture wears (Desktop3D).
     var _appFaceTextures: [String: Int64] = [:]
     /// Apps' own icons, decoded for the city's nameplates and brick faces
@@ -719,7 +746,7 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// The last click on a brick, so the second click of a double-click
     /// does not open the app twice.
     var _desktop3DBrickClick: (app: String, at: Double)? = nil
-    /// One active pane per display, all occupying the same world.
+    /// One active pane per display, in that display's independent scene.
     var _desktop3DShownByOutput: [Int: String] = [:]
     var _desktop3DShownRectByOutput: [Int: Rect] = [:]
     var _desktop3DDisplaySignature = ""
@@ -728,8 +755,16 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     /// in their order round the ring, which is chosen, and where each stood
     /// before — to go back to on Escape (Desktop3D, "The switcher").
     var _desktop3DSwitcher: (ids: [String], selected: Int, before: [String: WindowPose3D])? = nil
-    var _desktop3DRailStart = 0
-    var _desktop3DRailWheel = 0.0
+    var _desktop3DRailStartByOutput: [Int: Int] = [:]
+    var _desktop3DRailStart: Int {
+        get { _desktop3DRailStartByOutput[_desktop3DViewId] ?? 0 }
+        set { _desktop3DRailStartByOutput[_desktop3DViewId] = newValue }
+    }
+    var _desktop3DRailWheelByOutput: [Int: Double] = [:]
+    var _desktop3DRailWheel: Double {
+        get { _desktop3DRailWheelByOutput[_desktop3DViewId] ?? 0.0 }
+        set { _desktop3DRailWheelByOutput[_desktop3DViewId] = newValue }
+    }
     /// Windows gliding to new places in the city, by window id.
     var _desktop3DPoseTweens: [String: (from: WindowPose3D, to: WindowPose3D, start: Double, ms: Double)] = [:]
     var _poseTicker: Ticker? = nil
@@ -750,7 +785,11 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     var _lean3DTicker: Ticker? = nil
     var _lean3DClock: Double = 0
     #if os(Linux)
-    var _environment: EnvironmentRenderer? = nil
+    var _environments: [Int: EnvironmentRenderer] = [:]
+    var _environment: EnvironmentRenderer? {
+        get { _environments[_desktop3DViewId] }
+        set { _environments[_desktop3DViewId] = newValue }
+    }
     /// Drives the sky's cloud while the room is open.
     var _sceneTicker: Ticker? = nil
     var _sceneAmbientTimer: DispatchSourceTimer? = nil
@@ -762,7 +801,13 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
                      sky: (data: [UInt8], w: Int, h: Int))? = nil
     var _roomLoadStarted = false
     #endif
-    var environmentTextureId: Int64 = -1
+    var _environmentTextures: [Int: Int64] = [:]
+    var environmentTextureId: Int64 {
+        get { _environmentTextures[_desktop3DViewId] ?? -1 }
+        set { _environmentTextures[_desktop3DViewId] = newValue >= 0 ? newValue : nil }
+    }
+    /// Synchronous render/build scope; input otherwise follows its output.
+    var _desktop3DViewOverride: Int? = nil
 
     var _missionControlOpen = false
     /// The monitor Mission Control was invoked on — its windows, its space
@@ -4443,6 +4488,9 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
     nonisolated(unsafe) static var _buildCount = 0
 
     override func build(_ context: any BuildContext) -> Widget {
+        let previousView = _desktop3DViewOverride
+        _desktop3DViewOverride = displayLayout?.host.id ?? 0
+        defer { _desktop3DViewOverride = previousView }
         let t0 = Self._buildLog ? DispatchTime.now().uptimeNanoseconds : 0
         defer {
             if Self._buildLog {
@@ -4467,35 +4515,43 @@ class _DesktopShellState: State<StatefulWidget>, TickerProvider {
         // that sees every move.
         return Listener(
             onPointerDown: { [self] e in
-                _lastPointer = e.position; _lastButtons = e.buttons; _injectedPointer = nil
+                notePointerOutput(displayLayout?.host.id ?? 0)
+                let scenePoint = e.position + (displayLayout?.host.logicalRect.topLeft ?? Offset.zero)
+                _lastPointer = _desktop3DActive ? scenePoint : e.position; _lastButtons = e.buttons; _injectedPointer = nil
                 // Last in the hit path: a press that reached no client
                 // surface dismisses a grabbed menu (xdg_popup.grab).
                 waylandIntegration?.notePointerDown()
                 // The world's own things — bricks, the door, the power —
                 // take a press from here, whatever widget was under it:
                 // a brick in front of a window is still the nearer thing.
-                _desktop3DSignDown(e.position)
+                _desktop3DSignDown(scenePoint)
             },
             onPointerMove: { [self] e in
+                notePointerOutput(displayLayout?.host.id ?? 0)
+                let scenePoint = e.position + (displayLayout?.host.logicalRect.topLeft ?? Offset.zero)
                 let echo = _isInjectEcho(e.position)
-                _lastPointer = e.position; _lastButtons = e.buttons; _injectedPointer = nil
+                _lastPointer = _desktop3DActive ? scenePoint : e.position; _lastButtons = e.buttons; _injectedPointer = nil
                 _constraintPointerMoved(e.position, echo: echo)
                 _dragPointerMoved(e.position)
                 _desktop3DNotePointer()
-                _desktop3DSignMove(e.position)
+                _desktop3DSignMove(scenePoint)
             },
             onPointerUp: { [self] e in
-                _lastPointer = e.position; _lastButtons = 0; _injectedPointer = nil
+                notePointerOutput(displayLayout?.host.id ?? 0)
+                let scenePoint = e.position + (displayLayout?.host.logicalRect.topLeft ?? Offset.zero)
+                _lastPointer = _desktop3DActive ? scenePoint : e.position; _lastButtons = 0; _injectedPointer = nil
                 _dragPointerReleased(e.position)
                 _desktop3DNotePointer()
-                _desktop3DSignUp(e.position)
+                _desktop3DSignUp(scenePoint)
             },
             onPointerHover: { [self] e in
+                notePointerOutput(displayLayout?.host.id ?? 0)
+                let scenePoint = e.position + (displayLayout?.host.logicalRect.topLeft ?? Offset.zero)
                 let echo = _isInjectEcho(e.position)
-                _lastPointer = e.position; _injectedPointer = nil
+                _lastPointer = _desktop3DActive ? scenePoint : e.position; _injectedPointer = nil
                 _constraintPointerMoved(e.position, echo: echo)
                 _desktop3DNotePointer()
-                _desktop3DSignHover(e.position)
+                _desktop3DSignHover(scenePoint)
             },
             behavior: .translucent,
             child: _buildShellRoot(context))
