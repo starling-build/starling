@@ -419,8 +419,10 @@ def shot(mouse, path):
     # so a leftover from an earlier session has exactly the name the new
     # one will get, and a name-only diff waits on a file that already
     # "exists" — then reports the shell dead while the shot sits on disk.
+    # Numbered captures belong to the primary output. Connector-named
+    # secondary captures can arrive first; do not silently select those.
     before = {p: os.path.getmtime(p)
-              for p in glob.glob("/tmp/drm_screenshot_*.ppm")}
+              for p in glob.glob("/tmp/drm_screenshot_[0-9]*.ppm")}
     pid = shell_pid()
     os.kill(pid, signal.SIGUSR1)
     # llvmpipe may compile the city shaders on its first present (measured
@@ -431,7 +433,7 @@ def shot(mouse, path):
     while time.monotonic() < deadline and not new:
         frame_tick(pid)
         time.sleep(0.25)
-        new = next((p for p in glob.glob("/tmp/drm_screenshot_*.ppm")
+        new = next((p for p in glob.glob("/tmp/drm_screenshot_[0-9]*.ppm")
                     if os.path.getmtime(p) > before.get(p, 0)), None)
     if not new:
         raise SystemExit("screenshot did not arrive within 30 seconds — is the shell running?")

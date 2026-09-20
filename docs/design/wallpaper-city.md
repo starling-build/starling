@@ -307,3 +307,30 @@ interaction; its cause is not yet isolated. This smoke test is not performance
 or release acceptance. The earlier 3 GB test VM was OOM-killed when returning
 to 3D with four apps, so low-memory behavior still needs investigation. The VM
 is stopped; live validation moved to hardware at the user's request.
+
+
+### Rendering artifact investigation — 2026-09-20
+
+Reproduced on the real desktop after a fresh session, with zero app panes.
+Moving the pointer off an app brings back the rectangle; app interaction can
+clear it. It also reproduces with `workspaceRail` temporarily empty, excluding
+rail previews and the exit control. The profile was restored afterward.
+A temporary Filament RenderTarget readback contained the same rectangle as
+the final desktop capture. Thus this is not just a Flutter window overlay.
+The temporary capture code was removed and the normal renderer reinstalled.
+
+A standalone native test rendered two scenes alternately at 3840x2160 and
+2560x1600 using the same shared engine, without the rectangle. This narrows
+the next investigation to live integration, but does not yet identify a root
+cause or prove that multi-output rendering is fault-free.
+
+Evidence: `~/Pictures/Starling/black-restarted.png`,
+`black-no-controls2.png`, and `~/tmp/scene-only.png` (the temporary readback
+image is vertically inverted); the standalone comparison is
+`~/tmp/dual-scene.png`, with its temporary harness `~/tmp/room-dual-test.cpp`.
+
+The host screenshot helper now selects numbered primary-output captures.
+Previously it could select `/tmp/drm_screenshot_eDP-1.ppm` when the secondary
+finished first, making apparently clear captures misleading. Verified the
+selection against live captures and checked Python compilation. The black
+rectangle remains unresolved; no rendering fix is claimed.
