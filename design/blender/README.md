@@ -53,3 +53,11 @@ The architecture and sunset pass varies window brightness, adds siding and bay
 apron panels, and mixes hipped roofs with roof railings. A broad warm area light
 above the distant bay and two scales of water bump are Blender lighting studies;
 the reflection depends on camera position and is not painted into a texture.
+
+The landmark pass gives the ferry terminal two rows of arched glazing,
+pilasters, floor cornices and a parapet. The cable car now has curved main and
+clerestory roofs, window mullions, inset lower panels, wheels, running boards,
+platform rails and mesh destination lettering. These details are native meshes;
+the roof thickness uses editable Solidify modifiers.
+The complete cable-car assembly is pitched to the street's local slope; it is
+no longer a level vehicle intersecting the rising front of the road.

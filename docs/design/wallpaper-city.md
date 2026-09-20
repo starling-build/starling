@@ -403,3 +403,18 @@ fully framed cable-car geometry. The new roof and window components were also
 checked. The scene remains a Blender study. Building proportions, detailed
 terminal architecture, cloud shapes and the wallpaper's sparkling water still
 need work before runtime integration.
+
+### Blender landmark pass — 2026-09-20
+
+Replaced the terminal's single row of rectangular windows with two stories of
+arched glazing, pilasters, cornices and a roof parapet. The arch extrusions have
+outward-facing normals. Rebuilt the cable car with curved main and clerestory
+roofs, framed panes, lower body panels, running boards, wheelsets, platform rails
+and mesh destination lettering. Inspection exposed the level car intersecting
+the sloped street; the complete assembly now pitches to the local road grade.
+
+The asset audit passed with 843 objects, 213,362 base mesh vertices, two packed
+images, finite coordinates and OpenImageDenoise. All cable-car base geometry
+remains inside the comparison camera. Builder compilation and whitespace checks
+passed. This pass improves the landmarks within the existing composition; it
+does not resolve the broader reference mismatch or replace the live world.

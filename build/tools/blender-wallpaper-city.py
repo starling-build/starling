@@ -5,7 +5,7 @@ Coordinates are metres, Z up, +Y downhill. No wallpaper projection geometry.
 """
 import bpy, math, random, argparse, sys
 from pathlib import Path
-from mathutils import Vector
+from mathutils import Vector, Matrix
 rng=random.Random(51)
 p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--samples',type=int,default=32);p.add_argument('--width',type=int,default=1200)
 a=p.parse_args(sys.argv[sys.argv.index('--')+1:]);a.out.mkdir(parents=True,exist_ok=True)
@@ -208,11 +208,39 @@ for row,y in enumerate([94,107]):
             for zz in [2,4.5]:b.box((x+xx,y-4.55,z+zz),(.85,.08,1.5),glass)
         b.finish(.025)
 # Ferry terminal and promenade: a long horizontal anchor beneath the clock.
+# Arched glazing and segmented stone surrounds are real editable mesh geometry.
+def arch_panel(batch,c,width,height,depth,mat):
+    x,y,z=c;r=width/2;spring=height-r
+    outline=[(-r,0),(r,0)]+[(r*math.cos(i*math.pi/12),spring+r*math.sin(i*math.pi/12)) for i in range(13)]
+    base=len(batch.v);count=len(outline)
+    batch.v += [(x+u,y+dy,z+v) for dy in [-depth/2,depth/2] for u,v in outline]
+    faces=[tuple(base+i for i in reversed(range(count))),tuple(base+count+i for i in range(count))]
+    faces += [(base+i,base+(i+1)%count,base+(i+1)%count+count,base+i+count) for i in range(count)]
+    # Outline runs counterclockwise in X/Z; reverse the extrusion for outward normals.
+    faces=[tuple(reversed(f)) for f in faces]
+    batch.f+=faces
+    if mat not in batch.m:batch.m.append(mat)
+    batch.mi += [batch.m.index(mat)]*len(faces)
 b=Batch('Ferry Building colonnade','04 • Waterfront')
-b.box((25,128,-.2),(86,19,1.4),stone);b.box((27,133,3.2),(65,10,6.4),facades[4]);b.box((27,133,6.6),(67,11,.4),trim)
-for x in range(-4,61,3):
-    b.box((x,127.6,2.4),(1.3,.18,3.9),glass);b.box((x-1,127.3,2.6),(.38,.6,5.2),trim)
-b.finish(.04)
+b.box((25,128,-.2),(86,19,1.4),stone)
+b.box((27,133,4.3),(65,10,8.6),facades[4])
+for zz in [.7,4.7,8.55,8.85]:b.box((27,133,zz),(66,10.7,.23),trim)
+b.box((27,133,9),(65,10,.16),roof)
+for index,x in enumerate(range(-4,61,3)):
+    for zz,w,h in [(1,1.7,3.3),(5.3,1.4,2.45)]:
+        arch_panel(b,(x,127.78,zz),w+.36,h+.18,.35,trim)
+        arch_panel(b,(x,127.54,zz+.12),w,h-.06,.12,window_moods[1 if index%4==0 else 2])
+        b.box((x,127.43,zz+h*.42),(.075,.13,h*.78),dark)
+        b.box((x,127.43,zz+h-w/2),(w,.13,.085),dark)
+        b.box((x,127.40,zz+.03),(w+.4,.5,.17),stone)
+    b.box((x-1.32,127.55,4.5),(.28,.6,7.6),trim)
+    b.box((x-1.32,127.38,8.1),(.46,.75,.25),trim)
+    b.box((x,128,9.45),(2.5,.25,.7),stone)
+    b.box((x,127.82,9.45),(2.15,.10,.4),roof)
+    if index%3==0:
+        b.box((x-1.2,127.12,3.2),(.18,.24,.35),lamp)
+b.box((27,128,9.87),(66,.55,.22),trim)
+b.finish(.025)
 x,y=25,131;b=Batch('Clock tower masonry','04 • Waterfront')
 for z,w,d,h in [(9,6,6,7),(14,5,5,3),(17.5,4,4,4),(20.5,3,3,2),(22.3,1.8,1.8,1.6)]:
     b.box((x,y,z),(w,d,h),trim);b.box((x,y,z+h/2),(w+.4,d+.4,.20),stone)
@@ -239,23 +267,59 @@ for xx in range(-17,69,2):
     b.box((xx,138,.65),(2,.95,.20),trim)
     if xx%6==1:b.box((xx,137.8,1.05),(.32,.32,.6),dark)
 b.finish(.04)
-# Cable car aligned to the grade, with readable window frames and a curved roof.
+# Cable car with framed cabin, curved roof, running boards and wheelsets.
 coll='05 • Cable car';y=29;x=-6;z=ground(y);b=Batch('Cable car body',coll)
-b.box((x,y,z+1.8),(2.8,5.3,3.2),red);b.box((x,y,z+3.5),(3.3,5.8,.24),roof);b.box((x,y,z+3.8),(2.1,4.9,.38),red)
+b.box((x,y,z+1.7),(2.8,5.3,3),red)
 for xx in [-.87,0,.87]:
-    b.box((x+xx,y-2.68,z+2.3),(.72,.07,1.53),glass)
-    b.box((x+xx-.41,y-2.75,z+2.3),(.10,.12,1.8),brass)
+    b.box((x+xx,y-2.68,z+2.3),(.70,.07,1.36),window_moods[2])
+    for dx in [-.40,.40]:b.box((x+xx+dx,y-2.77,z+2.3),(.09,.12,1.64),brass)
+    for zz in [1.53,2.4,3.08]:b.box((x+xx,y-2.77,z+zz),(.83,.12,.075),brass)
+    b.box((x+xx,y-2.72,z+.84),(.70,.12,.67),wood)
+    b.box((x+xx,y-2.80,z+.84),(.55,.05,.50),red)
 for yy in [-1.8,-.6,.6,1.8]:
-    for side in [-1,1]:b.box((x+side*1.42,y+yy,z+2.3),(.08,.9,1.55),glass)
-b.box((x,y-2.8,z+1.16),(2.9,.3,.16),brass);b.box((x,y-2.84,z+.38),(3.05,.3,.25),dark);b.finish(.025)
-bpy.ops.mesh.primitive_uv_sphere_add(segments=16,ring_count=8,radius=.28,location=(x,y-2.92,z+1));o=bpy.context.object;o.name='Cable car headlamp';o.data.materials.append(lamp);move(o,coll)
-# Turn the car into a larger foreground landmark without raising it off the rails.
+    for side in [-1,1]:
+        b.box((x+side*1.42,y+yy,z+2.3),(.08,.9,1.45),window_moods[2 if yy<0 else 1])
+        for dy in [-.52,.52]:b.box((x+side*1.5,y+yy+dy,z+2.3),(.15,.09,1.7),brass)
+        b.box((x+side*1.52,y+yy,z+2.55),(.12,1.05,.07),brass)
+for side in [-1,1]:
+    b.box((x+side*1.52,y,z+.40),(.45,5.7,.15),wood)
+    b.box((x+side*1.53,y,z+1.18),(.12,5.5,.14),brass)
+    b.box((x+side*1.53,y,z+3.15),(.14,5.5,.18),brass)
+b.box((x,y-2.98,z+.3),(3.2,.6,.20),dark)
+b.box((x,y-2.84,z+1.16),(2.9,.3,.16),brass)
+b.box((x,y-2.91,z+3.33),(2.5,.16,.30),dark)
+b.finish(.018)
+def car_roof(name,width,length,base,rise,mat):
+    verts=[];faces=[];steps=16
+    for yy in [y-length/2,y+length/2]:
+        for i in range(steps+1):
+            u=2*i/steps-1;verts.append((x+u*width/2,yy,z+base+rise*(1-u*u)))
+    for i in range(steps):faces.append((i,i+1,steps+2+i,steps+1+i))
+    me=bpy.data.meshes.new(name);me.from_pydata(verts,[],faces);me.materials.append(mat)
+    o=bpy.data.objects.new(name,me);group(coll).objects.link(o)
+    mod=o.modifiers.new('Roof thickness','SOLIDIFY');mod.thickness=.12
+car_roof('Cable car curved main roof',3.6,6,3.45,.23,roof)
+b=Batch('Cable car clerestory',coll);b.box((x,y,z+3.83),(2.1,4.8,.36),red)
+for side in [-1,1]:
+    for yy in [-1.8,-.9,0,.9,1.8]:b.box((x+side*1.06,y+yy,z+3.84),(.07,.62,.22),glass)
+b.finish(.02)
+car_roof('Cable car clerestory cap',2.5,5.2,4.02,.13,roof)
+for side in [-1,1]:
+    for yy in [-1.8,1.8]:
+        bpy.ops.mesh.primitive_cylinder_add(vertices=24,radius=.43,depth=.18,location=(x+side*1.3,y+yy,z+.30),rotation=(0,math.pi/2,0))
+        o=bpy.context.object;o.name='Cable car wheel';o.data.materials.append(dark);move(o,coll)
+    beam('Front platform handrail',(x+side*1.45,y-3.1,z+.45),(x+side*1.45,y-3.1,z+1.55),.035,brass,coll)
+bpy.ops.object.text_add(location=(x,y-3.01,z+3.26),rotation=(math.pi/2,0,0))
+o=bpy.context.object;o.name='Cable car destination';o.data.body='BAY & MARKET';o.data.align_x='CENTER';o.data.size=.20;o.data.extrude=.002;o.data.materials.append(trim);move(o,coll);bpy.ops.object.convert(target='MESH')
+bpy.ops.mesh.primitive_uv_sphere_add(segments=16,ring_count=8,radius=.22,location=(x,y-2.96,z+.95));o=bpy.context.object;o.name='Cable car headlamp';o.data.materials.append(lamp);move(o,coll)
+# Scale the landmark and pitch its complete assembly to the local street grade.
+grade=Matrix.Rotation(math.atan(-.23-.0013*y),4,'X')
 for o in group('05 • Cable car').objects:
     if o.type=='MESH':
         anchor=Vector((x,y,z))
         for v in o.data.vertices:
             world=o.matrix_world @ v.co
-            v.co=o.matrix_world.inverted() @ (anchor+(world-anchor)*1.45)
+            v.co=o.matrix_world.inverted() @ (anchor+Vector((0,0,.25))+grade @ ((world-anchor)*1.45))
 # Continuous terrain, rather than a cloud of disconnected distant cubes.
 def island(name,x,y,rx,ry,height):
     vertices=[(x,y,height)];faces=[];rings=16;steps=64
