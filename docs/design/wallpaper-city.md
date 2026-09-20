@@ -51,7 +51,8 @@ workspace placement and multiple display integration remain unimplemented here.
   away from the road to reduce occlusion, and the terminal arcade is warmly lit. The island and bridge remain separate distant landmarks.
 - Taller inhabited hills with irregular building footprints, lit windows and
   groves; a rounded island shoreline with rocks, planting, a lighthouse and jetty.
-- A generated sunset environment, a small analytic sun on the right, and
+- A generated sky with puffy peach cloud banks, clear blue gaps, a small
+  analytic sun on the right, and
   cooler blue water with deterministic wave normals. The 1024-pixel normal map
   combines 96 wave components over a 144-metre tile to reduce obvious repetition
   while retaining visible waves at the reference distance.
@@ -68,7 +69,7 @@ preview settings; they have not been accepted for the installed desktop.
 The sky is a raster environment; all city geometry remains 3D. Source images and
 exact generation/edit prompts are in
 `../../shell/Resources/Worlds/wallpaper-city/materials/README.md`. The bake remaps
-latitude to fit the reference camera, moves the source seam behind that view,
+latitude and longitude to fit more cloud banks into the reference view,
 and uses warmer indirect light for the architecture. The image is not guaranteed
 seamless over a complete 360-degree walk; that needs another environment pass.
 

@@ -351,15 +351,22 @@ def water_normal(path, size=1024):
 def bake_sky(out, cmgen):
     # Decode sRGB before baking lighting. The source contains no sun; an
     # analytic disc aligns the environment with the directional light.
-    source=Image.open(ASSETS/'sunset-sky-v2.png').convert('RGB')
+    source=Image.open(ASSETS/'sunset-sky-v3.png').convert('RGB')
     # The illustrated cloud belt covers too many degrees for the reference
     # camera. Remap latitude when baking the spherical environment.
     source=source.resize((4096,2048),Image.Resampling.LANCZOS)
     pixels=np.asarray(source,dtype=np.float32)/255
-    pixels=np.roll(pixels,pixels.shape[1]//2,axis=1)
+    # Spread more of the source cloud panorama across the reference view.
+    # A periodic angular warp stays continuous around the sphere and places
+    # the source golden bank near the analytic sun, without duplicating it.
+    w=pixels.shape[1]
+    longitude=(np.arange(w)+.5)/w
+    source_x=((.605+np.arctan(3.5*np.tan(np.pi*longitude))/np.pi)%1)*w-.5
+    left=np.floor(source_x).astype(int); blend=(source_x-left)[None,:,None]
+    pixels=pixels[:,left%w]*(1-blend)+pixels[:,(left+1)%w]*blend
     h=pixels.shape[0]
     latitude=(np.arange(h)+.5)/h-.5
-    source_y=np.clip((.5+latitude*2.8)*h-.5,0,h-1)
+    source_y=np.clip((.5+latitude*4.0)*h-.5,0,h-1)
     lower=np.floor(source_y).astype(int); upper=np.minimum(lower+1,h-1)
     fraction=(source_y-lower)[:,None,None]
     pixels=pixels[lower]*(1-fraction)+pixels[upper]*fraction
