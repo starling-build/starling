@@ -15,9 +15,20 @@ These are albedo-only materials, not scanned PBR sets or normal maps.
 
 Window sills and inner jambs have extra geometry. Sun/ambient intensities are
 10000/16000 lux to give the existing shadow pass more contrast. The blue bay,
-actors, navigation, app placement and independent display cameras are retained.
-Trees, clouds, distant buildings and silhouettes remain intentionally blocky;
-this first pass does not claim to reconstruct the wallpaper.
+animation routes, navigation, app placement and independent display cameras are
+retained. A second geometry pass replaces tree cubes with branching trunks and
+irregular crowns of small leaf clusters. Three matte foliage tones replace the
+pixel atlas on plants. Clouds now have overlapping rounded lobes and different
+silhouettes, while retaining their original looping tracks. Their smooth normals
+come from closed cube-sphere meshes with no degenerate pole triangles.
+Distant buildings and headlands retain their stepped silhouettes; this study
+does not claim to reconstruct the wallpaper or provide photorealistic foliage.
+
+Known visual limitation: the current four-sample renderer shows fine stippling
+on distant rounded clouds on the tested AMD GPU. Disabling multisampling removed
+it but degraded the bridge cables and architectural edges, so this geometry pass
+retains the existing renderer settings. AO-bias and custom-resolve experiments
+did not remove it and were not kept.
 
 ## Generation prompts
 

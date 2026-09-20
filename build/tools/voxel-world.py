@@ -42,6 +42,7 @@ TILES = [
     "vent", "planks", "brick_window", "plaster_window", "cornice",
     "copper", "limestone", "paving_border", "bridge_red", "plaster_rose", "bronze",
     "cloud", "water_glint", "hill", "hill_far", "reflection_amber",
+    "leaves_light", "leaves_dark",
 ]
 T = {name: i for i, name in enumerate(TILES)}
 assert len(TILES) <= ATLAS * ATLAS
@@ -232,6 +233,8 @@ def make_tiles(seed=1):
     t["hill_far"] = noise_tile(rng, (0.28, 0.36, 0.48), 0.001)
     t["reflection_amber"] = noise_tile(rng, (0.34, 0.19, 0.08), 0.002)
     t["leaves"] = noise_tile(rng, (0.20, 0.34, 0.28), 0.018)
+    t["leaves_light"] = noise_tile(rng, (0.30, 0.43, 0.29), 0.008)
+    t["leaves_dark"] = noise_tile(rng, (0.13, 0.26, 0.22), 0.008)
     t["lamp"] = noise_tile(rng, (1.0, 0.65, 0.29), 0.005)
     return t
 
@@ -751,10 +754,43 @@ def box_quads(x0, y0, z0, x1, y1, z1, tile, out):
         out["count"] += 1
 
 
+def ellipsoid_quads(center, radii, tile, out, segments=5):
+    """Smooth cube-sphere: closed quad topology without degenerate pole faces.
+
+    Analytic ellipsoid normals use the inverse scale, so flattened clouds and
+    tall crowns shade correctly. Face winding follows the existing box mesh.
+    """
+    center, radii = np.asarray(center, float), np.asarray(radii, float)
+    u0, v0, u1, v1 = tile_uv(tile)
+    for _, corners, _, _ in FACES:
+        a, b, c, d = np.asarray(corners, float) * 2 - 1
+        for row in range(segments):
+            for col in range(segments):
+                points, normals = [], []
+                for s, t in ((col/segments, row/segments),
+                             ((col+1)/segments, row/segments),
+                             ((col+1)/segments, (row+1)/segments),
+                             (col/segments, (row+1)/segments)):
+                    cube = (1-t)*((1-s)*a+s*b) + t*((1-s)*d+s*c)
+                    sphere = cube / np.linalg.norm(cube)
+                    normal = sphere / radii
+                    points.append(center+sphere*radii)
+                    normals.append(normal/np.linalg.norm(normal))
+                out["pos"].append(np.asarray(points, np.float32))
+                out["nrm"].append(np.asarray(normals, np.float32))
+                out["uv"].append(np.array([(u0,v1),(u1,v1),(u1,v0),(u0,v0)],np.float32))
+                out["count"] += 1
+
+
 def mesh_props(props, origin, out):
     """Lamp posts (a thin log with a glowing block on top) and masts."""
     ox, oz = origin
     for prop in props:
+        if prop[0] == "ellipsoid":
+            _, tile, center, radii, segments = prop
+            ellipsoid_quads((center[0]+ox,center[1],center[2]+oz),
+                            radii,T[tile],out,segments)
+            continue
         if prop[0] == "beam":
             _, tile, start, end, width = prop
             start, end = np.array(start, dtype=float), np.array(end, dtype=float)
@@ -835,7 +871,11 @@ def ambient_actors():
     def actor(name, boxes, times, positions):
         out = {"pos": [], "nrm": [], "uv": [], "count": 0}
         for tile, bounds in boxes:
-            box_quads(*bounds, T[tile], out)
+            if tile == "cloud":
+                lo,hi = np.asarray(bounds[:3]),np.asarray(bounds[3:])
+                ellipsoid_quads((lo+hi)/2,(hi-lo)/2,T[tile],out,5)
+            else:
+                box_quads(*bounds, T[tile], out)
         p = np.concatenate(out["pos"]).astype(np.float32)
         n = np.concatenate(out["nrm"]).astype(np.float32)
         u = np.concatenate(out["uv"]).astype(np.float32)
@@ -848,13 +888,19 @@ def ambient_actors():
         a = times / 240 * 2 * np.pi + i * 2 * np.pi / 5
         positions = np.column_stack((65 * np.sin(a),
             np.full_like(a, 24 + (i % 3) * 4), -83 + 12 * np.cos(a)))
-        # Layered cream voxel clouds, no transparency sorting or billboards.
+        # Overlapping rounded cumulus lobes, opaque geometry with smooth
+        # normals. Motion and route bounds are the original closed tracks.
         cloud_boxes = []
-        for k in range(9):
-            x = -6+k*1.4
-            crown = 1.0+1.3*np.sin((k+.5)/9*np.pi)
-            cloud_boxes.append(("cloud",(x,.18*np.sin(k*2+i),-1.3,
-                                          x+2.1,crown,1.2)))
+        for k,(x,y,z,rx,ry,rz) in enumerate((
+                (-3,.6,0,3.8,.95,1.7),(1,.7,.3,4.6,1.15,2),
+                (-1.3,1.8,-.2,2.7,2.0,1.9),(2.1,1.5,0,2.4,1.55,1.6),
+                (-4.6,.8,.4,1.8,1.0,1.2),(4.9,.6,.1,2.4,.8,1.3))):
+            # Each actor has a distinct crest and length, with no new RNG
+            # dependency on the architecture or animation track generator.
+            x *= .85+.12*(i%3)
+            y += .3*np.sin(k*2.3+i)
+            ry *= .85+.2*np.cos(k+i)
+            cloud_boxes.append(("cloud",(x-rx,y-ry,z-rz,x+rx,y+ry,z+rz)))
         actor(f"cloud-{i}", cloud_boxes, times, positions)
 
     times = np.linspace(0, 150, 301)

@@ -30,6 +30,10 @@ def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atl
         "copper": (None, (.12, .28, .23), .48, .55, 1.),
         "bronze": (None, (.25, .15, .065), .38, .7, 1.),
         "glass": (None, (.055, .11, .17), .19, .25, 1.),
+        "leaves": (None, (.055, .15, .095), .95, 0., 1.),
+        "leaves_light": (None, (.11, .23, .10), .95, 0., 1.),
+        "leaves_dark": (None, (.035, .095, .065), .95, 0., 1.),
+        "log": (None, (.12, .075, .035), .95, 0., 1.),
     })
     doc["samplers"].append({"magFilter": 9729, "minFilter": 9987,
                             "wrapS": 10497, "wrapT": 10497})

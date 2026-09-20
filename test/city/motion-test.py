@@ -161,6 +161,26 @@ class CityMotionTests(unittest.TestCase):
             for k,coordinate in enumerate(plane):
                 self.assertAlmostEqual(t[k],p[coordinate]/2,places=4)
 
+    def test_cloud_surfaces_have_outward_non_degenerate_triangles(self):
+        # Smooth spheres with collapsed latitude poles can silently ship
+        # zero-area triangles or inverted faces. Check the exported geometry.
+        import numpy as np
+        for node in self.doc["nodes"]:
+            if not node.get("name", "").startswith("cloud-"):
+                continue
+            primitive = self.doc["meshes"][node["mesh"]]["primitives"][0]
+            p = np.asarray(self.values(primitive["attributes"]["POSITION"]))
+            n = np.asarray(self.values(primitive["attributes"]["NORMAL"]))
+            acc = self.doc["accessors"][primitive["indices"]]
+            view = self.doc["bufferViews"][acc["bufferView"]]
+            indices = np.frombuffer(self.binary,dtype="<u4",count=acc["count"],
+                                    offset=view.get("byteOffset",0)+acc.get("byteOffset",0)).reshape(-1,3)
+            a,b,c = p[indices[:,0]],p[indices[:,1]],p[indices[:,2]]
+            geometric = np.cross(b-a,c-a)
+            self.assertTrue(np.all(np.linalg.norm(geometric,axis=1)>1e-7))
+            averaged = n[indices].mean(axis=1)
+            self.assertTrue(np.all(np.sum(geometric*averaged,axis=1)>0))
+
 
 if __name__ == "__main__":
     unittest.main()

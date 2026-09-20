@@ -33,10 +33,26 @@ def build(v, size, seed):
         # Small warm stone landing beneath each lantern.
         box("limestone", x-.65, y, z-.65, x+.65, y+.04, z+.65)
     def tree(x, z, y, scale=1):
-        box("log", x-.16, y, z-.16, x+.16, y+3*scale, z+.16)
-        for dx, dy, dz, r in ((0,3,0,1.2),(-.7,3.8,0,.9),(.7,4,.2,.9),(0,4.8,0,.7)):
-            box("leaves", x+(dx-r)*scale, y+dy*scale, z+(dz-r)*scale,
-                x+(dx+r)*scale, y+(dy+1.1)*scale, z+(dz+r)*scale)
+        def crown(tile,dx,dy,dz,rx,ry,rz,segments=4):
+            props.append(("ellipsoid",tile,(x+c+dx*scale,y+dy*scale,z+c+dz*scale),
+                          (rx*scale,ry*scale,rz*scale),segments))
+        crown("log",0,1.65,0,.16,1.7,.16)
+        for dx,dz in ((-.65,.12),(.55,-.3),(.25,.55)):
+            beam("log",(x,y+1.6*scale,z),
+                 (x+dx*scale,y+3.1*scale,z+dz*scale),.12*scale)
+        # A dark core and small overlapping leaf clusters. A golden-angle
+        # distribution breaks up the outline without rows of identical balls.
+        crown("leaves_dark",0,3.85,0,1.05,1.35,.95)
+        phase = x*.73+z*.31
+        for k in range(36):
+            height = 1-2*(k+.5)/36
+            angle = k*2.399963+phase
+            ring = np.sqrt(1-height*height)
+            dx,dz = 1.15*ring*np.cos(angle),ring*np.sin(angle)
+            dy = 3.9+1.4*height
+            radius = .38+.12*(.5+.5*np.sin(k*3.7+phase))
+            tile = ("leaves","leaves_light","leaves_dark")[k%3]
+            crown(tile,dx,dy,dz,radius,radius*.85,radius,3)
 
     # Level central terrace preserves the existing app ring and walking origin.
     # Fine terracing beyond it forms the downhill street visible in the image.

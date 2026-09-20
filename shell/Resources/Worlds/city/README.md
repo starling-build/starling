@@ -2,7 +2,8 @@
 
 The `feature/city-materials` study adds original generated plaster and limestone
 textures, physical-scale UVs, separate architectural materials, finer window
-reveals and more directional lighting. See [materials/README.md](materials/README.md)
+reveals, rounded trees and clouds, and more directional lighting.
+See [materials/README.md](materials/README.md)
 for the asset prompts, rebuild instructions and scope of this first pass.
 
 The world the Filament renderer walks you into when the 3D desktop is on.
