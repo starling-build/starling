@@ -14,7 +14,10 @@ and metallic settings. Images contain surface detail only, not scene shadows.
 These are albedo-only materials, not scanned PBR sets or normal maps.
 
 Window sills and inner jambs have extra geometry. Sun/ambient intensities are
-10000/16000 lux to give the existing shadow pass more contrast. The blue bay,
+14000/12000 lux to give the existing shadow pass more contrast. A narrow peach
+horizon blends into blue overhead, and a restrained halo follows the sun.
+Both the skybox and ambient-light map are regenerated from the same palette.
+The blue bay,
 animation routes, navigation, app placement and independent display cameras are
 retained. A second geometry pass replaces tree cubes with branching trunks and
 irregular crowns of small leaf clusters. Three matte foliage tones replace the

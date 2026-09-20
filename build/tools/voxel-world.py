@@ -21,6 +21,7 @@ import os
 import struct
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 from PIL import Image
@@ -1137,8 +1138,13 @@ def sky(w=1024, h=512, sun_dir=(0.55, 0.75, 0.45), with_sun=True):
     phi = (u * 2 - 1) * np.pi
     img = np.zeros((h, w, 3), np.float32)
     up = np.clip(np.sin(lat), 0, 1)[:, None]
-    zenith = np.array([0.07, 0.18, 0.36]); horizon = np.array([0.48, 0.22, 0.12])
-    skyc = horizon[None, None, :] * (1 - up[..., None] ** 0.35) + zenith[None, None, :] * up[..., None] ** 0.35
+    zenith = np.array([0.08, 0.18, 0.32])
+    horizon = np.array([0.72, 0.32, 0.14])
+    # A warm horizon and cleaner blue zenith avoid the previous
+    # near-uniform mauve after exposure and tone mapping. The smooth blend
+    # is continuous around the equirectangular seam.
+    blend = 1-np.exp(-up[..., None]/0.12)
+    skyc = horizon[None, None, :] * (1-blend) + zenith[None, None, :] * blend
     ground = np.array([0.095, 0.075, 0.065])
     below = (lat < 0)[:, None, None]
     img = np.where(below, ground[None, None, :] * 0.9, skyc * 1.2)
@@ -1150,12 +1156,15 @@ def sky(w=1024, h=512, sun_dir=(0.55, 0.75, 0.45), with_sun=True):
         dy = np.sin(lat)[:, None] * np.ones_like(phi)[None, :]
         dz = np.cos(lat)[:, None] * np.cos(phi)[None, :]
         dirs = np.stack([dx, dy, dz], -1)
-        # A square: the max of the two tangent-plane offsets.
+        # A circular disc with a soft aureole in the same direction as
+        # the directional light; it remains behind the initial camera.
         t1 = np.cross(sd, [0, 1, 0]); t1 /= np.linalg.norm(t1)
         t2 = np.cross(sd, t1)
         a = np.abs(dirs @ t1); b = np.abs(dirs @ t2)
         front = dirs @ sd > 0
         sun = front & (a*a+b*b < 0.019**2)
+        glow = np.exp(-(a*a+b*b)/.12**2)*front
+        img += glow[...,None]*np.array([.7,.24,.055])
         img[sun] = (2.5, 1.5, .65)
     return img.astype(np.float32)
 
@@ -1186,14 +1195,16 @@ def main() -> int:
     sun_dir = (-0.6, 0.28, 0.75)
     if not a.no_sky:
         # Separate sky brightness from the ambient-light bake: readable
-        # readable architecture and a restrained sunset background.
-        write_hdr(os.path.join(a.out, "sky-full.hdr"), sky(sun_dir=sun_dir, with_sun=True)*.22)
-        write_hdr(os.path.join(a.out, "sky-nosun.hdr"), sky(sun_dir=sun_dir, with_sun=False))
-        for sub, src, size in (("ibl", "sky-nosun.hdr", 64), ("sky", "sky-full.hdr", 512)):
-            subprocess.run([a.cmgen, "--quiet", "--format=ktx", f"--size={size}",
-                            f"--deploy={os.path.join(a.out, sub)}", os.path.join(a.out, src)], check=True)
-        os.replace(os.path.join(a.out, "ibl", "ibl_ibl.ktx"), os.path.join(a.out, "room_ibl.ktx"))
-        os.replace(os.path.join(a.out, "sky", "sky_skybox.ktx"), os.path.join(a.out, "room_skybox.ktx"))
+        # architecture and a restrained sunset background. Keep cmgen's
+        # intermediate HDRs and auxiliary outputs out of the asset directory.
+        with tempfile.TemporaryDirectory(prefix="city-sky-", dir=a.out) as scratch:
+            write_hdr(os.path.join(scratch, "sky-full.hdr"), sky(sun_dir=sun_dir, with_sun=True)*.22)
+            write_hdr(os.path.join(scratch, "sky-nosun.hdr"), sky(sun_dir=sun_dir, with_sun=False))
+            for sub, src, size in (("ibl", "sky-nosun.hdr", 64), ("sky", "sky-full.hdr", 512)):
+                subprocess.run([a.cmgen, "--quiet", "--format=ktx", f"--size={size}",
+                                f"--deploy={os.path.join(scratch, sub)}", os.path.join(scratch, src)], check=True)
+            os.replace(os.path.join(scratch, "ibl", "ibl_ibl.ktx"), os.path.join(a.out, "room_ibl.ktx"))
+            os.replace(os.path.join(scratch, "sky", "sky_skybox.ktx"), os.path.join(a.out, "room_skybox.ktx"))
 
     # Where feet go: the ground is level, and buildings are not climbed.
     surface = np.array([[city_night.ground(z-a.size//2) for z in range(a.size)]
@@ -1202,8 +1213,8 @@ def main() -> int:
         "kind": "voxel",
         "ambient_animation": True,
         "exposure": [8.0, 1.0 / 60.0, 100.0],
-        "ibl_intensity": 16000.0,
-        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.72, 0.46], "lux": 10000.0},
+        "ibl_intensity": 12000.0,
+        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.72, 0.46], "lux": 14000.0},
         "hub": [0.0, float(plaza_h + 1), 0.0],
         "eye_height": 1.62,
         "ring_radius": 7.5,

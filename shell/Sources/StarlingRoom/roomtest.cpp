@@ -92,6 +92,9 @@ int main(int argc, char** argv) {
     if (getenv("ROOMTEST_SUN")) {
         sscanf(getenv("ROOMTEST_SUN"), "%f,%f,%f", &sunDir[0], &sunDir[1], &sunDir[2]);
     }
+    if (getenv("ROOMTEST_SUN_COLOUR")) {
+        sscanf(getenv("ROOMTEST_SUN_COLOUR"), "%f,%f,%f", &sunCol[0], &sunCol[1], &sunCol[2]);
+    }
     float sunLux = getenv("ROOMTEST_SUN_LUX") ? atof(getenv("ROOMTEST_SUN_LUX")) : 100000.0f;
     float iblLux = getenv("ROOMTEST_IBL_LUX") ? atof(getenv("ROOMTEST_IBL_LUX")) : 30000.0f;
     sr_room_set_light(room, sunDir, sunCol, sunLux, iblLux);
