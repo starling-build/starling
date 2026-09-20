@@ -993,7 +993,7 @@ def ambient_actors():
     return actors
 
 
-def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positions=None, trolley_slope=.19):
+def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positions=None, trolley_slope=.19, material_options=None):
     with open(atlas_path, "rb") as f:
         png = f.read()
     bin_ = bytearray()
@@ -1067,7 +1067,8 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positio
         "city_materials", os.path.join(HERE, "city-materials.py"))
     city_materials = importlib.util.module_from_spec(material_spec)
     material_spec.loader.exec_module(city_materials)
-    city_materials.apply(j, view, accessor, pos, nrm, uv, idx, T, ATLAS)
+    city_materials.apply(j, view, accessor, pos, nrm, uv, idx, T, ATLAS,
+                         **(material_options or {}))
 
     # Actual pools of lamplight, limited to six lights near the viewing terrace.
     lights = []

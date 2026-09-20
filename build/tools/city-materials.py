@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 
-def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atlas_size):
+def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atlas_size, *, surface_overrides=None, normal_maps=None, material_extras=None):
     source = Path(__file__).resolve().parents[2] / "shell/Resources/Worlds/city/materials"
     # Color factors are linear (glTF), not sRGB swatches.
     plaster = {
@@ -40,6 +40,9 @@ def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atl
         "flower_rose": (None, (.52, .08, .11), .8, 0., 1.),
         "flower_ochre": (None, (.85, .40, .045), .8, 0., 1.),
     })
+    surfaces.update(surface_overrides or {})
+    normal_maps = normal_maps or {}
+    material_extras = material_extras or {}
     doc["samplers"].append({"magFilter": 9729, "minFilter": 9987,
                             "wrapS": 10497, "wrapT": 10497})
     sampler = len(doc["samplers"]) - 1
@@ -71,6 +74,15 @@ def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atl
         doc["materials"].append({"name": name, "pbrMetallicRoughness": pbr})
         if name == "interior_warm":
             doc["materials"][-1]["emissiveFactor"] = [.30,.15,.04]
+        if name in normal_maps:
+            path, strength = normal_maps[name]
+            image = len(doc["images"])
+            doc["images"].append({"bufferView": view(Path(path).read_bytes()),
+                                  "mimeType": "image/png", "name": Path(path).name})
+            texture = len(doc["textures"])
+            doc["textures"].append({"sampler": sampler, "source": image})
+            doc["materials"][-1]["normalTexture"] = {"index": texture, "scale": strength}
+        doc["materials"][-1].update(material_extras.get(name, {}))
         # Dominant-axis projection uses global position. Adjacent terrain
         # strips share the same phase; detail size stays constant on any face.
         if metres not in uv_accessors:
@@ -86,5 +98,7 @@ def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atl
                                                "SCALAR", 5125, 34963),
                            "material": material, "mode": 4})
     legacy = doc["meshes"][0]["primitives"][0]
-    legacy["indices"] = accessor(triangles[remaining].reshape(-1), "SCALAR", 5125, 34963)
-    doc["meshes"][0]["primitives"].extend(primitives)
+    if remaining.any():
+        legacy["indices"] = accessor(triangles[remaining].reshape(-1), "SCALAR", 5125, 34963)
+        primitives.insert(0, legacy)
+    doc["meshes"][0]["primitives"] = primitives
