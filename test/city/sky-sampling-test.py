@@ -27,6 +27,9 @@ class SkySamplingTests(unittest.TestCase):
         delta=np.abs(equator-np.roll(equator,1,axis=0)).max()
         self.assertLess(delta,.01)
         self.assertGreater(np.ptp(equator[:,0]),.1)
+        # The rear hemisphere must be a clear gradient, not an enlarged slice
+        # of the source image. Forward-facing detail remains above.
+        self.assertLess(np.ptp(equator[720:1328],axis=0).max(),1e-7)
 
 
 if __name__=='__main__': unittest.main()

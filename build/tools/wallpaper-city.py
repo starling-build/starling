@@ -378,7 +378,16 @@ def sky_samples(source, size=(4096,2048)):
     lower=np.floor(source_y).astype(int); upper=np.minimum(lower+1,h-1)
     fraction=(source_y-lower)[:,None,None]
     pixels=pixels[lower]*(1-fraction)+pixels[upper]*fraction
+    # The detail warp is fitted to the sunset view. Blend its compressed rear
+    # hemisphere into the source's cloud-free edge gradient, rather than
+    # stretching cloud shapes across the rest of the sky. Keep +/-45 degrees.
+    heading=np.minimum(longitude,1-longitude)*360
+    clear_weight=np.clip((heading-45)/60,0,1)
+    clear_weight=(clear_weight*clear_weight*(3-2*clear_weight))[None,:,None]
+    clear=edge[lower,None,:]*(1-fraction)+edge[upper,None,:]*fraction
     linear=np.where(pixels<=.04045,pixels/12.92,((pixels+.055)/1.055)**2.4)
+    clear=np.where(clear<=.04045,clear/12.92,((clear+.055)/1.055)**2.4)
+    linear=linear*(1-clear_weight)+clear*clear_weight
     # All longitudes meet at each pole. Fade to each latitude's average above
     # 35 degrees, reaching a uniform cap at 65 degrees; the reference view is
     # below this region. Do this in linear light for irradiance consistency.

@@ -76,7 +76,10 @@ and uses warmer indirect light for the architecture. The v4 source reduces wrapa
 edge samples and uniform pole caps. A sampling regression test covers deliberately
 mismatched input. The six-direction GPU audit includes the formerly visible seam
 and zenith; the downward view shows the water. Continuous movement still needs
-review, particularly the stretched clouds on the rear side of the angular warp.
+review. Outside 45 degrees from the reference heading, compressed cloud detail
+blends into the source's clear edge gradient; at 105 degrees and beyond the sky
+is clear. This preserves the main sunset composition and avoids stretched rear
+cloud bands. The transition is smooth and uses linear-light color blending.
 
 ## Validation and limits
 

@@ -46,3 +46,9 @@ This enforces spherical continuity despite residual variation in the PNG.
 `test/city/sky-sampling-test.py` checks a deliberately mismatched input, both
 poles, and continuity across the warped seam. Use `--render --sky-audit`
 for front, right, back, left, zenith and nadir GPU views in the comparison page.
+
+The cloud detail is retained within 45 degrees of the reference heading. Between
+45 and 105 degrees it smoothly blends, in linear light, toward the cloud-free
+edge gradient sampled at the same latitude. The rear sky is clear rather than
+stretching the small remaining source region into cloud ribbons. This is an
+art-directed environment treatment, not a geometrically faithful panorama.
