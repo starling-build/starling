@@ -44,6 +44,7 @@ TILES = [
     "copper", "limestone", "paving_border", "bridge_red", "plaster_rose", "bronze",
     "cloud", "water_glint", "hill", "hill_far", "reflection_amber",
     "leaves_light", "leaves_dark", "marine_glass",
+    "interior_warm", "curtain", "painted_wood", "flower_rose", "flower_ochre",
 ]
 T = {name: i for i, name in enumerate(TILES)}
 assert len(TILES) <= ATLAS * ATLAS
@@ -237,6 +238,10 @@ def make_tiles(seed=1):
     t["leaves_light"] = noise_tile(rng, (0.30, 0.43, 0.29), 0.008)
     t["leaves_dark"] = noise_tile(rng, (0.13, 0.26, 0.22), 0.008)
     t["marine_glass"] = noise_tile(rng, (0.12, 0.20, 0.25), 0.0)
+    for name,color in (("interior_warm",(.85,.64,.36)),("curtain",(.85,.80,.66)),
+                       ("painted_wood",(.18,.30,.27)),("flower_rose",(.69,.28,.32)),
+                       ("flower_ochre",(.93,.65,.22))):
+        t[name] = noise_tile(rng,color,0.)
     t["lamp"] = noise_tile(rng, (1.0, 0.65, 0.29), 0.005)
     return t
 

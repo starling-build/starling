@@ -27,6 +27,13 @@ def build(v, size, seed):
     def beam(tile, a, b, width):
         props.append(("beam", tile, (a[0]+c, a[1], a[2]+c),
                       (b[0]+c, b[1], b[2]+c), width))
+    def flower(x,y,z,index):
+        box("leaves_dark",x-.014,y-.16,z-.014,x+.014,y,z+.014)
+        tile = "flower_rose" if index%3 else "flower_ochre"
+        # Low-poly clustered petals stay small enough to read as planting,
+        # not a row of decorative balls along the window ledge.
+        for dx,dz in ((-.025,0),(.025,0),(0,-.025),(0,.025)):
+            props.append(("ellipsoid",tile,(x+c+dx,y,z+c+dz),(.035,.022,.035),2))
     def lamp(x, z, y=None):
         y = ground(z) if y is None else y
         props.append(("lamp", x+c, y, z+c, 3))
@@ -128,8 +135,12 @@ def build(v, size, seed):
                 for floor in range(3):
                     yy = y+1+floor*3.05
                     box(wall,bx-1.15,yy,z+3.35,bx+1.15,yy+2.8,z+4.05)
-                    tile = "lamp" if rng.random()<.70 else "glass"
+                    tile = "interior_warm" if rng.random()<.70 else "glass"
                     box(tile,bx-.93,yy+.25,z+4.06,bx+.93,yy+2.35,z+4.08)
+                    if tile == "interior_warm":
+                        for xx in (bx-.90,bx+.67):
+                            box("curtain",xx,yy+.29,z+4.085,xx+.23,yy+2.30,z+4.095)
+                    box("bronze",bx-.93,yy+1.5,z+4.09,bx+.93,yy+1.55,z+4.12)
                     for xx in (bx-1.16,bx+1.14):
                         box(tile,xx,yy+.25,z+3.5,xx+.02,yy+2.35,z+3.96)
                     for xx in (bx-1.08,bx-.035,bx+1.01):
@@ -151,8 +162,14 @@ def build(v, size, seed):
                     yy = y+.9+floor*3.05
                     sidebox(wall,0,yy,z-.9,.72,yy+2.8,z+1.5)
                     for zz in (z-.7,z+.45):
-                        sidebox("lamp" if rng.random()<.65 else "glass",
+                        lit = rng.random()<.65
+                        sidebox("interior_warm" if lit else "glass",
                                 .725,yy+.35,zz,.74,yy+2.35,zz+.92)
+                        if lit:
+                            for curtain_z in (zz+.02,zz+.73):
+                                sidebox("curtain",.745,yy+.40,curtain_z,
+                                        .76,yy+2.30,curtain_z+.17)
+                        sidebox("bronze",.76,yy+.35,zz+.44,.79,yy+2.35,zz+.48)
                     for zz in (z-.87,z+.30,z+1.40):
                         sidebox("limestone",.74,yy+.15,zz,.83,yy+2.5,zz+.09)
                     for dh in (.08,2.5):
@@ -161,7 +178,16 @@ def build(v, size, seed):
                     sidebox("limestone",.75,yy+1.7,z-.8,.80,yy+1.77,z+1.45)
                     if floor == 0:
                         sidebox("bronze",.8,yy-.12,z-.85,1.12,yy+.13,z+1.45)
-                        sidebox("leaves",.8,yy+.13,z-.8,1.10,yy+.34,z+1.4)
+                        if column == 0 and row < 2:
+                            for k in range(10):
+                                zz = z-.65+k*.21+.025*np.sin(k*3)
+                                xx = face-side*(.95+.04*np.cos(k*2))
+                                props.append(("ellipsoid","leaves" if k%2 else "leaves_light",
+                                    (xx+c,yy+.25,zz+c),(.16,.12+.025*(k%3),.18),2))
+                                if k%3 != 1:
+                                    flower(xx,yy+.39+.06*np.sin(k*2),zz,k+row)
+                        else:
+                            sidebox("leaves",.8,yy+.13,z-.8,1.10,yy+.34,z+1.4)
                 sidebox("copper",-.1,y+10,z-1.1,1,y+10.28,z+1.7)
                 # Window reveals read as depth from the home viewpoint:
                 # dark inner jambs behind projecting pale stone surrounds.
@@ -174,8 +200,19 @@ def build(v, size, seed):
                         sidebox("limestone",.74,yy+2.38,zz-.10,.90,yy+2.49,zz+1.02)
                 box("copper",bx-1.3,y+h+.2,z+3.2,bx+1.3,y+h+.55,z+4.3)
                 dx = x+side*1.8
-                box("door_bottom",dx-.45,y+.6,z+3.41,dx+.45,y+1.65,z+3.45)
-                box("door_top",dx-.45,y+1.65,z+3.41,dx+.45,y+2.7,z+3.45)
+                box("painted_wood",dx-.45,y+.6,z+3.41,dx+.45,y+2.7,z+3.48)
+                for xx in (dx-.56,dx+.46):
+                    box("limestone",xx,y+.6,z+3.43,xx+.10,y+2.82,z+3.60)
+                box("limestone",dx-.56,y+2.72,z+3.43,dx+.56,y+2.86,z+3.64)
+                box("glass",dx-.30,y+1.86,z+3.485,dx+.30,y+2.52,z+3.50)
+                for xx in (dx-.32,dx+.27):
+                    box("bronze",xx,y+1.83,z+3.50,xx+.05,y+2.55,z+3.52)
+                for yy in (y+1.83,y+2.50):
+                    box("bronze",dx-.32,yy,z+3.50,dx+.32,yy+.05,z+3.52)
+                for xx in (dx-.34,dx+.035):
+                    box("bronze",xx,y+.82,z+3.485,xx+.305,y+1.61,z+3.50)
+                    box("painted_wood",xx+.03,y+.85,z+3.505,xx+.275,y+1.58,z+3.52)
+                box("bronze",dx+.33,y+1.52,z+3.50,dx+.37,y+1.69,z+3.58)
                 for step in range(3):
                     box("stone",dx-.7,y+step*.2,z+3.45,dx+.7,y+(step+1)*.2,z+4.5-step*.3)
             # Leave the east outlook's distant sightline open as well.

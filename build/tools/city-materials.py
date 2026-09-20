@@ -34,6 +34,11 @@ def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atl
         "leaves_light": (None, (.11, .23, .10), .95, 0., 1.),
         "leaves_dark": (None, (.035, .095, .065), .95, 0., 1.),
         "log": (None, (.12, .075, .035), .95, 0., 1.),
+        "interior_warm": (None, (.50, .31, .15), .6, 0., 1.),
+        "curtain": (None, (.60, .51, .36), .95, 0., 1.),
+        "painted_wood": (None, (.035, .085, .065), .55, 0., 1.),
+        "flower_rose": (None, (.52, .08, .11), .8, 0., 1.),
+        "flower_ochre": (None, (.85, .40, .045), .8, 0., 1.),
     })
     doc["samplers"].append({"magFilter": 9729, "minFilter": 9987,
                             "wrapS": 10497, "wrapT": 10497})
@@ -64,6 +69,8 @@ def apply(doc, view, accessor, positions, normals, atlas_uv, indices, tiles, atl
             pbr["baseColorTexture"] = {"index": textures[filename]}
         material = len(doc["materials"])
         doc["materials"].append({"name": name, "pbrMetallicRoughness": pbr})
+        if name == "interior_warm":
+            doc["materials"][-1]["emissiveFactor"] = [.30,.15,.04]
         # Dominant-axis projection uses global position. Adjacent terrain
         # strips share the same phase; detail size stays constant on any face.
         if metres not in uv_accessors:

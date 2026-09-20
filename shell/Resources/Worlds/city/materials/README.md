@@ -31,6 +31,13 @@ cues, not simulated waves or physically traced reflections. They replace box
 glints with fewer triangles despite a denser distribution. This study does not
 claim to reconstruct the wallpaper or provide photorealistic foliage.
 
+The near-building pass adds window mullions, narrow curtains and a separate
+restrained warm interior material. Doorways have modeled stone surrounds,
+painted panels, upper glazing and bronze handles instead of a stretched door
+tile. Four nearby window boxes have small irregular foliage clusters and
+rose/ochre flowers. These are decorative exterior details; buildings remain
+non-enterable and do not contain modeled rooms.
+
 Known visual limitation: the current four-sample renderer shows fine stippling
 on distant rounded clouds on the tested AMD GPU. Disabling multisampling removed
 it but degraded the bridge cables and architectural edges, so this geometry pass
