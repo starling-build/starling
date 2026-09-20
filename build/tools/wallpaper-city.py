@@ -328,17 +328,17 @@ LIGHTING = {'ROOMTEST_SUN':'0.56,0.025,-1', 'ROOMTEST_SUN_COLOUR':'1,0.72,0.45',
             'ROOMTEST_SUN_LUX':'12000', 'ROOMTEST_IBL_LUX':'6500',
             'ROOMTEST_EXPOSURE':'8,0.0166667,100',
             'ROOMTEST_FOG':'0.003,160,0,0.07,0.42,0.65,0.75,0.9',
-            'ROOMTEST_TIME':'0'}
+            'ROOMTEST_TIME':'0', 'ROOMTEST_REFLECTIONS':'0'}
 
 
-def water_normal(path, size=512):
+def water_normal(path, size=1024):
     """Periodic analytic wave slopes, converted to a tangent-space normal map."""
     z,x=np.mgrid[0:size,0:size].astype(float)*2*np.pi/size
     dx=np.zeros_like(x); dz=np.zeros_like(z)
     rng=np.random.default_rng(91)
-    for _ in range(24):
-        kx=int(rng.integers(-25,26)); kz=int(rng.integers(8,75))
-        amplitude=rng.uniform(.035,.10)/np.hypot(kx,kz)
+    for _ in range(96):
+        kx=int(rng.integers(-64,65)); kz=int(rng.integers(16,160))
+        amplitude=rng.uniform(.015,.035)/np.hypot(kx,kz)
         wave=amplitude*np.cos(kx*x+kz*z+rng.uniform(0,2*np.pi))
         dx+=kx*wave; dz+=kz*wave
     n=np.stack((-dx,-dz,np.ones_like(x)),axis=-1)
@@ -442,9 +442,12 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--render',action='store_true',help='Render a PNG and local comparison page')
+    parser.add_argument('--reflections',action='store_true',
+                        help='Opt into experimental screen-space reflections (higher GPU cost)')
     parser.add_argument('--cmgen',type=Path,default=Path.home()/'dev/filament/gles/bin/cmgen')
     parser.add_argument('--no-sky',action='store_true',help='Reuse an existing baked sky in --out')
     args=parser.parse_args(); out=args.out; out.mkdir(parents=True,exist_ok=True)
+    LIGHTING['ROOMTEST_REFLECTIONS']='1' if args.reflections else '0'
     v.make_atlas(out/'atlas.png',out/'frame.png')
     tracks=motion_tracks()
     original=v.ambient_actors
@@ -476,7 +479,7 @@ def main():
                                  for z in (-5,-17,-29) for side in (-1,1)],
                 material_options={
                     'surface_overrides': {
-                        'water': (None,(.035,.10,.16),.38,.15,13.),
+                        'water': (None,(.035,.12,.19),.29,0.,144.),
                         'plaster_blue': ('lime-plaster.png',(.18,.30,.40),.88,0.,2.),
                         'plaster_sage': ('lime-plaster.png',(.25,.36,.25),.88,0.,2.),
                         'plaster_terra': ('lime-plaster.png',(.45,.19,.12),.88,0.,2.),
@@ -486,7 +489,7 @@ def main():
                         'water_glint': (None,(.30,.38,.46),.38,.2,1.),
                         'reflection_amber': (None,(.65,.34,.14),.27,.25,1.),
                     },
-                    'normal_maps': {'water': (out/'water-normal.png',1.15)},
+                    'normal_maps': {'water': (out/'water-normal.png',1.4)},
                     'material_extras': {
                         'hill': {'emissiveFactor':[.006,.007,.009]},
                         'hill_far': {'emissiveFactor':[.012,.012,.016]},

@@ -504,6 +504,16 @@ void sr_room_set_camera(sr_room* r, const float view[16], const float proj[16],
     r->camera->setModelMatrix(r->cameraModel);
 }
 
+void sr_room_set_reflections(sr_room* r, int enabled) {
+    View::ScreenSpaceReflectionsOptions options;
+    options.enabled = enabled != 0;
+    options.maxDistance = 120.0f;
+    options.thickness = .35f;
+    options.bias = .03f;
+    options.stride = 4.0f;
+    r->view->setScreenSpaceReflectionsOptions(options);
+}
+
 void sr_room_set_animation_time(sr_room* r, double seconds) {
     r->animationTime = std::isfinite(seconds) ? seconds : -1;
 }

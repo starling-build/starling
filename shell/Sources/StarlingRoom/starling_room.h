@@ -57,6 +57,9 @@ SR_EXPORT int sr_room_set_output(sr_room*, uint32_t gl_texture, int width, int h
 SR_EXPORT void sr_room_set_camera(sr_room*, const float view[16], const float proj[16],
                         float near_plane, float far_plane);
 
+/// Optional screen-space reflections; disabled by default.
+SR_EXPORT void sr_room_set_reflections(sr_room*, int enabled);
+
 /// Evaluate animations at a fixed time for previews; negative restores real time.
 SR_EXPORT void sr_room_set_animation_time(sr_room*, double seconds);
 

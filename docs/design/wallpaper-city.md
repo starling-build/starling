@@ -16,6 +16,8 @@ python3 build/tools/wallpaper-city.py --out /tmp/wallpaper-city --render
 
 `--cmgen PATH` overrides the default `~/dev/filament/gles/bin/cmgen`.
 `--no-sky` reuses the previous bake in the output directory during geometry work.
+`--reflections` opts into experimental screen-space reflections. They remain
+disabled in the normal preview because their GPU cost depends strongly on view.
 Build roomtest with `build/build-room.sh --test` if it is not available.
 
 Outputs include the GLB, sky/IBL, generated wave normal map, `view.png`,
@@ -48,7 +50,9 @@ workspace placement and multiple display integration remain unimplemented here.
 - Taller inhabited hills with irregular building footprints, lit windows and
   groves; a rounded island shoreline with rocks, planting, a lighthouse and jetty.
 - A generated sunset environment, a small analytic sun on the right, and
-  reflective water with deterministic periodic wave normals.
+  cooler blue water with deterministic wave normals. The 1024-pixel normal map
+  combines 96 wave components over a 144-metre tile to reduce obvious repetition
+  while retaining visible waves at the reference distance.
 - Optional height-based haze that starts 160 metres from the preview camera,
   softening the bay while preserving the foreground and skybox.
 
@@ -77,6 +81,18 @@ The renderer exposes `sr_room_set_animation_time` for reproducible previews;
 negative values restore real time. `ROOMTEST_TIME` selects a preview time, with
 0 used for the comparison images and 20/40/60 for the checkpoint slider. The
 slider displays still renders, not continuous playback.
+
+The optional `sr_room_set_reflections` API and `ROOMTEST_REFLECTIONS=1` preview
+setting enable screen-space reflections with a 120-metre ray limit. They can
+reflect visible objects, but cannot recover off-screen geometry; shoreline
+artifacts and full-resolution performance still need evaluation. New rooms and
+the normal prototype preview leave this effect disabled. The GPU smoke check
+compares default/disabled/enabled images and verifies a water change while the
+sky stays stable:
+
+```sh
+python3 test/city/reflections-render-test.py --world /tmp/wallpaper-city
+```
 
 The renderer now exposes `sr_room_set_fog`; new rooms keep fog disabled. The
 preview opts in using `ROOMTEST_FOG=density,start,height,falloff,opacity,r,g,b`.
