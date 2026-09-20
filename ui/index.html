@@ -100,17 +100,24 @@
       <div class="install-intro">
         <p class="section-index">04 / MAKE YOURSELF AT HOME</p>
         <h2 id="install-title">Your next desktop.<br><em>Start here.</em></h2>
-        <p>For Ubuntu 26.04 LTS on an Intel or AMD 64-bit PC (amd64). Starling adds a session you can choose at login, alongside your existing desktop.</p>
+        <p>Supported on Ubuntu 26.04 LTS (amd64) and Windows through WSL2 with Ubuntu 26.04. On Ubuntu Desktop, Starling adds a session alongside your existing desktop. On WSL, connect with Windows Remote Desktop.</p>
         <a class="text-link" href="https://github.com/starling-build/starling/blob/release-0.5.0/docs/INSTALL.md">Full installation guide <span aria-hidden="true">↗</span></a>
       </div>
       <div class="install-steps">
-        <ol>
+        <ol aria-label="Ubuntu desktop installation">
           <li><h3>Download the desktop</h3><p>Open a terminal and download the Ubuntu package:</p><pre aria-label="Download command"><code>curl -fLO https://github.com/starling-build/starling/releases/download/v0.5.0/starling_0.5.0_amd64.deb</code></pre></li>
           <li><h3>Install the package</h3><p>In the same folder, install Starling and its dependencies:</p><pre aria-label="Installation command"><code>sudo apt install ./starling_0.5.0_amd64.deb</code></pre><p class="install-note">Ubuntu Desktop includes the login manager. On a minimal or Server install, add it with <code>sudo apt install gdm3</code>.</p></li>
           <li><h3>Sign in to Starling</h3><p>Log out, select your name, and open the session menu (usually the gear icon). Choose <strong>Starling</strong>, then sign in.</p></li>
         </ol>
 
-        <p class="install-note">Early preview. Tested with AMD, Intel, and NVIDIA graphics, plus VirtIO-GPU / virgl in a VM. See the installation guide for requirements and troubleshooting.</p>
+        <div class="install-preview-note" aria-labelledby="wsl-install-title">
+          <h3 id="wsl-install-title">Windows, through WSL2</h3>
+          <p>Inside your Ubuntu 26.04 WSL terminal, download and install the package using the commands above. A login manager is not needed. Start Starling:</p>
+          <pre aria-label="Start Starling in WSL"><code>starling-session</code></pre>
+          <p>Then open PowerShell or the Windows Run dialog and connect:</p>
+          <pre aria-label="Connect from Windows"><code>mstsc /v:localhost:3390</code></pre>
+        </div>
+        <p class="install-note">Early preview. Tested with AMD, Intel, and NVIDIA graphics, plus VirtIO-GPU / virgl in a VM and Windows through WSL2. See the installation guide for requirements and troubleshooting.</p>
       </div>
     </section>
   </main>

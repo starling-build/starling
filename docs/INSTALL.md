@@ -1,7 +1,10 @@
 # Installing Starling
 
-Starling ships as a single Debian package. Install it, log out, and pick
-**Starling** at the login screen. This guide covers the requirements, the
+Starling ships as a single Debian package for **Ubuntu 26.04 LTS (amd64)**,
+with **Windows through WSL2** also supported using Ubuntu 26.04. On Ubuntu
+Desktop, install it, log out, and pick **Starling** at the login screen.
+On WSL, start `starling-session` and connect with Windows Remote Desktop
+on port 3390; see [On Windows, through WSL](#on-windows-through-wsl). This guide covers the requirements, the
 install, upgrades and removal, and what to do when something does not come up.
 
 For building from source instead, see [BUILDING.md](BUILDING.md). For using
@@ -13,7 +16,7 @@ the desktop once it is running, see the [User Guide](USER_GUIDE.md).
 
 - **Ubuntu 26.04 LTS**, **amd64**. This is the only release the package
   targets. It may work on newer Ubuntu; it is not tested there.
-- **A Wayland-capable login manager** — GDM, or LightDM/SDDM configured for
+- **For a local desktop: a Wayland-capable login manager** — GDM, or LightDM/SDDM configured for
   Wayland. Ubuntu Desktop already has GDM. On Server or a minimal install you
   add one (below); the package will also pull one in if you have none.
 - **Graphics**: tested with **AMD**, **Intel**, and **NVIDIA** graphics,
@@ -22,9 +25,11 @@ the desktop once it is running, see the [User Guide](USER_GUIDE.md).
 - **~130 MB** of disk for the package and its dependencies. The `.deb` itself
   is about 51 MB and pulls in roughly 26 dependency packages on a minimal
   image.
-- **Bare metal or a virtual machine — not a container.** See below.
+- **Local desktop:** bare metal or a virtual machine, not a container. See below.
+- **Windows:** WSL2 running Ubuntu 26.04 (amd64), accessed through RDP.
+  This mode does not need a Linux login manager or a physical display.
 
-Starling runs as your ordinary user through the normal login path. It does
+On a local desktop, Starling runs as your ordinary user through the normal login path. It does
 **not** run as root and does not replace your existing desktop — it installs
 alongside it as another session you select at login.
 
