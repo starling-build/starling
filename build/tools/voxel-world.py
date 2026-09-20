@@ -42,7 +42,7 @@ TILES = [
     "vent", "planks", "brick_window", "plaster_window", "cornice",
     "copper", "limestone", "paving_border", "bridge_red", "plaster_rose", "bronze",
     "cloud", "water_glint", "hill", "hill_far", "reflection_amber",
-    "leaves_light", "leaves_dark",
+    "leaves_light", "leaves_dark", "marine_glass",
 ]
 T = {name: i for i, name in enumerate(TILES)}
 assert len(TILES) <= ATLAS * ATLAS
@@ -235,6 +235,7 @@ def make_tiles(seed=1):
     t["leaves"] = noise_tile(rng, (0.20, 0.34, 0.28), 0.018)
     t["leaves_light"] = noise_tile(rng, (0.30, 0.43, 0.29), 0.008)
     t["leaves_dark"] = noise_tile(rng, (0.13, 0.26, 0.22), 0.008)
+    t["marine_glass"] = noise_tile(rng, (0.12, 0.20, 0.25), 0.0)
     t["lamp"] = noise_tile(rng, (1.0, 0.65, 0.29), 0.005)
     return t
 
@@ -786,6 +787,31 @@ def mesh_props(props, origin, out):
     """Lamp posts (a thin log with a glowing block on top) and masts."""
     ox, oz = origin
     for prop in props:
+        if prop[0] == "ripple":
+            _,tile,x,y,z,length,width = prop
+            u0,v0,u1,v1 = tile_uv(T[tile])
+            out["pos"].append(np.array([(x+ox-length/2,y,z+oz),
+                (x+ox,y,z+oz+width/2),(x+ox+length/2,y,z+oz),
+                (x+ox,y,z+oz-width/2)],np.float32))
+            out["nrm"].append(np.tile(np.array([0,1,0],np.float32),(4,1)))
+            out["uv"].append(np.array([(u0,v1),(u1,v1),(u1,v0),(u0,v0)],np.float32))
+            out["count"] += 1
+            continue
+        if prop[0] == "ridge":
+            _, tile, x0, z0, x1, z1, bottom, h0, h1 = prop
+            local = {"pos": [], "nrm": [], "uv": [], "count": 0}
+            box_quads(x0+ox,bottom,z0+oz,x1+ox,1,z1+oz,T[tile],local)
+            for quad in local["pos"]:
+                for p in quad:
+                    if p[1] == 1:
+                        p[1] = h0+(h1-h0)*(p[0]-x0-ox)/(x1-x0)
+                normal = np.cross(quad[1]-quad[0],quad[2]-quad[0])
+                normal /= np.linalg.norm(normal)
+                out["pos"].append(quad)
+                out["nrm"].append(np.tile(normal,(4,1)).astype(np.float32))
+            out["uv"].extend(local["uv"])
+            out["count"] += local["count"]
+            continue
         if prop[0] == "ellipsoid":
             _, tile, center, radii, segments = prop
             ellipsoid_quads((center[0]+ox,center[1],center[2]+oz),
@@ -871,9 +897,10 @@ def ambient_actors():
     def actor(name, boxes, times, positions):
         out = {"pos": [], "nrm": [], "uv": [], "count": 0}
         for tile, bounds in boxes:
-            if tile == "cloud":
+            if tile in ("cloud", "ferry_hull"):
                 lo,hi = np.asarray(bounds[:3]),np.asarray(bounds[3:])
-                ellipsoid_quads((lo+hi)/2,(hi-lo)/2,T[tile],out,5)
+                ellipsoid_quads((lo+hi)/2,(hi-lo)/2,
+                                T["bridge_red" if tile == "ferry_hull" else tile],out,5)
             else:
                 box_quads(*bounds, T[tile], out)
         p = np.concatenate(out["pos"]).astype(np.float32)
@@ -907,15 +934,32 @@ def ambient_actors():
     a = times / 150 * 2 * np.pi
     positions = np.column_stack((32 * np.sin(a),
         -2.25 + .10 * np.sin(a * 24), -79 + 5 * np.cos(a)))
-    actor("bay-ferry", [
-        ("bridge_red", (-4.2, 0, -1.3, 4.2, .65, 1.3)),
+    ferry = [
+        ("ferry_hull", (-4.7, -.45, -1.4, 4.7, .9, 1.4)),
         ("limestone", (-3.7, .65, -1.25, 3.7, .95, 1.25)),
         ("plaster_cream", (-2.6, .95, -.95, 2.6, 2.3, .95)),
-        ("glass_lit", (-2.4, 1.35, .96, 2.4, 2.05, .99)),
-        ("glass_lit", (-2.4, 1.35, -.99, 2.4, 2.05, -.96)),
         ("limestone", (-2.9, 2.3, -1.1, 2.9, 2.5, 1.1)),
         ("bridge_red", (-.4, 2.5, -.4, .4, 3.2, .4)),
-    ], times, positions)
+        ("plaster_cream", (1.2, 2.5, -.70, 2.4, 3.25, .70)),
+        ("copper", (1.05, 3.25, -.80, 2.55, 3.39, .80)),
+        ("bronze", (-1.8, 2.5, -.04, -1.72, 3.65, .04)),
+        ("bridge_red", (-1.72, 3.27, -.015, -1.05, 3.63, .015)),
+    ]
+    # Individual cabin panes and deck rails make it readable from shore,
+    # without changing the boat's looping route or adding animation work.
+    for side in (-1,1):
+        z = side*.975
+        for x in np.arange(-2.25,2.3,.75):
+            ferry.append(("marine_glass",(x,1.35,z-.015,x+.48,2.05,z+.015)))
+        z = side*1.18
+        ferry.append(("limestone",(-3.55,1.29,z-.025,3.55,1.35,z+.025)))
+        for x in np.arange(-3.5,3.6,.65):
+            ferry.append(("bronze",(x,.94,z-.025,x+.035,1.3,z+.025)))
+        z = side*.705
+        ferry.append(("marine_glass",(1.32,2.65,z-.01,2.28,3.12,z+.01)))
+    for x in (-3.1,3.1):
+        ferry.append(("lamp",(x-.08,1.34,-.08,x+.08,1.55,.08)))
+    actor("bay-ferry", ferry, times, positions)
 
     boxes = [
         ("dark", (-1.8, .15, -.7, 1.8, .45, .7)),

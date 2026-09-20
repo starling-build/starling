@@ -225,18 +225,21 @@ def build(v, size, seed):
     for x in range(-30,39,7):
         lamp(x,-45,-2.2)
 
-    # Bay: broad dark water with sparse directional glints, not a tiled carpet.
+    # Tapered, irregular highlights on the bay. Single upward quads avoid
+    # hundreds of tiny boxes and visible vertical edges at shallow angles.
     box("water",-600,-3.0,-600,600,-2.45,-55)
-    for _ in range(400):
+    for _ in range(1400):
         x,z = rng.uniform(-140,140),rng.uniform(-200,-56)
-        box("water_glint",x,-2.44,z,x+rng.uniform(.4,2.8),-2.435,z+.07)
+        props.append(("ripple","water_glint",x+c,-2.44,z+c,
+                      rng.uniform(.5,3.2),rng.uniform(.06,.18)))
     # Broken reflection trails: sparse, low-luminance geometry on the water.
     # Their foreshortening changes correctly as the viewer walks.
     for center in (-33,10,43):
         for _ in range(70):
             z = rng.uniform(-130,-56)
             x = center+rng.normal(0,1.0+(z+130)*.015)
-            box("reflection_amber",x,-2.433,z,x+rng.uniform(.15,1.2),-2.431,z+.055)
+            props.append(("ripple","reflection_amber",x+c,-2.433,z+c,
+                          rng.uniform(.25,1.6),rng.uniform(.06,.13)))
     # Bridge portal towers, catenary-like cables and tiny navigation lights.
     bz,deck = -136,3
     box("asphalt",-72,deck,bz-2,82,deck+.4,bz+2)
@@ -256,11 +259,14 @@ def build(v, size, seed):
                 box("lamp",x-.07,deck+.55,z-.07,x+.07,deck+.69,z+.07)
     # Layered headlands and scattered hillside windows beyond the bridge.
     for layer,z in enumerate((-182,-222)):
+        def ridge_height(x):
+            return 4+15*(.5+.5*np.sin(x*.024+layer*1.6))+1.2*np.sin(x*.11)
         for x in range(-540,541,3):
-            h = 4+15*(.5+.5*np.sin(x*.024+layer*1.6))+1.2*np.sin(x*.11)
-            box("hill_far" if layer else "hill",x,-3,z,x+3,h,z+18)
+            h,hh = ridge_height(x),ridge_height(x+3)
+            props.append(("ridge","hill_far" if layer else "hill",
+                          x+c,z+c,x+3+c,z+18+c,-3,h,hh))
             for _ in range(int(rng.integers(1,4))):
-                yy = rng.uniform(1,max(2,h-1))
+                yy = rng.uniform(1,max(2,min(h,hh)-1))
                 xx = x+rng.uniform(.2,2.7)
                 box("reflection_amber",xx,yy,z+18.01,xx+.20,yy+.16,z+18.03)
     # Trolley rails descend along the street, away from the foreground app rail.

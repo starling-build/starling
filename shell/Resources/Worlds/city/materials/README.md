@@ -21,8 +21,12 @@ irregular crowns of small leaf clusters. Three matte foliage tones replace the
 pixel atlas on plants. Clouds now have overlapping rounded lobes and different
 silhouettes, while retaining their original looping tracks. Their smooth normals
 come from closed cube-sphere meshes with no degenerate pole triangles.
-Distant buildings and headlands retain their stepped silhouettes; this study
-does not claim to reconstruct the wallpaper or provide photorealistic foliage.
+The waterfront pass gives distant hills continuous sloping ridgelines and the
+ferry a rounded hull, separate cabin windows, deck railings and a wheelhouse.
+Water highlights are tapered single-face geometry; these are static artistic
+cues, not simulated waves or physically traced reflections. They replace box
+glints with fewer triangles despite a denser distribution. This study does not
+claim to reconstruct the wallpaper or provide photorealistic foliage.
 
 Known visual limitation: the current four-sample renderer shows fine stippling
 on distant rounded clouds on the tested AMD GPU. Disabling multisampling removed
