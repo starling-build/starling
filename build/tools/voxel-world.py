@@ -967,6 +967,12 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
         accessors.append(item)
         return len(accessors) - 1
 
+    material_spec = importlib.util.spec_from_file_location(
+        "city_materials", os.path.join(HERE, "city-materials.py"))
+    city_materials = importlib.util.module_from_spec(material_spec)
+    material_spec.loader.exec_module(city_materials)
+    city_materials.apply(j, view, accessor, pos, nrm, uv, idx, T, ATLAS)
+
     # Actual pools of lamplight, limited to six lights near the viewing terrace.
     lights = []
     for row,z in enumerate((2, -10, -22)):
@@ -1106,8 +1112,8 @@ def main() -> int:
         "kind": "voxel",
         "ambient_animation": True,
         "exposure": [8.0, 1.0 / 60.0, 100.0],
-        "ibl_intensity": 24000.0,
-        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.72, 0.46], "lux": 6500.0},
+        "ibl_intensity": 16000.0,
+        "sun": {"dir": list(sun_dir), "colour": [1.0, 0.72, 0.46], "lux": 10000.0},
         "hub": [0.0, float(plaza_h + 1), 0.0],
         "eye_height": 1.62,
         "ring_radius": 7.5,

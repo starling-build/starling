@@ -24,7 +24,7 @@ class CityMotionTests(unittest.TestCase):
     def values(self, index):
         acc = self.doc["accessors"][index]
         view = self.doc["bufferViews"][acc["bufferView"]]
-        width = {"SCALAR": 1, "VEC3": 3}[acc["type"]]
+        width = {"SCALAR": 1, "VEC2": 2, "VEC3": 3}[acc["type"]]
         count = width * acc["count"]
         offset = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
         self.assertLessEqual(offset + count * 4, len(self.binary))
@@ -125,6 +125,41 @@ class CityMotionTests(unittest.TestCase):
             self.assertAlmostEqual(height(x,-35),-.13)
             self.assertAlmostEqual(height(x,-20),2.72)
         self.assertEqual(self.world["clock"]["z"],-49)
+
+    def test_material_groups_preserve_every_city_triangle_once(self):
+        primitives = self.doc["meshes"][0]["primitives"]
+        all_indices = []
+        for primitive in primitives:
+            acc = self.doc["accessors"][primitive["indices"]]
+            view = self.doc["bufferViews"][acc["bufferView"]]
+            offset = view.get("byteOffset",0) + acc.get("byteOffset",0)
+            all_indices.extend(struct.unpack_from("<"+"I"*acc["count"],self.binary,offset))
+        # Every authored quad is triangulated into six indices. Splitting
+        # materials must neither drop nor overlay any of those triangles.
+        count = self.doc["accessors"][0]["count"]
+        expected = [(i,i+1,i+2) for i in range(0,count,4)]
+        expected += [(i,i+2,i+3) for i in range(0,count,4)]
+        actual = [tuple(all_indices[i:i+3]) for i in range(0,len(all_indices),3)]
+        self.assertCountEqual(actual,expected)
+
+    def test_architecture_uses_repeating_physical_scale_materials(self):
+        materials = self.doc["materials"]
+        plaster = next(p for p in self.doc["meshes"][0]["primitives"]
+                       if materials[p["material"]]["name"] == "plaster_rose")
+        material = materials[plaster["material"]]["pbrMetallicRoughness"]
+        texture = self.doc["textures"][material["baseColorTexture"]["index"]]
+        sampler = self.doc["samplers"][texture["sampler"]]
+        self.assertEqual((sampler["wrapS"],sampler["wrapT"]),(10497,10497))
+        self.assertEqual(sampler["minFilter"],9987)  # trilinear mipmaps
+        uv = self.values(plaster["attributes"]["TEXCOORD_0"])
+        positions = self.values(plaster["attributes"]["POSITION"])
+        normals = self.values(plaster["attributes"]["NORMAL"])
+        # A texture covers two metres on all three dominant face planes.
+        for p,n,t in zip(positions,normals,uv):
+            axis = max(range(3),key=lambda i: abs(n[i]))
+            plane = ((2,1),(0,2),(0,1))[axis]
+            for k,coordinate in enumerate(plane):
+                self.assertAlmostEqual(t[k],p[coordinate]/2,places=4)
 
 
 if __name__ == "__main__":

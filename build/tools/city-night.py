@@ -56,11 +56,14 @@ def build(v, size, seed):
         z = -4+.04*x*x
         box("limestone", x-.13,5,z-.13,x+.13,5.98,z+.13)
     # Broad, staggered paving joints give the foreground a human scale.
+    # A thin stone cap covers the road only on the level overlook. The street
+    # beyond the rail remains asphalt; walking heights and app anchors stay put.
+    box("plaza",-8.8,4.99,-8,9,5.001,17)
     for iz,z in enumerate(np.arange(-8,17,1.2)):
         for x in np.arange(-8.8,9,1.8):
             xx = x + (iz%2)*.9
-            box("paving_border",xx,5.002,z,min(xx+1.72,9.5),5.012,z+.035)
-            box("paving_border",xx,5.002,z,xx+.035,5.012,z+1.12)
+            box("paving_border",xx,5.002,z,min(xx+1.72,9.5),5.006,z+.018)
+            box("paving_border",xx,5.002,z,xx+.018,5.006,z+1.12)
 
     # A low, open eastern overlook rather than a wall of nearby houses.
     # It belongs to the same terrain and camera as the main app terrace.
@@ -144,6 +147,15 @@ def build(v, size, seed):
                         sidebox("bronze",.8,yy-.12,z-.85,1.12,yy+.13,z+1.45)
                         sidebox("leaves",.8,yy+.13,z-.8,1.10,yy+.34,z+1.4)
                 sidebox("copper",-.1,y+10,z-1.1,1,y+10.28,z+1.7)
+                # Window reveals read as depth from the home viewpoint:
+                # dark inner jambs behind projecting pale stone surrounds.
+                for floor in range(3):
+                    yy = y+.9+floor*3.05
+                    for zz in (z-.7,z+.45):
+                        for jamb in (zz-.045,zz+.92):
+                            sidebox("bronze",.74,yy+.29,jamb,.79,yy+2.4,jamb+.045)
+                        sidebox("limestone",.74,yy+.22,zz-.10,.93,yy+.32,zz+1.02)
+                        sidebox("limestone",.74,yy+2.38,zz-.10,.90,yy+2.49,zz+1.02)
                 box("copper",bx-1.3,y+h+.2,z+3.2,bx+1.3,y+h+.55,z+4.3)
                 dx = x+side*1.8
                 box("door_bottom",dx-.45,y+.6,z+3.41,dx+.45,y+1.65,z+3.45)

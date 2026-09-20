@@ -1,5 +1,10 @@
 # The 3D desktop's city
 
+The `feature/city-materials` study adds original generated plaster and limestone
+textures, physical-scale UVs, separate architectural materials, finer window
+reveals and more directional lighting. See [materials/README.md](materials/README.md)
+for the asset prompts, rebuild instructions and scope of this first pass.
+
 The world the Filament renderer walks you into when the 3D desktop is on.
 Its composition follows `Wallpapers/city-night.png`: Victorian
 houses frame a downhill street, the Ferry Building and clock tower sit at
