@@ -145,7 +145,8 @@ def build(seed=12):
     colors=['plaster_blue','plaster_sage','plaster_terra','plaster_cream','plaster_rose']
     for side in (-1,1):
         for row,z in enumerate((-5,-17,-29,-41,-53,-65,-77)):
-            x=-20 if side<0 else 13
+            # The right-hand row bends away downhill, opening the basin view.
+            x=-20 if side<0 else 13+row*5
             h=(10-row*.35) if side<0 else (6.5-row*.2)
             front_color=colors[row%5] if side<0 else (
                 'plaster_cream','plaster_rose','plaster_cream','plaster_sage','plaster_blue')[row%5]
@@ -164,6 +165,7 @@ def build(seed=12):
     for z in (-92,-105,-119):
         for x in np.arange(-65,70,9):
             if x>10 and z==-119: continue
+            if x>=28 and z in (-92,-105): continue
             waterfront.district_block(props,x,z,7,rng.uniform(4.4,8.5),
                                       rng.choice(colors),int((x+65)/9)+int(-z))
     # Long Ferry Building and clock tower, right of the vanishing point.
@@ -179,7 +181,7 @@ def build(seed=12):
         # Narrow strips describe a rounded opening without transparent planes.
         for dx in np.arange(-.7,.71,.1):
             arch=2.1+np.sqrt(max(0,.7**2-dx**2))
-            box('glass',x+dx,-.8,-136.96,x+dx+.1,arch,-136.9)
+            box('interior_warm',x+dx,-.8,-136.96,x+dx+.1,arch,-136.9)
         for a in np.linspace(0,np.pi,13)[:-1]:
             b=a+np.pi/12
             beam('limestone',(x+.85*np.cos(a),2.1+.85*np.sin(a),-136.8),

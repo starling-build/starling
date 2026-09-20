@@ -45,8 +45,10 @@ workspace placement and multiple display integration remain unimplemented here.
   its route. Translation and normalized rotation tracks are exported together.
 - Arched terminal facade, an open belfry and lantern above the clock, roof
   skylights, quay railings, bollards and wooden finger piers.
-- Waterfront shop blocks on connected foundations, with an open channel in
-  front of the terminal. The island and bridge remain separate distant landmarks.
+- Waterfront shops have framed windows on their exposed side walls. An
+  L-shaped near shore opens a wider basin in front of the terminal, with benches
+  and planters along the promenade. The downhill right-hand house row bends
+  away from the road to reduce occlusion, and the terminal arcade is warmly lit. The island and bridge remain separate distant landmarks.
 - Taller inhabited hills with irregular building footprints, lit windows and
   groves; a rounded island shoreline with rocks, planting, a lighthouse and jetty.
 - A generated sunset environment, a small analytic sun on the right, and
@@ -71,7 +73,8 @@ and isolation of prototype overrides from default exports. It also covers an
 exporter edge case where every face is assigned a custom material. Nine existing
 city tests pass against the shipped world. The prototype renders on the GPU. The final export also passed buffer-bound,
 outward-winding, non-degenerate-triangle and closed-motion-track checks.
-The facade test also verifies outward winding and road clearance for both street
+Two waterfront tests verify outward face winding and open basin/solid shore
+samples. The facade test also verifies outward winding and road clearance for both street
 sides and all three roof styles. Three motion tests cover closed loops, ferry heading, trolley wheel clearance,
 rotation-channel export and rejection of invalid rotation samples. The additional
 detail camera is at (-5,34,1),

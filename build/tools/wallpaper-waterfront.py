@@ -18,6 +18,18 @@ def district_block(props,x,z,width,height,tile,variant):
             box('glass' if variant%4==0 else 'interior_warm',xx+.05,yy,z+.15,xx+.95,yy+1.42,z+.18)
             box('bronze',xx+.48,yy,z+.19,xx+.52,yy+1.42,z+.23)
             box('limestone',xx-.14,yy-.2,z-.02,xx+1.14,yy-.06,z+.3)
+    # Side elevations are exposed along the basin and cross streets.
+    for face,sign in ((x,-1),(x+width,1)):
+        for zz in (back+1.1,back+4.1):
+            for level,yy in enumerate(np.arange(y+.85,roof-1.3,2.6)):
+                box('limestone',face-.09,yy-.12,zz-.12,
+                    face+.09,yy+1.68,zz+1.22)
+                outer=face+sign*.11
+                box('interior_warm' if (level+variant)%3 else 'glass',
+                    outer-.018,yy,zz,outer+.018,yy+1.54,zz+1.1)
+                box('bronze',outer-.028,yy,zz+.52,outer+.028,yy+1.54,zz+.58)
+                box('limestone',outer-.045,yy+.73,zz-.03,
+                    outer+.045,yy+.79,zz+1.13)
     # A shallow striped shop canopy and a blank sign panel above the door.
     if variant%3!=0:
         for k,xx in enumerate(np.arange(x+.15,x+width-.1,.35)):
@@ -45,10 +57,26 @@ def quay(props):
     # terminal. The west end connects to the terminal quay at walking height.
     box('stone',-75,-4,-134,10,-2,-81)
     box('sidewalk',-75,-2,-134,10,-1.9,-81)
-    box('stone',10,-4,-113,77,-2,-81)
-    box('sidewalk',10,-2,-113,77,-1.9,-81)
-    for x in np.arange(10,77,1.5):
+    # An L-shaped near shore leaves a broad basin visible below the tower,
+    # instead of filling that view with a second row of shop roofs.
+    box('stone',10,-4,-113,28,-2,-81)
+    box('sidewalk',10,-2,-113,28,-1.9,-81)
+    box('stone',28,-4,-90,77,-2,-81)
+    box('sidewalk',28,-2,-90,77,-1.9,-81)
+    for x in np.arange(10,28,1.5):
         box('limestone',x,-2.1,-113.2,x+1.45,-1.75,-112.9)
+    for x in np.arange(28,77,1.5):
+        box('limestone',x,-2.1,-90.2,x+1.45,-1.75,-89.9)
+    for z in np.arange(-112,-90,1.5):
+        box('limestone',27.8,-2.1,z,28.15,-1.75,z+1.45)
+    # Basin-side planting and benches frame the water without blocking the tower.
+    for x in np.arange(34,76,8):
+        box('stone',x-.8,-1.9,-87,x+.8,-1.3,-85.4)
+        box('leaves_dark',x-.7,-1.3,-86.9,x+.7,-.6,-85.5)
+        box('planks',x+2,-1.3,-87,x+4,-1.13,-86.4)
+        for xx in (x+2.15,x+3.85):
+            box('bronze',xx-.04,-1.9,-86.9,xx+.04,-1.1,-86.5)
+
     # Continuous stone waterfront connects the long terminal to the piers.
     box('stone',7,-3,-138,77,-.8,-128)
     box('sidewalk',7,-.8,-138,77,-.58,-128)
