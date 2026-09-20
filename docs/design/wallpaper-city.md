@@ -174,3 +174,29 @@ This is still not a close visual match. Remaining work before integration:
 Generated GLB and preview files remain in the output directory while the
 composition evolves. Source assets and the deterministic generator are committed.
 This study has not passed desktop integration or release performance gates.
+
+### Interactive pedestrian preview
+
+`build/tools/wallpaper-preview.py --world /home/starling/tmp/wallpaper-city-v2`
+serves a local preview at `http://127.0.0.1:8766`. Build the renderer first with
+`build/build-room.sh --test`. Requires Python with NumPy and Pillow (also used
+by the world generator), plus the existing EGL/GBM renderer dependencies.
+
+WASD walks, Shift increases speed, arrows or dragging the picture change the
+view, and Home returns to the hillside. Follow the right sidewalk downhill,
+shift left into the shop passage, climb the steps, then turn right along the
+terminal promenade. The camera follows the terrain and eases stair risers.
+Movement is confined to a conservative pedestrian corridor with lamp clearance;
+this is not general mesh collision or full-city navigation. Side streets,
+buildings, piers and water remain outside the route.
+
+The browser sends input to one local Python controller. A persistent Filament
+process accepts camera/time CSV rows through `ROOMTEST_STREAM` on stdin and
+returns one upright RGB frame per row through its output path; the controller
+encodes JPEG for the browser. It uses the prototype's existing scene and lighting.
+This single-viewer tool does not install a world or change the desktop. It is a
+navigation review tool, not the final desktop input or rendering pipeline.
+
+Checks: `test/city/wallpaper-navigation-test.py` exercises the full route,
+water/building/lamp exclusion and delayed input. `test/city/camera-path-render-test.py
+--world DIR` compares streamed frames with the deterministic camera-path output.

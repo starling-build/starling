@@ -218,7 +218,10 @@ int main(int argc, char** argv) {
     viewMatrix(view, cx, cy, cz, yaw, pitch);
     sr_room_set_camera(room, view, proj, 0.08f, 4000.0f);
 
-    if (!path.empty()) {
+    // Interactive preview: one CSV camera on stdin, one RGB frame on argv[4].
+    const bool stream = getenv("ROOMTEST_STREAM") != nullptr;
+    if (stream && !path.empty()) { fprintf(stderr, "choose PATH or STREAM\n"); return 2; }
+    if (stream || !path.empty()) {
         FILE* output = fopen(argv[4], "wb");
         if (!output) { perror(argv[4]); return 1; }
         GLuint videoFbo = 0;
@@ -229,8 +232,19 @@ int main(int argc, char** argv) {
             fclose(output); fprintf(stderr, "video FBO incomplete\n"); return 1;
         }
         std::vector<unsigned char> rgba(size_t(W)*H*4), rgb(size_t(W)*H*3);
-        for (size_t i=0; i<path.size(); ++i) {
-            const auto& s = path[i];
+        for (size_t i=0; stream || i<path.size(); ++i) {
+            std::array<double, 6> s;
+            if (stream) {
+                char line[512], extra;
+                if (!fgets(line, sizeof(line), stdin)) break;
+                int count = sscanf(line, "%lf,%lf,%lf,%lf,%lf,%lf %c",
+                    &s[0], &s[1], &s[2], &s[3], &s[4], &s[5], &extra);
+                bool valid = count == 6;
+                if (valid) for (double value : s) valid &= std::isfinite(value);
+                if (!valid || s[0] < 0) {
+                    fprintf(stderr, "invalid streamed camera\n"); fclose(output); return 2;
+                }
+            } else s = path[i];
             viewMatrix(view, s[1], s[2], s[3], s[4]*M_PI/180, s[5]*M_PI/180);
             sr_room_set_camera(room, view, proj, .08f, 4000.f);
             sr_room_set_animation_time(room, s[0]);
@@ -251,7 +265,8 @@ int main(int argc, char** argv) {
             if (fwrite(rgb.data(), 1, rgb.size(), output) != rgb.size()) {
                 fclose(output); fprintf(stderr, "video write failed\n"); return 1;
             }
-            if (i%120==0) fprintf(stderr, "camera path frame %zu/%zu\n", i+1, path.size());
+            if (stream && fflush(output)) { fclose(output); return 1; }
+            if (!stream && i%120==0) fprintf(stderr, "camera path frame %zu/%zu\n", i+1, path.size());
         }
         int failed = fclose(output);
         glDeleteFramebuffers(1, &videoFbo);

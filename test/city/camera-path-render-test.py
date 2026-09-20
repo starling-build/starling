@@ -31,6 +31,13 @@ def main():
         path.write_text('0,0,40,18,0,7.5\n1,10,30,-20,0,7.5\n2,8.5,-.2,-119,0,0\n3,34,1.12,-130,0,-55\n')
         subprocess.run(cmd,env=env,capture_output=True,check=True)
         frames=np.fromfile(raw,dtype=np.uint8).reshape(4,216,384,3).astype(float)
+        streamed=scratch/'stream.rgb'
+        stream_env={**env, 'ROOMTEST_STREAM':'1'}
+        stream_env.pop('ROOMTEST_PATH')
+        stream_cmd=cmd.copy(); stream_cmd[4]=str(streamed)
+        subprocess.run(stream_cmd,env=stream_env,input=path.read_bytes(),capture_output=True,check=True)
+        live=np.fromfile(streamed,dtype=np.uint8).reshape(frames.shape).astype(float)
+        assert np.abs(live-frames).mean()<.5, 'stream frames differ from recorded path'
         still=scratch/'still.ppm'
         cmd[4]=str(still); env.pop('ROOMTEST_PATH')
         env['ROOMTEST_FRAMES']='3'
@@ -45,7 +52,7 @@ def main():
         with Image.open(still) as image: last=np.asarray(image,dtype=float)
         last_error=np.abs(frames[-1]-last).mean()
         assert last_error<1, f'later video frame is stale/wrong: {last_error}' 
-        print(f'Camera path checks passed: invalid rows rejected; RGB orientation and size correct; '
+        print(f'Camera path checks passed: invalid rows rejected; live stream matches path; RGB orientation and size correct; '
               f'first-frame error {error:.3f}/255; moving camera delta {change:.2f}/255')
 
 
