@@ -9,6 +9,7 @@
 #include "starling_room.h"
 
 #include <EGL/egl.h>
+#include <algorithm>
 
 #include <backend/platforms/PlatformEGLHeadless.h>
 #include <filament/Camera.h>
@@ -439,6 +440,23 @@ void sr_room_set_exposure(sr_room* r, float aperture, float shutter, float iso) 
     r->camera->setExposure(aperture, shutter, iso);
 }
 
+void sr_room_set_fog(sr_room* r, float density, float start, float height,
+                     float falloff, float maximum_opacity, const float colour[3]) {
+    View::FogOptions fog;
+    fog.enabled = density > 0.0f;
+    fog.density = std::max(0.0f, density);
+    fog.distance = std::max(0.0f, start);
+    fog.height = height;
+    fog.heightFalloff = std::max(0.0f, falloff);
+    fog.maximumOpacity = std::clamp(maximum_opacity, 0.0f, 1.0f);
+    // With a finite custom projection the sky can sit at the far plane,
+    // rather than infinity. Stop just before it to exclude the sky reliably.
+    fog.cutOffDistance = float(r->camera->getCullingFar()) * .99f;
+    fog.color = { colour[0], colour[1], colour[2] };
+    fog.fogColorFromIbl = true;
+    r->view->setFogOptions(fog);
+}
+
 int sr_room_set_output(sr_room* r, uint32_t gl_texture, int width, int height) {
     if (r->output && r->outputName == gl_texture && r->width == width && r->height == height) {
         return 0;
@@ -476,6 +494,11 @@ void sr_room_set_camera(sr_room* r, const float view[16], const float proj[16],
     // test tool that wrote its picture bottom row first; the desktop
     // showed the room upside down. Measure on the desktop, not the tool.)
     r->camera->setCustomProjection(mat4(p), double(near_plane), double(far_plane));
+    auto fog = r->view->getFogOptions();
+    if (fog.enabled) {
+        fog.cutOffDistance = far_plane * .99f;
+        r->view->setFogOptions(fog);
+    }
     r->cameraModel = inverse(v);
     r->camera->setModelMatrix(r->cameraModel);
 }

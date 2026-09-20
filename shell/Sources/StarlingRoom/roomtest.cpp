@@ -103,6 +103,15 @@ int main(int argc, char** argv) {
         sscanf(getenv("ROOMTEST_EXPOSURE"), "%f,%f,%f", &a, &s, &iso);
         sr_room_set_exposure(room, a, s, iso);
     }
+    if (const char* value = getenv("ROOMTEST_FOG")) {
+        float density, start, height, falloff, opacity, colour[3];
+        if (sscanf(value, "%f,%f,%f,%f,%f,%f,%f,%f", &density, &start, &height,
+                   &falloff, &opacity, &colour[0], &colour[1], &colour[2]) != 8) {
+            fprintf(stderr, "ROOMTEST_FOG expects density,start,height,falloff,opacity,r,g,b\n");
+            return 1;
+        }
+        sr_room_set_fog(room, density, start, height, falloff, opacity, colour);
+    }
     if (sr_room_set_output(room, tex, W, H) != 0) return 1;
 
     // ROOMTEST_PANE=1: hang a test picture (a gradient with a checker

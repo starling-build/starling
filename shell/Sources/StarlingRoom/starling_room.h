@@ -42,6 +42,12 @@ SR_EXPORT void sr_room_set_light(sr_room*, const float sun_dir[3], const float s
 /// Camera exposure: aperture (f-stop), shutter (seconds), ISO.
 SR_EXPORT void sr_room_set_exposure(sr_room*, float aperture, float shutter, float iso);
 
+/// Optional height-based haze; density <= 0 disables it. Distances are metres,
+/// falloff is inverse metres, and colour tints the environment's scattered light.
+/// New rooms have fog disabled. The skybox is excluded.
+SR_EXPORT void sr_room_set_fog(sr_room*, float density, float start, float height,
+                              float falloff, float maximum_opacity, const float colour[3]);
+
 /// Where the picture goes: a GL texture that already exists in the shared
 /// context, RGBA8, width x height. May be called again with a new name.
 SR_EXPORT int sr_room_set_output(sr_room*, uint32_t gl_texture, int width, int height);

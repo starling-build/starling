@@ -23,6 +23,9 @@ spec.loader.exec_module(v)
 spec = importlib.util.spec_from_file_location('wallpaper_architecture', HERE/'wallpaper-architecture.py')
 architecture = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(architecture)
+spec = importlib.util.spec_from_file_location('wallpaper_waterfront', HERE/'wallpaper-waterfront.py')
+waterfront = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(waterfront)
 
 
 def ground(z):
@@ -142,7 +145,8 @@ def build(seed=12):
     for z in (-92,-105,-119):
         for x in np.arange(-65,70,9):
             if x>10 and z==-119: continue
-            house(x,z,7,rng.uniform(4,8),rng.choice(colors),base=-2)
+            waterfront.district_block(props,x,z,7,rng.uniform(4.4,8.5),
+                                      rng.choice(colors),int((x+65)/9)+int(-z))
     # Long Ferry Building and clock tower, right of the vanishing point.
     box('stone',8,-2.5,-146,75,-1,-135)
     box('plaster_cream',9,-1,-145,74,5,-137)
@@ -171,16 +175,30 @@ def build(seed=12):
         box('plaster_cream',tx-2.15,y,-137.15,tx+2.15,y+.25,-132.85)
     for y in (7,10.8):
         box('glass',tx-.2,y,-132.94,tx+.2,y+1.4,-132.91)
-    for y,w in ((17.8,2.5),(19.8,1.8),(21.8,1.1),(23.8,.6)):
-        box('limestone',tx-w,y,-135-w,tx+w,y+1.5,-135+w)
+    # Open belfry and lantern stages, rather than solid stacked roof blocks.
+    for y,w in ((17.8,2.5),(20.9,1.9),(23.4,1.2)):
+        box('limestone',tx-w,y,-135-w,tx+w,y+.35,-135+w)
+    for bottom,top,radius,column in ((18.15,20.9,1.55,.22),(21.25,23.4,.85,.16)):
+        beam('bronze',(tx,top,-135),(tx,(bottom+top)/2,-135),.06)
+        props.append(('ellipsoid','bronze' if bottom<20 else 'lamp',
+                      (tx,(bottom+top)/2,-135),
+                      (radius*.4,(top-bottom)*.3,radius*.4),5))
+        for dx in (-radius,radius-column):
+            for dz in (-radius,radius-column):
+                box('limestone',tx+dx,bottom,-135+dz,tx+dx+column,top,-135+dz+column)
+    props.append(('ellipsoid','copper',(tx,24.65,-135),(.55,1.05,.55),5))
     beam('bronze',(tx,25,-135),(tx,28,-135),.09)
     # Clock face and hands are geometry, visible without shell overlays.
     props.append(('ellipsoid','lamp',(tx,15.8,-132.94),(1.02,1.02,.055),8))
+    for angle in np.arange(12)*np.pi/6:
+        beam('bronze',(tx+.78*np.sin(angle),15.8+.78*np.cos(angle),-132.86),
+             (tx+.91*np.sin(angle),15.8+.91*np.cos(angle),-132.86),.045)
     beam('dark',(tx,15.8,-132.86),(tx,16.5,-132.86),.09)
     beam('dark',(tx,15.8,-132.85),(tx+.5,15.5,-132.85),.09)
+    waterfront.quay(props)
     # Sea, warm reflections and island.
-    box('water',-5000,-3,-5000,5000,-2.5,-142)
-    box('water',10,-3,-142,75,-2.5,-80)
+    # One sea surface beneath the land also covers oblique camera views.
+    box('water',-5000,-3,-5000,5000,-2.5,5000)
     for _ in range(15000):
         z=rng.uniform(-420,-90); x=rng.uniform(-190,250)
         if z>-142 and not 12<x<70: continue
@@ -297,9 +315,11 @@ ROOT = HERE.parents[1]
 ASSETS = ROOT/'shell/Resources/Worlds/wallpaper-city/materials'
 CAMERA = {'position':[0,40,18], 'yaw':0, 'pitch':7.5, 'size':[1672,941]}
 DETAIL_CAMERA = {'position':[-5,34,1], 'yaw':-40, 'pitch':-5, 'size':[1400,1000]}
+WATERFRONT_CAMERA = {'position':[90,16,-107], 'yaw':-64, 'pitch':7, 'size':[1400,1000]}
 LIGHTING = {'ROOMTEST_SUN':'0.56,0.025,-1', 'ROOMTEST_SUN_COLOUR':'1,0.72,0.45',
             'ROOMTEST_SUN_LUX':'12000', 'ROOMTEST_IBL_LUX':'6500',
-            'ROOMTEST_EXPOSURE':'8,0.0166667,100'}
+            'ROOMTEST_EXPOSURE':'8,0.0166667,100',
+            'ROOMTEST_FOG':'0.003,160,0,0.07,0.42,0.65,0.75,0.9'}
 
 
 def water_normal(path, size=512):
@@ -360,7 +380,7 @@ def render_preview(out):
     renderer=ROOT/'.build-shared/roomtest'
     if not renderer.is_file():
         raise FileNotFoundError(f'{renderer}: build with build/build-room.sh --test first')
-    for name,camera in (('view',CAMERA),('architecture',DETAIL_CAMERA)):
+    for name,camera in (('view',CAMERA),('architecture',DETAIL_CAMERA),('waterfront',WATERFRONT_CAMERA)):
         subprocess.run([str(renderer),str(out/'room.glb'),str(out/'room_ibl.ktx'),
                         str(out/'room_skybox.ktx'),str(out/(name+'.ppm')),
                         *map(str,camera['size']),*map(str,camera['position']),
@@ -381,7 +401,8 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
 <button onclick="document.querySelector('main').classList.toggle('stacked')">Toggle stacked / side by side</button>
 <main><figure><img src="reference.png" alt="Sunset wallpaper"><figcaption>Reference wallpaper</figcaption></figure>
 <figure><img src="view.png" alt="Rendered 3D reconstruction"><figcaption>3D reconstruction</figcaption></figure></main>
-<h2>Street architecture</h2><figure style="max-width:1400px"><img src="architecture.png" alt="Close view of modeled bay windows, doors and stairs"><figcaption>Second camera view of the same 3D scene</figcaption></figure></html>
+<h2>Street architecture</h2><figure style="max-width:1400px"><img src="architecture.png" alt="Close view of modeled bay windows, doors and stairs"><figcaption>Second camera view of the same 3D scene</figcaption></figure>
+<h2>Waterfront</h2><figure style="max-width:1400px"><img src="waterfront.png" alt="Ferry terminal and quay"><figcaption>Terminal, channel and piers from a closer camera</figcaption></figure></html>
 """)
 
 
@@ -447,7 +468,7 @@ def main():
     elif not all((out/name).is_file() for name in ('room_ibl.ktx','room_skybox.ktx')):
         parser.error('--no-sky requires an existing sky bake in --out')
     (out/'reference-camera.json').write_text(json.dumps({**CAMERA,'lighting':LIGHTING,
-        'detail_camera':DETAIL_CAMERA,'stage':'composition study; not a desktop world'},indent=2)+'\n')
+        'detail_camera':DETAIL_CAMERA,'waterfront_camera':WATERFRONT_CAMERA,'stage':'composition study; not a desktop world'},indent=2)+'\n')
     if args.render:
         render_preview(out)
     print(f'{out}: {len(mesh[3])//3:,} static triangles; finite geometry and unit normals verified')
