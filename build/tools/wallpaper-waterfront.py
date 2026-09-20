@@ -83,9 +83,23 @@ def quay(props):
     for x in np.arange(7,77,1.5):
         box('limestone',x,-.7,-128.25,x+1.45,-.42,-127.9)
         box('stone',x,-2.2,-128.05,x+1.43,-1.45,-127.99)
+    # A 3 m passage connects the hill's right sidewalk to the raised quay.
+    # Ten ordinary risers replace the previous 1.32 m vertical step.
+    for z in np.arange(-121,-81,.8):
+        box('limestone',7.05,-1.9,z,7.3,-1.85,z+.77)
+        edge=9.7 if z < -113 else 12.7
+        box('limestone',edge,-1.9,z,edge+.25,-1.85,z+.77)
+    for step in range(10):
+        near=-121-step*.7; top=-1.9+(step+1)*.132
+        box('stone',7,-2.3,near-.7,10,top,near)
+        box('limestone',7,top-.04,near-.7,10,top,near-.57)
+        for x in (7.08,9.92):
+            box('bronze',x-.025,top,near-.38,x+.025,top+.9,near-.33)
+    for x in (7.08,9.92):
+        beam('bronze',(x,-.868,-121.35),(x,.32,-127.65),.06)
     # Open railing allows a view of water between the vertical posts.
-    beam('bronze',(8,.45,-128),(76,.45,-128),.065)
-    for x in np.arange(8,77,2):
+    beam('bronze',(10.5,.45,-128),(76,.45,-128),.065)
+    for x in np.arange(12,77,2):
         box('bronze',x-.035,-.55,-128.04,x+.035,.48,-127.96)
     for x in np.arange(10,77,7):
         props.append(('lamp',x,-.58,-131,2.6))

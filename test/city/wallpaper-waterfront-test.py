@@ -25,6 +25,22 @@ class WaterfrontTests(unittest.TestCase):
         self.assertTrue((np.linalg.norm(cross,axis=1)>1e-8).all())
         self.assertTrue((np.einsum('ij,ij->i',cross,norm[triangles].mean(axis=1))>0).all())
 
+    def test_quay_connection_has_small_risers_and_an_open_exit(self):
+        props=[]; city.waterfront.quay(props)
+        heights=[]
+        for z in np.linspace(-119,-130,441):
+            boxes=[p for p in props if p[0]=='box' and p[2]<=8.5<=p[5]
+                   and p[4]<=z<=p[7]]
+            self.assertTrue(boxes,z)
+            heights.append(max(p[6] for p in boxes))
+        self.assertAlmostEqual(heights[0],-1.9)
+        self.assertAlmostEqual(heights[-1],-.58)
+        self.assertLessEqual(np.max(np.abs(np.diff(heights))),.201)
+        # A handrail must not cut across the exit above the walking surface.
+        for p in props:
+            if p[0]=='beam' and p[2][2]==p[3][2]==-128:
+                self.assertFalse(min(p[2][0],p[3][0])<8.5<max(p[2][0],p[3][0]))
+
     def test_basin_remains_open_between_connected_shores(self):
         props=[]; city.waterfront.quay(props)
         def solid_at(x,z):

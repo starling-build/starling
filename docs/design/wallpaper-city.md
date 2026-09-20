@@ -20,6 +20,8 @@ python3 build/tools/wallpaper-city.py --out /tmp/wallpaper-city --render
 disabled in the normal preview because their GPU cost depends strongly on view.
 `--sky-audit` adds four compass headings and two pole views from the bay to
 the rendered comparison page. These help reveal seams outside the main view.
+`--walk-audit` adds six eye-height checkpoints from the hill to the terminal.
+These are fixed camera renders, not an interactive walk or collision test.
 Build roomtest with `build/build-room.sh --test` if it is not available.
 
 Outputs include the GLB, sky/IBL, generated wave normal map, `view.png`,
@@ -47,6 +49,9 @@ workspace placement and multiple display integration remain unimplemented here.
   its route. Translation and normalized rotation tracks are exported together.
 - Arched terminal facade, an open belfry and lantern above the clock, roof
   skylights, quay railings, bollards and wooden finger piers.
+- A passage through the waterfront shops connects the descending sidewalk to
+  the terminal quay via ten 13.2 cm risers and continuous handrails. The quay
+  railing leaves the stair exit open.
 - Waterfront shops have framed windows on their exposed side walls. An
   L-shaped near shore opens a wider basin in front of the terminal, with benches
   and planters along the promenade. The downhill right-hand house row bends
@@ -89,8 +94,8 @@ and isolation of prototype overrides from default exports. It also covers an
 exporter edge case where every face is assigned a custom material. Nine existing
 city tests pass against the shipped world. The prototype renders on the GPU. The final export also passed buffer-bound,
 outward-winding, non-degenerate-triangle and closed-motion-track checks.
-Two waterfront tests verify outward face winding and open basin/solid shore
-samples. The facade test also verifies outward winding and road clearance for both street
+Three waterfront tests verify outward face winding, open basin/solid shore
+samples, and the quay connection's riser heights and open exit. The facade test also verifies outward winding and road clearance for both street
 sides and all three roof styles. Three motion tests cover closed loops, ferry heading, trolley wheel clearance,
 rotation-channel export and rejection of invalid rotation samples. The additional
 detail camera is at (-5,34,1),

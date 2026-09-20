@@ -164,6 +164,7 @@ def build(seed=12):
     # Waterfront neighbourhoods: small, tightly packed blocks beyond the hill.
     for z in (-92,-105,-119):
         for x in np.arange(-65,70,9):
+            if x==7: continue  # pedestrian passage from the hill to the quay
             if x>10 and z==-119: continue
             if x>=28 and z in (-92,-105): continue
             waterfront.district_block(props,x,z,7,rng.uniform(4.4,8.5),
@@ -423,7 +424,7 @@ def bake_sky(out, cmgen):
             shutil.copy2(scratch/name/f'{name}_{suffix}.ktx',out/f'room_{suffix}.ktx')
 
 
-def render_preview(out, sky_audit=False):
+def render_preview(out, sky_audit=False, walk_audit=False):
     renderer=ROOT/'.build-shared/roomtest'
     if not renderer.is_file():
         raise FileNotFoundError(f'{renderer}: build with build/build-room.sh --test first')
@@ -434,6 +435,16 @@ def render_preview(out, sky_audit=False):
                                ('left',270,-15),('up',0,-85),('down',0,85)):
             shots.append(('sky-'+name,{'position':[0,40,-210], 'yaw':yaw,
                                       'pitch':pitch, 'size':[836,470]},0))
+    if walk_audit:
+        for name,position,yaw,pitch in (
+                ('upper',[9.8,ground(-5)+1.86,-5],0,12),
+                ('middle',[9.8,ground(-41)+1.86,-41],0,10),
+                ('lower',[9.8,ground(-78)+1.86,-78],0,0),
+                ('passage',[8.5,-.2,-108],0,0),
+                ('stairs',[8.5,-.2,-119],0,0),
+                ('quay',[34,1.12,-131],-70,0)):
+            shots.append(('walk-'+name,{'position':position,'yaw':yaw,
+                                       'pitch':pitch,'size':[1000,650]},0))
     for name,camera,seconds in shots:
         subprocess.run([str(renderer),str(out/'room.glb'),str(out/'room_ibl.ktx'),
                         str(out/'room_skybox.ktx'),str(out/(name+'.ppm')),
@@ -471,6 +482,13 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
             section+=f'<figure><img src="sky-{name}.png" alt="Sky {name}"><figcaption>{name.title()}</figcaption></figure>'
         page.write_text(page.read_text().replace('</html>',section+'</main></html>'))
 
+    if walk_audit:
+        page=out/'comparison.html'
+        section='<h2>Pedestrian views</h2><p>Fixed eye-height checkpoints; continuous walking and collision remain unimplemented.</p><main>'
+        for name in ('upper','middle','lower','passage','stairs','quay'):
+            section+=f'<figure><img src="walk-{name}.png" alt="Pedestrian view: {name}"><figcaption>{name.title()}</figcaption></figure>'
+        page.write_text(page.read_text().replace('</html>',section+'</main></html>'))
+
 
 def motion_tracks():
     times=np.linspace(0,80,161)
@@ -491,6 +509,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--render',action='store_true',help='Render a PNG and local comparison page')
+    parser.add_argument('--walk-audit',action='store_true',
+                        help='Include pedestrian-height checkpoints when rendering')
     parser.add_argument('--sky-audit',action='store_true',
                         help='Include all-around sky views when rendering')
     parser.add_argument('--reflections',action='store_true',
@@ -556,7 +576,7 @@ def main():
     (out/'reference-camera.json').write_text(json.dumps({**CAMERA,'lighting':LIGHTING,
         'detail_camera':DETAIL_CAMERA,'waterfront_camera':WATERFRONT_CAMERA,'stage':'composition study; not a desktop world'},indent=2)+'\n')
     if args.render:
-        render_preview(out, sky_audit=args.sky_audit)
+        render_preview(out, sky_audit=args.sky_audit, walk_audit=args.walk_audit)
     print(f'{out}: {len(mesh[3])//3:,} static triangles; finite geometry and unit normals verified')
 
 if __name__=='__main__': main()
