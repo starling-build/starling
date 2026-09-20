@@ -42,3 +42,9 @@ Validation reopens the saved project with Blender 5.2 and checks its packed
 reference/environment images, finite mesh coordinates, active denoiser, and
 that all cable-car geometry fits within the comparison camera. Procedural
 materials, atmospheric volume and lighting still need runtime counterparts.
+
+The waterfront pass adds clock-face markers, belfry recesses and a pyramidal
+roof, stone quay coping and moorings, and a ferry in the open bay with a tapered
+bow, deck railings, funnel and broken wake. Stepped woodland follows the terrain
+surface on the island and both headlands; rocks articulate the island shoreline.
+These are editable study meshes. The ferry and wake are static in this source.

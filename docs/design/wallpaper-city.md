@@ -370,3 +370,20 @@ two packed images, finite vertex coordinates, and the entire cable car within
 the comparison camera. The saved project remains a study; the waterfront,
 landscape, boat, water and overall reference match still require refinement.
 No runtime-world replacement was made.
+
+### Blender waterfront pass — 2026-09-20
+
+Added clock dial markers, belfry recesses, a pyramidal roof and finial, plus quay
+coping and moorings. The ferry now has a tapered bow, deck rails, windows and a
+funnel, with a static broken wake. A first render exposed tower occlusion; the
+final placement moves the ferry right and presents its decks broadside.
+Stepped woodland now follows all three terrain surfaces, and stones define the
+island shoreline. The water palette is lighter, with world-position wave bump.
+
+Inspected the final 1400x788 Cycles render. The ferry is now visible beside the
+tower and the formerly bare ridges have vegetation. Water reflections, varied
+architecture, terminal detail and reference composition remain unfinished.
+This is an editable Blender study, not a runtime replacement or animated boat.
+Fresh-process validation passed with 814 objects, 196,706 base mesh vertices,
+two packed images, finite mesh coordinates, OpenImageDenoise and fully framed
+cable-car geometry. Builder compilation and git diff whitespace checks passed.

@@ -184,6 +184,26 @@ for z,w,d,h in [(9,6,6,7),(14,5,5,3),(17.5,4,4,4),(20.5,3,3,2),(22.3,1.8,1.8,1.6
 b.finish(.04)
 bpy.ops.mesh.primitive_cylinder_add(vertices=64,radius=1.12,depth=.10,location=(x,y-2.58,14),rotation=(math.pi/2,0,0));o=bpy.context.object;o.name='Illuminated clock dial';o.data.materials.append(lamp);move(o,'04 • Waterfront')
 beam('Clock minute hand',(x,y-2.66,14),(x,y-2.66,14.88),.045,dark,'04 • Waterfront');beam('Clock hour hand',(x,y-2.67,14),(x-.57,y-2.67,14.28),.06,dark,'04 • Waterfront')
+# Clock details and open belfry replace the blank upper masonry faces.
+b=Batch('Clock tower pilasters and belfry','04 • Waterfront')
+for side in [-1,1]:
+    b.box((25+side*2.15,128.4,10),( .35,.4,6.4),stone)
+    b.box((25+side*1.05,128.96,17.6),(.55,.12,2.4),roof)
+for i in range(12):
+    ang=i*math.tau/12
+    b.box((25+math.sin(ang)*.94,128.29,14+math.cos(ang)*.94),(.065,.035,.10),dark)
+for xx in [-1,1]:b.box((25+xx*2.35,131,16),( .18,5.1,.65),stone)
+b.finish(.025)
+bpy.ops.mesh.primitive_cone_add(vertices=4,radius1=2.4,radius2=0,depth=2.8,rotation=(0,0,math.pi/4),location=(25,131,24))
+o=bpy.context.object;o.name='Clock tower pyramidal copper roof';o.data.materials.append(roof);move(o,'04 • Waterfront')
+beam('Tower finial',(25,131,25.4),(25,131,26.5),.07,brass,'04 • Waterfront')
+# Quay coping, seawall courses and bollards connect the terminal to the bay.
+b=Batch('Quay edge and moorings','04 • Waterfront')
+for xx in range(-17,69,2):
+    b.box((xx,138,-.15),(1.95,1.1,1.5),stone)
+    b.box((xx,138,.65),(2,.95,.20),trim)
+    if xx%6==1:b.box((xx,137.8,1.05),(.32,.32,.6),dark)
+b.finish(.04)
 # Cable car aligned to the grade, with readable window frames and a curved roof.
 coll='05 • Cable car';y=29;x=-6;z=ground(y);b=Batch('Cable car body',coll)
 b.box((x,y,z+1.8),(2.8,5.3,3.2),red);b.box((x,y,z+3.5),(3.3,5.8,.24),roof);b.box((x,y,z+3.8),(2.1,4.9,.38),red)
@@ -231,10 +251,26 @@ for i in range(160):
     b.box((xx,yy,zz+1),(2.5,2,2),rng.choice(facades))
     b.box((xx,yy-1.05,zz+1),(.7,.05,.65),glass)
 b.finish()
-for i in range(60):
-    ang=rng.uniform(0,math.tau);t=rng.uniform(.25,.85);xx=-55+60*t*math.cos(ang);yy=300+34*t*math.sin(ang);zz=14*(1-t*t)**1.6
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=rng.uniform(1.2,2.6),location=(xx,yy,zz+1))
-    o=bpy.context.object;o.name='Island tree canopy';o.scale.z=1.3;o.data.materials.append(rng.choice(leaves));move(o,'06 • Bay and distant landscape')
+# Dense, stepped canopy clusters follow the same terrain surface as the mesh.
+for name,cx,cy,rx,ry,h,count in [('Island woodland',-55,300,60,34,14,360),('Marin woodland',-190,560,230,95,48,1800),('Eastern woodland',380,690,170,110,65,650)]:
+    b=Batch(name,'06 • Bay and distant landscape')
+    for i in range(count):
+        ang=rng.uniform(0,math.tau);t=math.sqrt(rng.uniform(.03,.90))
+        r=t*(1+.05*math.sin(ang*5)+.03*math.cos(ang*9))
+        xx=cx+rx*r*math.cos(ang);yy=cy+ry*r*math.sin(ang)
+        if name=='Island woodland' and -75<xx<-36 and 294<yy<309:continue
+        zz=h*max(0,1-t*t)**1.6+math.sin(ang*4)*t*(1-t)*h*.12-.5
+        size=rng.uniform(1.2,2.5) if count==360 else rng.uniform(2,4)
+        for level in range(3):
+            w=size*(1-level*.22)
+            b.box((xx,yy,zz+size*.35+level*size*.4),(w,w,size*.65),rng.choice(leaves))
+    b.finish()
+# Uneven stone revetment gives the island a readable edge against the water.
+b=Batch('Island shoreline rocks','06 • Bay and distant landscape')
+for i in range(180):
+    ang=i*math.tau/180;r=1+.05*math.sin(ang*5)+.03*math.cos(ang*9)
+    b.box((-55+60*r*math.cos(ang),300+34*r*math.sin(ang),-.55),(rng.uniform(.8,2),rng.uniform(.8,1.8),rng.uniform(.4,1.1)),stone)
+b.finish(.08)
 # Suspension bridge: deck, two connected towers, parabolic main cable, hangers.
 coll='07 • Suspension bridge';b=Batch('Bridge towers and deck',coll)
 b.box((125,555,33),(380,8,2),bridge)
@@ -252,17 +288,42 @@ for yy in [552,558]:
         beam('Main suspension cable',(xx,yy,cable(xx)),(xx+5,yy,cable(xx+5)),.22,bridge,coll)
         beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.06,bridge,coll)
 # Water uses a subtle anisotropic bump; geometry and base PBR export separately.
-water=material('Bay water • Blender procedural study',(.13,.24,.31),.24,.35)
+water=material('Bay water • Blender procedural study',(.32,.44,.54),.16,.1)
 n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=.7;tex.inputs['Detail'].default_value=3
 coord=n.new('ShaderNodeTexCoord');mapping=n.new('ShaderNodeVectorMath');mapping.operation='MULTIPLY';mapping.inputs[1].default_value=(.65,4,1);l.new(coord.outputs['Object'],mapping.inputs[0]);l.new(mapping.outputs[0],tex.inputs['Vector'])
 bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.5;bump.inputs['Distance'].default_value=.3;l.new(tex.outputs['Fac'],bump.inputs['Height']);l.new(bump.outputs['Normal'],s.inputs['Normal'])
+geo=n.new('ShaderNodeNewGeometry');l.new(geo.outputs['Position'],mapping.inputs[0])
+mapping.inputs[1].default_value=(.22,1.6,1)
+tex.inputs['Scale'].default_value=1.4
+bump.inputs['Distance'].default_value=.35
+bump.inputs['Strength'].default_value=.8
 box('Bay water',(0,900,-1.3),(2500,1560,.15),water,'06 • Bay and distant landscape')
-# A ferry with three decks, windows and lights.
-b=Batch('Ferry at sunset','08 • Ferry')
-for zz,w,d,h,m in [(0,9,22,1.5,dark),(1.3,8,19,1.3,trim),(2.7,6.8,15,1.3,trim),(3.8,5,9,.7,trim)]:b.box((65,203,zz),(w,d,h),m)
-for zz in [1.4,2.8]:
-    for yy in range(196,211,2):b.box((60.9 if zz<2 else 61.5,yy,zz),(.10,.85,.6),glass)
-b.finish(.06)
+# Ferry placed in open water above the terminal, with a tapered bow and wake.
+coll='08 • Ferry';fx,fy=62,320
+b=Batch('Ferry decks and fittings',coll)
+for zz,w,d,h,m in [(-.15,9,20,1.5,dark),(1.0,8,18,1.3,trim),(2.4,6.8,14,1.3,trim),(3.5,5,8,.65,trim)]:b.box((fx,fy,zz),(w,d,h),m)
+for zz,w,d in [(1.1,8.1,18),(2.5,6.9,14)]:
+    for xx in [-2.6,-1.3,0,1.3,2.6]:b.box((fx+xx,fy-d/2-.04,zz),(.9,.10,.65),roof)
+    for side in [-1,1]:
+        for yy in range(-5,6,2):b.box((fx+side*w/2,fy+yy,zz),(.10,1.3,.65),roof)
+for side in [-1,1]:
+    for yy in range(-8,9,2):b.box((fx+side*3.9,fy+yy,2),(.09,.09,.8),trim)
+    b.box((fx+side*3.9,fy,2.4),(.10,17,.10),trim)
+b.box((fx+1.2,fy+2,4.4),(1.2,1.6,1.8),red);b.box((fx+1.2,fy+2,5.35),(1.3,1.7,.18),dark)
+b.box((fx,fy-2,5),(.10,.10,2),brass);b.finish(.06)
+# Tapered bow continues the hull beneath the front deck.
+me=bpy.data.meshes.new('Ferry bow');me.from_pydata([(fx-4.5,fy-10,-.9),(fx+4.5,fy-10,-.9),(fx,fy-14,-.7),(fx-4.5,fy-10,.6),(fx+4.5,fy-10,.6),(fx,fy-14,.4)],[],[(0,2,1),(3,4,5),(0,1,4,3),(1,2,5,4),(2,0,3,5)]);me.materials.append(dark);o=bpy.data.objects.new('Tapered ferry bow',me);group(coll).objects.link(o)
+foam=material('Soft wake foam',(.44,.56,.57),.45)
+b=Batch('Broken ferry wake',coll)
+for side in [-1,1]:
+    for i in range(40):
+        b.box((fx+side*(4.5+i*.23)+rng.uniform(-.25,.25),fy+8+i*.85,-1.19),(rng.uniform(.3,1),rng.uniform(.4,1.4),.025),foam)
+b.finish()
+# Present the ferry broadside; keep the wake in the same local frame.
+from mathutils import Matrix
+turn=Matrix.Rotation(math.radians(65),4,'Z');anchor=Vector((fx,fy,-1.2))
+for o in group('08 • Ferry').objects:
+    for v in o.data.vertices:v.co=anchor+(turn @ (v.co-anchor))*1.35
 # Camera and lighting are saved with the source scene.
 scene=bpy.context.scene
 bpy.ops.object.camera_add(location=(2,-28,38));cam=bpy.context.object;cam.name='Wallpaper comparison camera';cam.rotation_euler=(Vector((3,225,4))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.lens=35;cam.data.clip_end=4000;scene.camera=cam
