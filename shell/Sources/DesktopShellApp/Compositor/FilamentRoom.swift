@@ -98,6 +98,7 @@ struct World3D {
     }
     var exposure: [Double] = [16, 1.0 / 125, 100]
     var iblIntensity = 30000.0
+    var fog: [Double]? = nil // density, start, height, falloff, opacity, RGB
     var pointLight: (x: Double, y: Double, z: Double, r: Double, g: Double, b: Double, candela: Double)? = nil
     var hub = (x: 0.0, y: 0.6, z: 0.0)
     var sunRadius = 0.32
@@ -143,6 +144,11 @@ struct World3D {
         }
         if let e = j["exposure"] as? [Double], e.count == 3 { w.exposure = e }
         if let i = j["ibl_intensity"] as? Double { w.iblIntensity = i }
+        if let fog = j["fog"] as? [Double], fog.count == 8,
+           fog.allSatisfy({ $0.isFinite }), fog[0] >= 0, fog[1] >= 0,
+           fog[3] >= 0, (0...1).contains(fog[4]), fog[5...7].allSatisfy({ $0 >= 0 }) {
+            w.fog = fog
+        }
         if let p = j["point_light"] as? [String: Any],
            let pos = p["position"] as? [Double], pos.count == 3,
            let col = p["colour"] as? [Double], col.count == 3,
@@ -203,6 +209,7 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
     private typealias CreateFn = @convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer?) -> OpaquePointer?
     private typealias LoadFn = @convention(c) (OpaquePointer?, UnsafePointer<CChar>?, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> Int32
     private typealias SetLightFn = @convention(c) (OpaquePointer?, UnsafePointer<Float>?, UnsafePointer<Float>?, Float, Float) -> Void
+    private typealias SetFogFn = @convention(c) (OpaquePointer?, Float, Float, Float, Float, Float, UnsafePointer<Float>?) -> Void
     private typealias SetExposureFn = @convention(c) (OpaquePointer?, Float, Float, Float) -> Void
     private typealias SetOutputFn = @convention(c) (OpaquePointer?, UInt32, Int32, Int32) -> Int32
     private typealias SetCameraFn = @convention(c) (OpaquePointer?, UnsafePointer<Float>?, UnsafePointer<Float>?, Float, Float) -> Void
@@ -546,6 +553,11 @@ final class FilamentRoomRenderer: EnvironmentRenderer {
             if p.count == 3 { exposure = p }
         }
         if exposure.count == 3 { fnSetExposure(r, exposure[0], exposure[1], exposure[2]) }
+        if let fog = world.fog, let setFog = sym("sr_room_set_fog", SetFogFn.self) {
+            let f = fog.map { Float($0) }
+            let colour = Array(f[5...7])
+            setFog(r, f[0], f[1], f[2], f[3], f[4], colour)
+        }
         return true
     }
 }

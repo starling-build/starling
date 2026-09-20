@@ -211,9 +211,9 @@ the sidewalk, then widens at its foot to allow the turn into the shop passage.
 The preview reads this file when present. The desktop's `WorldNavigation` reads
 the same sidecar for worlds with `world.json`, applies the exported spawn on
 Home, follows its pavement heights and sweeps keyboard movement against its
-bounds. Worlds without the sidecar retain their existing behavior. No desktop
-world manifest is exported yet: app placement and a live desktop integration
-review remain necessary before enabling this prototype in the desktop.
+bounds. Worlds without the sidecar retain their existing behavior. An opt-in desktop profile can now export the world manifest; see the preparation
+command below. A live desktop integration review remains necessary before
+promoting this prototype to the installed desktop.
 
 `python3 test/city/navigation-parity-test.py` compiles the standalone Swift
 navigation code and compares 1,350 swept moves and resulting floor heights with
@@ -235,7 +235,7 @@ walking area connects it to the existing right-side sidewalk. The proposed rail
 is 17 m ahead and 2 m above eye height, clearing the foreground trolley as well
 as the trees. The audit uses the existing desktop switcher radius/spacing and
 records the proposed rail configuration in `placement.json`; this is still a
-study, not an enabled desktop world manifest.
+study. The separate desktop-profile tool exports an opt-in manifest using this layout.
 
 `test/city/workspace-clearance-test.py --world DIR --audit AUDIT` compares every
 rail pane's interior with a control rendered without city geometry. All four
@@ -244,3 +244,36 @@ more than 12/255 at the audited initial actor time. This is a fixed-view smoke
 check, not a guarantee for all actor positions or camera movement. The expanded
 navigation route passes 1,500 Python/Swift movement comparisons and includes a
 walking test from the new workspace to the sidewalk.
+
+
+### Opt-in desktop profile
+
+Prepare a separate profile after generating the scene:
+
+```sh
+python3 build/tools/wallpaper-desktop.py \
+  --source /home/starling/tmp/wallpaper-city-v2 \
+  --out /home/starling/tmp/wallpaper-desktop
+```
+
+The profile links the generated GLB, sky, IBL and frame texture, and writes
+`world.json` and `navigation.json`. It includes the reviewed app rail, sunset
+exposure and sunlight, distance fog, ambient actor animation, and a fallback
+height map for window placement. Rerun preparation after changing the generated
+scene or navigation. This command does not install files or restart the desktop.
+
+For a development desktop launch, set `STARLING_ROOM_DIR` to the profile and
+`STARLING_ROOM_LIB` to this checkout's `.build-shared/libstarling_room.so`, and
+use the newly built shell. The older installed shell does not understand this
+navigation profile or its fog. The existing desktop world remains the default.
+
+In navigation-enabled worlds, newly opened apps appear at reading distance.
+Selecting a distant app brings it to the current viewer rather than gliding the
+camera off the corridor. The existing switcher selection path is preserved.
+These changes are conditional on a valid navigation sidecar, so older worlds
+keep their previous app-placement behavior.
+
+`python3 test/city/desktop-profile-test.py` compiles the actual `World3D` parser
+with the navigation type, checks the profile's rail, camera ground, lighting and
+fog, rejects malformed fog, and checks legacy height-map indexing. This covers
+configuration loading; it is not a live multi-app or multi-display acceptance test.

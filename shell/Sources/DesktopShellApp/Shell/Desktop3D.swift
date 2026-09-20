@@ -299,7 +299,7 @@ extension _DesktopShellState {
                     win.spaceId = windowManager.activeSpaceId(onOutput: outputId)
                     _desktop3DViewOverride = outputId
                 }
-                if _desktop3DPopUp == _desktop3DAppId(of: win) {
+                if _desktop3DPopUp == _desktop3DAppId(of: win) || w.navigation != nil {
                     _desktop3DPopUp = nil
                     _desktop3DPopUpWindow(win, host: _desktop3DHost, w: w)
                     let id = win.id
@@ -1121,6 +1121,16 @@ extension _DesktopShellState {
             return
         }
         let host = _desktop3DHost
+        // Keep the walker on the reviewed route: bring the selected app to
+        // reading distance instead of gliding through buildings to its old pose.
+        if let world = _desktop3DWorld, world.navigation != nil {
+            _desktop3DPopUpWindow(winner, host: host, w: world)
+            setState {
+                windowManager.bringToFront(winner.id)
+                windowManager.focusedWindowId = winner.id
+            }
+            return
+        }
         let p = winner.pose3D
         let d1 = _desktop3DFocalPx(host) * Self.k3DMetresPerPx
         _desktop3DLog("step up to \(winner.title): pose=\(p) cam=\(_camera3D)")
