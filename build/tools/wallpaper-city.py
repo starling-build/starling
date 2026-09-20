@@ -20,6 +20,9 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('voxel', HERE / 'voxel-world.py')
 v = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(v)
+spec = importlib.util.spec_from_file_location('wallpaper_architecture', HERE/'wallpaper-architecture.py')
+architecture = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(architecture)
 
 
 def ground(z):
@@ -30,6 +33,7 @@ def build(seed=12):
     rng = np.random.default_rng(seed)
     props = []
     terrain = []
+    houses = []
     def box(t,x,y,z,xx,yy,zz):
         props.append(('box',t,x,y,z,xx,yy,zz))
     def beam(t,a,b,w):
@@ -121,7 +125,13 @@ def build(seed=12):
         for row,z in enumerate((-5,-17,-29,-41,-53,-65,-77)):
             x=-20 if side<0 else 13
             h=(10-row*.35) if side<0 else (6.5-row*.2)
-            house(x,z,7,h,colors[row%5])
+            front_color=colors[row%5] if side<0 else (
+                'plaster_cream','plaster_rose','plaster_cream','plaster_sage','plaster_blue')[row%5]
+            if row<5:
+                houses.append(architecture.victorian(v,x,z,7,h,front_color,side,ground,
+                                                     variant=row+(0 if side<0 else 1)))
+            else:
+                house(x,z,7,h,colors[row%5])
             tree(side*11.6,z-5,ground(z-5),1.15 if row<3 else .9)
             props.append(('lamp',side*9.3,ground(z+2),z+2,3.3))
             for col in range(1,4):
@@ -244,9 +254,15 @@ def build(seed=12):
         tu.extend(((u0,v0),(u0,v1),(u1,v1),(u1,v0)))
     base=np.arange(len(terrain),dtype=np.uint32)[:,None]*4+len(p)
     ti=(base+np.array([0,1,2,0,2,3],np.uint32)).reshape(-1)
-    return (np.concatenate((p,np.asarray(tp,np.float32))),
-            np.concatenate((n,np.asarray(tn,np.float32))),
-            np.concatenate((u,np.asarray(tu,np.float32))),np.concatenate((indices,ti)))
+    combined=[np.concatenate((p,np.asarray(tp,np.float32))),
+              np.concatenate((n,np.asarray(tn,np.float32))),
+              np.concatenate((u,np.asarray(tu,np.float32))),np.concatenate((indices,ti))]
+    for hp,hn,hu,hi in houses:
+        offset=len(combined[0])
+        combined=[np.concatenate((combined[0],hp)),np.concatenate((combined[1],hn)),
+                  np.concatenate((combined[2],hu)),np.concatenate((combined[3],hi+offset))]
+    return tuple(combined)
+
 
 
 def trolley_mesh():
@@ -280,6 +296,7 @@ def trolley_mesh():
 ROOT = HERE.parents[1]
 ASSETS = ROOT/'shell/Resources/Worlds/wallpaper-city/materials'
 CAMERA = {'position':[0,40,18], 'yaw':0, 'pitch':7.5, 'size':[1672,941]}
+DETAIL_CAMERA = {'position':[-5,34,1], 'yaw':-40, 'pitch':-5, 'size':[1400,1000]}
 LIGHTING = {'ROOMTEST_SUN':'0.56,0.025,-1', 'ROOMTEST_SUN_COLOUR':'1,0.72,0.45',
             'ROOMTEST_SUN_LUX':'12000', 'ROOMTEST_IBL_LUX':'6500',
             'ROOMTEST_EXPOSURE':'8,0.0166667,100'}
@@ -343,13 +360,14 @@ def render_preview(out):
     renderer=ROOT/'.build-shared/roomtest'
     if not renderer.is_file():
         raise FileNotFoundError(f'{renderer}: build with build/build-room.sh --test first')
-    subprocess.run([str(renderer),str(out/'room.glb'),str(out/'room_ibl.ktx'),
-                    str(out/'room_skybox.ktx'),str(out/'view.ppm'),
-                    *map(str,CAMERA['size']),*map(str,CAMERA['position']),
-                    str(CAMERA['yaw']),str(CAMERA['pitch'])],
-                   env={**os.environ,**LIGHTING},check=True)
-    with Image.open(out/'view.ppm') as screenshot:
-        screenshot.save(out/'view.png')
+    for name,camera in (('view',CAMERA),('architecture',DETAIL_CAMERA)):
+        subprocess.run([str(renderer),str(out/'room.glb'),str(out/'room_ibl.ktx'),
+                        str(out/'room_skybox.ktx'),str(out/(name+'.ppm')),
+                        *map(str,camera['size']),*map(str,camera['position']),
+                        str(camera['yaw']),str(camera['pitch'])],
+                       env={**os.environ,**LIGHTING},check=True)
+        with Image.open(out/(name+'.ppm')) as screenshot:
+            screenshot.save(out/(name+'.png'))
     shutil.copy2(ROOT/'shell/Resources/Wallpapers/city-sunset.png',out/'reference.png')
     (out/'comparison.html').write_text("""<!doctype html><html lang="en">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -362,7 +380,8 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
 <p>Actual 3D render. Prototype: shoreline and architectural variety remain unfinished.</p>
 <button onclick="document.querySelector('main').classList.toggle('stacked')">Toggle stacked / side by side</button>
 <main><figure><img src="reference.png" alt="Sunset wallpaper"><figcaption>Reference wallpaper</figcaption></figure>
-<figure><img src="view.png" alt="Rendered 3D reconstruction"><figcaption>3D reconstruction</figcaption></figure></main></html>
+<figure><img src="view.png" alt="Rendered 3D reconstruction"><figcaption>3D reconstruction</figcaption></figure></main>
+<h2>Street architecture</h2><figure style="max-width:1400px"><img src="architecture.png" alt="Close view of modeled bay windows, doors and stairs"><figcaption>Second camera view of the same 3D scene</figcaption></figure></html>
 """)
 
 
@@ -380,8 +399,14 @@ def main():
         for name,mesh,times,positions in original():
             positions=np.asarray(positions,dtype=float)
             if name=='bay-ferry':
-                positions[:,0]+=76; positions[:,2]-=115
-                mesh=(mesh[0]*1.4,mesh[1],mesh[2],mesh[3])
+                positions[:,0]+=84; positions[:,2]-=175
+                # Cream-painted hull, with red funnels retained above the deck.
+                uv=mesh[2].copy()
+                tile_ids=(np.floor(uv[:,1]*v.ATLAS)*v.ATLAS+np.floor(uv[:,0]*v.ATLAS)).astype(int)
+                hull=(tile_ids==v.T['bridge_red']) & (mesh[0][:,1]<.91)
+                row,col=divmod(v.T['plaster_cream'],v.ATLAS)
+                uv[hull]=(np.mod(uv[hull]*v.ATLAS,1)+[col,row])/v.ATLAS
+                mesh=(mesh[0]*1.8,mesh[1],uv,mesh[3])
             elif name=='plaza-cable-car':
                 positions[:,0]=-4
                 positions[:,2]+=7
@@ -422,7 +447,7 @@ def main():
     elif not all((out/name).is_file() for name in ('room_ibl.ktx','room_skybox.ktx')):
         parser.error('--no-sky requires an existing sky bake in --out')
     (out/'reference-camera.json').write_text(json.dumps({**CAMERA,'lighting':LIGHTING,
-        'stage':'composition study; not a desktop world'},indent=2)+'\n')
+        'detail_camera':DETAIL_CAMERA,'stage':'composition study; not a desktop world'},indent=2)+'\n')
     if args.render:
         render_preview(out)
     print(f'{out}: {len(mesh[3])//3:,} static triangles; finite geometry and unit normals verified')

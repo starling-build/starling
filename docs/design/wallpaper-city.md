@@ -18,8 +18,8 @@ python3 build/tools/wallpaper-city.py --out /tmp/wallpaper-city --render
 `--no-sky` reuses the previous bake in the output directory during geometry work.
 Build roomtest with `build/build-room.sh --test` if it is not available.
 
-Outputs include the GLB, sky/IBL, generated wave normal map, `view.png` and
-`comparison.html`. Open the HTML locally to compare the wallpaper and actual GPU
+Outputs include the GLB, sky/IBL, generated wave normal map, `view.png`,
+`architecture.png` and `comparison.html`. Open the HTML locally to compare the wallpaper and actual GPU
 render, side by side or stacked. `reference-camera.json` records the fixed camera
 and light settings. The preview is 1672 × 941, at position (0,40,18), yaw 0 and
 pitch 7.5 degrees. No desktop configuration is emitted: walking/collision,
@@ -30,7 +30,9 @@ workspace placement and multiple display integration remain unimplemented here.
 - Descending cobblestone street with a curved crest, rails, retaining walls,
   planting and street lamps.
 - Stepped Victorian rows, projecting windows, cornices, stoops and smaller leaf
-  voxels; more foreground detail than the first blockout.
+  voxels; ten foreground houses now use three-sided bay windows, recessed
+  sashes and curtains, paneled doors, continuous stair rails, cornice brackets,
+  and three roof styles. Cream and rose houses frame the right side.
 - A red cable car with framed windows, roof tiers and round lamps, plus a ferry.
 - Dedicated arched terminal facade, clock tower, island and right-offset bridge.
 - Continuous shoreline surfaces tapering into water, with scattered distant windows.
@@ -52,11 +54,14 @@ and isolation of prototype overrides from default exports. It also covers an
 exporter edge case where every face is assigned a custom material. Nine existing
 city tests pass against the shipped world. The prototype renders on the GPU. The final export also passed buffer-bound,
 outward-winding, non-degenerate-triangle and closed-motion-track checks
-(355,876 total triangles, including actors).
+The facade test also verifies outward winding and road clearance for both street
+sides and all three roof styles. The additional detail camera is at (-5,34,1),
+yaw -40, pitch -5 degrees.
 
 This is still not a close visual match. Remaining work before integration:
 
-- More varied bay-window shapes, detailed doors, stairs and roofs.
+- Match the individual foreground houses more closely, including proportions
+  and ornament; extend the detailed architecture into the waterfront.
 - Less repetitive trees and buildings; better correspondence to specific houses.
 - Refine the waterfront's depth and shore silhouettes.
 - Improve water reflections, sky resolution and atmospheric haze.
