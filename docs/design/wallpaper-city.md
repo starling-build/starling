@@ -31,6 +31,31 @@ and light settings. The preview is 1672 × 941, at position (0,40,18), yaw 0 and
 pitch 7.5 degrees. No desktop configuration is emitted: walking/collision,
 workspace placement and multiple display integration remain unimplemented here.
 
+## Continuous camera preview
+
+After generating the world and building roomtest:
+
+```sh
+python3 build/tools/wallpaper-walk.py --world /tmp/wallpaper-city --out /tmp/wallpaper-city/walk.mp4
+```
+
+This records a 100-second, 960 × 600, 24 fps scripted route along the sidewalk,
+through the shop passage, up the quay stairs, and along the terminal, ending with
+a look at the tower. It samples animations at the camera timestamps. The CSV
+camera path and renderer log are saved beside the MP4. FFmpeg is required;
+recording uses about 4 GB of temporary raw frames, deleted after encoding.
+`--fps` may be reduced for a quick route review. A subsequent comparison render
+embeds `walk.mp4` if it is present in the world output directory.
+
+`ROOMTEST_PATH` is the renderer's optional camera CSV input, with six columns:
+`seconds,x,y,z,yaw_degrees,pitch_degrees`. Timestamps must increase. In this mode
+the output is upright RGB24 frames instead of a PPM. Camera-path GPU checks
+verify invalid-input rejection, exact first- and last-frame agreement with independent still renders,
+frame layout, and visible camera movement. The encoder workflow also decodes
+three checkpoints and rejects an apparently frozen result. The route is authored against known
+surfaces and eases stair height changes; it is not interactive navigation or a
+collision/physics implementation. The installed desktop is unchanged.
+
 ## Current reconstruction
 
 - Descending cobblestone street with a curved crest, rails, retaining walls,

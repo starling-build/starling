@@ -475,6 +475,10 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
 <img id="motion-view" style="max-width:1672px" src="view.png" alt="Selected animation checkpoint">
 </html>
 """)
+    if (out/'walk.mp4').is_file():
+        page=out/'comparison.html'
+        section='<h2>Scripted walking preview</h2><p>Continuous camera route; interactive walking and collision are not implemented.</p><video controls preload="metadata" style="max-width:960px;width:100%" src="walk.mp4"></video>'
+        page.write_text(page.read_text().replace('</html>',section+'</html>'))
     if sky_audit:
         page=out/'comparison.html'
         section='<h2>Sky around the scene</h2><p>Four headings plus pole views from the bay.</p><main>'

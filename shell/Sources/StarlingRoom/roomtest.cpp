@@ -4,6 +4,7 @@
 // back and writes it out as a PPM.
 //
 //   roomtest <room.glb> <ibl.ktx> <skybox.ktx> <out.ppm> [w h] [x y z yaw pitch]
+//   ROOMTEST_PATH=camera.csv roomtest <room.glb> <ibl.ktx> <skybox.ktx> <out.rgb> [w h]
 #include "starling_room.h"
 
 #include <EGL/egl.h>
@@ -11,6 +12,7 @@
 #include <GLES3/gl3.h>
 #include <gbm.h>
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -53,6 +55,31 @@ int main(int argc, char** argv) {
     double cx = 0, cy = 1.68, cz = 9.3, yaw = 0, pitch = 0;
     if (argc > 11) { cx = atof(argv[7]); cy = atof(argv[8]); cz = atof(argv[9]);
                      yaw = atof(argv[10]) * M_PI / 180; pitch = atof(argv[11]) * M_PI / 180; }
+
+    // Optional deterministic camera path: time,x,y,z,yawDegrees,pitchDegrees.
+    // In this mode argv[4] receives tightly packed, upright RGB24 video frames.
+    std::vector<std::array<double, 6>> path;
+    if (const char* filename = getenv("ROOMTEST_PATH")) {
+        FILE* input = fopen(filename, "r");
+        if (!input) { perror(filename); return 2; }
+        char line[512];
+        while (fgets(line, sizeof(line), input)) {
+            std::array<double, 6> sample;
+            char extra;
+            int count = sscanf(line, "%lf,%lf,%lf,%lf,%lf,%lf %c",
+                &sample[0], &sample[1], &sample[2], &sample[3],
+                &sample[4], &sample[5], &extra);
+            bool valid = count == 6;
+            if (valid) for (double value : sample) valid &= std::isfinite(value);
+            if (!valid || sample[0] < 0 || (!path.empty() && sample[0] <= path.back()[0])) {
+                fprintf(stderr, "invalid camera path row %zu\n", path.size()+1);
+                fclose(input); return 2;
+            }
+            path.push_back(sample);
+        }
+        bool failed = ferror(input); fclose(input);
+        if (failed || path.empty()) { fprintf(stderr, "empty/unreadable camera path\n"); return 2; }
+    }
 
     const char* node = getenv("ROOMTEST_NODE") ? getenv("ROOMTEST_NODE") : "/dev/dri/renderD128";
     int fd = open(node, O_RDWR | O_CLOEXEC);
@@ -190,6 +217,47 @@ int main(int argc, char** argv) {
     projection(proj, double(W) / H, 0.7002, 0.08, 4000.0);
     viewMatrix(view, cx, cy, cz, yaw, pitch);
     sr_room_set_camera(room, view, proj, 0.08f, 4000.0f);
+
+    if (!path.empty()) {
+        FILE* output = fopen(argv[4], "wb");
+        if (!output) { perror(argv[4]); return 1; }
+        GLuint videoFbo = 0;
+        glGenFramebuffers(1, &videoFbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, videoFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            fclose(output); fprintf(stderr, "video FBO incomplete\n"); return 1;
+        }
+        std::vector<unsigned char> rgba(size_t(W)*H*4), rgb(size_t(W)*H*3);
+        for (size_t i=0; i<path.size(); ++i) {
+            const auto& s = path[i];
+            viewMatrix(view, s[1], s[2], s[3], s[4]*M_PI/180, s[5]*M_PI/180);
+            sr_room_set_camera(room, view, proj, .08f, 4000.f);
+            sr_room_set_animation_time(room, s[0]);
+            // Warm temporal effects at the initial camera before recording.
+            for (int j=0; j<(i==0 ? 3 : 1); ++j) {
+                if (sr_room_render(room) != 0) { fclose(output); return 1; }
+            }
+            glBindFramebuffer(GL_FRAMEBUFFER, videoFbo);
+            // Reattach the shared texture after the renderer context writes it;
+            // retaining the old attachment can keep a stale engine-side image.
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+            glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+            for (int y=0; y<H; ++y) for (int x=0; x<W; ++x) {
+                size_t from=(size_t(H-1-y)*W+x)*4, to=(size_t(y)*W+x)*3;
+                memcpy(rgb.data()+to, rgba.data()+from, 3);
+            }
+            if (fwrite(rgb.data(), 1, rgb.size(), output) != rgb.size()) {
+                fclose(output); fprintf(stderr, "video write failed\n"); return 1;
+            }
+            if (i%120==0) fprintf(stderr, "camera path frame %zu/%zu\n", i+1, path.size());
+        }
+        int failed = fclose(output);
+        glDeleteFramebuffers(1, &videoFbo);
+        sr_room_destroy(room);
+        return failed ? 1 : 0;
+    }
 
     int frames = getenv("ROOMTEST_FRAMES") ? atoi(getenv("ROOMTEST_FRAMES")) : 3;
     for (int i = 0; i < frames; i++) {
