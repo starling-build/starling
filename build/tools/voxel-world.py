@@ -993,7 +993,7 @@ def ambient_actors():
     return actors
 
 
-def write_glb(path, pos, nrm, uv, idx, atlas_path):
+def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positions=None, trolley_slope=.19):
     with open(atlas_path, "rb") as f:
         png = f.read()
     bin_ = bytearray()
@@ -1071,19 +1071,22 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
 
     # Actual pools of lamplight, limited to six lights near the viewing terrace.
     lights = []
-    for row,z in enumerate((2, -10, -22)):
-        east_lamp = max(14+row*1.4,(13-z)*1.32+8)-5
-        for x in (-7.8, east_lamp):
-            lights.append({"type": "point", "color": [1.0,.57,.25],
-                           "intensity": 550, "range": 11})
-            node = len(j["nodes"])
-            j["nodes"].append({"name": "street-lantern", "translation":
-                [x,max(-2.2,5+min(0,z+8)*.19)+3.2,z+.5],
-                "extensions": {"KHR_lights_punctual": {"light": len(lights)-1}}})
-            j["scenes"][0]["nodes"].append(node)
+    if light_positions is None:
+        light_positions = []
+        for row,z in enumerate((2, -10, -22)):
+            east_lamp = max(14+row*1.4,(13-z)*1.32+8)-5
+            for x in (-7.8, east_lamp):
+                light_positions.append([x,max(-2.2,5+min(0,z+8)*.19)+3.2,z+.5])
+    for position in light_positions:
+        lights.append({"type": "point", "color": [1.0,.57,.25],
+                       "intensity": 550, "range": 11})
+        node = len(j["nodes"])
+        j["nodes"].append({"name": "street-lantern", "translation": position,
+            "extensions": {"KHR_lights_punctual": {"light": len(lights)-1}}})
+        j["scenes"][0]["nodes"].append(node)
     j["extensions"] = {"KHR_lights_punctual": {"lights": lights}}
     j["animations"] = []
-    for name, (p, n, u, indices), times, positions in ambient_actors():
+    for name, (p, n, u, indices), times, positions in (ambient_actors() if actors is None else actors):
         mesh = len(j["meshes"])
         j["meshes"].append({"primitives": [{"attributes": {
             "POSITION": accessor(p, "VEC3", target=34962),
@@ -1094,7 +1097,7 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path):
         j["nodes"].append({"name": name, "mesh": mesh,
                            "translation": np.asarray(positions[0]).tolist()})
         if name == "plaza-cable-car":
-            angle = -np.arctan(.19)/2
+            angle = -np.arctan(trolley_slope)/2
             j["nodes"][-1]["rotation"] = [float(np.sin(angle)),0,0,float(np.cos(angle))]
         j["scenes"][0]["nodes"].append(node)
         j["animations"].append({"name": name, "samplers": [{
