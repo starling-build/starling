@@ -61,6 +61,17 @@ def victorian(v, x, z, width, height, tile, side, ground, variant=0, depth=7):
 
     block('stone',-.15,-3,-width-.1,depth+.15,.85,.1)
     block(tile,0,.85,-width,depth,height,0)
+    # Fine clapboard laps catch grazing sunset light on both visible elevations.
+    for yy in np.arange(1.08,height-.3,.24):
+        block(tile,0,yy,.003,depth,yy+.035,.035)
+        block(tile,depth+.003,yy,-width,depth+.035,yy+.035,0)
+    # Staggered masonry courses give the raised basement actual joints.
+    for row,yy in enumerate(np.arange(-1.8,.8,.42)):
+        for u in np.arange(-.1,depth,.82):
+            start=max(-.14,u-(.41 if row%2 else 0))
+            end=min(depth+.14,u+.78-(.41 if row%2 else 0))
+            if end>start:
+                block('stone',start,yy,.105,end,yy+.39,.145)
     for yy in np.arange(1,height,3):
         block('limestone',-.12,yy,-width-.1,depth+.12,yy+.16,.16)
     for u in (.05,depth-.22):
@@ -87,8 +98,20 @@ def victorian(v, x, z, width, height, tile, side, ground, variant=0, depth=7):
         pane(door_u,yy,.035,.92,1.8,lit=(floor+variant)%3!=1)
     # Camera-facing end elevation, distinct from the road elevation.
     for k,front in enumerate((-width*.28,-width*.7)):
+        # A second projecting bay faces uphill, where the reference camera
+        # sees most of the nearest houses. Side panes complete its return walls.
+        projection=.58 if k==0 else .10
+        block(tile,-.88,.95,0,.88,height-.4,projection,
+              -np.pi/2,(depth,front))
         for floor,yy in enumerate(np.arange(1.5,height-1.3,3)):
-            pane(depth+.025,yy,front,1.35,1.9,-np.pi/2,lit=(k+floor+variant)%3!=2)
+            pane(depth+projection+.025,yy,front,1.35,1.9,-np.pi/2,
+                 lit=(k+floor+variant)%4!=3)
+            block('limestone',-1.02,yy+2.14,-.02,1.02,yy+2.34,projection+.2,
+                  -np.pi/2,(depth,front))
+            if k==0:
+                for sign in (-1,1):
+                    pane(depth+.26,yy,front+sign*.89,.37,1.9,
+                         0 if sign>0 else np.pi,lit=True)
     # Paneled door and transom, set above a real stair landing.
     block('limestone',door_u-.79,1.1,-.02,door_u+.79,3.95,.20)
     block('painted_wood',door_u-.65,1.2,.21,door_u+.65,3.6,.25)

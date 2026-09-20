@@ -28,11 +28,16 @@ workspace placement and multiple display integration remain unimplemented here.
 ## Current reconstruction
 
 - Descending cobblestone street with a curved crest, rails, retaining walls,
-  planting and street lamps.
+  planting and framed lanterns with slender posts, caps and finials. Preview
+  point lights are centered in the six nearest lanterns.
 - Stepped Victorian rows, projecting windows, cornices, stoops and smaller leaf
   voxels; ten foreground houses now use three-sided bay windows, recessed
   sashes and curtains, paneled doors, continuous stair rails, cornice brackets,
-  and three roof styles. Cream and rose houses frame the right side.
+  and three roof styles. Uphill-facing elevations also have projecting window
+  bays; modeled clapboard laps and basement joints add surface relief. Cream
+  and rose houses frame the right side, with lighter warm limestone trim.
+- Trees have separate overlapping crowns and exposed branches. The nearest
+  left tree sits farther from the road to reveal more of the blue house.
 - A red cable car with framed windows, roof tiers and round lamps, plus a ferry.
   The trolley samples the curved street and changes pitch; the ferry turns along
   its route. Translation and normalized rotation tracks are exported together.

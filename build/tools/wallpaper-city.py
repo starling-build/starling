@@ -45,23 +45,39 @@ def build(seed=12):
     def beam(t,a,b,w):
         props.append(('beam',t,a,b,w))
     def tree(x,z,y,s=1):
-        # Fixed-size leaf voxels keep nearby trees detailed instead of scaling
-        # a handful of enormous cubes with the tree's overall height.
-        beam('log',(x,y,z),(x+.12*s,y+3.3*s,z),.28*s)
-        for dx,dz in ((-.7,.1),(.6,-.4),(.3,.65)):
-            beam('log',(x,y+1.9*s,z),(x+dx*s,y+3.3*s,z+dz*s),.12*s)
-        step=.34 if s>1.5 else .28
-        radius=1.3*s
-        for dx in np.arange(-radius,radius+.01,step):
-            for dy in np.arange(-1.5*s,1.5*s+.01,step):
-                for dz in np.arange(-radius,radius+.01,step):
-                    shape=(dx/radius)**2+(dy/(1.5*s))**2+(dz/radius)**2
-                    if shape>1+rng.uniform(-.17,.17) or shape<.60: continue
-                    if rng.random()<.13: continue
-                    r=step*.55
+        # Separate crowns and exposed branching preserve gaps in the silhouette.
+        # Union the crowns on one voxel grid so overlapping limbs add no faces.
+        beam('log',(x,y,z),(x+.12*s,y+3.6*s,z),.25*s)
+        crowns=[(-.70,3.15,.12,.85),(.66,3.35,-.35,.88),
+                (.30,3.65,.68,.78),(-.12,4.35,-.10,.94)]
+        for dx,dy,dz,radius in crowns:
+            beam('log',(x,y+1.8*s,z),(x+dx*s,y+dy*s,z+dz*s),.13*s)
+        step=.32 if s>1.5 else .28
+        for dx in np.arange(-1.65*s,1.65*s,step):
+            for dy in np.arange(2.1*s,5.4*s,step):
+                for dz in np.arange(-1.4*s,1.6*s,step):
+                    shape=min(((dx/s-cx)/r)**2+((dy/s-cy)/(r*.86))**2+
+                              ((dz/s-cz)/r)**2 for cx,cy,cz,r in crowns)
+                    if shape>1+rng.uniform(-.12,.12) or shape<.48: continue
+                    if rng.random()<.08: continue
+                    r=step*.52
                     box(rng.choice(['leaves','leaves_dark','leaves_light']),
-                        x+dx-r,y+3.6*s+dy-r,z+dz-r,
-                        x+dx+r,y+3.6*s+dy+r,z+dz+r)
+                        x+dx-r,y+dy-r,z+dz-r,x+dx+r,y+dy+r,z+dz+r)
+    def lantern(x,z,y):
+        # Slender cast-metal post, framed glass, stepped cap and finial.
+        box('bronze',x-.19,y,z-.19,x+.19,y+.16,z+.19)
+        box('bronze',x-.11,y+.16,z-.11,x+.11,y+.65,z+.11)
+        beam('bronze',(x,y+.3,z),(x,y+2.65,z),.085)
+        for yy,r,h in ((2.48,.15,.08),(2.62,.23,.07),(3.19,.30,.09)):
+            box('bronze',x-r,y+yy,z-r,x+r,y+yy+h,z+r)
+        box('lamp',x-.18,y+2.70,z-.18,x+.18,y+3.19,z+.18)
+        for dx in (-.20,.20):
+            for dz in (-.20,.20):
+                beam('bronze',(x+dx,y+2.68,z+dz),(x+dx*1.3,y+3.22,z+dz*1.3),.045)
+        for i in range(4):
+            r=.28-i*.06
+            box('bronze',x-r,y+3.28+i*.05,z-r,x+r,y+3.33+i*.05,z+r)
+        beam('bronze',(x,y+3.43,z),(x,y+3.62,z),.055)
     def window(x,y,z,w=1,h=1.8):
         box('limestone',x-.12,y-.12,z-.08,x+w+.12,y+h+.12,z+.13)
         box('interior_warm',x,y,z+.14,x+w,y+h,z+.16)
@@ -139,10 +155,10 @@ def build(seed=12):
             else:
                 house(x,z,7,h,colors[row%5])
             tree(side*11.6,z-5,ground(z-5),1.15 if row<3 else .9)
-            props.append(('lamp',side*9.3,ground(z+2),z+2,3.3))
+            lantern(side*9.3,z+2,ground(z+2))
             for col in range(1,4):
                 house(x+side*col*8.5,z-2,7,h+rng.uniform(-2,2),colors[(row+col)%5])
-    tree(-12.5,-2,ground(-2),2.6)
+    tree(-15,-2,ground(-2),2.25)
     tree(16,-12,ground(-12),1.8)
     # Waterfront neighbourhoods: small, tightly packed blocks beyond the hill.
     for z in (-92,-105,-119):
@@ -456,7 +472,7 @@ def main():
     assert mesh[3].max()<len(mesh[0])
     water_normal(out/'water-normal.png')
     v.write_glb(out/'room.glb',*mesh,out/'atlas.png',actors=actors(),actor_rotations={name:track[2] for name,track in tracks.items()},
-                light_positions=[[side*9.3+.5,ground(z+2)+3.2,z+2.5]
+                light_positions=[[side*9.3,ground(z+2)+2.95,z+2]
                                  for z in (-5,-17,-29) for side in (-1,1)],
                 material_options={
                     'surface_overrides': {
@@ -464,7 +480,7 @@ def main():
                         'plaster_blue': ('lime-plaster.png',(.18,.30,.40),.88,0.,2.),
                         'plaster_sage': ('lime-plaster.png',(.25,.36,.25),.88,0.,2.),
                         'plaster_terra': ('lime-plaster.png',(.45,.19,.12),.88,0.,2.),
-                        'limestone': ('limestone.png',(.66,.55,.40),.78,0.,2.),
+                        'limestone': ('limestone.png',(.78,.69,.54),.78,0.,2.),
                         'hill': (None,(.055,.075,.07),.95,0.,1.),
                         'hill_far': (None,(.09,.105,.13),.95,0.,1.),
                         'water_glint': (None,(.30,.38,.46),.38,.2,1.),
