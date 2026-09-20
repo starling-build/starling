@@ -105,11 +105,11 @@
       </div>
       <div class="install-steps">
         <ol>
-          <li><h3>Download the desktop</h3><p>The release draft includes the Ubuntu package and checksums.</p><a class="button-primary" href="https://github.com/starling-build/starling/releases/tag/untagged-62377aae998dfe6059ae">View v0.5.0 release draft <span aria-hidden="true">↗</span></a></li>
-          <li><h3>Install the package</h3><p>Open a terminal in the folder where you saved the download, then run:</p><pre aria-label="Installation command"><code>sudo apt install ./starling_0.5.0_amd64.deb</code></pre><p class="install-note">Ubuntu Desktop includes the login manager. On a minimal or Server install, add it with <code>sudo apt install gdm3</code>.</p></li>
+          <li><h3>Download the desktop</h3><p>Open a terminal and download the Ubuntu package:</p><pre aria-label="Download command"><code>curl -fLO https://github.com/starling-build/starling/releases/download/v0.5.0/starling_0.5.0_amd64.deb</code></pre></li>
+          <li><h3>Install the package</h3><p>In the same folder, install Starling and its dependencies:</p><pre aria-label="Installation command"><code>sudo apt install ./starling_0.5.0_amd64.deb</code></pre><p class="install-note">Ubuntu Desktop includes the login manager. On a minimal or Server install, add it with <code>sudo apt install gdm3</code>.</p></li>
           <li><h3>Sign in to Starling</h3><p>Log out, select your name, and open the session menu (usually the gear icon). Choose <strong>Starling</strong>, then sign in.</p></li>
         </ol>
-        <div class="install-preview-note"><strong>v0.5.0 is ready for review.</strong><p>The GitHub release is still a draft, visible to repository collaborators. Public downloads will be available when it is published. You can also follow the <a href="https://github.com/starling-build/starling/blob/release-0.5.0/docs/BUILDING.md">build-from-source guide</a>.</p></div>
+
         <p class="install-note">Early preview. Verified graphics: AMD Radeon 780M and VirtIO-GPU / virgl in a VM. Intel and NVIDIA graphics are not yet verified. See the installation guide for requirements and troubleshooting.</p>
       </div>
     </section>
