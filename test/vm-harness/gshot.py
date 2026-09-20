@@ -4,7 +4,7 @@
 # so the request is consumed. Engine writes /tmp/drm_screenshot_*.ppm. Runs as
 # the session user (the shell is its own process). Leaves the PPM at ~/starling-shot.ppm.
 import glob, os, signal, subprocess, sys, time
-before = set(glob.glob("/tmp/drm_screenshot_*.ppm"))
+before = {p: os.stat(p).st_mtime_ns for p in glob.glob("/tmp/drm_screenshot_*.ppm")}
 pid = int(subprocess.check_output(["pgrep", "-x", "DesktopShellApp"]).split()[0])
 os.kill(pid, signal.SIGUSR1)
 deadline = time.time() + 8
@@ -15,7 +15,9 @@ while time.time() < deadline and not new:
     except Exception:
         pass
     time.sleep(0.25)
-    new = next(iter(set(glob.glob("/tmp/drm_screenshot_*.ppm")) - before), None)
+    # A restarted shell reuses screenshot_0: detect replacement as well as a new name.
+    new = next((p for p in glob.glob("/tmp/drm_screenshot_*.ppm")
+                if os.stat(p).st_mtime_ns != before.get(p)), None)
 if not new:
     sys.exit("screenshot never appeared")
 time.sleep(0.5)  # let the ~33MB write finish

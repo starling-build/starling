@@ -277,3 +277,33 @@ keep their previous app-placement behavior.
 with the navigation type, checks the profile's rail, camera ground, lighting and
 fog, rejects malformed fog, and checks legacy height-map indexing. This covers
 configuration loading; it is not a live multi-app or multi-display acceptance test.
+
+
+### Live hardware smoke test — 2026-09-20
+
+The feature shell and renderer are now installed on the development laptop,
+with `/home/starling/tmp/wallpaper-desktop` selected by the session launcher.
+The previous binaries and launcher are preserved under
+`/home/starling/tmp/wallpaper-host-rollback-20260920`; `sudo ./restore.sh` from
+that directory restores them and restarts GDM.
+
+Confirmed on the actual AMD desktop with both displays: the generated world
+loads, Chrome/Files/Terminal/Video Player open, Alt+Tab displays their live
+textures, terminal input executes, and the 100-second walkthrough plays inside
+the video app. Broker snapshots confirm four real app panes. Moving each
+camera independently leaves the other camera unchanged; both returned home.
+Evidence is under `~/Pictures/Starling/wallpaper-host-*.png` and
+`wallpaper-host-check.json`.
+
+The live run exposed clipped title bars when opening full-size apps from the
+five-degree downhill view. Navigation-enabled worlds now level the camera when
+bringing an app to reading distance. Position and yaw are retained. This was
+rebuilt and verified on the running desktop. The screenshot harness also now
+detects a replaced screenshot filename after a shell restart.
+
+Remaining findings: a transient large black rectangle appeared after the
+cross-display camera/switcher exercise and cleared during subsequent app
+interaction; its cause is not yet isolated. This smoke test is not performance
+or release acceptance. The earlier 3 GB test VM was OOM-killed when returning
+to 3D with four apps, so low-memory behavior still needs investigation. The VM
+is stopped; live validation moved to hardware at the user's request.

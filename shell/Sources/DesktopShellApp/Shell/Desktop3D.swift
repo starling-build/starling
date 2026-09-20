@@ -396,6 +396,12 @@ extension _DesktopShellState {
     /// top on the flat desktop. Two panes on one plane fight for every
     /// pixel, and the one drawn last wins, whichever has the keyboard.
     func _desktop3DPopUpWindow(_ win: WindowInfo, host: Rect, w: World3D) {
+        // Reading planes are vertical. A downhill walking pitch projects a
+        // screen-sized window above the viewport and hides its title bar.
+        if w.navigation != nil && _camera3D.pitch != 0 {
+            _camera3D.pitch = 0
+            _desktop3DPublishCamera()
+        }
         let pose = _desktop3DPoseInFront(rect: win.rect, host: host, w: w)
         win.pose3D = pose
         let c = _camera3D
