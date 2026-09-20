@@ -200,3 +200,22 @@ navigation review tool, not the final desktop input or rendering pipeline.
 Checks: `test/city/wallpaper-navigation-test.py` exercises the full route,
 water/building/lamp exclusion and delayed input. `test/city/camera-path-render-test.py
 --world DIR` compares streamed frames with the deterministic camera-path output.
+
+The generator now exports `navigation.json`: versioned walkable rectangles,
+circular lamp exclusions, pavement surface rectangles, and an initial camera.
+Street geometry and navigation share the same strip coordinates. Waterfront
+heights come directly from the quay generator's stone, sidewalk and limestone
+boxes, including stair treads and the quay lip. The hillside corridor stays on
+the sidewalk, then widens at its foot to allow the turn into the shop passage.
+
+The preview reads this file when present. The desktop's `WorldNavigation` reads
+the same sidecar for worlds with `world.json`, applies the exported spawn on
+Home, follows its pavement heights and sweeps keyboard movement against its
+bounds. Worlds without the sidecar retain their existing behavior. No desktop
+world manifest is exported yet: app placement and a live desktop integration
+review remain necessary before enabling this prototype in the desktop.
+
+`python3 test/city/navigation-parity-test.py` compiles the standalone Swift
+navigation code and compares 1,350 swept moves and resulting floor heights with
+Python. The pedestrian test also checks the full route, all street-strip
+midpoints, and 441 samples across the actual quay stairs and exit.

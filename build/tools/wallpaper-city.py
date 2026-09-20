@@ -30,6 +30,10 @@ spec = importlib.util.spec_from_file_location('wallpaper_distance', HERE/'wallpa
 distance = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(distance)
 
+spec = importlib.util.spec_from_file_location('wallpaper_navigation', HERE/'wallpaper-navigation.py')
+navigation = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(navigation)
+
 
 def ground(z):
     return max(-2., 32 + (.36*z - .0009*z*z if z<0 else 2.16*(1-np.exp(-z/6))))
@@ -119,8 +123,7 @@ def build(seed=12):
             box('leaves',xx,y+.45,z+1.65,xx+.35,y+.8,z+2)
             if k%3==0: box('flower_rose',xx,y+.8,z+1.8,xx+.14,y+.95,z+1.95)
     # Descending cobblestone road, with individually laid stones and curbs.
-    for z in np.arange(-84,25,.65):
-        y=ground(z)
+    for z,y in navigation.street_rows(ground):
         box('stone',-40,y-1,z,40,y,z+.66)
         for x in np.arange(-9,9,1.05):
             xx=x+(.35 if int(z/.65)%2 else 0)
@@ -488,7 +491,7 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
 
     if walk_audit:
         page=out/'comparison.html'
-        section='<h2>Pedestrian views</h2><p>Fixed eye-height checkpoints; continuous walking and collision remain unimplemented.</p><main>'
+        section='<h2>Pedestrian views</h2><p>Fixed eye-height checkpoints. Run wallpaper-preview.py for interactive walking along the bounded pedestrian route.</p><main>'
         for name in ('upper','middle','lower','passage','stairs','quay'):
             section+=f'<figure><img src="walk-{name}.png" alt="Pedestrian view: {name}"><figcaption>{name.title()}</figcaption></figure>'
         page.write_text(page.read_text().replace('</html>',section+'</main></html>'))
@@ -579,6 +582,7 @@ def main():
         parser.error('--no-sky requires an existing sky bake in --out')
     (out/'reference-camera.json').write_text(json.dumps({**CAMERA,'lighting':LIGHTING,
         'detail_camera':DETAIL_CAMERA,'waterfront_camera':WATERFRONT_CAMERA,'stage':'composition study; not a desktop world'},indent=2)+'\n')
+    (out/'navigation.json').write_text(json.dumps(navigation.description(ground,waterfront),indent=2)+'\n')
     if args.render:
         render_preview(out, sky_audit=args.sky_audit, walk_audit=args.walk_audit)
     print(f'{out}: {len(mesh[3])//3:,} static triangles; finite geometry and unit normals verified')

@@ -26,6 +26,22 @@ class NavigationTest(unittest.TestCase):
         self.assertLessEqual(w.z, -129)
         self.assertTrue(w.allowed(w.x, w.z))
 
+    def test_floor_matches_pavement_geometry(self):
+        nav = preview.Walker().navigation
+        # Heights at staircase treads, limestone nosings, and the quay lip
+        # must match the actual boxes emitted by the waterfront generator.
+        props=[]
+        preview.city.waterfront.quay(props)
+        for i in range(441):
+            z=-119-i*.025
+            top=max(p[6] for p in props if p[0]=='box' and p[2]<=8.5<=p[5]
+                    and p[4]<=z<=p[7])
+            self.assertAlmostEqual(nav.floor(8.5,z),top,places=7)
+        # The midpoint of each street strip follows its flat slab, not the
+        # analytical slope half a strip farther downhill.
+        for z,y in preview.city.navigation.street_rows(preview.city.ground):
+            self.assertAlmostEqual(nav.floor(9.8,z+.3),y+.16,places=7)
+
     def test_clearance_and_large_dt(self):
         w = preview.Walker()
         for point in [(9.3,-3), (17,-131), (30,-120), (0,-100), (80,-130)]:

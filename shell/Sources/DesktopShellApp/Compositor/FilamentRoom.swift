@@ -86,9 +86,11 @@ struct World3D {
     var heightOrigin = (x: 0, z: 0)
     var heightSize = (x: 0, z: 0)
     var heights: [Double] = []
+    var navigation: WorldNavigation? = nil
 
     /// The ground height at a world position, or the hub's level.
     func ground(_ x: Double, _ z: Double) -> Double {
+        if let floor = navigation?.ground(x, z) { return floor }
         guard heightSize.x > 0, heightSize.z > 0 else { return hub.y }
         let ix = min(heightSize.x - 1, max(0, Int(floor(x)) - heightOrigin.x))
         let iz = min(heightSize.z - 1, max(0, Int(floor(z)) - heightOrigin.z))
@@ -191,6 +193,7 @@ struct World3D {
            let hs = hm["heights"] as? [Double], hs.count == sz[0] * sz[1] {
             w.heightOrigin = (o[0], o[1]); w.heightSize = (sz[0], sz[1]); w.heights = hs
         }
+        w.navigation = WorldNavigation.load(dir + "/navigation.json")
         return w
     }
 }

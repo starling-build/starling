@@ -26,31 +26,17 @@ class Walker:
     Bounds include body clearance from buildings, railings and basin edges.
     Small swept steps prevent a delayed input from crossing excluded areas.
     """
-    def __init__(self):
+    def __init__(self, data=None):
+        self.navigation = city.navigation.Navigation(data or city.navigation.description(city.ground, city.waterfront))
         self.reset()
 
     def reset(self):
-        self.x, self.z, self.yaw, self.pitch = 9.8, -5., 0., 12.
-        self.y = self.floor(self.z) + 1.7
+        self.x, self.z, self.yaw, self.pitch = self.navigation.data['spawn']
+        self.y = self.floor(self.z) + self.navigation.data['eye_height']
 
-    @staticmethod
-    def allowed(x, z):
-        inside = any(a <= x <= b and c <= z <= d for a, b, c, d in (
-            (8.0, 10.35, -84.5, 8.),  # right sidewalk; clear of trees and lamps
-            (8.0, 9.25, -128.8, -83.5),  # shops and stair handrails
-            (8.0, 74., -132., -129.),  # terminal promenade, inside basin railing
-            (8.0, 9.25, -132., -128.),  # stair exit
-        ))
-        lamps = [(9.3, z+2) for z in (-5, -17, -29, -41, -53, -65, -77)]
-        lamps += [(x, -131) for x in range(10, 77, 7)]
-        return inside and all(math.hypot(x-lx, z-lz) >= .45 for lx, lz in lamps)
+    def allowed(self, x, z): return self.navigation.allowed(x, z)
 
-    @staticmethod
-    def floor(z):
-        if z >= -84: return city.ground(z) + .16
-        if z >= -121: return -1.9
-        if z > -128: return -1.9 + min(10, math.ceil((-121-z)/.7))*.132
-        return -.58
+    def floor(self, z): return self.navigation.floor(self.x, z)
 
     def update(self, keys, dt, look):
         dt = min(.1, max(0., dt))
@@ -66,11 +52,8 @@ class Walker:
         angle = math.radians(self.yaw)
         dx = (math.sin(angle)*forward+math.cos(angle)*side)*speed*dt/norm
         dz = (-math.cos(angle)*forward+math.sin(angle)*side)*speed*dt/norm
-        steps = max(1, math.ceil(math.hypot(dx, dz)/.04))
-        for _ in range(steps):
-            if self.allowed(self.x+dx/steps, self.z): self.x += dx/steps
-            if self.allowed(self.x, self.z+dz/steps): self.z += dz/steps
-        target = self.floor(self.z)+1.7
+        self.x, self.z = self.navigation.move(self.x,self.z,dx,dz)
+        target = self.floor(self.z)+self.navigation.data['eye_height']
         self.y += (target-self.y)*(1-math.exp(-16*dt))
 
 
@@ -154,7 +137,8 @@ def main():
     args = parser.parse_args()
     for name in ('room.glb', 'room_ibl.ktx', 'room_skybox.ktx'):
         if not (args.world/name).is_file(): parser.error(f'Missing {name}')
-    walker, lock = Walker(), threading.Lock()
+    route = args.world/'navigation.json'
+    walker, lock = Walker(json.loads(route.read_text()) if route.exists() else None), threading.Lock()
     renderer = Renderer(args.world, args.world/'interactive-preview.log')
 
     class Handler(BaseHTTPRequestHandler):

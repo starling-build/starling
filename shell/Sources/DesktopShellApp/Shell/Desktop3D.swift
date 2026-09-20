@@ -211,6 +211,11 @@ extension _DesktopShellState {
                             z: w.hub.z + w.cameraRadius, yaw: 0, pitch: 0)
         }
         if let w = _desktop3DWorld, w.kind == .voxel {
+            if let nav = w.navigation {
+                let p = nav.spawn
+                return Camera3D(x: p[0], y: w.ground(p[0], p[1]) + nav.eye_height,
+                                z: p[1], yaw: p[2] * .pi / 180, pitch: p[3] * .pi / 180)
+            }
             let z = w.hub.z + w.cameraRadius
             return Camera3D(x: w.hub.x, y: w.ground(w.hub.x, z) + w.eyeHeight + w.cameraHeight,
                             z: z, yaw: 0, pitch: atan2(w.cameraHeight, w.cameraRadius + 35))
@@ -1034,9 +1039,18 @@ extension _DesktopShellState {
             // On foot: the eye rides the ground, and the world has edges.
             let x0 = Double(w.heightOrigin.x) + 1, x1 = Double(w.heightOrigin.x + w.heightSize.x) - 1
             let z0 = Double(w.heightOrigin.z) + 1, z1 = Double(w.heightOrigin.z + w.heightSize.z) - 1
-            c.x = min(x1, max(x0, c.x))
-            c.z = min(z1, max(z0, c.z))
-            c.y = w.ground(c.x, c.z) + w.eyeHeight + w.cameraHeight
+            if let nav = w.navigation {
+                if usage != 0x4A { // Home deliberately resets to the exported spawn.
+                    let at = nav.move(x: _camera3D.x, z: _camera3D.z,
+                                      dx: c.x - _camera3D.x, dz: c.z - _camera3D.z)
+                    c.x = at.x; c.z = at.z
+                }
+                c.y = w.ground(c.x, c.z) + nav.eye_height
+            } else {
+                c.x = min(x1, max(x0, c.x))
+                c.z = min(z1, max(z0, c.z))
+                c.y = w.ground(c.x, c.z) + w.eyeHeight + w.cameraHeight
+            }
             c.pitch = min(1.2, max(-1.2, c.pitch))
         } else {
             // Stay inside the room, and out of the walls.
