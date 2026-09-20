@@ -19,7 +19,8 @@ independent.
 
 ## Remote desktops
 
-The city also runs in WSL through RDP display mode. When the RDP viewer leaves,
+**Windows through WSL2 with Ubuntu 26.04 (amd64) is supported.** The city
+runs through RDP display mode. When the RDP viewer leaves,
 ambient animation stops; connecting again resumes it. The release gate checks
 idle CPU before and after a connection, visible city motion, and motion after
 reconnecting.
@@ -28,21 +29,40 @@ reconnecting.
 
 The website is now a single desktop showcase, styled with the city's palette.
 It includes real 2D/3D captures, a narrated demo with original music and captions,
-and Ubuntu installation instructions. The film walks from an empty desktop to
+and Ubuntu and WSL installation instructions. The film walks from an empty desktop to
 the waterfront, then launches and switches between Chrome, Video Player, Files
 and Terminal.
 
 ## Install
 
-The package targets **Ubuntu 26.04 LTS, amd64**. Download
-`starling_0.5.0_amd64.deb` from the release assets, open a terminal in its folder,
-and run:
+The package targets **Ubuntu 26.04 LTS, amd64**, on a PC or in **Windows
+through WSL2**. Graphics have been tested with **AMD, Intel, and NVIDIA**,
+plus **VirtIO-GPU / virgl** in a VM.
+
+Download and install from an Ubuntu terminal:
 
 ```sh
+curl -fLO https://github.com/starling-build/starling/releases/download/v0.5.0/starling_0.5.0_amd64.deb
 sudo apt install ./starling_0.5.0_amd64.deb
 ```
 
-Log out, select **Starling** from the login screen's session menu, and sign in.
+On Ubuntu Desktop, log out, select **Starling** from the login screen's session
+menu, and sign in. On Server or a minimal local install, first add a login
+manager with `sudo apt install gdm3`.
+
+On **WSL2**, no login manager is needed. After installing inside Ubuntu 26.04,
+start the desktop:
+
+```sh
+starling-session
+```
+
+Then connect from Windows PowerShell or the Run dialog:
+
+```text
+mstsc /v:localhost:3390
+```
+
 See the [installation guide](../../INSTALL.md) for requirements, WSL setup,
 upgrades and troubleshooting.
 
