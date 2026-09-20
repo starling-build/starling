@@ -348,14 +348,22 @@ def water_normal(path, size=1024):
     Image.fromarray(np.rint((n*.5+.5)*255).astype(np.uint8)).save(path)
 
 
-def bake_sky(out, cmgen):
+def sky_samples(source, size=(4096,2048)):
+    """Map the source panorama to continuous, pole-safe spherical samples."""
     # Decode sRGB before baking lighting. The source contains no sun; an
     # analytic disc aligns the environment with the directional light.
-    source=Image.open(ASSETS/'sunset-sky-v3.png').convert('RGB')
     # The illustrated cloud belt covers too many degrees for the reference
     # camera. Remap latitude when baking the spherical environment.
-    source=source.resize((4096,2048),Image.Resampling.LANCZOS)
+    source=source.convert("RGB").resize(size,Image.Resampling.LANCZOS)
     pixels=np.asarray(source,dtype=np.float32)/255
+    # Enforce a periodic sampling boundary before the longitude warp. Small
+    # generated edge errors otherwise become a meridian on the cubemap.
+    edge=(pixels[:,0]+pixels[:,-1])*.5
+    band=max(2,round(pixels.shape[1]*.06))
+    t=np.linspace(1,0,band,dtype=np.float32)
+    weight=(t*t*(3-2*t))[None,:,None]
+    pixels[:,:band]=pixels[:,:band]*(1-weight)+edge[:,None,:]*weight
+    pixels[:,-band:]=pixels[:,-band:]*(1-weight[:,::-1])+edge[:,None,:]*weight[:,::-1]
     # Spread more of the source cloud panorama across the reference view.
     # A periodic angular warp stays continuous around the sphere and places
     # the source golden bank near the analytic sun, without duplicating it.
@@ -371,6 +379,18 @@ def bake_sky(out, cmgen):
     fraction=(source_y-lower)[:,None,None]
     pixels=pixels[lower]*(1-fraction)+pixels[upper]*fraction
     linear=np.where(pixels<=.04045,pixels/12.92,((pixels+.055)/1.055)**2.4)
+    # All longitudes meet at each pole. Fade to each latitude's average above
+    # 35 degrees, reaching a uniform cap at 65 degrees; the reference view is
+    # below this region. Do this in linear light for irradiance consistency.
+    cap=np.clip((np.abs(latitude)*180-35)/30,0,1)
+    cap=(cap*cap*(3-2*cap))[:,None,None]
+    linear=linear*(1-cap)+linear.mean(axis=1,keepdims=True)*cap
+    return linear
+
+
+def bake_sky(out, cmgen):
+    with Image.open(ASSETS/'sunset-sky-v4.png') as source:
+        linear=sky_samples(source)
     with tempfile.TemporaryDirectory(prefix='wallpaper-sky-',dir=out) as scratch:
         scratch=Path(scratch)
         h,w=linear.shape[:2]
@@ -394,12 +414,17 @@ def bake_sky(out, cmgen):
             shutil.copy2(scratch/name/f'{name}_{suffix}.ktx',out/f'room_{suffix}.ktx')
 
 
-def render_preview(out):
+def render_preview(out, sky_audit=False):
     renderer=ROOT/'.build-shared/roomtest'
     if not renderer.is_file():
         raise FileNotFoundError(f'{renderer}: build with build/build-room.sh --test first')
     shots=[('view',CAMERA,0),('architecture',DETAIL_CAMERA,0),('waterfront',WATERFRONT_CAMERA,0)]
     shots.extend((f'motion-{seconds}',CAMERA,seconds) for seconds in (20,40,60))
+    if sky_audit:
+        for name,yaw,pitch in (('front',0,-15),('right',90,-15),('back',180,-15),
+                               ('left',270,-15),('up',0,-85),('down',0,85)):
+            shots.append(('sky-'+name,{'position':[0,40,-210], 'yaw':yaw,
+                                      'pitch':pitch, 'size':[836,470]},0))
     for name,camera,seconds in shots:
         subprocess.run([str(renderer),str(out/'room.glb'),str(out/'room_ibl.ktx'),
                         str(out/'room_skybox.ktx'),str(out/(name+'.ppm')),
@@ -430,6 +455,12 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
 <img id="motion-view" style="max-width:1672px" src="view.png" alt="Selected animation checkpoint">
 </html>
 """)
+    if sky_audit:
+        page=out/'comparison.html'
+        section='<h2>Sky around the scene</h2><p>Four headings plus pole views from the bay.</p><main>'
+        for name in ('front','right','back','left','up','down'):
+            section+=f'<figure><img src="sky-{name}.png" alt="Sky {name}"><figcaption>{name.title()}</figcaption></figure>'
+        page.write_text(page.read_text().replace('</html>',section+'</main></html>'))
 
 
 def motion_tracks():
@@ -451,6 +482,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--render',action='store_true',help='Render a PNG and local comparison page')
+    parser.add_argument('--sky-audit',action='store_true',
+                        help='Include all-around sky views when rendering')
     parser.add_argument('--reflections',action='store_true',
                         help='Opt into experimental screen-space reflections (higher GPU cost)')
     parser.add_argument('--cmgen',type=Path,default=Path.home()/'dev/filament/gles/bin/cmgen')
@@ -514,7 +547,7 @@ def main():
     (out/'reference-camera.json').write_text(json.dumps({**CAMERA,'lighting':LIGHTING,
         'detail_camera':DETAIL_CAMERA,'waterfront_camera':WATERFRONT_CAMERA,'stage':'composition study; not a desktop world'},indent=2)+'\n')
     if args.render:
-        render_preview(out)
+        render_preview(out, sky_audit=args.sky_audit)
     print(f'{out}: {len(mesh[3])//3:,} static triangles; finite geometry and unit normals verified')
 
 if __name__=='__main__': main()

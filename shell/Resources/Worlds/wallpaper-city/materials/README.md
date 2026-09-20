@@ -2,8 +2,9 @@
 
 Generated with the built-in imagegen tool on 2026-09-20. `sunset-sky.png` is the
 initial source; `sunset-sky-v2.png` is an earlier edit. `sunset-sky-v3.png` is
-the selected environment, newly generated using the wallpaper as a style
-reference. All three are 1774 × 887 pixels. These are sky-only illustrations,
+an environment generated using the wallpaper as a style reference. The selected
+`sunset-sky-v4.png` edits that image to reduce edge and pole discontinuities.
+All four are 1774 × 887 pixels. These are sky-only illustrations,
 not copies or projections of the city wallpaper. The geometry remains 3D.
 
 The generator decodes sRGB to linear light, adds a small analytic sun aligned to
@@ -19,7 +20,7 @@ Use case: stylized-concept. Asset type: equirectangular environment sky texture 
 
 Edit this sky environment texture for technical use in a 360-degree equirectangular skybox. Keep the 2:1 image and beautiful peach/lavender/blue color palette. Remove the visible sun disc completely. Crucial change: compress all clouds and warm orange sunset glow into a NARROW horizontal belt from vertical 39% to 50% of the complete image; this corresponds to 0–20 degrees above horizon. Above y=39% should be predominantly blue lavender open sky, gradually becoming richer soft blue toward the top. Clouds clustered irregularly in the narrow belt, peach rims and dusty lavender undersides with blue gaps. At 50% exactly the horizon, soft warm peach but not saturated yellow. The whole lower half must be a subtle muted blue-gray hemisphere, not orange, with smooth horizon blend. No ocean, ground, buildings, letters, labels or any silhouettes. No sun anywhere. Seamless left/right edges. Highest resolution available, ideally 3840x1920. This is a texture map, not a framed scene.
 
-## Selected v3 generation
+## V3 generation
 
 The exact built-in imagegen prompt is saved in `sunset-sky-v3-prompt.txt`.
 The wallpaper was supplied as a style reference; the generated texture contains
@@ -30,3 +31,18 @@ reference view and places the warm bank near the analytic sun without repeating
 the panorama. These are artistic mapping adjustments to the generated source. Actual output resolution is
 1774 × 887, despite the higher-resolution request. Full-sphere seam and pole
 quality still require a separate check before desktop integration.
+
+## Selected v4 edit and spherical audit
+
+The built-in imagegen edit prompt is in `sunset-sky-v4-prompt.txt`. V3 was the
+edit target. The edit clears clouds from the wraparound edges and makes the pole
+bands more uniform while preserving the main cloud banks. Mean edge mismatch
+fell from 7.13 to 1.94 levels out of 255 (maximum 63 to 9); the top-row channel
+spread is still up to 8 levels, so this is not a perfectly seamless map.
+The bake blends each source edge toward a shared boundary over a 6% strip
+before applying the existing angular/latitude mapping. In linear light it fades
+latitude rings to their mean above 35 degrees, becoming uniform at 65 degrees.
+This enforces spherical continuity despite residual variation in the PNG.
+`test/city/sky-sampling-test.py` checks a deliberately mismatched input, both
+poles, and continuity across the warped seam. Use `--render --sky-audit`
+for front, right, back, left, zenith and nadir GPU views in the comparison page.

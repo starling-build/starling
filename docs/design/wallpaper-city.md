@@ -18,6 +18,8 @@ python3 build/tools/wallpaper-city.py --out /tmp/wallpaper-city --render
 `--no-sky` reuses the previous bake in the output directory during geometry work.
 `--reflections` opts into experimental screen-space reflections. They remain
 disabled in the normal preview because their GPU cost depends strongly on view.
+`--sky-audit` adds four compass headings and two pole views from the bay to
+the rendered comparison page. These help reveal seams outside the main view.
 Build roomtest with `build/build-room.sh --test` if it is not available.
 
 Outputs include the GLB, sky/IBL, generated wave normal map, `view.png`,
@@ -70,8 +72,11 @@ The sky is a raster environment; all city geometry remains 3D. Source images and
 exact generation/edit prompts are in
 `../../shell/Resources/Worlds/wallpaper-city/materials/README.md`. The bake remaps
 latitude and longitude to fit more cloud banks into the reference view,
-and uses warmer indirect light for the architecture. The image is not guaranteed
-seamless over a complete 360-degree walk; that needs another environment pass.
+and uses warmer indirect light for the architecture. The v4 source reduces wraparound mismatch; the bake then enforces matching
+edge samples and uniform pole caps. A sampling regression test covers deliberately
+mismatched input. The six-direction GPU audit includes the formerly visible seam
+and zenith; the downward view shows the water. Continuous movement still needs
+review, particularly the stretched clouds on the rear side of the angular warp.
 
 ## Validation and limits
 
