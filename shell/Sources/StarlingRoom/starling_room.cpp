@@ -201,6 +201,7 @@ struct sr_room {
     gltfio::FilamentAsset* asset = nullptr;
     gltfio::Animator* animator = nullptr; // owned by the asset
     double animationStart = 0;
+    double animationTime = -1;
 
     image::Ktx1Bundle* iblBundle = nullptr;
     image::Ktx1Bundle* skyBundle = nullptr;
@@ -503,13 +504,18 @@ void sr_room_set_camera(sr_room* r, const float view[16], const float proj[16],
     r->camera->setModelMatrix(r->cameraModel);
 }
 
+void sr_room_set_animation_time(sr_room* r, double seconds) {
+    r->animationTime = std::isfinite(seconds) ? seconds : -1;
+}
+
 int sr_room_render(sr_room* r) {
     if (!r->target) return -1;
     double t0 = nowMs();
     // Each display scene owns its animation clock.
     // Independent clips loop at their own duration; static worlds cost nothing.
     if (r->animator) {
-        const double seconds = (t0 - r->animationStart) / 1000.0;
+        const double seconds = r->animationTime >= 0 ? r->animationTime
+                : (t0 - r->animationStart) / 1000.0;
         for (size_t i = 0; i < r->animator->getAnimationCount(); ++i) {
             const float duration = r->animator->getAnimationDuration(i);
             if (duration > 0) r->animator->applyAnimation(i, float(fmod(seconds, duration)));

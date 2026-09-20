@@ -993,7 +993,7 @@ def ambient_actors():
     return actors
 
 
-def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positions=None, trolley_slope=.19, material_options=None):
+def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positions=None, trolley_slope=.19, material_options=None, actor_rotations=None):
     with open(atlas_path, "rb") as f:
         png = f.read()
     bin_ = bytearray()
@@ -1105,6 +1105,18 @@ def write_glb(path, pos, nrm, uv, idx, atlas_path, *, actors=None, light_positio
             "input": accessor(times, "SCALAR"), "output": accessor(positions, "VEC3"),
             "interpolation": "LINEAR"}],
             "channels": [{"sampler": 0, "target": {"node": node, "path": "translation"}}]})
+        if actor_rotations and name in actor_rotations:
+            rotations = np.asarray(actor_rotations[name], dtype=np.float32)
+            if rotations.shape != (len(times), 4) or not np.isfinite(rotations).all():
+                raise ValueError(f"{name}: expected one finite quaternion per animation sample")
+            if not np.allclose(np.linalg.norm(rotations, axis=1), 1, atol=1e-5):
+                raise ValueError(f"{name}: rotation quaternions must be normalized")
+            j["nodes"][-1]["rotation"] = rotations[0].tolist()
+            animation = j["animations"][-1]
+            animation["samplers"].append({"input": animation["samplers"][0]["input"],
+                "output": accessor(rotations, "VEC4"), "interpolation": "LINEAR"})
+            animation["channels"].append({"sampler": 1,
+                "target": {"node": node, "path": "rotation"}})
     j["buffers"][0]["byteLength"] = len(bin_)
     js = json.dumps(j, separators=(",", ":")).encode()
     while len(js) % 4:

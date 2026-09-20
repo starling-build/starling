@@ -26,6 +26,9 @@ spec.loader.exec_module(architecture)
 spec = importlib.util.spec_from_file_location('wallpaper_waterfront', HERE/'wallpaper-waterfront.py')
 waterfront = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(waterfront)
+spec = importlib.util.spec_from_file_location('wallpaper_distance', HERE/'wallpaper-distance.py')
+distance = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(distance)
 
 
 def ground(z):
@@ -203,17 +206,8 @@ def build(seed=12):
         z=rng.uniform(-420,-90); x=rng.uniform(-190,250)
         if z>-142 and not 12<x<70: continue
         props.append(('ripple','reflection_amber' if abs(x-(18-z)*.56)<24 else 'water_glint',x,-2.47,z,rng.uniform(.3,1.8),rng.uniform(.035,.13)))
-    for x in np.arange(-92,12,2):
-        h=1+5*np.sin(np.pi*(x+92)/104)
-        front=-335+9*np.sin(np.pi*(x+92)/104)
-        box('hill',x,-2.5,-357,x+2,h,front)
-        if int(x)%6==0: tree(x,front-2,h,.75)
-    for x in np.arange(-93,13,2.5):
-        front=-335+9*np.sin(np.pi*(x+92)/104)
-        props.append(('ellipsoid','hill',(x,0,front+1),(2.2,1.6,2.4),3))
-        if int(x)%3==0: tree(x,front,1,.45)
-    house(-61,-337,33,4.5,'plaster_cream',base=4)
-    box('limestone',-13,4,-337,-11,17,-335)
+    distance.island(props,tree)
+    house(-61,-337,33,4.5,'plaster_cream',base=6)
     # Bridge spans the right half of the distant bay.
     bz=-365
     bridge_start=len(props)
@@ -237,7 +231,7 @@ def build(seed=12):
         elif p[0]=='beam': props[i]=(p[0],p[1],(p[2][0],p[2][1]+20,p[2][2]),(p[3][0],p[3][1]+20,p[3][2]),p[4])
     # Overlapping ridges hide vertical sea cliffs; nearer toes taper into water.
     def hill(x):
-        return 3+39*np.exp(-((x+170)/115)**2)+22*np.exp(-((x-280)/80)**2)
+        return 3+65*np.exp(-((x+170)/115)**2)+22*np.exp(-((x-280)/80)**2)
     def terrain_height(x,z):
         depth=np.sin(np.clip((-z-415)/135,0,1)*np.pi*.7)
         shore=max(np.clip(-x/65,0,1),np.clip((x-185)/70,0,1))
@@ -253,16 +247,14 @@ def build(seed=12):
                 n=np.array([-dx,1,-dz]); n/=np.linalg.norm(n)
                 points.append((xx,yy,zz)); normals.append(n)
             terrain.append(('hill_far' if z<-490 else 'hill',points,normals))
-            h0=terrain_height(x,z)
-            if z in (-505,-475,-445) and h0>3 and rng.random()<.62:
-                by=h0-.5
-                box('hill_far',x,by,z+3,x+2.5,by+2.4,z+6)
-                for wx in (x+.4,x+1.4):
-                    box('interior_warm',wx,by+.8,z+6.01,wx+.35,by+1.4,z+6.03)
-    for y in np.arange(38,70,5):
-        half=(70-y)*.09
+    distance.neighborhoods(props,terrain_height)
+    radio_base=terrain_height(-160,-452)+.2
+    radio_top=radio_base+60
+    for y in np.arange(radio_base,radio_top,5):
+        half=(radio_top-y)*.06
         for side in (-1,1):
-            beam('bronze',(-160+side*half,y,-452),(-160+side*max(0,half-.45),y+5,-452),.2)
+            beam('bronze',(-160+side*half,y,-452),
+                 (-160+side*max(0,half-.3),y+5,-452),.2)
         beam('bridge_red',(-160-half,y,-452),(-160+half,y,-452),.2)
     p,n,u,indices=v.mesh_blocks(np.zeros((1,1,1),np.uint8),(0,0),props)
     tp=[]; tn=[]; tu=[]
@@ -319,7 +311,8 @@ WATERFRONT_CAMERA = {'position':[90,16,-107], 'yaw':-64, 'pitch':7, 'size':[1400
 LIGHTING = {'ROOMTEST_SUN':'0.56,0.025,-1', 'ROOMTEST_SUN_COLOUR':'1,0.72,0.45',
             'ROOMTEST_SUN_LUX':'12000', 'ROOMTEST_IBL_LUX':'6500',
             'ROOMTEST_EXPOSURE':'8,0.0166667,100',
-            'ROOMTEST_FOG':'0.003,160,0,0.07,0.42,0.65,0.75,0.9'}
+            'ROOMTEST_FOG':'0.003,160,0,0.07,0.42,0.65,0.75,0.9',
+            'ROOMTEST_TIME':'0'}
 
 
 def water_normal(path, size=512):
@@ -380,12 +373,14 @@ def render_preview(out):
     renderer=ROOT/'.build-shared/roomtest'
     if not renderer.is_file():
         raise FileNotFoundError(f'{renderer}: build with build/build-room.sh --test first')
-    for name,camera in (('view',CAMERA),('architecture',DETAIL_CAMERA),('waterfront',WATERFRONT_CAMERA)):
+    shots=[('view',CAMERA,0),('architecture',DETAIL_CAMERA,0),('waterfront',WATERFRONT_CAMERA,0)]
+    shots.extend((f'motion-{seconds}',CAMERA,seconds) for seconds in (20,40,60))
+    for name,camera,seconds in shots:
         subprocess.run([str(renderer),str(out/'room.glb'),str(out/'room_ibl.ktx'),
                         str(out/'room_skybox.ktx'),str(out/(name+'.ppm')),
                         *map(str,camera['size']),*map(str,camera['position']),
                         str(camera['yaw']),str(camera['pitch'])],
-                       env={**os.environ,**LIGHTING},check=True)
+                       env={**os.environ,**LIGHTING,'ROOMTEST_TIME':str(seconds)},check=True)
         with Image.open(out/(name+'.ppm')) as screenshot:
             screenshot.save(out/(name+'.png'))
     shutil.copy2(ROOT/'shell/Resources/Wallpapers/city-sunset.png',out/'reference.png')
@@ -402,8 +397,29 @@ main.stacked{grid-template-columns:1fr}@media(max-width:900px){main{grid-templat
 <main><figure><img src="reference.png" alt="Sunset wallpaper"><figcaption>Reference wallpaper</figcaption></figure>
 <figure><img src="view.png" alt="Rendered 3D reconstruction"><figcaption>3D reconstruction</figcaption></figure></main>
 <h2>Street architecture</h2><figure style="max-width:1400px"><img src="architecture.png" alt="Close view of modeled bay windows, doors and stairs"><figcaption>Second camera view of the same 3D scene</figcaption></figure>
-<h2>Waterfront</h2><figure style="max-width:1400px"><img src="waterfront.png" alt="Ferry terminal and quay"><figcaption>Terminal, channel and piers from a closer camera</figcaption></figure></html>
+<h2>Waterfront</h2><figure style="max-width:1400px"><img src="waterfront.png" alt="Ferry terminal and quay"><figcaption>Terminal, channel and piers from a closer camera</figcaption></figure>
+<h2>Motion checkpoints</h2><p>Actual renders at four points in the animation; these are still frames.</p>
+<label>Scene time: <output id="motion-time">0 seconds</output>
+<input type="range" min="0" max="3" step="1" value="0" aria-label="Animation checkpoint"
+ oninput="const t=Number(this.value)*20;document.getElementById('motion-time').textContent=t+' seconds';document.getElementById('motion-view').src=t?'motion-'+t+'.png':'view.png'"></label>
+<img id="motion-view" style="max-width:1672px" src="view.png" alt="Selected animation checkpoint">
+</html>
 """)
+
+
+def motion_tracks():
+    times=np.linspace(0,80,161)
+    z=np.interp(times,[0,6,36,44,74,80],[-5,-5,-30,-30,-5,-5])
+    positions=np.column_stack((np.full_like(z,-4),[ground(zz)+.07 for zz in z],z))
+    pitch=-np.arctan(.36-.0018*z)/2
+    rotations=np.column_stack((np.sin(pitch),np.zeros_like(z),np.zeros_like(z),np.cos(pitch)))
+    tracks={'plaza-cable-car':(times,positions,rotations)}
+    times=np.linspace(0,150,301); a=times/150*2*np.pi
+    positions=np.column_stack((84+32*np.sin(a),-2.25+.1*np.sin(24*a),-254+5*np.cos(a)))
+    yaw=np.unwrap(np.arctan2(5*np.sin(a),32*np.cos(a)))/2
+    rotations=np.column_stack((np.zeros_like(a),np.sin(yaw),np.zeros_like(a),np.cos(yaw)))
+    tracks['bay-ferry']=(times,positions,rotations)
+    return tracks
 
 
 def main():
@@ -414,13 +430,14 @@ def main():
     parser.add_argument('--no-sky',action='store_true',help='Reuse an existing baked sky in --out')
     args=parser.parse_args(); out=args.out; out.mkdir(parents=True,exist_ok=True)
     v.make_atlas(out/'atlas.png',out/'frame.png')
+    tracks=motion_tracks()
     original=v.ambient_actors
     def actors():
         result=[]
         for name,mesh,times,positions in original():
-            positions=np.asarray(positions,dtype=float)
+            if name not in tracks: continue
+            times,positions,_=tracks[name]
             if name=='bay-ferry':
-                positions[:,0]+=84; positions[:,2]-=175
                 # Cream-painted hull, with red funnels retained above the deck.
                 uv=mesh[2].copy()
                 tile_ids=(np.floor(uv[:,1]*v.ATLAS)*v.ATLAS+np.floor(uv[:,0]*v.ATLAS)).astype(int)
@@ -429,10 +446,7 @@ def main():
                 uv[hull]=(np.mod(uv[hull]*v.ATLAS,1)+[col,row])/v.ATLAS
                 mesh=(mesh[0]*1.8,mesh[1],uv,mesh[3])
             elif name=='plaza-cable-car':
-                positions[:,0]=-4
-                positions[:,2]+=7
                 mesh=trolley_mesh()
-                positions[:,1]=[ground(z)+.1 for z in positions[:,2]]
             else: continue
             result.append((name,mesh,times,positions))
         return result
@@ -441,7 +455,7 @@ def main():
     assert np.allclose(np.linalg.norm(mesh[1],axis=1),1,atol=1e-5)
     assert mesh[3].max()<len(mesh[0])
     water_normal(out/'water-normal.png')
-    v.write_glb(out/'room.glb',*mesh,out/'atlas.png',actors=actors(),trolley_slope=.45,
+    v.write_glb(out/'room.glb',*mesh,out/'atlas.png',actors=actors(),actor_rotations={name:track[2] for name,track in tracks.items()},
                 light_positions=[[side*9.3+.5,ground(z+2)+3.2,z+2.5]
                                  for z in (-5,-17,-29) for side in (-1,1)],
                 material_options={

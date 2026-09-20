@@ -103,6 +103,9 @@ int main(int argc, char** argv) {
         sscanf(getenv("ROOMTEST_EXPOSURE"), "%f,%f,%f", &a, &s, &iso);
         sr_room_set_exposure(room, a, s, iso);
     }
+    if (const char* value = getenv("ROOMTEST_TIME")) {
+        sr_room_set_animation_time(room, atof(value));
+    }
     if (const char* value = getenv("ROOMTEST_FOG")) {
         float density, start, height, falloff, opacity, colour[3];
         if (sscanf(value, "%f,%f,%f,%f,%f,%f,%f,%f", &density, &start, &height,
