@@ -144,8 +144,8 @@ def apply(bpy):
         rough = nodes.new('ShaderNodeMapRange')
         rough.inputs['From Min'].default_value = .3
         rough.inputs['From Max'].default_value = .7
-        rough.inputs['To Min'].default_value = .28 + i*.015
-        rough.inputs['To Max'].default_value = .60 + i*.015
+        rough.inputs['To Min'].default_value = .09 + i*.012   # wet: lamps and sky reflect in the stones
+        rough.inputs['To Max'].default_value = .38 + i*.015
         links.new(damp.outputs['Fac'], rough.inputs['Value'])
         links.new(rough.outputs['Result'], shader.inputs['Roughness'])
     road = bpy.data.objects['Individual cobbles • downhill street']

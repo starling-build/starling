@@ -386,6 +386,18 @@ for i in range(1500):
     b.box((xx,yy,zz+.9),(2.1,1.7,1.8),rng.choice(facades))
     b.box((xx,yy-.9,zz+.9),(.9,.05,.6),glass);b.box((xx,yy,zz+1.9),(2.2,1.8,.2),roof)
 b.finish()
+# The eastern headland gets its own scatter of lit houses.
+b=Batch('Eastern settlement lights','06 • Bay and distant landscape')
+for i in range(700):
+    while True:
+        xx=rng.uniform(220,540);yy=rng.uniform(590,790)
+        nx=(xx-380)/170;ny=(yy-690)/110;ang=math.atan2(ny,nx)
+        t=math.hypot(nx,ny)/(1+.05*math.sin(ang*5)+.03*math.cos(ang*9))
+        if t < .92:break
+    zz=65*max(0,1-t*t)**1.6+math.sin(ang*4)*t*(1-t)*65*.12-.5
+    b.box((xx,yy,zz+.9),(2.1,1.7,1.8),rng.choice(facades))
+    b.box((xx,yy-.9,zz+.9),(.9,.05,.6),glass);b.box((xx,yy,zz+1.9),(2.2,1.8,.2),roof)
+b.finish()
 # A tripod radio mast on the ridge shoulder, red and white like the reference.
 tx,ty=-120,540;nx=(tx+190)/230;ny=(ty-560)/95;tang=math.atan2(ny,nx);tt=math.hypot(nx,ny)/(1+.05*math.sin(tang*5)+.03*math.cos(tang*9))
 tz=48*max(0,1-tt*tt)**1.6+math.sin(tang*4)*tt*(1-tt)*48*.12-.5;coll='06 • Bay and distant landscape'
@@ -435,7 +447,7 @@ for yy in [552,558]:
         beam('Main suspension cable',(xx,yy,cable(xx)),(xx+5,yy,cable(xx+5)),.42,bridge,coll)
         beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.10,bridge,coll)
 # Water uses a subtle anisotropic bump; geometry and base PBR export separately.
-water=material('Bay water • Blender procedural study',(.42,.52,.64),.07,.1)
+water=material('Bay water • Blender procedural study',(.42,.52,.64),.12,.1)
 n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=.7;tex.inputs['Detail'].default_value=3
 coord=n.new('ShaderNodeTexCoord');mapping=n.new('ShaderNodeVectorMath');mapping.operation='MULTIPLY';mapping.inputs[1].default_value=(.65,4,1);l.new(coord.outputs['Object'],mapping.inputs[0]);l.new(mapping.outputs[0],tex.inputs['Vector'])
 bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.5;bump.inputs['Distance'].default_value=.3;l.new(tex.outputs['Fac'],bump.inputs['Height']);l.new(bump.outputs['Normal'],s.inputs['Normal'])
@@ -488,7 +500,7 @@ reshape([ob for ob in landscape.objects if ob.name in island_names],
         lambda p:(-10+(p.x+55)*.88,410+(p.y-300)*.88,-1.225+(p.z+1.225)*.88))
 reshape([ob for ob in landscape.objects if ob.name in {'Marin ridge','Marin woodland','Distant settlement lights'}],
         lambda p:(p.x,p.y,-1.225+(p.z+1.225)*.75))
-reshape([ob for ob in landscape.objects if ob.name in {'Eastern headland','Eastern woodland'}],
+reshape([ob for ob in landscape.objects if ob.name in {'Eastern headland','Eastern woodland','Eastern settlement lights'}],
         lambda p:(p.x,p.y-90,-1.225+(p.z+1.225)*.72))
 for row,house_y in enumerate([0,13,26,39,52,65,78]):
     base_z=ground(house_y)

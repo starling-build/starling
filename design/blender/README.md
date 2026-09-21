@@ -117,3 +117,8 @@ on the street-facing bays, cornice brackets under the dentil course, a roof
 balustrade and an entry stoop to every house; each lantern now carries a
 warm point light so it pools on the cobbles rather than only glowing; and
 the top of the sky gradient is a touch deeper.
+
+The wet-street pass lowers the cobble roughness range in the street-detail
+pass so lamps and sky reflect in the stones, scatters 700 lit houses over
+the eastern headland (reshaped with it), and broadens the sun's shimmer on
+the bay with slightly rougher water.
