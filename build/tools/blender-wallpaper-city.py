@@ -35,8 +35,10 @@ def material(name,color,rough=.65,metal=0,emission=0):
         bump=nodes.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.16;bump.inputs['Distance'].default_value=.045
         links.new(noise.outputs['Fac'],bump.inputs['Height']);links.new(bump.outputs['Normal'],s.inputs['Normal'])
     return m
-stone=material('Warm limestone',(0.49,.43,.34));trim=material('Ivory painted timber',(.78,.70,.56));dark=material('Cast iron',(.055,.065,.065),.35,.6)
+stone=material('Warm limestone',(0.49,.43,.34));trim=material('Ivory painted timber',(.92,.90,.85));dark=material('Cast iron',(.055,.065,.065),.35,.6)
 roof=material('Slate roofs',(.095,.115,.13));glass=material('Amber window interiors',(.55,.25,.065),.35,emission=1.1)
+pastels=[material('Victorian • '+n,c) for n,c in [('powder blue',(.62,.72,.82)),('mint',(.68,.78,.66)),('cream',(.88,.82,.68)),('blue grey',(.55,.64,.70)),('salmon',(.86,.66,.60)),('lavender',(.76,.72,.86)),('sage',(.60,.70,.60))]]
+trim_shadow=material('Siding shadow line',(.66,.64,.58))
 facades=[material('Facade • '+n,c) for n,c in [('sage',(.32,.39,.31)),('terracotta',(.55,.28,.19)),('sand',(.63,.49,.33)),('blue grey',(.31,.40,.43)),('cream',(.70,.62,.47))]]
 leaves=[material('Foliage '+str(i),c) for i,c in enumerate([(.12,.19,.07),(.20,.27,.095),(.29,.33,.12)])]
 wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.60,.09,.055),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
@@ -93,82 +95,72 @@ for side in [-1,1]:
     paving.finish(.035)
     for row,y in enumerate([0,13,26,39,52,65,78]):
         if row==0:continue   # nearest row is a garden terrace (built below), as in the reference corners
-        x=side*(16.0+max(0,row-2)*(2.5 if side>0 else 1.3));w=7.8;depth=10.;z=ground(y);h=12.0-row*.5
-        coll='02 • Victorian street';name=f'{"West" if side<0 else "East"} house {row+1}'
-        fi=3 if (row==1 and side<0) else (row+(side>0))%5   # near-left house is blue-grey like the reference
-        b=Batch(name+' / masonry',coll);b.box((x,y,z+h/2),(w,depth,h),facades[fi]);b.box((x,y,z+.35),(w+.5,depth+.4,.7),stone)
-        for k in range(4):b.box((x,y,z+h+k*.15),(w+.15+k*.16,depth+.15+k*.16,.14),trim)
-        b.box((x,y,z+h+.62),(w-.3,depth-.3,.13),roof);b.box((x+2,y+2,z+h+1.2),(.6,.7,1.4),stone)
-        for level in range(1,3):b.box((x,y,z+level*3.6),(w+.18,depth+.18,.17),trim)
-        b.finish(.035)
-        front=y-depth/2;windows=Batch(name+' / bay windows and sash',coll)
-        for floor in range(3 if h >= 11 else 2):
-            zz=z+2.2+floor*3.65
-            for wi,xx in enumerate([x-2.35,x,x+2.35]):
-                pane=window_moods[(row*3+floor+wi+(side>0))%4]
-                # Projecting bay gives the facade depth and an articulated silhouette.
-                bay=.65 if abs(xx-x)<.1 else .18
-                windows.box((xx,front-bay/2,zz),(1.65,bay,2.65),trim)
-                windows.box((xx,front-bay-.025,zz),(1.32,.07,2.26),pane)
-                for dx in [-.71,0,.71]:windows.box((xx+dx,front-bay-.09,zz),(.085,.10,2.48),trim)
-                windows.box((xx,front-bay-.09,zz+.02),(1.5,.1,.09),trim)
-                windows.box((xx,front-bay-.04,zz-1.27),(1.9,.42,.14),trim)
-            # Street-facing side windows make walking views useful too.
-            sx=x-side*(w/2+.035)
-            for wi,yy in enumerate([y-2.6,y,y+2.6]):
-                pane=window_moods[(row+floor*2+wi+(side>0))%4]
-                # Deep street-facing bays, stacked through the three storeys.
-                windows.box((sx-side*.45,yy,zz),(.9,1.95,2.6),trim)
-                windows.box((sx-side*.94,yy,zz),(.06,1.54,2.22),pane)
-                for dy in [-.87,0,.87]:windows.box((sx-side*1.02,yy+dy,zz),(.13,.10,2.5),trim)
-                windows.box((sx-side*1.02,yy,zz),(.13,1.85,.10),trim)
-                for dz in [-1.3,1.3]:windows.box((sx-side*.52,yy,zz+dz),(1.2,2.2,.16),trim)
-                windows.box((sx,yy,zz),(.12,1.38,2.22),glass)
-                for dy in [-.77,0,.77]:windows.box((sx-side*.10,yy+dy,zz),(.24,.095,2.46),trim)
-                windows.box((sx-side*.10,yy,zz),(.24,1.6,.09),trim)
-                windows.box((sx-side*.25,yy,zz-1.28),(.55,1.84,.14),trim)
-                for dz in [-1.2,1.2]:windows.box((sx-side*.07,yy,zz+dz),(.22,1.64,.12),trim)
-                windows.box((sx-side*1.05,yy,zz+1.52),(.55,2.35,.16),trim)                       # window hood
-                windows.box((sx-side*1.02,yy,zz+1.72),(.45,1.6,.26),trim)                        # pediment block
-                for dy in [-1.0,1.0]:windows.box((sx-side*1.05,yy+dy,zz+1.33),(.5,.16,.28),trim)   # hood brackets
-        # Dentil cornice and recessed entry break up the repeated facade.
-        for xx in range(12):windows.box((x-w/2+xx*w/11,front-.2,z+h-.15),(.22,.3,.25),trim)
-        for xx in range(6):windows.box((x-w/2+.6+xx*(w-1.2)/5,front-.32,z+h-.55),(.34,.5,.62),trim)   # cornice brackets
-        for yy in range(7):windows.box((x-side*(w/2+.3),y-depth/2+.6+yy*(depth-1.2)/6,z+h-.55),(.5,.34,.62),trim)
-        for k in range(9):windows.box((x-w/2+k*w/8,front+.1,z+h+1.05),(.16,.16,.7),trim)         # roof balustrade posts
-        windows.box((x,front+.1,z+h+1.45),(w,.14,.10),trim)
-        for k in range(3):windows.box((x,front-.45-k*.3,z+.12+k*.16),(1.8,.3,.16),stone)          # entry stoop
-        windows.box((x,front-.09,z+1.1),(1.2,.22,2.1),wood)
-        # Colored apron panels, occasional shutters and fine siding break up
-        # the continuous ivory window strips without changing walkable space.
-        siding=Batch(name+' / siding and apron panels',coll)
-        facade=facades[fi]
-        for k in range(1,int(h/.32)):
-            siding.box((x,front-.018,z+k*.32),(w,.035,.023),stone)
-            siding.box((x-side*(w/2+.018),y,z+k*.32),(.035,depth,.023),stone)
-        for floor in range(1,3 if h>=11 else 2):
-            zz=z+2.2+floor*3.65
-            for yy in [y-2.6,y,y+2.6]:
-                siding.box((sx-side*.96,yy,zz-1.67),(.08,1.6,.48),facade)
-                siding.box((sx-side*1.015,yy,zz-1.67),(.035,1.28,.27),stone)
-        if row%3==1:
-            for yy in [y-2.6,y,y+2.6]:
-                for dy in [-1.1,1.1]:
-                    siding.box((sx-side*.98,yy+dy,z+2.2),(.10,.30,2.3),facades[0])
-                    for k in range(7):siding.box((sx-side*1.05,yy+dy,z+1.3+k*.28),(.08,.31,.06),trim)
-        siding.finish(.008)
-        if row%3==1:
-            # A hipped roof with a short ridge, distinct from neighboring flat roofs.
-            rz=z+h+.65;rw=w/2+.1;rd=depth/2+.1
-            verts=[(x-rw,y-rd,rz),(x+rw,y-rd,rz),(x+rw,y+rd,rz),(x-rw,y+rd,rz),(x,y-2,rz+1.8),(x,y+2,rz+1.8)]
-            mesh=bpy.data.meshes.new(name+' roof');mesh.from_pydata(verts,[],[(0,1,4),(1,2,5,4),(2,3,5),(3,0,4,5)]);mesh.materials.append(roof)
-            obj=bpy.data.objects.new(name+' / hipped roof',mesh);group(coll).objects.link(obj)
-        elif row%3==2:
-            for k in range(9):windows.box((x-w/2+k*w/8,front,z+h+1),(.10,.14,.8),dark)
-            windows.box((x,front,z+h+1.4),(w,.17,.10),dark)
-        windows.finish(.018)
+        coll='02 • Victorian street';label='West' if side<0 else 'East'
+        xin=side*(12.1+max(0,row-2)*(2.5 if side>0 else 1.3))          # the street-facing face of this row
+        # Two narrow, tall Victorians per row slot, fronting the street with stacked bays,
+        # a raised entry and either a street-facing gable or a bracketed false front.
+        for k,yh in enumerate([y-2.75,y+2.75]):
+            hidx=row*2+k+(side>0)*7;name=f'{label} house {row+1} / {"a" if k==0 else "b"}'
+            fr=5.0;dp=9.0+rng.uniform(-.5,1.5);storeys=3 if rng.random()<.72 else 2;h=storeys*3.3
+            x=xin+side*dp/2;z=ground(yh)+.3
+            fi=3 if (row==1 and side<0 and k==0) else hidx%len(pastels)   # near-left house is blue-grey like the reference
+            facade=pastels[fi]
+            b=Batch(name+' / body',coll)
+            b.box((x,yh,z+h/2),(dp,fr,h),facade)
+            b.box((x,yh,z-.15),(dp+.3,fr+.3,.9),stone)                                   # plinth
+            for dy in [-fr/2+.08,fr/2-.08]:b.box((xin-side*.03,yh+dy,z+h/2),(.08,.16,h),trim)   # corner boards
+            for j in range(1,int(h/.30)):b.box((xin-side*.012,yh,z+j*.30),(.025,fr-.34,.02),trim_shadow)   # siding lines
+            by=yh-.55;bw=2.5;bd=.85                                                       # stacked bay
+            for floor in range(min(storeys,2)):
+                zz=z+.35+floor*3.3;bh=3.0
+                b.box((xin-side*bd/2,by,zz+bh/2),(bd,bw,bh),trim)
+                b.box((xin-side*(bd+.04),by,zz+bh/2+.15),(.06,1.5,2.05),window_moods[(hidx+floor)%4])
+                for sdy in [-1,1]:b.box((xin-side*(bd*.55),by+sdy*(bw/2+.03),zz+bh/2+.15),(.7,.06,2.05),window_moods[(hidx+floor+1)%4])
+                for dz in [-1.1,1.1]:b.box((xin-side*(bd+.06),by,zz+bh/2+.15+dz),(.10,1.7,.14),trim)
+                b.box((xin-side*(bd+.08),by,zz+bh),(.16,bw+.3,.22),trim)
+            if storeys==3:                                                                # top-floor hooded windows
+                for wy in [by-.7,by+.7]:
+                    zz=z+.35+2*3.3
+                    b.box((xin-side*.04,wy,zz+1.55),(.06,.9,1.9),window_moods[(hidx+2)%4])
+                    b.box((xin-side*.07,wy,zz+2.62),(.14,1.2,.18),trim)
+                    for dy in [-.55,.55]:b.box((xin-side*.06,wy+dy,zz+1.55),(.10,.10,2.0),trim)
+            ey=yh+1.75                                                                    # raised entry
+            for st in range(5):b.box((xin-side*(.30+st*.32),ey,z+.95-st*.2),(.34,1.4,.2),stone)
+            b.box((xin-side*.05,ey,z+1.0+1.1),(.08,1.0,2.2),wood)
+            b.box((xin-side*.06,ey,z+1.0+2.35),(.10,1.2,.35),window_moods[2])
+            b.box((xin-side*.5,ey,z+1.0+2.78),(1.0,1.5,.14),trim)
+            for dy in [-.6,.6]:b.box((xin-side*.95,ey+dy,z+1.0+1.3),(.10,.10,2.8),trim)
+            b.box((x,yh,z+h+.12),(dp+.4,fr+.4,.24),trim)                                    # cornice
+            for j in range(6):b.box((xin-side*.25,yh-fr/2+.4+j*(fr-.8)/5,z+h-.3),(.5,.3,.5),trim)   # brackets
+            b.finish(.02)
+            if hidx%3!=1:                                                                 # street-facing gable
+                rz=z+h+.24;rw=fr/2+.25;rise=2.0+rng.uniform(0,.6);xf=xin-side*.35;xb=xin+side*(dp+.3)
+                verts=[(xf,yh-rw,rz),(xf,yh+rw,rz),(xf,yh,rz+rise),(xb,yh-rw,rz),(xb,yh+rw,rz),(xb,yh,rz+rise)]
+                mesh=bpy.data.meshes.new(name+' gable');mesh.from_pydata(verts,[],[(0,1,2),(3,5,4),(0,2,5,3),(1,4,5,2),(0,3,4,1)]);mesh.materials.append(roof)
+                obj=bpy.data.objects.new(name+' / gable roof',mesh);group(coll).objects.link(obj)
+                g=Batch(name+' / gable trim',coll)
+                g.box((xf-side*.06,yh,rz+rise*.36),(.06,.7,.95),window_moods[(hidx+1)%4])   # attic window
+                g.box((xf-side*.1,yh,rz+rise*.36+.55),(.12,.95,.14),trim)
+                g.finish(.01)
+                for sgn in [-1,1]:beam(name+' / barge board',(xf-side*.05,yh+sgn*rw,rz),(xf-side*.05,yh,rz+rise),.07,trim,coll)
+            else:                                                                         # flat roof, false front with pediment
+                f=Batch(name+' / false front',coll)
+                f.box((x,yh,z+h+.3),(dp,fr,.14),roof)
+                f.box((xin-side*.12,yh,z+h+.55),(.26,fr*.62,.6),trim);f.box((xin-side*.12,yh,z+h+1.05),(.26,fr*.34,.45),trim)
+                for j in range(7):f.box((xin-side*.15,yh-fr/2+.35+j*(fr-.7)/6,z+h+.42),(.2,.14,.36),trim)
+                f.finish(.01)
+            if hidx%4==2 and storeys==3:                                                  # corner turret
+                tx,ty,tr=xin-side*.55,yh+fr/2-.25,1.15
+                bpy.ops.mesh.primitive_cylinder_add(vertices=8,radius=tr,depth=h+1.0,location=(tx,ty,z+(h+1.0)/2));o=bpy.context.object;o.name=name+' / turret';o.data.materials.append(facade);move(o,coll)
+                bpy.ops.mesh.primitive_cone_add(vertices=8,radius1=tr+.28,depth=2.8,location=(tx,ty,z+h+1.0+1.4));o=bpy.context.object;o.name=name+' / turret roof';o.data.materials.append(roof);move(o,coll)
+                t=Batch(name+' / turret windows',coll)
+                for floor in range(3):
+                    t.box((tx-side*(tr+.02),ty,z+1.9+floor*3.3),(.06,.8,1.7),window_moods[(hidx+floor)%4])
+                    t.box((tx-side*(tr+.05),ty,z+1.9+floor*3.3+1.0),(.12,1.05,.14),trim)
+                    t.box((tx-side*(tr-.02),ty,z+3.15+floor*3.3),(.3,2*tr+.2,.16),trim)
+                t.finish(.01)
         # Terraces step naturally between houses.
-        wall=Batch(name+' / terrace', '01 • Street and retaining walls')
+        wall=Batch(f'{label} house {row+1} / terrace', '01 • Street and retaining walls')
         for k in range(8):
             yy=y-5+k*.65;zz=ground(yy)
             wall.box((side*12.1,yy,zz+.45),(.38,.64,.9),stone)

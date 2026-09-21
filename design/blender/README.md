@@ -164,3 +164,15 @@ The street-furniture pass makes the sidewalks stair-stepped (each slab a
 level tread at the uphill ground height, deep enough to hide its riser),
 and gives the cable car a cream window band, a glowing interior with a warm
 point light, and a spot headlight that throws onto the cobbles ahead.
+
+The Victorian pass replaces the wide flat-roofed blocks with two narrow,
+tall houses per row slot (5 m frontage, ~9 m deep, two or three storeys),
+each with a plinth, white corner boards and siding lines, a two-storey
+projecting bay, hooded top-floor windows, a raised entry with stoop, door,
+transom and porch hood, a bracketed cornice, and either a street-facing
+gable with attic window and barge boards or a flat false front with a
+stepped pediment; every fourth three-storey house carries an octagonal
+corner turret with a conical roof. Facades draw from a pastel palette
+(powder blue, mint, cream, blue grey, salmon, lavender, sage) with whiter
+trim. House object names keep the `<Side> house <n> /` prefix so the
+east-side height reshape still applies.
