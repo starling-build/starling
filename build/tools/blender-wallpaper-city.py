@@ -126,8 +126,16 @@ for side in [-1,1]:
                 windows.box((sx-side*.10,yy,zz),(.24,1.6,.09),trim)
                 windows.box((sx-side*.25,yy,zz-1.28),(.55,1.84,.14),trim)
                 for dz in [-1.2,1.2]:windows.box((sx-side*.07,yy,zz+dz),(.22,1.64,.12),trim)
+                windows.box((sx-side*1.05,yy,zz+1.52),(.55,2.35,.16),trim)                       # window hood
+                windows.box((sx-side*1.02,yy,zz+1.72),(.45,1.6,.26),trim)                        # pediment block
+                for dy in [-1.0,1.0]:windows.box((sx-side*1.05,yy+dy,zz+1.33),(.5,.16,.28),trim)   # hood brackets
         # Dentil cornice and recessed entry break up the repeated facade.
         for xx in range(12):windows.box((x-w/2+xx*w/11,front-.2,z+h-.15),(.22,.3,.25),trim)
+        for xx in range(6):windows.box((x-w/2+.6+xx*(w-1.2)/5,front-.32,z+h-.55),(.34,.5,.62),trim)   # cornice brackets
+        for yy in range(7):windows.box((x-side*(w/2+.3),y-depth/2+.6+yy*(depth-1.2)/6,z+h-.55),(.5,.34,.62),trim)
+        for k in range(9):windows.box((x-w/2+k*w/8,front+.1,z+h+1.05),(.16,.16,.7),trim)         # roof balustrade posts
+        windows.box((x,front+.1,z+h+1.45),(w,.14,.10),trim)
+        for k in range(3):windows.box((x,front-.45-k*.3,z+.12+k*.16),(1.8,.3,.16),stone)          # entry stoop
         windows.box((x,front-.09,z+1.1),(1.2,.22,2.1),wood)
         # Colored apron panels, occasional shutters and fine siding break up
         # the continuous ivory window strips without changing walkable space.
@@ -193,6 +201,7 @@ for side in [-1,1]:
         beam('Cast iron lantern post',(x,yy,z),(x,yy,z+3.2),.075,dark,coll)
         box('Lantern glass',(x,yy,z+3.35),(.34,.34,.58),lamp,coll,.025)
         box('Lantern cap',(x,yy,z+3.69),(.52,.52,.13),dark,coll,.03)
+        bpy.ops.object.light_add(type='POINT',location=(x,yy,z+3.3));lp=bpy.context.object;lp.name='Lantern pool';lp.data.energy=70;lp.data.color=(1,.62,.25);lp.data.shadow_soft_size=.25;move(lp,coll)
         for dx in [-.19,.19]:
             for dy in [-.19,.19]:beam('Lantern frame',(x+dx,yy+dy,z+3.03),(x+dx,yy+dy,z+3.65),.025,dark,coll)
 tree(-9.8,-3,ground(-3)+.25,1.8);tree(11.6,-7,ground(-7)+.25,1.45)   # tall foreground trees framing the view
@@ -507,7 +516,7 @@ xyz=n.new('ShaderNodeSeparateXYZ');l.new(coords.outputs['Normal'],xyz.inputs[0])
 elevation=n.new('ShaderNodeMath');elevation.operation='MULTIPLY';elevation.inputs[1].default_value=-1;l.new(xyz.outputs['Z'],elevation.inputs[0])
 sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.15;l.new(elevation.outputs[0],sky_range.inputs['Value'])
 sky_color=n.new('ShaderNodeValToRGB');ramp=sky_color.color_ramp
-ramp.elements[0].color=(.98,.46,.12,1);ramp.elements[1].color=(.26,.36,.62,1)
+ramp.elements[0].color=(.98,.46,.12,1);ramp.elements[1].color=(.22,.31,.60,1)
 ramp.elements.new(.22).color=(.97,.50,.24,1);ramp.elements.new(.5).color=(.74,.44,.50,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
 sun_dir=Vector((690,1500,62)).normalized()
 glow_dot=n.new('ShaderNodeVectorMath');glow_dot.operation='DOT_PRODUCT';glow_dot.inputs[1].default_value=tuple(sun_dir);l.new(coords.outputs['Generated'],glow_dot.inputs[0])

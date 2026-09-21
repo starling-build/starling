@@ -111,3 +111,9 @@ cables and hangers, adds portal braces, deck railings and a row of warm deck
 lamps, and gives the vermilion a faint self-light so the haze no longer
 washes it pink. Tree canopies gain three more lobes, a flattened ellipsoid
 test and chunkier cubes for the rounder stepped look of the reference.
+
+The facade-and-lamps pass adds bracketed window hoods with pediment blocks
+on the street-facing bays, cornice brackets under the dentil course, a roof
+balustrade and an entry stoop to every house; each lantern now carries a
+warm point light so it pools on the cobbles rather than only glowing; and
+the top of the sky gradient is a touch deeper.
