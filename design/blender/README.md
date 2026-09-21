@@ -99,3 +99,9 @@ colour plus a little absorption for purple-grey shadow sides under a stronger
 orange under-light, carpets the Marin ridge with 1500 small lit houses, and
 lifts exposure slightly. AgX Punchy was tried and rejected: it muddied the
 street; the study stays on Medium High Contrast.
+
+The ferry-and-stacks pass gives the ferry a dusk-lit white superstructure,
+amber windows all round and a brighter wake, and adds six large sculpted
+cumulus stacks nearer the camera. Clouds must sit between roughly 90 and
+170 m at 700–1000 m out to be inside the comparison camera's frame; the
+first attempt put them above the top edge.

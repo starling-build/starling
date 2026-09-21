@@ -435,12 +435,13 @@ bump.inputs['Strength'].default_value=.8
 box('Bay water',(0,900,-1.3),(2500,1560,.15),water,'06 • Bay and distant landscape')
 # Ferry placed in open water above the terminal, with a tapered bow and wake.
 coll='08 • Ferry';fx,fy=70,250
+ferry_white=material('Ferry superstructure • dusk-lit white',(.92,.90,.84),.45,emission=.35)
 b=Batch('Ferry decks and fittings',coll)
-for zz,w,d,h,m in [(-.15,9,20,1.5,dark),(1.0,8,18,1.3,trim),(2.4,6.8,14,1.3,trim),(3.5,5,8,.65,trim)]:b.box((fx,fy,zz),(w,d,h),m)
+for zz,w,d,h,m in [(-.15,9,20,1.5,dark),(1.0,8,18,1.3,ferry_white),(2.4,6.8,14,1.3,ferry_white),(3.5,5,8,.65,ferry_white)]:b.box((fx,fy,zz),(w,d,h),m)
 for zz,w,d in [(1.1,8.1,18),(2.5,6.9,14)]:
-    for xx in [-2.6,-1.3,0,1.3,2.6]:b.box((fx+xx,fy-d/2-.04,zz),(.9,.10,.65),roof)
+    for xx in [-2.6,-1.3,0,1.3,2.6]:b.box((fx+xx,fy-d/2-.04,zz),(.9,.10,.65),glass)
     for side in [-1,1]:
-        for yy in range(-5,6,2):b.box((fx+side*w/2,fy+yy,zz),(.10,1.3,.65),roof)
+        for yy in range(-7,8,2):b.box((fx+side*w/2,fy+yy,zz),(.10,1.3,.65),glass)
 for side in [-1,1]:
     for yy in range(-8,9,2):b.box((fx+side*3.9,fy+yy,2),(.09,.09,.8),trim)
     b.box((fx+side*3.9,fy,2.4),(.10,17,.10),trim)
@@ -448,7 +449,7 @@ b.box((fx+1.2,fy+2,4.4),(1.2,1.6,1.8),red);b.box((fx+1.2,fy+2,5.35),(1.3,1.7,.18
 b.box((fx,fy-2,5),(.10,.10,2),brass);b.finish(.06)
 # Tapered bow continues the hull beneath the front deck.
 me=bpy.data.meshes.new('Ferry bow');me.from_pydata([(fx-4.5,fy-10,-.9),(fx+4.5,fy-10,-.9),(fx,fy-14,-.7),(fx-4.5,fy-10,.6),(fx+4.5,fy-10,.6),(fx,fy-14,.4)],[],[(0,2,1),(3,4,5),(0,1,4,3),(1,2,5,4),(2,0,3,5)]);me.materials.append(dark);o=bpy.data.objects.new('Tapered ferry bow',me);group(coll).objects.link(o)
-foam=material('Soft wake foam',(.44,.56,.57),.45)
+foam=material('Soft wake foam',(.88,.90,.90),.45,emission=.15)
 b=Batch('Broken ferry wake',coll)
 for side in [-1,1]:
     for i in range(40):
@@ -539,6 +540,8 @@ for i in range(11):                                   # high layer, further out 
     dimensions=(cloud_rng.uniform(220,360),cloud_rng.uniform(140,220),cloud_rng.uniform(90,140))
     if i in (2,7):continue
     ob=box(f'High cumulus {i+1:02d}',(xx,yy,zz),dimensions,cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
+for i,(xx,yy,zz,sx,sy,sz) in enumerate([(-780,820,150,520,300,150),(-330,940,160,440,260,130),(60,1000,165,380,240,120),(430,880,150,560,320,160),(880,760,140,480,280,140),(-1150,700,135,420,260,130)]):
+    ob=box(f'Sculpted cumulus stack {i+1:02d}',(xx,yy,zz),(sx,sy,sz),cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
 bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=16000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
 bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=7000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
 # A local atmospheric volume softens distant shapes without fogging the street.
