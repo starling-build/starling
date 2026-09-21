@@ -205,7 +205,7 @@ for side in [-1,1]:
         bpy.ops.object.light_add(type='POINT',location=(x,yy,z+3.3));lp=bpy.context.object;lp.name='Lantern pool';lp.data.energy=70;lp.data.color=(1,.62,.25);lp.data.shadow_soft_size=.25;move(lp,coll)
         for dx in [-.19,.19]:
             for dy in [-.19,.19]:beam('Lantern frame',(x+dx,yy+dy,z+3.03),(x+dx,yy+dy,z+3.65),.025,dark,coll)
-tree(-9.8,-3,ground(-3)+.25,1.8);tree(11.6,-7,ground(-7)+.25,1.45)   # tall foreground trees framing the view
+tree(-10.6,-6,ground(-6)+.25,2.3);tree(11.6,-7,ground(-7)+.25,1.45)   # tall foreground trees framing the view
 # Stepped garden terraces where the nearest house row would stand: stone block
 # walls with planted tops and cubic shrubs, filling the bottom corners of the view.
 bloom_mats=[material('Terrace bloom red',(.75,.22,.09)),material('Terrace bloom amber',(.91,.53,.11)),material('Terrace bloom rose',(.83,.30,.32))]
@@ -238,12 +238,32 @@ for j in range(38):
 b.finish()
 # Low blocks near the waterfront preserve the middle-distance street view.
 for row,y in enumerate([94,107]):
-    for x in [-35,-23,-12,12,23,35,47]:
-        z=ground(y);h=rng.uniform(5,8);b=Batch(f'Waterfront block {row} {x}','04 • Waterfront')
+    for x in [-80,-68,-57,-46,-35,-23,-12,12,23,35,47,59,71,83,95]:
+        z=ground(y);h=rng.uniform(5,8) if abs(x)<50 else rng.uniform(6,13);b=Batch(f'Waterfront block {row} {x}','04 • Waterfront')
         b.box((x,y,z+h/2),(9,9,h),rng.choice(facades));b.box((x,y,z+h),(9.5,9.5,.28),trim)
         for xx in [-3,-1,1,3]:
-            for zz in [2,4.5]:b.box((x+xx,y-4.55,z+zz),(.85,.08,1.5),glass)
+            for zz in range(2,int(h)-1,2):b.box((x+xx,y-4.55,z+zz),(.85,.08,1.4),rng.choice(window_moods[1:]))
         b.finish(.025)
+# Shoreline district either side of the terminal, stepping down to the quay.
+b=Batch('Shoreline district','04 • Waterfront')
+for x in list(range(-100,-24,11))+list(range(76,140,11)):
+    for y in [119,130]:
+        z=ground(y);h=rng.uniform(4,11);b.box((x,y,z+h/2),(9,8.5,h),rng.choice(facades));b.box((x,y,z+h),(9.4,8.9,.26),trim)
+        for xx in [-3,-1,1,3]:
+            for zz in range(2,int(h)-1,2):b.box((x+xx,y-4.3,z+zz),(.85,.08,1.3),rng.choice(window_moods[1:]))
+b.finish(.025)
+b=Batch('Quay promenade lamps','04 • Waterfront')
+for xx in range(-100,141,7):
+    b.box((xx,137.6,1.4),(.14,.14,2.8),dark);b.box((xx,137.6,2.95),(.34,.34,.5),lamp)
+b.finish()
+for px in [-70,110]:
+    b=Batch(f'Pier at {px}','04 • Waterfront')
+    b.box((px,158,-.2),(7,42,1.0),stone)
+    for yy in range(140,178,6):b.box((px-3,yy,1.2),(.14,.14,2.6),dark);b.box((px-3,yy,2.7),(.32,.32,.45),lamp)
+    for yy in range(140,178,4):
+        for sx in [-1,1]:b.box((px+sx*3.6,yy,-.9),(.5,.5,2),wood)
+    b.box((px+1,171,2.2),(4,10,4.4),rng.choice(facades));b.box((px+1,171,4.5),(4.4,10.4,.3),roof)
+    b.finish(.03)
 # Ferry terminal and promenade: a long horizontal anchor beneath the clock.
 # Arched glazing and segmented stone surrounds are real editable mesh geometry.
 def arch_panel(batch,c,width,height,depth,mat):
@@ -299,7 +319,7 @@ o=bpy.context.object;o.name='Clock tower pyramidal copper roof';o.data.materials
 beam('Tower finial',(25,131,25.4),(25,131,26.5),.07,brass,'04 • Waterfront')
 # Quay coping, seawall courses and bollards connect the terminal to the bay.
 b=Batch('Quay edge and moorings','04 • Waterfront')
-for xx in range(-17,69,2):
+for xx in range(-105,145,2):
     b.box((xx,138,-.15),(1.95,1.1,1.5),stone)
     b.box((xx,138,.65),(2,.95,.20),trim)
     if xx%6==1:b.box((xx,137.8,1.05),(.32,.32,.6),dark)
@@ -581,6 +601,7 @@ fbf=fb.new('ShaderNodeMapRange');fbf.inputs['From Min'].default_value=.15;fbf.in
 fogbank.node_tree.links.new(fbs.outputs['Z'],fbf.inputs['Value']);fbm=fb.new('ShaderNodeMath');fbm.operation='MULTIPLY';fbm.inputs[1].default_value=.012
 fogbank.node_tree.links.new(fbf.outputs[0],fbm.inputs[0]);fogbank.node_tree.links.new(fbm.outputs[0],fbv.inputs['Density']);fogbank.node_tree.links.new(fbv.outputs['Volume'],fbo.inputs['Volume'])
 ob=box('Shoreline fog bank',(40,560,5),(1000,180,16),fogbank,'09 • Render atmosphere');ob.display_type='WIRE'
+ob=box('Island fog',(-5,418,2.5),(280,130,9),fogbank,'09 • Render atmosphere');ob.display_type='WIRE'
 bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=36,location=(690,1500,66));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.40,.06),emission=3.0));move(o,'09 • Render atmosphere')
 bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-690,-1500,-62)).to_track_quat('-Z','Y').to_euler();sun.data.energy=3.0;sun.data.color=(1,.60,.32);sun.data.angle=math.radians(1)
 # Warm sky patch creates a broad reflected sunset in the bay, with actual

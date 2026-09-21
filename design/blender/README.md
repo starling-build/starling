@@ -139,3 +139,11 @@ the water is lighter. A second camera, `Reference framing camera`, sits
 lower and closer like the reference; `--all-cameras` renders it to
 `reference-framing.png`, and `comparison.png` now uses that view. The
 comparison camera itself is unchanged.
+
+The shoreline pass widens the waterfront: more and taller lit blocks along
+both waterfront rows, a shoreline district stepping down to the quay either
+side of the terminal, a quay that runs the full width with promenade lamps,
+two piers with lamps and a shed, a low fog bank on the water around the
+island, and a larger left foreground tree. Much of the district sits behind
+the nearer roofs from both cameras; it is there for the shoreline's glow and
+for walking views.
