@@ -122,3 +122,9 @@ The wet-street pass lowers the cobble roughness range in the street-detail
 pass so lamps and sky reflect in the stones, scatters 700 lit houses over
 the eastern headland (reshaped with it), and broadens the sun's shimmer on
 the bay with slightly rougher water.
+
+The atmospheric-perspective pass lightens the distant hillside ground and
+gives the far woodlands their own paler, bluer foliage palette (the island
+keeps the street palette), thickens and tints the bay haze lilac, and starts
+the sky's blue a little lower. `comparison.png` places the reference
+wallpaper (left) beside the current render (right) at the same height.

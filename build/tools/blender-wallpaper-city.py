@@ -40,7 +40,8 @@ roof=material('Slate roofs',(.095,.115,.13));glass=material('Amber window interi
 facades=[material('Facade • '+n,c) for n,c in [('sage',(.32,.39,.31)),('terracotta',(.55,.28,.19)),('sand',(.63,.49,.33)),('blue grey',(.31,.40,.43)),('cream',(.70,.62,.47))]]
 leaves=[material('Foliage '+str(i),c) for i,c in enumerate([(.12,.19,.07),(.20,.27,.095),(.29,.33,.12)])]
 wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.60,.09,.055),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
-bridge=material('Bridge vermilion',(.70,.16,.08),.55,emission=.10);land=material('Distant hillside',(.27,.30,.30));lamp=material('Lantern glow',(1,.57,.19),.3,emission=9)
+bridge=material('Bridge vermilion',(.70,.16,.08),.55,emission=.10);land=material('Distant hillside',(.38,.37,.42))
+farleaves=[material('Distant foliage '+str(i),c) for i,c in enumerate([(.24,.30,.26),(.30,.35,.30),(.36,.38,.36)])];lamp=material('Lantern glow',(1,.57,.19),.3,emission=9)
 cobbles=[material('Cobble '+str(i),(.27+i*.021,.25+i*.019,.23+i*.018),.5) for i in range(7)]
 window_moods=[
     material('Window • dusk blue',(.18,.25,.30),.22,emission=.035),
@@ -417,9 +418,10 @@ for name,cx,cy,rx,ry,h,count in [('Island woodland',-55,300,60,34,14,360),('Mari
         if name=='Island woodland' and -75<xx<-36 and 294<yy<309:continue
         zz=h*max(0,1-t*t)**1.6+math.sin(ang*4)*t*(1-t)*h*.12-.5
         size=rng.uniform(1.2,2.5) if count==360 else rng.uniform(2,4)
+        palette=leaves if name=='Island woodland' else farleaves
         for level in range(3):
             w=size*(1-level*.22)
-            b.box((xx,yy,zz+size*.35+level*size*.4),(w,w,size*.65),rng.choice(leaves))
+            b.box((xx,yy,zz+size*.35+level*size*.4),(w,w,size*.65),rng.choice(palette))
     b.finish()
 # Uneven stone revetment gives the island a readable edge against the water.
 b=Batch('Island shoreline rocks','06 • Bay and distant landscape')
@@ -526,7 +528,7 @@ l.new(coords.outputs['Generated'],stretch.inputs[0]);l.new(stretch.outputs[0],sk
 # reflection rays. The packed environment remains the diffuse lighting source.
 xyz=n.new('ShaderNodeSeparateXYZ');l.new(coords.outputs['Normal'],xyz.inputs[0])
 elevation=n.new('ShaderNodeMath');elevation.operation='MULTIPLY';elevation.inputs[1].default_value=-1;l.new(xyz.outputs['Z'],elevation.inputs[0])
-sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.15;l.new(elevation.outputs[0],sky_range.inputs['Value'])
+sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.12;l.new(elevation.outputs[0],sky_range.inputs['Value'])
 sky_color=n.new('ShaderNodeValToRGB');ramp=sky_color.color_ramp
 ramp.elements[0].color=(.98,.46,.12,1);ramp.elements[1].color=(.22,.31,.60,1)
 ramp.elements.new(.22).color=(.97,.50,.24,1);ramp.elements.new(.5).color=(.74,.44,.50,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
@@ -569,7 +571,7 @@ for i,(xx,yy,zz,sx,sy,sz) in enumerate([(-780,820,150,520,300,150),(-330,940,160
 bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=16000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
 bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=7000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
 # A local atmospheric volume softens distant shapes without fogging the street.
-haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0009;vol.inputs['Color'].default_value=(.88,.64,.46,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
+haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0013;vol.inputs['Color'].default_value=(.84,.66,.62,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
 fogbank=bpy.data.materials.new('Shoreline fog bank • render study');fogbank.use_nodes=True;fb=fogbank.node_tree.nodes;fb.clear();fbo=fb.new('ShaderNodeOutputMaterial');fbv=fb.new('ShaderNodeVolumePrincipled')
 fbv.inputs['Density'].default_value=.012;fbv.inputs['Color'].default_value=(.95,.80,.70,1);fbv.inputs['Anisotropy'].default_value=.3
