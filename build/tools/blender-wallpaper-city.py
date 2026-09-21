@@ -89,7 +89,7 @@ for x in [-6.9,-5.1]:
 for side in [-1,1]:
     paving=Batch('Sidewalk '+str(side),'01 • Street and retaining walls')
     for j in range(152):
-        y=-54+j*.95;paving.box((side*10.4,y,ground(y)+.16),(3.0,.93,.22),trim)
+        y=-54+j*.95;paving.box((side*10.4,y,ground(y-.475)-.09),(3.0,.95,.5),trim)   # stair-stepped treads
     paving.finish(.035)
     for row,y in enumerate([0,13,26,39,52,65,78]):
         if row==0:continue   # nearest row is a garden terrace (built below), as in the reference corners
@@ -330,6 +330,8 @@ b.finish(.04)
 # Cable car with framed cabin, curved roof, running boards and wheelsets.
 coll='05 • Cable car';y=29;x=-6;z=ground(y);b=Batch('Cable car body',coll)
 b.box((x,y,z+1.7),(2.8,5.3,3),red)
+b.box((x,y,z+2.3),(2.82,5.32,1.5),trim)                      # cream window band
+b.box((x,y,z+2.1),(2.6,5.1,1.1),window_moods[2])              # glowing interior
 for xx in [-.87,0,.87]:
     b.box((x+xx,y-2.68,z+2.3),(.70,.07,1.36),window_moods[2])
     for dx in [-.40,.40]:b.box((x+xx+dx,y-2.77,z+2.3),(.09,.12,1.64),brass)
@@ -349,6 +351,8 @@ b.box((x,y-2.98,z+.3),(3.2,.6,.20),dark)
 b.box((x,y-2.84,z+1.16),(2.9,.3,.16),brass)
 b.box((x,y-2.91,z+3.33),(2.5,.16,.30),dark)
 b.finish(.018)
+bpy.ops.object.light_add(type='POINT',location=(x,y,z+2.2));cl_=bpy.context.object;cl_.name='Cable car interior light';cl_.data.energy=90;cl_.data.color=(1,.68,.35);cl_.data.shadow_soft_size=.6;move(cl_,coll)
+bpy.ops.object.light_add(type='SPOT',location=(x,y-3.1,z+.95));hl=bpy.context.object;hl.name='Cable car headlight';hl.data.energy=400;hl.data.color=(1,.85,.6);hl.data.spot_size=math.radians(50);hl.rotation_euler=Vector((0,-1,-.25)).to_track_quat('-Z','Y').to_euler();move(hl,coll)
 def car_roof(name,width,length,base,rise,mat):
     verts=[];faces=[];steps=16
     for yy in [y-length/2,y+length/2]:

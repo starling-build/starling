@@ -159,3 +159,8 @@ threshold and a stronger top fill, so the clouds have defined purple-grey
 bodies and lit edges instead of reading as wisps, and adds three more
 stacks (two top-left, one over the bridge). The nearest west house takes the
 blue-grey facade, as in the reference's foreground.
+
+The street-furniture pass makes the sidewalks stair-stepped (each slab a
+level tread at the uphill ground height, deep enough to hide its riser),
+and gives the cable car a cream window band, a glowing interior with a warm
+point light, and a spot headlight that throws onto the cobbles ahead.
