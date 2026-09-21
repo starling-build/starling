@@ -202,10 +202,12 @@ for side in [-1,1]:
         beam('Cast iron lantern post',(x,yy,z),(x,yy,z+3.2),.075,dark,coll)
         box('Lantern glass',(x,yy,z+3.35),(.34,.34,.58),lamp,coll,.025)
         box('Lantern cap',(x,yy,z+3.69),(.52,.52,.13),dark,coll,.03)
-        bpy.ops.object.light_add(type='POINT',location=(x,yy,z+3.3));lp=bpy.context.object;lp.name='Lantern pool';lp.data.energy=70;lp.data.color=(1,.62,.25);lp.data.shadow_soft_size=.25;move(lp,coll)
+        bpy.ops.object.light_add(type='POINT',location=(x,yy,z+3.3));lp=bpy.context.object;lp.name='Lantern pool';lp.data.energy=110;lp.data.color=(1,.58,.22);lp.data.shadow_soft_size=.25;move(lp,coll)
         for dx in [-.19,.19]:
             for dy in [-.19,.19]:beam('Lantern frame',(x+dx,yy+dy,z+3.03),(x+dx,yy+dy,z+3.65),.025,dark,coll)
-tree(-10.6,-6,ground(-6)+.25,2.3);tree(11.6,-7,ground(-7)+.25,1.45)   # tall foreground trees framing the view
+tree(-10.6,-6,ground(-6)+.25,2.3);tree(11.6,-7,ground(-7)+.25,1.45)
+for side in [-1,1]:
+    for y in [19.5,32.5,45.5,58.5,71.5]:tree(side*15.4,y,ground(y)+.4,1.05)   # trees between the house rows   # tall foreground trees framing the view
 # Stepped garden terraces where the nearest house row would stand: stone block
 # walls with planted tops and cubic shrubs, filling the bottom corners of the view.
 bloom_mats=[material('Terrace bloom red',(.75,.22,.09)),material('Terrace bloom amber',(.91,.53,.11)),material('Terrace bloom rose',(.83,.30,.32))]
@@ -514,6 +516,8 @@ def reshape(objects,transform):
         inverse=ob.matrix_world.inverted()
         for vertex in ob.data.vertices:
             vertex.co=inverse @ Vector(transform(ob.matrix_world @ vertex.co))
+landmark=[ob for ob in group('04 • Waterfront').objects if any(k in ob.name for k in ('Ferry Building','Clock tower','clock','Tower finial','Clock minute','Clock hour'))]
+reshape(landmark,lambda p:(25+(p.x-25)*1.28,131+(p.y-131)*1.12,-1.2+(p.z+1.2)*1.28))
 reshape(group('07 • Suspension bridge').objects,
         lambda p:(125+(p.x-125)*.70,p.y,-1.225+(p.z+1.225)*.62))
 landscape=group('06 • Bay and distant landscape')

@@ -147,3 +147,9 @@ two piers with lamps and a shed, a low fog bank on the water around the
 island, and a larger left foreground tree. Much of the district sits behind
 the nearer roofs from both cameras; it is there for the shoreline's glow and
 for walking views.
+
+The landmark pass scales the Ferry Building, clock tower and their fittings
+by 1.28 in width and height (1.12 in depth) about the tower base so the
+terminal reads as the reference's landmark, plants a tree in each gap
+between the house rows behind the sidewalk line, and warms and strengthens
+the lantern point lights.
