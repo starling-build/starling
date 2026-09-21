@@ -295,7 +295,10 @@ scene.view_settings.view_transform = 'AgX'; scene.view_settings.look = 'AgX - Me
 scene.render.image_settings.file_format = 'PNG'
 for screen in bpy.data.screens:
     for area in screen.areas:
-        if area.type == 'VIEW_3D': area.spaces.active.region_3d.view_perspective = 'CAMERA'
+        if area.type == 'VIEW_3D':
+            area.spaces.active.region_3d.view_perspective = 'CAMERA'
+            area.spaces.active.shading.type = 'RENDERED'      # opens rendering live through the camera
+scene.cycles.preview_samples = 24; scene.cycles.use_preview_denoising = True
 notes = bpy.data.texts.new('START HERE')
 notes.write('Sci-fi modular corridor kit\nMetres, Z up, corridor along +Y, one module = 2 m.\n'
             'Kit • parts holds one of each part; the assembly is linked duplicates of those meshes,\n'
