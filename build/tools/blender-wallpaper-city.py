@@ -367,15 +367,15 @@ for xx in range(-69,-45,3):b.box((xx,296.9,14.5),(1.2,.12,1.8),glass)
 b.box((-40,300,20),(2.5,2.5,14),trim);b.finish()
 # Small grouped buildings and tree crowns articulate the continuous hills.
 b=Batch('Distant settlement lights','06 • Bay and distant landscape')
-for i in range(420):
+for i in range(1500):
     while True:
-        xx=rng.uniform(-380,-20);yy=rng.uniform(490,615)
+        xx=rng.uniform(-400,-10);yy=rng.uniform(480,625)
         nx=(xx+190)/230;ny=(yy-560)/95;ang=math.atan2(ny,nx)
         t=math.hypot(nx,ny)/(1+.05*math.sin(ang*5)+.03*math.cos(ang*9))
         if t < .94:break
     zz=48*max(0,1-t*t)**1.6+math.sin(ang*4)*t*(1-t)*48*.12-.5
-    b.box((xx,yy,zz+1),(2.5,2,2),rng.choice(facades))
-    b.box((xx,yy-1.05,zz+1),(.7,.05,.65),glass)
+    b.box((xx,yy,zz+.9),(2.1,1.7,1.8),rng.choice(facades))
+    b.box((xx,yy-.9,zz+.9),(.9,.05,.6),glass);b.box((xx,yy,zz+1.9),(2.2,1.8,.2),roof)
 b.finish()
 # A tripod radio mast on the ridge shoulder, red and white like the reference.
 tx,ty=-120,540;nx=(tx+190)/230;ny=(ty-560)/95;tang=math.atan2(ny,nx);tt=math.hypot(nx,ny)/(1+.05*math.sin(tang*5)+.03*math.cos(tang*9))
@@ -504,7 +504,7 @@ elevation=n.new('ShaderNodeMath');elevation.operation='MULTIPLY';elevation.input
 sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.15;l.new(elevation.outputs[0],sky_range.inputs['Value'])
 sky_color=n.new('ShaderNodeValToRGB');ramp=sky_color.color_ramp
 ramp.elements[0].color=(.98,.46,.12,1);ramp.elements[1].color=(.26,.36,.62,1)
-ramp.elements.new(.22).color=(.92,.52,.36,1);ramp.elements.new(.5).color=(.62,.42,.50,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
+ramp.elements.new(.22).color=(.97,.50,.24,1);ramp.elements.new(.5).color=(.74,.44,.50,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
 sun_dir=Vector((690,1500,62)).normalized()
 glow_dot=n.new('ShaderNodeVectorMath');glow_dot.operation='DOT_PRODUCT';glow_dot.inputs[1].default_value=tuple(sun_dir);l.new(coords.outputs['Generated'],glow_dot.inputs[0])
 glow=n.new('ShaderNodeMapRange');glow.inputs['From Min'].default_value=.90;glow.inputs['From Max'].default_value=1.0;glow.interpolation_type='SMOOTHSTEP';l.new(glow_dot.outputs['Value'],glow.inputs['Value'])
@@ -517,7 +517,8 @@ sky_mix=n.new('ShaderNodeMixShader');l.new(ray_choice.outputs[0],sky_mix.inputs[
 # boundary, so the visible clouds have depth without rectangular cutoffs.
 cloud=bpy.data.materials.new('Cumulus volume • procedural');cloud.use_nodes=True
 cn=cloud.node_tree.nodes;cl=cloud.node_tree.links;cn.clear()
-co=cn.new('ShaderNodeOutputMaterial');scatter=cn.new('ShaderNodeVolumeScatter');scatter.inputs['Color'].default_value=(1,1,1,1);scatter.inputs['Anisotropy'].default_value=.15;cl.new(scatter.outputs[0],co.inputs['Volume'])
+co=cn.new('ShaderNodeOutputMaterial');scatter=cn.new('ShaderNodeVolumeScatter');scatter.inputs['Color'].default_value=(1,.93,.86,1);scatter.inputs['Anisotropy'].default_value=.3
+absorb=cn.new('ShaderNodeVolumeAbsorption');absorb.inputs['Color'].default_value=(.62,.50,.58,1);addv=cn.new('ShaderNodeAddShader');cl.new(scatter.outputs[0],addv.inputs[0]);cl.new(absorb.outputs[0],addv.inputs[1]);cl.new(addv.outputs[0],co.inputs['Volume'])
 ct=cn.new('ShaderNodeTexCoord');center=cn.new('ShaderNodeVectorMath');center.operation='SUBTRACT';center.inputs[1].default_value=(.5,.5,.5);cl.new(ct.outputs['Generated'],center.inputs[0])
 radius=cn.new('ShaderNodeVectorMath');radius.operation='LENGTH';cl.new(center.outputs[0],radius.inputs[0])
 noise=cn.new('ShaderNodeTexNoise');noise.noise_dimensions='4D';noise.inputs['Scale'].default_value=3.2;noise.inputs['Detail'].default_value=4;noise.inputs['Roughness'].default_value=.7;cl.new(ct.outputs['Generated'],noise.inputs['Vector'])
@@ -526,6 +527,7 @@ mask=cn.new('ShaderNodeMapRange');mask.name='Cloud boundary fade';mask.interpola
 billow=cn.new('ShaderNodeMapRange');billow.name='Cloud billow threshold';billow.interpolation_type='SMOOTHSTEP';billow.inputs['From Min'].default_value=.54;billow.inputs['From Max'].default_value=.64;cl.new(noise.outputs['Fac'],billow.inputs['Value'])
 shape=cn.new('ShaderNodeMath');shape.operation='MULTIPLY';cl.new(mask.outputs['Result'],shape.inputs[0]);cl.new(billow.outputs['Result'],shape.inputs[1])
 density=cn.new('ShaderNodeMath');density.operation='MULTIPLY';density.inputs[1].default_value=.28;cl.new(shape.outputs[0],density.inputs[0]);cl.new(density.outputs[0],scatter.inputs['Density'])
+abs_d=cn.new('ShaderNodeMath');abs_d.operation='MULTIPLY';abs_d.inputs[1].default_value=.05;cl.new(shape.outputs[0],abs_d.inputs[0]);cl.new(abs_d.outputs[0],absorb.inputs['Density'])
 cloud_rng=random.Random(318)
 for i in range(18):                                   # far layer, low over the horizon
     xx=-1100+i*130;yy=cloud_rng.uniform(1350,1850);zz=cloud_rng.uniform(90,210)
@@ -537,10 +539,10 @@ for i in range(11):                                   # high layer, further out 
     dimensions=(cloud_rng.uniform(220,360),cloud_rng.uniform(140,220),cloud_rng.uniform(90,140))
     if i in (2,7):continue
     ob=box(f'High cumulus {i+1:02d}',(xx,yy,zz),dimensions,cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
-bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=9000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
-bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=10000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
+bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=16000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
+bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=7000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
 # A local atmospheric volume softens distant shapes without fogging the street.
-haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0011;vol.inputs['Color'].default_value=(.78,.60,.56,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
+haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0009;vol.inputs['Color'].default_value=(.88,.64,.46,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
 fogbank=bpy.data.materials.new('Shoreline fog bank • render study');fogbank.use_nodes=True;fb=fogbank.node_tree.nodes;fb.clear();fbo=fb.new('ShaderNodeOutputMaterial');fbv=fb.new('ShaderNodeVolumePrincipled')
 fbv.inputs['Density'].default_value=.012;fbv.inputs['Color'].default_value=(.95,.80,.70,1);fbv.inputs['Anisotropy'].default_value=.3
@@ -549,7 +551,7 @@ fbf=fb.new('ShaderNodeMapRange');fbf.inputs['From Min'].default_value=.15;fbf.in
 fogbank.node_tree.links.new(fbs.outputs['Z'],fbf.inputs['Value']);fbm=fb.new('ShaderNodeMath');fbm.operation='MULTIPLY';fbm.inputs[1].default_value=.012
 fogbank.node_tree.links.new(fbf.outputs[0],fbm.inputs[0]);fogbank.node_tree.links.new(fbm.outputs[0],fbv.inputs['Density']);fogbank.node_tree.links.new(fbv.outputs['Volume'],fbo.inputs['Volume'])
 ob=box('Shoreline fog bank',(40,560,5),(1000,180,16),fogbank,'09 • Render atmosphere');ob.display_type='WIRE'
-bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=30,location=(690,1500,62));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.42,.08),emission=1.8));move(o,'09 • Render atmosphere')
+bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=36,location=(690,1500,66));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.40,.06),emission=2.0));move(o,'09 • Render atmosphere')
 bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-690,-1500,-62)).to_track_quat('-Z','Y').to_euler();sun.data.energy=3.0;sun.data.color=(1,.60,.32);sun.data.angle=math.radians(1)
 # Warm sky patch creates a broad reflected sunset in the bay, with actual
 # light transport rather than painted highlights on the water surface.
@@ -559,7 +561,7 @@ bpy.ops.object.light_add(type='AREA',location=(0,-10,65));fill=bpy.context.objec
 scene.render.engine='CYCLES';scene.cycles.samples=a.samples;scene.cycles.use_denoising=True;scene.cycles.denoiser='OPENIMAGEDENOISE';scene.cycles.max_bounces=6;scene.cycles.volume_bounces=4
 scene.render.threads_mode='FIXED';scene.render.threads=8
 scene.render.resolution_x=a.width;scene.render.resolution_y=round(a.width*941/1672);scene.render.resolution_percentage=100
-scene.view_settings.view_transform='AgX';scene.view_settings.look='AgX - Medium High Contrast';scene.view_settings.exposure=.55
+scene.view_settings.view_transform='AgX';scene.view_settings.look='AgX - Medium High Contrast';scene.view_settings.exposure=.68
 scene.render.image_settings.file_format='PNG';scene.render.filepath=str(a.out/'camera-study.png')
 # Open directly into the reference camera, with meaningful collection names.
 for screen in bpy.data.screens:

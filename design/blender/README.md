@@ -92,3 +92,10 @@ to the visible sky gradient behind a saturated sun disc, lightens and polishes t
 replaces the nearest house row with stepped stone garden terraces (three
 tiers with planted tops and cubic shrubs) so the bottom corners of the frame
 read like the reference. The comparison camera is unchanged.
+
+The saturation pass deepens the horizon gradient stops, thins and warms the
+bay haze so it no longer greys the horizon, gives the cumulus a warm scatter
+colour plus a little absorption for purple-grey shadow sides under a stronger
+orange under-light, carpets the Marin ridge with 1500 small lit houses, and
+lifts exposure slightly. AgX Punchy was tried and rejected: it muddied the
+street; the study stays on Medium High Contrast.
