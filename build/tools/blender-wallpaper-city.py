@@ -7,7 +7,7 @@ import bpy, math, random, argparse, sys
 from pathlib import Path
 from mathutils import Vector, Matrix
 rng=random.Random(51)
-p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--samples',type=int,default=32);p.add_argument('--width',type=int,default=1200)
+p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);p.add_argument('--samples',type=int,default=32);p.add_argument('--width',type=int,default=1200);p.add_argument('--all-cameras',action='store_true')
 a=p.parse_args(sys.argv[sys.argv.index('--')+1:]);a.out.mkdir(parents=True,exist_ok=True)
 ROOT=Path(__file__).resolve().parents[2]
 bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
@@ -36,17 +36,17 @@ def material(name,color,rough=.65,metal=0,emission=0):
         links.new(noise.outputs['Fac'],bump.inputs['Height']);links.new(bump.outputs['Normal'],s.inputs['Normal'])
     return m
 stone=material('Warm limestone',(0.49,.43,.34));trim=material('Ivory painted timber',(.78,.70,.56));dark=material('Cast iron',(.055,.065,.065),.35,.6)
-roof=material('Slate roofs',(.095,.115,.13));glass=material('Amber window interiors',(.55,.25,.065),.35,emission=.65)
+roof=material('Slate roofs',(.095,.115,.13));glass=material('Amber window interiors',(.55,.25,.065),.35,emission=1.1)
 facades=[material('Facade • '+n,c) for n,c in [('sage',(.32,.39,.31)),('terracotta',(.55,.28,.19)),('sand',(.63,.49,.33)),('blue grey',(.31,.40,.43)),('cream',(.70,.62,.47))]]
 leaves=[material('Foliage '+str(i),c) for i,c in enumerate([(.12,.19,.07),(.20,.27,.095),(.29,.33,.12)])]
 wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.60,.09,.055),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
 bridge=material('Bridge vermilion',(.70,.16,.08),.55,emission=.10);land=material('Distant hillside',(.38,.37,.42))
-farleaves=[material('Distant foliage '+str(i),c) for i,c in enumerate([(.24,.30,.26),(.30,.35,.30),(.36,.38,.36)])];lamp=material('Lantern glow',(1,.57,.19),.3,emission=9)
+farleaves=[material('Distant foliage '+str(i),c) for i,c in enumerate([(.24,.30,.26),(.30,.35,.30),(.36,.38,.36)])];lamp=material('Lantern glow',(1,.57,.19),.3,emission=12)
 cobbles=[material('Cobble '+str(i),(.27+i*.021,.25+i*.019,.23+i*.018),.5) for i in range(7)]
 window_moods=[
     material('Window • dusk blue',(.18,.25,.30),.22,emission=.035),
-    material('Window • dim interior',(.38,.25,.13),.3,emission=.16),
-    material('Window • warm room',(.70,.37,.12),.3,emission=.6),
+    material('Window • dim interior',(.38,.25,.13),.3,emission=.30),
+    material('Window • warm room',(.70,.37,.12),.3,emission=1.0),
     glass,
 ]
 # Each architectural component is a mesh batch, editable independently in Blender.
@@ -449,7 +449,7 @@ for yy in [552,558]:
         beam('Main suspension cable',(xx,yy,cable(xx)),(xx+5,yy,cable(xx+5)),.42,bridge,coll)
         beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.10,bridge,coll)
 # Water uses a subtle anisotropic bump; geometry and base PBR export separately.
-water=material('Bay water • Blender procedural study',(.42,.52,.64),.12,.1)
+water=material('Bay water • Blender procedural study',(.50,.60,.72),.12,.1)
 n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=.7;tex.inputs['Detail'].default_value=3
 coord=n.new('ShaderNodeTexCoord');mapping=n.new('ShaderNodeVectorMath');mapping.operation='MULTIPLY';mapping.inputs[1].default_value=(.65,4,1);l.new(coord.outputs['Object'],mapping.inputs[0]);l.new(mapping.outputs[0],tex.inputs['Vector'])
 bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.5;bump.inputs['Distance'].default_value=.3;l.new(tex.outputs['Fac'],bump.inputs['Height']);l.new(bump.outputs['Normal'],s.inputs['Normal'])
@@ -518,6 +518,7 @@ import runpy
 runpy.run_path(str(ROOT/'build/tools/blender-street-detail.py'))['apply'](bpy)
 # Camera and lighting are saved with the source scene.
 scene=bpy.context.scene
+bpy.ops.object.camera_add(location=(1,-17,33.5));refcam=bpy.context.object;refcam.name='Reference framing camera';refcam.rotation_euler=(Vector((3,230,8))-refcam.location).to_track_quat('-Z','Y').to_euler();refcam.data.lens=28;refcam.data.clip_end=4000
 bpy.ops.object.camera_add(location=(2,-28,38));cam=bpy.context.object;cam.name='Wallpaper comparison camera';cam.rotation_euler=(Vector((3,225,4))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.lens=35;cam.data.clip_end=4000;scene.camera=cam
 ref=bpy.data.images.load(str(ROOT/'shell/Resources/Wallpapers/city-sunset.png'));ref.pack();cam.data.show_background_images=True;bg=cam.data.background_images.new();bg.image=ref;bg.alpha=.35;bg.display_depth='FRONT'
 world=bpy.data.worlds.new('Peach sunset environment');scene.world=world;world.use_nodes=True;n=world.node_tree.nodes;l=world.node_tree.links
@@ -530,13 +531,13 @@ xyz=n.new('ShaderNodeSeparateXYZ');l.new(coords.outputs['Normal'],xyz.inputs[0])
 elevation=n.new('ShaderNodeMath');elevation.operation='MULTIPLY';elevation.inputs[1].default_value=-1;l.new(xyz.outputs['Z'],elevation.inputs[0])
 sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.12;l.new(elevation.outputs[0],sky_range.inputs['Value'])
 sky_color=n.new('ShaderNodeValToRGB');ramp=sky_color.color_ramp
-ramp.elements[0].color=(.98,.46,.12,1);ramp.elements[1].color=(.22,.31,.60,1)
-ramp.elements.new(.22).color=(.97,.50,.24,1);ramp.elements.new(.5).color=(.74,.44,.50,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
+ramp.elements[0].color=(1.0,.42,.08,1);ramp.elements[1].color=(.20,.35,.72,1)
+ramp.elements.new(.22).color=(.98,.55,.20,1);ramp.elements.new(.5).color=(.70,.50,.70,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
 sun_dir=Vector((690,1500,62)).normalized()
 glow_dot=n.new('ShaderNodeVectorMath');glow_dot.operation='DOT_PRODUCT';glow_dot.inputs[1].default_value=tuple(sun_dir);l.new(coords.outputs['Generated'],glow_dot.inputs[0])
-glow=n.new('ShaderNodeMapRange');glow.inputs['From Min'].default_value=.90;glow.inputs['From Max'].default_value=1.0;glow.interpolation_type='SMOOTHSTEP';l.new(glow_dot.outputs['Value'],glow.inputs['Value'])
-glow_pow=n.new('ShaderNodeMath');glow_pow.operation='POWER';glow_pow.inputs[1].default_value=1.2;l.new(glow.outputs['Result'],glow_pow.inputs[0])
-glow_mix=n.new('ShaderNodeMix');glow_mix.data_type='RGBA';glow_mix.inputs['B'].default_value=(1.0,.46,.12,1);l.new(glow_pow.outputs[0],glow_mix.inputs['Factor']);l.new(sky_color.outputs['Color'],glow_mix.inputs['A'])
+glow=n.new('ShaderNodeMapRange');glow.inputs['From Min'].default_value=.84;glow.inputs['From Max'].default_value=1.0;glow.interpolation_type='SMOOTHSTEP';l.new(glow_dot.outputs['Value'],glow.inputs['Value'])
+glow_pow=n.new('ShaderNodeMath');glow_pow.operation='POWER';glow_pow.inputs[1].default_value=1.5;l.new(glow.outputs['Result'],glow_pow.inputs[0])
+glow_mix=n.new('ShaderNodeMix');glow_mix.data_type='RGBA';glow_mix.inputs['B'].default_value=(1.0,.55,.20,1);l.new(glow_pow.outputs[0],glow_mix.inputs['Factor']);l.new(sky_color.outputs['Color'],glow_mix.inputs['A'])
 visible_sky=n.new('ShaderNodeBackground');visible_sky.name='Visible sunset gradient';visible_sky.inputs['Strength'].default_value=.85;l.new(glow_mix.outputs['Result'],visible_sky.inputs['Color'])
 paths=n.new('ShaderNodeLightPath');ray_choice=n.new('ShaderNodeMath');ray_choice.operation='MAXIMUM';l.new(paths.outputs['Is Camera Ray'],ray_choice.inputs[0]);l.new(paths.outputs['Is Glossy Ray'],ray_choice.inputs[1])
 sky_mix=n.new('ShaderNodeMixShader');l.new(ray_choice.outputs[0],sky_mix.inputs[0]);l.new(n.get('Background').outputs[0],sky_mix.inputs[1]);l.new(visible_sky.outputs[0],sky_mix.inputs[2]);l.new(sky_mix.outputs[0],n.get('World Output').inputs['Surface'])
@@ -545,7 +546,7 @@ sky_mix=n.new('ShaderNodeMixShader');l.new(ray_choice.outputs[0],sky_mix.inputs[
 cloud=bpy.data.materials.new('Cumulus volume • procedural');cloud.use_nodes=True
 cn=cloud.node_tree.nodes;cl=cloud.node_tree.links;cn.clear()
 co=cn.new('ShaderNodeOutputMaterial');scatter=cn.new('ShaderNodeVolumeScatter');scatter.inputs['Color'].default_value=(1,.93,.86,1);scatter.inputs['Anisotropy'].default_value=.3
-absorb=cn.new('ShaderNodeVolumeAbsorption');absorb.inputs['Color'].default_value=(.62,.50,.58,1);addv=cn.new('ShaderNodeAddShader');cl.new(scatter.outputs[0],addv.inputs[0]);cl.new(absorb.outputs[0],addv.inputs[1]);cl.new(addv.outputs[0],co.inputs['Volume'])
+absorb=cn.new('ShaderNodeVolumeAbsorption');absorb.inputs['Color'].default_value=(.45,.42,.60,1);addv=cn.new('ShaderNodeAddShader');cl.new(scatter.outputs[0],addv.inputs[0]);cl.new(absorb.outputs[0],addv.inputs[1]);cl.new(addv.outputs[0],co.inputs['Volume'])
 ct=cn.new('ShaderNodeTexCoord');center=cn.new('ShaderNodeVectorMath');center.operation='SUBTRACT';center.inputs[1].default_value=(.5,.5,.5);cl.new(ct.outputs['Generated'],center.inputs[0])
 radius=cn.new('ShaderNodeVectorMath');radius.operation='LENGTH';cl.new(center.outputs[0],radius.inputs[0])
 noise=cn.new('ShaderNodeTexNoise');noise.noise_dimensions='4D';noise.inputs['Scale'].default_value=3.2;noise.inputs['Detail'].default_value=4;noise.inputs['Roughness'].default_value=.7;cl.new(ct.outputs['Generated'],noise.inputs['Vector'])
@@ -568,7 +569,7 @@ for i in range(11):                                   # high layer, further out 
     ob=box(f'High cumulus {i+1:02d}',(xx,yy,zz),dimensions,cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
 for i,(xx,yy,zz,sx,sy,sz) in enumerate([(-780,820,150,520,300,150),(-330,940,160,440,260,130),(60,1000,165,380,240,120),(430,880,150,560,320,160),(880,760,140,480,280,140),(-1150,700,135,420,260,130)]):
     ob=box(f'Sculpted cumulus stack {i+1:02d}',(xx,yy,zz),(sx,sy,sz),cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
-bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=16000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
+bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=26000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
 bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=7000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
 # A local atmospheric volume softens distant shapes without fogging the street.
 haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0013;vol.inputs['Color'].default_value=(.84,.66,.62,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
@@ -580,7 +581,7 @@ fbf=fb.new('ShaderNodeMapRange');fbf.inputs['From Min'].default_value=.15;fbf.in
 fogbank.node_tree.links.new(fbs.outputs['Z'],fbf.inputs['Value']);fbm=fb.new('ShaderNodeMath');fbm.operation='MULTIPLY';fbm.inputs[1].default_value=.012
 fogbank.node_tree.links.new(fbf.outputs[0],fbm.inputs[0]);fogbank.node_tree.links.new(fbm.outputs[0],fbv.inputs['Density']);fogbank.node_tree.links.new(fbv.outputs['Volume'],fbo.inputs['Volume'])
 ob=box('Shoreline fog bank',(40,560,5),(1000,180,16),fogbank,'09 • Render atmosphere');ob.display_type='WIRE'
-bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=36,location=(690,1500,66));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.40,.06),emission=2.0));move(o,'09 • Render atmosphere')
+bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=36,location=(690,1500,66));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.40,.06),emission=3.0));move(o,'09 • Render atmosphere')
 bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-690,-1500,-62)).to_track_quat('-Z','Y').to_euler();sun.data.energy=3.0;sun.data.color=(1,.60,.32);sun.data.angle=math.radians(1)
 # Warm sky patch creates a broad reflected sunset in the bay, with actual
 # light transport rather than painted highlights on the water surface.
@@ -597,8 +598,22 @@ for screen in bpy.data.screens:
     for area in screen.areas:
         if area.type=='VIEW_3D':area.spaces.active.region_3d.view_perspective='CAMERA';area.spaces.active.clip_end=4000
 notes=bpy.data.texts.new('START HERE');notes.write('Wallpaper city • Blender composition study\nNative meshes, metre scale, Z up. Compare through the named camera.\nCamera background holds the packed wallpaper as an overlay (not rendered).\nProcedural water and Blender lighting require baking/matching before runtime integration.\nThis is a first composition study, not a finished replacement world.\n')
-scene.render.use_compositing=True
+scene.render.use_compositing=True;scene.use_nodes=True
+# Blender 5 compositor: a reusable node group assigned to the scene, ending in a Group Output.
+ct_=bpy.data.node_groups.new('Sunset grade','CompositorNodeTree');scene.compositing_node_group=ct_
+ct_.interface.new_socket('Image',in_out='OUTPUT',socket_type='NodeSocketColor')
+rl=ct_.nodes.new('CompositorNodeRLayers');hsv=ct_.nodes.new('CompositorNodeHueSat');hsv.inputs['Saturation'].default_value=1.22;hsv.inputs['Value'].default_value=1.0
+cb=ct_.nodes.new('CompositorNodeColorBalance')
+def _set(node,name,value):
+    sock=node.inputs.get(name)
+    if sock is not None:
+        try:sock.default_value=value
+        except Exception:pass
+_set(cb,'Lift',(1.0,.99,.985,1));_set(cb,'Gamma',(1.02,1.0,.97,1));_set(cb,'Gain',(1.06,1.0,.92,1))
+gout=ct_.nodes.new('NodeGroupOutput');ct_.links.new(rl.outputs['Image'],hsv.inputs['Image']);ct_.links.new(hsv.outputs['Image'],cb.inputs['Image']);ct_.links.new(cb.outputs['Image'],gout.inputs['Image'])
 for layer in scene.view_layers: layer.cycles.use_denoising=True
 bpy.ops.wm.save_as_mainfile(filepath=str(a.out/'wallpaper-city.blend'))
 bpy.ops.render.render(write_still=True)
+if a.all_cameras:
+    scene.camera=refcam;scene.render.filepath=str(a.out/'reference-framing.png');bpy.ops.render.render(write_still=True);scene.camera=cam
 print('BLENDER_STUDY_COMPLETE',a.out,flush=True)

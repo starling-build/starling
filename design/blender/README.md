@@ -128,3 +128,14 @@ gives the far woodlands their own paler, bluer foliage palette (the island
 keeps the street palette), thickens and tints the bay haze lilac, and starts
 the sky's blue a little lower. `comparison.png` places the reference
 wallpaper (left) beside the current render (right) at the same height.
+
+The grade-and-framing pass adds a compositor colour grade (Blender 5 keeps
+the compositor as a node group assigned to the scene, ending in a Group
+Output — there is no Composite node any more): saturation 1.22 and a warm
+lift/gamma/gain balance. The sky gradient is a bolder orange-to-blue with a
+wider sun glow and a brighter sun disc, cloud bellies get a stronger orange
+under-light with bluer shadows, window and lantern emission is higher, and
+the water is lighter. A second camera, `Reference framing camera`, sits
+lower and closer like the reference; `--all-cameras` renders it to
+`reference-framing.png`, and `comparison.png` now uses that view. The
+comparison camera itself is unchanged.
