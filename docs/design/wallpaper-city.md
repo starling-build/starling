@@ -437,3 +437,21 @@ two packed images, finite coordinates, working denoising, and a fully framed
 cable car. Compilation and whitespace checks passed. The sky, detailed terrain,
 water sparkle and overall wallpaper match remain unfinished; runtime integration
 has not been performed.
+
+### Blender sky and atmosphere pass — 2026-09-20
+
+Added twelve procedural volume cloud banks with per-object noise variation,
+a billow threshold and a separate boundary fade. The final material removes
+unused experiment nodes. Camera and glossy rays use a directional sunset
+gradient; the packed sky image remains the diffuse lighting source. A broad
+warm fill and four volume bounces light the clouds. Bay haze is slightly denser
+and warmer to soften the distant terrain.
+
+Inspected the final 1400x788, 64-sample render. The clouds now have broken,
+three-dimensional shapes rather than the previous painted bands, although
+their color and arrangement remain a study rather than a wallpaper match.
+The geometry audit passed with 856 objects, 213,458 base vertices, two packed
+images, finite coordinates, working denoising and a fully framed cable car.
+Builder compilation and whitespace checks passed. These Blender volume and
+ray-dependent sky shaders require baking or runtime equivalents; the installed
+desktop world was not replaced.

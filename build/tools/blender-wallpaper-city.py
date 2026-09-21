@@ -458,8 +458,39 @@ world=bpy.data.worlds.new('Peach sunset environment');scene.world=world;world.us
 sky=n.new('ShaderNodeTexEnvironment');sky.image=bpy.data.images.load(str(ROOT/'shell/Resources/Worlds/wallpaper-city/materials/sunset-sky-v4.png'));sky.image.pack();l.new(sky.outputs['Color'],n.get('Background').inputs['Color']);n.get('Background').inputs['Strength'].default_value=.65
 coords=n.new('ShaderNodeTexCoord');stretch=n.new('ShaderNodeVectorMath');stretch.operation='MULTIPLY';stretch.inputs[1].default_value=(1,1,4)
 l.new(coords.outputs['Generated'],stretch.inputs[0]);l.new(stretch.outputs[0],sky.inputs['Vector'])
+# A directional sky gradient replaces the painted cloud bands for camera and
+# reflection rays. The packed environment remains the diffuse lighting source.
+xyz=n.new('ShaderNodeSeparateXYZ');l.new(coords.outputs['Normal'],xyz.inputs[0])
+elevation=n.new('ShaderNodeMath');elevation.operation='MULTIPLY';elevation.inputs[1].default_value=-1;l.new(xyz.outputs['Z'],elevation.inputs[0])
+sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.15;l.new(elevation.outputs[0],sky_range.inputs['Value'])
+sky_color=n.new('ShaderNodeValToRGB');ramp=sky_color.color_ramp
+ramp.elements[0].color=(.65,.24,.10,1);ramp.elements[1].color=(.10,.22,.45,1)
+ramp.elements.new(.45).color=(.34,.24,.33,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
+visible_sky=n.new('ShaderNodeBackground');visible_sky.name='Visible sunset gradient';visible_sky.inputs['Strength'].default_value=.8;l.new(sky_color.outputs['Color'],visible_sky.inputs['Color'])
+paths=n.new('ShaderNodeLightPath');ray_choice=n.new('ShaderNodeMath');ray_choice.operation='MAXIMUM';l.new(paths.outputs['Is Camera Ray'],ray_choice.inputs[0]);l.new(paths.outputs['Is Glossy Ray'],ray_choice.inputs[1])
+sky_mix=n.new('ShaderNodeMixShader');l.new(ray_choice.outputs[0],sky_mix.inputs[0]);l.new(n.get('Background').outputs[0],sky_mix.inputs[1]);l.new(visible_sky.outputs[0],sky_mix.inputs[2]);l.new(sky_mix.outputs[0],n.get('World Output').inputs['Surface'])
+# Soft-edged volumetric banks: a noisy ellipsoid fades to zero before the box
+# boundary, so the visible clouds have depth without rectangular cutoffs.
+cloud=bpy.data.materials.new('Cumulus volume • procedural');cloud.use_nodes=True
+cn=cloud.node_tree.nodes;cl=cloud.node_tree.links;cn.clear()
+co=cn.new('ShaderNodeOutputMaterial');scatter=cn.new('ShaderNodeVolumeScatter');scatter.inputs['Color'].default_value=(1,1,1,1);scatter.inputs['Anisotropy'].default_value=.15;cl.new(scatter.outputs[0],co.inputs['Volume'])
+ct=cn.new('ShaderNodeTexCoord');center=cn.new('ShaderNodeVectorMath');center.operation='SUBTRACT';center.inputs[1].default_value=(.5,.5,.5);cl.new(ct.outputs['Generated'],center.inputs[0])
+radius=cn.new('ShaderNodeVectorMath');radius.operation='LENGTH';cl.new(center.outputs[0],radius.inputs[0])
+noise=cn.new('ShaderNodeTexNoise');noise.noise_dimensions='4D';noise.inputs['Scale'].default_value=3.2;noise.inputs['Detail'].default_value=4;noise.inputs['Roughness'].default_value=.7;cl.new(ct.outputs['Generated'],noise.inputs['Vector'])
+cloud_info=cn.new('ShaderNodeObjectInfo');cloud_seed=cn.new('ShaderNodeMath');cloud_seed.operation='MULTIPLY';cloud_seed.inputs[1].default_value=19;cl.new(cloud_info.outputs['Random'],cloud_seed.inputs[0]);cl.new(cloud_seed.outputs[0],noise.inputs['W'])
+mask=cn.new('ShaderNodeMapRange');mask.name='Cloud boundary fade';mask.interpolation_type='SMOOTHSTEP';mask.inputs['From Min'].default_value=.20;mask.inputs['From Max'].default_value=.47;mask.inputs['To Min'].default_value=1;mask.inputs['To Max'].default_value=0;cl.new(radius.outputs['Value'],mask.inputs['Value'])
+billow=cn.new('ShaderNodeMapRange');billow.name='Cloud billow threshold';billow.interpolation_type='SMOOTHSTEP';billow.inputs['From Min'].default_value=.50;billow.inputs['From Max'].default_value=.63;cl.new(noise.outputs['Fac'],billow.inputs['Value'])
+shape=cn.new('ShaderNodeMath');shape.operation='MULTIPLY';cl.new(mask.outputs['Result'],shape.inputs[0]);cl.new(billow.outputs['Result'],shape.inputs[1])
+density=cn.new('ShaderNodeMath');density.operation='MULTIPLY';density.inputs[1].default_value=.06;cl.new(shape.outputs[0],density.inputs[0]);cl.new(density.outputs[0],scatter.inputs['Density'])
+cloud_rng=random.Random(318)
+for i in range(18):
+    xx=-1100+i*130;yy=cloud_rng.uniform(1350,1850);zz=cloud_rng.uniform(90,210)
+    dimensions=(cloud_rng.uniform(208,344),cloud_rng.uniform(130,230),cloud_rng.uniform(84.48,145.92))
+    if i%3==1:continue
+    ob=box(f'Sunset cloud bank {i+1:02d}',(xx,yy,zz),dimensions,cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
+bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=6000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
 # A local atmospheric volume softens distant shapes without fogging the street.
-haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0006;vol.inputs['Color'].default_value=(.64,.60,.67,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
+haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.00085;vol.inputs['Color'].default_value=(.75,.57,.45,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
 bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=14,location=(650,1500,80));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.57,.18),emission=1));move(o,'09 • Render atmosphere')
 bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-650,-1500,-80)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(1)
@@ -468,7 +499,7 @@ bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.objec
 bpy.ops.object.light_add(type='AREA',location=(130,1000,100));bounce=bpy.context.object;bounce.name='Sunset cloud bounce over bay';bounce.rotation_euler=(Vector((35,280,-1))-bounce.location).to_track_quat('-Z','Y').to_euler();bounce.data.energy=450000;bounce.data.shape='DISK';bounce.data.size=300;bounce.data.color=(1,.43,.18)
 # Broad sky fill retains detail on the shaded facades.
 bpy.ops.object.light_add(type='AREA',location=(0,-10,65));fill=bpy.context.object;fill.name='Warm facade bounce';fill.data.energy=30000;fill.data.shape='DISK';fill.data.size=75;fill.data.color=(1,.78,.54)
-scene.render.engine='CYCLES';scene.cycles.samples=a.samples;scene.cycles.use_denoising=True;scene.cycles.denoiser='OPENIMAGEDENOISE';scene.cycles.max_bounces=6;scene.cycles.volume_bounces=0
+scene.render.engine='CYCLES';scene.cycles.samples=a.samples;scene.cycles.use_denoising=True;scene.cycles.denoiser='OPENIMAGEDENOISE';scene.cycles.max_bounces=6;scene.cycles.volume_bounces=4
 scene.render.threads_mode='FIXED';scene.render.threads=8
 scene.render.resolution_x=a.width;scene.render.resolution_y=round(a.width*941/1672);scene.render.resolution_percentage=100
 scene.view_settings.view_transform='AgX';scene.view_settings.look='AgX - Medium High Contrast';scene.view_settings.exposure=.55

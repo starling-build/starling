@@ -66,3 +66,12 @@ The composition pass reduces the distant bridge and hillside silhouettes,
 places the island farther into the bay, lowers the eastern houses, and moves
 the ferry into the exposed water. The comparison camera stays fixed so the
 landmark changes can be compared directly with the earlier renders.
+
+The atmosphere pass adds twelve editable volumetric cloud banks in the
+`10 • Volumetric clouds` collection. Their density comes from a seeded billow
+pattern and a soft boundary mask; boxes display as wireframes while editing.
+Use Cycles rendering to see the clouds. Four volume bounces and a warm cloud
+fill light are used in the preview. Camera and reflection rays see a sunset
+gradient; the packed environment supplies diffuse illumination. The bay haze
+is warmer and slightly denser. These volume shaders need a separate runtime
+representation or baking before export to the desktop world.
