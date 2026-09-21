@@ -153,3 +153,9 @@ by 1.28 in width and height (1.12 in depth) about the tower base so the
 terminal reads as the reference's landmark, plants a tree in each gap
 between the house rows behind the sidewalk line, and warms and strengthens
 the lantern point lights.
+
+The cloud-body pass roughly doubles cumulus density with a tighter billow
+threshold and a stronger top fill, so the clouds have defined purple-grey
+bodies and lit edges instead of reading as wisps, and adds three more
+stacks (two top-left, one over the bridge). The nearest west house takes the
+blue-grey facade, as in the reference's foreground.

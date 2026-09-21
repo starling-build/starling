@@ -95,7 +95,8 @@ for side in [-1,1]:
         if row==0:continue   # nearest row is a garden terrace (built below), as in the reference corners
         x=side*(16.0+max(0,row-2)*(2.5 if side>0 else 1.3));w=7.8;depth=10.;z=ground(y);h=12.0-row*.5
         coll='02 • Victorian street';name=f'{"West" if side<0 else "East"} house {row+1}'
-        b=Batch(name+' / masonry',coll);b.box((x,y,z+h/2),(w,depth,h),facades[(row+(side>0))%5]);b.box((x,y,z+.35),(w+.5,depth+.4,.7),stone)
+        fi=3 if (row==1 and side<0) else (row+(side>0))%5   # near-left house is blue-grey like the reference
+        b=Batch(name+' / masonry',coll);b.box((x,y,z+h/2),(w,depth,h),facades[fi]);b.box((x,y,z+.35),(w+.5,depth+.4,.7),stone)
         for k in range(4):b.box((x,y,z+h+k*.15),(w+.15+k*.16,depth+.15+k*.16,.14),trim)
         b.box((x,y,z+h+.62),(w-.3,depth-.3,.13),roof);b.box((x+2,y+2,z+h+1.2),(.6,.7,1.4),stone)
         for level in range(1,3):b.box((x,y,z+level*3.6),(w+.18,depth+.18,.17),trim)
@@ -141,7 +142,7 @@ for side in [-1,1]:
         # Colored apron panels, occasional shutters and fine siding break up
         # the continuous ivory window strips without changing walkable space.
         siding=Batch(name+' / siding and apron panels',coll)
-        facade=facades[(row+(side>0))%5]
+        facade=facades[fi]
         for k in range(1,int(h/.32)):
             siding.box((x,front-.018,z+k*.32),(w,.035,.023),stone)
             siding.box((x-side*(w/2+.018),y,z+k*.32),(.035,depth,.023),stone)
@@ -576,9 +577,9 @@ radius=cn.new('ShaderNodeVectorMath');radius.operation='LENGTH';cl.new(center.ou
 noise=cn.new('ShaderNodeTexNoise');noise.noise_dimensions='4D';noise.inputs['Scale'].default_value=3.2;noise.inputs['Detail'].default_value=4;noise.inputs['Roughness'].default_value=.7;cl.new(ct.outputs['Generated'],noise.inputs['Vector'])
 cloud_info=cn.new('ShaderNodeObjectInfo');cloud_seed=cn.new('ShaderNodeMath');cloud_seed.operation='MULTIPLY';cloud_seed.inputs[1].default_value=19;cl.new(cloud_info.outputs['Random'],cloud_seed.inputs[0]);cl.new(cloud_seed.outputs[0],noise.inputs['W'])
 mask=cn.new('ShaderNodeMapRange');mask.name='Cloud boundary fade';mask.interpolation_type='SMOOTHSTEP';mask.inputs['From Min'].default_value=.20;mask.inputs['From Max'].default_value=.47;mask.inputs['To Min'].default_value=1;mask.inputs['To Max'].default_value=0;cl.new(radius.outputs['Value'],mask.inputs['Value'])
-billow=cn.new('ShaderNodeMapRange');billow.name='Cloud billow threshold';billow.interpolation_type='SMOOTHSTEP';billow.inputs['From Min'].default_value=.54;billow.inputs['From Max'].default_value=.64;cl.new(noise.outputs['Fac'],billow.inputs['Value'])
+billow=cn.new('ShaderNodeMapRange');billow.name='Cloud billow threshold';billow.interpolation_type='SMOOTHSTEP';billow.inputs['From Min'].default_value=.55;billow.inputs['From Max'].default_value=.61;cl.new(noise.outputs['Fac'],billow.inputs['Value'])
 shape=cn.new('ShaderNodeMath');shape.operation='MULTIPLY';cl.new(mask.outputs['Result'],shape.inputs[0]);cl.new(billow.outputs['Result'],shape.inputs[1])
-density=cn.new('ShaderNodeMath');density.operation='MULTIPLY';density.inputs[1].default_value=.28;cl.new(shape.outputs[0],density.inputs[0]);cl.new(density.outputs[0],scatter.inputs['Density'])
+density=cn.new('ShaderNodeMath');density.operation='MULTIPLY';density.inputs[1].default_value=.55;cl.new(shape.outputs[0],density.inputs[0]);cl.new(density.outputs[0],scatter.inputs['Density'])
 abs_d=cn.new('ShaderNodeMath');abs_d.operation='MULTIPLY';abs_d.inputs[1].default_value=.05;cl.new(shape.outputs[0],abs_d.inputs[0]);cl.new(abs_d.outputs[0],absorb.inputs['Density'])
 cloud_rng=random.Random(318)
 for i in range(18):                                   # far layer, low over the horizon
@@ -591,10 +592,10 @@ for i in range(11):                                   # high layer, further out 
     dimensions=(cloud_rng.uniform(220,360),cloud_rng.uniform(140,220),cloud_rng.uniform(90,140))
     if i in (2,7):continue
     ob=box(f'High cumulus {i+1:02d}',(xx,yy,zz),dimensions,cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
-for i,(xx,yy,zz,sx,sy,sz) in enumerate([(-780,820,150,520,300,150),(-330,940,160,440,260,130),(60,1000,165,380,240,120),(430,880,150,560,320,160),(880,760,140,480,280,140),(-1150,700,135,420,260,130)]):
+for i,(xx,yy,zz,sx,sy,sz) in enumerate([(-780,820,150,520,300,150),(-330,940,160,440,260,130),(60,1000,165,380,240,120),(430,880,150,560,320,160),(880,760,140,480,280,140),(-1150,700,135,420,260,130),(-520,620,120,420,220,120),(-160,700,135,360,200,110),(700,1150,175,520,300,150)]):
     ob=box(f'Sculpted cumulus stack {i+1:02d}',(xx,yy,zz),(sx,sy,sz),cloud,'10 • Volumetric clouds');ob.display_type='WIRE'
 bpy.ops.object.light_add(type='AREA',location=(690,1600,30));underlight=bpy.context.object;underlight.name='Sunset under-light for cloud bellies';underlight.rotation_euler=(Vector((0,900,350))-underlight.location).to_track_quat('-Z','Y').to_euler();underlight.data.energy=26000000;underlight.data.shape='DISK';underlight.data.size=400;underlight.data.color=(1,.42,.14)
-bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=7000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
+bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.context.object;cloud_fill.name='Warm sky fill for clouds';cloud_fill.rotation_euler=(Vector((0,1650,150))-cloud_fill.location).to_track_quat('-Z','Y').to_euler();cloud_fill.data.energy=13000000;cloud_fill.data.shape='DISK';cloud_fill.data.size=500;cloud_fill.data.color=(1,.60,.30)
 # A local atmospheric volume softens distant shapes without fogging the street.
 haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0013;vol.inputs['Color'].default_value=(.84,.66,.62,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
