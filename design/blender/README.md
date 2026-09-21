@@ -105,3 +105,9 @@ amber windows all round and a brighter wake, and adds six large sculpted
 cumulus stacks nearer the camera. Clouds must sit between roughly 90 and
 170 m at 700–1000 m out to be inside the comparison camera's frame; the
 first attempt put them above the top edge.
+
+The bridge-and-trees pass thickens the bridge's tower legs, braces, main
+cables and hangers, adds portal braces, deck railings and a row of warm deck
+lamps, and gives the vermilion a faint self-light so the haze no longer
+washes it pink. Tree canopies gain three more lobes, a flattened ellipsoid
+test and chunkier cubes for the rounder stepped look of the reference.

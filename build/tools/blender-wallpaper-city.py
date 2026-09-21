@@ -40,7 +40,7 @@ roof=material('Slate roofs',(.095,.115,.13));glass=material('Amber window interi
 facades=[material('Facade • '+n,c) for n,c in [('sage',(.32,.39,.31)),('terracotta',(.55,.28,.19)),('sand',(.63,.49,.33)),('blue grey',(.31,.40,.43)),('cream',(.70,.62,.47))]]
 leaves=[material('Foliage '+str(i),c) for i,c in enumerate([(.12,.19,.07),(.20,.27,.095),(.29,.33,.12)])]
 wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.60,.09,.055),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
-bridge=material('Bridge vermilion',(.66,.17,.09),.55);land=material('Distant hillside',(.27,.30,.30));lamp=material('Lantern glow',(1,.57,.19),.3,emission=9)
+bridge=material('Bridge vermilion',(.70,.16,.08),.55,emission=.10);land=material('Distant hillside',(.27,.30,.30));lamp=material('Lantern glow',(1,.57,.19),.3,emission=9)
 cobbles=[material('Cobble '+str(i),(.27+i*.021,.25+i*.019,.23+i*.018),.5) for i in range(7)]
 window_moods=[
     material('Window • dusk blue',(.18,.25,.30),.22,emission=.035),
@@ -173,15 +173,15 @@ for side in [-1,1]:
 
 def tree(x,y,z,size=1):
     coll='03 • Trees and lanterns';beam('Branching tree trunk',(x,y,z),(x+.15,y,z+4*size),.22*size,wood,coll)
-    for dx,dy,dz,r in [(-.9,0,3.7,1.25),(.8,.15,4.0,1.3),(0,-.7,4.7,1.35),(.15,.7,4.5,1.1)]:
+    for dx,dy,dz,r in [(-.9,0,3.7,1.25),(.8,.15,4.0,1.3),(0,-.7,4.7,1.35),(.15,.7,4.5,1.1),(-.4,.9,3.4,.95),(.9,-.8,3.5,.9),(0,.1,5.3,.9)]:
         c=(x+dx*size,y+dy*size,z+dz*size);beam('Branch',(x,y,z+2*size),c,.10*size,wood,coll)
         foliage=Batch('Layered foliage cluster',coll)
-        step=.38*size
+        step=.42*size
         for ix in range(-3,4):
             for iy in range(-3,4):
                 for iz in range(-3,4):
                     q=(ix*step,iy*step,iz*step)
-                    if sum(v*v for v in q)>(r*size)**2*rng.uniform(.78,1.08):continue
+                    if q[0]*q[0]+q[1]*q[1]+(q[2]*1.25)**2>(r*size)**2*rng.uniform(.80,1.06):continue
                     if abs(ix)<2 and abs(iy)<2 and abs(iz)<2:continue
                     foliage.box((c[0]+q[0],c[1]+q[1],c[2]+q[2]),(step*1.04,)*3,rng.choice(leaves))
         foliage.finish(.025*size)
@@ -408,11 +408,14 @@ for i in range(180):
 b.finish(.08)
 # Suspension bridge: deck, two connected towers, parabolic main cable, hangers.
 coll='07 • Suspension bridge';b=Batch('Bridge towers and deck',coll)
-b.box((125,555,33),(380,8,2),bridge)
+b.box((125,555,33),(380,8,3),bridge)
+for yy in [551.2,558.8]:b.box((125,yy,35.2),(380,.4,1.4),bridge)   # deck railings
 for tx in [35,215]:
     for yy in [552,558]:
-        for dx in [-3.1,3.1]:b.box((tx+dx,yy,40),(1.8,1.8,80),bridge)
-        for zz in [28,49,68,78]:b.box((tx,yy,zz),(8,1.9,1.5),bridge)
+        for dx in [-3.1,3.1]:b.box((tx+dx,yy,40),(2.6,2.6,80),bridge)
+        for zz in [28,49,68,78]:b.box((tx,yy,zz),(8.6,2.7,2.2),bridge)
+    for zz in [28,49,68,78]:b.box((tx,555,zz),(8.6,8,2.2),bridge)   # portal braces between the two frames
+for xx in range(-60,316,12):b.box((xx,555,37.2),(.6,.6,.9),lamp)   # warm deck lamps
 b.finish(.10)
 for yy in [552,558]:
     def cable(xx):
@@ -420,8 +423,8 @@ for yy in [552,558]:
         if xx>215:return 36+43*((315-xx)/100)**2
         return 38+41*((xx-125)/90)**2
     for xx in range(-65,315,5):
-        beam('Main suspension cable',(xx,yy,cable(xx)),(xx+5,yy,cable(xx+5)),.22,bridge,coll)
-        beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.06,bridge,coll)
+        beam('Main suspension cable',(xx,yy,cable(xx)),(xx+5,yy,cable(xx+5)),.42,bridge,coll)
+        beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.10,bridge,coll)
 # Water uses a subtle anisotropic bump; geometry and base PBR export separately.
 water=material('Bay water • Blender procedural study',(.42,.52,.64),.07,.1)
 n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=.7;tex.inputs['Detail'].default_value=3
