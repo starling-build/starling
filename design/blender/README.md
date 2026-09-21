@@ -61,3 +61,8 @@ platform rails and mesh destination lettering. These details are native meshes;
 the roof thickness uses editable Solidify modifiers.
 The complete cable-car assembly is pitched to the street's local slope; it is
 no longer a level vehicle intersecting the rising front of the road.
+
+The composition pass reduces the distant bridge and hillside silhouettes,
+places the island farther into the bay, lowers the eastern houses, and moves
+the ferry into the exposed water. The comparison camera stays fixed so the
+landmark changes can be compared directly with the earlier renders.

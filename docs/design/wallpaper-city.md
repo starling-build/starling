@@ -418,3 +418,22 @@ images, finite coordinates and OpenImageDenoise. All cable-car base geometry
 remains inside the comparison camera. Builder compilation and whitespace checks
 passed. This pass improves the landmarks within the existing composition; it
 does not resolve the broader reference mismatch or replace the live world.
+
+### Blender composition pass — 2026-09-20
+
+Reduced the bridge's horizontal extent and height, lowered the wooded hills,
+and moved the island farther into the bay. The eastern houses are lower,
+opening water to the right of the clock tower. Moved the ferry closer and right;
+camera-ray samples checked the candidate placement against solid geometry
+(excluding the atmospheric volume), followed by inspection of the final render.
+The sun disc emission and directional sun angle were reduced to remove the
+large white reflection patch exposed by the lower roofs.
+
+Kept the comparison camera fixed. A lower-camera experiment enlarged the
+foreground houses and obscured the ferry, so it was not adopted. The final
+1400x788 render shows the smaller distant landmarks and visible ferry in the
+opened bay. The geometry audit passed: 843 objects, 213,362 base vertices,
+two packed images, finite coordinates, working denoising, and a fully framed
+cable car. Compilation and whitespace checks passed. The sky, detailed terrain,
+water sparkle and overall wallpaper match remain unfinished; runtime integration
+has not been performed.

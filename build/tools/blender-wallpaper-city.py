@@ -398,7 +398,7 @@ bump.inputs['Distance'].default_value=.35
 bump.inputs['Strength'].default_value=.8
 box('Bay water',(0,900,-1.3),(2500,1560,.15),water,'06 • Bay and distant landscape')
 # Ferry placed in open water above the terminal, with a tapered bow and wake.
-coll='08 • Ferry';fx,fy=62,320
+coll='08 • Ferry';fx,fy=70,250
 b=Batch('Ferry decks and fittings',coll)
 for zz,w,d,h,m in [(-.15,9,20,1.5,dark),(1.0,8,18,1.3,trim),(2.4,6.8,14,1.3,trim),(3.5,5,8,.65,trim)]:b.box((fx,fy,zz),(w,d,h),m)
 for zz,w,d in [(1.1,8.1,18),(2.5,6.9,14)]:
@@ -423,6 +423,28 @@ from mathutils import Matrix
 turn=Matrix.Rotation(math.radians(65),4,'Z');anchor=Vector((fx,fy,-1.2))
 for o in group('08 • Ferry').objects:
     for v in o.data.vertices:v.co=anchor+(turn @ (v.co-anchor))*1.35
+# Composition pass: retain three-dimensional geometry while matching the
+# reference's smaller distant landmarks and lower eastern street frontage.
+def reshape(objects,transform):
+    for ob in objects:
+        if ob.type!='MESH':continue
+        inverse=ob.matrix_world.inverted()
+        for vertex in ob.data.vertices:
+            vertex.co=inverse @ Vector(transform(ob.matrix_world @ vertex.co))
+reshape(group('07 • Suspension bridge').objects,
+        lambda p:(125+(p.x-125)*.70,p.y,-1.225+(p.z+1.225)*.62))
+landscape=group('06 • Bay and distant landscape')
+island_names={'Continuous wooded island','Island buildings','Island woodland','Island shoreline rocks'}
+reshape([ob for ob in landscape.objects if ob.name in island_names],
+        lambda p:(-10+(p.x+55)*.88,410+(p.y-300)*.88,-1.225+(p.z+1.225)*.88))
+reshape([ob for ob in landscape.objects if ob.name in {'Marin ridge','Marin woodland','Distant settlement lights'}],
+        lambda p:(p.x,p.y,-1.225+(p.z+1.225)*.75))
+reshape([ob for ob in landscape.objects if ob.name in {'Eastern headland','Eastern woodland'}],
+        lambda p:(p.x,p.y-90,-1.225+(p.z+1.225)*.72))
+for row,house_y in enumerate([0,13,26,39,52,65,78]):
+    base_z=ground(house_y)
+    reshape([ob for ob in group('02 • Victorian street').objects if ob.name.startswith(f'East house {row+1} /')],
+            lambda p:(p.x,p.y,base_z+(p.z-base_z)*.78))
 # A broad low-frequency swell bends the fine wave normals.
 swell=n.new('ShaderNodeTexNoise');swell.inputs['Scale'].default_value=.075;swell.inputs['Detail'].default_value=2
 l.new(geo.outputs['Position'],swell.inputs['Vector'])
@@ -439,8 +461,8 @@ l.new(coords.outputs['Generated'],stretch.inputs[0]);l.new(stretch.outputs[0],sk
 # A local atmospheric volume softens distant shapes without fogging the street.
 haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.0006;vol.inputs['Color'].default_value=(.64,.60,.67,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
-bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=14,location=(650,1500,80));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.57,.18),emission=6));move(o,'09 • Render atmosphere')
-bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-650,-1500,-80)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(4)
+bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=14,location=(650,1500,80));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.57,.18),emission=1));move(o,'09 • Render atmosphere')
+bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-650,-1500,-80)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(1)
 # Warm sky patch creates a broad reflected sunset in the bay, with actual
 # light transport rather than painted highlights on the water surface.
 bpy.ops.object.light_add(type='AREA',location=(130,1000,100));bounce=bpy.context.object;bounce.name='Sunset cloud bounce over bay';bounce.rotation_euler=(Vector((35,280,-1))-bounce.location).to_track_quat('-Z','Y').to_euler();bounce.data.energy=450000;bounce.data.shape='DISK';bounce.data.size=300;bounce.data.color=(1,.43,.18)
