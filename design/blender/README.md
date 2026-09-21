@@ -85,3 +85,10 @@ bridge (`Shoreline fog bank`, a wire-display volume box). Lanterns glow
 brighter, and the cable car and bridge are redder. The street-detail pass
 (`build/tools/blender-street-detail.py`) adds coursed retaining walls,
 planted sidewalk beds and worn, damp cobbles, and is applied by the builder.
+
+The sky-and-corners pass thickens the cumulus into two layers lit by a warm
+fill and an orange under-light from the sun side, adds an azimuthal sun glow
+to the visible sky gradient behind a saturated sun disc, lightens and polishes the bay water so it mirrors the sunset, and
+replaces the nearest house row with stepped stone garden terraces (three
+tiers with planted tops and cubic shrubs) so the bottom corners of the frame
+read like the reference. The comparison camera is unchanged.
