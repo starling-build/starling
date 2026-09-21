@@ -75,3 +75,13 @@ fill light are used in the preview. Camera and reflection rays see a sunset
 gradient; the packed environment supplies diffuse illumination. The bay haze
 is warmer and slightly denser. These volume shaders need a separate runtime
 representation or baking before export to the desktop world.
+
+The framing pass brings the study closer to the reference wallpaper: a
+larger sun disc sits just above the eastern ridge with a warmer orange
+horizon gradient, two tall voxel trees frame the near corners of the view,
+a small tripod radio mast stands on the Marin ridge shoulder, the ridge
+carries denser lit houses, and a low fog bank hugs the far shore under the
+bridge (`Shoreline fog bank`, a wire-display volume box). Lanterns glow
+brighter, and the cable car and bridge are redder. The street-detail pass
+(`build/tools/blender-street-detail.py`) adds coursed retaining walls,
+planted sidewalk beds and worn, damp cobbles, and is applied by the builder.

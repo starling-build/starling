@@ -39,8 +39,8 @@ stone=material('Warm limestone',(0.49,.43,.34));trim=material('Ivory painted tim
 roof=material('Slate roofs',(.095,.115,.13));glass=material('Amber window interiors',(.55,.25,.065),.35,emission=.65)
 facades=[material('Facade • '+n,c) for n,c in [('sage',(.32,.39,.31)),('terracotta',(.55,.28,.19)),('sand',(.63,.49,.33)),('blue grey',(.31,.40,.43)),('cream',(.70,.62,.47))]]
 leaves=[material('Foliage '+str(i),c) for i,c in enumerate([(.12,.19,.07),(.20,.27,.095),(.29,.33,.12)])]
-wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.34,.055,.035),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
-bridge=material('Bridge vermilion',(.40,.13,.09),.55);land=material('Distant hillside',(.20,.27,.24));lamp=material('Lantern glow',(1,.57,.19),.3,emission=4)
+wood=material('Tree bark',(.22,.12,.065));red=material('Cable car oxblood',(.60,.09,.055),.38);brass=material('Old brass',(.58,.34,.10),.27,.65)
+bridge=material('Bridge vermilion',(.66,.17,.09),.55);land=material('Distant hillside',(.20,.27,.24));lamp=material('Lantern glow',(1,.57,.19),.3,emission=9)
 cobbles=[material('Cobble '+str(i),(.27+i*.021,.25+i*.019,.23+i*.018),.5) for i in range(7)]
 window_moods=[
     material('Window • dusk blue',(.18,.25,.30),.22,emission=.035),
@@ -194,6 +194,7 @@ for side in [-1,1]:
         box('Lantern cap',(x,yy,z+3.69),(.52,.52,.13),dark,coll,.03)
         for dx in [-.19,.19]:
             for dy in [-.19,.19]:beam('Lantern frame',(x+dx,yy+dy,z+3.03),(x+dx,yy+dy,z+3.65),.025,dark,coll)
+tree(-9.8,-3,ground(-3)+.25,1.8);tree(11.6,-7,ground(-7)+.25,1.45)   # tall foreground trees framing the view
 b=Batch('Lower street connection','01 • Street and retaining walls')
 for j in range(38):
     yy=88+j
@@ -340,7 +341,7 @@ for xx in range(-69,-45,3):b.box((xx,296.9,14.5),(1.2,.12,1.8),glass)
 b.box((-40,300,20),(2.5,2.5,14),trim);b.finish()
 # Small grouped buildings and tree crowns articulate the continuous hills.
 b=Batch('Distant settlement lights','06 • Bay and distant landscape')
-for i in range(160):
+for i in range(420):
     while True:
         xx=rng.uniform(-380,-20);yy=rng.uniform(490,615)
         nx=(xx+190)/230;ny=(yy-560)/95;ang=math.atan2(ny,nx)
@@ -350,6 +351,15 @@ for i in range(160):
     b.box((xx,yy,zz+1),(2.5,2,2),rng.choice(facades))
     b.box((xx,yy-1.05,zz+1),(.7,.05,.65),glass)
 b.finish()
+# A tripod radio mast on the ridge shoulder, red and white like the reference.
+tx,ty=-120,540;nx=(tx+190)/230;ny=(ty-560)/95;tang=math.atan2(ny,nx);tt=math.hypot(nx,ny)/(1+.05*math.sin(tang*5)+.03*math.cos(tang*9))
+tz=48*max(0,1-tt*tt)**1.6+math.sin(tang*4)*tt*(1-tt)*48*.12-.5;coll='06 • Bay and distant landscape'
+for k in range(3):
+    ang=k*math.tau/3;beam('Radio mast leg',(tx+4*math.cos(ang),ty+4*math.sin(ang),tz),(tx+.8*math.cos(ang),ty+.8*math.sin(ang),tz+26),.5,bridge,coll)
+beam('Radio mast spire',(tx,ty,tz+25),(tx,ty,tz+40),.3,trim,coll)
+mb=Batch('Radio mast platforms',coll)
+for k,z in enumerate([7,14,21,26]):w=8-k*1.5;mb.box((tx,ty,tz+z),(w,w,.7),trim if k%2 else bridge)
+mb.box((tx,ty,tz+40.5),(.5,.5,.9),lamp);mb.finish()
 # Dense, stepped canopy clusters follow the same terrain surface as the mesh.
 for name,cx,cy,rx,ry,h,count in [('Island woodland',-55,300,60,34,14,360),('Marin woodland',-190,560,230,95,48,1800),('Eastern woodland',380,690,170,110,65,650)]:
     b=Batch(name,'06 • Bay and distant landscape')
@@ -467,9 +477,9 @@ xyz=n.new('ShaderNodeSeparateXYZ');l.new(coords.outputs['Normal'],xyz.inputs[0])
 elevation=n.new('ShaderNodeMath');elevation.operation='MULTIPLY';elevation.inputs[1].default_value=-1;l.new(xyz.outputs['Z'],elevation.inputs[0])
 sky_range=n.new('ShaderNodeMapRange');sky_range.inputs['From Min'].default_value=-.04;sky_range.inputs['From Max'].default_value=.15;l.new(elevation.outputs[0],sky_range.inputs['Value'])
 sky_color=n.new('ShaderNodeValToRGB');ramp=sky_color.color_ramp
-ramp.elements[0].color=(.65,.24,.10,1);ramp.elements[1].color=(.10,.22,.45,1)
-ramp.elements.new(.45).color=(.34,.24,.33,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
-visible_sky=n.new('ShaderNodeBackground');visible_sky.name='Visible sunset gradient';visible_sky.inputs['Strength'].default_value=.8;l.new(sky_color.outputs['Color'],visible_sky.inputs['Color'])
+ramp.elements[0].color=(.98,.46,.12,1);ramp.elements[1].color=(.26,.36,.62,1)
+ramp.elements.new(.22).color=(.92,.52,.36,1);ramp.elements.new(.5).color=(.62,.42,.50,1);l.new(sky_range.outputs['Result'],sky_color.inputs['Fac'])
+visible_sky=n.new('ShaderNodeBackground');visible_sky.name='Visible sunset gradient';visible_sky.inputs['Strength'].default_value=1.0;l.new(sky_color.outputs['Color'],visible_sky.inputs['Color'])
 paths=n.new('ShaderNodeLightPath');ray_choice=n.new('ShaderNodeMath');ray_choice.operation='MAXIMUM';l.new(paths.outputs['Is Camera Ray'],ray_choice.inputs[0]);l.new(paths.outputs['Is Glossy Ray'],ray_choice.inputs[1])
 sky_mix=n.new('ShaderNodeMixShader');l.new(ray_choice.outputs[0],sky_mix.inputs[0]);l.new(n.get('Background').outputs[0],sky_mix.inputs[1]);l.new(visible_sky.outputs[0],sky_mix.inputs[2]);l.new(sky_mix.outputs[0],n.get('World Output').inputs['Surface'])
 # Soft-edged volumetric banks: a noisy ellipsoid fades to zero before the box
@@ -495,8 +505,15 @@ bpy.ops.object.light_add(type='AREA',location=(0,1100,500));cloud_fill=bpy.conte
 # A local atmospheric volume softens distant shapes without fogging the street.
 haze=bpy.data.materials.new('Bay atmosphere • render study');haze.use_nodes=True;hn=haze.node_tree.nodes;hn.clear();out=hn.new('ShaderNodeOutputMaterial');vol=hn.new('ShaderNodeVolumePrincipled');vol.inputs['Density'].default_value=.00085;vol.inputs['Color'].default_value=(.75,.57,.45,1);vol.inputs['Anisotropy'].default_value=.25;haze.node_tree.links.new(vol.outputs['Volume'],out.inputs['Volume'])
 box('Distant bay haze',(0,650,75),(1800,1050,150),haze,'09 • Render atmosphere')
-bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=14,location=(650,1500,80));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.57,.18),emission=1));move(o,'09 • Render atmosphere')
-bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-650,-1500,-80)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(1)
+fogbank=bpy.data.materials.new('Shoreline fog bank • render study');fogbank.use_nodes=True;fb=fogbank.node_tree.nodes;fb.clear();fbo=fb.new('ShaderNodeOutputMaterial');fbv=fb.new('ShaderNodeVolumePrincipled')
+fbv.inputs['Density'].default_value=.012;fbv.inputs['Color'].default_value=(.95,.80,.70,1);fbv.inputs['Anisotropy'].default_value=.3
+fbc=fb.new('ShaderNodeTexCoord');fbs=fb.new('ShaderNodeSeparateXYZ');fogbank.node_tree.links.new(fbc.outputs['Generated'],fbs.inputs[0])
+fbf=fb.new('ShaderNodeMapRange');fbf.inputs['From Min'].default_value=.15;fbf.inputs['From Max'].default_value=.95;fbf.inputs['To Min'].default_value=1;fbf.inputs['To Max'].default_value=0
+fogbank.node_tree.links.new(fbs.outputs['Z'],fbf.inputs['Value']);fbm=fb.new('ShaderNodeMath');fbm.operation='MULTIPLY';fbm.inputs[1].default_value=.012
+fogbank.node_tree.links.new(fbf.outputs[0],fbm.inputs[0]);fogbank.node_tree.links.new(fbm.outputs[0],fbv.inputs['Density']);fogbank.node_tree.links.new(fbv.outputs['Volume'],fbo.inputs['Volume'])
+ob=box('Shoreline fog bank',(40,560,5),(1000,180,16),fogbank,'09 • Render atmosphere');ob.display_type='WIRE'
+bpy.ops.mesh.primitive_uv_sphere_add(segments=24,ring_count=12,radius=30,location=(690,1500,62));o=bpy.context.object;o.name='Sun disc';o.data.materials.append(material('Sun disc emission',(1,.62,.22),emission=1.6));move(o,'09 • Render atmosphere')
+bpy.ops.object.light_add(type='SUN',location=(100,240,70));sun=bpy.context.object;sun.name='Low warm sunset';sun.rotation_euler=Vector((-690,-1500,-62)).to_track_quat('-Z','Y').to_euler();sun.data.energy=2.3;sun.data.color=(1,.66,.39);sun.data.angle=math.radians(1)
 # Warm sky patch creates a broad reflected sunset in the bay, with actual
 # light transport rather than painted highlights on the water surface.
 bpy.ops.object.light_add(type='AREA',location=(130,1000,100));bounce=bpy.context.object;bounce.name='Sunset cloud bounce over bay';bounce.rotation_euler=(Vector((35,280,-1))-bounce.location).to_track_quat('-Z','Y').to_euler();bounce.data.energy=450000;bounce.data.shape='DISK';bounce.data.size=300;bounce.data.color=(1,.43,.18)
