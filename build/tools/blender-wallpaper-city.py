@@ -450,6 +450,9 @@ swell=n.new('ShaderNodeTexNoise');swell.inputs['Scale'].default_value=.075;swell
 l.new(geo.outputs['Position'],swell.inputs['Vector'])
 wide_bump=n.new('ShaderNodeBump');wide_bump.inputs['Strength'].default_value=.6;wide_bump.inputs['Distance'].default_value=.65
 l.new(swell.outputs['Fac'],wide_bump.inputs['Height']);l.new(bump.outputs['Normal'],wide_bump.inputs['Normal']);l.new(wide_bump.outputs['Normal'],s.inputs['Normal'])
+# Apply the reusable street-detail pass to the editable source meshes.
+import runpy
+runpy.run_path(str(ROOT/'build/tools/blender-street-detail.py'))['apply'](bpy)
 # Camera and lighting are saved with the source scene.
 scene=bpy.context.scene
 bpy.ops.object.camera_add(location=(2,-28,38));cam=bpy.context.object;cam.name='Wallpaper comparison camera';cam.rotation_euler=(Vector((3,225,4))-cam.location).to_track_quat('-Z','Y').to_euler();cam.data.lens=35;cam.data.clip_end=4000;scene.camera=cam
