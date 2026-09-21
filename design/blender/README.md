@@ -176,3 +176,10 @@ corner turret with a conical roof. Facades draw from a pastel palette
 (powder blue, mint, cream, blue grey, salmon, lavender, sage) with whiter
 trim. House object names keep the `<Side> house <n> /` prefix so the
 east-side height reshape still applies.
+
+The hillside pass moves the house generator into a `victorian()` function
+and calls it twice per row slot: a front rank on the street and a taller
+second rank 11.8 m behind and 3.2 m higher, three or four storeys, so the
+hill reads crowded and stepped like the reference. Storeys are 3.5 m,
+frontages 5.4 m, and the foreground garden terraces drop to 2.6/4.0/5.4 m
+so more of the nearest houses show.

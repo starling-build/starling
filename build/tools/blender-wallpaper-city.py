@@ -88,21 +88,14 @@ for x in [-6.9,-5.1]:
     for j in range(107):
         y=-57+j*1.4
         beam('Tram rail',(x,y,ground(y)+.10),(x,y+1.4,ground(y+1.4)+.10),.045,brass,'01 • Street and retaining walls')
-for side in [-1,1]:
-    paving=Batch('Sidewalk '+str(side),'01 • Street and retaining walls')
-    for j in range(152):
-        y=-54+j*.95;paving.box((side*10.4,y,ground(y-.475)-.09),(3.0,.95,.5),trim)   # stair-stepped treads
-    paving.finish(.035)
-    for row,y in enumerate([0,13,26,39,52,65,78]):
-        if row==0:continue   # nearest row is a garden terrace (built below), as in the reference corners
-        coll='02 • Victorian street';label='West' if side<0 else 'East'
-        xin=side*(12.1+max(0,row-2)*(2.5 if side>0 else 1.3))          # the street-facing face of this row
-        # Two narrow, tall Victorians per row slot, fronting the street with stacked bays,
-        # a raised entry and either a street-facing gable or a bracketed false front.
-        for k,yh in enumerate([y-2.75,y+2.75]):
-            hidx=row*2+k+(side>0)*7;name=f'{label} house {row+1} / {"a" if k==0 else "b"}'
-            fr=5.0;dp=9.0+rng.uniform(-.5,1.5);storeys=3 if rng.random()<.72 else 2;h=storeys*3.3
-            x=xin+side*dp/2;z=ground(yh)+.3
+SH=3.5   # storey height
+def victorian(label,row,k,yh,xin,side,zlift=0,rank=0):
+    coll='02 • Victorian street'
+    if True:
+        if True:
+            hidx=row*2+k+(side>0)*7+rank*29;name=f'{label} house {row+1} / {"a" if k==0 else "b"}{" rear" if rank else ""}'
+            fr=5.4;dp=9.0+rng.uniform(-.5,1.5);storeys=(4 if rng.random()<.5 else 3) if rank else (3 if rng.random()<.78 else 2);h=storeys*SH
+            x=xin+side*dp/2;z=ground(yh)+.3+zlift
             fi=3 if (row==1 and side<0 and k==0) else hidx%len(pastels)   # near-left house is blue-grey like the reference
             facade=pastels[fi]
             b=Batch(name+' / body',coll)
@@ -112,15 +105,15 @@ for side in [-1,1]:
             for j in range(1,int(h/.30)):b.box((xin-side*.012,yh,z+j*.30),(.025,fr-.34,.02),trim_shadow)   # siding lines
             by=yh-.55;bw=2.5;bd=.85                                                       # stacked bay
             for floor in range(min(storeys,2)):
-                zz=z+.35+floor*3.3;bh=3.0
+                zz=z+.35+floor*SH;bh=3.0
                 b.box((xin-side*bd/2,by,zz+bh/2),(bd,bw,bh),trim)
                 b.box((xin-side*(bd+.04),by,zz+bh/2+.15),(.06,1.5,2.05),window_moods[(hidx+floor)%4])
                 for sdy in [-1,1]:b.box((xin-side*(bd*.55),by+sdy*(bw/2+.03),zz+bh/2+.15),(.7,.06,2.05),window_moods[(hidx+floor+1)%4])
                 for dz in [-1.1,1.1]:b.box((xin-side*(bd+.06),by,zz+bh/2+.15+dz),(.10,1.7,.14),trim)
                 b.box((xin-side*(bd+.08),by,zz+bh),(.16,bw+.3,.22),trim)
-            if storeys==3:                                                                # top-floor hooded windows
+            for tf in range(2,storeys):                                                   # top-floor hooded windows
                 for wy in [by-.7,by+.7]:
-                    zz=z+.35+2*3.3
+                    zz=z+.35+tf*SH
                     b.box((xin-side*.04,wy,zz+1.55),(.06,.9,1.9),window_moods[(hidx+2)%4])
                     b.box((xin-side*.07,wy,zz+2.62),(.14,1.2,.18),trim)
                     for dy in [-.55,.55]:b.box((xin-side*.06,wy+dy,zz+1.55),(.10,.10,2.0),trim)
@@ -149,22 +142,38 @@ for side in [-1,1]:
                 f.box((xin-side*.12,yh,z+h+.55),(.26,fr*.62,.6),trim);f.box((xin-side*.12,yh,z+h+1.05),(.26,fr*.34,.45),trim)
                 for j in range(7):f.box((xin-side*.15,yh-fr/2+.35+j*(fr-.7)/6,z+h+.42),(.2,.14,.36),trim)
                 f.finish(.01)
-            if hidx%4==2 and storeys==3:                                                  # corner turret
+            if hidx%4==2 and storeys>=3:                                                  # corner turret
                 tx,ty,tr=xin-side*.55,yh+fr/2-.25,1.15
                 bpy.ops.mesh.primitive_cylinder_add(vertices=8,radius=tr,depth=h+1.0,location=(tx,ty,z+(h+1.0)/2));o=bpy.context.object;o.name=name+' / turret';o.data.materials.append(facade);move(o,coll)
                 bpy.ops.mesh.primitive_cone_add(vertices=8,radius1=tr+.28,depth=2.8,location=(tx,ty,z+h+1.0+1.4));o=bpy.context.object;o.name=name+' / turret roof';o.data.materials.append(roof);move(o,coll)
                 t=Batch(name+' / turret windows',coll)
-                for floor in range(3):
-                    t.box((tx-side*(tr+.02),ty,z+1.9+floor*3.3),(.06,.8,1.7),window_moods[(hidx+floor)%4])
-                    t.box((tx-side*(tr+.05),ty,z+1.9+floor*3.3+1.0),(.12,1.05,.14),trim)
-                    t.box((tx-side*(tr-.02),ty,z+3.15+floor*3.3),(.3,2*tr+.2,.16),trim)
+                for floor in range(storeys):
+                    t.box((tx-side*(tr+.02),ty,z+1.9+floor*SH),(.06,.8,1.7),window_moods[(hidx+floor)%4])
+                    t.box((tx-side*(tr+.05),ty,z+1.9+floor*SH+1.0),(.12,1.05,.14),trim)
+                    t.box((tx-side*(tr-.02),ty,z+3.15+floor*SH),(.3,2*tr+.2,.16),trim)
                 t.finish(.01)
+
+for side in [-1,1]:
+    paving=Batch('Sidewalk '+str(side),'01 • Street and retaining walls')
+    for j in range(152):
+        y=-54+j*.95;paving.box((side*10.4,y,ground(y-.475)-.09),(3.0,.95,.5),trim)   # stair-stepped treads
+    paving.finish(.035)
+    for row,y in enumerate([0,13,26,39,52,65,78]):
+        if row==0:continue   # nearest row is a garden terrace (built below), as in the reference corners
+        coll='02 • Victorian street';label='West' if side<0 else 'East'
+        xin=side*(12.1+max(0,row-2)*(2.5 if side>0 else 1.3))          # the street-facing face of this row
+        # Two narrow, tall Victorians per row slot, fronting the street with stacked bays,
+        # a raised entry and either a street-facing gable or a bracketed false front.
+        for k,yh in enumerate([y-3.0,y+3.0]):victorian(label,row,k,yh,xin,side)
+        # A second rank climbs behind the first, as the hill rises away from the street.
+        for k,yh in enumerate([y-3.0,y+3.0]):victorian(label,row,k,yh,xin+side*11.8,side,zlift=3.2,rank=1)
         # Terraces step naturally between houses.
         wall=Batch(f'{label} house {row+1} / terrace', '01 • Street and retaining walls')
         for k in range(8):
             yy=y-5+k*.65;zz=ground(yy)
             wall.box((side*12.1,yy,zz+.45),(.38,.64,.9),stone)
         wall.finish(.03)
+        name=f'{label} house {row+1}'
         garden=Batch(name+' / entry stairs and planters','01 • Street and retaining walls')
         for step in range(6):
             garden.box((side*(11.3+step*.30),y-3,ground(y-3)+step*.12),(.32,1.5,.20+step*.12),stone)
@@ -206,7 +215,7 @@ for side in [-1,1]:
 bloom_mats=[material('Terrace bloom red',(.75,.22,.09)),material('Terrace bloom amber',(.91,.53,.11)),material('Terrace bloom rose',(.83,.30,.32))]
 for side in [-1,1]:
     label='West' if side<0 else 'East'
-    for tier,(dx,height) in enumerate([(11.6,3.6),(13.7,5.2),(15.8,6.8)]):
+    for tier,(dx,height) in enumerate([(11.6,2.6),(13.7,4.0),(15.8,5.4)]):
         wall=Batch(f'{label} garden terrace / tier {tier+1} wall','01 • Street and retaining walls')
         for course in range(int(height/.34)):
             for k in range(16):
@@ -225,7 +234,7 @@ for side in [-1,1]:
                 bloom=rng.choice(bloom_mats)
                 for ddx,ddy in [(0,0),(-.08,0),(.08,0),(0,.08),(0,-.08)]:garden.box((xx+ddx,yy+ddy,zz+.2),(.09,.09,.09),bloom)
         garden.finish()
-    tree(side*16.8,2.5,ground(2.5)+6.8,.9)
+    tree(side*16.8,2.5,ground(2.5)+5.4,.9)
 b=Batch('Lower street connection','01 • Street and retaining walls')
 for j in range(38):
     yy=88+j
