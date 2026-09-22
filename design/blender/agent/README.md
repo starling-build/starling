@@ -45,3 +45,33 @@ Known limits: the mouth interior is the model's own (a flat tongue card), so
 extreme close-ups show its anime origin; the character is stylised by
 design, since a photoreal face in real time would look uncanny. The same
 viseme stream can drive the model live in the desktop renderer later.
+
+## Gothic twin-tail variant
+
+`build/tools/blender-agent-goth.py` dresses the VRoid sample girl
+(`VRM1_Constraint_Twist_Sample.vrm` from pixiv/three-vrm) as a blonde
+twin-tail gothic character after a reference image: it hue-shifts the hair
+textures to blonde and the iris to blue (and re-packs them, or a reopened
+.blend shows the originals), cuts the hair to ear level with a bisect so
+bangs and crown remain, builds six tapered curve strands per twin tail with
+strand shading and hair ties, tints the shirt, shorts and shoes black
+through their MToon colour factors, and adds toon-shaded meshes fitted to
+the body's measured radii: an off-shoulder frill with lace edge, puff
+sleeves, gloves, a corset with lacing and a belt with a gold buckle, a
+two-layer pleated skirt with hem trim, a lace choker, one opaque and one
+fishnet thigh-high (procedural diamond mesh with hashed alpha) with bows,
+and platform lace-up boots. Every piece is parented to the matching bone
+(the parent space sits at the bone *tail*, so the inverse matrix includes
+the bone length), so she poses and animates with the rig.
+
+```sh
+/snap/bin/blender --factory-startup -b --python build/tools/blender-agent-goth.py -- \
+    --vrm VRM1_Constraint_Twist_Sample.vrm --addon-zip VRM_Addon_for_Blender-4_7_1.zip --out OUT
+/snap/bin/blender --factory-startup -b --python build/tools/blender-agent-avatar.py -- \
+    --blend OUT/goth.blend --audio line.wav --visemes line-visemes.json --out CLIP --frames
+```
+
+`--blend` makes the lip-sync script start from the prepared scene, keeping
+its pose, lights and `Bust camera`, and only layering the mouth, blink and
+head animation. `goth-full.png` and `goth-bust.png` are the character
+stills; `goth-speaking.png` is a frame from her clip.

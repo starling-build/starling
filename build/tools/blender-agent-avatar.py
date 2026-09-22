@@ -14,7 +14,7 @@ from pathlib import Path
 from mathutils import Vector, Matrix, Euler
 
 p = argparse.ArgumentParser()
-p.add_argument('--vrm', required=True); p.add_argument('--audio', required=True); p.add_argument('--visemes', required=True)
+p.add_argument('--vrm'); p.add_argument('--blend', help='a prepared scene (e.g. goth.blend) instead of a raw VRM: keeps its pose, lights and Bust camera'); p.add_argument('--audio', required=True); p.add_argument('--visemes', required=True)
 p.add_argument('--addon-zip'); p.add_argument('--out', type=Path, required=True)
 p.add_argument('--fps', type=int, default=30); p.add_argument('--width', type=int, default=1920); p.add_argument('--height', type=int, default=1080)
 p.add_argument('--stills', default=''); p.add_argument('--frames', action='store_true'); p.add_argument('--samples', type=int, default=32)
@@ -26,8 +26,11 @@ import addon_utils
 if a.addon_zip: bpy.ops.preferences.addon_install(filepath=a.addon_zip, overwrite=True)
 mod = [m.__name__ for m in addon_utils.modules() if 'vrm' in m.__name__.lower()][0]
 bpy.ops.preferences.addon_enable(module=mod)
-for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)   # the factory cube, light and camera
-bpy.ops.import_scene.vrm(filepath=a.vrm)
+PREPARED = bool(a.blend)
+if PREPARED: bpy.ops.wm.open_mainfile(filepath=a.blend)
+else:
+    for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)   # the factory cube, light and camera
+    bpy.ops.import_scene.vrm(filepath=a.vrm)
 scene = bpy.context.scene; scene.render.fps = a.fps
 arm = [o for o in bpy.data.objects if o.type == 'ARMATURE'][0]
 face = [o for o in bpy.data.objects if o.type == 'MESH' and o.data.shape_keys and any(k.name in ('lip_a', 'Face_Blendshape.Fcl_MTH_A') for k in o.data.shape_keys.key_blocks)][0]
@@ -61,37 +64,42 @@ def rotate_bone(bname, axis, degrees):
     pb = arm.pose.bones[bname]; rest = pb.bone.matrix_local.to_3x3()
     R = Matrix.Rotation(math.radians(degrees), 3, axis)
     pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (rest.inverted() @ R @ rest).to_quaternion()
-rotate_bone(bone('left_upper_arm'), 'Y', 68); rotate_bone(bone('right_upper_arm'), 'Y', -68)
-rotate_bone(bone('left_lower_arm'), 'Z', 18); rotate_bone(bone('right_lower_arm'), 'Z', -18)
-for side, sgn in (('left', 1), ('right', -1)):
+if not PREPARED:
+  rotate_bone(bone('left_upper_arm'), 'Y', 68); rotate_bone(bone('right_upper_arm'), 'Y', -68)
+  rotate_bone(bone('left_lower_arm'), 'Z', 18); rotate_bone(bone('right_lower_arm'), 'Z', -18)
+  for side, sgn in (('left', 1), ('right', -1)):
     sh = getattr(hb, side + '_shoulder').node.bone_name
     if sh: rotate_bone(sh, 'Y', sgn * 6)
 
 # ---------------------------------------------------------------- camera, lights, backdrop
-def world_of(bname): return arm.matrix_world @ arm.pose.bones[bname].head
-bpy.context.view_layer.update(); head = world_of(HEAD); chest = world_of(CHEST)
-cam_d = bpy.data.cameras.new('Agent camera'); cam_d.lens = 62; cam = bpy.data.objects.new('Agent camera', cam_d); scene.collection.objects.link(cam)
-aim = head + Vector((0, 0, .01)); cam.location = aim + Vector((.05, -1.62, .02)); cam.rotation_euler = (aim - cam.location).to_track_quat('-Z', 'Y').to_euler(); scene.camera = cam
-def light(name, kind, loc, energy, color, size=1.0, aim_at=None):
-    d = bpy.data.lights.new(name, kind); d.energy = energy; d.color = color
-    if kind == 'AREA': d.size = size
-    o = bpy.data.objects.new(name, d); scene.collection.objects.link(o); o.location = loc
-    o.rotation_euler = ((aim_at if aim_at else aim) - Vector(loc)).to_track_quat('-Z', 'Y').to_euler(); return o
-light('Key', 'AREA', aim + Vector((.9, -1.3, .7)), 260, (1, .93, .85), 1.4)
-light('Fill', 'AREA', aim + Vector((-1.2, -1.1, .1)), 70, (.75, .85, 1), 2.0)
-light('Rim cyan', 'AREA', aim + Vector((-1.0, .7, .55)), 1100, (.3, .85, 1), .5)
-light('Rim warm', 'AREA', aim + Vector((1.1, .8, .3)), 120, (1, .6, .4), .6)
-# backdrop: dark gradient plane with a soft cyan halo ring behind her
-bpy.ops.mesh.primitive_plane_add(size=8, location=aim + Vector((0, 2.6, 0)), rotation=(math.radians(90), 0, 0)); bd = bpy.context.object; bd.name = 'Backdrop'
-m = bpy.data.materials.new('Backdrop gradient'); m.use_nodes = True; n, l = m.node_tree.nodes, m.node_tree.links; n.clear()
-out = n.new('ShaderNodeOutputMaterial'); em = n.new('ShaderNodeEmission'); co = n.new('ShaderNodeTexCoord'); grad = n.new('ShaderNodeTexGradient'); grad.gradient_type = 'SPHERICAL'
-mp = n.new('ShaderNodeMapping'); mp.inputs['Location'].default_value = (-.5, -.55, 0); mp.inputs['Scale'].default_value = (1.1, 1.4, 1)
-ramp = n.new('ShaderNodeValToRGB'); ramp.color_ramp.elements[0].color = (.005, .008, .016, 1); ramp.color_ramp.elements[1].color = (.05, .10, .17, 1)
-l.new(co.outputs['UV'], mp.inputs['Vector']); l.new(mp.outputs[0], grad.inputs['Vector']); l.new(grad.outputs['Fac'], ramp.inputs['Fac']); l.new(ramp.outputs['Color'], em.inputs['Color']); l.new(em.outputs[0], out.inputs['Surface'])
-bd.data.materials.append(m)
-bpy.ops.mesh.primitive_torus_add(major_radius=.55, minor_radius=.010, location=aim + Vector((0, 1.2, .05)), rotation=(math.radians(90), 0, 0)); ring = bpy.context.object; ring.name = 'Halo ring'
-hm = bpy.data.materials.new('Halo cyan'); hm.use_nodes = True; hs = hm.node_tree.nodes['Principled BSDF']; hs.inputs['Emission Color'].default_value = (.25, .8, 1, 1); hs.inputs['Emission Strength'].default_value = 1.6; hs.inputs['Base Color'].default_value = (.05, .3, .4, 1); ring.data.materials.append(hm)
-world = bpy.data.worlds.new('Studio'); scene.world = world; world.use_nodes = True; world.node_tree.nodes['Background'].inputs['Color'].default_value = (.02, .03, .05, 1); world.node_tree.nodes['Background'].inputs['Strength'].default_value = .6
+if PREPARED:
+    scene.camera = bpy.data.objects.get('Bust camera') or scene.camera
+else:
+    def world_of(bname): return arm.matrix_world @ arm.pose.bones[bname].head
+    bpy.context.view_layer.update(); head = world_of(HEAD); chest = world_of(CHEST)
+    cam_d = bpy.data.cameras.new('Agent camera'); cam_d.lens = 62; cam = bpy.data.objects.new('Agent camera', cam_d); scene.collection.objects.link(cam)
+    aim = head + Vector((0, 0, .01)); cam.location = aim + Vector((.05, -1.62, .02)); cam.rotation_euler = (aim - cam.location).to_track_quat('-Z', 'Y').to_euler(); scene.camera = cam
+    def light(name, kind, loc, energy, color, size=1.0, aim_at=None):
+        d = bpy.data.lights.new(name, kind); d.energy = energy; d.color = color
+        if kind == 'AREA': d.size = size
+        o = bpy.data.objects.new(name, d); scene.collection.objects.link(o); o.location = loc
+        o.rotation_euler = ((aim_at if aim_at else aim) - Vector(loc)).to_track_quat('-Z', 'Y').to_euler(); return o
+    light('Key', 'AREA', aim + Vector((.9, -1.3, .7)), 260, (1, .93, .85), 1.4)
+    light('Fill', 'AREA', aim + Vector((-1.2, -1.1, .1)), 70, (.75, .85, 1), 2.0)
+    light('Rim cyan', 'AREA', aim + Vector((-1.0, .7, .55)), 1100, (.3, .85, 1), .5)
+    light('Rim warm', 'AREA', aim + Vector((1.1, .8, .3)), 120, (1, .6, .4), .6)
+    # backdrop: dark gradient plane with a soft cyan halo ring behind her
+    bpy.ops.mesh.primitive_plane_add(size=8, location=aim + Vector((0, 2.6, 0)), rotation=(math.radians(90), 0, 0)); bd = bpy.context.object; bd.name = 'Backdrop'
+    m = bpy.data.materials.new('Backdrop gradient'); m.use_nodes = True; n, l = m.node_tree.nodes, m.node_tree.links; n.clear()
+    out = n.new('ShaderNodeOutputMaterial'); em = n.new('ShaderNodeEmission'); co = n.new('ShaderNodeTexCoord'); grad = n.new('ShaderNodeTexGradient'); grad.gradient_type = 'SPHERICAL'
+    mp = n.new('ShaderNodeMapping'); mp.inputs['Location'].default_value = (-.5, -.55, 0); mp.inputs['Scale'].default_value = (1.1, 1.4, 1)
+    ramp = n.new('ShaderNodeValToRGB'); ramp.color_ramp.elements[0].color = (.005, .008, .016, 1); ramp.color_ramp.elements[1].color = (.05, .10, .17, 1)
+    l.new(co.outputs['UV'], mp.inputs['Vector']); l.new(mp.outputs[0], grad.inputs['Vector']); l.new(grad.outputs['Fac'], ramp.inputs['Fac']); l.new(ramp.outputs['Color'], em.inputs['Color']); l.new(em.outputs[0], out.inputs['Surface'])
+    bd.data.materials.append(m)
+    bpy.ops.mesh.primitive_torus_add(major_radius=.55, minor_radius=.010, location=aim + Vector((0, 1.2, .05)), rotation=(math.radians(90), 0, 0)); ring = bpy.context.object; ring.name = 'Halo ring'
+    hm = bpy.data.materials.new('Halo cyan'); hm.use_nodes = True; hs = hm.node_tree.nodes['Principled BSDF']; hs.inputs['Emission Color'].default_value = (.25, .8, 1, 1); hs.inputs['Emission Strength'].default_value = 1.6; hs.inputs['Base Color'].default_value = (.05, .3, .4, 1); ring.data.materials.append(hm)
+    world = bpy.data.worlds.new('Studio'); scene.world = world; world.use_nodes = True; world.node_tree.nodes['Background'].inputs['Color'].default_value = (.02, .03, .05, 1); world.node_tree.nodes['Background'].inputs['Strength'].default_value = .6
+
 
 # ---------------------------------------------------------------- lip sync from Rhubarb cues
 cues = json.load(open(a.visemes))['mouthCues']; duration = json.load(open(a.visemes))['metadata']['duration']
