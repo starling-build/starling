@@ -33,16 +33,17 @@ else:
     bpy.ops.import_scene.vrm(filepath=a.vrm)
 scene = bpy.context.scene; scene.render.fps = a.fps
 arm = [o for o in bpy.data.objects if o.type == 'ARMATURE'][0]
-face = [o for o in bpy.data.objects if o.type == 'MESH' and o.data.shape_keys and any(k.name in ('lip_a', 'Face_Blendshape.Fcl_MTH_A') for k in o.data.shape_keys.key_blocks)][0]
+face = [o for o in bpy.data.objects if o.type == 'MESH' and o.data.shape_keys and any(k.name in ('lip_a', 'Face_Blendshape.Fcl_MTH_A', 'Fcl_MTH_A') for k in o.data.shape_keys.key_blocks)][0]
 keys = face.data.shape_keys.key_blocks
 hb = arm.data.vrm_addon_extension.vrm1.humanoid.human_bones
 def bone(name): return getattr(hb, name).node.bone_name
 HEAD, NECK, CHEST = bone('head'), bone('neck'), bone('chest') or bone('spine')
 
 # ---------------------------------------------------------------- shape-key vocabulary (Seed-san names, VRoid fallbacks)
-def K(*names):
+def K(*names):   # VRoid 1.x exports prefix Face_Blendshape., VRoid Studio 2.x exports do not
     for n in names:
-        if n in keys: return n
+        for c in (n, n.removeprefix('Face_Blendshape.')):
+            if c in keys: return c
     return None
 LIP = {'a': K('lip_a', 'Face_Blendshape.Fcl_MTH_A'), 'i': K('lip_i', 'Face_Blendshape.Fcl_MTH_I'), 'u': K('lip_u', 'Face_Blendshape.Fcl_MTH_U'),
        'e': K('lip_e', 'Face_Blendshape.Fcl_MTH_E'), 'o': K('lip_o', 'Face_Blendshape.Fcl_MTH_O'), 'closed': K('mouth_short', 'Face_Blendshape.Fcl_MTH_Close')}
