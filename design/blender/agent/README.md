@@ -81,14 +81,21 @@ stills; `goth-speaking.png` is a frame from her clip.
 The scripted goth rebuild above never got close to the reference picture:
 hair and cloth built from primitives look like primitives. The character
 is now made in **VRoid Studio 2.14** (free, Windows; on the build box, driven
-over RDP) from the female base model: twin-tail hairstyle set with a
-straight fringe, hair `#E2CA63`, irises `#1E66CA`, the corset-and-blouse
-top recoloured black through the texture editor's shader colours with the
-shoulders puffed, the gothic frill skirt shortened and flared, lace choker,
-short black gloves, garter thigh-highs and buckle boots. Source and export:
-`goth-agent.vroid` (reopen in VRoid Studio to change anything) and
-`goth-agent.vrm` (VRM 1.0, 38k polygons, `aa/ih/ou/ee/oh` + blinks +
-expressions). The lip-sync script takes it unchanged:
+over RDP) from the female base model. Hair: the twin-tail hairstyle set with
+a straight fringe, no ahoge, the four tail groups widened, thickened, twisted
+and raised in the hairstyle editor, colour `#E2CA63`. Face: the sharper-eyed
+face set with the eyes enlarged, irises `#1E66CA`, rose lipstick, near-black
+eyeliner. Outfit: the corset-and-blouse top recoloured black through the
+texture editor's shader colours, then its collar, shoulders and lower
+sleeves ERASED in the texture editor (both coat layers) so it reads as an
+off-shoulder top with short puff sleeves; gothic frill skirt shortened and
+flared; black choker; short black gloves; garter thigh-highs with the
+right leg's black erased under an imported fishnet layer (`fishnet-leg.png`,
+a diamond net masked to that leg's UV strip); black lace-up boots with the
+sole raised. Source and export: `goth-agent.vroid` (reopen in VRoid Studio
+to change anything) and `goth-agent.vrm` (VRM 1.0, 37k polygons,
+`aa/ih/ou/ee/oh` + blinks + expressions). The lip-sync script takes it
+unchanged:
 
 ```sh
 /snap/bin/blender --factory-startup -b --python build/tools/blender-agent-avatar.py -- \
@@ -99,8 +106,9 @@ expressions). The lip-sync script takes it unchanged:
 VRoid Studio 2.x exports its shape keys as bare `Fcl_MTH_A` (older VRoid
 exports and the pixiv samples carry a `Face_Blendshape.` prefix); the
 script's key lookup accepts both. `vroid-full.png` and `vroid-bust.png` are
-the renders, `vroid-compare.png` puts the reference beside three frames, and `vroid-speaking.png` is a frame from her clip.
+the renders, `vroid-compare.png` puts the reference beside the model, and
+`vroid-speaking.png` is a frame from her clip.
 
-Still open against the picture: the top has long sleeves and a high collar
-where the reference is off-shoulder with short puffs, and one stocking
-should be fishnet.
+Still open against the picture: the skirt's white petticoat (its shader
+colour rows in the texture editor did not take), the tails could be wavier
+and shorter, and the skirt shorter and layered.
