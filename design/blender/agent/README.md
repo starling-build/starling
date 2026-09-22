@@ -109,6 +109,22 @@ script's key lookup accepts both. `vroid-full.png` and `vroid-bust.png` are
 the renders, `vroid-compare.png` puts the reference beside the model, and
 `vroid-speaking.png` is a frame from her clip.
 
-Still open against the picture: the skirt's white petticoat (its shader
-colour rows in the texture editor did not take), the tails could be wavier
-and shorter, and the skirt shorter and layered.
+The last three gaps are closed in Blender rather than VRoid Studio, by
+`build/tools/blender-agent-refine.py`, which runs on the scene the avatar
+script saves: it recolours the petticoat material (the white
+`N00_002_03_Tops_01_CLOTH_03`) near black, compresses the twin tails toward
+the tie, adds an S-wave that grows down each tail and widens them toward the
+tip, and compresses the skirt (outer + petticoat) toward the waist. Mesh
+edits are object-space vertex moves on the VRoid meshes, so the rig, weights
+and shape keys are untouched and the lip-sync script consumes the result
+through `--blend`:
+
+```sh
+blender -b --python build/tools/blender-agent-avatar.py -- --vrm goth-agent.vrm ... --out A --stills 1
+blender -b --python build/tools/blender-agent-refine.py -- --blend A/agent.blend --out R/agent.blend
+blender -b --python build/tools/blender-agent-avatar.py -- --blend R/agent.blend --audio line.wav \
+    --visemes line-visemes.json --out CLIP --frames
+```
+
+Remaining differences from the picture are the skirt's layering and the
+lighting, not the character.
