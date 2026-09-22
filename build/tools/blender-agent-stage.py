@@ -35,6 +35,21 @@ if arm_ and POSE == 'relaxed':
         rot('J_Bip_%s_Hand' % side, 'X', 8)
         rot('J_Bip_%s_UpperLeg' % side, 'Y', -sgn * 2.5)
     rot('J_Bip_R_UpperLeg', 'X', -7); rot('J_Bip_R_LowerLeg', 'X', 14); rot('J_Bip_R_Foot', 'X', -7)
+    # relaxed hands: curl each finger joint toward the palm in its REST frame (T-pose fingers lie along
+    # +-X with the palm down, so a curl is a rotation about Y), which holds whatever the arm is doing
+    for side, sgn in (('L', 1), ('R', -1)):
+        for fin, base in (('Index', 14), ('Middle', 18), ('Ring', 22), ('Little', 26)):
+            for j, k in ((1, 1.0), (2, 1.3), (3, 0.9)):
+                pb = arm_.pose.bones.get('J_Bip_%s_%s%d' % (side, fin, j))
+                if pb:
+                    rest = pb.bone.matrix_local.to_3x3(); R = Matrix.Rotation(math.radians(sgn * base * k), 3, 'Y')
+                    pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (rest.inverted() @ R @ rest).to_quaternion()
+        for j in (2, 3):
+            pb = arm_.pose.bones.get('J_Bip_%s_Thumb%d' % (side, j))
+            if pb:
+                rest = pb.bone.matrix_local.to_3x3(); R = Matrix.Rotation(math.radians(sgn * 12), 3, 'Y')
+                pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (rest.inverted() @ R @ rest).to_quaternion()
+    bpy.context.view_layer.update()
     bpy.context.view_layer.update()
 for o in bpy.data.objects:   # neutral face: drop the clip's expression keys for the still
     if o.type == 'MESH' and o.data.shape_keys and o.data.shape_keys.animation_data:

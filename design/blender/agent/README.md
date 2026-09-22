@@ -165,7 +165,9 @@ reference picture:
   hair ties sit at the gather point. The hair texture is shifted to honey
   blonde and the irises to blue-violet.
 - **Accessories**: satin choker with a see-through lace frill and a lace bib,
-  a belt with a gold buckle, stocking bands with bows, forearm lacing.
+  a belt with a gold buckle, stocking bands with bows, and thin forearm
+  lacing that zigzags across the front of each forearm in X's, each point
+  ray-cast onto the skin (the forearm is not round, so a fixed radius floats).
 - **Legs and skin**: the opaque stocking becomes a sheer brown-black
   (recoloured in the skin texture, only inside that leg's faces) with its
   own material whose brightness follows the view angle, so skin shows
@@ -183,8 +185,8 @@ weights, so the rig, mouth shapes and the lip-sync script all keep working.
 `build/tools/blender-agent-stage.py` renders the full-length character sheet
 the reference uses: dark indigo stage, overhead spot, violet and pink rims,
 neutral face, and a relaxed stance (arms angled out past the flared skirt
-with soft elbows, one knee eased forward, a slight turn through the hips
-and head). The pose is applied to the render only; `STAGE_POSE=saved`
+with soft elbows and relaxed, curled fingers, one knee eased forward, a
+slight turn through the hips and head). The pose is applied to the render only; `STAGE_POSE=saved`
 keeps the scene's own pose. Its bone helper rotates about world axes
 through each bone's head, parents first: a child bone's local rotation
 is in its already-rotated parent's frame, so a "bend the elbow" about the

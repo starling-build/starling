@@ -792,14 +792,19 @@ for side, tag in ((1, 'L'), (-1, 'R')):
         sl = [q for q in fv if abs(side * q.x - x) < 0.012] or fv
         cy_, cz_ = sum(q.y for q in sl) / len(sl), sum(q.z for q in sl) / len(sl)
         return cy_, cz_, sorted(math.hypot(q.y - cy_, q.z - cz_) for q in sl)[int(0.8 * (len(sl) - 1))]
+    fpolys = [p_ for p_ in me.polygons if p_.material_index in skin and 0.38 < side * p_.center.x < 0.58
+              and math.hypot(p_.center.y - 0.029, p_.center.z - 1.336 - DZ) < 0.08]
+    fbvh = BVHTree.FromPolygons([v.co for v in me.vertices], [p_.vertices for p_ in fpolys])
     lb = bmesh.new()
-    for phase in (0.0, math.pi):
+    for phase in (1.0, -1.0):                      # two ribbons zigzag across the FRONT of the forearm and cross in X's
         e0, e1 = [], []
         for i in range(90):
-            t = i / 89; x = 0.515 - 0.10 * t; th = phase + side * 2 * math.pi * 2.2 * t
-            cy_, cz_, rr = sec(x); rr += 0.003
-            c_ = Vector((side * x, cy_ + rr * math.cos(th), cz_ + rr * math.sin(th)))
-            e0.append(lb.verts.new(c_ + Vector((side * 0.003, 0, 0)))); e1.append(lb.verts.new(c_ - Vector((side * 0.003, 0, 0))))
+            t = i / 89; x = 0.525 - 0.14 * t; tri = 2 * abs((t * 1.6 + 0.25) % 1.0 - 0.5) * 2 - 1
+            th = math.pi + phase * math.radians(62) * tri
+            cy_, cz_, rr = sec(x); d_ = Vector((0, math.cos(th), math.sin(th)))
+            hit = fbvh.ray_cast(Vector((side * x, cy_, cz_)), d_, 0.12)[0]      # sit ON the skin: the forearm is not round
+            c_ = (hit + d_ * 0.0018) if hit else Vector((side * x, cy_, cz_)) + d_ * (rr + 0.003)
+            e0.append(lb.verts.new(c_ + Vector((side * 0.0017, 0, 0)))); e1.append(lb.verts.new(c_ - Vector((side * 0.0017, 0, 0))))   # thin cord
         for i in range(89): lb.faces.new((e0[i], e0[i + 1], e1[i + 1], e1[i]))
     rigged('Forearm lacing ' + tag, lb, TOON, 'J_Bip_%s_LowerArm' % tag)
 # lace bib: a scalloped fall of lace from the choker onto the collarbones, front only
