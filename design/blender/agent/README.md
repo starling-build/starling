@@ -137,10 +137,16 @@ reference picture:
   gold buckle.
 - **Shading**: cloth cel shading is softened (VRoid ships it nearly hard)
   so pleats and gathers read, and the hair gets a warm ochre shade.
-- **Hair**: the twin tails are re-pivoted at their real gather point on the
-  head top (measured per model: the top of the strands less 4 cm), cut to
-  32 cm, pulled in, widened through the middle, lightly waved and flared,
-  and each strand gets two copies fanned in the frontal plane for volume.
+- **Hair**: each twin-tail strand is rebuilt along a new centre line from
+  its gather point on the head top (measured per model): a smooth curve is
+  fitted through the VRoid strand, then the strand is laid out 38 cm down
+  in an outward arc, its cross-section tapering to a point with a small
+  outward flick at the tip. Two copies of every strand with other spreads
+  and lengths fill the bundle out and stagger the tips. (Squashing VRoid's
+  long strands instead rolled their flared ends into round balls.) Black
+  hair ties sit at the gather point; the hair is shifted to honey blonde
+  with a warm ochre shade, and the irises to blue-violet. The tail twist
+  set in VRoid is back at 0.
   The fringe is lengthened from its hairline and its outer pieces become
   face-framing locks that clear the cheeks. Black
   hair ties sit at the gather point. The hair texture is shifted to honey

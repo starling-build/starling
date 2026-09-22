@@ -33,12 +33,13 @@ p.add_argument('--pleats', type=int, default=26); p.add_argument('--pleat-depth'
 p.add_argument('--cloth-toony', type=float, default=0.5)
 p.add_argument('--hair-shade', type=int, nargs=3, default=(150, 96, 44))   # sRGB shade colour for the hair   # VRoid cloth is 0.95 (hard cel); the reference is soft
 p.add_argument('--skirt-cuts', type=int, default=3); p.add_argument('--skirt-flare', type=float, default=0.8)     # bottom-tier hem radius
-p.add_argument('--tail-len', type=float, default=0.32)      # tie to tip, metres (--tail-tip overrides)
+p.add_argument('--tail-len', type=float, default=0.38)      # tie to tip, metres (--tail-tip overrides)
 p.add_argument('--tail-tip', type=float, default=0.0)
 p.add_argument('--tail-root', type=float, default=0.0);   # 0 = measure (top of the tail strands - 4 cm)
-p.add_argument('--tail-xs', type=float, default=0.72); p.add_argument('--tail-flare', type=float, default=0.04)
-p.add_argument('--tail-bulge', type=float, default=0.45)    # extra width through the middle of each tail
-p.add_argument('--tail-fan', type=float, default=14.0)      # extra strand copies fanned about the tie (degrees)
+p.add_argument('--tail-spread', type=float, default=0.095)  # how far each tail arcs out from its tie
+p.add_argument('--tail-width', type=float, default=1.4)    # strand cross-section scale
+p.add_argument('--tail-flick', type=float, default=0.03)   # outward flick at the tips
+p.add_argument('--tail-fan', type=int, default=1)          # add two copies per strand with other spreads/lengths
 p.add_argument('--bangs', type=float, default=1.10)         # fringe length factor, from its hairline
 p.add_argument('--sidelocks', type=float, default=1.9)      # length factor for the outer fringe pieces (face-framing locks)
 p.add_argument('--crown', type=float, default=1.04)         # overall hair volume (not the tails)
@@ -456,33 +457,43 @@ for comp in tails:
     side = 1 if sum(c.co.x for c in comp) > 0 else -1
     TIE.setdefault(side, []).extend([c.co.copy() for c in comp if ZP - 0.02 < c.co.z < ZP + 0.01])
 TIE = {k: sum(v, Vector()) / len(v) for k, v in TIE.items() if v}
+# Each strand is re-synthesised along a new centre line: kept as-is above the tie, then out and down in
+# an arc, cross-section tapering to a point, tip flicked outward. Copies with other spreads and lengths
+# fill the bundle out. (Compressing VRoid's long strands instead rolls their flared ends into balls.)
+def synth(comp, side, spread, lenf, dy, width):
+    T = TIE[side]; below = [c for c in comp if c.co.z < T.z]
+    if not below: return
+    zmin = min(c.co.z for c in below); D = T.z - zmin
+    Z = np.array([c.co.z for c in below]); U = (T.z - Z) / D
+    px_ = np.polyfit(U, [c.co.x for c in below], 4); py_ = np.polyfit(U, [c.co.y for c in below], 4)   # smooth centre line
+    def cen_at(u): return float(np.polyval(px_, u)), float(np.polyval(py_, u))
+    ox0, oy0 = cen_at(0.0)[0] - T.x, cen_at(0.0)[1] - T.y              # the strand's own place in the bundle at the tie
+    L = (T.z - a.tail_tip) * lenf
+    def centre(u):
+        out = spread * math.sin(math.pi * min(1.0, u / 0.8) * 0.5) ** 0.7 * (1 - 0.25 * max(0.0, u - 0.6) / 0.4)
+        flick = a.tail_flick * max(0.0, (u - 0.72) / 0.28) ** 2
+        wave = a.tail_wave * math.sin(2 * math.pi * 1.2 * u) * u
+        return (T.x + ox0 * (1 - 0.3 * u) + side * (out + flick + wave),
+                T.y + oy0 * (1 - 0.3 * u) + dy * min(1.0, u / 0.3) + 0.02 * u,
+                T.z - L * u)
+    for c in below:
+        d = T.z - c.co.z; u = d / D; cx0, cy0 = cen_at(u)
+        w_ = min(1.0, d / 0.04)                                 # blend in just below the tie
+        taper = 1.0 if u < 0.5 else max(0.08, 1 - ((u - 0.5) / 0.5) ** 1.3 * 0.92)
+        nx, ny, nz = centre(u)
+        tx = nx + (c.co.x - cx0) * width * taper; ty = ny + (c.co.y - cy0) * width * taper
+        c.co = Vector((c.co.x + (tx - c.co.x) * w_, c.co.y + (ty - c.co.y) * w_, c.co.z + (nz - c.co.z) * w_))
+copies = 0; plan = []
 for comp in tails:
-    side = 1 if sum(c.co.x for c in comp) > 0 else -1; T = TIE[side]
-    zmin = min(c.co.z for c in comp); k = (ZP - a.tail_tip) / (ZP - zmin)
-    for c in comp:
-        if c.co.z >= ZP: continue
-        d = ZP - c.co.z; t = d / (ZP - zmin); w_ = min(1.0, d / 0.05)       # blend in below the tie
-        z = ZP - d * k
-        xs_ = a.tail_xs + a.tail_bulge * math.sin(math.pi * min(1.0, t * 1.15)) ** 0.8
-        x = T.x + (c.co.x - T.x) * (1 + (xs_ - 1) * w_) + side * (a.tail_flare * t ** 1.4 + a.tail_wave * math.sin(2 * math.pi * 1.3 * t) * t)
-        y = T.y + (c.co.y - T.y) * (1 - 0.55 * w_) + a.tail_wave * 0.8 * math.cos(2 * math.pi * 1.1 * t) * t
-        c.co = Vector((x, y, z))
-# fuller tails: fanned copies of every strand, swung in the frontal plane about the tie
-copies = 0
-if a.tail_fan:
-    for comp in list(tails):
-        side = 1 if sum(c.co.x for c in comp) > 0 else -1; T = TIE[side]
+    side = 1 if sum(c.co.x for c in comp) > 0 else -1
+    plan.append((comp, side, a.tail_spread, 1.0, 0.0, a.tail_width))
+    if a.tail_fan:
         faces = list({f for v in comp for f in v.link_faces}); edges = list({e for f in faces for e in f.edges})
-        for phi, dy in ((a.tail_fan, 0.012), (-a.tail_fan * 0.6, -0.010)):
+        for spread, lenf, dy in ((a.tail_spread * 1.45, 0.86, 0.018), (a.tail_spread * 0.55, 1.08, -0.016)):
             ret = bmesh.ops.duplicate(hb, geom=list(comp) + edges + faces)
-            for g in ret['geom']:
-                if isinstance(g, bmesh.types.BMVert):
-                    below = T.z - g.co.z
-                    if below <= 0: continue
-                    w_ = min(1.0, below / 0.06); ph = math.radians(side * phi) * w_
-                    dx, dz = g.co.x - T.x, g.co.z - T.z
-                    g.co.x = T.x + dx * math.cos(ph) - dz * math.sin(ph); g.co.z = T.z + dx * math.sin(ph) + dz * math.cos(ph); g.co.y += dy * w_
-            copies += 1
+            plan.append(([g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)], side, spread, lenf, dy, a.tail_width * 0.9)); copies += 1
+for i, (comp, side, spread, lenf, dy, width) in enumerate(plan):
+    synth(comp, side, spread * (0.85 + 0.3 * ((i * 7) % 5) / 4), lenf * (0.93 + 0.14 * ((i * 3) % 4) / 3), dy, width)
 # fringe longer from its own hairline; the outer pieces much longer, as face-framing locks that clear the cheeks
 HC = arm.data.bones['J_Bip_C_Head'].head_local + Vector((0, 0, 0.05))
 for comp in bangs:
