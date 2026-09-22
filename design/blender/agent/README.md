@@ -99,7 +99,7 @@ expressions). The lip-sync script takes it unchanged:
 VRoid Studio 2.x exports its shape keys as bare `Fcl_MTH_A` (older VRoid
 exports and the pixiv samples carry a `Face_Blendshape.` prefix); the
 script's key lookup accepts both. `vroid-full.png` and `vroid-bust.png` are
-the renders, `vroid-compare.png` puts the reference beside three frames.
+the renders, `vroid-compare.png` puts the reference beside three frames, and `vroid-speaking.png` is a frame from her clip.
 
 Still open against the picture: the top has long sleeves and a high collar
 where the reference is off-shoulder with short puffs, and one stocking
