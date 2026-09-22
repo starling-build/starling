@@ -85,7 +85,9 @@ over RDP) from the female base model. Hair: the twin-tail hairstyle set with
 a straight fringe, no ahoge, the four tail groups widened, thickened, twisted
 and raised in the hairstyle editor, colour `#E2CA63`. Face: the sharper-eyed
 face set with the eyes enlarged, irises `#1E66CA`, rose lipstick, near-black
-eyeliner. Outfit: the corset-and-blouse top recoloured black through the
+eyeliner. Body: chest size and prominence raised, waist narrowed, legs a
+little longer, and the eyes opened up (less inner slant, lower lower lid).
+Outfit: the corset-and-blouse top recoloured black through the
 texture editor's shader colours, then its collar, shoulders and lower
 sleeves ERASED in the texture editor (both coat layers) so it reads as an
 off-shoulder top with short puff sleeves; gothic frill skirt shortened and
@@ -105,26 +107,57 @@ unchanged:
 
 VRoid Studio 2.x exports its shape keys as bare `Fcl_MTH_A` (older VRoid
 exports and the pixiv samples carry a `Face_Blendshape.` prefix); the
-script's key lookup accepts both. `vroid-full.png` and `vroid-bust.png` are
-the renders, `vroid-compare.png` puts the reference beside the model, and
-`vroid-speaking.png` is a frame from her clip.
+script's key lookup accepts both.
 
-The last three gaps are closed in Blender rather than VRoid Studio, by
-`build/tools/blender-agent-refine.py`, which runs on the scene the avatar
-script saves: it recolours the petticoat material (the white
-`N00_002_03_Tops_01_CLOTH_03`) near black, compresses the twin tails toward
-the tie, adds an S-wave that grows down each tail and widens them toward the
-tip, and compresses the skirt (outer + petticoat) toward the waist. Mesh
-edits are object-space vertex moves on the VRoid meshes, so the rig, weights
-and shape keys are untouched and the lip-sync script consumes the result
-through `--blend`:
+### Blender refine pass
+
+What VRoid Studio cannot do is done by `build/tools/blender-agent-refine.py`,
+which runs on the scene the avatar script saves and edits it toward the
+reference picture:
+
+- **Top**: the blouse is cut into an off-shoulder top with short sleeves,
+  puffed about the sleeve's own centre line, with a frill extruded from the
+  cut edges. VRoid removes the body under clothing at export, so the upper
+  arm is rebuilt as a skin tube from over the shoulder to the forearm's open
+  edge, weighted across the elbow. The blouse's back panel stays, because
+  there is no skin under it either.
+- **Bodice**: the corset above the underbust line becomes navy cloth (its
+  texture flattened and recoloured), with a ruffle on its top edge, so the
+  black corset reads as an underbust piece over a navy dress.
+- **Skirt**: the bell skirt becomes three tiers with handkerchief points and
+  light piping on each hem; the white petticoat is dropped.
+- **Hair**: the twin tails are re-pivoted at their real gather point on the
+  head top (measured, 1.60 m), shortened, pulled in, waved and flared, and
+  each strand gets two copies fanned in the frontal plane for volume. Black
+  hair ties sit at the gather point. The hair texture is shifted to honey
+  blonde and the irises to blue-violet.
+- **Accessories**: satin choker with a see-through lace frill and a lace bib,
+  a belt with a gold buckle, stocking bands with bows, forearm lacing.
+- **Legs and skin**: the opaque stocking becomes a sheer brown-black
+  (recoloured in the skin texture, only inside that leg's faces), the
+  thighs are a little fuller, skin is warmer, and the arms hang slightly
+  away from the body. The body skin loses its outline shell: VRoid's culled
+  gaps under the old collar showed it as dark red, and the reference draws
+  no skin contour lines.
+
+Every new piece is weighted to a bone and every edited vertex keeps its
+weights, so the rig, mouth shapes and the lip-sync script all keep working.
+`build/tools/blender-agent-stage.py` renders the full-length character sheet
+the reference uses: dark indigo stage, overhead spot, violet and pink rims,
+neutral face.
 
 ```sh
-blender -b --python build/tools/blender-agent-avatar.py -- --vrm goth-agent.vrm ... --out A --stills 1
+blender -b --python build/tools/blender-agent-avatar.py -- --vrm goth-agent.vrm \
+    --addon-zip VRM_Addon_for_Blender-4_7_1.zip --out A --stills 1 ...
 blender -b --python build/tools/blender-agent-refine.py -- --blend A/agent.blend --out R/agent.blend
+blender -b --python build/tools/blender-agent-stage.py  -- R/agent.blend sheet.png
 blender -b --python build/tools/blender-agent-avatar.py -- --blend R/agent.blend --audio line.wav \
     --visemes line-visemes.json --out CLIP --frames
 ```
 
-Remaining differences from the picture are the skirt's layering and the
-lighting, not the character.
+`vroid-full.png` is the character sheet and `vroid-compare.png` puts it
+beside the reference (`vroid-bust.png` / `vroid-speaking.png` are from the
+earlier, unrefined clip). What still differs: the face is VRoid's (a longer chin, smaller
+eyes than the reference), the skirt tiers are cut from one bell rather than
+sewn as separate ruffles, and the lace is a procedural mesh rather than a
+lace pattern.
