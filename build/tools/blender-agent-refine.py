@@ -29,9 +29,13 @@ p.add_argument('--underbust', type=float, default=1.2)      # corset above this 
 p.add_argument('--skirt-len', type=float, default=0.30)     # bottom tier, between the points
 p.add_argument('--skirt-points', type=float, default=0.22)  # handkerchief point depth (fraction)
 p.add_argument('--skirt-hem', type=float, default=0.30)
-p.add_argument('--pleats', type=int, default=26); p.add_argument('--pleat-depth', type=float, default=0.024)
+p.add_argument('--pleats', type=int, default=26); p.add_argument('--pleat-depth', type=float, default=0.038)
 p.add_argument('--cloth-toony', type=float, default=0.5)
+p.add_argument('--rim', type=float, default=0.55)          # strength of the built-in rim glow (0 = VRoid's)
 p.add_argument('--hair-shade', type=int, nargs=3, default=(150, 96, 44))   # sRGB shade colour for the hair   # VRoid cloth is 0.95 (hard cel); the reference is soft
+p.add_argument('--fishnet-cell', type=float, default=34); p.add_argument('--fishnet-width', type=float, default=3.2)   # texels at 2048
+p.add_argument('--piping', type=int, nargs=3, default=(58, 57, 80))   # sRGB piping colour
+p.add_argument('--ruffle', type=float, default=0.022)     # hem frill depth under each skirt layer
 p.add_argument('--skirt-cuts', type=int, default=3); p.add_argument('--skirt-flare', type=float, default=0.8)     # bottom-tier hem radius
 p.add_argument('--tail-len', type=float, default=0.38)      # tie to tip, metres (--tail-tip overrides)
 p.add_argument('--tail-tip', type=float, default=0.0)
@@ -42,7 +46,7 @@ p.add_argument('--tail-flick', type=float, default=0.03)   # outward flick at th
 p.add_argument('--tail-fan', type=int, default=1)          # add two copies per strand with other spreads/lengths
 p.add_argument('--bangs', type=float, default=1.10)         # fringe length factor, from its hairline
 p.add_argument('--sidelocks', type=float, default=1.9)      # length factor for the outer fringe pieces (face-framing locks)
-p.add_argument('--crown', type=float, default=1.04)         # overall hair volume (not the tails)
+p.add_argument('--crown', type=float, default=1.07)         # overall hair volume (not the tails)
 p.add_argument('--tail-wave', type=float, default=0.008)
 p.add_argument('--stocking-top', type=float, default=0.0)   # 0 = detect from the skin texture
 p.add_argument('--thigh', type=float, default=0.10)         # extra thigh fullness (fraction, peaks mid-thigh)
@@ -91,8 +95,8 @@ def pmat(name, rgb, rough=0.5, metal=0.0, spec=0.5):
 SATIN = pmat('Choker satin', (14, 12, 18), rough=0.32, spec=0.6)
 def lace_mat():
     m = pmat('Lace see-through', (7, 6, 9), rough=0.9, spec=0.05); nt = m.node_tree; b = nt.nodes['Principled BSDF']
-    tc = nt.nodes.new('ShaderNodeTexCoord'); vo = nt.nodes.new('ShaderNodeTexVoronoi'); vo.feature = 'DISTANCE_TO_EDGE'; vo.inputs['Scale'].default_value = 150
-    ramp = nt.nodes.new('ShaderNodeValToRGB'); ramp.color_ramp.elements[0].position = 0.04; ramp.color_ramp.elements[1].position = 0.09
+    tc = nt.nodes.new('ShaderNodeTexCoord'); vo = nt.nodes.new('ShaderNodeTexVoronoi'); vo.feature = 'DISTANCE_TO_EDGE'; vo.inputs['Scale'].default_value = 330
+    ramp = nt.nodes.new('ShaderNodeValToRGB'); ramp.color_ramp.elements[0].position = 0.045; ramp.color_ramp.elements[1].position = 0.09
     ramp.color_ramp.elements[0].color = (1, 1, 1, 1); ramp.color_ramp.elements[1].color = (0.0, 0.0, 0.0, 1)
     nt.links.new(tc.outputs['Object'], vo.inputs['Vector']); nt.links.new(vo.outputs['Distance'], ramp.inputs['Fac']); nt.links.new(ramp.outputs['Color'], b.inputs['Alpha'])
     if hasattr(m, 'surface_render_method'): m.surface_render_method = 'DITHERED'
@@ -158,14 +162,22 @@ def ring(bm, center, rx, ry, z0, z1, n=64, flare=0.0, scallop=0.0, cap=True):
 # ------------------------------------------------------------------ 1. colours
 hue_shift('N00_007_01_Tops_01_CLOTH', 0, sat=0.0, flat=0.6)
 tint('N00_007_01_Tops_01_CLOTH', (48, 46, 66))            # blouse: slate navy
-tint('N00_002_03_Tops_01_CLOTH_01', (40, 39, 57))         # skirt
+tint('N00_002_03_Tops_01_CLOTH_01', (34, 32, 48))         # skirt
 tint('N00_002_03_Tops_01_CLOTH_02', (30, 28, 40), 0.5)    # corset
 hue_shift('Hair_00_HAIR', -12, sat=0.80, val=1.32)        # yellow -> honey blonde
-hue_shift('EyeIris_00_EYE', 18, sat=0.72, val=1.0)        # vivid blue -> blue-violet
-for key in ('Body_00_SKIN', 'Face_00_SKIN'):
-    for m in bpy.data.materials:
-        if key in m.name and m.node_tree and mtoon(m):
-            g = mtoon(m); g.inputs['Lit Color'].default_value = (1.0, 0.84, 0.76, 1.0)
+hue_shift('EyeIris_00_EYE', 22, sat=0.5, val=1.3)          # lighter, greyer blue-violet        # vivid blue -> blue-violet
+WARM = (0.98, 0.80, 0.72)
+for m in bpy.data.materials:        # face: warm through the lit colour (nothing dark on it)
+    if 'Face_00_SKIN' in m.name and m.node_tree and mtoon(m): mtoon(m).inputs['Lit Color'].default_value = (*WARM, 1.0)
+done_ = set()
+for m in bpy.data.materials:        # body: warm only the light texels - the gloves are painted dark grey into this texture
+    if 'Body_00_SKIN' in m.name and m.node_tree and mtoon(m):
+        img = lit_image(m)
+        if img and img.name not in done_:
+            done_.add(img.name); px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+            w = np.clip((px[:, :3].mean(1) - 0.35) / 0.35, 0, 1)[:, None]
+            px[:, :3] *= 1 - w * (1 - np.array(WARM, dtype=np.float32)); img.pixels[:] = px.ravel(); img.pack()
+        mtoon(m).inputs['Lit Color'].default_value = (1, 1, 1, 1)
 
 TOON_UV = darkest_uv(TOON); print('TOON UV', TOON_UV)
 
@@ -208,7 +220,7 @@ if a.underbust:
         ret = bmesh.ops.extrude_edge_only(bm, edges=top_e); nv = [g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)]
         for i, v in enumerate(sorted(nv, key=lambda v: v.co.x)):
             out = Vector((v.co.x * 0.4, v.co.y - 0.02 - 0.5, 0)).normalized()
-            v.co += (Vector((0, 0, 1)) * 0.75 + out * 0.65).normalized() * 0.022 * (1.0 + 0.45 * (1 if i % 2 else -1))
+            v.co += (Vector((0, 0, 1)) * 0.75 + out * 0.65).normalized() * 0.020 * (1.0 + 0.25 * math.sin(v.co.x * 260)) + out * 0.004 * math.cos(v.co.x * 260)
         for g in ret['geom']:
             if isinstance(g, bmesh.types.BMFace): g.material_index = BOD_I; g.smooth = True
         print('RUFFLE', len(top_e), 'edges on the bodice top')
@@ -320,9 +332,10 @@ for side, tag, centre_at in OWN_SLEEVES:
     for row, sgn, w in ((rows_[0], -1, 0.022), (rows_[-1], 1, 0.012)):          # frill on the off-shoulder line and on the cuff
         edges = [e for e in sb.edges if all(v in set(row) for v in e.verts)]
         ret = bmesh.ops.extrude_edge_only(sb, edges=edges)
-        for n_, g in enumerate(g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)):
-            cy2, cz2 = centre_at(side * g.co.x); rad_ = Vector((0, g.co.y - cy2, g.co.z - cz2)).normalized()
-            g.co += (Vector((side * sgn * 0.55, 0, 0)) + rad_ * 0.85).normalized() * w * (1.0 + 0.4 * (1 if n_ % 2 else -1))
+        for g in (g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)):
+            cy2, cz2 = centre_at(side * g.co.x); rad_ = Vector((0, g.co.y - cy2, g.co.z - cz2)); th_ = math.atan2(rad_.z, rad_.y)
+            rad_.normalize()                                                             # soft gathered ruffle, not saw teeth
+            g.co += (Vector((side * sgn * 0.55, 0, 0)) + rad_ * 0.85).normalized() * w * (1.0 + 0.22 * math.sin(11 * th_)) + rad_ * 0.004 * math.cos(11 * th_)
     for f in sb.faces: f.smooth = True
     rigged('Sleeve ' + tag, sb, SLEEVE_MAT, 'J_Bip_%s_UpperArm' % tag, uv=SLEEVE_UV)
     print('SLEEVE', tag, 'x %.3f -> %.3f' % (s0, s1))
@@ -405,7 +418,9 @@ def texel_uv(mat, target):
     y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
 TRIM_UV = texel_uv(me.materials[min(CORSET)], 0.75)
 trim = me.materials[min(CORSET)].copy(); trim.name = 'Skirt trim navy'
-tf = [min(1.0, t / max(1e-4, c)) for t, c in zip(srgb((72, 72, 96)), image_mean_linear(lit_image(trim)))]
+_ti = lit_image(trim); _tw, _th = _ti.size; _tp = np.array(_ti.pixels[:], dtype=np.float32).reshape(_th, _tw, 4)
+_tc = _tp[int(TRIM_UV[1] * _th), int(TRIM_UV[0] * _tw), :3]; _tc = np.where(_tc <= 0.04045, _tc / 12.92, ((_tc + 0.055) / 1.055) ** 2.4)
+tf = [min(1.0, t / max(1e-4, c)) for t, c in zip(srgb(tuple(a.piping)), _tc)]   # scale against the texel the piping samples
 mtoon(trim).inputs['Lit Color'].default_value = (*tf, 1.0)
 if 'Shade Color' in mtoon(trim).inputs: mtoon(trim).inputs['Shade Color'].default_value = (*[c * 0.5 for c in tf], 1.0)
 me.materials.append(trim); CORSET_I = len(me.materials) - 1; nt = 0
@@ -427,9 +442,28 @@ def band(edges, up, width):
         elif isinstance(g, bmesh.types.BMFace):
             g.material_index = CORSET_I; g.smooth = True; nt += 1
             for l in g.loops: l[uvl].uv = TRIM_UV
+RUF_UV = mid_texel(me.materials[min(SKIRT)])
+def ruffle(edges, drop, gathers):
+    """A gathered frill hanging below a hem: duplicated hem edge, extruded down and out, rippled."""
+    global nt
+    geom = list({v for e in edges for v in e.verts}) + edges
+    ret = bmesh.ops.duplicate(bm, geom=geom); dup = [g for g in ret['geom'] if isinstance(g, bmesh.types.BMEdge)]
+    for g in ret['geom']:
+        if isinstance(g, bmesh.types.BMVert):   # tuck the frill's top just inside the hem
+            r = math.hypot(g.co.x, g.co.y - cy); k = (r - 0.002) / max(r, 1e-4); g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z += 0.004
+    ret = bmesh.ops.extrude_edge_only(bm, edges=dup)
+    for g in ret['geom']:
+        if isinstance(g, bmesh.types.BMVert):
+            th = math.atan2(g.co.y - cy, g.co.x); r = math.hypot(g.co.x, g.co.y - cy)
+            k = (r + drop * 0.55 + 0.007 * math.sin(gathers * th)) / max(r, 1e-4)
+            g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z -= drop
+        elif isinstance(g, bmesh.types.BMFace):
+            g.material_index = min(SKIRT); g.smooth = True; nt += 1
+            for l in g.loops: l[uvl].uv = RUF_UV
 for edges in hems:
     if not edges: continue
-    band(edges, 0.0, 0.006); band(edges, 0.016, 0.004)
+    ruffle(edges, a.ruffle, 90)
+    band(edges, 0.0, 0.005); band(edges, 0.012, 0.003); band(edges, 0.022, 0.003)
 print('TRIM faces', nt)
 print('SKIRT top %.3f bot %.3f r0 %.3f cy %.3f' % (ztop, zbot, r0, cy))
 bm.to_mesh(me); me.update()
@@ -504,13 +538,24 @@ for comp in bangs:
             t = (piv - c.co.z) / max(1e-4, piv - low); c.co.z = piv - (piv - c.co.z) * f
             if lock: c.co.x += side * 0.028 * t ** 1.2; c.co.y -= 0.006 * t
         c.co.x *= 1.03
+# temple locks: the side pieces in front of the ears run down to the jaw instead of stopping at the cheek
+FZ = min(v.co.z for v in bpy.data.objects['Face'].data.vertices) - 0.008; nl = 0
+for comp in crown:
+    mx = sum(c.co.x for c in comp) / len(comp); my = sum(c.co.y for c in comp) / len(comp); zz = [c.co.z for c in comp]
+    if 0.045 < abs(mx) < 0.064 and my < 0.015 and min(zz) > FZ + 0.02 and max(zz) - min(zz) > 0.08:
+        side = 1 if mx > 0 else -1; piv = max(zz) - 0.035; low = min(zz); f = (piv - FZ) / max(1e-4, piv - low); nl += 1
+        for c in comp:
+            if c.co.z < piv:
+                t = (piv - c.co.z) / max(1e-4, piv - low); c.co.z = piv - (piv - c.co.z) * f
+                c.co.x += side * 0.016 * t ** 1.2; c.co.y -= 0.004 * t
+print('TEMPLE LOCKS', nl, 'down to %.3f' % FZ)
 for comp in crown:
     for c in comp: c.co = HC + (c.co - HC) * a.crown
 hb.to_mesh(hair.data); hair.data.update(); print('TAILS', len(tails), 'strands ->', a.tail_tip, '+', copies, 'fanned copies;', len(bangs), 'bang pieces;', len(crown), 'crown pieces')
 hb.free()
 
 # sheer stocking: the reference's dark thigh-high is brown-black with skin showing through
-def sheer_stocking(side, top_z):
+def leg_mask(side, top_z):
     img = lit_image(me.materials[min(mats('Body_00_SKIN'))]); W, H = img.size
     m_ = np.zeros((H, W), dtype=bool); uvd = me.uv_layers.active.data; n = 0; SK = mats('Body_00_SKIN')
     for poly in me.polygons:
@@ -526,11 +571,37 @@ def sheer_stocking(side, top_z):
                 if abs(d) < 1e-9: continue
                 l1 = ((y1 - y2) * (X - x2) + (x2 - x1) * (Y - y2)) / d; l2 = ((y2 - y0) * (X - x2) + (x0 - x2) * (Y - y2)) / d
                 m_[ya:yb, xa:xb] |= (l1 >= -0.01) & (l2 >= -0.01) & (1 - l1 - l2 >= -0.01)
+    return img, m_, n
+def sheer_stocking(side, top_z):
+    img, m_, n = leg_mask(side, top_z); W, H = img.size
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
     dark = m_ & (px[..., :3].mean(-1) < 0.35)
     tone = np.array([48, 33, 37], dtype=np.float32) / 255      # image pixels are stored sRGB-encoded
     px[dark, :3] = px[dark, :3] * 0.35 + tone * 0.65
     img.pixels[:] = px.ravel(); img.pack(); print('SHEER', n, 'faces,', int(dark.sum()), 'texels')
+    # sheer shading: its own copy of the skin material, whose lit colour follows the view angle -
+    # skin shows through where the leg faces you, the nylon doubles up dark at the silhouette
+    SK = mats('Body_00_SKIN'); sm = me.materials[min(SK)].copy(); sm.name = 'Sheer stocking'
+    me.materials.append(sm); SI = len(me.materials) - 1; nf = 0
+    for poly in me.polygons:
+        if poly.material_index in SK and side * poly.center.x > 0.01 and 0.18 < poly.center.z < top_z - 0.005: poly.material_index = SI; nf += 1
+    nt_ = sm.node_tree; g = mtoon(sm); lw = nt_.nodes.new('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.35
+    cr = nt_.nodes.new('ShaderNodeValToRGB'); cr.color_ramp.elements[0].color = (1.25, 1.12, 1.08, 1); cr.color_ramp.elements[1].color = (0.42, 0.40, 0.42, 1)
+    cr.color_ramp.elements[0].position = 0.15; cr.color_ramp.elements[1].position = 0.85
+    nt_.links.new(lw.outputs['Facing'], cr.inputs['Fac']); nt_.links.new(cr.outputs['Color'], g.inputs['Lit Color'])
+    print('SHEER SHADING', nf, 'faces')
+def fine_fishnet(side, top_z, cell, width):
+    """Replace the coarse VRoid fishnet with a finer diamond net drawn in the same UV region."""
+    img, m_, n = leg_mask(side, top_z); W, H = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
+    lum = px[..., :3].mean(-1); skin_ = m_ & (lum > 0.6)
+    if not skin_.any(): print('FISHNET skipped'); return
+    base = np.median(px[skin_][:, :3], axis=0)
+    px[m_ & (lum <= 0.6), :3] = base                             # erase the old net
+    Y, X = np.mgrid[0:H, 0:W]; c = cell * W / 2048; w = width * W / 2048
+    net = m_ & ((((X + Y) % c) < w) | (((X - Y) % c) < w))
+    px[net, :3] = np.array([18, 16, 22], dtype=np.float32) / 255
+    img.pixels[:] = px.ravel(); img.pack(); print('FISHNET', int(net.sum()), 'texels, cell', cell)
 
 # ------------------------------------------------------------------ 4. accessories
 skin = mats('Body_00_SKIN')
@@ -541,10 +612,11 @@ def section(z, pred, pct=0.9):
     rs = sorted(math.hypot(p.x - cx, p.y - cyy) for p in pts)
     return Vector((cx, cyy, z)), rs[int(pct * (len(rs) - 1))]
 # choker: satin band + lace frill
-zc = 1.405 + DZ; cen, r = section(zc, lambda c: abs(c.x) < 0.07 and math.hypot(c.x, c.y - 0.02) < 0.07)
-cb = bmesh.new(); ring(cb, cen, r + 0.004, r + 0.004, zc - 0.011, zc + 0.011, n=48)
+NB_ = B['J_Bip_C_Neck']; zc = NB_.head_local.z + 0.30 * (NB_.tail_local.z - NB_.head_local.z)   # choker follows the neck
+cen, r = section(zc, lambda c: abs(c.x) < 0.07 and math.hypot(c.x, c.y - 0.02) < 0.07)
+cb = bmesh.new(); ring(cb, cen, r + 0.004, r + 0.004, zc - 0.012, zc + 0.012, n=48)
 rigged('Choker', cb, TOON, 'J_Bip_C_Neck')
-cf = bmesh.new(); ring(cf, cen, r + 0.005, r + 0.005, zc - 0.026, zc - 0.009, n=64, flare=0.010, scallop=0.35)
+cf = bmesh.new(); ring(cf, cen, r + 0.005, r + 0.005, zc - 0.030, zc - 0.010, n=64, flare=0.010, scallop=0.35)
 rigged('Choker lace', cf, LACE, 'J_Bip_C_Neck'); print('CHOKER r %.3f at' % r, cen)
 # belt + gold buckle at the skirt waistband
 zb = ztop - 0.012
@@ -591,6 +663,7 @@ def stocking_top():
     return best
 zs = stocking_top(); print('STOCKING TOP %.3f' % zs)
 sheer_stocking(-1, zs)
+if a.fishnet_cell: fine_fishnet(1, zs, a.fishnet_cell, a.fishnet_width)
 def bow(bm, at, normal, s=1.0):
     """Satin bow facing `normal`, centred at `at`."""
     zax = Vector((0, 0, 1)); xax = zax.cross(normal).normalized(); yax = normal.normalized()
@@ -612,8 +685,9 @@ def bow(bm, at, normal, s=1.0):
 for side, bone in ((1, 'J_Bip_L_UpperLeg'), (-1, 'J_Bip_R_UpperLeg')):
     cen, r = section(zs, lambda c, s=side: s * c.x > 0.015 and abs(c.x - s * 0.08) < 0.1)
     sb = bmesh.new(); ring(sb, cen, r + 0.003, r + 0.003, zs - 0.012, zs + 0.012, n=48)
-    ring(sb, cen, r + 0.004, r + 0.004, zs + 0.010, zs + 0.024, n=64, flare=-0.002, scallop=0.25)
     rigged('Stocking band ' + ('L' if side > 0 else 'R'), sb, TOON, bone)
+    lb2 = bmesh.new(); ring(lb2, cen, r + 0.005, r + 0.005, zs + 0.010, zs + 0.030, n=72, flare=0.004, scallop=0.45)
+    rigged('Stocking lace ' + ('L' if side > 0 else 'R'), lb2, LACE, bone)
     th = math.radians(-90 + side * 14); nrm = Vector((math.cos(th), math.sin(th), 0))
     bw = bmesh.new(); bow(bw, cen + nrm * (r + 0.010) + Vector((0, 0, 0.006)), nrm, 1.6)
     rigged('Stocking bow ' + ('L' if side > 0 else 'R'), bw, TOON, bone)
@@ -666,9 +740,9 @@ for side, tag in ((1, 'L'), (-1, 'R')):
         for i in range(89): lb.faces.new((e0[i], e0[i + 1], e1[i + 1], e1[i]))
     rigged('Forearm lacing ' + tag, lb, TOON, 'J_Bip_%s_LowerArm' % tag)
 # lace bib: a scalloped fall of lace from the choker onto the collarbones, front only
-lb = bmesh.new(); cen_c, rc = section(1.405 + DZ, lambda c: abs(c.x) < 0.07 and math.hypot(c.x, c.y - 0.02) < 0.07)
+lb = bmesh.new(); cen_c, rc = section(zc, lambda c: abs(c.x) < 0.07 and math.hypot(c.x, c.y - 0.02) < 0.07)
 rows = []
-for k, (z, r_) in enumerate(((1.395 + DZ, rc + 0.006), (1.378 + DZ, rc + 0.016), (1.362 + DZ, rc + 0.028))):
+for k, (z, r_) in enumerate(((zc - 0.012, rc + 0.006), (zc - 0.029, rc + 0.016), (zc - 0.045, rc + 0.028))):
     row = []
     for i in range(33):
         th = math.radians(-150 + 120 * i / 32); sc_ = 0.006 * (k == 2) * (0.5 + 0.5 * math.cos(i * math.pi / 2))
@@ -703,6 +777,21 @@ for m in bpy.data.materials:
             g.inputs['Shade Color'].default_value = (*srgb(a.hair_shade), 1.0)
             if 'Shading Toony' in g.inputs: g.inputs['Shading Toony'].default_value = 0.6; g.inputs['Shading Shift'].default_value = 0.15
             print('HAIR SHADE', m.name[:30], a.hair_shade)
+# rim light in the material itself (MToon parametric rim, exported with the VRM): warm gold on the
+# hair, soft pink on skin, violet on cloth - the backlit glow the reference has on every edge
+def rim(keys, rgb, power, lift, mul):
+    n_ = 0
+    for m in bpy.data.materials:
+        if m.name.startswith('MToon Outline') or not m.node_tree or not any(k in m.name for k in keys): continue
+        g = mtoon(m)
+        if g and 'Parametric Rim Color' in g.inputs:
+            g.inputs['Parametric Rim Color'].default_value = (*[c * mul for c in srgb(rgb)], 1.0)
+            g.inputs['Parametric Rim Fresnel Power'].default_value = power; g.inputs['Parametric Rim Lift'].default_value = lift; n_ += 1
+    return n_
+if a.rim:
+    print('RIM', rim(('Hair_00_HAIR',), (255, 196, 96), 4.5, 0.0, a.rim * 0.7),
+          # no skin rim: VRoid paints the gloves into the skin texture and a rim turns them brown
+          rim(('Tops_01_CLOTH', 'Bodice', 'Skirt trim', 'Shoes_01_CLOTH'), (150, 110, 255), 4.0, 0.0, a.rim * 0.5))
 # no outline shell on the body skin: VRoid removed the skin under the old collar and sleeves, and the
 # inverted-hull outline shows through those gaps as dark red. The reference has no skin contour lines anyway.
 for md in list(body.modifiers):

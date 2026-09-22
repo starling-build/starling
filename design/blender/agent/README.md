@@ -86,7 +86,9 @@ a straight fringe, no ahoge, the four tail groups widened, thickened, twisted
 and raised in the hairstyle editor, colour `#E2CA63`. Face: the sharper-eyed
 face set with the eyes enlarged, irises `#1E66CA`, rose lipstick, near-black
 eyeliner. Body: head size at the minimum (the reference is about 7.7
-heads tall), chest size 0.52, waist narrowed, legs 0.55. Face: the
+heads tall), head width 0.15, neck length -0.45 and thickness 0.35,
+chest size 0.52, waist narrowed, legs 0.55, small flat ears (size -0.8,
+prominence -0.5) so the hair hides them, and a soft cheek blush. Face: the
 masculine face setting removed and the feminine face, eyes and brows
 raised, chin shortened, eyes at full size with larger irises, no scornful
 look, a heavy winged eyeliner and bold lashes, and a full blunt fringe.
@@ -129,14 +131,18 @@ reference picture:
   texture flattened and recoloured), with a ruffle on its top edge, so the
   black corset reads as an underbust piece over a navy dress.
 - **Skirt**: the bell skirt is subdivided and becomes two layers of knife
-  pleats flaring from the belt, with six handkerchief points and double
-  piping on each hem; its buttons and panel seams are flattened out of the
+  pleats flaring from the belt, with six handkerchief points, a gathered
+  frill under each hem and three rows of navy piping; its buttons and panel seams are flattened out of the
   texture and the white petticoat is dropped.
 - **Corset and belt**: silver grommets and a criss-cross lacing down the
   front; the belt follows the corset's real cross-section with a small
   gold buckle.
 - **Shading**: cloth cel shading is softened (VRoid ships it nearly hard)
-  so pleats and gathers read, and the hair gets a warm ochre shade.
+  so pleats and gathers read, and the hair gets a warm ochre shade. The
+  MToon rim light, which the VRM carries, is set warm gold on the hair and
+  violet on the cloth for the reference's backlit glow. Skin is warmed in
+  its texture, light texels only: VRoid paints the gloves dark grey into
+  the same texture, and a warm tint or a skin rim turns them brown.
 - **Hair**: each twin-tail strand is rebuilt along a new centre line from
   its gather point on the head top (measured per model): a smooth curve is
   fitted through the VRoid strand, then the strand is laid out 38 cm down
@@ -148,13 +154,17 @@ reference picture:
   with a warm ochre shade, and the irises to blue-violet. The tail twist
   set in VRoid is back at 0.
   The fringe is lengthened from its hairline and its outer pieces become
-  face-framing locks that clear the cheeks. Black
+  face-framing locks; the side pieces in front of the ears run down to
+  the jaw. The crown is scaled up a little for volume. Black
   hair ties sit at the gather point. The hair texture is shifted to honey
   blonde and the irises to blue-violet.
 - **Accessories**: satin choker with a see-through lace frill and a lace bib,
   a belt with a gold buckle, stocking bands with bows, forearm lacing.
 - **Legs and skin**: the opaque stocking becomes a sheer brown-black
-  (recoloured in the skin texture, only inside that leg's faces), the
+  (recoloured in the skin texture, only inside that leg's faces) with its
+  own material whose brightness follows the view angle, so skin shows
+  through where the leg faces you; the fishnet is redrawn at half the
+  VRoid cell size; both stocking bands get a scalloped lace top; the
   thighs are a little fuller, skin is warmer, and the arms hang slightly
   away from the body. The body skin loses its outline shell: VRoid's culled
   gaps under the old collar showed it as dark red, and the reference draws
