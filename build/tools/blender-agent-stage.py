@@ -3,14 +3,39 @@
 floor, violet and pink rims, warm hair glow, neutral face (see design/blender/agent/README.md).
 
   blender -b --python build/tools/blender-agent-stage.py -- IN.blend OUT.png [VIEW_TRANSFORM] [FRAME]
+  STAGE_POSE=saved keeps the scene's own pose (default: a relaxed stance like the reference)
 
 Works on any agent.blend from blender-agent-avatar.py or blender-agent-refine.py; hides their bust-shot
 backdrop, halo and lights and never saves the file.
 """
-import bpy, math, sys
+import bpy, math, sys, os
 from mathutils import Vector
 argv = sys.argv[sys.argv.index('--') + 1:]; blend, out = argv[0], argv[1]; view = argv[2] if len(argv) > 2 else 'Standard'
 bpy.ops.wm.open_mainfile(filepath=blend); sc = bpy.context.scene; sc.frame_set(int(argv[3]) if len(argv) > 3 else 1)
+# relaxed stance like the reference: arms low with soft elbows, hands by the skirt, one knee eased forward
+from mathutils import Matrix
+POSE = os.environ.get('STAGE_POSE', 'relaxed')
+arm_ = next((o for o in bpy.data.objects if o.type == 'ARMATURE'), None)
+def rot(bname, axis, deg):
+    """Rotate a bone about a WORLD axis through its head, on top of its current pose (parents first)."""
+    pb = arm_.pose.bones.get(bname)
+    if not pb: return
+    bpy.context.view_layer.update(); M = pb.matrix.copy(); h = M.translation.copy()
+    pb.matrix = Matrix.Translation(h) @ Matrix.Rotation(math.radians(deg), 4, axis) @ Matrix.Translation(-h) @ M
+if arm_ and POSE == 'relaxed':
+    for o in [arm_]:
+        if o.animation_data: o.animation_data.action = None
+    for pb in arm_.pose.bones:
+        if pb.name.startswith(('J_Bip_L_', 'J_Bip_R_', 'J_Bip_C_')): pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (1, 0, 0, 0)
+    rot('J_Bip_C_Hips', 'Y', -2); rot('J_Bip_C_Spine', 'Y', 1.5); rot('J_Bip_C_Head', 'Y', 2)
+    for side, sgn in (('L', 1), ('R', -1)):
+        rot('J_Bip_%s_Shoulder' % side, 'Y', sgn * 4)
+        rot('J_Bip_%s_UpperArm' % side, 'Y', sgn * 62)       # out far enough to clear the flared skirt
+        rot('J_Bip_%s_LowerArm' % side, 'X', -24)            # soft elbow: hands come forward to the skirt's edge
+        rot('J_Bip_%s_Hand' % side, 'X', 8)
+        rot('J_Bip_%s_UpperLeg' % side, 'Y', -sgn * 2.5)
+    rot('J_Bip_R_UpperLeg', 'X', -7); rot('J_Bip_R_LowerLeg', 'X', 14); rot('J_Bip_R_Foot', 'X', -7)
+    bpy.context.view_layer.update()
 for o in bpy.data.objects:   # neutral face: drop the clip's expression keys for the still
     if o.type == 'MESH' and o.data.shape_keys and o.data.shape_keys.animation_data:
         o.data.shape_keys.animation_data.action = None

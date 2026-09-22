@@ -23,7 +23,7 @@ p.add_argument('--neckline', type=float, default=1.285)     # off-shoulder line 
 p.add_argument('--sleeve-start', type=float, default=0.03)  # along the upper arm from the shoulder joint
 p.add_argument('--sleeve-end', type=float, default=0.212)
 p.add_argument('--puff', type=float, default=0.80)        # (VRoid-sleeve mode only)
-p.add_argument('--puff-r', type=float, default=0.040)     # own sleeve: extra radius at the middle of the puff
+p.add_argument('--puff-r', type=float, default=0.030)     # own sleeve: extra radius at the middle of the puff
 p.add_argument('--vroid-sleeves', action='store_true')     # keep and puff VRoid's sleeve instead of building one
 p.add_argument('--underbust', type=float, default=1.2)      # corset above this height becomes a navy bodice (0 = keep)
 p.add_argument('--skirt-len', type=float, default=0.30)     # bottom tier, between the points

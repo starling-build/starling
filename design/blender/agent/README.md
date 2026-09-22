@@ -182,7 +182,13 @@ torso length does not need new numbers. Every new piece is weighted to a bone an
 weights, so the rig, mouth shapes and the lip-sync script all keep working.
 `build/tools/blender-agent-stage.py` renders the full-length character sheet
 the reference uses: dark indigo stage, overhead spot, violet and pink rims,
-neutral face.
+neutral face, and a relaxed stance (arms angled out past the flared skirt
+with soft elbows, one knee eased forward, a slight turn through the hips
+and head). The pose is applied to the render only; `STAGE_POSE=saved`
+keeps the scene's own pose. Its bone helper rotates about world axes
+through each bone's head, parents first: a child bone's local rotation
+is in its already-rotated parent's frame, so a "bend the elbow" about the
+rest X axis became a twist along the forearm.
 
 ```sh
 blender -b --python build/tools/blender-agent-avatar.py -- --vrm goth-agent.vrm \
