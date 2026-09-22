@@ -149,21 +149,30 @@ reference picture:
   violet on the cloth for the reference's backlit glow. Skin is warmed in
   its texture, light texels only: VRoid paints the gloves dark grey into
   the same texture, and a warm tint or a skin rim turns them brown.
-- **Hair**: each twin-tail strand is rebuilt along a new centre line from
-  its gather point on the head top (measured per model): a smooth curve is
-  fitted through the VRoid strand, then the strand is laid out 38 cm down
-  in an outward arc that first rises out of the tie, its cross-section
-  tapering to a point with a small outward flick at the tip. Two copies of every strand with other spreads
-  and lengths fill the bundle out and stagger the tips. (Squashing VRoid's
-  long strands instead rolled their flared ends into round balls.) Black
-  hair ties sit at the gather point; the hair is shifted to honey blonde
-  with a warm ochre shade, and the irises to blue-violet. The tail twist
-  set in VRoid is back at 0.
-  The fringe is lengthened from its hairline and its outer pieces become
-  face-framing locks; the side pieces in front of the ears run down to
-  the jaw. The crown is scaled up a little for volume. Black
-  hair ties sit at the gather point. The hair texture is shifted to honey
-  blonde and the irises to blue-violet.
+- **Hair texture**: VRoid's hair texture is a flat gradient, so it is
+  repainted at twice the resolution with strand detail. The texture runs
+  along each strand (root at the top of the image) and repeats across it,
+  so everything is periodic across: seven clumps per repeat with darker
+  gaps, 130 fine dark lines that run from the root and fade out, lighter
+  streaks, a darker root and a broken sheen band. It replaces both the lit
+  and the shade texture; the shade colour is a warm ochre.
+- **Twin tails**: VRoid's curled strand ends are cut off first (past its
+  lowest point along the mesh a curled strand turns back up, and a
+  height-based reshape then scatters it into shards), along with its
+  little root-cap cards at each gather point and loose cards the old long
+  tails hid. Each strand is then laid along a path from its gather point:
+  an arc that leaves the tie 60 degrees up and turns over to hang, a fall
+  of 28 cm to the tops of the shoulders, and a 45-degree outward flick of
+  the tips, with the cross-section carried across the arc and tapering to
+  a point. Two copies of every strand with other spreads and lengths fill
+  the bundle out. The ties wrap around the tails at the angle they leave
+  the head. Measured against the reference at full length: the tails
+  span about 2.6 face-widths and end at the shoulders.
+- **Fringe and locks**: the fringe is lengthened from its hairline; the
+  side pieces in front of the ears become fuller face-framing locks that
+  run 4.5 cm past the chin, bowing out past the cheek and in toward the
+  chin with pointed ends. The crown is scaled up a little. The hair is
+  shifted to honey blonde and the irises to blue-violet.
 - **Accessories**: satin choker with a see-through lace frill and a lace bib,
   a belt with a gold buckle, stocking bands with bows, and thin forearm
   lacing that zigzags across the front of each forearm in X's, each point
@@ -203,5 +212,6 @@ blender -b --python build/tools/blender-agent-avatar.py -- --blend R/agent.blend
 
 `vroid-full.png` is the character sheet, `vroid-compare.png` puts it
 beside the reference and `vroid-face-compare.png` does the same for the head (`vroid-bust.png` / `vroid-speaking.png` are from the
-earlier, unrefined clip). What still differs: the reference's hair is denser strand for strand and
-its skirt layers are separate sewn ruffles with a deeper stack of piping.
+earlier, unrefined clip). `vroid-hair-angles.png` shows the hair from the side, back and above.
+What still differs: the reference is rendered with a soft glow and
+film-like lighting, and its lace has floral motifs.

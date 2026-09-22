@@ -32,24 +32,31 @@ p.add_argument('--skirt-hem', type=float, default=0.30)
 p.add_argument('--pleats', type=int, default=16); p.add_argument('--pleat-depth', type=float, default=0.038)
 p.add_argument('--cloth-toony', type=float, default=0.5)
 p.add_argument('--rim', type=float, default=0.55)          # strength of the built-in rim glow (0 = VRoid's)
-p.add_argument('--hair-shade', type=int, nargs=3, default=(150, 96, 44))   # sRGB shade colour for the hair   # VRoid cloth is 0.95 (hard cel); the reference is soft
+p.add_argument('--hair-lines', type=int, default=130)     # strand lines painted into the hair texture (0 = VRoid's)
+p.add_argument('--hair-clump', type=float, default=0.42); p.add_argument('--hair-sheen', type=float, default=0.10); p.add_argument('--hair-sheen-v', type=float, default=0.80)
+p.add_argument('--hair-shade', type=int, nargs=3, default=(140, 84, 40))   # sRGB shade colour for the hair   # VRoid cloth is 0.95 (hard cel); the reference is soft
 p.add_argument('--fishnet-cell', type=float, default=34); p.add_argument('--fishnet-width', type=float, default=3.2)   # texels at 2048
 p.add_argument('--blouse', type=int, default=1)            # fitted gathered blouse over the upper torso, straight neckline
 p.add_argument('--neckline-drop', type=float, default=0.034)   # neckline below the shoulder joints
 p.add_argument('--piping', type=int, nargs=3, default=(58, 57, 80))   # sRGB piping colour
 p.add_argument('--ruffle', type=float, default=0.022)     # hem frill depth under each skirt layer
 p.add_argument('--skirt-cuts', type=int, default=5); p.add_argument('--skirt-flare', type=float, default=0.8)     # bottom-tier hem radius
-p.add_argument('--tail-len', type=float, default=0.38)      # tie to tip, metres (--tail-tip overrides)
+p.add_argument('--tail-len', type=float, default=0.28)      # tie to tip, metres (--tail-tip overrides)
 p.add_argument('--tail-tip', type=float, default=0.0)
 p.add_argument('--tail-root', type=float, default=0.0);   # 0 = measure (top of the tail strands - 4 cm)
-p.add_argument('--tail-spread', type=float, default=0.095)  # how far each tail arcs out from its tie
+p.add_argument('--tail-spread', type=float, default=0.055)  # how far each tail arcs out from its tie
 p.add_argument('--tail-width', type=float, default=1.4)    # strand cross-section scale
 p.add_argument('--tail-flick', type=float, default=0.03)
+p.add_argument('--tail-flick-deg', type=float, default=45.0)
+p.add_argument('--tail-rise', type=float, default=60.0)   # angle the tails leave the ties at, above horizontal  # how far the tips turn outward
 p.add_argument('--tail-lift', type=float, default=0.035)   # how far the tails rise out of the ties before falling   # outward flick at the tips
 p.add_argument('--tail-fan', type=int, default=1)          # add two copies per strand with other spreads/lengths
 p.add_argument('--bangs', type=float, default=1.10)         # fringe length factor, from its hairline
 p.add_argument('--sidelocks', type=float, default=1.9)      # length factor for the outer fringe pieces (face-framing locks)
-p.add_argument('--crown', type=float, default=1.07)         # overall hair volume (not the tails)
+p.add_argument('--crown', type=float, default=1.07)
+p.add_argument('--lock-width', type=float, default=1.7)
+p.add_argument('--lock-drop', type=float, default=0.045)  # face-framing locks end this far below the chin
+p.add_argument('--root-tuck', type=float, default=0.35)   # shrink the tail roots above the tie toward it   # face-framing lock fullness         # overall hair volume (not the tails)
 p.add_argument('--tail-wave', type=float, default=0.008)
 p.add_argument('--stocking-top', type=float, default=0.0)   # 0 = detect from the skin texture
 p.add_argument('--thigh', type=float, default=0.10)         # extra thigh fullness (fraction, peaks mid-thigh)
@@ -168,6 +175,46 @@ tint('N00_007_01_Tops_01_CLOTH', (48, 46, 66))            # blouse: slate navy
 tint('N00_002_03_Tops_01_CLOTH_01', (34, 32, 48))         # skirt
 tint('N00_002_03_Tops_01_CLOTH_02', (30, 28, 40), 0.5)    # corset
 hue_shift('Hair_00_HAIR', -12, sat=0.80, val=1.32)        # yellow -> honey blonde
+def hair_strands(seed=7):
+    """Repaint the hair texture with strand detail. VRoid's is a flat gradient. The texture runs along each
+    strand (v: root at 1, tip at 0) and repeats across it (u), so everything here is periodic in u: clumps with
+    darker gaps, fine dark strand lines that run from the root and fade out, light streaks, a darker root,
+    and a broken sheen band. Result replaces the lit and shade textures (shade is multiplied by its colour)."""
+    m = next(x for x in bpy.data.materials if 'Hair_00_HAIR' in x.name and not x.name.startswith('MToon Outline'))
+    src = lit_image(m); W0, H0 = src.size; W, H = W0 * 2, H0 * 2
+    base = np.array(src.pixels[:], dtype=np.float32).reshape(H0, W0, 4)
+    base = base.repeat(2, 0).repeat(2, 1)                                     # 2x, then detail at full res
+    rng = np.random.default_rng(seed)
+    u = (np.arange(W) + 0.5) / W; v = (np.arange(H) + 0.5) / H              # v: 0 at the bottom row (tip)
+    U, V = np.meshgrid(u, v)
+    def wrapd(c): return np.abs(((U - c) + 0.5) % 1.0 - 0.5)                  # periodic distance across the strand
+    mult = np.ones((H, W), np.float32); add = np.zeros((H, W), np.float32)
+    # clumps: 7 per repeat, darker toward each clump edge, the gaps deepest near the root
+    ncl = 7; cl = np.abs(((U * ncl) % 1.0) - 0.5) * 2                          # 0 mid-clump .. 1 at the gap
+    mult *= 1 - a.hair_clump * np.clip(cl - 0.55, 0, 1) / 0.45 * (0.55 + 0.45 * V)
+    # fine dark lines from the root, fading out at random lengths
+    for _ in range(a.hair_lines):
+        c = rng.random(); w = rng.uniform(0.6, 2.2) / W; d = rng.uniform(0.10, 0.32); L = rng.uniform(0.35, 1.0)
+        fade = np.clip((V - (1 - L)) / 0.25, 0, 1)
+        mult *= 1 - d * np.exp(-(wrapd(c) / w) ** 2) * fade
+    # light streaks
+    for _ in range(a.hair_lines // 3):
+        c = rng.random(); w = rng.uniform(0.8, 2.5) / W; d = rng.uniform(0.05, 0.14); v0 = rng.uniform(0.15, 0.9); L = rng.uniform(0.2, 0.5)
+        env = np.clip(1 - np.abs(V - v0) / L, 0, 1) ** 1.5
+        add += d * np.exp(-(wrapd(c) / w) ** 2) * env
+    # darker root, a broken sheen band a little below it
+    mult *= 1 - 0.22 * np.clip((V - 0.90) / 0.10, 0, 1)
+    band = np.exp(-((V - a.hair_sheen_v) / 0.035) ** 2) * (0.55 + 0.45 * np.sin(U * 2 * np.pi * 11 + 3 * np.sin(U * 2 * np.pi * 3)))
+    add += a.hair_sheen * np.clip(band, 0, 1)
+    out = base.copy(); out[..., :3] = np.clip(base[..., :3] * mult[..., None] + add[..., None] * np.array([1.0, 0.93, 0.78]), 0, 1)
+    img = bpy.data.images.new('Hair strands', W, H, alpha=True); img.pixels[:] = out.ravel(); img.pack()
+    n = 0
+    for mm in bpy.data.materials:
+        if 'Hair_00_HAIR' in mm.name and mm.node_tree:
+            for nd in mm.node_tree.nodes:
+                if nd.type == 'TEX_IMAGE' and nd.image == src: nd.image = img; n += 1
+    print('HAIR STRANDS %dx%d, %d lines, relinked %d nodes' % (W, H, a.hair_lines, n))
+if a.hair_lines: hair_strands()
 hue_shift('EyeIris_00_EYE', 22, sat=0.5, val=1.3)          # lighter, greyer blue-violet        # vivid blue -> blue-violet
 WARM = (0.98, 0.80, 0.72)
 for m in bpy.data.materials:        # face: warm through the lit colour (nothing dark on it)
@@ -533,7 +580,7 @@ if a.blouse and a.underbust:
 
 # ------------------------------------------------------------------ 3. twin tails
 hb = bmesh.new(); hb.from_mesh(hair.data); hb.verts.ensure_lookup_table()
-seen = set(); tails = []; bangs = []; crown = []
+seen = set(); tails = []; bangs = []; crown = []; strays = []
 for v in hb.verts:
     if v.index in seen: continue
     st = [v]; comp = []; seen.add(v.index)
@@ -546,6 +593,7 @@ for v in hb.verts:
     if min(zz) < 1.2 + DZ and max(zz) - min(zz) > 0.3: tails.append(comp)          # real strands only (tiny cards hide at the chest)
     elif min(zz) > 1.40 + DZ and max(zz) > 1.55 + DZ and sum(c.co.y for c in comp) / len(comp) < -0.02: bangs.append(comp)
     elif min(zz) >= 1.2 + DZ: crown.append(comp)
+    elif len(comp) <= 12: strays.append(comp)
 ZP = a.tail_root or max(c.co.z for comp in tails for c in comp) - 0.04   # where VRoid gathers each tail bundle
 a.tail_tip = a.tail_tip or ZP - a.tail_len
 print('TAIL ROOT %.3f tip %.3f' % (ZP, a.tail_tip))
@@ -557,29 +605,83 @@ TIE = {k: sum(v, Vector()) / len(v) for k, v in TIE.items() if v}
 # Each strand is re-synthesised along a new centre line: kept as-is above the tie, then out and down in
 # an arc, cross-section tapering to a point, tip flicked outward. Copies with other spreads and lengths
 # fill the bundle out. (Compressing VRoid's long strands instead rolls their flared ends into balls.)
+def tail_path(R, drop, n=400):
+    """Centre line of a tail in the (outward, up) plane, from the tie: an arc of radius R leaving at 70 degrees
+    above horizontal and turning over to hang, a near-vertical fall, and an outward flick over the last part.
+    Returns arrays of (out, up, heading) sampled uniformly by arc length."""
+    th0, th1 = math.radians(a.tail_rise), math.radians(-82); sarc = R * (th0 - th1); ds = 0.001
+    pts = [(0.0, 0.0, th0)]; s_ = 0.0
+    while pts[-1][1] > -drop and len(pts) < 5000:
+        o, z, th = pts[-1]
+        if s_ < sarc: th = th0 - (th0 - th1) * s_ / sarc
+        else:
+            f = max(0.0, (-z - 0.72 * drop) / (0.28 * drop))                   # flick outward near the tip
+            th = th1 - math.radians(8) * min(1.0, (s_ - sarc) / 0.05) + math.radians(a.tail_flick_deg) * f ** 1.5
+        pts.append((o + ds * math.cos(th), z + ds * math.sin(th), th)); s_ += ds
+    P = np.array(pts); S = np.concatenate([[0], np.cumsum(np.hypot(np.diff(P[:, 0]), np.diff(P[:, 1])))])
+    t = np.linspace(0, S[-1], n)
+    return np.interp(t, S, P[:, 0]), np.interp(t, S, P[:, 1]), np.interp(t, S, P[:, 2])
+def geodesic(comp, T):
+    """Distance over the strand's mesh from the part above the tie."""
+    import heapq
+    ids = {c.index for c in comp}; vmap = {c.index: c for c in comp}
+    dist = {c.index: 0.0 for c in comp if c.co.z >= T.z}; heap = [(0.0, i) for i in dist]; heapq.heapify(heap)
+    while heap:
+        d, i = heapq.heappop(heap)
+        if d > dist.get(i, 1e9): continue
+        for e in vmap[i].link_edges:
+            o = e.other_vert(vmap[i])
+            if o.index in ids:
+                nd = d + (o.co - vmap[i].co).length
+                if nd < dist.get(o.index, 1e9): dist[o.index] = nd; heapq.heappush(heap, (nd, o.index))
+    return dist
 def synth(comp, side, spread, lenf, dy, width):
     T = TIE[side]; below = [c for c in comp if c.co.z < T.z]
-    if not below: return
+    if len(below) < 8: return
     zmin = min(c.co.z for c in below); D = T.z - zmin
     Z = np.array([c.co.z for c in below]); U = (T.z - Z) / D
     px_ = np.polyfit(U, [c.co.x for c in below], 4); py_ = np.polyfit(U, [c.co.y for c in below], 4)   # smooth centre line
     def cen_at(u): return float(np.polyval(px_, u)), float(np.polyval(py_, u))
     ox0, oy0 = cen_at(0.0)[0] - T.x, cen_at(0.0)[1] - T.y              # the strand's own place in the bundle at the tie
-    L = (T.z - a.tail_tip) * lenf
-    def centre(u):
-        out = spread * math.sin(math.pi * min(1.0, u / 0.8) * 0.5) ** 0.7 * (1 - 0.25 * max(0.0, u - 0.6) / 0.4)
-        flick = a.tail_flick * max(0.0, (u - 0.72) / 0.28) ** 2
-        wave = a.tail_wave * math.sin(2 * math.pi * 1.2 * u) * u
-        return (T.x + ox0 * (1 - 0.3 * u) + side * (out + flick + wave),
-                T.y + oy0 * (1 - 0.3 * u) + dy * min(1.0, u / 0.3) + 0.02 * u,
-                T.z - L * u + a.tail_lift * math.sin(math.pi * min(1.0, u / 0.45)) * (1 - u))   # puff up out of the tie first
+    PO, PZ, PT = tail_path(spread * 0.62, (T.z - a.tail_tip) * lenf); N = len(PO) - 1
     for c in below:
         d = T.z - c.co.z; u = d / D; cx0, cy0 = cen_at(u)
         w_ = min(1.0, d / 0.04)                                 # blend in just below the tie
-        taper = 1.0 if u < 0.5 else max(0.08, 1 - ((u - 0.5) / 0.5) ** 1.3 * 0.92)
-        nx, ny, nz = centre(u)
-        tx = nx + (c.co.x - cx0) * width * taper; ty = ny + (c.co.y - cy0) * width * taper
-        c.co = Vector((c.co.x + (tx - c.co.x) * w_, c.co.y + (ty - c.co.y) * w_, c.co.z + (nz - c.co.z) * w_))
+        taper = (0.75 + 0.25 * min(1.0, u / 0.25)) if u < 0.5 else max(0.08, 1 - ((u - 0.5) / 0.5) ** 1.3 * 0.92)
+        k = min(N, int(u * N)); o, z, th = PO[k], PZ[k], PT[k]
+        wave = a.tail_wave * math.sin(2 * math.pi * 1.2 * u) * u
+        n2 = Vector((side * -math.sin(th), 0, math.cos(th)))                   # across the strand, in the outward/up plane
+        centre = Vector((T.x + ox0 * (1 - 0.3 * u) + side * o, T.y + oy0 * (1 - 0.3 * u) + dy * min(1.0, u / 0.3) + 0.02 * u, T.z + z))
+        tgt = centre + n2 * (side * (c.co.x - cx0) * width * taper + wave) + Vector((0, (c.co.y - cy0) * width * taper, 0))
+        c.co = c.co.lerp(tgt, w_)
+# cut VRoid's curled strand ends first: past the lowest point along the strand the mesh turns back up,
+# and points at one height then come from different turns of the curl (they fly off as shards)
+ncut = 0; cut = []
+for comp in tails:
+    side = 1 if sum(c.co.x for c in comp) > 0 else -1; T = TIE[side]; dist = geodesic(comp, T)
+    if not dist: continue
+    dmax = max(dist.values()); nb = 30; zs = [[] for _ in range(nb + 1)]
+    for c in comp:
+        if c.index in dist: zs[min(nb, int(nb * dist[c.index] / dmax))].append(c.co.z)
+    cz = [sum(b) / len(b) if b else None for b in zs]
+    kmin = min((k for k in range(nb + 1) if cz[k] is not None), key=lambda k: cz[k])
+    lim = dmax * (kmin + 1) / nb
+    cut += [c for c in comp if dist.get(c.index, 0) > lim]
+    ncut += 1
+cutset = set(cut)
+bmesh.ops.delete(hb, geom=cut, context='VERTS')
+tails = [[c for c in comp if c not in cutset] for comp in tails]
+tails = [comp for comp in tails if len(comp) > 8]
+print('DECURL', ncut, 'strands,', len(cut), 'verts cut')
+# VRoid's little root-cap cards at each tail's gather point stand up as flat flaps once the tail is reshaped
+caps = [comp for comp in crown if len(comp) <= 4 and min((sum((c.co for c in comp), Vector()) / len(comp) - T).length for T in TIE.values()) < 0.05]
+strays += caps; crown = [comp for comp in crown if not any(comp is c_ for c_ in caps)]
+print('ROOT CAPS', len(caps))
+# the strand roots above the gather point stick out of the crown as flat flaps: draw them into the tie
+for comp in tails:
+    side = 1 if sum(c.co.x for c in comp) > 0 else -1; T = TIE[side]
+    for c in comp:
+        if c.co.z > T.z: c.co = T + (c.co - T) * a.root_tuck
 copies = 0; plan = []
 for comp in tails:
     side = 1 if sum(c.co.x for c in comp) > 0 else -1
@@ -602,19 +704,26 @@ for comp in bangs:
             if lock: c.co.x += side * 0.028 * t ** 1.2; c.co.y -= 0.006 * t
         c.co.x *= 1.03
 # temple locks: the side pieces in front of the ears run down to the jaw instead of stopping at the cheek
-FZ = min(v.co.z for v in bpy.data.objects['Face'].data.vertices) - 0.008; nl = 0
+FZ = min(v.co.z for v in bpy.data.objects['Face'].data.vertices) - a.lock_drop; nl = 0
 for comp in crown:
     mx = sum(c.co.x for c in comp) / len(comp); my = sum(c.co.y for c in comp) / len(comp); zz = [c.co.z for c in comp]
     if 0.045 < abs(mx) < 0.064 and my < 0.015 and min(zz) > FZ + 0.02 and max(zz) - min(zz) > 0.08:
         side = 1 if mx > 0 else -1; piv = max(zz) - 0.035; low = min(zz); f = (piv - FZ) / max(1e-4, piv - low); nl += 1
+        zc_ = np.array(zz); xs_ = np.polyfit(zc_, [c.co.x for c in comp], 2); ys_ = np.polyfit(zc_, [c.co.y for c in comp], 2)
         for c in comp:
             if c.co.z < piv:
-                t = (piv - c.co.z) / max(1e-4, piv - low); c.co.z = piv - (piv - c.co.z) * f
-                c.co.x += side * 0.016 * t ** 1.2; c.co.y -= 0.004 * t
+                t = (piv - c.co.z) / max(1e-4, piv - low)
+                cx_, cy_ = float(np.polyval(xs_, c.co.z)), float(np.polyval(ys_, c.co.z))
+                wid = a.lock_width * (1 if t < 0.65 else max(0.15, 1 - (t - 0.65) / 0.35))   # fuller locks, pointed tips
+                c.co.x = cx_ + (c.co.x - cx_) * wid; c.co.y = cy_ + (c.co.y - cy_) * wid
+                c.co.z = piv - (piv - c.co.z) * f
+                c.co.x += side * (0.020 * math.sin(math.pi * min(1.0, t)) - 0.010 * t ** 2)   # out past the cheek, in toward the chin
+                c.co.y -= 0.004 * t
 print('TEMPLE LOCKS', nl, 'down to %.3f' % FZ)
 for comp in crown:
     for c in comp: c.co = HC + (c.co - HC) * a.crown
-hb.to_mesh(hair.data); hair.data.update(); print('TAILS', len(tails), 'strands ->', a.tail_tip, '+', copies, 'fanned copies;', len(bangs), 'bang pieces;', len(crown), 'crown pieces')
+bmesh.ops.delete(hb, geom=[v for comp in strays for v in comp], context='VERTS')   # loose little cards the old long tails hid
+hb.to_mesh(hair.data); hair.data.update(); print('STRAYS removed', len(strays)); print('TAILS', len(tails), 'strands ->', a.tail_tip, '+', copies, 'fanned copies;', len(bangs), 'bang pieces;', len(crown), 'crown pieces')
 hb.free()
 
 # sheer stocking: the reference's dark thigh-high is brown-black with skin showing through
@@ -821,7 +930,10 @@ for k in range(2):
 rigged('Lace bib', lb, LACE, 'J_Bip_C_Neck')
 hmw = hair.matrix_world
 for side, c in TIE.items():
-    tb2 = bmesh.new(); ring(tb2, c, 0.030, 0.034, c.z - 0.010, c.z + 0.010, n=32)
+    tb2 = bmesh.new(); ring(tb2, Vector((0, 0, 0)), 0.024, 0.026, -0.008, 0.008, n=32)
+    th_ = math.radians(a.tail_rise * 0.6); axis_ = Vector((side * math.cos(th_), 0, math.sin(th_)))
+    rotm = Vector((0, 0, 1)).rotation_difference(axis_).to_matrix()
+    for v in tb2.verts: v.co = c + rotm @ v.co + axis_ * 0.006
     rigged('Hair tie ' + ('L' if side > 0 else 'R'), tb2, TOON, 'J_Bip_C_Head')
 if a.arm_out:
     for tag, sgn in (('L', 1), ('R', -1)):
