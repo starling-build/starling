@@ -122,16 +122,22 @@ reference picture:
 
 - **Top**: VRoid's sleeve is removed (its front was erased in VRoid) and a
   gathered puff sleeve is built on each upper arm from the shoulder joint
-  to above the elbow, with frills on the off-shoulder line and the cuff,
+  to just above the elbow, fullest two-thirds of the way down, with frills on the off-shoulder line and the cuff,
   in the bodice's navy. `--vroid-sleeves` keeps and puffs VRoid's instead. VRoid removes the body under clothing at export, so the upper
   arm is rebuilt as a skin tube from over the shoulder to the forearm's open
   edge, weighted across the elbow. The blouse's back panel stays, because
   there is no skin under it either.
-- **Bodice**: the corset above the underbust line becomes navy cloth (its
-  texture flattened and recoloured), with a ruffle on its top edge, so the
-  black corset reads as an underbust piece over a navy dress.
-- **Skirt**: the bell skirt is subdivided and becomes two layers of knife
-  pleats flaring from the belt, with six handkerchief points, a gathered
+- **Blouse**: the corset above the underbust line becomes navy, and a
+  fitted gathered blouse is built over the upper torso: its shape is the
+  largest radius of the torso at each height and angle (so it bridges the
+  bust like cloth), from under the corset's top edge to a straight
+  off-shoulder neckline with a ruffle. What is left of VRoid's blouse, its
+  upper-back panel, is recoloured to the same navy. The black corset then
+  reads as an underbust piece over the blouse, with silver eyelets in two
+  columns and criss-cross lacing.
+- **Skirt**: the bell skirt is subdivided and becomes two layers of 16
+  rounded pleats flaring from the belt (a knife-pleat sawtooth shows as
+  teeth on the silhouette; layers in step so the outer nests), with six handkerchief points, a gathered
   frill under each hem and three rows of navy piping; its buttons and panel seams are flattened out of the
   texture and the white petticoat is dropped.
 - **Corset and belt**: silver grommets and a criss-cross lacing down the
@@ -146,8 +152,8 @@ reference picture:
 - **Hair**: each twin-tail strand is rebuilt along a new centre line from
   its gather point on the head top (measured per model): a smooth curve is
   fitted through the VRoid strand, then the strand is laid out 38 cm down
-  in an outward arc, its cross-section tapering to a point with a small
-  outward flick at the tip. Two copies of every strand with other spreads
+  in an outward arc that first rises out of the tie, its cross-section
+  tapering to a point with a small outward flick at the tip. Two copies of every strand with other spreads
   and lengths fill the bundle out and stagger the tips. (Squashing VRoid's
   long strands instead rolled their flared ends into round balls.) Black
   hair ties sit at the gather point; the hair is shifted to honey blonde
