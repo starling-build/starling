@@ -161,7 +161,7 @@ for side in [-1,1]:
     for row,y in enumerate([0,13,26,39,52,65,78]):
         if row==0:continue   # nearest row is a garden terrace (built below), as in the reference corners
         coll='02 • Victorian street';label='West' if side<0 else 'East'
-        xin=side*(12.1+max(0,row-2)*(2.5 if side>0 else 1.3))          # the street-facing face of this row
+        xin=side*(12.7+max(0,row-2)*(2.5 if side>0 else 1.3))          # the street-facing face of this row, behind the stairs
         # Two narrow, tall Victorians per row slot, fronting the street with stacked bays,
         # a raised entry and either a street-facing gable or a bracketed false front.
         for k,yh in enumerate([y-3.0,y+3.0]):victorian(label,row,k,yh,xin,side)
@@ -184,7 +184,7 @@ for side in [-1,1]:
 
 def tree(x,y,z,size=1):
     coll='03 • Trees and lanterns';beam('Branching tree trunk',(x,y,z),(x+.15,y,z+4*size),.22*size,wood,coll)
-    for dx,dy,dz,r in [(-.9,0,3.7,1.25),(.8,.15,4.0,1.3),(0,-.7,4.7,1.35),(.15,.7,4.5,1.1),(-.4,.9,3.4,.95),(.9,-.8,3.5,.9),(0,.1,5.3,.9)]:
+    for dx,dy,dz,r in [(-.9,0,3.7,1.25),(.8,.15,4.0,1.3),(0,-.7,4.7,1.35),(.15,.7,4.5,1.1),(-.4,.9,3.4,.95),(.9,-.8,3.5,.9),(0,.1,5.3,.9),(-1.3,-.6,3.0,.8),(1.2,.9,3.1,.8)]:
         c=(x+dx*size,y+dy*size,z+dz*size);beam('Branch',(x,y,z+2*size),c,.10*size,wood,coll)
         foliage=Batch('Layered foliage cluster',coll)
         step=.42*size
@@ -199,7 +199,7 @@ def tree(x,y,z,size=1):
 
 for side in [-1,1]:
     for y in [1,18,34,50,67,81]:
-        tree(side*11.7,y,ground(y)+.25,1.1 if y<20 else .9)
+        tree(side*11.7,y,ground(y)+.25,1.3 if y<20 else 1.1)
         x=side*9.5;yy=y+4;z=ground(yy);coll='03 • Trees and lanterns'
         beam('Cast iron lantern post',(x,yy,z),(x,yy,z+3.2),.075,dark,coll)
         box('Lantern glass',(x,yy,z+3.35),(.34,.34,.58),lamp,coll,.025)
@@ -209,7 +209,7 @@ for side in [-1,1]:
             for dy in [-.19,.19]:beam('Lantern frame',(x+dx,yy+dy,z+3.03),(x+dx,yy+dy,z+3.65),.025,dark,coll)
 tree(-10.6,-6,ground(-6)+.25,2.3);tree(11.6,-7,ground(-7)+.25,1.45)
 for side in [-1,1]:
-    for y in [19.5,32.5,45.5,58.5,71.5]:tree(side*15.4,y,ground(y)+.4,1.05)   # trees between the house rows   # tall foreground trees framing the view
+    for y in [19.5,32.5,45.5,58.5,71.5]:tree(side*15.4,y,ground(y)+.4,1.25)   # trees between the house rows   # tall foreground trees framing the view
 # Stepped garden terraces where the nearest house row would stand: stone block
 # walls with planted tops and cubic shrubs, filling the bottom corners of the view.
 bloom_mats=[material('Terrace bloom red',(.75,.22,.09)),material('Terrace bloom amber',(.91,.53,.11)),material('Terrace bloom rose',(.83,.30,.32))]
@@ -477,7 +477,7 @@ for yy in [552,558]:
         beam('Main suspension cable',(xx,yy,cable(xx)),(xx+5,yy,cable(xx+5)),.42,bridge,coll)
         beam('Suspension hanger',(xx,yy,34),(xx,yy,cable(xx)),.10,bridge,coll)
 # Water uses a subtle anisotropic bump; geometry and base PBR export separately.
-water=material('Bay water • Blender procedural study',(.50,.60,.72),.12,.1)
+water=material('Bay water • Blender procedural study',(.56,.65,.76),.12,.1)
 n=water.node_tree.nodes;l=water.node_tree.links;s=n.get('Principled BSDF');tex=n.new('ShaderNodeTexNoise');tex.inputs['Scale'].default_value=.7;tex.inputs['Detail'].default_value=3
 coord=n.new('ShaderNodeTexCoord');mapping=n.new('ShaderNodeVectorMath');mapping.operation='MULTIPLY';mapping.inputs[1].default_value=(.65,4,1);l.new(coord.outputs['Object'],mapping.inputs[0]);l.new(mapping.outputs[0],tex.inputs['Vector'])
 bump=n.new('ShaderNodeBump');bump.inputs['Strength'].default_value=.5;bump.inputs['Distance'].default_value=.3;l.new(tex.outputs['Fac'],bump.inputs['Height']);l.new(bump.outputs['Normal'],s.inputs['Normal'])

@@ -183,3 +183,7 @@ second rank 11.8 m behind and 3.2 m higher, three or four storeys, so the
 hill reads crowded and stepped like the reference. Storeys are 3.5 m,
 frontages 5.4 m, and the foreground garden terraces drop to 2.6/4.0/5.4 m
 so more of the nearest houses show.
+
+The greenery pass enlarges the street and between-row trees and gives each
+canopy two more low lobes, sets the house fronts back 0.6 m behind their
+entry stairs, and lightens the bay water a step further.
