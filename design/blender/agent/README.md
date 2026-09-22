@@ -85,8 +85,11 @@ over RDP) from the female base model. Hair: the twin-tail hairstyle set with
 a straight fringe, no ahoge, the four tail groups widened, thickened, twisted
 and raised in the hairstyle editor, colour `#E2CA63`. Face: the sharper-eyed
 face set with the eyes enlarged, irises `#1E66CA`, rose lipstick, near-black
-eyeliner. Body: chest size and prominence raised, waist narrowed, legs a
-little longer, and the eyes opened up (less inner slant, lower lower lid).
+eyeliner. Body: head size at the minimum (the reference is about 7.7
+heads tall), chest size 0.52, waist narrowed, legs 0.55. Face: the
+masculine face setting removed and the feminine face, eyes and brows
+raised, chin shortened, eyes at full size with larger irises, no scornful
+look, a heavy winged eyeliner and bold lashes, and a full blunt fringe.
 Outfit: the corset-and-blouse top recoloured black through the
 texture editor's shader colours, then its collar, shoulders and lower
 sleeves ERASED in the texture editor (both coat layers) so it reads as an
@@ -127,8 +130,11 @@ reference picture:
 - **Skirt**: the bell skirt becomes three tiers with handkerchief points and
   light piping on each hem; the white petticoat is dropped.
 - **Hair**: the twin tails are re-pivoted at their real gather point on the
-  head top (measured, 1.60 m), shortened, pulled in, waved and flared, and
-  each strand gets two copies fanned in the frontal plane for volume. Black
+  head top (measured per model: the top of the strands less 4 cm), cut to
+  32 cm, pulled in, widened through the middle, lightly waved and flared,
+  and each strand gets two copies fanned in the frontal plane for volume.
+  The fringe is lengthened from its hairline and its outer pieces become
+  face-framing locks that clear the cheeks. Black
   hair ties sit at the gather point. The hair texture is shifted to honey
   blonde and the irises to blue-violet.
 - **Accessories**: satin choker with a see-through lace frill and a lace bib,
@@ -140,7 +146,9 @@ reference picture:
   gaps under the old collar showed it as dark red, and the reference draws
   no skin contour lines.
 
-Every new piece is weighted to a bone and every edited vertex keeps its
+Heights that are not measured from the mesh are shifted by the hip bone's
+offset from the model they were tuned on, so a VRoid change to leg or
+torso length does not need new numbers. Every new piece is weighted to a bone and every edited vertex keeps its
 weights, so the rig, mouth shapes and the lip-sync script all keep working.
 `build/tools/blender-agent-stage.py` renders the full-length character sheet
 the reference uses: dark indigo stage, overhead spot, violet and pink rims,
@@ -155,9 +163,8 @@ blender -b --python build/tools/blender-agent-avatar.py -- --blend R/agent.blend
     --visemes line-visemes.json --out CLIP --frames
 ```
 
-`vroid-full.png` is the character sheet and `vroid-compare.png` puts it
-beside the reference (`vroid-bust.png` / `vroid-speaking.png` are from the
-earlier, unrefined clip). What still differs: the face is VRoid's (a longer chin, smaller
-eyes than the reference), the skirt tiers are cut from one bell rather than
-sewn as separate ruffles, and the lace is a procedural mesh rather than a
-lace pattern.
+`vroid-full.png` is the character sheet, `vroid-compare.png` puts it
+beside the reference and `vroid-face-compare.png` does the same for the head (`vroid-bust.png` / `vroid-speaking.png` are from the
+earlier, unrefined clip). What still differs: the reference's hair is denser strand for strand and
+its skirt tiers are separate ruffles rather than tiers cut from one bell;
+the reference's sleeves start a little lower, leaving the shoulder caps bare.
