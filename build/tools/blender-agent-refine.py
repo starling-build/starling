@@ -5,7 +5,7 @@
 
 Runs on the scene blender-agent-avatar.py saves (its agent.blend) and edits only what VRoid Studio
 cannot: the blouse is cut into an off-shoulder top with short puffed sleeves and a frill, the bell
-skirt is re-shaped into three tiers with handkerchief points (petticoat dropped), the twin tails are
+skirt is re-shaped into two layers of knife pleats with handkerchief points (petticoat dropped), the twin tails are
 shortened, flared and waved, the cloth is re-tinted slate navy, hair and irises are hue-shifted, and
 a lace choker, a gold-buckle belt, stocking bands with bows and hair ties are added. Every added
 piece is weighted to a bone and every edited vertex keeps its weights, so the rig, the mouth shapes
@@ -20,14 +20,19 @@ from mathutils.bvhtree import BVHTree
 p = argparse.ArgumentParser()
 p.add_argument('--blend', required=True); p.add_argument('--out', required=True)
 p.add_argument('--neckline', type=float, default=1.285)     # off-shoulder line on the torso (rest pose, m)
-p.add_argument('--sleeve-start', type=float, default=-0.005)  # along the upper arm from the shoulder joint
-p.add_argument('--sleeve-end', type=float, default=0.15)
-p.add_argument('--puff', type=float, default=0.80)
+p.add_argument('--sleeve-start', type=float, default=0.03)  # along the upper arm from the shoulder joint
+p.add_argument('--sleeve-end', type=float, default=0.20)
+p.add_argument('--puff', type=float, default=0.80)        # (VRoid-sleeve mode only)
+p.add_argument('--puff-r', type=float, default=0.030)     # own sleeve: extra radius at the middle of the puff
+p.add_argument('--vroid-sleeves', action='store_true')     # keep and puff VRoid's sleeve instead of building one
 p.add_argument('--underbust', type=float, default=1.2)      # corset above this height becomes a navy bodice (0 = keep)
 p.add_argument('--skirt-len', type=float, default=0.30)     # bottom tier, between the points
 p.add_argument('--skirt-points', type=float, default=0.22)  # handkerchief point depth (fraction)
-p.add_argument('--skirt-hem', type=float, default=0.27)
-p.add_argument('--pleats', type=int, default=18); p.add_argument('--pleat-depth', type=float, default=0.05)     # bottom-tier hem radius
+p.add_argument('--skirt-hem', type=float, default=0.30)
+p.add_argument('--pleats', type=int, default=26); p.add_argument('--pleat-depth', type=float, default=0.024)
+p.add_argument('--cloth-toony', type=float, default=0.5)
+p.add_argument('--hair-shade', type=int, nargs=3, default=(150, 96, 44))   # sRGB shade colour for the hair   # VRoid cloth is 0.95 (hard cel); the reference is soft
+p.add_argument('--skirt-cuts', type=int, default=3); p.add_argument('--skirt-flare', type=float, default=0.8)     # bottom-tier hem radius
 p.add_argument('--tail-len', type=float, default=0.32)      # tie to tip, metres (--tail-tip overrides)
 p.add_argument('--tail-tip', type=float, default=0.0)
 p.add_argument('--tail-root', type=float, default=0.0);   # 0 = measure (top of the tail strands - 4 cm)
@@ -95,6 +100,7 @@ def lace_mat():
 LACE = lace_mat()
 NAVY_TRIM = pmat('Skirt trim', (26, 25, 38), rough=0.55)
 GOLD = pmat('Buckle gold', (230, 176, 84), rough=0.22, metal=1.0)
+SILVER = pmat('Grommet silver', (200, 200, 210), rough=0.3, metal=1.0)
 TOON = next(m for m in bpy.data.materials if 'N00_002_03_Tops_01_CLOTH_02' in m.name and not m.name.startswith('MToon Outline'))
 
 def rgb_to_hsv(c):
@@ -126,13 +132,13 @@ def darkest_uv(mat):
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
     lum = px[..., :3].mean(-1) + (px[..., 3] < 0.9) * 9
     y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
-def rigged(name, bm, mat, bone):
+def rigged(name, bm, mat, bone, uv=None):
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
     for poly in me.polygons: poly.use_smooth = True
     ob = bpy.data.objects.new(name, me); coll.objects.link(ob); me.materials.append(mat)
-    if mat is TOON:
-        uv = me.uv_layers.new(name='UV')
-        for d in uv.data: d.uv = TOON_UV
+    if mat is TOON or uv is not None:
+        lay = me.uv_layers.new(name='UV')
+        for d in lay.data: d.uv = uv if uv is not None else TOON_UV
     vg = ob.vertex_groups.new(name=bone); vg.add(list(range(len(me.vertices))), 1.0, 'REPLACE')
     ob.parent = arm; mod = ob.modifiers.new('Armature', 'ARMATURE'); mod.object = arm
     return ob
@@ -175,7 +181,8 @@ for f in bm.faces:
     c = f.calc_center_median()
     if f.material_index in BLOUSE:
         along = abs(c.x) - X0
-        if along > a.sleeve_end or (along < a.sleeve_start and c.z > a.neckline and c.y < 0.04): kill.append(f)   # keep the back panel: VRoid built no skin under it
+        if not a.vroid_sleeves and along > -0.01 and c.z > AXZ - 0.07: kill.append(f)   # VRoid's sleeve: its front was erased in VRoid; own sleeves are built below
+        elif along > a.sleeve_end or (along < a.sleeve_start and c.z > a.neckline and (c.y < 0.04 or along > -0.03)): kill.append(f)   # keep the upper-back panel: VRoid built no skin under it; the shoulder is covered by the rebuilt arm
     elif f.material_index in PETTI or f.material_index in TIE: kill.append(f)
     elif f.material_index in CORSET and c.z < SKIRT_TOP - 0.035: kill.append(f)
 bmesh.ops.delete(bm, geom=kill, context='FACES'); print('CUT', len(kill), 'faces')
@@ -215,6 +222,8 @@ SLEEVE_AXIS = {}
 for side in (1, -1):
     sv = [v for v in sleeve if side * v.co.x > X0 + 0.008 and math.hypot(v.co.y - AXY, v.co.z - AXZ) < 0.075]
     SLEEVE_AXIS[side] = [(side * x, *slice_centre(sv, side * x)) for x in np.linspace(X0 + a.sleeve_start, X0 + a.sleeve_end, 8)] if sv else []
+if not a.vroid_sleeves:
+    sleeve = []; SLEEVE_AXIS = {1: [(X0, AXY, AXZ)], -1: [(X0, AXY, AXZ)]}
 for v in sleeve:
     along = abs(v.co.x) - X0; cy_, cz_ = centres[v]
     u = min(1, max(0, (along - a.sleeve_start) / (a.sleeve_end - a.sleeve_start)))
@@ -222,7 +231,7 @@ for v in sleeve:
     v.co.y = cy_ + (v.co.y - cy_) * k; v.co.z = cz_ + (v.co.z - cz_) * k
 # arm skin: VRoid culls the body under clothing, so the upper arm and elbow have no skin once the
 # sleeve is short. Rebuild a tube from inside the puff to the forearm's open edge, weighted across the elbow.
-SKIN = mats('Body_00_SKIN'); uvl = bm.loops.layers.uv.active
+SKIN = mats('Body_00_SKIN'); uvl = bm.loops.layers.uv.active; OWN_SLEEVES = []
 arm_skin = me.materials[min(SKIN)].copy(); arm_skin.name = 'Arm skin (no outline)'   # outlines are per-material modifiers
 me.materials.append(arm_skin); ARM_I = len(me.materials) - 1
 skin_uv = None
@@ -265,7 +274,7 @@ for side, tag in ((1, 'L'), (-1, 'R')):
     for j in range(M + 1):
         t = j / M; x = x0 + (xr - x0) * t; row = []; ay, az = centre_at(x)
         for i in range(N):
-            th = -math.pi + 2 * math.pi * i / N; tt = min(1.0, max(0.0, (x - X0 - 0.004) / (xr - X0 - 0.004))); r = (rsh if x < X0 else 0.034 + (rsh - 0.034) * 0) * (1 - tt) + R(th) * tt; xx = x
+            th = -math.pi + 2 * math.pi * i / N; tt = min(1.0, max(0.0, (x - X0 - 0.004) / (xr - X0 - 0.004))); r = (rsh * (0.55 + 0.45 * min(1.0, max(0.0, (x - x0) / (X0 - x0)))) if x < X0 else 0.034) * (1 - tt) + R(th) * tt; xx = x   # tapered start hides inside the shoulder
             v = bm.verts.new((side * xx, ay + r * math.cos(th), az + r * math.sin(th)))
             wl = min(1, max(0, (x - (elbow - 0.03)) / 0.06))               # upper arm -> forearm across the elbow
             wa = min(1, max(0, (x - (X0 - 0.01)) / 0.035))                 # shoulder -> upper arm across the joint
@@ -281,6 +290,41 @@ for side, tag in ((1, 'L'), (-1, 'R')):
             if f.normal.dot(Vector((0, c.y - (sy + ey) / 2, c.z - (sz + ez) / 2))) < 0: f.normal_flip()
             for l in f.loops: l[uvl].uv = skin_uv
     print('ARM', tag, 'rebuilt x %.3f -> %.3f  centre (%.3f,%.3f)->(%.3f,%.3f)' % (x0, xr, sy, sz, ey, ez))
+    if not a.vroid_sleeves:
+        OWN_SLEEVES.append((side, tag, centre_at))
+
+def mid_texel(mat):
+    img = lit_image(mat); W, H = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4); op = px[..., 3] > 0.9
+    lum = np.abs(px[..., :3].mean(-1) - px[..., :3].mean(-1)[op].mean()) + (~op) * 9
+    y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
+SLEEVE_MAT = me.materials[BOD_I] if a.underbust else me.materials[min(BLOUSE)]
+SLEEVE_UV = mid_texel(SLEEVE_MAT)
+for side, tag, centre_at in OWN_SLEEVES:
+    sb = bmesh.new(); s0, s1 = X0 + a.sleeve_start, X0 + a.sleeve_end; NS, MS = 40, 22; rows_ = []
+    for j in range(MS + 1):
+        u = j / MS; x = s0 + (s1 - s0) * u; cy2, cz2 = centre_at(x); row = []
+        bulge = math.sin(math.pi * min(1.0, u / 0.9)) ** 0.7
+        for i in range(NS):
+            th = -math.pi + 2 * math.pi * i / NS
+            r = (0.042 if u < 0.9 else 0.039) + a.puff_r * bulge
+            r *= 1 + 0.06 * math.sin(14 * th + 0.4 * j) * bulge ** 0.5          # gathers
+            row.append(sb.verts.new((side * x, cy2 + r * math.cos(th), cz2 + r * math.sin(th))))
+        rows_.append(row)
+    for j in range(MS):
+        for i in range(NS):
+            k = (i + 1) % NS; f = sb.faces.new((rows_[j][i], rows_[j][k], rows_[j + 1][k], rows_[j + 1][i])); f.normal_update()
+            c = f.calc_center_median(); cy2, cz2 = centre_at(side * c.x)
+            if f.normal.dot(Vector((0, c.y - cy2, c.z - cz2))) < 0: f.normal_flip()
+    for row, sgn, w in ((rows_[0], -1, 0.022), (rows_[-1], 1, 0.012)):          # frill on the off-shoulder line and on the cuff
+        edges = [e for e in sb.edges if all(v in set(row) for v in e.verts)]
+        ret = bmesh.ops.extrude_edge_only(sb, edges=edges)
+        for n_, g in enumerate(g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)):
+            cy2, cz2 = centre_at(side * g.co.x); rad_ = Vector((0, g.co.y - cy2, g.co.z - cz2)).normalized()
+            g.co += (Vector((side * sgn * 0.55, 0, 0)) + rad_ * 0.85).normalized() * w * (1.0 + 0.4 * (1 if n_ % 2 else -1))
+    for f in sb.faces: f.smooth = True
+    rigged('Sleeve ' + tag, sb, SLEEVE_MAT, 'J_Bip_%s_UpperArm' % tag, uv=SLEEVE_UV)
+    print('SLEEVE', tag, 'x %.3f -> %.3f' % (s0, s1))
 
 for side, tag in ((1, 'L'), (-1, 'R')):
     ul = B['J_Bip_%s_UpperLeg' % tag]; hx, hy = ul.head_local.x, ul.head_local.y
@@ -302,7 +346,7 @@ def frill(edges, out, width, zig):
 bnd = [e for e in bm.edges if e.is_boundary and e.link_faces and e.link_faces[0].material_index in BLOUSE]
 def mid(e): return (e.verts[0].co + e.verts[1].co) / 2
 neck_e = [e for e in bnd if (abs(mid(e).x) - X0 < a.sleeve_start + 0.012 and abs(mid(e).z - a.neckline) < 0.035 and mid(e).y < 0.06)
-          or abs(abs(mid(e).x) - X0 - a.sleeve_start) < 0.015]
+          or (a.vroid_sleeves and abs(abs(mid(e).x) - X0 - a.sleeve_start) < 0.015)]
 cuff_e = [e for e in bnd if abs(abs(mid(e).x) - X0 - a.sleeve_end) < 0.02]
 def neck_out(v):   # up and outward from the body
     r = Vector((v.co.x, v.co.y - 0.0, 0)).normalized(); return (Vector((0, 0, 1)) * 0.8 + r * 0.6).normalized()
@@ -311,7 +355,9 @@ def cuff_out(v):
     return (Vector((s, 0, 0)) * 0.7 + rad * 0.7).normalized()
 frill(neck_e, neck_out, 0.026, 0.5); frill(cuff_e, cuff_out, 0.014, 0.35)
 
-# skirt: three tiers with handkerchief points, a cone instead of the bell
+# skirt: two layers of knife pleats with handkerchief points and double piping, flaring from the belt
+sk_faces = [f for f in bm.faces if f.material_index in SKIRT]
+bmesh.ops.subdivide_edges(bm, edges=list({e for f in sk_faces for e in f.edges}), cuts=a.skirt_cuts, use_grid_fill=True)
 sk_faces = [f for f in bm.faces if f.material_index in SKIRT]
 sk_verts = list({v for f in sk_faces for v in f.verts})
 ztop = max(v.co.z for v in sk_verts); zbot = min(v.co.z for v in sk_verts)
@@ -323,25 +369,34 @@ prof = [sum(b) / len(b) if b else None for b in bins]
 for i in range(21):
     if prof[i] is None: prof[i] = prof[i - 1]
 r0 = prof[0]
+def pleat(th, phase):          # knife pleat: slow rise, sharp fold, in [-0.5, 0.5]
+    f = ((a.pleats * th + phase) / (2 * math.pi)) % 1.0
+    return (f / 0.72 if f < 0.72 else (1 - f) / 0.28) - 0.5
 def remap(verts, lenfac, roff, phase=0.0):
     for v in verts:
         s = (ztop - v.co.z) / (ztop - zbot); s = min(1, max(0, s))
         th = math.atan2(v.co.y - cy, v.co.x)
-        L = a.skirt_len * (1 + a.skirt_points * abs(math.cos(2 * th)) ** 3)
+        L = a.skirt_len * (1 + a.skirt_points * abs(math.sin(3 * th)) ** 5)   # points at centre front and front-sides
         depth = s * L * lenfac
-        target = r0 + (a.skirt_hem - r0) * min(1.2, depth / a.skirt_len) ** 0.7 + roff * s ** 0.6 + 0.0015 * (roff > 0)
-        target *= 1 + a.pleat_depth * s ** 0.8 * math.sin(a.pleats * th + phase)
+        target = r0 + (a.skirt_hem - r0) * min(1.2, depth / a.skirt_len) ** a.skirt_flare + roff * s ** 0.6
+        target += a.pleat_depth * (0.25 + 0.75 * s) * pleat(th, phase)
         k = target / prof[min(20, int(20 * s))]
         v.co.x *= k; v.co.y = cy + (v.co.y - cy) * k; v.co.z = ztop - depth
 tiers = [(sk_verts, 1.0, 0.0)]
-for lenfac, roff in ((0.78, 0.008), (0.55, 0.016)):
+for lenfac, roff in ((0.80, 0.014),):
     ret = bmesh.ops.duplicate(bm, geom=sk_faces + list({e for f in sk_faces for e in f.edges}) + sk_verts)
     tiers.append(([g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)], lenfac, roff))
 hems = []
 for vs, lenfac, roff in tiers:
     vset = set(vs); spre = {v: (ztop - v.co.z) / (ztop - zbot) for v in vs}
     hems.append([e for e in bm.edges if e.is_boundary and all(v in vset and spre[v] > 0.85 for v in e.verts)])
-for ti, (vs, lenfac, roff) in enumerate(tiers): remap(vs, lenfac, roff, phase=ti * math.pi / a.pleats)
+for ti, (vs, lenfac, roff) in enumerate(tiers): remap(vs, lenfac, roff, phase=ti * 0.5)
+# plain fabric: a flattened copy of the skirt texture (drops the buttons and panel seams)
+skm = me.materials[min(SKIRT)]; simg = lit_image(skm); fimg = simg.copy(); fimg.name = 'Skirt flat'
+fpx = np.array(fimg.pixels[:], dtype=np.float32).reshape(-1, 4); h_, s_, v_ = rgb_to_hsv(fpx[:, :3]); op = fpx[:, 3] > 0.5
+v_ = v_ * 0.3 + 0.7 * v_[op].mean(); fpx[:, :3] = hsv_to_rgb(h_, s_ * 0.5, v_); fimg.pixels[:] = fpx.ravel(); fimg.pack()
+for n_ in skm.node_tree.nodes:
+    if n_.type == 'TEX_IMAGE' and n_.image == simg: n_.image = fimg
 def texel_uv(mat, target):
     img = lit_image(mat); W, H = img.size
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
@@ -353,16 +408,27 @@ tf = [min(1.0, t / max(1e-4, c)) for t, c in zip(srgb((72, 72, 96)), image_mean_
 mtoon(trim).inputs['Lit Color'].default_value = (*tf, 1.0)
 if 'Shade Color' in mtoon(trim).inputs: mtoon(trim).inputs['Shade Color'].default_value = (*[c * 0.5 for c in tf], 1.0)
 me.materials.append(trim); CORSET_I = len(me.materials) - 1; nt = 0
-for edges in hems:
-    if not edges: continue
-    ret = bmesh.ops.extrude_edge_only(bm, edges=edges)
+SLOPE = (a.skirt_hem - r0) / a.skirt_len * 0.6
+def band(edges, up, width):
+    """A piping strip on the skirt surface, `up` metres above the hem, `width` tall."""
+    global nt
+    geom = list({v for e in edges for v in e.verts}) + edges
+    ret = bmesh.ops.duplicate(bm, geom=geom); dup = [g for g in ret['geom'] if isinstance(g, bmesh.types.BMEdge)]
     for g in ret['geom']:
         if isinstance(g, bmesh.types.BMVert):
-            r = math.hypot(g.co.x, g.co.y - cy); g.co.z += 0.009
-            k = (r - 0.009 * (a.skirt_hem - r0) / a.skirt_len * 1.3 + 0.003) / max(r, 1e-4); g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k
+            r = math.hypot(g.co.x, g.co.y - cy); k = (r - up * SLOPE + 0.0025) / max(r, 1e-4)
+            g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z += up
+    ret = bmesh.ops.extrude_edge_only(bm, edges=dup)
+    for g in ret['geom']:
+        if isinstance(g, bmesh.types.BMVert):
+            r = math.hypot(g.co.x, g.co.y - cy); k = (r - width * SLOPE) / max(r, 1e-4)
+            g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z += width
         elif isinstance(g, bmesh.types.BMFace):
             g.material_index = CORSET_I; g.smooth = True; nt += 1
             for l in g.loops: l[uvl].uv = TRIM_UV
+for edges in hems:
+    if not edges: continue
+    band(edges, 0.0, 0.006); band(edges, 0.016, 0.004)
 print('TRIM faces', nt)
 print('SKIRT top %.3f bot %.3f r0 %.3f cy %.3f' % (ztop, zbot, r0, cy))
 bm.to_mesh(me); me.update()
@@ -471,12 +537,25 @@ cf = bmesh.new(); ring(cf, cen, r + 0.005, r + 0.005, zc - 0.026, zc - 0.009, n=
 rigged('Choker lace', cf, LACE, 'J_Bip_C_Neck'); print('CHOKER r %.3f at' % r, cen)
 # belt + gold buckle at the skirt waistband
 zb = ztop - 0.012
-pts = [v.co for v in me.vertices if abs(v.co.z - zb) < 0.012 and math.hypot(v.co.x, v.co.y) < 0.26]
-rx = max(abs(q.x) for q in pts) + 0.004; y0, y1 = min(q.y for q in pts), max(q.y for q in pts)
-bc = Vector((0, (y0 + y1) / 2, 0)); ry = (y1 - y0) / 2 + 0.004
-bb = bmesh.new(); ring(bb, bc, rx, ry, zb - 0.015, zb + 0.015, n=72); rigged('Belt', bb, TOON, 'J_Bip_C_Hips')
+SKV = {i for p_ in me.polygons if p_.material_index in SKIRT for i in p_.vertices}
+CV = {i for p_ in me.polygons if p_.material_index in CORSET for i in p_.vertices}
+# the belt follows the corset's real cross-section at its height (an ellipse cuts in at the front)
+bpts = [me.vertices[i].co for i in (CV | SKV) if abs(me.vertices[i].co.z - zb) < 0.012]
+bc = Vector((0, sum(q.y for q in bpts) / len(bpts), 0))
+angs = sorted((math.atan2(q.y - bc.y, q.x), math.hypot(q.x, q.y - bc.y)) for q in bpts)
+def belt_r(th, win=0.20):
+    near = [r_ for t_, r_ in angs if abs(math.remainder(t_ - th, 2 * math.pi)) < win]
+    return (max(near) if near else max(r_ for _, r_ in angs)) + 0.005
+bb = bmesh.new(); NB = 72; top_, bot_ = [], []
+for i in range(NB):
+    th = 2 * math.pi * i / NB; r_ = belt_r(th)
+    for lst, dz in ((bot_, -0.009), (top_, 0.009)): lst.append(bb.verts.new((r_ * math.cos(th), bc.y + r_ * math.sin(th), zb + dz)))
+for i in range(NB):
+    j = (i + 1) % NB; bb.faces.new((bot_[i], bot_[j], top_[j], top_[i]))
+rigged('Belt', bb, TOON, 'J_Bip_C_Hips')
+ry = belt_r(-math.pi / 2) - 0.001
 gb = bmesh.new(); fy = bc.y - ry - 0.002
-for (w, h, x0) in ((0.042, 0.034, 0.0),):
+for (w, h, x0) in ((0.030, 0.024, 0.0),):
     t = 0.005   # frame bars: top, bottom, left, right, centre prong
     for (cx, cz, sx, sz) in ((0, h / 2 - t / 2, w, t), (0, -h / 2 + t / 2, w, t), (-w / 2 + t / 2, 0, t, h), (w / 2 - t / 2, 0, t, h), (0.004, 0, t * 0.8, h * 0.8)):
         m = bmesh.ops.create_cube(gb, size=1.0)['verts']
@@ -527,6 +606,36 @@ for side, bone in ((1, 'J_Bip_L_UpperLeg'), (-1, 'J_Bip_R_UpperLeg')):
     th = math.radians(-90 + side * 14); nrm = Vector((math.cos(th), math.sin(th), 0))
     bw = bmesh.new(); bow(bw, cen + nrm * (r + 0.010) + Vector((0, 0, 0.006)), nrm, 1.6)
     rigged('Stocking bow ' + ('L' if side > 0 else 'R'), bw, TOON, bone)
+# corset lacing: grommets in two columns down the front and a criss-cross ribbon between them
+dg_ = bpy.context.evaluated_depsgraph_get(); bvh_c = BVHTree.FromBMesh(bm) if False else None
+cor_faces = [p_ for p_ in me.polygons if p_.material_index in CORSET]
+if cor_faces:
+    from mathutils.bvhtree import BVHTree as _B
+    cbvh = _B.FromPolygons([v.co for v in me.vertices], [p_.vertices for p_ in cor_faces])
+    zc0 = ztop + 0.012; zc1 = (a.underbust or ztop + 0.10) - 0.004; n_ = 7
+    def front(x, z):
+        loc, nrm, fi, d = cbvh.ray_cast(Vector((x, -0.6, z)), Vector((0, 1, 0)))
+        return (loc + Vector((0, -0.004, 0))) if loc else None
+    cols = {sgn: [front(sgn * 0.022, zc0 + (zc1 - zc0) * i / (n_ - 1)) for i in range(n_)] for sgn in (-1, 1)}
+    if all(p_ is not None for sgn in cols for p_ in cols[sgn]):
+        gb_ = bmesh.new()
+        for sgn in cols:
+            for c_ in cols[sgn]:
+                ring_v = bmesh.ops.create_circle(gb_, cap_ends=False, segments=10, radius=0.0035)['verts']
+                inner = bmesh.ops.create_circle(gb_, cap_ends=False, segments=10, radius=0.0018)['verts']
+                for v_ in ring_v + inner: v_.co = Vector((c_.x + v_.co.x, c_.y - 0.0005, c_.z + v_.co.y))
+                for i_ in range(10): gb_.faces.new((ring_v[i_], ring_v[(i_ + 1) % 10], inner[(i_ + 1) % 10], inner[i_]))
+        rigged('Corset grommets', gb_, SILVER, 'J_Bip_C_Spine')
+        lb_ = bmesh.new(); w_ = 0.0016
+        for i_ in range(n_ - 1):
+            for sgn in (-1, 1):
+                p0, p1 = cols[sgn][i_], cols[-sgn][i_ + 1]; d_ = (p1 - p0).normalized(); side_ = d_.cross(Vector((0, -1, 0))).normalized() * w_
+                q = [lb_.verts.new(p0 - side_ + Vector((0, -0.0015 * (sgn > 0), 0))), lb_.verts.new(p0 + side_ + Vector((0, -0.0015 * (sgn > 0), 0))),
+                     lb_.verts.new(p1 + side_ + Vector((0, -0.0015 * (sgn > 0), 0))), lb_.verts.new(p1 - side_ + Vector((0, -0.0015 * (sgn > 0), 0)))]
+                lb_.faces.new(q)
+        rigged('Corset lacing', lb_, SATIN, 'J_Bip_C_Spine'); print('CORSET LACING', n_, 'rows from %.3f to %.3f' % (zc0, zc1))
+    else: print('CORSET LACING skipped: front not found')
+
 # forearm lacing: two crossing helices of black ribbon from the wrist up the forearm
 for side, tag in ((1, 'L'), (-1, 'R')):
     fv = [me.vertices[i].co for i in skin_v if 0.40 < side * me.vertices[i].co.x < 0.56 and math.hypot(me.vertices[i].co.y - 0.029, me.vertices[i].co.z - 1.336 - DZ) < 0.07]
@@ -566,6 +675,23 @@ if a.arm_out:
         pb = arm.pose.bones['J_Bip_%s_UpperArm' % tag]; rest = pb.bone.matrix_local.to_3x3()
         R = Matrix.Rotation(math.radians(sgn * (68 - a.arm_out)), 3, 'Y')
         pb.rotation_mode = 'QUATERNION'; pb.rotation_quaternion = (rest.inverted() @ R @ rest).to_quaternion()
+# softer cel shading on every cloth material, so folds and pleats read (VRoid ships 0.95)
+nsoft = 0
+for m in bpy.data.materials:
+    if m.name.startswith('MToon Outline') or not m.node_tree: continue
+    if any(k in m.name for k in ('Tops_01_CLOTH', 'Bodice', 'Skirt trim', 'Shoes_01_CLOTH')):
+        g = mtoon(m)
+        if g and 'Shading Toony' in g.inputs:
+            g.inputs['Shading Toony'].default_value = a.cloth_toony; g.inputs['Shading Shift'].default_value = 0.05; nsoft += 1
+print('SOFT SHADING on', nsoft, 'materials')
+# hair: warm ochre shade and softer cel so clumps and strands read (the reference's hair has deep gold shadows)
+for m in bpy.data.materials:
+    if 'Hair_00_HAIR' in m.name and not m.name.startswith('MToon Outline') and m.node_tree:
+        g = mtoon(m)
+        if g:
+            g.inputs['Shade Color'].default_value = (*srgb(a.hair_shade), 1.0)
+            if 'Shading Toony' in g.inputs: g.inputs['Shading Toony'].default_value = 0.6; g.inputs['Shading Shift'].default_value = 0.15
+            print('HAIR SHADE', m.name[:30], a.hair_shade)
 # no outline shell on the body skin: VRoid removed the skin under the old collar and sleeves, and the
 # inverted-hull outline shows through those gaps as dark red. The reference has no skin contour lines anyway.
 for md in list(body.modifiers):

@@ -118,17 +118,25 @@ What VRoid Studio cannot do is done by `build/tools/blender-agent-refine.py`,
 which runs on the scene the avatar script saves and edits it toward the
 reference picture:
 
-- **Top**: the blouse is cut into an off-shoulder top with short sleeves,
-  puffed about the sleeve's own centre line, with a frill extruded from the
-  cut edges. VRoid removes the body under clothing at export, so the upper
+- **Top**: VRoid's sleeve is removed (its front was erased in VRoid) and a
+  gathered puff sleeve is built on each upper arm from the shoulder joint
+  to above the elbow, with frills on the off-shoulder line and the cuff,
+  in the bodice's navy. `--vroid-sleeves` keeps and puffs VRoid's instead. VRoid removes the body under clothing at export, so the upper
   arm is rebuilt as a skin tube from over the shoulder to the forearm's open
   edge, weighted across the elbow. The blouse's back panel stays, because
   there is no skin under it either.
 - **Bodice**: the corset above the underbust line becomes navy cloth (its
   texture flattened and recoloured), with a ruffle on its top edge, so the
   black corset reads as an underbust piece over a navy dress.
-- **Skirt**: the bell skirt becomes three tiers with handkerchief points and
-  light piping on each hem; the white petticoat is dropped.
+- **Skirt**: the bell skirt is subdivided and becomes two layers of knife
+  pleats flaring from the belt, with six handkerchief points and double
+  piping on each hem; its buttons and panel seams are flattened out of the
+  texture and the white petticoat is dropped.
+- **Corset and belt**: silver grommets and a criss-cross lacing down the
+  front; the belt follows the corset's real cross-section with a small
+  gold buckle.
+- **Shading**: cloth cel shading is softened (VRoid ships it nearly hard)
+  so pleats and gathers read, and the hair gets a warm ochre shade.
 - **Hair**: the twin tails are re-pivoted at their real gather point on the
   head top (measured per model: the top of the strands less 4 cm), cut to
   32 cm, pulled in, widened through the middle, lightly waved and flared,
@@ -166,5 +174,4 @@ blender -b --python build/tools/blender-agent-avatar.py -- --blend R/agent.blend
 `vroid-full.png` is the character sheet, `vroid-compare.png` puts it
 beside the reference and `vroid-face-compare.png` does the same for the head (`vroid-bust.png` / `vroid-speaking.png` are from the
 earlier, unrefined clip). What still differs: the reference's hair is denser strand for strand and
-its skirt tiers are separate ruffles rather than tiers cut from one bell;
-the reference's sleeves start a little lower, leaving the shoulder caps bare.
+its skirt layers are separate sewn ruffles with a deeper stack of piping.
