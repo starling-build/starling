@@ -85,8 +85,10 @@ over RDP) from the female base model. Hair: the twin-tail hairstyle set with
 a straight fringe, no ahoge, the four tail groups widened, thickened, twisted
 and raised in the hairstyle editor, colour `#E2CA63`. Face: the sharper-eyed
 face set with the eyes enlarged, irises `#1E66CA`, rose lipstick, near-black
-eyeliner. Body: head size at the minimum (the reference is about 7.7
-heads tall), head width 0.15, neck length -0.45 and thickness 0.35,
+eyeliner. Body: head size -0.4 and chin length 0.05, measured with
+`build/tools/agent-proportions.py` so she is 7.2 heads tall with the
+eye-to-chin distance of the reference (an earlier -1.0 head and -0.42 chin
+made her 7.9 heads, a head visibly too small), head width 0.15, neck length -0.45 and thickness 0.35,
 chest size 0.52, waist narrowed, legs 0.55, small flat ears (size -0.8,
 prominence -0.5) so the hair hides them, and a soft cheek blush. Face: the
 masculine face setting removed and the feminine face, eyes and brows

@@ -53,7 +53,7 @@ p.add_argument('--tail-lift', type=float, default=0.035)   # how far the tails r
 p.add_argument('--tail-fan', type=int, default=1)          # add two copies per strand with other spreads/lengths
 p.add_argument('--bangs', type=float, default=1.10)         # fringe length factor, from its hairline
 p.add_argument('--sidelocks', type=float, default=1.9)      # length factor for the outer fringe pieces (face-framing locks)
-p.add_argument('--crown', type=float, default=1.07)
+p.add_argument('--crown', type=float, default=1.03)
 p.add_argument('--lock-width', type=float, default=1.7)
 p.add_argument('--lock-drop', type=float, default=0.045)  # face-framing locks end this far below the chin
 p.add_argument('--root-tuck', type=float, default=0.35)   # shrink the tail roots above the tie toward it   # face-framing lock fullness         # overall hair volume (not the tails)
@@ -694,10 +694,12 @@ for comp in tails:
 for i, (comp, side, spread, lenf, dy, width) in enumerate(plan):
     synth(comp, side, spread * (0.85 + 0.3 * ((i * 7) % 5) / 4), lenf * (0.93 + 0.14 * ((i * 3) % 4) / 3), dy, width)
 # fringe longer from its own hairline; the outer pieces much longer, as face-framing locks that clear the cheeks
+HS = max(abs(v.co.x) for v in bpy.data.objects['Face'].data.vertices) / 0.0876   # head scale vs the model these numbers were tuned on
+print('HEAD SCALE %.3f' % HS)
 HC = arm.data.bones['J_Bip_C_Head'].head_local + Vector((0, 0, 0.05))
 for comp in bangs:
     top = max(c.co.z for c in comp); mx = sum(c.co.x for c in comp) / len(comp); side = 1 if mx > 0 else -1
-    lock = abs(mx) > 0.038; f = a.sidelocks if lock else a.bangs; piv = top - 0.02; low = min(c.co.z for c in comp)
+    lock = abs(mx) > 0.038 * HS; f = a.sidelocks if lock else a.bangs; piv = top - 0.02; low = min(c.co.z for c in comp)
     for c in comp:
         if c.co.z < piv:
             t = (piv - c.co.z) / max(1e-4, piv - low); c.co.z = piv - (piv - c.co.z) * f
@@ -707,7 +709,7 @@ for comp in bangs:
 FZ = min(v.co.z for v in bpy.data.objects['Face'].data.vertices) - a.lock_drop; nl = 0
 for comp in crown:
     mx = sum(c.co.x for c in comp) / len(comp); my = sum(c.co.y for c in comp) / len(comp); zz = [c.co.z for c in comp]
-    if 0.045 < abs(mx) < 0.064 and my < 0.015 and min(zz) > FZ + 0.02 and max(zz) - min(zz) > 0.08:
+    if 0.045 * HS < abs(mx) < 0.064 * HS and my < 0.015 * HS and min(zz) > FZ + 0.02 and max(zz) - min(zz) > 0.08:
         side = 1 if mx > 0 else -1; piv = max(zz) - 0.035; low = min(zz); f = (piv - FZ) / max(1e-4, piv - low); nl += 1
         zc_ = np.array(zz); xs_ = np.polyfit(zc_, [c.co.x for c in comp], 2); ys_ = np.polyfit(zc_, [c.co.y for c in comp], 2)
         for c in comp:
