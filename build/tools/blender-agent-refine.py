@@ -67,6 +67,14 @@ p.add_argument('--tail-wave', type=float, default=0.008)
 p.add_argument('--stocking-top', type=float, default=0.0)   # 0 = detect from the skin texture
 p.add_argument('--thigh', type=float, default=0.10)         # extra thigh fullness (fraction, peaks mid-thigh)
 p.add_argument('--arm-out', type=float, default=8.0)        # raise the arms away from the body (degrees)
+p.add_argument('--waist', type=float, default=0.78)         # torso width at the belt line, as a fraction of VRoid's (1 = keep)
+p.add_argument('--waist-under', type=float, default=0.82)   # ... at the underbust line
+p.add_argument('--waist-bust', type=float, default=0.88)    # ... across the bust (the reference's ribcage is narrow); back to 1 under the arms
+p.add_argument('--waist-depth', type=float, default=0.4)    # how much of that cinch also applies front to back
+p.add_argument('--corset-taper', type=float, default=0.08)  # the corset is a straight tube this much wider at the top than at the belt
+p.add_argument('--bust-apex', type=float, default=0.32)     # fullest point of the blouse, as a fraction from the corset top to the neckline
+p.add_argument('--bust-slope', type=float, default=0.012)   # how far the front recedes from there to the neckline (m)
+p.add_argument('--bust-lobe', type=float, default=0.005)    # two rounded forms on the front instead of a flat panel (m)
 a = p.parse_args(sys.argv[sys.argv.index('--') + 1:])
 bpy.ops.wm.open_mainfile(filepath=a.blend)
 scene = bpy.context.scene
@@ -121,8 +129,10 @@ def lace_mat():
 LACE = lace_mat()
 NAVY_TRIM = pmat('Skirt trim', (26, 25, 38), rough=0.55)
 GOLD = pmat('Buckle gold', (230, 176, 84), rough=0.22, metal=1.0)
-SILVER = pmat('Grommet silver', (200, 200, 210), rough=0.3, metal=1.0)
-TOON = next(m for m in bpy.data.materials if 'N00_002_03_Tops_01_CLOTH_02' in m.name and not m.name.startswith('MToon Outline'))
+SILVER = pmat('Grommet silver', (170, 170, 182), rough=0.35, metal=1.0)
+RIBBON = pmat('Lacing ribbon', (16, 14, 20), rough=0.45, spec=0.35)   # a little sheen: satin read as white cord, matte vanished on the corset
+TOON = next(m for m in bpy.data.materials if 'N00_002_03_Tops_01_CLOTH_02' in m.name and not m.name.startswith('MToon Outline')).copy()
+TOON.name = 'N00_002_03_Tops_01_CLOTH_02 accessories'   # a copy: the corset's own texture is flattened below, the accessories keep the original
 
 def rgb_to_hsv(c):
     mx = c.max(1); mn = c.min(1); d = mx - mn; h = np.zeros_like(mx)
@@ -152,6 +162,11 @@ def darkest_uv(mat):
     img = lit_image(mat); W, H = img.size
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
     lum = px[..., :3].mean(-1) + (px[..., 3] < 0.9) * 9
+    y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
+def mid_texel(mat):
+    img = lit_image(mat); W, H = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4); op = px[..., 3] > 0.9
+    lum = np.abs(px[..., :3].mean(-1) - px[..., :3].mean(-1)[op].mean()) + (~op) * 9
     y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
 def rigged(name, bm, mat, bone, uv=None):
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
@@ -287,6 +302,58 @@ for f in bm.faces:
     elif f.material_index in PETTI or f.material_index in TIE: kill.append(f)
     elif f.material_index in CORSET and c.z < SKIRT_TOP - 0.035: kill.append(f)
 bmesh.ops.delete(bm, geom=kill, context='FACES'); print('CUT', len(kill), 'faces')
+# waist: the reference's corset cinches to about half the shoulder width. Narrow everything in the torso -
+# skin, corset, skirt waistband, what is left of the blouse - by one smooth factor per height, so the
+# layers stay nested and the blouse, belt, lacing and skirt below are all built on the new shape.
+if a.waist != 1.0:
+    zlo = B['J_Bip_C_Hips'].head_local.z - 0.02; zw = SKIRT_TOP - 0.012
+    zu = a.underbust or zw + 0.09; zhi = AXZ - 0.06
+    knots = ((zlo, 1.0), (zw, a.waist), (zu, a.waist_under), (zu + 0.05, a.waist_bust), (zhi, 1.0))
+    def cinch(z):
+        if z <= knots[0][0] or z >= knots[-1][0]: return 1.0
+        for (z0, k0), (z1, k1) in zip(knots, knots[1:]):
+            if z0 <= z <= z1: t_ = (z - z0) / (z1 - z0); return k0 + (k1 - k0) * (0.5 - 0.5 * math.cos(math.pi * t_))
+    tv = [v for v in bm.verts if zlo < v.co.z < zhi and abs(v.co.x) < 0.2]
+    zb_ = np.arange(zlo, zhi + 0.01, 0.01); cyz = []
+    for z_ in zb_:
+        ys_ = [v.co.y for v in tv if abs(v.co.z - z_) < 0.01]; cyz.append((max(ys_) + min(ys_)) / 2 if ys_ else None)
+    cyz = [c if c is not None else next(q for q in cyz if q is not None) for c in cyz]
+    for v in tv:
+        k = cinch(v.co.z); ky = 1 - (1 - k) * a.waist_depth; c_ = float(np.interp(v.co.z, zb_, cyz))
+        v.co.x *= k; v.co.y = c_ + (v.co.y - c_) * ky
+    print('WAIST cinched %d verts:' % len(tv), ', '.join('%.2f at %.3f' % (k_, z_) for z_, k_ in knots))
+    # VRoid's corset flares out at the bottom (over the skirt's waistband) and again at the top (the bust cups start):
+    # make it a straight, slightly tapered tube from the belt to the underbust, the skin kept inside
+    cor_v = [v for v in {v for f in bm.faces if f.material_index in CORSET for v in f.verts}]; SKIN_ = mats('Body_00_SKIN')
+    ref_ = [v for v in cor_v if zw + 0.015 < v.co.z < zw + 0.045]
+    if ref_:
+        NA = 48; rr_ = np.full(NA, np.nan); c0_ = float(np.interp(zw, zb_, cyz))
+        for v in ref_:
+            k_ = int(((math.atan2(v.co.y - c0_, v.co.x) + math.pi) / (2 * math.pi)) * NA) % NA
+            rr_[k_] = np.nanmax([rr_[k_], math.hypot(v.co.x, v.co.y - c0_)])
+        ok_ = ~np.isnan(rr_); rr_ = np.interp(np.arange(NA), np.arange(NA)[ok_], rr_[ok_], period=NA); nc_ = ns_ = 0
+        def tube(v):
+            th_ = math.atan2(v.co.y - c0_, v.co.x)
+            r_ = float(np.interp((th_ + math.pi) / (2 * math.pi) * NA, np.arange(NA + 1), np.append(rr_, rr_[0])))
+            return r_ * (1 + a.corset_taper * min(1.0, max(0.0, (v.co.z - zw) / max(1e-4, zu - zw)))), math.hypot(v.co.x, v.co.y - c0_)
+        for v in cor_v:
+            if v.co.z < zu + 0.003:
+                lim, r_ = tube(v); lim += 0.001
+                if r_ > lim or v.co.z > zw + 0.015: v.co.x *= lim / r_; v.co.y = c0_ + (v.co.y - c0_) * lim / r_; nc_ += 1
+        cset_ = set(cor_v)
+        for v in tv:   # (a little higher at the front: VRoid's lacing gap is skin, level with the corset's top edge)
+            if v not in cset_ and zw < v.co.z < zu + (0.015 if v.co.y < c0_ else 0.003) and any(f.material_index in SKIN_ for f in v.link_faces):
+                lim, r_ = tube(v); lim -= 0.002
+                if r_ > lim: v.co.x *= lim / r_; v.co.y = c0_ + (v.co.y - c0_) * lim / r_; ns_ += 1
+        # that gap is bare skin; the reference's lacing shows plain corset behind it
+        cuv_ = mid_texel(me.materials[min(CORSET)]); ng_ = 0
+        for f in bm.faces:
+            c_ = f.calc_center_median()
+            if f.material_index in SKIN_ and zw - 0.005 < c_.z < zu + 0.012 and c_.y < c0_ and abs(c_.x) < 0.1:
+                f.material_index = min(CORSET); ng_ += 1
+                for l in f.loops: l[bm.loops.layers.uv.active].uv = cuv_
+        print('CORSET lacing gap: %d skin faces -> corset' % ng_)
+        print('CORSET straight tube: %d verts (r %.3f..%.3f at the belt, +%d%% at the top), %d skin verts pulled inside' % (nc_, rr_.min(), rr_.max(), 100 * a.corset_taper, ns_))
 if a.underbust:
     src = me.materials[min(CORSET)]; bod = src.copy(); bod.name = 'Bodice navy'
     img = lit_image(bod).copy(); img.name = 'Bodice flat'
@@ -400,15 +467,14 @@ for side, tag in ((1, 'L'), (-1, 'R')):
     if not a.vroid_sleeves:
         OWN_SLEEVES.append((side, tag, centre_at))
 
-def mid_texel(mat):
-    img = lit_image(mat); W, H = img.size
-    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4); op = px[..., 3] > 0.9
-    lum = np.abs(px[..., :3].mean(-1) - px[..., :3].mean(-1)[op].mean()) + (~op) * 9
-    y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
 SLEEVE_MAT = me.materials[BOD_I] if a.underbust else me.materials[min(BLOUSE)]
 SLEEVE_UV = mid_texel(SLEEVE_MAT)
 if not a.vroid_sleeves and a.underbust:   # what is left of VRoid's blouse is its upper-back panel: make it the blouse navy
     nbp = nsk = 0; zn_ = AXZ - a.neckline_drop; COLLAR_F = []
+    if a.blouse:   # the loose VRoid blouse under the fitted one stood 2 cm off the ribs and set its width: drop what it covers
+        gone = [f for f in bm.faces if f.material_index in BLOUSE and max(v.co.z for v in f.verts) < zn_ - 0.004
+                and min(v.co.z for v in f.verts) > (a.underbust or 0) - 0.03]
+        bmesh.ops.delete(bm, geom=gone, context='FACES'); print('BLOUSE under the fitted one:', len(gone), 'faces removed')
     for f in bm.faces:
         if f.material_index in BLOUSE:
             if max(v.co.z for v in f.verts) > zn_ - 0.004 and skin_uv is not None:   # VRoid's stand collar behind the neck: skin, so the
@@ -510,6 +576,8 @@ prof = [sum(b) / len(b) if b else None for b in bins]
 for i in range(21):
     if prof[i] is None: prof[i] = prof[i - 1]
 r0 = prof[0]
+_cr = [math.hypot(v.co.x, v.co.y - cy) for v in {v for f in bm.faces if f.material_index in CORSET for v in f.verts} if abs(v.co.z - (ztop - 0.012)) < 0.012]
+if _cr: r0 = min(r0, sum(_cr) / len(_cr) - 0.002)     # the waistband tucks under the belt, at the corset's width
 def pleat(th, phase):          # knife pleat: slow rise, sharp fold, in [-0.5, 0.5]
     f = ((a.pleats * th + phase) / (2 * math.pi)) % 1.0     # rounded pleats: a sawtooth shows as teeth on the silhouette
     return 0.5 * math.sin(2 * math.pi * f) + 0.12 * math.sin(4 * math.pi * f)
@@ -535,9 +603,15 @@ for ti, (vs, lenfac, roff) in enumerate(tiers): remap(vs, lenfac, roff, phase=0.
 # plain fabric: a flattened copy of the skirt texture (drops the buttons and panel seams)
 skm = me.materials[min(SKIRT)]; simg = lit_image(skm); fimg = simg.copy(); fimg.name = 'Skirt flat'
 fpx = np.array(fimg.pixels[:], dtype=np.float32).reshape(-1, 4); h_, s_, v_ = rgb_to_hsv(fpx[:, :3]); op = fpx[:, 3] > 0.5
-v_ = v_ * 0.3 + 0.7 * v_[op].mean(); fpx[:, :3] = hsv_to_rgb(h_, s_ * 0.5, v_); fimg.pixels[:] = fpx.ravel(); fimg.pack()
-for n_ in skm.node_tree.nodes:
-    if n_.type == 'TEX_IMAGE' and n_.image == simg: n_.image = fimg
+v_ = v_ * 0.15 + 0.85 * v_[op].mean(); fpx[:, :3] = hsv_to_rgb(h_, s_ * 0.5, v_); fimg.pixels[:] = fpx.ravel(); fimg.pack()   # (0.3 left the buttons)
+def relink(key, old, new):
+    """Point every material of this cloth at the new image - its MToon outline shell too, which carries its own
+    copy of the texture (the accessories' copy of the corset keeps the original)."""
+    for m_ in bpy.data.materials:
+        if key in m_.name and m_ is not TOON and m_.node_tree:
+            for n_ in m_.node_tree.nodes:
+                if n_.type == 'TEX_IMAGE' and n_.image == old: n_.image = new
+relink('N00_002_03_Tops_01_CLOTH_01', simg, fimg)
 def texel_uv(mat, target):
     img = lit_image(mat); W, H = img.size
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
@@ -592,6 +666,11 @@ for edges in hems:
     ruffle(edges, a.ruffle, 90)
     band(edges, 0.0, 0.005); band(edges, 0.012, 0.003); band(edges, 0.022, 0.003)
 print('TRIM faces', nt)
+# plain corset: VRoid painted side straps with buckles into it, which read as stripes from the front
+cm_ = me.materials[min(CORSET)]; cimg = lit_image(cm_); fimg = cimg.copy(); fimg.name = 'Corset flat'
+fpx = np.array(fimg.pixels[:], dtype=np.float32).reshape(-1, 4); h_, s_, v_ = rgb_to_hsv(fpx[:, :3]); op = fpx[:, 3] > 0.5
+v_ = v_ * 0.2 + 0.8 * v_[op].mean(); fpx[:, :3] = hsv_to_rgb(h_, s_ * 0.5, v_); fimg.pixels[:] = fpx.ravel(); fimg.pack()
+relink('N00_002_03_Tops_01_CLOTH_02', cimg, fimg)
 print('SKIRT top %.3f bot %.3f r0 %.3f cy %.3f' % (ztop, zbot, r0, cy))
 bm.to_mesh(me); me.update()
 
@@ -601,30 +680,49 @@ if a.blouse and a.underbust:
     zb0 = a.underbust; zn = AXZ - a.neckline_drop
     keep = set().union(CORSET, BLOUSE, {BOD_I}, mats('Body_00_SKIN'))
     src = sorted({i for p_ in me.polygons if p_.material_index in keep for i in p_.vertices
-                  if abs(me.vertices[i].co.x) < X0 - 0.005 and zb0 - 0.02 < me.vertices[i].co.z < zn + 0.02})
+                  if abs(me.vertices[i].co.x) < (0.2 if me.vertices[i].co.z < AXZ - 0.075 else X0 - 0.005)   # the ribs' real sides below
+                  and zb0 - 0.02 < me.vertices[i].co.z < zn + 0.02})                                            # the armpit (else guessed)
     cyB = sum(me.vertices[i].co.y for i in src) / len(src)
     EXTRA = [c for c in globals().get('COLLAR_CO', []) if abs(c.x) < X0 - 0.005 and zb0 - 0.02 < c.z < zn + 0.02]   # the skin collar must stay inside
-    NB, rows_z = 72, list(np.arange(zb0, zn + 1e-6, 0.006))
+    NB, rows_z = 156, [zb0 - 0.004] + list(np.arange(zb0, zn + 1e-6, 0.006))   # 156 around: fewer and the gathers alias into teeth
+    TH = -np.pi + 2 * np.pi * np.arange(NB) / NB
+    def outline(pts, fill=True):
+        """Largest radius per angle; gaps interpolated (fill) or left NaN."""
+        o = np.full(NB, np.nan)
+        if pts:
+            ang = np.array([math.atan2(q.y - cyB, q.x) for q in pts]); rad = np.array([math.hypot(q.x, q.y - cyB) for q in pts])
+            for k in range(NB):
+                sel = rad[np.abs((ang - TH[k] + math.pi) % (2 * math.pi) - math.pi) < 0.2]
+                if len(sel): o[k] = sel.max()
+        good = ~np.isnan(o)
+        return np.interp(np.arange(NB), np.arange(NB)[good], o[good], period=NB) if fill and good.any() else o
     R = np.zeros((len(rows_z), NB))
     for ri, zr in enumerate(rows_z):
-        pts = [me.vertices[i].co for i in src if abs(me.vertices[i].co.z - zr) < 0.012] + [c for c in EXTRA if abs(c.z - zr) < 0.012]
-        ang = np.array([math.atan2(q.y - cyB, q.x) for q in pts]); rad = np.array([math.hypot(q.x, q.y - cyB) for q in pts])
-        for k in range(NB):
-            th = -math.pi + 2 * math.pi * k / NB; dth = np.abs((ang - th + math.pi) % (2 * math.pi) - math.pi)
-            sel = rad[dth < 0.2]; R[ri, k] = sel.max() if len(sel) else np.nan
-        row = R[ri]; good = ~np.isnan(row)
-        R[ri] = np.interp(np.arange(NB), np.arange(NB)[good], row[good], period=NB) if good.any() else R[ri - 1]
-    R0 = R.copy()
+        R[ri] = outline([me.vertices[i].co for i in src if abs(me.vertices[i].co.z - zr) < 0.012] + [c for c in EXTRA if abs(c.z - zr) < 0.012])
     for _ in range(2):   # smooth around and up
         R = (np.roll(R, 1, 1) + 2 * R + np.roll(R, -1, 1)) / 4
         R[1:-1] = (R[:-2] + 2 * R[1:-1] + R[2:]) / 4
-    R = np.maximum(R, R0)                                  # smooth, but never inside the body (it z-fought the skin)
+    # VRoid's corset top under all this is a flat box over the bust; the blouse is shaped as a bust instead and
+    # the box is removed below. Kept outside the skin, and tucked into the corset's top edge.
+    SKV_ = {i for p_ in me.polygons if p_.material_index in mats('Body_00_SKIN') for i in p_.vertices}
+    RC = outline([me.vertices[i].co for p_ in me.polygons if p_.material_index in CORSET for i in p_.vertices if zb0 - 0.02 < me.vertices[i].co.z < zb0 + 0.002])
+    zA = zb0 + a.bust_apex * (zn - zb0); FR = np.maximum(0.0, -np.sin(TH))            # 1 at the front centre, 0 at the sides
+    LOBE = sum(np.exp(-((TH + np.pi / 2 - c_) / 0.42) ** 2) for c_ in (-0.5, 0.5)) - 0.5 * np.exp(-((TH + np.pi / 2) / 0.16) ** 2)
+    for ri, zr in enumerate(rows_z):
+        f_ = max(0.0, (zr - zb0) / max(1e-4, zn - zb0)); m_ = 0.006 + 0.005 * f_; t_ = (zr - zb0) / max(1e-4, zA - zb0)
+        if t_ < 0: r_ = RC - 0.001                                                         # tucked into the corset
+        elif t_ < 1: r_ = RC + 0.0015 + (R[ri] + m_ - RC - 0.0015) * math.sin(math.pi / 2 * t_) ** 0.55   # round underside of the bust
+        else: r_ = R[ri] + m_ - a.bust_slope * FR ** 1.5 * (zr - zA) / max(1e-4, zn - zA)   # the upper chest slopes back to the neckline
+        r_ = r_ + a.bust_lobe * LOBE * FR * math.exp(-((zr - zA) / 0.035) ** 2)
+        sk_ = outline([me.vertices[i].co for i in SKV_ if abs(me.vertices[i].co.z - zr) < 0.008 and abs(me.vertices[i].co.x) < X0]
+                      + [c for c in EXTRA if abs(c.z - zr) < 0.008], fill=False)
+        R[ri] = np.where(np.isnan(sk_), r_, np.maximum(r_, sk_ + 0.004)) if t_ >= 0 else r_
     bb2 = bmesh.new(); vrows = []
     for ri, zr in enumerate(rows_z):
-        f_ = (zr - zb0) / max(1e-4, zn - zb0); vr = []
+        f_ = max(0.0, (zr - zb0) / max(1e-4, zn - zb0)); vr = []
         for k in range(NB):
-            th = -math.pi + 2 * math.pi * k / NB
-            r = R[ri, k] + (0.006 + 0.005 * f_ if zr > zb0 + 0.012 else 0.001) + 0.004 * max(0.0, math.sin(20 * th)) * f_ ** 1.5   # gathers toward the top, only outward
+            th = TH[k]
+            r = R[ri, k] + 0.004 * max(0.0, math.sin(20 * th)) * f_ ** 1.5   # gathers toward the top, only outward
             vr.append(bb2.verts.new((r * math.cos(th), cyB + r * math.sin(th), zr)))
         vrows.append(vr)
     for ri in range(len(vrows) - 1):
@@ -649,7 +747,26 @@ if a.blouse and a.underbust:
         co_, idx, dist = kdb.find(v.co)
         for gr in me.vertices[idx].groups: bob.vertex_groups[gr.group].add([v.index], gr.weight, 'REPLACE')
     bob.parent = arm; bob.modifiers.new('Armature', 'ARMATURE').object = arm
-    print('BLOUSE %d rows, z %.3f -> %.3f' % (len(rows_z), zb0, zn))
+    print('BLOUSE %d rows, z %.3f -> %.3f, fullest at %.3f' % (len(rows_z), zb0, zn, zA))
+    # the corset's top edge over the blouse: a narrow black binding
+    cb2 = bmesh.new(); lo_, hi_ = [], []
+    for k in range(NB):
+        for lst, dz, dr in ((lo_, -0.005, 0.003), (hi_, 0.004, 0.0035)):
+            r = RC[k] + dr; lst.append(cb2.verts.new((r * math.cos(TH[k]), cyB + r * math.sin(TH[k]), zb0 + dz)))
+    for k in range(NB):
+        k2 = (k + 1) % NB; cb2.faces.new((lo_[k], lo_[k2], hi_[k2], hi_[k]))
+    cbo = rigged('Corset top edge', cb2, TOON, 'J_Bip_C_Spine'); cbo.vertex_groups.clear()
+    for g in body.vertex_groups: cbo.vertex_groups.new(name=g.name)
+    for v in cbo.data.vertices:
+        co_, idx, dist = kdb.find(v.co)
+        for gr in me.vertices[idx].groups: cbo.vertex_groups[gr.group].add([v.index], gr.weight, 'REPLACE')
+    bmb = bmesh.new(); bmb.from_mesh(me)
+    cf_ = [f for f in bmb.faces if f.material_index == BOD_I or f.material_index in CORSET]   # cut the corset clean at the underbust
+    bmesh.ops.bisect_plane(bmb, geom=cf_ + list({e for f in cf_ for e in f.edges}) + list({v for f in cf_ for v in f.verts}),
+                           plane_co=(0, 0, zb0), plane_no=(0, 0, 1), clear_outer=True)            # (a ragged top stood proud of the blouse)
+    box = [f for f in bmb.faces if f.material_index == BOD_I]
+    bmesh.ops.delete(bmb, geom=box, context='FACES'); bmb.to_mesh(me); bmb.free(); me.update()
+    print('BODICE box under the blouse removed: corset cut at %.3f, %d faces left over' % (zb0, len(box)))
 
 # ------------------------------------------------------------------ 3. twin tails
 hb = bmesh.new(); hb.from_mesh(hair.data); hb.verts.ensure_lookup_table()
@@ -870,12 +987,17 @@ zb = ztop - 0.012
 SKV = {i for p_ in me.polygons if p_.material_index in SKIRT for i in p_.vertices}
 CV = {i for p_ in me.polygons if p_.material_index in CORSET for i in p_.vertices}
 # the belt follows the corset's real cross-section at its height (an ellipse cuts in at the front)
-bpts = [me.vertices[i].co for i in (CV | SKV) if abs(me.vertices[i].co.z - zb) < 0.012]
+bpts = [me.vertices[i].co for i in CV if abs(me.vertices[i].co.z - zb) < 0.020]   # the corset alone: the skirt flares out below the belt
+if len(bpts) < 12: print('BELT: too little corset at %.3f, using the skirt too' % zb); bpts = [me.vertices[i].co for i in (CV | SKV) if abs(me.vertices[i].co.z - zb) < 0.012]
 bc = Vector((0, sum(q.y for q in bpts) / len(bpts), 0))
 angs = sorted((math.atan2(q.y - bc.y, q.x), math.hypot(q.x, q.y - bc.y)) for q in bpts)
 def belt_r(th, win=0.20):
     near = [r_ for t_, r_ in angs if abs(math.remainder(t_ - th, 2 * math.pi)) < win]
-    return (max(near) if near else max(r_ for _, r_ in angs)) + 0.005
+    if near: return max(near) + 0.010                       # the belt sits on the skirt's gathered waistband, a little proud of the corset
+    lo = max((q for q in angs), key=lambda q: math.remainder(q[0] - th, 2 * math.pi) if math.remainder(q[0] - th, 2 * math.pi) < 0 else -9)
+    hi = min((q for q in angs), key=lambda q: math.remainder(q[0] - th, 2 * math.pi) if math.remainder(q[0] - th, 2 * math.pi) > 0 else 9)
+    d0, d1 = -math.remainder(lo[0] - th, 2 * math.pi), math.remainder(hi[0] - th, 2 * math.pi)   # no corset point this way: interpolate
+    return lo[1] + (hi[1] - lo[1]) * d0 / max(1e-6, d0 + d1) + 0.010                           # (the widest one made the belt round)
 bb = bmesh.new(); NB = 72; top_, bot_ = [], []
 for i in range(NB):
     th = 2 * math.pi * i / NB; r_ = belt_r(th)
@@ -944,11 +1066,11 @@ cor_faces = [p_ for p_ in me.polygons if p_.material_index in CORSET]
 if cor_faces:
     from mathutils.bvhtree import BVHTree as _B
     cbvh = _B.FromPolygons([v.co for v in me.vertices], [p_.vertices for p_ in cor_faces])
-    zc0 = ztop + 0.012; zc1 = (a.underbust or ztop + 0.10) - 0.004; n_ = 7
+    zc0 = ztop + 0.012; zc1 = (a.underbust or ztop + 0.10) - 0.010; n_ = 5
     def front(x, z):
         loc, nrm, fi, d = cbvh.ray_cast(Vector((x, -0.6, z)), Vector((0, 1, 0)))
         return (loc + Vector((0, -0.004, 0))) if loc else None
-    cols = {sgn: [front(sgn * 0.032, zc0 + (zc1 - zc0) * i / (n_ - 1)) for i in range(n_)] for sgn in (-1, 1)}
+    cols = {sgn: [front(sgn * 0.040, zc0 + (zc1 - zc0) * i / (n_ - 1)) for i in range(n_)] for sgn in (-1, 1)}
     if all(p_ is not None for sgn in cols for p_ in cols[sgn]):
         gb_ = bmesh.new()
         for sgn in cols:
@@ -958,14 +1080,18 @@ if cor_faces:
                 for v_ in ring_v + inner: v_.co = Vector((c_.x + v_.co.x, c_.y - 0.0005, c_.z + v_.co.y))
                 for i_ in range(10): gb_.faces.new((ring_v[i_], ring_v[(i_ + 1) % 10], inner[(i_ + 1) % 10], inner[i_]))
         rigged('Corset grommets', gb_, SILVER, 'J_Bip_C_Spine')
-        lb_ = bmesh.new(); w_ = 0.0016
+        lb_ = bmesh.new(); w_ = 0.0018
+        def on_corset(q, lift):   # the corset front is curved: a straight ribbon between eyelets cut through it
+            loc, nrm, fi, d = cbvh.ray_cast(Vector((q.x, -0.6, q.z)), Vector((0, 1, 0)))
+            return (loc + nrm * lift) if loc else q
         for i_ in range(n_ - 1):
             for sgn in (-1, 1):
-                p0, p1 = cols[sgn][i_], cols[-sgn][i_ + 1]; d_ = (p1 - p0).normalized(); side_ = d_.cross(Vector((0, -1, 0))).normalized() * w_
-                q = [lb_.verts.new(p0 - side_ + Vector((0, -0.0015 * (sgn > 0), 0))), lb_.verts.new(p0 + side_ + Vector((0, -0.0015 * (sgn > 0), 0))),
-                     lb_.verts.new(p1 + side_ + Vector((0, -0.0015 * (sgn > 0), 0))), lb_.verts.new(p1 - side_ + Vector((0, -0.0015 * (sgn > 0), 0)))]
-                lb_.faces.new(q)
-        rigged('Corset lacing', lb_, SATIN, 'J_Bip_C_Spine'); print('CORSET LACING', n_, 'rows from %.3f to %.3f' % (zc0, zc1))
+                p0, p1 = cols[sgn][i_], cols[-sgn][i_ + 1]; lift = 0.0028 if sgn > 0 else 0.0018   # one ribbon over the other where they cross
+                d_ = (p1 - p0).normalized(); side_ = d_.cross(Vector((0, -1, 0))).normalized() * w_
+                pairs = [(lb_.verts.new(on_corset(p0.lerp(p1, t_) - side_, lift)), lb_.verts.new(on_corset(p0.lerp(p1, t_) + side_, lift)))
+                         for t_ in np.linspace(0, 1, 14)]
+                for (a0, a1), (b0, b1) in zip(pairs, pairs[1:]): lb_.faces.new((a0, a1, b1, b0))
+        rigged('Corset lacing', lb_, RIBBON, 'J_Bip_C_Spine'); print('CORSET LACING', n_, 'rows from %.3f to %.3f' % (zc0, zc1))
     else: print('CORSET LACING skipped: front not found')
 
 # forearm lacing: two crossing helices of black ribbon from the wrist up the forearm

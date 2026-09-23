@@ -134,22 +134,41 @@ reference picture:
   and gathers into a cuff above the elbow, sized off the arm profile. It
   has a ruffle on its top edge and on the cuff, in the blouse navy.
   `--vroid-sleeves` keeps and puffs VRoid's sleeve instead.
-- **Blouse**: the corset above the underbust line becomes navy, and a
-  fitted gathered blouse is built over the upper torso: its shape is the
-  largest radius of the torso at each height and angle (so it bridges the
-  bust like cloth), from under the corset's top edge to a straight
-  off-shoulder neckline with a ruffle. What is left of VRoid's blouse, its
-  upper-back panel, is recoloured to the same navy. The black corset then
-  reads as an underbust piece over the blouse, with silver eyelets in two
-  columns and criss-cross lacing.
+- **Waist**: the reference's corset cinches to about half the shoulder
+  width, and VRoid's torso was 30-40% wider there. Every vertex of the
+  torso (skin, corset, the skirt's waistband) is narrowed by one smooth
+  factor per height - 0.78 at the belt, 0.82 at the underbust, 0.88
+  across the bust, back to 1 under the arms - so the layers stay nested
+  and everything built afterwards follows. Only 40% of it applies front
+  to back, which leaves the waist round rather than flat.
+- **Blouse**: a fitted gathered blouse is built over the upper torso,
+  shaped as a bust: tucked into the corset's top edge, a round underside,
+  fullest a third of the way up with two soft forms on the front, then
+  sloping back to a straight off-shoulder neckline with a ruffle. Its
+  sides come from the ribs' real outline; guessing them from the front
+  made the old blouse a box. Everything VRoid had under it goes: the
+  loose long-sleeve blouse (it stood 2 cm off the ribs) and the corset's
+  flat top panel, cut clean at the underbust line. The black corset then
+  reads as an underbust piece over the blouse, with a narrow binding on
+  its top edge.
 - **Skirt**: the bell skirt is subdivided and becomes two layers of 16
   rounded pleats flaring from the belt (a knife-pleat sawtooth shows as
   teeth on the silhouette; layers in step so the outer nests), with six handkerchief points, a gathered
   frill under each hem and three rows of navy piping; its buttons and panel seams are flattened out of the
   texture and the white petticoat is dropped.
-- **Corset and belt**: silver grommets and a criss-cross lacing down the
-  front; the belt follows the corset's real cross-section with a small
-  gold buckle.
+- **Corset and belt**: VRoid's corset flares out at the bottom (over the
+  skirt's waistband) and at the top (where its bust cups start); it is
+  now a straight tube 8% wider at the top than at the belt, with the skin
+  kept inside, and its texture is flattened so the side straps VRoid
+  painted on it do not read as stripes. The flattened textures are also
+  given to each cloth's MToon outline shell, which carries its own copy of
+  the texture. Five pairs of silver eyelets 8 cm apart hold a dark lacing
+  laid on the corset's curved surface (straight ribbons between eyelets
+  cut through it and showed only as stubs). The lacing gap at the front,
+  which VRoid leaves as bare skin, becomes plain corset. The belt follows the corset's outline 1 cm proud
+  of it, as it sits on the skirt's gathered waistband, and the skirt's
+  waistband tucks under the belt at the corset's width, so the skirt
+  flares from the narrow waist.
 - **Shading**: cloth cel shading is softened (VRoid ships it nearly hard)
   so pleats and gathers read, and the hair gets a warm ochre shade. The
   MToon rim light, which the VRM carries, is set warm gold on the hair and
