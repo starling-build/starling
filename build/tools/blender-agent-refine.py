@@ -645,8 +645,8 @@ def strip(rows, tier, folds, ncols=400):
             r = skirt_r(th, d, tier[0](th), tier[1](th), tier[2], k, t) + lift
             v = sb.verts.new((r * math.cos(th), cy + r * math.sin(th), ztop - d))
             for g_, w_ in skirt_weights(th, min(1.0, max(0.0, d / D_low(th)))).items(): v[sdl][g_] = w_
-            pd_ = pleat_dir(k); u_ = t if pd_ >= 0 else 1 - t                   # u runs from the tucked side (0) to the fold (1)
-            uvs[v] = (min(0.985, max(0.015, u_)), min(1.0, max(0.0, 1 - d / D_up(th) / 2))); ring_.append(v)
+            pd_ = pleat_dir(k); u_ = t if pd_ >= 0 else 1 - t                   # u runs from the tucked side (0) to the fold (1),
+            uvs[v] = ((k + min(0.985, max(0.015, u_))) / a.pleats, min(1.0, max(0.0, 1 - d / D_up(th) / 2)), k); ring_.append(v)   # its own tile
         grid.append(ring_)
     n = len(cols)
     for i in range(len(grid) - 1):
@@ -654,7 +654,8 @@ def strip(rows, tier, folds, ncols=400):
             j2 = (j + 1) % n; f = sb.faces.new((grid[i][j], grid[i][j2], grid[i + 1][j2], grid[i + 1][j]))
             f.material_index = rows[i + 1][2]; f.smooth = True
             step = folds and cols[j][1] > 1 - 1e-6
-            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else ((0.99, uvs[l.vert][1]) if step else uvs[l.vert])
+            vk_ = uvs[grid[i][j]][2]
+            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else (((vk_ + 0.99) / a.pleats, uvs[l.vert][1]) if step else uvs[l.vert][:2])
             if step:                                     # the lap: panel k's edge down to panel k+1's start (painted as the gap)
                 r1, r2 = (grid[i][j].co - Vector((0, cy, 0))).length, (grid[i][j2].co - Vector((0, cy, 0))).length
                 STEPS[f] = 1 if r1 > r2 else -1
@@ -677,19 +678,38 @@ for f in sb.faces:
     if f in STEPS:   # a lap faces the panel tucked under it
         if f.normal.dot(Vector((-math.sin(th), math.cos(th), 0))) * STEPS[f] < 0: f.normal_flip()
     elif f.normal.dot(Vector((c_.x, c_.y - cy, 0))) < 0: f.normal_flip()
-# MToon's toon shading flattens the panels to one tone from the front, so the creases are painted in as well: a
-# dark line at each fold and a soft falloff across the panel, and the lower tier darkens just under the upper's edge
-PW, PH = 256, 256; U_ = (np.arange(PW) + 0.5) / PW; V_ = (np.arange(PH) + 0.5) / PH
-# a pleat as the reference draws it, u from the tucked side to the fold: in the lap's shadow at first, a flat
-# face brightening a little toward the fold, a thin light line along the fold's edge, then the dark gap where
-# the cloth turns under the next panel; overall 12% lighter, as the reference's skirt measures
-shade_ = (0.62 + 0.38 * np.clip(U_ / 0.10, 0, 1) ** 0.6) * (0.9 + 0.12 * U_)
-shade_ = shade_ * (1 + 0.22 * np.exp(-((U_ - 0.945) / 0.012) ** 2)) * np.where(U_ > 0.962, 0.5, 1.0)
-q_ = (0.5 - V_) / 0.04; shadow_ = np.where((q_ >= 0) & (q_ <= 1), 1 - 0.38 * np.clip(1 - q_, 0, 1) ** 1.2, 1.0)
+# MToon's toon shading flattens the panels to one tone from the front (and barely answers the scene's lights),
+# so shading is painted in: one tile per panel, from four wrinkle variants, each panel darker the further it
+# turns toward the side, as the reference's do. u from the tucked side to the fold, v 0.5 at the upper
+# tier's hem. Each: a pleat as the reference draws it - in the lap's shadow at first, a face brightening toward
+# the fold, a thin light line along the fold's edge, a dark gap where it turns under - darker toward the
+# waistband, with short gather creases under the belt and a long soft crease or two down the panel; the lower
+# tier darker, deepest just under the upper tier's edge. Contrast and level set to the reference's measured tones.
+NV, PW, PH = 4, 256, 256; U_ = (np.arange(PW) + 0.5) / PW; V_ = (np.arange(PH) + 0.5) / PH; Ug, Vg = np.meshgrid(U_, V_)
+rng_ = np.random.default_rng(11); tiles = []
+for n_v in range(NV):
+    P = (0.5 + 0.5 * np.clip(Ug / 0.16, 0, 1) ** 0.6) * (0.9 + 0.12 * Ug)
+    P *= (1 + 0.22 * np.exp(-((Ug - 0.945) / 0.012) ** 2)) * np.where(Ug > 0.958, 0.45, 1.0)
+    P *= 1 - 0.28 * np.clip((Vg - 0.9) / 0.1, 0, 1) ** 1.2                  # into the waistband's shadow
+    for _ in range(int(rng_.integers(2, 4))):                               # gathers under the belt
+        uc, L, w, dk = rng_.uniform(0.15, 0.85), rng_.uniform(0.05, 0.11), rng_.uniform(0.018, 0.03), rng_.uniform(0.18, 0.3)
+        du = Ug - uc - 0.15 * (1 - Vg); fade = np.clip((Vg - (1 - L)) / L, 0, 1) ** 0.8
+        P *= 1 + fade * (-dk * np.exp(-(du / w) ** 2) + 0.5 * dk * np.exp(-((du - 1.6 * w) / w) ** 2))
+    for _ in range(int(rng_.integers(1, 3))):                               # long soft creases down the panel
+        v0, v1 = rng_.uniform(0.84, 0.95), rng_.uniform(0.55, 0.68); u0 = rng_.uniform(0.25, 0.75); u1 = u0 + rng_.uniform(-0.18, 0.18)
+        s_ = np.clip((v0 - Vg) / (v0 - v1), 0, 1); env = np.sin(np.pi * s_) * ((Vg <= v0) & (Vg >= v1))
+        du = Ug - (u0 + (u1 - u0) * s_); dk = rng_.uniform(0.10, 0.16)
+        P *= 1 + env * (-dk * np.exp(-(du / 0.035) ** 2) + 0.45 * dk * np.exp(-((du - 0.06) / 0.035) ** 2))
+    q_ = np.clip((0.5 - Vg) / 0.10, 0, 1)
+    P *= np.where(Vg < 0.5, 0.82 * (1 - 0.5 * (1 - q_) ** 1.3), 1.0)        # lower tier, in the upper one's shadow
+    tiles.append(P)
+side_ = [1 - 0.32 * abs(math.cos(PH0 + (k + 0.5) * 2 * math.pi / a.pleats)) ** 1.5 for k in range(a.pleats)]
+P = np.concatenate([tiles[(k * 7) % NV] * side_[k] for k in range(a.pleats)], axis=1)
+front_ = np.concatenate([tiles[(k * 7) % NV] for k in range(a.pleats) if side_[k] > 0.9], axis=1)
+P = P / front_[V_ >= 0.5].mean(); P = (1 + (P - 1) * 1.35) * 1.27          # level and contrast of the reference's skirt
 flat_ = np.array(lit_image(SKIRT_MAT).pixels[:], dtype=np.float32).reshape(-1, 4); flat_ = flat_[flat_[:, 3] > 0.5][:, :3].mean(0)
-pimg = bpy.data.images.new('Skirt panels', PW, PH, alpha=True); pp_ = np.ones((PH, PW, 4), np.float32)
-pp_[..., :3] = flat_[None, None, :] * ((shade_ / shade_.mean() * 1.12)[None, :] * shadow_[:, None])[..., None]
-pimg.pixels[:] = np.clip(pp_, 0, 1).ravel(); pimg.pack()
+pimg = bpy.data.images.new('Skirt panels', a.pleats * PW, PH, alpha=True); pp_ = np.ones((PH, a.pleats * PW, 4), np.float32)
+pp_[..., :3] = flat_[None, None, :] * P[..., None]; pimg.pixels[:] = np.clip(pp_, 0, 1).ravel(); pimg.pack()
 panel_mat = SKIRT_MAT.copy(); panel_mat.name = SKIRT_MAT.name.split(' (')[0] + ' panels'   # keeps the cloth key: soft shading, rim
 old_ = lit_image(SKIRT_MAT)
 for n_ in panel_mat.node_tree.nodes:
@@ -699,6 +719,13 @@ band_mat = panel_mat.copy(); band_mat.name = panel_mat.name.replace(' panels', '
 lc_ = mtoon(band_mat).inputs['Lit Color']; lc_.default_value = (*[c * 0.82 for c in lc_.default_value[:3]], 1.0)
 sob = bpy.data.objects.new('Skirt', sme); coll.objects.link(sob); sme.materials.append(panel_mat); sme.materials.append(trim); sme.materials.append(band_mat)
 sob.parent = arm; sob.modifiers.new('Armature', 'ARMATURE').object = arm
+# MToon surfaces are transparent to shadow rays (so they never self-shadow), which also means the skirt threw no
+# shadow on the thighs or on its own lower tier. An invisible copy a few mm inside it casts one.
+cst = sob.copy(); cst.name = 'Skirt shadow caster'; coll.objects.link(cst); CASTER = pmat('Shadow caster', (0, 0, 0))
+for sl_ in cst.material_slots: sl_.link = 'OBJECT'; sl_.material = CASTER
+dm_ = cst.modifiers.new('Inset', 'DISPLACE'); dm_.strength = -0.004; dm_.mid_level = 0.0
+for at_ in ('visible_camera', 'visible_diffuse', 'visible_glossy', 'visible_transmission', 'visible_volume_scatter'): setattr(cst, at_, False)
+cst.visible_shadow = True
 print('SKIRT rebuilt: %d panels; lower tier %.3f long at the sides / %.3f at the points, upper out to %.3f / %.3f; %d verts'
       % (a.pleats, a.skirt_side, a.skirt_front, a.skirt_radius, a.skirt_radius_front, len(sme.vertices)))
 # plain fabric: a flattened copy of the skirt texture (drops the buttons and panel seams)
@@ -1209,6 +1236,7 @@ for m in bpy.data.materials:
         if g and 'Shading Toony' in g.inputs:
             g.inputs['Shading Toony'].default_value = a.cloth_toony; g.inputs['Shading Shift'].default_value = 0.05; nsoft += 1
 print('SOFT SHADING on', nsoft, 'materials')
+
 # hair: warm ochre shade and softer cel so clumps and strands read (the reference's hair has deep gold shadows)
 for m in bpy.data.materials:
     if 'Hair_00_HAIR' in m.name and not m.name.startswith('MToon Outline') and m.node_tree:
@@ -1231,7 +1259,9 @@ def rim(keys, rgb, power, lift, mul):
 if a.rim:
     print('RIM', rim(('Hair_00_HAIR',), (255, 196, 96), 4.5, 0.0, a.rim * 0.7),
           # no skin rim: VRoid paints the gloves into the skin texture and a rim turns them brown
-          rim(('Tops_01_CLOTH', 'Bodice', 'Skirt trim', 'Shoes_01_CLOTH'), (150, 110, 255), 4.0, 0.0, a.rim * 0.5))
+          rim(('Tops_01_CLOTH', 'Bodice', 'Skirt trim', 'Shoes_01_CLOTH'), (150, 110, 255), 4.0, 0.0, a.rim * 0.5),
+          # the skirt flares out sideways, so a broad rim lit its whole sides; the reference's sides fall into shade
+          rim((' panels', ' band', 'Skirt trim'), (150, 110, 255), 9.0, 0.0, a.rim * 0.35))
 # no outline shell on the body skin: VRoid removed the skin under the old collar and sleeves, and the
 # inverted-hull outline shows through those gaps as dark red. The reference has no skin contour lines anyway.
 for md in list(body.modifiers):

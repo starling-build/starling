@@ -168,11 +168,17 @@ reference picture:
   front, as in the reference (4 cm stacked the two hem bands into
   stripes). Each hem is a band standing off its tier, a shade darker,
   with two thin light cords along its edges and a rolled edge; there is
-  no frill under it, as in the reference. Toon shading flattens the
-  panels to one tone from the front, so the creases are also painted into
-  a small texture of their own (a dark line at each fold, a soft falloff
-  across each panel, and a shadow on the lower tier just under the upper
-  one's edge). Bone
+  no frill under it, as in the reference. The toon shading barely
+  answers the stage's lights (every surface reached by any light counts as
+  lit), so the skirt's shading is painted into a texture of its own, one
+  tile per panel from four wrinkle variants: the pleat profile, a darker
+  band under the belt with short gather creases, a long soft crease or
+  two down the panel, the lower tier darker and deepest just under the
+  upper one's edge, and each panel darker the further it turns toward the
+  side - measured against the reference's skirt (mean, darks and lights
+  within a few levels). Its MToon rim is thin (it lit the flared sides
+  whole). MToon surfaces are transparent to shadow rays, so an invisible
+  copy of the skirt a few mm inside it casts its shadow on the thighs. Bone
   weights are copied from VRoid's skirt by angle and relative depth
   (hips, spine and its skirt bones). With the shorter skirt, the garter
   straps VRoid paints up the thighs are painted out: the reference's
