@@ -55,6 +55,8 @@ p.add_argument('--bangs', type=float, default=1.10)         # fringe length fact
 p.add_argument('--sidelocks', type=float, default=1.9)      # length factor for the outer fringe pieces (face-framing locks)
 p.add_argument('--crown', type=float, default=1.03)
 p.add_argument('--lock-width', type=float, default=1.7)
+p.add_argument('--choker-at', type=float, default=0.19)   # choker centre, as a fraction up the neck bone
+p.add_argument('--choker-h', type=float, default=0.015)   # choker half height
 p.add_argument('--lock-drop', type=float, default=0.045)  # face-framing locks end this far below the chin
 p.add_argument('--root-tuck', type=float, default=0.35)   # shrink the tail roots above the tie toward it   # face-framing lock fullness         # overall hair volume (not the tails)
 p.add_argument('--tail-wave', type=float, default=0.008)
@@ -216,6 +218,22 @@ def hair_strands(seed=7):
     print('HAIR STRANDS %dx%d, %d lines, relinked %d nodes' % (W, H, a.hair_lines, n))
 if a.hair_lines: hair_strands()
 hue_shift('EyeIris_00_EYE', 22, sat=0.5, val=1.3)          # lighter, greyer blue-violet        # vivid blue -> blue-violet
+def fill_texture_holes(img, grow=48):
+    """Grow opaque colour into transparent texels and make the whole image opaque. VRoid leaves the skin
+    texture empty wherever clothing hid the body at export, which the reshaped outfit now exposes."""
+    W, H = img.size; px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
+    ok = px[..., 3] > 0.5; col = np.where(ok[..., None], px[..., :3], 0); n0 = int((~ok).sum())
+    for _ in range(grow):
+        if ok.all(): break
+        acc = np.zeros_like(col); cnt = np.zeros((H, W), np.float32)
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            acc += np.roll(np.roll(col * ok[..., None], dy, 0), dx, 1); cnt += np.roll(np.roll(ok, dy, 0), dx, 1)
+        new = (~ok) & (cnt > 0); col[new] = acc[new] / cnt[new, None]; ok = ok | new
+    px[..., :3] = np.where(ok[..., None], col, px[..., :3]); px[..., 3] = 1.0
+    img.pixels[:] = px.ravel(); img.pack(); return n0
+for m in bpy.data.materials:
+    if 'Body_00_SKIN' in m.name and not m.name.startswith('MToon Outline') and m.node_tree:
+        print('SKIN HOLES filled', fill_texture_holes(lit_image(m)), 'texels'); break
 WARM = (0.98, 0.80, 0.72)
 for m in bpy.data.materials:        # face: warm through the lit colour (nothing dark on it)
     if 'Face_00_SKIN' in m.name and m.node_tree and mtoon(m): mtoon(m).inputs['Lit Color'].default_value = (*WARM, 1.0)
@@ -297,6 +315,8 @@ for v in sleeve:
 SKIN = mats('Body_00_SKIN'); uvl = bm.loops.layers.uv.active; OWN_SLEEVES = []
 arm_skin = me.materials[min(SKIN)].copy(); arm_skin.name = 'Arm skin (no outline)'   # outlines are per-material modifiers
 me.materials.append(arm_skin); ARM_I = len(me.materials) - 1
+arm_skin.use_backface_culling = False                                             # the old back collar is seen from inside
+if mtoon(arm_skin) and 'Double Sided' in mtoon(arm_skin).inputs: mtoon(arm_skin).inputs['Double Sided'].default_value = True
 skin_uv = None
 for side, tag in ((1, 'L'), (-1, 'R')):
     ua, la = B['J_Bip_%s_UpperArm' % tag], B['J_Bip_%s_LowerArm' % tag]
@@ -364,12 +384,28 @@ def mid_texel(mat):
 SLEEVE_MAT = me.materials[BOD_I] if a.underbust else me.materials[min(BLOUSE)]
 SLEEVE_UV = mid_texel(SLEEVE_MAT)
 if not a.vroid_sleeves and a.underbust:   # what is left of VRoid's blouse is its upper-back panel: make it the blouse navy
-    nbp = 0
+    nbp = nsk = 0; zn_ = AXZ - a.neckline_drop
     for f in bm.faces:
         if f.material_index in BLOUSE:
-            f.material_index = BOD_I; nbp += 1
-            for l in f.loops: l[uvl].uv = SLEEVE_UV
-    print('BACK PANEL', nbp, 'faces -> blouse navy')
+            if max(v.co.z for v in f.verts) > zn_ - 0.004 and skin_uv is not None:   # VRoid's stand collar behind the neck: skin, so the
+                f.material_index = ARM_I; nsk += 1                         # neck runs down into the shoulders instead of ending at it
+                for l in f.loops: l[uvl].uv = skin_uv
+            else:
+                f.material_index = BOD_I; nbp += 1
+                for l in f.loops: l[uvl].uv = SLEEVE_UV
+    print('BACK PANEL', nbp, 'faces -> blouse navy,', nsk, 'collar faces -> skin')
+    # clamp the collar under a smooth trapezius curve: from just under the choker at the neck, falling steeply
+    # then flattening out to the shoulder joint (its cut edge was a staircase and stood up to the choker)
+    NKb = B['J_Bip_C_Neck']; zc_ = NKb.head_local.z + a.choker_at * (NKb.tail_local.z - NKb.head_local.z); ny_ = NKb.head_local.y
+    nk = [v.co for v in bm.verts if abs(v.co.z - zc_) < 0.006 and math.hypot(v.co.x, v.co.y - ny_) < 0.07
+          and any(f.material_index in SKIN for f in v.link_faces)]
+    rn_ = sorted(math.hypot(q.x, q.y - ny_) for q in nk)[int(0.8 * (len(nk) - 1))] if nk else 0.04
+    zb_ = zc_ - a.choker_h - 0.003; zs_ = AXZ + 0.012; ncl = 0
+    for v in {v for f in bm.faces if f.material_index == ARM_I and f.calc_center_median().z > zn_ - 0.01 for v in f.verts}:
+        rl = math.hypot(v.co.x, v.co.y - ny_); t_ = min(1.0, max(0.0, (rl - rn_) / max(1e-4, X0 - rn_)))
+        zmax = zb_ - (zb_ - zs_) * t_ ** 0.5
+        if v.co.z > zmax: v.co.z = zmax; ncl += 1
+    print('COLLAR clamped', ncl, 'verts under the trapezius curve (neck r %.3f, %.3f -> %.3f)' % (rn_, zb_, zs_))
 for side, tag, centre_at in OWN_SLEEVES:
     sb = bmesh.new(); s0, s1 = X0 + a.sleeve_start, X0 + a.sleeve_end; NS, MS = 40, 22; rows_ = []
     for j in range(MS + 1):
@@ -786,11 +822,11 @@ def section(z, pred, pct=0.9):
     rs = sorted(math.hypot(p.x - cx, p.y - cyy) for p in pts)
     return Vector((cx, cyy, z)), rs[int(pct * (len(rs) - 1))]
 # choker: satin band + lace frill
-NB_ = B['J_Bip_C_Neck']; zc = NB_.head_local.z + 0.30 * (NB_.tail_local.z - NB_.head_local.z)   # choker follows the neck
+NB_ = B['J_Bip_C_Neck']; zc = NB_.head_local.z + a.choker_at * (NB_.tail_local.z - NB_.head_local.z)   # choker follows the neck
 cen, r = section(zc, lambda c: abs(c.x) < 0.07 and math.hypot(c.x, c.y - 0.02) < 0.07)
-cb = bmesh.new(); ring(cb, cen, r + 0.004, r + 0.004, zc - 0.012, zc + 0.012, n=48)
+cb = bmesh.new(); ring(cb, cen, r + 0.004, r + 0.004, zc - a.choker_h, zc + a.choker_h, n=48)
 rigged('Choker', cb, TOON, 'J_Bip_C_Neck')
-cf = bmesh.new(); ring(cf, cen, r + 0.005, r + 0.005, zc - 0.030, zc - 0.010, n=64, flare=0.010, scallop=0.35)
+cf = bmesh.new(); ring(cf, cen, r + 0.005, r + 0.005, zc - a.choker_h - 0.019, zc - a.choker_h + 0.002, n=64, flare=0.010, scallop=0.35)
 rigged('Choker lace', cf, LACE, 'J_Bip_C_Neck'); print('CHOKER r %.3f at' % r, cen)
 # belt + gold buckle at the skirt waistband
 zb = ztop - 0.012
@@ -921,7 +957,7 @@ for side, tag in ((1, 'L'), (-1, 'R')):
 # lace bib: a scalloped fall of lace from the choker onto the collarbones, front only
 lb = bmesh.new(); cen_c, rc = section(zc, lambda c: abs(c.x) < 0.07 and math.hypot(c.x, c.y - 0.02) < 0.07)
 rows = []
-for k, (z, r_) in enumerate(((zc - 0.012, rc + 0.006), (zc - 0.029, rc + 0.016), (zc - 0.045, rc + 0.028))):
+for k, (z, r_) in enumerate(((zc - a.choker_h, rc + 0.006), (zc - a.choker_h - 0.017, rc + 0.016), (zc - a.choker_h - 0.033, rc + 0.028))):
     row = []
     for i in range(33):
         th = math.radians(-150 + 120 * i / 32); sc_ = 0.006 * (k == 2) * (0.5 + 0.5 * math.cos(i * math.pi / 2))

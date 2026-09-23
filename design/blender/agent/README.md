@@ -88,7 +88,8 @@ face set with the eyes enlarged, irises `#1E66CA`, rose lipstick, near-black
 eyeliner. Body: head size -0.4 and chin length 0.05, measured with
 `build/tools/agent-proportions.py` so she is 7.2 heads tall with the
 eye-to-chin distance of the reference (an earlier -1.0 head and -0.42 chin
-made her 7.9 heads, a head visibly too small), head width 0.15, neck length -0.45 and thickness 0.35,
+made her 7.9 heads, a head visibly too small), head width 0.15, neck length 0.25 and thickness 0.35 (chin to neckline
+5.85% of height, reference 5.9%; an earlier -0.45 made the neck 12% short),
 chest size 0.52, waist narrowed, legs 0.55, small flat ears (size -0.8,
 prominence -0.5) so the hair hides them, and a soft cheek blush. Face: the
 masculine face setting removed and the feminine face, eyes and brows
@@ -179,6 +180,15 @@ reference picture:
   a belt with a gold buckle, stocking bands with bows, and thin forearm
   lacing that zigzags across the front of each forearm in X's, each point
   ray-cast onto the skin (the forearm is not round, so a fixed radius floats).
+- **Neck and shoulders**: VRoid's blouse left a stand-up collar behind the
+  neck and built no skin under it. Above the neckline that collar becomes
+  double-sided skin, clamped under a smooth trapezius curve that falls
+  steeply from just below the choker and flattens out to the shoulder
+  joint, so the neck runs down into sloping shoulders instead of ending at
+  a navy collar. The skin texture's empty texels (left where clothing hid
+  the body) are filled by growing the surrounding colour. The choker sits
+  19% up the neck bone, 3 cm tall, with bare neck above it as in the
+  reference.
 - **Legs and skin**: the opaque stocking becomes a sheer brown-black
   (recoloured in the skin texture, only inside that leg's faces) with its
   own material whose brightness follows the view angle, so skin shows
