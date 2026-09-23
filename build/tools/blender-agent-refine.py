@@ -40,7 +40,7 @@ p.add_argument('--skirt-flare', type=float, default=1.6)    # >1: flares out fas
 p.add_argument('--tier-side', type=float, default=0.065)    # the upper tier ends this much above the lower at the sides
 p.add_argument('--tier-front', type=float, default=0.040)   # ... and at the points
 p.add_argument('--pleats', type=int, default=20)            # flat panels with crisp folds
-p.add_argument('--fold', type=float, default=0.045)         # depth of the crease at each fold, as a fraction of the radius at the hem
+p.add_argument('--knife', type=float, default=0.035)        # knife-pleat lap at the hem, as a fraction of the radius
 p.add_argument('--cloth-toony', type=float, default=0.5)
 p.add_argument('--rim', type=float, default=0.55)          # strength of the built-in rim glow (0 = VRoid's)
 p.add_argument('--hair-lines', type=int, default=130)     # strand lines painted into the hair texture (0 = VRoid's)
@@ -49,7 +49,7 @@ p.add_argument('--hair-shade', type=int, nargs=3, default=(140, 84, 40))   # sRG
 p.add_argument('--fishnet-cell', type=float, default=34); p.add_argument('--fishnet-width', type=float, default=3.2)   # texels at 2048
 p.add_argument('--blouse', type=int, default=1)            # fitted gathered blouse over the upper torso, straight neckline
 p.add_argument('--neckline-drop', type=float, default=0.034)   # neckline below the shoulder joints
-p.add_argument('--piping', type=int, nargs=3, default=(46, 45, 64))   # sRGB piping colour (subtle: brighter read as stripes)
+p.add_argument('--piping', type=int, nargs=3, default=(38, 37, 52))   # sRGB piping colour (subtle: the cords' round shape catches the light)
 p.add_argument('--ruffle', type=float, default=0.014)     # frill under the lower tier's hem
 p.add_argument('--tail-len', type=float, default=0.28)      # tie to tip, metres (--tail-tip overrides)
 p.add_argument('--tail-tip', type=float, default=0.0)
@@ -596,15 +596,21 @@ def r_waist(th):
 r0 = float(RW.mean()) - 0.002
 bmesh.ops.delete(bm, geom=sk_faces, context='FACES')
 def v_hem(th, side, front): return side + (front - side) * (1 - abs(math.cos(th)))    # a V from the front: points front and back
-def skirt_r(th, drop, D, R, off=0.0):
-    """Radius at angle th, `drop` below the waistband, on a tier D long there that flares out to R at its hem:
-    flat panels between folds."""
+PH0 = -math.pi / 2 - math.pi / a.pleats      # panel boundaries: one panel centred on the front, as in the reference
+def panel_at(th):
+    ph = ((th - PH0) / (2 * math.pi) * a.pleats) % a.pleats; return int(ph) % a.pleats, ph - math.floor(ph)
+def knife(k, t, S):
+    """Knife pleats: each panel tilts so its outer edge laps over the next one, mirrored left and right; the
+    panels at the centre front and back lie flat. The laps are what make the reference's layers read."""
+    c = math.cos(PH0 + (k + 0.5) * 2 * math.pi / a.pleats)
+    if abs(c) < math.sin(math.pi / a.pleats): return 1.0
+    return 1 + a.knife * S ** 0.8 * ((t if c > 0 else 1 - t) - 0.5)
+def skirt_r(th, drop, D, R, off, k, t):
+    """Radius at angle th, `drop` below the waistband, on a tier D long there that flares out to R at its hem,
+    on panel k at t (0..1) across it."""
     S = min(1.0, drop / D); rw = r_waist(th)
     r = rw + (R - rw) * (1 - (1 - S) ** a.skirt_flare) + off * S ** 0.5
-    ph = (th + math.pi) / (2 * math.pi) * a.pleats; loc = (ph - math.floor(ph) - 0.5) * 2 * math.pi / a.pleats
-    edge = (math.pi / a.pleats - abs(loc)) / (math.pi / a.pleats)            # 0 at a fold, 1 mid-panel
-    crease = a.fold * min(1.0, S) ** 0.7 * (1 - math.sin(math.pi / 2 * edge)) ** 1.5   # rounded panels between deep creases
-    return r * math.cos(math.pi / a.pleats) / math.cos(loc) * (1 - crease)
+    return r * math.cos(math.pi / a.pleats) / math.cos((t - 0.5) * 2 * math.pi / a.pleats) * knife(k, t, S)
 def texel_uv(mat, target):
     img = lit_image(mat); W, H = img.size
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
@@ -616,59 +622,66 @@ _tc = _tp[int(TRIM_UV[1] * _th), int(TRIM_UV[0] * _tw), :3]; _tc = np.where(_tc 
 tf = [min(1.0, t / max(1e-4, c)) for t, c in zip(srgb(tuple(a.piping)), _tc)]   # scale against the texel the piping samples
 mtoon(trim).inputs['Lit Color'].default_value = (*tf, 1.0)
 if 'Shade Color' in mtoon(trim).inputs: mtoon(trim).inputs['Shade Color'].default_value = (*[c * 0.5 for c in tf], 1.0)
-SKIRT_MAT = me.materials[min(SKIRT)]; RUF_UV = mid_texel(SKIRT_MAT)
-CPP = 8; NA = a.pleats * CPP                                    # 8 columns per panel, a fold on every 8th
-sb = bmesh.new(); suv = sb.loops.layers.uv.new('UV'); sdl = sb.verts.layers.deform.new()
-def strip(rows, tier, ncols, folds):
-    """Rings at rows [(drop(th), radial lift, material of the face above it: 0 fabric, 1 piping)] on tier (D(th), R(th), off)."""
-    grid = []
-    for (drop_, lift, _) in rows:
-        ring_ = []
-        for j in range(ncols):
-            th = -math.pi + 2 * math.pi * j / ncols; S = drop_(th) / v_hem(th, a.skirt_side, a.skirt_front)
-            r = skirt_r(th, drop_(th), tier[0](th), tier[1](th), tier[2]) + lift
-            v = sb.verts.new((r * math.cos(th), cy + r * math.sin(th), ztop - drop_(th)))
-            for g_, w_ in skirt_weights(th, min(1.0, max(0.0, S))).items(): v[sdl][g_] = w_
-            ring_.append(v)
-        grid.append(ring_)
-    for i in range(len(grid) - 1):
-        for j in range(ncols):
-            k = (j + 1) % ncols; f = sb.faces.new((grid[i][j], grid[i][k], grid[i + 1][k], grid[i + 1][j]))
-            f.material_index = rows[i + 1][2]; f.smooth = True
-            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else RUF_UV
-            if folds and j % CPP == 0:
-                e = sb.edges.get((grid[i][j], grid[i + 1][j]))
-                if e: e.smooth = False                          # a crisp fold between panels
-    return grid
+SKIRT_MAT = me.materials[min(SKIRT)]
+CPP = 8                                                          # columns per panel
+sb = bmesh.new(); suv = sb.loops.layers.uv.new('UV'); sdl = sb.verts.layers.deform.new(); STEPS = {}
 def D_low(th): return v_hem(th, a.skirt_side, a.skirt_front)
 def R_low(th): return v_hem(th, a.under_radius, a.under_radius_front)
 def D_up(th): return D_low(th) - v_hem(th, a.tier_side, a.tier_front)
 def R_up(th): return v_hem(th, a.skirt_radius, a.skirt_radius_front)
+def strip(rows, tier, folds, ncols=400):
+    """Rings at rows [(drop(th), radial lift, material of the faces above it: 0 fabric, 1 piping)] on tier
+    (D(th), R(th), off). folds: a run of columns per panel, joined by the step where each laps over the next;
+    otherwise ncols even columns (the frill). UVs: u across the panel, v 0.5 at the upper tier's hem."""
+    cols = [(k, t) for k in range(a.pleats) for t in np.linspace(0, 1, CPP + 1)] if folds else \
+           [panel_at(-math.pi + 2 * math.pi * j / ncols) for j in range(ncols)]
+    grid = []; uvs = {}
+    for (drop_, lift, _) in rows:
+        ring_ = []
+        for (k, t) in cols:
+            th = PH0 + (k + t) * 2 * math.pi / a.pleats; d = drop_(th)
+            r = skirt_r(th, d, tier[0](th), tier[1](th), tier[2], k, t) + lift
+            v = sb.verts.new((r * math.cos(th), cy + r * math.sin(th), ztop - d))
+            for g_, w_ in skirt_weights(th, min(1.0, max(0.0, d / D_low(th)))).items(): v[sdl][g_] = w_
+            uvs[v] = (t, min(1.0, max(0.0, 1 - d / D_up(th) / 2))); ring_.append(v)
+        grid.append(ring_)
+    n = len(cols)
+    for i in range(len(grid) - 1):
+        for j in range(n):
+            j2 = (j + 1) % n; f = sb.faces.new((grid[i][j], grid[i][j2], grid[i + 1][j2], grid[i + 1][j]))
+            f.material_index = rows[i + 1][2]; f.smooth = True
+            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else uvs[l.vert]
+            if folds and cols[j][1] > 1 - 1e-6:          # the lap: panel k's edge down to panel k+1's start
+                r1, r2 = (grid[i][j].co - Vector((0, cy, 0))).length, (grid[i][j2].co - Vector((0, cy, 0))).length
+                STEPS[f] = 1 if r1 > r2 else -1
+                for e in f.edges: e.smooth = False
+    return grid
+CORD = lambda d0: [(d0 + 0.001, 0.0052, 1), (d0 - 0.0003, 0.0068, 1), (d0 - 0.0025, 0.0074, 1), (d0 - 0.0047, 0.0068, 1),
+                   (d0 - 0.006, 0.0052, 1), (d0 - 0.007, 0.004, 1)]            # a round cord across the band
 for D, Rt, off in ((D_low, R_low, 0.0), (D_up, R_up, 0.008)):   # lower tier, then the upper one outside it
-    rows = [((lambda th, u=u: (D(th) - 0.025) * u), 0.0, 0) for u in np.linspace(0, 1, 34)]
-    for d0, lift, m_ in ((0.025, 0.0035, 1), (0.021, 0.0035, 1), (0.021, 0.0025, 0), (0.009, 0.0025, 0), (0.009, 0.0035, 1),
-                         (0.005, 0.0035, 1), (0.005, 0.0025, 0), (0.0, 0.0025, 0), (-0.001, -0.002, 0)):   # band, piping, thick hem
-        rows.append(((lambda th, d0=d0: D(th) - d0), lift, m_))
-    strip(rows, (D, Rt, off), NA, True)
+    rows = [((lambda th, u=u: (D(th) - 0.027) * u), 0.0, 0) for u in np.linspace(0, 1, 34)]
+    band = [(0.027, 0.004, 0), (0.0255, 0.004, 0)] + CORD(0.0245) + [(0.0105, 0.004, 0)] + CORD(0.0095) + \
+           [(0.0, 0.004, 0), (-0.0015, 0.002, 0), (-0.002, -0.0015, 0)]        # the hem band is a layer: two cords, a rolled edge
+    rows += [((lambda th, d0=d0: D(th) - d0), lift, m_) for d0, lift, m_ in band]
+    strip(rows, (D, Rt, off), True)
 if a.ruffle:   # a small gathered frill under the lower tier, finely sampled (gathers alias into teeth otherwise)
-    g_ = strip([((lambda th: D_low(th) - 0.004), -0.002, 0), ((lambda th: D_low(th) + a.ruffle), 0.006, 0)], (D_low, R_low, 0.0), 400, False)
+    g_ = strip([((lambda th: D_low(th) - 0.004), -0.002, 0), ((lambda th: D_low(th) + a.ruffle), 0.006, 0)], (D_low, R_low, 0.0), False)
     for j, v in enumerate(g_[1]):
         th = -math.pi + 2 * math.pi * j / 400; w_ = 0.004 * math.sin(100 * th); v.co.x += w_ * math.cos(th); v.co.y += w_ * math.sin(th)
 for f in sb.faces:
-    f.normal_update(); c_ = f.calc_center_median()
-    if f.normal.dot(Vector((c_.x, c_.y - cy, 0))) < 0: f.normal_flip()
-    if f.material_index == 0:   # panel UVs: u across the panel fold to fold, v down the skirt, for the painted creases below
-        pc_ = (math.atan2(c_.y - cy, c_.x) + math.pi) / (2 * math.pi) * a.pleats; k_ = math.floor(pc_)
-        for l in f.loops:
-            ph_ = (math.atan2(l.vert.co.y - cy, l.vert.co.x) + math.pi) / (2 * math.pi) * a.pleats
-            l[suv].uv = ((ph_ - k_ + a.pleats / 2) % a.pleats - a.pleats / 2, min(1.0, max(0.0, (l.vert.co.z - (ztop - a.skirt_front)) / a.skirt_front)))
-# MToon's toon shading flattens the panels to one tone from the front, so the creases are painted in as well:
-# a dark line at each fold and a soft falloff across the panel, around the flat skirt colour
-PW, PH = 256, 32; U_ = (np.arange(PW) + 0.5) / PW
+    f.normal_update(); c_ = f.calc_center_median(); th = math.atan2(c_.y - cy, c_.x)
+    if f in STEPS:   # a lap faces the panel tucked under it
+        if f.normal.dot(Vector((-math.sin(th), math.cos(th), 0))) * STEPS[f] < 0: f.normal_flip()
+    elif f.normal.dot(Vector((c_.x, c_.y - cy, 0))) < 0: f.normal_flip()
+# MToon's toon shading flattens the panels to one tone from the front, so the creases are painted in as well: a
+# dark line at each fold and a soft falloff across the panel, and the lower tier darkens just under the upper's edge
+PW, PH = 256, 256; U_ = (np.arange(PW) + 0.5) / PW; V_ = (np.arange(PH) + 0.5) / PH
 d_ = np.minimum(U_, 1 - U_); shade_ = (1 - 0.42 * np.exp(-(d_ / 0.035) ** 2)) * (1 - 0.14 * (1 - np.sin(np.pi * U_)) ** 2)
+q_ = (0.5 - V_) / 0.04; shadow_ = np.where((q_ >= 0) & (q_ <= 1), 1 - 0.38 * np.clip(1 - q_, 0, 1) ** 1.2, 1.0)
 flat_ = np.array(lit_image(SKIRT_MAT).pixels[:], dtype=np.float32).reshape(-1, 4); flat_ = flat_[flat_[:, 3] > 0.5][:, :3].mean(0)
 pimg = bpy.data.images.new('Skirt panels', PW, PH, alpha=True); pp_ = np.ones((PH, PW, 4), np.float32)
-pp_[..., :3] = flat_[None, None, :] * (shade_ / shade_.mean())[None, :, None]; pimg.pixels[:] = np.clip(pp_, 0, 1).ravel(); pimg.pack()
+pp_[..., :3] = flat_[None, None, :] * ((shade_ / shade_.mean())[None, :] * shadow_[:, None])[..., None]
+pimg.pixels[:] = np.clip(pp_, 0, 1).ravel(); pimg.pack()
 panel_mat = SKIRT_MAT.copy(); panel_mat.name = SKIRT_MAT.name.split(' (')[0] + ' panels'   # keeps the cloth key: soft shading, rim
 old_ = lit_image(SKIRT_MAT)
 for n_ in panel_mat.node_tree.nodes:

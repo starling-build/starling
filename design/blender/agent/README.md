@@ -152,16 +152,21 @@ reference picture:
   reads as an underbust piece over the blouse, with a narrow binding on
   its top edge.
 - **Skirt**: VRoid's bell skirt is replaced by one built from scratch after
-  the reference: 20 flat panels with crisp folds, flaring out fast below
+  the reference: 20 knife-pleated panels, each lapping over the next
+  (mirrored left and right, the centre front and back panels flat), so
+  every fold is a small ledge and the hems step - that and the raised
+  hem bands are what make the reference's layers read. It flares out fast below
   the belt as over a petticoat, in two tiers whose hems make a V from the
   front - short at the sides, a deep point at the centre front and back.
   The upper tier stands out to wide corners at the sides (40% down the
   figure, like the reference) while the lower tier hangs narrower and
-  steeper under it and shows below. Each hem has a band between two rows
-  of subtle piping and a thick edge; a small gathered frill hangs under
-  the lower one. Toon shading flattens the panels to one tone from the
-  front, so the creases are also painted into a small texture of their
-  own (a dark line at each fold, a soft falloff across each panel). Bone
+  steeper under it and shows below. Each hem is a band standing off its
+  tier, with two round cords across it and a rolled edge; a small
+  gathered frill hangs under the lower one. Toon shading flattens the
+  panels to one tone from the front, so the creases are also painted into
+  a small texture of their own (a dark line at each fold, a soft falloff
+  across each panel, and a shadow on the lower tier just under the upper
+  one's edge). Bone
   weights are copied from VRoid's skirt by angle and relative depth
   (hips, spine and its skirt bones). With the shorter skirt, the garter
   straps VRoid paints up the thighs are painted out: the reference's
