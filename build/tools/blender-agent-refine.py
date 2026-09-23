@@ -721,11 +721,17 @@ sob = bpy.data.objects.new('Skirt', sme); coll.objects.link(sob); sme.materials.
 sob.parent = arm; sob.modifiers.new('Armature', 'ARMATURE').object = arm
 # MToon surfaces are transparent to shadow rays (so they never self-shadow), which also means the skirt threw no
 # shadow on the thighs or on its own lower tier. An invisible copy a few mm inside it casts one.
-cst = sob.copy(); cst.name = 'Skirt shadow caster'; coll.objects.link(cst); CASTER = pmat('Shadow caster', (0, 0, 0))
-for sl_ in cst.material_slots: sl_.link = 'OBJECT'; sl_.material = CASTER
-dm_ = cst.modifiers.new('Inset', 'DISPLACE'); dm_.strength = -0.004; dm_.mid_level = 0.0
-for at_ in ('visible_camera', 'visible_diffuse', 'visible_glossy', 'visible_transmission', 'visible_volume_scatter'): setattr(cst, at_, False)
-cst.visible_shadow = True
+CASTER = pmat('Shadow caster', (0, 0, 0))
+def shadow_caster(ob, inset=0.004):
+    """An invisible copy of ob that only casts shadows, a little inside it (so it never shadows its own surface)."""
+    c_ = ob.copy(); c_.name = ob.name + ' shadow caster'; coll.objects.link(c_)
+    for sl_ in c_.material_slots: sl_.link = 'OBJECT'; sl_.material = CASTER
+    for md_ in list(c_.modifiers):
+        if md_.type == 'NODES': c_.modifiers.remove(md_)                      # no outline shells on a caster
+    dm_ = c_.modifiers.new('Inset', 'DISPLACE'); dm_.strength = -inset; dm_.mid_level = 0.0
+    for at_ in ('visible_camera', 'visible_diffuse', 'visible_glossy', 'visible_transmission', 'visible_volume_scatter'): setattr(c_, at_, False)
+    c_.visible_shadow = True; return c_
+shadow_caster(sob)
 print('SKIRT rebuilt: %d panels; lower tier %.3f long at the sides / %.3f at the points, upper out to %.3f / %.3f; %d verts'
       % (a.pleats, a.skirt_side, a.skirt_front, a.skirt_radius, a.skirt_radius_front, len(sme.vertices)))
 # plain fabric: a flattened copy of the skirt texture (drops the buttons and panel seams)
@@ -1259,11 +1265,16 @@ def rim(keys, rgb, power, lift, mul):
 if a.rim:
     print('RIM', rim(('Hair_00_HAIR',), (255, 196, 96), 4.5, 0.0, a.rim * 0.7),
           # no skin rim: VRoid paints the gloves into the skin texture and a rim turns them brown
-          rim(('Tops_01_CLOTH', 'Bodice', 'Skirt trim', 'Shoes_01_CLOTH'), (150, 110, 255), 4.0, 0.0, a.rim * 0.5),
+          rim(('Tops_01_CLOTH', 'Bodice', 'Skirt trim', 'Shoes_01_CLOTH'), (150, 110, 255), 8.0, 0.0, a.rim * 0.5),   # a thin edge: broad, it
+                                                                                                                  # hazed the round sleeves over
           # the skirt flares out sideways, so a broad rim lit its whole sides; the reference's sides fall into shade
           rim((' panels', ' band', 'Skirt trim'), (150, 110, 255), 9.0, 0.0, a.rim * 0.35))
 # no outline shell on the body skin: VRoid removed the skin under the old collar and sleeves, and the
 # inverted-hull outline shows through those gaps as dark red. The reference has no skin contour lines anyway.
 for md in list(body.modifiers):
     if md.type == 'NODES' and 'Body_00_SKIN' in md.name: print('OUTLINE removed', md.name); body.modifiers.remove(md)
+# the rest of the figure casts shadows the same way: chin on the neck, hair on the face, sleeves on the arms
+for n_, ins_ in (('Body', 0.003), ('Face', 0.002), ('Hair', 0.002), ('Blouse', 0.003), ('Sleeve L', 0.003), ('Sleeve R', 0.003)):
+    if n_ in bpy.data.objects: shadow_caster(bpy.data.objects[n_], ins_)
+print('SHADOW CASTERS', sorted(o.name for o in bpy.data.objects if o.name.endswith('shadow caster')))
 bpy.ops.wm.save_as_mainfile(filepath=a.out); print('SAVED', a.out)

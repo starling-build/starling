@@ -4,6 +4,7 @@ floor, violet and pink rims, warm hair glow, neutral face (see design/blender/ag
 
   blender -b --python build/tools/blender-agent-stage.py -- IN.blend OUT.png [VIEW_TRANSFORM] [FRAME]
   STAGE_POSE=saved keeps the scene's own pose (default: a relaxed stance like the reference)
+  STAGE_KEY=1.0 strength of the key sun that lights the figure (MToon's lit/shade threshold sits near 1 W/m2)
 
 Works on any agent.blend from blender-agent-avatar.py or blender-agent-refine.py; hides their bust-shot
 backdrop, halo and lights and never saves the file.
@@ -83,6 +84,20 @@ cr = n.new('ShaderNodeValToRGB'); cr.color_ramp.elements[0].color = (0.004, 0.00
 em = n.new('ShaderNodeEmission'); em.inputs['Strength'].default_value = 1.0; o_ = n.new('ShaderNodeOutputMaterial')
 l.new(tc.outputs['Object'], mp.inputs['Vector']); l.new(mp.outputs['Vector'], gr.inputs['Vector']); l.new(gr.outputs['Fac'], cr.inputs['Fac'])
 l.new(cr.outputs['Color'], em.inputs['Color']); l.new(em.outputs['Emission'], o_.inputs['Surface']); hz.data.materials.append(hm)
+# The VRM add-on's MToon counts any surface a light reaches past ~1 W/m2 as fully lit, so the stage lights
+# (hundreds of watts, from all sides) left no shade anywhere. The figure is lit by one key sun of about that
+# strength, from the front right and above as in the reference; the stage lights light the set only.
+KEY = float(os.environ.get('STAGE_KEY', 1.0))
+stage_set = bpy.data.collections.new('Stage set'); figure = bpy.data.collections.new('Figure')
+sc.collection.children.link(stage_set); sc.collection.children.link(figure)
+stage_set.objects.link(fl); stage_set.objects.link(hz)
+for o in bpy.data.objects:
+    if o.type in ('MESH', 'CURVE') and o not in (fl, hz) and not o.hide_render: figure.objects.link(o)
+for o in bpy.data.objects:
+    if o.type == 'LIGHT' and not o.hide_render: o.light_linking.receiver_collection = stage_set
+kd = bpy.data.lights.new('Key sun', 'SUN'); kd.energy = KEY; kd.angle = math.radians(4); kd.color = (1.0, 0.95, 0.9)
+ko = bpy.data.objects.new('Key sun', kd); sc.collection.objects.link(ko); ko.light_linking.receiver_collection = figure
+ko.rotation_euler = (-Vector((0.45, -1.0, 1.5))).to_track_quat('-Z', 'Y').to_euler()
 cam = bpy.data.cameras.new('Ref cam'); cam.lens = 75; co = bpy.data.objects.new('Ref cam', cam); sc.collection.objects.link(co)
 co.location = (0, -4.1, 1.05); co.rotation_euler = (Vector((0, 0, 0.84)) - co.location).to_track_quat('-Z', 'Y').to_euler()
 sc.camera = co; sc.render.resolution_x = 640; sc.render.resolution_y = 1137

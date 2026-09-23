@@ -199,9 +199,17 @@ reference picture:
 - **Shading**: cloth cel shading is softened (VRoid ships it nearly hard)
   so pleats and gathers read, and the hair gets a warm ochre shade. The
   MToon rim light, which the VRM carries, is set warm gold on the hair and
-  violet on the cloth for the reference's backlit glow. Skin is warmed in
-  its texture, light texels only: VRoid paints the gloves dark grey into
-  the same texture, and a warm tint or a skin rim turns them brown.
+  violet on the cloth for the reference's backlit glow, kept to a thin edge
+  (broad, it hazed the round sleeves and lit the skirt's sides). Skin is
+  warmed in its texture, light texels only: VRoid paints the gloves dark
+  grey into the same texture, and a warm tint or a skin rim turns them
+  brown.
+- **Shadows**: MToon surfaces are transparent to shadow rays (the add-on
+  switches on "is camera ray"), so nothing on the figure cast a shadow.
+  Invisible copies of the body, face, hair, blouse, sleeves and skirt, a
+  few mm inside the originals and visible to shadow rays only, cast them
+  now: the chin on the neck, the lace and choker on the chest, the skirt
+  on the thighs, the figure on the floor.
 - **Hair texture**: VRoid's hair texture is a flat gradient, so it is
   repainted at twice the resolution with strand detail. The texture runs
   along each strand (root at the top of the image) and repeats across it,
@@ -258,7 +266,11 @@ the reference uses: dark indigo stage, overhead spot, violet and pink rims,
 neutral face, and a relaxed stance (upper arms hanging close to the body,
 forearms angled out past the flared skirt, soft elbows and relaxed, curled fingers, one knee eased forward, a
 slight turn through the hips and head). The pose is applied to the render only; `STAGE_POSE=saved`
-keeps the scene's own pose. Its bone helper rotates about world axes
+keeps the scene's own pose. The add-on's MToon counts any surface that a light reaches past about
+1 W/m2 as fully lit, so the stage's lights (hundreds of watts, from all
+sides) left no shade anywhere: the figure is lit by one key sun of about
+that strength from the front right and above (`STAGE_KEY`, default 1.0),
+and the stage lights are light-linked to the floor and haze only. Its bone helper rotates about world axes
 through each bone's head, parents first: a child bone's local rotation
 is in its already-rotated parent's frame, so a "bend the elbow" about the
 rest X axis became a twist along the forearm.
