@@ -20,10 +20,14 @@ from mathutils.bvhtree import BVHTree
 p = argparse.ArgumentParser()
 p.add_argument('--blend', required=True); p.add_argument('--out', required=True)
 p.add_argument('--neckline', type=float, default=1.285)     # off-shoulder line on the torso (rest pose, m)
-p.add_argument('--sleeve-start', type=float, default=0.03)  # along the upper arm from the shoulder joint
+p.add_argument('--sleeve-start', type=float, default=0.06)  # along the upper arm from the shoulder joint
 p.add_argument('--sleeve-end', type=float, default=0.212)
-p.add_argument('--puff', type=float, default=0.80)        # (VRoid-sleeve mode only)
-p.add_argument('--puff-r', type=float, default=0.030)     # own sleeve: extra radius at the middle of the puff
+p.add_argument('--puff', type=float, default=0.80)
+p.add_argument('--sleeve-under', type=float, default=0.02)   # sleeve opening under the arm (it slants up to --sleeve-start on top)
+p.add_argument('--deltoid', type=float, default=0.005)
+p.add_argument('--arm-scale', type=float, default=1.0)     # upper-arm thickness
+p.add_argument('--sleeve-frill', type=float, default=0.014)  # ruffle on the sleeve's top edge       # extra shoulder-cap roundness        # (VRoid-sleeve mode only)
+p.add_argument('--puff-r', type=float, default=0.016)     # own sleeve: extra radius at the middle of the puff
 p.add_argument('--vroid-sleeves', action='store_true')     # keep and puff VRoid's sleeve instead of building one
 p.add_argument('--underbust', type=float, default=1.2)      # corset above this height becomes a navy bodice (0 = keep)
 p.add_argument('--skirt-len', type=float, default=0.30)     # bottom tier, between the points
@@ -257,6 +261,22 @@ BLOUSE = mats('N00_007_01_Tops_01_CLOTH'); SKIRT = mats('N00_002_03_Tops_01_CLOT
 PETTI = mats('N00_002_03_Tops_01_CLOTH_03'); CORSET = mats('N00_002_03_Tops_01_CLOTH_02'); TIE = mats('Accessory_Tie')
 SKIRT_TOP = max(v.co.z for f in bm.faces if f.material_index in SKIRT for v in f.verts)
 UA = B['J_Bip_L_UpperArm']; X0 = UA.head_local.x; AXY, AXZ = UA.head_local.y, UA.head_local.z
+BLW_co, BLW_w = [], []
+for v in {v for f in bm.faces if f.material_index in BLOUSE for v in f.verts}:
+    if abs(v.co.x) > X0 - 0.08 and v.co.z > AXZ - 0.14:
+        BLW_co.append(v.co.copy()); BLW_w.append(dict(v[dl].items()))
+BLKD = KDTree(len(BLW_co))
+for i_, c_ in enumerate(BLW_co): BLKD.insert(c_, i_)
+BLKD.balance()
+def blouse_weights(co, k=6):
+    """VRoid's own weights for this spot, from its (now cut) long-sleeved blouse: smooth across the shoulder."""
+    acc = {}
+    for c_, i_, d_ in BLKD.find_n(co, k):
+        w_ = 1.0 / max(d_, 1e-4) ** 2
+        for g_, x_ in BLW_w[i_].items(): acc[g_] = acc.get(g_, 0.0) + w_ * x_
+    tot = sum(acc.values()) or 1.0
+    return {g_: x_ / tot for g_, x_ in acc.items() if x_ / tot > 0.01}
+print('BLOUSE WEIGHTS sampled from', len(BLW_co), 'verts')
 kill = []
 for f in bm.faces:
     c = f.calc_center_median()
@@ -313,6 +333,11 @@ for v in sleeve:
 # arm skin: VRoid culls the body under clothing, so the upper arm and elbow have no skin once the
 # sleeve is short. Rebuild a tube from inside the puff to the forearm's open edge, weighted across the elbow.
 SKIN = mats('Body_00_SKIN'); uvl = bm.loops.layers.uv.active; OWN_SLEEVES = []
+ARM_PTS = [(-0.03, 0.024), (0.0, 0.036), (0.03, 0.041), (0.08, 0.040), (0.15, 0.036), (0.21, 0.031)]
+def arm_r(along):
+    """Upper-arm radius: shoulder cap, a full upper arm tapering toward the elbow (VRoid built no skin here)."""
+    xs_, rs_ = zip(*ARM_PTS); t_ = float(np.interp(along, xs_, rs_))
+    return t_ * a.arm_scale
 arm_skin = me.materials[min(SKIN)].copy(); arm_skin.name = 'Arm skin (no outline)'   # outlines are per-material modifiers
 me.materials.append(arm_skin); ARM_I = len(me.materials) - 1
 arm_skin.use_backface_culling = False                                             # the old back collar is seen from inside
@@ -357,13 +382,12 @@ for side, tag in ((1, 'L'), (-1, 'R')):
     for j in range(M + 1):
         t = j / M; x = x0 + (xr - x0) * t; row = []; ay, az = centre_at(x)
         for i in range(N):
-            th = -math.pi + 2 * math.pi * i / N; tt = min(1.0, max(0.0, (x - X0 - 0.004) / (xr - X0 - 0.004))); r = (rsh * (0.55 + 0.45 * min(1.0, max(0.0, (x - x0) / (X0 - x0)))) if x < X0 else 0.034) * (1 - tt) + R(th) * tt; xx = x   # tapered start hides inside the shoulder
+            th = -math.pi + 2 * math.pi * i / N; al = x - X0; xx = x
+            tt = min(1.0, max(0.0, (al - 0.21) / max(1e-4, xr - X0 - 0.21)))                 # into the real forearm past the elbow
+            r = arm_r(min(al, 0.21)) * (1 - tt) + R(th) * tt
+            r += a.deltoid * math.exp(-((x - X0 - 0.03) / 0.04) ** 2) * (0.35 + 0.65 * max(0.0, math.sin(th)))   # round shoulder cap
             v = bm.verts.new((side * xx, ay + r * math.cos(th), az + r * math.sin(th)))
-            wl = min(1, max(0, (x - (elbow - 0.03)) / 0.06))               # upper arm -> forearm across the elbow
-            wa = min(1, max(0, (x - (X0 - 0.01)) / 0.035))                 # shoulder -> upper arm across the joint
-            if wa < 1: v[dl][gs] = 1 - wa
-            if wa * (1 - wl) > 0: v[dl][gu] = wa * (1 - wl)
-            if wl > 0: v[dl][gl] = wl
+            for g_, w_ in blouse_weights(v.co).items(): v[dl][g_] = w_
             row.append(v)
         rings.append(row)
     for j in range(M):
@@ -372,7 +396,7 @@ for side, tag in ((1, 'L'), (-1, 'R')):
             f.material_index = ARM_I; f.smooth = True; f.normal_update(); c = f.calc_center_median()
             if f.normal.dot(Vector((0, c.y - (sy + ey) / 2, c.z - (sz + ez) / 2))) < 0: f.normal_flip()
             for l in f.loops: l[uvl].uv = skin_uv
-    print('ARM', tag, 'rebuilt x %.3f -> %.3f  centre (%.3f,%.3f)->(%.3f,%.3f)' % (x0, xr, sy, sz, ey, ez))
+    print('ARM', tag, 'rebuilt x %.3f -> %.3f  centre (%.3f,%.3f)->(%.3f,%.3f)  forearm r %.3f' % (x0, xr, sy, sz, ey, ez, sum(R_ for _, R_ in ang) / len(ang)))
     if not a.vroid_sleeves:
         OWN_SLEEVES.append((side, tag, centre_at))
 
@@ -384,11 +408,11 @@ def mid_texel(mat):
 SLEEVE_MAT = me.materials[BOD_I] if a.underbust else me.materials[min(BLOUSE)]
 SLEEVE_UV = mid_texel(SLEEVE_MAT)
 if not a.vroid_sleeves and a.underbust:   # what is left of VRoid's blouse is its upper-back panel: make it the blouse navy
-    nbp = nsk = 0; zn_ = AXZ - a.neckline_drop
+    nbp = nsk = 0; zn_ = AXZ - a.neckline_drop; COLLAR_F = []
     for f in bm.faces:
         if f.material_index in BLOUSE:
             if max(v.co.z for v in f.verts) > zn_ - 0.004 and skin_uv is not None:   # VRoid's stand collar behind the neck: skin, so the
-                f.material_index = ARM_I; nsk += 1                         # neck runs down into the shoulders instead of ending at it
+                f.material_index = ARM_I; nsk += 1; COLLAR_F.append(f)     # neck runs down into the shoulders instead of ending at it
                 for l in f.loops: l[uvl].uv = skin_uv
             else:
                 f.material_index = BOD_I; nbp += 1
@@ -405,15 +429,19 @@ if not a.vroid_sleeves and a.underbust:   # what is left of VRoid's blouse is it
         rl = math.hypot(v.co.x, v.co.y - ny_); t_ = min(1.0, max(0.0, (rl - rn_) / max(1e-4, X0 - rn_)))
         zmax = zb_ - (zb_ - zs_) * t_ ** 0.5
         if v.co.z > zmax: v.co.z = zmax; ncl += 1
+    COLLAR_CO = [v.co.copy() for f in COLLAR_F if f.is_valid for v in f.verts]
     print('COLLAR clamped', ncl, 'verts under the trapezius curve (neck r %.3f, %.3f -> %.3f)' % (rn_, zb_, zs_))
 for side, tag, centre_at in OWN_SLEEVES:
     sb = bmesh.new(); s0, s1 = X0 + a.sleeve_start, X0 + a.sleeve_end; NS, MS = 40, 22; rows_ = []
     for j in range(MS + 1):
-        u = j / MS; x = s0 + (s1 - s0) * u; cy2, cz2 = centre_at(x); row = []
-        bulge = math.sin(math.pi * u ** 1.35) ** 0.8                       # fullest two-thirds down, like a gathered sleeve
+        u = j / MS; row = []
+        bulge = math.sin(math.pi / 2 * min(1.0, u / 0.3)) * math.sin(math.pi / 2 * min(1.0, (1 - u) / 0.22)) ** 0.8   # full just below the neckline, hangs, gathers into the cuff
         for i in range(NS):
             th = -math.pi + 2 * math.pi * i / NS
-            r = 0.040 + a.puff_r * bulge
+            top = (math.sin(th) + 1) / 2                                   # 0 under the arm, 1 on top of the shoulder
+            s0t = X0 + a.sleeve_under + (a.sleeve_start - a.sleeve_under) * top ** 1.5
+            x = s0t + (s1 - s0t) * u; cy2, cz2 = centre_at(x)
+            r = arm_r(min(x - X0, 0.21)) + 0.006 + a.puff_r * bulge
             r *= 1 + 0.06 * math.sin(14 * th + 0.4 * j) * bulge ** 0.5          # gathers
             row.append(sb.verts.new((side * x, cy2 + r * math.cos(th), cz2 + r * math.sin(th))))
         rows_.append(row)
@@ -422,7 +450,7 @@ for side, tag, centre_at in OWN_SLEEVES:
             k = (i + 1) % NS; f = sb.faces.new((rows_[j][i], rows_[j][k], rows_[j + 1][k], rows_[j + 1][i])); f.normal_update()
             c = f.calc_center_median(); cy2, cz2 = centre_at(side * c.x)
             if f.normal.dot(Vector((0, c.y - cy2, c.z - cz2))) < 0: f.normal_flip()
-    for row, sgn, w in ((rows_[0], -1, 0.022), (rows_[-1], 1, 0.012)):          # frill on the off-shoulder line and on the cuff
+    for row, sgn, w in ((rows_[0], -1, a.sleeve_frill), (rows_[-1], 1, 0.012)):   # frill on the off-shoulder line and on the cuff
         edges = [e for e in sb.edges if all(v in set(row) for v in e.verts)]
         ret = bmesh.ops.extrude_edge_only(sb, edges=edges)
         for g in (g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)):
@@ -430,7 +458,13 @@ for side, tag, centre_at in OWN_SLEEVES:
             rad_.normalize()                                                             # soft gathered ruffle, not saw teeth
             g.co += (Vector((side * sgn * 0.55, 0, 0)) + rad_ * 0.85).normalized() * w * (1.0 + 0.22 * math.sin(11 * th_)) + rad_ * 0.004 * math.cos(11 * th_)
     for f in sb.faces: f.smooth = True
-    rigged('Sleeve ' + tag, sb, SLEEVE_MAT, 'J_Bip_%s_UpperArm' % tag, uv=SLEEVE_UV)
+    sob = rigged('Sleeve ' + tag, sb, SLEEVE_MAT, 'J_Bip_%s_UpperArm' % tag, uv=SLEEVE_UV)
+    sob.vertex_groups.clear(); groups_ = {}
+    for v in sob.data.vertices:
+        for g_, w_ in blouse_weights(v.co).items():
+            nm = body.vertex_groups[g_].name
+            if nm not in groups_: groups_[nm] = sob.vertex_groups.new(name=nm)
+            groups_[nm].add([v.index], w_, 'REPLACE')
     print('SLEEVE', tag, 'x %.3f -> %.3f' % (s0, s1))
 
 for side, tag in ((1, 'L'), (-1, 'R')):
@@ -569,25 +603,28 @@ if a.blouse and a.underbust:
     src = sorted({i for p_ in me.polygons if p_.material_index in keep for i in p_.vertices
                   if abs(me.vertices[i].co.x) < X0 - 0.005 and zb0 - 0.02 < me.vertices[i].co.z < zn + 0.02})
     cyB = sum(me.vertices[i].co.y for i in src) / len(src)
+    EXTRA = [c for c in globals().get('COLLAR_CO', []) if abs(c.x) < X0 - 0.005 and zb0 - 0.02 < c.z < zn + 0.02]   # the skin collar must stay inside
     NB, rows_z = 72, list(np.arange(zb0, zn + 1e-6, 0.006))
     R = np.zeros((len(rows_z), NB))
     for ri, zr in enumerate(rows_z):
-        pts = [me.vertices[i].co for i in src if abs(me.vertices[i].co.z - zr) < 0.012]
+        pts = [me.vertices[i].co for i in src if abs(me.vertices[i].co.z - zr) < 0.012] + [c for c in EXTRA if abs(c.z - zr) < 0.012]
         ang = np.array([math.atan2(q.y - cyB, q.x) for q in pts]); rad = np.array([math.hypot(q.x, q.y - cyB) for q in pts])
         for k in range(NB):
             th = -math.pi + 2 * math.pi * k / NB; dth = np.abs((ang - th + math.pi) % (2 * math.pi) - math.pi)
             sel = rad[dth < 0.2]; R[ri, k] = sel.max() if len(sel) else np.nan
         row = R[ri]; good = ~np.isnan(row)
         R[ri] = np.interp(np.arange(NB), np.arange(NB)[good], row[good], period=NB) if good.any() else R[ri - 1]
+    R0 = R.copy()
     for _ in range(2):   # smooth around and up
         R = (np.roll(R, 1, 1) + 2 * R + np.roll(R, -1, 1)) / 4
         R[1:-1] = (R[:-2] + 2 * R[1:-1] + R[2:]) / 4
+    R = np.maximum(R, R0)                                  # smooth, but never inside the body (it z-fought the skin)
     bb2 = bmesh.new(); vrows = []
     for ri, zr in enumerate(rows_z):
         f_ = (zr - zb0) / max(1e-4, zn - zb0); vr = []
         for k in range(NB):
             th = -math.pi + 2 * math.pi * k / NB
-            r = R[ri, k] + (0.006 if zr > zb0 + 0.012 else 0.001) + 0.004 * math.sin(20 * th) * f_ ** 1.5   # gathers toward the top
+            r = R[ri, k] + (0.006 + 0.005 * f_ if zr > zb0 + 0.012 else 0.001) + 0.004 * max(0.0, math.sin(20 * th)) * f_ ** 1.5   # gathers toward the top, only outward
             vr.append(bb2.verts.new((r * math.cos(th), cyB + r * math.sin(th), zr)))
         vrows.append(vr)
     for ri in range(len(vrows) - 1):

@@ -30,7 +30,8 @@ if arm_ and POSE == 'relaxed':
     rot('J_Bip_C_Hips', 'Y', -2); rot('J_Bip_C_Spine', 'Y', 1.5); rot('J_Bip_C_Head', 'Y', 2)
     for side, sgn in (('L', 1), ('R', -1)):
         rot('J_Bip_%s_Shoulder' % side, 'Y', sgn * 4)
-        rot('J_Bip_%s_UpperArm' % side, 'Y', sgn * 62)       # out far enough to clear the flared skirt
+        rot('J_Bip_%s_UpperArm' % side, 'Y', sgn * float(os.environ.get('STAGE_ARM', 70)))   # upper arms hang close to the body
+        rot('J_Bip_%s_LowerArm' % side, 'Y', -sgn * float(os.environ.get('STAGE_FOREARM', 12)))   # forearms angle out past the skirt
         rot('J_Bip_%s_LowerArm' % side, 'X', -24)            # soft elbow: hands come forward to the skirt's edge
         rot('J_Bip_%s_Hand' % side, 'X', 8)
         rot('J_Bip_%s_UpperLeg' % side, 'Y', -sgn * 2.5)

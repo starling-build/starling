@@ -123,13 +123,17 @@ What VRoid Studio cannot do is done by `build/tools/blender-agent-refine.py`,
 which runs on the scene the avatar script saves and edits it toward the
 reference picture:
 
-- **Top**: VRoid's sleeve is removed (its front was erased in VRoid) and a
-  gathered puff sleeve is built on each upper arm from the shoulder joint
-  to just above the elbow, fullest two-thirds of the way down, with frills on the off-shoulder line and the cuff,
-  in the bodice's navy. `--vroid-sleeves` keeps and puffs VRoid's instead. VRoid removes the body under clothing at export, so the upper
-  arm is rebuilt as a skin tube from over the shoulder to the forearm's open
-  edge, weighted across the elbow. The blouse's back panel stays, because
-  there is no skin under it either.
+- **Arms and sleeves**: VRoid builds no skin under a long sleeve, so each
+  upper arm is rebuilt as a skin tube from inside the shoulder to the
+  forearm, with a real arm profile (round shoulder cap, full upper arm
+  tapering to the elbow) instead of a thin cylinder. Its bone weights, and
+  the sleeve's, are copied from VRoid's own long-sleeved blouse before that
+  is cut away, so they bend smoothly across the shoulder. The puff sleeve
+  starts 6 cm down the arm on top and 2 cm underneath, so the round bare
+  shoulder cap shows above it; it is full just below the neckline, hangs,
+  and gathers into a cuff above the elbow, sized off the arm profile. It
+  has a ruffle on its top edge and on the cuff, in the blouse navy.
+  `--vroid-sleeves` keeps and puffs VRoid's sleeve instead.
 - **Blouse**: the corset above the underbust line becomes navy, and a
   fitted gathered blouse is built over the upper torso: its shape is the
   largest radius of the torso at each height and angle (so it bridges the
@@ -205,8 +209,8 @@ torso length does not need new numbers. Every new piece is weighted to a bone an
 weights, so the rig, mouth shapes and the lip-sync script all keep working.
 `build/tools/blender-agent-stage.py` renders the full-length character sheet
 the reference uses: dark indigo stage, overhead spot, violet and pink rims,
-neutral face, and a relaxed stance (arms angled out past the flared skirt
-with soft elbows and relaxed, curled fingers, one knee eased forward, a
+neutral face, and a relaxed stance (upper arms hanging close to the body,
+forearms angled out past the flared skirt, soft elbows and relaxed, curled fingers, one knee eased forward, a
 slight turn through the hips and head). The pose is applied to the render only; `STAGE_POSE=saved`
 keeps the scene's own pose. Its bone helper rotates about world axes
 through each bone's head, parents first: a child bone's local rotation
