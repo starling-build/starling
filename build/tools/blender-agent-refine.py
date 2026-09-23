@@ -40,8 +40,7 @@ p.add_argument('--skirt-flare', type=float, default=1.6)    # >1: flares out fas
 p.add_argument('--tier-side', type=float, default=0.075)    # the upper tier ends this much above the lower at the sides
 p.add_argument('--tier-front', type=float, default=0.073)   # ... and at the points
 p.add_argument('--pleats', type=int, default=20)            # flat panels with crisp folds
-p.add_argument('--knife', type=float, default=0.025)        # knife-pleat lap at the hem, as a fraction of the radius
-p.add_argument('--fold', type=float, default=0.035)         # rounded panels: how deep the valley at each fold is, same units
+p.add_argument('--knife', type=float, default=0.045)        # knife-pleat lap at the hem, as a fraction of the radius
 p.add_argument('--cloth-toony', type=float, default=0.5)
 p.add_argument('--rim', type=float, default=0.55)          # strength of the built-in rim glow (0 = VRoid's)
 p.add_argument('--hair-lines', type=int, default=130)     # strand lines painted into the hair texture (0 = VRoid's)
@@ -600,19 +599,20 @@ def v_hem(th, side, front): return side + (front - side) * (1 - abs(math.cos(th)
 PH0 = -math.pi / 2 - math.pi / a.pleats      # panel boundaries: one panel centred on the front, as in the reference
 def panel_at(th):
     ph = ((th - PH0) / (2 * math.pi) * a.pleats) % a.pleats; return int(ph) % a.pleats, ph - math.floor(ph)
-def knife(k, t, S):
-    """Knife pleats: each panel tilts so its outer edge laps over the next one, mirrored left and right; the
-    panels at the centre front and back lie flat. The laps are what make the reference's layers read."""
+def pleat_dir(k):
+    """+1 / -1: which way panel k laps (mirrored left and right); 0 for the flat panels at the centre front and back."""
     c = math.cos(PH0 + (k + 0.5) * 2 * math.pi / a.pleats)
-    if abs(c) < math.sin(math.pi / a.pleats): return 1.0
-    return 1 + a.knife * S ** 0.8 * ((t if c > 0 else 1 - t) - 0.5)
+    return 0 if abs(c) < math.sin(math.pi / a.pleats) else (1 if c > 0 else -1)
+def knife(k, t, S):
+    """Knife pleats: flat panels, each tilted so its outer edge laps over the next one."""
+    d = pleat_dir(k)
+    return 1.0 if d == 0 else 1 + a.knife * S ** 0.8 * ((t if d > 0 else 1 - t) - 0.5)
 def skirt_r(th, drop, D, R, off, k, t):
     """Radius at angle th, `drop` below the waistband, on a tier D long there that flares out to R at its hem,
     on panel k at t (0..1) across it."""
     S = min(1.0, drop / D); rw = r_waist(th)
     r = rw + (R - rw) * (1 - (1 - S) ** a.skirt_flare) + off * S ** 0.5
-    rounded = 1 - a.fold * S ** 0.7 * (1 - math.sin(math.pi * t)) ** 1.5      # each panel a soft roll, valleys at the folds
-    return r * math.cos(math.pi / a.pleats) / math.cos((t - 0.5) * 2 * math.pi / a.pleats) * knife(k, t, S) * rounded
+    return r * math.cos(math.pi / a.pleats) / math.cos((t - 0.5) * 2 * math.pi / a.pleats) * knife(k, t, S)
 def texel_uv(mat, target):
     img = lit_image(mat); W, H = img.size
     px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
@@ -645,15 +645,17 @@ def strip(rows, tier, folds, ncols=400):
             r = skirt_r(th, d, tier[0](th), tier[1](th), tier[2], k, t) + lift
             v = sb.verts.new((r * math.cos(th), cy + r * math.sin(th), ztop - d))
             for g_, w_ in skirt_weights(th, min(1.0, max(0.0, d / D_low(th)))).items(): v[sdl][g_] = w_
-            uvs[v] = (t, min(1.0, max(0.0, 1 - d / D_up(th) / 2))); ring_.append(v)
+            pd_ = pleat_dir(k); u_ = t if pd_ >= 0 else 1 - t                   # u runs from the tucked side (0) to the fold (1)
+            uvs[v] = (min(0.985, max(0.015, u_)), min(1.0, max(0.0, 1 - d / D_up(th) / 2))); ring_.append(v)
         grid.append(ring_)
     n = len(cols)
     for i in range(len(grid) - 1):
         for j in range(n):
             j2 = (j + 1) % n; f = sb.faces.new((grid[i][j], grid[i][j2], grid[i + 1][j2], grid[i + 1][j]))
             f.material_index = rows[i + 1][2]; f.smooth = True
-            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else uvs[l.vert]
-            if folds and cols[j][1] > 1 - 1e-6:          # the lap: panel k's edge down to panel k+1's start
+            step = folds and cols[j][1] > 1 - 1e-6
+            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else ((0.99, uvs[l.vert][1]) if step else uvs[l.vert])
+            if step:                                     # the lap: panel k's edge down to panel k+1's start (painted as the gap)
                 r1, r2 = (grid[i][j].co - Vector((0, cy, 0))).length, (grid[i][j2].co - Vector((0, cy, 0))).length
                 STEPS[f] = 1 if r1 > r2 else -1
                 for e in f.edges: e.smooth = False
@@ -678,8 +680,11 @@ for f in sb.faces:
 # MToon's toon shading flattens the panels to one tone from the front, so the creases are painted in as well: a
 # dark line at each fold and a soft falloff across the panel, and the lower tier darkens just under the upper's edge
 PW, PH = 256, 256; U_ = (np.arange(PW) + 0.5) / PW; V_ = (np.arange(PH) + 0.5) / PH
-d_ = np.minimum(U_, 1 - U_); shade_ = (0.52 + 0.48 * np.sin(np.pi * U_) ** 0.7) * (1 - 0.25 * np.exp(-(d_ / 0.03) ** 2))   # rolls: light middle,
-# dark valleys (the reference spans ~2:1 light to dark); overall 12% lighter, as the reference's skirt measures
+# a pleat as the reference draws it, u from the tucked side to the fold: in the lap's shadow at first, a flat
+# face brightening a little toward the fold, a thin light line along the fold's edge, then the dark gap where
+# the cloth turns under the next panel; overall 12% lighter, as the reference's skirt measures
+shade_ = (0.62 + 0.38 * np.clip(U_ / 0.10, 0, 1) ** 0.6) * (0.9 + 0.12 * U_)
+shade_ = shade_ * (1 + 0.22 * np.exp(-((U_ - 0.945) / 0.012) ** 2)) * np.where(U_ > 0.962, 0.5, 1.0)
 q_ = (0.5 - V_) / 0.04; shadow_ = np.where((q_ >= 0) & (q_ <= 1), 1 - 0.38 * np.clip(1 - q_, 0, 1) ** 1.2, 1.0)
 flat_ = np.array(lit_image(SKIRT_MAT).pixels[:], dtype=np.float32).reshape(-1, 4); flat_ = flat_[flat_[:, 3] > 0.5][:, :3].mean(0)
 pimg = bpy.data.images.new('Skirt panels', PW, PH, alpha=True); pp_ = np.ones((PH, PW, 4), np.float32)
