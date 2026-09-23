@@ -152,17 +152,21 @@ reference picture:
   reads as an underbust piece over the blouse, with a narrow binding on
   its top edge.
 - **Skirt**: VRoid's bell skirt is replaced by one built from scratch after
-  the reference: 20 knife-pleated panels, each lapping over the next
-  (mirrored left and right, the centre front and back panels flat), so
-  every fold is a small ledge and the hems step - that and the raised
-  hem bands are what make the reference's layers read. It flares out fast below
+  the reference: 20 panels, each a soft roll with a valley at its fold,
+  knife-pleated so it laps a little over the next (mirrored left and
+  right, the centre front and back panels flat) and the hems step at
+  each fold. Measured on the reference, its skirt spans about 2:1 from
+  the light middle of a panel to its dark valleys; flat panels with thin
+  fold lines gave 1.4:1 and read as a lampshade. It flares out fast below
   the belt as over a petticoat, in two tiers whose hems make a V from the
   front - short at the sides, a deep point at the centre front and back.
   The upper tier stands out to wide corners at the sides (40% down the
   figure, like the reference) while the lower tier hangs narrower and
-  steeper under it and shows below. Each hem is a band standing off its
-  tier, with two round cords across it and a rolled edge; a small
-  gathered frill hangs under the lower one. Toon shading flattens the
+  steeper under it; about 7 cm of it shows below the upper tier at the
+  front, as in the reference (4 cm stacked the two hem bands into
+  stripes). Each hem is a band standing off its tier, a shade darker,
+  with two thin light cords along its edges and a rolled edge; there is
+  no frill under it, as in the reference. Toon shading flattens the
   panels to one tone from the front, so the creases are also painted into
   a small texture of their own (a dark line at each fold, a soft falloff
   across each panel, and a shadow on the lower tier just under the upper
