@@ -151,11 +151,21 @@ reference picture:
   flat top panel, cut clean at the underbust line. The black corset then
   reads as an underbust piece over the blouse, with a narrow binding on
   its top edge.
-- **Skirt**: the bell skirt is subdivided and becomes two layers of 16
-  rounded pleats flaring from the belt (a knife-pleat sawtooth shows as
-  teeth on the silhouette; layers in step so the outer nests), with six handkerchief points, a gathered
-  frill under each hem and three rows of navy piping; its buttons and panel seams are flattened out of the
-  texture and the white petticoat is dropped.
+- **Skirt**: VRoid's bell skirt is replaced by one built from scratch after
+  the reference: 20 flat panels with crisp folds, flaring out fast below
+  the belt as over a petticoat, in two tiers whose hems make a V from the
+  front - short at the sides, a deep point at the centre front and back.
+  The upper tier stands out to wide corners at the sides (40% down the
+  figure, like the reference) while the lower tier hangs narrower and
+  steeper under it and shows below. Each hem has a band between two rows
+  of subtle piping and a thick edge; a small gathered frill hangs under
+  the lower one. Toon shading flattens the panels to one tone from the
+  front, so the creases are also painted into a small texture of their
+  own (a dark line at each fold, a soft falloff across each panel). Bone
+  weights are copied from VRoid's skirt by angle and relative depth
+  (hips, spine and its skirt bones). With the shorter skirt, the garter
+  straps VRoid paints up the thighs are painted out: the reference's
+  thighs are bare between the stocking tops and the skirt.
 - **Corset and belt**: VRoid's corset flares out at the bottom (over the
   skirt's waistband) and at the top (where its bust cups start); it is
   now a straight tube 8% wider at the top than at the belt, with the skin

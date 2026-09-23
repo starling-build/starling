@@ -4,8 +4,8 @@
   blender -b --python build/tools/blender-agent-refine.py -- --blend IN.blend --out OUT.blend [options]
 
 Runs on the scene blender-agent-avatar.py saves (its agent.blend) and edits only what VRoid Studio
-cannot: the blouse is cut into an off-shoulder top with short puffed sleeves and a frill, the bell
-skirt is re-shaped into two layers of knife pleats with handkerchief points (petticoat dropped), the twin tails are
+cannot: the blouse is cut into an off-shoulder top with short puffed sleeves and a frill, VRoid's
+bell skirt is replaced by a two-tier panel skirt with a V hem (petticoat dropped), the twin tails are
 shortened, flared and waved, the cloth is re-tinted slate navy, hair and irises are hue-shifted, and
 a lace choker, a gold-buckle belt, stocking bands with bows and hair ties are added. Every added
 piece is weighted to a bone and every edited vertex keeps its weights, so the rig, the mouth shapes
@@ -30,10 +30,17 @@ p.add_argument('--sleeve-frill', type=float, default=0.014)  # ruffle on the sle
 p.add_argument('--puff-r', type=float, default=0.016)     # own sleeve: extra radius at the middle of the puff
 p.add_argument('--vroid-sleeves', action='store_true')     # keep and puff VRoid's sleeve instead of building one
 p.add_argument('--underbust', type=float, default=1.2)      # corset above this height becomes a navy bodice (0 = keep)
-p.add_argument('--skirt-len', type=float, default=0.30)     # bottom tier, between the points
-p.add_argument('--skirt-points', type=float, default=0.22)  # handkerchief point depth (fraction)
-p.add_argument('--skirt-hem', type=float, default=0.30)
-p.add_argument('--pleats', type=int, default=16); p.add_argument('--pleat-depth', type=float, default=0.038)
+p.add_argument('--skirt-side', type=float, default=0.195)    # lower tier's length at the sides, from the waistband (m)
+p.add_argument('--skirt-front', type=float, default=0.327)  # ... at its points, centre front and back
+p.add_argument('--skirt-radius', type=float, default=0.26)  # how far the upper tier's hem stands out at the sides (its corners)
+p.add_argument('--skirt-radius-front', type=float, default=0.24)   # ... and at the front and back points
+p.add_argument('--under-radius', type=float, default=0.205) # the lower tier hangs narrower and steeper under it: at the sides
+p.add_argument('--under-radius-front', type=float, default=0.225)  # ... and at the points
+p.add_argument('--skirt-flare', type=float, default=1.6)    # >1: flares out fast below the belt, as over a petticoat
+p.add_argument('--tier-side', type=float, default=0.065)    # the upper tier ends this much above the lower at the sides
+p.add_argument('--tier-front', type=float, default=0.040)   # ... and at the points
+p.add_argument('--pleats', type=int, default=20)            # flat panels with crisp folds
+p.add_argument('--fold', type=float, default=0.045)         # depth of the crease at each fold, as a fraction of the radius at the hem
 p.add_argument('--cloth-toony', type=float, default=0.5)
 p.add_argument('--rim', type=float, default=0.55)          # strength of the built-in rim glow (0 = VRoid's)
 p.add_argument('--hair-lines', type=int, default=130)     # strand lines painted into the hair texture (0 = VRoid's)
@@ -42,9 +49,8 @@ p.add_argument('--hair-shade', type=int, nargs=3, default=(140, 84, 40))   # sRG
 p.add_argument('--fishnet-cell', type=float, default=34); p.add_argument('--fishnet-width', type=float, default=3.2)   # texels at 2048
 p.add_argument('--blouse', type=int, default=1)            # fitted gathered blouse over the upper torso, straight neckline
 p.add_argument('--neckline-drop', type=float, default=0.034)   # neckline below the shoulder joints
-p.add_argument('--piping', type=int, nargs=3, default=(58, 57, 80))   # sRGB piping colour
-p.add_argument('--ruffle', type=float, default=0.022)     # hem frill depth under each skirt layer
-p.add_argument('--skirt-cuts', type=int, default=5); p.add_argument('--skirt-flare', type=float, default=0.8)     # bottom-tier hem radius
+p.add_argument('--piping', type=int, nargs=3, default=(46, 45, 64))   # sRGB piping colour (subtle: brighter read as stripes)
+p.add_argument('--ruffle', type=float, default=0.014)     # frill under the lower tier's hem
 p.add_argument('--tail-len', type=float, default=0.28)      # tie to tip, metres (--tail-tip overrides)
 p.add_argument('--tail-tip', type=float, default=0.0)
 p.add_argument('--tail-root', type=float, default=0.0);   # 0 = measure (top of the tail strands - 4 cm)
@@ -562,44 +568,116 @@ def cuff_out(v):
     return (Vector((s, 0, 0)) * 0.7 + rad * 0.7).normalized()
 frill(neck_e, neck_out, 0.026, 0.5); frill(cuff_e, cuff_out, 0.014, 0.35)
 
-# skirt: two layers of knife pleats with handkerchief points and double piping, flaring from the belt
-sk_faces = [f for f in bm.faces if f.material_index in SKIRT]
-bmesh.ops.subdivide_edges(bm, edges=list({e for f in sk_faces for e in f.edges}), cuts=a.skirt_cuts, use_grid_fill=True)
+# skirt: rebuilt as its own mesh after the reference - flat panels with crisp folds, flaring out below the belt
+# as over a petticoat, in two tiers whose hems make a V from the front: short at the sides, a deep point at the
+# centre front and back. Each hem has a band between two rows of piping; a small frill hangs under the lower one.
 sk_faces = [f for f in bm.faces if f.material_index in SKIRT]
 sk_verts = list({v for f in sk_faces for v in f.verts})
 ztop = max(v.co.z for v in sk_verts); zbot = min(v.co.z for v in sk_verts)
 cy = sum(v.co.y for v in sk_verts if v.co.z > ztop - 0.02) / max(1, len([v for v in sk_verts if v.co.z > ztop - 0.02]))
-def rad(v): return math.hypot(v.co.x, v.co.y - cy)
-bins = [[] for _ in range(21)]
-for v in sk_verts: bins[min(20, int(20 * (ztop - v.co.z) / (ztop - zbot)))].append(rad(v))
-prof = [sum(b) / len(b) if b else None for b in bins]
-for i in range(21):
-    if prof[i] is None: prof[i] = prof[i - 1]
-r0 = prof[0]
-_cr = [math.hypot(v.co.x, v.co.y - cy) for v in {v for f in bm.faces if f.material_index in CORSET for v in f.verts} if abs(v.co.z - (ztop - 0.012)) < 0.012]
-if _cr: r0 = min(r0, sum(_cr) / len(_cr) - 0.002)     # the waistband tucks under the belt, at the corset's width
-def pleat(th, phase):          # knife pleat: slow rise, sharp fold, in [-0.5, 0.5]
-    f = ((a.pleats * th + phase) / (2 * math.pi)) % 1.0     # rounded pleats: a sawtooth shows as teeth on the silhouette
-    return 0.5 * math.sin(2 * math.pi * f) + 0.12 * math.sin(4 * math.pi * f)
-def remap(verts, lenfac, roff, phase=0.0):
-    for v in verts:
-        s = (ztop - v.co.z) / (ztop - zbot); s = min(1, max(0, s))
-        th = math.atan2(v.co.y - cy, v.co.x)
-        L = a.skirt_len * (1 + a.skirt_points * abs(math.sin(3 * th)) ** 5)   # points at centre front and front-sides
-        depth = s * L * lenfac
-        target = r0 + (a.skirt_hem - r0) * min(1.2, depth / a.skirt_len) ** a.skirt_flare + roff * s ** 0.6
-        target += a.pleat_depth * (0.25 + 0.75 * s) * pleat(th, phase)
-        k = target / float(np.interp(s * 20, np.arange(21), prof))   # interpolated: a stepped profile shows as ridges once subdivided
-        v.co.x *= k; v.co.y = cy + (v.co.y - cy) * k; v.co.z = ztop - depth
-tiers = [(sk_verts, 1.0, 0.0)]
-for lenfac, roff in ((0.80, 0.014),):
-    ret = bmesh.ops.duplicate(bm, geom=sk_faces + list({e for f in sk_faces for e in f.edges}) + sk_verts)
-    tiers.append(([g for g in ret['geom'] if isinstance(g, bmesh.types.BMVert)], lenfac, roff))
-hems = []
-for vs, lenfac, roff in tiers:
-    vset = set(vs); spre = {v: (ztop - v.co.z) / (ztop - zbot) for v in vs}
-    hems.append([e for e in bm.edges if e.is_boundary and all(v in vset and spre[v] > 0.85 for v in e.verts)])
-for ti, (vs, lenfac, roff) in enumerate(tiers): remap(vs, lenfac, roff, phase=0.0)   # pleats in step, so the outer layer nests over the inner
+SKW = [(math.atan2(v.co.y - cy, v.co.x), (ztop - v.co.z) / (ztop - zbot), dict(v[dl].items())) for v in sk_verts]
+SKD = KDTree(len(SKW))
+for i_, (t_, s_, _) in enumerate(SKW): SKD.insert((0.5 * math.cos(t_), 0.5 * math.sin(t_), s_), i_)
+SKD.balance()
+def skirt_weights(th, s_):
+    """VRoid's skirt weights at the same angle and relative depth (hips, spine and its skirt bones)."""
+    acc = {}
+    for c_, i_, d_ in SKD.find_n((0.5 * math.cos(th), 0.5 * math.sin(th), s_), 4):
+        w_ = 1.0 / max(d_, 1e-4) ** 2
+        for g_, x_ in SKW[i_][2].items(): acc[g_] = acc.get(g_, 0.0) + w_ * x_
+    tot = sum(acc.values()) or 1.0
+    return {g_: x_ / tot for g_, x_ in acc.items() if x_ / tot > 0.01}
+NW = 72; RW = np.full(NW, np.nan)                     # the waistband tucks under the belt, at the corset's outline
+for q in [v.co for v in {v for f in bm.faces if f.material_index in CORSET for v in f.verts} if ztop - 0.03 < v.co.z < ztop + 0.01]:
+    k_ = int((math.atan2(q.y - cy, q.x) + math.pi) / (2 * math.pi) * NW) % NW; RW[k_] = np.nanmax([RW[k_], math.hypot(q.x, q.y - cy)])
+ok_ = ~np.isnan(RW); RW = np.interp(np.arange(NW), np.arange(NW)[ok_], RW[ok_], period=NW) if ok_.any() else np.full(NW, 0.08)
+def r_waist(th):
+    return float(np.interp((th + math.pi) / (2 * math.pi) * NW - 0.5, np.arange(-1, NW + 1), np.concatenate([[RW[-1]], RW, [RW[0]]]))) - 0.002
+r0 = float(RW.mean()) - 0.002
+bmesh.ops.delete(bm, geom=sk_faces, context='FACES')
+def v_hem(th, side, front): return side + (front - side) * (1 - abs(math.cos(th)))    # a V from the front: points front and back
+def skirt_r(th, drop, D, R, off=0.0):
+    """Radius at angle th, `drop` below the waistband, on a tier D long there that flares out to R at its hem:
+    flat panels between folds."""
+    S = min(1.0, drop / D); rw = r_waist(th)
+    r = rw + (R - rw) * (1 - (1 - S) ** a.skirt_flare) + off * S ** 0.5
+    ph = (th + math.pi) / (2 * math.pi) * a.pleats; loc = (ph - math.floor(ph) - 0.5) * 2 * math.pi / a.pleats
+    edge = (math.pi / a.pleats - abs(loc)) / (math.pi / a.pleats)            # 0 at a fold, 1 mid-panel
+    crease = a.fold * min(1.0, S) ** 0.7 * (1 - math.sin(math.pi / 2 * edge)) ** 1.5   # rounded panels between deep creases
+    return r * math.cos(math.pi / a.pleats) / math.cos(loc) * (1 - crease)
+def texel_uv(mat, target):
+    img = lit_image(mat); W, H = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
+    lum = np.abs(px[..., :3].mean(-1) - target) + (px[..., 3] < 0.9) * 9
+    y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
+trim = me.materials[min(CORSET)].copy(); trim.name = 'Skirt trim navy'; TRIM_UV = texel_uv(trim, 0.75)
+_ti = lit_image(trim); _tw, _th = _ti.size; _tp = np.array(_ti.pixels[:], dtype=np.float32).reshape(_th, _tw, 4)
+_tc = _tp[int(TRIM_UV[1] * _th), int(TRIM_UV[0] * _tw), :3]; _tc = np.where(_tc <= 0.04045, _tc / 12.92, ((_tc + 0.055) / 1.055) ** 2.4)
+tf = [min(1.0, t / max(1e-4, c)) for t, c in zip(srgb(tuple(a.piping)), _tc)]   # scale against the texel the piping samples
+mtoon(trim).inputs['Lit Color'].default_value = (*tf, 1.0)
+if 'Shade Color' in mtoon(trim).inputs: mtoon(trim).inputs['Shade Color'].default_value = (*[c * 0.5 for c in tf], 1.0)
+SKIRT_MAT = me.materials[min(SKIRT)]; RUF_UV = mid_texel(SKIRT_MAT)
+CPP = 8; NA = a.pleats * CPP                                    # 8 columns per panel, a fold on every 8th
+sb = bmesh.new(); suv = sb.loops.layers.uv.new('UV'); sdl = sb.verts.layers.deform.new()
+def strip(rows, tier, ncols, folds):
+    """Rings at rows [(drop(th), radial lift, material of the face above it: 0 fabric, 1 piping)] on tier (D(th), R(th), off)."""
+    grid = []
+    for (drop_, lift, _) in rows:
+        ring_ = []
+        for j in range(ncols):
+            th = -math.pi + 2 * math.pi * j / ncols; S = drop_(th) / v_hem(th, a.skirt_side, a.skirt_front)
+            r = skirt_r(th, drop_(th), tier[0](th), tier[1](th), tier[2]) + lift
+            v = sb.verts.new((r * math.cos(th), cy + r * math.sin(th), ztop - drop_(th)))
+            for g_, w_ in skirt_weights(th, min(1.0, max(0.0, S))).items(): v[sdl][g_] = w_
+            ring_.append(v)
+        grid.append(ring_)
+    for i in range(len(grid) - 1):
+        for j in range(ncols):
+            k = (j + 1) % ncols; f = sb.faces.new((grid[i][j], grid[i][k], grid[i + 1][k], grid[i + 1][j]))
+            f.material_index = rows[i + 1][2]; f.smooth = True
+            for l in f.loops: l[suv].uv = TRIM_UV if f.material_index == 1 else RUF_UV
+            if folds and j % CPP == 0:
+                e = sb.edges.get((grid[i][j], grid[i + 1][j]))
+                if e: e.smooth = False                          # a crisp fold between panels
+    return grid
+def D_low(th): return v_hem(th, a.skirt_side, a.skirt_front)
+def R_low(th): return v_hem(th, a.under_radius, a.under_radius_front)
+def D_up(th): return D_low(th) - v_hem(th, a.tier_side, a.tier_front)
+def R_up(th): return v_hem(th, a.skirt_radius, a.skirt_radius_front)
+for D, Rt, off in ((D_low, R_low, 0.0), (D_up, R_up, 0.008)):   # lower tier, then the upper one outside it
+    rows = [((lambda th, u=u: (D(th) - 0.025) * u), 0.0, 0) for u in np.linspace(0, 1, 34)]
+    for d0, lift, m_ in ((0.025, 0.0035, 1), (0.021, 0.0035, 1), (0.021, 0.0025, 0), (0.009, 0.0025, 0), (0.009, 0.0035, 1),
+                         (0.005, 0.0035, 1), (0.005, 0.0025, 0), (0.0, 0.0025, 0), (-0.001, -0.002, 0)):   # band, piping, thick hem
+        rows.append(((lambda th, d0=d0: D(th) - d0), lift, m_))
+    strip(rows, (D, Rt, off), NA, True)
+if a.ruffle:   # a small gathered frill under the lower tier, finely sampled (gathers alias into teeth otherwise)
+    g_ = strip([((lambda th: D_low(th) - 0.004), -0.002, 0), ((lambda th: D_low(th) + a.ruffle), 0.006, 0)], (D_low, R_low, 0.0), 400, False)
+    for j, v in enumerate(g_[1]):
+        th = -math.pi + 2 * math.pi * j / 400; w_ = 0.004 * math.sin(100 * th); v.co.x += w_ * math.cos(th); v.co.y += w_ * math.sin(th)
+for f in sb.faces:
+    f.normal_update(); c_ = f.calc_center_median()
+    if f.normal.dot(Vector((c_.x, c_.y - cy, 0))) < 0: f.normal_flip()
+    if f.material_index == 0:   # panel UVs: u across the panel fold to fold, v down the skirt, for the painted creases below
+        pc_ = (math.atan2(c_.y - cy, c_.x) + math.pi) / (2 * math.pi) * a.pleats; k_ = math.floor(pc_)
+        for l in f.loops:
+            ph_ = (math.atan2(l.vert.co.y - cy, l.vert.co.x) + math.pi) / (2 * math.pi) * a.pleats
+            l[suv].uv = ((ph_ - k_ + a.pleats / 2) % a.pleats - a.pleats / 2, min(1.0, max(0.0, (l.vert.co.z - (ztop - a.skirt_front)) / a.skirt_front)))
+# MToon's toon shading flattens the panels to one tone from the front, so the creases are painted in as well:
+# a dark line at each fold and a soft falloff across the panel, around the flat skirt colour
+PW, PH = 256, 32; U_ = (np.arange(PW) + 0.5) / PW
+d_ = np.minimum(U_, 1 - U_); shade_ = (1 - 0.42 * np.exp(-(d_ / 0.035) ** 2)) * (1 - 0.14 * (1 - np.sin(np.pi * U_)) ** 2)
+flat_ = np.array(lit_image(SKIRT_MAT).pixels[:], dtype=np.float32).reshape(-1, 4); flat_ = flat_[flat_[:, 3] > 0.5][:, :3].mean(0)
+pimg = bpy.data.images.new('Skirt panels', PW, PH, alpha=True); pp_ = np.ones((PH, PW, 4), np.float32)
+pp_[..., :3] = flat_[None, None, :] * (shade_ / shade_.mean())[None, :, None]; pimg.pixels[:] = np.clip(pp_, 0, 1).ravel(); pimg.pack()
+panel_mat = SKIRT_MAT.copy(); panel_mat.name = SKIRT_MAT.name.split(' (')[0] + ' panels'   # keeps the cloth key: soft shading, rim
+old_ = lit_image(SKIRT_MAT)
+for n_ in panel_mat.node_tree.nodes:
+    if n_.type == 'TEX_IMAGE' and n_.image == old_: n_.image = pimg
+sme = bpy.data.meshes.new('Skirt'); sb.to_mesh(sme); sb.free()
+sob = bpy.data.objects.new('Skirt', sme); coll.objects.link(sob); sme.materials.append(panel_mat); sme.materials.append(trim)
+sob.parent = arm; sob.modifiers.new('Armature', 'ARMATURE').object = arm
+print('SKIRT rebuilt: %d panels; lower tier %.3f long at the sides / %.3f at the points, upper out to %.3f / %.3f; %d verts'
+      % (a.pleats, a.skirt_side, a.skirt_front, a.skirt_radius, a.skirt_radius_front, len(sme.vertices)))
 # plain fabric: a flattened copy of the skirt texture (drops the buttons and panel seams)
 skm = me.materials[min(SKIRT)]; simg = lit_image(skm); fimg = simg.copy(); fimg.name = 'Skirt flat'
 fpx = np.array(fimg.pixels[:], dtype=np.float32).reshape(-1, 4); h_, s_, v_ = rgb_to_hsv(fpx[:, :3]); op = fpx[:, 3] > 0.5
@@ -612,66 +690,12 @@ def relink(key, old, new):
             for n_ in m_.node_tree.nodes:
                 if n_.type == 'TEX_IMAGE' and n_.image == old: n_.image = new
 relink('N00_002_03_Tops_01_CLOTH_01', simg, fimg)
-def texel_uv(mat, target):
-    img = lit_image(mat); W, H = img.size
-    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4)
-    lum = np.abs(px[..., :3].mean(-1) - target) + (px[..., 3] < 0.9) * 9
-    y, x = np.unravel_index(np.argmin(lum), lum.shape); return ((x + 0.5) / W, (y + 0.5) / H)
-TRIM_UV = texel_uv(me.materials[min(CORSET)], 0.75)
-trim = me.materials[min(CORSET)].copy(); trim.name = 'Skirt trim navy'
-_ti = lit_image(trim); _tw, _th = _ti.size; _tp = np.array(_ti.pixels[:], dtype=np.float32).reshape(_th, _tw, 4)
-_tc = _tp[int(TRIM_UV[1] * _th), int(TRIM_UV[0] * _tw), :3]; _tc = np.where(_tc <= 0.04045, _tc / 12.92, ((_tc + 0.055) / 1.055) ** 2.4)
-tf = [min(1.0, t / max(1e-4, c)) for t, c in zip(srgb(tuple(a.piping)), _tc)]   # scale against the texel the piping samples
-mtoon(trim).inputs['Lit Color'].default_value = (*tf, 1.0)
-if 'Shade Color' in mtoon(trim).inputs: mtoon(trim).inputs['Shade Color'].default_value = (*[c * 0.5 for c in tf], 1.0)
-me.materials.append(trim); CORSET_I = len(me.materials) - 1; nt = 0
-SLOPE = (a.skirt_hem - r0) / a.skirt_len * 0.6
-def band(edges, up, width):
-    """A piping strip on the skirt surface, `up` metres above the hem, `width` tall."""
-    global nt
-    geom = list({v for e in edges for v in e.verts}) + edges
-    ret = bmesh.ops.duplicate(bm, geom=geom); dup = [g for g in ret['geom'] if isinstance(g, bmesh.types.BMEdge)]
-    for g in ret['geom']:
-        if isinstance(g, bmesh.types.BMVert):
-            r = math.hypot(g.co.x, g.co.y - cy); k = (r - up * SLOPE + 0.0025) / max(r, 1e-4)
-            g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z += up
-    ret = bmesh.ops.extrude_edge_only(bm, edges=dup)
-    for g in ret['geom']:
-        if isinstance(g, bmesh.types.BMVert):
-            r = math.hypot(g.co.x, g.co.y - cy); k = (r - width * SLOPE) / max(r, 1e-4)
-            g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z += width
-        elif isinstance(g, bmesh.types.BMFace):
-            g.material_index = CORSET_I; g.smooth = True; nt += 1
-            for l in g.loops: l[uvl].uv = TRIM_UV
-RUF_UV = mid_texel(me.materials[min(SKIRT)])
-def ruffle(edges, drop, gathers):
-    """A gathered frill hanging below a hem: duplicated hem edge, extruded down and out, rippled."""
-    global nt
-    geom = list({v for e in edges for v in e.verts}) + edges
-    ret = bmesh.ops.duplicate(bm, geom=geom); dup = [g for g in ret['geom'] if isinstance(g, bmesh.types.BMEdge)]
-    for g in ret['geom']:
-        if isinstance(g, bmesh.types.BMVert):   # tuck the frill's top just inside the hem
-            r = math.hypot(g.co.x, g.co.y - cy); k = (r - 0.002) / max(r, 1e-4); g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z += 0.004
-    ret = bmesh.ops.extrude_edge_only(bm, edges=dup)
-    for g in ret['geom']:
-        if isinstance(g, bmesh.types.BMVert):
-            th = math.atan2(g.co.y - cy, g.co.x); r = math.hypot(g.co.x, g.co.y - cy)
-            k = (r + drop * 0.55 + 0.007 * math.sin(gathers * th)) / max(r, 1e-4)
-            g.co.x *= k; g.co.y = cy + (g.co.y - cy) * k; g.co.z -= drop
-        elif isinstance(g, bmesh.types.BMFace):
-            g.material_index = min(SKIRT); g.smooth = True; nt += 1
-            for l in g.loops: l[uvl].uv = RUF_UV
-for edges in hems:
-    if not edges: continue
-    ruffle(edges, a.ruffle, 90)
-    band(edges, 0.0, 0.005); band(edges, 0.012, 0.003); band(edges, 0.022, 0.003)
-print('TRIM faces', nt)
 # plain corset: VRoid painted side straps with buckles into it, which read as stripes from the front
 cm_ = me.materials[min(CORSET)]; cimg = lit_image(cm_); fimg = cimg.copy(); fimg.name = 'Corset flat'
 fpx = np.array(fimg.pixels[:], dtype=np.float32).reshape(-1, 4); h_, s_, v_ = rgb_to_hsv(fpx[:, :3]); op = fpx[:, 3] > 0.5
 v_ = v_ * 0.2 + 0.8 * v_[op].mean(); fpx[:, :3] = hsv_to_rgb(h_, s_ * 0.5, v_); fimg.pixels[:] = fpx.ravel(); fimg.pack()
 relink('N00_002_03_Tops_01_CLOTH_02', cimg, fimg)
-print('SKIRT top %.3f bot %.3f r0 %.3f cy %.3f' % (ztop, zbot, r0, cy))
+print('SKIRT top %.3f r0 %.3f cy %.3f' % (ztop, r0, cy))
 bm.to_mesh(me); me.update()
 
 # soft blouse: a fitted tube over the upper torso from under the corset's top edge to a straight
@@ -919,11 +943,11 @@ hb.to_mesh(hair.data); hair.data.update(); print('STRAYS removed', len(strays));
 hb.free()
 
 # sheer stocking: the reference's dark thigh-high is brown-black with skin showing through
-def leg_mask(side, top_z):
+def leg_mask(side, top_z, bottom_z=0.18):
     img = lit_image(me.materials[min(mats('Body_00_SKIN'))]); W, H = img.size
     m_ = np.zeros((H, W), dtype=bool); uvd = me.uv_layers.active.data; n = 0; SK = mats('Body_00_SKIN')
     for poly in me.polygons:
-        if poly.material_index in SK and side * poly.center.x > 0.01 and 0.18 < poly.center.z < top_z + 0.01:
+        if poly.material_index in SK and side * poly.center.x > 0.01 and bottom_z < poly.center.z < top_z + 0.01:
             pts = [(uvd[li].uv.x * W, uvd[li].uv.y * H) for li in poly.loop_indices]; n += 1
             for k in range(1, len(pts) - 1):                   # fan-triangulate, fill by barycentric test
                 (x0, y0), (x1, y1), (x2, y2) = pts[0], pts[k], pts[k + 1]
@@ -1033,6 +1057,18 @@ def stocking_top():
 zs = stocking_top(); print('STOCKING TOP %.3f' % zs)
 sheer_stocking(-1, zs)
 if a.fishnet_cell: fine_fishnet(1, zs, a.fishnet_cell, a.fishnet_width)
+def erase_garters(side, z0, z1):
+    """VRoid paints garter straps up the thighs into the skin texture; the reference's thighs are bare between
+    the stocking tops and the (now shorter) skirt. Dark texels there become the surrounding skin colour."""
+    img, m_, n = leg_mask(side, z1, z0); W, H = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(H, W, 4); lum = px[..., :3].mean(-1)
+    light = m_ & (lum >= 0.6)
+    if not light.any(): print('GARTERS none on side', side); return
+    skin_ = np.median(px[light][:, :3], axis=0); dark = m_ & (lum < skin_.mean() - 0.10)
+    for _ in range(2): dark = m_ & (dark | np.roll(dark, 1, 0) | np.roll(dark, -1, 0) | np.roll(dark, 1, 1) | np.roll(dark, -1, 1))   # and their soft edges
+    px[dark, :3] = skin_; img.pixels[:] = px.ravel(); img.pack()
+    print('GARTERS erased on side %+d: %d texels between %.3f and %.3f' % (side, int(dark.sum()), z0, z1))
+for side in (1, -1): erase_garters(side, zs + 0.03, 0.90 + DZ * 0.5)
 def bow(bm, at, normal, s=1.0):
     """Satin bow facing `normal`, centred at `at`."""
     zax = Vector((0, 0, 1)); xax = zax.cross(normal).normalized(); yax = normal.normalized()
