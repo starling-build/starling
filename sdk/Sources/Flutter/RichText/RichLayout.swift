@@ -755,6 +755,32 @@ public final class RichLayout {
         g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
     }
 
+    /// Running header (left, halfway into the top margin) and footer
+    /// (centred, halfway into the bottom margin), fields filled per page.
+    private func _paintHeaderFooter(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        guard let setup = pageSetup else { return }
+        let rect = pageRect(p)
+        let n = pageCount
+        let style = theme.textStyle(for: CharStyle(color: theme.textColor.withOpacity(0.7)),
+                                    in: .body, scale: scale)
+        let left = _px(setup.marginLeft)
+        let width = _px(setup.contentWidth)
+        if !document.header.isEmpty {
+            let text = RichDocument.fill(document.header, page: p + 1, pageCount: n)
+            let tp = TextPainter(text: TextSpan(text: text, style: style), textAlign: .left, textDirection: .ltr)
+            tp.layout(minWidth: width, maxWidth: width)
+            tp.paint(canvas, Offset(rect.left + left, rect.top + _px(setup.marginTop) / 2 - tp.height / 2))
+            tp.dispose()
+        }
+        if !document.footer.isEmpty {
+            let text = RichDocument.fill(document.footer, page: p + 1, pageCount: n)
+            let tp = TextPainter(text: TextSpan(text: text, style: style), textAlign: .center, textDirection: .ltr)
+            tp.layout(minWidth: width, maxWidth: width)
+            tp.paint(canvas, Offset(rect.left + left, rect.bottom - _px(setup.marginBottom) / 2 - tp.height / 2))
+            tp.dispose()
+        }
+    }
+
     /// Paint everything intersecting `visible` (CANVAS space), the canvas
     /// already translated so canvas (0, 0) is at the origin. `caret` is in
     /// canvas space too. `pageBackground` paints each visible page's paper
@@ -767,6 +793,7 @@ public final class RichLayout {
             let lastPage = page(atCanvasY: visible.bottom)
             for p in firstPage ... lastPage {
                 pageBackground?(p, pageRect(p))
+                _paintHeaderFooter(p, canvas, document)
             }
         }
         if let selection, !selection.isCollapsed {

@@ -539,6 +539,19 @@ public struct RichSelection: Hashable, Sendable {
 
 public struct RichDocument: Hashable, Sendable {
     public var paragraphs: [RichParagraph]
+    /// Running header and footer, one line each; `{PAGE}` and `{NUMPAGES}`
+    /// are replaced per page. Empty means none.
+    public var header: String = ""
+    public var footer: String = ""
+
+    public static let pageField = "{PAGE}"
+    public static let pageCountField = "{NUMPAGES}"
+
+    /// `header`/`footer` with the fields filled in for page `page` (1-based).
+    public static func fill(_ template: String, page: Int, pageCount: Int) -> String {
+        template.replacingOccurrences(of: pageField, with: String(page))
+            .replacingOccurrences(of: pageCountField, with: String(pageCount))
+    }
 
     public init(paragraphs: [RichParagraph] = [RichParagraph()]) {
         self.paragraphs = paragraphs.isEmpty ? [RichParagraph()] : paragraphs

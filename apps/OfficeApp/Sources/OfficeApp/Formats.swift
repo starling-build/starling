@@ -282,6 +282,8 @@ enum RtfFormat {
         var currentList: ListKind? = nil
         var currentLevel = 0
         var highSurrogate: Int? = nil
+        var header = ""
+        var footer = ""
 
         func flushRun() {
             guard !buf.isEmpty else { return }
@@ -308,6 +310,8 @@ enum RtfFormat {
         func append(_ s: String) {
             if pendingUnicodeSkip > 0 { pendingUnicodeSkip -= 1; return }
             if destination != nil {
+                if destination == "header" { header += s }
+                if destination == "footer" { footer += s }
                 if destination == "fonttbl" { fontEntry.name += s }
                 if destination == "colortbl" {
                     // Each ';' closes one entry; a bare ';' is "auto".
@@ -414,7 +418,8 @@ enum RtfFormat {
                     } else {
                         destination = word
                         destDepth = groupDepth
-                        if word != "fonttbl" && word != "colortbl", skipGroupUntil == nil { skipGroupUntil = groupDepth }
+                        if word != "fonttbl" && word != "colortbl" && word != "header" && word != "footer",
+                           skipGroupUntil == nil { skipGroupUntil = groupDepth }
                     }
                 case "red": colorEntry.r = param ?? 0; colorEntry.any = true
                 case "green": colorEntry.g = param ?? 0; colorEntry.any = true
@@ -422,7 +427,8 @@ enum RtfFormat {
                 case "f":
                     if destination == "fonttbl" { fontEntry.index = param ?? 0; fontEntry.name = "" }
                     else if let idx = param, let name = fonts[idx] { state.char.fontFamily = _family(name) }
-                case "par": endParagraph()
+                case "chpgn": append(RichDocument.pageField)
+                case "par": if destination == nil { endParagraph() } else { append(" ") }
                 case "line": append("\n")
                 case "tab": append("\t")
                 case "pard": state.para = .body; state.inList = false; currentList = nil; currentLevel = 0
@@ -498,7 +504,10 @@ enum RtfFormat {
         }
         if !paraText.isEmpty || !buf.isEmpty { endParagraph() }
         if paragraphs.isEmpty { return RichDocument() }
-        return RichDocument(paragraphs: paragraphs)
+        var doc = RichDocument(paragraphs: paragraphs)
+        doc.header = header.trimmingCharacters(in: .whitespaces)
+        doc.footer = footer.trimmingCharacters(in: .whitespaces)
+        return doc
     }
 
     /// Map Word's font names onto the faces we ship.
@@ -587,9 +596,16 @@ enum RtfFormat {
             colortbl += "\\red\((c.value >> 16) & 0xFF)\\green\((c.value >> 8) & 0xFF)\\blue\(c.value & 0xFF);"
         }
         colortbl += "}"
+        var hf = ""
+        if !doc.header.isEmpty {
+            hf += "{\\header\\pard\\ql " + _escape(doc.header).replacingOccurrences(of: RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
+        }
+        if !doc.footer.isEmpty {
+            hf += "{\\footer\\pard\\qc " + _escape(doc.footer).replacingOccurrences(of: RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
+        }
         let fonttbl = "{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}{\\f1\\froman\\fcharset0 Times New Roman;}{\\f2\\fmodern\\fcharset0 Courier New;}}"
         let stylesheet = "{\\stylesheet{\\s0 Normal;}{\\s1\\b\\fs40 heading 1;}{\\s2\\b\\fs32 heading 2;}{\\s3\\b\\fs28 heading 3;}}"
-        return "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033\\uc1\n\(fonttbl)\n\(colortbl)\n\(stylesheet)\n\\paperw12240\\paperh15840\\margl1440\\margr1440\\margt1440\\margb1440\n\(body)}\n"
+        return "{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033\\uc1\n\(fonttbl)\n\(colortbl)\n\(stylesheet)\n\\paperw12240\\paperh15840\\margl1440\\margr1440\\margt1440\\margb1440\n\(hf)\(body)}\n"
     }
 
     private static func _escape(_ s: String) -> String {

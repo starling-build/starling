@@ -80,6 +80,22 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pic.height, 80, accuracy: 0.01)
     }
 
+    func testDocxHeaderFooterRoundTrip() throws {
+        var doc = RichDocument(plainText: "Body")
+        doc.header = "Quarterly report"
+        doc.footer = "Page {PAGE} of {NUMPAGES}"
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let back = try DocxFormat.read(data)
+        XCTAssertEqual(back.document.header, "Quarterly report")
+        XCTAssertEqual(back.document.footer, "Page {PAGE} of {NUMPAGES}")
+        XCTAssertEqual(RichDocument.fill(back.document.footer, page: 2, pageCount: 7), "Page 2 of 7")
+        let rtf = RtfFormat.render(doc)
+        let rtfBack = try XCTUnwrap(RtfFormat.parse(rtf))
+        XCTAssertEqual(rtfBack.header, "Quarterly report")
+        XCTAssertTrue(rtfBack.footer.contains("{PAGE}"))
+        XCTAssertEqual(rtfBack.paragraphs.map(\.text), ["Body"])
+    }
+
     func testDocxWrittenByTextEdit() throws {
         // apps/OfficeApp/Tests/OfficeAppTests/Fixtures/textedit.docx: the
         // Phase 0 document, saved as RTF by Office and converted by macOS

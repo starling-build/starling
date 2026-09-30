@@ -38,6 +38,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _search = TextEditingController()
     private let _findQuery = TextEditingController()
     private let _findReplacement = TextEditingController()
+    private var _headerFooterOpen = false
+    private let _headerText = TextEditingController()
+    private let _footerText = TextEditingController()
 
     private var controller: RichDocumentController { session.controller }
 
@@ -73,6 +76,8 @@ final class OfficeShellState: State<StatefulWidget> {
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
+        _headerText.dispose()
+        _footerText.dispose()
         super.dispose()
     }
 
@@ -113,6 +118,12 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
+        session.onHeaderFooter = { [weak self] in
+            guard let self else { return }
+            self._headerText.text = self.controller.document.header
+            self._footerText.text = self.controller.document.footer
+            self.setState { self._headerFooterOpen = true }
+        }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self.setState { self._backstage = .insertPicture }
@@ -303,6 +314,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
+            if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
             return false
@@ -361,6 +373,16 @@ final class OfficeShellState: State<StatefulWidget> {
                                   onReplace: { [weak self] in self?._replaceOne() },
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
                                   onClose: { [weak self] in self?.setState { self?._findOpen = false } }))
+        }
+        if _headerFooterOpen {
+            column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
+                                          onApply: { [weak self] in
+                                              guard let self else { return }
+                                              self.controller.setHeaderFooter(header: self._headerText.text,
+                                                                              footer: self._footerText.text)
+                                              self.setState { self._headerFooterOpen = false }
+                                          },
+                                          onClose: { [weak self] in self?.setState { self?._headerFooterOpen = false } }))
         }
         if session.showRuler && session.viewMode == .printLayout {
             column.append(Ruler(setup: session.pageSetup, zoom: session.zoom,

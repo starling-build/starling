@@ -272,9 +272,9 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.link, "Link", fluent, enabled: false) {},
             ]),
             Chrome.group("Header & Footer", fluent, [Chrome.rows([
-                Chrome.small(FluentSystemIcons.header, "Header", fluent, enabled: false) {},
-                Chrome.small(FluentSystemIcons.footer, "Footer", fluent, enabled: false) {},
-                Chrome.small(FluentSystemIcons.pageNumber, "Page Number", fluent, enabled: false) {},
+                Chrome.small(FluentSystemIcons.header, "Header", fluent) { [session] in session.onHeaderFooter?() },
+                Chrome.small(FluentSystemIcons.footer, "Footer", fluent) { [session] in session.onHeaderFooter?() },
+                Chrome.small(FluentSystemIcons.pageNumber, "Page Number", fluent) { c.togglePageNumbers() },
             ])]),
             Chrome.group("Text", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.document, "Date & Time", fluent) { [session] in

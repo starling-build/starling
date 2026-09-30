@@ -45,6 +45,7 @@ public enum EditOp: Equatable, Sendable {
     case setParagraphStyle(Int, old: RichParagraphStyle, new: RichParagraphStyle)
     case insertParagraphs(at: Int, [RichParagraph])
     case removeParagraphs(at: Int, [RichParagraph])
+    case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -100,6 +101,11 @@ public enum EditOp: Equatable, Sendable {
             if doc.paragraphs.isEmpty { doc.paragraphs = [RichParagraph()] }
             changes.append(.removed(at: at, count: paras.count))
             return .insertParagraphs(at: at, removed)
+        case .setHeaderFooter(let header, let footer, let oldHeader, let oldFooter):
+            doc.header = header
+            doc.footer = footer
+            changes.append(.all)
+            return .setHeaderFooter(header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
         }
     }
 }
@@ -728,6 +734,24 @@ public final class RichDocumentController: ChangeNotifier {
             perform(.splitParagraph(pos, tailStyle: tailStyle))
             _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
         }
+    }
+
+    // MARK: Header and footer
+
+    public func setHeaderFooter(header: String? = nil, footer: String? = nil) {
+        let newHeader = header ?? document.header
+        let newFooter = footer ?? document.footer
+        guard newHeader != document.header || newFooter != document.footer else { return }
+        edit {
+            perform(.setHeaderFooter(header: newHeader, footer: newFooter,
+                                     oldHeader: document.header, oldFooter: document.footer))
+        }
+    }
+
+    /// Word's Page Number: a centred "n" in the footer, or none.
+    public func togglePageNumbers() {
+        let field = "Page \(RichDocument.pageField) of \(RichDocument.pageCountField)"
+        setHeaderFooter(footer: document.footer.contains(RichDocument.pageField) ? "" : field)
     }
 
     // MARK: Find

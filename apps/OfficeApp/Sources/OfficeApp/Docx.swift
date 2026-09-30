@@ -177,7 +177,62 @@ enum DocxFormat {
         }
         for child in body.children { walkBlock(child, indent: 0) }
         if paragraphs.isEmpty { paragraphs = [RichParagraph()] }
-        return DocxDocument(document: RichDocument(paragraphs: paragraphs), pageSetup: pageSetup)
+        var document = RichDocument(paragraphs: paragraphs)
+        // Header/footer: the section's default references, text with the
+        // PAGE/NUMPAGES fields kept as placeholders.
+        if let sect = body.first("w:sectPr") {
+            for ref in sect.all("w:headerReference") where ref["w:type"] == "default" || ref["w:type"] == nil {
+                if let rid = ref["r:id"], let target = rels[rid], let data = media(target),
+                   let node = XNode.parse(data) {
+                    document.header = _fieldText(node)
+                }
+            }
+            for ref in sect.all("w:footerReference") where ref["w:type"] == "default" || ref["w:type"] == nil {
+                if let rid = ref["r:id"], let target = rels[rid], let data = media(target),
+                   let node = XNode.parse(data) {
+                    document.footer = _fieldText(node)
+                }
+            }
+        }
+        return DocxDocument(document: document, pageSetup: pageSetup)
+    }
+
+    /// A header/footer part's text with PAGE and NUMPAGES fields (simple or
+    /// complex) turned into placeholders; paragraphs joined with spaces.
+    private static func _fieldText(_ root: XNode) -> String {
+        var out: [String] = []
+        var skipping = false   // between a field's separate and end
+        func walk(_ node: XNode, into line: inout String) {
+            for child in node.children {
+                switch child.name {
+                case "w:t": if !skipping { line += child.text }
+                case "w:tab": if !skipping { line += "\t" }
+                case "w:fldSimple":
+                    let instr = (child["w:instr"] ?? "").uppercased()
+                    if instr.contains("NUMPAGES") { line += RichDocument.pageCountField }
+                    else if instr.contains("PAGE") { line += RichDocument.pageField }
+                    else { walk(child, into: &line) }
+                case "w:instrText":
+                    let instr = child.text.uppercased()
+                    if instr.contains("NUMPAGES") { line += RichDocument.pageCountField }
+                    else if instr.contains("PAGE") { line += RichDocument.pageField }
+                case "w:fldChar":
+                    switch child["w:fldCharType"] {
+                    case "separate": skipping = true
+                    case "end": skipping = false
+                    default: break
+                    }
+                default: walk(child, into: &line)
+                }
+            }
+        }
+        for p in root.all("w:p") {
+            var line = ""
+            walk(p, into: &line)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty { out.append(trimmed) }
+        }
+        return out.joined(separator: " ")
     }
 
     private static func _headingLevel(_ name: String) -> Int? {
@@ -486,7 +541,10 @@ enum DocxFormat {
             body += "</w:p>"
         }
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
-        body += "<w:sectPr><w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
+        body += "<w:sectPr>"
+        if !doc.header.isEmpty { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }
+        if !doc.footer.isEmpty { body += "<w:footerReference w:type=\"default\" r:id=\"rIdFooter\"/>" }
+        body += "<w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr>"
 
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\""
@@ -501,8 +559,20 @@ enum DocxFormat {
         for r in mediaRels {
             relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"\(r.target)\"/>"
         }
+        var extraParts: [ZipEntry] = []
+        var extraOverrides = ""
+        if !doc.header.isEmpty {
+            relsXML += "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>"
+            extraParts.append(ZipEntry(name: "word/header1.xml", data: Data(_headerFooterPart("w:hdr", doc.header, center: false).utf8)))
+            extraOverrides += "<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>"
+        }
+        if !doc.footer.isEmpty {
+            relsXML += "<Relationship Id=\"rIdFooter\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer\" Target=\"footer1.xml\"/>"
+            extraParts.append(ZipEntry(name: "word/footer1.xml", data: Data(_headerFooterPart("w:ftr", doc.footer, center: true).utf8)))
+            extraOverrides += "<Override PartName=\"/word/footer1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>"
+        }
         relsXML += "</Relationships>"
-        var contentTypes = _contentTypes
+        var contentTypes = _contentTypes.replacingOccurrences(of: "</Types>", with: extraOverrides + "</Types>")
         for ext in usedExtensions.sorted() {
             let mime = ext == "jpeg" ? "image/jpeg" : ext == "gif" ? "image/gif" : "image/png"
             contentTypes = contentTypes.replacingOccurrences(of: "<Override PartName=\"/word/document.xml\"",
@@ -516,8 +586,32 @@ enum DocxFormat {
             ZipEntry(name: "word/styles.xml", data: Data(_styles.utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numbering.utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
-        ] + media
+        ] + media + extraParts
         return try Zip.write(entries)
+    }
+
+    /// A header or footer part: one paragraph, fields as fldSimple.
+    private static func _headerFooterPart(_ tag: String, _ template: String, center: Bool) -> String {
+        var runs = ""
+        var literal = ""
+        func flush() {
+            if !literal.isEmpty { runs += "<w:r>\(_text(literal))</w:r>"; literal = "" }
+        }
+        var rest = Substring(template)
+        while !rest.isEmpty {
+            if rest.hasPrefix(RichDocument.pageField) {
+                flush(); runs += "<w:fldSimple w:instr=\" PAGE \"><w:r><w:t>1</w:t></w:r></w:fldSimple>"
+                rest = rest.dropFirst(RichDocument.pageField.count)
+            } else if rest.hasPrefix(RichDocument.pageCountField) {
+                flush(); runs += "<w:fldSimple w:instr=\" NUMPAGES \"><w:r><w:t>1</w:t></w:r></w:fldSimple>"
+                rest = rest.dropFirst(RichDocument.pageCountField.count)
+            } else {
+                literal.append(rest.removeFirst())
+            }
+        }
+        flush()
+        let jc = center ? "<w:pPr><w:jc w:val=\"center\"/></w:pPr>" : ""
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<\(tag) xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:p>\(jc)\(runs)</w:p></\(tag)>"
     }
 
     private static func _text(_ s: String) -> String {
