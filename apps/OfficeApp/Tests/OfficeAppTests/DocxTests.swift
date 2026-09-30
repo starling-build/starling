@@ -180,6 +180,19 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(ps[2].cell?.row, 1); XCTAssertEqual(ps[2].cell?.column, 1)
     }
 
+    func testDocxColumnsRoundTrip() throws {
+        var setup = PageSetup.letter
+        setup.columns = 2
+        setup.columnGap = 24
+        XCTAssertEqual(setup.columnWidth, (setup.contentWidth - 24) / 2, accuracy: 0.001)
+        let back = try DocxFormat.read(try DocxFormat.write(RichDocument(plainText: "x"), pageSetup: setup))
+        XCTAssertEqual(back.pageSetup?.columns, 2)
+        XCTAssertEqual(back.pageSetup?.columnGap ?? 0, 24, accuracy: 0.001)
+        // A single column writes no cols element and reads back as one.
+        let one = try DocxFormat.read(try DocxFormat.write(RichDocument(plainText: "x"), pageSetup: .letter))
+        XCTAssertEqual(one.pageSetup?.columns, 1)
+    }
+
     func testDocxTableEndsTheDocument() throws {
         // A package whose body is just a table still gets a paragraph after it.
         var doc = RichDocument(plainText: "x")

@@ -15,7 +15,7 @@ enum PdfExport {
         let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
         layout.scale = 1.0
         layout.pageSetup = pageSetup
-        layout.width = pageSetup.contentWidth * theme.pixelsPerPoint
+        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint
         layout.ensureLaidOut(document)
 
         var pages: [PdfDocument.Page] = []

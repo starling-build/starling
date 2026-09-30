@@ -497,9 +497,12 @@ final class Ribbon: StatelessWidget {
                 Chrome.menu(Text("Size"), Icon(FluentSystemIcons.onePage, size: Chrome.iconSize,
                                                color: fluent.resources.textFillColorPrimary), fluent, sizes),
                 Chrome.vgap(2),
-                Chrome.menu(Text("Columns"), Icon(FluentSystemIcons.columns, size: Chrome.iconSize,
-                                                  color: fluent.resources.textFillColorPrimary), fluent,
-                            [("One", {})]),
+                Chrome.menu(Text(setup.columns > 1 ? "\(setup.columns) Columns" : "Columns"),
+                            Icon(FluentSystemIcons.columns, size: Chrome.iconSize,
+                                 color: fluent.resources.textFillColorPrimary), fluent,
+                            [("One", { [session] in var p = session.pageSetup; p.columns = 1; session.onPageSetup?(p) }),
+                             ("Two", { [session] in var p = session.pageSetup; p.columns = 2; session.onPageSetup?(p) }),
+                             ("Three", { [session] in var p = session.pageSetup; p.columns = 3; session.onPageSetup?(p) })]),
             ]),
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [

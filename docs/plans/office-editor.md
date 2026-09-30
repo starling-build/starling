@@ -5,8 +5,11 @@ screen was locked all evening, so nothing below is seen on screen yet):
 M1's keyboard half (checklist in `test/office-checklist.md`), M2 cursors,
 M3 picture handles, M4 rich clipboard, M6 columns and merged cells both
 ways (gridSpan and vMerge in .docx; rectangular cell selection still
-open), M7 links, M8 ribbon truth and Modify Style, M9 print and
-AutoSave, M10's welcome document, and the headless perf gate. Open: M1's on-screen half (`test/office-drive.py`
+open), M7 links, M8 ribbon truth, Modify Style and section Columns
+(Layout → Columns: one, two, three; `w:cols` in .docx; the flow fills a
+page's columns left to right), M9 print and AutoSave, M10's welcome
+document, the headless perf gate, and a three-reviewer pass over all of
+it with its ~30 findings fixed (commit 4ac18e6). Open: M1's on-screen half (`test/office-drive.py`
 runs the checklist and screenshots every step for review), M5 IME, M6
 vertical merges and cell selection, M8 Columns and Modify Style, the
 14pt menu bug. First thing

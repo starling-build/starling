@@ -70,7 +70,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--bench") {
     let layout = RichLayout(theme: theme, paragraphCount: controller.document.paragraphs.count)
     layout.scale = 1.0
     layout.pageSetup = setup
-    layout.width = setup.contentWidth * theme.pixelsPerPoint
+    layout.width = setup.columnWidth * theme.pixelsPerPoint
     func now() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
     let t0 = now()
     _ = controller.drainChanges()

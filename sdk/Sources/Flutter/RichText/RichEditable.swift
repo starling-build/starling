@@ -697,7 +697,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let pad = _w.padding
         let contentWidth: Double
         if let setup = _w.pageSetup {
-            contentWidth = max(1, setup.contentWidth * _layout.theme.pixelsPerPoint * _layout.scale)
+            contentWidth = max(1, setup.columnWidth * _layout.theme.pixelsPerPoint * _layout.scale)
         } else {
             contentWidth = max(1, size.width - pad.left - pad.right)
         }

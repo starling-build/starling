@@ -127,6 +127,17 @@ public struct PageSetup: Equatable, Sendable {
     public static let letter = PageSetup(width: 612, height: 792)
     public static let a4 = PageSetup(width: 595.3, height: 841.9)
 
+    /// Text columns per page (Word's Layout → Columns) and the gap between
+    /// them, in points. The flow fills a page's columns left to right.
+    public var columns: Int = 1
+    public var columnGap: Double = 36
+
+    /// The width text wraps at: the content width shared by the columns.
+    public var columnWidth: Double {
+        let n = Double(max(1, columns))
+        return (contentWidth - columnGap * (n - 1)) / n
+    }
+
     public var contentWidth: Double { width - marginLeft - marginRight }
     public var contentHeight: Double { height - marginTop - marginBottom }
     public var isLandscape: Bool { width > height }
@@ -610,6 +621,9 @@ public final class RichLayout {
 
     // MARK: Pagination
 
+    private var _columns: Int { max(1, pageSetup?.columns ?? 1) }
+    private var _pxColumnW: Double { _px(pageSetup!.columnWidth) }
+    private var _pxColumnStride: Double { _px(pageSetup!.columnWidth + pageSetup!.columnGap) }
     private var _pxPageW: Double { _px(pageSetup!.width) }
     private var _pxPageH: Double { _px(pageSetup!.height) }
     private var _pxGap: Double { _px(pageSetup!.gap) }
@@ -768,7 +782,9 @@ public final class RichLayout {
     public static let debugPagination = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil
 
     public var isPaged: Bool { pageSetup != nil }
-    public var pageCount: Int { isPaged ? max(1, _pages.count) : 1 }
+    /// `_pages` holds one entry per column slot; a page has `columns` of them.
+    public var pageCount: Int { isPaged ? max(1, (_pages.count + _columns - 1) / _columns) : 1 }
+    /// Per column slot (page × columns + column), in flow order.
     public var pieces: [[PagePiece]] { _pages }
 
     /// Page `p`'s rectangle on the canvas.
@@ -801,15 +817,16 @@ public final class RichLayout {
             let hi = min(r.bottom, piece.flowBottom)
             let inside = r.height <= 0 ? (r.top >= piece.flowTop && r.top < piece.flowBottom + 0.01) : hi > lo
             if !inside { continue }
-            let dy = pageRect(piece.page).top + _pxMarginTop + piece.pageY - piece.flowTop
-            out.append(Rect.fromLTRB(r.left + _pxMarginLeft, lo + dy,
-                                     r.right + _pxMarginLeft, max(hi, lo) + dy))
+            let dy = pageRect(piece.page / _columns).top + _pxMarginTop + piece.pageY - piece.flowTop
+            let dx = _pxMarginLeft + Double(piece.page % _columns) * _pxColumnStride
+            out.append(Rect.fromLTRB(r.left + dx, lo + dy, r.right + dx, max(hi, lo) + dy))
         }
         if out.isEmpty, let piece = pieces.last ?? _pages.last?.last {
             // Past the last cut (a caret in trailing space-after): pin to the
             // piece's page.
-            let dy = pageRect(piece.page).top + _pxMarginTop + piece.pageY - piece.flowTop
-            out.append(Rect.fromLTRB(r.left + _pxMarginLeft, r.top + dy, r.right + _pxMarginLeft, r.bottom + dy))
+            let dy = pageRect(piece.page / _columns).top + _pxMarginTop + piece.pageY - piece.flowTop
+            let dx = _pxMarginLeft + Double(piece.page % _columns) * _pxColumnStride
+            out.append(Rect.fromLTRB(r.left + dx, r.top + dy, r.right + dx, r.bottom + dy))
         }
         return out
     }
@@ -820,8 +837,11 @@ public final class RichLayout {
         guard isPaged else { return p }
         let page = self.page(atCanvasY: p.dy)
         let localY = p.dy - pageRect(page).top - _pxMarginTop
-        let x = p.dx - _pxMarginLeft
-        let pieces = _pages.indices.contains(page) ? _pages[page] : []
+        // The column under x, then the point relative to it.
+        let column = max(0, min(_columns - 1, Int(floor((p.dx - _pxMarginLeft) / max(1, _pxColumnStride)))))
+        let x = p.dx - _pxMarginLeft - Double(column) * _pxColumnStride
+        let slot = page * _columns + column
+        let pieces = _pages.indices.contains(slot) ? _pages[slot] : []
         guard let first = pieces.first, let last = pieces.last else {
             return Offset(x, totalHeight)
         }
@@ -1287,17 +1307,26 @@ public final class RichLayout {
         if isPaged {
             let firstPage = page(atCanvasY: visible.top)
             let lastPage = page(atCanvasY: visible.bottom)
-            for p in firstPage ... lastPage where _pages.indices.contains(p) {
+            for p in firstPage ... lastPage {
                 let pageTop = pageRect(p).top + _pxMarginTop
-                for piece in _pages[p] {
-                    let top = pageTop + piece.pageY
-                    let bottom = top + piece.height
-                    if bottom < visible.top || top > visible.bottom { continue }
-                    canvas.save()
-                    canvas.clipRect(Rect.fromLTRB(0, top, _pxPageW, bottom))
-                    canvas.translate(_pxMarginLeft, top - piece.flowTop)
-                    _paintParagraph(piece.paragraph, canvas, document)
-                    canvas.restore()
+                for column in 0 ..< _columns {
+                    let slot = p * _columns + column
+                    guard _pages.indices.contains(slot) else { continue }
+                    let left = _pxMarginLeft + Double(column) * _pxColumnStride
+                    // One column clips to its own width; a lone column keeps
+                    // the page, so a table wider than the text can still show.
+                    let clipL = _columns > 1 ? left - 1 : 0
+                    let clipR = _columns > 1 ? left + _pxColumnW + 1 : _pxPageW
+                    for piece in _pages[slot] {
+                        let top = pageTop + piece.pageY
+                        let bottom = top + piece.height
+                        if bottom < visible.top || top > visible.bottom { continue }
+                        canvas.save()
+                        canvas.clipRect(Rect.fromLTRB(clipL, top, clipR, bottom))
+                        canvas.translate(left, top - piece.flowTop)
+                        _paintParagraph(piece.paragraph, canvas, document)
+                        canvas.restore()
+                    }
                 }
             }
         } else {
