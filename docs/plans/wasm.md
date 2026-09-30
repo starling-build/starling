@@ -184,21 +184,23 @@ How it is put together, top down:
    the web engine's own key tables, generated into `web/host/keymap.js`);
    composed input — dead keys, CJK, a phone's keyboard — needs a hidden
    `<input>` the way Flutter web does it.
-2. **Images**: the light skwasm build has no codecs. Encoded images need the
-   page to decode (`createImageBitmap`) and `image_createFromTextureSource`;
-   `Codec.swift` says exactly what host function it wants.
-3. **Fonts by request**: today the page lists them up front. The framework
+2. **Fonts by request**: today the page lists them up front. The framework
    could ask for a family it meets (`starling_host_load_font`) the way
    Flutter web's font manifest works.
-4. **Text in Firefox and Safari**: the line-break fallback in `starling.js`
+3. **Text in Firefox and Safari**: the line-break fallback in `starling.js`
    is wrong for CJK; the heavy skwasm build (ICU inside) is the fix.
-5. **Semantics**: a DOM/ARIA tree. `Semantics.swift` drops everything.
-6. **Async**: nothing drives Swift concurrency's executor. `Task {}` in the
-   image-decode paths will not run until a JavaScriptKit-style event-loop
-   executor is installed.
-7. The 4 `UInt32(color.toARGB32())` sites in `Painting.swift`/`Text.swift`
-   trap on wasm32 for opaque colours if reached (they should be
-   `truncatingIfNeeded`).
+4. **Semantics**: a DOM/ARIA tree. `Semantics.swift` drops everything.
+5. **Animated images** decode to their first frame; `ImageDecoder` (the
+   browser API) would give the rest. Image readback (`toByteData`) needs
+   `surface_rasterizeImage` and the render callback.
+6. **An `Image` widget.** The framework has `RenderImage` and the
+   providers but no widget over them; `Examples/WebImages` goes the long
+   way round.
+
+Done since the list was first written: keyboard (`starling_key`), Swift
+concurrency on the page's event loop (`FlutterWeb/WebExecutor.swift`),
+image decoding by the browser (`starling_host_decode_image` →
+`image_createFromTextureSource`), the `UInt32(toARGB32())` traps.
 
 ## Traps paid for
 

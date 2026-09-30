@@ -50,6 +50,14 @@ extension flutter.swift_bridge {
             self.pixels = pixels
         }
 
+        /// A single-frame codec over an image the page decoded. The frame
+        /// is shared with the descriptor (image_ref).
+        // WEB-TODO: animated images are their first frame.
+        init(decoded: WebDecodedImage) {
+            image_ref(decoded.skImage)
+            skImage = decoded.skImage
+        }
+
         deinit {
             if skImage != 0 { image_dispose(skImage) }
         }
@@ -87,12 +95,18 @@ extension flutter.swift_bridge {
                 lastError = "Codec has been disposed"
                 return false
             }
+            lastFrame = nil
+            lastError = ""
+            if skImage != 0, pixels == nil {
+                // Decoded by the page: the frame is already an image.
+                image_ref(skImage)
+                lastFrame = ImageBridge(adopting: skImage)
+                return true
+            }
             guard let pixels else {
                 lastError = "Could not provide any frame."
                 return false
             }
-            lastFrame = nil
-            lastError = ""
 
             if skImage == 0 {
                 if let problem = pixels.problem {
@@ -162,33 +176,55 @@ extension flutter.swift_bridge {
                 rowBytes: bytesPerRow, pixelFormat: pixelFormat)
         }
 
-        /// Encoded data. Never valid here, so the caller throws "Invalid
-        /// image data" and the framework's error path runs. See the WEB-TODO
-        /// at the top of this file.
+        /// Encoded data. Not valid until `decode()` has run: the browser
+        /// decodes, asynchronously, and the framework's
+        /// `ImageDescriptor.encoded` awaits it (the `#if os(WASI)` branch
+        /// in Painting.swift).
+        private var encoded: [UInt8]?
+        private var decoded: WebDecodedImage?
+
         public init(_ buffer: ImmutableBufferBridge?) {
             pixels = nil
+            encoded = buffer?.bytes
         }
 
-        public func IsValid() -> Bool { pixels != nil && !disposed }
+        deinit {
+            if let decoded { image_dispose(decoded.skImage) }
+        }
 
-        public func GetWidth() -> Int32 { Int32(pixels?.width ?? 0) }
+        /// Has the page decode the encoded bytes. False if it could not.
+        public func decode() async -> Bool {
+            guard decoded == nil else { return true }
+            guard let encoded, !disposed else { return false }
+            decoded = await WebImageDecoder.decode(encoded)
+            self.encoded = nil
+            return decoded != nil
+        }
 
-        public func GetHeight() -> Int32 { Int32(pixels?.height ?? 0) }
+        public func IsValid() -> Bool { (pixels != nil || decoded != nil) && !disposed }
 
-        public func GetBytesPerPixel() -> Int32 { Int32(pixels?.bytesPerPixel ?? 0) }
+        public func GetWidth() -> Int32 { decoded?.width ?? Int32(pixels?.width ?? 0) }
+
+        public func GetHeight() -> Int32 { decoded?.height ?? Int32(pixels?.height ?? 0) }
+
+        public func GetBytesPerPixel() -> Int32 { decoded != nil ? 4 : Int32(pixels?.bytesPerPixel ?? 0) }
 
         /// The target size is ignored, as it is by the native bridge for raw
         /// pixels: the frame comes out at the size it went in.
+        // WEB-TODO: a decoded image could be resized by createImageBitmap.
         public func InstantiateCodec(_ targetWidth: Int32, _ targetHeight: Int32)
             -> CodecBridge?
         {
-            guard let pixels, !disposed else { return nil }
+            guard !disposed else { return nil }
+            if let decoded { return CodecBridge(decoded: decoded) }
+            guard let pixels else { return nil }
             return CodecBridge(pixels: pixels)
         }
 
         public func Dispose() {
             disposed = true
             pixels = nil
+            encoded = nil
         }
 
         public func ToString(_ buffer: UnsafeMutablePointer<CChar>?, _ bufferSize: Int32) {

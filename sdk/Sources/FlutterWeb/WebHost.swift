@@ -35,6 +35,7 @@ public final class WebHost {
     private var viewAdded = false
 
     private init() {
+        WebExecutor.install()
         WebPlatform.scheduleFrame = { [unowned self] in self.scheduleFrame() }
     }
 
@@ -317,6 +318,13 @@ func starlingFontLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ famil
     fontCollection_registerTypeface(WebFonts.collection, typeface, name)
     if name != 0 { skString_free(name) }
     return 1
+}
+
+/// The page decoded an image (or could not: `skImage` 0).
+@_expose(wasm, "starling_image_decoded")
+@_cdecl("starling_image_decoded")
+func starlingImageDecoded(_ requestId: UInt32, _ skImage: sk_ptr, _ width: Int32, _ height: Int32) {
+    WebImageDecoder.complete(requestId, skImage: skImage, width: width, height: height)
 }
 
 /// Scratch memory in our heap for the page to write arguments into.

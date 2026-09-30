@@ -225,6 +225,22 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
       appBytes().set(skBytes().subarray(src, src + length), dst);
     },
     render_callback: () => renderCallback,
+    // The browser decodes what skwasm cannot (the light build has no
+    // codecs). The bytes are copied out before returning — the app may
+    // free them — and the bitmap becomes a texture in skwasm's context,
+    // which is why the surface comes along.
+    decode_image(requestId, bytes, length, surface) {
+      const copy = appBytes().slice(bytes, bytes + length);
+      createImageBitmap(new Blob([copy]), { premultiplyAlpha: 'premultiply' })
+        .then((bitmap) => {
+          const image = sk.image_createFromTextureSource(bitmap, bitmap.width, bitmap.height, surface);
+          swift.starling_image_decoded(requestId, image, bitmap.width, bitmap.height);
+        })
+        .catch((error) => {
+          console.warn('starling: image did not decode:', error.message);
+          swift.starling_image_decoded(requestId, 0, 0, 0);
+        });
+    },
     request_frame() {
       requestAnimationFrame((now) => swift.starling_begin_frame(now));
     },

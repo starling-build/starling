@@ -1137,6 +1137,7 @@ if wasmBuild {
         .executable(name: "WebPixels", targets: ["WebPixels"]),
         .executable(name: "CounterApp", targets: ["CounterApp"]),
         .executable(name: "TodosApp", targets: ["TodosApp"]),
+        .executable(name: "WebImages", targets: ["WebImages"]),
     ]
     targets = [
         .target(name: "CSkwasm"),
@@ -1202,6 +1203,14 @@ if wasmBuild {
             name: "TodosApp",
             dependencies: ["Flutter", "ExampleHost", "FlutterSwiftBridge", "CupertinoIcons"],
             path: "Examples/TodosApp",
+            swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation,
+            linkerSettings: reactor
+        ),
+        // A PNG decoded by the browser: the image path.
+        .executableTarget(
+            name: "WebImages",
+            dependencies: ["Flutter", "ExampleHost", "FlutterSwiftBridge"],
+            path: "Examples/WebImages",
             swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation,
             linkerSettings: reactor
         ),

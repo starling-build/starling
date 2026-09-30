@@ -47,4 +47,15 @@ HOST(set_timeout) void starling_host_set_timeout(int32_t id, double milliseconds
 // Milliseconds since the page loaded, monotonic (performance.now()).
 HOST(now) double starling_host_now(void);
 
+// Decodes an encoded image (PNG, JPEG, GIF, WebP — whatever the browser
+// reads) from `length` bytes at `bytes` in OUR memory, copied before the
+// call returns. The page makes an SkImage of it in skwasm
+// (image_createFromTextureSource takes a JavaScript object, which Swift
+// cannot hold) and answers through our exported starling_image_decoded
+// (requestId, skImage or 0, width, height). `surface` is skwasm's Surface,
+// whose GL context the texture is uploaded to.
+HOST(decode_image)
+void starling_host_decode_image(uint32_t requestId, const void* bytes, uint32_t length,
+                                sk_ptr surface);
+
 #endif  // STARLING_SKWASM_BASE_H

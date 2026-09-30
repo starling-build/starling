@@ -426,12 +426,19 @@ public enum WebSurface {
     /// Called by the host when the page calls `starling_frame_presented`.
     public static func framePresented() { frameInFlight = false }
 
-    static func render(_ root: WebLayer, width: Int32, height: Int32) {
-        guard width > 0, height > 0 else { return }
+    /// The skwasm Surface, created on first use. Image decoding needs it
+    /// too: a decoded bitmap becomes a texture in the surface's GL context.
+    public static var handle: sk_ptr {
         if surface == 0 {
             surface = surface_create()
             surface_setCallbackHandler(surface, starling_host_render_callback())
         }
+        return surface
+    }
+
+    static func render(_ root: WebLayer, width: Int32, height: Int32) {
+        guard width > 0, height > 0 else { return }
+        let surface = handle
 
         let recorder = pictureRecorder_create()
         let canvas = withSkStack {

@@ -2841,7 +2841,7 @@ internal class _NativeColorFilter {
         self.bridge = flutter.swift_bridge.ColorFilterBridge()
         // Bit-pattern, not value: any colour with the alpha top bit set (all
         // opaque ones) exceeds Int32.max and a checked Int32(_:) traps.
-        bridge.InitMode(Int32(bitPattern: UInt32(creator.filterColor!.value)),
+        bridge.InitMode(Int32(truncatingIfNeeded: creator.filterColor!.value),
                         Int32(creator.filterBlendMode!.rawValue))
     }
 
@@ -6855,7 +6855,7 @@ public class Vertices {
       var encoded: [Int32] = []
       encoded.reserveCapacity(colors.count)
       for color in colors {
-        encoded.append(Int32(bitPattern: UInt32(color.toARGB32())))
+        encoded.append(Int32(truncatingIfNeeded: color.toARGB32()))
       }
       encodedColors = encoded
     }
@@ -8861,7 +8861,7 @@ public class NativeCanvas: Canvas {
     }
 
     // Convert colors to int32 array
-    let colorsData: [Int32]? = colors?.map { Int32(bitPattern: UInt32($0.toARGB32())) }
+    let colorsData: [Int32]? = colors?.map { Int32(truncatingIfNeeded: $0.toARGB32()) }
 
     // One implementation, not two: drawRawAtlas takes the same four buffers
     // and is the one that gets their lifetimes right (see the note there).
@@ -9061,7 +9061,17 @@ public enum ImageDescriptorFactory {
   /// DIFFERENCE FROM DART: Uses Swift async/throws instead of Future.
   /// REASON: Swift's native async/await is the idiomatic equivalent of Dart's Future.
   public static func encoded(_ buffer: ImmutableBuffer) async throws -> any ImageDescriptor {
+    #if os(WASI)
+    // The browser decodes, asynchronously, which is why this is the one
+    // place the web build differs: the descriptor is awaited into validity.
+    let bridge = flutter.swift_bridge.ImageDescriptorBridge(buffer.bridge)
+    guard await bridge.decode() else {
+      throw PaintingError.operationFailed("Invalid image data")
+    }
+    return NativeImageDescriptor(bridge)
+    #else
     return try NativeImageDescriptor(encoded: buffer)
+    #endif
   }
 }
 
@@ -9111,7 +9121,7 @@ public class NativeImageDescriptor: ImageDescriptor {
   /// REASON: Swift creates the bridge directly rather than using
   /// NativeFieldWrapperClass1 pattern. Private because bridge objects are
   /// internal implementation details — use purpose-specific inits instead.
-  private init(_ bridge: flutter.swift_bridge.ImageDescriptorBridge) {
+  fileprivate init(_ bridge: flutter.swift_bridge.ImageDescriptorBridge) {
     self.bridge = bridge
   }
 
@@ -9771,7 +9781,7 @@ private func radiusIsValid(_ radius: Radius) -> Bool {
 ///
 /// Each color is converted to its ARGB32 integer representation.
 private func encodeColorList(_ colors: [Color]) -> [Int32] {
-  return colors.map { Int32(bitPattern: UInt32($0.value)) }
+  return colors.map { Int32(truncatingIfNeeded: $0.value) }
 }
 
 /// Encodes a list of Offset values as a flat Float32 array [x0, y0, x1, y1, ...].
