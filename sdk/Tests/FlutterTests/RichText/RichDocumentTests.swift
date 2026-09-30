@@ -435,6 +435,38 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.styles["Heading1"]?.char.fontSize, 20)
     }
 
+    func testMergeAndSplitCells() {
+        let c = controller("")
+        c.insertTable(rows: 2, columns: 3)
+        c.insertText("a"); c.moveToAdjacentCell(forward: true); c.insertText("b")
+        c.moveToAdjacentCell(forward: true); c.insertText("c")
+        // Select a..b (two cells of row 0) and merge.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 1), extend: true)
+        XCTAssertEqual(c.selectedCellsInRow.map(\.column), [0, 1])
+        c.mergeCells()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,0:b", "0,2:c", "1,0:", "1,1:", "1,2:", "-"])
+        XCTAssertEqual(c.document.paragraphs[0].cell?.span, 2)
+        XCTAssertEqual(c.document.columnCount(of: c.currentCell!.table), 3)
+        // Tab from the merged cell goes to c.
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveToAdjacentCell(forward: true)
+        XCTAssertEqual(c.caret.paragraph, 2)
+        // Insert a column inside the span widens it; delete narrows it.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.insertColumn(after: true)
+        XCTAssertEqual(c.document.paragraphs[0].cell?.span, 3)
+        XCTAssertEqual(cells(c).count, 8)
+        c.undo()
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.splitCell()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,0:b", "0,1:", "0,2:c", "1,0:", "1,1:", "1,2:", "-"])
+        XCTAssertEqual(c.document.paragraphs[0].cell?.span, 1)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].cell?.span, 2)
+        XCTAssertTrue(c.document.isValid)
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

@@ -622,7 +622,8 @@ public final class RichLayout {
         var textWidth = max(1, width - left - right)
         if let c = p.cell {
             let widths = _columnWidths[c.table] ?? []
-            let colWidth = c.column < widths.count ? widths[c.column] : width
+            let colWidth = c.column < widths.count
+                ? widths[c.column ..< min(widths.count, c.column + c.span)].reduce(0, +) : width
             let colLeft = widths.prefix(c.column).reduce(0, +)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
                                  colLeft: colLeft, colWidth: colWidth)
@@ -915,10 +916,16 @@ public final class RichLayout {
                 canvas.drawLine(Offset(0, rowTop + 0.5), Offset(right, rowTop + 0.5), stroke)
             }
             canvas.drawLine(Offset(0, rowBottom - 0.5), Offset(right, rowBottom - 0.5), stroke)
-            var x = 0.0
-            for w in widths {
-                canvas.drawLine(Offset(x + 0.5, rowTop), Offset(x + 0.5, rowBottom), stroke)
-                x += w
+            // A vertical at every cell's left edge — so a merged cell has
+            // none inside it — and the table's right edge.
+            var j = i
+            var lastColumn = -1
+            while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
+                if d.column != lastColumn {
+                    canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
+                    lastColumn = d.column
+                }
+                j += 1
             }
             canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
         }

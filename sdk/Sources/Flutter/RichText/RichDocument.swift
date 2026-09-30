@@ -306,11 +306,20 @@ public struct CellRef: Hashable, Sendable {
     public var table: String
     public var row: Int
     public var column: Int
+    /// Grid columns this cell covers (Word's gridSpan): 1, or more for a
+    /// cell merged across its neighbours to the right.
+    public var span: Int
 
-    public init(table: String, row: Int, column: Int) {
+    public init(table: String, row: Int, column: Int, span: Int = 1) {
         self.table = table
         self.row = row
         self.column = column
+        self.span = max(1, span)
+    }
+
+    /// Same cell, ignoring the span.
+    public func sameCell(as other: CellRef) -> Bool {
+        table == other.table && row == other.row && column == other.column
     }
 }
 
@@ -878,7 +887,7 @@ public struct RichDocument: Hashable, Sendable {
     public func columnCount(of table: String) -> Int {
         var cols = 0
         for p in paragraphs {
-            if let c = p.cell, c.table == table { cols = max(cols, c.column + 1) }
+            if let c = p.cell, c.table == table { cols = max(cols, c.column + c.span) }
         }
         return max(1, cols)
     }

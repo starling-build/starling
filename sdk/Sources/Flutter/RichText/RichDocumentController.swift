@@ -1077,6 +1077,76 @@ public final class RichDocumentController: ChangeNotifier {
         setTableColumnWidths(here.table, nil)
     }
 
+    /// The cells the selection touches in the caret's row: (column, span)
+    /// of each, left to right. One entry when the selection is in one cell.
+    public var selectedCellsInRow: [(column: Int, span: Int)] {
+        guard let here = currentCell else { return [] }
+        var out: [(Int, Int)] = []
+        for i in selection.start.paragraph ... selection.end.paragraph {
+            guard let c = document.paragraphs[i].cell, c.table == here.table, c.row == here.row else { continue }
+            if out.last?.0 != c.column { out.append((c.column, c.span)) }
+        }
+        return out
+    }
+
+    /// Merge the selected cells of one row into the leftmost, keeping
+    /// every paragraph in order — Word's Merge Cells for a row.
+    public func mergeCells() {
+        guard let here = currentCell else { return }
+        let cells = selectedCellsInRow
+        guard cells.count > 1 else { return }
+        let first = cells[0].column
+        let span = cells.map(\.span).reduce(0, +)
+        var caretAt: Int? = nil
+        _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+            for k in paras.indices {
+                guard var c = paras[k].cell, c.row == here.row, c.column >= first, c.column < first + span else { continue }
+                if caretAt == nil { caretAt = k }
+                c.column = first
+                c.span = span
+                paras[k].cell = c
+            }
+        })
+    }
+
+    /// Split the caret's merged cell back into its grid columns: the first
+    /// keeps the content, the others are empty.
+    public func splitCell() {
+        guard let here = currentCell, here.span > 1 else { return }
+        var caretAt: Int? = nil
+        _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+            var out: [RichParagraph] = []
+            for var p in paras {
+                if var c = p.cell, c.sameCell(as: here) {
+                    if caretAt == nil { caretAt = out.count }
+                    c.span = 1
+                    p.cell = c
+                    out.append(p)
+                    continue
+                }
+                if let c = p.cell, c.row == here.row, c.column > here.column, out.last?.cell?.sameCell(as: here) == true {
+                    // Past the merged cell: the empty cells it split into.
+                    for k in 1 ..< here.span {
+                        var e = RichParagraph()
+                        e.cell = CellRef(table: here.table, row: here.row, column: here.column + k)
+                        out.append(e)
+                    }
+                    _ = c
+                }
+                out.append(p)
+            }
+            // A merged cell that ended its row: the empties go at the end.
+            if let last = out.last?.cell, last.sameCell(as: here) {
+                for k in 1 ..< here.span {
+                    var e = RichParagraph()
+                    e.cell = CellRef(table: here.table, row: here.row, column: here.column + k)
+                    out.append(e)
+                }
+            }
+            paras = out
+        })
+    }
+
     /// Insert an empty column left or right of the caret's column. The new
     /// column takes half of the current one's width so the table keeps
     /// its width, as Word's "Insert Left/Right" does inside a fixed table.
@@ -1111,6 +1181,12 @@ public final class RichDocumentController: ChangeNotifier {
                     lastRow = c.row
                     rowInserted = false
                 }
+                if c.column < at, c.column + c.span > at {
+                    // A merged cell across the insertion point widens instead.
+                    c.span += 1; p.cell = c; rowInserted = true
+                    out.append(p)
+                    continue
+                }
                 if !rowInserted, c.column >= at { addCell(c.row); rowInserted = true }
                 if c.column >= at { c.column += 1; p.cell = c }
                 out.append(p)
@@ -1142,6 +1218,15 @@ public final class RichDocumentController: ChangeNotifier {
             var out: [RichParagraph] = []
             for var p in paras {
                 guard var c = p.cell else { out.append(p); continue }
+                if c.column <= here.column, c.column + c.span > here.column, c.span > 1 {
+                    // A merged cell covering the column narrows by one.
+                    c.span -= 1
+                    if c.column > here.column { c.column -= 1 }
+                    p.cell = c
+                    if c.row == here.row, caretAt == nil { caretAt = out.count }
+                    out.append(p)
+                    continue
+                }
                 if c.column == here.column {
                     if c.row == here.row, caretAt == nil { caretAt = out.count }
                     continue

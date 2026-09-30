@@ -3,11 +3,13 @@
 Status: **in progress**, 2026-09-29, branch `office`. Done headless (the
 screen was locked all evening, so nothing below is seen on screen yet):
 M1's keyboard half (checklist in `test/office-checklist.md`), M2 cursors,
-M3 picture handles, M4 rich clipboard, M6 columns (merge and cell
-selection still open), M7 links, M8 ribbon truth, M9 print and AutoSave.
-Open: M1's on-screen half (`test/office-drive.py` runs the checklist
-and screenshots every step for review), M5 IME, M6 merged cells and cell
-selection, M8 Columns and Modify Style, the 14pt menu bug. First thing
+M3 picture handles, M4 rich clipboard, M6 columns and horizontally
+merged cells (gridSpan both ways; vertical merges and rectangular cell
+selection still open), M7 links, M8 ribbon truth, M9 print and AutoSave,
+M10's welcome document. Open: M1's on-screen half (`test/office-drive.py`
+runs the checklist and screenshots every step for review), M5 IME, M6
+vertical merges and cell selection, M8 Columns and Modify Style, the
+14pt menu bug. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5's exact gap, measured:** the engine already delivers platform

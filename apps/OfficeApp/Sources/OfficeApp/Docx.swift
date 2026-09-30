@@ -215,12 +215,12 @@ enum DocxFormat {
                 for (r, tr) in node.all("w:tr").enumerated() {
                     var column = 0
                     for tc in tr.all("w:tc") {
-                        currentCell = CellRef(table: id, row: r, column: column)
+                        let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
+                        currentCell = CellRef(table: id, row: r, column: column, span: span)
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent) }
                         if paragraphs.count == before { emit(RichParagraph()) }
-                        // A merged cell keeps the grid columns after it in place.
-                        column += max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
+                        column += span
                     }
                 }
                 currentCell = nil
@@ -681,12 +681,18 @@ enum DocxFormat {
             xml += "</w:tblGrid>"
             for r in 0 ..< rows {
                 xml += "<w:tr>"
-                for c in 0 ..< cols {
-                    xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(twips[c])\" w:type=\"dxa\"/></w:tcPr>"
+                var c = 0
+                while c < cols {
                     let cell = (start ..< end).filter { doc.paragraphs[$0].cell?.row == r && doc.paragraphs[$0].cell?.column == c }
+                    let span = min(cols - c, max(1, cell.first.flatMap { doc.paragraphs[$0].cell?.span } ?? 1))
+                    let w = twips[c ..< c + span].reduce(0, +)
+                    xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+                    if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
+                    xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     for k in cell { xml += paragraphXML(k) }
                     xml += "</w:tc>"
+                    c += span
                 }
                 xml += "</w:tr>"
             }

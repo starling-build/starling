@@ -147,6 +147,22 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.document.styles["Heading1"]?.char.color, Color(0xFF00AA00))
     }
 
+    func testDocxMergedCellsRoundTrip() throws {
+        var doc = RichDocument(plainText: "wide\nc\nd\ne\nf\n")
+        for (i, ref) in [(0, 0, 2), (0, 2, 1), (1, 0, 1), (1, 1, 1), (1, 2, 1)].enumerated() {
+            doc.paragraphs[i].cell = CellRef(table: "T", row: ref.0, column: ref.1, span: ref.2)
+        }
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(data).first { $0.name == "word/document.xml" }?.data), as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:gridSpan w:val=\"2\"/>"))
+        XCTAssertEqual(xml.components(separatedBy: "<w:tc>").count - 1, 5)
+        let back = try DocxFormat.read(data)
+        let ps = back.document.paragraphs
+        XCTAssertEqual(ps[0].cell?.span, 2)
+        XCTAssertEqual(ps[1].cell?.column, 2)
+        XCTAssertEqual(back.document.columnCount(of: ps[0].cell!.table), 3)
+    }
+
     func testDocxTableEndsTheDocument() throws {
         // A package whose body is just a table still gets a paragraph after it.
         var doc = RichDocument(plainText: "x")
