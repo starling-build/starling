@@ -108,8 +108,13 @@ if [ "$CHECK" = 1 ]; then
     # The record is written by the link, so make sure there is one.
     rm -f "$WHY" "$SCRATCH/$CONFIG/$TARGET.wasm"
 fi
+# An app package gets the whole framework; the SDK's own examples leave
+# RichText/ out (sdk/Package.swift says why).
+RICHTEXT=""
+[ "$PACKAGE" = sdk ] || RICHTEXT=1
 if [ "$BUILD" = 1 ]; then
-    STARLING_WASM=1 swift build --package-path "$REPO/$PACKAGE" --scratch-path "$SCRATCH" \
+    STARLING_WASM=1 STARLING_WASM_RICHTEXT="$RICHTEXT" \
+        swift build --package-path "$REPO/$PACKAGE" --scratch-path "$SCRATCH" \
         --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET" ${LINK_FLAGS[@]+"${LINK_FLAGS[@]}"}
 fi
 

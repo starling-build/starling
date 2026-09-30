@@ -1167,7 +1167,14 @@ if wasmBuild {
             path: "Sources/Flutter",
             // Terminal/ is a pty; it has no meaning in a tab. No resources
             // either: Bundle cannot reach files here, fonts arrive by fetch.
-            exclude: ["Terminal"],
+            // RichText/ — the document editor's stack — only when an app
+            // asks (build/web-app.sh sets STARLING_WASM_RICHTEXT=1 for a
+            // --package build): its conformance records keep it linked
+            // into an app that never mentions it, and the size gate's
+            // CounterApp grew 80 KB in one week of Office work it does not
+            // run. Nothing else in the module refers to it.
+            exclude: env("STARLING_WASM_RICHTEXT", default: "").isEmpty
+                ? ["Terminal", "RichText"] : ["Terminal"],
             swiftSettings: mode5 + noLegacyFoundation
         ),
         .target(
