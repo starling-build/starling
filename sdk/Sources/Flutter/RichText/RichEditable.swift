@@ -517,14 +517,14 @@ public final class RichEditableState: State<StatefulWidget> {
             && _layout.columnBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))) != nil
         if border != _hoverColumnBorder { setState { _hoverColumnBorder = border } }
         let link = handle == nil && !overImage && !border ? _link(at: event.localPosition) : nil
+        let linkChanged = (link != nil) != (_hoverLink != nil)
         if link != _hoverLink {
             _hoverLink = link
             _w.onLinkHover?(link)
         }
-        if handle != _hoverHandle || overImage != _hoverOverImage || (link != nil) != (_hoverLink != nil) {
+        // Rebuild only when the cursor would change; a hover is a stream.
+        if handle != _hoverHandle || overImage != _hoverOverImage || linkChanged {
             setState { _hoverHandle = handle; _hoverOverImage = overImage }
-        } else if link != nil || _hoverLink != nil {
-            setState {}   // the cursor follows the link under the pointer
         }
     }
 
