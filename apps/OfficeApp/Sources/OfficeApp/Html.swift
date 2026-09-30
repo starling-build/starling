@@ -27,6 +27,7 @@ enum HtmlFormat {
         var listStack: [ListKind] = []
         var pre = 0
         var table: (id: String, row: Int, col: Int)? = nil
+        var cellSpan = 1
         var tableCount = 0
         var open = false          // a block has content pending
         var inHead = 0            // text inside <head> is not content
@@ -41,7 +42,7 @@ enum HtmlFormat {
             guard open || !text.isEmpty else { return }
             var p = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: style)
             p.normalize()
-            if let t = table { p.cell = CellRef(table: t.id, row: t.row, column: t.col) }
+            if let t = table { p.cell = CellRef(table: t.id, row: t.row, column: t.col, span: cellSpan) }
             out.append(p)
             text = ""; runs = []; open = false
         }
@@ -118,6 +119,9 @@ enum HtmlFormat {
                     startBlock(.body)
                     if name == "th" { char.bold = true }
                     open = true
+                    if let span = attrs["colspan"].flatMap(Int.init), span > 1, table != nil {
+                        cellSpan = span
+                    }
                 case "img":
                     if let src = attrs["src"], src.hasPrefix("data:image/"),
                        let comma = src.firstIndex(of: ","),
@@ -138,7 +142,11 @@ enum HtmlFormat {
                 case "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li", "section", "article", "td", "th":
                     flush()
                     if name == "th" { char.bold = false }
-                    if name == "td" || name == "th" { open = false }
+                    if name == "td" || name == "th" {
+                        open = false
+                        if table != nil { table!.col += cellSpan - 1 }
+                        cellSpan = 1
+                    }
                     style = .body
                 case "pre": flush(); pre = max(0, pre - 1); style = .body
                 case "ul", "ol": flush(); _ = listStack.popLast()
@@ -314,10 +322,14 @@ enum HtmlFormat {
                 out += "<table border=\"1\" cellspacing=\"0\" cellpadding=\"4\">"
                 for r in 0 ..< rows {
                     out += "<tr>"
-                    for c in 0 ..< cols {
-                        out += "<td>"
-                        out += members.filter { $0.cell?.row == r && $0.cell?.column == c }.map { _inline($0) }.joined(separator: "<br>")
+                    var c = 0
+                    while c < cols {
+                        let cell = members.filter { $0.cell?.row == r && $0.cell?.column == c }
+                        let span = min(cols - c, max(1, cell.first?.cell?.span ?? 1))
+                        out += span > 1 ? "<td colspan=\"\(span)\">" : "<td>"
+                        out += cell.map { _inline($0) }.joined(separator: "<br>")
                         out += "</td>"
+                        c += span
                     }
                     out += "</tr>"
                 }

@@ -89,6 +89,16 @@ final class HtmlTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs[0].runs(in: 7 ..< 11)[0].style.bold)
     }
 
+    func testHtmlColspan() throws {
+        let ps = try XCTUnwrap(HtmlFormat.parse("<table><tr><td colspan=\"2\">wide</td><td>c</td></tr><tr><td>1</td><td>2</td><td>3</td></tr></table>"))
+        XCTAssertEqual(ps[0].cell?.span, 2)
+        XCTAssertEqual(ps[1].cell?.column, 2)
+        XCTAssertEqual(ps.map(\.text), ["wide", "c", "1", "2", "3"])
+        let html = HtmlFormat.render(ps)
+        XCTAssertTrue(html.contains("<td colspan=\"2\">wide</td>"))
+        XCTAssertEqual(try XCTUnwrap(HtmlFormat.parse(html))[0].cell?.span, 2)
+    }
+
     func testPastedPngBecomesAPicture() {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
         XCTAssertEqual(ImageAttachment.pngPixelSize(png)?.width, 1)
