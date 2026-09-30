@@ -19,7 +19,7 @@ Last run: 2026-09-29, screen locked for the on-screen half.
 | Drag after a double-click grows by words; after a triple-click by paragraphs (both directions) | unverified (headless, 2026-09-30) |
 | Drag from one table cell into another selects whole cells; Delete clears them; Merge Cells folds them | pass (seen 2026-09-30) |
 | Press on selected text and drag: a drop caret follows, release moves it (⌥ copies); a still press collapses | pass (move seen 2026-09-30; ⌥ copy unverified) |
-| ⌘-click selects the sentence | seen once (2026-09-30); the driver cannot hold ⌘ reliably — check by hand |
+| ⌘-click selects the sentence | needs a hand: the driver cannot hold ⌘ across a click |
 | Table Layout → Borders off hides the grid; Header Row shades row 0 and repeats it atop the next page | pass (both seen on screen 2026-09-30; repeat seen in PDF) |
 | Misspelled word gets a red underline ~0.4s after it is shown; not the word being typed; right-click offers corrections | pass (seen 2026-09-30) |
 | Click inside a table cell puts the caret in that cell | pass |

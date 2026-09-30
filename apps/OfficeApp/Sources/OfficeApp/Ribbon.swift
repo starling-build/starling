@@ -254,7 +254,7 @@ final class Ribbon: StatelessWidget {
             tiles.append(_styleTile(entry, s.styleId == id, fluent) { c.setNamedStyle(id) })
         }
         var more: [MenuFlyoutItemBase] = sheet.styles.map { entry in
-            MenuFlyoutItem(text: Text(entry.name, style: _preview(entry, fluent, cap: 13)),
+            MenuFlyoutItem(text: Text(entry.name, style: _preview(entry, fluent, cap: Self._menuPreviewCap)),
                            leading: Icon(s.styleId == entry.id ? FluentSystemIcons.check : FluentSystemIcons.textT,
                                          size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
                            onPressed: { c.setNamedStyle(entry.id) })
@@ -299,6 +299,13 @@ final class Ribbon: StatelessWidget {
                         Text(entry.name, style: fluent.typography.caption, softWrap: false),
                     ]), checked: on, width: 74, height: 54, action: action)
     }
+
+    /// Menu previews cap at 14pt. This used to be 13 because exactly 14pt
+    /// drew with stretched letters — the engine's and the bridge's copies
+    /// of Skia handing out the same typeface IDs, fixed in the bridge
+    /// (engine: "keep this library's typeface IDs out of the engine's
+    /// range"). OFFICE_STYLE_PREVIEW_CAP overrides it for a re-check.
+    private static let _menuPreviewCap = Double(ProcessInfo.processInfo.environment["OFFICE_STYLE_PREVIEW_CAP"] ?? "") ?? 14
 
     /// The style's character look, sized to fit chrome.
     private func _preview(_ entry: RichNamedStyle, _ fluent: FluentThemeData, cap: Double,

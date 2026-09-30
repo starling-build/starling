@@ -100,8 +100,14 @@ Not there, in the order a writer meets them:
   Show/Hide ¶, Shapes, Text Box, Columns; Draw, References and Review are
   placeholder tabs. AutoSave is a label. Print exports a PDF.
 - **Styles cannot be edited:** no Modify Style, no Update to Match.
-- **Known chrome bug:** a Fluent menu item whose text is exactly 14pt
-  draws with stretched letter spacing.
+- **Known chrome bug (FIXED 2026-09-30):** a Fluent menu item whose text
+  is exactly 14pt drew with stretched letter spacing. Not layout, not the
+  menu: the bridge's copy of Skia handed out the same typeface IDs as
+  the engine's, so the engine's rasterizer painted a bridge-loaded font
+  from a system font's glyph strike whenever both hit one device size
+  (14pt is the chrome's body size). A 10.5pt document paragraph came out
+  as accented capitals for the same reason. Fixed in the engine
+  (f920984227d); the menu previews cap at 14 again.
 
 Seen on screen 2026-09-30 (display unlocked): the whole headless batch
 works — cell blocks, drag-and-drop, squiggles, context menu, libraries,

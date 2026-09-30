@@ -68,6 +68,19 @@ new host that links the bridge as its own library must make the same call
 before any paragraph is built; hosts whose bridge lives inside the engine
 library (GTK, DRM, Win32) need nothing.
 
+**The same dylib has its own Skia, and its typeface IDs collide with the
+engine's.** Both copies number typefaces from 1, and the engine's
+rasterizer keys glyph strikes by (typeface ID, size). A font the app loads
+through the bridge therefore shares an ID with some system font the chrome
+uses, and the moment both are drawn at one device size the second is
+painted from the first's strike — right glyphs at wrong advances, or the
+wrong glyphs outright ("Liberation Sans at exactly 14pt is stretched",
+"10.5pt body text is accented capitals"). Layout is untouched, so widths
+measure fine and only the pixels are wrong. The bridge now starts its
+counter four million IDs up (`font_collection_bridge.cc`); any new host that
+links the bridge as its own library inherits that. If glyphs of one font
+appear in another at one size only, this is where to look first.
+
 ## Widget composition: use the trailing-closure result builders
 
 `Sources/Flutter/Widgets/ResultBuilders.swift` gives every common container a

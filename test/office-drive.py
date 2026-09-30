@@ -50,6 +50,9 @@ func keyEvent(_ code: CGKeyCode, down: Bool, _ f: CGEventFlags) {
     e.post(tap: .cghidEventTap); usleep(40_000)
 }
 for k in held { keyEvent(k, down: true, flags) }
+// The modifier reaches the app through the engine's key path, which is
+// asynchronous; give it time to land before the click it must colour.
+if !held.isEmpty { usleep(250_000) }
 defer { for k in held.reversed() { keyEvent(k, down: false, []) } }
 post(.mouseMoved, p, flags: flags)
 switch mode {
