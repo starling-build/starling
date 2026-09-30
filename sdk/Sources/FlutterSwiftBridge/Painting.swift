@@ -78,6 +78,10 @@ public struct Color: Hashable, Sendable {
     /// In other words, if AA is the alpha value in hex, RR the red value in hex,
     /// GG the green value in hex, and BB the blue value in hex, a color can be
     /// expressed as `Color(0xAARRGGBB)`.
+    ///
+    /// Disfavored so that a literal takes the `Int64` overload below; this
+    /// one is for a value already held in an `Int`.
+    @_disfavoredOverload
     public init(_ value: Int) {
         self.init(
             argbComponents: value >> 24,
@@ -86,6 +90,17 @@ public struct Color: Hashable, Sendable {
             value,
             colorSpace: .sRGB
         )
+    }
+
+    /// `Color(0xAARRGGBB)` written as a literal.
+    ///
+    /// DIFFERENCE FROM DART: a second initializer for the same thing.
+    /// REASON: Dart's `int` is 64 bits everywhere; Swift's `Int` is 32 on
+    ///         wasm32, where `0xFF000000` — any opaque colour — does not
+    ///         fit and the literal fails to compile. The low 32 bits are the
+    ///         colour either way.
+    public init(_ value: Int64) {
+        self.init(Int(truncatingIfNeeded: value))
     }
 
     /// Construct a color with floating-point color components.
@@ -223,7 +238,7 @@ public struct Color: Hashable, Sendable {
     /// this color is fully opaque.
     @available(*, deprecated, message: "Use (*.a * 255.0).rounded().clamped(to: 0...255)")
     public var alpha: Int {
-        return (0xff000000 & value) >> 24
+        return (value >> 24) & 0xff
     }
 
     /// The alpha channel of this color as a double.
@@ -2053,7 +2068,8 @@ public struct Shadow: Hashable, CustomStringConvertible {
     ///
     /// **Dart Source:** `painting.dart:7525`
     /// **Original:** `static const int _kColorDefault = 0xFF000000;`
-    private static let kColorDefault: Int = 0xFF000000
+    // Through Int64: the literal does not fit a 32-bit Int (wasm32).
+    private static let kColorDefault = Int(truncatingIfNeeded: 0xFF000000 as Int64)
 
     /// Bytes per shadow in encoding.
     ///
@@ -4675,7 +4691,8 @@ public final class Paint: CustomStringConvertible {
     // Must be kept in sync with the default in paint.cc.
     /// **Dart Source:** `painting.dart:1380`
     /// **Original:** `static const int _kColorDefault = 0xFF000000;`
-    private static let kColorDefault: Int = 0xFF000000
+    // Through Int64: the literal does not fit a 32-bit Int (wasm32).
+    private static let kColorDefault = Int(truncatingIfNeeded: 0xFF000000 as Int64)
 
     // Must be kept in sync with the default in paint.cc.
     /// **Dart Source:** `painting.dart:1414`

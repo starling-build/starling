@@ -1,7 +1,9 @@
 // Milestone 0 of docs/plans/wasm.md: Swift, compiled to WebAssembly, puts
-// pixels in a browser through skwasm. No framework code — this proves the
-// seam the framework's web backend will be built on: two modules, skwasm's C
+// pixels in a browser through skwasm. No framework code — this proved the
+// seam the framework's web backend is built on: two modules, skwasm's C
 // exports as our imports, buffers copied across, the page driving frames.
+// It answers the same page (web/host/starling.js) an app does, so it also
+// documents the exports a host must provide.
 //
 // What it draws is chosen to touch each kind of call the backend needs:
 // by-value arguments (circle), by-pointer arguments (rect, rrect), a native
@@ -222,37 +224,76 @@ func cosApprox(_ x: Float) -> Float { sinApprox(x + 3.14159265 / 2) }
 
 @_expose(wasm, "starling_resize")
 @_cdecl("starling_resize")
-func starlingResize(_ width: Float, _ height: Float, _ ratio: Float) {
-    viewWidth = width
-    viewHeight = height
-    pixelRatio = ratio
+func starlingResize(_ width: Double, _ height: Double, _ ratio: Double) {
+    viewWidth = Float(width)
+    viewHeight = Float(height)
+    pixelRatio = Float(ratio)
     scheduleFrame()
 }
 
+/// `event`: 0 move, 1 down, 2 up, 3 leave, 4 cancel (WebHost.PointerEvent).
 @_expose(wasm, "starling_pointer")
 @_cdecl("starling_pointer")
-func starlingPointer(_ x: Float, _ y: Float, _ down: Int32) {
-    pointerX = x
-    pointerY = y
-    pointerDown = down != 0
+func starlingPointer(
+    _ event: Int32, _ device: Int32, _ kind: Int32, _ x: Double, _ y: Double,
+    _ buttons: Int32, _ milliseconds: Double
+) {
+    if event >= 3 {
+        pointerX = -1
+    } else {
+        pointerX = Float(x)
+        pointerY = Float(y)
+        pointerDown = buttons != 0
+    }
     scheduleFrame()
 }
 
+@_expose(wasm, "starling_scroll")
+@_cdecl("starling_scroll")
+func starlingScroll(
+    _ device: Int32, _ x: Double, _ y: Double, _ deltaX: Double, _ deltaY: Double,
+    _ milliseconds: Double
+) {}
+
+@_expose(wasm, "starling_timer_fired")
+@_cdecl("starling_timer_fired")
+func starlingTimerFired(_ id: Int32) {}
+
 /// The page fetched a font and wrote it into an SkData in skwasm's memory.
+/// Registered under the page's name if it gave one, else the demo's.
 @_expose(wasm, "starling_font_loaded")
 @_cdecl("starling_font_loaded")
-func starlingFontLoaded(_ data: sk_ptr) {
+func starlingFontLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ familyLength: Int32)
+    -> Int32
+{
     let typeface = typeface_create(data)
     skData_dispose(data)
-    guard typeface != 0 else {
-        print("starling: the font did not parse")
-        return
+    guard typeface != 0 else { return 0 }
+    var familyName = fontFamily
+    if let family, familyLength > 0 {
+        familyName = String(
+            decoding: UnsafeBufferPointer(start: family, count: Int(familyLength)), as: UTF8.self)
     }
-    let name = makeSkString(fontFamily)
+    let name = makeSkString(familyName)
     fontCollection_registerTypeface(fontCollection, typeface, name)
     skString_free(name)
-    fontReady = true
-    scheduleFrame()
+    if familyName == fontFamily {
+        fontReady = true
+        scheduleFrame()
+    }
+    return 1
+}
+
+@_expose(wasm, "starling_alloc")
+@_cdecl("starling_alloc")
+func starlingAlloc(_ byteCount: Int32) -> UnsafeMutableRawPointer? {
+    UnsafeMutableRawPointer.allocate(byteCount: Int(max(byteCount, 1)), alignment: 8)
+}
+
+@_expose(wasm, "starling_free")
+@_cdecl("starling_free")
+func starlingFree(_ pointer: UnsafeMutableRawPointer?) {
+    pointer?.deallocate()
 }
 
 @_expose(wasm, "starling_begin_frame")

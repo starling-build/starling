@@ -15,7 +15,8 @@ public struct ShadedColor: Sendable {
     public let swatch: [Int: Color]
 
     /// Creates a shaded color with the given primary value and swatch.
-    public init(_ primary: Int, _ swatch: [Int: Color]) {
+    // Int64, not Int: 0xFF…… does not fit a 32-bit Int (wasm32).
+    public init(_ primary: Int64, _ swatch: [Int: Color]) {
         self.primary = Color(primary)
         self.swatch = swatch
     }

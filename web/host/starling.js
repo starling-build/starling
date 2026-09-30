@@ -47,6 +47,13 @@ function makeWasi(getMemory) {
       view().setBigUint64(out, BigInt(Math.round(ms * 1e6)), true);
       return WASI_ESUCCESS;
     },
+    // Foundation asks for the clock's resolution while it initialises and
+    // traps if it cannot have one. performance.now() is good to ~5µs at
+    // best; claim a microsecond.
+    clock_res_get(id, out) {
+      view().setBigUint64(out, 1000n, true);
+      return WASI_ESUCCESS;
+    },
     random_get(ptr, len) {
       crypto.getRandomValues(new Uint8Array(getMemory().buffer, ptr, len));
       return WASI_ESUCCESS;
@@ -126,6 +133,9 @@ function lineBreaks(text) {
   if (breaks.length === 0 || lastHard) breaks.push([text.length, true]);
   return breaks;
 }
+
+// The family fontCollection_create names as its default (skwasm/fonts.cpp).
+const SKWASM_FALLBACK_FAMILY = 'Roboto';
 
 // SkUnicode::LineBreakType.
 const SOFT_LINE_BREAK = 0;
@@ -221,6 +231,15 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [] }) {
   };
 
   // --- the Swift module
+  const timers = new Map();
+  host.set_timeout = (id, milliseconds) => {
+    timers.set(id, setTimeout(() => {
+      timers.delete(id);
+      swift.starling_timer_fired(id);
+    }, milliseconds));
+  };
+  host.now = () => performance.now();
+
   const { instance } = await WebAssembly.instantiateStreaming(fetch(app), {
     wasi_snapshot_preview1: makeWasi(() => swift.memory),
     skwasm: sk,
@@ -228,9 +247,32 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [] }) {
   });
   swift = instance.exports;
   swift._initialize();
-  swift.__main_argc_argv(0, 0);
 
-  // --- size, input, fonts
+  // --- fonts, before the app builds its first frame. skwasm cannot see
+  // system fonts: every face is fetched and handed over as bytes, written
+  // straight into an SkData in skwasm's memory. A font may be registered
+  // under several family names — the first entry is also given skwasm's
+  // fallback name, so text in a family nobody loaded still draws.
+  const encoder = new TextEncoder();
+  const registerFont = (bytes, family) => {
+    const data = sk.skData_create(bytes.length);
+    skBytes().set(bytes, sk.skData_getPointer(data));
+    const name = encoder.encode(family ?? '');
+    const namePointer = name.length ? swift.starling_alloc(name.length) : 0;
+    if (namePointer) appBytes().set(name, namePointer);
+    const ok = swift.starling_font_loaded(data, namePointer, name.length);
+    if (namePointer) swift.starling_free(namePointer);
+    if (!ok) console.error(`starling: font for '${family}' did not parse`);
+  };
+  await Promise.all(fonts.map(async ({ url, families }, index) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    for (const family of families) registerFont(bytes, family);
+    if (index === 0) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
+  }));
+
+  // --- size, before the app mounts, so its first layout is the real one.
   const resize = () => {
     const ratio = window.devicePixelRatio || 1;
     const { width, height } = canvas.getBoundingClientRect();
@@ -238,26 +280,38 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [] }) {
     canvas.height = Math.max(1, Math.round(height * ratio));
     swift.starling_resize(width, height, ratio);
   };
-  new ResizeObserver(resize).observe(canvas);
   resize();
+  new ResizeObserver(resize).observe(canvas);
 
-  const pointer = (event) => {
+  // --- the app's main. It mounts the widget tree and returns.
+  swift.__main_argc_argv(0, 0);
+
+  // --- input. Event numbers are WebHost.PointerEvent's.
+  const MOVE = 0, DOWN = 1, UP = 2, LEAVE = 3, CANCEL = 4;
+  const KINDS = { touch: 0, mouse: 1, pen: 2 };
+  const pointer = (event) => (dom) => {
     const box = canvas.getBoundingClientRect();
+    if (event === DOWN) canvas.setPointerCapture(dom.pointerId);
     swift.starling_pointer(
-      event.clientX - box.left, event.clientY - box.top, event.buttons ? 1 : 0);
+      event, dom.pointerId, KINDS[dom.pointerType] ?? 1,
+      dom.clientX - box.left, dom.clientY - box.top, dom.buttons, dom.timeStamp);
+    dom.preventDefault();
   };
-  for (const type of ['pointermove', 'pointerdown', 'pointerup']) {
-    canvas.addEventListener(type, pointer);
-  }
-
-  // skwasm cannot see system fonts. Every face is fetched and handed over
-  // as bytes, written straight into an SkData in skwasm's memory.
-  for (const url of fonts) {
-    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
-    const data = sk.skData_create(bytes.length);
-    skBytes().set(bytes, sk.skData_getPointer(data));
-    swift.starling_font_loaded(data);
-  }
+  canvas.addEventListener('pointermove', pointer(MOVE));
+  canvas.addEventListener('pointerdown', pointer(DOWN));
+  canvas.addEventListener('pointerup', pointer(UP));
+  canvas.addEventListener('pointerleave', pointer(LEAVE));
+  canvas.addEventListener('pointercancel', pointer(CANCEL));
+  canvas.addEventListener('contextmenu', (dom) => dom.preventDefault());
+  canvas.addEventListener('wheel', (dom) => {
+    const box = canvas.getBoundingClientRect();
+    // deltaMode 1 is lines, 2 is pages; the framework wants pixels.
+    const unit = dom.deltaMode === 1 ? 16 : dom.deltaMode === 2 ? box.height : 1;
+    swift.starling_scroll(
+      0, dom.clientX - box.left, dom.clientY - box.top,
+      dom.deltaX * unit, dom.deltaY * unit, dom.timeStamp);
+    dom.preventDefault();
+  }, { passive: false });
 
   return { skwasm, swift };
 }

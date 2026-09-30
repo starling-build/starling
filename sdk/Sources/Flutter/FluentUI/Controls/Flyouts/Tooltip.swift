@@ -443,8 +443,8 @@ public class TooltipState: State<StatefulWidget> {
     // MARK: - State
 
     private var _entry: OverlayEntry?
-    private var _dismissTimer: Foundation.Timer?
-    private var _showTimer: Foundation.Timer?
+    private var _dismissTimer: PlatformTimer?
+    private var _showTimer: PlatformTimer?
     private var _mousePosition: Offset?
     private var _isConcealed: Bool = false
     private var _forceRemoval: Bool = false
@@ -515,7 +515,7 @@ public class TooltipState: State<StatefulWidget> {
         }
         _showTimer?.invalidate()
         let waitSeconds = _durationToSeconds(_waitDuration)
-        _showTimer = Foundation.Timer.scheduledTimer(
+        _showTimer = PlatformTimer.scheduledTimer(
             withTimeInterval: waitSeconds,
             repeats: false,
             block: _sendableTimer { [weak self] (_: Timer) in
@@ -535,7 +535,7 @@ public class TooltipState: State<StatefulWidget> {
         _forceRemoval = true
         _dismissTimer?.invalidate()
         let showSeconds = _durationToSeconds(_showDuration)
-        _dismissTimer = Foundation.Timer.scheduledTimer(
+        _dismissTimer = PlatformTimer.scheduledTimer(
             withTimeInterval: showSeconds,
             repeats: false,
             block: _sendableTimer { [weak self] (_: Timer) in

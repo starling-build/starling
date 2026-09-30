@@ -21,3 +21,12 @@ func _sendableTimer(_ block: @escaping (Timer) -> Void) -> @Sendable (Timer) -> 
 func _sendablePerform(_ block: @escaping () -> Void) -> @Sendable () -> Void {
     unsafeBitCast(block, to: (@Sendable () -> Void).self)
 }
+
+/// `Foundation.Timer`, for the code that has to name it in full because a
+/// `Timer` of its own is in scope. On WASI Foundation's does not link, and
+/// this is the stand-in in WebSupport.swift.
+#if os(WASI)
+typealias PlatformTimer = Timer
+#else
+typealias PlatformTimer = Foundation.Timer
+#endif

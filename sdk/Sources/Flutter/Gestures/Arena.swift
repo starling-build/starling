@@ -10,7 +10,10 @@
 ///
 /// **Dart Source:** `packages/flutter/lib/src/gestures/arena.dart`
 
+// Absent on WASI, where FlutterSwiftBridge supplies DispatchQueue itself.
+#if canImport(Dispatch)
 import Dispatch
+#endif
 
 // MARK: - GestureDisposition
 

@@ -8,7 +8,7 @@
 //
 //   swift run -c release CounterApp
 
-#if os(Linux) || os(Windows) || os(macOS)
+#if os(Linux) || os(Windows) || os(macOS) || os(WASI)
 import CupertinoIcons
 import ExampleHost
 import Flutter

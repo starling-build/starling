@@ -1,7 +1,8 @@
 # Rendering the SDK in WebAssembly — exploration
 
 Status, 2026-09-29: **architecture A is chosen** (the one Dart and Flutter
-use) and **milestone 0 runs** — see "Where it stands". Branch `wasm` in both
+use) and **CounterApp — the real SDK — runs in a browser** — see "Where it
+stands". Branch `wasm` in both
 repos (this one from `main` 97f3c72, the engine from `starling` 10710380e11).
 
 The question: can an app written against `sdk/` run in a browser tab, and
@@ -122,48 +123,101 @@ Milestones, each one visible in a browser:
 
 ## Where it stands
 
-Milestone 0 is done. `build/web-app.sh --serve` builds `web/Sources/Pixels`,
-stages `.stage-web/` and serves it; the page draws a rounded card, an
-animated path, circles, a pointer ring and two wrapped paragraphs, at the
-display's refresh rate. Checked in headless Chrome 154 (SwiftShader); not yet
-eyeballed in Safari or Firefox.
+**CounterApp runs in Chrome from the unmodified SDK**: `build/web-app.sh
+--serve`, open http://localhost:8137/. The Material app bar, the text, the
+floating action button and its icon draw, and clicks count. Verified by
+headless-Chrome screenshots and by clicking through the DevTools protocol.
+Milestones 0, 1 and 2 of the list above are done, on the same day.
 
-    web/Package.swift                     its own package — sdk/'s manifest
-                                          cannot be built for wasm
-    web/Sources/CSkwasm/include/skwasm.h  skwasm's exports as wasm imports
-    web/Sources/Pixels/main.swift         the demo
-    web/host/starling.js, index.html      loader, WASI shim, glue
-    build/web-app.sh                      build + stage + serve
+How it is put together, top down:
 
-How the pieces meet, which is the part the backend inherits:
+- **`STARLING_WASM=1` selects a target list of its own in `sdk/Package.swift`**
+  — no C++ interop anywhere, no engine link, `Terminal/` and the desktop
+  app host excluded, no resources.
+- **`FlutterSwiftBridgeCxx` is a Swift module on the web**
+  (`sdk/Sources/FlutterSwiftBridgeWeb/`, ~5k lines): the 29 `flutter.swift_bridge.*`
+  classes re-made with the same names and signatures as C++ interop gives
+  them, over skwasm's exports. `FlutterSwiftBridge` — the 29k-line dart:ui
+  layer — compiles **unchanged** against it. The layer tree that natively
+  is the engine's `flow` lives in `Scene.swift` and is flattened into one
+  picture per frame. Every gap is a `// WEB-TODO:` (26 of them).
+- **skwasm's exports are declared in C** (`sdk/Sources/CSkwasm/include/skwasm_*.h`,
+  one header per area) with `import_module`/`import_name` attributes, so
+  the 220 functions the app uses bind straight to skwasm's exports and a
+  draw call never enters JavaScript.
+- **`FlutterWeb` is the host** (`sdk/Sources/FlutterWeb/WebHost.swift`), what
+  `FlutterCocoa` is on macOS. There is no engine and no loop: the page calls
+  the exported `starling_*` functions (resize, begin_frame, pointer, scroll,
+  timer_fired, font_loaded) and each calls the same `SwiftRuntimeDelegate`
+  the callback table calls natively. Pointer add/hover/down/up/remove
+  sequencing is done here from the DOM's flat events.
+- **Foundation's gaps are filled in three places.** `DispatchQueue`,
+  `DispatchTime` and `DispatchWorkItem` are re-made in the bridge module
+  over the page's `setTimeout` (`Dispatch.swift`); `Timer` and `RunLoop`,
+  which Foundation ships for WASI but which do not link (they want a
+  CoreFoundation run loop), are shadowed inside the `Flutter` module
+  (`Foundation/WebSupport.swift`), which also `@_exported import`s libm and
+  the bridge so every file sees them.
+- **`Color(0xFF……)` compiles through a new `init(_ value: Int64)`**; the
+  `Int` initializer is `@_disfavoredOverload`, so literals take the wide
+  one and variables the narrow one, with no call site changed. `ColorSwatch`
+  and `ShadedColor` take `Int64` likewise. Three other 64-bit literals were
+  respelled.
+- **The page** (`web/host/starling.js`) is the same file milestone 0 wrote,
+  grown: fonts are `{url, families}` and the first is also registered under
+  skwasm's fallback name (`Roboto`); a WASI shim with the dozen calls
+  Foundation makes at start-up; pointer, wheel and timer plumbing.
 
-- **Imports are declared in C**, with `import_module`/`import_name`
-  attributes, and reach Swift through ordinary C interop. No experimental
-  Swift feature is involved. The 50 skwasm functions the demo uses bind
-  straight to skwasm's exports, so a draw call never enters JavaScript.
-- **A skwasm pointer is a `UInt32`, never a Swift pointer.** It is an address
-  in the other module's memory. Arguments passed by pointer are built on
-  skwasm's own stack (`_emscripten_stack_alloc`) and filled by one host call,
-  `starling_host_write`.
-- **The render callback belongs to the page.** skwasm reports a finished
-  frame through a function in its own table that takes an `externref`; Swift
-  cannot declare that type. `starling.js` adds the function
-  (`addFunction(fn, 'viie')`), puts the `ImageBitmap` on a `bitmaprenderer`
-  canvas, and calls Swift's exported `starling_frame_presented`.
-- **Text breaks come from the browser.** The light skwasm build has no ICU;
-  the page feeds grapheme, word and line breaks from `Intl.Segmenter` and
-  `Intl.v8BreakIterator` before `paragraphBuilder_build`. Without them text
-  does not wrap. Firefox and Safari lack the line iterator — the fallback in
-  `starling.js` is only right for space-separated scripts, and
-  `skwasm_heavy` (ICU inside) is the real answer there.
-- **The module is a WASI reactor**: `_initialize`, then `__main_argc_argv`
-  once, then exported functions for the life of the tab.
-- **skwasm is fetched, not built**: gstatic publishes it per engine commit
-  and `df87ee3db00` — the upstream commit our engine forked from — is there,
-  so the binary matches the `.cpp` files the header was written from.
+### Numbers
+
+- Release `app.wasm`: **60 MB** stripped (88 MB before `--strip-all`).
+  37 MB of it is DATA: `import Foundation` pulls in `FoundationInternationalization`,
+  which carries ICU's data (`lib_FoundationICU.a`, 40 MB). 22 MB is code.
+  The framework's 89 `import Foundation`s mostly want `FoundationEssentials`;
+  routing them there, and `String(format:)`, `NSRegularExpression` and
+  `DateFormatter` elsewhere, is the size work.
+- Debug `app.wasm`: 107 MB, and it is what to run when something traps —
+  the name section turns `unreachable` into a Swift stack trace.
+- Debug build of the whole stack from clean: ~6 min. Release: ~2 min.
+
+### Not done, in the order it will matter
+
+1. **Size**, above.
+2. **Keyboard and text input**: no `starling_key` export yet; `KeyData`
+   packets from DOM `keydown`/`keyup`, then an IME strategy (a hidden
+   `<input>`, as Flutter web does).
+3. **Images**: the light skwasm build has no codecs. Encoded images need the
+   page to decode (`createImageBitmap`) and `image_createFromTextureSource`;
+   `Codec.swift` says exactly what host function it wants.
+4. **Fonts by request**: today the page lists them up front. The framework
+   could ask for a family it meets (`starling_host_load_font`) the way
+   Flutter web's font manifest works.
+5. **Text in Firefox and Safari**: the line-break fallback in `starling.js`
+   is wrong for CJK; the heavy skwasm build (ICU inside) is the fix.
+6. **Semantics**: a DOM/ARIA tree. `Semantics.swift` drops everything.
+7. **Async**: nothing drives Swift concurrency's executor. `Task {}` in the
+   image-decode paths will not run until a JavaScriptKit-style event-loop
+   executor is installed.
+8. The 4 `UInt32(color.toARGB32())` sites in `Painting.swift`/`Text.swift`
+   trap on wasm32 for opaque colours if reached (they should be
+   `truncatingIfNeeded`).
 
 ## Traps paid for
 
+- **Adding a header to `CSkwasm/include` does not invalidate the clang
+  module cache.** New declarations come back as `cannot find X in scope`
+  while the header plainly declares them; `rm -rf .build-web/wasm32-unknown-wasip1/debug/ModuleCache`
+  before believing it.
+- **Stale objects after changing a type's module.** After `Timer` moved from
+  Foundation to the module-local stand-in, `Tap.swift.o` still referenced
+  `Foundation.Timer` and the link failed; the fix was deleting
+  `Flutter.build`, not code.
+- **Chrome headless will not lay out narrower than 500 px**, so a
+  `--window-size=480,…` page reports width 500 and the right edge is cut
+  off in the PNG. It is not the app.
+- **Foundation on WASI traps in `__CFInitialize`** unless the WASI shim
+  answers `clock_res_get`; and `Bundle.main` traps outright. Nothing may
+  reach either.
 - Headless Chrome never exits on this page: the animation keeps it from
   going idle, so `--virtual-time-budget` has nothing to wait out. The
   screenshot is written regardless; kill the process afterwards.
@@ -171,23 +225,3 @@ How the pieces meet, which is the part the backend inherits:
   swift-latest.xctoolchain` at whatever it installed.
 - `swiftly` on this machine cannot install 6.4 — it builds the URL from
   `6.4`, the file is under `6.4.0`.
-- The release `app.wasm` is 7.0 MB with no Foundation and 300 lines of
-  Swift: 4.4 MB of code, 1.0 MB of data, 1.6 MB of names. The standard
-  library is not being dead-stripped. Not yet investigated (`wasm-opt`,
-  `--strip-debug`, `-Osize`).
-
-## Next: milestone 1
-
-Make `Flutter` and `FlutterSwiftBridge` compile for wasm32 with the engine
-stubbed out. The work, in the order it will bite:
-
-1. A manifest that can describe the framework without C++ interop — either
-   `sdk/Package.swift` learns a `STARLING_WASM` environment switch (as it did
-   `STARLING_IOS`), or `web/Package.swift` reaches into `../sdk/Sources` by
-   path.
-2. `FlutterSwiftBridge` split at the engine: the pure-Swift half (`Offset`,
-   `Rect`, `Color`, enums — most of its 29k lines) and the half that names a
-   `flutter.swift_bridge.*` class, which gets a `#if os(WASI)` twin over
-   `CSkwasm`.
-3. `Color` and the other 64-bit `Int` assumptions.
-4. `Terminal/` and `Platform/` fenced out; timers and the main queue shimmed.

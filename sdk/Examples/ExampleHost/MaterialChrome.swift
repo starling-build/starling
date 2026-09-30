@@ -8,7 +8,7 @@
 // sets but no Material one; this file is just enough chrome for the ports,
 // not a Material library.
 
-#if os(Linux) || os(Windows) || os(macOS)
+#if os(Linux) || os(Windows) || os(macOS) || os(WASI)
 import Flutter
 import FlutterSwiftBridge
 

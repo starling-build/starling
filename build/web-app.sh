@@ -3,8 +3,9 @@
 #
 #   build/web-app.sh [target] [--serve] [--debug] [--no-build]
 #
-# Default target: Pixels (web/Sources/Pixels), milestone 0 of
-# docs/plans/wasm.md.
+# Default target: CounterApp. Any executable the sdk/ manifest defines under
+# STARLING_WASM works; WebPixels is milestone 0 of docs/plans/wasm.md, skwasm
+# driven directly with no framework.
 #
 # This is stage.sh's counterpart for the web, and for ios-app.sh's reason: the
 # thing cannot run out of .build. A .wasm is not a page — it needs the module
@@ -20,13 +21,13 @@
 # skwasm is fetched rather than built. Google publishes it per engine commit,
 # and the one taken is the upstream commit our engine fork branched from, so
 # the binary matches the sources in engine/src/flutter/lib/web_ui/skwasm —
-# which is where web/Sources/CSkwasm/include/skwasm.h's signatures come from.
+# which is where sdk/Sources/CSkwasm/include/skwasm.h's signatures come from.
 # Building it ourselves needs emsdk (`download_emsdk` in .gclient) and is only
 # worth it once we change that C++.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET="Pixels"
+TARGET="CounterApp"
 CONFIG="release"
 SERVE=0
 BUILD=1
@@ -63,11 +64,11 @@ EOF
     exit 1
 fi
 
-SCRATCH="$REPO/web/.build"
+SCRATCH="$REPO/.build-web"
 STAGE="$REPO/.stage-web"
 
 if [ "$BUILD" = 1 ]; then
-    swift build --package-path "$REPO/web" --scratch-path "$SCRATCH" \
+    STARLING_WASM=1 swift build --package-path "$REPO/sdk" --scratch-path "$SCRATCH" \
         --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET"
 fi
 
@@ -77,7 +78,8 @@ WASM="$SCRATCH/$CONFIG/$TARGET.wasm"
 mkdir -p "$STAGE/skwasm" "$STAGE/fonts"
 install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$STAGE/"
 install -m 644 "$WASM" "$STAGE/app.wasm"
-install -m 644 "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf" "$STAGE/fonts/"
+install -m 644 "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf" \
+    "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf" "$STAGE/fonts/"
 
 # Keyed by revision, so changing SKWASM_REV refetches and nothing else does.
 CACHE="$REPO/web/.skwasm/$SKWASM_REV"

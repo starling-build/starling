@@ -998,7 +998,7 @@ public final class FlutterError: Error, DiagnosticableTreeMixin, @unchecked Send
             return errors.isEmpty ? toStringShort() : errors.first!.valueToString(parentConfiguration: nil)
         }
         // Avoid wrapping lines
-        let renderer = TextTreeRenderer(wrapWidth: 4000000000)
+        let renderer = TextTreeRenderer(wrapWidth: 1_000_000_000)  // fits a 32-bit Int (wasm32)
         return diagnostics.map { renderer.render($0).trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: "\n")
     }
 

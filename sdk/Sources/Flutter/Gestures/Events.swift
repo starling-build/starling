@@ -74,7 +74,8 @@ public let kTouchContact: Int = kPrimaryButton
 /// The maximum unsigned small integer on 64-bit platforms.
 ///
 /// **Dart Source:** `packages/flutter/lib/src/foundation/_bitfield_io.dart:8`
-public let kMaxUnsignedSMI: Int = 0x3FFFFFFFFFFFFFFF
+// Spelled from Int.max so that it is also right where Int is 32 bits.
+public let kMaxUnsignedSMI: Int = Int.max >> 1
 
 // MARK: - Button Utility Functions
 

@@ -89,6 +89,13 @@ public enum CupertinoIcons {
     @discardableResult
     public static func registerFont() -> Bool {
         guard !_registered else { return true }
+        #if os(WASI)
+        // No files to read: the page fetched CupertinoIcons.ttf and
+        // registered it under this family before the app started
+        // (web/host/index.html lists it). Bundle.main traps here.
+        _registered = true
+        return true
+        #endif
 
         let data = fontData()
         guard !data.isEmpty else { return false }

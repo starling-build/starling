@@ -12,15 +12,24 @@
 <body>
 <canvas id="starling"></canvas>
 <script type="module">
+  // A trap inside a frame or an event handler surfaces here, not in the
+  // promise below; without the stack it is only 'unreachable'.
+  window.addEventListener('error', (event) => {
+    console.error(String(event.error?.stack || event.message));
+  });
   import { startStarling } from './starling.js';
   startStarling({
     canvas: document.getElementById('starling'),
     app: 'app.wasm',
     skwasmBase: 'skwasm/',
-    fonts: ['fonts/DejaVuSans.ttf'],
+    // The first font is also the fallback for any family not listed.
+    fonts: [
+      { url: 'fonts/DejaVuSans.ttf', families: ['DejaVu Sans'] },
+      { url: 'fonts/CupertinoIcons.ttf', families: ['CupertinoIcons'] },
+    ],
   }).then(() => { document.title = 'Starling — running'; })
     .catch((error) => {
-      console.error(error);
+      console.error(String(error.stack || error));
       document.title = 'Starling — failed';
       document.body.append(Object.assign(document.createElement('pre'), {
         textContent: String(error.stack || error),

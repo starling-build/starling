@@ -1065,6 +1065,111 @@ targets += [
 ]
 #endif
 
+// --- WebAssembly --------------------------------------------------------------
+//
+// STARLING_WASM=1, an environment variable for STARLING_IOS's reason: the
+// manifest runs on the host and cannot see the target. It REPLACES the target
+// list rather than adding to it, because the web build differs from every
+// other at the root:
+//
+//   - No C++ interop. The WebAssembly Swift SDK cannot compile a module that
+//     imports C++ (docs/plans/wasm.md), so `cxxInteropSettings` is on nothing.
+//   - No engine to link. The renderer is skwasm, a separate wasm module whose
+//     exports are this one's imports (CSkwasm), bound by the page.
+//   - FlutterSwiftBridgeCxx is a SWIFT module of the same name
+//     (Sources/FlutterSwiftBridgeWeb): the `flutter.swift_bridge.*` classes
+//     re-made over skwasm, so FlutterSwiftBridge compiles unchanged.
+//
+// Build with build/web-app.sh.
+let wasmBuild = !env("STARLING_WASM", default: "").isEmpty
+
+if wasmBuild {
+    // A reactor, not a command: the page calls in once per frame for as long
+    // as the tab lives, so there is no `_start` that runs and exits.
+    let reactor: [LinkerSetting] = [
+        .unsafeFlags([
+            "-Xclang-linker", "-mexec-model=reactor",
+            "-Xlinker", "--export-if-defined=__main_argc_argv",
+        ]),
+        // DWARF and the name section are a third of a release module and
+        // the browser downloads them. A debug build keeps them: they are
+        // what turns "RuntimeError: unreachable" into a stack trace.
+        .unsafeFlags(["-Xlinker", "--strip-all"], .when(configuration: .release)),
+    ]
+    let mode5: [SwiftSetting] = [
+        .swiftLanguageMode(.v5),
+        .enableUpcomingFeature("BareSlashRegexLiterals"),
+    ]
+    products = [
+        .library(name: "Flutter", targets: ["Flutter"]),
+        .library(name: "FlutterWeb", targets: ["FlutterWeb"]),
+        .executable(name: "WebPixels", targets: ["WebPixels"]),
+        .executable(name: "CounterApp", targets: ["CounterApp"]),
+    ]
+    targets = [
+        .target(name: "CSkwasm"),
+        .target(
+            name: "FlutterSwiftBridgeCxx",
+            dependencies: ["CSkwasm"],
+            path: "Sources/FlutterSwiftBridgeWeb",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .target(name: "FlutterSwiftBridge", dependencies: ["FlutterSwiftBridgeCxx"]),
+        .target(
+            name: "SwiftRuntime",
+            dependencies: ["FlutterSwiftBridge"],
+            path: "Sources/SwiftRuntime"
+        ),
+        .target(
+            name: "Flutter",
+            dependencies: ["FlutterSwiftBridge", .target(name: "SwiftRuntime")],
+            path: "Sources/Flutter",
+            // Terminal/ is a pty; it has no meaning in a tab. No resources
+            // either: Bundle cannot reach files here, fonts arrive by fetch.
+            // StarlingAppHost is an app's link to the Starling desktop shell.
+            exclude: ["Terminal", "Platform/StarlingAppHost.swift"],
+            swiftSettings: mode5
+        ),
+        .target(
+            name: "CupertinoIcons",
+            dependencies: ["Flutter", "FlutterSwiftBridge"],
+            path: "Sources/CupertinoIcons",
+            exclude: ["Resources"]
+        ),
+        // The host: what FlutterCocoa is on macOS. The page is the embedder.
+        .target(
+            name: "FlutterWeb",
+            dependencies: [
+                "Flutter", "FlutterSwiftBridge", "FlutterSwiftBridgeCxx", "CSkwasm",
+                .target(name: "SwiftRuntime"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .target(
+            name: "ExampleHost",
+            dependencies: [
+                "Flutter", "FlutterWeb", "FlutterSwiftBridge", "CupertinoIcons",
+            ],
+            path: "Examples/ExampleHost",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .executableTarget(
+            name: "CounterApp",
+            dependencies: ["Flutter", "ExampleHost", "FlutterSwiftBridge", "CupertinoIcons"],
+            path: "Examples/CounterApp",
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: reactor
+        ),
+        // Milestone 0: skwasm driven directly, no framework.
+        .executableTarget(
+            name: "WebPixels",
+            dependencies: ["CSkwasm"],
+            path: "Examples/WebPixels",
+            linkerSettings: reactor
+        ),
+    ]
+}
+
 // --- Package declaration -----------------------------------------------------
 
 // macOS 14 / iOS 17 are the same line drawn twice: @Observable (the BLoC
@@ -1081,7 +1186,7 @@ let platformConstraints: [SupportedPlatform] = []
 
 let package = Package(
     name: "FlutterSwift",
-    platforms: platformConstraints.isEmpty ? nil : platformConstraints,
+    platforms: (wasmBuild || platformConstraints.isEmpty) ? nil : platformConstraints,
     products: products,
     targets: targets,
     cxxLanguageStandard: .cxx20

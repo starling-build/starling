@@ -10,6 +10,9 @@ import Glibc
 // Windows: the C library module is ucrt. Without this branch the file gets no
 // platform C declarations at all, which is how M_E went missing here.
 import ucrt
+#elseif os(WASI)
+// strdup and free, for the locale arrays handed to UpdateNode.
+import WASILibc
 #endif
 import FlutterSwiftBridgeCxx
 

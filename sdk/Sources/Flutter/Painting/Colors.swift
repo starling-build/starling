@@ -606,8 +606,9 @@ public struct ColorSwatch<T: Hashable>: Hashable, CustomStringConvertible {
     ///
     /// The `primary` argument should be the 32 bit ARGB value of one of the
     /// values in the swatch, as would be passed to the `Color` constructor.
-    public init(_ primary: Int, _ swatch: [T: Color]) {
-        self.value = primary
+    // Int64, not Int: 0xFF…… does not fit a 32-bit Int (wasm32).
+    public init(_ primary: Int64, _ swatch: [T: Color]) {
+        self.value = Int(truncatingIfNeeded: primary)
         self._swatch = swatch
     }
 
@@ -668,7 +669,7 @@ public struct ColorSwatch<T: Hashable>: Hashable, CustomStringConvertible {
             b != nil ? b!.color : nil,
             t
         )!
-        return ColorSwatch<T>(lerpedColor.toARGB32(), swatch)
+        return ColorSwatch<T>(Int64(lerpedColor.toARGB32()), swatch)
     }
 
     // MARK: - Equatable
