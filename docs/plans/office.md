@@ -459,6 +459,42 @@ fixture's TOC has 383 exact-height lines; the model has only a
 multiple), `contextualSpacing`, `keepNext`/`keepLines`/`widowControl`
 pagination, and `basedOn` chains deeper than Normal.
 
+## iOS (2026-09-30)
+
+`build/ios-app.sh OfficeApp` builds, stages `.stage-ios/Office.app` and
+(with `--run`) launches it on the simulator; verified on the iPad Pro 13"
+simulator against engine `starling` c2eba62 built as
+`ios_debug_sim_arm64` in starling-engine-ios. The welcome document,
+ribbon, ruler, status bar, typing and the document fonts all work. On an
+iPhone it runs with the desktop layout — the title wraps letter by
+letter and the ribbon and page overflow — so a phone needs its own
+layout (Word's phone UI is a different product), which is design work.
+
+What it took, both fixed in the framework rather than the app:
+
+- **The first frame.** iOS creates the output surface twice (at layout,
+  and again when the scene becomes active); the engine asks the
+  framework for a frame after each, and the widgets adapter, which skips
+  compositing when nothing is dirty, answered the second with nothing —
+  a release build came up black until a key press. An engine-initiated
+  frame (one `PlatformDispatcher.frameRequested` did not ask for) now
+  composites, on the Darwin hosts (`unsolicitedFramesComposite`).
+- **Selawik on CoreText.** With both cuts loaded, runs on the Semibold
+  face shaped with one set of advances and drew with another; iOS loads
+  Regular only and synthesizes weight 600, and Fluent's semibold styles
+  everywhere else ask for "Selawik Semibold" by name at normal weight.
+  Renaming the cut in the font file is the real fix, pending the OFL's
+  reserved-name question. Details in `SelawikFont.registerFont`.
+
+Traps: `flutter/tools/gn` regenerates with `--check`, which fails on
+include violations upstream carries — regenerate with plain
+`gn gen out/ios_debug_sim_arm64` (the host builds are made that way).
+A release build swallows framework exceptions; run a debug build
+(`swift build` without `-c release`, copy the binary and bundles into
+the staged .app, re-`codesign --sign -`) to see them. `sips --cropOffset`
+goes BEFORE `-c`. Everything else is in the ios-simulator-visual-testing
+memory recipe.
+
 ## Traps already known
 
 - **Two key numberings.** The DRM shell delivers X11 keysyms, every
