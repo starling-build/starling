@@ -42,7 +42,11 @@ Skia's PDF backend and the bridge exports `WritePdf` (engine 63ec018c62c); the
 same `RichLayout` that paints pages on screen records each page into a
 `Picture`, and `PdfDocument.write` (FlutterSwiftBridge) writes them with
 the Liberation faces embedded and subsetted. Backstage → Export → PDF,
-or `OfficeApp --convert doc.docx doc.pdf`.
+or `OfficeApp --convert doc.docx doc.pdf`. **Pictures** are paragraphs
+of their own (Insert → Pictures, `.docx` media in and out, drawn through
+`drawImageRect` so the PDF has them). **Headers, footers and page
+numbers** are one running line each with `{PAGE}`/`{NUMPAGES}` fields,
+painted into the margins of every page, in `.docx` and RTF.
 
 Not done from the Phase 1 list: the `_writer_session` functional test
 (Linux desktop, Phase 3). Three directions from the user shape the plan:
