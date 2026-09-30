@@ -101,6 +101,8 @@ final class OfficeSession {
     var onHeaderFooter: (() -> Void)?
     var onLink: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
+    /// Paste from the system clipboard; true = plain text only.
+    var onPaste: ((Bool) -> Void)?
     var onStatus: ((String) -> Void)?   // transient status-bar message
 
     func summarize() -> ToolbarSummary {

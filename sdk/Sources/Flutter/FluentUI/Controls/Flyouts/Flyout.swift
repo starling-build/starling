@@ -18,6 +18,10 @@ public enum FlyoutPlacement {
     /// Position the flyout below the target, centered horizontally.
     case bottom
 
+    /// Top-left corner at the target's bottom-left: a context menu at the
+    /// pointer, which is a zero-size target.
+    case corner
+
     /// Position the flyout above the target, centered horizontally.
     case top
 
@@ -160,6 +164,31 @@ public class FlyoutController {
         overlayState.insert(flyoutEntry)
     }
 
+    /// A flyout at a point in `context`'s overlay — a context menu at the
+    /// pointer. Needs no target: the point is the target.
+    public func showFlyout(in context: any BuildContext, at point: Offset,
+                           builder: @escaping WidgetBuilder,
+                           barrierDismissible: Bool = true, margin: Double = 8.0) {
+        if isOpen { closeFlyout() }
+        let overlayState = Overlay.of(context)
+        let barrierEntry = OverlayEntry(builder: { [weak self] _ in
+            return ModalBarrier(color: nil, dismissible: barrierDismissible,
+                                onDismiss: { [weak self] in self?.closeFlyout() })
+        })
+        let link = LayerLink()
+        let flyoutEntry = OverlayEntry(builder: { [weak self] ctx in
+            guard let self else { return SizedBox(width: 0, height: 0) }
+            return FlyoutScope(close: { [weak self] in self?.closeFlyout() }, child: _FlyoutPositioner(
+                link: link, placement: .corner, additionalOffset: 0, margin: margin,
+                targetContext: nil, targetRect: { Rect.fromLTWH(point.dx, point.dy, 0, 0) },
+                builder: builder))
+        })
+        _barrierEntry = barrierEntry
+        _flyoutEntry = flyoutEntry
+        overlayState.insert(barrierEntry)
+        overlayState.insert(flyoutEntry)
+    }
+
     // MARK: - Close Flyout
 
     /// Closes the currently open flyout.
@@ -271,6 +300,8 @@ private class _FlyoutPositioner: StatelessWidget {
     let additionalOffset: Double
     let margin: Double
     let targetContext: (any BuildContext)?
+    /// An explicit target in overlay coordinates, instead of a widget's box.
+    let targetRect: (() -> Rect)?
     let builder: WidgetBuilder
 
     init(
@@ -280,6 +311,7 @@ private class _FlyoutPositioner: StatelessWidget {
         additionalOffset: Double,
         margin: Double,
         targetContext: (any BuildContext)?,
+        targetRect: (() -> Rect)? = nil,
         builder: @escaping WidgetBuilder
     ) {
         self.link = link
@@ -287,6 +319,7 @@ private class _FlyoutPositioner: StatelessWidget {
         self.additionalOffset = additionalOffset
         self.margin = margin
         self.targetContext = targetContext
+        self.targetRect = targetRect
         self.builder = builder
         super.init(key: key)
     }
@@ -297,9 +330,11 @@ private class _FlyoutPositioner: StatelessWidget {
         // button, and the popup must move with it.
         let overlayBox = Overlay.of(context).context?.findRenderObject() as? RenderBox
         let targetCtx = targetContext
+        let explicit = targetRect
         return CustomSingleChildLayout(
             delegate: _FlyoutLayoutDelegate(
                 target: {
+                    if let explicit { return explicit() }
                     guard let targetCtx, let box = targetCtx.findRenderObject() as? RenderBox, box.hasSize else { return Rect.zero }
                     let origin = box.localToGlobal(Offset.zero, ancestor: overlayBox)
                     return Rect.fromLTWH(origin.dx, origin.dy, box.size.width, box.size.height)
@@ -347,6 +382,12 @@ private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
         case .bottom, .auto:
             x = target.center.dx - childSize.width / 2
             y = target.bottom + additionalOffset
+        case .corner:
+            x = target.left
+            y = target.bottom + additionalOffset
+            // Flip up or left when the menu would run off the overlay.
+            if y + childSize.height > size.height - margin { y = target.top - childSize.height }
+            if x + childSize.width > size.width - margin { x = target.left - childSize.width }
         case .top:
             x = target.center.dx - childSize.width / 2
             y = target.top - additionalOffset - childSize.height

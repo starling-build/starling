@@ -527,6 +527,22 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(style.heading, 1)
     }
 
+    func testAutocorrectWhileTyping() {
+        let c = controller("")
+        for ch in "\"Hello,\" she said--then left... (c) 2026 it's" { c.insertTyped(String(ch)) }
+        c.insertTyped(" ")
+        XCTAssertEqual(c.document.paragraphs[0].text, "\u{201C}Hello,\u{201D} she said\u{2014}then left\u{2026} \u{00A9} 2026 it\u{2019}s ")
+        // Pasted text is left alone, and so is typing with autocorrect off.
+        c.insertText(" \"raw\"")
+        XCTAssertTrue(c.document.paragraphs[0].text.hasSuffix(" \"raw\""))
+        c.autocorrect = false
+        c.insertTyped("\"")
+        XCTAssertTrue(c.document.paragraphs[0].text.hasSuffix("\""))
+        // Undo takes the whole typing run back as usual.
+        while c.canUndo { c.undo() }
+        XCTAssertEqual(c.document.paragraphs[0].text, "")
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

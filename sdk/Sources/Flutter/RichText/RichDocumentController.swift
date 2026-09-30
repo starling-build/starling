@@ -707,6 +707,59 @@ public final class RichDocumentController: ChangeNotifier {
     /// The link under the caret or at the selection's start, if any.
     public var currentLink: String? { currentCharStyle.link }
 
+    /// Word's AutoCorrect for what a keyboard cannot type: straight quotes
+    /// become curly, "--" between words an em dash, "..." an ellipsis,
+    /// (c) (r) (tm) their symbols. Off for pasted text.
+    public var autocorrect = true
+
+    /// Typed text (one character at a time from the keyboard): autocorrect,
+    /// then insert. Pasted or programmatic text uses `insertText`.
+    public func insertTyped(_ text: String) {
+        guard autocorrect, text.utf16.count == 1, !hasSelection else { insertText(text); return }
+        let pos = selection.focus
+        let para = document.paragraphs[pos.paragraph]
+        guard !para.isImage else { insertText(text); return }
+        let before = String(para.text.utf16.prefix(pos.offset)) ?? ""
+        let prev = before.last
+        let opens = prev == nil || prev!.isWhitespace || "([{\u{201C}\u{2018}\n".contains(prev!)
+        switch text {
+        case "\"": insertText(opens ? "\u{201C}" : "\u{201D}"); return
+        case "'": insertText(opens ? "\u{2018}" : "\u{2019}"); return
+        case ".":
+            if before.hasSuffix("..") { _replaceBefore(2, with: "\u{2026}"); return }
+        case ")":
+            for (short, symbol) in [("(c", "\u{00A9}"), ("(r", "\u{00AE}"), ("(tm", "\u{2122}")]
+            where before.lowercased().hasSuffix(short) {
+                _replaceBefore(short.utf16.count, with: symbol); return
+            }
+        case " ":
+            // "word--word " → "word—word ": the dash lands when the word after it ends.
+            if let dash = before.range(of: "--", options: .backwards),
+               !before[dash.upperBound...].isEmpty, before[dash.upperBound...].allSatisfy({ !$0.isWhitespace }),
+               dash.lowerBound > before.startIndex, !before[before.index(before: dash.lowerBound)].isWhitespace {
+                let tail = String(before[dash.upperBound...])
+                _replaceBefore(tail.utf16.count + 2, with: "\u{2014}" + tail + " ")
+                return
+            }
+        default: break
+        }
+        insertText(text)
+    }
+
+    /// Replace the `units` UTF-16 units before the caret with `replacement`,
+    /// as one typing step.
+    private func _replaceBefore(_ units: Int, with replacement: String) {
+        let pos = selection.focus
+        guard pos.offset >= units else { insertText(replacement); return }
+        edit(kind: .typing) {
+            let style = typingStyle ?? document.paragraphs[pos.paragraph].style(at: pos.offset)
+            _deleteRange(in: pos.paragraph, (pos.offset - units) ..< pos.offset)
+            perform(.insertText(RichPosition(paragraph: pos.paragraph, offset: pos.offset - units), replacement,
+                                [Run(length: replacement.utf16.count, style: style)]))
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset - units + replacement.utf16.count))
+        }
+    }
+
     /// ⇧⏎: a line break inside the paragraph, not a new paragraph.
     public func insertLineBreak() {
         edit(kind: .typing) {

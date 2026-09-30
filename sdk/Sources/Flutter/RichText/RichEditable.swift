@@ -47,6 +47,9 @@ public final class RichEditable: StatefulWidget {
     /// A pointer selection gesture ended (drag, double or triple click)
     /// with a non-empty selection — when Word's Format Painter applies.
     public let onSelectionGestureEnd: (() -> Void)?
+    /// A right click, with the pointer's position in global coordinates.
+    /// The caret has moved there unless the click was inside the selection.
+    public let onContextMenu: ((Offset) -> Void)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -59,7 +62,8 @@ public final class RichEditable: StatefulWidget {
                 onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
                 onLinkActivate: ((String) -> Void)? = nil,
-                onSelectionGestureEnd: (() -> Void)? = nil) {
+                onSelectionGestureEnd: (() -> Void)? = nil,
+                onContextMenu: ((Offset) -> Void)? = nil) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -75,6 +79,7 @@ public final class RichEditable: StatefulWidget {
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
+        self.onContextMenu = onContextMenu
         super.init(key: key)
     }
 
@@ -366,7 +371,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 case "a": c.selectAll()
                 case "c": _copy()
                 case "x": _cut()
-                case "v": _paste()
+                case "v": if shift { _pastePlain() } else { _paste() }
                 case "z": if shift { c.redo() } else { c.undo() }
                 case "y": c.redo()
                 case "b": c.toggleBold()
@@ -379,7 +384,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 // arrive from it (composed, accented, or plain); declining
                 // the key here is what lets the plugin have it.
                 if _textInput?.isAttached == true { return false }
-                c.insertText(text)
+                c.insertTyped(text)
             } else {
                 return false
             }
@@ -455,6 +460,21 @@ public final class RichEditableState: State<StatefulWidget> {
             Clipboard.setData(data)
         }
     }
+
+    /// ⌘⇧V: the clipboard's text, in the style at the caret.
+    private func _pastePlain() {
+        Clipboard.getData(Clipboard.kTextPlain) { [weak self] data in
+            guard let self, let text = data?.text, !text.isEmpty else { return }
+            DispatchQueue.main.async {
+                self._controller.insertText(text.replacingOccurrences(of: "\r\n", with: "\n"))
+            }
+        }
+    }
+
+    public func pastePlain() { _pastePlain() }
+    public func paste() { _paste() }
+    public func copy() { _copy() }
+    public func cut() { _cut() }
 
     private func _paste() {
         Clipboard.getData(Clipboard.kAll) { [weak self] data in
@@ -551,6 +571,21 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerDown(_ event: PointerEvent) {
+        if event.buttons & kSecondaryButton != 0 {
+            _focus.requestFocus()
+            if _layout.width > 0 {
+                _syncLayoutIfNeeded()
+                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                // Inside the selection the menu is about the selection;
+                // elsewhere the caret goes to the click first, as Word does.
+                if !_controller.hasSelection || pos < _controller.selection.start || pos > _controller.selection.end {
+                    _controller.moveTo(pos, extend: false)
+                }
+            }
+            let global = (context?.findRenderObject() as? RenderBox)?.localToGlobal(event.localPosition) ?? event.position
+            _w.onContextMenu?(global)
+            return
+        }
         if _chords.primary, let link = _link(at: event.localPosition) {
             if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
             return

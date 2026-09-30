@@ -44,6 +44,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
+    private let _contextMenu = FlyoutController()
     /// Set when the open document came from a recovery copy: AutoSave then
     /// refreshes only the copy until the user saves for real.
     private var _recovered = false
@@ -177,6 +178,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onLink = { [weak self] in self?._openLink() }
         session.onModifyStyle = { [weak self] id in self?.setState { self?._styleOpen = id } }
+        session.onPaste = { [weak self] plain in self?._paste(plain: plain) }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self.setState { self._backstage = .insertPicture }
@@ -483,6 +485,74 @@ final class OfficeShellState: State<StatefulWidget> {
         setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
     }
 
+    // MARK: Clipboard and the context menu
+
+    private func _paste(plain: Bool) {
+        Clipboard.getData(plain ? Clipboard.kTextPlain : Clipboard.kAll) { [weak self] data in
+            guard let self, let data, !data.isEmpty else { return }
+            DispatchQueue.main.async {
+                if plain, let text = data.text {
+                    self.controller.insertText(text.replacingOccurrences(of: "\r\n", with: "\n"))
+                } else {
+                    self.controller.paste(data: data)
+                }
+            }
+        }
+    }
+
+    /// Word's right-click menu: what the caret is on, then the clipboard,
+    /// then formatting, then the table or picture it sits in.
+    private func _showContextMenu(at point: Offset) {
+        let c = controller
+        var items: [MenuFlyoutItemBase] = []
+        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) {
+            items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
+        }
+        func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
+        if let link = c.currentLink {
+            item("Open Link") { hostOpenURL?(link) }
+            item("Edit Link…") { [weak self] in self?._openLink() }
+            item("Remove Link") { c.setLink(nil) }
+            sep()
+        }
+        let has = c.hasSelection
+        item("Cut", enabled: has) { if let d = c.cutSelectionData() { Clipboard.setData(d) } }
+        item("Copy", enabled: has) { if let d = c.copySelectionData() { Clipboard.setData(d) } }
+        item("Paste") { [weak self] in self?._paste(plain: false) }
+        item("Paste as Plain Text") { [weak self] in self?._paste(plain: true) }
+        sep()
+        item("Bold") { c.toggleBold() }
+        item("Italic") { c.toggleItalic() }
+        item("Underline") { c.toggleUnderline() }
+        if c.currentLink == nil { item("Link…") { [weak self] in self?._openLink() } }
+        if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
+            sep()
+            item("Fit Picture to Width") { [weak self] in
+                guard let self else { return }
+                let w = self.session.pageSetup.columnWidth
+                c.setImageSize(at: i, width: w, height: w * image.height / max(1, image.width))
+            }
+            item("Original Size", enabled: image.naturalWidth != nil) {
+                if let nw = image.naturalWidth, let nh = image.naturalHeight { c.setImageSize(at: i, width: nw, height: nh) }
+            }
+            item("Delete Picture") { c.deleteForward() }
+        }
+        if c.isInCell {
+            sep()
+            item("Insert Row Below") { c.insertRow(below: true) }
+            item("Insert Column Right") { c.insertColumn(after: true) }
+            item("Delete Row") { c.deleteRow() }
+            item("Delete Column") { c.deleteColumn() }
+            if c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1 { item("Merge Cells") { c.mergeCells() } }
+            if let cell = c.currentCell, cell.span > 1 || cell.rowSpan > 1 { item("Split Cell") { c.splitCell() } }
+            item("Delete Table") { c.deleteTable() }
+        }
+        sep()
+        item("Select All") { c.selectAll() }
+        guard let context else { return }
+        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+    }
+
     // MARK: Links
 
     private func _openLink() {
@@ -675,7 +745,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 }
                 self._flash("Painted")
                 self.setState { self.session.summary = self.session.summarize() }
-            }
+            },
+            onContextMenu: { [weak self] point in self?._showContextMenu(at: point) }
         )
     }
 }

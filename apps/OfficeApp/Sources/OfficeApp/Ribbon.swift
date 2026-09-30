@@ -160,15 +160,15 @@ final class Ribbon: StatelessWidget {
         let c = session.controller
         let s = session.summary
         let clipboard = Chrome.group("Clipboard", fluent, [
-            Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { [session] in session.onStatus?("Paste: press \(KeyModifiers.primary == .meta ? "⌘" : "Ctrl+")V in the document") },
+            Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { [session] in session.onPaste?(false) },
             Chrome.gap(2),
             Chrome.rows([
                 Chrome.small(FluentSystemIcons.cut, "Cut", fluent, enabled: s.hasSelection) { [session] in
-                    if let t = c.cutSelection() { Clipboard.setData(ClipboardData(text: t)) }
+                    if let d = c.cutSelectionData() { Clipboard.setData(d) }
                     session.onStatus?("Cut")
                 },
                 Chrome.small(FluentSystemIcons.copy, "Copy", fluent, enabled: s.hasSelection) { [session] in
-                    if let t = c.copySelection() { Clipboard.setData(ClipboardData(text: t)) }
+                    if let d = c.copySelectionData() { Clipboard.setData(d) }
                     session.onStatus?("Copied")
                 },
                 Chrome.small(FluentSystemIcons.paintBrush, s.painting ? "Painting…" : "Format Painter", fluent) { [session] in session.onFormatPainter?() },
