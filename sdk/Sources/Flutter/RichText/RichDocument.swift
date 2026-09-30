@@ -753,9 +753,9 @@ public struct RichParagraph: Hashable, Sendable {
 
     // MARK: Word motion
 
-    private enum UnitClass { case space, word, punct }
+    enum UnitClass { case space, word, punct }
 
-    private static func classify(_ u: UInt16) -> UnitClass {
+    static func classify(_ u: UInt16) -> UnitClass {
         guard let scalar = Unicode.Scalar(u) else { return .word }  // surrogate half: part of a word
         if scalar.properties.isWhitespace { return .space }
         if scalar.properties.isAlphabetic || scalar.properties.numericType != nil || u == 0x5F {

@@ -451,11 +451,26 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Insert a fragment (a rich paste) at the caret.
-    public func insertFragment(_ fragment: [RichParagraph]) {
+    /// Word's "smart cut and paste": a pasted or dropped word gets the
+    /// space it needs on either side, and a cut leaves no double space
+    /// and no space before a full stop. On by default.
+    public var smartSpacing = true
+
+    /// Insert `fragment` at the caret (replacing a selection). With
+    /// `smart`, single-paragraph text is padded with a space where it
+    /// would otherwise run into a word; the caret ends after the text and
+    /// `lastInserted` records where the text itself went.
+    public func insertFragment(_ fragment: [RichParagraph], smart: Bool = false) {
         guard !fragment.isEmpty else { return }
         edit {
             if hasSelection { _deleteSelectionOps() }
+            var fragment = fragment
             var pos = selection.focus
+            if smart, fragment.count == 1, !fragment[0].isImage {
+                let pad = _smartPad(fragment[0].text, at: pos)
+                if pad.before { fragment[0].insert(" ", at: 0) }
+                if pad.after { fragment[0].insert(" ", at: fragment[0].length) }
+            }
             for (i, para) in fragment.enumerated() {
                 if i > 0 {
                     perform(.splitParagraph(pos, tailStyle: para.style))
@@ -473,6 +488,40 @@ public final class RichDocumentController: ChangeNotifier {
             }
             _setCaret(pos)
         }
+    }
+
+    /// Whether `text`, put at `pos`, needs a space before or after it so
+    /// as not to run into the word there.
+    private func _smartPad(_ text: String, at pos: RichPosition) -> (before: Bool, after: Bool) {
+        guard smartSpacing, let f = text.utf16.first, let l = text.utf16.last,
+              !document.paragraphs[pos.paragraph].isImage else { return (false, false) }
+        let units = Array(document.paragraphs[pos.paragraph].text.utf16)
+        let before = pos.offset > 0 && RichParagraph.classify(units[pos.offset - 1]) == .word && RichParagraph.classify(f) == .word
+        let after = pos.offset < units.count && RichParagraph.classify(units[pos.offset]) == .word && RichParagraph.classify(l) == .word
+        return (before, after)
+    }
+
+    /// After a cut or a move removed text at the caret: one space where
+    /// two met, none before a full stop or at the paragraph's start.
+    /// Returns where a unit was removed, so a caller can shift positions.
+    @discardableResult
+    private func _tidySpacesAtCaret() -> RichPosition? {
+        guard smartSpacing else { return nil }
+        let pos = selection.focus
+        let para = document.paragraphs[pos.paragraph]
+        guard !para.isImage else { return nil }
+        let units = Array(para.text.utf16)
+        let space: UInt16 = 0x20
+        let before = pos.offset > 0 ? units[pos.offset - 1] : nil
+        let after = pos.offset < units.count ? units[pos.offset] : nil
+        var removeAt: Int? = nil
+        if before == space, after == space { removeAt = pos.offset }
+        else if before == space, let a = after, RichParagraph.classify(a) == .punct { removeAt = pos.offset - 1 }
+        else if before == nil, after == space { removeAt = pos.offset }
+        guard let at = removeAt else { return nil }
+        _deleteRange(in: pos.paragraph, at ..< at + 1)
+        _setCaret(RichPosition(paragraph: pos.paragraph, offset: at))
+        return RichPosition(paragraph: pos.paragraph, offset: at)
     }
 
     /// Drag-and-drop: move the selected text to `drop` (or, with `copy`,
@@ -494,10 +543,20 @@ public final class RichDocumentController: ChangeNotifier {
                         ? RichPosition(paragraph: a.paragraph, offset: a.offset + drop.offset - b.offset)
                         : RichPosition(paragraph: drop.paragraph - (b.paragraph - a.paragraph), offset: drop.offset)
                 }
+                if let removed = _tidySpacesAtCaret(), removed.paragraph == target.paragraph, removed.offset < target.offset {
+                    target.offset -= 1
+                }
             }
             _setCaret(target)
-            insertFragment(fragment)
-            selection = RichSelection(anchor: target, focus: selection.focus)
+            let before = document.paragraphs[target.paragraph].length
+            insertFragment(fragment, smart: true)
+            // Select the dropped text itself, not a space smart spacing added.
+            let text = fragment.map(\.text).joined(separator: "\n").utf16.count
+            let grew = fragment.count == 1 ? document.paragraphs[target.paragraph].length - before - text : 0
+            let leading = grew > 0 && Array(document.paragraphs[target.paragraph].text.utf16)[target.offset] == 0x20 ? 1 : 0
+            let start = RichPosition(paragraph: target.paragraph, offset: target.offset + leading)
+            let end = fragment.count == 1 ? RichPosition(paragraph: target.paragraph, offset: start.offset + text) : selection.focus
+            selection = RichSelection(anchor: start, focus: end)
         }
     }
 
@@ -1971,7 +2030,11 @@ public final class RichDocumentController: ChangeNotifier {
 
     public func cutSelectionData() -> ClipboardData? {
         guard let data = copySelectionData() else { return nil }
-        deleteSelection()
+        guard hasSelection else { return data }
+        edit {
+            _deleteSelectionOps()
+            _tidySpacesAtCaret()
+        }
         return data
     }
 
@@ -1980,11 +2043,11 @@ public final class RichDocumentController: ChangeNotifier {
     public func paste(data: ClipboardData) {
         if let text = data.text, let fragment = copiedFragment,
            fragment.map(\.text).joined(separator: "\n") == text {
-            insertFragment(fragment)
+            insertFragment(fragment, smart: true)
             return
         }
         if let codec = clipboardCodec, let fragment = codec.decode(data), !fragment.isEmpty {
-            insertFragment(fragment)
+            insertFragment(fragment, smart: true)
             return
         }
         if let png = data.png, let px = ImageAttachment.pngPixelSize(png) {
@@ -1996,7 +2059,18 @@ public final class RichDocumentController: ChangeNotifier {
                                         naturalWidth: nw, naturalHeight: nh))
             return
         }
-        if let text = data.text, !text.isEmpty { insertText(text) }
+        if let text = data.text, !text.isEmpty {
+            // Plain text takes the style at the caret, padded like a fragment.
+            edit {
+                if hasSelection { _deleteSelectionOps() }
+                var padded = text
+                if !text.contains("\n") {
+                    let pad = _smartPad(text, at: selection.focus)
+                    padded = (pad.before ? " " : "") + text + (pad.after ? " " : "")
+                }
+                insertText(padded)
+            }
+        }
     }
 }
 

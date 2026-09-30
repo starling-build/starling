@@ -570,6 +570,36 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(ListLevelFormat.numberingLibrary[4].sample(4), "iv.")
     }
 
+    func testSmartCutAndPaste() {
+        let c = controller("the cat sat.")
+        // Cut a word: the two spaces it leaves become one.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 4), focus: RichPosition(paragraph: 0, offset: 7))
+        let cut = c.cutSelectionData()
+        XCTAssertEqual(cut?.text, "cat")
+        XCTAssertEqual(c.document.paragraphs[0].text, "the sat.")
+        // Paste it between words: it gets the space it needs on both sides.
+        c.moveTo(RichPosition(paragraph: 0, offset: 7), extend: false)   // "the sat|."
+        c.paste(data: cut!)
+        XCTAssertEqual(c.document.paragraphs[0].text, "the sat cat.")
+        // Cut the last word before the full stop: no space is left before it.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 8), focus: RichPosition(paragraph: 0, offset: 11))
+        _ = c.cutSelectionData()
+        XCTAssertEqual(c.document.paragraphs[0].text, "the sat.")
+        // Cut at the start: no leading space stays.
+        c.selection = RichSelection(anchor: .start, focus: RichPosition(paragraph: 0, offset: 3))
+        _ = c.cutSelectionData()
+        XCTAssertEqual(c.document.paragraphs[0].text, "sat.")
+        // Plain-text paste into a word boundary pads too; Backspace does not tidy.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.paste(data: ClipboardData(text: "the"))
+        XCTAssertEqual(c.document.paragraphs[0].text, "the sat.")
+        // Off, nothing is touched.
+        c.smartSpacing = false
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 4), focus: RichPosition(paragraph: 0, offset: 7))
+        _ = c.cutSelectionData()
+        XCTAssertEqual(c.document.paragraphs[0].text, "the .")
+    }
+
     func testDragAndDropMovesSelection() {
         let c = controller("one two three")
         c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),
@@ -582,11 +612,21 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.selection.start.offset, 4)
         c.undo()
         XCTAssertEqual(c.document.paragraphs[0].text, "one two three")
+        // A bare word dropped after another gets its space (smart cut and
+        // paste), the leading space it left behind goes, and the word
+        // itself is what stays selected.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),
+                                    focus: RichPosition(paragraph: 0, offset: 3))
+        c.moveSelection(to: RichPosition(paragraph: 0, offset: 7), copy: false)
+        XCTAssertEqual(c.document.paragraphs[0].text, "two one three")
+        XCTAssertEqual(c.document.text(in: c.selection), "one")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "one two three")
         // ⌥-drag copies.
         c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),
                                     focus: RichPosition(paragraph: 0, offset: 4))
         c.moveSelection(to: RichPosition(paragraph: 0, offset: 13), copy: true)
-        XCTAssertEqual(c.document.paragraphs[0].text, "one two threeone ")
+        XCTAssertEqual(c.document.paragraphs[0].text, "one two three one ")
         c.undo()
         // A drop inside the selection is a no-op; across paragraphs the
         // paragraph index shifts with the removal.

@@ -24,7 +24,10 @@ behind it in the app, red underlines painted from a per-text cache that
 fills 350 ms after a paragraph is first shown (a bad paragraph costs
 NSSpellChecker ~5 ms, a good one ~0.3 ms, so never in the paint), the
 caret's word left alone, corrections / Ignore All / Add to Dictionary
-at the top of the right-click menu, and a Spelling toggle on Review. First thing
+at the top of the right-click menu, and a Spelling toggle on Review.
+Smart cut and paste too (`smartSpacing`, on by default): a pasted or
+dropped word gets the space it needs, a cut leaves no double space and
+none before a full stop. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The
