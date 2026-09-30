@@ -11,7 +11,7 @@ STARLING_RICHTEXT_PERF=1`): initial layout 200 ms once, then per keystroke
 45–100 µs layout and ~150 µs paint, drag-select repaints ≤ 230 µs. The
 DRM-shell half of the gate is still to run on the Linux box.
 
-Found on the way and fixed in the engine (a6709b43770): on macOS every
+Found on the way and fixed in the engine (79ed5f071e6): on macOS every
 Swift app's wrapped text broke mid-word, because `libswift_bridge.dylib`
 carries its own ICU that never received `icudtl.dat`; the bridge now
 exports `InitializeICU` and `CocoaHost` calls it. Three directions from

@@ -60,7 +60,7 @@ README's *Building → macOS*.
 **That separate dylib has its own ICU, and it starts empty.** The bridge
 statically links its own Skia, skparagraph, fml and ICU; the framework's
 shell loads `icudtl.dat` into the *framework's* ICU only. Until `CocoaHost`
-called `flutter.swift_bridge.InitializeICU(path)` (engine a6709b43770), every
+called `flutter.swift_bridge.InitializeICU(path)` (engine 79ed5f071e6), every
 wrapped paragraph on macOS broke between characters, not words — a symptom
 that reads as a layout bug in whatever widget you are looking at, and cost
 an afternoon chasing `TextPainter` before the probe was a plain `Text`. A
