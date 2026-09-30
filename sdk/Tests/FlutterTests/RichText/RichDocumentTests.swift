@@ -275,6 +275,46 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(ListNumberFormat.upperLetter.string(28), "BB")
     }
 
+    func testListEnterAndBackspaceRules() {
+        let c = controller("item", "")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.toggleList(.bullet)
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.toggleList(.bullet)
+        // Enter on the empty item ends the list instead of adding a bullet.
+        c.insertParagraphBreak()
+        XCTAssertEqual(c.document.paragraphs.count, 2)
+        XCTAssertNil(c.document.paragraphs[1].style.list)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].style.list, .bullet)
+        // Backspace at the start of an item takes the bullet first, then joins.
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.count, 2)
+        XCTAssertNil(c.document.paragraphs[1].style.list)
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["item"])
+    }
+
+    func testParagraphMotionAndDeleteToLineStart() {
+        let c = controller("first para", "second para")
+        c.moveTo(RichPosition(paragraph: 1, offset: 6), extend: false)
+        c.moveToParagraphStart(extend: false)
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 1, offset: 0))
+        c.moveToParagraphStart(extend: false)
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 0, offset: 0))
+        c.moveToParagraphEnd(extend: false)
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 0, offset: 10))
+        c.moveToParagraphEnd(extend: true)
+        XCTAssertEqual(c.selection.focus, RichPosition(paragraph: 1, offset: 11))
+        XCTAssertEqual(c.selection.anchor, RichPosition(paragraph: 0, offset: 10))
+        c.moveTo(RichPosition(paragraph: 1, offset: 6), extend: false)
+        c.deleteBackward(toOffset: 0)
+        XCTAssertEqual(c.document.paragraphs[1].text, " para")
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].text, "second para")
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

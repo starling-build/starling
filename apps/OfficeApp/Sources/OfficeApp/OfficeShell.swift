@@ -326,13 +326,22 @@ final class OfficeShellState: State<StatefulWidget> {
             return false
         }
         guard mods.contains(.primary) else { return false }
+        let c = controller
         guard let letter = KeyChordTracker.letter(key.logical) else {
-            // ⌘= / ⌘- / ⌘0 zoom.
+            // ⌥⌘1/2/3 headings and ⌥⌘0 Normal, as in Word.
+            if mods.contains(.alt), key.logical >= 0x30, key.logical <= 0x33 {
+                c.setHeading(key.logical == 0x30 ? nil : Int(key.logical - 0x30))
+                return true
+            }
+            // ⌘= / ⌘- / ⌘0 zoom; ⌘] / ⌘[ grow and shrink the font.
             if key.logical == 0x3D || key.logical == 0x2B { session.onZoom?(session.zoom + 0.1); return true }
             if key.logical == 0x2D { session.onZoom?(session.zoom - 0.1); return true }
             if key.logical == 0x30 { session.onZoom?(1.0); return true }
+            if key.logical == 0x5D { c.stepFontSize(1, base: session.effectiveFontSize); return true }
+            if key.logical == 0x5B { c.stepFontSize(-1, base: session.effectiveFontSize); return true }
             return false
         }
+        if mods.contains(.alt) { return false }
         switch letter {
         case "s":
             if mods.contains(.shift) { setState { _backstage = .saveAs } } else { _save() }
@@ -342,7 +351,11 @@ final class OfficeShellState: State<StatefulWidget> {
         case "h": _openFind(replace: true)
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
-        case "e": setState { _backstage = .export }
+        // Word's alignment keys; Export lives in Backstage.
+        case "e": c.setAlignment(.center)
+        case "l": c.setAlignment(.left)
+        case "r": c.setAlignment(.right)
+        case "j": c.setAlignment(.justify)
         default: return false
         }
         return true

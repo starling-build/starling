@@ -378,6 +378,17 @@ public final class RichDocumentController: ChangeNotifier {
     public func insertParagraphBreak() {
         edit {
             if hasSelection { _deleteSelectionOps() }
+            // Enter on an empty list item ends the list (Word, Pages, every
+            // editor): the item becomes a plain paragraph instead of a
+            // second empty bullet.
+            let here = document.paragraphs[selection.focus.paragraph]
+            if here.text.isEmpty, here.style.list != nil, !here.isImage {
+                var style = here.style
+                style.list = nil
+                style.listLevel = 0
+                perform(.setParagraphStyle(selection.focus.paragraph, old: here.style, new: style))
+                return
+            }
             _splitAtCaret()
         }
     }
@@ -525,6 +536,15 @@ public final class RichDocumentController: ChangeNotifier {
             // Backspace right after a picture: select it (Word does this too),
             // so the next backspace removes it.
             _setCaret(RichPosition(paragraph: pos.paragraph - 1, offset: 0))
+            return
+        }
+        if pos.offset == 0, !word, here.style.list != nil {
+            // At the start of a list item the first Backspace takes the
+            // bullet away; the next one joins, as usual.
+            var style = here.style
+            style.list = nil
+            style.listLevel = 0
+            perform(.setParagraphStyle(pos.paragraph, old: here.style, new: style))
             return
         }
         if pos.offset > 0 {
@@ -1113,6 +1133,40 @@ public final class RichDocumentController: ChangeNotifier {
         }
         moveTo(RichPosition(paragraph: pos.paragraph, offset: para.wordEnd(after: pos.offset)),
                extend: extend)
+    }
+
+    /// ⌥↑ on the Mac: the paragraph's start, or the previous paragraph's
+    /// when already there.
+    public func moveToParagraphStart(extend: Bool) {
+        let pos = selection.focus
+        if pos.offset > 0 {
+            moveTo(RichPosition(paragraph: pos.paragraph, offset: 0), extend: extend)
+        } else if pos.paragraph > 0 {
+            moveTo(RichPosition(paragraph: pos.paragraph - 1, offset: 0), extend: extend)
+        }
+    }
+
+    /// ⌥↓: the paragraph's end, or the next paragraph's when already there.
+    public func moveToParagraphEnd(extend: Bool) {
+        let pos = selection.focus
+        let len = document.paragraphs[pos.paragraph].length
+        if pos.offset < len {
+            moveTo(RichPosition(paragraph: pos.paragraph, offset: len), extend: extend)
+        } else if pos.paragraph + 1 < document.paragraphs.count {
+            let next = pos.paragraph + 1
+            moveTo(RichPosition(paragraph: next, offset: document.paragraphs[next].length), extend: extend)
+        }
+    }
+
+    /// ⌘⌫: delete from `offset` (a line start the layout found) to the
+    /// caret, within the caret's paragraph.
+    public func deleteBackward(toOffset offset: Int) {
+        let pos = selection.focus
+        guard !hasSelection, offset < pos.offset else { deleteBackward(); return }
+        edit(kind: .deleting) {
+            _deleteRange(in: pos.paragraph, offset ..< pos.offset)
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: offset))
+        }
     }
 
     public func moveToDocumentStart(extend: Bool) { moveTo(.start, extend: extend) }

@@ -290,10 +290,12 @@ public final class RichEditableState: State<StatefulWidget> {
         case .up:
             keepStickyX = true
             if _chords.primary && KeyModifiers.primary == .meta { c.moveToDocumentStart(extend: shift) }
+            else if _chords.alt { c.moveToParagraphStart(extend: shift) }
             else { _moveVertical(down: false, extend: shift) }
         case .down:
             keepStickyX = true
             if _chords.primary && KeyModifiers.primary == .meta { c.moveToDocumentEnd(extend: shift) }
+            else if _chords.alt { c.moveToParagraphEnd(extend: shift) }
             else { _moveVertical(down: true, extend: shift) }
         case .home:
             if _chords.control { c.moveToDocumentStart(extend: shift) }
@@ -308,11 +310,14 @@ public final class RichEditableState: State<StatefulWidget> {
             keepStickyX = true
             _movePage(down: true, extend: shift)
         case .backspace:
-            if _chords.word { c.deleteWordBackward() } else { c.deleteBackward() }
+            if _chords.word { c.deleteWordBackward() }
+            else if _chords.primary && KeyModifiers.primary == .meta { _deleteToLineStart() }
+            else { c.deleteBackward() }
         case .delete:
             if _chords.word { c.deleteWordForward() } else { c.deleteForward() }
         case .enter:
-            c.insertParagraphBreak()
+            // ⇧⏎ is a line break inside the paragraph.
+            if shift { c.insertText("\n") } else { c.insertParagraphBreak() }
         case .tab:
             if c.isInCell { c.moveToAdjacentCell(forward: !shift) }
             else if shift { c.indent(-1) } else if c.hasSelection { c.indent(1) } else { c.insertText("\t") }
@@ -347,6 +352,14 @@ public final class RichEditableState: State<StatefulWidget> {
         let pos = _controller.caret
         let (start, end) = _layout.lineBounds(pos, _controller.document)
         _controller.moveTo(RichPosition(paragraph: pos.paragraph, offset: home ? start : end), extend: extend)
+    }
+
+    /// ⌘⌫ on the Mac: the line's text before the caret goes.
+    private func _deleteToLineStart() {
+        _syncLayoutIfNeeded()
+        let pos = _controller.caret
+        let (start, _) = _layout.lineBounds(pos, _controller.document)
+        _controller.deleteBackward(toOffset: start)
     }
 
     private func _moveVertical(down: Bool, extend: Bool) {
