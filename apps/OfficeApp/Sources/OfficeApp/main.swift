@@ -6,6 +6,7 @@
 // the Fluent-rooted app.
 //
 //   swift run OfficeApp [file]                 open a document
+//   OfficeApp --convert in.rtf out.docx        convert between formats, no window
 //   OFFICE_DEMO_PAGES=200 swift run OfficeApp  the Phase 0 perf document
 
 import Flutter
@@ -36,6 +37,22 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
     guard let v = ProcessInfo.processInfo.environment[key], let n = Int(v), n > 0
     else { return fallback }
     return n
+}
+
+// `--convert <in> <out>`: the formats without the window, for scripts and
+// for checking our output against other readers (`textutil`, LibreOffice).
+if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
+    let src = CommandLine.arguments[i + 1]
+    let dst = CommandLine.arguments[i + 2]
+    do {
+        let opened = try OfficeFormats.read(src)
+        try OfficeFormats.write(opened.document, to: dst, pageSetup: opened.pageSetup ?? .letter)
+        print("\(src) -> \(dst): \(opened.document.paragraphs.count) paragraphs, \(opened.document.wordCount) words")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("convert failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
 }
 
 let initialPath: String? = {

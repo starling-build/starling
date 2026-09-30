@@ -31,6 +31,13 @@ received `icudtl.dat`, so every wrapped paragraph broke mid-word (engine
 `CompositedTransformTarget` — each Fluent ComboBox and DropDownButton —
 painted at the window's origin.
 
+Phase 2 so far: **`.docx` reads and writes** (`Zip.swift` over zlib,
+`Docx.swift`: runs, paragraph props, headings via styles.xml, lists via
+numbering.xml, hyperlinks, page breaks, section paper size; tables are
+flattened and images skipped until the model has them). A package written
+by macOS's converter reads back correctly and ours is accepted by it.
+`OfficeApp --convert in out` converts between formats without a window.
+
 Not done from the Phase 1 list: the `_writer_session` functional test
 (Linux desktop, Phase 3). Three directions from the user shape the plan:
 the app is **cross-platform and built on macOS first**, its UI is

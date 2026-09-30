@@ -192,7 +192,7 @@ final class Backstage: StatelessWidget {
         let dir = session.path.map { ($0 as NSString).deletingLastPathComponent }
             ?? NSHomeDirectory() + "/Documents"
         let start = FileManager.default.fileExists(atPath: dir) ? dir : NSHomeDirectory()
-        let suggested = session.path.map { ($0 as NSString).lastPathComponent } ?? "Document1.rtf"
+        let suggested = session.path.map { ($0 as NSString).lastPathComponent } ?? "Document1.docx"
         return Column(crossAxisAlignment: .stretch, children: [
             _heading(mode == .open ? "Open" : "Save As", fluent),
             Expanded(child: FluentFilePanel(
@@ -231,6 +231,8 @@ final class Backstage: StatelessWidget {
                  style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)),
             Chrome.vgap(16),
             Row(children: [
+                _template("Word (.docx)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("docx") },
+                Chrome.gap(16),
                 _template("Markdown (.md)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("md") },
                 Chrome.gap(16),
                 _template("Rich Text (.rtf)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("rtf") },

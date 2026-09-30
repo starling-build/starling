@@ -1,0 +1,7 @@
+// zlib, for the zip container .docx lives in. In the macOS SDK and in
+// zlib1g-dev on Ubuntu; both ship the same API.
+module CZlib [system] {
+    header "shim.h"
+    link "z"
+    export *
+}

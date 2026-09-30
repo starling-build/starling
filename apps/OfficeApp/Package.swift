@@ -79,6 +79,8 @@ let appTarget: Target = {
                 .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
                 .product(name: "SwiftRuntime", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "CZlib",
+                "CZlib",
                 .product(name: "FlutterUIKit", package: "FlutterSwift"),
             ],
             resources: resources,
@@ -99,6 +101,7 @@ let appTarget: Target = {
             .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
             .product(name: "SwiftRuntime", package: "FlutterSwift"),
             .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "CZlib",
             .product(name: "FlutterCocoa", package: "FlutterSwift"),
         ],
         resources: resources,
@@ -119,6 +122,7 @@ let appTarget: Target = {
             .product(name: "FlutterSwiftBridge", package: "FlutterSwift"),
             .product(name: "SwiftRuntime", package: "FlutterSwift"),
             .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "CZlib",
             .product(name: "FlutterWin32", package: "FlutterSwift"),
         ],
         resources: resources,
@@ -139,11 +143,15 @@ let appTarget: Target = {
             ? [
                 .product(name: "FlutterShared", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "CZlib",
+                "CZlib",
                 .product(name: "FlutterGTK", package: "FlutterSwift"),
             ]
             : [
                 .product(name: "FlutterShared", package: "FlutterSwift"),
                 .product(name: "FluentSystemIcons", package: "FlutterSwift"),
+            "CZlib",
+                "CZlib",
             ],
         resources: resources,
         swiftSettings: gtkHost
@@ -171,6 +179,8 @@ let appTarget: Target = {
     #endif
 }()
 
+// zlib for the zip container .docx lives in (macOS SDK; zlib1g-dev on Ubuntu).
+let zlibTarget: Target = .systemLibrary(name: "CZlib", path: "Sources/CZlib")
 let package = Package(
     name: "OfficeApp",
     platforms: platformConstraints.isEmpty ? nil : platformConstraints,
@@ -180,11 +190,13 @@ let package = Package(
     ],
     targets: [
         appTarget,
+        zlibTarget,
         // Round-trip tests for the file formats. `swift test --package-path
         // apps/OfficeApp` — pure Swift over the document model, no window.
         .testTarget(
             name: "OfficeAppTests",
             dependencies: ["OfficeApp"],
+            resources: [.copy("Fixtures")],
             swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
         ),
     ],

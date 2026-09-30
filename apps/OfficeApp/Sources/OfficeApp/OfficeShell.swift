@@ -131,12 +131,13 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private func _open(_ path: String) {
         do {
-            let doc = try OfficeFormats.read(path)
-            controller.load(doc)
+            let opened = try OfficeFormats.read(path)
+            controller.load(opened.document)
             session.path = path
             _savedRevision = controller.revision
             _remember(path)
             setState {
+                if let setup = opened.pageSetup { session.pageSetup = setup }
                 session.dirty = false
                 session.summary = session.summarize()
                 _backstage = nil
@@ -158,7 +159,7 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private func _saveTo(_ path: String) {
         do {
-            try OfficeFormats.write(controller.document, to: path)
+            try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
             session.path = path
             _savedRevision = controller.revision
             _remember(path)
@@ -179,7 +180,7 @@ final class OfficeShellState: State<StatefulWidget> {
             ?? NSHomeDirectory() + "/Documents/" + session.title
         let target = base + "." + ext
         do {
-            try OfficeFormats.write(controller.document, to: target)
+            try OfficeFormats.write(controller.document, to: target, pageSetup: session.pageSetup)
             _remember(target)
             setState { _backstage = nil }
             _flash("Exported \((target as NSString).lastPathComponent)")

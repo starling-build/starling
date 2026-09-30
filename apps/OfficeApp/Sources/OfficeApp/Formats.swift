@@ -10,27 +10,45 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+/// What opening a file yields: the document, and the paper it was set for
+/// when the format carries that (.docx does).
+struct OpenedDocument {
+    var document: RichDocument
+    var pageSetup: PageSetup?
+}
+
 enum OfficeFormats {
-    static let readable = ["rtf", "md", "markdown", "txt", "text"]
-    static let writable = ["rtf", "md", "txt"]
+    static let readable = ["docx", "rtf", "md", "markdown", "txt", "text"]
+    static let writable = ["docx", "rtf", "md", "txt"]
 
     enum FormatError: Error { case unreadable, unsupported(String) }
 
-    static func read(_ path: String) throws -> RichDocument {
+    static func read(_ path: String) throws -> OpenedDocument {
         guard let data = FileManager.default.contents(atPath: path) else { throw FormatError.unreadable }
+        // A zip starts with "PK": a .docx whatever it is called.
+        if data.count > 4, data[0] == 0x50, data[1] == 0x4B {
+            let d = try DocxFormat.read(data)
+            return OpenedDocument(document: d.document, pageSetup: d.pageSetup)
+        }
         let text = String(decoding: data, as: UTF8.self)
-        if text.hasPrefix("{\\rtf"), let doc = RtfFormat.parse(text) { return doc }
+        if text.hasPrefix("{\\rtf"), let doc = RtfFormat.parse(text) { return OpenedDocument(document: doc, pageSetup: nil) }
         switch (path as NSString).pathExtension.lowercased() {
-        case "md", "markdown": return MarkdownFormat.parse(text)
-        case "rtf": return RtfFormat.parse(text) ?? RichDocument(plainText: text)
-        default: return RichDocument(plainText: text.replacingOccurrences(of: "\r\n", with: "\n"))
+        case "md", "markdown": return OpenedDocument(document: MarkdownFormat.parse(text), pageSetup: nil)
+        case "rtf": return OpenedDocument(document: RtfFormat.parse(text) ?? RichDocument(plainText: text), pageSetup: nil)
+        default:
+            return OpenedDocument(document: RichDocument(plainText: text.replacingOccurrences(of: "\r\n", with: "\n")),
+                                  pageSetup: nil)
         }
     }
 
-    static func write(_ doc: RichDocument, to path: String) throws {
+    static func write(_ doc: RichDocument, to path: String, pageSetup: PageSetup = .letter) throws {
         let ext = (path as NSString).pathExtension.lowercased()
         let text: String
         switch ext {
+        case "docx":
+            let data = try DocxFormat.write(doc, pageSetup: pageSetup)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            return
         case "rtf": text = RtfFormat.render(doc)
         case "md", "markdown": text = MarkdownFormat.render(doc)
         case "txt", "text", "": text = doc.plainText()
@@ -207,11 +225,16 @@ enum MarkdownFormat {
                 var piece = String(utf16[a ..< b]) ?? ""
                 pos += run.length
                 let s = run.style
-                if s.fontFamily == OfficeFonts.mono { piece = "`\(piece)`" }
-                if s.bold { piece = "**\(piece)**" }
-                if s.italic { piece = "*\(piece)*" }
-                if s.strikethrough { piece = "~~\(piece)~~" }
-                if let link = s.link { piece = "[\(piece)](\(link))" }
+                // Markers around whitespace render as literal stars, and a
+                // heading is already bold.
+                let inert = piece.trimmingCharacters(in: .whitespaces).isEmpty
+                if !inert {
+                    if s.fontFamily == OfficeFonts.mono { piece = "`\(piece)`" }
+                    if s.bold && p.style.heading == nil { piece = "**\(piece)**" }
+                    if s.italic { piece = "*\(piece)*" }
+                    if s.strikethrough { piece = "~~\(piece)~~" }
+                    if let link = s.link { piece = "[\(piece)](\(link))" }
+                }
                 line += piece
             }
             out.append(line)
