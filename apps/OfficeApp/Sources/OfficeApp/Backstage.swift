@@ -12,6 +12,8 @@ import Foundation
 
 enum BackstagePage: Int, CaseIterable {
     case home, new, open, info, save, saveAs, export, print, close
+    /// Not in the rail: the picture picker Insert → Pictures opens.
+    case insertPicture
 
     var title: String {
         switch self {
@@ -24,6 +26,7 @@ enum BackstagePage: Int, CaseIterable {
         case .export: return "Export"
         case .print: return "Print"
         case .close: return "Close"
+        case .insertPicture: return "Insert Picture"
         }
     }
 
@@ -38,6 +41,7 @@ enum BackstagePage: Int, CaseIterable {
         case .export: return FluentSystemIcons.documentPdf
         case .print: return FluentSystemIcons.print
         case .close: return FluentSystemIcons.chromeClose
+        case .insertPicture: return FluentSystemIcons.image
         }
     }
 }
@@ -50,10 +54,12 @@ final class Backstage: StatelessWidget {
     let onClose: () -> Void
     let onOpenPath: (String) -> Void
     let onSavePath: (String) -> Void
+    let onPicturePath: (String) -> Void
 
     init(session: OfficeSession, page: BackstagePage, recent: [String],
          onPage: @escaping (BackstagePage) -> Void, onClose: @escaping () -> Void,
-         onOpenPath: @escaping (String) -> Void, onSavePath: @escaping (String) -> Void) {
+         onOpenPath: @escaping (String) -> Void, onSavePath: @escaping (String) -> Void,
+         onPicturePath: @escaping (String) -> Void) {
         self.session = session
         self.page = page
         self.recent = recent
@@ -61,6 +67,7 @@ final class Backstage: StatelessWidget {
         self.onClose = onClose
         self.onOpenPath = onOpenPath
         self.onSavePath = onSavePath
+        self.onPicturePath = onPicturePath
         super.init()
     }
 
@@ -84,7 +91,7 @@ final class Backstage: StatelessWidget {
                 IconButton(icon: Icon(FluentSystemIcons.back, size: 20, color: ink), onPressed: onClose),
             ])),
         ]
-        for p in BackstagePage.allCases {
+        for p in BackstagePage.allCases where p != .insertPicture {
             let selected = p == page
             items.append(GestureDetector(onTap: { [onPage] in onPage(p) }, child: DecoratedBox(
                 decoration: BoxDecoration(color: selected ? Color(0x33FFFFFF) : Color(0x00000000)),
@@ -110,6 +117,7 @@ final class Backstage: StatelessWidget {
         case .info: return _info(fluent)
         case .export: return _export(fluent)
         case .print: return _simple("Print", "Export a PDF and print it from your system's viewer; a print dialog of Office's own is still to come.", fluent, action: ("Export PDF", { [session] in session.onExport?("pdf") }))
+        case .insertPicture: return _picturePanel(fluent)
         case .close: return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.onNew?() }))
         }
     }
@@ -201,6 +209,21 @@ final class Backstage: StatelessWidget {
                 onDone: { [onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
                     if mode == .open { onOpenPath(path) } else { onSavePath(path) }
+                })),
+        ])
+    }
+
+    private func _picturePanel(_ fluent: FluentThemeData) -> Widget {
+        let start = [NSHomeDirectory() + "/Pictures", NSHomeDirectory() + "/Desktop", NSHomeDirectory()]
+            .first { FileManager.default.fileExists(atPath: $0) } ?? NSHomeDirectory()
+        return Column(crossAxisAlignment: .stretch, children: [
+            _heading("Insert Picture", fluent),
+            Expanded(child: FluentFilePanel(
+                mode: .open, initialDirectory: start,
+                extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+                onDone: { [onClose, onPicturePath] path in
+                    guard let path else { onClose(); return }
+                    onPicturePath(path)
                 })),
         ])
     }

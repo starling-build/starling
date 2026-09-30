@@ -265,7 +265,7 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.table, "Table", fluent, enabled: false) {},
             ]),
             Chrome.group("Illustrations", fluent, [
-                Chrome.big(FluentSystemIcons.image, "Pictures", fluent, enabled: false) {},
+                Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
                 Chrome.big(FluentSystemIcons.shapes, "Shapes", fluent, enabled: false) {},
             ]),
             Chrome.group("Links", fluent, [

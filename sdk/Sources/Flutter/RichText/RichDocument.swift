@@ -110,6 +110,43 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public static let body = RichParagraphStyle()
 }
 
+// MARK: - Images
+
+/// A picture that is a paragraph of its own: encoded bytes (PNG, JPEG,
+/// GIF, WebP — whatever the engine decodes) and the size it is shown at, in
+/// points. `id` identifies the bytes for decode caches without hashing them
+/// on every paint.
+public struct ImageAttachment: Hashable, Sendable {
+    public let id: String
+    public var data: Data
+    public var width: Double
+    public var height: Double
+    /// A file name for formats that store media as parts ("image1.png").
+    public var name: String
+
+    public init(data: Data, width: Double, height: Double, name: String = "image.png") {
+        self.id = UUID().uuidString
+        self.data = data
+        self.width = width
+        self.height = height
+        self.name = name
+    }
+
+    public static func == (a: ImageAttachment, b: ImageAttachment) -> Bool {
+        a.id == b.id && a.width == b.width && a.height == b.height
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(width)
+        hasher.combine(height)
+    }
+
+    public var isJPEG: Bool { data.count > 2 && data[0] == 0xFF && data[1] == 0xD8 }
+    public var isGIF: Bool { data.count > 3 && data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46 }
+    public var fileExtension: String { isJPEG ? "jpeg" : isGIF ? "gif" : "png" }
+}
+
 // MARK: - Runs and paragraphs
 
 /// A stretch of `length` UTF-16 units sharing one `CharStyle`.
@@ -133,6 +170,8 @@ public struct RichParagraph: Hashable, Sendable {
     public var text: String
     public var runs: [Run]
     public var style: RichParagraphStyle
+    /// Set on a picture paragraph, whose text is empty.
+    public var image: ImageAttachment? = nil
 
     public init(text: String = "", runs: [Run]? = nil, style: RichParagraphStyle = .body) {
         self.text = text
@@ -145,6 +184,13 @@ public struct RichParagraph: Hashable, Sendable {
         self.init(text: text, runs: [Run(length: text.utf16.count, style: charStyle)],
                   style: style)
     }
+
+    public init(image: ImageAttachment, style: RichParagraphStyle = .body) {
+        self.init(text: "", runs: nil, style: style)
+        self.image = image
+    }
+
+    public var isImage: Bool { image != nil }
 
     public var length: Int { text.utf16.count }
     public var isEmpty: Bool { text.isEmpty }
@@ -344,6 +390,7 @@ public struct RichParagraph: Hashable, Sendable {
                                  runs: tailRuns.isEmpty ? [Run(length: 0, style: headStyleAtEnd)] : tailRuns,
                                  style: style)
         tail.normalize()
+        if image != nil { tail.image = nil }
         text = String(text[..<idx])
         runs = runs(in: 0 ..< offset)
         if runs.isEmpty { runs = [Run(length: 0, style: headStyleAtEnd)] }

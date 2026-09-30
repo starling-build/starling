@@ -34,6 +34,15 @@ final class XNode {
     subscript(_ attr: String) -> String? { attrs[attr] }
 
     func first(_ name: String) -> XNode? { children.first { $0.name == name } }
+
+    /// Depth-first search by name.
+    func descendant(_ name: String) -> XNode? {
+        for child in children {
+            if child.name == name { return child }
+            if let found = child.descendant(name) { return found }
+        }
+        return nil
+    }
     func all(_ name: String) -> [XNode] { children.filter { $0.name == name } }
     var has: (String) -> Bool { { self.first($0) != nil } }
 
@@ -120,7 +129,7 @@ enum DocxFormat {
             }
         }
 
-        // Relationships: hyperlink targets.
+        // Relationships: hyperlink targets and media parts.
         var rels: [String: String] = [:]
         if let relData = part("word/_rels/document.xml.rels"), let relRoot = XNode.parse(relData) {
             for r in relRoot.all("Relationship") {
@@ -128,6 +137,10 @@ enum DocxFormat {
             }
         }
 
+        let media: (String) -> Data? = { target in
+            let name = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
+            return part(name)
+        }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
@@ -142,7 +155,7 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double) {
             switch node.name {
             case "w:p":
-                for p in _paragraphs(node, headingByStyle, kindByNum, rels, indent) {
+                for p in _paragraphs(node, headingByStyle, kindByNum, rels, media, indent) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl":
@@ -194,7 +207,8 @@ enum DocxFormat {
 
     /// One w:p can become several paragraphs (a page break inside it).
     private static func _paragraphs(_ p: XNode, _ headings: [String: Int], _ nums: [String: [Int: ListKind]],
-                                    _ rels: [String: String], _ indent: Double) -> [_Built] {
+                                    _ rels: [String: String], _ media: (String) -> Data?,
+                                    _ indent: Double) -> [_Built] {
         var style = RichParagraphStyle.body
         style.indentLeft = indent
         if let pPr = p.first("w:pPr") {
@@ -244,6 +258,23 @@ enum DocxFormat {
             runs = []
             style.pageBreakBefore = false
         }
+        func addImage(_ drawing: XNode) {
+            guard let blip = drawing.descendant("a:blip"), let rid = blip["r:embed"],
+                  let target = rels[rid], let data = media(target) else { return }
+            var w = 300.0, h = 200.0
+            if let extent = drawing.descendant("wp:extent"),
+               let cx = Double(extent["cx"] ?? ""), let cy = Double(extent["cy"] ?? ""), cx > 0, cy > 0 {
+                w = cx / 12700
+                h = cy / 12700
+            }
+            // The text before the picture stands on its own; the picture is a
+            // paragraph of its own; what follows starts another.
+            if !text.isEmpty { flush(pageBreakAfter: false) } else if !built.isEmpty || true { text = ""; runs = [] }
+            var pic = RichParagraph(image: ImageAttachment(data: data, width: w, height: h,
+                                                           name: (target as NSString).lastPathComponent))
+            pic.style.alignment = style.alignment
+            built.append(_Built(paragraph: pic, pageBreakAfter: false))
+        }
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
             text += s
@@ -265,6 +296,8 @@ enum DocxFormat {
                     if let code = child["w:char"], let v = UInt32(code, radix: 16), let sc = UnicodeScalar(v) {
                         addText(String(Character(sc)), cs)
                     }
+                case "w:drawing", "w:pict":
+                    addImage(child)
                 default: break
                 }
             }
@@ -285,7 +318,9 @@ enum DocxFormat {
             }
         }
         walkInline(p, link: nil)
-        flush(pageBreakAfter: false)
+        if !(text.isEmpty && built.last?.paragraph.isImage == true) {
+            flush(pageBreakAfter: false)
+        }
         return built
     }
 
@@ -354,6 +389,9 @@ enum DocxFormat {
 
     static func write(_ doc: RichDocument, pageSetup: PageSetup) throws -> Data {
         var rels: [(id: String, target: String)] = []
+        var media: [ZipEntry] = []
+        var mediaRels: [(id: String, target: String)] = []
+        var usedExtensions: Set<String> = []
         func relId(for link: String) -> String {
             if let r = rels.first(where: { $0.target == link }) { return r.id }
             let id = "rIdLink\(rels.count + 1)"
@@ -388,6 +426,18 @@ enum DocxFormat {
             case .justify: pPr += "<w:jc w:val=\"both\"/>"
             }
             body += "<w:p><w:pPr>\(pPr)</w:pPr>"
+            if let image = p.image {
+                let n = media.count + 1
+                let ext = image.fileExtension
+                usedExtensions.insert(ext)
+                let name = "image\(n).\(ext)"
+                media.append(ZipEntry(name: "word/media/\(name)", data: image.data))
+                let rid = "rIdImage\(n)"
+                mediaRels.append((rid, "media/\(name)"))
+                let cx = Int(image.width * 12700), cy = Int(image.height * 12700)
+                body += "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
+                continue
+            }
             var pos = 0
             let utf16 = p.text.utf16
             for run in p.runs where run.length > 0 {
@@ -439,7 +489,7 @@ enum DocxFormat {
         body += "<w:sectPr><w:pgSz w:w=\"\(pw)\" w:h=\"\(ph)\"\(pageSetup.isLandscape ? " w:orient=\"landscape\"" : "")/>"
         body += "<w:pgMar w:top=\"\(Int(pageSetup.marginTop * 20))\" w:right=\"\(Int(pageSetup.marginRight * 20))\" w:bottom=\"\(Int(pageSetup.marginBottom * 20))\" w:left=\"\(Int(pageSetup.marginLeft * 20))\" w:header=\"708\" w:footer=\"708\" w:gutter=\"0\"/></w:sectPr>"
 
-        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\""
+        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\""
         let document = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document \(ns)><w:body>\(body)</w:body></w:document>"
 
         var relsXML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
@@ -448,16 +498,25 @@ enum DocxFormat {
         for r in rels {
             relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(_esc(r.target))\" TargetMode=\"External\"/>"
         }
+        for r in mediaRels {
+            relsXML += "<Relationship Id=\"\(r.id)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"\(r.target)\"/>"
+        }
         relsXML += "</Relationships>"
+        var contentTypes = _contentTypes
+        for ext in usedExtensions.sorted() {
+            let mime = ext == "jpeg" ? "image/jpeg" : ext == "gif" ? "image/gif" : "image/png"
+            contentTypes = contentTypes.replacingOccurrences(of: "<Override PartName=\"/word/document.xml\"",
+                                                             with: "<Default Extension=\"\(ext)\" ContentType=\"\(mime)\"/><Override PartName=\"/word/document.xml\"")
+        }
 
         let entries: [ZipEntry] = [
-            ZipEntry(name: "[Content_Types].xml", data: Data(_contentTypes.utf8)),
+            ZipEntry(name: "[Content_Types].xml", data: Data(contentTypes.utf8)),
             ZipEntry(name: "_rels/.rels", data: Data(_rootRels.utf8)),
             ZipEntry(name: "word/document.xml", data: Data(document.utf8)),
             ZipEntry(name: "word/styles.xml", data: Data(_styles.utf8)),
             ZipEntry(name: "word/numbering.xml", data: Data(_numbering.utf8)),
             ZipEntry(name: "word/_rels/document.xml.rels", data: Data(relsXML.utf8)),
-        ]
+        ] + media
         return try Zip.write(entries)
     }
 

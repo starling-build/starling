@@ -113,6 +113,10 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
+        session.onInsertPicture = { [weak self] in
+            guard let self else { return }
+            self.setState { self._backstage = .insertPicture }
+        }
         session.onStatus = { [weak self] msg in self?._flash(msg) }
     }
 
@@ -224,6 +228,35 @@ final class OfficeShellState: State<StatefulWidget> {
         _recent.insert(path, at: 0)
         if _recent.count > 20 { _recent.removeLast(_recent.count - 20) }
         try? _recent.joined(separator: "\n").write(toFile: _recentFile, atomically: true, encoding: .utf8)
+    }
+
+    // MARK: Pictures
+
+    /// Decode for the intrinsic size (pixels read as 96/in), then insert.
+    private func _insertPicture(_ path: String) {
+        setState { _backstage = nil }
+        guard let data = FileManager.default.contents(atPath: path) else {
+            _flash("Could not read \((path as NSString).lastPathComponent)")
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let codec = try await instantiateImageCodec([UInt8](data))
+                let frame = try await codec.getNextFrame()
+                codec.dispose()
+                let px = Double(frame.image.width), py = Double(frame.image.height)
+                frame.image.dispose()
+                let maxW = self.session.pageSetup.contentWidth
+                var w = px * 0.75, h = py * 0.75
+                if w > maxW { h *= maxW / w; w = maxW }
+                self.controller.insertImage(ImageAttachment(data: data, width: w, height: h,
+                                                            name: (path as NSString).lastPathComponent))
+                self._flash("Inserted \((path as NSString).lastPathComponent)")
+            } catch {
+                self._flash("Not an image Office can decode: \((path as NSString).lastPathComponent)")
+            }
+        }
     }
 
     // MARK: Find
@@ -347,7 +380,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 onPage: { [weak self] p in self?.setState { self?._backstage = p } },
                 onClose: { [weak self] in self?.setState { self?._backstage = nil } },
                 onOpenPath: { [weak self] path in self?._open(path) },
-                onSavePath: { [weak self] path in self?._saveTo(path) })),
+                onSavePath: { [weak self] path in self?._saveTo(path) },
+                onPicturePath: { [weak self] path in self?._insertPicture(path) })),
         ])
     }
 

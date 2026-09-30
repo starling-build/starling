@@ -344,6 +344,12 @@ public final class RichDocumentController: ChangeNotifier {
         let hint: UndoKindHint = string.contains("\n") ? .other : .typing
         edit(kind: hint) {
             if hasSelection { _deleteSelectionOps() }
+            if document.paragraphs[selection.focus.paragraph].isImage {
+                // Typing on a picture starts a paragraph below it.
+                let i = selection.focus.paragraph
+                perform(.insertParagraphs(at: i + 1, [RichParagraph()]))
+                _setCaret(RichPosition(paragraph: i + 1, offset: 0))
+            }
             let style = typingStyle
             let pieces = string.split(separator: "\n", omittingEmptySubsequences: false)
             for (i, piece) in pieces.enumerated() {
@@ -372,6 +378,11 @@ public final class RichDocumentController: ChangeNotifier {
 
     private func _splitAtCaret() {
         let pos = selection.focus
+        if document.paragraphs[pos.paragraph].isImage {
+            perform(.insertParagraphs(at: pos.paragraph + 1, [RichParagraph()]))
+            _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+            return
+        }
         var tailStyle = document.paragraphs[pos.paragraph].style
         if tailStyle.heading != nil && pos.offset == document.paragraphs[pos.paragraph].length {
             tailStyle.heading = nil
@@ -448,10 +459,57 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Insert a picture as a paragraph of its own at the caret; the text
+    /// after the caret continues below it.
+    public func insertImage(_ image: ImageAttachment) {
+        edit {
+            if hasSelection { _deleteSelectionOps() }
+            let pos = selection.focus
+            let para = document.paragraphs[pos.paragraph]
+            if para.isImage {
+                perform(.insertParagraphs(at: pos.paragraph + 1, [RichParagraph(image: image)]))
+                _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+                return
+            }
+            if para.text.isEmpty {
+                // An empty paragraph becomes the picture; a fresh one follows.
+                perform(.insertParagraphs(at: pos.paragraph, [RichParagraph(image: image, style: para.style)]))
+                _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+                return
+            }
+            var tailStyle = para.style
+            tailStyle.heading = nil
+            if pos.offset < para.length {
+                perform(.splitParagraph(pos, tailStyle: tailStyle))
+            } else {
+                perform(.insertParagraphs(at: pos.paragraph + 1, [RichParagraph(style: tailStyle)]))
+            }
+            perform(.insertParagraphs(at: pos.paragraph + 1, [RichParagraph(image: image)]))
+            _setCaret(RichPosition(paragraph: pos.paragraph + 2, offset: 0))
+        }
+    }
+
     /// Backspace at a collapsed caret: one grapheme (or one word), or join
     /// with the previous paragraph at offset 0.
     private func _backspaceOps(word: Bool) {
         let pos = selection.focus
+        let here = document.paragraphs[pos.paragraph]
+        if here.isImage {
+            // Backspace on a picture removes it.
+            if document.paragraphs.count > 1 {
+                perform(.removeParagraphs(at: pos.paragraph, [here]))
+                let target = max(0, pos.paragraph - 1)
+                _setCaret(RichPosition(paragraph: target,
+                                       offset: pos.paragraph > 0 ? document.paragraphs[target].length : 0))
+            }
+            return
+        }
+        if pos.offset == 0, pos.paragraph > 0, document.paragraphs[pos.paragraph - 1].isImage {
+            // Backspace right after a picture: select it (Word does this too),
+            // so the next backspace removes it.
+            _setCaret(RichPosition(paragraph: pos.paragraph - 1, offset: 0))
+            return
+        }
         if pos.offset > 0 {
             let para = document.paragraphs[pos.paragraph]
             let from = word ? para.wordStart(before: pos.offset) : para.graphemeBefore(pos.offset)
@@ -468,6 +526,18 @@ public final class RichDocumentController: ChangeNotifier {
     private func _deleteForwardOps(word: Bool) {
         let pos = selection.focus
         let para = document.paragraphs[pos.paragraph]
+        if para.isImage {
+            if document.paragraphs.count > 1 {
+                perform(.removeParagraphs(at: pos.paragraph, [para]))
+                _setCaret(RichPosition(paragraph: min(pos.paragraph, document.paragraphs.count - 1), offset: 0))
+            }
+            return
+        }
+        if pos.offset >= para.length, pos.paragraph + 1 < document.paragraphs.count,
+           document.paragraphs[pos.paragraph + 1].isImage {
+            _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+            return
+        }
         if pos.offset < para.length {
             let to = word ? para.wordEnd(after: pos.offset) : para.graphemeAfter(pos.offset)
             _deleteRange(in: pos.paragraph, pos.offset ..< to)

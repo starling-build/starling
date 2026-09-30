@@ -162,6 +162,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
         _layout.scale = _w.zoom
         _layout.pageSetup = _w.pageSetup
+        _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         _painter = _RichEditablePainter(state: self, repaint: _repaint)
         _controller.addListener(_onControllerChanged)
         if _w.autofocus { _focus.requestFocus() }
@@ -176,8 +177,10 @@ public final class RichEditableState: State<StatefulWidget> {
             _controller = _w.controller
             _controller.addListener(_onControllerChanged)
             _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+            _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         } else if old.theme !== _w.theme {
             _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
+            _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         }
         if _layout.scale != _w.zoom { _layout.scale = _w.zoom }
         if _layout.pageSetup != _w.pageSetup { _layout.pageSetup = _w.pageSetup }

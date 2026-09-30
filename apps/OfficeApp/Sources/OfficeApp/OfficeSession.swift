@@ -67,6 +67,7 @@ final class OfficeSession {
     var onSaveAs: (() -> Void)?
     var onExport: ((String) -> Void)?
     var onFind: ((Bool) -> Void)?       // true = replace bar too
+    var onInsertPicture: (() -> Void)?
     var onStatus: ((String) -> Void)?   // transient status-bar message
 
     func summarize() -> ToolbarSummary {

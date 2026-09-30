@@ -183,6 +183,12 @@ public final class RichLayout {
     private var _piecesByParagraph: [[PagePiece]] = []
     private var _pagesValid = false
 
+    /// Called when a picture finished decoding and the view should repaint.
+    public var onNeedsRepaint: (() -> Void)?
+    private var _decoded: [String: Image] = [:]
+    private var _decoding: Set<String> = []
+    private var _imageSize: [Size?] = []
+
     private var _painters: [TextPainter?] = []
     private var _textLeft: [Double] = []
     private var _textWidth: [Double] = []
@@ -202,6 +208,7 @@ public final class RichLayout {
 
     private func _resize(_ n: Int) {
         _painters = Array(repeating: nil, count: n)
+        _imageSize = Array(repeating: nil, count: n)
         _textLeft = Array(repeating: 0, count: n)
         _textWidth = Array(repeating: 0, count: n)
         _spaceBefore = Array(repeating: 0, count: n)
@@ -238,6 +245,7 @@ public final class RichLayout {
             case .inserted(let at, let n):
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
+                _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _textLeft.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -250,6 +258,7 @@ public final class RichLayout {
                 let end = min(at + n, _painters.count)
                 for i in at ..< end { _painters[i]?.dispose() }
                 _painters.removeSubrange(at ..< end)
+                _imageSize.removeSubrange(at ..< end)
                 _textLeft.removeSubrange(at ..< end)
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
@@ -496,7 +505,19 @@ public final class RichLayout {
         _textLeft[i] = left
         _textWidth[i] = textWidth
         _spaceBefore[i] = before
-        _heights[i] = (before + painter.height + after).rounded(.up)
+        var bodyHeight = painter.height
+        if let image = p.image {
+            // Shown at its own size, shrunk to the column when wider.
+            var w = _px(image.width)
+            var h = _px(image.height)
+            if w > textWidth { h *= textWidth / w; w = textWidth }
+            _imageSize[i] = Size(w.rounded(), h.rounded())
+            bodyHeight = h.rounded()
+            _ensureDecoded(image)
+        } else {
+            _imageSize[i] = nil
+        }
+        _heights[i] = (before + bodyHeight + after).rounded(.up)
         _topsValid = false
     }
 
@@ -531,6 +552,39 @@ public final class RichLayout {
             pos += run.length
         }
         return TextSpan(children: children)
+    }
+
+    // MARK: Pictures
+
+    private func _ensureDecoded(_ image: ImageAttachment) {
+        if _decoded[image.id] != nil || _decoding.contains(image.id) { return }
+        _decoding.insert(image.id)
+        let bytes = [UInt8](image.data)
+        let id = image.id
+        Task { @MainActor [weak self] in
+            var decoded: Image? = nil
+            do {
+                let codec = try await instantiateImageCodec(bytes)
+                let frame = try await codec.getNextFrame()
+                codec.dispose()
+                decoded = frame.image
+            } catch {
+                decoded = nil
+            }
+            guard let self else { decoded?.dispose(); return }
+            self._decoding.remove(id)
+            if let decoded {
+                self._decoded[id] = decoded
+                self.onNeedsRepaint?()
+            }
+        }
+    }
+
+    /// The picture's box for paragraph `i` in document space, or nil.
+    public func imageRect(_ i: Int) -> Rect? {
+        guard i < count, let size = _imageSize[i] else { return nil }
+        let g = geometry(i)
+        return Rect.fromLTWH(g.textLeft, g.textTop, size.width, size.height)
     }
 
     // MARK: Geometry queries (call ensureLaidOut first)
@@ -580,6 +634,9 @@ public final class RichLayout {
     /// Caret rectangle in document space.
     public func caretRect(_ pos: RichPosition, _ document: RichDocument) -> Rect {
         let i = max(0, min(pos.paragraph, count - 1))
+        if let box = imageRect(i) {
+            return Rect.fromLTWH(box.left - 2, box.top, 2, box.height)
+        }
         let g = geometry(i)
         let para = document.paragraphs[i]
         let offset = para.text.isEmpty ? 0 : max(0, min(pos.offset, para.length))
@@ -601,6 +658,10 @@ public final class RichLayout {
             let para = document.paragraphs[i]
             let lo = i == a.paragraph ? a.offset : 0
             let hi = i == b.paragraph ? b.offset : para.length
+            if let box = imageRect(i) {
+                rects.append(box)
+                continue
+            }
             if para.text.isEmpty || hi <= lo {
                 // A selected empty paragraph (or the newline at a paragraph
                 // end inside a multi-paragraph selection) shows as a sliver.
@@ -667,6 +728,20 @@ public final class RichLayout {
 
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         let g = geometry(i)
+        if let image = document.paragraphs[i].image, let box = imageRect(i) {
+            if let decoded = _decoded[image.id] {
+                let paint = Paint()
+                canvas.drawImageRect(decoded,
+                                     Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height)),
+                                     box, paint)
+            } else {
+                let paint = Paint()
+                paint.style = .fill
+                paint.color = Color(0x22808080)
+                canvas.drawRect(box, paint)
+            }
+            return
+        }
         if let label = listLabel(i, document) {
             let p = document.paragraphs[i]
             let markerStyle = theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale)

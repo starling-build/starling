@@ -64,6 +64,22 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(readSetup.marginLeft, 54, accuracy: 0.1)
     }
 
+    func testDocxImageRoundTrip() throws {
+        // A 1×1 red PNG.
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
+        var doc = RichDocument(plainText: "Before\nAfter")
+        doc.paragraphs.insert(RichParagraph(image: ImageAttachment(data: png, width: 120, height: 80)), at: 1)
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let entries = try Zip.read(data)
+        XCTAssertTrue(entries.contains { $0.name == "word/media/image1.png" })
+        let back = try DocxFormat.read(data)
+        XCTAssertEqual(back.document.paragraphs.map(\.text), ["Before", "", "After"])
+        let pic = try XCTUnwrap(back.document.paragraphs[1].image)
+        XCTAssertEqual(pic.data, png)
+        XCTAssertEqual(pic.width, 120, accuracy: 0.01)
+        XCTAssertEqual(pic.height, 80, accuracy: 0.01)
+    }
+
     func testDocxWrittenByTextEdit() throws {
         // apps/OfficeApp/Tests/OfficeAppTests/Fixtures/textedit.docx: the
         // Phase 0 document, saved as RTF by Office and converted by macOS
