@@ -33,7 +33,13 @@ strip with Word's theme grid (six tints and shades of ten hues), the
 ten standard colours and a hex field. A second three-reviewer pass over
 this batch found 19 real bugs (merged cells breaking blocks, ranges
 merging cells into body text, a stale text drag hijacking the next
-gesture, library entries counting the wrong level…) — fixed in 62c1ca6c. First thing
+gesture, library entries counting the wrong level…) — fixed in 62c1ca6c.
+M6's last two items are in: Table Layout → Borders on/off and Header
+Row (`TableStyle` per table; the header row is shaded and repeated at
+the top of each later page as marked `PagePiece`s that live in the
+page only — seen in a PDF headless; `w:tblBorders`/`w:tblHeader` in
+.docx). ⌘-click selects the sentence. The greyed Shapes and Text Box
+buttons are gone; the Review note names them. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The

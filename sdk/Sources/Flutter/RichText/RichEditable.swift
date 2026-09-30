@@ -631,6 +631,14 @@ public final class RichEditableState: State<StatefulWidget> {
             if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
             return
         }
+        if _chords.primary, !_chords.shift, event.buttons & 1 != 0, _layout.width > 0 {
+            // ⌘-click selects the sentence, as in Word.
+            _focus.requestFocus()
+            _syncLayoutIfNeeded()
+            _controller.selectSentence(at: _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document))
+            if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+            return
+        }
         if let box = _selectedImageBox(), let k = _handleHit(event.localPosition, box.rect) {
             _handleDrag = (box.index, k, event.localPosition, box.rect.size)
             _dragSize = box.rect.size

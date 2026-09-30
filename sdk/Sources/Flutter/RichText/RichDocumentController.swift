@@ -54,6 +54,8 @@ public enum EditOp: Equatable, Sendable {
     case setTableColumns(String, old: [Double]?, new: [Double]?)
     /// One entry of the style sheet, replaced (every paragraph re-lays out).
     case setStyleEntry(old: RichNamedStyle, new: RichNamedStyle)
+    /// A table's look (nil: the default).
+    case setTableStyle(String, old: TableStyle?, new: TableStyle?)
     /// One level's format of one list (nil: the level's default).
     case setListFormat(String, level: Int, old: ListLevelFormat?, new: ListLevelFormat?)
 
@@ -128,6 +130,10 @@ public enum EditOp: Equatable, Sendable {
             doc.styles[new.id] = new
             changes.append(.all)
             return .setStyleEntry(old: new, new: old)
+        case .setTableStyle(let table, let old, let new):
+            doc.tableStyles[table] = new
+            for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
+            return .setTableStyle(table, old: new, new: old)
         case .setListFormat(let id, let level, let old, let new):
             var formats = doc.listFormats[id] ?? [:]
             formats[level] = new
@@ -1349,6 +1355,22 @@ public final class RichDocumentController: ChangeNotifier {
     public var currentCell: CellRef? { document.paragraphs[selection.focus.paragraph].cell }
 
     /// Set a table's column widths (points), one undo step.
+    /// The caret's table's look; nil outside a table.
+    public var currentTableStyle: TableStyle? {
+        guard let t = currentCell?.table else { return nil }
+        return document.tableStyles[t] ?? TableStyle()
+    }
+
+    /// Change the caret's table's look (Borders, Header Row), one undo step.
+    public func setTableStyle(_ transform: (inout TableStyle) -> Void) {
+        guard let t = currentCell?.table else { return }
+        let old = document.tableStyles[t]
+        var new = old ?? TableStyle()
+        transform(&new)
+        guard new != (old ?? TableStyle()) else { return }
+        edit { perform(.setTableStyle(t, old: old, new: new == TableStyle() ? nil : new)) }
+    }
+
     public func setTableColumnWidths(_ table: String, _ widths: [Double]?) {
         let old = document.tableColumns[table]
         guard old != widths else { return }
@@ -2034,6 +2056,14 @@ public final class RichDocumentController: ChangeNotifier {
 
     public func moveToDocumentStart(extend: Bool) { moveTo(.start, extend: extend) }
     public func moveToDocumentEnd(extend: Bool) { moveTo(document.endPosition, extend: extend) }
+
+    /// ⌘-click: the sentence at `p`.
+    public func selectSentence(at p: RichPosition) {
+        let p = document.clamped(p)
+        let r = document.paragraphs[p.paragraph].sentenceRange(at: p.offset)
+        selection = RichSelection(anchor: RichPosition(paragraph: p.paragraph, offset: r.lowerBound),
+                                  focus: RichPosition(paragraph: p.paragraph, offset: r.upperBound))
+    }
 
     public func selectWord(at p: RichPosition) {
         let p = document.clamped(p)

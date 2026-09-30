@@ -667,6 +667,31 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[img + 1].text, "pasted")
     }
 
+    func testSentenceSelection() {
+        let c = controller("One two. Three four!  Five? Six")
+        c.selectSentence(at: RichPosition(paragraph: 0, offset: 12))
+        XCTAssertEqual(c.document.text(in: c.selection), "Three four!  ")
+        c.selectSentence(at: RichPosition(paragraph: 0, offset: 0))
+        XCTAssertEqual(c.document.text(in: c.selection), "One two. ")
+        c.selectSentence(at: RichPosition(paragraph: 0, offset: 30))
+        XCTAssertEqual(c.document.text(in: c.selection), "Six")
+        // A decimal point is not a sentence end.
+        let d = controller("Pi is 3.14 today. Yes.")
+        d.selectSentence(at: RichPosition(paragraph: 0, offset: 2))
+        XCTAssertEqual(d.document.text(in: d.selection), "Pi is 3.14 today. ")
+    }
+
+    func testTableStyleIsOneUndoStep() {
+        let c = controller("")
+        c.insertTable(rows: 2, columns: 2)
+        XCTAssertEqual(c.currentTableStyle, TableStyle())
+        c.setTableStyle { $0.borders = false; $0.headerRow = true }
+        XCTAssertEqual(c.currentTableStyle, TableStyle(borders: false, headerRow: true))
+        c.undo()
+        XCTAssertEqual(c.currentTableStyle, TableStyle())
+        XCTAssertNil(c.document.tableStyles["t1"] ?? c.document.tableStyles.values.first)
+    }
+
     func testDragByWordsAndParagraphs() {
         let c = controller("one two three", "four five")
         // A double click on "two", then a drag to "three": whole words.

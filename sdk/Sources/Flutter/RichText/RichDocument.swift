@@ -339,6 +339,19 @@ public struct CellRef: Hashable, Sendable {
     }
 }
 
+/// A table's look beyond its cells: Word's borders on or off, and a
+/// header row that repeats at the top of every page the table runs on
+/// (and is shaded so the reader sees it is one).
+public struct TableStyle: Hashable, Sendable {
+    public var borders = true
+    public var headerRow = false
+
+    public init(borders: Bool = true, headerRow: Bool = false) {
+        self.borders = borders
+        self.headerRow = headerRow
+    }
+}
+
 // MARK: - List numbering
 
 public enum ListNumberFormat: Hashable, Sendable {
@@ -782,6 +795,35 @@ public struct RichParagraph: Hashable, Sendable {
         return .punct
     }
 
+    /// The sentence at `offset`: from after the previous terminator
+    /// (. ! ? followed by space) or the paragraph's start, to the next
+    /// terminator and the spaces after it, as ⌘-click selects in Word.
+    public func sentenceRange(at offset: Int) -> Range<Int> {
+        let units = Array(text.utf16)
+        guard !units.isEmpty else { return 0 ..< 0 }
+        let at = max(0, min(offset, units.count - 1))
+        func terminator(_ i: Int) -> Bool { [0x2E, 0x21, 0x3F].contains(units[i]) }
+        func isSpace(_ i: Int) -> Bool { Self.classify(units[i]) == .space }
+        func endsSentence(_ i: Int) -> Bool {
+            guard terminator(i) else { return false }
+            var j = i + 1
+            while j < units.count, terminator(j) { j += 1 }
+            return j >= units.count || isSpace(j)
+        }
+        var lo = at
+        while lo > 0 {
+            // Stop after a terminator run that is followed by space.
+            if endsSentence(lo - 1) && !terminator(lo) { break }
+            lo -= 1
+        }
+        while lo < units.count, isSpace(lo), lo < at { lo += 1 }
+        var hi = at
+        while hi < units.count, !endsSentence(hi) { hi += 1 }
+        while hi < units.count, terminator(hi) { hi += 1 }
+        while hi < units.count, isSpace(hi) { hi += 1 }
+        return lo ..< max(hi, lo)
+    }
+
     /// Start of the word before `offset` (Ctrl/Alt+Left): skip trailing
     /// spaces, then the run of like-classed units.
     public func wordStart(before offset: Int) -> Int {
@@ -895,6 +937,9 @@ public struct RichDocument: Hashable, Sendable {
     /// Column widths in points per table id; a table without an entry gets
     /// equal columns across the content width.
     public var tableColumns: [String: [Double]] = [:]
+    /// Per table id, what the table looks like beyond its cells; a table
+    /// without an entry has borders and no header row.
+    public var tableStyles: [String: TableStyle] = [:]
     /// The named styles paragraphs refer to.
     public var styles: RichStyleSheet = .word
     /// Per list id, the label format of each level (Word's lvlText and

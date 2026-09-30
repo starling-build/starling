@@ -242,6 +242,21 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(back.document), ["I)", "II)", nil, "II.1", "1.", "2."])
     }
 
+    func testDocxTableStyleRoundTrip() throws {
+        var doc = RichDocument(plainText: "a\nb\nc\nd")
+        for (i, (r, col)) in [(0, 0), (0, 1), (1, 0), (1, 1)].enumerated() {
+            doc.paragraphs[i].cell = CellRef(table: "T", row: r, column: col)
+        }
+        doc.tableStyles["T"] = TableStyle(borders: false, headerRow: true)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let id = try XCTUnwrap(back.document.paragraphs[0].cell?.table)
+        XCTAssertEqual(back.document.tableStyles[id], TableStyle(borders: false, headerRow: true))
+        // The default writes bordered, no header, and reads back as no entry.
+        doc.tableStyles = [:]
+        let plain = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
+        XCTAssertTrue(plain.document.tableStyles.isEmpty)
+    }
+
     func testDocxBulletGlyphsRoundTrip() throws {
         var doc = RichDocument(plainText: "check\narrow")
         for i in 0 ... 1 {

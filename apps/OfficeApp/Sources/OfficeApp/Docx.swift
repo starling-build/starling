@@ -199,6 +199,7 @@ enum DocxFormat {
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
         var tableColumns: [String: [Double]] = [:]
+        var tableStyles: [String: TableStyle] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
 
@@ -229,6 +230,14 @@ enum DocxFormat {
                     let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
                     if !widths.isEmpty { tableColumns[id] = widths }
                 }
+                var style = TableStyle()
+                // Borders are off only when the table says so for every edge.
+                if let borders = node.first("w:tblPr")?.first("w:tblBorders"), !borders.children.isEmpty,
+                   borders.children.allSatisfy({ ["nil", "none"].contains($0["w:val"] ?? "") }) {
+                    style.borders = false
+                }
+                if node.all("w:tr").first?.first("w:trPr")?.first("w:tblHeader") != nil { style.headerRow = true }
+                if style != TableStyle() { tableStyles[id] = style }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
                 var openSpan: [Int: Range<Int>] = [:]   // column → the spanning cell's paragraphs
@@ -274,6 +283,7 @@ enum DocxFormat {
         if paragraphs.isEmpty || paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
         var document = RichDocument(paragraphs: paragraphs)
         document.tableColumns = tableColumns
+        document.tableStyles = tableStyles
         document.styles = sheet
         document.listFormats = listFormats
         // Header/footer: the section's default references, text with the
@@ -711,16 +721,18 @@ enum DocxFormat {
                 widths = Array(repeating: content / Double(cols), count: cols)
             }
             let twips = widths.map { Int(($0 * 20).rounded()) }
+            let style = doc.tableStyles[id] ?? TableStyle()
             var xml = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders>"
             for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
-                xml += "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
+                xml += style.borders ? "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
+                                     : "<w:\(side) w:val=\"none\" w:sz=\"0\" w:space=\"0\" w:color=\"auto\"/>"
             }
             xml += "</w:tblBorders><w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
             for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
             xml += "</w:tblGrid>"
             let refs = members.compactMap(\.cell)
             for r in 0 ..< rows {
-                xml += "<w:tr>"
+                xml += r == 0 && style.headerRow ? "<w:tr><w:trPr><w:tblHeader/></w:trPr>" : "<w:tr>"
                 var c = 0
                 while c < cols {
                     // A cell from a row above spanning into this row: a

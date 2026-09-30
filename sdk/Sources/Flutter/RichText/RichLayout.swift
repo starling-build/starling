@@ -160,6 +160,9 @@ public struct PagePiece: Equatable, Sendable {
     public let flowBottom: Double
     public let page: Int
     public let pageY: Double
+    /// A header row shown again at the top of a later page: painted and
+    /// hit-tested there, but not where the paragraph lives.
+    public var repeated = false
     public var height: Double { flowBottom - flowTop }
 }
 
@@ -736,7 +739,8 @@ public final class RichLayout {
         // Restart on the page where the first changed paragraph begins,
         // from that page's first piece; the pages before it are kept.
         if start > 0, start < count, _pieceStart.count == count + 1, _pieceStart[start] < _allPieces.count,
-           case let p = _allPieces[_pieceStart[start]].page, p > 0, p < _pages.count, let first = _pages[p].first {
+           case let p = _allPieces[_pieceStart[start]].page, p > 0, p < _pages.count,
+           let first = _pages[p].first(where: { !$0.repeated }) {
             page = p
             i = first.paragraph
             resumeCursor = first.flowTop
@@ -765,6 +769,22 @@ public final class RichLayout {
             _pages[page].append(piece)
             _allPieces.append(piece)
         }
+        // A table's header row, repeated at the top of each later page it
+        // runs on: the row's pieces again, marked, in the page only.
+        func repeatHeader(of table: String, before i: Int) {
+            var k0 = i
+            while k0 > 0, let d = _cells[k0 - 1], d.table == table { k0 -= 1 }
+            guard let h = _cells[k0], h.row == 0 else { return }
+            var j = k0
+            while j < count, let d = _cells[j], d.table == table, d.row == 0 { j += 1 }
+            for k in k0 ..< j {
+                let bottom = _cells[k]!.rowSpan > 1 ? h.rowTop + _cells[k]!.rowHeight : h.rowTop + h.ownRowHeight
+                var piece = PagePiece(paragraph: k, flowTop: h.rowTop, flowBottom: bottom, page: page, pageY: y)
+                piece.repeated = true
+                _pages[page].append(piece)
+            }
+            y += h.ownRowHeight
+        }
         while i < count {
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
@@ -786,6 +806,9 @@ public final class RichLayout {
                 let rowBottom = c.rowTop + c.ownRowHeight
                 resumeCursor = nil   // a row restarts whole
                 if c.ownRowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
+                if y < 0.01, c.row > 0, document.tableStyles[c.table]?.headerRow == true {
+                    repeatHeader(of: c.table, before: i)
+                }
                 for k in i ..< j {
                     // A cell spanning rows paints through every row it covers.
                     let bottom = _cells[k]!.rowSpan > 1 ? c.rowTop + _cells[k]!.rowHeight : rowBottom
@@ -1278,7 +1301,15 @@ public final class RichLayout {
 
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         let g = geometry(i)
-        if let c = _cells[i], c.firstInRow {
+        if let c = _cells[i], c.firstInRow, c.row == 0, document.tableStyles[c.table]?.headerRow == true {
+            // The header row's shading, under every cell of the row.
+            let fill = Paint()
+            fill.style = .fill
+            fill.color = theme.textColor.withOpacity(0.06)
+            let width = (_columnWidths[c.table] ?? []).reduce(0, +)
+            canvas.drawRect(Rect.fromLTWH(0, c.rowTop.rounded(), width.rounded(), c.ownRowHeight.rounded()), fill)
+        }
+        if let c = _cells[i], c.firstInRow, document.tableStyles[c.table]?.borders ?? true {
             let stroke = Paint()
             stroke.style = .stroke
             stroke.strokeWidth = 1

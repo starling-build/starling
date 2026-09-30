@@ -149,7 +149,7 @@ final class Ribbon: StatelessWidget {
         ])
         let later = Chrome.group("Coming later", fluent, [
             Padding(padding: EdgeInsets(left: 4, top: 6, right: 4, bottom: 0), child: SizedBox(width: 300, height: nil, child: Text(
-                "Track changes, comments, footnotes, a table of contents and drawing are not in this build.",
+                "Track changes, comments, footnotes, a table of contents, shapes, text boxes and drawing are not in this build.",
                 style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))),
         ])
         return [proofing, later]
@@ -330,7 +330,6 @@ final class Ribbon: StatelessWidget {
             Chrome.group("Tables", fluent, [_tableMenu(fluent)]),
             Chrome.group("Illustrations", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
-                Chrome.big(FluentSystemIcons.shapes, "Shapes", fluent, enabled: false) {},
             ]),
             Chrome.group("Links", fluent, [
                 Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
@@ -348,7 +347,6 @@ final class Ribbon: StatelessWidget {
                     c.insertText(f.string(from: Date()))
                     session.onStatus?("Inserted today's date")
                 },
-                Chrome.small(FluentSystemIcons.textT, "Text Box", fluent, enabled: false) {},
             ])]),
             Chrome.group("Symbols", fluent, [
                 Chrome.menu(Text("Symbol"), Icon(FluentSystemIcons.symbols, size: Chrome.iconSize,
@@ -421,10 +419,15 @@ final class Ribbon: StatelessWidget {
         let size = Chrome.group("Cell Size", fluent, [
             Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
         ])
+        let style = c.currentTableStyle ?? TableStyle()
+        let look = Chrome.group("Table Style", fluent, [
+            Chrome.bigToggle(FluentSystemIcons.table, "Borders", style.borders, fluent) { c.setTableStyle { $0.borders.toggle() } },
+            Chrome.bigToggle(FluentSystemIcons.header, "Header Row", style.headerRow, fluent) { c.setTableStyle { $0.headerRow.toggle() } },
+        ])
         let table = Chrome.group("Table", fluent, [
             Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
         ])
-        return [rows, merge, size, table]
+        return [rows, merge, size, look, table]
     }
 
     // MARK: Picture Format

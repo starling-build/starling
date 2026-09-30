@@ -19,6 +19,8 @@ Last run: 2026-09-29, screen locked for the on-screen half.
 | Drag after a double-click grows by words; after a triple-click by paragraphs (both directions) | unverified (headless, 2026-09-30) |
 | Drag from one table cell into another selects whole cells; Delete clears them; Merge Cells folds them | unverified (headless) |
 | Press on selected text and drag: a drop caret follows, release moves it (⌥ copies); a still press collapses | unverified (headless) |
+| ⌘-click selects the sentence | unverified (headless) |
+| Table Layout → Borders off hides the grid; Header Row shades row 0 and repeats it atop the next page (seen in PDF) | unverified on screen; PDF verified 2026-09-30 |
 | Misspelled word gets a red underline ~0.4s after it is shown; not the word being typed; right-click offers corrections | unverified (headless) |
 | Click inside a table cell puts the caret in that cell | pass |
 | Click on a picture selects it | pending |
