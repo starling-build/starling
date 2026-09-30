@@ -543,7 +543,7 @@ final class OfficeShellState: State<StatefulWidget> {
             item("Insert Column Right") { c.insertColumn(after: true) }
             item("Delete Row") { c.deleteRow() }
             item("Delete Column") { c.deleteColumn() }
-            if c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1 { item("Merge Cells") { c.mergeCells() } }
+            if c.selection.block != nil || c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1 { item("Merge Cells") { c.mergeCells() } }
             if let cell = c.currentCell, cell.span > 1 || cell.rowSpan > 1 { item("Split Cell") { c.splitCell() } }
             item("Delete Table") { c.deleteTable() }
         }

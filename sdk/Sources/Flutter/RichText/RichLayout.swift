@@ -1091,6 +1091,19 @@ public final class RichLayout {
     /// Highlight rectangles for a selection, in document space.
     public func selectionRects(_ sel: RichSelection, _ document: RichDocument) -> [Rect] {
         guard !sel.isCollapsed else { return [] }
+        if let block = sel.block {
+            // Whole cells: each selected cell's box, once per cell.
+            var rects: [Rect] = []
+            var seen: Set<String> = []
+            for i in document.paragraphs.indices {
+                guard let c = _cells[i], let ref = document.paragraphs[i].cell, block.contains(ref) else { continue }
+                let key = "\(c.row),\(c.column)"
+                if seen.contains(key) { continue }
+                seen.insert(key)
+                rects.append(Rect.fromLTWH(c.colLeft, c.rowTop, c.colWidth, c.rowHeight))
+            }
+            return rects
+        }
         let a = document.clamped(sel.start)
         let b = document.clamped(sel.end)
         var rects: [Rect] = []

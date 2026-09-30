@@ -787,13 +787,36 @@ public struct RichPosition: Hashable, Comparable, Sendable {
 }
 
 /// Anchor (where the selection started) and focus (where the caret is).
+/// A rectangle of whole cells in one table (Word's cell selection): what
+/// dragging or shift-selecting from one cell into another makes.
+public struct CellBlock: Hashable, Sendable {
+    public var table: String
+    public var rows: ClosedRange<Int>
+    public var columns: ClosedRange<Int>
+
+    public init(table: String, rows: ClosedRange<Int>, columns: ClosedRange<Int>) {
+        self.table = table
+        self.rows = rows
+        self.columns = columns
+    }
+
+    /// Whether a cell (by its origin) lies in the block.
+    public func contains(_ c: CellRef) -> Bool {
+        c.table == table && rows.contains(c.row) && columns.contains(c.column)
+    }
+}
+
 public struct RichSelection: Hashable, Sendable {
     public var anchor: RichPosition
     public var focus: RichPosition
+    /// Set when the selection is whole cells: anchor and focus are then in
+    /// the corner cells, and every command works on the block's cells.
+    public var block: CellBlock? = nil
 
-    public init(anchor: RichPosition, focus: RichPosition) {
+    public init(anchor: RichPosition, focus: RichPosition, block: CellBlock? = nil) {
         self.anchor = anchor
         self.focus = focus
+        self.block = block
     }
 
     public init(caret: RichPosition) {
@@ -865,7 +888,31 @@ public struct RichDocument: Hashable, Sendable {
     /// The text between two positions, as paragraphs (a fragment). The first
     /// and last are partial; a copy-paste of the fragment reproduces the
     /// styles exactly.
+    /// The paragraphs a selection covers: a block's cells whole, else the
+    /// range from start to end.
+    public func paragraphIndices(in selection: RichSelection) -> [Int] {
+        if let block = selection.block {
+            return paragraphs.indices.filter { paragraphs[$0].cell.map(block.contains) ?? false }
+        }
+        let a = clamped(selection.start), b = clamped(selection.end)
+        return Array(a.paragraph ... b.paragraph)
+    }
+
+    /// The block two positions span when both are in cells of one table
+    /// and not the same cell; nil otherwise.
+    public func cellBlock(from a: RichPosition, to b: RichPosition) -> CellBlock? {
+        guard a.paragraph < paragraphs.count, b.paragraph < paragraphs.count,
+              let ca = paragraphs[a.paragraph].cell, let cb = paragraphs[b.paragraph].cell,
+              ca.table == cb.table, !ca.sameCell(as: cb) else { return nil }
+        let rows = min(ca.row, cb.row) ... max(ca.row + ca.rowSpan - 1, cb.row + cb.rowSpan - 1)
+        let cols = min(ca.column, cb.column) ... max(ca.column + ca.span - 1, cb.column + cb.span - 1)
+        return CellBlock(table: ca.table, rows: rows, columns: cols)
+    }
+
     public func fragment(_ selection: RichSelection) -> [RichParagraph] {
+        if selection.block != nil {
+            return paragraphIndices(in: selection).map { paragraphs[$0] }
+        }
         let a = clamped(selection.start)
         let b = clamped(selection.end)
         if a.paragraph == b.paragraph {

@@ -154,8 +154,13 @@ public final class RichDocumentController: ChangeNotifier {
     /// Set directly to move the caret without an edit (clicks, arrows).
     public var selection: RichSelection {
         didSet {
-            selection = RichSelection(anchor: document.clamped(selection.anchor),
-                                      focus: document.clamped(selection.focus))
+            // Re-clamp, and keep a block only while both ends are still in
+            // its table: an edit can have rewritten the cells under it.
+            let a = document.clamped(selection.anchor), f = document.clamped(selection.focus)
+            let block = selection.block.flatMap { b in
+                document.cellBlock(from: a, to: f).map { _ in b }
+            }
+            selection = RichSelection(anchor: a, focus: f, block: block)
             if selection != oldValue {
                 // A caret move breaks the typing run and drops the pending
                 // style: Word does exactly this.
@@ -650,6 +655,29 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Remove the selection's contents; caret lands at its start.
     private func _deleteSelectionOps() {
+        if let block = selection.block {
+            // Whole cells: their contents go, the cells stay. Extra
+            // paragraphs of a cell are removed, the first emptied.
+            let indices = document.paragraphIndices(in: selection)
+            var firstOfCell: Set<Int> = []
+            var seen: Set<String> = []
+            for i in indices {
+                let c = document.paragraphs[i].cell!
+                let key = "\(c.row),\(c.column)"
+                if !seen.contains(key) { seen.insert(key); firstOfCell.insert(i) }
+            }
+            for i in indices.reversed() {
+                if firstOfCell.contains(i) {
+                    let len = document.paragraphs[i].length
+                    if len > 0 { _deleteRange(in: i, 0 ..< len) }
+                } else {
+                    perform(.removeParagraphs(at: i, [document.paragraphs[i]]))
+                }
+            }
+            let first = document.paragraphs.indices.first { document.paragraphs[$0].cell.map(block.contains) ?? false } ?? 0
+            _setCaret(RichPosition(paragraph: first, offset: 0))
+            return
+        }
         let a = document.clamped(selection.start)
         let b = document.clamped(selection.end)
         guard a != b else { return }
@@ -691,9 +719,10 @@ public final class RichDocumentController: ChangeNotifier {
         edit {
             let a = document.clamped(selection.start)
             let b = document.clamped(selection.end)
-            for i in a.paragraph ... b.paragraph {
-                let lo = i == a.paragraph ? a.offset : 0
-                let hi = i == b.paragraph ? b.offset : document.paragraphs[i].length
+            let block = selection.block != nil
+            for i in document.paragraphIndices(in: selection) {
+                let lo = !block && i == a.paragraph ? a.offset : 0
+                let hi = !block && i == b.paragraph ? b.offset : document.paragraphs[i].length
                 var para = document.paragraphs[i]
                 let old = para.runs
                 para.applyStyle(lo ..< hi, transform)
@@ -1197,10 +1226,39 @@ public final class RichDocumentController: ChangeNotifier {
         return out
     }
 
-    /// Merge the selected cells: across one row into the leftmost, or down
-    /// one column into the topmost, keeping every paragraph in order.
+    /// Merge the selected cells: a block into its top-left cell, else
+    /// across one row into the leftmost, or down one column into the
+    /// topmost, keeping every paragraph in order.
     public func mergeCells() {
         guard let here = currentCell else { return }
+        if let block = selection.block {
+            let top = block.rows.lowerBound, left = block.columns.lowerBound
+            var caretAt: Int? = nil
+            _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+                var out: [RichParagraph] = []
+                var merged: [RichParagraph] = []
+                for var p in paras {
+                    if var c = p.cell, block.contains(c) {
+                        c.row = top; c.column = left
+                        c.span = block.columns.count; c.rowSpan = block.rows.count
+                        p.cell = c
+                        merged.append(p)
+                    } else {
+                        out.append(p)
+                    }
+                }
+                // The merged cell sits where the top-left cell was: before
+                // the first remaining cell that follows it in reading order.
+                let at = out.firstIndex { q in
+                    guard let c = q.cell else { return false }
+                    return c.row > top || (c.row == top && c.column > left)
+                } ?? out.count
+                caretAt = at
+                out.insert(contentsOf: merged, at: at)
+                paras = out
+            })
+            return
+        }
         let cells = selectedCellsInRow
         if cells.count <= 1 {
             let column = selectedCellsInColumn
@@ -1579,7 +1637,7 @@ public final class RichDocumentController: ChangeNotifier {
     /// Apply `transform` to every paragraph the selection touches.
     public func applyParagraphStyle(_ transform: (inout RichParagraphStyle) -> Void) {
         edit {
-            for i in selectedParagraphRange {
+            for i in document.paragraphIndices(in: selection) {
                 let old = document.paragraphs[i].style
                 var new = old
                 transform(&new)
@@ -1610,7 +1668,7 @@ public final class RichDocumentController: ChangeNotifier {
     public var currentNamedStyleId: String { document.styles.id(of: currentParagraphStyle) }
 
     public func toggleList(_ kind: ListKind) {
-        let allOn = selectedParagraphRange.allSatisfy { document.paragraphs[$0].style.list == kind }
+        let allOn = document.paragraphIndices(in: selection).allSatisfy { document.paragraphs[$0].style.list == kind }
         applyParagraphStyle { $0.list = allOn ? nil : kind }
     }
 
@@ -1644,8 +1702,11 @@ public final class RichDocumentController: ChangeNotifier {
 
     public func moveTo(_ p: RichPosition, extend: Bool) {
         let p = document.clamped(p)
-        selection = extend ? RichSelection(anchor: selection.anchor, focus: p)
-                           : RichSelection(caret: p)
+        guard extend else { selection = RichSelection(caret: p); return }
+        // Extending from one cell into another of the same table selects
+        // whole cells, as in Word.
+        selection = RichSelection(anchor: selection.anchor, focus: p,
+                                  block: document.cellBlock(from: selection.anchor, to: p))
     }
 
     public func moveLeft(extend: Bool) {

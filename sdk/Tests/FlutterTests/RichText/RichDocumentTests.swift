@@ -543,6 +543,45 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "")
     }
 
+    func testCellBlockSelection() {
+        let c = controller("")
+        c.insertTable(rows: 3, columns: 3)
+        for (i, t) in ["a", "b", "c", "d", "e", "f", "g", "h", "i"].enumerated() {
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.insertText(t)
+        }
+        // Drag from a (0,0) to e (1,1): a 2×2 block, not the reading-order run.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 4, offset: 1), extend: true)
+        let block = c.selection.block
+        XCTAssertEqual(block?.rows, 0 ... 1)
+        XCTAssertEqual(block?.columns, 0 ... 1)
+        XCTAssertEqual(c.document.paragraphIndices(in: c.selection), [0, 1, 3, 4])
+        XCTAssertEqual(c.document.fragment(c.selection).map(\.text), ["a", "b", "d", "e"])
+        // Formatting applies to the block's cells only.
+        c.toggleBold()
+        XCTAssertTrue(c.document.paragraphs[3].runs[0].style.bold)
+        XCTAssertFalse(c.document.paragraphs[2].runs[0].style.bold)
+        // Delete clears the cells and keeps them.
+        c.deleteSelection()
+        XCTAssertEqual(cells(c), ["0,0:", "0,1:", "0,2:c", "1,0:", "1,1:", "1,2:f", "2,0:g", "2,1:h", "2,2:i", "-"])
+        c.undo()
+        // Merge a block into its top-left cell.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 4, offset: 1), extend: true)
+        c.mergeCells()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,0:b", "0,0:d", "0,0:e", "0,2:c", "1,2:f", "2,0:g", "2,1:h", "2,2:i", "-"])
+        XCTAssertEqual(c.document.paragraphs[0].cell?.span, 2)
+        XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 2)
+        // Extending within one cell, or out of the table, is a plain selection.
+        c.moveTo(RichPosition(paragraph: 6, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 6, offset: 1), extend: true)
+        XCTAssertNil(c.selection.block)
+        c.moveTo(RichPosition(paragraph: 9, offset: 0), extend: true)
+        XCTAssertNil(c.selection.block)
+        XCTAssertTrue(c.document.isValid)
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }
