@@ -36,6 +36,7 @@ public enum CocoaWindowedHost {
             }
             host = h
             hostSetWindowTitle = { title in host?.setTitle(title) }
+            hostSetMouseCursor = { kind in host?.setCursor(kind) }
             h.mountWidget(root)
             h.run()
         }

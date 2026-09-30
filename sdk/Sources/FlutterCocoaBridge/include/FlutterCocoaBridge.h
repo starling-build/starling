@@ -53,6 +53,10 @@ void flcocoa_host_set_fullscreen(FlCocoaHost* host, int32_t fullscreen);
 // Retitles the window (a document app showing its file name).
 void flcocoa_host_set_title(FlCocoaHost* host, const char* title);
 
+// Sets the pointer's shape by Flutter's mouse-cursor kind name ("basic",
+// "text", "click", "resizeUpDown", …); unknown kinds fall back to the arrow.
+void flcocoa_host_set_cursor(FlCocoaHost* host, const char* kind);
+
 #ifdef __cplusplus
 }
 #endif

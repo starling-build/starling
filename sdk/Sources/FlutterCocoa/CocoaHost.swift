@@ -85,6 +85,11 @@ public final class CocoaHost {
         flcocoa_host_set_title(host, title)
     }
 
+    /// The pointer's shape, by Flutter's kind name ("text", "click", …).
+    public func setCursor(_ kind: String) {
+        flcocoa_host_set_cursor(host, kind)
+    }
+
     /// Fullscreens or restores the window.
     public func setFullscreen(_ fullscreen: Bool) {
         flcocoa_host_set_fullscreen(host, fullscreen ? 1 : 0)

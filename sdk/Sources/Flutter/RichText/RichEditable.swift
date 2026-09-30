@@ -565,14 +565,15 @@ public final class RichEditableState: State<StatefulWidget> {
     // MARK: Build
 
     public override func build(_ context: any BuildContext) -> Widget {
-        return Listener(
+        // An I-beam everywhere in the editor, as Word shows over the page.
+        return MouseRegion(cursor: SystemMouseCursors.text, child: Listener(
             onPointerDown: { [weak self] e in self?._pointerDown(e) },
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
             onPointerUp: { [weak self] e in self?._pointerUp(e) },
             onPointerSignal: { [weak self] e in self?._pointerSignal(e) },
             behavior: .opaque,
             child: CustomPaint(painter: _painter, child: SizedBox(expand: ()))
-        )
+        ))
     }
 }
 

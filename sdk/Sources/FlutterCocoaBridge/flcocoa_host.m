@@ -226,6 +226,57 @@ void flcocoa_host_run(FlCocoaHost* host) {
   [NSApp run];
 }
 
+// The same table FlutterMacOS's own mouse-cursor plugin keeps, minus the
+// image-backed cursors it draws for the diagonal resizes (those get the
+// closest AppKit cursor here).
+static NSCursor* FlCocoaCursorForKind(NSString* kind) {
+  if ([kind isEqualToString:@"text"]) return NSCursor.IBeamCursor;
+  if ([kind isEqualToString:@"click"]) return NSCursor.pointingHandCursor;
+  if ([kind isEqualToString:@"forbidden"] || [kind isEqualToString:@"noDrop"]) return NSCursor.operationNotAllowedCursor;
+  if ([kind isEqualToString:@"grab"]) return NSCursor.openHandCursor;
+  if ([kind isEqualToString:@"grabbing"]) return NSCursor.closedHandCursor;
+  if ([kind isEqualToString:@"contextMenu"]) return NSCursor.contextualMenuCursor;
+  if ([kind isEqualToString:@"copy"]) return NSCursor.dragCopyCursor;
+  if ([kind isEqualToString:@"alias"]) return NSCursor.dragLinkCursor;
+  if ([kind isEqualToString:@"disappearing"]) return NSCursor.disappearingItemCursor;
+  if ([kind isEqualToString:@"precise"]) return NSCursor.crosshairCursor;
+  if ([kind isEqualToString:@"verticalText"]) return NSCursor.IBeamCursorForVerticalLayout;
+  if ([kind isEqualToString:@"resizeLeftRight"] || [kind isEqualToString:@"resizeColumn"]) return NSCursor.resizeLeftRightCursor;
+  if ([kind isEqualToString:@"resizeUpDown"] || [kind isEqualToString:@"resizeRow"]) return NSCursor.resizeUpDownCursor;
+  if ([kind isEqualToString:@"resizeUp"]) return NSCursor.resizeUpCursor;
+  if ([kind isEqualToString:@"resizeDown"]) return NSCursor.resizeDownCursor;
+  if ([kind isEqualToString:@"resizeLeft"]) return NSCursor.resizeLeftCursor;
+  if ([kind isEqualToString:@"resizeRight"]) return NSCursor.resizeRightCursor;
+  if ([kind isEqualToString:@"resizeUpLeftDownRight"] || [kind isEqualToString:@"resizeUpLeft"]
+      || [kind isEqualToString:@"resizeDownRight"]) {
+    if (@available(macOS 15.0, *)) return [NSCursor frameResizeCursorFromPosition:NSCursorFrameResizePositionTopLeft inDirections:NSCursorFrameResizeDirectionsAll];
+    return NSCursor.crosshairCursor;
+  }
+  if ([kind isEqualToString:@"resizeUpRightDownLeft"] || [kind isEqualToString:@"resizeUpRight"]
+      || [kind isEqualToString:@"resizeDownLeft"]) {
+    if (@available(macOS 15.0, *)) return [NSCursor frameResizeCursorFromPosition:NSCursorFrameResizePositionTopRight inDirections:NSCursorFrameResizeDirectionsAll];
+    return NSCursor.crosshairCursor;
+  }
+  if ([kind isEqualToString:@"none"]) {
+    static NSCursor* blank = nil;
+    if (blank == nil) {
+      NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize(1, 1)];
+      blank = [[NSCursor alloc] initWithImage:image hotSpot:NSZeroPoint];
+    }
+    return blank;
+  }
+  return NSCursor.arrowCursor;
+}
+
+void flcocoa_host_set_cursor(FlCocoaHost* host, const char* kind) {
+  if (host == NULL || kind == NULL) {
+    return;
+  }
+  @autoreleasepool {
+    [FlCocoaCursorForKind([NSString stringWithUTF8String:kind]) set];
+  }
+}
+
 void flcocoa_host_set_title(FlCocoaHost* host, const char* title) {
   if (host == NULL || title == NULL) {
     return;

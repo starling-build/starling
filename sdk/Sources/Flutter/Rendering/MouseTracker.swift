@@ -101,19 +101,14 @@ public class MouseTrackerAnnotation: Hashable, MouseTrackerAnnotationProtocol {
 }
 
 // =============================================================================
-// MARK: - Stub: MouseCursor
+// MARK: - MouseCursor
 // =============================================================================
 
-/// Placeholder for `MouseCursor` from `services/mouse_cursor.dart`.
-///
-/// In Dart, `MouseCursor` is an abstract class representing a mouse cursor.
-/// The full implementation will be provided when `mouse_cursor.dart` is
-/// migrated.
+/// The cursor a region asks for. `defer_` lets the next region below
+/// decide; every other cursor is a `SystemMouseCursor` with the platform
+/// kind Flutter's embedders know ("text", "click", "resizeUpDown", …).
 ///
 /// **Dart Source:** mouse_cursor.dart:188
-///
-/// - TODO: Replace with full `MouseCursor` migration from
-///   `services/mouse_cursor.dart`.
 public class MouseCursor: @unchecked Sendable {
     public init() {}
 
@@ -122,72 +117,99 @@ public class MouseCursor: @unchecked Sendable {
     ///
     /// **Dart Source:** mouse_cursor.dart:251
     public static let defer_ = MouseCursor()
+
+    /// The platform kind, nil for `defer_`.
+    public var kind: String? { nil }
 }
 
-// =============================================================================
-// MARK: - Stub: SystemMouseCursors
-// =============================================================================
-
-/// Placeholder for `SystemMouseCursors` from `services/mouse_cursor.dart`.
+/// A cursor the platform draws, by Flutter's kind name.
 ///
+/// **Dart Source:** mouse_cursor.dart:300
+public final class SystemMouseCursor: MouseCursor, @unchecked Sendable {
+    private let _kind: String
+    public init(kind: String) { _kind = kind }
+    public override var kind: String? { _kind }
+}
+
 /// **Dart Source:** mouse_cursor.dart:333
-///
-/// - TODO: Replace with full `SystemMouseCursors` migration.
 public enum SystemMouseCursors {
-    /// The `basic` system cursor (default arrow).
-    ///
-    /// **Dart Source:** mouse_cursor.dart:343
-    public static let basic = MouseCursor()
+    public static let none = SystemMouseCursor(kind: "none")
+    public static let basic = SystemMouseCursor(kind: "basic")
+    public static let click = SystemMouseCursor(kind: "click")
+    public static let forbidden = SystemMouseCursor(kind: "forbidden")
+    public static let wait = SystemMouseCursor(kind: "wait")
+    public static let progress = SystemMouseCursor(kind: "progress")
+    public static let contextMenu = SystemMouseCursor(kind: "contextMenu")
+    public static let help = SystemMouseCursor(kind: "help")
+    public static let text = SystemMouseCursor(kind: "text")
+    public static let verticalText = SystemMouseCursor(kind: "verticalText")
+    public static let cell = SystemMouseCursor(kind: "cell")
+    public static let precise = SystemMouseCursor(kind: "precise")
+    public static let move = SystemMouseCursor(kind: "move")
+    public static let grab = SystemMouseCursor(kind: "grab")
+    public static let grabbing = SystemMouseCursor(kind: "grabbing")
+    public static let noDrop = SystemMouseCursor(kind: "noDrop")
+    public static let alias = SystemMouseCursor(kind: "alias")
+    public static let copy = SystemMouseCursor(kind: "copy")
+    public static let disappearing = SystemMouseCursor(kind: "disappearing")
+    public static let allScroll = SystemMouseCursor(kind: "allScroll")
+    public static let resizeLeftRight = SystemMouseCursor(kind: "resizeLeftRight")
+    public static let resizeUpDown = SystemMouseCursor(kind: "resizeUpDown")
+    public static let resizeUpLeftDownRight = SystemMouseCursor(kind: "resizeUpLeftDownRight")
+    public static let resizeUpRightDownLeft = SystemMouseCursor(kind: "resizeUpRightDownLeft")
+    public static let resizeUp = SystemMouseCursor(kind: "resizeUp")
+    public static let resizeDown = SystemMouseCursor(kind: "resizeDown")
+    public static let resizeLeft = SystemMouseCursor(kind: "resizeLeft")
+    public static let resizeRight = SystemMouseCursor(kind: "resizeRight")
+    public static let resizeUpLeft = SystemMouseCursor(kind: "resizeUpLeft")
+    public static let resizeUpRight = SystemMouseCursor(kind: "resizeUpRight")
+    public static let resizeDownLeft = SystemMouseCursor(kind: "resizeDownLeft")
+    public static let resizeDownRight = SystemMouseCursor(kind: "resizeDownRight")
+    public static let resizeColumn = SystemMouseCursor(kind: "resizeColumn")
+    public static let resizeRow = SystemMouseCursor(kind: "resizeRow")
+    public static let zoomIn = SystemMouseCursor(kind: "zoomIn")
+    public static let zoomOut = SystemMouseCursor(kind: "zoomOut")
 }
 
+/// Installed by a host that can change the pointer's shape: the kind
+/// name of a `SystemMouseCursor`. nil where nothing can (the DRM shell's
+/// children draw no pointer of their own).
+public nonisolated(unsafe) var hostSetMouseCursor: ((String) -> Void)? = nil
+
 // =============================================================================
-// MARK: - Stub: MouseCursorManager
+// MARK: - MouseCursorManager
 // =============================================================================
 
-/// Placeholder for `MouseCursorManager` from `services/mouse_cursor.dart`.
+/// Picks each device's cursor from the regions under it — the first that
+/// does not defer, else the fallback — and tells the host when it changes.
 ///
-/// In Dart, `MouseCursorManager` manages cursor state for pointer devices.
-/// The full implementation will be provided when `mouse_cursor.dart` is
-/// migrated.
-///
-/// **Dart Source:** mouse_cursor.dart:21
-///
-/// - TODO: Replace with full `MouseCursorManager` migration from
-///   `services/mouse_cursor.dart`.
+/// **Dart Source:** mouse_cursor.dart:44
 public class MouseCursorManager {
-    /// Creates a `MouseCursorManager` with the given fallback cursor.
-    ///
-    /// **Dart Source:** mouse_cursor.dart:26
     public init(_ fallbackMouseCursor: MouseCursor) {
         self.fallbackMouseCursor = fallbackMouseCursor
     }
 
-    /// The mouse cursor to use if all cursor candidates choose to defer.
-    ///
-    /// **Dart Source:** mouse_cursor.dart:33
     public let fallbackMouseCursor: MouseCursor
+    private var _active: [Int: MouseCursor] = [:]
 
-    /// Returns the active mouse cursor for a device.
-    ///
-    /// Only valid when asserts are enabled. In release builds, always returns
-    /// nil.
-    ///
-    /// **Dart Source:** mouse_cursor.dart:42
     public func debugDeviceActiveCursor(_ device: Int) -> MouseCursor? {
-        // Stub: full implementation depends on MouseCursorSession
-        return nil
+        _active[device]
     }
 
-    /// Handles the changes that cause a pointer device to have a new list of
-    /// mouse cursor candidates.
-    ///
-    /// **Dart Source:** mouse_cursor.dart:61
+    /// `cursorCandidates` is in hit-test order, topmost first.
     public func handleDeviceCursorUpdate(
         _ device: Int,
         _ triggeringEvent: PointerEvent?,
         _ cursorCandidates: [MouseCursor]
     ) {
-        // Stub: full implementation depends on MouseCursorSession
+        if triggeringEvent is PointerRemovedEvent {
+            _active[device] = nil
+            return
+        }
+        let next = cursorCandidates.first { $0.kind != nil } ?? fallbackMouseCursor
+        if let current = _active[device], current === next { return }
+        _active[device] = next
+        if let kind = next.kind { hostSetMouseCursor?(kind) }
     }
 }
 
@@ -243,6 +265,10 @@ fileprivate class MouseState {
         _annotations = value
         return previous
     }
+
+    /// The same annotations in hit-test order, topmost first — what the
+    /// cursor choice needs, and what a dictionary cannot keep.
+    var orderedAnnotations: [MouseAnnotation] = []
 
     // MARK: - Latest Event
 
@@ -541,10 +567,12 @@ public class MouseTracker: ChangeNotifier {
                 let nextAnnotations: [MouseAnnotation: Matrix4]
                 if event is PointerRemovedEvent {
                     nextAnnotations = [:]
+                    self._lastOrdered = []
                 } else {
                     nextAnnotations = self._hitTestInViewResultToAnnotations(result)
                 }
                 let lastAnnotations = targetState.replaceAnnotations(nextAnnotations)
+                targetState.orderedAnnotations = self._lastOrdered
 
                 self._handleDeviceUpdate(
                     MouseTrackerUpdateDetails.byPointerEvent(
@@ -574,8 +602,10 @@ public class MouseTracker: ChangeNotifier {
         _deviceUpdatePhase {
             for dirtyState in self._mouseStates.values {
                 let lastEvent = dirtyState.latestEvent
+                self._lastOrdered = []
                 let nextAnnotations = self._findAnnotations(dirtyState)
                 let lastAnnotations = dirtyState.replaceAnnotations(nextAnnotations)
+                dirtyState.orderedAnnotations = self._lastOrdered
 
                 self._handleDeviceUpdate(
                     MouseTrackerUpdateDetails.byNewFrame(
@@ -668,16 +698,22 @@ public class MouseTracker: ChangeNotifier {
     /// **Dart Source:** mouse_tracker.dart:231
     private func _hitTestInViewResultToAnnotations(_ result: HitTestResult) -> [MouseAnnotation: Matrix4] {
         var annotations: [MouseAnnotation: Matrix4] = [:]
+        _lastOrdered = []
         for entry in result.path {
             // Hit path targets arrive boxed in AnyHitTestTarget -- look
             // through the box, or the cast below can never succeed.
             let target = (entry.target as? AnyHitTestTarget)?.base ?? entry.target
             if let annotation = target as? (any MouseTrackerAnnotationProtocol) {
-                annotations[MouseAnnotation(annotation)] = entry.transform!
+                let key = MouseAnnotation(annotation)
+                if annotations[key] == nil { _lastOrdered.append(key) }
+                annotations[key] = entry.transform!
             }
         }
         return annotations
     }
+
+    /// Side channel of the collector above: the keys in hit-test order.
+    private var _lastOrdered: [MouseAnnotation] = []
 
     /// Finds the annotations that are hovered by the device of the `state`,
     /// and their respective global transform matrices.
@@ -719,10 +755,11 @@ public class MouseTracker: ChangeNotifier {
     private func _handleDeviceUpdate(_ details: MouseTrackerUpdateDetails) {
         assert(_debugDuringDeviceUpdate)
         MouseTracker._handleDeviceUpdateMouseEvents(details)
+        let ordered = _mouseStates[details.device]?.orderedAnnotations ?? []
         _mouseCursorMixin.handleDeviceCursorUpdate(
             details.device,
             details.triggeringEvent,
-            Array(details.nextAnnotations.keys.map { $0.cursor })
+            ordered.map { $0.cursor }
         )
     }
 
