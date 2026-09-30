@@ -81,7 +81,6 @@ ROLES = [
     ("clock",           "clock"),
     ("bell",            "alert"),
     ("bellOff",         "alert_off"),
-    ("calendar",        "calendar_ltr"),
     ("accessibility",   "accessibility"),
     ("keyboard",        "keyboard"),
 
@@ -182,6 +181,8 @@ ROLES = [
     ("comment",         "comment"),
     ("translate",       "translate"),
     ("wordCount",       "text_word_count"),
+    ("textT",           "text_t"),
+    ("textGrammarWand", "text_grammar_wand"),
     ("margins",         "document_margins"),
     ("orientation",     "document_landscape"),
     ("columns",         "text_column_two"),

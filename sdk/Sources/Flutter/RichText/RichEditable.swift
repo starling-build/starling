@@ -36,6 +36,10 @@ public final class RichEditable: StatefulWidget {
     /// Called after a paint whenever (caret page, page count) changed —
     /// 1-based, for a status bar.
     public let onPageInfo: ((Int, Int) -> Void)?
+    /// Consulted before the editor's own chords for every key-down with
+    /// the platform's accelerator held; return true to claim it (an app's
+    /// ⌘S, ⌘O, ⌘F). Also sees Escape.
+    public let onShortcut: ((KeyData, KeyModifiers) -> Bool)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -44,7 +48,8 @@ public final class RichEditable: StatefulWidget {
                 backgroundColor: Color? = nil, zoom: Double = 1.0,
                 pageSetup: PageSetup? = nil, pageColor: Color = Color(0xFFFFFFFF),
                 onCaretRect: ((Rect?) -> Void)? = nil,
-                onPageInfo: ((Int, Int) -> Void)? = nil) {
+                onPageInfo: ((Int, Int) -> Void)? = nil,
+                onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -56,6 +61,7 @@ public final class RichEditable: StatefulWidget {
         self.pageColor = pageColor
         self.onCaretRect = onCaretRect
         self.onPageInfo = onPageInfo
+        self.onShortcut = onShortcut
         super.init(key: key)
     }
 
@@ -256,6 +262,10 @@ public final class RichEditableState: State<StatefulWidget> {
         let c = _controller!
         let shift = _chords.shift
         let key = KeyChordTracker.named(keyData.logical)
+        if let onShortcut = _w.onShortcut, _chords.primary || key == .escape,
+           onShortcut(keyData, _chords.modifiers) {
+            return true
+        }
         var keepStickyX = false
 
         switch key {

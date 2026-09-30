@@ -142,7 +142,6 @@ public enum FluentSystemIcons {
     public static let clock = IconData(0xf2de, fontFamily: _kFontFamily)
     public static let bell = IconData(0xf115, fontFamily: _kFontFamily)
     public static let bellOff = IconData(0xf119, fontFamily: _kFontFamily)
-    public static let calendar = IconData(0xe24f, fontFamily: _kFontFamily)
     public static let accessibility = IconData(0xf104, fontFamily: _kFontFamily)
     public static let keyboard = IconData(0xf4b9, fontFamily: _kFontFamily)
 
@@ -244,6 +243,8 @@ public enum FluentSystemIcons {
     public static let comment = IconData(0xf300, fontFamily: _kFontFamily)
     public static let translate = IconData(0xf834, fontFamily: _kFontFamily)
     public static let wordCount = IconData(0xf80d, fontFamily: _kFontFamily)
+    public static let textT = IconData(0xed64, fontFamily: _kFontFamily)
+    public static let textGrammarWand = IconData(0xed1e, fontFamily: _kFontFamily)
     public static let margins = IconData(0xf396, fontFamily: _kFontFamily)
     public static let orientation = IconData(0xf394, fontFamily: _kFontFamily)
     public static let columns = IconData(0xf7c6, fontFamily: _kFontFamily)

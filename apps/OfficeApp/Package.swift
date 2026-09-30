@@ -82,7 +82,7 @@ let appTarget: Target = {
                 .product(name: "FlutterUIKit", package: "FlutterSwift"),
             ],
             resources: resources,
-            swiftSettings: [.interoperabilityMode(.Cxx)],
+            swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)],
             linkerSettings: [
                 .unsafeFlags([
                     "-L\(engineOutDir)",
@@ -102,7 +102,7 @@ let appTarget: Target = {
             .product(name: "FlutterCocoa", package: "FlutterSwift"),
         ],
         resources: resources,
-        swiftSettings: [.interoperabilityMode(.Cxx)],
+        swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)],
         linkerSettings: [
             .unsafeFlags([
                 "-L\(engineOutDir)",
@@ -122,7 +122,7 @@ let appTarget: Target = {
             .product(name: "FlutterWin32", package: "FlutterSwift"),
         ],
         resources: resources,
-        swiftSettings: [.interoperabilityMode(.Cxx)],
+        swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)],
         linkerSettings: [
             .unsafeFlags([
                 "-L\(engineOutDir)",
@@ -149,11 +149,13 @@ let appTarget: Target = {
         swiftSettings: gtkHost
             ? [
                 .interoperabilityMode(.Cxx),
+                .swiftLanguageMode(.v5),
                 .unsafeFlags(glibcMathCompat),
                 .define("STARLING_GTK"),
             ]
             : [
                 .interoperabilityMode(.Cxx),
+                .swiftLanguageMode(.v5),
                 .unsafeFlags(glibcMathCompat),
             ],
         linkerSettings: [

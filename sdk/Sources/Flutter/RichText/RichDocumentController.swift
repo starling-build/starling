@@ -165,6 +165,10 @@ public final class RichDocumentController: ChangeNotifier {
 
     public var maxUndoDepth = 500
 
+    /// Bumped by every edit, undo and redo — compare against the value at
+    /// the last save to know whether the document is dirty.
+    public private(set) var revision = 0
+
     public init(document: RichDocument = RichDocument()) {
         self.document = document
         self.selection = RichSelection(caret: .start)
@@ -183,6 +187,7 @@ public final class RichDocumentController: ChangeNotifier {
         _undo.removeAll()
         _redo.removeAll()
         typingStyle = nil
+        revision += 1
         _pendingChanges = [.all]
         selection = RichSelection(caret: .start)
         notifyListeners()
@@ -271,6 +276,8 @@ public final class RichDocumentController: ChangeNotifier {
             _undo[_undo.count - 1].continuation = undoKind == .other ? nil : selection.focus
             if _undo[_undo.count - 1].inverses.isEmpty {
                 _undo.removeLast()
+            } else {
+                revision += 1
             }
             notifyListeners()
         }
@@ -302,6 +309,7 @@ public final class RichDocumentController: ChangeNotifier {
                                selectionAfter: entry.selectionAfter,
                                kind: .other, continuation: nil))
         typingStyle = nil
+        revision += 1
         _inEdit = true
         selection = entry.selectionBefore
         _inEdit = false
@@ -320,6 +328,7 @@ public final class RichDocumentController: ChangeNotifier {
                                selectionAfter: entry.selectionAfter,
                                kind: .other, continuation: nil))
         typingStyle = nil
+        revision += 1
         _inEdit = true
         selection = entry.selectionAfter
         _inEdit = false
@@ -560,7 +569,164 @@ public final class RichDocumentController: ChangeNotifier {
         applyCharStyle { $0.strikethrough = on }
     }
 
+    public func setFontFamily(_ family: String?) {
+        applyCharStyle { $0.fontFamily = family }
+    }
+
+    public func setFontSize(_ points: Double?) {
+        applyCharStyle { $0.fontSize = points }
+    }
+
+    /// Step the font size the way Word's Grow/Shrink Font do, relative to
+    /// `base` (the document default) where a run has no size of its own.
+    public func stepFontSize(_ direction: Int, base: Double) {
+        let steps: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
+        applyCharStyle { style in
+            let current = style.fontSize ?? base
+            if direction > 0 {
+                style.fontSize = steps.first(where: { $0 > current + 0.01 }) ?? min(200, current + 12)
+            } else {
+                style.fontSize = steps.last(where: { $0 < current - 0.01 }) ?? max(1, current - 1)
+            }
+        }
+    }
+
+    public func setTextColor(_ color: Color?) {
+        applyCharStyle { $0.color = color }
+    }
+
+    public func setHighlight(_ color: Color?) {
+        applyCharStyle { $0.highlight = color }
+    }
+
+    public func setScript(_ script: ScriptPosition) {
+        let on = !selectionAll { $0.script == script }
+        applyCharStyle { $0.script = on ? script : .normal }
+    }
+
+    /// Word's Clear All Formatting: plain runs and a body paragraph.
+    public func clearFormatting() {
+        edit {
+            let a = document.clamped(selection.start)
+            let b = document.clamped(selection.end)
+            for i in a.paragraph ... b.paragraph {
+                let old = document.paragraphs[i]
+                var para = old
+                if selection.isCollapsed || (a.paragraph == b.paragraph) {
+                    let lo = a.paragraph == b.paragraph ? a.offset : 0
+                    let hi = a.paragraph == b.paragraph ? b.offset : para.length
+                    para.applyStyle(lo ..< hi) { $0 = .plain }
+                } else {
+                    para.applyStyle(0 ..< para.length) { $0 = .plain }
+                }
+                if para.runs != old.runs { perform(.setRuns(i, old: old.runs, new: para.runs)) }
+                if old.style != .body { perform(.setParagraphStyle(i, old: old.style, new: .body)) }
+            }
+            typingStyle = nil
+        }
+    }
+
     // MARK: Paragraph formatting
+
+    public func setLineSpacing(_ multiple: Double) {
+        applyParagraphStyle { $0.lineSpacing = multiple }
+    }
+
+    public func setParagraphSpacing(before: Double? = nil, after: Double? = nil) {
+        applyParagraphStyle { style in
+            if let before { style.spaceBefore = max(0, before) }
+            if let after { style.spaceAfter = max(0, after) }
+        }
+    }
+
+    public func setIndents(left: Double? = nil, right: Double? = nil, firstLine: Double? = nil) {
+        applyParagraphStyle { style in
+            if let left { style.indentLeft = max(0, left) }
+            if let right { style.indentRight = max(0, right) }
+            if let firstLine { style.firstLineIndent = firstLine }
+        }
+    }
+
+    /// Start a new page at the caret: the text after it becomes a paragraph
+    /// with `pageBreakBefore`.
+    public func insertPageBreak() {
+        edit {
+            if hasSelection { _deleteSelectionOps() }
+            let pos = selection.focus
+            var tailStyle = document.paragraphs[pos.paragraph].style
+            tailStyle.pageBreakBefore = true
+            perform(.splitParagraph(pos, tailStyle: tailStyle))
+            _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
+        }
+    }
+
+    // MARK: Find
+
+    /// The next occurrence of `query` after `from` (wrapping), or nil.
+    public func find(_ query: String, from: RichPosition? = nil, backwards: Bool = false,
+                     caseSensitive: Bool = false) -> RichSelection? {
+        guard !query.isEmpty else { return nil }
+        let start = document.clamped(from ?? (backwards ? selection.start : selection.end))
+        let n = document.paragraphs.count
+        let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive]
+        func search(_ i: Int, lo: Int?, hi: Int?) -> RichSelection? {
+            let text = document.paragraphs[i].text
+            let a = lo.map { String.Index(utf16Offset: $0, in: text) } ?? text.startIndex
+            let b = hi.map { String.Index(utf16Offset: $0, in: text) } ?? text.endIndex
+            guard a <= b else { return nil }
+            var opts = options
+            if backwards { opts.insert(.backwards) }
+            guard let r = text.range(of: query, options: opts, range: a ..< b) else { return nil }
+            return RichSelection(
+                anchor: RichPosition(paragraph: i, offset: r.lowerBound.utf16Offset(in: text)),
+                focus: RichPosition(paragraph: i, offset: r.upperBound.utf16Offset(in: text)))
+        }
+        if !backwards {
+            if let s = search(start.paragraph, lo: start.offset, hi: nil) { return s }
+            for k in 1 ... n {
+                let i = (start.paragraph + k) % n
+                if let s = search(i, lo: nil, hi: i == start.paragraph ? start.offset + query.utf16.count : nil) { return s }
+            }
+        } else {
+            if let s = search(start.paragraph, lo: nil, hi: start.offset) { return s }
+            for k in 1 ... n {
+                let i = (start.paragraph - k + n * 2) % n
+                if let s = search(i, lo: i == start.paragraph ? start.offset : nil, hi: nil) { return s }
+            }
+        }
+        return nil
+    }
+
+    /// Replace every occurrence; returns the count.
+    @discardableResult
+    public func replaceAll(_ query: String, with replacement: String, caseSensitive: Bool = false) -> Int {
+        guard !query.isEmpty else { return 0 }
+        var count = 0
+        edit {
+            for i in document.paragraphs.indices {
+                var text = document.paragraphs[i].text
+                let opts: String.CompareOptions = caseSensitive ? [.backwards] : [.caseInsensitive, .backwards]
+                // Backwards so earlier offsets stay valid.
+                var searchEnd = text.endIndex
+                while let r = text.range(of: query, options: opts, range: text.startIndex ..< searchEnd) {
+                    let lo = r.lowerBound.utf16Offset(in: text)
+                    let hi = r.upperBound.utf16Offset(in: text)
+                    let para = document.paragraphs[i]
+                    let style = para.style(at: lo + 1)
+                    _deleteRange(in: i, lo ..< hi)
+                    if !replacement.isEmpty {
+                        perform(.insertText(RichPosition(paragraph: i, offset: lo), replacement,
+                                            [Run(length: replacement.utf16.count, style: style)]))
+                    }
+                    count += 1
+                    text = document.paragraphs[i].text
+                    searchEnd = String.Index(utf16Offset: lo, in: text)
+                }
+            }
+            _setCaret(document.clamped(selection.focus))
+        }
+        return count
+    }
 
     /// Apply `transform` to every paragraph the selection touches.
     public func applyParagraphStyle(_ transform: (inout RichParagraphStyle) -> Void) {

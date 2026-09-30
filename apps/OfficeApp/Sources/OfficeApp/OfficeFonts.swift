@@ -3,6 +3,7 @@
 
 import Flutter
 import FlutterSwiftBridge
+import FluentSystemIcons
 import Foundation
 
 /// The document faces Office ships: Liberation Sans/Serif/Mono, metric
@@ -49,6 +50,9 @@ enum OfficeFonts {
     static func register() -> Bool {
         if _registered { return true }
         _registered = true
+        // The ribbon's glyphs: the Fluent System Icons face ships in the SDK
+        // and is registered by whoever draws it (the shell does the same).
+        _ = FluentSystemIcons.registerFont()
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
             return false

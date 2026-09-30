@@ -1226,6 +1226,24 @@ open class LeaderLayer: ContainerLayer {
         }
     }
     private var _offset: Offset
+
+    /// The leader paints its children at `offset` from its parent. The port
+    /// had left this out, so every CompositedTransformTarget — each Fluent
+    /// ComboBox and DropDownButton, through FlyoutTarget — painted at the
+    /// window's origin instead of where it was laid out.
+    ///
+    /// **Dart Source:** `layer.dart` LeaderLayer.addToScene
+    open override func addToScene(_ builder: any SceneBuilder) {
+        if _offset != Offset.zero {
+            engineLayer = builder.pushOffset(_offset.dx, _offset.dy,
+                                             oldLayer: _engineLayer as? OffsetEngineLayer)
+            addChildrenToScene(builder)
+            builder.pop()
+        } else {
+            engineLayer = nil
+            addChildrenToScene(builder)
+        }
+    }
 }
 
 // MARK: - FollowerLayer (Stub)

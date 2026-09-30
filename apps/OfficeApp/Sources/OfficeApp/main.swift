@@ -45,7 +45,7 @@ let initialPath: String? = {
 }()
 
 runStarlingApp(title: "Office",
-               width: windowMetric("STARLING_WINDOW_W", 1280),
-               height: windowMetric("STARLING_WINDOW_H", 820)) {
+               width: windowMetric("STARLING_WINDOW_W", 1440),
+               height: windowMetric("STARLING_WINDOW_H", 900)) {
     OfficeRoot(initialPath: initialPath)
 }
