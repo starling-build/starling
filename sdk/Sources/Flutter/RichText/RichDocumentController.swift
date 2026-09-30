@@ -1213,4 +1213,68 @@ public final class RichDocumentController: ChangeNotifier {
             insertText(text)
         }
     }
+
+    // MARK: Rich clipboard
+
+    /// Installed by the app that knows the formats: turns a copied fragment
+    /// into the flavours other apps read, and what other apps put on the
+    /// clipboard back into paragraphs. Nil means plain text only.
+    public var clipboardCodec: RichClipboardCodec? = nil
+
+    /// The widest a pasted picture is shown, in points (the app sets the
+    /// page's content width).
+    public var maxPastedImageWidth: Double = 468
+
+    /// The selection as clipboard data with every flavour the codec makes,
+    /// plus the picture itself when the selection is exactly one.
+    public func copySelectionData() -> ClipboardData? {
+        guard hasSelection else { return nil }
+        let fragment = document.fragment(selection)
+        copiedFragment = fragment
+        let text = fragment.map(\.text).joined(separator: "\n")
+        var data = ClipboardData(text: text)
+        if let codec = clipboardCodec {
+            data = codec.encode(fragment, styles: document.styles, text: text)
+        }
+        if fragment.count == 1, let image = fragment[0].image, image.isPNG {
+            data = ClipboardData(text: data.text, rtf: data.rtf, html: data.html, png: image.data)
+        }
+        return data
+    }
+
+    public func cutSelectionData() -> ClipboardData? {
+        guard let data = copySelectionData() else { return nil }
+        deleteSelection()
+        return data
+    }
+
+    /// Paste clipboard data: our own last copy as the fragment, else the
+    /// richest flavour the codec reads, else a picture, else the text.
+    public func paste(data: ClipboardData) {
+        if let text = data.text, let fragment = copiedFragment,
+           fragment.map(\.text).joined(separator: "\n") == text {
+            insertFragment(fragment)
+            return
+        }
+        if let codec = clipboardCodec, let fragment = codec.decode(data), !fragment.isEmpty {
+            insertFragment(fragment)
+            return
+        }
+        if let png = data.png, let px = ImageAttachment.pngPixelSize(png) {
+            // Pixels at 96/in, capped to the content width, as Insert → Pictures does.
+            var w = Double(px.width) * 0.75, h = Double(px.height) * 0.75
+            if w > maxPastedImageWidth { h *= maxPastedImageWidth / w; w = maxPastedImageWidth }
+            insertImage(ImageAttachment(data: png, width: w, height: h, name: "pasted.png"))
+            return
+        }
+        if let text = data.text, !text.isEmpty { insertText(text) }
+    }
+}
+
+/// See `RichDocumentController.clipboardCodec`.
+public protocol RichClipboardCodec {
+    /// Every flavour for `fragment`; `text` is its plain text, already made.
+    func encode(_ fragment: [RichParagraph], styles: RichStyleSheet, text: String) -> ClipboardData
+    /// Paragraphs from the richest flavour present, or nil for none.
+    func decode(_ data: ClipboardData) -> [RichParagraph]?
 }

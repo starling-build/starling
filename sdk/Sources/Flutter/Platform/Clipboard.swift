@@ -9,9 +9,24 @@ import WaylandClipboardBridge
 
 /// Clipboard data, mirroring Dart's `ClipboardData` so Flutter documentation
 /// keeps applying.
+/// What goes on or comes off the clipboard: plain text always, and the
+/// richer flavours a host and an app can trade — RTF and HTML for
+/// formatted text, PNG bytes for a picture. A writer sets every flavour it
+/// can; a reader takes the best it understands.
 public struct ClipboardData: Sendable {
     public let text: String?
-    public init(text: String?) { self.text = text }
+    public let rtf: String?
+    public let html: String?
+    public let png: Data?
+
+    public init(text: String?, rtf: String? = nil, html: String? = nil, png: Data? = nil) {
+        self.text = text
+        self.rtf = rtf
+        self.html = html
+        self.png = png
+    }
+
+    public var isEmpty: Bool { (text ?? "").isEmpty && rtf == nil && html == nil && png == nil }
 }
 
 /// The system clipboard.
@@ -49,13 +64,16 @@ public enum Clipboard {
     private static let _fallbackLock = NSLock()
 
     /// Put `data` on the clipboard. Fire-and-forget, like Dart's.
+    /// Every flavour, for a provider that trades them; the text alone for
+    /// one that does not.
+    public static let kAll = "*/*"
+
     public static func setData(_ data: ClipboardData) {
-        let text = data.text ?? ""
         if let provider = provider {
-            provider.setText(text)
+            provider.setData(data)
         } else {
             _fallbackLock.lock()
-            _fallbackText = text
+            _fallbackText = data.text ?? ""
             _fallbackLock.unlock()
         }
     }
@@ -64,10 +82,14 @@ public enum Clipboard {
     /// exactly once; `nil` means there is nothing to paste.
     public static func getData(_ format: String,
                                completion: @escaping (ClipboardData?) -> Void) {
-        guard format == kTextPlain else { completion(nil); return }
+        guard format == kTextPlain || format == kAll else { completion(nil); return }
         if let provider = provider {
-            provider.getText { text in
-                completion(text.map { ClipboardData(text: $0) })
+            if format == kAll {
+                provider.getData { data in completion(data) }
+            } else {
+                provider.getText { text in
+                    completion(text.map { ClipboardData(text: $0) })
+                }
             }
             return
         }
@@ -96,6 +118,16 @@ public enum Clipboard {
 public protocol ClipboardProvider {
     func setText(_ text: String)
     func getText(_ completion: @escaping (String?) -> Void)
+    /// Rich flavours. A provider that has only text keeps the defaults.
+    func setData(_ data: ClipboardData)
+    func getData(_ completion: @escaping (ClipboardData?) -> Void)
+}
+
+public extension ClipboardProvider {
+    func setData(_ data: ClipboardData) { setText(data.text ?? "") }
+    func getData(_ completion: @escaping (ClipboardData?) -> Void) {
+        getText { completion($0.map { ClipboardData(text: $0) }) }
+    }
 }
 
 #if os(Linux)

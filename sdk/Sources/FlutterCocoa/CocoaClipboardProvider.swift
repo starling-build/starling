@@ -37,6 +37,44 @@ public final class CocoaClipboardProvider: ClipboardProvider {
             DispatchQueue.main.async { completion(text) }
         }
     }
+
+    /// Every flavour the data carries, under the type each Mac app looks
+    /// for: public.rtf, public.html, public.png, and the string.
+    public func setData(_ data: ClipboardData) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        var types: [NSPasteboard.PasteboardType] = []
+        if data.rtf != nil { types.append(.rtf) }
+        if data.html != nil { types.append(.html) }
+        if data.png != nil { types.append(.png) }
+        types.append(.string)
+        pb.declareTypes(types, owner: nil)
+        if let rtf = data.rtf { pb.setData(Data(rtf.utf8), forType: .rtf) }
+        if let html = data.html { pb.setData(Data(html.utf8), forType: .html) }
+        if let png = data.png { pb.setData(png, forType: .png) }
+        pb.setString(data.text ?? "", forType: .string)
+    }
+
+    /// What is on the pasteboard, in every flavour we read. A picture
+    /// pasted from Preview or a browser arrives as TIFF or PNG; TIFF is
+    /// turned into PNG here so readers see one format.
+    public func getData(_ completion: @escaping (ClipboardData?) -> Void) {
+        let pb = NSPasteboard.general
+        let text = pb.string(forType: .string)
+        let rtf = pb.data(forType: .rtf).map { String(decoding: $0, as: UTF8.self) }
+        let html = pb.data(forType: .html).map { String(decoding: $0, as: UTF8.self) }
+        var png = pb.data(forType: .png)
+        if png == nil, let tiff = pb.data(forType: .tiff), let rep = NSBitmapImageRep(data: tiff) {
+            png = rep.representation(using: .png, properties: [:])
+        }
+        let data = ClipboardData(text: text, rtf: rtf, html: html, png: png)
+        let result: ClipboardData? = data.isEmpty ? nil : data
+        if Thread.isMainThread {
+            completion(result)
+        } else {
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
 }
 
 #endif

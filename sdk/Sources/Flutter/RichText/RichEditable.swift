@@ -404,20 +404,25 @@ public final class RichEditableState: State<StatefulWidget> {
     // MARK: Clipboard
 
     private func _copy() {
-        if let text = _controller.copySelection() {
-            Clipboard.setData(ClipboardData(text: text))
+        if let data = _controller.copySelectionData() {
+            Clipboard.setData(data)
         }
     }
 
     private func _cut() {
-        if let text = _controller.cutSelection() {
-            Clipboard.setData(ClipboardData(text: text))
+        if let data = _controller.cutSelectionData() {
+            Clipboard.setData(data)
         }
     }
 
     private func _paste() {
-        Clipboard.getData(Clipboard.kTextPlain) { [weak self] data in
-            guard let self, let text = data?.text, !text.isEmpty else { return }
+        Clipboard.getData(Clipboard.kAll) { [weak self] data in
+            guard let self, let data, !data.isEmpty else { return }
+            if data.rtf != nil || data.html != nil || data.png != nil {
+                self._controller.paste(data: data)
+                return
+            }
+            guard let text = data.text, !text.isEmpty else { return }
             DispatchQueue.main.async {
                 self._controller.paste(text: text.replacingOccurrences(of: "\r\n", with: "\n"))
             }

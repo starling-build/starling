@@ -271,7 +271,20 @@ public struct ImageAttachment: Hashable, Sendable {
         hasher.combine(height)
     }
 
+    public var isPNG: Bool { data.count > 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 }
     public var isJPEG: Bool { data.count > 2 && data[0] == 0xFF && data[1] == 0xD8 }
+
+    /// A PNG's pixel size from its IHDR chunk, without decoding it — what a
+    /// paste needs before the engine has looked at the bytes.
+    public static func pngPixelSize(_ data: Data) -> (width: Int, height: Int)? {
+        guard data.count >= 24, data[0] == 0x89, data[1] == 0x50, data[2] == 0x4E, data[3] == 0x47,
+              data[12] == 0x49, data[13] == 0x48, data[14] == 0x44, data[15] == 0x52 else { return nil }
+        func be32(_ at: Int) -> Int {
+            (Int(data[at]) << 24) | (Int(data[at + 1]) << 16) | (Int(data[at + 2]) << 8) | Int(data[at + 3])
+        }
+        let w = be32(16), h = be32(20)
+        return w > 0 && h > 0 ? (w, h) : nil
+    }
     public var isGIF: Bool { data.count > 3 && data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46 }
     public var fileExtension: String { isJPEG ? "jpeg" : isGIF ? "gif" : "png" }
 }

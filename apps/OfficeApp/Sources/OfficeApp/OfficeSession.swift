@@ -43,6 +43,11 @@ final class OfficeSession {
     let controller = RichDocumentController()
     let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
 
+    init() {
+        controller.clipboardCodec = OfficeClipboardCodec()
+        controller.maxPastedImageWidth = pageSetup.contentWidth
+    }
+
     var summary = ToolbarSummary()
     var zoom = 1.0
     var pageSetup = PageSetup.letter
