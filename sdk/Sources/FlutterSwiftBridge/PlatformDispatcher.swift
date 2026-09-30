@@ -3033,8 +3033,18 @@ public class PlatformDispatcher {
   /// **Dart Source:** `platform_dispatcher.dart:866-878`
   /// **Original:** `void scheduleFrame() => _scheduleFrame();`
   public func scheduleFrame() {
+    frameRequested = true
     bridge.ScheduleFrame()
   }
+
+  /// Whether the framework asked for the frame the engine is about to
+  /// begin. The engine also begins frames of its own accord — after it
+  /// creates an output surface (`Engine::OnOutputSurfaceCreated`
+  /// schedules one so the new surface gets a scene) — and those must be
+  /// composited even when nothing is dirty, because the surface they are
+  /// for holds nothing. Cleared by the frame that consumes it; the
+  /// widgets adapter reads it at the top of `onBeginFrame`.
+  public var frameRequested = false
 
   /// Schedule a frame to run as soon as possible, rather than waiting for the
   /// engine to request a frame in response to a system "Vsync" signal.

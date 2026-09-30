@@ -129,6 +129,21 @@ public class RenderObjectToWidgetElement: RenderTreeRootElement, RootElementMixi
 /// allowing the DRM screenshot glReadPixels to capture the current state.
 public nonisolated(unsafe) var _forceNextComposite = false
 
+/// Whether a frame the engine begins without the framework having asked
+/// for one composites the scene again (see the adapter's `onBeginFrame`).
+/// True on the Darwin hosts, whose embedders begin frames only on request,
+/// so an unasked frame means the engine has a new surface to fill; false
+/// on the DRM embedder, which begins a frame on every vsync, and left
+/// false on Windows, whose frame plumbing has its own hooks (untested with
+/// this on).
+public nonisolated(unsafe) var unsolicitedFramesComposite: Bool = {
+    #if os(iOS) || os(macOS)
+    return true
+    #else
+    return false
+    #endif
+}()
+
 /// Builds the widget tree for a non-implicit `FlutterView` (multi-monitor:
 /// one Flutter view per output). Set before `runApp`. When the engine adds
 /// a view, the next frame builds its widget tree with this and renders it
@@ -527,7 +542,23 @@ func _setupWidgetBinding(_ app: Widget) {
         // the DRM screenshot reads each output's next presented frame.
         let forceComposite = _forceNextComposite
         _forceNextComposite = false
-        let shouldComposite = !_hasCompositedFirstFrame || hasDirtyElements || hasDirtyLayout || hasDirtyPaint || hasActiveTickers || hasNewTextureContent || forceComposite
+        // A frame the framework did not ask for is the engine's own: it
+        // begins one after creating an output surface, so that the new
+        // surface gets a scene (Engine::OnOutputSurfaceCreated →
+        // ScheduleFrame). Dart's framework composites every frame and never
+        // notices; this one skips clean frames, and answered that request
+        // with nothing — on iOS the surface is created once at layout and
+        // AGAIN when the scene becomes active, and a release build of Office
+        // came up black and stayed so, its one scene having gone to the
+        // surface that was torn down. The hosts that begin frames only on
+        // request (Cocoa, UIKit) are unaffected in the static case; a host
+        // that delivers vsync frames unasked would composite on each of
+        // them, which is the DRM embedder's behaviour before this skip
+        // existed — so it stays request-driven there, by the flag
+        // `unsolicitedFramesComposite`.
+        let unsolicited = !pd.frameRequested && unsolicitedFramesComposite
+        pd.frameRequested = false
+        let shouldComposite = !_hasCompositedFirstFrame || hasDirtyElements || hasDirtyLayout || hasDirtyPaint || hasActiveTickers || hasNewTextureContent || forceComposite || unsolicited
         if shouldComposite {
             _hasCompositedFirstFrame = true
             renderView!.compositeFrame()
