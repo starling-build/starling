@@ -106,8 +106,7 @@ public class SemanticsSortKey: Diagnosticable, Comparable {
       return 1
     }
 
-    return name!.compare(other.name!) == .orderedAscending ? -1
-      : name!.compare(other.name!) == .orderedDescending ? 1 : 0
+    return name! < other.name! ? -1 : name! > other.name! ? 1 : 0
   }
 
   // MARK: - Comparable

@@ -133,36 +133,45 @@ private func readRuntimeStages(_ bytes: [UInt8]) throws -> ShaderBundle {
 
 /// The JSON that `impellerc --json` writes, which is what Flutter's own web
 /// build ships: {"sksl": {"shader": "<source>", "uniforms": [...]}}.
+/// impellerc's JSON: `{"sksl": {"shader": "...", "uniforms": [...]}}`.
+/// Decoded with JSONDecoder — JSONSerialization is the legacy Foundation
+/// layer, which this build must not link.
+private struct ImpellercBundle: Decodable {
+    struct Root: Decodable {
+        var shader: String
+        var uniforms: [Uniform]
+    }
+    struct Uniform: Decodable {
+        var type: Int
+        var bit_width: Int?
+        var rows: Int?
+        var columns: Int?
+        var array_elements: Int?
+    }
+    var sksl: Root
+}
+
 private func readJSONBundle(_ bytes: [UInt8]) throws -> ShaderBundle {
     let invalid = ShaderBundleError(message: "Invalid Shader Data")
-    guard let parsed = try? JSONSerialization.jsonObject(with: Data(bytes)),
-          let top = parsed as? [String: Any],
-          let root = top["sksl"] as? [String: Any],
-          let source = root["shader"] as? String,
-          let uniforms = root["uniforms"] as? [Any]
+    guard let parsed = try? JSONDecoder().decode(ImpellercBundle.self, from: Data(bytes))
     else { throw invalid }
     var samplerCount = 0
     var floatCount = 0
-    for entry in uniforms {
-        guard let uniform = entry as? [String: Any],
-              let type = (uniform["type"] as? NSNumber)?.intValue
-        else { throw invalid }
+    for uniform in parsed.sksl.uniforms {
         // 12 is SampledImage in the JSON's uniform type numbering.
-        if type == 12 {
+        if uniform.type == 12 {
             samplerCount += 1
             continue
         }
-        guard let bitWidth = (uniform["bit_width"] as? NSNumber)?.intValue,
-              let rows = (uniform["rows"] as? NSNumber)?.intValue,
-              let columns = (uniform["columns"] as? NSNumber)?.intValue,
-              let arrayElements = (uniform["array_elements"] as? NSNumber)?.intValue
+        guard let bitWidth = uniform.bit_width, let rows = uniform.rows,
+              let columns = uniform.columns, let arrayElements = uniform.array_elements
         else { throw invalid }
         var count = (bitWidth / 32) &* rows &* columns
         if arrayElements > 1 { count = count &* arrayElements }
         floatCount = floatCount &+ count
     }
     return ShaderBundle(
-        sksl: Array(source.utf8), uniformFloatCount: max(0, floatCount),
+        sksl: Array(parsed.sksl.shader.utf8), uniformFloatCount: max(0, floatCount),
         samplerCount: samplerCount)
 }
 

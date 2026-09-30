@@ -4342,9 +4342,7 @@ public class FragmentProgram {
     // key they have written in the pubspec.
     //
     // **Dart Source:** `painting.dart:5219`
-    let encodedKey = assetKey.addingPercentEncoding(
-      withAllowedCharacters: .urlPathAllowed
-    ) ?? assetKey
+    let encodedKey = assetKey.percentEncodedAssetKey
 
     if let program = _shaderRegistry[encodedKey] {
       return program
@@ -7667,7 +7665,7 @@ public class ImmutableBuffer {
   ///
   /// - Throws: An error if the asset cannot be found.
   public static func fromAsset(_ assetKey: String) throws -> ImmutableBuffer {
-    let encodedKey = assetKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? assetKey
+    let encodedKey = assetKey.percentEncodedAssetKey
     let bridge = encodedKey.withCString { cStr -> flutter.swift_bridge.ImmutableBufferBridge in
       return flutter.swift_bridge.ImmutableBufferBridge.CreateFromAsset(cStr)
     }
@@ -9960,4 +9958,32 @@ extension ColorFilter: ImageFilter {
     public func toNativeImageFilter() -> NativeImageFilter {
         return NativeImageFilter(colorFilter: self)
     }
+}
+
+extension String {
+  /// The asset key as the engine's asset manifest spells it: Dart's
+  /// `Uri.encodeFull`, which leaves unreserved and reserved URI characters
+  /// alone and percent-encodes the rest (so a space is `%20`).
+  ///
+  /// DIFFERENCE FROM DART: `addingPercentEncoding(withAllowedCharacters:
+  /// .urlPathAllowed)` was used before. It is the legacy Foundation layer,
+  /// which the web build must not link, and it kept fewer characters than
+  /// `encodeFull` does.
+  var percentEncodedAssetKey: String {
+    let keep = Set("-._~!#$&'()*+,/:;=?@".utf8)
+    var out = ""
+    for byte in utf8 {
+      let isAlnum = (48...57).contains(byte) || (65...90).contains(byte) || (97...122).contains(byte)
+      if isAlnum || keep.contains(byte) {
+        out.append(Character(Unicode.Scalar(byte)))
+      } else {
+        out += "%" + String(byte, radix: 16, uppercase: true).leftPadded(to: 2)
+      }
+    }
+    return out
+  }
+
+  fileprivate func leftPadded(to width: Int) -> String {
+    count >= width ? self : String(repeating: "0", count: width - count) + self
+  }
 }

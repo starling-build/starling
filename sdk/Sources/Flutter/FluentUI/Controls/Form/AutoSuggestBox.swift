@@ -226,7 +226,7 @@ class _AutoSuggestBoxState: State<StatefulWidget> {
     }
 
     private func _defaultFilter(_ query: String, _ item: AutoSuggestBoxItem) -> Bool {
-        return item.value.lowercased().contains(query.lowercased())
+        return item.value.lowercased().containsSubstring(query.lowercased())
     }
 
     // MARK: - Flyout Management

@@ -55,6 +55,10 @@ private let _dbgPath = "/tmp/flutter_debug.log"
 /// Use this instead of `print()` when stdout is not visible (e.g. GUI apps).
 /// Messages are appended with a newline. The file is created if it doesn't exist.
 public func dbg(_ msg: String, file: String = #fileID, line: Int = #line) {
+    #if os(WASI)
+    // No files to append to; the console is the log.
+    FileHandle.standardError.write(Data("[\(file):\(line)] \(msg)\n".utf8))
+    #else
     if !FileManager.default.fileExists(atPath: _dbgPath) {
         FileManager.default.createFile(atPath: _dbgPath, contents: nil)
     }
@@ -62,6 +66,7 @@ public func dbg(_ msg: String, file: String = #fileID, line: Int = #line) {
     fh.seekToEndOfFile()
     fh.write("[\(file):\(line)] \(msg)\n".data(using: .utf8)!)
     fh.closeFile()
+    #endif
 }
 
 // MARK: - Debug Functions

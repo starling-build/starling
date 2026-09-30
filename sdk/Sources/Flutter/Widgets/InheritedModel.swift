@@ -141,24 +141,24 @@ public class InheritedModelElement<T: Hashable>: InheritedElement {
 
     /// **Dart Source:** `inherited_model.dart:224-236`
     public override func updateDependencies(_ dependent: Element, aspect: AnyHashable?) {
-        let dependencies = getDependencies(dependent) as? Set<T>
+        let dependencies = (getDependencies(dependent) as? _AspectSet<T>)?.aspects
         if let deps = dependencies, deps.isEmpty {
             return
         }
 
         if aspect == nil {
-            setDependencies(dependent, Set<T>() as AnyObject)
+            setDependencies(dependent, _AspectSet(Set<T>()))
         } else {
             let aspectValue = aspect!.base as! T
             var deps = dependencies ?? Set<T>()
             deps.insert(aspectValue)
-            setDependencies(dependent, deps as AnyObject)
+            setDependencies(dependent, _AspectSet(deps))
         }
     }
 
     /// **Dart Source:** `inherited_model.dart:239-248`
     public override func notifyDependent(_ oldWidget: InheritedWidget, _ dependent: Element) {
-        let dependencies = getDependencies(dependent) as? Set<T>
+        let dependencies = (getDependencies(dependent) as? _AspectSet<T>)?.aspects
         guard let dependencies = dependencies else {
             return
         }
@@ -169,4 +169,12 @@ public class InheritedModelElement<T: Hashable>: InheritedElement {
             dependent.didChangeDependencies()
         }
     }
+}
+
+/// The aspects an element depends on, as the `AnyObject` the dependency
+/// slot holds. A box of our own rather than `Set as AnyObject`: that spelling
+/// bridges through NSSet, the legacy Foundation layer.
+private final class _AspectSet<T: Hashable> {
+    let aspects: Set<T>
+    init(_ aspects: Set<T>) { self.aspects = aspects }
 }

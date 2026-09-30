@@ -99,10 +99,10 @@ public struct PartialStackFrame: Sendable, Hashable {
 
         // In Swift/native environment, kIsWeb is always false
         if kIsWeb {
-            return stackFramePackage.contains(package) &&
+            return stackFramePackage.containsSubstring(package) &&
                 stackFrame.method == (method.hasPrefix("_") ? "[\(method)]" : method)
         }
-        return stackFramePackage.contains(package) &&
+        return stackFramePackage.containsSubstring(package) &&
             stackFrame.method == method &&
             stackFrame.className == className
     }
@@ -566,7 +566,7 @@ public final class FlutterErrorDetails: Diagnosticable {
         }
         #endif
 
-        longMessage = longMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        longMessage = longMessage?.trimmingWhitespace()
         if longMessage?.isEmpty ?? true {
             longMessage = "  <no message available>"
         }
@@ -588,7 +588,7 @@ public final class FlutterErrorDetails: Diagnosticable {
     /// **Dart Source:** `assertions.dart:638-662`
     public var summary: any DiagnosticsNodeProtocol {
         func formatException() -> String {
-            return exceptionAsString().split(separator: "\n").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+            return exceptionAsString().split(separator: "\n").first.map { String($0).trimmingWhitespace(newlines: false) } ?? ""
         }
 
         if kReleaseMode {
@@ -618,7 +618,9 @@ public final class FlutterErrorDetails: Diagnosticable {
 
         let diagnosticable = exceptionToDiagnosticable()
 
-        if exception is NSNumber {
+        // Dart: `exception is num`. Any Swift number, not NSNumber, which
+        // is the NS layer.
+        if exception is any BinaryInteger || exception is any BinaryFloatingPoint {
             properties.add(ErrorDescription("The number \(exception) was \(verb.toDescription(parentConfiguration: nil))."))
         } else {
             let errorName: String
@@ -859,7 +861,7 @@ public final class FlutterError: Error, DiagnosticableTreeMixin, @unchecked Send
                     maxDescendentsTruncatableNode: 5
                 )
                 let output = renderer.render(details.toDiagnosticsNode(style: .error))
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingWhitespace()
                 debugPrint(output, nil)
             } else {
                 debugPrintStack(
@@ -999,7 +1001,7 @@ public final class FlutterError: Error, DiagnosticableTreeMixin, @unchecked Send
         }
         // Avoid wrapping lines
         let renderer = TextTreeRenderer(wrapWidth: 1_000_000_000)  // fits a 32-bit Int (wasm32)
-        return diagnostics.map { renderer.render($0).trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: "\n")
+        return diagnostics.map { renderer.render($0).trimmingWhitespace() }.joined(separator: "\n")
     }
 
     /// Calls `onError` with the given details, unless it is null.
@@ -1083,16 +1085,16 @@ public func debugPrintStack(stackTrace: String? = nil, label: String? = nil, max
         stack = Thread.callStackSymbols.joined(separator: "\n")
     }
 
-    var lines: [String] = stack.trimmingCharacters(in: .whitespacesAndNewlines)
+    var lines: [String] = stack.trimmingWhitespace()
         .split(separator: "\n")
         .map { String($0) }
 
     // On web, skip certain internal frames
     if kIsWeb && !lines.isEmpty {
         lines = Array(lines.drop(while: { line in
-            line.contains("StackTrace.current") ||
-            line.contains("dart-sdk/lib/_internal") ||
-            line.contains("dart:sdk_internal")
+            line.containsSubstring("StackTrace.current") ||
+            line.containsSubstring("dart-sdk/lib/_internal") ||
+            line.containsSubstring("dart:sdk_internal")
         }))
     }
 
@@ -1164,7 +1166,7 @@ public class DiagnosticsStackTrace: DiagnosticsBlock {
 
         let filter: IterableFilter<String> = stackFilter ?? { frames in FlutterError.defaultStackFilter(frames) }
         let demangled = FlutterError.demangleStackTrace(stack)
-        let lines = demangled.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lines = demangled.trimmingWhitespace()
             .split(separator: "\n")
             .map { String($0) }
         let frames = filter(lines)

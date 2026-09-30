@@ -331,7 +331,7 @@ public class AttributedStringProperty: DiagnosticsProperty<AttributedString> {
     var text = value.string
     if let parentConfig = parentConfiguration, !parentConfig.lineBreakProperties {
       // This follows a similar pattern to StringProperty.
-      text = text.replacingOccurrences(of: "\n", with: "\\n")
+      text = text.replacingAll("\n", with: "\\n")
     }
     if value.attributes.isEmpty {
       return "\"\(text)\""

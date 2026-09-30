@@ -1746,7 +1746,7 @@ public class TextTreeRenderer {
         if children.isEmpty &&
             config.addBlankLineIfNoChildren &&
             builder.requiresMultipleLines &&
-            !(builder.prefixOtherLines?.trimmingCharacters(in: CharacterSet.whitespaces).isEmpty ?? true) {
+            !(builder.prefixOtherLines?.trimmingWhitespace(newlines: false).isEmpty ?? true) {
             builder.write(config.lineBreak)
         }
 
@@ -3119,7 +3119,7 @@ public final class StringProperty: DiagnosticsProperty<String> {
             // Escape linebreaks in multiline strings to avoid confusing output when
             // the parent of this node is trying to display all properties on the same
             // line.
-            text = text!.replacingOccurrences(of: "\n", with: "\\n")
+            text = text!.replacingAll("\n", with: "\\n")
         }
 
         if quoted, let t = text {

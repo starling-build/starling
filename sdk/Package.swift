@@ -1096,6 +1096,18 @@ if wasmBuild {
         // what turns "RuntimeError: unreachable" into a stack trace.
         .unsafeFlags(["-Xlinker", "--strip-all"], .when(configuration: .release)),
     ]
+    // `import Foundation` autolinks the legacy Foundation module (the NS
+    // layer), CoreFoundation and ICU: 42 MB, of which nothing is used once
+    // the framework's few NS-layer calls are gone (build/web-app.sh --check
+    // proves they are). The archives cannot merely be ordered after
+    // FoundationEssentials — the linker takes a generic specialization from
+    // whichever archive it meets first, and it meets the legacy one first —
+    // so they are kept off the link line. docs/plans/wasm-size.md.
+    let noLegacyFoundation: [SwiftSetting] = [
+        .unsafeFlags(
+            ["Foundation", "CoreFoundation", "FoundationInternationalization", "_FoundationICU"]
+                .flatMap { ["-Xfrontend", "-disable-autolink-library", "-Xfrontend", $0] })
+    ]
     let mode5: [SwiftSetting] = [
         .swiftLanguageMode(.v5),
         .enableUpcomingFeature("BareSlashRegexLiterals"),
@@ -1112,13 +1124,17 @@ if wasmBuild {
             name: "FlutterSwiftBridgeCxx",
             dependencies: ["CSkwasm"],
             path: "Sources/FlutterSwiftBridgeWeb",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation
         ),
-        .target(name: "FlutterSwiftBridge", dependencies: ["FlutterSwiftBridgeCxx"]),
+        .target(
+            name: "FlutterSwiftBridge", dependencies: ["FlutterSwiftBridgeCxx"],
+            swiftSettings: noLegacyFoundation
+        ),
         .target(
             name: "SwiftRuntime",
             dependencies: ["FlutterSwiftBridge"],
-            path: "Sources/SwiftRuntime"
+            path: "Sources/SwiftRuntime",
+            swiftSettings: noLegacyFoundation
         ),
         .target(
             name: "Flutter",
@@ -1128,13 +1144,14 @@ if wasmBuild {
             // either: Bundle cannot reach files here, fonts arrive by fetch.
             // StarlingAppHost is an app's link to the Starling desktop shell.
             exclude: ["Terminal", "Platform/StarlingAppHost.swift"],
-            swiftSettings: mode5
+            swiftSettings: mode5 + noLegacyFoundation
         ),
         .target(
             name: "CupertinoIcons",
             dependencies: ["Flutter", "FlutterSwiftBridge"],
             path: "Sources/CupertinoIcons",
-            exclude: ["Resources"]
+            exclude: ["Resources"],
+            swiftSettings: noLegacyFoundation
         ),
         // The host: what FlutterCocoa is on macOS. The page is the embedder.
         .target(
@@ -1143,7 +1160,7 @@ if wasmBuild {
                 "Flutter", "FlutterSwiftBridge", "FlutterSwiftBridgeCxx", "CSkwasm",
                 .target(name: "SwiftRuntime"),
             ],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation
         ),
         .target(
             name: "ExampleHost",
@@ -1151,13 +1168,13 @@ if wasmBuild {
                 "Flutter", "FlutterWeb", "FlutterSwiftBridge", "CupertinoIcons",
             ],
             path: "Examples/ExampleHost",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation
         ),
         .executableTarget(
             name: "CounterApp",
             dependencies: ["Flutter", "ExampleHost", "FlutterSwiftBridge", "CupertinoIcons"],
             path: "Examples/CounterApp",
-            swiftSettings: [.swiftLanguageMode(.v5)],
+            swiftSettings: [.swiftLanguageMode(.v5)] + noLegacyFoundation,
             linkerSettings: reactor
         ),
         // Milestone 0: skwasm driven directly, no framework.

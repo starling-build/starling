@@ -88,7 +88,7 @@ struct MacosFilePanelEntry {
     let size: UInt64
 
     var fileExtension: String {
-        isDirectory ? "" : (name as NSString).pathExtension.lowercased()
+        isDirectory ? "" : URL(fileURLWithPath: name).pathExtension.lowercased()
     }
 
     /// Emoji glyph — no icon-font dependency, usable before any font
@@ -120,7 +120,7 @@ struct MacosFilePanelEntry {
         var out: [MacosFilePanelEntry] = []
         for name in names {
             if !showHidden && name.hasPrefix(".") { continue }
-            let p = (path as NSString).appendingPathComponent(name)
+            let p = URL(fileURLWithPath: path).appendingPathComponent(name).path
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: p, isDirectory: &isDir) else { continue }
             let attrs = try? fm.attributesOfItem(atPath: p)
@@ -140,7 +140,9 @@ struct MacosFilePanelEntry {
         var v = Double(bytes)
         var i = 0
         while v >= 1024 && i < units.count - 1 { v /= 1024; i += 1 }
-        return i == 0 ? "\(bytes) B" : String(format: "%.1f %@", v, units[i])
+        // Not "%.1f %@": a String as a printf argument goes through NSString,
+        // which the web build must not link.
+        return i == 0 ? "\(bytes) B" : String(format: "%.1f", v) + " " + units[i]
     }
 }
 
@@ -254,9 +256,9 @@ class _MacosFilePanelState: State<StatefulWidget> {
         switch options.mode {
         case .save:
             let name = saveNameController.text
-                .trimmingCharacters(in: .whitespaces)
+                .trimmingWhitespace(newlines: false)
             guard !name.isEmpty else { return }
-            panel.onComplete([(currentPath as NSString).appendingPathComponent(name)])
+            panel.onComplete([URL(fileURLWithPath: currentPath).appendingPathComponent(name).path])
         case .directory:
             let paths = selected.sorted().map { entries[$0].path }
             panel.onComplete(paths.isEmpty ? [currentPath] : paths)
@@ -337,7 +339,7 @@ class _MacosFilePanelState: State<StatefulWidget> {
                 SizedBox(width: 2),
                 _headerButton("^", enabled: canGoUp, c) { [self] in
                     guard canGoUp else { return }
-                    setState { _navigate((currentPath as NSString).deletingLastPathComponent) }
+                    setState { _navigate(URL(fileURLWithPath: currentPath).deletingLastPathComponent().path) }
                 },
                 SizedBox(width: 12),
                 Expanded(child: ClipRect(child: Row(children: crumbs))),

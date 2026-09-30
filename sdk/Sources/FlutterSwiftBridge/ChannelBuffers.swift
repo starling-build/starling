@@ -630,7 +630,7 @@ public class ChannelBuffers {
     ///   - data: The message data.
     ///   - callback: The response callback.
     public func push(_ name: String, _ data: Data?, _ callback: @escaping (Data?) -> Void) {
-        assert(!name.contains("\u{0000}"), "Channel names must not contain U+0000 NULL characters.")
+        assert(!name.contains(Character("\u{0000}")), "Channel names must not contain U+0000 NULL characters.")
         let channel = _channels[name] ?? {
             let newChannel = Channel()
             _channels[name] = newChannel
@@ -692,7 +692,7 @@ public class ChannelBuffers {
     ///   - name: The name of the channel.
     ///   - callback: The callback to invoke for each message.
     public func setListener(_ name: String, _ callback: @escaping ChannelCallback) {
-        assert(!name.contains("\u{0000}"), "Channel names must not contain U+0000 NULL characters.")
+        assert(!name.contains(Character("\u{0000}")), "Channel names must not contain U+0000 NULL characters.")
         let channel = _channels[name] ?? {
             let newChannel = Channel()
             _channels[name] = newChannel
@@ -905,7 +905,7 @@ public class ChannelBuffers {
                 guard let channelName = String(bytes: bytes[index..<(index + channelNameLength)], encoding: .utf8) else {
                     throw ChannelBuffersError.invalidMessage("Invalid UTF-8 in channel name for \(Self.kControlChannelName)")
                 }
-                if channelName.contains("\u{0000}") {
+                if channelName.contains(Character("\u{0000}")) {
                     throw ChannelBuffersError.invalidMessage("Invalid arguments for 'resize' method sent to \(Self.kControlChannelName) (channel name must not contain any null bytes)")
                 }
                 index += channelNameLength
@@ -1017,7 +1017,7 @@ public class ChannelBuffers {
         if let channel = _channels[name] {
             channel.capacity = newSize
         } else {
-            assert(!name.contains("\u{0000}"), "Channel names must not contain U+0000 NULL characters.")
+            assert(!name.contains(Character("\u{0000}")), "Channel names must not contain U+0000 NULL characters.")
             _channels[name] = Channel(capacity: newSize)
         }
     }
@@ -1062,7 +1062,7 @@ public class ChannelBuffers {
         #if DEBUG
         var channel = _channels[name]
         if channel == nil && allowed {
-            assert(!name.contains("\u{0000}"), "Channel names must not contain U+0000 NULL characters.")
+            assert(!name.contains(Character("\u{0000}")), "Channel names must not contain U+0000 NULL characters.")
             channel = Channel()
             _channels[name] = channel
         }

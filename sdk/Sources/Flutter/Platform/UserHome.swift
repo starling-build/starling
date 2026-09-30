@@ -18,6 +18,9 @@ import Glibc
 /// In the shipped desktop this never triggers: GDM starts the session as the
 /// user, so `NSHomeDirectory()` is already correct.
 public func realUserHomeDirectory() -> String {
+    #if os(WASI)
+    return "/"  // no users, no homes
+    #else
     let home = NSHomeDirectory()
     #if os(Linux)
     guard home == "/root" else { return home }
@@ -28,5 +31,6 @@ public func realUserHomeDirectory() -> String {
     return resolved.isEmpty ? home : resolved
     #else
     return home
+    #endif
     #endif
 }

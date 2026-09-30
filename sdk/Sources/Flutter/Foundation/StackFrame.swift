@@ -157,7 +157,7 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
     /// **Dart Source:** `stack_frame.dart:71-86`
     public static func fromStackString(_ stack: String) -> [StackFrame] {
         return stack
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingWhitespace()
             .split(separator: "\n")
             .map { String($0) }
             .filter { !$0.isEmpty }
@@ -184,6 +184,12 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
             "that propagates non-standard stack traces to the framework, such as during tests."
         )
 
+        #if os(WASI)
+        // The parsers below are NSRegularExpression, the legacy Foundation
+        // layer, and there is nothing to parse: the stack is always empty
+        // here (Thread.callStackSymbols in WebSupport.swift).
+        return nil
+        #else
         // Web frames (lines that don't start with '#')
         if !line.hasPrefix("#") {
             return tryParseWebFrame(line)
@@ -191,7 +197,10 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
 
         // VM frames: #N method (uri:line:column)
         return tryParseVMFrame(line)
+        #endif
     }
+
+    #if !os(WASI)
 
     /// Parses a single StackFrame from a line of a StackTrace (web format).
     ///
@@ -250,7 +259,8 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
                 if let packageUri = URL(string: packageUriString),
                    let firstPathComponent = packageUri.pathComponents.dropFirst().first {
                     package = firstPathComponent
-                    packagePath = packageUri.path.replacingOccurrences(of: "\(firstPathComponent)/", with: "", options: [], range: packageUri.path.range(of: "\(firstPathComponent)/"))
+                    // Only the first occurrence: the package name may recur.
+                    packagePath = packageUri.path.removingFirst("\(firstPathComponent)/")
                 }
             }
         }
@@ -359,7 +369,7 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
 
         var isConstructor = false
         var className = ""
-        var method = String(line[group2Range]).replacingOccurrences(of: ".<anonymous closure>", with: "")
+        var method = String(line[group2Range]).replacingAll(".<anonymous closure>", with: "")
 
         if method.hasPrefix("new") {
             let methodParts = method.split(separator: " ")
@@ -390,7 +400,7 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
                 let pathComponents = packageUri.path.split(separator: "/", omittingEmptySubsequences: true).map { String($0) }
                 if !pathComponents.isEmpty {
                     package = pathComponents[0]
-                    packagePath = packageUri.path.replacingOccurrences(of: "\(pathComponents[0])/", with: "", options: [], range: packageUri.path.range(of: "\(pathComponents[0])/"))
+                    packagePath = packageUri.path.removingFirst("\(pathComponents[0])/")
                 }
             }
         }
@@ -441,6 +451,8 @@ public struct StackFrame: Hashable, CustomStringConvertible, Sendable {
     // MARK: - Equatable
 
     /// **Dart Source:** `stack_frame.dart:304-317`
+    #endif
+
     public static func == (lhs: StackFrame, rhs: StackFrame) -> Bool {
         return lhs.number == rhs.number &&
             lhs.package == rhs.package &&

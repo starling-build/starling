@@ -37,8 +37,9 @@ CONFIG="release"
 SERVE=0
 BUILD=1
 CHECK=0
-# Release app.wasm, bytes. History: 60 MB when the gate was added.
-BUDGET=61000000
+# Release app.wasm, bytes. History: 60 MB when the gate was added; 20.3 MB
+# once the legacy Foundation module was off the link (phase 1).
+BUDGET=21000000
 PORT="${STARLING_WEB_PORT:-8137}"
 
 # The flutter/flutter commit starling-engine's `starling` branch forked from:

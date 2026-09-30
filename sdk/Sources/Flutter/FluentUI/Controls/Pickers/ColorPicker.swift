@@ -305,12 +305,11 @@ class _ColorPickerState: State<StatefulWidget> {
         let bInt = Int((color.b * 255).rounded())
         let aInt = Int((color.a * 255).rounded())
 
-        let hexString: String
-        if picker.isAlphaEnabled {
-            hexString = String(format: "#%02X%02X%02X%02X", aInt, rInt, gInt, bInt)
-        } else {
-            hexString = String(format: "#%02X%02X%02X", rInt, gInt, bInt)
-        }
+        // One component per call: the web build's String(format:) takes a
+        // single argument (Flutter/Foundation/WebSupport.swift).
+        let hex = { (v: Int) in String(format: "%02X", v) }
+        let hexString = "#" + (picker.isAlphaEnabled ? hex(aInt) : "")
+            + hex(rInt) + hex(gInt) + hex(bInt)
 
         let textColor = theme.resources.textFillColorSecondary
         let labelStyle = TextStyle(color: textColor, fontSize: 12)

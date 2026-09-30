@@ -38,6 +38,10 @@ public enum CupertinoIcons {
     /// `_fontBundle`; this is the same bug one target over, and it would have
     /// crashed the moment the first one was fixed.
     public static func fontData() -> Data {
+        #if os(WASI)
+        // The page fetches the font; see registerFont. Bundle.main traps.
+        return Data()
+        #else
         var roots: [URL] = []
         if let resources = Bundle.main.resourceURL { roots.append(resources) }
         roots.append(Bundle.main.bundleURL)
@@ -80,6 +84,7 @@ public enum CupertinoIcons {
             }
         }
         return Data()
+        #endif
     }
 
     /// Registers the CupertinoIcons.ttf font with the Flutter engine.
