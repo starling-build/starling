@@ -40,6 +40,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
     private var _linkOpen = false
+    private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
@@ -167,6 +168,7 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onModifyStyle = { [weak self] id in self?.setState { self?._styleOpen = id } }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self.setState { self._backstage = .insertPicture }
@@ -454,6 +456,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
+            if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; return true }
@@ -529,6 +532,10 @@ final class OfficeShellState: State<StatefulWidget> {
                                   onReplace: { [weak self] in self?._replaceOne() },
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
                                   onClose: { [weak self] in self?.setState { self?._findOpen = false } }))
+        }
+        if let styleId = _styleOpen {
+            column.append(StyleBar(session: session, styleId: styleId,
+                                   onClose: { [weak self] in self?.setState { self?._styleOpen = nil } }))
         }
         if _linkOpen {
             column.append(LinkBar(session: session, address: _linkText, hasLink: controller.currentLink != nil,

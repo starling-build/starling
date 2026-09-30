@@ -261,6 +261,8 @@ final class Ribbon: StatelessWidget {
                                            c.updateStyleToMatchSelection(current.id)
                                            session.onStatus?("\(current.name) now matches the selection")
                                        }))
+            more.append(MenuFlyoutItem(text: Text("Modify \(current.name)…"),
+                                       onPressed: { [session] in session.onModifyStyle?(current.id) }))
         }
         tiles.append(Tooltip(message: "All styles", child: DropDownButton(
             leading: Icon(FluentSystemIcons.paintBrush, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
@@ -415,11 +417,11 @@ final class Ribbon: StatelessWidget {
         let aspect = image.height / max(1, image.width)
         let size = Chrome.group("Size", fluent, [
             Chrome.rows([
-                _spinner("Width", image.width, fluent, step: 6) { v in
+                Chrome.spinner("Width", image.width, fluent, step: 6) { v in
                     c.setImageSize(at: i, width: v, height: v * aspect)
                 },
                 Chrome.vgap(2),
-                _spinner("Height", image.height, fluent, step: 6) { v in
+                Chrome.spinner("Height", image.height, fluent, step: 6) { v in
                     c.setImageSize(at: i, width: v / max(0.01, aspect), height: v)
                 },
             ]),
@@ -500,30 +502,18 @@ final class Ribbon: StatelessWidget {
         ])
         let paragraph = Chrome.group("Paragraph", fluent, [
             Chrome.rows([
-                _spinner("Indent Left", ps.indentLeft, fluent, step: 18) { v in c.setIndents(left: v) },
+                Chrome.spinner("Indent Left", ps.indentLeft, fluent, step: 18) { v in c.setIndents(left: v) },
                 Chrome.vgap(2),
-                _spinner("Indent Right", ps.indentRight, fluent, step: 18) { v in c.setIndents(right: v) },
+                Chrome.spinner("Indent Right", ps.indentRight, fluent, step: 18) { v in c.setIndents(right: v) },
             ]),
             Chrome.gap(8),
             Chrome.rows([
-                _spinner("Space Before", ps.spaceBefore, fluent, step: 6) { v in c.setParagraphSpacing(before: v) },
+                Chrome.spinner("Space Before", ps.spaceBefore, fluent, step: 6) { v in c.setParagraphSpacing(before: v) },
                 Chrome.vgap(2),
-                _spinner("Space After", ps.spaceAfter, fluent, step: 6) { v in c.setParagraphSpacing(after: v) },
+                Chrome.spinner("Space After", ps.spaceAfter, fluent, step: 6) { v in c.setParagraphSpacing(after: v) },
             ]),
         ])
         return [pageSetup, paragraph]
-    }
-
-    /// A labelled value with −/+ buttons: NumberBox without typing, which
-    /// keeps keyboard focus in the document.
-    private func _spinner(_ label: String, _ value: Double, _ fluent: FluentThemeData, step: Double,
-                          onChanged: @escaping (Double) -> Void) -> Widget {
-        Chrome.row([
-            SizedBox(width: 84, height: nil, child: Text(label, style: fluent.typography.caption)),
-            Chrome.icon(FluentSystemIcons.chevronDown, "Less", fluent) { onChanged(max(0, value - step)) },
-            SizedBox(width: 44, height: nil, child: Text("\(Int(value.rounded())) pt", style: fluent.typography.caption)),
-            Chrome.icon(FluentSystemIcons.chevronUp, "More", fluent) { onChanged(value + step) },
-        ])
     }
 
     // MARK: View

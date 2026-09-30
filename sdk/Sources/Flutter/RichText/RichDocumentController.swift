@@ -796,6 +796,12 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Replace one style sheet entry (Modify Style), one undo step.
+    public func setStyleEntry(_ entry: RichNamedStyle) {
+        guard let old = document.styles[entry.id], old != entry else { return }
+        edit { perform(.setStyleEntry(old: old, new: entry)) }
+    }
+
     /// Word's "Update <style> to Match Selection": the caret's character
     /// formatting and paragraph props become the sheet's entry, so every
     /// paragraph in that style changes. One undo step.
