@@ -107,6 +107,11 @@ cp "$ENGINE_OUT/libswift_bridge.dylib" "$OUT/Frameworks/libswift_bridge.dylib"
 # UILaunchScreen (empty dict) is required from iOS 14 — without it the app
 # launches into a letterboxed 320x480 canvas on a modern screen, which reads
 # as "the terminal renders tiny" rather than "the bundle is missing a key".
+# The document app is "Writer" to the user, as on macOS (build/macos-app.sh).
+case "$NAME" in
+  OfficeApp) DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-Writer}" ;;
+  *) DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-$NAME}" ;;
+esac
 cat > "$OUT/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -116,8 +121,8 @@ cat > "$OUT/Info.plist" <<PLIST
   <key>CFBundleExecutable</key>               <string>$APP</string>
   <key>CFBundleIdentifier</key>               <string>build.starling.$(echo "$NAME" | tr '[:upper:]' '[:lower:]')</string>
   <key>CFBundleInfoDictionaryVersion</key>    <string>6.0</string>
-  <key>CFBundleName</key>                     <string>$NAME</string>
-  <key>CFBundleDisplayName</key>              <string>$NAME</string>
+  <key>CFBundleName</key>                     <string>$DISPLAY_NAME</string>
+  <key>CFBundleDisplayName</key>              <string>$DISPLAY_NAME</string>
   <key>CFBundlePackageType</key>              <string>APPL</string>
   <key>CFBundleShortVersionString</key>       <string>0.1</string>
   <key>CFBundleVersion</key>                  <string>1</string>

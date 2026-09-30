@@ -67,6 +67,7 @@ let platformConstraints: [SupportedPlatform] = []
 
 let resources: [Resource] = [
     .copy("Resources/fonts"),
+    .copy("Resources/THIRD_PARTY_NOTICES.md"),
 ]
 
 let appTarget: Target = {

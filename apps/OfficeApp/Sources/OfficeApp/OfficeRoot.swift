@@ -42,7 +42,7 @@ private final class _OfficeRootState: State<StatefulWidget> {
             darkTheme: FluentThemeData.dark(),
             themeMode: _dark ? .dark : .light,
             home: OfficeShell(initialPath: root.initialPath),
-            title: "Office"
+            title: "Writer"
         )
     }
 }

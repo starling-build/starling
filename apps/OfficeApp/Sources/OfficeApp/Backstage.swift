@@ -243,13 +243,20 @@ final class Backstage: StatelessWidget {
             ("Paragraphs", "\(s.paragraphs)"),
             ("Paper", session.pageSetup.isLandscape ? "Landscape" : "Portrait"),
         ]
+        let secondary = fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)
         return Column(crossAxisAlignment: .start, children: [_heading("Info", fluent)] + rows.map { k, v in
             Padding(padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 8), child: Row(children: [
-                SizedBox(width: 120, height: nil, child: Text(k, style: fluent.typography.body?.copyWith(
-                    color: fluent.resources.textFillColorSecondary))),
+                SizedBox(width: 120, height: nil, child: Text(k, style: secondary)),
                 Text(v, style: fluent.typography.body),
             ]))
-        })
+        } + [
+            Chrome.vgap(24),
+            _heading("About Writer", fluent),
+            Text("Built with Fluent UI System Icons and the fluent_ui controls (MIT), the Selawik, Liberation, Carlito and Caladea fonts (SIL OFL), zlib, and the Flutter engine (BSD).",
+                 style: secondary),
+            Chrome.vgap(4),
+            Text("The full notices ship with the app as THIRD_PARTY_NOTICES.md.", style: secondary),
+        ])
     }
 
     private func _export(_ fluent: FluentThemeData) -> Widget {

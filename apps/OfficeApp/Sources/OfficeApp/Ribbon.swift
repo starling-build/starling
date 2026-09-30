@@ -81,15 +81,17 @@ final class Ribbon: StatelessWidget {
                        child: Row(crossAxisAlignment: .end, children: items))
     }
 
+    /// File is a quiet pill in the chrome's own fill, bold like a selected
+    /// tab — deliberately not a saturated brand block.
     private func _fileTab(_ fluent: FluentThemeData) -> Widget {
-        let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
-        return GestureDetector(
+        GestureDetector(
             onTap: { [session] in session.onBackstage?(true) },
             child: Padding(padding: EdgeInsets(left: 0, top: 0, right: 6, bottom: 4), child: DecoratedBox(
-                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.all(Radius(circular: 4))),
+                decoration: BoxDecoration(color: fluent.resources.subtleFillColorSecondary,
+                                          border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                          borderRadius: BorderRadius.all(Radius(circular: 4))),
                 child: Padding(padding: EdgeInsets(left: 14, top: 5, right: 14, bottom: 5),
-                               child: Text("File", style: fluent.typography.body?.copyWith(
-                                   color: fluent.resources.textOnAccentFillColorPrimary))))))
+                               child: Text("File", style: fluent.typography.bodyStrong)))))
     }
 
     private func _tab(_ t: RibbonTab, _ fluent: FluentThemeData) -> Widget {

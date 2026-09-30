@@ -2,6 +2,15 @@
 
 Status: **Phase 2 feature list done on macOS** (Writer: docx, PDF, pictures,
 headers/footers, tables, named styles, navigation pane), 2026-09-29, branch `office`.
+**Name (2026-09-30): the app is "Writer"** in its title bar, launcher and
+bundle; "Office" stays only as the package/directory name and, if ever
+needed, as "Starling Office" for the suite. Microsoft holds OFFICE and
+WORD marks; the bare word in a title bar was the one real exposure. The
+ribbon patent family (priority Aug 2004) is expired, most of it with
+maintenance fees lapsed; the 2006 design patents expired 2021. The File
+tab is a quiet pill, not a brand-coloured block, and third-party notices
+ship in the bundle (`Resources/THIRD_PARTY_NOTICES.md`, summarised on
+File → Info).
 **Next: the editor itself — `office-editor.md`** (cursors, pictures, rich
 clipboard, IME, tables, links, ribbon truth), at the user's direction.
 (cut from `main` at 97f3c72). What exists:

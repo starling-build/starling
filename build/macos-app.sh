@@ -102,7 +102,13 @@ BUILT="$PKG/.build/release"
 # is the display name, and there the bare short name collides: "Terminal"
 # on a Mac reads as Apple's Terminal. So the visible name carries the brand.
 NAME="${APP%App}"
-DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-Starling $NAME}"
+# The document app is "Writer" to the user: the package name says what it
+# is to us, the bundle says what it is on the Dock.
+case "$NAME" in
+  OfficeApp) DEFAULT_DISPLAY_NAME="Writer" ;;
+  *) DEFAULT_DISPLAY_NAME="Starling $NAME" ;;
+esac
+DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-$DEFAULT_DISPLAY_NAME}"
 VER="${STARLING_APP_VERSION:-0.1.0}"
 OUT="$REPO/.stage-macos/$DISPLAY_NAME.app"
 C="$OUT/Contents"

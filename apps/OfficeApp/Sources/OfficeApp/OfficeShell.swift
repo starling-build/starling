@@ -785,7 +785,7 @@ final class OfficeShellState: State<StatefulWidget> {
 
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
-        let title = "\(session.title)\(session.dirty ? " •" : "") — Office"
+        let title = "\(session.title)\(session.dirty ? " •" : "") — Writer"
         if title != _windowTitle {
             _windowTitle = title
             hostSetWindowTitle?(title)

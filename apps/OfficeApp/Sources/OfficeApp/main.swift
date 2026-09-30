@@ -180,7 +180,7 @@ let initialPath: String? = {
     return nil
 }()
 
-runStarlingApp(title: "Office",
+runStarlingApp(title: "Writer",
                width: windowMetric("STARLING_WINDOW_W", 1440),
                height: windowMetric("STARLING_WINDOW_H", 900)) {
     OfficeRoot(initialPath: initialPath)
