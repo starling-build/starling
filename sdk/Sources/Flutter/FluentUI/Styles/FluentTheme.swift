@@ -97,17 +97,6 @@ public struct FluentThemeData: Equatable {
     // MARK: - Factory
 
     /// Creates a new FluentThemeData with sensible defaults.
-    /// The family the semibold styles ask for; nil means the body family at
-    /// weight 600 (iOS, where the Semibold cut cannot be loaded beside
-    /// Regular — see SelawikFont).
-    private static var _strongFamily: String? {
-        #if os(iOS)
-        return nil
-        #else
-        return SelawikFontName.semibold
-        #endif
-    }
-
     public init(
         brightness: Brightness? = nil,
         typography: Typography? = nil,
@@ -152,15 +141,10 @@ public struct FluentThemeData: Equatable {
         // of the system font of wherever it happens to run. An app names
         // it for the engine with `SelawikFont.registerFont()` at startup;
         // unregistered, the engine's fallback is the system font, as before.
-        // The semibold styles name the semibold cut's own family rather
-        // than asking for weight 600 inside "Selawik" — except on iOS,
-        // where that cut is not loaded at all and the weight is synthesized
-        // from Regular (SelawikFont.registerFont says why).
         var resolvedTypography = Typography.fromBrightness(
             brightness: resolvedBrightness,
             color: resolvedResources.textFillColorPrimary
-        ).merge(typography).apply(fontFamily: fontFamily ?? SelawikFontName.regular,
-                                  strongFontFamily: fontFamily == nil ? Self._strongFamily : nil)
+        ).merge(typography).apply(fontFamily: fontFamily ?? SelawikFontName.regular)
 
         self.brightness = resolvedBrightness
         self.resources = resolvedResources

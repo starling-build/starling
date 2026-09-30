@@ -463,14 +463,14 @@ pagination, and `basedOn` chains deeper than Normal.
 
 `build/ios-app.sh OfficeApp` builds, stages `.stage-ios/Office.app` and
 (with `--run`) launches it on the simulator; verified on the iPad Pro 13"
-simulator against engine `starling` c2eba62 built as
+simulator against engine `starling` 1848a377952 built as
 `ios_debug_sim_arm64` in starling-engine-ios. The welcome document,
 ribbon, ruler, status bar, typing and the document fonts all work. On an
 iPhone it runs with the desktop layout — the title wraps letter by
 letter and the ribbon and page overflow — so a phone needs its own
 layout (Word's phone UI is a different product), which is design work.
 
-What it took, both fixed in the framework rather than the app:
+What it took, neither of them in the app:
 
 - **The first frame.** iOS creates the output surface twice (at layout,
   and again when the scene becomes active); the engine asks the
@@ -479,12 +479,15 @@ What it took, both fixed in the framework rather than the app:
   a release build came up black until a key press. An engine-initiated
   frame (one `PlatformDispatcher.frameRequested` did not ask for) now
   composites, on the Darwin hosts (`unsolicitedFramesComposite`).
-- **Selawik on CoreText.** With both cuts loaded, runs on the Semibold
-  face shaped with one set of advances and drew with another; iOS loads
-  Regular only and synthesizes weight 600, and Fluent's semibold styles
-  everywhere else ask for "Selawik Semibold" by name at normal weight.
-  Renaming the cut in the font file is the real fix, pending the OFL's
-  reserved-name question. Details in `SelawikFont.registerFont`.
+- **Wrong glyphs in the Fluent chrome** ("Do cument 1" with its m over
+  its e, a placeholder as accented capitals) — the same bug the desktop
+  hit as "the 14pt menu bug": the bridge dylib's Skia and the engine's
+  number typefaces from 1 and the rasterizer keys strikes by (typeface
+  ID, size). Fixed in the engine (f920984227d, the bridge's counter
+  starts four million up); needs an iOS engine built from `starling` at
+  or past it. A day was spent blaming Selawik-Semibold's name table
+  before that landed — the theory was wrong, and the workaround (Regular
+  only on iOS) is gone.
 
 Traps: `flutter/tools/gn` regenerates with `--check`, which fails on
 include violations upstream carries — regenerate with plain

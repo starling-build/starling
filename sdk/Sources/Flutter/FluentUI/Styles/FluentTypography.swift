@@ -147,17 +147,8 @@ public struct Typography: Equatable {
     }
 
     /// Returns a new Typography with transformations applied to all text styles.
-    /// `strongFontFamily`, when given, is the family the semibold styles
-    /// (display, titleLarge, title, subtitle, bodyStrong) ask for instead
-    /// of `fontFamily`, at NORMAL weight: a face registered under its own
-    /// name, the way Windows addresses "Segoe UI Semibold", rather than
-    /// weight 600 resolved inside one family. Fluent's theme passes
-    /// "Selawik Semibold" for it. The weight goes back to normal because a
-    /// 600 asked of that face is what breaks on iOS — see
-    /// SelawikFont.registerFont — and the face is the weight.
     public func apply(
         fontFamily: String? = nil,
-        strongFontFamily: String? = nil,
         fontSizeFactor: Double = 1.0,
         fontSizeDelta: Double = 0.0,
         displayColor: Color? = nil,
@@ -171,40 +162,36 @@ public struct Typography: Equatable {
                 decoration: decoration,
                 decorationColor: decorationColor,
                 decorationStyle: decorationStyle,
-                fontFamily: strongFontFamily ?? fontFamily,
+                fontFamily: fontFamily,
                 fontSizeFactor: fontSizeFactor,
-                fontSizeDelta: fontSizeDelta,
-                fontWeightDelta: strongFontFamily == nil ? 0 : FontWeight.normal.index - (display?.fontWeight ?? .normal).index
+                fontSizeDelta: fontSizeDelta
             ),
             titleLarge: titleLarge?.apply(
                 color: displayColor,
                 decoration: decoration,
                 decorationColor: decorationColor,
                 decorationStyle: decorationStyle,
-                fontFamily: strongFontFamily ?? fontFamily,
+                fontFamily: fontFamily,
                 fontSizeFactor: fontSizeFactor,
-                fontSizeDelta: fontSizeDelta,
-                fontWeightDelta: strongFontFamily == nil ? 0 : FontWeight.normal.index - (titleLarge?.fontWeight ?? .normal).index
+                fontSizeDelta: fontSizeDelta
             ),
             title: title?.apply(
                 color: displayColor,
                 decoration: decoration,
                 decorationColor: decorationColor,
                 decorationStyle: decorationStyle,
-                fontFamily: strongFontFamily ?? fontFamily,
+                fontFamily: fontFamily,
                 fontSizeFactor: fontSizeFactor,
-                fontSizeDelta: fontSizeDelta,
-                fontWeightDelta: strongFontFamily == nil ? 0 : FontWeight.normal.index - (title?.fontWeight ?? .normal).index
+                fontSizeDelta: fontSizeDelta
             ),
             subtitle: subtitle?.apply(
                 color: displayColor,
                 decoration: decoration,
                 decorationColor: decorationColor,
                 decorationStyle: decorationStyle,
-                fontFamily: strongFontFamily ?? fontFamily,
+                fontFamily: fontFamily,
                 fontSizeFactor: fontSizeFactor,
-                fontSizeDelta: fontSizeDelta,
-                fontWeightDelta: strongFontFamily == nil ? 0 : FontWeight.normal.index - (subtitle?.fontWeight ?? .normal).index
+                fontSizeDelta: fontSizeDelta
             ),
             bodyLarge: bodyLarge?.apply(
                 color: displayColor,
@@ -220,10 +207,9 @@ public struct Typography: Equatable {
                 decoration: decoration,
                 decorationColor: decorationColor,
                 decorationStyle: decorationStyle,
-                fontFamily: strongFontFamily ?? fontFamily,
+                fontFamily: fontFamily,
                 fontSizeFactor: fontSizeFactor,
-                fontSizeDelta: fontSizeDelta,
-                fontWeightDelta: strongFontFamily == nil ? 0 : FontWeight.normal.index - (bodyStrong?.fontWeight ?? .normal).index
+                fontSizeDelta: fontSizeDelta
             ),
             body: body?.apply(
                 color: displayColor,
