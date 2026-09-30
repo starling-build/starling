@@ -6314,6 +6314,11 @@ open class RenderFollowerLayer: RenderProxyBox {
         super.detach()
     }
 
+    open override func dispose() {
+        _followerLayer = nil
+        super.dispose()
+    }
+
     // MARK: - Compositing
 
     /// This render object always needs compositing because it creates a
@@ -6324,10 +6329,18 @@ open class RenderFollowerLayer: RenderProxyBox {
 
     // MARK: - Layer
 
-    /// The follower layer used during painting.
+    /// The follower layer used during painting. Held through a handle, as
+    /// Dart's `RenderObject.layer` is: a bare reference kept the object
+    /// alive but not the layer's ref count, so the parent's next repaint
+    /// disposed it, and the paint after that set `link` on a disposed
+    /// layer — an assertion the moment any flyout opened.
     ///
     /// **Dart Source:** `proxy_box.dart:4584-4585`
-    private var _followerLayer: FollowerLayer?
+    private let _followerHandle = LayerHandle<FollowerLayer>()
+    private var _followerLayer: FollowerLayer? {
+        get { _followerHandle.layer }
+        set { _followerHandle.layer = newValue }
+    }
 
     /// Returns the transform that was used in the last composition phase, if
     /// any.

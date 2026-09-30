@@ -105,8 +105,11 @@ public class MenuFlyoutItem: MenuFlyoutItemBase {
             onPressed: onPressed == nil ? nil : { [weak self] in
                 guard let self = self else { return }
                 if self.closeAfterClick {
-                    // Pop via navigator to close the flyout
-                    Navigator.maybeOf(context)?.maybePop()
+                    if let scope = FlyoutScope.maybeOf(context) {
+                        scope.close()
+                    } else {
+                        Navigator.maybeOf(context)?.maybePop()
+                    }
                 }
                 self.onPressed?()
             },
@@ -245,11 +248,14 @@ class _MenuFlyoutState: State<StatefulWidget> {
             )
         }
 
-        let column: Widget = Column(
+        // As wide as the widest item, no wider: a separator on its own
+        // would take the whole loose width the positioner allows, and
+        // every item would stretch to match. fluent_ui does the same.
+        let column: Widget = IntrinsicWidth(child: Column(
             mainAxisSize: .min,
-            crossAxisAlignment: .start,
+            crossAxisAlignment: .stretch,
             children: itemWidgets
-        )
+        ))
 
         let content: Widget = FlyoutContent(
             child: column,

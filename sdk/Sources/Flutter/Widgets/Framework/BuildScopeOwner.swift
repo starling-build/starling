@@ -166,6 +166,23 @@ public class BuildOwner {
         _debugStateLocked = true
         callback()
         _debugStateLocked = previousLocked
+        if !_debugStateLocked, !_afterUnlock.isEmpty {
+            let work = _afterUnlock
+            _afterUnlock.removeAll()
+            for job in work { job() }
+        }
+    }
+
+    /// Work that arrived while the state was locked and needs a build:
+    /// an `OverlayEntry` removed by a `dispose` during `finalizeTree`
+    /// cannot mark its overlay dirty then. Upstream defers that with a
+    /// post-frame callback; this port has none, so the lock's release
+    /// runs it, and the build it schedules lands in the next frame.
+    internal var _afterUnlock: [() -> Void] = []
+
+    /// Run `job` now, or as soon as the state lock lifts.
+    public func runWhenUnlocked(_ job: @escaping () -> Void) {
+        if _debugStateLocked { _afterUnlock.append(job) } else { job() }
     }
 
     /// Complete the element lifecycle for elements that have been deactivated.

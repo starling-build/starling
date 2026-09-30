@@ -113,7 +113,15 @@ public class OverlayEntry {
         _overlay = nil
         if !overlay.mounted { return }
         overlay._entries.removeAll { $0 === self }
-        overlay._markDirty()
+        // Removed from a dispose while the tree is being finalized (a
+        // Tooltip unmounting with its entry showing): the overlay cannot
+        // be marked dirty until the lock lifts. Upstream uses a post-frame
+        // callback for the same case.
+        if let owner = overlay.context?.owner {
+            owner.runWhenUnlocked { overlay._markDirty() }
+        } else {
+            overlay._markDirty()
+        }
     }
 
     /// Cause this entry to rebuild during the next pipeline flush.

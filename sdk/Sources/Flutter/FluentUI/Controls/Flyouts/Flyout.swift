@@ -129,20 +129,21 @@ public class FlyoutController {
             )
         })
 
-        // Create flyout entry using CompositedTransformFollower
+        // The flyout entry: positioned beside the target, and scoped so
+        // that what it contains can close it.
         let link = attachState._layerLink
         let flyoutEntry = OverlayEntry(builder: { [weak self] ctx in
-            guard self != nil else {
+            guard let self else {
                 return SizedBox(width: 0, height: 0)
             }
-            return _FlyoutPositioner(
+            return FlyoutScope(close: { [weak self] in self?.closeFlyout() }, child: _FlyoutPositioner(
                 link: link,
                 placement: placement,
                 additionalOffset: additionalOffset,
                 margin: margin,
                 targetContext: attachState.context,
                 builder: builder
-            )
+            ))
         })
 
         _barrierEntry = barrierEntry
@@ -225,12 +226,38 @@ class _FlyoutTargetState: State<StatefulWidget> {
     }
 }
 
+// MARK: - FlyoutScope
+
+/// The open flyout around a widget, so a menu item can close it. A flyout
+/// is overlay entries, not a route, so `Navigator.pop` does not reach it.
+public final class FlyoutScope: InheritedWidget {
+    public let close: () -> Void
+
+    public init(key: (any Key)? = nil, close: @escaping () -> Void, child: Widget) {
+        self.close = close
+        super.init(key: key, child: child)
+    }
+
+    /// The nearest enclosing open flyout, or nil outside one.
+    public static func maybeOf(_ context: any BuildContext) -> FlyoutScope? {
+        context.dependOnInheritedWidgetOfExactType(FlyoutScope.self)
+    }
+
+    public override func updateShouldNotify(_ oldWidget: InheritedWidget) -> Bool { false }
+}
+
 // MARK: - _FlyoutPositioner
 
-/// Internal widget that positions the flyout relative to its target using
-/// `CompositedTransformFollower`.
+/// Internal widget that positions the flyout relative to its target.
 ///
-/// Computes the correct anchor and offset based on the `FlyoutPlacement`.
+/// The target's rectangle is read from its render box, in the overlay's
+/// coordinates, and a `CustomSingleChildLayout` places the popup beside it
+/// once the popup's own size is known — which is also when `.auto` can
+/// decide between below and above, and when the popup can be kept inside
+/// the overlay by `margin`. This is how fluent_ui positions flyouts in
+/// Dart; the port's `FollowerLayer` is a stub that applies no transform,
+/// so a `CompositedTransformFollower` here painted every flyout at the
+/// overlay's origin, unbounded.
 private class _FlyoutPositioner: StatelessWidget {
     let link: LayerLink
     let placement: FlyoutPlacement
@@ -258,93 +285,77 @@ private class _FlyoutPositioner: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        // Resolve auto placement
-        let resolvedPlacement = _resolvePlacement(context)
+        var target = Rect.zero
+        if let targetCtx = targetContext,
+           let box = targetCtx.findRenderObject() as? RenderBox, box.hasSize {
+            let overlayBox = Overlay.of(context).context?.findRenderObject() as? RenderBox
+            let origin = box.localToGlobal(Offset.zero, ancestor: overlayBox)
+            target = Rect.fromLTWH(origin.dx, origin.dy, box.size.width, box.size.height)
+        }
+        return CustomSingleChildLayout(
+            delegate: _FlyoutLayoutDelegate(
+                target: target,
+                placement: placement,
+                additionalOffset: additionalOffset,
+                margin: margin),
+            child: builder(context))
+    }
+}
 
-        // Compute anchors and offset based on placement
-        let targetAnchor: Alignment
-        let followerAnchor: Alignment
-        let offset: Offset
+/// Places the popup beside `target` per `placement`, flipping `.auto`
+/// above when there is more room there, and keeps it `margin` inside the
+/// overlay.
+private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
+    let target: Rect
+    let placement: FlyoutPlacement
+    let additionalOffset: Double
+    let margin: Double
 
-        switch resolvedPlacement {
-        case .bottom:
-            targetAnchor = .bottomCenter
-            followerAnchor = .topCenter
-            offset = Offset(0, additionalOffset)
+    init(target: Rect, placement: FlyoutPlacement, additionalOffset: Double, margin: Double) {
+        self.target = target
+        self.placement = placement
+        self.additionalOffset = additionalOffset
+        self.margin = margin
+        super.init()
+    }
+
+    override func getConstraintsForChild(_ constraints: BoxConstraints) -> BoxConstraints {
+        BoxConstraints(
+            maxWidth: max(0, constraints.maxWidth - 2 * margin),
+            maxHeight: max(0, constraints.maxHeight - 2 * margin))
+    }
+
+    override func getPositionForChild(_ size: Size, _ childSize: Size) -> Offset {
+        var resolved = placement
+        if resolved == .auto {
+            let below = size.height - target.bottom - additionalOffset - margin
+            let above = target.top - additionalOffset - margin
+            resolved = childSize.height <= below || below >= above ? .bottom : .top
+        }
+        var x: Double, y: Double
+        switch resolved {
+        case .bottom, .auto:
+            x = target.center.dx - childSize.width / 2
+            y = target.bottom + additionalOffset
         case .top:
-            targetAnchor = .topCenter
-            followerAnchor = .bottomCenter
-            offset = Offset(0, -additionalOffset)
+            x = target.center.dx - childSize.width / 2
+            y = target.top - additionalOffset - childSize.height
         case .left:
-            targetAnchor = .centerLeft
-            followerAnchor = .centerRight
-            offset = Offset(-additionalOffset, 0)
+            x = target.left - additionalOffset - childSize.width
+            y = target.center.dy - childSize.height / 2
         case .right:
-            targetAnchor = .centerRight
-            followerAnchor = .centerLeft
-            offset = Offset(additionalOffset, 0)
-        case .auto:
-            // Should not reach here; _resolvePlacement always returns a concrete placement
-            targetAnchor = .bottomCenter
-            followerAnchor = .topCenter
-            offset = Offset(0, additionalOffset)
+            x = target.right + additionalOffset
+            y = target.center.dy - childSize.height / 2
         }
-
-        return CompositedTransformFollower(
-            link: link,
-            showWhenUnlinked: false,
-            offset: offset,
-            targetAnchor: targetAnchor,
-            followerAnchor: followerAnchor,
-            child: builder(context)
-        )
+        x = min(max(margin, x), max(margin, size.width - childSize.width - margin))
+        y = min(max(margin, y), max(margin, size.height - childSize.height - margin))
+        return Offset(x, y)
     }
 
-    /// Resolves `.auto` placement by checking available space.
-    ///
-    /// Tries bottom first. If the target is in the bottom half of the screen,
-    /// flips to top.
-    private func _resolvePlacement(_ context: any BuildContext) -> FlyoutPlacement {
-        if placement != .auto { return placement }
-
-        // Try to get the target's position on screen
-        guard let targetCtx = targetContext else { return .bottom }
-        guard let renderBox = targetCtx.findRenderObject() as? RenderBox else { return .bottom }
-
-        let targetGlobal = renderBox.localToGlobal(Offset.zero)
-        let targetSize = renderBox.size
-
-        // Get the screen size from the nearest ancestor render object
-        // Use a simple heuristic: if the target is in the bottom half, place above
-        let targetBottom = targetGlobal.dy + targetSize.height
-
-        // Try to find the overlay size by going up to the root
-        var screenHeight: Double = 800 // fallback
-        if let rootBox = _findRootRenderBox(context) {
-            screenHeight = rootBox.size.height
-        }
-
-        // If there's less than 200px of space below, or target is in bottom half, flip to top
-        let spaceBelow = screenHeight - targetBottom
-        let spaceAbove = targetGlobal.dy
-
-        if spaceBelow < spaceAbove && spaceBelow < 200 {
-            return .top
-        }
-        return .bottom
-    }
-
-    /// Walk up to find the root render box for screen size estimation.
-    private func _findRootRenderBox(_ context: any BuildContext) -> RenderBox? {
-        var current: RenderObject? = context.findRenderObject()
-        var root: RenderBox?
-        while current != nil {
-            if let box = current as? RenderBox {
-                root = box
-            }
-            current = (current as? RenderObject)?.parent as? RenderObject
-        }
-        return root
+    override func shouldRelayout(_ oldDelegate: SingleChildLayoutDelegate) -> Bool {
+        guard let old = oldDelegate as? _FlyoutLayoutDelegate else { return true }
+        return old.target != target || old.placement != placement
+            || old.additionalOffset != additionalOffset || old.margin != margin
     }
 }
 
