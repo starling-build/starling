@@ -133,10 +133,18 @@ public struct FluentThemeData: Equatable {
         let resolvedSlowDuration = slowAnimationDuration ?? .milliseconds(358)
         let resolvedAnimationCurve = animationCurve ?? standardCurve
 
+        // The Fluent look has a face: Selawik, Microsoft's metric-compatible
+        // stand-in for Segoe UI, which ships in the SDK (FluentSystemIcons).
+        // Naming it here, rather than leaving the family nil, is what makes
+        // the chrome — and its layout, since widths follow metrics — the
+        // same on the desktop shell, a native window and the web, instead
+        // of the system font of wherever it happens to run. An app names
+        // it for the engine with `SelawikFont.registerFont()` at startup;
+        // unregistered, the engine's fallback is the system font, as before.
         var resolvedTypography = Typography.fromBrightness(
             brightness: resolvedBrightness,
             color: resolvedResources.textFillColorPrimary
-        ).merge(typography).apply(fontFamily: fontFamily)
+        ).merge(typography).apply(fontFamily: fontFamily ?? SelawikFontName.regular)
 
         self.brightness = resolvedBrightness
         self.resources = resolvedResources

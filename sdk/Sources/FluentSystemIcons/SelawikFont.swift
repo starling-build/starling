@@ -43,8 +43,12 @@ public enum SelawikFont {
         return true  // the page registered both faces (fonts/manifest.json)
         #endif
         guard !_registered else { return true }
+        // The semibold cut goes in under both names: its own, for a style
+        // that asks for it by name, and the regular's, so that weight 600
+        // inside "Selawik" is this cut rather than a synthesized bold.
         let ok = load("Selawik-Regular", as: family)
             && load("Selawik-Semibold", as: semibold)
+            && load("Selawik-Semibold", as: family)
         if ok { _registered = true }
         return ok
     }

@@ -56,9 +56,11 @@ enum OfficeFonts {
         // above (build/web-app.sh writes fonts/manifest.json).
         return true
         #endif
-        // The ribbon's glyphs: the Fluent System Icons face ships in the SDK
-        // and is registered by whoever draws it (the shell does the same).
+        // The ribbon's glyphs and its face: the Fluent System Icons font and
+        // Selawik ship in the SDK and are registered by whoever draws them
+        // (the shell does the same).
         _ = FluentSystemIcons.registerFont()
+        _ = SelawikFont.registerFont()
         guard let bundle = _bundle("OfficeApp_OfficeApp") else {
             FileHandle.standardError.write("[Office] font bundle not found; documents use the engine's default face\n".data(using: .utf8)!)
             return false
