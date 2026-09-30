@@ -186,7 +186,24 @@ public final class RichLayout {
     }
 
     private var _pages: [[PagePiece]] = []
-    private var _piecesByParagraph: [[PagePiece]] = []
+    /// Every page piece in generation order (paragraph order), and where
+    /// each paragraph's pieces start in it — one flat array, not one array
+    /// per paragraph, which cost a keystroke a thousand allocations.
+    private var _allPieces: [PagePiece] = []
+    private var _pieceStart: [Int] = []
+    /// Cached from the style at layout time so pagination never copies a
+    /// paragraph value just to read one flag.
+    private var _pageBreak: [Bool] = []
+    /// Paragraphs re-laid out since the last pass; nil means scan them all
+    /// (after an insert, a removal, or invalidateAll).
+    private var _dirty: [Int]? = []
+    /// The lowest paragraph index changed since the last placement: the
+    /// tops and pages before it are still right, so placement and
+    /// pagination restart there. nil means from the top.
+    private var _firstDirty: Int? = nil
+    /// The highest changed index: past it, a paragraph whose top comes out
+    /// where it was means nothing below moved, and both passes stop.
+    private var _lastDirty: Int = 0
     private var _pagesValid = false
 
     /// Called when a picture finished decoding and the view should repaint.
@@ -222,6 +239,17 @@ public final class RichLayout {
     private var _heights: [Double] = []
     private var _tops: [Double] = []
     private var _listLabels: [String?] = []
+    /// What each paragraph's list membership and cell were at its last
+    /// layout: a change in either is what invalidates the numbering pass
+    /// and the table pass, not a change in the paragraph's text.
+    private var _listSig: [ListSig] = []
+    private var _wasCell: [Bool] = []
+    private var _tablesDirty = true
+    private struct ListSig: Equatable {
+        var kind: ListKind?
+        var level: Int
+        var id: String?
+    }
     private var _topsValid = false
     private var _listValid = false
 
@@ -243,6 +271,13 @@ public final class RichLayout {
         _heights = Array(repeating: 0, count: n)
         _tops = Array(repeating: 0, count: n)
         _listLabels = Array(repeating: nil, count: n)
+        _listSig = Array(repeating: ListSig(kind: nil, level: 0, id: nil), count: n)
+        _wasCell = Array(repeating: false, count: n)
+        _pageBreak = Array(repeating: false, count: n)
+        _tablesDirty = true
+        _dirty = nil
+        _firstDirty = 0
+        _lastDirty = Int.max
         _topsValid = false
         _listValid = false
     }
@@ -255,6 +290,9 @@ public final class RichLayout {
         _topsValid = false
         _listValid = false
         _pagesValid = false
+        _dirty = nil
+        _firstDirty = 0
+        _lastDirty = Int.max
     }
 
     /// Apply the controller's change log, keeping every untouched painter.
@@ -268,8 +306,13 @@ public final class RichLayout {
                 if i < _painters.count {
                     _painters[i]?.dispose()
                     _painters[i] = nil
+                    _dirty?.append(i)
+                    _firstDirty = min(_firstDirty ?? i, i)
+                    _lastDirty = max(_lastDirty, i)
+                    // A cell's text can change a row's height; its table's
+                    // widths do not depend on it, but re-check cheaply.
+                    if _wasCell[i] { _tablesDirty = true }
                 }
-                _listValid = false
             case .inserted(let at, let n):
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
@@ -282,7 +325,14 @@ public final class RichLayout {
                 _heights.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _tops.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _listLabels.insert(contentsOf: Array(repeating: nil, count: n), at: at)
+                _listSig.insert(contentsOf: Array(repeating: ListSig(kind: nil, level: 0, id: nil), count: n), at: at)
+                _wasCell.insert(contentsOf: Array(repeating: false, count: n), at: at)
+                _pageBreak.insert(contentsOf: Array(repeating: false, count: n), at: at)
+                _tablesDirty = true
                 _listValid = false
+                _dirty = nil
+                _firstDirty = min(_firstDirty ?? at, at)
+                _lastDirty = Int.max
             case .removed(let at, let n):
                 let at = min(at, _painters.count)
                 let end = min(at + n, _painters.count)
@@ -297,6 +347,13 @@ public final class RichLayout {
                 _heights.removeSubrange(at ..< end)
                 _tops.removeSubrange(at ..< end)
                 _listLabels.removeSubrange(at ..< end)
+                _listSig.removeSubrange(at ..< end)
+                _wasCell.removeSubrange(at ..< end)
+                _pageBreak.removeSubrange(at ..< end)
+                _tablesDirty = true
+                _dirty = nil
+                _firstDirty = min(_firstDirty ?? at, at)
+                _lastDirty = Int.max
                 _listValid = false
             }
             _topsValid = false
@@ -315,33 +372,89 @@ public final class RichLayout {
     private func _px(_ points: Double) -> Double { points * theme.pixelsPerPoint * scale }
 
     /// Lay out every invalidated paragraph and recompute the tops.
+    private static let _perf = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil
+
     public func ensureLaidOut(_ document: RichDocument) {
+        let t0 = Self._perf ? DispatchTime.now().uptimeNanoseconds : 0
+        var marks: [(String, UInt64)] = []
+        func mark(_ name: String) { if Self._perf { marks.append((name, DispatchTime.now().uptimeNanoseconds)) } }
+        defer {
+            if Self._perf, marks.count > 1 {
+                var prev = t0
+                var line = "richlayout:"
+                for (name, t) in marks { line += " \(name)=\((t - prev) / 1000)us"; prev = t }
+                FileHandle.standardError.write(Data((line + "\n").utf8))
+            }
+        }
         if _painters.count != document.paragraphs.count {
             invalidateAll()
             _resize(document.paragraphs.count)
         }
+        // The paragraphs to lay out: the ones changed since the last pass,
+        // or every one without a painter after a structural change.
+        let toLayout: [Int]
+        if let dirty = _dirty {
+            toLayout = dirty.count > 1 ? Array(Set(dirty)).sorted() : dirty
+        } else {
+            toLayout = _painters.indices.filter { _painters[$0] == nil }
+        }
+        _dirty = []
+        // A paragraph whose list membership or cell changed since its last
+        // layout invalidates the passes that depend on the whole document.
+        for i in toLayout {
+            let st = document.paragraphs[i].style
+            let sig = ListSig(kind: st.list, level: st.listLevel, id: st.listId)
+            if sig != _listSig[i] { _listValid = false; _listSig[i] = sig }
+            let isCell = document.paragraphs[i].cell != nil
+            if isCell != _wasCell[i] { _tablesDirty = true; _wasCell[i] = isCell }
+            _pageBreak[i] = st.pageBreakBefore
+        }
+        mark("sigs")
         if !_listValid { _renumberLists(document) }
-        _updateTables(document)
+        var toLayoutNow = toLayout
+        if _tablesDirty {
+            _updateTables(document)
+            _tablesDirty = false
+            toLayoutNow = _painters.indices.filter { _painters[$0] == nil }
+        }
+        mark("lists+tables")
         var changed = false
-        for i in _painters.indices where _painters[i] == nil {
+        for i in toLayoutNow where _painters[i] == nil {
             _layoutParagraph(i, document.paragraphs[i], document)
             changed = true
         }
+        mark("paragraphs")
+        // Placement and pagination restart at the first changed paragraph
+        // (its row's first member); everything above is as it was.
+        // (_topsValid only says the tops need recomputing; the ones above
+        // the first change are still right, which is what makes the
+        // restart possible.)
+        var from = min(_firstDirty ?? 0, _heights.count)
+        while from > 0, let c = _cells[from], let d = _cells[from - 1], c.table == d.table, c.row == d.row { from -= 1 }
+        let settled = _lastDirty   // paragraphs above this may have moved
         if changed || !_topsValid {
-            _placeBlocks(document)
+            _placeBlocks(document, from: from, settled: settled)
             _topsValid = true
             _pagesValid = false
         }
-        if pageSetup != nil && !_pagesValid { _paginate(document) }
+        mark("place")
+        if pageSetup != nil && !_pagesValid { _paginate(document, from: from, settled: settled) }
+        _firstDirty = nil
+        _lastDirty = 0
+        mark("paginate")
     }
 
     /// Column widths per table (px); a table whose widths changed has every
     /// cell re-laid out.
     private func _updateTables(_ document: RichDocument) {
+        var columns: [String: Int] = [:]
+        for p in document.paragraphs {
+            if let c = p.cell { columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span) }
+        }
         var widths: [String: [Double]] = [:]
         for p in document.paragraphs {
             guard let c = p.cell, widths[c.table] == nil else { continue }
-            let cols = document.columnCount(of: c.table)
+            let cols = columns[c.table] ?? 1
             if let pts = _columnPreview[c.table] ?? document.tableColumns[c.table], pts.count == cols {
                 widths[c.table] = pts.map { _px($0) }
             } else {
@@ -352,6 +465,8 @@ public final class RichLayout {
             for i in document.paragraphs.indices where document.paragraphs[i].cell?.table == table {
                 _painters[i]?.dispose()
                 _painters[i] = nil
+                _firstDirty = min(_firstDirty ?? i, i)
+                _lastDirty = max(_lastDirty, i)
             }
         }
         _columnWidths = widths
@@ -363,6 +478,7 @@ public final class RichLayout {
 
     public func previewColumns(_ table: String, _ widths: [Double]?, _ document: RichDocument) {
         if widths == nil { _columnPreview[table] = nil } else { _columnPreview[table] = widths }
+        _tablesDirty = true
         for i in document.paragraphs.indices where document.paragraphs[i].cell?.table == table {
             _painters[i]?.dispose()
             _painters[i] = nil
@@ -392,11 +508,14 @@ public final class RichLayout {
 
     /// Stack the blocks: ordinary paragraphs one under another, a table row's
     /// cells side by side with each column's paragraphs stacked inside it.
-    private func _placeBlocks(_ document: RichDocument) {
-        var y = 0.0
-        var i = 0
+    private func _placeBlocks(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max) {
         let n = _heights.count
+        var i = min(start, n)
+        var y = i > 0 ? _rowTops[i] : 0.0
         while i < n {
+            // Past the last change, a block whose top is unchanged means
+            // every block below is too (heights above it are the same).
+            if i > settled, _rowTops[i] == y { return }
             guard let c = _cells[i] else {
                 _tops[i] = y
                 _rowTops[i] = y
@@ -441,18 +560,63 @@ public final class RichLayout {
     /// Cut the flow into pages. A paragraph that straddles a page boundary
     /// is split between lines (its painter is painted twice, clipped), so
     /// the breakable positions inside a block are the bottoms of its lines.
-    private func _paginate(_ document: RichDocument) {
-        _pages = [[]]
+    private func _paginate(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max) {
         let contentH = max(1, _pxContentH)
         var page = 0
         var y = 0.0
-        func newPage() {
+        var i = 0
+        var resumeCursor: Double? = nil
+        // The previous result, to splice back in once the flow past the
+        // change lands where it did before.
+        let oldPieces = _allPieces
+        let oldPages = _pages
+        let oldStart = _pieceStart
+        var restarted = false
+        // Restart on the page where the first changed paragraph begins,
+        // from that page's first piece; the pages before it are kept.
+        if start > 0, start < count, _pieceStart.count == count + 1, _pieceStart[start] < _allPieces.count,
+           case let p = _allPieces[_pieceStart[start]].page, p > 0, p < _pages.count, let first = _pages[p].first {
+            page = p
+            i = first.paragraph
+            resumeCursor = first.flowTop
+            restarted = true
+            _pages.removeSubrange(p...)
             _pages.append([])
+            _pages[p].reserveCapacity(32)
+            if let k = _allPieces.firstIndex(where: { $0.paragraph == i && $0.flowTop >= first.flowTop - 0.01 }) {
+                _allPieces.removeSubrange(k...)
+            } else {
+                _allPieces.removeAll(keepingCapacity: true)
+            }
+        } else {
+            _pages = [[]]
+            _pages[0].reserveCapacity(32)
+            _allPieces.removeAll(keepingCapacity: true)
+        }
+        func newPage() {
+            var fresh: [PagePiece] = []
+            fresh.reserveCapacity(32)
+            _pages.append(fresh)
             page += 1
             y = 0
         }
-        var i = 0
+        func add(_ piece: PagePiece) {
+            _pages[page].append(piece)
+            _allPieces.append(piece)
+        }
         while i < count {
+            // Converged: this paragraph starts on the same page at the same
+            // y as before and nothing below has changed, so the old pieces
+            // and pages from here on are still right.
+            if restarted, i > settled, resumeCursor == nil, oldStart.count == count + 1,
+               oldStart[i] < oldPieces.count, case let old = oldPieces[oldStart[i]],
+               old.page == page, abs(old.pageY - y) < 0.01, abs(old.flowTop - _tops[i]) < 0.01,
+               page < oldPages.count {
+                _allPieces.append(contentsOf: oldPieces[oldStart[i]...])
+                _pages[page].append(contentsOf: oldPages[page].filter { $0.paragraph >= i })
+                if page + 1 < oldPages.count { _pages.append(contentsOf: oldPages[(page + 1)...]) }
+                break
+            }
             if let c = _cells[i] {
                 // A table row is one unbreakable block; every member gets the
                 // row's piece so its text paints on the row's page.
@@ -461,7 +625,7 @@ public final class RichLayout {
                 let rowBottom = c.rowTop + c.rowHeight
                 if c.rowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
                 for k in i ..< j {
-                    _pages[page].append(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: rowBottom,
+                    add(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: rowBottom,
                                                   page: page, pageY: y))
                 }
                 y += c.rowHeight
@@ -470,23 +634,26 @@ public final class RichLayout {
                 continue
             }
             defer { i += 1 }
-            let g = geometry(i)
-            if document.paragraphs[i].style.pageBreakBefore && (y > 0 || !_pages[page].isEmpty) {
+            let top = _tops[i]
+            let bottom = top + _heights[i]
+            if _pageBreak[i] && (y > 0 || !_pages[page].isEmpty) && resumeCursor == nil {
                 newPage()
             }
-            var cursor = g.top
+            var cursor = resumeCursor ?? top
+            resumeCursor = nil
             var cuts: [Double]? = nil   // lazily computed line bottoms
-            while cursor < g.bottom - 0.01 {
+            while cursor < bottom - 0.01 {
                 let available = contentH - y
-                let rest = g.bottom - cursor
+                let rest = bottom - cursor
                 if rest <= available + 0.01 {
-                    _pages[page].append(PagePiece(paragraph: i, flowTop: cursor, flowBottom: g.bottom,
+                    add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom,
                                                   page: page, pageY: y))
                     y += rest
-                    cursor = g.bottom
+                    cursor = bottom
                     break
                 }
                 if cuts == nil {
+                    let g = geometry(i)
                     var list: [Double] = []
                     var ly = g.textTop
                     for line in g.painter.computeLineMetrics() {
@@ -504,7 +671,7 @@ public final class RichLayout {
                 var cut: Double? = nil
                 for c in cuts! where c > cursor + 0.01 && c - cursor <= available + 0.01 { cut = c }
                 if let cut {
-                    _pages[page].append(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
+                    add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
                                                   page: page, pageY: y))
                     cursor = cut
                     newPage()
@@ -513,8 +680,8 @@ public final class RichLayout {
                     newPage()
                 } else {
                     // A single line taller than a page: place it and overflow.
-                    let next = cuts!.first(where: { $0 > cursor + 0.01 }) ?? g.bottom
-                    _pages[page].append(PagePiece(paragraph: i, flowTop: cursor, flowBottom: next,
+                    let next = cuts!.first(where: { $0 > cursor + 0.01 }) ?? bottom
+                    add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: next,
                                                   page: page, pageY: y))
                     cursor = next
                     newPage()
@@ -522,9 +689,14 @@ public final class RichLayout {
             }
         }
         if _pages.count > 1 && _pages[_pages.count - 1].isEmpty { _pages.removeLast() }
-        _piecesByParagraph = Array(repeating: [], count: count)
-        for page in _pages {
-            for piece in page { _piecesByParagraph[piece.paragraph].append(piece) }
+        // Pieces came out in paragraph order (a row's members are contiguous
+        // and a paragraph's cuts consecutive), so one flat array indexed by
+        // start replaces an array per paragraph.
+        if _pieceStart.count != count + 1 { _pieceStart = Array(repeating: 0, count: count + 1) }
+        var k = 0
+        for para in 0 ... count {
+            while k < _allPieces.count, _allPieces[k].paragraph < para { k += 1 }
+            _pieceStart[para] = k
         }
         _pagesValid = true
     }
@@ -560,7 +732,7 @@ public final class RichLayout {
         guard isPaged else { return [r] }
         let i = paragraphIndex(atY: r.top)
         var out: [Rect] = []
-        let pieces = _piecesByParagraph.indices.contains(i) ? _piecesByParagraph[i] : []
+        let pieces = i + 1 < _pieceStart.count ? Array(_allPieces[_pieceStart[i] ..< _pieceStart[i + 1]]) : []
         for piece in pieces {
             let lo = max(r.top, piece.flowTop)
             let hi = min(r.bottom, piece.flowBottom)

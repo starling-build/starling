@@ -79,9 +79,15 @@ boundary, dark mode, window resizing, Home/End/PageUp/PageDown and the
   and click recipes in `office.md`; keep a screenshot of the result in the
   session. A milestone is done when it was seen working, not when it
   compiles.
-- **Keep the perf gate.** Re-run the 200-page measurement after any
-  change to `RichEditable` or `RichLayout`; nothing in this plan may make a
-  keystroke slower.
+- **Keep the perf gate.** `OfficeApp --bench 200` (headless, debug
+  build) after any change to `RichEditable` or `RichLayout`. It types
+  into the middle of the 200-page document and reports per-keystroke
+  layout and paint; it also checks the incremental pagination against a
+  fresh layout and fails if they differ. The gate: **layout median under
+  450 µs, paint median under 200 µs** (2026-09-30: 412 / 149 µs; the
+  same harness measured the pre-tables layout at 2155 µs, so the earlier
+  "50–100 µs" figure in `office.md` was measuring something narrower).
+  Nothing in this plan may make a keystroke slower.
 - **Framework first when it is a framework gap.** Cursors, IME and rich
   clipboard flavours are host and SDK work that every future app needs;
   they go in `sdk/`, with Writer as the first consumer.

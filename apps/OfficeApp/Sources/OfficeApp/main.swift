@@ -39,13 +39,10 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
     return n
 }
 
-// `--convert <in> <out>`: the formats without the window, for scripts and
-// for checking our output against other readers (`textutil`, LibreOffice).
-if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
-    let src = CommandLine.arguments[i + 1]
-    let dst = CommandLine.arguments[i + 2]
-    // No host boots here, so nobody hands the bridge its ICU data; without
-    // it a PDF's lines break between characters. Same file the hosts use.
+/// No host boots for the command-line modes, so nobody hands the bridge its
+/// ICU data; without it a paragraph's lines break between characters. Same
+/// file the hosts use.
+func initializeHeadlessText() {
     let exeDir = URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0])
         .deletingLastPathComponent().path
     for candidate in [exeDir + "/data/icudtl.dat", exeDir + "/../Resources/data/icudtl.dat",
@@ -54,12 +51,82 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
         _ = flutter.swift_bridge.InitializeICU(candidate)
         break
     }
+    OfficeFonts.register()
+}
+
+// `--bench [pages]`: the perf gate without a window. Lays out the generated
+// document, then types into a paragraph in the middle, re-laying out and
+// painting the page around it after each keystroke, and prints the initial
+// layout time and the per-keystroke layout and paint costs. The gate in
+// docs/plans/office.md: ~100 µs layout and ~150 µs paint per keystroke on
+// 200 pages.
+if let i = CommandLine.arguments.firstIndex(of: "--bench") {
+    initializeHeadlessText()
+    let pages = i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) ?? 200 : 200
+    let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+    let setup = PageSetup.letter
+    let controller = RichDocumentController()
+    controller.load(DemoDocument.make(pages: pages))
+    let layout = RichLayout(theme: theme, paragraphCount: controller.document.paragraphs.count)
+    layout.scale = 1.0
+    layout.pageSetup = setup
+    layout.width = setup.contentWidth * theme.pixelsPerPoint
+    func now() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
+    let t0 = now()
+    _ = controller.drainChanges()
+    layout.ensureLaidOut(controller.document)
+    let initialMs = Double(now() - t0) / 1e6
+    let n = controller.document.paragraphs.count
+    let target = n / 2
+    controller.moveTo(RichPosition(paragraph: target, offset: 5), extend: false)
+    var layoutUs: [Int] = [], paintUs: [Int] = []
+    for k in 0 ..< 60 {
+        controller.insertText(k % 7 == 6 ? " " : "x")
+        let t1 = now()
+        layout.apply(controller.drainChanges(), paragraphCount: controller.document.paragraphs.count)
+        layout.ensureLaidOut(controller.document)
+        let t2 = now()
+        // Paint the page the caret is on, as the window would.
+        let page = layout.page(atCanvasY: layout.canvasCaretRect(controller.caret, controller.document).top)
+        let rect = layout.pageRect(page)
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: rect)
+        canvas.translate(0, -rect.top)
+        layout.paint(canvas, visible: rect, document: controller.document, selection: controller.selection,
+                     caret: nil, pageBackground: nil)
+        _ = recorder.endRecording()
+        let t3 = now()
+        layoutUs.append(Int((t2 - t1) / 1000))
+        paintUs.append(Int((t3 - t2) / 1000))
+    }
+    func stats(_ v: [Int]) -> String {
+        let s = v.sorted()
+        return "median \(s[s.count / 2]) µs, p90 \(s[s.count * 9 / 10]) µs, max \(s[s.count - 1]) µs"
+    }
+    // The incremental passes must land exactly where a fresh layout does.
+    let fresh = RichLayout(theme: theme, paragraphCount: controller.document.paragraphs.count)
+    fresh.scale = 1.0
+    fresh.pageSetup = setup
+    fresh.width = layout.width
+    fresh.ensureLaidOut(controller.document)
+    let same = fresh.pieces == layout.pieces && fresh.pageCount == layout.pageCount
+    print("bench: \(pages) pages, \(n) paragraphs, \(layout.pageCount) laid-out pages; incremental pagination \(same ? "matches" : "DIFFERS FROM") a fresh layout")
+    if !same { exit(2) }
+    print("initial layout: \(String(format: "%.0f", initialMs)) ms")
+    print("per keystroke layout: \(stats(layoutUs))")
+    print("per keystroke paint:  \(stats(paintUs))")
+    exit(0)
+}
+
+// `--convert <in> <out>`: the formats without the window, for scripts and
+// for checking our output against other readers (`textutil`, LibreOffice).
+if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
+    let src = CommandLine.arguments[i + 1]
+    let dst = CommandLine.arguments[i + 2]
+    initializeHeadlessText()
     do {
         let opened = try OfficeFormats.read(src)
         if (dst as NSString).pathExtension.lowercased() == "pdf" {
-            // The bridge's own font manager serves the PDF, so the document
-            // faces have to be registered exactly as the window does it.
-            OfficeFonts.register()
             let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
             guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
                                   to: dst, title: (src as NSString).lastPathComponent) else {
