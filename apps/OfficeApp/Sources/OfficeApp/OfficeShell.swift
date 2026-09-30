@@ -42,16 +42,15 @@ private struct ToolbarSummary: Equatable {
 
 final class OfficeShellState: State<StatefulWidget> {
     let controller = RichDocumentController()
-    let theme = RichTextTheme()
+    let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+    private var _pageSetup = PageSetup.letter
+    private var _pageInfo = (1, 1)
     private var _summary = ToolbarSummary()
     private var _zoom = 1.0
 
-    /// US Letter at 96 dpi, the page column Word shows at 100%.
-    private let pageWidth = 816.0
-    private let pageMargin = 96.0
-
     override func initState() {
         super.initState()
+        OfficeFonts.register()
         let env = ProcessInfo.processInfo.environment
         if let pages = env["OFFICE_DEMO_PAGES"].flatMap(Int.init), pages > 0 {
             controller.load(DemoDocument.make(pages: pages))
@@ -167,28 +166,20 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private func _pageArea(_ fluent: FluentThemeData) -> Widget {
         let dark = fluent.brightness == .dark
-        let backdrop = dark ? Color(0xFF202020) : Color(0xFFE3E3E3)
+        let backdrop = dark ? Color(0xFF202020) : Color(0xFFE6E6E6)
         let page = dark ? Color(0xFF2B2B2B) : Color(0xFFFFFFFF)
         let editorTheme = theme
         editorTheme.textColor = dark ? Color(0xFFF0F0F0) : Color(0xFF1B1B1B)
         editorTheme.caretColor = editorTheme.textColor
-        let width = pageWidth * _zoom
-        let margin = pageMargin * _zoom
-        let editor = RichEditable(
+        return RichEditable(
             controller: controller, theme: editorTheme,
-            padding: EdgeInsets(left: margin, top: margin, right: margin, bottom: margin),
-            backgroundColor: page, zoom: _zoom
-        )
-        return ColoredBox(
-            color: backdrop,
-            child: Row(
-                crossAxisAlignment: .stretch,
-                children: [
-                    Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
-                    SizedBox(width: width, child: editor),
-                    Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
-                ]
-            )
+            padding: EdgeInsets(left: 24, top: 24, right: 24, bottom: 24),
+            backgroundColor: backdrop, zoom: _zoom,
+            pageSetup: _pageSetup, pageColor: page,
+            onPageInfo: { [weak self] page, count in
+                guard let self, self._pageInfo != (page, count) else { return }
+                self.setState { self._pageInfo = (page, count) }
+            }
         )
     }
 
@@ -197,6 +188,8 @@ final class OfficeShellState: State<StatefulWidget> {
         return Padding(
             padding: EdgeInsets(left: 12, top: 4, right: 12, bottom: 4),
             child: Row(children: [
+                Text("Page \(_pageInfo.0) of \(_pageInfo.1)", style: fluent.typography.caption),
+                _gap(24),
                 Text("Paragraph \(s.paragraph) of \(s.paragraphs)", style: fluent.typography.caption),
                 _gap(24),
                 Text("\(s.words) words", style: fluent.typography.caption),            ])

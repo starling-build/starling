@@ -26,16 +26,25 @@ public final class RichEditable: StatefulWidget {
     public let backgroundColor: Color?
     /// Zoom, 1.0 = 100%.
     public let zoom: Double
+    /// Paginate onto paper of this size; nil is a continuous column.
+    public let pageSetup: PageSetup?
+    /// Paper colour in paged mode.
+    public let pageColor: Color
     /// Called after each paint with the caret rectangle in the widget's
     /// coordinates (nil when unfocused) — the IME candidate-panel anchor.
     public let onCaretRect: ((Rect?) -> Void)?
+    /// Called after a paint whenever (caret page, page count) changed —
+    /// 1-based, for a status bar.
+    public let onPageInfo: ((Int, Int) -> Void)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
                 padding: EdgeInsets = EdgeInsets(left: 24, top: 24, right: 24, bottom: 24),
                 focusNode: FocusNode? = nil, autofocus: Bool = true,
                 backgroundColor: Color? = nil, zoom: Double = 1.0,
-                onCaretRect: ((Rect?) -> Void)? = nil) {
+                pageSetup: PageSetup? = nil, pageColor: Color = Color(0xFFFFFFFF),
+                onCaretRect: ((Rect?) -> Void)? = nil,
+                onPageInfo: ((Int, Int) -> Void)? = nil) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -43,7 +52,10 @@ public final class RichEditable: StatefulWidget {
         self.autofocus = autofocus
         self.backgroundColor = backgroundColor
         self.zoom = zoom
+        self.pageSetup = pageSetup
+        self.pageColor = pageColor
         self.onCaretRect = onCaretRect
+        self.onPageInfo = onPageInfo
         super.init(key: key)
     }
 
@@ -64,6 +76,9 @@ public final class RichEditableState: State<StatefulWidget> {
     // Viewport state.
     private var _scrollY = 0.0
     private var _viewport = Size.zero
+    /// Where the canvas's left edge sits in the widget (pages are centred).
+    private var _originX = 0.0
+    private var _lastPageInfo = (0, 0)
     private var _stickyX: Double?
 
     // Caret blink.
@@ -100,7 +115,17 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     public var contentHeight: Double {
-        (_layout?.totalHeight ?? 0) + _w.padding.top + _w.padding.bottom
+        (_layout?.canvasSize.height ?? 0) + _w.padding.top + _w.padding.bottom
+    }
+
+    /// Pages in the current layout (1 when continuous).
+    public var pageCount: Int { _layout?.pageCount ?? 1 }
+
+    /// The page the caret is on, 1-based.
+    public var caretPage: Int {
+        guard let layout = _layout, layout.isPaged, layout.width > 0 else { return 1 }
+        let r = layout.canvasCaretRect(_controller.caret, _controller.document)
+        return layout.page(atCanvasY: r.top) + 1
     }
 
     public var viewportSize: Size { _viewport }
@@ -130,6 +155,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
         _layout.scale = _w.zoom
+        _layout.pageSetup = _w.pageSetup
         _painter = _RichEditablePainter(state: self, repaint: _repaint)
         _controller.addListener(_onControllerChanged)
         if _w.autofocus { _focus.requestFocus() }
@@ -148,6 +174,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _layout = RichLayout(theme: _w.theme, paragraphCount: _controller.document.paragraphs.count)
         }
         if _layout.scale != _w.zoom { _layout.scale = _w.zoom }
+        if _layout.pageSetup != _w.pageSetup { _layout.pageSetup = _w.pageSetup }
         _repaint.notifyListeners()
     }
 
@@ -185,7 +212,7 @@ public final class RichEditableState: State<StatefulWidget> {
 
     private func _ensureCaretVisible() {
         guard _viewport.height > 0, _layout.width > 0 else { return }
-        let c = _layout.caretRect(_controller.caret, _controller.document)
+        let c = _layout.canvasCaretRect(_controller.caret, _controller.document)
         let top = c.top + _w.padding.top
         let bottom = c.bottom + _w.padding.top
         let margin = 8.0
@@ -365,8 +392,8 @@ public final class RichEditableState: State<StatefulWidget> {
 
     // MARK: Pointer
 
-    private func _docPoint(_ local: Offset) -> Offset {
-        Offset(local.dx - _w.padding.left, local.dy + _scrollY - _w.padding.top)
+    private func _canvasPoint(_ local: Offset) -> Offset {
+        Offset(local.dx - _originX, local.dy + _scrollY - _w.padding.top)
     }
 
     private func _pointerDown(_ event: PointerEvent) {
@@ -380,7 +407,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _clickStreak = (now - _lastClickAt < 0.45 && near) ? _clickStreak + 1 : 1
         _lastClickAt = now
         _lastClickPos = event.localPosition
-        let pos = _layout.position(at: _docPoint(event.localPosition), _controller.document)
+        let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
         _stickyX = nil
         switch _clickStreak {
         case 1:
@@ -401,7 +428,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let y = event.localPosition.dy
         if y < 0 { _scrollY -= min(40, -y) } else if y > _viewport.height { _scrollY += min(40, y - _viewport.height) }
         _clampScroll()
-        let pos = _layout.position(at: _docPoint(event.localPosition), _controller.document)
+        let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
         _controller.moveTo(pos, extend: true)
     }
 
@@ -430,12 +457,19 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         _viewport = size
         let pad = _w.padding
-        let contentWidth = max(1, size.width - pad.left - pad.right)
+        let contentWidth: Double
+        if let setup = _w.pageSetup {
+            contentWidth = max(1, setup.contentWidth * _layout.theme.pixelsPerPoint * _layout.scale)
+        } else {
+            contentWidth = max(1, size.width - pad.left - pad.right)
+        }
         if _layout.width != contentWidth {
             _layout.width = contentWidth
         }
         _syncLayout()
         _clampScroll()
+        let canvasW = _layout.canvasSize.width
+        _originX = _w.pageSetup == nil ? pad.left : max(pad.left, ((size.width - canvasW) / 2).rounded())
 
         if let bg = _w.backgroundColor {
             let paint = Paint()
@@ -445,13 +479,24 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         canvas.save()
         canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height))
-        canvas.translate(pad.left, pad.top - _scrollY)
-        let visible = Rect.fromLTWH(0, _scrollY - pad.top, contentWidth, size.height)
+        canvas.translate(_originX, pad.top - _scrollY)
+        let visible = Rect.fromLTWH(-_originX, _scrollY - pad.top, size.width, size.height)
         let focused = _focus.hasFocus
-        let caretRect = _layout.count > 0 ? _layout.caretRect(_controller.caret, _controller.document) : nil
+        let caretRect = _layout.count > 0 ? _layout.canvasCaretRect(_controller.caret, _controller.document) : nil
+        let pageColor = _w.pageColor
         _layout.paint(canvas, visible: visible, document: _controller.document,
                       selection: _controller.selection,
-                      caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil)
+                      caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil,
+                      pageBackground: { _, rect in
+                          let shadow = Paint()
+                          shadow.color = Color(0x22000000)
+                          shadow.style = .fill
+                          canvas.drawRect(rect.shift(Offset(0, 2)).inflate(1), shadow)
+                          let paper = Paint()
+                          paper.color = pageColor
+                          paper.style = .fill
+                          canvas.drawRect(rect, paper)
+                      })
         canvas.restore()
 
         // Scrollbar thumb.
@@ -467,9 +512,16 @@ public final class RichEditableState: State<StatefulWidget> {
                                    Radius(circular: 3)), paint)
         }
 
+        if let info = _w.onPageInfo {
+            let now = (caretPage, pageCount)
+            if now != _lastPageInfo {
+                _lastPageInfo = now
+                DispatchQueue.main.async { info(now.0, now.1) }
+            }
+        }
         if let report = _w.onCaretRect {
             if focused, let c = caretRect {
-                report(Rect.fromLTWH(c.left + pad.left, c.top + pad.top - _scrollY, c.width, c.height))
+                report(Rect.fromLTWH(c.left + _originX, c.top + pad.top - _scrollY, c.width, c.height))
             } else {
                 report(nil)
             }

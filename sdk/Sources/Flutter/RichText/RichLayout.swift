@@ -91,6 +91,59 @@ public final class RichTextTheme {
     }
 }
 
+// MARK: - Pages
+
+/// Paper size and margins, in points. `nil` on the layout means a continuous
+/// column (a note, a text field); set, the flow is cut into pages at line
+/// boundaries and every geometry query has a canvas-space twin.
+public struct PageSetup: Equatable, Sendable {
+    public var width: Double
+    public var height: Double
+    public var marginTop: Double
+    public var marginBottom: Double
+    public var marginLeft: Double
+    public var marginRight: Double
+    /// Space between pages on the canvas, in points.
+    public var gap: Double
+
+    public init(width: Double, height: Double, marginTop: Double = 72,
+                marginBottom: Double = 72, marginLeft: Double = 72,
+                marginRight: Double = 72, gap: Double = 18) {
+        self.width = width
+        self.height = height
+        self.marginTop = marginTop
+        self.marginBottom = marginBottom
+        self.marginLeft = marginLeft
+        self.marginRight = marginRight
+        self.gap = gap
+    }
+
+    public static let letter = PageSetup(width: 612, height: 792)
+    public static let a4 = PageSetup(width: 595.3, height: 841.9)
+
+    public var contentWidth: Double { width - marginLeft - marginRight }
+    public var contentHeight: Double { height - marginTop - marginBottom }
+    public var isLandscape: Bool { width > height }
+
+    public func rotated() -> PageSetup {
+        var p = self
+        swap(&p.width, &p.height)
+        return p
+    }
+}
+
+/// A run of one paragraph's flow placed on one page. `pageY` is measured
+/// from the top of the page's content area; the piece covers flow
+/// `flowTop ..< flowBottom`.
+public struct PagePiece: Equatable, Sendable {
+    public let paragraph: Int
+    public let flowTop: Double
+    public let flowBottom: Double
+    public let page: Int
+    public let pageY: Double
+    public var height: Double { flowBottom - flowTop }
+}
+
 // MARK: - Layout
 
 /// Laid-out geometry for one paragraph, in document space.
@@ -119,6 +172,16 @@ public final class RichLayout {
     public var width: Double = 0 {
         didSet { if width != oldValue { invalidateAll() } }
     }
+
+    /// Paginate when set. Geometry in FLOW space (the continuous column) is
+    /// unchanged; the `canvas*` methods map it onto pages.
+    public var pageSetup: PageSetup? {
+        didSet { if pageSetup != oldValue { _pagesValid = false } }
+    }
+
+    private var _pages: [[PagePiece]] = []
+    private var _piecesByParagraph: [[PagePiece]] = []
+    private var _pagesValid = false
 
     private var _painters: [TextPainter?] = []
     private var _textLeft: [Double] = []
@@ -156,6 +219,7 @@ public final class RichLayout {
         }
         _topsValid = false
         _listValid = false
+        _pagesValid = false
     }
 
     /// Apply the controller's change log, keeping every untouched painter.
@@ -195,6 +259,7 @@ public final class RichLayout {
                 _listValid = false
             }
             _topsValid = false
+            _pagesValid = false
         }
         if _painters.count != paragraphCount {
             // Defensive: the log and the document disagree — start over
@@ -227,7 +292,171 @@ public final class RichLayout {
                 y += _heights[i]
             }
             _topsValid = true
+            _pagesValid = false
         }
+        if pageSetup != nil && !_pagesValid { _paginate(document) }
+    }
+
+    // MARK: Pagination
+
+    private var _pxPageW: Double { _px(pageSetup!.width) }
+    private var _pxPageH: Double { _px(pageSetup!.height) }
+    private var _pxGap: Double { _px(pageSetup!.gap) }
+    private var _pxMarginTop: Double { _px(pageSetup!.marginTop) }
+    private var _pxMarginLeft: Double { _px(pageSetup!.marginLeft) }
+    private var _pxContentH: Double { _px(pageSetup!.contentHeight) }
+
+    /// Cut the flow into pages. A paragraph that straddles a page boundary
+    /// is split between lines (its painter is painted twice, clipped), so
+    /// the breakable positions inside a block are the bottoms of its lines.
+    private func _paginate(_ document: RichDocument) {
+        _pages = [[]]
+        let contentH = max(1, _pxContentH)
+        var page = 0
+        var y = 0.0
+        func newPage() {
+            _pages.append([])
+            page += 1
+            y = 0
+        }
+        for i in 0 ..< count {
+            let g = geometry(i)
+            if document.paragraphs[i].style.pageBreakBefore && (y > 0 || !_pages[page].isEmpty) {
+                newPage()
+            }
+            var cursor = g.top
+            var cuts: [Double]? = nil   // lazily computed line bottoms
+            while cursor < g.bottom - 0.01 {
+                let available = contentH - y
+                let rest = g.bottom - cursor
+                if rest <= available + 0.01 {
+                    _pages[page].append(PagePiece(paragraph: i, flowTop: cursor, flowBottom: g.bottom,
+                                                  page: page, pageY: y))
+                    y += rest
+                    cursor = g.bottom
+                    break
+                }
+                if cuts == nil {
+                    var list: [Double] = []
+                    var ly = g.textTop
+                    for line in g.painter.computeLineMetrics() {
+                        ly += line.height
+                        list.append(ly)
+                    }
+                    cuts = list
+                    if Self.debugPagination {
+                        let m = g.painter.computeLineMetrics()
+                        let desc = "para \(i) top \(g.top) textTop \(g.textTop) bottom \(g.bottom) painterH \(g.painter.height) lines \(m.count) heights \(m.map { $0.height }) asc/desc \(m.first.map { "\($0.ascent)/\($0.descent)" } ?? "-") cursor \(cursor) y \(y) available \(available)\n"
+                        _ = desc.withCString { write(2, $0, strlen($0)) }
+                    }
+                }
+                // The lowest cut that still fits.
+                var cut: Double? = nil
+                for c in cuts! where c > cursor + 0.01 && c - cursor <= available + 0.01 { cut = c }
+                if let cut {
+                    _pages[page].append(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
+                                                  page: page, pageY: y))
+                    cursor = cut
+                    newPage()
+                } else if y > 0.01 {
+                    // Nothing fits in what is left of this page: start a new one.
+                    newPage()
+                } else {
+                    // A single line taller than a page: place it and overflow.
+                    let next = cuts!.first(where: { $0 > cursor + 0.01 }) ?? g.bottom
+                    _pages[page].append(PagePiece(paragraph: i, flowTop: cursor, flowBottom: next,
+                                                  page: page, pageY: y))
+                    cursor = next
+                    newPage()
+                }
+            }
+        }
+        if _pages.count > 1 && _pages[_pages.count - 1].isEmpty { _pages.removeLast() }
+        _piecesByParagraph = Array(repeating: [], count: count)
+        for page in _pages {
+            for piece in page { _piecesByParagraph[piece.paragraph].append(piece) }
+        }
+        _pagesValid = true
+    }
+
+    /// `STARLING_RICHTEXT_PERF=1` also prints page-break decisions.
+    public static let debugPagination = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_PERF"] != nil
+
+    public var isPaged: Bool { pageSetup != nil }
+    public var pageCount: Int { isPaged ? max(1, _pages.count) : 1 }
+    public var pieces: [[PagePiece]] { _pages }
+
+    /// Page `p`'s rectangle on the canvas.
+    public func pageRect(_ p: Int) -> Rect {
+        Rect.fromLTWH(0, Double(p) * (_pxPageH + _pxGap), _pxPageW, _pxPageH)
+    }
+
+    /// The canvas: the page column when paged, else the flow itself.
+    public var canvasSize: Size {
+        guard isPaged else { return Size(width, totalHeight) }
+        let n = Double(pageCount)
+        return Size(_pxPageW, n * _pxPageH + (n - 1) * _pxGap)
+    }
+
+    /// Page index under canvas y (clamped).
+    public func page(atCanvasY y: Double) -> Int {
+        guard isPaged else { return 0 }
+        let p = Int(floor(y / (_pxPageH + _pxGap)))
+        return max(0, min(pageCount - 1, p))
+    }
+
+    /// Flow rectangle → canvas rectangles (one, unless it straddles pieces).
+    public func canvasRects(_ r: Rect) -> [Rect] {
+        guard isPaged else { return [r] }
+        let i = paragraphIndex(atY: r.top)
+        var out: [Rect] = []
+        let pieces = _piecesByParagraph.indices.contains(i) ? _piecesByParagraph[i] : []
+        for piece in pieces {
+            let lo = max(r.top, piece.flowTop)
+            let hi = min(r.bottom, piece.flowBottom)
+            let inside = r.height <= 0 ? (r.top >= piece.flowTop && r.top < piece.flowBottom + 0.01) : hi > lo
+            if !inside { continue }
+            let dy = pageRect(piece.page).top + _pxMarginTop + piece.pageY - piece.flowTop
+            out.append(Rect.fromLTRB(r.left + _pxMarginLeft, lo + dy,
+                                     r.right + _pxMarginLeft, max(hi, lo) + dy))
+        }
+        if out.isEmpty, let piece = pieces.last ?? _pages.last?.last {
+            // Past the last cut (a caret in trailing space-after): pin to the
+            // piece's page.
+            let dy = pageRect(piece.page).top + _pxMarginTop + piece.pageY - piece.flowTop
+            out.append(Rect.fromLTRB(r.left + _pxMarginLeft, r.top + dy, r.right + _pxMarginLeft, r.bottom + dy))
+        }
+        return out
+    }
+
+    /// Canvas point → flow point. Points in a page's margins or in the gap
+    /// snap to the nearest content on that page.
+    public func flowPoint(_ p: Offset) -> Offset {
+        guard isPaged else { return p }
+        let page = self.page(atCanvasY: p.dy)
+        let localY = p.dy - pageRect(page).top - _pxMarginTop
+        let x = p.dx - _pxMarginLeft
+        let pieces = _pages.indices.contains(page) ? _pages[page] : []
+        guard let first = pieces.first, let last = pieces.last else {
+            return Offset(x, totalHeight)
+        }
+        if localY <= first.pageY { return Offset(x, first.flowTop + max(0, localY - first.pageY)) }
+        for piece in pieces where localY < piece.pageY + piece.height {
+            return Offset(x, piece.flowTop + (localY - piece.pageY))
+        }
+        return Offset(x, last.flowBottom - 0.01)
+    }
+
+    public func canvasCaretRect(_ pos: RichPosition, _ document: RichDocument) -> Rect {
+        canvasRects(caretRect(pos, document)).first!
+    }
+
+    public func canvasSelectionRects(_ sel: RichSelection, _ document: RichDocument) -> [Rect] {
+        selectionRects(sel, document).flatMap { canvasRects($0) }
+    }
+
+    public func canvasPosition(at p: Offset, _ document: RichDocument) -> RichPosition {
+        position(at: flowPoint(p), document)
     }
 
     private func _renumberLists(_ document: RichDocument) {
@@ -258,13 +487,16 @@ public final class RichLayout {
             textDirection: .ltr
         )
         painter.layout(minWidth: textWidth, maxWidth: textWidth)
-        let before = _px(style.spaceBefore)
+        // Whole pixels: a page break clips between two lines, and a
+        // fractional line box leaves the previous line's descenders peeking
+        // into the next page (and its ascenders shaved off the previous).
+        let before = _px(style.spaceBefore).rounded()
         let after = _px(style.spaceAfter > 0 ? style.spaceAfter : theme.spaceAfter)
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth
         _spaceBefore[i] = before
-        _heights[i] = before + painter.height + after
+        _heights[i] = (before + painter.height + after).rounded(.up)
         _topsValid = false
     }
 
@@ -433,33 +665,66 @@ public final class RichLayout {
 
     // MARK: Painting
 
-    /// Paint the paragraphs intersecting `visible` (document space) with the
-    /// canvas already translated so that document (0, 0) is at the origin.
+    private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        let g = geometry(i)
+        if let label = listLabel(i, document) {
+            let p = document.paragraphs[i]
+            let markerStyle = theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale)
+            let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
+                                     textAlign: .right, textDirection: .ltr)
+            let slot = _px(theme.listIndent)
+            marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
+            marker.paint(canvas, Offset(g.textLeft - slot, g.textTop))
+            marker.dispose()
+        }
+        g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+    }
+
+    /// Paint everything intersecting `visible` (CANVAS space), the canvas
+    /// already translated so canvas (0, 0) is at the origin. `caret` is in
+    /// canvas space too. `pageBackground` paints each visible page's paper
+    /// before its text.
     public func paint(_ canvas: any Canvas, visible: Rect, document: RichDocument,
-                      selection: RichSelection?, caret: Rect?) {
-        let range = paragraphs(intersecting: visible.top, visible.bottom)
+                      selection: RichSelection?, caret: Rect?,
+                      pageBackground: ((Int, Rect) -> Void)? = nil) {
+        if isPaged {
+            let firstPage = page(atCanvasY: visible.top)
+            let lastPage = page(atCanvasY: visible.bottom)
+            for p in firstPage ... lastPage {
+                pageBackground?(p, pageRect(p))
+            }
+        }
         if let selection, !selection.isCollapsed {
             let paint = Paint()
             paint.color = theme.selectionColor
             paint.style = .fill
-            for r in selectionRects(selection, document) where r.bottom >= visible.top && r.top <= visible.bottom {
+            for r in canvasSelectionRects(selection, document)
+            where r.bottom >= visible.top && r.top <= visible.bottom {
                 canvas.drawRect(r, paint)
             }
         }
-        for i in range {
-            let g = geometry(i)
-            if g.bottom < visible.top || g.top > visible.bottom { continue }
-            if let label = listLabel(i, document) {
-                let p = document.paragraphs[i]
-                let markerStyle = theme.textStyle(for: p.runs[0].style, in: p.style, scale: scale)
-                let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
-                                         textAlign: .right, textDirection: .ltr)
-                let slot = _px(theme.listIndent)
-                marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
-                marker.paint(canvas, Offset(g.textLeft - slot, g.textTop))
-                marker.dispose()
+        if isPaged {
+            let firstPage = page(atCanvasY: visible.top)
+            let lastPage = page(atCanvasY: visible.bottom)
+            for p in firstPage ... lastPage where _pages.indices.contains(p) {
+                let pageTop = pageRect(p).top + _pxMarginTop
+                for piece in _pages[p] {
+                    let top = pageTop + piece.pageY
+                    let bottom = top + piece.height
+                    if bottom < visible.top || top > visible.bottom { continue }
+                    canvas.save()
+                    canvas.clipRect(Rect.fromLTRB(0, top, _pxPageW, bottom))
+                    canvas.translate(_pxMarginLeft, top - piece.flowTop)
+                    _paintParagraph(piece.paragraph, canvas, document)
+                    canvas.restore()
+                }
             }
-            g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+        } else {
+            for i in paragraphs(intersecting: visible.top, visible.bottom) {
+                let g = geometry(i)
+                if g.bottom < visible.top || g.top > visible.bottom { continue }
+                _paintParagraph(i, canvas, document)
+            }
         }
         if let caret {
             let paint = Paint()
