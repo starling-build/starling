@@ -327,6 +327,19 @@ func starlingImageDecoded(_ requestId: UInt32, _ skImage: sk_ptr, _ width: Int32
     WebImageDecoder.complete(requestId, skImage: skImage, width: width, height: height)
 }
 
+/// A family to try for glyphs the requested family lacks (UTF-8, in OUR
+/// memory). skwasm's font provider does no per-glyph matching of its own;
+/// the paragraph builder appends these to every style's family list and
+/// skparagraph tries them in order, which is how Flutter web does it too.
+@_expose(wasm, "starling_font_fallback")
+@_cdecl("starling_font_fallback")
+func starlingFontFallback(_ family: UnsafePointer<UInt8>?, _ familyLength: Int32) {
+    guard let family, familyLength > 0 else { return }
+    let name = String(
+        decoding: UnsafeBufferPointer(start: family, count: Int(familyLength)), as: UTF8.self)
+    if !WebFonts.fallbackFamilies.contains(name) { WebFonts.fallbackFamilies.append(name) }
+}
+
 /// Scratch memory in our heap for the page to write arguments into.
 @_expose(wasm, "starling_alloc")
 @_cdecl("starling_alloc")

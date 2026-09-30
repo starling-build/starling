@@ -329,14 +329,28 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
     if (!response.ok) throw new Error(`starling: ${fonts}: ${response.status}`);
     fonts = await response.json();
   }
-  await Promise.all(fonts.map(async ({ url, families }, index) => {
+  // The first entry's family is the default: every face in that family
+  // (its weights and styles) is also registered under skwasm's fallback
+  // name, which is what text with no family, or an unknown one, gets.
+  const defaultFamily = fonts[0]?.families[0];
+  await Promise.all(fonts.map(async ({ url, families }) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (families.length === 0) registerFont(bytes, null);
     for (const family of families) registerFont(bytes, family);
-    if (index === 0) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
+    if (defaultFamily && families.includes(defaultFamily)) registerFont(bytes, SKWASM_FALLBACK_FAMILY);
   }));
+  // Glyph fallback: the families marked `fallback` are tried, in manifest
+  // order, for characters the requested family lacks (⌘ in a UI face).
+  for (const { families, fallback } of fonts) {
+    if (!fallback) continue;
+    const name = encoder.encode(families[0]);
+    const pointer = swift.starling_alloc(name.length);
+    appBytes().set(name, pointer);
+    swift.starling_font_fallback(pointer, name.length);
+    swift.starling_free(pointer);
+  }
 
   // --- size, before the app mounts, so its first layout is the real one.
   const resize = () => {

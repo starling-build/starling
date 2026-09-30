@@ -129,13 +129,21 @@ else
     [ "$CONFIG" = release ] && echo "wasm-opt not installed: app.wasm is unoptimized (brew install binaryen)"
 fi
 rm -f "$STAGE"/fonts/*.ttf
-# url=family pairs; an empty family takes the name inside the file.
+# url=family[|family…] entries; an empty family takes the name inside the
+# file. The FIRST family is the page's default: what text with no family
+# gets, where a desktop would use the system UI font. Selawik is the
+# Fluent style's face (metric-compatible with Segoe UI) and the desktop
+# shell's, and its semibold cut is registered under the same family so
+# bold text gets a real weight rather than a synthesized one. DejaVu Sans
+# stays for glyph coverage — braille, box drawing, ⌘ — as it does natively:
+# a trailing `!` marks a family as a glyph fallback, tried for characters
+# the requested family lacks.
 FONTS=(
-    "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf=DejaVu Sans"
+    "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Regular.ttf=Selawik"
+    "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Semibold.ttf=Selawik Semibold|Selawik"
+    "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf=DejaVu Sans!"
     "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf=CupertinoIcons"
     "$REPO/sdk/Sources/FluentSystemIcons/Resources/FluentSystemIcons-Regular.ttf=FluentSystemIcons"
-    "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Regular.ttf=Selawik"
-    "$REPO/sdk/Sources/FluentSystemIcons/Resources/Selawik-Semibold.ttf=Selawik Semibold"
 )
 if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
     for f in "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts"/*.ttf; do FONTS+=("$f="); done
@@ -145,11 +153,13 @@ fi
     first=1
     for entry in "${FONTS[@]}"; do
         src="${entry%%=*}"; family="${entry#*=}"
+        fallback=""
+        case "$family" in *!) family="${family%!}"; fallback=', "fallback": true' ;; esac
         install -m 644 "$src" "$STAGE/fonts/"
         [ "$first" = 1 ] || echo ","
         first=0
         if [ -n "$family" ]; then
-            printf '  {"url": "fonts/%s", "families": ["%s"]}' "$(basename "$src")" "$family"
+            printf '  {"url": "fonts/%s", "families": ["%s"]%s}' "$(basename "$src")" "${family//|/\", \"}" "$fallback"
         else
             printf '  {"url": "fonts/%s", "families": []}' "$(basename "$src")"
         fi

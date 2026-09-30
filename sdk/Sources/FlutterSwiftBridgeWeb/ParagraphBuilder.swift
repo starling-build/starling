@@ -16,6 +16,22 @@ extension WebFonts {
     /// a style naming only families the page never loaded would draw nothing
     /// at all. Whoever loads the page's text font names it here.
     public nonisolated(unsafe) static var fallbackFamilies: [String] = []
+
+    /// skwasm's collection was created with this as its default family
+    /// (fonts.cpp): what a style with no family gets. The page registers
+    /// its UI face under this name too.
+    public static let defaultFamily = "Roboto"
+
+    /// The family list a style is given: its own, then the fallbacks. A
+    /// style with no family of its own must still lead with the default,
+    /// because skparagraph consults the collection's default only for an
+    /// EMPTY list — with fallbacks alone appended, the first fallback would
+    /// become the face of every unstyled run.
+    static func familiesWithFallbacks(_ families: [String]) -> [String] {
+        var all = families.isEmpty && !fallbackFamilies.isEmpty ? [defaultFamily] : families
+        for family in fallbackFamilies where !all.contains(family) { all.append(family) }
+        return all
+    }
 }
 
 /// A text style with every inherited field resolved, as the builder's stack
@@ -66,11 +82,9 @@ private struct ResolvedTextStyle {
         if hasFontStyle { textStyle_setFontStyle(style, weight, slant) }
         if let baseline { textStyle_setTextBaseline(style, baseline) }
 
-        var all = families
-        for family in WebFonts.fallbackFamilies where !all.contains(family) {
-            all.append(family)
+        withSkStrings(WebFonts.familiesWithFallbacks(families)) {
+            textStyle_addFontFamilies(style, $0, $1)
         }
-        withSkStrings(all) { textStyle_addFontFamilies(style, $0, $1) }
 
         if let fontSize { textStyle_setFontSize(style, fontSize) }
         if let letterSpacing { textStyle_setLetterSpacing(style, letterSpacing) }
@@ -282,11 +296,9 @@ extension flutter.swift_bridge {
             if mask & (1 << 6) != 0, let leading = float() { strutStyle_setLeading(strut, leading) }
             strutStyle_setForceStrutHeight(strut, mask & (1 << 7) != 0)
 
-            var all = mask & (1 << 2) != 0 ? families : []
-            for family in WebFonts.fallbackFamilies where !all.contains(family) {
-                all.append(family)
+            withSkStrings(WebFonts.familiesWithFallbacks(mask & (1 << 2) != 0 ? families : [])) {
+                strutStyle_setFontFamilies(strut, $0, $1)
             }
-            withSkStrings(all) { strutStyle_setFontFamilies(strut, $0, $1) }
             return strut
         }
 
