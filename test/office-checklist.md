@@ -40,7 +40,7 @@ Last run: 2026-09-29, screen locked for the on-screen half.
 | ⌘↑ ⌘↓ document start/end | pending |
 | Home / End line edges; ⌃Home / ⌃End document | pending |
 | PageUp / PageDown move a screenful and scroll | pending |
-| Tab in a table moves to the next cell; ⇧Tab back; past the last cell leaves the table | pass |
+| Tab in a table moves to the next cell; ⇧Tab back; in the last cell it adds a row (changed 2026-09-30) | unverified (headless) |
 | Typing while scrolled away brings the caret back into view | pending |
 
 ## Keyboard — editing

@@ -1325,8 +1325,8 @@ public final class RichDocumentController: ChangeNotifier {
         let target = forward ? k + 1 : k - 1
         if target < 0 { return }
         if target >= firsts.count {
-            let after = min(document.paragraphs.count - 1, (members.last ?? pos.paragraph) + 1)
-            moveTo(RichPosition(paragraph: after, offset: 0), extend: false)
+            // Tab in the last cell adds a row, as Word does.
+            insertRow(below: true)
             return
         }
         let i = firsts[target].1

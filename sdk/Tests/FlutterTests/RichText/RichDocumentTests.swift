@@ -667,6 +667,18 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[img + 1].text, "pasted")
     }
 
+    func testTabInLastCellAddsARow() {
+        let c = controller("")
+        c.insertTable(rows: 1, columns: 2)
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveToAdjacentCell(forward: true)
+        XCTAssertEqual(c.document.paragraphs.filter { $0.cell != nil }.count, 4)
+        XCTAssertEqual(c.currentCell?.row, 1)
+        XCTAssertEqual(c.currentCell?.column, 0)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.filter { $0.cell != nil }.count, 2)
+    }
+
     func testModifyStyleStripIsOneUndoStep() {
         let c = controller("Heading", "body")
         c.setNamedStyle(RichNamedStyle.headingId(1))
@@ -863,11 +875,13 @@ final class RichDocumentControllerTests: XCTestCase {
         c.moveToAdjacentCell(forward: true)
         c.insertText("d")
         XCTAssertEqual(cells(c), ["-", "0,0:a", "0,1:b", "1,0:", "1,1:d", "-"])
-        // Past the last cell: the paragraph after the table.
+        // Past the last cell: a new row, as in Word; undo takes it back.
         c.moveToAdjacentCell(forward: true)
-        XCTAssertEqual(c.caret, RichPosition(paragraph: 5, offset: 0))
-        XCTAssertFalse(c.isInCell)
+        XCTAssertEqual(c.currentCell?.row, 2)
+        c.undo()
+        XCTAssertEqual(cells(c), ["-", "0,0:a", "0,1:b", "1,0:", "1,1:d", "-"])
         // Backspace at a cell wall never joins.
+        c.moveTo(RichPosition(paragraph: 5, offset: 0), extend: false)
         c.deleteBackward()
         XCTAssertEqual(c.document.paragraphs.count, 6)
         c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
