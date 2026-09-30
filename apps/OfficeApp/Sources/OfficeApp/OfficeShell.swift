@@ -39,6 +39,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _findQuery = TextEditingController()
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
+    private var _linkOpen = false
+    private let _linkText = TextEditingController()
+    private var _linkHover: String? = nil
     private let _headerText = TextEditingController()
     private let _footerText = TextEditingController()
 
@@ -80,6 +83,7 @@ final class OfficeShellState: State<StatefulWidget> {
         _findQuery.dispose()
         _findReplacement.dispose()
         _headerText.dispose()
+        _linkText.dispose()
         _footerText.dispose()
         super.dispose()
     }
@@ -131,6 +135,7 @@ final class OfficeShellState: State<StatefulWidget> {
             self._footerText.text = self.controller.document.footer
             self.setState { self._headerFooterOpen = true }
         }
+        session.onLink = { [weak self] in self?._openLink() }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
             self.setState { self._backstage = .insertPicture }
@@ -319,11 +324,31 @@ final class OfficeShellState: State<StatefulWidget> {
         setState { _findStatus = n == 0 ? "No matches" : "Replaced \(n)" }
     }
 
+    // MARK: Links
+
+    private func _openLink() {
+        _linkText.text = controller.currentLink ?? ""
+        setState { _linkOpen = true }
+    }
+
+    private func _applyLink() {
+        var url = _linkText.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { setState { _linkOpen = false }; return }
+        // A bare host becomes https, a bare address mailto.
+        if !url.contains("://") && !url.hasPrefix("mailto:") && !url.hasPrefix("#") {
+            url = url.contains("@") && !url.contains("/") ? "mailto:" + url : "https://" + url
+        }
+        controller.setLink(url)
+        setState { _linkOpen = false }
+        _flash("Linked to \(url)")
+    }
+
     // MARK: Shortcuts
 
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
+            if _linkOpen { setState { _linkOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -355,6 +380,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "h": _openFind(replace: true)
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
+        case "k": _openLink()
         // Word's alignment keys; Export lives in Backstage.
         case "e": c.setAlignment(.center)
         case "l": c.setAlignment(.left)
@@ -397,6 +423,16 @@ final class OfficeShellState: State<StatefulWidget> {
                                   onReplaceAll: { [weak self] in self?._replaceAll() },
                                   onClose: { [weak self] in self?.setState { self?._findOpen = false } }))
         }
+        if _linkOpen {
+            column.append(LinkBar(session: session, address: _linkText, hasLink: controller.currentLink != nil,
+                                  onApply: { [weak self] in self?._applyLink() },
+                                  onRemove: { [weak self] in
+                                      guard let self else { return }
+                                      self.controller.setLink(nil)
+                                      self.setState { self._linkOpen = false }
+                                  },
+                                  onClose: { [weak self] in self?.setState { self?._linkOpen = false } }))
+        }
         if _headerFooterOpen {
             column.append(HeaderFooterBar(session: session, header: _headerText, footer: _footerText,
                                           onApply: { [weak self] in
@@ -422,7 +458,7 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
         column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
-        column.append(StatusBar(session: session, message: _status))
+        column.append(StatusBar(session: session, message: _status ?? _linkHover.map { "⌘-click to open \($0)" }))
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
@@ -457,7 +493,11 @@ final class OfficeShellState: State<StatefulWidget> {
                 guard let self, self.session.pageInfo != (p, n) else { return }
                 self.setState { self.session.pageInfo = (p, n) }
             },
-            onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false }
+            onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+            onLinkHover: { [weak self] link in
+                guard let self, self._linkHover != link else { return }
+                self.setState { self._linkHover = link }
+            }
         )
     }
 }

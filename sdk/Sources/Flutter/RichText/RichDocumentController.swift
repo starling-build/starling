@@ -692,6 +692,41 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// The link under the caret or at the selection's start, if any.
+    public var currentLink: String? { currentCharStyle.link }
+
+    /// Link the selection to `url`; with nothing selected, insert the URL
+    /// as the link's text, as Word does. nil removes the link.
+    public func setLink(_ url: String?) {
+        if selection.isCollapsed {
+            guard let url, !url.isEmpty else {
+                // Remove the link from the run the caret is in.
+                let pos = selection.focus
+                let para = document.paragraphs[pos.paragraph]
+                guard para.style(at: pos.offset).link != nil else { return }
+                var start = pos.offset, end = pos.offset
+                while start > 0, para.style(at: start).link != nil { start -= 1 }
+                while end < para.length, para.style(at: end + 1).link != nil { end += 1 }
+                edit {
+                    let old = para.runs
+                    var p = para
+                    p.applyStyle(start ..< end) { $0.link = nil }
+                    perform(.setRuns(pos.paragraph, old: old, new: p.runs))
+                }
+                return
+            }
+            edit {
+                let pos = selection.focus
+                insertText(url)
+                selection = RichSelection(anchor: pos, focus: selection.focus)
+                applyCharStyle { $0.link = url }
+                selection = RichSelection(caret: selection.focus)
+            }
+            return
+        }
+        applyCharStyle { $0.link = (url?.isEmpty ?? true) ? nil : url }
+    }
+
     public func toggleBold() {
         let on = !selectionAll { $0.bold }
         applyCharStyle { $0.bold = on }

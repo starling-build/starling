@@ -296,7 +296,7 @@ final class Ribbon: StatelessWidget {
                 Chrome.big(FluentSystemIcons.shapes, "Shapes", fluent, enabled: false) {},
             ]),
             Chrome.group("Links", fluent, [
-                Chrome.big(FluentSystemIcons.link, "Link", fluent, enabled: false) {},
+                Chrome.big(FluentSystemIcons.link, "Link", fluent) { [session] in session.onLink?() },
             ]),
             Chrome.group("Header & Footer", fluent, [Chrome.rows([
                 Chrome.small(FluentSystemIcons.header, "Header", fluent) { [session] in session.onHeaderFooter?() },

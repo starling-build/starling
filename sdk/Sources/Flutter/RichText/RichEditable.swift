@@ -40,6 +40,10 @@ public final class RichEditable: StatefulWidget {
     /// the platform's accelerator held; return true to claim it (an app's
     /// ⌘S, ⌘O, ⌘F). Also sees Escape.
     public let onShortcut: ((KeyData, KeyModifiers) -> Bool)?
+    /// The link under the pointer, or nil as it leaves one — for a status bar.
+    public let onLinkHover: ((String?) -> Void)?
+    /// ⌘-click on a link. Nil opens it through the host.
+    public let onLinkActivate: ((String) -> Void)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -49,7 +53,9 @@ public final class RichEditable: StatefulWidget {
                 pageSetup: PageSetup? = nil, pageColor: Color = Color(0xFFFFFFFF),
                 onCaretRect: ((Rect?) -> Void)? = nil,
                 onPageInfo: ((Int, Int) -> Void)? = nil,
-                onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil) {
+                onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
+                onLinkHover: ((String?) -> Void)? = nil,
+                onLinkActivate: ((String) -> Void)? = nil) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -62,6 +68,8 @@ public final class RichEditable: StatefulWidget {
         self.onCaretRect = onCaretRect
         self.onPageInfo = onPageInfo
         self.onShortcut = onShortcut
+        self.onLinkHover = onLinkHover
+        self.onLinkActivate = onLinkActivate
         super.init(key: key)
     }
 
@@ -100,6 +108,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// The handle under a hovering pointer, for its cursor.
     private var _hoverHandle: Int? = nil
     private var _hoverOverImage = false
+    private var _hoverLink: String? = nil
     static let handleSize = 8.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
@@ -478,6 +487,21 @@ public final class RichEditableState: State<StatefulWidget> {
         }
     }
 
+    /// The link at a point in the editable, if the text there carries one.
+    private func _link(at local: Offset) -> String? {
+        guard _layout.width > 0, _layout.count > 0 else { return nil }
+        let pos = _layout.canvasPosition(at: _canvasPoint(local), _controller.document)
+        let para = _controller.document.paragraphs[pos.paragraph]
+        guard !para.isImage, pos.offset < para.length else { return nil }
+        // Only when the point is actually on the line's text, not past its end.
+        let rect = _layout.caretRect(pos, _controller.document)
+        let (_, lineEnd) = _layout.lineBounds(pos, _controller.document)
+        let endRect = _layout.caretRect(RichPosition(paragraph: pos.paragraph, offset: lineEnd), _controller.document)
+        let x = _canvasPoint(local).dx
+        guard x <= endRect.left, x >= rect.left - 2 || pos.offset > 0 else { return nil }
+        return para.style(at: pos.offset + 1).link
+    }
+
     private func _pointerHover(_ event: PointerEvent) {
         var handle: Int? = nil
         var overImage = false
@@ -485,12 +509,23 @@ public final class RichEditableState: State<StatefulWidget> {
             handle = _handleHit(event.localPosition, box.rect)
             overImage = handle == nil && box.rect.contains(event.localPosition)
         }
-        if handle != _hoverHandle || overImage != _hoverOverImage {
+        let link = handle == nil && !overImage ? _link(at: event.localPosition) : nil
+        if link != _hoverLink {
+            _hoverLink = link
+            _w.onLinkHover?(link)
+        }
+        if handle != _hoverHandle || overImage != _hoverOverImage || (link != nil) != (_hoverLink != nil) {
             setState { _hoverHandle = handle; _hoverOverImage = overImage }
+        } else if link != nil || _hoverLink != nil {
+            setState {}   // the cursor follows the link under the pointer
         }
     }
 
     private func _pointerDown(_ event: PointerEvent) {
+        if _chords.primary, let link = _link(at: event.localPosition) {
+            if let activate = _w.onLinkActivate { activate(link) } else { hostOpenURL?(link) }
+            return
+        }
         if let box = _selectedImageBox(), let k = _handleHit(event.localPosition, box.rect) {
             _handleDrag = (box.index, k, event.localPosition, box.rect.size)
             _dragSize = box.rect.size
@@ -686,6 +721,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let cursor: MouseCursor
         if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
         else if _hoverOverImage { cursor = SystemMouseCursors.basic }
+        else if _hoverLink != nil && _chords.primary { cursor = SystemMouseCursors.click }
         else { cursor = SystemMouseCursors.text }
         return MouseRegion(cursor: cursor, child: Listener(
             onPointerDown: { [weak self] e in self?._pointerDown(e) },

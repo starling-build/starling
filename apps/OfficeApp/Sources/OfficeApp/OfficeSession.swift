@@ -82,6 +82,7 @@ final class OfficeSession {
     var onFind: ((Bool) -> Void)?       // true = replace bar too
     var onInsertPicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
+    var onLink: (() -> Void)?
     var onStatus: ((String) -> Void)?   // transient status-bar message
 
     func summarize() -> ToolbarSummary {

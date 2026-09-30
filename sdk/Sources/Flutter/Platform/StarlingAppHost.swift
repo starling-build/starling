@@ -50,6 +50,10 @@ public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
 /// title channel over the DMA-BUF socket is the plan's Phase 3 item).
 public nonisolated(unsafe) var hostSetWindowTitle: ((String) -> Void)? = nil
 
+/// Opens a URL in whatever the platform uses for it — the browser, the
+/// mail client. Installed by the windowed hosts; nil where nothing can.
+public nonisolated(unsafe) var hostOpenURL: ((String) -> Void)? = nil
+
 /// The main entry point for an app that should run under whichever host is
 /// available:
 /// - `FLUTTER_DMABUF_SOCKET` set (spawned by the Starling shell) — the GPU

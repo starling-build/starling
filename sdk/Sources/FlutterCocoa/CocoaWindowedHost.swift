@@ -10,6 +10,7 @@
 // Linux-only — so this is the only backend runStarlingApp can pick on macOS.
 
 #if os(macOS)
+import AppKit
 import Flutter
 import FlutterSwiftBridge
 import Foundation
@@ -37,6 +38,9 @@ public enum CocoaWindowedHost {
             host = h
             hostSetWindowTitle = { title in host?.setTitle(title) }
             hostSetMouseCursor = { kind in host?.setCursor(kind) }
+            hostOpenURL = { url in
+                if let u = URL(string: url) { NSWorkspace.shared.open(u) }
+            }
             h.mountWidget(root)
             h.run()
         }

@@ -338,6 +338,30 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs.map(\.text), ["before", "", "after"])
     }
 
+    func testLinks() {
+        let c = controller("see the site here")
+        c.moveTo(RichPosition(paragraph: 0, offset: 8), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 12), extend: true)
+        c.setLink("https://a.dev")
+        XCTAssertEqual(c.document.paragraphs[0].runs(in: 8 ..< 12)[0].style.link, "https://a.dev")
+        XCTAssertNil(c.document.paragraphs[0].runs(in: 0 ..< 4)[0].style.link)
+        // The caret inside the link reports it; nil removes the whole run.
+        c.moveTo(RichPosition(paragraph: 0, offset: 10), extend: false)
+        XCTAssertEqual(c.currentLink, "https://a.dev")
+        c.setLink(nil)
+        XCTAssertNil(c.document.paragraphs[0].runs(in: 8 ..< 12)[0].style.link)
+        XCTAssertEqual(c.document.paragraphs[0].text, "see the site here")
+        // Nothing selected: the address becomes the text.
+        c.moveToDocumentEnd(extend: false)
+        c.insertText(" ")
+        c.setLink("https://b.dev")
+        XCTAssertEqual(c.document.paragraphs[0].text, "see the site here https://b.dev")
+        XCTAssertEqual(c.document.paragraphs[0].runs.last?.style.link, "https://b.dev")
+        XCTAssertTrue(c.selection.isCollapsed)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "see the site here ")
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }
