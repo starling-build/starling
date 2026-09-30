@@ -42,6 +42,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private var _linkOpen = false
     private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
+    private var _autosaveGeneration = 0
     private let _headerText = TextEditingController()
     private let _footerText = TextEditingController()
 
@@ -73,6 +74,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 self._flash("Painted")
                 return
             }
+            if dirty { self._scheduleAutosave() }
             if s != self.session.summary || dirty != self.session.dirty {
                 self.setState {
                     // Selecting a picture opens its tab; leaving it returns Home.
@@ -168,6 +170,75 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._backstage = .insertPicture }
         }
         session.onStatus = { [weak self] msg in self?._flash(msg) }
+        session.onToggleAutoSave = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.autoSave.toggle() }
+            self._flash(self.session.autoSave ? "AutoSave on" : "AutoSave off — a recovery copy is still kept")
+            self._scheduleAutosave()
+        }
+        session.onPrint = { [weak self] in self?._print() }
+    }
+
+    // MARK: Print
+
+    /// Render to a PDF in the temporary directory and hand it to the host's
+    /// print dialog.
+    private func _print() {
+        let path = NSTemporaryDirectory() + "office-print-\(ProcessInfo.processInfo.processIdentifier).pdf"
+        guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
+                              to: path, title: session.title) else {
+            _flash("Could not render the document for printing")
+            return
+        }
+        setState { _backstage = nil }
+        if let print = hostPrintPDF { print(path) } else { _flash("No print dialog on this host") }
+    }
+
+    // MARK: AutoSave and recovery
+
+    /// Where a document's recovery copy lives: beside a titled document as
+    /// `name.docx~`, or under ~/.config/starling/office-recovery for one
+    /// that has no file yet.
+    private func _recoveryPath(for path: String?) -> String {
+        if let path { return path + "~" }
+        let dir = NSHomeDirectory() + "/.config/starling/office-recovery"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        return dir + "/untitled.docx~"
+    }
+
+    /// Two seconds after the last edit: AutoSave writes the file itself
+    /// when it is on and the document has one; either way the recovery
+    /// copy is refreshed.
+    private func _scheduleAutosave() {
+        _autosaveGeneration += 1
+        let gen = _autosaveGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
+            guard let self, self._autosaveGeneration == gen, self.session.dirty else { return }
+            if self.session.autoSave, let path = self.session.path {
+                do {
+                    try OfficeFormats.write(self.controller.document, to: path, pageSetup: self.session.pageSetup)
+                    self._savedRevision = self.controller.revision
+                    try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
+                    self.setState { self.session.dirty = false }
+                } catch {
+                    self._flash("AutoSave could not write: \(error)")
+                }
+                return
+            }
+            let recovery = self._recoveryPath(for: self.session.path)
+            try? DocxFormat.write(self.controller.document, pageSetup: self.session.pageSetup)
+                .write(to: URL(fileURLWithPath: recovery))
+        }
+    }
+
+    /// On open: a recovery copy newer than the file means the last session
+    /// ended with unsaved changes — load it and say so.
+    private func _recoveryIfNewer(than path: String) -> String? {
+        let recovery = _recoveryPath(for: path)
+        let fm = FileManager.default
+        guard let r = try? fm.attributesOfItem(atPath: recovery)[.modificationDate] as? Date,
+              let f = try? fm.attributesOfItem(atPath: path)[.modificationDate] as? Date, r > f else { return nil }
+        return recovery
     }
 
     // MARK: Documents
@@ -187,18 +258,22 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private func _open(_ path: String) {
         do {
-            let opened = try OfficeFormats.read(path)
+            let recovery = _recoveryIfNewer(than: path)
+            let opened = try OfficeFormats.read(recovery ?? path)
             controller.load(opened.document)
             session.path = path
-            _savedRevision = controller.revision
+            // A recovered document is unsaved by definition.
+            _savedRevision = recovery == nil ? controller.revision : controller.revision - 1
             _remember(path)
             setState {
                 if let setup = opened.pageSetup { session.pageSetup = setup }
-                session.dirty = false
+                session.dirty = recovery != nil
                 session.summary = session.summarize()
                 _backstage = nil
             }
-            _flash("Opened \((path as NSString).lastPathComponent)")
+            _flash(recovery != nil
+                   ? "Restored unsaved changes to \((path as NSString).lastPathComponent) — Save to keep them"
+                   : "Opened \((path as NSString).lastPathComponent)")
         } catch {
             _flash("Could not open \((path as NSString).lastPathComponent): \(error)")
             setState { _backstage = nil }
@@ -216,6 +291,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _saveTo(_ path: String) {
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
+            try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
+            try? FileManager.default.removeItem(atPath: _recoveryPath(for: nil))
             session.path = path
             _savedRevision = controller.revision
             _remember(path)

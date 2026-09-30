@@ -54,6 +54,11 @@ public nonisolated(unsafe) var hostSetWindowTitle: ((String) -> Void)? = nil
 /// mail client. Installed by the windowed hosts; nil where nothing can.
 public nonisolated(unsafe) var hostOpenURL: ((String) -> Void)? = nil
 
+/// Prints a PDF file through the platform's print dialog. Installed by
+/// hosts that have one (Cocoa via PDFKit); nil elsewhere, and the app
+/// falls back to handing the PDF over.
+public nonisolated(unsafe) var hostPrintPDF: ((String) -> Void)? = nil
+
 /// The main entry point for an app that should run under whichever host is
 /// available:
 /// - `FLUTTER_DMABUF_SOCKET` set (spawned by the Starling shell) — the GPU

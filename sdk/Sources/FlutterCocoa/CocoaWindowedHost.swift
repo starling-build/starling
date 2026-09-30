@@ -12,6 +12,7 @@
 #if os(macOS)
 import AppKit
 import Flutter
+import PDFKit
 import FlutterSwiftBridge
 import Foundation
 
@@ -40,6 +41,15 @@ public enum CocoaWindowedHost {
             hostSetMouseCursor = { kind in host?.setCursor(kind) }
             hostOpenURL = { url in
                 if let u = URL(string: url) { NSWorkspace.shared.open(u) }
+            }
+            // The standard print panel over the PDF the app rendered.
+            hostPrintPDF = { path in
+                guard let doc = PDFDocument(url: URL(fileURLWithPath: path)),
+                      let op = doc.printOperation(for: NSPrintInfo.shared, scalingMode: .pageScaleNone, autoRotate: true)
+                else { return }
+                op.showsPrintPanel = true
+                op.showsProgressPanel = true
+                op.run()
             }
             h.mountWidget(root)
             h.run()

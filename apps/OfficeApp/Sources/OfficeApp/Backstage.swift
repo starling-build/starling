@@ -116,7 +116,12 @@ final class Backstage: StatelessWidget {
         case .save, .saveAs: return _panel(.save, fluent)
         case .info: return _info(fluent)
         case .export: return _export(fluent)
-        case .print: return _simple("Print", "Export a PDF and print it from your system's viewer; a print dialog of Office's own is still to come.", fluent, action: ("Export PDF", { [session] in session.onExport?("pdf") }))
+        case .print: return _simple("Print", hostPrintPDF != nil
+                                    ? "Prints the document as laid out on screen, through the system print dialog."
+                                    : "This host has no print dialog; Export makes a PDF to print elsewhere.",
+                                    fluent, action: hostPrintPDF != nil
+                                    ? ("Print…", { [session] in session.onPrint?() })
+                                    : ("Export PDF", { [session] in session.onExport?("pdf") }))
         case .insertPicture: return _picturePanel(fluent)
         case .close: return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.onNew?() }))
         }

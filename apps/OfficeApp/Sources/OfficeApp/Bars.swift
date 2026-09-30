@@ -32,8 +32,8 @@ final class TitleRow: StatelessWidget {
             decoration: BoxDecoration(color: fluent.resources.solidBackgroundFillColorBase),
             child: Padding(padding: EdgeInsets(left: 8, top: 4, right: 12, bottom: 2), child: Row(
                 crossAxisAlignment: .center, children: [
-                    Chrome.textToggle("AutoSave", false, fluent, style: fluent.typography.caption) { [session] in
-                        session.onStatus?("AutoSave needs a cloud location")
+                    Chrome.textToggle("AutoSave", session.autoSave, fluent, style: fluent.typography.caption) { [session] in
+                        session.onToggleAutoSave?()
                     },
                     Chrome.gap(6),
                     Chrome.icon(FluentSystemIcons.save, "Save (⌘S)", fluent) { [session] in session.onSave?() },
