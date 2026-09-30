@@ -268,9 +268,9 @@ enum MarkdownFormat {
                 emit(literal); literal = ""
                 current.italic.toggle(); i += 1; continue
             }
-            if c == "`" && (current.fontFamily == OfficeFonts.mono || closes("`", from: i + 1)) {
+            if c == "`" && (current.fontFamily.map(OfficeFonts.substitute) == OfficeFonts.mono || closes("`", from: i + 1)) {
                 emit(literal); literal = ""
-                current.fontFamily = current.fontFamily == OfficeFonts.mono ? nil : OfficeFonts.mono
+                current.fontFamily = current.fontFamily.map(OfficeFonts.substitute) == OfficeFonts.mono ? nil : OfficeFonts.mono
                 i += 1; continue
             }
             if c == "[", let close = _find("]", chars, from: i + 1), close + 1 < chars.count, chars[close + 1] == "(",
@@ -380,7 +380,7 @@ enum MarkdownFormat {
             // Markers around whitespace render as literal stars.
             let inert = piece.trimmingWhitespace(newlines: false).isEmpty
             if !inert {
-                if s.fontFamily == OfficeFonts.mono { piece = "`\(piece)`" }
+                if s.fontFamily.map(OfficeFonts.substitute) == OfficeFonts.mono { piece = "`\(piece)`" }
                 if s.bold && !plainBold { piece = "**\(piece)**" }
                 if s.italic { piece = "*\(piece)*" }
                 if s.strikethrough { piece = "~~\(piece)~~" }
@@ -672,12 +672,12 @@ enum RtfFormat {
         return doc
     }
 
-    /// Map Word's font names onto the faces we ship.
+    /// The font name as the file has it. Kept, not mapped: the face it
+    /// draws with is `OfficeFonts.substitute`'s choice at render time, and
+    /// the name goes back out unchanged on save.
     private static func _family(_ name: String) -> String? {
-        let n = name.lowercased()
-        if n.containsSubstring("times") || n.containsSubstring("serif") || n.containsSubstring("georgia") || n.containsSubstring("cambria") || n.containsSubstring("liberation serif") { return OfficeFonts.serif }
-        if n.containsSubstring("courier") || n.containsSubstring("mono") || n.containsSubstring("consolas") || n.containsSubstring("menlo") { return OfficeFonts.mono }
-        return nil   // the document default: Liberation Sans
+        let n = name.trimmingWhitespace()
+        return n.isEmpty ? nil : n
     }
 
     // MARK: Writing
@@ -691,6 +691,16 @@ enum RtfFormat {
             palette.append(c)
             return palette.count
         }
+        // The font table: the document's default first, then every family
+        // the document names, as the Word fonts our faces stand in for.
+        var fontNames = [OfficeFonts.defaultFamily]
+        for p in doc.paragraphs {
+            for family in p.runs.compactMap({ $0.style.fontFamily ?? doc.styles.resolve(p.style)?.char.fontFamily }) {
+                let name = OfficeFonts.exportName(family)
+                if !fontNames.contains(name) { fontNames.append(name) }
+            }
+        }
+        let fontIndex = Dictionary(uniqueKeysWithValues: fontNames.enumerated().map { ($1, $0) })
         var body = ""
         for (n, p) in doc.paragraphs.enumerated() {
             var head = "\\pard\\plain"
@@ -735,10 +745,11 @@ enum RtfFormat {
                 pos += run.length
                 let s = run.style
                 var ctrl = "{"
-                switch s.fontFamily ?? named?.char.fontFamily {
-                case OfficeFonts.serif?: ctrl += "\\f1"
-                case OfficeFonts.mono?: ctrl += "\\f2"
-                default: ctrl += "\\f0"
+                if let family = s.fontFamily ?? named?.char.fontFamily,
+                   let index = fontIndex[OfficeFonts.exportName(family)] {
+                    ctrl += "\\f\(index)"
+                } else {
+                    ctrl += "\\f0"
                 }
                 let size = s.fontSize ?? headingSize ?? 11
                 ctrl += "\\fs\(Int(size * 2))"
@@ -768,7 +779,11 @@ enum RtfFormat {
         if !doc.footer.isEmpty {
             hf += "{\\footer\\pard\\qc " + _escape(doc.footer).replacingAll(RichDocument.pageField, with: "\\chpgn ") + "\\par}\n"
         }
-        let fonttbl = "{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}{\\f1\\froman\\fcharset0 Times New Roman;}{\\f2\\fmodern\\fcharset0 Courier New;}}"
+        let fonttbl = "{\\fonttbl" + fontNames.enumerated().map { i, name in
+            let kind = OfficeFonts.substitute(name) == OfficeFonts.serif ? "froman"
+                : OfficeFonts.substitute(name) == OfficeFonts.mono ? "fmodern" : "fswiss"
+            return "{\\f\(i)\\\(kind)\\fcharset0 \(name);}"
+        }.joined() + "}"
         var stylesheet = "{\\stylesheet{\\s0 Normal;}"
         for entry in doc.styles.styles where entry.id != RichNamedStyle.normalId {
             let num = entry.paragraph.heading ?? _rtfStyleNumber(entry.id) ?? 0

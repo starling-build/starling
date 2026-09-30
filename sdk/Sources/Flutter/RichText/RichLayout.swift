@@ -39,6 +39,12 @@ public final class RichTextTheme {
     /// Word's Show/Hide ¶: a pilcrow at every paragraph's end (¤ in a
     /// table cell, as Word draws it).
     public var showMarks = false
+    /// Maps a family name in the document to the family the engine draws
+    /// with. The document keeps its own names — "Times New Roman" stays
+    /// so, and is written back — while the app decides which shipped face
+    /// stands in for it (Office: a metric-compatible clone). nil draws the
+    /// name as given.
+    public var fontFamilyResolver: ((String) -> String)? = nil
 
     public init(fontFamily: String? = nil, fontSize: Double = 11,
                 textColor: Color = Color(0xFF1B1B1B),
@@ -72,7 +78,8 @@ public final class RichTextTheme {
         var bold = style.bold || (named?.char.bold ?? false)
         let italic = style.italic || (named?.char.italic ?? false)
         var color = style.color ?? named?.char.color ?? textColor
-        let family = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let family = (style.fontFamily ?? named?.char.fontFamily ?? fontFamily)
+            .map { fontFamilyResolver?($0) ?? $0 }
         if named == nil, let h = paragraph.heading, h >= 1 {
             // A heading the sheet has no entry for: the theme's look.
             let idx = min(h, headingSizes.count) - 1

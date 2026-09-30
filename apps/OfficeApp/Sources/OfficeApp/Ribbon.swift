@@ -181,7 +181,9 @@ final class Ribbon: StatelessWidget {
         let fontRow1 = Chrome.row([
             SizedBox(width: 140, height: nil, child: ComboBox<String>(
                 value: session.effectiveFontFamily,
-                items: OfficeFonts.families.map { f in
+                // A document's own font, whatever it is, is shown by name;
+                // it draws with the nearest shipped face.
+                items: OfficeFonts.families(including: session.effectiveFontFamily).map { f in
                     ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
                 },
                 onChanged: { f in c.setFontFamily(f) })),

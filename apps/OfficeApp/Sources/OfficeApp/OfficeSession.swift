@@ -51,7 +51,13 @@ enum ViewMode: Equatable {
 /// shell sets the `on*` callbacks and rebuilds when `summary` changes.
 final class OfficeSession {
     let controller = RichDocumentController()
-    let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+    let theme: RichTextTheme = {
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        // The document keeps Word's font names; this picks the shipped
+        // clone each is drawn with (OfficeFonts, Resources/fonts/README.md).
+        theme.fontFamilyResolver = OfficeFonts.substitute
+        return theme
+    }()
 
     init() {
         controller.clipboardCodec = OfficeClipboardCodec()

@@ -572,12 +572,12 @@ enum DocxFormat {
         highlightNames.first { $0.0 == name }?.1
     }
 
+    /// The font name as the file has it. Kept, not mapped: the face it
+    /// draws with is `OfficeFonts.substitute`'s choice at render time, and
+    /// the name goes back out unchanged on save.
     private static func _family(_ name: String) -> String? {
-        let n = name.lowercased()
-        if n.isEmpty { return nil }
-        if n.containsSubstring("times") || n.containsSubstring("serif") || n.containsSubstring("georgia") || n.containsSubstring("cambria") || n.containsSubstring("garamond") { return OfficeFonts.serif }
-        if n.containsSubstring("courier") || n.containsSubstring("mono") || n.containsSubstring("consolas") || n.containsSubstring("menlo") { return OfficeFonts.mono }
-        return nil
+        let n = name.trimmingWhitespace()
+        return n.isEmpty ? nil : n
     }
 
     // MARK: Writing
@@ -676,9 +676,7 @@ enum DocxFormat {
                 let s = run.style
                 var rPr = ""
                 if let family = s.fontFamily {
-                    let name = family == OfficeFonts.serif ? "Times New Roman"
-                        : family == OfficeFonts.mono ? "Courier New"
-                        : family == OfficeFonts.sans ? "Arial" : family
+                    let name = OfficeFonts.exportName(family)
                     rPr += "<w:rFonts w:ascii=\"\(_esc(name))\" w:hAnsi=\"\(_esc(name))\" w:cs=\"\(_esc(name))\"/>"
                 }
                 if s.bold { rPr += "<w:b/><w:bCs/>" }
@@ -913,7 +911,7 @@ enum DocxFormat {
     /// other entry with its look, plus List Paragraph and Hyperlink.
     private static func _stylesPart(_ sheet: RichStyleSheet) -> String {
         var out = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
-        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Arial\" w:hAnsi=\"Arial\" w:cs=\"Arial\" w:eastAsia=\"Arial\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>"
+        out += "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\" w:cs=\"Calibri\" w:eastAsia=\"Calibri\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/><w:lang w:val=\"en-US\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"160\" w:line=\"259\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>"
         out += "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/></w:style>"
         for entry in sheet.styles where entry.id != RichNamedStyle.normalId {
             let name = entry.paragraph.heading.map { "heading \($0)" } ?? entry.name
@@ -939,7 +937,7 @@ enum DocxFormat {
             if let h = entry.paragraph.heading { out += "<w:outlineLvl w:val=\"\(h - 1)\"/>" }
             out += "</w:pPr><w:rPr>"
             if let family = entry.char.fontFamily {
-                let f = family == OfficeFonts.serif ? "Times New Roman" : family == OfficeFonts.mono ? "Courier New" : family == OfficeFonts.sans ? "Arial" : family
+                let f = OfficeFonts.exportName(family)
                 out += "<w:rFonts w:ascii=\"\(_esc(f))\" w:hAnsi=\"\(_esc(f))\" w:cs=\"\(_esc(f))\"/>"
             }
             if entry.char.bold { out += "<w:b/><w:bCs/>" }
