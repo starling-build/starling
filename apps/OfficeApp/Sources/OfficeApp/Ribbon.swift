@@ -396,8 +396,10 @@ final class Ribbon: StatelessWidget {
             ]),
         ])
         let merge = Chrome.group("Merge", fluent, [Chrome.rows([
-            Chrome.small(FluentSystemIcons.table, "Merge Cells", fluent, enabled: c.selectedCellsInRow.count > 1) { c.mergeCells() },
-            Chrome.small(FluentSystemIcons.columns, "Split Cell", fluent, enabled: (c.currentCell?.span ?? 1) > 1) { c.splitCell() },
+            Chrome.small(FluentSystemIcons.table, "Merge Cells", fluent,
+                         enabled: c.selectedCellsInRow.count > 1 || c.selectedCellsInColumn.count > 1) { c.mergeCells() },
+            Chrome.small(FluentSystemIcons.columns, "Split Cell", fluent,
+                         enabled: (c.currentCell?.span ?? 1) > 1 || (c.currentCell?.rowSpan ?? 1) > 1) { c.splitCell() },
         ])])
         let size = Chrome.group("Cell Size", fluent, [
             Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },

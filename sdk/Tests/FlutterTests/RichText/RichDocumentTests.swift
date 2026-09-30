@@ -467,6 +467,40 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertTrue(c.document.isValid)
     }
 
+    func testVerticalMergeAndSplit() {
+        let c = controller("")
+        c.insertTable(rows: 3, columns: 2)
+        c.insertText("a"); c.moveToAdjacentCell(forward: true); c.insertText("b")
+        c.moveToAdjacentCell(forward: true); c.insertText("c")
+        c.moveToAdjacentCell(forward: true); c.insertText("d")
+        // Select a (0,0) down to c (1,0) and merge: a's cell spans two rows.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 2, offset: 1), extend: true)
+        XCTAssertEqual(c.selectedCellsInColumn.map(\.row), [0, 1])
+        c.mergeCells()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,0:c", "0,1:b", "1,1:d", "2,0:", "2,1:", "-"])
+        XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 2)
+        XCTAssertEqual(c.document.paragraphs[1].cell?.rowSpan, 2)
+        // A row inserted inside the span widens it and gets no cell under it.
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)   // b, row 0
+        c.insertRow(below: true)
+        XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 3)
+        XCTAssertEqual(cells(c).filter { $0.hasPrefix("1,") }, ["1,1:"])
+        c.undo()
+        // Split restores an empty cell in the covered row.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.splitCell()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,0:c", "0,1:b", "1,0:", "1,1:d", "2,0:", "2,1:", "-"])
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 2)
+        // Deleting the span's first row keeps its content, one row shorter.
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.deleteRow()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,0:c", "0,1:d", "1,0:", "1,1:", "-"])
+        XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 1)
+        XCTAssertTrue(c.document.isValid)
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

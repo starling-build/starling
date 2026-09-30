@@ -212,10 +212,25 @@ enum DocxFormat {
                     let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
                     if !widths.isEmpty { tableColumns[id] = widths }
                 }
+                // vMerge: "restart" opens a span in a column; a bare vMerge
+                // continues it, and that cell's (empty) content is dropped.
+                var openSpan: [Int: Int] = [:]   // column → paragraph index of the spanning cell
                 for (r, tr) in node.all("w:tr").enumerated() {
                     var column = 0
                     for tc in tr.all("w:tc") {
-                        let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
+                        let tcPr = tc.first("w:tcPr")
+                        let span = max(1, Int(tcPr?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
+                        if let v = tcPr?.first("w:vMerge") {
+                            if v["w:val"] == "restart" {
+                                openSpan[column] = paragraphs.count
+                            } else if let first = openSpan[column], first < paragraphs.count {
+                                paragraphs[first].cell?.rowSpan += 1
+                                column += span
+                                continue
+                            }
+                        } else {
+                            openSpan[column] = nil
+                        }
                         currentCell = CellRef(table: id, row: r, column: column, span: span)
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent) }
@@ -679,15 +694,29 @@ enum DocxFormat {
             xml += "</w:tblBorders><w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
             for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
             xml += "</w:tblGrid>"
+            let refs = members.compactMap(\.cell)
             for r in 0 ..< rows {
                 xml += "<w:tr>"
                 var c = 0
                 while c < cols {
+                    // A cell from a row above spanning into this row: a
+                    // continuation cell, empty, marked vMerge.
+                    if let above = refs.first(where: { $0.row < r && $0.rowSpan > 1 && $0.covers(row: r, column: c) }) {
+                        let span = min(cols - c, above.span)
+                        let w = twips[c ..< c + span].reduce(0, +)
+                        xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+                        if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
+                        xml += "<w:vMerge/></w:tcPr><w:p/></w:tc>"
+                        c += span
+                        continue
+                    }
                     let cell = (start ..< end).filter { doc.paragraphs[$0].cell?.row == r && doc.paragraphs[$0].cell?.column == c }
-                    let span = min(cols - c, max(1, cell.first.flatMap { doc.paragraphs[$0].cell?.span } ?? 1))
+                    let ref = cell.first.flatMap { doc.paragraphs[$0].cell }
+                    let span = min(cols - c, max(1, ref?.span ?? 1))
                     let w = twips[c ..< c + span].reduce(0, +)
                     xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
                     if span > 1 { xml += "<w:gridSpan w:val=\"\(span)\"/>" }
+                    if (ref?.rowSpan ?? 1) > 1 { xml += "<w:vMerge w:val=\"restart\"/>" }
                     xml += "</w:tcPr>"
                     if cell.isEmpty { xml += "<w:p/>" }
                     for k in cell { xml += paragraphXML(k) }

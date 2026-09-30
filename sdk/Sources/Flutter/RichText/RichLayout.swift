@@ -223,6 +223,11 @@ public final class RichLayout {
         var colLeft: Double = 0
         var colWidth: Double = 0
         var firstInRow = false
+        var span = 1
+        var rowSpan = 1
+        /// The row's own height when the cell spans rows (rowHeight then
+        /// covers every row it spans).
+        var ownRowHeight: Double = 0
     }
     private var _cells: [_CellGeo?] = []
     /// Row top for every paragraph (its own top when not in a table): the
@@ -523,27 +528,75 @@ public final class RichLayout {
                 i += 1
                 continue
             }
-            // The row: consecutive paragraphs of the same table and row.
-            var j = i
-            while j < n, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
-            var stack: [Int: Double] = [:]
-            var rowHeight = 0.0
-            for k in i ..< j {
-                let col = _cells[k]!.column
-                let offset = stack[col] ?? 0
-                _tops[k] = y + cellPadding + offset
-                _rowTops[k] = y
-                stack[col] = offset + _heights[k]
-                rowHeight = max(rowHeight, offset + _heights[k])
+            // The table: every row of it, placed in turn; a cell spanning
+            // rows takes its height from the rows it covers, and stretches
+            // the last of them when its own content is taller.
+            let table = c.table
+            var rows: [(first: Int, end: Int, top: Double, height: Double)] = []
+            var k0 = i
+            while k0 < n, let d = _cells[k0], d.table == table {
+                var j = k0
+                while j < n, let d2 = _cells[j], d2.table == table, d2.row == d.row { j += 1 }
+                var stack: [Int: Double] = [:]
+                var rowHeight = 0.0
+                for k in k0 ..< j {
+                    let cell = _cells[k]!
+                    let offset = stack[cell.column] ?? 0
+                    _tops[k] = y + cellPadding + offset
+                    _rowTops[k] = y
+                    stack[cell.column] = offset + _heights[k]
+                    // A spanning cell's content counts against the rows it spans, below.
+                    if cell.rowSpan == 1 { rowHeight = max(rowHeight, offset + _heights[k]) }
+                }
+                rowHeight += cellPadding * 2
+                for k in k0 ..< j {
+                    _cells[k]!.rowTop = y
+                    _cells[k]!.rowHeight = rowHeight
+                    _cells[k]!.ownRowHeight = rowHeight
+                    _cells[k]!.firstInRow = k == k0
+                }
+                rows.append((k0, j, y, rowHeight))
+                y += rowHeight
+                k0 = j
             }
-            rowHeight += cellPadding * 2
-            for k in i ..< j {
-                _cells[k]!.rowTop = y
-                _cells[k]!.rowHeight = rowHeight
-                _cells[k]!.firstInRow = k == i
+            // Stretch for spanning cells, in row order; later rows shift.
+            for (r, row) in rows.enumerated() {
+                var stackByColumn: [Int: Double] = [:]
+                for k in row.first ..< row.end {
+                    let cell = _cells[k]!
+                    guard cell.rowSpan > 1 else { continue }
+                    stackByColumn[cell.column, default: 0] += _heights[k]
+                    let need = stackByColumn[cell.column]! + cellPadding * 2
+                    let last = min(rows.count - 1, r + cell.rowSpan - 1)
+                    let have = rows[r ... last].map(\.height).reduce(0, +)
+                    if need > have + 0.01 {
+                        let extra = need - have
+                        rows[last].height += extra
+                        for (rr, later) in rows.enumerated() where rr > last { rows[rr].top = later.top + extra }
+                    }
+                }
             }
-            y += rowHeight
-            i = j
+            // Second pass: final tops and heights, spanned heights for spanning cells.
+            for (r, row) in rows.enumerated() {
+                var stack: [Int: Double] = [:]
+                for k in row.first ..< row.end {
+                    let cell = _cells[k]!
+                    let offset = stack[cell.column] ?? 0
+                    _tops[k] = row.top + cellPadding + offset
+                    _rowTops[k] = row.top
+                    stack[cell.column] = offset + _heights[k]
+                    _cells[k]!.rowTop = row.top
+                    _cells[k]!.ownRowHeight = row.height
+                    if cell.rowSpan > 1 {
+                        let last = min(rows.count - 1, r + cell.rowSpan - 1)
+                        _cells[k]!.rowHeight = rows[r ... last].map(\.height).reduce(0, +)
+                    } else {
+                        _cells[k]!.rowHeight = row.height
+                    }
+                }
+            }
+            if let last = rows.last { y = last.top + last.height }
+            i = k0
         }
         _flowHeight = y
     }
@@ -622,13 +675,15 @@ public final class RichLayout {
                 // row's piece so its text paints on the row's page.
                 var j = i
                 while j < count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
-                let rowBottom = c.rowTop + c.rowHeight
-                if c.rowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
+                let rowBottom = c.rowTop + c.ownRowHeight
+                if c.ownRowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
                 for k in i ..< j {
-                    add(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: rowBottom,
-                                                  page: page, pageY: y))
+                    // A cell spanning rows paints through every row it covers.
+                    let bottom = _cells[k]!.rowSpan > 1 ? c.rowTop + _cells[k]!.rowHeight : rowBottom
+                    add(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: bottom,
+                                  page: page, pageY: y))
                 }
-                y += c.rowHeight
+                y += c.ownRowHeight
                 if y > contentH - 0.01 { newPage() }
                 i = j
                 continue
@@ -798,7 +853,7 @@ public final class RichLayout {
                 ? widths[c.column ..< min(widths.count, c.column + c.span)].reduce(0, +) : width
             let colLeft = widths.prefix(c.column).reduce(0, +)
             _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
-                                 colLeft: colLeft, colWidth: colWidth)
+                                 colLeft: colLeft, colWidth: colWidth, span: c.span, rowSpan: c.rowSpan)
             left = colLeft + cellPadding + _px(style.indentLeft)
             textWidth = max(1, colWidth - cellPadding * 2 - _px(style.indentLeft) - right)
         } else {
@@ -944,13 +999,30 @@ public final class RichLayout {
         guard let c = _cells[i] else { return i }
         var best = i
         var j = i
+        var hit = false
         while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
             if point.dx >= d.colLeft && point.dx < d.colLeft + d.colWidth {
                 // In this column: the paragraph whose block spans y, else the last.
                 best = j
+                hit = true
                 if point.dy < _tops[j] + _heights[j] { return j }
             }
             j += 1
+        }
+        if !hit {
+            // No cell of this row under x: a cell from a row above spans here.
+            var k = i - 1
+            while k >= 0, let d = _cells[k], d.table == c.table {
+                if d.rowSpan > 1, d.row + d.rowSpan > c.row, point.dx >= d.colLeft, point.dx < d.colLeft + d.colWidth {
+                    var m = k
+                    while m > 0, let e = _cells[m - 1], e.table == d.table, e.row == d.row, e.column == d.column { m -= 1 }
+                    var last = m
+                    while last + 1 < _cells.count, let e = _cells[last + 1], e.table == d.table, e.row == d.row, e.column == d.column { last += 1 }
+                    for q in m ... last where point.dy < _tops[q] + _heights[q] { return q }
+                    return last
+                }
+                k -= 1
+            }
         }
         return best
     }
@@ -959,7 +1031,7 @@ public final class RichLayout {
     public func rowRect(_ i: Int) -> Rect? {
         guard i < _cells.count, let c = _cells[i] else { return nil }
         let widths = _columnWidths[c.table] ?? []
-        return Rect.fromLTWH(0, c.rowTop, widths.reduce(0, +), c.rowHeight)
+        return Rect.fromLTWH(0, c.rowTop, widths.reduce(0, +), c.ownRowHeight)
     }
 
     /// Paragraphs whose blocks intersect the vertical range.
@@ -1082,22 +1154,38 @@ public final class RichLayout {
             // the last its right.
             let widths = _columnWidths[c.table] ?? []
             let rowTop = c.rowTop.rounded()
-            let rowBottom = (c.rowTop + c.rowHeight).rounded()
+            let rowBottom = (c.rowTop + c.ownRowHeight).rounded()
             let right = widths.reduce(0, +).rounded()
             if c.row == 0 {
                 canvas.drawLine(Offset(0, rowTop + 0.5), Offset(right, rowTop + 0.5), stroke)
             }
-            canvas.drawLine(Offset(0, rowBottom - 0.5), Offset(right, rowBottom - 0.5), stroke)
-            // A vertical at every cell's left edge — so a merged cell has
-            // none inside it — and the table's right edge.
+            // Each cell of the row draws its left edge and, unless it spans
+            // further down, its bottom; a cell from above that spans into
+            // this row draws its left edge here too, and its bottom on its
+            // last row.
             var j = i
             var lastColumn = -1
             while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
                 if d.column != lastColumn {
                     canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
+                    if d.rowSpan == 1 {
+                        canvas.drawLine(Offset(d.colLeft, rowBottom - 0.5), Offset((d.colLeft + d.colWidth).rounded(), rowBottom - 0.5), stroke)
+                    }
                     lastColumn = d.column
                 }
                 j += 1
+            }
+            var k = i - 1
+            var seen: Set<Int> = []
+            while k >= 0, let d = _cells[k], d.table == c.table {
+                if d.rowSpan > 1, d.row < c.row, d.row + d.rowSpan > c.row, !seen.contains(d.column) {
+                    seen.insert(d.column)
+                    canvas.drawLine(Offset(d.colLeft + 0.5, rowTop), Offset(d.colLeft + 0.5, rowBottom), stroke)
+                    if d.row + d.rowSpan - 1 == c.row {
+                        canvas.drawLine(Offset(d.colLeft, rowBottom - 0.5), Offset((d.colLeft + d.colWidth).rounded(), rowBottom - 0.5), stroke)
+                    }
+                }
+                k -= 1
             }
             canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
         }

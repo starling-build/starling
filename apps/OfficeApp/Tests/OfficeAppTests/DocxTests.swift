@@ -163,6 +163,23 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.document.columnCount(of: ps[0].cell!.table), 3)
     }
 
+    func testDocxVerticalMergeRoundTrip() throws {
+        var doc = RichDocument(plainText: "tall\nb\nd\ne\nf\n")
+        for (i, ref) in [(0, 0, 1, 2), (0, 1, 1, 1), (1, 1, 1, 1), (2, 0, 1, 1), (2, 1, 1, 1)].enumerated() {
+            doc.paragraphs[i].cell = CellRef(table: "T", row: ref.0, column: ref.1, span: ref.2, rowSpan: ref.3)
+        }
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(data).first { $0.name == "word/document.xml" }?.data), as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:vMerge w:val=\"restart\"/>"))
+        XCTAssertTrue(xml.contains("<w:vMerge/>"))
+        XCTAssertEqual(xml.components(separatedBy: "<w:tc>").count - 1, 6)   // 3 rows × 2 cells
+        let back = try DocxFormat.read(data)
+        let ps = back.document.paragraphs
+        XCTAssertEqual(ps.map(\.text), ["tall", "b", "d", "e", "f", ""])
+        XCTAssertEqual(ps[0].cell?.rowSpan, 2)
+        XCTAssertEqual(ps[2].cell?.row, 1); XCTAssertEqual(ps[2].cell?.column, 1)
+    }
+
     func testDocxTableEndsTheDocument() throws {
         // A package whose body is just a table still gets a paragraph after it.
         var doc = RichDocument(plainText: "x")

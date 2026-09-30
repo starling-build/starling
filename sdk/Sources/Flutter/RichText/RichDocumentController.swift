@@ -1119,12 +1119,59 @@ public final class RichDocumentController: ChangeNotifier {
         return out
     }
 
-    /// Merge the selected cells of one row into the leftmost, keeping
-    /// every paragraph in order — Word's Merge Cells for a row.
+    /// The cells the selection touches in the caret's column, top to
+    /// bottom: (row, rowSpan) of each.
+    public var selectedCellsInColumn: [(row: Int, rowSpan: Int)] {
+        guard let here = currentCell else { return [] }
+        var out: [(Int, Int)] = []
+        for i in selection.start.paragraph ... selection.end.paragraph {
+            guard let c = document.paragraphs[i].cell, c.table == here.table, c.column == here.column else { continue }
+            if out.last?.0 != c.row { out.append((c.row, c.rowSpan)) }
+        }
+        return out
+    }
+
+    /// Merge the selected cells: across one row into the leftmost, or down
+    /// one column into the topmost, keeping every paragraph in order.
     public func mergeCells() {
         guard let here = currentCell else { return }
         let cells = selectedCellsInRow
-        guard cells.count > 1 else { return }
+        if cells.count <= 1 {
+            let column = selectedCellsInColumn
+            guard column.count > 1 else { return }
+            let first = column[0].row
+            let rowSpan = column.map(\.rowSpan).reduce(0, +)
+            var caretAt: Int? = nil
+            _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+                // Lift the lower cells' paragraphs out, retagged to the top cell.
+                var kept: [RichParagraph] = []
+                var moved: [RichParagraph] = []
+                for var p in paras {
+                    if var c = p.cell, c.column == here.column, c.row > first, c.row < first + rowSpan {
+                        c.row = first; c.rowSpan = rowSpan; p.cell = c
+                        moved.append(p)
+                    } else {
+                        kept.append(p)
+                    }
+                }
+                // Then put them after the top cell's last paragraph.
+                var out: [RichParagraph] = []
+                var topEnd: Int? = nil
+                for var p in kept {
+                    if var c = p.cell, c.row == first, c.column == here.column {
+                        c.rowSpan = rowSpan; p.cell = c
+                        if caretAt == nil { caretAt = out.count }
+                        out.append(p)
+                        topEnd = out.count
+                    } else {
+                        out.append(p)
+                    }
+                }
+                out.insert(contentsOf: moved, at: topEnd ?? out.count)
+                paras = out
+            })
+            return
+        }
         let first = cells[0].column
         let span = cells.map(\.span).reduce(0, +)
         var caretAt: Int? = nil
@@ -1139,10 +1186,37 @@ public final class RichDocumentController: ChangeNotifier {
         })
     }
 
-    /// Split the caret's merged cell back into its grid columns: the first
+    /// Split the caret's merged cell back into its grid cells: the first
     /// keeps the content, the others are empty.
     public func splitCell() {
-        guard let here = currentCell, here.span > 1 else { return }
+        guard let here = currentCell, here.span > 1 || here.rowSpan > 1 else { return }
+        if here.rowSpan > 1 {
+            var caretAt: Int? = nil
+            _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+                var out: [RichParagraph] = []
+                for var p in paras {
+                    if var c = p.cell, c.sameCell(as: here) {
+                        if caretAt == nil { caretAt = out.count }
+                        c.rowSpan = 1
+                        p.cell = c
+                    }
+                    out.append(p)
+                }
+                // An empty cell in each row the span covered, at the column's
+                // place in that row.
+                for r in (here.row + 1) ..< (here.row + here.rowSpan) {
+                    var e = RichParagraph()
+                    e.cell = CellRef(table: here.table, row: r, column: here.column, span: here.span)
+                    let at = out.firstIndex { q in
+                        guard let c = q.cell else { return false }
+                        return c.row > r || (c.row == r && c.column > here.column)
+                    } ?? out.count
+                    out.insert(e, at: at)
+                }
+                paras = out
+            })
+            return
+        }
         var caretAt: Int? = nil
         _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
             var out: [RichParagraph] = []
@@ -1297,10 +1371,16 @@ public final class RichDocumentController: ChangeNotifier {
                 guard var c = p.cell else { out.append(p); continue }
                 if !inserted && c.row >= newRow { addRow() }
                 if c.row >= newRow { c.row += 1; p.cell = c }
+                else if c.row + c.rowSpan > newRow { c.rowSpan += 1; p.cell = c }   // a span across the new row grows
                 out.append(p)
             }
             if !inserted { addRow() }
-            paras = out
+            // The new row needs no cell where a span from above covers it.
+            let spans = out.compactMap(\.cell).filter { $0.row < newRow && $0.rowSpan > 1 }
+            paras = out.filter { p in
+                guard let c = p.cell, c.row == newRow, p.text.isEmpty else { return true }
+                return !spans.contains { $0.covers(row: newRow, column: c.column) }
+            }
         })
     }
 
@@ -1312,7 +1392,19 @@ public final class RichDocumentController: ChangeNotifier {
             var out: [RichParagraph] = []
             for var p in paras {
                 guard var c = p.cell else { out.append(p); continue }
-                if c.row == here.row { if caretAt == nil { caretAt = out.count }; continue }
+                if c.row == here.row {
+                    if c.rowSpan > 1 {
+                        // A span starting here keeps its content, one row shorter.
+                        c.rowSpan -= 1
+                        p.cell = c
+                        if caretAt == nil { caretAt = out.count }
+                        out.append(p)
+                    } else if caretAt == nil {
+                        caretAt = out.count
+                    }
+                    continue
+                }
+                if c.row < here.row, c.row + c.rowSpan > here.row { c.rowSpan -= 1; p.cell = c }
                 if c.row > here.row { c.row -= 1; p.cell = c }
                 out.append(p)
             }

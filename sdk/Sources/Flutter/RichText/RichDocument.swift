@@ -309,12 +309,21 @@ public struct CellRef: Hashable, Sendable {
     /// Grid columns this cell covers (Word's gridSpan): 1, or more for a
     /// cell merged across its neighbours to the right.
     public var span: Int
+    /// Rows this cell covers (Word's vMerge): 1, or more for a cell merged
+    /// downward; the rows below then have no cell in these columns.
+    public var rowSpan: Int
 
-    public init(table: String, row: Int, column: Int, span: Int = 1) {
+    public init(table: String, row: Int, column: Int, span: Int = 1, rowSpan: Int = 1) {
         self.table = table
         self.row = row
         self.column = column
         self.span = max(1, span)
+        self.rowSpan = max(1, rowSpan)
+    }
+
+    /// Whether this cell covers grid position (row, column).
+    public func covers(row r: Int, column c: Int) -> Bool {
+        r >= row && r < row + rowSpan && c >= column && c < column + span
     }
 
     /// Same cell, ignoring the span.
