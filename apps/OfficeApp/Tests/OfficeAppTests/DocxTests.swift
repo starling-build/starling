@@ -127,7 +127,10 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(back.document.paragraphs[3].style.alignment, .center)
         XCTAssertEqual(back.document.styles["Title"]?.char.fontSize, 28)
         XCTAssertEqual(back.document.styles["Quote"]?.char.italic, true)
-        XCTAssertEqual(back.document.styles["Code"]?.char.fontFamily, OfficeFonts.mono)
+        // The file names the Word font our face stands in for, and the
+        // name is kept on the way back; the face it draws with is ours.
+        XCTAssertEqual(back.document.styles["Code"]?.char.fontFamily, "Courier New")
+        XCTAssertEqual(back.document.styles["Code"]?.char.fontFamily.map(OfficeFonts.substitute), OfficeFonts.mono)
     }
 
     func testDocxWordStylesShapeTheSheet() throws {

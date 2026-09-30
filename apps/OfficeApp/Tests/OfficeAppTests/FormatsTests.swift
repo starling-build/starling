@@ -40,7 +40,10 @@ final class FormatsTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[3].style.listLevel, 1)
         XCTAssertEqual(back.paragraphs[4].style.list, .numbered)
         XCTAssertEqual(back.paragraphs[5].style.alignment, .center)
-        XCTAssertEqual(back.paragraphs[6].runs[0].style.fontFamily, OfficeFonts.mono)
+        // Written as Courier New, the Word font Liberation Mono clones, and
+        // read back under that name; drawn with Liberation Mono.
+        XCTAssertEqual(back.paragraphs[6].runs[0].style.fontFamily, "Courier New")
+        XCTAssertEqual(back.paragraphs[6].runs[0].style.fontFamily.map(OfficeFonts.substitute), OfficeFonts.mono)
         XCTAssertEqual(back.paragraphs[6].style.indentLeft, 36)
         XCTAssertTrue(back.isValid)
     }
