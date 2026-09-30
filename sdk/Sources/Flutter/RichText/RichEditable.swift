@@ -109,6 +109,10 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _hoverHandle: Int? = nil
     private var _hoverOverImage = false
     private var _hoverLink: String? = nil
+    /// A column-border drag: the table, the column whose right edge moves,
+    /// the pointer's start x (points), and the widths at the start.
+    private var _columnDrag: (table: String, column: Int, startX: Double, widths: [Double])? = nil
+    private var _hoverColumnBorder = false
     static let handleSize = 8.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
@@ -509,7 +513,10 @@ public final class RichEditableState: State<StatefulWidget> {
             handle = _handleHit(event.localPosition, box.rect)
             overImage = handle == nil && box.rect.contains(event.localPosition)
         }
-        let link = handle == nil && !overImage ? _link(at: event.localPosition) : nil
+        let border = handle == nil && !overImage && _layout.width > 0
+            && _layout.columnBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))) != nil
+        if border != _hoverColumnBorder { setState { _hoverColumnBorder = border } }
+        let link = handle == nil && !overImage && !border ? _link(at: event.localPosition) : nil
         if link != _hoverLink {
             _hoverLink = link
             _w.onLinkHover?(link)
@@ -529,6 +536,13 @@ public final class RichEditableState: State<StatefulWidget> {
         if let box = _selectedImageBox(), let k = _handleHit(event.localPosition, box.rect) {
             _handleDrag = (box.index, k, event.localPosition, box.rect.size)
             _dragSize = box.rect.size
+            _dragging = false
+            return
+        }
+        if _layout.width > 0, let border = _layout.columnBorder(at: _layout.flowPoint(_canvasPoint(event.localPosition))),
+           let widths = _layout.columnWidths(of: border.table) {
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            _columnDrag = (border.table, border.column, event.localPosition.dx / pt, widths)
             _dragging = false
             return
         }
@@ -558,6 +572,24 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if let drag = _columnDrag {
+            // The dragged edge moves; the next column gives or takes the
+            // difference so the table keeps its width, the last column
+            // just grows or shrinks. Nothing narrower than 12pt.
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            var dx = event.localPosition.dx / pt - drag.startX
+            var w = drag.widths
+            let k = drag.column
+            let hasNext = k + 1 < w.count
+            dx = max(dx, 12 - w[k])
+            if hasNext { dx = min(dx, w[k + 1] - 12) }
+            else { dx = min(dx, _layout.width / pt - w.reduce(0, +)) }
+            w[k] += dx
+            if hasNext { w[k + 1] -= dx }
+            _layout.previewColumns(drag.table, w, _controller.document)
+            _repaint.notifyListeners()
+            return
+        }
         if let drag = _handleDrag {
             // Corners keep the aspect; edges are free. Never below 8px,
             // never wider than the column.
@@ -591,6 +623,14 @@ public final class RichEditableState: State<StatefulWidget> {
 
     private func _pointerUp(_ event: PointerEvent) {
         _dragging = false
+        if let drag = _columnDrag {
+            _columnDrag = nil
+            let final = _layout.columnWidths(of: drag.table)
+            _layout.previewColumns(drag.table, nil, _controller.document)
+            if let final, final != drag.widths { _controller.setTableColumnWidths(drag.table, final) }
+            _repaint.notifyListeners()
+            return
+        }
         if let drag = _handleDrag, let size = _dragSize {
             _handleDrag = nil
             _dragSize = nil
@@ -720,6 +760,7 @@ public final class RichEditableState: State<StatefulWidget> {
         // its handles.
         let cursor: MouseCursor
         if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
+        else if _hoverColumnBorder || _columnDrag != nil { cursor = SystemMouseCursors.resizeColumn }
         else if _hoverOverImage { cursor = SystemMouseCursors.basic }
         else if _hoverLink != nil && _chords.primary { cursor = SystemMouseCursors.click }
         else { cursor = SystemMouseCursors.text }

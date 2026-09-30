@@ -14,8 +14,9 @@ import Foundation
 
 enum RibbonTab: Int, CaseIterable {
     case home, insert, draw, layout, references, review, view
-    /// Contextual: shown while a picture is selected, as Word does.
-    case pictureFormat
+    /// Contextual: shown while a picture is selected or the caret is in a
+    /// table, as Word does.
+    case pictureFormat, tableLayout
 
     var title: String {
         switch self {
@@ -27,10 +28,11 @@ enum RibbonTab: Int, CaseIterable {
         case .review: return "Review"
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
+        case .tableLayout: return "Table Layout"
         }
     }
 
-    var isContextual: Bool { self == .pictureFormat }
+    var isContextual: Bool { self == .pictureFormat || self == .tableLayout }
 }
 
 final class Ribbon: StatelessWidget {
@@ -72,7 +74,9 @@ final class Ribbon: StatelessWidget {
 
     private func _strip(_ fluent: FluentThemeData) -> Widget {
         var items: [Widget] = [_fileTab(fluent)]
-        for t in RibbonTab.allCases where !t.isContextual || (t == .pictureFormat && session.summary.imageIndex != nil) {
+        for t in RibbonTab.allCases where !t.isContextual
+            || (t == .pictureFormat && session.summary.imageIndex != nil)
+            || (t == .tableLayout && session.summary.inCell) {
             items.append(_tab(t, fluent))
         }
         return Padding(padding: EdgeInsets(left: 8, top: 2, right: 8, bottom: 0),
@@ -126,6 +130,7 @@ final class Ribbon: StatelessWidget {
         case .layout: return _layout(fluent)
         case .view: return _view(fluent)
         case .pictureFormat: return _pictureFormat(fluent)
+        case .tableLayout: return _tableLayout(fluent)
         case .draw: return _placeholder(fluent, "Drawing", ["Pen", "Highlighter", "Eraser"])
         case .references: return _placeholder(fluent, "Table of Contents", ["Table of Contents", "Footnote", "Citation"])
         case .review: return _placeholder(fluent, "Proofing", ["Spelling", "Word Count", "Track Changes"])
@@ -343,6 +348,32 @@ final class Ribbon: StatelessWidget {
             title: Text("Table"),
             leading: Icon(FluentSystemIcons.table, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
             items: items)
+    }
+
+    // MARK: Table Layout
+
+    private func _tableLayout(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        let rows = Chrome.group("Rows & Columns", fluent, [
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.chevronUp, "Insert Above", fluent) { c.insertRow(below: false) },
+                Chrome.small(FluentSystemIcons.chevronDown, "Insert Below", fluent) { c.insertRow(below: true) },
+                Chrome.small(FluentSystemIcons.delete, "Delete Row", fluent) { c.deleteRow() },
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.chevronLeft, "Insert Left", fluent) { c.insertColumn(after: false) },
+                Chrome.small(FluentSystemIcons.chevronRight, "Insert Right", fluent) { c.insertColumn(after: true) },
+                Chrome.small(FluentSystemIcons.delete, "Delete Column", fluent) { c.deleteColumn() },
+            ]),
+        ])
+        let size = Chrome.group("Cell Size", fluent, [
+            Chrome.big(FluentSystemIcons.columns, "Distribute Columns", fluent) { c.distributeColumns() },
+        ])
+        let table = Chrome.group("Table", fluent, [
+            Chrome.big(FluentSystemIcons.delete, "Delete Table", fluent) { c.deleteTable() },
+        ])
+        return [rows, size, table]
     }
 
     // MARK: Picture Format

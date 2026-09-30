@@ -71,6 +71,7 @@ final class OfficeShellState: State<StatefulWidget> {
                     // Selecting a picture opens its tab; leaving it returns Home.
                     if s.imageIndex != nil, self.session.summary.imageIndex == nil { self._tab = .pictureFormat }
                     if s.imageIndex == nil, self._tab == .pictureFormat { self._tab = .home }
+                    if !s.inCell, self._tab == .tableLayout { self._tab = .home }
                     self.session.summary = s
                     self.session.dirty = dirty
                 }

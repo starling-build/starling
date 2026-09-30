@@ -339,7 +339,7 @@ public final class RichLayout {
         for p in document.paragraphs {
             guard let c = p.cell, widths[c.table] == nil else { continue }
             let cols = document.columnCount(of: c.table)
-            if let pts = document.tableColumns[c.table], pts.count == cols {
+            if let pts = _columnPreview[c.table] ?? document.tableColumns[c.table], pts.count == cols {
                 widths[c.table] = pts.map { _px($0) }
             } else {
                 widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
@@ -352,6 +352,39 @@ public final class RichLayout {
             }
         }
         _columnWidths = widths
+    }
+
+    /// Column widths (points) shown instead of the document's while a
+    /// border is being dragged; the edit lands on release.
+    private var _columnPreview: [String: [Double]] = [:]
+
+    public func previewColumns(_ table: String, _ widths: [Double]?, _ document: RichDocument) {
+        if widths == nil { _columnPreview[table] = nil } else { _columnPreview[table] = widths }
+        for i in document.paragraphs.indices where document.paragraphs[i].cell?.table == table {
+            _painters[i]?.dispose()
+            _painters[i] = nil
+        }
+        _topsValid = false
+    }
+
+    /// The column border under a document-space point, within `reach` px:
+    /// the table and the index of the column whose right edge it is.
+    public func columnBorder(at point: Offset, reach: Double = 4) -> (table: String, column: Int)? {
+        guard !_rowTops.isEmpty else { return nil }
+        let i = paragraphIndex(atY: point.dy)
+        guard let c = _cells[i], point.dy >= c.rowTop, point.dy <= c.rowTop + c.rowHeight,
+              let widths = _columnWidths[c.table] else { return nil }
+        var x = 0.0
+        for (k, w) in widths.enumerated() {
+            x += w
+            if abs(point.dx - x) <= reach { return (c.table, k) }
+        }
+        return nil
+    }
+
+    /// A table's column widths as laid out, in points.
+    public func columnWidths(of table: String) -> [Double]? {
+        _columnWidths[table].map { $0.map { $0 / (theme.pixelsPerPoint * scale) } }
     }
 
     /// Stack the blocks: ordinary paragraphs one under another, a table row's

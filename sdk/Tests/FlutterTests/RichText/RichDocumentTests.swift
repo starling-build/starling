@@ -362,6 +362,38 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "see the site here ")
     }
 
+    func testTableColumns() {
+        let c = controller("")
+        c.insertTable(rows: 2, columns: 2)
+        c.insertText("a")
+        c.moveToAdjacentCell(forward: true); c.insertText("b")
+        c.moveToAdjacentCell(forward: true); c.insertText("c")
+        c.moveToAdjacentCell(forward: true); c.insertText("d")
+        let id = c.currentCell!.table
+        c.setTableColumnWidths(id, [200, 300])
+        // Insert right of column 0 (caret in "d", column 1 → left of it instead).
+        c.moveTo(RichPosition(paragraph: 0, offset: 1), extend: false)
+        c.insertColumn(after: true)
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "0,2:b", "1,0:c", "1,1:", "1,2:d", "-"])
+        XCTAssertEqual(c.document.tableColumns[id] ?? [], [100, 100, 300])
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 1, offset: 0))
+        c.undo(); c.undo()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:b", "1,0:c", "1,1:d", "-"])
+        XCTAssertEqual(c.document.tableColumns[id] ?? [], [200, 300])
+        // Delete column 1: its width goes to the neighbour.
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.deleteColumn()
+        XCTAssertEqual(cells(c), ["0,0:a", "1,0:c", "-"])
+        XCTAssertEqual(c.document.tableColumns[id] ?? [], [500])
+        c.distributeColumns()
+        XCTAssertNil(c.document.tableColumns[id])
+        // The last column goes with the table.
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.deleteColumn()
+        XCTAssertEqual(cells(c), ["-"])
+        XCTAssertTrue(c.document.isValid)
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

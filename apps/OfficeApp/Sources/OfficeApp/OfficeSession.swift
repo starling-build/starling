@@ -23,6 +23,7 @@ struct ToolbarSummary: Equatable {
     var imageWidth = 0.0
     var imageHeight = 0.0
     var imageHasNatural = false
+    var inCell = false
     var list: ListKind? = nil
     var alignment: ParagraphAlignment = .left
     var lineSpacing = 1.0
@@ -100,6 +101,7 @@ final class OfficeSession {
         let ps = c.currentParagraphStyle
         s.heading = ps.heading
         s.styleId = c.currentNamedStyleId
+        s.inCell = c.isInCell
         if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
             s.imageIndex = i
             s.imageWidth = image.width

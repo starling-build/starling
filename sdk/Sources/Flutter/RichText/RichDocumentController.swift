@@ -48,6 +48,8 @@ public enum EditOp: Equatable, Sendable {
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
     /// A picture's shown size (its attachment replaced; the id survives).
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
+    /// A table's column widths in points (nil: equal columns).
+    case setTableColumns(String, old: [Double]?, new: [Double]?)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -112,6 +114,10 @@ public enum EditOp: Equatable, Sendable {
             doc.paragraphs[index].image = new
             changes.append(.changed(index))
             return .setImage(index, old: new, new: old)
+        case .setTableColumns(let table, let old, let new):
+            doc.tableColumns[table] = new
+            for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
+            return .setTableColumns(table, old: new, new: old)
         }
     }
 }
@@ -936,6 +942,100 @@ public final class RichDocumentController: ChangeNotifier {
             let index = min(document.paragraphs.count - 1, range.lowerBound + (at ?? 0))
             _setCaret(RichPosition(paragraph: index, offset: 0))
         }
+    }
+
+    /// The cell the caret is in, or nil.
+    public var currentCell: CellRef? { document.paragraphs[selection.focus.paragraph].cell }
+
+    /// Set a table's column widths (points), one undo step.
+    public func setTableColumnWidths(_ table: String, _ widths: [Double]?) {
+        let old = document.tableColumns[table]
+        guard old != widths else { return }
+        edit { perform(.setTableColumns(table, old: old, new: widths)) }
+    }
+
+    /// Equal columns across the content width.
+    public func distributeColumns() {
+        guard let here = currentCell else { return }
+        setTableColumnWidths(here.table, nil)
+    }
+
+    /// Insert an empty column left or right of the caret's column. The new
+    /// column takes half of the current one's width so the table keeps
+    /// its width, as Word's "Insert Left/Right" does inside a fixed table.
+    public func insertColumn(after: Bool) {
+        guard let here = currentCell else { return }
+        let at = after ? here.column + 1 : here.column
+        let cols = document.columnCount(of: here.table)
+        var widths = document.tableColumns[here.table]
+        if widths?.count != cols { widths = nil }
+        if var w = widths {
+            let half = w[here.column] / 2
+            w[here.column] = half
+            w.insert(half, at: at)
+            widths = w
+        }
+        var caretAt: Int? = nil
+        let newWidths = widths
+        _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+            var out: [RichParagraph] = []
+            var lastRow = -1
+            func addCell(_ row: Int) {
+                var p = RichParagraph()
+                p.cell = CellRef(table: here.table, row: row, column: at)
+                if row == here.row { caretAt = out.count }
+                out.append(p)
+            }
+            var rowInserted = false
+            for var p in paras {
+                guard var c = p.cell else { out.append(p); continue }
+                if c.row != lastRow {
+                    if lastRow >= 0, !rowInserted { addCell(lastRow) }
+                    lastRow = c.row
+                    rowInserted = false
+                }
+                if !rowInserted, c.column >= at { addCell(c.row); rowInserted = true }
+                if c.column >= at { c.column += 1; p.cell = c }
+                out.append(p)
+            }
+            if lastRow >= 0, !rowInserted { addCell(lastRow) }
+            paras = out
+        })
+        if let w = newWidths { edit { perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: w)) } }
+    }
+
+    /// Remove the caret's column; the last column removes the table.
+    public func deleteColumn() {
+        guard let here = currentCell else { return }
+        let cols = document.columnCount(of: here.table)
+        if cols <= 1 { deleteTable(); return }
+        var widths = document.tableColumns[here.table]
+        if widths?.count == cols {
+            // The neighbour takes the removed width, so the table keeps its width.
+            let removed = widths![here.column]
+            widths!.remove(at: here.column)
+            let neighbour = min(here.column, widths!.count - 1)
+            widths![neighbour] += removed
+        } else {
+            widths = nil
+        }
+        var caretAt: Int? = nil
+        let newWidths = widths
+        _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+            var out: [RichParagraph] = []
+            for var p in paras {
+                guard var c = p.cell else { out.append(p); continue }
+                if c.column == here.column {
+                    if c.row == here.row, caretAt == nil { caretAt = out.count }
+                    continue
+                }
+                if c.column > here.column { c.column -= 1; p.cell = c }
+                out.append(p)
+            }
+            caretAt = min(caretAt ?? 0, max(0, out.count - 1))
+            paras = out
+        })
+        edit { perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: newWidths)) }
     }
 
     /// Remove the table the caret is in; the caret lands where it was.
