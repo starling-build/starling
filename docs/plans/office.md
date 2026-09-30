@@ -1,7 +1,9 @@
 # Office: a cross-platform document suite on the Starling SDK
 
 Status: **Phase 2 feature list done on macOS** (Writer: docx, PDF, pictures,
-headers/footers, tables, named styles, navigation pane), 2026-09-29, branch `office`
+headers/footers, tables, named styles, navigation pane), 2026-09-29, branch `office`.
+**Next: the editor itself — `office-editor.md`** (cursors, pictures, rich
+clipboard, IME, tables, links, ribbon truth), at the user's direction.
 (cut from `main` at 97f3c72). What exists:
 
 - `sdk/Sources/Flutter/RichText/` — the editing stack: model, controller
