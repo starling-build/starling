@@ -1,6 +1,7 @@
 # Office: a cross-platform document suite on the Starling SDK
 
-Status: **Phase 1 done on macOS** (Writer), 2026-09-29, branch `office`
+Status: **Phase 2 in progress on macOS** (Writer: docx, PDF, pictures,
+headers/footers, tables done; named styles next), 2026-09-29, branch `office`
 (cut from `main` at 97f3c72). What exists:
 
 - `sdk/Sources/Flutter/RichText/` — the editing stack: model, controller
@@ -50,9 +51,30 @@ painted into the margins of every page, in `.docx` and RTF.
 
 **Direction (2026-09-29): macOS only for now.** Linux, Windows and iOS
 wait; nothing below should spend time on them until the user says so.
-Tables are in progress: the SDK half (cell-tagged paragraphs, row layout
-with borders, Tab between cells) is in; the Insert menu, `.docx` and
-Markdown tables are next.
+**Tables** are done: a table is a run of cell-tagged paragraphs, so every
+edit, selection and format command works unchanged inside one; `RichLayout`
+places a row's cells side by side, draws the borders, hit-tests and
+paginates a row as one block; Tab/Shift+Tab move between cells; Backspace
+never joins across a cell wall. Insert → Table offers preset sizes and,
+inside a table, Insert Row Above/Below, Delete Row and Delete Table (each
+one undo step). `.docx` tables read and write as `w:tbl` with the grid's
+column widths (verified both ways against python-docx), Markdown tables as
+GFM pipe tables with alignment and a bold header row, and the PDF has them
+because the same layout paints it. Not yet: column insert/delete, merged
+cells (a `gridSpan` keeps the columns after it in place but renders in
+one), nested tables (flattened into their cell), RTF tables.
+
+Three more framework bugs fell out of the first drop-down ever opened in
+a debug build: `RenderFollowerLayer` held its layer by a bare reference,
+so the parent's next repaint disposed it and the paint after that
+asserted; an `OverlayEntry` removed by a `Tooltip` unmounting during
+`finalizeTree` called `setState` while the tree was locked (deferred now
+via `BuildOwner.runWhenUnlocked`, standing in for the post-frame callback
+upstream uses); and `FollowerLayer` is a stub that applies no transform,
+so every flyout painted at the overlay's origin at full width — the
+flyout now positions itself from the target's render box through a
+`CustomSingleChildLayout`, as fluent_ui does, and a `FlyoutScope` lets a
+menu item close the flyout it is in (there is no route to pop).
 
 Not done from the Phase 1 list: the `_writer_session` functional test
 (Linux desktop, Phase 3). Three directions from the user shape the plan:

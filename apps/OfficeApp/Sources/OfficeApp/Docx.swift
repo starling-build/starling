@@ -5,11 +5,11 @@
 // model can hold: paragraphs with runs (bold, italic, underline, strike,
 // size, colour, highlight, font, sub/superscript, hyperlinks), paragraph
 // alignment, indents, spacing, headings via the style table, lists via the
-// numbering table, page breaks, and the section's paper size and margins.
-// Tables are flattened to their cells' paragraphs and images are skipped
-// until the model has them. The writer emits a minimal package (document,
-// styles, numbering, relationships) that Word, LibreOffice and macOS all
-// open.
+// numbering table, page breaks, tables (cells as cell-tagged paragraphs,
+// column widths from the grid), inline pictures, headers and footers, and
+// the section's paper size and margins. The writer emits a minimal package
+// (document, styles, numbering, relationships, media) that Word,
+// LibreOffice and macOS all open.
 
 import Flutter
 import FlutterSwiftBridge
@@ -145,10 +145,14 @@ enum DocxFormat {
         var paragraphs: [RichParagraph] = []
         var pageSetup: PageSetup? = nil
         var pendingPageBreak = false
+        var tableColumns: [String: [Double]] = [:]
+        var tableCount = 0
+        var currentCell: CellRef? = nil
 
         func emit(_ p: RichParagraph) {
             var p = p
             if pendingPageBreak { p.style.pageBreakBefore = true; pendingPageBreak = false }
+            if p.cell == nil { p.cell = currentCell }
             paragraphs.append(p)
         }
 
@@ -158,13 +162,32 @@ enum DocxFormat {
                 for p in _paragraphs(node, headingByStyle, kindByNum, rels, media, indent) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
-            case "w:tbl":
-                // Flatten: each cell's paragraphs, indented, until tables exist.
+            case "w:tbl" where currentCell != nil:
+                // A nested table flattens into its cell, indented.
                 for tr in node.all("w:tr") {
                     for tc in tr.all("w:tc") {
                         for child in tc.children { walkBlock(child, indent: indent + 18) }
                     }
                 }
+            case "w:tbl":
+                tableCount += 1
+                let id = "t\(tableCount)"
+                if let grid = node.first("w:tblGrid") {
+                    let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
+                    if !widths.isEmpty { tableColumns[id] = widths }
+                }
+                for (r, tr) in node.all("w:tr").enumerated() {
+                    var column = 0
+                    for tc in tr.all("w:tc") {
+                        currentCell = CellRef(table: id, row: r, column: column)
+                        let before = paragraphs.count
+                        for child in tc.children { walkBlock(child, indent: indent) }
+                        if paragraphs.count == before { emit(RichParagraph()) }
+                        // A merged cell keeps the grid columns after it in place.
+                        column += max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
+                    }
+                }
+                currentCell = nil
             case "w:sdt":
                 if let content = node.first("w:sdtContent") {
                     for child in content.children { walkBlock(child, indent: indent) }
@@ -176,8 +199,10 @@ enum DocxFormat {
             }
         }
         for child in body.children { walkBlock(child, indent: 0) }
-        if paragraphs.isEmpty { paragraphs = [RichParagraph()] }
+        // The caret must be able to leave a table that ends the document.
+        if paragraphs.isEmpty || paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
         var document = RichDocument(paragraphs: paragraphs)
+        document.tableColumns = tableColumns
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.
         if let sect = body.first("w:sectPr") {
@@ -455,7 +480,8 @@ enum DocxFormat {
         }
 
         var body = ""
-        for p in doc.paragraphs {
+        func paragraphXML(_ p: RichParagraph) -> String {
+            var body = ""
             var pPr = ""
             if let h = p.style.heading { pPr += "<w:pStyle w:val=\"Heading\(min(h, 6))\"/>" }
             if p.style.list != nil { pPr += "<w:pStyle w:val=\"ListParagraph\"/>" }
@@ -491,7 +517,7 @@ enum DocxFormat {
                 mediaRels.append((rid, "media/\(name)"))
                 let cx = Int(image.width * 12700), cy = Int(image.height * 12700)
                 body += "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"\(cx)\" cy=\"\(cy)\"/><wp:docPr id=\"\(n)\" name=\"Picture \(n)\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"\(name)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"
-                continue
+                return body
             }
             var pos = 0
             let utf16 = p.text.utf16
@@ -539,7 +565,59 @@ enum DocxFormat {
                 }
             }
             body += "</w:p>"
+            return body
         }
+
+        /// One table: the run of cell paragraphs starting at `start`, as
+        /// rows of cells with the grid's widths. Returns the index after it.
+        func tableXML(from start: Int) -> (xml: String, end: Int) {
+            let id = doc.paragraphs[start].cell!.table
+            var end = start
+            while end < doc.paragraphs.count, doc.paragraphs[end].cell?.table == id { end += 1 }
+            let members = doc.paragraphs[start ..< end]
+            let rows = (members.compactMap { $0.cell?.row }.max() ?? 0) + 1
+            let cols = (members.compactMap { $0.cell?.column }.max() ?? 0) + 1
+            var widths = doc.tableColumns[id] ?? []
+            if widths.count != cols {
+                let content = pageSetup.width - pageSetup.marginLeft - pageSetup.marginRight
+                widths = Array(repeating: content / Double(cols), count: cols)
+            }
+            let twips = widths.map { Int(($0 * 20).rounded()) }
+            var xml = "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders>"
+            for side in ["top", "left", "bottom", "right", "insideH", "insideV"] {
+                xml += "<w:\(side) w:val=\"single\" w:sz=\"4\" w:space=\"0\" w:color=\"auto\"/>"
+            }
+            xml += "</w:tblBorders><w:tblLook w:val=\"04A0\"/></w:tblPr><w:tblGrid>"
+            for w in twips { xml += "<w:gridCol w:w=\"\(w)\"/>" }
+            xml += "</w:tblGrid>"
+            for r in 0 ..< rows {
+                xml += "<w:tr>"
+                for c in 0 ..< cols {
+                    xml += "<w:tc><w:tcPr><w:tcW w:w=\"\(twips[c])\" w:type=\"dxa\"/></w:tcPr>"
+                    let cell = members.filter { $0.cell?.row == r && $0.cell?.column == c }
+                    if cell.isEmpty { xml += "<w:p/>" }
+                    for p in cell { xml += paragraphXML(p) }
+                    xml += "</w:tc>"
+                }
+                xml += "</w:tr>"
+            }
+            xml += "</w:tbl>"
+            return (xml, end)
+        }
+
+        var i = 0
+        while i < doc.paragraphs.count {
+            if doc.paragraphs[i].cell != nil {
+                let t = tableXML(from: i)
+                body += t.xml
+                i = t.end
+            } else {
+                body += paragraphXML(doc.paragraphs[i])
+                i += 1
+            }
+        }
+        // WordprocessingML wants a paragraph between a table and the section end.
+        if doc.paragraphs.last?.cell != nil { body += "<w:p/>" }
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         body += "<w:sectPr>"
         if !doc.header.isEmpty { body += "<w:headerReference w:type=\"default\" r:id=\"rIdHeader\"/>" }

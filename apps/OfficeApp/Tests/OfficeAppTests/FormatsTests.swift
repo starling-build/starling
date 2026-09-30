@@ -82,6 +82,39 @@ final class FormatsTests: XCTestCase {
         XCTAssertEqual(back.paragraphs[6].runs[0].style.fontFamily, OfficeFonts.mono)
     }
 
+    func testMarkdownTable() {
+        let md = """
+        Intro.
+
+        | Name | Count | Note |
+        | :-- | --: | :-: |
+        | apples | 3 | a \\| b |
+        | pears | **12** |
+
+        Outro.
+        """
+        let doc = MarkdownFormat.parse(md)
+        let ps = doc.paragraphs
+        XCTAssertEqual(ps.map(\.text), ["Intro.", "Name", "Count", "Note", "apples", "3", "a | b", "pears", "12", "", "Outro."])
+        XCTAssertNil(ps[0].cell)
+        XCTAssertEqual(ps[1 ... 9].map { "\($0.cell!.row),\($0.cell!.column)" },
+                       ["0,0", "0,1", "0,2", "1,0", "1,1", "1,2", "2,0", "2,1", "2,2"])
+        XCTAssertTrue(ps[1].runs[0].style.bold)   // header
+        XCTAssertFalse(ps[4].runs[0].style.bold)
+        XCTAssertTrue(ps[8].runs[0].style.bold)   // **12**
+        XCTAssertEqual(ps[2].style.alignment, .right)
+        XCTAssertEqual(ps[6].style.alignment, .center)
+        XCTAssertNil(ps[10].cell)
+
+        let out = MarkdownFormat.render(doc)
+        XCTAssertTrue(out.contains("| Name | Count | Note |\n| --- | --: | :-: |\n| apples | 3 | a \\| b |\n| pears | **12** |  |"))
+        let back = MarkdownFormat.parse(out)
+        XCTAssertEqual(back.paragraphs.map(\.text), ps.map(\.text))
+        XCTAssertEqual(back.paragraphs.map { $0.cell.map { "\($0.row),\($0.column)" } ?? "-" },
+                       ps.map { $0.cell.map { "\($0.row),\($0.column)" } ?? "-" })
+        XCTAssertTrue(back.isValid)
+    }
+
     func testMarkdownInline() {
         let doc = MarkdownFormat.parse("A [link](https://example.com) and `code` and ~~gone~~ and *it* plus a lone * star.")
         let p = doc.paragraphs[0]

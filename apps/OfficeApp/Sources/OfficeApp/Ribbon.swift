@@ -261,9 +261,7 @@ final class Ribbon: StatelessWidget {
             Chrome.group("Pages", fluent, [
                 Chrome.big(FluentSystemIcons.pageBreak, "Page Break", fluent) { c.insertPageBreak() },
             ]),
-            Chrome.group("Tables", fluent, [
-                Chrome.big(FluentSystemIcons.table, "Table", fluent, enabled: false) {},
-            ]),
+            Chrome.group("Tables", fluent, [_tableMenu(fluent)]),
             Chrome.group("Illustrations", fluent, [
                 Chrome.big(FluentSystemIcons.image, "Pictures", fluent) { [session] in session.onInsertPicture?() },
                 Chrome.big(FluentSystemIcons.shapes, "Shapes", fluent, enabled: false) {},
@@ -291,6 +289,31 @@ final class Ribbon: StatelessWidget {
                                                  color: fluent.resources.textFillColorPrimary), fluent, symbols),
             ]),
         ]
+    }
+
+    /// Insert → Table: preset sizes, then the row commands and Delete
+    /// Table, which light up inside a table.
+    private func _tableMenu(_ fluent: FluentThemeData) -> Widget {
+        let c = session.controller
+        let inCell = c.isInCell
+        var items: [MenuFlyoutItemBase] = []
+        for (rows, cols) in [(2, 2), (3, 3), (4, 4), (3, 2), (5, 3)] {
+            items.append(MenuFlyoutItem(text: Text("Insert \(rows) × \(cols) Table"),
+                                        onPressed: { [session] in
+                                            c.insertTable(rows: rows, columns: cols)
+                                            session.onStatus?("Inserted a \(rows) × \(cols) table")
+                                        }))
+        }
+        items.append(MenuFlyoutSeparator())
+        items.append(MenuFlyoutItem(text: Text("Insert Row Above"), onPressed: inCell ? { c.insertRow(below: false) } : nil))
+        items.append(MenuFlyoutItem(text: Text("Insert Row Below"), onPressed: inCell ? { c.insertRow(below: true) } : nil))
+        items.append(MenuFlyoutItem(text: Text("Delete Row"), onPressed: inCell ? { c.deleteRow() } : nil))
+        items.append(MenuFlyoutSeparator())
+        items.append(MenuFlyoutItem(text: Text("Delete Table"), onPressed: inCell ? { c.deleteTable() } : nil))
+        return DropDownButton(
+            title: Text("Table"),
+            leading: Icon(FluentSystemIcons.table, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
+            items: items)
     }
 
     // MARK: Layout

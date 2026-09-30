@@ -876,14 +876,26 @@ public final class RichLayout {
             stroke.style = .stroke
             stroke.strokeWidth = 1
             stroke.color = theme.textColor.withOpacity(0.6)
-            var x = 0.5
+            // Every line lies inside the row (the paint is clipped to the
+            // row's page piece, so a stroke centred on the row's bottom
+            // edge lost its outer half and the table's last row had no
+            // bottom border). Rows share edges: a row draws its bottom and
+            // only the first row its top; columns draw their left and only
+            // the last its right.
             let widths = _columnWidths[c.table] ?? []
-            let top = c.rowTop.rounded() + 0.5
-            let bottom = (c.rowTop + c.rowHeight).rounded() + 0.5
-            for w in widths {
-                canvas.drawRect(Rect.fromLTRB(x, top, (x + w).rounded(), bottom), stroke)
-                x += w.rounded()
+            let rowTop = c.rowTop.rounded()
+            let rowBottom = (c.rowTop + c.rowHeight).rounded()
+            let right = widths.reduce(0, +).rounded()
+            if c.row == 0 {
+                canvas.drawLine(Offset(0, rowTop + 0.5), Offset(right, rowTop + 0.5), stroke)
             }
+            canvas.drawLine(Offset(0, rowBottom - 0.5), Offset(right, rowBottom - 0.5), stroke)
+            var x = 0.0
+            for w in widths {
+                canvas.drawLine(Offset(x + 0.5, rowTop), Offset(x + 0.5, rowBottom), stroke)
+                x += w
+            }
+            canvas.drawLine(Offset(right - 0.5, rowTop), Offset(right - 0.5, rowBottom), stroke)
         }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             if let decoded = _decoded[image.id] {

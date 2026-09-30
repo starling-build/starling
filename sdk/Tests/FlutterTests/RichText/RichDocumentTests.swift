@@ -211,6 +211,69 @@ final class RichDocumentControllerTests: XCTestCase {
         let c = controller("one two  three", "", "four")
         XCTAssertEqual(c.document.wordCount, 4)
     }
+
+    private func cells(_ c: RichDocumentController) -> [String] {
+        c.document.paragraphs.map { p in
+            guard let cell = p.cell else { return "-" }
+            return "\(cell.row),\(cell.column):\(p.text)"
+        }
+    }
+
+    func testInsertTableAndTabBetweenCells() {
+        let c = controller("intro")
+        c.moveToDocumentEnd(extend: false)
+        c.insertTable(rows: 2, columns: 2)
+        XCTAssertEqual(cells(c), ["-", "0,0:", "0,1:", "1,0:", "1,1:", "-"])
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 1, offset: 0))
+        XCTAssertTrue(c.isInCell)
+        c.insertText("a")
+        c.moveToAdjacentCell(forward: true)
+        c.insertText("b")
+        c.moveToAdjacentCell(forward: true)
+        c.moveToAdjacentCell(forward: true)
+        c.insertText("d")
+        XCTAssertEqual(cells(c), ["-", "0,0:a", "0,1:b", "1,0:", "1,1:d", "-"])
+        // Past the last cell: the paragraph after the table.
+        c.moveToAdjacentCell(forward: true)
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 5, offset: 0))
+        XCTAssertFalse(c.isInCell)
+        // Backspace at a cell wall never joins.
+        c.deleteBackward()
+        XCTAssertEqual(c.document.paragraphs.count, 6)
+        c.moveTo(RichPosition(paragraph: 2, offset: 0), extend: false)
+        c.deleteBackward()
+        XCTAssertEqual(cells(c), ["-", "0,0:a", "0,1:b", "1,0:", "1,1:d", "-"])
+        // Undo removes the whole table in one step.
+        c.undo(); c.undo(); c.undo()
+        XCTAssertEqual(cells(c), ["-", "0,0:", "0,1:", "1,0:", "1,1:", "-"])
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["intro"])
+    }
+
+    func testTableRowsAndDelete() {
+        let c = controller("")
+        c.insertTable(rows: 2, columns: 2)
+        c.insertText("a")
+        c.moveToAdjacentCell(forward: true); c.moveToAdjacentCell(forward: true)
+        c.insertText("c")
+        c.moveTo(RichPosition(paragraph: 0, offset: 1), extend: false)
+        c.insertRow(below: true)
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "1,0:", "1,1:", "2,0:c", "2,1:", "-"])
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 2, offset: 0))
+        c.insertRow(below: false)
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "1,0:", "1,1:", "2,0:", "2,1:", "3,0:c", "3,1:", "-"])
+        c.undo()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "1,0:", "1,1:", "2,0:c", "2,1:", "-"])
+        c.moveTo(RichPosition(paragraph: 4, offset: 0), extend: false)
+        c.deleteRow()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "1,0:", "1,1:", "-"])
+        c.deleteTable()
+        XCTAssertEqual(cells(c), ["-"])
+        XCTAssertEqual(c.caret, RichPosition(paragraph: 0, offset: 0))
+        c.undo()
+        XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "1,0:", "1,1:", "-"])
+        XCTAssertTrue(c.document.isValid)
+    }
 }
 
 final class KeyChordTests: XCTestCase {

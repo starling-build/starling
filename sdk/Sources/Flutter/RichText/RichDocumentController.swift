@@ -819,6 +819,84 @@ public final class RichDocumentController: ChangeNotifier {
                                   focus: RichPosition(paragraph: i, offset: document.paragraphs[i].length))
     }
 
+    /// The paragraph range of the table the caret is in, or nil.
+    public var currentTableRange: Range<Int>? {
+        guard let id = document.paragraphs[selection.focus.paragraph].cell?.table else { return nil }
+        let members = document.paragraphs(inTable: id)
+        guard let first = members.first, let last = members.last else { return nil }
+        return first ..< last + 1
+    }
+
+    /// Replace the whole table around the caret with `rewrite`'s result and
+    /// put the caret at `caret` (an index into the new run). One undo step;
+    /// the table stays one contiguous run of cell paragraphs.
+    private func _rewriteTable(caret: (inout [RichParagraph]) -> Int?, rewrite: (inout [RichParagraph]) -> Void) {
+        guard let range = currentTableRange else { return }
+        edit {
+            var paras = Array(document.paragraphs[range])
+            let old = paras
+            rewrite(&paras)
+            let at = caret(&paras)
+            perform(.removeParagraphs(at: range.lowerBound, old))
+            if !paras.isEmpty { perform(.insertParagraphs(at: range.lowerBound, paras)) }
+            if document.paragraphs.isEmpty { perform(.insertParagraphs(at: 0, [RichParagraph()])) }
+            let index = min(document.paragraphs.count - 1, range.lowerBound + (at ?? 0))
+            _setCaret(RichPosition(paragraph: index, offset: 0))
+        }
+    }
+
+    /// Remove the table the caret is in; the caret lands where it was.
+    public func deleteTable() {
+        _rewriteTable(caret: { _ in 0 }, rewrite: { $0.removeAll() })
+    }
+
+    /// Insert an empty row above or below the caret's row.
+    public func insertRow(below: Bool) {
+        guard let here = document.paragraphs[selection.focus.paragraph].cell else { return }
+        let columns = document.columnCount(of: here.table)
+        let newRow = below ? here.row + 1 : here.row
+        var caretAt: Int? = nil
+        _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+            var out: [RichParagraph] = []
+            var inserted = false
+            func addRow() {
+                caretAt = out.count
+                for c in 0 ..< columns {
+                    var p = RichParagraph()
+                    p.cell = CellRef(table: here.table, row: newRow, column: c)
+                    out.append(p)
+                }
+                inserted = true
+            }
+            for var p in paras {
+                guard var c = p.cell else { out.append(p); continue }
+                if !inserted && c.row >= newRow { addRow() }
+                if c.row >= newRow { c.row += 1; p.cell = c }
+                out.append(p)
+            }
+            if !inserted { addRow() }
+            paras = out
+        })
+    }
+
+    /// Remove the caret's row; the last row removes the table.
+    public func deleteRow() {
+        guard let here = document.paragraphs[selection.focus.paragraph].cell else { return }
+        var caretAt: Int? = nil
+        _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
+            var out: [RichParagraph] = []
+            for var p in paras {
+                guard var c = p.cell else { out.append(p); continue }
+                if c.row == here.row { if caretAt == nil { caretAt = out.count }; continue }
+                if c.row > here.row { c.row -= 1; p.cell = c }
+                out.append(p)
+            }
+            // The row that moved up, or the last one when the caret's was last.
+            caretAt = min(caretAt ?? 0, max(0, out.count - 1))
+            paras = out
+        })
+    }
+
     // MARK: Header and footer
 
     public func setHeaderFooter(header: String? = nil, footer: String? = nil) {

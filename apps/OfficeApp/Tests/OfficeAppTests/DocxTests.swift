@@ -80,6 +80,46 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(pic.height, 80, accuracy: 0.01)
     }
 
+    func testDocxTableRoundTrip() throws {
+        var doc = RichDocument(plainText: "Before\nAfter")
+        func cell(_ text: String, _ r: Int, _ c: Int, bold: Bool = false) -> RichParagraph {
+            var p = RichParagraph(text: text)
+            if bold { p.applyStyle(0 ..< p.length) { $0.bold = true } }
+            p.cell = CellRef(table: "T", row: r, column: c)
+            return p
+        }
+        // 2 × 2, with two paragraphs in the last cell.
+        doc.paragraphs.insert(contentsOf: [cell("Name", 0, 0, bold: true), cell("Count", 0, 1),
+                                           cell("apples", 1, 0), cell("three", 1, 1), cell("or four", 1, 1)], at: 1)
+        doc.tableColumns["T"] = [200, 300]
+        let data = try DocxFormat.write(doc, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(data).first { $0.name == "word/document.xml" }?.data), as: UTF8.self)
+        XCTAssertTrue(xml.contains("<w:tbl>"))
+        XCTAssertTrue(xml.contains("<w:gridCol w:w=\"4000\"/><w:gridCol w:w=\"6000\"/>"))
+        let back = try DocxFormat.read(data)
+        let ps = back.document.paragraphs
+        XCTAssertEqual(ps.map(\.text), ["Before", "Name", "Count", "apples", "three", "or four", "After"])
+        XCTAssertNil(ps[0].cell)
+        XCTAssertNil(ps[6].cell)
+        let id = try XCTUnwrap(ps[1].cell?.table)
+        XCTAssertEqual(ps[1 ... 5].map { "\($0.cell!.row),\($0.cell!.column)" }, ["0,0", "0,1", "1,0", "1,1", "1,1"])
+        XCTAssertTrue(ps[1 ... 5].allSatisfy { $0.cell?.table == id })
+        XCTAssertTrue(ps[1].runs[0].style.bold)
+        XCTAssertFalse(ps[2].runs[0].style.bold)
+        XCTAssertEqual(back.document.tableColumns[id] ?? [], [200, 300])
+        XCTAssertTrue(back.document.isValid)
+    }
+
+    func testDocxTableEndsTheDocument() throws {
+        // A package whose body is just a table still gets a paragraph after it.
+        var doc = RichDocument(plainText: "x")
+        doc.paragraphs[0].cell = CellRef(table: "T", row: 0, column: 0)
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
+        XCTAssertEqual(back.document.paragraphs.map(\.text), ["x", ""])
+        XCTAssertNotNil(back.document.paragraphs[0].cell)
+        XCTAssertNil(back.document.paragraphs[1].cell)
+    }
+
     func testDocxHeaderFooterRoundTrip() throws {
         var doc = RichDocument(plainText: "Body")
         doc.header = "Quarterly report"

@@ -78,10 +78,43 @@ enum MarkdownFormat {
             pending.removeAll()
             pendingStyle = .body
         }
-        for rawLine in text.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = String(rawLine)
+        let lines = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var tableCount = 0
+        var li = 0
+        while li < lines.count {
+            let line = lines[li]
+            li += 1
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { flush(); continue }
+            // A pipe table: a header row, a delimiter row, then body rows
+            // until a line that is not one.
+            if trimmed.hasPrefix("|"), li < lines.count,
+               let alignments = _tableDelimiter(lines[li].trimmingCharacters(in: .whitespaces)) {
+                flush()
+                tableCount += 1
+                let id = "t\(tableCount)"
+                let columns = alignments.count
+                var rows: [[String]] = [_tableCells(trimmed)]
+                li += 1
+                while li < lines.count {
+                    let next = lines[li].trimmingCharacters(in: .whitespaces)
+                    guard next.hasPrefix("|") else { break }
+                    rows.append(_tableCells(next))
+                    li += 1
+                }
+                for (r, cells) in rows.enumerated() {
+                    for c in 0 ..< columns {
+                        var style = RichParagraphStyle.body
+                        style.alignment = alignments[c]
+                        var p = _inline(c < cells.count ? cells[c] : "", style)
+                        if r == 0 { p.applyStyle(0 ..< p.length) { $0.bold = true } }
+                        p.cell = CellRef(table: id, row: r, column: c)
+                        paragraphs.append(p)
+                    }
+                }
+                continue
+            }
             if trimmed.hasPrefix("#") {
                 flush()
                 let level = trimmed.prefix(while: { $0 == "#" }).count
@@ -116,7 +149,46 @@ enum MarkdownFormat {
             pending.append(trimmed)
         }
         flush()
+        if paragraphs.last?.cell != nil { paragraphs.append(RichParagraph()) }
         return RichDocument(paragraphs: paragraphs)
+    }
+
+    /// `| --- | :-: | --: |` → one alignment per column, or nil if the line
+    /// is not a delimiter row.
+    private static func _tableDelimiter(_ line: String) -> [ParagraphAlignment]? {
+        guard line.hasPrefix("|") else { return nil }
+        let cells = _tableCells(line)
+        guard !cells.isEmpty else { return nil }
+        var out: [ParagraphAlignment] = []
+        for cell in cells {
+            let c = cell.trimmingCharacters(in: .whitespaces)
+            guard c.count >= 3 || (c.count >= 1 && c.allSatisfy { $0 == "-" }) else { return nil }
+            let left = c.hasPrefix(":"), right = c.hasSuffix(":")
+            let dashes = c.dropFirst(left ? 1 : 0).dropLast(right ? 1 : 0)
+            guard !dashes.isEmpty, dashes.allSatisfy({ $0 == "-" }) else { return nil }
+            out.append(left && right ? .center : right ? .right : .left)
+        }
+        return out
+    }
+
+    /// The cells of `| a | b |`, trimmed; `\|` does not split (and stays
+    /// escaped for `_inline`).
+    private static func _tableCells(_ line: String) -> [String] {
+        var body = Substring(line)
+        if body.hasPrefix("|") { body = body.dropFirst() }
+        if body.hasSuffix("|") && !body.hasSuffix("\\|") { body = body.dropLast() }
+        var cells: [String] = []
+        var current = ""
+        var chars = body.makeIterator()
+        while let ch = chars.next() {
+            if ch == "\\", let next = chars.next() {
+                current.append(ch); current.append(next); continue
+            }
+            if ch == "|" { cells.append(current.trimmingCharacters(in: .whitespaces)); current = ""; continue }
+            current.append(ch)
+        }
+        cells.append(current.trimmingCharacters(in: .whitespaces))
+        return cells
     }
 
     private static func _listPrefix(_ s: String) -> (kind: ListKind, rest: String)? {
@@ -210,38 +282,78 @@ enum MarkdownFormat {
 
     static func render(_ doc: RichDocument) -> String {
         var out: [String] = []
-        for p in doc.paragraphs {
+        var i = 0
+        while i < doc.paragraphs.count {
+            let p = doc.paragraphs[i]
+            if let cell = p.cell {
+                // The whole table as one pipe table; a cell's paragraphs
+                // join with a space, and the first row is the header.
+                var end = i
+                while end < doc.paragraphs.count, doc.paragraphs[end].cell?.table == cell.table { end += 1 }
+                let members = doc.paragraphs[i ..< end]
+                let rows = (members.compactMap { $0.cell?.row }.max() ?? 0) + 1
+                let cols = (members.compactMap { $0.cell?.column }.max() ?? 0) + 1
+                var grid = Array(repeating: Array(repeating: "", count: cols), count: rows)
+                var alignment = Array(repeating: ParagraphAlignment.left, count: cols)
+                for q in members {
+                    guard let c = q.cell else { continue }
+                    let text = _inlineMarkdown(q, plainBold: c.row == 0).replacingOccurrences(of: "|", with: "\\|")
+                    grid[c.row][c.column] += (grid[c.row][c.column].isEmpty || text.isEmpty ? "" : " ") + text
+                    if c.row == 0 { alignment[c.column] = q.style.alignment }
+                }
+                if p.style.pageBreakBefore { out.append("---"); out.append("") }
+                out.append("| " + grid[0].joined(separator: " | ") + " |")
+                out.append("| " + alignment.map { a -> String in
+                    switch a {
+                    case .center: return ":-:"
+                    case .right: return "--:"
+                    case .left, .justify: return "---"
+                    }
+                }.joined(separator: " | ") + " |")
+                for row in grid.dropFirst() { out.append("| " + row.joined(separator: " | ") + " |") }
+                out.append("")
+                i = end
+                continue
+            }
             var line = ""
             if p.style.pageBreakBefore { out.append("---"); out.append("") }
             if let h = p.style.heading { line += String(repeating: "#", count: max(1, min(6, h))) + " " }
             if let list = p.style.list {
                 line += String(repeating: "  ", count: p.style.listLevel) + (list == .bullet ? "- " : "1. ")
             }
-            var pos = 0
-            let utf16 = p.text.utf16
-            for run in p.runs where run.length > 0 {
-                let a = utf16.index(utf16.startIndex, offsetBy: pos)
-                let b = utf16.index(a, offsetBy: run.length)
-                var piece = String(utf16[a ..< b]) ?? ""
-                pos += run.length
-                let s = run.style
-                // Markers around whitespace render as literal stars, and a
-                // heading is already bold.
-                let inert = piece.trimmingCharacters(in: .whitespaces).isEmpty
-                if !inert {
-                    if s.fontFamily == OfficeFonts.mono { piece = "`\(piece)`" }
-                    if s.bold && p.style.heading == nil { piece = "**\(piece)**" }
-                    if s.italic { piece = "*\(piece)*" }
-                    if s.strikethrough { piece = "~~\(piece)~~" }
-                    if let link = s.link { piece = "[\(piece)](\(link))" }
-                }
-                line += piece
-            }
+            line += _inlineMarkdown(p, plainBold: p.style.heading != nil)
             out.append(line)
             out.append("")
+            i += 1
         }
         while out.last == "" { out.removeLast() }
         return out.joined(separator: "\n") + "\n"
+    }
+
+    /// A paragraph's runs with inline markers. `plainBold` leaves bold
+    /// unmarked where the context already is (headings, table headers).
+    private static func _inlineMarkdown(_ p: RichParagraph, plainBold: Bool) -> String {
+        var line = ""
+        var pos = 0
+        let utf16 = p.text.utf16
+        for run in p.runs where run.length > 0 {
+            let a = utf16.index(utf16.startIndex, offsetBy: pos)
+            let b = utf16.index(a, offsetBy: run.length)
+            var piece = String(utf16[a ..< b]) ?? ""
+            pos += run.length
+            let s = run.style
+            // Markers around whitespace render as literal stars.
+            let inert = piece.trimmingCharacters(in: .whitespaces).isEmpty
+            if !inert {
+                if s.fontFamily == OfficeFonts.mono { piece = "`\(piece)`" }
+                if s.bold && !plainBold { piece = "**\(piece)**" }
+                if s.italic { piece = "*\(piece)*" }
+                if s.strikethrough { piece = "~~\(piece)~~" }
+                if let link = s.link { piece = "[\(piece)](\(link))" }
+            }
+            line += piece
+        }
+        return line
     }
 }
 
