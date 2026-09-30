@@ -170,8 +170,10 @@ How it is put together, top down:
 
 ### Numbers
 
-- Release `app.wasm`: **11.9 MB**, 3.6 MB brotli (was 60 MB; 11.6 before
-  the office rebase). The size
+- Release `app.wasm`: **11.6 MB**, 3.5 MB brotli (was 60 MB). The SDK's
+  examples leave `RichText/` out (`STARLING_WASM_RICHTEXT`, set by
+  `web-app.sh` for app packages): its conformance records kept 370 KB
+  of editor linked into an app that never mentions it. The size
   work and what it found is docs/plans/wasm-size.md; `build/web-app.sh
   --check` is the gate that keeps it there.
 - Debug `app.wasm`: ~107 MB, and it is what to run when something traps —
@@ -246,8 +248,8 @@ The UI face is Selawik, the Fluent theme's default now, with the Fluent
 icon font and Selawik as glyph-fallback families on every web style
 (`!` entries in `fonts/manifest.json`).
 
-**The branch tracks `office`.** Rebased onto office f2b64a9 on
-2026-09-30, because the runtime callback table changed shape (bool
+**The branch tracks `office`.** Rebased onto office f2b64a9, then
+e836f715, on 2026-09-30, the first because the runtime callback table changed shape (bool
 `dispatch_key_data`, the outbound platform-message pair) and the native
 app crashed in `createRuntimeCallbacks` against the newer engine. The
 web stand-in header `CSkwasm/include/swift_runtime_callbacks.h` must
