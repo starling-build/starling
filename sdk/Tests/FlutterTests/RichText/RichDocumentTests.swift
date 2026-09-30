@@ -315,6 +315,29 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[1].text, "second para")
     }
 
+    func testPictureSelectionAndResize() {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
+        let c = controller("before", "after")
+        c.moveTo(RichPosition(paragraph: 0, offset: 6), extend: false)
+        c.insertImage(ImageAttachment(data: png, width: 120, height: 80, naturalWidth: 300, naturalHeight: 200))
+        // The picture, then an empty paragraph so typing can go on below it.
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["before", "", "", "after"])
+        XCTAssertNil(c.selectedImageIndex)
+        c.selectImage(at: 1)
+        XCTAssertEqual(c.selectedImageIndex, 1)
+        c.setImageSize(at: 1, width: 60, height: 40)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 60)
+        XCTAssertEqual(c.document.paragraphs[1].image?.naturalWidth, 300)
+        XCTAssertEqual(c.drainChanges().last, .changed(1))
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 120)
+        c.redo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 40)
+        // Delete removes the selected picture.
+        c.deleteForward()
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["before", "", "after"])
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

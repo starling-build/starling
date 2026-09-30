@@ -14,6 +14,8 @@ import Foundation
 
 enum RibbonTab: Int, CaseIterable {
     case home, insert, draw, layout, references, review, view
+    /// Contextual: shown while a picture is selected, as Word does.
+    case pictureFormat
 
     var title: String {
         switch self {
@@ -24,8 +26,11 @@ enum RibbonTab: Int, CaseIterable {
         case .references: return "References"
         case .review: return "Review"
         case .view: return "View"
+        case .pictureFormat: return "Picture Format"
         }
     }
+
+    var isContextual: Bool { self == .pictureFormat }
 }
 
 final class Ribbon: StatelessWidget {
@@ -67,7 +72,7 @@ final class Ribbon: StatelessWidget {
 
     private func _strip(_ fluent: FluentThemeData) -> Widget {
         var items: [Widget] = [_fileTab(fluent)]
-        for t in RibbonTab.allCases {
+        for t in RibbonTab.allCases where !t.isContextual || (t == .pictureFormat && session.summary.imageIndex != nil) {
             items.append(_tab(t, fluent))
         }
         return Padding(padding: EdgeInsets(left: 8, top: 2, right: 8, bottom: 0),
@@ -120,6 +125,7 @@ final class Ribbon: StatelessWidget {
         case .insert: return _insert(fluent)
         case .layout: return _layout(fluent)
         case .view: return _view(fluent)
+        case .pictureFormat: return _pictureFormat(fluent)
         case .draw: return _placeholder(fluent, "Drawing", ["Pen", "Highlighter", "Eraser"])
         case .references: return _placeholder(fluent, "Table of Contents", ["Table of Contents", "Footnote", "Citation"])
         case .review: return _placeholder(fluent, "Proofing", ["Spelling", "Word Count", "Track Changes"])
@@ -337,6 +343,50 @@ final class Ribbon: StatelessWidget {
             title: Text("Table"),
             leading: Icon(FluentSystemIcons.table, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
             items: items)
+    }
+
+    // MARK: Picture Format
+
+    private func _pictureFormat(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        let s = session.summary
+        guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
+        let aspect = image.height / max(1, image.width)
+        let size = Chrome.group("Size", fluent, [
+            Chrome.rows([
+                _spinner("Width", image.width, fluent, step: 6) { v in
+                    c.setImageSize(at: i, width: v, height: v * aspect)
+                },
+                Chrome.vgap(2),
+                _spinner("Height", image.height, fluent, step: 6) { v in
+                    c.setImageSize(at: i, width: v / max(0.01, aspect), height: v)
+                },
+            ]),
+            Chrome.gap(8),
+            Chrome.rows([
+                Chrome.small(FluentSystemIcons.pageFit, "Fit to Width", fluent) { [session] in
+                    let w = session.pageSetup.contentWidth
+                    c.setImageSize(at: i, width: w, height: w * aspect)
+                },
+                Chrome.small(FluentSystemIcons.image, "Original Size", fluent, enabled: s.imageHasNatural) {
+                    if let nw = image.naturalWidth, let nh = image.naturalHeight {
+                        c.setImageSize(at: i, width: nw, height: nh)
+                    }
+                },
+                Chrome.small(FluentSystemIcons.zoomOut, "Half Size", fluent) {
+                    c.setImageSize(at: i, width: image.width / 2, height: image.height / 2)
+                },
+            ]),
+        ])
+        let arrange = Chrome.group("Arrange", fluent, [
+            Chrome.big(FluentSystemIcons.alignLeft, "Left", fluent) { c.setAlignment(.left) },
+            Chrome.big(FluentSystemIcons.alignCenter, "Center", fluent) { c.setAlignment(.center) },
+            Chrome.big(FluentSystemIcons.alignRight, "Right", fluent) { c.setAlignment(.right) },
+        ])
+        let remove = Chrome.group("Picture", fluent, [
+            Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
+        ])
+        return [size, arrange, remove]
     }
 
     // MARK: Layout

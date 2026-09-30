@@ -46,6 +46,8 @@ public enum EditOp: Equatable, Sendable {
     case insertParagraphs(at: Int, [RichParagraph])
     case removeParagraphs(at: Int, [RichParagraph])
     case setHeaderFooter(header: String, footer: String, oldHeader: String, oldFooter: String)
+    /// A picture's shown size (its attachment replaced; the id survives).
+    case setImage(Int, old: ImageAttachment, new: ImageAttachment)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -106,6 +108,10 @@ public enum EditOp: Equatable, Sendable {
             doc.footer = footer
             changes.append(.all)
             return .setHeaderFooter(header: oldHeader, footer: oldFooter, oldHeader: header, oldFooter: footer)
+        case .setImage(let index, let old, let new):
+            doc.paragraphs[index].image = new
+            changes.append(.changed(index))
+            return .setImage(index, old: new, new: old)
         }
     }
 }
@@ -480,6 +486,32 @@ public final class RichDocumentController: ChangeNotifier {
             }
             _deleteForwardOps(word: true)
         }
+    }
+
+    /// The picture the selection is on: a collapsed caret on an image
+    /// paragraph, or a selection of exactly that paragraph.
+    public var selectedImageIndex: Int? {
+        let i = selection.focus.paragraph
+        guard document.paragraphs[i].isImage else { return nil }
+        if selection.isCollapsed { return i }
+        return selection.anchor.paragraph == i ? i : nil
+    }
+
+    /// Put the caret on picture paragraph `index`, which selects it.
+    public func selectImage(at index: Int) {
+        guard index < document.paragraphs.count, document.paragraphs[index].isImage else { return }
+        moveTo(RichPosition(paragraph: index, offset: 0), extend: false)
+    }
+
+    /// Show the picture at `index` at `width` × `height` points, one undo step.
+    public func setImageSize(at index: Int, width: Double, height: Double) {
+        guard index < document.paragraphs.count, let old = document.paragraphs[index].image else { return }
+        let w = max(4, width), h = max(4, height)
+        guard abs(w - old.width) > 0.01 || abs(h - old.height) > 0.01 else { return }
+        var new = old
+        new.width = w
+        new.height = h
+        edit { perform(.setImage(index, old: old, new: new)) }
     }
 
     /// Insert a picture as a paragraph of its own at the caret; the text
@@ -1262,9 +1294,11 @@ public final class RichDocumentController: ChangeNotifier {
         }
         if let png = data.png, let px = ImageAttachment.pngPixelSize(png) {
             // Pixels at 96/in, capped to the content width, as Insert → Pictures does.
-            var w = Double(px.width) * 0.75, h = Double(px.height) * 0.75
+            let nw = Double(px.width) * 0.75, nh = Double(px.height) * 0.75
+            var w = nw, h = nh
             if w > maxPastedImageWidth { h *= maxPastedImageWidth / w; w = maxPastedImageWidth }
-            insertImage(ImageAttachment(data: png, width: w, height: h, name: "pasted.png"))
+            insertImage(ImageAttachment(data: png, width: w, height: h, name: "pasted.png",
+                                        naturalWidth: nw, naturalHeight: nh))
             return
         }
         if let text = data.text, !text.isEmpty { insertText(text) }

@@ -252,13 +252,20 @@ public struct ImageAttachment: Hashable, Sendable {
     public var height: Double
     /// A file name for formats that store media as parts ("image1.png").
     public var name: String
+    /// The pixel size as points at 96/in, when the inserter knew it: what
+    /// "Original Size" restores. nil for a picture from a file format.
+    public var naturalWidth: Double? = nil
+    public var naturalHeight: Double? = nil
 
-    public init(data: Data, width: Double, height: Double, name: String = "image.png") {
+    public init(data: Data, width: Double, height: Double, name: String = "image.png",
+                naturalWidth: Double? = nil, naturalHeight: Double? = nil) {
         self.id = UUID().uuidString
         self.data = data
         self.width = width
         self.height = height
         self.name = name
+        self.naturalWidth = naturalWidth
+        self.naturalHeight = naturalHeight
     }
 
     public static func == (a: ImageAttachment, b: ImageAttachment) -> Bool {

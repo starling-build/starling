@@ -93,6 +93,14 @@ public final class RichEditableState: State<StatefulWidget> {
 
     // Mouse.
     private var _dragging = false
+    /// A picture-handle drag: which handle (0–7, clockwise from top-left),
+    /// where it started, the picture's size then, and the live size.
+    private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size)? = nil
+    private var _dragSize: Size? = nil
+    /// The handle under a hovering pointer, for its cursor.
+    private var _hoverHandle: Int? = nil
+    private var _hoverOverImage = false
+    static let handleSize = 8.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
     private var _lastClickPos = Offset.zero
@@ -435,7 +443,60 @@ public final class RichEditableState: State<StatefulWidget> {
         Offset(local.dx - _originX, local.dy + _scrollY - _w.padding.top)
     }
 
+    /// The selected picture's box in the editable's own coordinates, with
+    /// the live drag size when one is under way.
+    private func _selectedImageBox() -> (index: Int, rect: Rect)? {
+        guard let i = _controller.selectedImageIndex, _layout.width > 0,
+              let flow = _layout.imageRect(i), let canvas = _layout.canvasRects(flow).first else { return nil }
+        var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
+                                 canvas.width, canvas.height)
+        if let d = _dragSize { rect = Rect.fromLTWH(rect.left, rect.top, d.width, d.height) }
+        return (i, rect)
+    }
+
+    /// Handle centres, clockwise from the top-left corner: 0 TL, 1 T, 2 TR,
+    /// 3 R, 4 BR, 5 B, 6 BL, 7 L.
+    private static func _handles(_ r: Rect) -> [Offset] {
+        [Offset(r.left, r.top), Offset(r.center.dx, r.top), Offset(r.right, r.top), Offset(r.right, r.center.dy),
+         Offset(r.right, r.bottom), Offset(r.center.dx, r.bottom), Offset(r.left, r.bottom), Offset(r.left, r.center.dy)]
+    }
+
+    private func _handleHit(_ p: Offset, _ rect: Rect) -> Int? {
+        let reach = Self.handleSize
+        for (k, c) in Self._handles(rect).enumerated() where abs(p.dx - c.dx) <= reach && abs(p.dy - c.dy) <= reach {
+            return k
+        }
+        return nil
+    }
+
+    private static func _cursor(forHandle k: Int) -> MouseCursor {
+        switch k {
+        case 0, 4: return SystemMouseCursors.resizeUpLeftDownRight
+        case 2, 6: return SystemMouseCursors.resizeUpRightDownLeft
+        case 1, 5: return SystemMouseCursors.resizeUpDown
+        default: return SystemMouseCursors.resizeLeftRight
+        }
+    }
+
+    private func _pointerHover(_ event: PointerEvent) {
+        var handle: Int? = nil
+        var overImage = false
+        if let box = _selectedImageBox() {
+            handle = _handleHit(event.localPosition, box.rect)
+            overImage = handle == nil && box.rect.contains(event.localPosition)
+        }
+        if handle != _hoverHandle || overImage != _hoverOverImage {
+            setState { _hoverHandle = handle; _hoverOverImage = overImage }
+        }
+    }
+
     private func _pointerDown(_ event: PointerEvent) {
+        if let box = _selectedImageBox(), let k = _handleHit(event.localPosition, box.rect) {
+            _handleDrag = (box.index, k, event.localPosition, box.rect.size)
+            _dragSize = box.rect.size
+            _dragging = false
+            return
+        }
         _focus.requestFocus()
         guard event.buttons & 1 != 0 else { return }
         _syncLayoutIfNeeded()
@@ -462,6 +523,28 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if let drag = _handleDrag {
+            // Corners keep the aspect; edges are free. Never below 8px,
+            // never wider than the column.
+            let dx = event.localPosition.dx - drag.start.dx
+            let dy = event.localPosition.dy - drag.start.dy
+            let sx: Double = [2, 3, 4].contains(drag.handle) ? 1 : [0, 6, 7].contains(drag.handle) ? -1 : 0
+            let sy: Double = [4, 5, 6].contains(drag.handle) ? 1 : [0, 1, 2].contains(drag.handle) ? -1 : 0
+            var w = drag.size.width + sx * dx
+            var h = drag.size.height + sy * dy
+            let corner = drag.handle % 2 == 0
+            if corner {
+                let scale = max(w / drag.size.width, h / drag.size.height)
+                w = drag.size.width * scale
+                h = drag.size.height * scale
+            }
+            let maxW = _layout.width
+            if w > maxW { if corner { h *= maxW / w }; w = maxW }
+            w = max(8, w); h = max(8, h)
+            _dragSize = Size(w.rounded(), h.rounded())
+            _repaint.notifyListeners()
+            return
+        }
         guard _dragging, event.buttons & 1 != 0, _layout.width > 0 else { return }
         // Autoscroll when dragging past the edges.
         let y = event.localPosition.dy
@@ -473,6 +556,13 @@ public final class RichEditableState: State<StatefulWidget> {
 
     private func _pointerUp(_ event: PointerEvent) {
         _dragging = false
+        if let drag = _handleDrag, let size = _dragSize {
+            _handleDrag = nil
+            _dragSize = nil
+            let pt = _layout.theme.pixelsPerPoint * _layout.scale
+            _controller.setImageSize(at: drag.index, width: size.width / pt, height: size.height / pt)
+            _repaint.notifyListeners()
+        }
     }
 
     private func _pointerSignal(_ event: PointerSignalEvent) {
@@ -538,6 +628,26 @@ public final class RichEditableState: State<StatefulWidget> {
                       })
         canvas.restore()
 
+        // A selected picture: its outline and eight handles.
+        if focused, let box = _selectedImageBox() {
+            let r = box.rect
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            line.color = _layout.theme.selectionColor.withOpacity(1)
+            canvas.drawRect(Rect.fromLTRB(r.left.rounded() + 0.5, r.top.rounded() + 0.5,
+                                          r.right.rounded() - 0.5, r.bottom.rounded() - 0.5), line)
+            let fill = Paint()
+            fill.style = .fill
+            fill.color = Color(0xFFFFFFFF)
+            let half = Self.handleSize / 2
+            for c in Self._handles(r) {
+                let h = Rect.fromLTWH(c.dx - half, c.dy - half, Self.handleSize, Self.handleSize)
+                canvas.drawRect(h, fill)
+                canvas.drawRect(h, line)
+            }
+        }
+
         // Scrollbar thumb.
         let total = contentHeight
         if total > size.height + 1 {
@@ -570,11 +680,18 @@ public final class RichEditableState: State<StatefulWidget> {
     // MARK: Build
 
     public override func build(_ context: any BuildContext) -> Widget {
-        // An I-beam everywhere in the editor, as Word shows over the page.
-        return MouseRegion(cursor: SystemMouseCursors.text, child: Listener(
+        // An I-beam everywhere in the editor, as Word shows over the page —
+        // except an arrow over a selected picture and resize cursors on
+        // its handles.
+        let cursor: MouseCursor
+        if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
+        else if _hoverOverImage { cursor = SystemMouseCursors.basic }
+        else { cursor = SystemMouseCursors.text }
+        return MouseRegion(cursor: cursor, child: Listener(
             onPointerDown: { [weak self] e in self?._pointerDown(e) },
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
             onPointerUp: { [weak self] e in self?._pointerUp(e) },
+            onPointerHover: { [weak self] e in self?._pointerHover(e) },
             onPointerSignal: { [weak self] e in self?._pointerSignal(e) },
             behavior: .opaque,
             child: CustomPaint(painter: _painter, child: SizedBox(expand: ()))

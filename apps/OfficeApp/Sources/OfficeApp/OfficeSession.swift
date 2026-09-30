@@ -18,6 +18,11 @@ struct ToolbarSummary: Equatable {
     var fontSize: Double? = nil
     var heading: Int? = nil
     var styleId = RichNamedStyle.normalId
+    /// The selected picture, if any: its paragraph and shown size in points.
+    var imageIndex: Int? = nil
+    var imageWidth = 0.0
+    var imageHeight = 0.0
+    var imageHasNatural = false
     var list: ListKind? = nil
     var alignment: ParagraphAlignment = .left
     var lineSpacing = 1.0
@@ -94,6 +99,12 @@ final class OfficeSession {
         let ps = c.currentParagraphStyle
         s.heading = ps.heading
         s.styleId = c.currentNamedStyleId
+        if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
+            s.imageIndex = i
+            s.imageWidth = image.width
+            s.imageHeight = image.height
+            s.imageHasNatural = image.naturalWidth != nil
+        }
         s.list = ps.list
         s.alignment = ps.alignment
         s.lineSpacing = ps.lineSpacing

@@ -65,6 +65,9 @@ final class OfficeShellState: State<StatefulWidget> {
             let dirty = self.controller.revision != self._savedRevision
             if s != self.session.summary || dirty != self.session.dirty {
                 self.setState {
+                    // Selecting a picture opens its tab; leaving it returns Home.
+                    if s.imageIndex != nil, self.session.summary.imageIndex == nil { self._tab = .pictureFormat }
+                    if s.imageIndex == nil, self._tab == .pictureFormat { self._tab = .home }
                     self.session.summary = s
                     self.session.dirty = dirty
                 }
@@ -268,7 +271,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 var w = px * 0.75, h = py * 0.75
                 if w > maxW { h *= maxW / w; w = maxW }
                 self.controller.insertImage(ImageAttachment(data: data, width: w, height: h,
-                                                            name: (path as NSString).lastPathComponent))
+                                                            name: (path as NSString).lastPathComponent,
+                                                            naturalWidth: px * 0.75, naturalHeight: py * 0.75))
                 self._flash("Inserted \((path as NSString).lastPathComponent)")
             } catch {
                 self._flash("Not an image Office can decode: \((path as NSString).lastPathComponent)")
