@@ -34,6 +34,9 @@ public final class RichTextTheme {
     public var lineSpacing: Double
     /// Hanging indent per list level, in points.
     public var listIndent: Double
+    /// Word's Show/Hide ¶: a pilcrow at every paragraph's end (¤ in a
+    /// table cell, as Word draws it).
+    public var showMarks = false
 
     public init(fontFamily: String? = nil, fontSize: Double = 11,
                 textColor: Color = Color(0xFF1B1B1B),
@@ -944,6 +947,16 @@ public final class RichLayout {
             marker.dispose()
         }
         g.painter.paint(canvas, Offset(g.textLeft, g.textTop))
+        if theme.showMarks, !document.paragraphs[i].isImage {
+            let end = caretRect(RichPosition(paragraph: i, offset: document.paragraphs[i].length), document)
+            let style = theme.textStyle(for: CharStyle(color: theme.textColor.withOpacity(0.45)),
+                                        in: document.paragraphs[i].style, scale: scale)
+            let mark = TextPainter(text: TextSpan(text: document.paragraphs[i].cell == nil ? "\u{00B6}" : "\u{00A4}", style: style),
+                                   textAlign: .left, textDirection: .ltr)
+            mark.layout(minWidth: 0, maxWidth: 40)
+            mark.paint(canvas, Offset(end.left + 1, end.top + (end.height - mark.height) / 2))
+            mark.dispose()
+        }
     }
 
     /// Running header (left, halfway into the top margin) and footer

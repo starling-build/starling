@@ -50,6 +50,8 @@ public enum EditOp: Equatable, Sendable {
     case setImage(Int, old: ImageAttachment, new: ImageAttachment)
     /// A table's column widths in points (nil: equal columns).
     case setTableColumns(String, old: [Double]?, new: [Double]?)
+    /// One entry of the style sheet, replaced (every paragraph re-lays out).
+    case setStyleEntry(old: RichNamedStyle, new: RichNamedStyle)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -118,6 +120,10 @@ public enum EditOp: Equatable, Sendable {
             doc.tableColumns[table] = new
             for i in doc.paragraphs.indices where doc.paragraphs[i].cell?.table == table { changes.append(.changed(i)) }
             return .setTableColumns(table, old: new, new: old)
+        case .setStyleEntry(let old, let new):
+            doc.styles[new.id] = new
+            changes.append(.all)
+            return .setStyleEntry(old: new, new: old)
         }
     }
 }
@@ -700,6 +706,117 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// The link under the caret or at the selection's start, if any.
     public var currentLink: String? { currentCharStyle.link }
+
+    /// Re-lay out everything on the next frame: for a theme change the
+    /// document itself does not record (dark mode, formatting marks).
+    public func invalidateLayout() {
+        _pendingChanges.append(.all)
+        notifyListeners()
+    }
+
+    public enum CaseChange { case sentence, lower, upper, capitalizeWords, toggle }
+
+    /// Word's Change Case over the selection, or the word at the caret.
+    /// Runs keep their formatting; their lengths follow the new text.
+    public func changeCase(_ kind: CaseChange) {
+        if selection.isCollapsed {
+            let p = selection.focus
+            let r = document.paragraphs[p.paragraph].wordRange(at: p.offset)
+            guard r.upperBound > r.lowerBound else { return }
+            selection = RichSelection(anchor: RichPosition(paragraph: p.paragraph, offset: r.lowerBound),
+                                      focus: RichPosition(paragraph: p.paragraph, offset: r.upperBound))
+        }
+        let start = selection.start, end = selection.end
+        edit {
+            var sentenceStart = true
+            for i in start.paragraph ... end.paragraph {
+                let para = document.paragraphs[i]
+                let lo = i == start.paragraph ? start.offset : 0
+                let hi = i == end.paragraph ? end.offset : para.length
+                guard hi > lo, !para.isImage else { continue }
+                let a = String.Index(utf16Offset: lo, in: para.text)
+                let b = String.Index(utf16Offset: hi, in: para.text)
+                let old = String(para.text[a ..< b])
+                var newRuns: [Run] = []
+                var newText = ""
+                var pos = a
+                for run in para.runs(in: lo ..< hi) {
+                    let q = para.text.utf16.index(pos, offsetBy: run.length)
+                    let piece = String(para.text[pos ..< q])
+                    let changed = Self._recase(piece, kind, sentenceStart: &sentenceStart)
+                    newText += changed
+                    newRuns.append(Run(length: changed.utf16.count, style: run.style))
+                    pos = q
+                }
+                guard newText != old else { continue }
+                _deleteRange(in: i, lo ..< hi)
+                perform(.insertText(RichPosition(paragraph: i, offset: lo), newText, newRuns))
+                if i == end.paragraph {
+                    selection = RichSelection(anchor: start, focus: RichPosition(paragraph: i, offset: lo + newText.utf16.count))
+                }
+                sentenceStart = true
+            }
+        }
+    }
+
+    private static func _recase(_ s: String, _ kind: CaseChange, sentenceStart: inout Bool) -> String {
+        switch kind {
+        case .lower: return s.lowercased()
+        case .upper: return s.uppercased()
+        case .toggle:
+            return String(s.map { ch -> String in
+                let str = String(ch)
+                return str == str.uppercased() ? str.lowercased() : str.uppercased()
+            }.joined())
+        case .capitalizeWords:
+            var out = ""
+            var atWordStart = true
+            for ch in s {
+                if ch.isLetter || ch.isNumber {
+                    out += atWordStart ? String(ch).uppercased() : String(ch).lowercased()
+                    atWordStart = false
+                } else {
+                    out.append(ch)
+                    atWordStart = ch.isWhitespace || ch == "-" || ch == "/"
+                }
+            }
+            return out
+        case .sentence:
+            var out = ""
+            for ch in s {
+                if ch.isLetter {
+                    out += sentenceStart ? String(ch).uppercased() : String(ch).lowercased()
+                    sentenceStart = false
+                } else {
+                    out.append(ch)
+                    if ch == "." || ch == "!" || ch == "?" { sentenceStart = true }
+                }
+            }
+            return out
+        }
+    }
+
+    /// Word's "Update <style> to Match Selection": the caret's character
+    /// formatting and paragraph props become the sheet's entry, so every
+    /// paragraph in that style changes. One undo step.
+    public func updateStyleToMatchSelection(_ id: String) {
+        guard var entry = document.styles[id] else { return }
+        let old = entry
+        var char = currentCharStyle
+        char.link = nil
+        char.highlight = nil
+        entry.char = char
+        var ps = currentParagraphStyle
+        ps.list = nil
+        ps.listLevel = 0
+        ps.listId = nil
+        ps.pageBreakBefore = false
+        ps.named = old.paragraph.named
+        ps.heading = old.paragraph.heading
+        entry.paragraph = ps
+        guard entry != old else { return }
+        edit { perform(.setStyleEntry(old: old, new: entry)) }
+    }
 
     /// Link the selection to `url`; with nothing selected, insert the URL
     /// as the link's text, as Word does. nil removes the link.

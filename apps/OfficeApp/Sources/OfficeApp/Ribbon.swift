@@ -13,7 +13,7 @@ import FluentSystemIcons
 import Foundation
 
 enum RibbonTab: Int, CaseIterable {
-    case home, insert, draw, layout, references, review, view
+    case home, insert, layout, review, view
     /// Contextual: shown while a picture is selected or the caret is in a
     /// table, as Word does.
     case pictureFormat, tableLayout
@@ -22,9 +22,7 @@ enum RibbonTab: Int, CaseIterable {
         switch self {
         case .home: return "Home"
         case .insert: return "Insert"
-        case .draw: return "Draw"
         case .layout: return "Layout"
-        case .references: return "References"
         case .review: return "Review"
         case .view: return "View"
         case .pictureFormat: return "Picture Format"
@@ -131,16 +129,29 @@ final class Ribbon: StatelessWidget {
         case .view: return _view(fluent)
         case .pictureFormat: return _pictureFormat(fluent)
         case .tableLayout: return _tableLayout(fluent)
-        case .draw: return _placeholder(fluent, "Drawing", ["Pen", "Highlighter", "Eraser"])
-        case .references: return _placeholder(fluent, "Table of Contents", ["Table of Contents", "Footnote", "Citation"])
-        case .review: return _placeholder(fluent, "Proofing", ["Spelling", "Word Count", "Track Changes"])
+        case .review: return _review(fluent)
         }
     }
 
-    private func _placeholder(_ fluent: FluentThemeData, _ label: String, _ names: [String]) -> [Widget] {
-        [Chrome.group(label, fluent, names.map { name in
-            Chrome.big(FluentSystemIcons.document, name, fluent, enabled: false, action: {})
-        })]
+    // MARK: Review
+
+    /// Word Count is real; the rest of Word's Review tab (spelling, track
+    /// changes, comments) and the Draw and References tabs are one honest
+    /// note rather than five rows of greyed buttons.
+    private func _review(_ fluent: FluentThemeData) -> [Widget] {
+        let c = session.controller
+        let proofing = Chrome.group("Proofing", fluent, [
+            Chrome.big(FluentSystemIcons.textT, "Word Count", fluent) { [session] in
+                let d = c.document
+                session.onStatus?("\(d.wordCount) words, \(d.characterCount) characters, \(d.paragraphs.count) paragraphs")
+            },
+        ])
+        let later = Chrome.group("Coming later", fluent, [
+            Padding(padding: EdgeInsets(left: 4, top: 6, right: 4, bottom: 0), child: SizedBox(width: 300, height: nil, child: Text(
+                "Spelling, track changes, comments, footnotes, a table of contents and drawing are not in this build.",
+                style: fluent.typography.caption?.copyWith(color: fluent.resources.textFillColorSecondary)))),
+        ])
+        return [proofing, later]
     }
 
     // MARK: Home
@@ -160,7 +171,7 @@ final class Ribbon: StatelessWidget {
                     if let t = c.copySelection() { Clipboard.setData(ClipboardData(text: t)) }
                     session.onStatus?("Copied")
                 },
-                Chrome.small(FluentSystemIcons.paintBrush, "Format Painter", fluent, enabled: false) {},
+                Chrome.small(FluentSystemIcons.paintBrush, s.painting ? "Painting…" : "Format Painter", fluent) { [session] in session.onFormatPainter?() },
             ]),
         ])
 
@@ -182,7 +193,14 @@ final class Ribbon: StatelessWidget {
             Chrome.gap(),
             Chrome.icon(FluentSystemIcons.textFontSize, "Grow Font", fluent) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
             Chrome.icon(FluentSystemIcons.textFont, "Shrink Font", fluent) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
-            Chrome.icon(FluentSystemIcons.textChangeCase, "Change Case", fluent, enabled: false) {},
+            Chrome.menu(nil, Icon(FluentSystemIcons.textChangeCase, size: Chrome.iconSize,
+                                  color: fluent.resources.textFillColorPrimary), fluent, [
+                ("Sentence case.", { c.changeCase(.sentence) }),
+                ("lowercase", { c.changeCase(.lower) }),
+                ("UPPERCASE", { c.changeCase(.upper) }),
+                ("Capitalize Each Word", { c.changeCase(.capitalizeWords) }),
+                ("tOGGLE cASE", { c.changeCase(.toggle) }),
+            ]),
             Chrome.icon(FluentSystemIcons.textClearFormatting, "Clear All Formatting", fluent) { c.clearFormatting() },
         ])
         let fontRow2 = Chrome.row([
@@ -210,7 +228,7 @@ final class Ribbon: StatelessWidget {
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
             Chrome.gap(2),
-            Chrome.icon(FluentSystemIcons.paragraphMarks, "Show/Hide ¶", fluent, enabled: false) {},
+            Chrome.toggle(FluentSystemIcons.paragraphMarks, "Show/Hide ¶ (⌘⇧8)", session.showMarks, fluent) { [session] in session.onToggleMarks?() },
         ])
         let paraRow2 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.alignLeft, "Align Left", s.alignment == .left, fluent) { c.setAlignment(.left) },
@@ -230,11 +248,19 @@ final class Ribbon: StatelessWidget {
             guard let entry = sheet[id] else { continue }
             tiles.append(_styleTile(entry, s.styleId == id, fluent) { c.setNamedStyle(id) })
         }
-        let more: [MenuFlyoutItemBase] = sheet.styles.map { entry in
+        var more: [MenuFlyoutItemBase] = sheet.styles.map { entry in
             MenuFlyoutItem(text: Text(entry.name, style: _preview(entry, fluent, cap: 13)),
                            leading: Icon(s.styleId == entry.id ? FluentSystemIcons.check : FluentSystemIcons.textT,
                                          size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
                            onPressed: { c.setNamedStyle(entry.id) })
+        }
+        if let current = sheet[s.styleId] {
+            more.append(MenuFlyoutSeparator())
+            more.append(MenuFlyoutItem(text: Text("Update \(current.name) to Match Selection"),
+                                       onPressed: { [session] in
+                                           c.updateStyleToMatchSelection(current.id)
+                                           session.onStatus?("\(current.name) now matches the selection")
+                                       }))
         }
         tiles.append(Tooltip(message: "All styles", child: DropDownButton(
             leading: Icon(FluentSystemIcons.paintBrush, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),

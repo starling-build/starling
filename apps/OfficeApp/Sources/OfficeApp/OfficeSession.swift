@@ -24,6 +24,7 @@ struct ToolbarSummary: Equatable {
     var imageHeight = 0.0
     var imageHasNatural = false
     var inCell = false
+    var painting = false
     var list: ListKind? = nil
     var alignment: ParagraphAlignment = .left
     var lineSpacing = 1.0
@@ -60,6 +61,10 @@ final class OfficeSession {
     var viewMode = ViewMode.printLayout
     var showRuler = true
     var showNavigation = false
+    var showMarks = false
+    /// Format Painter: the character style picked up, applied to the next
+    /// selection and then dropped.
+    var paintedStyle: CharStyle? = nil
     var pageInfo = (page: 1, count: 1)
 
     var path: String? = nil
@@ -73,6 +78,8 @@ final class OfficeSession {
     var onViewMode: ((ViewMode) -> Void)?
     var onToggleRuler: (() -> Void)?
     var onToggleNavigation: (() -> Void)?
+    var onToggleMarks: (() -> Void)?
+    var onFormatPainter: (() -> Void)?
     var onPageSetup: ((PageSetup) -> Void)?
     var onBackstage: ((Bool) -> Void)?
     var onNew: (() -> Void)?
@@ -102,6 +109,7 @@ final class OfficeSession {
         s.heading = ps.heading
         s.styleId = c.currentNamedStyleId
         s.inCell = c.isInCell
+        s.painting = paintedStyle != nil
         if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
             s.imageIndex = i
             s.imageWidth = image.width

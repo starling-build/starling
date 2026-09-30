@@ -394,6 +394,47 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertTrue(c.document.isValid)
     }
 
+    func testChangeCaseKeepsRuns() {
+        let c = controller("hello WORLD. fine day")
+        c.moveTo(RichPosition(paragraph: 0, offset: 6), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 11), extend: true)
+        c.toggleBold()
+        c.selectAll()
+        c.changeCase(.sentence)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Hello world. Fine day")
+        XCTAssertTrue(c.document.paragraphs[0].runs(in: 6 ..< 11)[0].style.bold)
+        c.changeCase(.capitalizeWords)
+        XCTAssertEqual(c.document.paragraphs[0].text, "Hello World. Fine Day")
+        c.changeCase(.toggle)
+        XCTAssertEqual(c.document.paragraphs[0].text, "hELLO wORLD. fINE dAY")
+        c.undo(); c.undo(); c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "hello WORLD. fine day")
+        // With no selection, the word at the caret.
+        c.moveTo(RichPosition(paragraph: 0, offset: 2), extend: false)
+        c.changeCase(.upper)
+        XCTAssertEqual(c.document.paragraphs[0].text, "HELLO WORLD. fine day")
+        XCTAssertTrue(c.document.isValid)
+    }
+
+    func testUpdateStyleToMatchSelection() {
+        let c = controller("A heading", "body")
+        c.setHeading(1)
+        c.selectAll()
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.setFontSize(30)   // the caret's typing style, not a run: use a selection
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 9), extend: true)
+        c.setFontSize(30)
+        c.setAlignment(.center)
+        c.updateStyleToMatchSelection("Heading1")
+        XCTAssertEqual(c.document.styles["Heading1"]?.char.fontSize, 30)
+        XCTAssertEqual(c.document.styles["Heading1"]?.paragraph.alignment, .center)
+        XCTAssertEqual(c.document.styles["Heading1"]?.paragraph.heading, 1)
+        XCTAssertEqual(c.drainChanges().last, .all)
+        c.undo()
+        XCTAssertEqual(c.document.styles["Heading1"]?.char.fontSize, 20)
+    }
+
     private func cells(_ c: RichDocumentController) -> [String] {
         c.document.paragraphs.map { p in
             guard let cell = p.cell else { return "-" }

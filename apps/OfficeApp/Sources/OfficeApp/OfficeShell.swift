@@ -66,6 +66,13 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             let s = self.session.summarize()
             let dirty = self.controller.revision != self._savedRevision
+            // Format Painter: the next selection takes the picked-up style.
+            if let painted = self.session.paintedStyle, s.hasSelection, !self.session.summary.hasSelection {
+                self.session.paintedStyle = nil
+                self.controller.applyCharStyle { $0 = painted }
+                self._flash("Painted")
+                return
+            }
             if s != self.session.summary || dirty != self.session.dirty {
                 self.setState {
                     // Selecting a picture opens its tab; leaving it returns Home.
@@ -109,6 +116,25 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onToggleNavigation = { [weak self] in
             guard let self else { return }
             self.setState { self.session.showNavigation.toggle() }
+        }
+        session.onToggleMarks = { [weak self] in
+            guard let self else { return }
+            self.setState {
+                self.session.showMarks.toggle()
+                self.session.theme.showMarks = self.session.showMarks
+            }
+            self.controller.invalidateLayout()
+        }
+        session.onFormatPainter = { [weak self] in
+            guard let self else { return }
+            if self.session.paintedStyle != nil {
+                self.session.paintedStyle = nil
+                self._flash("Format Painter off")
+            } else {
+                self.session.paintedStyle = self.controller.currentCharStyle
+                self._flash("Format Painter: select the text to paint")
+            }
+            self.setState { self.session.summary = self.session.summarize() }
         }
         session.onPageSetup = { [weak self] p in
             guard let self else { return }
@@ -382,6 +408,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
         case "k": _openLink()
+        case "8": if mods.contains(.shift) { session.onToggleMarks?() } else { return false }
         // Word's alignment keys; Export lives in Backstage.
         case "e": c.setAlignment(.center)
         case "l": c.setAlignment(.left)
