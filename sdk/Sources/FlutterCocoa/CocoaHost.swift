@@ -80,6 +80,11 @@ public final class CocoaHost {
         flcocoa_host_run(host)
     }
 
+    /// Retitles the window.
+    public func setTitle(_ title: String) {
+        flcocoa_host_set_title(host, title)
+    }
+
     /// Fullscreens or restores the window.
     public func setFullscreen(_ fullscreen: Bool) {
         flcocoa_host_set_fullscreen(host, fullscreen ? 1 : 0)

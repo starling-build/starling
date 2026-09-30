@@ -35,6 +35,7 @@ public enum CocoaWindowedHost {
                 """)
             }
             host = h
+            hostSetWindowTitle = { title in host?.setTitle(title) }
             h.mountWidget(root)
             h.run()
         }

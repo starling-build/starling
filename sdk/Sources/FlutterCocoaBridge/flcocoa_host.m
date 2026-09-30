@@ -226,6 +226,16 @@ void flcocoa_host_run(FlCocoaHost* host) {
   [NSApp run];
 }
 
+void flcocoa_host_set_title(FlCocoaHost* host, const char* title) {
+  if (host == NULL || title == NULL) {
+    return;
+  }
+  @autoreleasepool {
+    NSWindow* window = (__bridge NSWindow*)host->window;
+    window.title = [NSString stringWithUTF8String:title];
+  }
+}
+
 void flcocoa_host_set_fullscreen(FlCocoaHost* host, int32_t fullscreen) {
   if (host == NULL) {
     return;

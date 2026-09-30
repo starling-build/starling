@@ -50,6 +50,9 @@ void flcocoa_host_run(FlCocoaHost* host);
 // Fullscreens or restores the window.
 void flcocoa_host_set_fullscreen(FlCocoaHost* host, int32_t fullscreen);
 
+// Retitles the window (a document app showing its file name).
+void flcocoa_host_set_title(FlCocoaHost* host, const char* title);
+
 #ifdef __cplusplus
 }
 #endif

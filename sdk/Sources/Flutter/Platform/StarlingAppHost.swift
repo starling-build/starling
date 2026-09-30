@@ -44,6 +44,12 @@ public nonisolated(unsafe) var hostPeriodicTimerInstall:
 /// a motionless pointer.
 public nonisolated(unsafe) var hostScheduleEngineFrame: (() -> Void)? = nil
 
+/// Retitles the host window — a document app showing "report.rtf •".
+/// Installed by the windowed hosts that own a window; nil under the
+/// Starling shell, which titles a child's window from the registry (a
+/// title channel over the DMA-BUF socket is the plan's Phase 3 item).
+public nonisolated(unsafe) var hostSetWindowTitle: ((String) -> Void)? = nil
+
 /// The main entry point for an app that should run under whichever host is
 /// available:
 /// - `FLUTTER_DMABUF_SOCKET` set (spawned by the Starling shell) — the GPU

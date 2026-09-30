@@ -290,8 +290,15 @@ final class OfficeShellState: State<StatefulWidget> {
 
     // MARK: Build
 
+    private var _windowTitle = ""
+
     override func build(_ context: any BuildContext) -> Widget {
         let fluent = FluentTheme.of(context)
+        let title = "\(session.title)\(session.dirty ? " •" : "") — Office"
+        if title != _windowTitle {
+            _windowTitle = title
+            hostSetWindowTitle?(title)
+        }
         var column: [Widget] = [
             TitleRow(session: session, searchController: _search, onSearch: { [weak self] q in
                 guard let self else { return }
