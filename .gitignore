@@ -28,3 +28,8 @@ sdk/Vendor/
 Package.resolved
 .glyph-pattern.sh
 .glyph-pixels.png
+
+# The browser build: the page build/web-app.sh assembles, and the prebuilt
+# skwasm it fetches.
+.stage-web/
+/web/.skwasm/
