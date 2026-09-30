@@ -230,6 +230,14 @@ web one.) Do not listen for the picker's `cancel` event: headless
 Chrome fires it at once, and it would consume the completion the
 `change` event owes.
 
+**The browser lays a document out line for line as the desktop does**,
+and `test/office-layout.sh` proves it on every run (docs/plans/office.md
+"One layout everywhere": the dump, the gates, the two differences found
+and fixed). `build/tools/web-drive.mjs` is the browser's
+`shell-drive.py` — click, type, chord, setfile, downloads, eval, dump,
+shot — and `starling.debug(kind)` on the page is the app's debugging
+door (`hostDebugQuery`).
+
 **Document fonts are Google Docs' model**, on every platform: the file
 keeps the name it came with (Times New Roman, Calibri, Consolas), and
 `OfficeFonts.substitute` draws it with a metric clone the app ships —

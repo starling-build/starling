@@ -403,6 +403,62 @@ functions), `RichEditable` as the in-cell and formula-bar editor, CSV and
 images, thumbnails, presenter view; `.pptx`; presenting needs a fullscreen
 request per host. Own plan revision.
 
+## One layout everywhere (2026-09-30)
+
+A document lays out the same — every line break, every page — on the
+desktop, in the browser, and after our writer has saved it. This is
+measured, not assumed, and gated:
+
+- **The measure** is `RichLayout.lineDump`: one line of text per
+  laid-out line, `p<page> ¶<paragraph> <height> |<text>|`, with each
+  block's height. `OfficeApp --layout file.docx` (or `--layout welcome`)
+  prints it natively; `starling.debug('layout')` in the page (the
+  `hostDebugQuery` hook, `starling_debug` in `FlutterWeb`) prints the
+  same. `diff` the two and one line names the paragraph that broke
+  elsewhere.
+- **The gates**: `testDocxRoundTripKeepsLayout` (native: the Word
+  fixture and its saved copy give the same dump) and
+  `test/office-layout.sh` (native vs browser vs saved copy, for the
+  welcome page and both fixtures, through headless Chrome via
+  `build/tools/web-drive.mjs`; `test/run.sh` runs it and skips without
+  Chrome, node, the native binary or `.stage-web-OfficeApp`). Last
+  result: 0 differing lines in all five comparisons.
+
+What the measuring found, and the rules that came of it:
+
+- **The page's line breaker adds nothing to ICU.** `Intl.v8BreakIterator`
+  is ICU's UAX #14, the same rules the native engine applies. A pass that
+  "also broke after every run of spaces" could only add the breaks ICU
+  had refused (`encrypt / decrypt` broke before the slash — LB13, no
+  break before `/` even after spaces) and made one line of 1,072 wrap
+  differently. The page marks an opportunity hard when the segment ends
+  in a newline, and that is all.
+- **Paragraph spacing is absolute.** `spaceAfter` and `lineSpacing` are
+  what the file says and what the layout draws; 0 is no space, not "the
+  default". The type's defaults are Word's Normal (8pt, 1.08), `.cell`
+  is Table Grid's (0, single), and the readers fill in the file's own
+  hierarchy — docx: docDefaults → Normal → the table's style in its
+  cells → the named style → the paragraph; RTF: `\pard` is 0 and single
+  and Word's RTF spells its `\sa160\sl259` out. Before this, a Word
+  Heading 1 (0 after) drew 8pt after, an explicit `line=259` drew
+  1.08², a TextEdit file meant for single lines drew 1.08, and the
+  Code style's own "0, single" could not be expressed.
+- **Writers spell spacing out on every paragraph, rounded.** Before,
+  after and line, always, so Word and we agree whatever the file's
+  defaults; to whole twips and 240ths, because `Int()` truncation took
+  1.08 lines to 258/240 and lower on every save. The old writer's other
+  loss was giving cell paragraphs the body's 8pt after: the 26-page
+  fixture came back as 30.
+- **Fonts are the same faces on every platform** (OfficeFonts, Google
+  Docs' model): the file keeps Word's names, the shipped clones draw
+  them, and the browser loads the same files. Without this the line
+  breaks could not agree.
+
+Still not Word-exact, known: `w:lineRule="exact"`/`"atLeast"` (the
+fixture's TOC has 383 exact-height lines; the model has only a
+multiple), `contextualSpacing`, `keepNext`/`keepLines`/`widowControl`
+pagination, and `basedOn` chains deeper than Normal.
+
 ## Traps already known
 
 - **Two key numberings.** The DRM shell delivers X11 keysyms, every
