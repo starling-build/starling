@@ -40,6 +40,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _findReplacement = TextEditingController()
     private var _headerFooterOpen = false
     private var _linkOpen = false
+    private var _colorOpen = false
+    private let _colorText = TextEditingController()
     private var _styleOpen: String? = nil
     private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
@@ -110,6 +112,7 @@ final class OfficeShellState: State<StatefulWidget> {
         _findReplacement.dispose()
         _headerText.dispose()
         _linkText.dispose()
+        _colorText.dispose()
         _footerText.dispose()
         super.dispose()
     }
@@ -186,6 +189,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self.setState { self._headerFooterOpen = true }
         }
         session.onLink = { [weak self] in self?._openLink() }
+        session.onMoreColors = { [weak self] in
+            guard let self else { return }
+            self._colorText.text = self.controller.currentCharStyle.color.map(ColorBar.hex) ?? ""
+            self.setState { self._colorOpen = true }
+        }
         session.onModifyStyle = { [weak self] id in self?.setState { self?._styleOpen = id } }
         session.onPaste = { [weak self] plain in self?._paste(plain: plain) }
         session.onInsertPicture = { [weak self] in
@@ -612,6 +620,7 @@ final class OfficeShellState: State<StatefulWidget> {
         if named == .escape {
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
+            if _colorOpen { setState { _colorOpen = false }; return true }
             if _headerFooterOpen { setState { _headerFooterOpen = false }; return true }
             if _findOpen { setState { _findOpen = false }; return true }
             if _backstage != nil { setState { _backstage = nil }; return true }
@@ -692,6 +701,23 @@ final class OfficeShellState: State<StatefulWidget> {
         if let styleId = _styleOpen {
             column.append(StyleBar(session: session, styleId: styleId,
                                    onClose: { [weak self] in self?.setState { self?._styleOpen = nil } }))
+        }
+        if _colorOpen {
+            column.append(ColorBar(hex: _colorText,
+                                   onPick: { [weak self] color in
+                                       guard let self else { return }
+                                       self.controller.setTextColor(color)
+                                       self.setState { self._colorOpen = false }
+                                   },
+                                   onApplyHex: { [weak self] in
+                                       guard let self else { return }
+                                       guard let color = ColorBar.parse(self._colorText.text) else {
+                                           self._flash("Enter a colour as #RRGGBB"); return
+                                       }
+                                       self.controller.setTextColor(color)
+                                       self.setState { self._colorOpen = false }
+                                   },
+                                   onClose: { [weak self] in self?.setState { self?._colorOpen = false } }))
         }
         if _linkOpen {
             column.append(LinkBar(session: session, address: _linkText, hasLink: controller.currentLink != nil,

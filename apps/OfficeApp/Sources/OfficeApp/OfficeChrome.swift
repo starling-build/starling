@@ -137,7 +137,7 @@ enum Chrome {
 
     /// A drop-down of named colours with a swatch each.
     static func colorMenu(_ icon: IconData, _ tip: String, _ fluent: FluentThemeData,
-                          colors: [(String, Color)], none: String?,
+                          colors: [(String, Color)], none: String?, more: (() -> Void)? = nil,
                           onPick: @escaping (Color?) -> Void) -> Widget {
         var items: [MenuFlyoutItemBase] = []
         if let none {
@@ -149,6 +149,10 @@ enum Chrome {
                 text: Text(name),
                 leading: swatch(color, fluent),
                 onPressed: { onPick(color) }))
+        }
+        if let more {
+            items.append(MenuFlyoutSeparator())
+            items.append(MenuFlyoutItem(text: Text("More Colors…"), onPressed: more))
         }
         return Tooltip(message: tip, child: DropDownButton(
             leading: Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary),

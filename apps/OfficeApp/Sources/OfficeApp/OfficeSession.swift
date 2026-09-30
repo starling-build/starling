@@ -103,6 +103,7 @@ final class OfficeSession {
     var onInsertPicture: (() -> Void)?
     var onHeaderFooter: (() -> Void)?
     var onLink: (() -> Void)?
+    var onMoreColors: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
     /// Paste from the system clipboard; true = plain text only.
     var onPaste: ((Bool) -> Void)?

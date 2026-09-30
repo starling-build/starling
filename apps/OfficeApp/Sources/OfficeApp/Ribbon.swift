@@ -215,7 +215,8 @@ final class Ribbon: StatelessWidget {
             Chrome.colorMenu(FluentSystemIcons.highlight, "Text Highlight Color", fluent,
                              colors: OfficeColors.highlight, none: "No Color") { color in c.setHighlight(color) },
             Chrome.colorMenu(FluentSystemIcons.textColor, "Font Color", fluent,
-                             colors: OfficeColors.text, none: "Automatic") { color in c.setTextColor(color) },
+                             colors: OfficeColors.text, none: "Automatic",
+                             more: { [session] in session.onMoreColors?() }) { color in c.setTextColor(color) },
         ])
         let font = Chrome.group("Font", fluent, [Chrome.rows([fontRow1, Chrome.vgap(4), fontRow2])])
 

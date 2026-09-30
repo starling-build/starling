@@ -27,7 +27,10 @@ caret's word left alone, corrections / Ignore All / Add to Dictionary
 at the top of the right-click menu, and a Spelling toggle on Review.
 Smart cut and paste too (`smartSpacing`, on by default): a pasted or
 dropped word gets the space it needs, a cut leaves no double space and
-none before a full stop. First thing
+none before a full stop. Drags that start with a double or triple
+click grow by words or paragraphs. Font Color → More Colors… opens a
+strip with Word's theme grid (six tints and shades of ten hues), the
+ten standard colours and a hex field. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The
