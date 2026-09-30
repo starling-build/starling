@@ -1965,6 +1965,26 @@ public final class RichDocumentController: ChangeNotifier {
                                   focus: RichPosition(paragraph: p.paragraph, offset: r.upperBound))
     }
 
+    /// The word or paragraph at `p`, as a selection (what a double or
+    /// triple click takes).
+    public func unitSpan(at p: RichPosition, paragraph whole: Bool) -> RichSelection {
+        let p = document.clamped(p)
+        let r = whole ? 0 ..< document.paragraphs[p.paragraph].length
+                      : document.paragraphs[p.paragraph].wordRange(at: p.offset)
+        return RichSelection(anchor: RichPosition(paragraph: p.paragraph, offset: r.lowerBound),
+                             focus: RichPosition(paragraph: p.paragraph, offset: r.upperBound))
+    }
+
+    /// A drag that began with a double or triple click grows by whole
+    /// words or paragraphs: the selection spans from the unit first
+    /// clicked (`origin`) to the unit under the pointer, either way round.
+    public func extendSelection(to p: RichPosition, byParagraph: Bool, from origin: RichSelection) {
+        let unit = unitSpan(at: p, paragraph: byParagraph)
+        selection = unit.start < origin.start
+            ? RichSelection(anchor: origin.end, focus: unit.start)
+            : RichSelection(anchor: origin.start, focus: unit.end)
+    }
+
     public func selectParagraph(at p: RichPosition) {
         let p = document.clamped(p)
         selection = RichSelection(anchor: RichPosition(paragraph: p.paragraph, offset: 0),

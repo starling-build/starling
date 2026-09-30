@@ -570,7 +570,9 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         if c.isInCell {
             sep()
+            item("Insert Row Above") { c.insertRow(below: false) }
             item("Insert Row Below") { c.insertRow(below: true) }
+            item("Insert Column Left") { c.insertColumn(after: false) }
             item("Insert Column Right") { c.insertColumn(after: true) }
             item("Delete Row") { c.deleteRow() }
             item("Delete Column") { c.deleteColumn() }
@@ -646,6 +648,7 @@ final class OfficeShellState: State<StatefulWidget> {
         case "k": _openLink()
         // Word's alignment keys; Export lives in Backstage.
         case "e": c.setAlignment(.center)
+        case "l" where mods.contains(.shift): c.toggleList(.bullet)   // ⌘⇧L: bullets, as in Word
         case "l": c.setAlignment(.left)
         case "r": c.setAlignment(.right)
         case "j": c.setAlignment(.justify)

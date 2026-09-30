@@ -570,6 +570,23 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(ListLevelFormat.numberingLibrary[4].sample(4), "iv.")
     }
 
+    func testDragByWordsAndParagraphs() {
+        let c = controller("one two three", "four five")
+        // A double click on "two", then a drag to "three": whole words.
+        let origin = c.unitSpan(at: RichPosition(paragraph: 0, offset: 5), paragraph: false)
+        XCTAssertEqual(c.document.text(in: origin), "two")
+        c.extendSelection(to: RichPosition(paragraph: 0, offset: 10), byParagraph: false, from: origin)
+        XCTAssertEqual(c.document.text(in: c.selection), "two three")
+        // Back before the origin: from the word under the pointer to the origin's end.
+        c.extendSelection(to: RichPosition(paragraph: 0, offset: 1), byParagraph: false, from: origin)
+        XCTAssertEqual(c.document.text(in: c.selection), "one two")
+        XCTAssertEqual(c.selection.focus.offset, 0)
+        // Triple click then drag down: whole paragraphs.
+        let para = c.unitSpan(at: RichPosition(paragraph: 0, offset: 3), paragraph: true)
+        c.extendSelection(to: RichPosition(paragraph: 1, offset: 2), byParagraph: true, from: para)
+        XCTAssertEqual(c.document.text(in: c.selection), "one two three\nfour five")
+    }
+
     func testSmartCutAndPaste() {
         let c = controller("the cat sat.")
         // Cut a word: the two spaces it leaves become one.

@@ -137,6 +137,9 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _dropPosition: RichPosition? = nil
     /// A spell-check pass is scheduled (one at a time, after an idle).
     private var _spellScheduled = false
+    /// A drag begun by a double or triple click: the unit first selected,
+    /// and whether the units are paragraphs (else words).
+    private var _unitDrag: (origin: RichSelection, paragraphs: Bool)? = nil
     static let handleSize = 8.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
@@ -647,13 +650,13 @@ public final class RichEditableState: State<StatefulWidget> {
             _dragging = true
             _controller.moveTo(pos, extend: _chords.shift)
         case 2:
-            _dragging = false
             _controller.selectWord(at: pos)
-            if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+            _dragging = true
+            _unitDrag = (_controller.selection, false)
         default:
-            _dragging = false
             _controller.selectParagraph(at: pos)
-            if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+            _dragging = true
+            _unitDrag = (_controller.selection, true)
         }
     }
 
@@ -722,7 +725,11 @@ public final class RichEditableState: State<StatefulWidget> {
         if y < 0 { _scrollY -= min(40, -y) } else if y > _viewport.height { _scrollY += min(40, y - _viewport.height) }
         _clampScroll()
         let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
-        _controller.moveTo(pos, extend: true)
+        if let unit = _unitDrag {
+            _controller.extendSelection(to: pos, byParagraph: unit.paragraphs, from: unit.origin)
+        } else {
+            _controller.moveTo(pos, extend: true)
+        }
     }
 
     private func _pointerUp(_ event: PointerEvent) {
@@ -743,6 +750,7 @@ public final class RichEditableState: State<StatefulWidget> {
         }
         let wasDragging = _dragging
         _dragging = false
+        _unitDrag = nil
         if wasDragging, _controller.hasSelection { _w.onSelectionGestureEnd?() }
         if let drag = _columnDrag {
             _columnDrag = nil
