@@ -109,6 +109,8 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _hoverHandle: Int? = nil
     private var _hoverOverImage = false
     private var _hoverLink: String? = nil
+    /// The platform text-input connection (IME), when enabled.
+    private var _textInput: RichTextInputConnection? = nil
     /// A column-border drag: the table, the column whose right edge moves,
     /// the pointer's start x (points), and the widths at the start.
     private var _columnDrag: (table: String, column: Int, startX: Double, widths: [Double])? = nil
@@ -176,6 +178,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _focus.onFocusChange = { [weak self] focused in
             guard let self else { return }
             if !focused { self._chords.reset() }
+            if focused { self._textInput?.attach() } else { self._textInput?.detach() }
             self._caretVisible = true
             self._restartBlink()
             self._repaint.notifyListeners()
@@ -186,6 +189,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _layout.onNeedsRepaint = { [weak self] in self?._repaint.notifyListeners() }
         _painter = _RichEditablePainter(state: self, repaint: _repaint)
         _controller.addListener(_onControllerChanged)
+        if RichTextInputConnection.enabled { _textInput = RichTextInputConnection(controller: _controller) }
         if _w.autofocus { _focus.requestFocus() }
         _restartBlink()
     }
@@ -211,6 +215,7 @@ public final class RichEditableState: State<StatefulWidget> {
     public override func dispose() {
         _blinkGeneration += 1
         _controller.removeListener(_onControllerChanged)
+        _textInput?.detach()
         _ownedFocus?.dispose()
         super.dispose()
     }
@@ -225,6 +230,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _caretVisible = true
         _restartBlink()
         _repaint.notifyListeners()
+        _textInput?.sync()
     }
 
     private func _syncLayout() {
@@ -359,6 +365,10 @@ public final class RichEditableState: State<StatefulWidget> {
                 default: return false
                 }
             } else if let text = _chords.typedText(keyData) {
+                // With the text-input plugin connected the characters
+                // arrive from it (composed, accented, or plain); declining
+                // the key here is what lets the plugin have it.
+                if _textInput?.isAttached == true { return false }
                 c.insertText(text)
             } else {
                 return false
@@ -701,6 +711,18 @@ public final class RichEditableState: State<StatefulWidget> {
                           paper.style = .fill
                           canvas.drawRect(rect, paper)
                       })
+        // An IME's uncommitted text: a line under the composing range.
+        if let composing = _controller.composingRange, _layout.count > composing.paragraph {
+            let sel = RichSelection(anchor: RichPosition(paragraph: composing.paragraph, offset: composing.range.lowerBound),
+                                    focus: RichPosition(paragraph: composing.paragraph, offset: composing.range.upperBound))
+            let line = Paint()
+            line.style = .stroke
+            line.strokeWidth = 1
+            line.color = _layout.theme.textColor
+            for r in _layout.canvasSelectionRects(sel, _controller.document) {
+                canvas.drawLine(Offset(r.left, r.bottom - 1.5), Offset(r.right, r.bottom - 1.5), line)
+            }
+        }
         canvas.restore()
 
         // A selected picture: its outline and eight handles.

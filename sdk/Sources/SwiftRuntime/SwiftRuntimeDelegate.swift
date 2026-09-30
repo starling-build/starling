@@ -107,8 +107,11 @@ public class SwiftRuntimeDelegate: @unchecked Sendable {
   ///
   /// Uses the same binary packet format as the flutter/keydata channel.
   /// Calls pd.onKeyData directly, same pattern as dispatchPointerDataPacket.
-  public func dispatchKeyData(_ data: Data) {
-    platformDispatcher.onKeyData?(KeyData.fromPacket(data))
+  /// Whether the framework consumed the key; the embedder's text-input
+  /// plugin only acts on keys it did not.
+  @discardableResult
+  public func dispatchKeyData(_ data: Data) -> Bool {
+    platformDispatcher.onKeyData?(KeyData.fromPacket(data)) ?? false
   }
 
   // MARK: - Platform Messages

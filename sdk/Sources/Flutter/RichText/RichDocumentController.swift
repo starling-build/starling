@@ -714,6 +714,30 @@ public final class RichDocumentController: ChangeNotifier {
         notifyListeners()
     }
 
+    /// The text-input plugin's composing range (an IME's uncommitted
+    /// text), underlined by the editable; nil when nothing is composing.
+    public var composingRange: (paragraph: Int, range: Range<Int>)? = nil {
+        didSet { if composingRange?.paragraph != oldValue?.paragraph || composingRange?.range != oldValue?.range { notifyListeners() } }
+    }
+
+    /// Replace `range` of paragraph `index` with `text` in the style at
+    /// the range's start, as typing does — what an IME's editing-state
+    /// update becomes after the diff against the paragraph.
+    public func replaceText(in index: Int, _ range: Range<Int>, with text: String) {
+        guard index < document.paragraphs.count else { return }
+        let para = document.paragraphs[index]
+        let lo = max(0, min(range.lowerBound, para.length)), hi = max(lo, min(range.upperBound, para.length))
+        edit(kind: .typing) {
+            let style = typingStyle ?? para.style(at: lo)
+            if hi > lo { _deleteRange(in: index, lo ..< hi) }
+            if !text.isEmpty {
+                perform(.insertText(RichPosition(paragraph: index, offset: lo), text,
+                                    [Run(length: text.utf16.count, style: style)]))
+            }
+            _setCaret(RichPosition(paragraph: index, offset: lo + text.utf16.count))
+        }
+    }
+
     public enum CaseChange { case sentence, lower, upper, capitalizeWords, toggle }
 
     /// Word's Change Case over the selection, or the word at the caret.

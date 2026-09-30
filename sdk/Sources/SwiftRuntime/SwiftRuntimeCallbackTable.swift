@@ -203,10 +203,10 @@ public func createRuntimeCallbacks() -> SwiftRuntimeCallbacks {
     }
 
     cb.dispatch_key_data = {
-        (ctx: UnsafeMutableRawPointer?, data: UnsafePointer<UInt8>?, dataLen: Int) in
-        guard let data = data, dataLen > 0 else { return }
+        (ctx: UnsafeMutableRawPointer?, data: UnsafePointer<UInt8>?, dataLen: Int) -> Bool in
+        guard let data = data, dataLen > 0 else { return false }
         let keyData = Data(bytes: data, count: dataLen)
-        delegate(from: ctx).dispatchKeyData(keyData)
+        return delegate(from: ctx).dispatchKeyData(keyData)
     }
 
     cb.dispatch_semantics_action = {

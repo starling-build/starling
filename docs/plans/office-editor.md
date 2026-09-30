@@ -18,13 +18,19 @@ engine hands the Swift runtime a sender once it owns it
 is real, and replies come back through `platform_message_response`
 (engine commit "swift runtime: platform messages from the framework to
 the platform"). Proven headless: `OFFICE_PROBE_PLATFORM=1` asks the Mac
-for the pasteboard over `flutter/platform` and gets it. What remains for
-IME is the framework side: a `TextInput` client in `RichEditable` that
-says `TextInput.setClient`/`show` on focus, mirrors the caret paragraph's
-editing state, and applies the plugin's `updateEditingState` /
-`updateEditingStateWithDeltas` on `flutter/textinput`, drawing the
-composing range underlined. Needs the screen to verify with an input
-source. Companion to `office.md`,
+for the pasteboard over `flutter/platform` and gets it. **M5, step two written, behind `STARLING_IME=1`:**
+`RichTextInputConnection` (sdk) becomes the platform's text-input client
+on focus — `TextInput.setClient`/`setEditingState`/`show` — with the
+caret paragraph as the client's text; every local change re-sends the
+state, every `updateEditingState` from the plugin is diffed against the
+paragraph and applied as one replacement, the composing range is kept
+on the controller and underlined by the editable, and
+`performAction newline` splits the paragraph. With it on, the key path
+declines typed characters so the plugin delivers them (the engine now
+replies whether a key was consumed, so keys the framework takes never
+reach the plugin). Off by default until seen working with the Pinyin
+and Japanese input sources, dead keys and press-and-hold; then it
+becomes the default and the key-path typing goes. Companion to `office.md`,
 which tracks the suite; this one is only about the editing experience in
 Writer on macOS, which is where the user has asked for the focus. Nothing
 here is Linux, Windows or iOS.

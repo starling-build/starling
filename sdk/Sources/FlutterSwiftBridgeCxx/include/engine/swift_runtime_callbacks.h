@@ -76,7 +76,9 @@ typedef struct {
   void (*dispatch_pointer_data_packet)(void* context,
                                        const uint8_t* data,
                                        size_t data_len);
-  void (*dispatch_key_data)(void* context,
+  // Returns true when the framework consumed the key, so the embedder's
+  // secondary responders (the text-input plugin) do not act on it too.
+  bool (*dispatch_key_data)(void* context,
                              const uint8_t* data,
                              size_t data_len);
   void (*dispatch_semantics_action)(void* context,
