@@ -109,7 +109,7 @@ final class Backstage: StatelessWidget {
         case .save, .saveAs: return _panel(.save, fluent)
         case .info: return _info(fluent)
         case .export: return _export(fluent)
-        case .print: return _simple("Print", "Export to PDF first, then print the PDF from your system's viewer. Printing from Office directly arrives with PDF export.", fluent)
+        case .print: return _simple("Print", "Export a PDF and print it from your system's viewer; a print dialog of Office's own is still to come.", fluent, action: ("Export PDF", { [session] in session.onExport?("pdf") }))
         case .close: return _simple("Close", "Close the document and start a blank one.", fluent, action: ("Close document", { [session] in session.onNew?() }))
         }
     }
@@ -227,10 +227,12 @@ final class Backstage: StatelessWidget {
     private func _export(_ fluent: FluentThemeData) -> Widget {
         Column(crossAxisAlignment: .start, children: [
             _heading("Export", fluent),
-            Text("Choose a format. PDF arrives with Phase 2 of the plan.",
+            Text("Choose a format. The file lands beside the document, or in Documents.",
                  style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)),
             Chrome.vgap(16),
             Row(children: [
+                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
+                Chrome.gap(16),
                 _template("Word (.docx)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("docx") },
                 Chrome.gap(16),
                 _template("Markdown (.md)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("md") },

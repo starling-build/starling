@@ -180,7 +180,15 @@ final class OfficeShellState: State<StatefulWidget> {
             ?? NSHomeDirectory() + "/Documents/" + session.title
         let target = base + "." + ext
         do {
-            try OfficeFormats.write(controller.document, to: target, pageSetup: session.pageSetup)
+            if ext == "pdf" {
+                guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
+                                      to: target, title: session.title) else {
+                    _flash("Could not write the PDF")
+                    return
+                }
+            } else {
+                try OfficeFormats.write(controller.document, to: target, pageSetup: session.pageSetup)
+            }
             _remember(target)
             setState { _backstage = nil }
             _flash("Exported \((target as NSString).lastPathComponent)")

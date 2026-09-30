@@ -2117,6 +2117,12 @@ typedef struct {
   /// outside of this area are transparent and the embedder may choose not
   /// to render them. Coordinates are in physical pixels.
   FlutterRegion* paint_region;
+
+  /// STARLING: the area of the backing store the engine repainted THIS
+  /// frame (the frame damage), or NULL when unknown / full. An embedder
+  /// presenting to a preserved target may copy only this region.
+  /// Coordinates are in physical pixels.
+  FlutterRegion* frame_damage;
 } FlutterBackingStorePresentInfo;
 
 typedef struct {

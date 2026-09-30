@@ -44,9 +44,31 @@ private func windowMetric(_ key: String, _ fallback: Int) -> Int {
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
     let src = CommandLine.arguments[i + 1]
     let dst = CommandLine.arguments[i + 2]
+    // No host boots here, so nobody hands the bridge its ICU data; without
+    // it a PDF's lines break between characters. Same file the hosts use.
+    let exeDir = URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0])
+        .deletingLastPathComponent().path
+    for candidate in [exeDir + "/data/icudtl.dat", exeDir + "/../Resources/data/icudtl.dat",
+                      exeDir + "/../share/starling/icudtl.dat"]
+    where FileManager.default.fileExists(atPath: candidate) {
+        _ = flutter.swift_bridge.InitializeICU(candidate)
+        break
+    }
     do {
         let opened = try OfficeFormats.read(src)
-        try OfficeFormats.write(opened.document, to: dst, pageSetup: opened.pageSetup ?? .letter)
+        if (dst as NSString).pathExtension.lowercased() == "pdf" {
+            // The bridge's own font manager serves the PDF, so the document
+            // faces have to be registered exactly as the window does it.
+            OfficeFonts.register()
+            let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+            guard PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
+                                  to: dst, title: (src as NSString).lastPathComponent) else {
+                FileHandle.standardError.write("convert failed: could not write PDF\n".data(using: .utf8)!)
+                exit(1)
+            }
+        } else {
+            try OfficeFormats.write(opened.document, to: dst, pageSetup: opened.pageSetup ?? .letter)
+        }
         print("\(src) -> \(dst): \(opened.document.paragraphs.count) paragraphs, \(opened.document.wordCount) words")
         exit(0)
     } catch {

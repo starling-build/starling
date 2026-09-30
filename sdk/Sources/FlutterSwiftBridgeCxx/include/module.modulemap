@@ -22,6 +22,7 @@ module FlutterSwiftBridgeCxx {
     header "engine/codec_bridge.h"
     header "engine/canvas_bridge.h"
     header "engine/picture_bridge.h"
+    header "engine/pdf_bridge.h"
     header "engine/image_descriptor_bridge.h"
     header "engine/engine_layer_bridge.h"
     header "engine/scene_bridge.h"

@@ -37,6 +37,12 @@ numbering.xml, hyperlinks, page breaks, section paper size; tables are
 flattened and images skipped until the model has them). A package written
 by macOS's converter reads back correctly and ours is accepted by it.
 `OfficeApp --convert in out` converts between formats without a window.
+**PDF export** works as the plan said it would: the engine now builds
+Skia's PDF backend and the bridge exports `WritePdf` (engine 63ec018c62c); the
+same `RichLayout` that paints pages on screen records each page into a
+`Picture`, and `PdfDocument.write` (FlutterSwiftBridge) writes them with
+the Liberation faces embedded and subsetted. Backstage → Export → PDF,
+or `OfficeApp --convert doc.docx doc.pdf`.
 
 Not done from the Phase 1 list: the `_writer_session` functional test
 (Linux desktop, Phase 3). Three directions from the user shape the plan:
