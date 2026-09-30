@@ -225,6 +225,49 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [], onPro
       appBytes().set(skBytes().subarray(src, src + length), dst);
     },
     render_callback: () => renderCallback,
+    // Files: the browser's picker in, a download out. The picker needs a
+    // user gesture; it is opened from the click that asked for it, which
+    // is the case when the app calls from a button's handler.
+    open_file(pointer, length) {
+      const accept = utf8.decode(appBytes().subarray(pointer, pointer + length))
+        .split(',').filter(Boolean).map((ext) => '.' + ext).join(',');
+      // One input, kept in the document: a picker is only openable from a
+      // real element, and a test can hand this one a file.
+      let input = document.getElementById('starling-file');
+      if (!input) {
+        input = Object.assign(document.createElement('input'), { type: 'file', id: 'starling-file' });
+        input.style.display = 'none';
+        document.body.append(input);
+      }
+      input.accept = accept;
+      input.value = '';
+      const answer = (name, bytes) => {
+        const nameBytes = encoder.encode(name);
+        const namePointer = nameBytes.length ? swift.starling_alloc(nameBytes.length) : 0;
+        if (namePointer) appBytes().set(nameBytes, namePointer);
+        const dataPointer = bytes.length ? swift.starling_alloc(bytes.length) : 0;
+        if (dataPointer) appBytes().set(bytes, dataPointer);
+        swift.starling_file_opened(namePointer, nameBytes.length, dataPointer, bytes.length);
+        if (namePointer) swift.starling_free(namePointer);
+      };
+      // No cancel handler: the browser's `cancel` is not to be trusted (a
+      // headless one fires it as the dialog opens), and a pick that never
+      // comes costs the app nothing — the next open supersedes it.
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        answer(file.name, new Uint8Array(await file.arrayBuffer()));
+      };
+      input.click();
+    },
+    download(namePointer, nameLength, bytesPointer, byteCount) {
+      const name = utf8.decode(appBytes().subarray(namePointer, namePointer + nameLength));
+      const bytes = appBytes().slice(bytesPointer, bytesPointer + byteCount);
+      const url = URL.createObjectURL(new Blob([bytes]));
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
     set_title(pointer, length) {
       document.title = utf8.decode(appBytes().subarray(pointer, pointer + length));
     },

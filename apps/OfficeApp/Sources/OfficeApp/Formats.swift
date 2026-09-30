@@ -25,6 +25,13 @@ enum OfficeFormats {
 
     static func read(_ path: String) throws -> OpenedDocument {
         guard let data = FileManager.default.contents(atPath: path) else { throw FormatError.unreadable }
+        return try read(data, named: path)
+    }
+
+    /// The document in `data`; `name` is consulted only for its extension,
+    /// and only when the bytes do not say what they are. This is what the
+    /// web opens with, from a file the browser's picker handed over.
+    static func read(_ data: Data, named path: String) throws -> OpenedDocument {
         // A zip starts with "PK": a .docx whatever it is called.
         if data.count > 4, data[0] == 0x50, data[1] == 0x4B {
             let d = try DocxFormat.read(data)
@@ -43,23 +50,26 @@ enum OfficeFormats {
     }
 
     static func write(_ doc: RichDocument, to path: String, pageSetup: PageSetup = .letter) throws {
-        let ext = path.pathExtension.lowercased()
+        let data = try encode(doc, as: path.pathExtension, pageSetup: pageSetup)
+        #if os(WASI)
+        try data.write(to: URL(fileURLWithPath: path))  // no temp files to be atomic with
+        #else
+        try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+        #endif
+    }
+
+    /// The file's bytes in the format `ext` names. The web saves through
+    /// this: the bytes become a download.
+    static func encode(_ doc: RichDocument, as ext: String, pageSetup: PageSetup = .letter) throws -> Data {
         let text: String
-        switch ext {
-        case "docx":
-            let data = try DocxFormat.write(doc, pageSetup: pageSetup)
-            #if os(WASI)
-            try data.write(to: URL(fileURLWithPath: path))  // no temp files to be atomic with
-            #else
-            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
-            #endif
-            return
+        switch ext.lowercased() {
+        case "docx": return try DocxFormat.write(doc, pageSetup: pageSetup)
         case "rtf": text = RtfFormat.render(doc)
         case "md", "markdown": text = MarkdownFormat.render(doc)
         case "txt", "text", "": text = doc.plainText()
         default: throw FormatError.unsupported(ext)
         }
-        try text.write(toFile: path, atomically: true, encoding: .utf8)
+        return Data(text.utf8)
     }
 
     /// True when saving to `path` would drop formatting.

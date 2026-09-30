@@ -61,4 +61,16 @@ void starling_host_decode_image(uint32_t requestId, const void* bytes, uint32_t 
 // The tab's title (UTF-8, in OUR memory).
 HOST(set_title) void starling_host_set_title(const void* utf8, uint32_t length);
 
+// Files, the browser's way. open_file shows the picker for the given
+// extensions ("docx,rtf,md,txt", UTF-8 in OUR memory); the page answers
+// through our exported starling_file_opened(name, nameLength, bytes,
+// byteCount) with the bytes copied into memory from starling_alloc — ours to
+// free — or with byteCount 0 if the user cancelled. download hands the
+// browser a file to save: name and bytes, both in OUR memory, copied
+// before the call returns.
+HOST(open_file) void starling_host_open_file(const void* extensions, uint32_t length);
+HOST(download)
+void starling_host_download(const void* name, uint32_t nameLength, const void* bytes,
+                            uint32_t byteCount);
+
 #endif  // STARLING_SKWASM_BASE_H

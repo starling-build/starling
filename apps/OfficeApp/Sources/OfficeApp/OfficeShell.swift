@@ -9,6 +9,9 @@
 import Flutter
 import FlutterSwiftBridge
 import Foundation
+#if os(WASI)
+import FlutterWeb
+#endif
 
 final class OfficeShell: StatefulWidget {
     let initialPath: String?
@@ -173,12 +176,26 @@ final class OfficeShellState: State<StatefulWidget> {
         session.onNew = { [weak self] in self?._new() }
         session.onOpen = { [weak self] in
             guard let self else { return }
+            #if os(WASI)
+            // The browser's picker, not Backstage's directory list: a tab
+            // has no directories, only files the user hands over.
+            WebFiles.open(extensions: OfficeFormats.readable) { [weak self] picked in
+                guard let self, let picked else { return }
+                self._open(picked.name, data: picked.data)
+            }
+            #else
             self.setState { self._backstage = .open }
+            #endif
         }
         session.onSave = { [weak self] in self?._save() }
         session.onSaveAs = { [weak self] in
             guard let self else { return }
+            #if os(WASI)
+            // The browser names and places a download; "save as" is save.
+            self._save()
+            #else
             self.setState { self._backstage = .saveAs }
+            #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
@@ -352,12 +369,57 @@ final class OfficeShellState: State<StatefulWidget> {
         }
     }
 
+    /// A file the browser handed over: `name` is what the user will see and
+    /// what a save is called; there is no path, and no recovery copy to
+    /// look for either.
+    private func _open(_ name: String, data: Data) {
+        do {
+            try _open(name, opened: OfficeFormats.read(data, named: name))
+        } catch {
+            _flash("Could not open \(name): \(error)")
+        }
+    }
+
+    private func _open(_ path: String, opened: OpenedDocument) throws {
+        controller.load(opened.document)
+        session.path = path
+        _savedRevision = controller.revision
+        _remember(path)
+        setState {
+            if let setup = opened.pageSetup { session.pageSetup = setup }
+            session.dirty = false
+            session.summary = session.summarize()
+            _backstage = nil
+        }
+        _flash("Opened \(path.lastPathComponent)")
+    }
+
     private func _save() {
+        #if os(WASI)
+        // A download, named after the document; the browser decides where
+        // it goes, and asks the user if it is set to.
+        let name = session.path ?? session.title + ".docx"
+        do {
+            let data = try OfficeFormats.encode(controller.document, as: name.pathExtension,
+                                                pageSetup: session.pageSetup)
+            WebFiles.download(data, as: name)
+            session.path = name
+            _savedRevision = controller.revision
+            setState {
+                session.dirty = false
+                _backstage = nil
+            }
+            _flash("Saved \(name)")
+        } catch {
+            _flash("Could not save: \(error)")
+        }
+        #else
         guard let path = session.path else {
             setState { _backstage = .saveAs }
             return
         }
         _saveTo(path)
+        #endif
     }
 
     private func _saveTo(_ path: String) {
@@ -390,6 +452,18 @@ final class OfficeShellState: State<StatefulWidget> {
         let base = session.path.map { $0.deletingPathExtension }
             ?? homeDirectory() + "/Documents/" + session.title
         let target = base + "." + ext
+        #if os(WASI)
+        do {
+            guard ext != "pdf" else { _flash("PDF export is not available in the browser yet"); return }
+            let data = try OfficeFormats.encode(controller.document, as: ext, pageSetup: session.pageSetup)
+            WebFiles.download(data, as: target.lastPathComponent)
+            setState { _backstage = nil }
+            _flash("Exported \(target.lastPathComponent)")
+        } catch {
+            _flash("Could not export: \(error)")
+        }
+        return
+        #endif
         do {
             if ext == "pdf" {
                 guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,
@@ -667,7 +741,7 @@ final class OfficeShellState: State<StatefulWidget> {
         switch letter {
         case "s":
             if mods.contains(.shift) { setState { _backstage = .saveAs } } else { _save() }
-        case "o": setState { _backstage = .open }
+        case "o": session.onOpen?()
         case "n": _new()
         case "f": _openFind(replace: false)
         case "h": _openFind(replace: true)

@@ -17,6 +17,7 @@ import CSkwasm
 import Flutter
 import FlutterSwiftBridge
 import FlutterSwiftBridgeCxx
+import Foundation
 import SwiftRuntime
 
 public final class WebHost {
@@ -338,6 +339,25 @@ func starlingFontFallback(_ family: UnsafePointer<UInt8>?, _ familyLength: Int32
     let name = String(
         decoding: UnsafeBufferPointer(start: family, count: Int(familyLength)), as: UTF8.self)
     if !WebFonts.fallbackFamilies.contains(name) { WebFonts.fallbackFamilies.append(name) }
+}
+
+/// The page's answer to starling_host_open_file. `bytes` came from
+/// starling_alloc and is freed here.
+@_expose(wasm, "starling_file_opened")
+@_cdecl("starling_file_opened")
+func starlingFileOpened(
+    _ name: UnsafePointer<UInt8>?, _ nameLength: Int32,
+    _ bytes: UnsafeMutableRawPointer?, _ byteCount: Int32
+) {
+    defer { bytes?.deallocate() }
+    guard let name, nameLength > 0, let bytes, byteCount > 0 else {
+        WebFiles.opened(nil)
+        return
+    }
+    WebFiles.opened(
+        WebFiles.Picked(
+            name: String(decoding: UnsafeBufferPointer(start: name, count: Int(nameLength)), as: UTF8.self),
+            data: Data(bytes: bytes, count: Int(byteCount))))
 }
 
 /// Scratch memory in our heap for the page to write arguments into.
