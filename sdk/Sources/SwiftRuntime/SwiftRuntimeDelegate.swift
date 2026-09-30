@@ -124,6 +124,45 @@ public class SwiftRuntimeDelegate: @unchecked Sendable {
   ///   - name: The platform channel name.
   ///   - data: The message data (may be empty).
   ///   - responseId: An opaque identifier for sending the response back to the engine.
+  // MARK: - Outbound platform messages
+
+  public typealias PlatformMessageSend =
+    @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>?, UnsafePointer<UInt8>?, Int, Int32) -> Void
+
+  private var _sender: UnsafeMutableRawPointer? = nil
+  private var _send: PlatformMessageSend? = nil
+  private var _pending: [Int32: PlatformMessageResponseCallback] = [:]
+  private var _nextResponseId: Int32 = 1
+
+  /// The engine owns the runtime now: the framework's
+  /// `sendPlatformMessage` goes through `send` from here on.
+  public func installPlatformMessageSender(_ sender: UnsafeMutableRawPointer, _ send: @escaping PlatformMessageSend) {
+    _sender = sender
+    _send = send
+    platformDispatcher.platformMessageSender = { [weak self] name, data, callback in
+      guard let self, let send = self._send else { callback?(nil); return }
+      var id: Int32 = 0
+      if let callback {
+        id = self._nextResponseId
+        self._nextResponseId &+= 1
+        if self._nextResponseId == 0 { self._nextResponseId = 1 }
+        self._pending[id] = callback
+      }
+      let bytes = data.map { [UInt8]($0) } ?? []
+      name.withCString { channel in
+        bytes.withUnsafeBufferPointer { buffer in
+          send(self._sender, channel, buffer.baseAddress, buffer.count, id)
+        }
+      }
+    }
+  }
+
+  /// The platform's reply to a message the framework sent.
+  public func completePlatformMessage(_ responseId: Int32, _ data: Data?) {
+    guard let callback = _pending.removeValue(forKey: responseId) else { return }
+    callback(data)
+  }
+
   public func dispatchPlatformMessage(_ name: String, _ data: [UInt8], _ responseId: Int32) {
     let messageData: Data? = data.isEmpty ? nil : Data(data)
     // Platform messages are dispatched on the engine's UI task runner,

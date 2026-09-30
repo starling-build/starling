@@ -3169,8 +3169,16 @@ public class PlatformDispatcher {
   /// PlatformConfigurationNativeApi::SendPlatformMessage.
   /// REASON: Platform messaging deferred to later implementation.
   public func sendPlatformMessage(_ name: String, _ data: Data?, _ callback: PlatformMessageResponseCallback?) {
-    // Stub - platform messaging deferred
+    if let sender = platformMessageSender {
+      sender(name, data, callback)
+    } else {
+      callback?(nil)
+    }
   }
+
+  /// Installed by the Swift runtime once the engine hands it a sender;
+  /// nil before that (and in tests), when every message answers nil.
+  public var platformMessageSender: ((String, Data?, PlatformMessageResponseCallback?) -> Void)?
 
   /// Computes the scaled font size from the given `unscaledFontSize`, according
   /// to the user's platform preferences.

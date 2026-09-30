@@ -12,17 +12,19 @@ vertical merges and cell selection, M8 Columns and Modify Style, the
 14pt menu bug. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
-**M5's exact gap, measured:** the engine already delivers platform
-messages *into* Swift (`SwiftRuntimeDelegate.dispatchPlatformMessage`
-pushes them onto `channelBuffers`), so the macOS embedder's text-input
-plugin could be listened to on `flutter/textinput`. What is missing is
-the other direction: `PlatformDispatcher.sendPlatformMessage` is a stub
-and the bridge exports no `SendPlatformMessage`, so the framework cannot
-say `TextInput.setClient`/`show`, and the plugin never engages. M5 is
-therefore an engine change first (starling-engine: a bridge export into
-`PlatformConfiguration::SendPlatformMessage` plus response completion),
-then a `TextInput` client in `RichEditable` that mirrors the caret
-paragraph's editing state and applies the plugin's deltas. Companion to `office.md`,
+**M5, step one done:** platform messages now travel both ways. The
+engine hands the Swift runtime a sender once it owns it
+(`platform_message_sender_ready`), `PlatformDispatcher.sendPlatformMessage`
+is real, and replies come back through `platform_message_response`
+(engine commit "swift runtime: platform messages from the framework to
+the platform"). Proven headless: `OFFICE_PROBE_PLATFORM=1` asks the Mac
+for the pasteboard over `flutter/platform` and gets it. What remains for
+IME is the framework side: a `TextInput` client in `RichEditable` that
+says `TextInput.setClient`/`show` on focus, mirrors the caret paragraph's
+editing state, and applies the plugin's `updateEditingState` /
+`updateEditingStateWithDeltas` on `flutter/textinput`, drawing the
+composing range underlined. Needs the screen to verify with an input
+source. Companion to `office.md`,
 which tracks the suite; this one is only about the editing experience in
 Writer on macOS, which is where the user has asked for the focus. Nothing
 here is Linux, Windows or iOS.

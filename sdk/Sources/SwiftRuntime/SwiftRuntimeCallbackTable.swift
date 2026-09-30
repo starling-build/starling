@@ -279,5 +279,19 @@ public func createRuntimeCallbacks() -> SwiftRuntimeCallbacks {
         delegate(from: ctx).dispatchPlatformMessage(channelStr, dataArray, responseId)
     }
 
+    cb.platform_message_sender_ready = {
+        (ctx: UnsafeMutableRawPointer?, sender: UnsafeMutableRawPointer?,
+         send: (@convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>?, UnsafePointer<UInt8>?, Int, Int32) -> Void)?) in
+        guard let sender, let send else { return }
+        delegate(from: ctx).installPlatformMessageSender(sender, send)
+    }
+
+    cb.platform_message_response = {
+        (ctx: UnsafeMutableRawPointer?, responseId: Int32, data: UnsafePointer<UInt8>?, dataLen: Int) in
+        var bytes: Data? = nil
+        if let data, dataLen > 0 { bytes = Data(UnsafeBufferPointer(start: data, count: dataLen)) }
+        delegate(from: ctx).completePlatformMessage(responseId, bytes)
+    }
+
     return cb
 }

@@ -98,6 +98,24 @@ typedef struct {
 
   // -- Platform messages --------------------------------------------------
 
+  // Outbound: once the engine owns the runtime, it hands Swift a sender.
+  // `send` posts a message from the framework to the platform; the engine
+  // replies through `platform_message_response` with the id Swift chose
+  // (0 for none). Both are NULL until then, and stay NULL in the tests
+  // that build a controller with no engine.
+  void (*platform_message_sender_ready)(
+      void* context,
+      void* sender,
+      void (*send)(void* sender,
+                   const char* channel,
+                   const uint8_t* data,
+                   size_t data_len,
+                   int32_t response_id));
+  void (*platform_message_response)(void* context,
+                                    int32_t response_id,
+                                    const uint8_t* data,
+                                    size_t data_len);
+
   void (*dispatch_platform_message)(void* context,
                                     const char* channel,
                                     const uint8_t* data,

@@ -64,6 +64,9 @@ final class OfficeShellState: State<StatefulWidget> {
         } else {
             controller.load(WelcomeDocument.make())
         }
+        if ProcessInfo.processInfo.environment["OFFICE_PROBE_PLATFORM"] != nil {
+            _probePlatformMessages()
+        }
         _savedRevision = controller.revision
         session.summary = session.summarize()
         controller.addListener { [weak self] in
@@ -181,6 +184,27 @@ final class OfficeShellState: State<StatefulWidget> {
             self._scheduleAutosave()
         }
         session.onPrint = { [weak self] in self?._print() }
+    }
+
+    // MARK: Diagnostics
+
+    /// OFFICE_PROBE_PLATFORM=1: ask the platform for the clipboard text over
+    /// the `flutter/platform` channel (JSON method codec) and print what
+    /// comes back, then quit — proof that platform messages travel both
+    /// ways without a screen.
+    private func _probePlatformMessages() {
+        let request = Data("{\"method\":\"Clipboard.getData\",\"args\":\"text/plain\"}".utf8)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
+            PlatformDispatcher.instance.sendPlatformMessage("flutter/platform", request) { reply in
+                let text = reply.map { String(decoding: $0, as: UTF8.self) } ?? "<no reply>"
+                FileHandle.standardError.write(Data("[probe] flutter/platform Clipboard.getData -> \(text)\n".utf8))
+                exit(0)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(5)) {
+                FileHandle.standardError.write(Data("[probe] timed out waiting for a reply\n".utf8))
+                exit(1)
+            }
+        }
     }
 
     // MARK: Print
