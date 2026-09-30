@@ -1,24 +1,42 @@
 # Office: a cross-platform document suite on the Starling SDK
 
-Status: **Phase 0 done on macOS**, 2026-09-29, branch `office` (cut from
-`main` at 97f3c72). The editing stack is in `sdk/Sources/Flutter/RichText/`
-(model, controller with undo, incremental layout, `KeyChord`, the
-`RichEditable` widget; 19 model tests in `sdk/Tests/FlutterTests/RichText/`),
-and `apps/OfficeApp` hosts it under a `FluentApp` root on the Cocoa host
-with a placeholder formatting bar. Measured on this Mac at 2x with the
-200-page generated document (`OFFICE_DEMO_PAGES=200
-STARLING_RICHTEXT_PERF=1`): initial layout 200 ms once, then per keystroke
-45–100 µs layout and ~150 µs paint, drag-select repaints ≤ 230 µs. The
-DRM-shell half of the gate is still to run on the Linux box.
+Status: **Phase 1 done on macOS** (Writer), 2026-09-29, branch `office`
+(cut from `main` at 97f3c72). What exists:
 
-Found on the way and fixed in the engine (79ed5f071e6): on macOS every
-Swift app's wrapped text broke mid-word, because `libswift_bridge.dylib`
-carries its own ICU that never received `icudtl.dat`; the bridge now
-exports `InitializeICU` and `CocoaHost` calls it. Three directions from
-the user shape the plan: the app is **cross-platform and built on macOS
-first**, its UI is **Fluent**, and its layout **copies Microsoft Office**.
-Decisions marked **[decide]** were taken with the plan's defaults (one
-package, `.docx`, Text Editor stays, name Office).
+- `sdk/Sources/Flutter/RichText/` — the editing stack: model, controller
+  with undo and a revision counter, incremental per-paragraph layout with
+  pagination (`PageSetup`), `KeyChord`, `RichEditable` (paged or
+  continuous, app shortcut hook, page info). 19 model tests.
+- `apps/OfficeApp` — the Word layout: title row with quick access and
+  search, File → Backstage (Home/New/Open/Info/Save/Save As/Export/Print/
+  Close over a Fluent file panel), ribbon (Home complete; Insert, Layout,
+  View live; Draw/References/Review placeholders), ruler, find/replace
+  strip, status bar with page/words/view switcher/zoom slider. Formats:
+  RTF (runs, paragraph props, headings, lists, colours, Unicode — round-
+  trips through macOS TextEdit), Markdown, plain text; recent files;
+  window title follows the document. Liberation fonts bundled. `swift test
+  --package-path apps/OfficeApp` runs the format round trips.
+  `build/macos-app.sh OfficeApp` assembles a runnable `.app`.
+- Measured on the 200-page generated document (`OFFICE_DEMO_PAGES=200
+  STARLING_RICHTEXT_PERF=1`): initial layout 200 ms once, then per
+  keystroke 45–100 µs layout and ~150 µs paint, drag-select repaints
+  ≤ 230 µs. The DRM-shell half of the gate is still to run on the Linux
+  box.
+
+Framework bugs found and fixed on the way, both of which affected every
+Swift app: on macOS `libswift_bridge.dylib` has its own ICU that never
+received `icudtl.dat`, so every wrapped paragraph broke mid-word (engine
+79ed5f071e6 exports `InitializeICU`; `CocoaHost` calls it); and
+`LeaderLayer` never applied its offset when building the scene, so every
+`CompositedTransformTarget` — each Fluent ComboBox and DropDownButton —
+painted at the window's origin.
+
+Not done from the Phase 1 list: the `_writer_session` functional test
+(Linux desktop, Phase 3). Three directions from the user shape the plan:
+the app is **cross-platform and built on macOS first**, its UI is
+**Fluent**, and its layout **copies Microsoft Office**. Decisions marked
+**[decide]** were taken with the plan's defaults (one package, `.docx`,
+Text Editor stays, name Office).
 
 ## Why
 
