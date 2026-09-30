@@ -109,9 +109,29 @@ enum DocxFormat {
         // Styles: which paragraph styles are ours (headings, Title, Quote…),
         // and what they look like in this package — Word's Heading 1 is
         // not our Heading 1, so the sheet takes the file's word for it.
+        // Spacing is Word's hierarchy: the document defaults (0 after and
+        // single lines when the file states none), Normal on top, a
+        // table's style on top of that inside its cells, then the named
+        // style, then the paragraph's own — every paragraph comes out
+        // with the absolute values the layout draws.
         var styleByDocx: [String: String] = [:]
         var sheet = RichStyleSheet.word
+        var base = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+        var tableBases: [String: RichParagraphStyle] = [:]
         if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
+            if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
+                _paragraphProps(defaults, into: &base)
+            }
+            for style in styles.all("w:style") where style["w:type"] == "paragraph"
+                && (style["w:default"] == "1" || style["w:styleId"] == "Normal") {
+                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &base) }
+            }
+            for style in styles.all("w:style") where style["w:type"] == "table" {
+                guard let id = style["w:styleId"] else { continue }
+                var ps = base
+                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
+                tableBases[id] = ps
+            }
             for style in styles.all("w:style") where style["w:type"] == "paragraph" {
                 guard let id = style["w:styleId"] else { continue }
                 let name = (style.first("w:name")?["w:val"] ?? id).lowercased()
@@ -127,13 +147,17 @@ enum DocxFormat {
                 var cs = style.first("w:rPr").map { _charStyle($0, base: CharStyle()) } ?? CharStyle()
                 if cs.fontFamily == nil { cs.fontFamily = entry.char.fontFamily }
                 entry.char = cs
-                var ps = RichParagraphStyle.body
+                var ps = base
                 ps.heading = entry.paragraph.heading
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
                 entry.paragraph = ps
                 if let next = style.first("w:next")?["w:val"] { entry.next = styleByDocx[next] ?? _styleId(next.lowercased()) }
                 sheet[ours] = entry
             }
+        }
+        if var normal = sheet[RichNamedStyle.normalId] {
+            normal.paragraph = base
+            sheet[RichNamedStyle.normalId] = normal
         }
 
         // Numbering: numId → level → bullet/decimal, and each numbered
@@ -211,6 +235,7 @@ enum DocxFormat {
         var tableStyles: [String: TableStyle] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
+        var cellBase = base   // the table style's spacing while inside one
 
         func emit(_ p: RichParagraph) {
             var p = p
@@ -222,7 +247,7 @@ enum DocxFormat {
         func walkBlock(_ node: XNode, indent: Double) {
             switch node.name {
             case "w:p":
-                for p in _paragraphs(node, styleByDocx, sheet, kindByNum, rels, media, indent) {
+                for p in _paragraphs(node, currentCell != nil ? cellBase : base, styleByDocx, sheet, kindByNum, rels, media, indent) {
                     if p.pageBreakAfter { emit(p.paragraph); pendingPageBreak = true } else { emit(p.paragraph) }
                 }
             case "w:tbl" where currentCell != nil:
@@ -235,6 +260,9 @@ enum DocxFormat {
             case "w:tbl":
                 tableCount += 1
                 let id = "t\(tableCount)"
+                // Word's Table Grid says no space after and single lines;
+                // a table with no style leaves the document defaults.
+                cellBase = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableBases[$0] } ?? base
                 if let grid = node.first("w:tblGrid") {
                     let widths = grid.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") }.map { $0 / 20 }
                     if !widths.isEmpty { tableColumns[id] = widths }
@@ -271,7 +299,7 @@ enum DocxFormat {
                         currentCell = CellRef(table: id, row: r, column: column, span: span)
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent) }
-                        if paragraphs.count == before { emit(RichParagraph()) }
+                        if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
                         if restart { openSpan[column] = before ..< paragraphs.count }
                         column += span
                     }
@@ -416,11 +444,12 @@ enum DocxFormat {
     }
 
     /// One w:p can become several paragraphs (a page break inside it).
-    private static func _paragraphs(_ p: XNode, _ styleIds: [String: String], _ sheet: RichStyleSheet,
+    private static func _paragraphs(_ p: XNode, _ base: RichParagraphStyle,
+                                    _ styleIds: [String: String], _ sheet: RichStyleSheet,
                                     _ nums: [String: [Int: ListKind]],
                                     _ rels: [String: String], _ media: (String) -> Data?,
                                     _ indent: Double) -> [_Built] {
-        var style = RichParagraphStyle.body
+        var style = base
         if let pPr = p.first("w:pPr") {
             // The named style's props first, then the paragraph's own.
             if let id = pPr.first("w:pStyle")?["w:val"], let ours = styleIds[id] { sheet.apply(ours, to: &style) }
@@ -519,10 +548,16 @@ enum DocxFormat {
         return built
     }
 
-    /// The space-after the layout uses for `p`: its own when set, else
-    /// Word's 8pt outside a table and 0 in a cell — RichLayout's rule.
-    static func _effectiveSpaceAfter(_ p: RichParagraph) -> Double {
-        p.style.spaceAfter > 0 ? p.style.spaceAfter : (p.cell != nil ? 0 : 8)
+    /// `<w:spacing>` with the style's before, after and line, all of them
+    /// (a paragraph that says nothing takes the file's defaults, which
+    /// need not be ours). Twips and 240ths, rounded — truncation drifted
+    /// 1.08 lines to 258/240 and on down with every save.
+    static func _spacingXML(_ s: RichParagraphStyle) -> String {
+        var spacing = ""
+        if s.spaceBefore > 0 { spacing += " w:before=\"\(Int((s.spaceBefore * 20).rounded()))\"" }
+        spacing += " w:after=\"\(Int((s.spaceAfter * 20).rounded()))\""
+        spacing += " w:line=\"\(Int((s.lineSpacing * 240).rounded()))\" w:lineRule=\"auto\""
+        return "<w:spacing\(spacing)/>"
     }
 
     private static func _isOff(_ node: XNode) -> Bool {
@@ -642,14 +677,9 @@ enum DocxFormat {
             if p.style.list != nil {
                 pPr += "<w:numPr><w:ilvl w:val=\"\(p.style.listLevel)\"/><w:numId w:val=\"\(numIdOf[index])\"/></w:numPr>"
             }
-            var spacing = ""
-            if p.style.spaceBefore > 0 { spacing += " w:before=\"\(Int(p.style.spaceBefore * 20))\"" }
-            // What the layout gives an unset (0) space-after: the theme's
-            // 8pt in the body, nothing inside a table (RichLayout). Written
-            // as that, so the file lays out on reopening as it did.
-            spacing += " w:after=\"\(Int(_effectiveSpaceAfter(p) * 20))\""
-            if p.style.lineSpacing != 1.0 { spacing += " w:line=\"\(Int(p.style.lineSpacing * 240))\" w:lineRule=\"auto\"" }
-            pPr += "<w:spacing\(spacing)/>"
+            // Spacing spelled out on every paragraph, so that Word and we
+            // lay the file out alike whatever its defaults say.
+            pPr += _spacingXML(p.style)
             var ind = ""
             if p.style.indentLeft > 0 && p.style.list == nil { ind += " w:left=\"\(Int(p.style.indentLeft * 20))\"" }
             if p.style.indentRight > 0 { ind += " w:right=\"\(Int(p.style.indentRight * 20))\"" }
@@ -928,11 +958,7 @@ enum DocxFormat {
             if let next = entry.next { out += "<w:next w:val=\"\(_esc(next))\"/>" }
             out += "<w:qFormat/><w:pPr>"
             if entry.paragraph.heading != nil { out += "<w:keepNext/>" }
-            var spacing = ""
-            if entry.paragraph.spaceBefore > 0 { spacing += " w:before=\"\(Int(entry.paragraph.spaceBefore * 20))\"" }
-            spacing += " w:after=\"\(Int(entry.paragraph.spaceAfter * 20))\""
-            if entry.paragraph.lineSpacing != 1.0 { spacing += " w:line=\"\(Int(entry.paragraph.lineSpacing * 240))\" w:lineRule=\"auto\"" }
-            out += "<w:spacing\(spacing)/>"
+            out += _spacingXML(entry.paragraph)
             var ind = ""
             if entry.paragraph.indentLeft > 0 { ind += " w:left=\"\(Int(entry.paragraph.indentLeft * 20))\"" }
             if entry.paragraph.indentRight > 0 { ind += " w:right=\"\(Int(entry.paragraph.indentRight * 20))\"" }

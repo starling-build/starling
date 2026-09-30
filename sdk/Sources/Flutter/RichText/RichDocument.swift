@@ -78,10 +78,14 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var indentLeft: Double = 0
     public var indentRight: Double = 0
     public var firstLineIndent: Double = 0
+    /// Points. What the paragraph says, and what the layout draws: 0 is
+    /// no space, not "the default" — a file's Heading 1 that says 0 after
+    /// gets 0 after. The defaults are Word's Normal (8pt after, 1.08
+    /// lines); readers fill in what the file's own defaults say.
     public var spaceBefore: Double = 0
-    public var spaceAfter: Double = 0
+    public var spaceAfter: Double = 8
     /// Multiple of the font's natural line height (1.0 = single).
-    public var lineSpacing: Double = 1.0
+    public var lineSpacing: Double = 1.08
     public var list: ListKind? = nil
     public var listLevel: Int = 0
     /// Which list this paragraph belongs to, for numbering: Word's numId.
@@ -101,8 +105,8 @@ public struct RichParagraphStyle: Hashable, Sendable {
 
     public init(alignment: ParagraphAlignment = .left, indentLeft: Double = 0,
                 indentRight: Double = 0, firstLineIndent: Double = 0,
-                spaceBefore: Double = 0, spaceAfter: Double = 0,
-                lineSpacing: Double = 1.0, list: ListKind? = nil, listLevel: Int = 0,
+                spaceBefore: Double = 0, spaceAfter: Double = 8,
+                lineSpacing: Double = 1.08, list: ListKind? = nil, listLevel: Int = 0,
                 listId: String? = nil, heading: Int? = nil, named: String? = nil,
                 pageBreakBefore: Bool = false) {
         self.alignment = alignment
@@ -120,7 +124,11 @@ public struct RichParagraphStyle: Hashable, Sendable {
         self.pageBreakBefore = pageBreakBefore
     }
 
+    /// Word's Normal: 8pt after, 1.08 lines.
     public static let body = RichParagraphStyle()
+    /// A table cell's, as Word's Table Grid sets it: no space after,
+    /// single lines. Readers take a file's own table style over this.
+    public static let cell = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
 }
 
 // MARK: - Named styles

@@ -1281,7 +1281,7 @@ public final class RichDocumentController: ChangeNotifier {
             var cells: [RichParagraph] = []
             for r in 0 ..< rows {
                 for c in 0 ..< columns {
-                    var p = RichParagraph()
+                    var p = RichParagraph(style: .cell)
                     p.cell = CellRef(table: id, row: r, column: c)
                     cells.append(p)
                 }
@@ -1524,7 +1524,7 @@ public final class RichDocumentController: ChangeNotifier {
                 // An empty cell in each row the span covered, at the column's
                 // place in that row.
                 for r in (here.row + 1) ..< (here.row + here.rowSpan) {
-                    var e = RichParagraph()
+                    var e = RichParagraph(style: .cell)
                     e.cell = CellRef(table: here.table, row: r, column: here.column, span: here.span)
                     let at = out.firstIndex { q in
                         guard let c = q.cell else { return false }
@@ -1550,7 +1550,7 @@ public final class RichDocumentController: ChangeNotifier {
                     let isLast = k + 1 >= paras.count || !(paras[k + 1].cell?.sameCell(as: here) ?? false)
                     if isLast {
                         for s in 1 ..< here.span {
-                            var e = RichParagraph()
+                            var e = RichParagraph(style: .cell)
                             e.cell = CellRef(table: here.table, row: here.row, column: here.column + s, rowSpan: here.rowSpan)
                             out.append(e)
                         }
@@ -1586,7 +1586,7 @@ public final class RichDocumentController: ChangeNotifier {
             var out: [RichParagraph] = []
             var lastRow = -1
             func addCell(_ row: Int) {
-                var p = RichParagraph()
+                var p = RichParagraph(style: .cell)
                 p.cell = CellRef(table: here.table, row: row, column: at)
                 if row == here.row { caretAt = out.count }
                 out.append(p)
@@ -1690,7 +1690,7 @@ public final class RichDocumentController: ChangeNotifier {
             func addRow() {
                 caretAt = out.count
                 for c in 0 ..< columns {
-                    var p = RichParagraph()
+                    var p = RichParagraph(style: .cell)
                     p.cell = CellRef(table: here.table, row: newRow, column: c)
                     out.append(p)
                 }

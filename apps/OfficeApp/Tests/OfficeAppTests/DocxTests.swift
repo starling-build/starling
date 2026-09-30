@@ -294,6 +294,19 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(doc.paragraphs[numbered[3]].text, "Cryptographic Boundary")
         // The file's Heading 1 is 16pt, not our 20; the sheet takes its word.
         XCTAssertEqual(doc.styles["Heading1"]?.char.fontSize, 16)
+        // And its spacing: Word's Heading 1 has 12pt before and NONE after
+        // (a 0 the model once read as "the default 8"); its body has the
+        // document defaults, 8pt after and 1.08 lines; a Table Grid cell
+        // has no space after and single lines.
+        XCTAssertEqual(doc.paragraphs[numbered[0]].style.spaceBefore, 12)
+        XCTAssertEqual(doc.paragraphs[numbered[0]].style.spaceAfter, 0)
+        let body = try XCTUnwrap(doc.paragraphs.first { $0.cell == nil && $0.style.heading == nil && $0.text.count > 200 })
+        XCTAssertEqual(body.style.spaceAfter, 8)
+        XCTAssertEqual(body.style.lineSpacing, 259.0 / 240.0, accuracy: 0.001)
+        let cell = try XCTUnwrap(doc.paragraphs.first { $0.text == "Operational Environment" })
+        XCTAssertNotNil(cell.cell)
+        XCTAssertEqual(cell.style.spaceAfter, 0)
+        XCTAssertEqual(cell.style.lineSpacing, 1.0)
         XCTAssertEqual(doc.styles["Title"]?.char.fontSize, 18)
         XCTAssertTrue(doc.paragraphs.contains { $0.image != nil })
         XCTAssertTrue(doc.isValid)
@@ -301,12 +314,10 @@ final class DocxTests: XCTestCase {
         let again = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: back.pageSetup ?? .letter))
         XCTAssertEqual(again.document.paragraphs.map(\.text), doc.paragraphs.map(\.text))
         XCTAssertEqual(RichListNumbering.labels(again.document), labels)
-        // With its spacing as laid out (an unset 0 reads back as the 8pt
-        // the writer spelled out): the writer once gave every cell
-        // paragraph the body's 8pt after, and the file came back four
-        // pages longer.
-        XCTAssertEqual(again.document.paragraphs.map { DocxFormat._effectiveSpaceAfter($0) },
-                       doc.paragraphs.map { DocxFormat._effectiveSpaceAfter($0) })
+        // With its spacing: the writer once gave every cell paragraph the
+        // body's 8pt after, and the file came back four pages longer.
+        XCTAssertEqual(again.document.paragraphs.map { $0.style.spaceAfter },
+                       doc.paragraphs.map { $0.style.spaceAfter })
         XCTAssertEqual(again.document.paragraphs.map { $0.style.lineSpacing },
                        doc.paragraphs.map { $0.style.lineSpacing })
     }

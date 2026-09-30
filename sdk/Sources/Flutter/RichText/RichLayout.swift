@@ -30,10 +30,6 @@ public final class RichTextTheme {
     /// Heading font sizes in points, index 0 = Heading 1.
     public var headingSizes: [Double]
     public var headingColor: Color?
-    /// Default spacing after a body paragraph, in points (Word: 8pt).
-    public var spaceAfter: Double
-    /// Default line spacing multiple (Word: 1.08; TextEdit: 1.0).
-    public var lineSpacing: Double
     /// Hanging indent per list level, in points.
     public var listIndent: Double
     /// Word's Show/Hide ¶: a pilcrow at every paragraph's end (¤ in a
@@ -54,7 +50,6 @@ public final class RichTextTheme {
                 pixelsPerPoint: Double = 96.0 / 72.0,
                 headingSizes: [Double] = [20, 16, 14, 12, 11, 11],
                 headingColor: Color? = Color(0xFF2F5496),
-                spaceAfter: Double = 8, lineSpacing: Double = 1.08,
                 listIndent: Double = 36) {
         self.fontFamily = fontFamily
         self.fontSize = fontSize
@@ -65,8 +60,6 @@ public final class RichTextTheme {
         self.pixelsPerPoint = pixelsPerPoint
         self.headingSizes = headingSizes
         self.headingColor = headingColor
-        self.spaceAfter = spaceAfter
-        self.lineSpacing = lineSpacing
         self.listIndent = listIndent
     }
 
@@ -98,7 +91,7 @@ public final class RichTextTheme {
             fontSize: style.script == .normal ? px : px * 0.65,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
-            height: paragraph.lineSpacing * lineSpacing,
+            height: paragraph.lineSpacing,
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             fontFamily: family
@@ -1062,9 +1055,7 @@ public final class RichLayout {
         // fractional line box leaves the previous line's descenders peeking
         // into the next page (and its ascenders shaved off the previous).
         let before = _px(style.spaceBefore).rounded()
-        let after = p.cell != nil
-            ? _px(style.spaceAfter)
-            : _px(style.spaceAfter > 0 ? style.spaceAfter : theme.spaceAfter)
+        let after = _px(style.spaceAfter)
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth

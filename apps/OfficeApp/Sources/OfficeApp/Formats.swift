@@ -407,9 +407,14 @@ enum MarkdownFormat {
 enum RtfFormat {
     // MARK: Reading
 
+    /// RTF's own paragraph defaults, what \pard restores: no space after,
+    /// single lines. Word's RTF spells its 8pt and 1.08 out (\sa160
+    /// \sl259\slmult1); TextEdit's means these.
+    static let plainParagraph = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+
     private struct State {
         var char = CharStyle()
-        var para = RichParagraphStyle.body
+        var para = RtfFormat.plainParagraph
         var skip = 0          // \ucN: UTF-16 units to skip after \uN
         var inList = false
     }
@@ -596,7 +601,7 @@ enum RtfFormat {
                 case "par": if destination == nil { endParagraph() } else { append(" ") }
                 case "line": append("\n")
                 case "tab": append("\t")
-                case "pard": state.para = .body; state.inList = false; currentList = nil; currentLevel = 0
+                case "pard": state.para = RtfFormat.plainParagraph; state.inList = false; currentList = nil; currentLevel = 0
                 case "plain": state.char = CharStyle()
                 case "b": state.char.bold = param != 0
                 case "i": state.char.italic = param != 0
@@ -621,7 +626,9 @@ enum RtfFormat {
                 case "sb": state.para.spaceBefore = Double(param ?? 0) / 20
                 case "sa": state.para.spaceAfter = Double(param ?? 0) / 20
                 case "sl":
-                    if let p = param, p > 0 { state.para.lineSpacing = max(0.5, Double(p) / 240) }
+                    // \sl0 and no \sl are single; a negative value is an
+                    // exact height, taken as the multiple it most nearly is.
+                    if let p = param, p != 0 { state.para.lineSpacing = max(0.5, Double(abs(p)) / 240) } else { state.para.lineSpacing = 1.0 }
                 case "ls", "pn", "pnlvl":
                     if currentList == nil { currentList = .bullet }
                 case "pnlvlblt": currentList = .bullet
@@ -739,8 +746,8 @@ enum RtfFormat {
             if fi != 0 { head += "\\fi\(fi)" }
             if p.style.indentRight != 0 { head += "\\ri\(Int(p.style.indentRight * 20))" }
             if p.style.spaceBefore != 0 { head += "\\sb\(Int(p.style.spaceBefore * 20))" }
-            head += "\\sa\(Int(DocxFormat._effectiveSpaceAfter(p) * 20))"
-            if p.style.lineSpacing != 1.0 { head += "\\sl\(Int(p.style.lineSpacing * 240))\\slmult1" }
+            head += "\\sa\(Int((p.style.spaceAfter * 20).rounded()))"
+            head += "\\sl\(Int((p.style.lineSpacing * 240).rounded()))\\slmult1"
             head += " "
             body += head + listPrefix
             var pos = 0
