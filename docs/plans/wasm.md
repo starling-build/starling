@@ -170,7 +170,8 @@ How it is put together, top down:
 
 ### Numbers
 
-- Release `app.wasm`: **11.6 MB**, 3.5 MB brotli (was 60 MB). The size
+- Release `app.wasm`: **11.9 MB**, 3.6 MB brotli (was 60 MB; 11.6 before
+  the office rebase). The size
   work and what it found is docs/plans/wasm-size.md; `build/web-app.sh
   --check` is the gate that keeps it there.
 - Debug `app.wasm`: ~107 MB, and it is what to run when something traps —
@@ -216,6 +217,47 @@ Done since the list was first written: keyboard (`starling_key`), Swift
 concurrency on the page's event loop (`FlutterWeb/WebExecutor.swift`),
 image decoding by the browser (`starling_host_decode_image` →
 `image_createFromTextureSource`), the `UInt32(toARGB32())` traps.
+
+**Office opens and saves files in the browser.** Open goes through the
+page's hidden `<input type=file>` (`starling_host_open_file` →
+`starling_file_opened`, `FlutterWeb/WebFiles.swift`), save and export
+through a Blob download (`starling_host_download`); Ctrl+O and Ctrl+S
+are the same keys as native. Verified on the 26-page Word fixture: open,
+type, save, and the download carries the edit and the document's own
+font names. (Reopening the saved file lays out as 30 pages, natively
+too: the docx writer loses paragraph-style fonts. A writer bug, not a
+web one.) Do not listen for the picker's `cancel` event: headless
+Chrome fires it at once, and it would consume the completion the
+`change` event owes.
+
+**Document fonts are Google Docs' model**, on every platform: the file
+keeps the name it came with (Times New Roman, Calibri, Consolas), and
+`OfficeFonts.substitute` draws it with a metric clone the app ships —
+Liberation, Carlito, Caladea — through the theme's `fontFamilyResolver`.
+The UI face is Selawik, the Fluent theme's default now, with the Fluent
+icon font and Selawik as glyph-fallback families on every web style
+(`!` entries in `fonts/manifest.json`).
+
+**The branch tracks `office`.** Rebased onto office f2b64a9 on
+2026-09-30, because the runtime callback table changed shape (bool
+`dispatch_key_data`, the outbound platform-message pair) and the native
+app crashed in `createRuntimeCallbacks` against the newer engine. The
+web stand-in header `CSkwasm/include/swift_runtime_callbacks.h` must
+mirror the engine's `flutter/lib/ui/swift/include/swift_runtime_callbacks.h`
+entry for entry — diff the two whenever the rebase touches it. What the
+rebase brought that the web could not take as written: the
+`STARLING_IME` text-input connection (JSON codec over legacy Foundation
+— off and fenced on WASI; the browser has no `flutter/textinput` plugin
+yet, see item 1 above), AutoSave/recovery copies and print (fenced: no
+files of ours in a tab), HTML paste (portable string spellings).
+
+Native verification without touching the sibling session's tree: point
+the manifests at the other checkout's engine —
+`E=~/dev/starling/starling-engine/engine/src/out/host_debug_arm64
+FLUTTER_SWIFT_ENGINE_OUT=$E STARLING_ENGINE_OUT=$E swift test
+--package-path apps/OfficeApp --scratch-path $PWD/.build-macos-office`,
+and `OfficeApp --convert in.docx out.pdf` for a rendering to compare
+with the browser's (`screencapture` needs a permission this shell lacks).
 
 ## Traps paid for
 
