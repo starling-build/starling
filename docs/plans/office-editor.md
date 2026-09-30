@@ -30,7 +30,10 @@ dropped word gets the space it needs, a cut leaves no double space and
 none before a full stop. Drags that start with a double or triple
 click grow by words or paragraphs. Font Color → More Colors… opens a
 strip with Word's theme grid (six tints and shades of ten hues), the
-ten standard colours and a hex field. First thing
+ten standard colours and a hex field. A second three-reviewer pass over
+this batch found 19 real bugs (merged cells breaking blocks, ranges
+merging cells into body text, a stale text drag hijacking the next
+gesture, library entries counting the wrong level…) — fixed in 62c1ca6c. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The
