@@ -52,20 +52,20 @@ final class ColorBar: StatelessWidget {
         return rows
     }()
 
-    static let standard: [Color] = [0xC00000, 0xFF0000, 0xFFC000, 0xFFFF00, 0x92D050,
-                                    0x00B050, 0x00B0F0, 0x0070C0, 0x002060, 0x7030A0].map { Color(Int(0xFF000000 | $0)) }
+    static let standard: [Color] = ([0xC00000, 0xFF0000, 0xFFC000, 0xFFFF00, 0x92D050,
+                                     0x00B050, 0x00B0F0, 0x0070C0, 0x002060, 0x7030A0] as [Int64]).map { Color(0xFF000000 | $0) }
 
     /// "#RRGGBB" or "RRGGBB" (also RGB shorthand), else nil.
     static func parse(_ text: String) -> Color? {
-        var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var s = text.trimmingWhitespace()
         if s.hasPrefix("#") { s.removeFirst() }
         if s.count == 3 { s = s.map { "\($0)\($0)" }.joined() }
         guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
-        return Color(Int(0xFF000000 | v))
+        return Color(Int64(0xFF000000 | UInt64(v)))
     }
 
     static func hex(_ color: Color) -> String {
-        String(format: "#%06X", UInt32(truncatingIfNeeded: color.value) & 0xFFFFFF)
+        String(printf: "#%06X", UInt32(truncatingIfNeeded: color.value) & 0xFFFFFF)
     }
 
     override func build(_ context: any BuildContext) -> Widget {

@@ -492,7 +492,7 @@ public final class RichEditableState: State<StatefulWidget> {
         Clipboard.getData(Clipboard.kTextPlain) { [weak self] data in
             guard let self, let text = data?.text, !text.isEmpty else { return }
             DispatchQueue.main.async {
-                self._controller.insertText(text.replacingOccurrences(of: "\r\n", with: "\n"))
+                self._controller.insertText(text.replacingAll("\r\n", with: "\n"))
             }
         }
     }

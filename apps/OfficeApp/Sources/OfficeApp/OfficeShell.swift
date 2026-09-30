@@ -615,7 +615,7 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self, let data, !data.isEmpty else { return }
             DispatchQueue.main.async {
                 if plain, let text = data.text {
-                    self.controller.insertText(text.replacingOccurrences(of: "\r\n", with: "\n"))
+                    self.controller.insertText(text.replacingAll("\r\n", with: "\n"))
                 } else {
                     self.controller.paste(data: data)
                 }
@@ -637,7 +637,7 @@ final class OfficeShellState: State<StatefulWidget> {
             let pos = c.selection.focus
             let text = c.document.paragraphs[pos.paragraph].text
             if let r = checker.misspelledRanges(in: text).first(where: { $0.lowerBound <= pos.offset && pos.offset <= $0.upperBound }) {
-                let word = (text as NSString).substring(with: NSRange(location: r.lowerBound, length: r.count))
+                let word = _utf16Slice(text, r)
                 let guesses = checker.suggestions(for: word).prefix(5)
                 if guesses.isEmpty {
                     items.append(MenuFlyoutItem(text: Text("(No Spelling Suggestions)"), onPressed: nil))
@@ -647,9 +647,8 @@ final class OfficeShellState: State<StatefulWidget> {
                         // The menu takes no focus, so the document may have
                         // changed under it: replace only the word still there.
                         guard pos.paragraph < c.document.paragraphs.count else { return }
-                        let now = c.document.paragraphs[pos.paragraph].text as NSString
-                        guard r.upperBound <= now.length,
-                              now.substring(with: NSRange(location: r.lowerBound, length: r.count)) == word else { return }
+                        let now = c.document.paragraphs[pos.paragraph].text
+                        guard r.upperBound <= now.utf16.count, _utf16Slice(now, r) == word else { return }
                         c.replaceText(in: pos.paragraph, r, with: g)
                         self?._flash("Corrected to “\(g)”")
                     }
@@ -928,4 +927,15 @@ final class OfficeShellState: State<StatefulWidget> {
             spellChecker: session.checkSpelling ? _spelling : nil
         )
     }
+}
+
+/// `text` between two UTF-16 offsets (the spell checker's ranges), as a
+/// String — `NSString.substring(with:)` without the legacy Foundation
+/// layer, which the browser build does not link.
+func _utf16Slice(_ text: String, _ r: Range<Int>) -> String {
+    let u = text.utf16
+    guard r.lowerBound >= 0, r.upperBound <= u.count else { return "" }
+    let a = u.index(u.startIndex, offsetBy: r.lowerBound)
+    let b = u.index(u.startIndex, offsetBy: r.upperBound)
+    return String(u[a ..< b]) ?? ""
 }

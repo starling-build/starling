@@ -935,7 +935,7 @@ public final class RichDocumentController: ChangeNotifier {
             }
         case " ":
             // "word--word " → "word—word ": the dash lands when the word after it ends.
-            if let dash = before.range(of: "--", options: .backwards),
+            if let dash = before.findRange(of: "--", backwards: true),
                !before[dash.upperBound...].isEmpty, before[dash.upperBound...].allSatisfy({ !$0.isWhitespace }),
                dash.lowerBound > before.startIndex, !before[before.index(before: dash.lowerBound)].isWhitespace {
                 let tail = String(before[dash.upperBound...])
@@ -2205,7 +2205,7 @@ public final class RichDocumentController: ChangeNotifier {
             edit {
                 if hasSelection { _deleteSelectionOps() }
                 var padded = text
-                if !text.contains("\n") {
+                if !text.containsSubstring("\n") {
                     let pad = _smartPad(text, at: selection.focus)
                     padded = (pad.before ? " " : "") + text + (pad.after ? " " : "")
                 }
