@@ -67,6 +67,24 @@ FLUTTER_SWIFT_BRIDGE_EXPORT bool LoadFontFromFile(const char* path,
 /// builder picks up the new fonts.
 FLUTTER_SWIFT_BRIDGE_EXPORT void ClearFontFamilyCache();
 
+/// Load ICU's common data (icudtl.dat) into THIS library's ICU.
+///
+/// On macOS the Swift bridge is a dylib of its own beside
+/// FlutterMacOS.framework, and it carries its own copies of Skia, skparagraph,
+/// fml and ICU. The framework initialises ICU from the project's icu_data_path
+/// when its shell starts — into the framework's copy. The bridge's copy, the
+/// one every paragraph a Swift app lays out actually goes through, never saw
+/// the data, so its break iterators failed to open and skparagraph fell back
+/// to breaking lines between characters: every wrapped paragraph on the Cocoa
+/// host broke mid-word, and Impeller aborted outright (which is why Swift
+/// mode forces Skia there). A host that links the bridge as a separate library
+/// calls this with the same path it hands the engine, before building any
+/// paragraph. Idempotent; a no-op where the bridge lives inside the engine
+/// library (Linux, Windows), because that ICU is the shell's and already has
+/// its data — the once-flag it shares with fml::icu makes the second call
+/// harmless. Returns false when the file cannot be read.
+FLUTTER_SWIFT_BRIDGE_EXPORT bool InitializeICU(const char* icu_data_path);
+
 }  // namespace flutter::swift_bridge
 
 #endif  // FLUTTER_SWIFT_FONT_COLLECTION_BRIDGE_H_

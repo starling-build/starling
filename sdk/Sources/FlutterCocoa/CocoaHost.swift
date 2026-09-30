@@ -46,6 +46,15 @@ public final class CocoaHost {
         let assets = assetsPath ?? (dataDir + "/flutter_assets")
         let icu = icuDataPath ?? (dataDir + "/icudtl.dat")
 
+        // The bridge dylib has its own ICU (see InitializeICU's header note):
+        // without this, every wrapped paragraph breaks mid-word, because its
+        // break iterators never got the data the framework loaded into ITS
+        // copy. Before the engine, so no paragraph is built first.
+        if !flutter.swift_bridge.InitializeICU(icu) {
+            FileHandle.standardError.write(
+                "[CocoaHost] could not load ICU data for the Swift bridge: \(icu)\n".data(using: .utf8)!)
+        }
+
         callbacks = UnsafeMutablePointer<SwiftRuntimeCallbacks>.allocate(capacity: 1)
         callbacks.initialize(to: createRuntimeCallbacks())
         guard let host = flcocoa_host_create(title, Int32(width), Int32(height),

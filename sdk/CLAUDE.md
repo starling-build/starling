@@ -57,6 +57,17 @@ separate `libswift_bridge.dylib`, and `--mac-cpu arm64` decides both the ABI
 and the output directory (`out/host_debug_arm64`). Full commands in the
 README's *Building → macOS*.
 
+**That separate dylib has its own ICU, and it starts empty.** The bridge
+statically links its own Skia, skparagraph, fml and ICU; the framework's
+shell loads `icudtl.dat` into the *framework's* ICU only. Until `CocoaHost`
+called `flutter.swift_bridge.InitializeICU(path)` (engine a6709b43770), every
+wrapped paragraph on macOS broke between characters, not words — a symptom
+that reads as a layout bug in whatever widget you are looking at, and cost
+an afternoon chasing `TextPainter` before the probe was a plain `Text`. A
+new host that links the bridge as its own library must make the same call
+before any paragraph is built; hosts whose bridge lives inside the engine
+library (GTK, DRM, Win32) need nothing.
+
 ## Widget composition: use the trailing-closure result builders
 
 `Sources/Flutter/Widgets/ResultBuilders.swift` gives every common container a

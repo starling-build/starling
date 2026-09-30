@@ -1,11 +1,24 @@
 # Office: a cross-platform document suite on the Starling SDK
 
-Status: **plan**, 2026-09-29. Branch `office` (cut from `main` at 97f3c72).
-Nothing built yet. Three directions from the user shape it: the app is
-**cross-platform and built on macOS first**, its UI is **Fluent**, and its
-layout **copies Microsoft Office**. Decisions marked **[decide]** need the
-user's call before Phase 0; everything else is a recommendation the plan
-already takes.
+Status: **Phase 0 done on macOS**, 2026-09-29, branch `office` (cut from
+`main` at 97f3c72). The editing stack is in `sdk/Sources/Flutter/RichText/`
+(model, controller with undo, incremental layout, `KeyChord`, the
+`RichEditable` widget; 19 model tests in `sdk/Tests/FlutterTests/RichText/`),
+and `apps/OfficeApp` hosts it under a `FluentApp` root on the Cocoa host
+with a placeholder formatting bar. Measured on this Mac at 2x with the
+200-page generated document (`OFFICE_DEMO_PAGES=200
+STARLING_RICHTEXT_PERF=1`): initial layout 200 ms once, then per keystroke
+45–100 µs layout and ~150 µs paint, drag-select repaints ≤ 230 µs. The
+DRM-shell half of the gate is still to run on the Linux box.
+
+Found on the way and fixed in the engine (a6709b43770): on macOS every
+Swift app's wrapped text broke mid-word, because `libswift_bridge.dylib`
+carries its own ICU that never received `icudtl.dat`; the bridge now
+exports `InitializeICU` and `CocoaHost` calls it. Three directions from
+the user shape the plan: the app is **cross-platform and built on macOS
+first**, its UI is **Fluent**, and its layout **copies Microsoft Office**.
+Decisions marked **[decide]** were taken with the plan's defaults (one
+package, `.docx`, Text Editor stays, name Office).
 
 ## Why
 
