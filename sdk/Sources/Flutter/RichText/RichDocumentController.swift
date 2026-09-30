@@ -707,6 +707,19 @@ public final class RichDocumentController: ChangeNotifier {
     /// The link under the caret or at the selection's start, if any.
     public var currentLink: String? { currentCharStyle.link }
 
+    /// ⇧⏎: a line break inside the paragraph, not a new paragraph.
+    public func insertLineBreak() {
+        edit(kind: .typing) {
+            if hasSelection { _deleteSelectionOps() }
+            let pos = selection.focus
+            let para = document.paragraphs[pos.paragraph]
+            guard !para.isImage else { return }
+            let style = typingStyle ?? para.style(at: pos.offset)
+            perform(.insertText(pos, "\n", [Run(length: 1, style: style)]))
+            _setCaret(RichPosition(paragraph: pos.paragraph, offset: pos.offset + 1))
+        }
+    }
+
     /// Re-lay out everything on the next frame: for a theme change the
     /// document itself does not record (dark mode, formatting marks).
     public func invalidateLayout() {
@@ -1220,32 +1233,25 @@ public final class RichDocumentController: ChangeNotifier {
         var caretAt: Int? = nil
         _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
             var out: [RichParagraph] = []
-            for var p in paras {
+            for (k, var p) in paras.enumerated() {
                 if var c = p.cell, c.sameCell(as: here) {
                     if caretAt == nil { caretAt = out.count }
                     c.span = 1
                     p.cell = c
                     out.append(p)
+                    // After the merged cell's last paragraph: the empty
+                    // cells it split into, whatever follows.
+                    let isLast = k + 1 >= paras.count || !(paras[k + 1].cell?.sameCell(as: here) ?? false)
+                    if isLast {
+                        for s in 1 ..< here.span {
+                            var e = RichParagraph()
+                            e.cell = CellRef(table: here.table, row: here.row, column: here.column + s, rowSpan: here.rowSpan)
+                            out.append(e)
+                        }
+                    }
                     continue
                 }
-                if let c = p.cell, c.row == here.row, c.column > here.column, out.last?.cell?.sameCell(as: here) == true {
-                    // Past the merged cell: the empty cells it split into.
-                    for k in 1 ..< here.span {
-                        var e = RichParagraph()
-                        e.cell = CellRef(table: here.table, row: here.row, column: here.column + k)
-                        out.append(e)
-                    }
-                    _ = c
-                }
                 out.append(p)
-            }
-            // A merged cell that ended its row: the empties go at the end.
-            if let last = out.last?.cell, last.sameCell(as: here) {
-                for k in 1 ..< here.span {
-                    var e = RichParagraph()
-                    e.cell = CellRef(table: here.table, row: here.row, column: here.column + k)
-                    out.append(e)
-                }
             }
             paras = out
         })
@@ -1268,6 +1274,8 @@ public final class RichDocumentController: ChangeNotifier {
         }
         var caretAt: Int? = nil
         let newWidths = widths
+        // One undo step for the cells and the widths (edits nest).
+        edit {
         _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
             var out: [RichParagraph] = []
             var lastRow = -1
@@ -1277,13 +1285,21 @@ public final class RichDocumentController: ChangeNotifier {
                 if row == here.row { caretAt = out.count }
                 out.append(p)
             }
+            // A straddling cell that also spans rows widens for all of them:
+            // the rows below its own get no new cell.
+            var covered: Set<Int> = []
+            for p in paras {
+                if let c = p.cell, c.column < at, c.column + c.span > at, c.rowSpan > 1 {
+                    for r in (c.row + 1) ..< (c.row + c.rowSpan) { covered.insert(r) }
+                }
+            }
             var rowInserted = false
             for var p in paras {
                 guard var c = p.cell else { out.append(p); continue }
                 if c.row != lastRow {
                     if lastRow >= 0, !rowInserted { addCell(lastRow) }
                     lastRow = c.row
-                    rowInserted = false
+                    rowInserted = covered.contains(c.row)
                 }
                 if c.column < at, c.column + c.span > at {
                     // A merged cell across the insertion point widens instead.
@@ -1298,7 +1314,10 @@ public final class RichDocumentController: ChangeNotifier {
             if lastRow >= 0, !rowInserted { addCell(lastRow) }
             paras = out
         })
-        if let w = newWidths { edit { perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: w)) } }
+        if let w = newWidths, w != document.tableColumns[here.table] {
+            perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: w))
+        }
+        }
     }
 
     /// Remove the caret's column; the last column removes the table.
@@ -1318,6 +1337,7 @@ public final class RichDocumentController: ChangeNotifier {
         }
         var caretAt: Int? = nil
         let newWidths = widths
+        edit {
         _rewriteTable(caret: { _ in caretAt }, rewrite: { paras in
             var out: [RichParagraph] = []
             for var p in paras {
@@ -1341,7 +1361,10 @@ public final class RichDocumentController: ChangeNotifier {
             caretAt = min(caretAt ?? 0, max(0, out.count - 1))
             paras = out
         })
-        edit { perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: newWidths)) }
+        if newWidths != document.tableColumns[here.table] {
+            perform(.setTableColumns(here.table, old: document.tableColumns[here.table], new: newWidths))
+        }
+        }
     }
 
     /// Remove the table the caret is in; the caret lands where it was.

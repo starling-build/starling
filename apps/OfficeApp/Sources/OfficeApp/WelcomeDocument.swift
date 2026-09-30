@@ -19,7 +19,7 @@ enum WelcomeDocument {
         ps.append(styled("A document editor built on the Starling SDK", "Subtitle"))
 
         var intro = RichParagraph(text: "This page is a document like any other: click anywhere and type. The Home tab has the usual formatting, Insert adds tables, pictures, links and page breaks, and the View tab opens a navigation pane built from the headings below.")
-        intro.applyStyle(67 ..< 71) { $0.bold = true }
+        intro.applyStyle(69 ..< 73) { $0.bold = true }   // "Home"
         ps.append(intro)
 
         ps.append(styled("Styles", "Heading1"))

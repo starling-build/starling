@@ -194,6 +194,7 @@ public struct RichStyleSheet: Hashable, Sendable {
         var s = entry.paragraph
         s.list = style.list
         s.listLevel = style.listLevel
+        s.listId = style.listId
         s.pageBreakBefore = style.pageBreakBefore
         s.heading = entry.paragraph.heading
         s.named = id == RichNamedStyle.normalId || entry.paragraph.heading != nil ? nil : id

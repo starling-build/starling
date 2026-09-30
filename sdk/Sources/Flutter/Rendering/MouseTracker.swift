@@ -209,7 +209,44 @@ public class MouseCursorManager {
         let next = cursorCandidates.first { $0.kind != nil } ?? fallbackMouseCursor
         if let current = _active[device], current === next { return }
         _active[device] = next
-        if let kind = next.kind { hostSetMouseCursor?(kind) }
+        guard let kind = next.kind else { return }
+        // Through the engine's own channel where messages travel, so the
+        // embedder's view keeps track of the cursor and restores it after a
+        // native panel or menu; the host hook is for embedders without it.
+        if PlatformDispatcher.instance.platformMessageSender != nil {
+            PlatformDispatcher.instance.sendPlatformMessage(
+                "flutter/mousecursor", Self._activateSystemCursor(device: device, kind: kind), nil)
+        } else {
+            hostSetMouseCursor?(kind)
+        }
+    }
+
+    /// `activateSystemCursor({device, kind})` in the standard method codec:
+    /// the method name as a string, then a map of the two arguments.
+    static func _activateSystemCursor(device: Int, kind: String) -> Data {
+        var out = Data()
+        func string(_ s: String) {
+            let bytes = Array(s.utf8)
+            out.append(0x07)
+            size(bytes.count)
+            out.append(contentsOf: bytes)
+        }
+        func size(_ n: Int) {
+            if n < 254 { out.append(UInt8(n)) }
+            else if n <= 0xFFFF { out.append(254); out.append(UInt8(n & 0xFF)); out.append(UInt8(n >> 8)) }
+            else { out.append(255); for k in 0 ..< 4 { out.append(UInt8((n >> (8 * k)) & 0xFF)) } }
+        }
+        func int32(_ v: Int32) {
+            out.append(0x03)
+            let u = UInt32(bitPattern: v)
+            for k in 0 ..< 4 { out.append(UInt8((u >> (8 * UInt32(k))) & 0xFF)) }
+        }
+        string("activateSystemCursor")
+        out.append(0x0D)   // map
+        size(2)
+        string("device"); int32(Int32(truncatingIfNeeded: device))
+        string("kind"); string(kind)
+        return out
     }
 }
 

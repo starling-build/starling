@@ -377,7 +377,8 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(cells(c), ["0,0:a", "0,1:", "0,2:b", "1,0:c", "1,1:", "1,2:d", "-"])
         XCTAssertEqual(c.document.tableColumns[id] ?? [], [100, 100, 300])
         XCTAssertEqual(c.caret, RichPosition(paragraph: 1, offset: 0))
-        c.undo(); c.undo()
+        // Cells and widths are one undo step.
+        c.undo()
         XCTAssertEqual(cells(c), ["0,0:a", "0,1:b", "1,0:c", "1,1:d", "-"])
         XCTAssertEqual(c.document.tableColumns[id] ?? [], [200, 300])
         // Delete column 1: its width goes to the neighbour.
@@ -499,6 +500,31 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(cells(c), ["0,0:a", "0,0:c", "0,1:d", "1,0:", "1,1:", "-"])
         XCTAssertEqual(c.document.paragraphs[0].cell?.rowSpan, 1)
         XCTAssertTrue(c.document.isValid)
+    }
+
+    func testReviewFixes() {
+        // Split Cell of a merged cell that ends its row but not the table.
+        let c = controller("")
+        c.insertTable(rows: 2, columns: 2)
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: true)
+        c.mergeCells()
+        // Both cells' paragraphs survive the merge, in order.
+        XCTAssertEqual(cells(c), ["0,0:", "0,0:", "1,0:", "1,1:", "-"])
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.splitCell()
+        XCTAssertEqual(cells(c), ["0,0:", "0,0:", "0,1:", "1,0:", "1,1:", "-"])
+        // A soft line break stays inside the paragraph.
+        let d = controller("ab")
+        d.moveTo(RichPosition(paragraph: 0, offset: 1), extend: false)
+        d.insertLineBreak()
+        XCTAssertEqual(d.document.paragraphs.map(\.text), ["a\nb"])
+        XCTAssertEqual(d.caret, RichPosition(paragraph: 0, offset: 2))
+        // Applying a style keeps the paragraph in its list.
+        var style = RichParagraphStyle(list: .numbered, listId: "L7")
+        RichStyleSheet.word.apply("Heading1", to: &style)
+        XCTAssertEqual(style.listId, "L7")
+        XCTAssertEqual(style.heading, 1)
     }
 
     private func cells(_ c: RichDocumentController) -> [String] {

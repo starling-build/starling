@@ -99,6 +99,19 @@ final class HtmlTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(HtmlFormat.parse(html))[0].cell?.span, 2)
     }
 
+    func testHtmlEntitiesNeverLoop() throws {
+        // A lone surrogate, an empty numeric entity, a bare ampersand, an
+        // unknown name: each stays literal, and the parser returns.
+        let html = "<p>&#xD83D; and &#; and x = &#foo; and AT&amp;T &copy; 5 &lt; 6 &unknown; &</p>"
+        let ps = try XCTUnwrap(HtmlFormat.parse(html))
+        XCTAssertEqual(ps[0].text, "&#xD83D; and &#; and x = &#foo; and AT&T \u{00A9} 5 < 6 &unknown; &")
+        // A list copied from Google Docs: items wrapped in <p> make no empty bullets.
+        let list = try XCTUnwrap(HtmlFormat.parse("<ul><li><p>one</p></li><li><p>two</p></li></ul><table><td>lonely</td></table>"))
+        XCTAssertEqual(list.map(\.text), ["one", "two", "lonely"])
+        XCTAssertEqual(list[0].style.list, .bullet)
+        XCTAssertEqual(list[2].cell?.row, 0)
+    }
+
     func testPastedPngBecomesAPicture() {
         let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
         XCTAssertEqual(ImageAttachment.pngPixelSize(png)?.width, 1)

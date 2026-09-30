@@ -56,6 +56,13 @@ public enum FlyoutPlacement {
 /// )
 /// ```
 public class FlyoutController {
+    deinit {
+        // A flyout open when its controller goes leaves a barrier nothing
+        // can dismiss; take both entries down with it.
+        _flyoutEntry?.remove(); _flyoutEntry?.dispose()
+        _barrierEntry?.remove(); _barrierEntry?.dispose()
+    }
+
 
     /// Creates a flyout controller.
     public init() {}
@@ -285,16 +292,18 @@ private class _FlyoutPositioner: StatelessWidget {
     }
 
     override func build(_ context: any BuildContext) -> Widget {
-        var target = Rect.zero
-        if let targetCtx = targetContext,
-           let box = targetCtx.findRenderObject() as? RenderBox, box.hasSize {
-            let overlayBox = Overlay.of(context).context?.findRenderObject() as? RenderBox
-            let origin = box.localToGlobal(Offset.zero, ancestor: overlayBox)
-            target = Rect.fromLTWH(origin.dx, origin.dy, box.size.width, box.size.height)
-        }
+        // The target's box is read when the popup is laid out, not now: a
+        // relayout without a rebuild (the window resizing) moves the
+        // button, and the popup must move with it.
+        let overlayBox = Overlay.of(context).context?.findRenderObject() as? RenderBox
+        let targetCtx = targetContext
         return CustomSingleChildLayout(
             delegate: _FlyoutLayoutDelegate(
-                target: target,
+                target: {
+                    guard let targetCtx, let box = targetCtx.findRenderObject() as? RenderBox, box.hasSize else { return Rect.zero }
+                    let origin = box.localToGlobal(Offset.zero, ancestor: overlayBox)
+                    return Rect.fromLTWH(origin.dx, origin.dy, box.size.width, box.size.height)
+                },
                 placement: placement,
                 additionalOffset: additionalOffset,
                 margin: margin),
@@ -306,12 +315,12 @@ private class _FlyoutPositioner: StatelessWidget {
 /// above when there is more room there, and keeps it `margin` inside the
 /// overlay.
 private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
-    let target: Rect
+    let target: () -> Rect
     let placement: FlyoutPlacement
     let additionalOffset: Double
     let margin: Double
 
-    init(target: Rect, placement: FlyoutPlacement, additionalOffset: Double, margin: Double) {
+    init(target: @escaping () -> Rect, placement: FlyoutPlacement, additionalOffset: Double, margin: Double) {
         self.target = target
         self.placement = placement
         self.additionalOffset = additionalOffset
@@ -326,6 +335,7 @@ private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
     }
 
     override func getPositionForChild(_ size: Size, _ childSize: Size) -> Offset {
+        let target = self.target()
         var resolved = placement
         if resolved == .auto {
             let below = size.height - target.bottom - additionalOffset - margin
@@ -354,8 +364,7 @@ private final class _FlyoutLayoutDelegate: SingleChildLayoutDelegate {
 
     override func shouldRelayout(_ oldDelegate: SingleChildLayoutDelegate) -> Bool {
         guard let old = oldDelegate as? _FlyoutLayoutDelegate else { return true }
-        return old.target != target || old.placement != placement
-            || old.additionalOffset != additionalOffset || old.margin != margin
+        return old.placement != placement || old.additionalOffset != additionalOffset || old.margin != margin
     }
 }
 

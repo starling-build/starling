@@ -24,6 +24,9 @@ struct ToolbarSummary: Equatable {
     var imageHeight = 0.0
     var imageHasNatural = false
     var inCell = false
+    /// The document revision: every edit changes it, so chrome that shows
+    /// a value the rest of the summary does not carry (a spinner) rebuilds.
+    var revision = 0
     var painting = false
     var list: ListKind? = nil
     var alignment: ParagraphAlignment = .left
@@ -116,6 +119,7 @@ final class OfficeSession {
         s.heading = ps.heading
         s.styleId = c.currentNamedStyleId
         s.inCell = c.isInCell
+        s.revision = c.revision
         s.painting = paintedStyle != nil
         if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
             s.imageIndex = i

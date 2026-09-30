@@ -214,17 +214,19 @@ enum DocxFormat {
                 }
                 // vMerge: "restart" opens a span in a column; a bare vMerge
                 // continues it, and that cell's (empty) content is dropped.
-                var openSpan: [Int: Int] = [:]   // column → paragraph index of the spanning cell
+                var openSpan: [Int: Range<Int>] = [:]   // column → the spanning cell's paragraphs
                 for (r, tr) in node.all("w:tr").enumerated() {
                     var column = 0
                     for tc in tr.all("w:tc") {
                         let tcPr = tc.first("w:tcPr")
                         let span = max(1, Int(tcPr?.first("w:gridSpan")?["w:val"] ?? "1") ?? 1)
+                        var restart = false
                         if let v = tcPr?.first("w:vMerge") {
                             if v["w:val"] == "restart" {
-                                openSpan[column] = paragraphs.count
-                            } else if let first = openSpan[column], first < paragraphs.count {
-                                paragraphs[first].cell?.rowSpan += 1
+                                restart = true
+                            } else if let range = openSpan[column], range.upperBound <= paragraphs.count {
+                                // Every paragraph of the cell carries the span.
+                                for k in range { paragraphs[k].cell?.rowSpan += 1 }
                                 column += span
                                 continue
                             }
@@ -235,6 +237,7 @@ enum DocxFormat {
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent) }
                         if paragraphs.count == before { emit(RichParagraph()) }
+                        if restart { openSpan[column] = before ..< paragraphs.count }
                         column += span
                     }
                 }

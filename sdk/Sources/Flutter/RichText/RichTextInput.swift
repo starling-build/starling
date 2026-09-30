@@ -141,7 +141,7 @@ public final class RichTextInputConnection {
     private func _apply(_ state: [String: Any]) {
         guard let text = state["text"] as? String else { return }
         let p = _controller.selection.focus.paragraph
-        guard p < _controller.document.paragraphs.count else { return }
+        guard p < _controller.document.paragraphs.count, !_controller.document.paragraphs[p].isImage else { return }
         let old = Array(_controller.document.paragraphs[p].text.utf16)
         let new = Array(text.utf16)
         var prefix = 0

@@ -434,8 +434,10 @@ public final class RichLayout {
         // (_topsValid only says the tops need recomputing; the ones above
         // the first change are still right, which is what makes the
         // restart possible.)
-        var from = min(_firstDirty ?? 0, _heights.count)
-        while from > 0, let c = _cells[from], let d = _cells[from - 1], c.table == d.table, c.row == d.row { from -= 1 }
+        var from = min(_firstDirty ?? 0, max(0, _heights.count - 1))
+        // Inside a table, restart at the table's first paragraph: a cell
+        // spanning rows above the change decides heights below it.
+        while from > 0, let c = _cells[from], let d = _cells[from - 1], c.table == d.table { from -= 1 }
         let settled = _lastDirty   // paragraphs above this may have moved
         if changed || !_topsValid {
             _placeBlocks(document, from: from, settled: settled)
@@ -516,7 +518,12 @@ public final class RichLayout {
     private func _placeBlocks(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max) {
         let n = _heights.count
         var i = min(start, n)
-        var y = i > 0 ? _rowTops[i] : 0.0
+        // Continue below the block before the restart, which is as it was;
+        // the restart index's own top may belong to a paragraph that moved.
+        var y = 0.0
+        if i > 0 {
+            if let c = _cells[i - 1] { y = c.rowTop + c.ownRowHeight } else { y = _tops[i - 1] + _heights[i - 1] }
+        }
         while i < n {
             // Past the last change, a block whose top is unchanged means
             // every block below is too (heights above it are the same).
@@ -676,6 +683,7 @@ public final class RichLayout {
                 var j = i
                 while j < count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
                 let rowBottom = c.rowTop + c.ownRowHeight
+                resumeCursor = nil   // a row restarts whole
                 if c.ownRowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
                 for k in i ..< j {
                     // A cell spanning rows paints through every row it covers.

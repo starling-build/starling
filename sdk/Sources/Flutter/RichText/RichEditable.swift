@@ -44,6 +44,9 @@ public final class RichEditable: StatefulWidget {
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
     public let onLinkActivate: ((String) -> Void)?
+    /// A pointer selection gesture ended (drag, double or triple click)
+    /// with a non-empty selection — when Word's Format Painter applies.
+    public let onSelectionGestureEnd: (() -> Void)?
 
     public init(key: (any Key)? = nil, controller: RichDocumentController,
                 theme: RichTextTheme = RichTextTheme(),
@@ -55,7 +58,8 @@ public final class RichEditable: StatefulWidget {
                 onPageInfo: ((Int, Int) -> Void)? = nil,
                 onShortcut: ((KeyData, KeyModifiers) -> Bool)? = nil,
                 onLinkHover: ((String?) -> Void)? = nil,
-                onLinkActivate: ((String) -> Void)? = nil) {
+                onLinkActivate: ((String) -> Void)? = nil,
+                onSelectionGestureEnd: (() -> Void)? = nil) {
         self.controller = controller
         self.theme = theme
         self.padding = padding
@@ -70,6 +74,7 @@ public final class RichEditable: StatefulWidget {
         self.onShortcut = onShortcut
         self.onLinkHover = onLinkHover
         self.onLinkActivate = onLinkActivate
+        self.onSelectionGestureEnd = onSelectionGestureEnd
         super.init(key: key)
     }
 
@@ -114,6 +119,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// A column-border drag: the table, the column whose right edge moves,
     /// the pointer's start x (points), and the widths at the start.
     private var _columnDrag: (table: String, column: Int, startX: Double, widths: [Double])? = nil
+    private var _columnDragWidths: [Double]? = nil
     private var _hoverColumnBorder = false
     static let handleSize = 8.0
     private var _clickStreak = 0
@@ -294,7 +300,11 @@ public final class RichEditableState: State<StatefulWidget> {
     // MARK: Keyboard
 
     private func _handleKey(_ keyData: KeyData) -> Bool {
-        if _chords.track(keyData) { return false }
+        if _chords.track(keyData) {
+            // A modifier alone: the pointer over a link changes shape with ⌘.
+            if _hoverLink != nil { setState {} }
+            return false
+        }
         guard keyData.type == .down || keyData.type == .repeat else { return false }
         let c = _controller!
         let shift = _chords.shift
@@ -344,7 +354,7 @@ public final class RichEditableState: State<StatefulWidget> {
             if _chords.word { c.deleteWordForward() } else { c.deleteForward() }
         case .enter:
             // ⇧⏎ is a line break inside the paragraph.
-            if shift { c.insertText("\n") } else { c.insertParagraphBreak() }
+            if shift { c.insertLineBreak() } else { c.insertParagraphBreak() }
         case .tab:
             if c.isInCell { c.moveToAdjacentCell(forward: !shift) }
             else if shift { c.indent(-1) } else if c.hasSelection { c.indent(1) } else { c.insertText("\t") }
@@ -469,6 +479,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
     private func _selectedImageBox() -> (index: Int, rect: Rect)? {
+        if _layout.width > 0 { _syncLayoutIfNeeded() }
         guard let i = _controller.selectedImageIndex, _layout.width > 0,
               let flow = _layout.imageRect(i), let canvas = _layout.canvasRects(flow).first else { return nil }
         var rect = Rect.fromLTWH(canvas.left + _originX, canvas.top + _w.padding.top - _scrollY,
@@ -504,6 +515,7 @@ public final class RichEditableState: State<StatefulWidget> {
     /// The link at a point in the editable, if the text there carries one.
     private func _link(at local: Offset) -> String? {
         guard _layout.width > 0, _layout.count > 0 else { return nil }
+        _syncLayoutIfNeeded()
         let pos = _layout.canvasPosition(at: _canvasPoint(local), _controller.document)
         let para = _controller.document.paragraphs[pos.paragraph]
         guard !para.isImage, pos.offset < para.length else { return nil }
@@ -575,9 +587,11 @@ public final class RichEditableState: State<StatefulWidget> {
         case 2:
             _dragging = false
             _controller.selectWord(at: pos)
+            if _controller.hasSelection { _w.onSelectionGestureEnd?() }
         default:
             _dragging = false
             _controller.selectParagraph(at: pos)
+            if _controller.hasSelection { _w.onSelectionGestureEnd?() }
         }
     }
 
@@ -596,6 +610,7 @@ public final class RichEditableState: State<StatefulWidget> {
             else { dx = min(dx, _layout.width / pt - w.reduce(0, +)) }
             w[k] += dx
             if hasNext { w[k + 1] -= dx }
+            _columnDragWidths = w
             _layout.previewColumns(drag.table, w, _controller.document)
             _repaint.notifyListeners()
             return
@@ -632,12 +647,21 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        let wasDragging = _dragging
         _dragging = false
+        if wasDragging, _controller.hasSelection { _w.onSelectionGestureEnd?() }
         if let drag = _columnDrag {
             _columnDrag = nil
-            let final = _layout.columnWidths(of: drag.table)
+            let final = _columnDragWidths
+            _columnDragWidths = nil
             _layout.previewColumns(drag.table, nil, _controller.document)
-            if let final, final != drag.widths { _controller.setTableColumnWidths(drag.table, final) }
+            if let final, final != drag.widths {
+                _controller.setTableColumnWidths(drag.table, final)
+            } else {
+                // No edit follows to re-lay the table out: do it now, or a
+                // hover before the next paint finds no painters.
+                _syncLayoutIfNeeded()
+            }
             _repaint.notifyListeners()
             return
         }
@@ -786,7 +810,12 @@ public final class RichEditableState: State<StatefulWidget> {
         else if _hoverOverImage { cursor = SystemMouseCursors.basic }
         else if _hoverLink != nil && _chords.primary { cursor = SystemMouseCursors.click }
         else { cursor = SystemMouseCursors.text }
-        return MouseRegion(cursor: cursor, child: Listener(
+        return MouseRegion(onExit: { [weak self] _ in
+            guard let self, self._hoverLink != nil || self._hoverHandle != nil || self._hoverOverImage || self._hoverColumnBorder else { return }
+            self._hoverLink = nil
+            self._w.onLinkHover?(nil)
+            self.setState { self._hoverHandle = nil; self._hoverOverImage = false; self._hoverColumnBorder = false }
+        }, cursor: cursor, child: Listener(
             onPointerDown: { [weak self] e in self?._pointerDown(e) },
             onPointerMove: { [weak self] e in self?._pointerMove(e) },
             onPointerUp: { [weak self] e in self?._pointerUp(e) },

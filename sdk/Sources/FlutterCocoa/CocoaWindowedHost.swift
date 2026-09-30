@@ -44,12 +44,17 @@ public enum CocoaWindowedHost {
             }
             // The standard print panel over the PDF the app rendered.
             hostPrintPDF = { path in
-                guard let doc = PDFDocument(url: URL(fileURLWithPath: path)),
-                      let op = doc.printOperation(for: NSPrintInfo.shared, scalingMode: .pageScaleNone, autoRotate: true)
-                else { return }
-                op.showsPrintPanel = true
-                op.showsProgressPanel = true
-                op.run()
+                // Off the gesture callback that asked: the panel runs a
+                // nested modal loop, and frames must not be delivered
+                // under a pointer handler still on the stack.
+                DispatchQueue.main.async {
+                    guard let doc = PDFDocument(url: URL(fileURLWithPath: path)),
+                          let op = doc.printOperation(for: NSPrintInfo.shared, scalingMode: .pageScaleNone, autoRotate: true)
+                    else { return }
+                    op.showsPrintPanel = true
+                    op.showsProgressPanel = true
+                    op.run()
+                }
             }
             h.mountWidget(root)
             h.run()

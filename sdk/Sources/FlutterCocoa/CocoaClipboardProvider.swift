@@ -47,12 +47,14 @@ public final class CocoaClipboardProvider: ClipboardProvider {
         if data.rtf != nil { types.append(.rtf) }
         if data.html != nil { types.append(.html) }
         if data.png != nil { types.append(.png) }
-        types.append(.string)
+        let text = data.text.flatMap { $0.isEmpty && data.png != nil ? nil : $0 }
+        if text != nil { types.append(.string) }
         pb.declareTypes(types, owner: nil)
         if let rtf = data.rtf { pb.setData(Data(rtf.utf8), forType: .rtf) }
         if let html = data.html { pb.setData(Data(html.utf8), forType: .html) }
         if let png = data.png { pb.setData(png, forType: .png) }
-        pb.setString(data.text ?? "", forType: .string)
+        // A picture alone publishes no string, or TextEdit would paste "".
+        if let text { pb.setString(text, forType: .string) }
     }
 
     /// What is on the pasteboard, in every flavour we read. A picture

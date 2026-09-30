@@ -47,7 +47,10 @@ enum HtmlFormat {
             text = ""; runs = []; open = false
         }
         func startBlock(_ s: RichParagraphStyle) {
-            flush()
+            // An item or cell just opened with nothing in it yet takes the
+            // inner block's style instead of leaving an empty paragraph
+            // behind (Google Docs and GitHub copy lists as <li><p>…).
+            if !(open && text.isEmpty && runs.isEmpty) { flush() }
             style = s
             if let kind = listStack.last { style.list = kind; style.listLevel = max(0, listStack.count - 1) }
         }
@@ -115,7 +118,10 @@ enum HtmlFormat {
                     flush()
                     if table != nil { table!.row += 1; table!.col = -1 }
                 case "td", "th":
-                    if table != nil { table!.col += 1 }
+                    if table != nil {
+                        if table!.row < 0 { table!.row = 0; table!.col = -1 }   // a cell with no <tr>
+                        table!.col += 1
+                    }
                     startBlock(.body)
                     if name == "th" { char.bold = true }
                     open = true
@@ -284,21 +290,53 @@ enum HtmlFormat {
         return nil
     }
 
+    private static let _named: [String: String] = [
+        "amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": "\u{00A0}",
+        "copy": "\u{00A9}", "reg": "\u{00AE}", "trade": "\u{2122}", "hellip": "\u{2026}",
+        "mdash": "\u{2014}", "ndash": "\u{2013}", "lsquo": "\u{2018}", "rsquo": "\u{2019}",
+        "ldquo": "\u{201C}", "rdquo": "\u{201D}", "bull": "\u{2022}", "middot": "\u{00B7}",
+    ]
+
+    /// Entities, in one pass: a named or numeric one becomes its character,
+    /// anything that does not decode stays as written. Never revisits text,
+    /// so no input can loop it.
     private static func _unescape(_ s: String) -> String {
         guard s.contains("&") else { return s }
-        var out = s
-        for (e, r) in [("&nbsp;", "\u{00A0}"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'"), ("&apos;", "'")] {
-            out = out.replacingOccurrences(of: e, with: r)
+        var out = ""
+        var i = s.startIndex
+        while i < s.endIndex {
+            let ch = s[i]
+            guard ch == "&" else { out.append(ch); i = s.index(after: i); continue }
+            // Up to 10 characters of entity body, ended by ';'.
+            var j = s.index(after: i)
+            var body = ""
+            var closed = false
+            while j < s.endIndex, body.count < 10 {
+                let c = s[j]
+                if c == ";" { closed = true; break }
+                if !(c.isLetter || c.isNumber || c == "#") { break }
+                body.append(c)
+                j = s.index(after: j)
+            }
+            var decoded: String? = nil
+            if closed, !body.isEmpty {
+                if body.hasPrefix("#") {
+                    let digits = body.dropFirst()
+                    let value = digits.hasPrefix("x") || digits.hasPrefix("X") ? Int(digits.dropFirst(), radix: 16) : Int(digits)
+                    if let v = value, let scalar = UnicodeScalar(v) { decoded = String(Character(scalar)) }
+                } else {
+                    decoded = _named[body]
+                }
+            }
+            if let decoded {
+                out += decoded
+                i = s.index(after: j)
+            } else {
+                out.append(ch)
+                i = s.index(after: i)
+            }
         }
-        // Numeric entities.
-        while let amp = out.range(of: "&#") {
-            guard let semi = out[amp.upperBound...].firstIndex(of: ";") else { break }
-            let body = out[amp.upperBound ..< semi]
-            let value = body.hasPrefix("x") || body.hasPrefix("X") ? Int(body.dropFirst(), radix: 16) : Int(body)
-            guard let v = value, let scalar = UnicodeScalar(v) else { out.replaceSubrange(amp, with: "&#;"); continue }
-            out.replaceSubrange(amp.lowerBound ... semi, with: String(Character(scalar)))
-        }
-        return out.replacingOccurrences(of: "&amp;", with: "&")
+        return out
     }
 
     // MARK: Writing

@@ -44,6 +44,9 @@ final class OfficeShellState: State<StatefulWidget> {
     private let _linkText = TextEditingController()
     private var _linkHover: String? = nil
     private var _autosaveGeneration = 0
+    /// Set when the open document came from a recovery copy: AutoSave then
+    /// refreshes only the copy until the user saves for real.
+    private var _recovered = false
     private let _headerText = TextEditingController()
     private let _footerText = TextEditingController()
 
@@ -61,6 +64,14 @@ final class OfficeShellState: State<StatefulWidget> {
             controller.load(DemoDocument.make(pages: pages))
         } else if let path = (widget as! OfficeShell).initialPath {
             _open(path)
+        } else if FileManager.default.fileExists(atPath: _recoveryPath(for: nil)),
+                  let opened = try? OfficeFormats.read(_recoveryPath(for: nil)) {
+            // Last time ended with an unsaved untitled document.
+            controller.load(opened.document)
+            _recovered = true
+            _savedRevision = controller.revision - 1
+            session.dirty = true
+            _flash("Restored an unsaved document — Save to keep it")
         } else {
             controller.load(WelcomeDocument.make())
         }
@@ -73,13 +84,6 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             let s = self.session.summarize()
             let dirty = self.controller.revision != self._savedRevision
-            // Format Painter: the next selection takes the picked-up style.
-            if let painted = self.session.paintedStyle, s.hasSelection, !self.session.summary.hasSelection {
-                self.session.paintedStyle = nil
-                self.controller.applyCharStyle { $0 = painted }
-                self._flash("Painted")
-                return
-            }
             if dirty { self._scheduleAutosave() }
             if s != self.session.summary || dirty != self.session.dirty {
                 self.setState {
@@ -140,6 +144,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 self._flash("Format Painter off")
             } else {
                 self.session.paintedStyle = self.controller.currentCharStyle
+                self.session.paintedStyle?.link = nil
                 self._flash("Format Painter: select the text to paint")
             }
             self.setState { self.session.summary = self.session.summarize() }
@@ -242,20 +247,24 @@ final class OfficeShellState: State<StatefulWidget> {
         let gen = _autosaveGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in
             guard let self, self._autosaveGeneration == gen, self.session.dirty else { return }
-            if self.session.autoSave, let path = self.session.path {
+            // AutoSave writes the file itself — never a recovered document,
+            // whose on-disk file the user has not yet chosen to replace.
+            if self.session.autoSave, !self._recovered, let path = self.session.path {
                 do {
                     try OfficeFormats.write(self.controller.document, to: path, pageSetup: self.session.pageSetup)
                     self._savedRevision = self.controller.revision
                     try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
                     self.setState { self.session.dirty = false }
+                    return
                 } catch {
                     self._flash("AutoSave could not write: \(error)")
+                    // Fall through: at least the recovery copy.
                 }
-                return
             }
             let recovery = self._recoveryPath(for: self.session.path)
-            try? DocxFormat.write(self.controller.document, pageSetup: self.session.pageSetup)
-                .write(to: URL(fileURLWithPath: recovery))
+            if let data = try? DocxFormat.write(self.controller.document, pageSetup: self.session.pageSetup) {
+                try? data.write(to: URL(fileURLWithPath: recovery), options: .atomic)
+            }
         }
     }
 
@@ -274,6 +283,8 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _new() {
         var blank = RichDocument()
         blank.styles = OfficeStyles.sheet
+        _autosaveGeneration += 1
+        _recovered = false
         controller.load(blank)
         session.path = nil
         _savedRevision = controller.revision
@@ -286,10 +297,20 @@ final class OfficeShellState: State<StatefulWidget> {
 
     private func _open(_ path: String) {
         do {
-            let recovery = _recoveryIfNewer(than: path)
-            let opened = try OfficeFormats.read(recovery ?? path)
+            _autosaveGeneration += 1
+            var recovery = _recoveryIfNewer(than: path)
+            var opened: OpenedDocument
+            if let r = recovery, let fromCopy = try? OfficeFormats.read(r) {
+                opened = fromCopy
+            } else {
+                // A copy that does not read (a crash mid-write) never blocks the file.
+                if let r = recovery { try? FileManager.default.removeItem(atPath: r) }
+                recovery = nil
+                opened = try OfficeFormats.read(path)
+            }
             controller.load(opened.document)
             session.path = path
+            _recovered = recovery != nil
             // A recovered document is unsaved by definition.
             _savedRevision = recovery == nil ? controller.revision : controller.revision - 1
             _remember(path)
@@ -319,8 +340,14 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _saveTo(_ path: String) {
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
-            try? FileManager.default.removeItem(atPath: _recoveryPath(for: path))
-            try? FileManager.default.removeItem(atPath: _recoveryPath(for: nil))
+            // The recovery copies this document may have left: under its
+            // new name, its old name, and the untitled slot if it had no name.
+            let fm = FileManager.default
+            try? fm.removeItem(atPath: _recoveryPath(for: path))
+            if let old = session.path, old != path { try? fm.removeItem(atPath: _recoveryPath(for: old)) }
+            if session.path == nil { try? fm.removeItem(atPath: _recoveryPath(for: nil)) }
+            _recovered = false
+            _autosaveGeneration += 1
             session.path = path
             _savedRevision = controller.revision
             _remember(path)
@@ -495,6 +522,8 @@ final class OfficeShellState: State<StatefulWidget> {
                 c.setHeading(key.logical == 0x30 ? nil : Int(key.logical - 0x30))
                 return true
             }
+            // ⌘⇧8 Show/Hide ¶ (a digit, so not a letter).
+            if mods.contains(.shift), key.logical == 0x38 || key.logical == 0x2A { session.onToggleMarks?(); return true }
             // ⌘= / ⌘- / ⌘0 zoom; ⌘] / ⌘[ grow and shrink the font.
             if key.logical == 0x3D || key.logical == 0x2B { session.onZoom?(session.zoom + 0.1); return true }
             if key.logical == 0x2D { session.onZoom?(session.zoom - 0.1); return true }
@@ -514,7 +543,6 @@ final class OfficeShellState: State<StatefulWidget> {
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
         case "k": _openLink()
-        case "8": if mods.contains(.shift) { session.onToggleMarks?() } else { return false }
         // Word's alignment keys; Export lives in Backstage.
         case "e": c.setAlignment(.center)
         case "l": c.setAlignment(.left)
@@ -635,6 +663,18 @@ final class OfficeShellState: State<StatefulWidget> {
             onLinkHover: { [weak self] link in
                 guard let self, self._linkHover != link else { return }
                 self.setState { self._linkHover = link }
+            },
+            // Format Painter applies when a selection gesture ends, as Word does.
+            onSelectionGestureEnd: { [weak self] in
+                guard let self, let painted = self.session.paintedStyle else { return }
+                self.session.paintedStyle = nil
+                self.controller.applyCharStyle { style in
+                    let link = style.link
+                    style = painted
+                    style.link = link   // formatting travels, the hyperlink stays
+                }
+                self._flash("Painted")
+                self.setState { self.session.summary = self.session.summarize() }
             }
         )
     }
