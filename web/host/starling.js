@@ -141,13 +141,42 @@ const SKWASM_FALLBACK_FAMILY = 'Roboto';
 const SOFT_LINE_BREAK = 0;
 const HARD_LINE_BREAK = 100;
 
-export async function startStarling({ canvas, app, skwasmBase, fonts = [] }) {
+// Wraps a fetch so that `onProgress(loaded, total)` sees the bytes go by,
+// without giving up streaming compilation: the body is re-wrapped, the
+// headers (application/wasm among them) kept. `total` is what the server
+// said, which for a precompressed response is the compressed size — the
+// bar still ends at 100%.
+async function fetchWithProgress(url, onProgress) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`starling: ${url}: ${response.status}`);
+  if (!onProgress || !response.body) return response;
+  const total = Number(response.headers.get('Content-Length')) || 0;
+  let loaded = 0;
+  const counted = response.body.pipeThrough(new TransformStream({
+    transform(chunk, controller) {
+      loaded += chunk.byteLength;
+      onProgress(loaded, total);
+      controller.enqueue(chunk);
+    },
+  }));
+  return new Response(counted, { headers: response.headers, status: response.status });
+}
+
+export async function startStarling({ canvas, app, skwasmBase, fonts = [], onProgress }) {
   // --- skwasm, single-threaded. Threads need a cross-origin-isolated page
   // (COOP/COEP headers); without them skwasm renders on the main thread,
   // which is also what Flutter does on an ordinary page.
   const skwasmUrl = new URL(`${skwasmBase}skwasm.js`, location.href).href;
+  // Both modules download at once; progress is the sum.
+  const progress = { app: [0, 0], skwasm: [0, 0] };
+  const report = (which) => (loaded, total) => {
+    progress[which] = [loaded, total];
+    if (onProgress) {
+      onProgress(progress.app[0] + progress.skwasm[0], progress.app[1] + progress.skwasm[1]);
+    }
+  };
   const skwasmModule = WebAssembly.compileStreaming(
-    fetch(new URL(`${skwasmBase}skwasm.wasm`, location.href)));
+    fetchWithProgress(new URL(`${skwasmBase}skwasm.wasm`, location.href), report('skwasm')));
   const factory = (await import(skwasmUrl)).default;
   const skwasm = await factory({
     skwasmSingleThreaded: true,
@@ -240,7 +269,8 @@ export async function startStarling({ canvas, app, skwasmBase, fonts = [] }) {
   };
   host.now = () => performance.now();
 
-  const { instance } = await WebAssembly.instantiateStreaming(fetch(app), {
+  const { instance } = await WebAssembly.instantiateStreaming(
+    fetchWithProgress(app, report('app')), {
     wasi_snapshot_preview1: makeWasi(() => swift.memory),
     skwasm: sk,
     starling: host,

@@ -126,6 +126,15 @@ if [ ! -s "$CACHE/skwasm.wasm" ] || [ ! -s "$CACHE/skwasm.js" ]; then
 fi
 install -m 644 "$CACHE/skwasm.js" "$CACHE/skwasm.wasm" "$STAGE/skwasm/"
 
+# Precompressed, for a server that sends them (build/tools/web-serve.py
+# does; so does any CDN). brotli is the one worth installing: a third
+# smaller than gzip on this module. gzip is always there.
+for f in "$STAGE/app.wasm" "$STAGE/skwasm/skwasm.wasm"; do
+    rm -f "$f.br" "$f.gz"
+    if command -v brotli >/dev/null; then brotli -q 9 -o "$f.br" "$f"; fi
+    gzip -9 -k -f "$f"
+done
+
 echo "staged  $STAGE  ($CONFIG, $SWIFT_SDK; skwasm ${SKWASM_REV:0:11})"
 if [ "$CHECK" = 1 ]; then
     # A --check without a build has no fresh why-extract; say so rather
@@ -138,10 +147,11 @@ else
     python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm"
 fi
 python3 "$REPO/build/tools/wasm-size.py" "$STAGE/skwasm/skwasm.wasm" | head -1
+for f in "$STAGE/app.wasm.br" "$STAGE/app.wasm.gz"; do
+    [ -f "$f" ] && printf "  %7.2f MB  %s\n" "$(echo "$(wc -c < "$f") / 1000000" | bc -l)" "$(basename "$f")"
+done
 
 if [ "$SERVE" = 1 ]; then
     echo "serving http://localhost:$PORT/  (ctrl-c to stop)"
-    # Python's server has known .wasm as application/wasm since 3.8, which
-    # compileStreaming insists on.
-    exec python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$STAGE"
+    exec python3 "$REPO/build/tools/web-serve.py" "$STAGE" "$PORT"
 fi

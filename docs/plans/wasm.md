@@ -170,35 +170,32 @@ How it is put together, top down:
 
 ### Numbers
 
-- Release `app.wasm`: **60 MB** stripped (88 MB before `--strip-all`).
-  37 MB of it is DATA: `import Foundation` pulls in `FoundationInternationalization`,
-  which carries ICU's data (`lib_FoundationICU.a`, 40 MB). 22 MB is code.
-  The framework's 89 `import Foundation`s mostly want `FoundationEssentials`;
-  routing them there, and `String(format:)`, `NSRegularExpression` and
-  `DateFormatter` elsewhere, is the size work.
-- Debug `app.wasm`: 107 MB, and it is what to run when something traps —
+- Release `app.wasm`: **11.6 MB**, 3.5 MB brotli (was 60 MB). The size
+  work and what it found is docs/plans/wasm-size.md; `build/web-app.sh
+  --check` is the gate that keeps it there.
+- Debug `app.wasm`: ~107 MB, and it is what to run when something traps —
   the name section turns `unreachable` into a Swift stack trace.
-- Debug build of the whole stack from clean: ~6 min. Release: ~2 min.
+- Debug build of the whole stack from clean: ~6 min. Release: ~2 min plus
+  10 s of wasm-opt.
 
 ### Not done, in the order it will matter
 
-1. **Size**, above.
-2. **Keyboard and text input**: no `starling_key` export yet; `KeyData`
+1. **Keyboard and text input**: no `starling_key` export yet; `KeyData`
    packets from DOM `keydown`/`keyup`, then an IME strategy (a hidden
    `<input>`, as Flutter web does).
-3. **Images**: the light skwasm build has no codecs. Encoded images need the
+2. **Images**: the light skwasm build has no codecs. Encoded images need the
    page to decode (`createImageBitmap`) and `image_createFromTextureSource`;
    `Codec.swift` says exactly what host function it wants.
-4. **Fonts by request**: today the page lists them up front. The framework
+3. **Fonts by request**: today the page lists them up front. The framework
    could ask for a family it meets (`starling_host_load_font`) the way
    Flutter web's font manifest works.
-5. **Text in Firefox and Safari**: the line-break fallback in `starling.js`
+4. **Text in Firefox and Safari**: the line-break fallback in `starling.js`
    is wrong for CJK; the heavy skwasm build (ICU inside) is the fix.
-6. **Semantics**: a DOM/ARIA tree. `Semantics.swift` drops everything.
-7. **Async**: nothing drives Swift concurrency's executor. `Task {}` in the
+5. **Semantics**: a DOM/ARIA tree. `Semantics.swift` drops everything.
+6. **Async**: nothing drives Swift concurrency's executor. `Task {}` in the
    image-decode paths will not run until a JavaScriptKit-style event-loop
    executor is installed.
-8. The 4 `UInt32(color.toARGB32())` sites in `Painting.swift`/`Text.swift`
+7. The 4 `UInt32(color.toARGB32())` sites in `Painting.swift`/`Text.swift`
    trap on wasm32 for opaque colours if reached (they should be
    `truncatingIfNeeded`).
 

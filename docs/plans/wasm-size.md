@@ -1,7 +1,8 @@
 # The web module's size — plan
 
-Status: plan, 2026-09-29. Not started. Follows docs/plans/wasm.md, where
-CounterApp runs in a browser at 60 MB.
+Status: **done, 2026-09-29**, the same day it was written: 60 MB → 11.6 MB
+raw, 3.5 MB brotli. What was planned, what was measured and what turned out
+differently are all below; "Where it landed" has the numbers.
 
 ## What the 60 MB is
 
@@ -52,6 +53,56 @@ For scale: Flutter's own web build is skwasm (3.5 MB raw, ~1 MB gzip, which
 we also ship) plus 1–2 MB of compiled Dart. We will not reach that with
 Foundation in the module; ≤ 4 MB compressed for the framework is a page that
 loads in a second or two on a normal connection, and is the goal.
+
+## Where it landed
+
+| | raw | gzip | brotli |
+|---|---|---|---|
+| before | 60.0 MB | 20.0 MB | |
+| phase 1: legacy Foundation off the link | 20.3 MB | 6.0 MB | |
+| phase 2: `-Osize` + `wasm-opt -Oz` | **11.6 MB** | 4.2 MB | **3.5 MB** |
+
+Code by module in the final build (`wasm-size.py --by-module`, before
+wasm-opt): Swift stdlib 4.8 MB, the framework 3.8, FoundationEssentials
+2.5, the regex engine 1.2, `_FoundationCollections` 0.7, C++ 0.7, the bridge
+0.5, CupertinoIcons 0.4. wasm-opt then takes 40% off the lot.
+
+What differed from the plan:
+
+- **Removing the references was not enough.** With every NS-layer call
+  gone, `libFoundation.a` was still linked and ICU with it: the linker
+  takes a generic specialization (`Dictionary<String,_>.find`) from the
+  first archive that defines it, and `-lFoundation` precedes
+  `-lFoundationEssentials` on the autolink line. Reordering is not
+  possible from a manifest, so the legacy libraries are kept off the link
+  with `-disable-autolink-library` (in `sdk/Package.swift`), and the gate
+  proves nothing wanted them.
+- **The archives are WMO buckets.** `libFoundationEssentials.a(Bundle+Stub.swift.obj)`
+  contains no Bundle code in particular; symbols are spread across
+  objects by the whole-module build. So "which member pulled what" is
+  noise, and the 2.5 MB of Essentials that survives `--gc-sections` is
+  kept alive by protocol conformance records, which the Swift runtime
+  enumerates and the linker therefore retains, and which point at type
+  descriptors, witness tables, methods. `-conditional-runtime-records`
+  exists for this and does nothing on wasm (measured: identical bytes).
+  LTO cannot help either — the archives are not bitcode (measured: 0.1 MB
+  for a 50 s link). The Essentials code stays until Essentials goes,
+  which means `Data`, `Date` and `ProcessInfo` go, and that is not this
+  plan.
+- **Shadowing an imported extension method is not shadowing.** A
+  module-local `String(format:_: CVarArg...)` was *ambiguous* with
+  Foundation's, and so was any fixed arity above one; only the
+  one-argument form outranks the variadic. The framework's calls all pass
+  one argument (the two that did not were split), so it holds — and
+  `contains(_: String)` never won at all and became `containsSubstring`.
+  Top-level types (`Timer`, `RunLoop`, `FileHandle`, `NSLock`) shadow
+  cleanly.
+- **`JSONDecoder` is 3 MB** (it parses ISO-8601 dates, which brings
+  Calendar, which brings the regex engine); the one use, the shader-bundle
+  JSON, has a forty-line parser of its own now.
+- **wasm-opt was the biggest single lever after ICU**: 15.1 → 9.0 MB of
+  code in ten seconds. `-Osize` was worth 1.8 MB. Both are in
+  `build/web-app.sh`, wasm-opt optionally (`brew install binaryen`).
 
 ## Phase 0 — a gate, before any fix (½ day)
 

@@ -7,10 +7,21 @@
 <style>
   html, body { margin: 0; height: 100%; background: #101418; }
   canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  /* The loading bar: a blank page for the seconds the module takes to
+     arrive reads as broken. Removed once the app has drawn. */
+  #loading {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: #101418; color: #b0bec5; font: 14px system-ui, sans-serif;
+    transition: opacity 0.3s; pointer-events: none;
+  }
+  #loading .bar { width: 240px; height: 3px; background: #263238; border-radius: 2px; margin-top: 12px; overflow: hidden; }
+  #loading .bar div { height: 100%; width: 0; background: #4fc3f7; transition: width 0.1s; }
+  #loading.done { opacity: 0; }
 </style>
 </head>
 <body>
 <canvas id="starling"></canvas>
+<div id="loading"><div><div id="loading-text">Loading…</div><div class="bar"><div id="loading-fill"></div></div></div></div>
 <script type="module">
   // A trap inside a frame or an event handler surfaces here, not in the
   // promise below; without the stack it is only 'unreachable'.
@@ -27,7 +38,21 @@
       { url: 'fonts/DejaVuSans.ttf', families: ['DejaVu Sans'] },
       { url: 'fonts/CupertinoIcons.ttf', families: ['CupertinoIcons'] },
     ],
-  }).then(() => { document.title = 'Starling — running'; })
+    onProgress(loaded, total) {
+      const mb = (n) => (n / 1e6).toFixed(1);
+      document.getElementById('loading-text').textContent =
+        total ? `Loading… ${mb(loaded)} of ${mb(total)} MB` : `Loading… ${mb(loaded)} MB`;
+      if (total) document.getElementById('loading-fill').style.width = `${100 * loaded / total}%`;
+    },
+  }).then(() => {
+    document.title = 'Starling — running';
+    const loading = document.getElementById('loading');
+    // The first frame is on screen a beat after start returns.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      loading.classList.add('done');
+      setTimeout(() => loading.remove(), 400);
+    }));
+  })
     .catch((error) => {
       console.error(String(error.stack || error));
       document.title = 'Starling — failed';
