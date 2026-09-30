@@ -27,6 +27,8 @@ public enum RichChange: Equatable, Sendable {
     case removed(at: Int, count: Int)
     /// Everything: a new document was loaded.
     case all
+    /// A list's level formats changed: every label is stale.
+    case lists
 }
 
 // MARK: - Edit operations
@@ -52,6 +54,8 @@ public enum EditOp: Equatable, Sendable {
     case setTableColumns(String, old: [Double]?, new: [Double]?)
     /// One entry of the style sheet, replaced (every paragraph re-lays out).
     case setStyleEntry(old: RichNamedStyle, new: RichNamedStyle)
+    /// One level's format of one list (nil: the level's default).
+    case setListFormat(String, level: Int, old: ListLevelFormat?, new: ListLevelFormat?)
 
     /// Apply to `doc`, appending the invalidation to `changes`, and return
     /// the inverse.
@@ -124,6 +128,14 @@ public enum EditOp: Equatable, Sendable {
             doc.styles[new.id] = new
             changes.append(.all)
             return .setStyleEntry(old: new, new: old)
+        case .setListFormat(let id, let level, let old, let new):
+            var formats = doc.listFormats[id] ?? [:]
+            formats[level] = new
+            doc.listFormats[id] = formats.isEmpty ? nil : formats
+            // The label's width is part of each item's layout.
+            for i in doc.paragraphs.indices where doc.paragraphs[i].style.listId == id { changes.append(.changed(i)) }
+            changes.append(.lists)
+            return .setListFormat(id, level: level, old: new, new: old)
         }
     }
 }
@@ -1696,6 +1708,67 @@ public final class RichDocumentController: ChangeNotifier {
     public func toggleList(_ kind: ListKind) {
         let allOn = document.paragraphIndices(in: selection).allSatisfy { document.paragraphs[$0].style.list == kind }
         applyParagraphStyle { $0.list = allOn ? nil : kind }
+    }
+
+    /// The Numbering or Bullets library: make the selected paragraphs a
+    /// list of the format's kind and give their level that format. Items
+    /// with no list id first get one, together with the run of anonymous
+    /// items they number with, so the whole list changes as in Word.
+    public func setListFormat(_ format: ListLevelFormat) {
+        let kind: ListKind = format.format == .bullet ? .bullet : .numbered
+        edit {
+            let indices = document.paragraphIndices(in: selection)
+            for i in indices where document.paragraphs[i].style.list != kind {
+                let old = document.paragraphs[i].style
+                var new = old
+                new.list = kind
+                perform(.setParagraphStyle(i, old: old, new: new))
+            }
+            var targets: [(String, Int)] = []
+            for i in indices {
+                if document.paragraphs[i].style.listId == nil { _assignListId(around: i) }
+                let st = document.paragraphs[i].style
+                let t = (st.listId!, st.listLevel)
+                if !targets.contains(where: { $0 == t }) { targets.append(t) }
+            }
+            for (id, level) in targets {
+                let old = document.listFormats[id]?[level]
+                if old != format { perform(.setListFormat(id, level: level, old: old, new: format)) }
+            }
+        }
+    }
+
+    /// The format the caret's list level shows, for the ribbon's check
+    /// marks: nil outside a list.
+    public var currentListFormat: ListLevelFormat? {
+        let st = document.paragraphs[selection.focus.paragraph].style
+        guard let kind = st.list else { return nil }
+        if let id = st.listId, let f = document.listFormats[id]?[st.listLevel] { return f }
+        return kind == .bullet ? ListLevelFormat(text: ListLevelFormat.defaultBullet(st.listLevel), format: .bullet)
+                               : .plain(st.listLevel)
+    }
+
+    /// Give paragraph `i`'s anonymous list run — the adjacent items of the
+    /// same kind with no id — a fresh id.
+    private func _assignListId(around i: Int) {
+        guard let kind = document.paragraphs[i].style.list else { return }
+        func anonymous(_ k: Int) -> Bool {
+            let s = document.paragraphs[k].style
+            return s.list == kind && s.listId == nil
+        }
+        var lo = i, hi = i
+        while lo > 0, anonymous(lo - 1) { lo -= 1 }
+        while hi + 1 < document.paragraphs.count, anonymous(hi + 1) { hi += 1 }
+        let used = Set(document.paragraphs.compactMap(\.style.listId)).union(document.listFormats.keys)
+        var n = 1
+        while used.contains("list\(n)") { n += 1 }
+        let id = "list\(n)"
+        for k in lo ... hi {
+            let old = document.paragraphs[k].style
+            var new = old
+            new.listId = id
+            perform(.setParagraphStyle(k, old: old, new: new))
+        }
     }
 
     public func indent(_ delta: Int) {

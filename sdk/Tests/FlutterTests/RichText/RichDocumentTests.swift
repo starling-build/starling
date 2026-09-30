@@ -543,6 +543,33 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "")
     }
 
+    func testListLibraryAssignsIdsAndFormats() {
+        let c = controller("a", "b", "c", "x", "d")
+        // An anonymous numbered run of three, then a body line, then one more.
+        for i in [0, 1, 2, 4] {
+            c.moveTo(RichPosition(paragraph: i, offset: 0), extend: false)
+            c.toggleList(.numbered)
+        }
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.setListFormat(ListLevelFormat(text: "%1)", format: .lowerLetter))
+        // The whole run got one id and the format; the separate item did not.
+        let ids = c.document.paragraphs.map(\.style.listId)
+        XCTAssertNotNil(ids[0]); XCTAssertEqual(ids[0], ids[1]); XCTAssertEqual(ids[1], ids[2])
+        XCTAssertNil(ids[3]); XCTAssertNil(ids[4])
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["a)", "b)", "c)", nil, "1."])
+        XCTAssertEqual(c.currentListFormat?.sample(2), "b)")
+        // One undo step takes it all back.
+        c.undo()
+        XCTAssertEqual(RichListNumbering.labels(c.document), ["1.", "2.", "3.", nil, "1."])
+        XCTAssertNil(c.document.paragraphs[0].style.listId)
+        // A bullet from the library turns the item into a bullet with that glyph.
+        c.moveTo(RichPosition(paragraph: 4, offset: 0), extend: false)
+        c.setListFormat(ListLevelFormat(text: "\u{2713}", format: .bullet))
+        XCTAssertEqual(c.document.paragraphs[4].style.list, .bullet)
+        XCTAssertEqual(RichListNumbering.labels(c.document)[4], "\u{2713}")
+        XCTAssertEqual(ListLevelFormat.numberingLibrary[4].sample(4), "iv.")
+    }
+
     func testDragAndDropMovesSelection() {
         let c = controller("one two three")
         c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),

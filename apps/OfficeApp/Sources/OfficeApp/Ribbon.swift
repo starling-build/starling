@@ -178,7 +178,7 @@ final class Ribbon: StatelessWidget {
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
         let currentSize = session.effectiveFontSize
         let fontRow1 = Chrome.row([
-            SizedBox(width: 166, height: nil, child: ComboBox<String>(
+            SizedBox(width: 152, height: nil, child: ComboBox<String>(
                 value: session.effectiveFontFamily,
                 items: OfficeFonts.families.map { f in
                     ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
@@ -223,7 +223,9 @@ final class Ribbon: StatelessWidget {
         }
         let paraRow1 = Chrome.row([
             Chrome.toggle(FluentSystemIcons.bulletList, "Bullets", s.list == .bullet, fluent) { c.toggleList(.bullet) },
+            _listLibrary("Bullet Library", ListLevelFormat.bulletLibrary, c, fluent),
             Chrome.toggle(FluentSystemIcons.numberList, "Numbering", s.list == .numbered, fluent) { c.toggleList(.numbered) },
+            _listLibrary("Numbering Library", ListLevelFormat.numberingLibrary, c, fluent),
             Chrome.gap(2),
             Chrome.icon(FluentSystemIcons.indentDecrease, "Decrease Indent", fluent) { c.indent(-1) },
             Chrome.icon(FluentSystemIcons.indentIncrease, "Increase Indent", fluent) { c.indent(1) },
@@ -283,10 +285,10 @@ final class Ribbon: StatelessWidget {
                             action: @escaping () -> Void) -> Widget {
         let look = _preview(entry, fluent, cap: 18, onAccent: on)
         return Padding(padding: EdgeInsets(left: 0, top: 0, right: 4, bottom: 0),
-                child: SizedBox(width: 76, height: 56, child: ToggleButton(
+                child: SizedBox(width: 73, height: 56, child: ToggleButton(
                     checked: on, onChanged: { _ in action() },
                     child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
-                        Text(entry.id == RichNamedStyle.normalId ? "AaBbCc" : "AaBb", style: look),
+                        Text("AaBb", style: look),
                         Chrome.vgap(2),
                         Text(entry.name, style: fluent.typography.caption?.copyWith(
                             color: on ? fluent.resources.textOnAccentFillColorPrimary : nil),
@@ -355,6 +357,18 @@ final class Ribbon: StatelessWidget {
 
     /// Insert → Table: preset sizes, then the row commands and Delete
     /// Table, which light up inside a table.
+    /// The chevron beside Bullets or Numbering: Word's library of formats,
+    /// each previewed as its first three items.
+    private func _listLibrary(_ tip: String, _ library: [ListLevelFormat],
+                              _ c: RichDocumentController, _ fluent: FluentThemeData) -> Widget {
+        let current = c.currentListFormat
+        let items: [MenuFlyoutItemBase] = library.map { f in
+            let preview = f.format == .bullet ? "\(f.text)  \(f.text)  \(f.text)" : "\(f.sample(1))  \(f.sample(2))  \(f.sample(3))"
+            return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
+        }
+        return Tooltip(message: tip, child: _SplitChevron(items: items))
+    }
+
     private func _tableMenu(_ fluent: FluentThemeData) -> Widget {
         let c = session.controller
         let inCell = c.isInCell
@@ -552,5 +566,30 @@ final class Ribbon: StatelessWidget {
                 Chrome.vgap(4),
                 Text(label, style: fluent.typography.caption?.copyWith(color: color)),
             ])))
+    }
+}
+
+/// The narrow half of a split button: a 13px strip with a chevron that
+/// opens a menu, so a library sits beside its toggle without the width
+/// of a whole DropDownButton.
+private final class _SplitChevron: StatefulWidget {
+    let items: [MenuFlyoutItemBase]
+    init(items: [MenuFlyoutItemBase]) { self.items = items; super.init(key: nil) }
+    override func createState() -> State<StatefulWidget> { _SplitChevronState() }
+}
+
+private final class _SplitChevronState: State<StatefulWidget> {
+    private let _flyout = FlyoutController()
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let w = widget as! _SplitChevron
+        let fluent = FluentTheme.of(context)
+        return FlyoutTarget(controller: _flyout, child: GestureDetector(
+            onTap: { [weak self] in
+                guard let self else { return }
+                self._flyout.showFlyout(builder: { _ in MenuFlyout(items: w.items) }, placement: .bottom)
+            },
+            child: SizedBox(width: 13, height: nil, child: Center(child: Text(
+                "\u{25BC}", style: TextStyle(color: fluent.resources.textFillColorSecondary, fontSize: 8))))))
     }
 }

@@ -142,7 +142,24 @@ enum DocxFormat {
                     let ilvl = Int(lvl["w:ilvl"] ?? "0") ?? 0
                     let fmt = lvl.first("w:numFmt")?["w:val"] ?? "decimal"
                     levels[ilvl] = fmt == "bullet" ? .bullet : .numbered
-                    if fmt != "bullet" {
+                    if fmt == "bullet" {
+                        // Word's stock bullets are Symbol/Wingdings private-use
+                        // glyphs; map the common ones, else a plain bullet.
+                        if let raw = lvl.first("w:lvlText")?["w:val"], let ch = raw.unicodeScalars.first {
+                            let glyph: String
+                            switch ch.value {
+                            case 0xF0B7, 0x2022: glyph = "\u{2022}"
+                            case 0xF06F, 0x006F: glyph = "\u{25E6}"
+                            case 0xF0A7, 0x25AA: glyph = "\u{25AA}"
+                            case 0xF0D8, 0x27A2: glyph = "\u{27A2}"
+                            case 0xF0FC, 0x2713: glyph = "\u{2713}"
+                            case 0xF076, 0x2756: glyph = "\u{2756}"
+                            case 0xE000 ... 0xF8FF: glyph = ListLevelFormat.defaultBullet(ilvl)
+                            default: glyph = raw
+                            }
+                            formats[ilvl] = ListLevelFormat(text: glyph, format: .bullet)
+                        }
+                    } else {
                         let number: ListNumberFormat
                         switch fmt {
                         case "lowerLetter": number = .lowerLetter
@@ -935,7 +952,8 @@ enum DocxFormat {
             for i in 0 ..< 9 {
                 let left = 720 * (i + 1)
                 if kinds[numId] == .bullet {
-                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\(bullets[i % 3])\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
+                    let glyph = formats[numId]?[i].flatMap { $0.format == .bullet ? $0.text : nil } ?? bullets[i % 3]
+                    levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"bullet\"/><w:lvlText w:val=\"\(_esc(glyph))\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
                 } else {
                     let f = formats[numId]?[i] ?? .plain(i)
                     let fmt: String
@@ -945,6 +963,7 @@ enum DocxFormat {
                     case .upperLetter: fmt = "upperLetter"
                     case .lowerRoman: fmt = "lowerRoman"
                     case .upperRoman: fmt = "upperRoman"
+                    case .bullet: fmt = "bullet"
                     }
                     levels += "<w:lvl w:ilvl=\"\(i)\"><w:start w:val=\"1\"/><w:numFmt w:val=\"\(fmt)\"/><w:lvlText w:val=\"\(_esc(f.text))\"/><w:lvlJc w:val=\"left\"/><w:pPr><w:ind w:left=\"\(left)\" w:hanging=\"360\"/></w:pPr></w:lvl>"
                 }

@@ -318,6 +318,8 @@ public final class RichLayout {
             case .all:
                 invalidateAll()
                 _resize(paragraphCount)
+            case .lists:
+                _listValid = false
             case .changed(let i):
                 if i < _painters.count {
                     _painters[i]?.dispose()

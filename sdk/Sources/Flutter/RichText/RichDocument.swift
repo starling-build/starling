@@ -337,10 +337,13 @@ public struct CellRef: Hashable, Sendable {
 
 public enum ListNumberFormat: Hashable, Sendable {
     case decimal, lowerLetter, upperLetter, lowerRoman, upperRoman
+    /// A bullet: the level's `text` is the glyph itself, no counter.
+    case bullet
 
     public func string(_ n: Int) -> String {
         switch self {
         case .decimal: return String(n)
+        case .bullet: return ""
         case .lowerLetter, .upperLetter:
             guard n >= 1 else { return String(n) }
             let scalar = (self == .lowerLetter ? 97 : 65) + (n - 1) % 26
@@ -370,6 +373,37 @@ public struct ListLevelFormat: Hashable, Sendable {
     }
 
     public static func plain(_ level: Int) -> ListLevelFormat { ListLevelFormat(text: "%\(level + 1).") }
+
+    /// The bullet a level shows when its list names none.
+    public static func defaultBullet(_ level: Int) -> String { level % 2 == 0 ? "\u{2022}" : "\u{25E6}" }
+
+    /// Word's numbering library, in its order.
+    public static let numberingLibrary: [ListLevelFormat] = [
+        ListLevelFormat(text: "%1.", format: .decimal),
+        ListLevelFormat(text: "%1)", format: .decimal),
+        ListLevelFormat(text: "%1.", format: .lowerLetter),
+        ListLevelFormat(text: "%1)", format: .lowerLetter),
+        ListLevelFormat(text: "%1.", format: .lowerRoman),
+        ListLevelFormat(text: "%1.", format: .upperLetter),
+        ListLevelFormat(text: "%1.", format: .upperRoman),
+    ]
+
+    /// Word's bullet library.
+    public static let bulletLibrary: [ListLevelFormat] = [
+        "\u{2022}", "\u{25E6}", "\u{25AA}", "\u{2013}", "\u{27A2}", "\u{2713}", "\u{2756}",
+    ].map { ListLevelFormat(text: $0, format: .bullet) }
+
+    /// What the level shows for item `n` at level `level`, as the ribbon
+    /// previews it: "1.", "a)", "•".
+    public func sample(_ n: Int = 1) -> String {
+        if format == .bullet { return text }
+        var out = ""
+        var chars = text.makeIterator()
+        while let ch = chars.next() {
+            if ch == "%", let d = chars.next(), Int(String(d)) != nil { out += format.string(n) } else { out.append(ch) }
+        }
+        return out
+    }
 }
 
 /// The label of every list paragraph, computed over the whole document:
@@ -389,7 +423,8 @@ public enum RichListNumbering {
             }
             let lvl = min(max(0, s.listLevel), 8)
             if kind == .bullet {
-                out[i] = lvl % 2 == 0 ? "\u{2022}" : "\u{25E6}"
+                let chosen = s.listId.flatMap { document.listFormats[$0]?[lvl] }
+                out[i] = chosen?.format == .bullet ? chosen!.text : ListLevelFormat.defaultBullet(lvl)
                 if s.listId == nil { counters[anonymous] = nil }
                 continue
             }

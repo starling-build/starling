@@ -242,6 +242,20 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(RichListNumbering.labels(back.document), ["I)", "II)", nil, "II.1", "1.", "2."])
     }
 
+    func testDocxBulletGlyphsRoundTrip() throws {
+        var doc = RichDocument(plainText: "check\narrow")
+        for i in 0 ... 1 {
+            doc.paragraphs[i].style.list = .bullet
+            doc.paragraphs[i].style.listId = "B"
+        }
+        doc.listFormats["B"] = [0: ListLevelFormat(text: "\u{2713}", format: .bullet)]
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
+        XCTAssertEqual(RichListNumbering.labels(back.document), ["\u{2713}", "\u{2713}"])
+        // Word's own Symbol-font bullet (private-use U+F0B7) reads as a bullet.
+        let f = try XCTUnwrap(ListLevelFormat.bulletLibrary.first)
+        XCTAssertEqual(f.text, "\u{2022}")
+    }
+
     func testDocxWrittenByWord() throws {
         // A real Microsoft Word document: BoringCrypto's FIPS security
         // policy (Google; "may be freely reproduced and distributed in its
