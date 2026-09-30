@@ -48,6 +48,7 @@ final class OfficeSession {
     var pageSetup = PageSetup.letter
     var viewMode = ViewMode.printLayout
     var showRuler = true
+    var showNavigation = false
     var pageInfo = (page: 1, count: 1)
 
     var path: String? = nil
@@ -60,6 +61,7 @@ final class OfficeSession {
     var onZoom: ((Double) -> Void)?
     var onViewMode: ((ViewMode) -> Void)?
     var onToggleRuler: (() -> Void)?
+    var onToggleNavigation: (() -> Void)?
     var onPageSetup: ((PageSetup) -> Void)?
     var onBackstage: ((Bool) -> Void)?
     var onNew: (() -> Void)?

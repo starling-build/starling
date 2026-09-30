@@ -225,6 +225,13 @@ public final class RichEditableState: State<StatefulWidget> {
         let top = c.top + _w.padding.top
         let bottom = c.bottom + _w.padding.top
         let margin = 8.0
+        let placement = _controller.pendingReveal
+        _controller.pendingReveal = .visible
+        if placement == .top {
+            _scrollY = max(0, top - margin)
+            _clampScroll()
+            return
+        }
         if top < _scrollY + margin {
             _scrollY = max(0, top - margin)
         } else if bottom > _scrollY + _viewport.height - margin {

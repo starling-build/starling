@@ -1,7 +1,7 @@
 # Office: a cross-platform document suite on the Starling SDK
 
-Status: **Phase 2 in progress on macOS** (Writer: docx, PDF, pictures,
-headers/footers, tables, named styles done), 2026-09-29, branch `office`
+Status: **Phase 2 feature list done on macOS** (Writer: docx, PDF, pictures,
+headers/footers, tables, named styles, navigation pane), 2026-09-29, branch `office`
 (cut from `main` at 97f3c72). What exists:
 
 - `sdk/Sources/Flutter/RichText/` — the editing stack: model, controller
@@ -80,6 +80,13 @@ back (Word's numbering 1–6 as the fallback); Markdown maps Quote to `> `
 and Code to a fence, and Title/Subtitle/Caption are plain text there. Not
 yet: modifying a style, "update to match selection", themed fonts/colours
 from `theme1.xml`.
+
+**Navigation pane** (View → Show): the outline — Title and Heading 1–3,
+nested — with the heading the caret is under highlighted; a click moves
+the caret there and the editable scrolls it into view. That closes the
+Phase 2 feature list; what Phase 2 still owes is `.docx` testing against
+files from Word, Google Docs and LibreOffice (python-docx is the only
+outside writer checked so far) and the Text Editor catalog change.
 
 Open, noted: a Fluent menu item whose text style is exactly 14pt draws
 stretched letter spacing (13 and 13.6 are fine; the same 14pt Heading 3

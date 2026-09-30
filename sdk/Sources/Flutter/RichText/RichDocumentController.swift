@@ -1043,6 +1043,18 @@ public final class RichDocumentController: ChangeNotifier {
         selection = RichSelection(anchor: .start, focus: document.endPosition)
     }
 
+    /// Where the editable scrolls the caret on the next change: into view
+    /// (the default, and what every edit wants) or to the top of the
+    /// viewport (a navigation pane jump). Consumed by the editable.
+    public enum RevealPlacement { case visible, top }
+    public var pendingReveal: RevealPlacement = .visible
+
+    /// Move the caret and ask the editable to place it.
+    public func moveTo(_ p: RichPosition, reveal: RevealPlacement) {
+        pendingReveal = reveal
+        moveTo(p, extend: false)
+    }
+
     public func moveTo(_ p: RichPosition, extend: Bool) {
         let p = document.clamped(p)
         selection = extend ? RichSelection(anchor: selection.anchor, focus: p)

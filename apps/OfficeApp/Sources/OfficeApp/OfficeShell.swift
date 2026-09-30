@@ -98,6 +98,10 @@ final class OfficeShellState: State<StatefulWidget> {
             guard let self else { return }
             self.setState { self.session.showRuler.toggle() }
         }
+        session.onToggleNavigation = { [weak self] in
+            guard let self else { return }
+            self.setState { self.session.showNavigation.toggle() }
+        }
         session.onPageSetup = { [weak self] p in
             guard let self else { return }
             self.setState { self.session.pageSetup = p }
@@ -386,12 +390,21 @@ final class OfficeShellState: State<StatefulWidget> {
                                           },
                                           onClose: { [weak self] in self?.setState { self?._headerFooterOpen = false } }))
         }
+        // The document column: ruler over the pages, beside the navigation
+        // pane when it is open.
+        var pages: [Widget] = []
         if session.showRuler && session.viewMode == .printLayout {
-            column.append(Ruler(setup: session.pageSetup, zoom: session.zoom,
-                                pixelsPerPoint: session.theme.pixelsPerPoint, sidePadding: 24,
-                                indentLeft: controller.currentParagraphStyle.indentLeft))
+            pages.append(Ruler(setup: session.pageSetup, zoom: session.zoom,
+                               pixelsPerPoint: session.theme.pixelsPerPoint, sidePadding: 24,
+                               indentLeft: controller.currentParagraphStyle.indentLeft))
         }
-        column.append(Expanded(child: _pageArea(fluent)))
+        pages.append(Expanded(child: _pageArea(fluent)))
+        var area: [Widget] = []
+        if session.showNavigation {
+            area.append(NavigationPane(session: session, onClose: { [session] in session.onToggleNavigation?() }))
+        }
+        area.append(Expanded(child: Column(crossAxisAlignment: .stretch, children: pages)))
+        column.append(Expanded(child: Row(crossAxisAlignment: .stretch, children: area)))
         column.append(StatusBar(session: session, message: _status))
 
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,

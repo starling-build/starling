@@ -425,6 +425,8 @@ final class Ribbon: StatelessWidget {
         ])
         let show = Chrome.group("Show", fluent, [
             Chrome.textToggle("Ruler", session.showRuler, fluent) { [session] in session.onToggleRuler?() },
+            Chrome.gap(),
+            Chrome.textToggle("Navigation Pane", session.showNavigation, fluent) { [session] in session.onToggleNavigation?() },
         ])
         let zoom = Chrome.group("Zoom", fluent, [
             Chrome.big(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [session] in session.onZoom?(session.zoom + 0.1) },
