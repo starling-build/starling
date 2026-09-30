@@ -134,45 +134,156 @@ private func readRuntimeStages(_ bytes: [UInt8]) throws -> ShaderBundle {
 /// The JSON that `impellerc --json` writes, which is what Flutter's own web
 /// build ships: {"sksl": {"shader": "<source>", "uniforms": [...]}}.
 /// impellerc's JSON: `{"sksl": {"shader": "...", "uniforms": [...]}}`.
-/// Decoded with JSONDecoder — JSONSerialization is the legacy Foundation
-/// layer, which this build must not link.
-private struct ImpellercBundle: Decodable {
-    struct Root: Decodable {
-        var shader: String
-        var uniforms: [Uniform]
-    }
-    struct Uniform: Decodable {
-        var type: Int
-        var bit_width: Int?
-        var rows: Int?
-        var columns: Int?
-        var array_elements: Int?
-    }
-    var sksl: Root
-}
-
+///
+/// Read by a parser of its own, forty lines for this one shape.
+/// JSONDecoder would be the obvious choice, and it costs 3 MB here: it
+/// parses ISO-8601 dates, which brings Calendar, which brings the regex
+/// engine (docs/plans/wasm-size.md). JSONSerialization is the legacy
+/// Foundation layer, which this build does not link at all.
 private func readJSONBundle(_ bytes: [UInt8]) throws -> ShaderBundle {
     let invalid = ShaderBundleError(message: "Invalid Shader Data")
-    guard let parsed = try? JSONDecoder().decode(ImpellercBundle.self, from: Data(bytes))
+    var json = MiniJSON(bytes)
+    guard case .object(let top)? = try? json.parse(),
+          case .object(let root)? = top["sksl"],
+          case .string(let source)? = root["shader"],
+          case .array(let uniforms)? = root["uniforms"]
     else { throw invalid }
     var samplerCount = 0
     var floatCount = 0
-    for uniform in parsed.sksl.uniforms {
+    for entry in uniforms {
+        guard case .object(let uniform) = entry, case .number(let type)? = uniform["type"]
+        else { throw invalid }
         // 12 is SampledImage in the JSON's uniform type numbering.
-        if uniform.type == 12 {
+        if Int(type) == 12 {
             samplerCount += 1
             continue
         }
-        guard let bitWidth = uniform.bit_width, let rows = uniform.rows,
-              let columns = uniform.columns, let arrayElements = uniform.array_elements
+        guard case .number(let bitWidth)? = uniform["bit_width"],
+              case .number(let rows)? = uniform["rows"],
+              case .number(let columns)? = uniform["columns"],
+              case .number(let arrayElements)? = uniform["array_elements"]
         else { throw invalid }
-        var count = (bitWidth / 32) &* rows &* columns
-        if arrayElements > 1 { count = count &* arrayElements }
+        var count = (Int(bitWidth) / 32) &* Int(rows) &* Int(columns)
+        if Int(arrayElements) > 1 { count = count &* Int(arrayElements) }
         floatCount = floatCount &+ count
     }
     return ShaderBundle(
-        sksl: Array(parsed.sksl.shader.utf8), uniformFloatCount: max(0, floatCount),
+        sksl: Array(source.utf8), uniformFloatCount: max(0, floatCount),
         samplerCount: samplerCount)
+}
+
+/// Enough JSON for the bundle above: objects, arrays, strings with the
+/// standard escapes, numbers, the three literals.
+private struct MiniJSON {
+    indirect enum Value {
+        case object([String: Value]), array([Value]), string(String), number(Double)
+        case bool(Bool), null
+    }
+    struct Malformed: Error {}
+
+    private let bytes: [UInt8]
+    private var i = 0
+
+    init(_ bytes: [UInt8]) { self.bytes = bytes }
+
+    mutating func parse() throws -> Value {
+        let value = try parseValue()
+        skipSpace()
+        guard i == bytes.count else { throw Malformed() }
+        return value
+    }
+
+    private mutating func skipSpace() {
+        while i < bytes.count, [0x20, 0x09, 0x0A, 0x0D].contains(bytes[i]) { i += 1 }
+    }
+
+    private mutating func expect(_ literal: String) throws {
+        for byte in literal.utf8 {
+            guard i < bytes.count, bytes[i] == byte else { throw Malformed() }
+            i += 1
+        }
+    }
+
+    private mutating func parseValue() throws -> Value {
+        skipSpace()
+        guard i < bytes.count else { throw Malformed() }
+        switch bytes[i] {
+        case UInt8(ascii: "{"):
+            i += 1
+            var object: [String: Value] = [:]
+            skipSpace()
+            if i < bytes.count, bytes[i] == UInt8(ascii: "}") { i += 1; return .object(object) }
+            while true {
+                skipSpace()
+                guard case .string(let key) = try parseValue() else { throw Malformed() }
+                skipSpace()
+                try expect(":")
+                object[key] = try parseValue()
+                skipSpace()
+                guard i < bytes.count else { throw Malformed() }
+                if bytes[i] == UInt8(ascii: ",") { i += 1; continue }
+                try expect("}")
+                return .object(object)
+            }
+        case UInt8(ascii: "["):
+            i += 1
+            var array: [Value] = []
+            skipSpace()
+            if i < bytes.count, bytes[i] == UInt8(ascii: "]") { i += 1; return .array(array) }
+            while true {
+                array.append(try parseValue())
+                skipSpace()
+                guard i < bytes.count else { throw Malformed() }
+                if bytes[i] == UInt8(ascii: ",") { i += 1; continue }
+                try expect("]")
+                return .array(array)
+            }
+        case UInt8(ascii: "\""):
+            i += 1
+            var scalars = String.UnicodeScalarView()
+            while true {
+                guard i < bytes.count else { throw Malformed() }
+                let c = bytes[i]
+                i += 1
+                if c == UInt8(ascii: "\"") { break }
+                if c == UInt8(ascii: "\\") {
+                    guard i < bytes.count else { throw Malformed() }
+                    let e = bytes[i]
+                    i += 1
+                    switch e {
+                    case UInt8(ascii: "n"): scalars.append("\n")
+                    case UInt8(ascii: "t"): scalars.append("\t")
+                    case UInt8(ascii: "r"): scalars.append("\r")
+                    case UInt8(ascii: "b"): scalars.append("\u{8}")
+                    case UInt8(ascii: "f"): scalars.append("\u{C}")
+                    case UInt8(ascii: "u"):
+                        guard i + 4 <= bytes.count,
+                              let code = UInt32(String(decoding: bytes[i..<i + 4], as: UTF8.self), radix: 16),
+                              let scalar = Unicode.Scalar(code)
+                        else { throw Malformed() }
+                        i += 4
+                        scalars.append(scalar)
+                    default: scalars.append(Unicode.Scalar(e))
+                    }
+                } else {
+                    // Multi-byte UTF-8 passes through: collect the run and decode it.
+                    var run = [c]
+                    while i < bytes.count, bytes[i] & 0xC0 == 0x80 { run.append(bytes[i]); i += 1 }
+                    scalars.append(contentsOf: String(decoding: run, as: UTF8.self).unicodeScalars)
+                }
+            }
+            return .string(String(scalars))
+        case UInt8(ascii: "t"): try expect("true"); return .bool(true)
+        case UInt8(ascii: "f"): try expect("false"); return .bool(false)
+        case UInt8(ascii: "n"): try expect("null"); return .null
+        default:
+            let start = i
+            while i < bytes.count, "+-0123456789.eE".utf8.contains(bytes[i]) { i += 1 }
+            guard i > start, let number = Double(String(decoding: bytes[start..<i], as: UTF8.self))
+            else { throw Malformed() }
+            return .number(number)
+        }
+    }
 }
 
 private func readShaderBundle(_ bytes: [UInt8]) throws -> ShaderBundle {

@@ -37,9 +37,11 @@ CONFIG="release"
 SERVE=0
 BUILD=1
 CHECK=0
-# Release app.wasm, bytes. History: 60 MB when the gate was added; 20.3 MB
-# once the legacy Foundation module was off the link (phase 1).
-BUDGET=21000000
+# Release app.wasm, bytes, as staged (after wasm-opt when it is installed).
+# History: 60 MB when the gate was added; 20.3 MB once the legacy Foundation
+# module was off the link (phase 1); 11.6 MB with -Osize and wasm-opt
+# (phase 2). The budget assumes wasm-opt; without it the check says so.
+BUDGET=12000000
 PORT="${STARLING_WEB_PORT:-8137}"
 
 # The flutter/flutter commit starling-engine's `starling` branch forked from:
@@ -81,7 +83,8 @@ WHY="$SCRATCH/why-extract.tsv"
 LINK_FLAGS=()
 if [ "$CHECK" = 1 ]; then
     LINK_FLAGS=(-Xlinker "--why-extract=$WHY")
-    rm -f "$WHY"
+    # The record is written by the link, so make sure there is one.
+    rm -f "$WHY" "$SCRATCH/$CONFIG/$TARGET.wasm"
 fi
 if [ "$BUILD" = 1 ]; then
     STARLING_WASM=1 swift build --package-path "$REPO/sdk" --scratch-path "$SCRATCH" \
@@ -93,7 +96,22 @@ WASM="$SCRATCH/$CONFIG/$TARGET.wasm"
 
 mkdir -p "$STAGE/skwasm" "$STAGE/fonts"
 install -m 644 "$REPO/web/host/index.html" "$REPO/web/host/starling.js" "$STAGE/"
-install -m 644 "$WASM" "$STAGE/app.wasm"
+# binaryen's optimizer takes a third off Swift's output (15 MB of code to
+# 9 MB in the first measurement), in ten seconds. Optional: without it the
+# page is the same page, larger. `brew install binaryen` / `apt install
+# binaryen`. Skipped for debug builds, which want their names and DWARF.
+if [ "$CONFIG" = release ] && command -v wasm-opt >/dev/null; then
+    # The features named are the ones the Swift SDK's wasm32-wasip1 target
+    # emits; --strip-all removed the target_features section wasm-opt
+    # would otherwise read them from.
+    wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
+        --enable-sign-ext --enable-mutable-globals --enable-reference-types \
+        --enable-multivalue -o "$STAGE/app.wasm" "$WASM"
+    chmod 644 "$STAGE/app.wasm"
+else
+    install -m 644 "$WASM" "$STAGE/app.wasm"
+    [ "$CONFIG" = release ] && echo "wasm-opt not installed: app.wasm is unoptimized (brew install binaryen)"
+fi
 install -m 644 "$REPO/sdk/Sources/Flutter/Terminal/Fonts/DejaVuSans.ttf" \
     "$REPO/sdk/Sources/CupertinoIcons/Resources/CupertinoIcons.ttf" "$STAGE/fonts/"
 
@@ -113,7 +131,8 @@ if [ "$CHECK" = 1 ]; then
     # A --check without a build has no fresh why-extract; say so rather
     # than pass on a stale one.
     [ -s "$WHY" ] || { echo "error: --check needs a build (drop --no-build)" >&2; exit 1; }
-    [ "$CONFIG" = release ] || BUDGET=$((BUDGET * 2))
+    [ "$CONFIG" = release ] || BUDGET=$((BUDGET * 4))
+    command -v wasm-opt >/dev/null || BUDGET=$((BUDGET * 2))
     python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm" --why "$WHY" --budget "$BUDGET"
 else
     python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm"

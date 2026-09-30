@@ -1094,7 +1094,12 @@ if wasmBuild {
         // DWARF and the name section are a third of a release module and
         // the browser downloads them. A debug build keeps them: they are
         // what turns "RuntimeError: unreachable" into a stack trace.
-        .unsafeFlags(["-Xlinker", "--strip-all"], .when(configuration: .release)),
+        // STARLING_WASM_NAMES=1 keeps the names in a release build, for
+        // build/tools/wasm-size.py --by-module.
+        .unsafeFlags(
+            env("STARLING_WASM_NAMES", default: "").isEmpty
+                ? ["-Xlinker", "--strip-all"] : ["-Xlinker", "--strip-debug"],
+            .when(configuration: .release)),
     ]
     // `import Foundation` autolinks the legacy Foundation module (the NS
     // layer), CoreFoundation and ICU: 42 MB, of which nothing is used once
@@ -1106,7 +1111,14 @@ if wasmBuild {
     let noLegacyFoundation: [SwiftSetting] = [
         .unsafeFlags(
             ["Foundation", "CoreFoundation", "FoundationInternationalization", "_FoundationICU"]
-                .flatMap { ["-Xfrontend", "-disable-autolink-library", "-Xfrontend", $0] })
+                .flatMap { ["-Xfrontend", "-disable-autolink-library", "-Xfrontend", $0] }
+        ),
+        // Size over speed for the web release: a tenth of the code for
+        // nothing anyone can measure in a UI. (-conditional-runtime-records
+        // was tried here and changes nothing on wasm: the linker cannot
+        // drop a conformance record's type, which is what keeps unused
+        // code alive on this target.)
+        .unsafeFlags(["-Osize"], .when(configuration: .release)),
     ]
     let mode5: [SwiftSetting] = [
         .swiftLanguageMode(.v5),

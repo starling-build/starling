@@ -115,6 +115,11 @@ struct MacosFilePanelEntry {
     }
 
     static func list(_ path: String, showHidden: Bool) -> [MacosFilePanelEntry] {
+        #if os(WASI)
+        // A tab has no directories to list. The panel opens empty; a real
+        // file picker here is the browser's <input type=file>, unwritten.
+        return []
+        #else
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: path) else { return [] }
         var out: [MacosFilePanelEntry] = []
@@ -133,6 +138,7 @@ struct MacosFilePanelEntry {
             return a.name.lowercased() < b.name.lowercased()
         }
         return out
+        #endif
     }
 
     static func formatSize(_ bytes: UInt64) -> String {
@@ -204,11 +210,13 @@ class _MacosFilePanelState: State<StatefulWidget> {
     override func initState() {
         super.initState()
         var dir = options.initialDirectory ?? Self._home
+        #if !os(WASI)
         var isDir: ObjCBool = false
         if !FileManager.default.fileExists(atPath: dir, isDirectory: &isDir)
             || !isDir.boolValue {
             dir = Self._home
         }
+        #endif
         if let name = options.suggestedName { saveNameController.text = name }
         history = [dir]
         _load(dir)

@@ -5,6 +5,10 @@
     wasm-size.py app.wasm --why why.tsv        + which of OUR objects pulled
                                                in the archives we refuse
     wasm-size.py app.wasm --budget 20000000    exit 1 if larger
+    wasm-size.py app.wasm --by-module          code bytes per Swift module
+                                               (needs the name section:
+                                               a debug build, or a release
+                                               built with STARLING_WASM_NAMES=1)
 
 `why.tsv` is what wasm-ld writes for `--why-extract=`: one line per archive
 member it extracted, with the object that referenced it and the symbol. The
@@ -54,6 +58,75 @@ def sections(path):
         sizes[name] = sizes.get(name, 0) + n
         i += n
     return len(b), sizes
+
+
+def code_by_module(path):
+    """Code bytes per module, from function names. Swift names carry their
+    module; C++ and C are grouped by prefix."""
+    b = open(path, "rb").read()
+    i = 8
+    sizes = []
+    names = {}
+    imports = 0
+    while i < len(b):
+        sid = b[i]
+        n, i = leb(b, i + 1)
+        end = i + n
+        if sid == 2:
+            count, j = leb(b, i)
+            for _ in range(count):
+                length, j = leb(b, j); j += length
+                length, j = leb(b, j); j += length
+                kind = b[j]; j += 1
+                if kind == 0:
+                    _, j = leb(b, j); imports += 1
+                elif kind == 1:
+                    j += 1; flags, j = leb(b, j); _, j = leb(b, j)
+                    if flags & 1: _, j = leb(b, j)
+                elif kind == 2:
+                    flags, j = leb(b, j); _, j = leb(b, j)
+                    if flags & 1: _, j = leb(b, j)
+                elif kind == 3:
+                    j += 2
+        elif sid == 10:
+            count, j = leb(b, i)
+            for _ in range(count):
+                size, j = leb(b, j)
+                sizes.append(size)
+                j += size
+        elif sid == 0:
+            length, j = leb(b, i)
+            if b[j:j + length] == b"name":
+                j += length
+                while j < end:
+                    sub = b[j]
+                    sublen, j = leb(b, j + 1)
+                    subend = j + sublen
+                    if sub == 1:
+                        count, j = leb(b, j)
+                        for _ in range(count):
+                            index, j = leb(b, j)
+                            length, j = leb(b, j)
+                            names[index] = b[j:j + length].decode(errors="replace")
+                            j += length
+                    j = subend
+        i = end
+    if not names:
+        return None
+    by_module = collections.Counter()
+    for k, size in enumerate(sizes):
+        name = names.get(k + imports, "")
+        m = re.match(r"\$[sS](\d+)([A-Za-z_][A-Za-z0-9_]*)", name)
+        if m:
+            module = m.group(2)[: int(m.group(1))]
+        elif name.startswith("$s") or name.startswith("$S"):
+            module = "Swift"
+        elif "::" in name or name.startswith("_Z"):
+            module = "C++"
+        else:
+            module = "C"
+        by_module[module] += size
+    return sum(sizes), by_module
 
 
 def member(path):
@@ -110,6 +183,7 @@ def main():
     ap.add_argument("wasm")
     ap.add_argument("--why", help="wasm-ld --why-extract output")
     ap.add_argument("--budget", type=int, help="fail if the file is larger")
+    ap.add_argument("--by-module", action="store_true", help="code bytes per module")
     args = ap.parse_args()
 
     total, sizes = sections(args.wasm)
@@ -117,6 +191,16 @@ def main():
     for name, n in sorted(sizes.items(), key=lambda kv: -kv[1]):
         if n >= 100_000:
             print(f"  {n / 1e6:7.2f} MB    {name}")
+
+    if args.by_module:
+        result = code_by_module(args.wasm)
+        if result is None:
+            print("\n  no name section (build with STARLING_WASM_NAMES=1, or debug)")
+        else:
+            total_code, by_module = result
+            print(f"\n  code by module ({total_code / 1e6:.1f} MB):")
+            for module, n in by_module.most_common(20):
+                print(f"  {n / 1e6:7.2f} MB    {module}")
 
     failed = False
     if args.why:

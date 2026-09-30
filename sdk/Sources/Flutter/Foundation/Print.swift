@@ -114,13 +114,41 @@ nonisolated(unsafe) private var _debugPrintCompletionHandlers: [() -> Void] = []
 /// **Lines:** 91
 nonisolated(unsafe) private var _debugPrintScheduled: Bool = false
 
-/// Regex pattern for detecting list-style indentation prefixes.
+/// The list-style indentation prefix of `message`, if it has one: leading
+/// spaces, then optionally a bullet (`- `, `+ `, `* `) or an ordinal
+/// (`1. `, `2) `, `3: `).
 ///
-/// DIFFERENCE FROM DART: Uses nonisolated(unsafe) for Swift 6 concurrency.
+/// DIFFERENCE FROM DART: Dart's `_indentPattern` is the regex
+/// `/^ *(?:[-+*] |[0-9]+[.):] )?/`. Spelled out as character tests instead.
+/// REASON: one regex literal links the Swift regex engine — 1.2 MB in the
+/// web build (docs/plans/wasm-size.md) — for a prefix that is ten lines to
+/// scan by hand.
 ///
 /// **Dart Source:** `packages/flutter/lib/src/foundation/print.dart`
 /// **Lines:** 121
-nonisolated(unsafe) private let _indentPattern = /^ *(?:[-+*] |[0-9]+[.):] )?/
+private func _indentPrefix(of message: String) -> Substring {
+    let chars = message.utf8
+    var i = chars.startIndex
+    while i < chars.endIndex, chars[i] == UInt8(ascii: " ") { i = chars.index(after: i) }
+    let afterSpaces = i
+    if i < chars.endIndex, "-+*".utf8.contains(chars[i]) {
+        let next = chars.index(after: i)
+        if next < chars.endIndex, chars[next] == UInt8(ascii: " ") {
+            return message[..<chars.index(after: next)]
+        }
+    } else {
+        while i < chars.endIndex, (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(chars[i]) {
+            i = chars.index(after: i)
+        }
+        if i > afterSpaces, i < chars.endIndex, ".):".utf8.contains(chars[i]) {
+            let next = chars.index(after: i)
+            if next < chars.endIndex, chars[next] == UInt8(ascii: " ") {
+                return message[..<chars.index(after: next)]
+            }
+        }
+    }
+    return message[..<afterSpaces]
+}
 
 // MARK: - Word Wrap Parse Mode (Private)
 
@@ -315,9 +343,7 @@ public func debugWordWrap(_ message: String, _ width: Int, wrapIndent: String = 
     var wrapped: [String] = []
 
     // Match the indent pattern at the start of the message
-    // Pattern: /^ *(?:[-+*] |[0-9]+[.):] )?/
-    let prefixMatch = message.prefixMatch(of: _indentPattern)
-    let matchedPrefix = prefixMatch.map { String(message[$0.range]) } ?? ""
+    let matchedPrefix = _indentPrefix(of: message)
     let prefix = wrapIndent + String(repeating: " ", count: matchedPrefix.count)
 
     var start = message.startIndex

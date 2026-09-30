@@ -4959,12 +4959,11 @@ private let kSystemChannelName = "flutter/system"
 ///     .buffer
 ///     .asByteData();
 /// ```
-internal let fontChangeMessage: Data = {
-  // JSON encode: {"type": "fontsChange"}
-  let dict: [String: String] = ["type": "fontsChange"]
-  // This should not fail for this simple dictionary
-  return try! JSONEncoder().encode(dict)
-}()
+///
+/// DIFFERENCE FROM DART: the JSON is written out, not encoded.
+/// REASON: it is a constant, and JSONEncoder is 3 MB of the web build
+/// (it brings date formatting, which brings Calendar and the regex engine).
+internal let fontChangeMessage = Data(#"{"type":"fontsChange"}"#.utf8)
 
 /// Sends a platform message to notify the framework that fonts have changed.
 ///
