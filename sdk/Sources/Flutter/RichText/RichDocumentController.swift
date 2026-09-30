@@ -151,6 +151,7 @@ public enum EditOp: Equatable, Sendable {
 private enum UndoKind: Equatable {
     case typing        // coalescable character insertion
     case deleting      // coalescable backspace
+    case styleEdit     // coalescable Modify Style controls (one dialog, one step)
     case other
 }
 
@@ -298,6 +299,7 @@ public final class RichDocumentController: ChangeNotifier {
         switch kind {
         case .typing: undoKind = .typing
         case .deleting: undoKind = .deleting
+        case .styleEdit: undoKind = .styleEdit
         case .other: undoKind = .other
         }
         if !outer {
@@ -330,7 +332,11 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
-    public enum UndoKindHint { case typing, deleting, other }
+    public enum UndoKindHint { case typing, deleting, styleEdit, other }
+
+    /// End a run of coalesced edits: the next one starts a new undo step.
+    /// A Modify Style strip calls this on Done, as typing does on a click.
+    public func breakUndoCoalescing() { _breakCoalescing() }
 
     /// Apply one op inside an `edit` block.
     public func perform(_ op: EditOp) {
@@ -1081,9 +1087,12 @@ public final class RichDocumentController: ChangeNotifier {
     }
 
     /// Replace one style sheet entry (Modify Style), one undo step.
-    public func setStyleEntry(_ entry: RichNamedStyle) {
+    /// With `coalescing`, consecutive calls (a Modify Style strip's
+    /// controls) join one undo step until the caret moves or
+    /// `breakUndoCoalescing` is called, so one dialog is one step as in Word.
+    public func setStyleEntry(_ entry: RichNamedStyle, coalescing: Bool = false) {
         guard let old = document.styles[entry.id], old != entry else { return }
-        edit { perform(.setStyleEntry(old: old, new: entry)) }
+        edit(kind: coalescing ? .styleEdit : .other) { perform(.setStyleEntry(old: old, new: entry)) }
     }
 
     /// Word's "Update <style> to Match Selection": the caret's character

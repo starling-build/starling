@@ -667,6 +667,24 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[img + 1].text, "pasted")
     }
 
+    func testModifyStyleStripIsOneUndoStep() {
+        let c = controller("Heading", "body")
+        c.setNamedStyle(RichNamedStyle.headingId(1))
+        var e = c.document.styles[RichNamedStyle.headingId(1)]!
+        let original = e
+        e.char.bold = false; c.setStyleEntry(e, coalescing: true)
+        e.char.italic = true; c.setStyleEntry(e, coalescing: true)
+        e.paragraph.spaceAfter = 20; c.setStyleEntry(e, coalescing: true)
+        c.breakUndoCoalescing()
+        e.char.fontSize = 30; c.setStyleEntry(e, coalescing: true)
+        // Two steps: the strip's three edits, then the one after Done.
+        c.undo()
+        XCTAssertEqual(c.document.styles[RichNamedStyle.headingId(1)]?.paragraph.spaceAfter, 20)
+        XCTAssertEqual(c.document.styles[RichNamedStyle.headingId(1)]?.char.fontSize, original.char.fontSize)
+        c.undo()
+        XCTAssertEqual(c.document.styles[RichNamedStyle.headingId(1)], original)
+    }
+
     func testSentenceSelection() {
         let c = controller("One two. Three four!  Five? Six")
         c.selectSentence(at: RichPosition(paragraph: 0, offset: 12))

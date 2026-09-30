@@ -194,7 +194,11 @@ final class OfficeShellState: State<StatefulWidget> {
             self._colorText.text = self.controller.currentCharStyle.color.map(ColorBar.hex) ?? ""
             self.setState { self._colorOpen = true }
         }
-        session.onModifyStyle = { [weak self] id in self?.setState { self?._styleOpen = id } }
+        session.onModifyStyle = { [weak self] id in
+            guard let self else { return }
+            self.controller.breakUndoCoalescing()   // a new strip is a new undo step
+            self.setState { self._styleOpen = id }
+        }
         session.onPaste = { [weak self] plain in self?._paste(plain: plain) }
         session.onInsertPicture = { [weak self] in
             guard let self else { return }
@@ -708,7 +712,11 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         if let styleId = _styleOpen {
             column.append(StyleBar(session: session, styleId: styleId,
-                                   onClose: { [weak self] in self?.setState { self?._styleOpen = nil } }))
+                                   onClose: { [weak self] in
+                                       guard let self else { return }
+                                       self.controller.breakUndoCoalescing()
+                                       self.setState { self._styleOpen = nil }
+                                   }))
         }
         if _colorOpen {
             column.append(ColorBar(hex: _colorText,

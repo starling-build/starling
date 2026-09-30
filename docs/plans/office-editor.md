@@ -39,7 +39,11 @@ Row (`TableStyle` per table; the header row is shaded and repeated at
 the top of each later page as marked `PagePiece`s that live in the
 page only — seen in a PDF headless; `w:tblBorders`/`w:tblHeader` in
 .docx). ⌘-click selects the sentence. The greyed Shapes and Text Box
-buttons are gone; the Review note names them. First thing
+buttons are gone; the Review note names them. A Modify Style strip is
+one undo step (its edits coalesce until Done, Esc or a click), and the
+tooltip audit is by construction: every icon-only control takes a tip,
+every labelled one shows its label. M6, M8 and M10 are now complete
+apart from what needs the screen. First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The

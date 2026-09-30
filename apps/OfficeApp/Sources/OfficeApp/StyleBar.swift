@@ -7,8 +7,10 @@ import FluentSystemIcons
 import Foundation
 
 /// Modify Style: the strip the gallery's "Modify…" opens. Every control
-/// edits the sheet entry at once — one undo step each — and every
-/// paragraph in the style follows, so the document is the preview.
+/// edits the sheet entry at once and every paragraph in the style
+/// follows, so the document is the preview; the whole strip is one undo
+/// step (Done, Esc, or a click in the document ends it), as Word's
+/// dialog is.
 final class StyleBar: StatelessWidget {
     let session: OfficeSession
     let styleId: String
@@ -28,7 +30,7 @@ final class StyleBar: StatelessWidget {
         func change(_ transform: (inout RichNamedStyle) -> Void) {
             var e = entry
             transform(&e)
-            c.setStyleEntry(e)
+            c.setStyleEntry(e, coalescing: true)
         }
         let size = entry.char.fontSize ?? session.theme.fontSize
         let items: [Widget] = [
@@ -58,7 +60,7 @@ final class StyleBar: StatelessWidget {
             Expanded(child: SizedBox(width: 0, height: 0, child: nil)),
             Button(onPressed: { [session] in
                 // Word's defaults for this style, or the app's sheet if it has no entry.
-                if let original = OfficeStyles.sheet[entry.id] { session.controller.setStyleEntry(original) }
+                if let original = OfficeStyles.sheet[entry.id] { session.controller.setStyleEntry(original, coalescing: true) }
             }, child: Text("Reset")),
             Chrome.gap(8),
             FilledButton(onPressed: onClose, child: Text("Done")),
