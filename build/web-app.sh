@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build a Starling app for the browser and assemble the page that runs it.
 #
-#   build/web-app.sh [target] [--serve] [--debug] [--no-build]
+#   build/web-app.sh [target] [--serve] [--debug] [--no-build] [--check]
 #
 # Default target: CounterApp. Any executable the sdk/ manifest defines under
 # STARLING_WASM works; WebPixels is milestone 0 of docs/plans/wasm.md, skwasm
@@ -24,6 +24,11 @@
 # which is where sdk/Sources/CSkwasm/include/skwasm.h's signatures come from.
 # Building it ourselves needs emsdk (`download_emsdk` in .gclient) and is only
 # worth it once we change that C++.
+#
+# --check is the size gate (docs/plans/wasm-size.md): the link records why
+# each archive member was pulled in, and the build FAILS if the legacy
+# Foundation module or ICU is among them, or if app.wasm is over BUDGET.
+# The budget goes down as the plan lands and is never raised.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,6 +36,9 @@ TARGET="CounterApp"
 CONFIG="release"
 SERVE=0
 BUILD=1
+CHECK=0
+# Release app.wasm, bytes. History: 60 MB when the gate was added.
+BUDGET=61000000
 PORT="${STARLING_WEB_PORT:-8137}"
 
 # The flutter/flutter commit starling-engine's `starling` branch forked from:
@@ -40,6 +48,7 @@ SKWASM_REV="${STARLING_SKWASM_REV:-df87ee3db00df61d882f99e655a3dc5f8387f806}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --serve)    SERVE=1 ;;
+        --check)    CHECK=1 ;;
         --debug)    CONFIG="debug" ;;
         --no-build) BUILD=0 ;;
         -*)         echo "unknown option: $1" >&2; exit 2 ;;
@@ -67,9 +76,15 @@ fi
 SCRATCH="$REPO/.build-web"
 STAGE="$REPO/.stage-web"
 
+WHY="$SCRATCH/why-extract.tsv"
+LINK_FLAGS=()
+if [ "$CHECK" = 1 ]; then
+    LINK_FLAGS=(-Xlinker "--why-extract=$WHY")
+    rm -f "$WHY"
+fi
 if [ "$BUILD" = 1 ]; then
     STARLING_WASM=1 swift build --package-path "$REPO/sdk" --scratch-path "$SCRATCH" \
-        --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET"
+        --swift-sdk "$SWIFT_SDK" -c "$CONFIG" --product "$TARGET" "${LINK_FLAGS[@]}"
 fi
 
 WASM="$SCRATCH/$CONFIG/$TARGET.wasm"
@@ -92,9 +107,17 @@ if [ ! -s "$CACHE/skwasm.wasm" ] || [ ! -s "$CACHE/skwasm.js" ]; then
 fi
 install -m 644 "$CACHE/skwasm.js" "$CACHE/skwasm.wasm" "$STAGE/skwasm/"
 
-echo "staged  $STAGE"
-echo "  app.wasm     $(wc -c < "$STAGE/app.wasm" | tr -d ' ') bytes ($CONFIG, $SWIFT_SDK)"
-echo "  skwasm.wasm  $(wc -c < "$STAGE/skwasm/skwasm.wasm" | tr -d ' ') bytes (${SKWASM_REV:0:11})"
+echo "staged  $STAGE  ($CONFIG, $SWIFT_SDK; skwasm ${SKWASM_REV:0:11})"
+if [ "$CHECK" = 1 ]; then
+    # A --check without a build has no fresh why-extract; say so rather
+    # than pass on a stale one.
+    [ -s "$WHY" ] || { echo "error: --check needs a build (drop --no-build)" >&2; exit 1; }
+    [ "$CONFIG" = release ] || BUDGET=$((BUDGET * 2))
+    python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm" --why "$WHY" --budget "$BUDGET"
+else
+    python3 "$REPO/build/tools/wasm-size.py" "$STAGE/app.wasm"
+fi
+python3 "$REPO/build/tools/wasm-size.py" "$STAGE/skwasm/skwasm.wasm" | head -1
 
 if [ "$SERVE" = 1 ]; then
     echo "serving http://localhost:$PORT/  (ctrl-c to stop)"

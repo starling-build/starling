@@ -286,6 +286,18 @@ else
     echo "  SKIPPED — no wayland-client headers (apt install libwayland-dev)"
 fi
 
+# The browser build's size gate (docs/plans/wasm-size.md): a release link
+# must not pull in the legacy Foundation module or ICU, and app.wasm must be
+# under the budget in build/web-app.sh. Needs the wasm Swift SDK, which the
+# Linux boxes do not have yet; skipped, not failed, without it.
+step "web: size gate"
+if swift sdk list 2>/dev/null | grep -q "_wasm$"; then
+    as_user "$REPO/build/web-app.sh" --check 2>&1 | grep -vE "^\[|^Compiling|^Build" \
+        || fails=$((fails + 1))
+else
+    echo "  SKIPPED — no wasm Swift SDK (swift sdk install …_wasm.artifactbundle.tar.gz)"
+fi
+
 step "xdg-open routing"
 python3 "$REPO/test/xdg_open_routing.py" || fails=$((fails + 1))
 
