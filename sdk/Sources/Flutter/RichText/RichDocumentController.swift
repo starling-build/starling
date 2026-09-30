@@ -510,6 +510,11 @@ public final class RichDocumentController: ChangeNotifier {
             }
             return
         }
+        if pos.offset == 0, pos.paragraph > 0,
+           document.paragraphs[pos.paragraph].cell != document.paragraphs[pos.paragraph - 1].cell {
+            // Cell walls: backspace never joins across them.
+            return
+        }
         if pos.offset == 0, pos.paragraph > 0, document.paragraphs[pos.paragraph - 1].isImage {
             // Backspace right after a picture: select it (Word does this too),
             // so the next backspace removes it.
@@ -537,6 +542,10 @@ public final class RichDocumentController: ChangeNotifier {
                 perform(.removeParagraphs(at: pos.paragraph, [para]))
                 _setCaret(RichPosition(paragraph: min(pos.paragraph, document.paragraphs.count - 1), offset: 0))
             }
+            return
+        }
+        if pos.offset >= para.length, pos.paragraph + 1 < document.paragraphs.count,
+           para.cell != document.paragraphs[pos.paragraph + 1].cell {
             return
         }
         if pos.offset >= para.length, pos.paragraph + 1 < document.paragraphs.count,
@@ -734,6 +743,80 @@ public final class RichDocumentController: ChangeNotifier {
             perform(.splitParagraph(pos, tailStyle: tailStyle))
             _setCaret(RichPosition(paragraph: pos.paragraph + 1, offset: 0))
         }
+    }
+
+    // MARK: Tables
+
+    public var isInCell: Bool { document.paragraphs[selection.focus.paragraph].cell != nil }
+
+    /// Insert an empty rows×columns table at the caret, with a plain
+    /// paragraph after it so the caret can leave it.
+    public func insertTable(rows: Int, columns: Int) {
+        let rows = max(1, rows), columns = max(1, columns)
+        edit {
+            if hasSelection { _deleteSelectionOps() }
+            let pos = selection.focus
+            let para = document.paragraphs[pos.paragraph]
+            let id = UUID().uuidString
+            var cells: [RichParagraph] = []
+            for r in 0 ..< rows {
+                for c in 0 ..< columns {
+                    var p = RichParagraph()
+                    p.cell = CellRef(table: id, row: r, column: c)
+                    cells.append(p)
+                }
+            }
+            var at = pos.paragraph + 1
+            if para.text.isEmpty && !para.isImage && para.cell == nil {
+                at = pos.paragraph
+                perform(.insertParagraphs(at: at, cells))
+            } else if para.cell != nil {
+                // A table inside a table is a step too far: put it after.
+                let after = _tableEnd(from: pos.paragraph) + 1
+                perform(.insertParagraphs(at: after, cells + [RichParagraph()]))
+                at = after
+            } else {
+                if pos.offset < para.length {
+                    perform(.splitParagraph(pos, tailStyle: .body))
+                } else {
+                    perform(.insertParagraphs(at: at, [RichParagraph()]))
+                }
+                perform(.insertParagraphs(at: at, cells))
+            }
+            _setCaret(RichPosition(paragraph: at, offset: 0))
+        }
+    }
+
+    private func _tableEnd(from index: Int) -> Int {
+        guard let id = document.paragraphs[index].cell?.table else { return index }
+        var i = index
+        while i + 1 < document.paragraphs.count, document.paragraphs[i + 1].cell?.table == id { i += 1 }
+        return i
+    }
+
+    /// Tab / Shift+Tab inside a table: the next or previous cell's first
+    /// paragraph; past the last cell, the paragraph after the table.
+    public func moveToAdjacentCell(forward: Bool) {
+        let pos = selection.focus
+        guard let here = document.paragraphs[pos.paragraph].cell else { return }
+        let members = document.paragraphs(inTable: here.table)
+        // First paragraph of each cell, in order.
+        var firsts: [(CellRef, Int)] = []
+        for i in members {
+            let c = document.paragraphs[i].cell!
+            if firsts.last?.0.row != c.row || firsts.last?.0.column != c.column { firsts.append((c, i)) }
+        }
+        guard let k = firsts.firstIndex(where: { $0.0.row == here.row && $0.0.column == here.column }) else { return }
+        let target = forward ? k + 1 : k - 1
+        if target < 0 { return }
+        if target >= firsts.count {
+            let after = min(document.paragraphs.count - 1, (members.last ?? pos.paragraph) + 1)
+            moveTo(RichPosition(paragraph: after, offset: 0), extend: false)
+            return
+        }
+        let i = firsts[target].1
+        selection = RichSelection(anchor: RichPosition(paragraph: i, offset: 0),
+                                  focus: RichPosition(paragraph: i, offset: document.paragraphs[i].length))
     }
 
     // MARK: Header and footer

@@ -189,6 +189,26 @@ public final class RichLayout {
     private var _decoding: Set<String> = []
     private var _imageSize: [Size?] = []
 
+    /// Table cells: per paragraph, the row's top and height (for borders and
+    /// hit-testing) and the column geometry; nil for ordinary paragraphs.
+    private struct _CellGeo {
+        var table: String
+        var row: Int
+        var column: Int
+        var rowTop: Double = 0
+        var rowHeight: Double = 0
+        var colLeft: Double = 0
+        var colWidth: Double = 0
+        var firstInRow = false
+    }
+    private var _cells: [_CellGeo?] = []
+    /// Row top for every paragraph (its own top when not in a table): the
+    /// monotonic sequence the binary search runs on.
+    private var _rowTops: [Double] = []
+    private var _flowHeight = 0.0
+    private var _columnWidths: [String: [Double]] = [:]   // px, per table
+    public var cellPadding: Double = 4   // px, inside a cell
+
     private var _painters: [TextPainter?] = []
     private var _textLeft: [Double] = []
     private var _textWidth: [Double] = []
@@ -209,6 +229,8 @@ public final class RichLayout {
     private func _resize(_ n: Int) {
         _painters = Array(repeating: nil, count: n)
         _imageSize = Array(repeating: nil, count: n)
+        _cells = Array(repeating: nil, count: n)
+        _rowTops = Array(repeating: 0, count: n)
         _textLeft = Array(repeating: 0, count: n)
         _textWidth = Array(repeating: 0, count: n)
         _spaceBefore = Array(repeating: 0, count: n)
@@ -246,6 +268,8 @@ public final class RichLayout {
                 let at = min(at, _painters.count)
                 _painters.insert(contentsOf: Array(repeating: nil, count: n), at: at)
                 _imageSize.insert(contentsOf: Array(repeating: nil, count: n), at: at)
+                _cells.insert(contentsOf: Array(repeating: nil, count: n), at: at)
+                _rowTops.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _textLeft.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -259,6 +283,8 @@ public final class RichLayout {
                 for i in at ..< end { _painters[i]?.dispose() }
                 _painters.removeSubrange(at ..< end)
                 _imageSize.removeSubrange(at ..< end)
+                _cells.removeSubrange(at ..< end)
+                _rowTops.removeSubrange(at ..< end)
                 _textLeft.removeSubrange(at ..< end)
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
@@ -289,21 +315,79 @@ public final class RichLayout {
             _resize(document.paragraphs.count)
         }
         if !_listValid { _renumberLists(document) }
+        _updateTables(document)
         var changed = false
         for i in _painters.indices where _painters[i] == nil {
             _layoutParagraph(i, document.paragraphs[i])
             changed = true
         }
         if changed || !_topsValid {
-            var y = 0.0
-            for i in _heights.indices {
-                _tops[i] = y
-                y += _heights[i]
-            }
+            _placeBlocks(document)
             _topsValid = true
             _pagesValid = false
         }
         if pageSetup != nil && !_pagesValid { _paginate(document) }
+    }
+
+    /// Column widths per table (px); a table whose widths changed has every
+    /// cell re-laid out.
+    private func _updateTables(_ document: RichDocument) {
+        var widths: [String: [Double]] = [:]
+        for p in document.paragraphs {
+            guard let c = p.cell, widths[c.table] == nil else { continue }
+            let cols = document.columnCount(of: c.table)
+            if let pts = document.tableColumns[c.table], pts.count == cols {
+                widths[c.table] = pts.map { _px($0) }
+            } else {
+                widths[c.table] = Array(repeating: (width / Double(cols)).rounded(.down), count: cols)
+            }
+        }
+        for (table, w) in widths where _columnWidths[table] != w {
+            for i in document.paragraphs.indices where document.paragraphs[i].cell?.table == table {
+                _painters[i]?.dispose()
+                _painters[i] = nil
+            }
+        }
+        _columnWidths = widths
+    }
+
+    /// Stack the blocks: ordinary paragraphs one under another, a table row's
+    /// cells side by side with each column's paragraphs stacked inside it.
+    private func _placeBlocks(_ document: RichDocument) {
+        var y = 0.0
+        var i = 0
+        let n = _heights.count
+        while i < n {
+            guard let c = _cells[i] else {
+                _tops[i] = y
+                _rowTops[i] = y
+                y += _heights[i]
+                i += 1
+                continue
+            }
+            // The row: consecutive paragraphs of the same table and row.
+            var j = i
+            while j < n, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
+            var stack: [Int: Double] = [:]
+            var rowHeight = 0.0
+            for k in i ..< j {
+                let col = _cells[k]!.column
+                let offset = stack[col] ?? 0
+                _tops[k] = y + cellPadding + offset
+                _rowTops[k] = y
+                stack[col] = offset + _heights[k]
+                rowHeight = max(rowHeight, offset + _heights[k])
+            }
+            rowHeight += cellPadding * 2
+            for k in i ..< j {
+                _cells[k]!.rowTop = y
+                _cells[k]!.rowHeight = rowHeight
+                _cells[k]!.firstInRow = k == i
+            }
+            y += rowHeight
+            i = j
+        }
+        _flowHeight = y
     }
 
     // MARK: Pagination
@@ -328,7 +412,25 @@ public final class RichLayout {
             page += 1
             y = 0
         }
-        for i in 0 ..< count {
+        var i = 0
+        while i < count {
+            if let c = _cells[i] {
+                // A table row is one unbreakable block; every member gets the
+                // row's piece so its text paints on the row's page.
+                var j = i
+                while j < count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
+                let rowBottom = c.rowTop + c.rowHeight
+                if c.rowHeight > contentH - y + 0.01 && y > 0.01 { newPage() }
+                for k in i ..< j {
+                    _pages[page].append(PagePiece(paragraph: k, flowTop: c.rowTop, flowBottom: rowBottom,
+                                                  page: page, pageY: y))
+                }
+                y += c.rowHeight
+                if y > contentH - 0.01 { newPage() }
+                i = j
+                continue
+            }
+            defer { i += 1 }
             let g = geometry(i)
             if document.paragraphs[i].style.pageBreakBefore && (y > 0 || !_pages[page].isEmpty) {
                 newPage()
@@ -486,10 +588,21 @@ public final class RichLayout {
 
     private func _layoutParagraph(_ i: Int, _ p: RichParagraph) {
         let style = p.style
-        let left = _px(style.indentLeft)
+        var left = _px(style.indentLeft)
             + (style.list != nil ? _px(theme.listIndent) * Double(style.listLevel + 1) : 0)
         let right = _px(style.indentRight)
-        let textWidth = max(1, width - left - right)
+        var textWidth = max(1, width - left - right)
+        if let c = p.cell {
+            let widths = _columnWidths[c.table] ?? []
+            let colWidth = c.column < widths.count ? widths[c.column] : width
+            let colLeft = widths.prefix(c.column).reduce(0, +)
+            _cells[i] = _CellGeo(table: c.table, row: c.row, column: c.column,
+                                 colLeft: colLeft, colWidth: colWidth)
+            left = colLeft + cellPadding + _px(style.indentLeft)
+            textWidth = max(1, colWidth - cellPadding * 2 - _px(style.indentLeft) - right)
+        } else {
+            _cells[i] = nil
+        }
         let painter = TextPainter(
             text: _span(for: p),
             textAlign: Self._textAlign(style.alignment),
@@ -500,7 +613,9 @@ public final class RichLayout {
         // fractional line box leaves the previous line's descenders peeking
         // into the next page (and its ascenders shaved off the previous).
         let before = _px(style.spaceBefore).rounded()
-        let after = _px(style.spaceAfter > 0 ? style.spaceAfter : theme.spaceAfter)
+        let after = p.cell != nil
+            ? _px(style.spaceAfter)
+            : _px(style.spaceAfter > 0 ? style.spaceAfter : theme.spaceAfter)
         _painters[i] = painter
         _textLeft[i] = left
         _textWidth[i] = textWidth
@@ -589,10 +704,7 @@ public final class RichLayout {
 
     // MARK: Geometry queries (call ensureLaidOut first)
 
-    public var totalHeight: Double {
-        guard let last = _tops.last, let h = _heights.last else { return 0 }
-        return last + h
-    }
+    public var totalHeight: Double { _flowHeight }
 
     public func geometry(_ i: Int) -> ParagraphGeometry {
         ParagraphGeometry(painter: _painters[i]!, top: _tops[i], height: _heights[i],
@@ -610,16 +722,46 @@ public final class RichLayout {
     }
 
     /// Index of the paragraph containing document y (clamped to the ends).
+    /// Inside a table row this is some member of the row; `paragraphIndex(at:)`
+    /// picks the cell by x.
     public func paragraphIndex(atY y: Double) -> Int {
-        guard !_tops.isEmpty else { return 0 }
+        guard !_rowTops.isEmpty else { return 0 }
         if y < 0 { return 0 }
         var lo = 0
-        var hi = _tops.count - 1
+        var hi = _rowTops.count - 1
         while lo < hi {
             let mid = (lo + hi + 1) / 2
-            if _tops[mid] <= y { lo = mid } else { hi = mid - 1 }
+            if _rowTops[mid] <= y { lo = mid } else { hi = mid - 1 }
         }
+        // The search lands on the last row member with that top; step back
+        // to the row's first member so callers see the whole row.
+        while lo > 0, let c = _cells[lo], let d = _cells[lo - 1], c.table == d.table, c.row == d.row { lo -= 1 }
         return lo
+    }
+
+    /// The paragraph under a document-space point: the row by y, then the
+    /// cell by x, then the paragraph within the cell's stack by y.
+    public func paragraphIndex(at point: Offset) -> Int {
+        let i = paragraphIndex(atY: point.dy)
+        guard let c = _cells[i] else { return i }
+        var best = i
+        var j = i
+        while j < _cells.count, let d = _cells[j], d.table == c.table, d.row == c.row {
+            if point.dx >= d.colLeft && point.dx < d.colLeft + d.colWidth {
+                // In this column: the paragraph whose block spans y, else the last.
+                best = j
+                if point.dy < _tops[j] + _heights[j] { return j }
+            }
+            j += 1
+        }
+        return best
+    }
+
+    /// The row's box in document space for a cell paragraph, else nil.
+    public func rowRect(_ i: Int) -> Rect? {
+        guard i < _cells.count, let c = _cells[i] else { return nil }
+        let widths = _columnWidths[c.table] ?? []
+        return Rect.fromLTWH(0, c.rowTop, widths.reduce(0, +), c.rowHeight)
     }
 
     /// Paragraphs whose blocks intersect the vertical range.
@@ -627,6 +769,7 @@ public final class RichLayout {
         guard !_tops.isEmpty else { return 0 ..< 0 }
         let first = paragraphIndex(atY: top)
         var last = paragraphIndex(atY: bottom)
+        while last < _tops.count - 1, let c = _cells[last], let d = _cells[last + 1], c.table == d.table, c.row == d.row { last += 1 }
         if last < _tops.count - 1 { last += 1 }
         return first ..< min(_tops.count, last + 1)
     }
@@ -688,7 +831,7 @@ public final class RichLayout {
     /// The position nearest a point in document space.
     public func position(at point: Offset, _ document: RichDocument) -> RichPosition {
         guard count > 0 else { return .start }
-        let i = paragraphIndex(atY: point.dy)
+        let i = paragraphIndex(at: point)
         let g = geometry(i)
         let para = document.paragraphs[i]
         if para.text.isEmpty { return RichPosition(paragraph: i, offset: 0) }
@@ -728,6 +871,20 @@ public final class RichLayout {
 
     private func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         let g = geometry(i)
+        if let c = _cells[i], c.firstInRow {
+            let stroke = Paint()
+            stroke.style = .stroke
+            stroke.strokeWidth = 1
+            stroke.color = theme.textColor.withOpacity(0.6)
+            var x = 0.5
+            let widths = _columnWidths[c.table] ?? []
+            let top = c.rowTop.rounded() + 0.5
+            let bottom = (c.rowTop + c.rowHeight).rounded() + 0.5
+            for w in widths {
+                canvas.drawRect(Rect.fromLTRB(x, top, (x + w).rounded(), bottom), stroke)
+                x += w.rounded()
+            }
+        }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
             if let decoded = _decoded[image.id] {
                 let paint = Paint()

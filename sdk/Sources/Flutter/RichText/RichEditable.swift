@@ -307,7 +307,8 @@ public final class RichEditableState: State<StatefulWidget> {
         case .enter:
             c.insertParagraphBreak()
         case .tab:
-            if shift { c.indent(-1) } else if c.hasSelection { c.indent(1) } else { c.insertText("\t") }
+            if c.isInCell { c.moveToAdjacentCell(forward: !shift) }
+            else if shift { c.indent(-1) } else if c.hasSelection { c.indent(1) } else { c.insertText("\t") }
         case .escape:
             if c.hasSelection { c.moveTo(c.caret, extend: false) } else { return false }
         default:

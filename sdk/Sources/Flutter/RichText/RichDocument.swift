@@ -147,6 +147,24 @@ public struct ImageAttachment: Hashable, Sendable {
     public var fileExtension: String { isJPEG ? "jpeg" : isGIF ? "gif" : "png" }
 }
 
+// MARK: - Tables
+
+/// Which table cell a paragraph belongs to. A table is a run of consecutive
+/// paragraphs tagged with the same `table` id in row-major order; a cell
+/// may hold several paragraphs. Keeping cells as ordinary paragraphs keeps
+/// every edit, selection and format operation on the flat model.
+public struct CellRef: Hashable, Sendable {
+    public var table: String
+    public var row: Int
+    public var column: Int
+
+    public init(table: String, row: Int, column: Int) {
+        self.table = table
+        self.row = row
+        self.column = column
+    }
+}
+
 // MARK: - Runs and paragraphs
 
 /// A stretch of `length` UTF-16 units sharing one `CharStyle`.
@@ -172,6 +190,8 @@ public struct RichParagraph: Hashable, Sendable {
     public var style: RichParagraphStyle
     /// Set on a picture paragraph, whose text is empty.
     public var image: ImageAttachment? = nil
+    /// Set on a paragraph that lives in a table cell.
+    public var cell: CellRef? = nil
 
     public init(text: String = "", runs: [Run]? = nil, style: RichParagraphStyle = .body) {
         self.text = text
@@ -391,6 +411,7 @@ public struct RichParagraph: Hashable, Sendable {
                                  style: style)
         tail.normalize()
         if image != nil { tail.image = nil }
+        tail.cell = cell
         text = String(text[..<idx])
         runs = runs(in: 0 ..< offset)
         if runs.isEmpty { runs = [Run(length: 0, style: headStyleAtEnd)] }
@@ -543,6 +564,9 @@ public struct RichDocument: Hashable, Sendable {
     /// are replaced per page. Empty means none.
     public var header: String = ""
     public var footer: String = ""
+    /// Column widths in points per table id; a table without an entry gets
+    /// equal columns across the content width.
+    public var tableColumns: [String: [Double]] = [:]
 
     public static let pageField = "{PAGE}"
     public static let pageCountField = "{NUMPAGES}"
@@ -609,6 +633,22 @@ public struct RichDocument: Hashable, Sendable {
 
     public func text(in selection: RichSelection) -> String {
         fragment(selection).map(\.text).joined(separator: "\n")
+    }
+
+    // MARK: Tables
+
+    /// Column count of `table`, from the cells present.
+    public func columnCount(of table: String) -> Int {
+        var cols = 0
+        for p in paragraphs {
+            if let c = p.cell, c.table == table { cols = max(cols, c.column + 1) }
+        }
+        return max(1, cols)
+    }
+
+    /// Paragraph indices of every cell of `table`, in document order.
+    public func paragraphs(inTable table: String) -> [Int] {
+        paragraphs.indices.filter { paragraphs[$0].cell?.table == table }
     }
 
     // MARK: Whole-document counts

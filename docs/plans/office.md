@@ -48,6 +48,12 @@ of their own (Insert → Pictures, `.docx` media in and out, drawn through
 numbers** are one running line each with `{PAGE}`/`{NUMPAGES}` fields,
 painted into the margins of every page, in `.docx` and RTF.
 
+**Direction (2026-09-29): macOS only for now.** Linux, Windows and iOS
+wait; nothing below should spend time on them until the user says so.
+Tables are in progress: the SDK half (cell-tagged paragraphs, row layout
+with borders, Tab between cells) is in; the Insert menu, `.docx` and
+Markdown tables are next.
+
 Not done from the Phase 1 list: the `_writer_session` functional test
 (Linux desktop, Phase 3). Three directions from the user shape the plan:
 the app is **cross-platform and built on macOS first**, its UI is
