@@ -3201,8 +3201,10 @@ public class PlatformDispatcher {
   ///
   /// **Dart Source:** `platform_dispatcher.dart:424-427`
   /// **Original:** `void _beginFrame(int microseconds) { ... }`
-  package func _beginFrame(_ microseconds: Int) {
-    onBeginFrame?(.microseconds(Int64(microseconds)))
+  // Int64, not Int: the engine's timestamp is 64 bits, and on wasm32 a
+  // 32-bit Int of microseconds overflows 36 minutes after the page loads.
+  package func _beginFrame(_ microseconds: Int64) {
+    onBeginFrame?(.microseconds(microseconds))
   }
 
   /// Called from the engine after begin frame and microtasks are drained.

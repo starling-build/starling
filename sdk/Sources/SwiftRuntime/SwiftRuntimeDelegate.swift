@@ -57,8 +57,10 @@ public class SwiftRuntimeDelegate: @unchecked Sendable {
   ///   - microseconds: The frame time in microseconds since some epoch.
   ///   - frameNumber: The monotonically increasing frame number.
   public func beginFrame(_ microseconds: Int64, _ frameNumber: UInt64) {
-    platformDispatcher._updateFrameData(Int(frameNumber))
-    platformDispatcher._beginFrame(Int(microseconds))
+    // The frame number is truncated, not converted: on wasm32 Int is 32
+    // bits and the count only has to change between frames.
+    platformDispatcher._updateFrameData(Int(truncatingIfNeeded: frameNumber))
+    platformDispatcher._beginFrame(microseconds)
   }
 
   /// Called by the engine after `beginFrame` and microtasks are drained.
