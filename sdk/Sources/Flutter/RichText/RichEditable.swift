@@ -126,6 +126,11 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _columnDrag: (table: String, column: Int, startX: Double, widths: [Double])? = nil
     private var _columnDragWidths: [Double]? = nil
     private var _hoverColumnBorder = false
+    /// A press inside the selection: a drag of the selected text once the
+    /// pointer moves, a click that collapses the selection if it does not.
+    private var _textDrag: (start: Offset, active: Bool)? = nil
+    /// Where the dragged text would land, painted as a second caret.
+    private var _dropPosition: RichPosition? = nil
     static let handleSize = 8.0
     private var _clickStreak = 0
     private var _lastClickAt = 0.0
@@ -617,6 +622,15 @@ public final class RichEditableState: State<StatefulWidget> {
         _stickyX = nil
         switch _clickStreak {
         case 1:
+            let sel = _controller.selection
+            if !_chords.shift, _controller.hasSelection, sel.block == nil,
+               pos > sel.start, pos < sel.end, _controller.selectedImageIndex == nil {
+                // Pressing on selected text starts a drag of it, not a new
+                // selection; the caret moves only if the press stays put.
+                _textDrag = (event.localPosition, false)
+                _dragging = false
+                return
+            }
             _dragging = true
             _controller.moveTo(pos, extend: _chords.shift)
         case 2:
@@ -631,6 +645,23 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if let drag = _textDrag {
+            guard event.buttons & 1 != 0, _layout.width > 0 else { return }
+            if !drag.active {
+                let moved = abs(event.localPosition.dx - drag.start.dx) > 4 || abs(event.localPosition.dy - drag.start.dy) > 4
+                guard moved else { return }
+                setState { _textDrag = (drag.start, true) }   // the cursor changes
+            }
+            let y = event.localPosition.dy
+            if y < 0 { _scrollY -= min(40, -y) } else if y > _viewport.height { _scrollY += min(40, y - _viewport.height) }
+            _clampScroll()
+            let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+            if pos != _dropPosition {
+                _dropPosition = pos
+                _repaint.notifyListeners()
+            }
+            return
+        }
         if let drag = _columnDrag {
             // The dragged edge moves; the next column gives or takes the
             // difference so the table keeps its width, the last column
@@ -682,6 +713,21 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        if let drag = _textDrag {
+            _textDrag = nil
+            _dropPosition = nil
+            if _layout.width > 0 {
+                if drag.active {
+                    let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                    _controller.moveSelection(to: pos, copy: _chords.alt)
+                    setState {}   // back to the I-beam
+                } else {
+                    _controller.moveTo(_layout.canvasPosition(at: _canvasPoint(drag.start), _controller.document), extend: false)
+                }
+            }
+            _repaint.notifyListeners()
+            return
+        }
         let wasDragging = _dragging
         _dragging = false
         if wasDragging, _controller.hasSelection { _w.onSelectionGestureEnd?() }
@@ -770,6 +816,14 @@ public final class RichEditableState: State<StatefulWidget> {
                           paper.style = .fill
                           canvas.drawRect(rect, paper)
                       })
+        // Where dragged text will drop: a caret that follows the pointer.
+        if let drop = _dropPosition, _layout.count > drop.paragraph {
+            let r = _layout.canvasCaretRect(drop, _controller.document)
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = _layout.theme.caretColor
+            canvas.drawRRect(RRect(fromRectAndRadius: r, Radius(circular: 1)), paint)
+        }
         // An IME's uncommitted text: a line under the composing range.
         if let composing = _controller.composingRange, _layout.count > composing.paragraph {
             let sel = RichSelection(anchor: RichPosition(paragraph: composing.paragraph, offset: composing.range.lowerBound),
@@ -840,7 +894,8 @@ public final class RichEditableState: State<StatefulWidget> {
         // except an arrow over a selected picture and resize cursors on
         // its handles.
         let cursor: MouseCursor
-        if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
+        if _textDrag?.active == true { cursor = _chords.alt ? SystemMouseCursors.copy : SystemMouseCursors.grabbing }
+        else if let k = _hoverHandle ?? _handleDrag?.handle { cursor = Self._cursor(forHandle: k) }
         else if _hoverColumnBorder || _columnDrag != nil { cursor = SystemMouseCursors.resizeColumn }
         else if _hoverOverImage { cursor = SystemMouseCursors.basic }
         else if _hoverLink != nil && _chords.primary { cursor = SystemMouseCursors.click }

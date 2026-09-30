@@ -15,7 +15,9 @@ it with its ~30 findings fixed (commit 4ac18e6). Open: M1's on-screen half (`tes
 runs the checklist and screenshots every step for review), M5 IME on
 by default, the 14pt menu bug. Everyday editing added 2026-09-30, all
 headless: right-click menu, Paste as plain text (⌘⇧V), AutoCorrect
-(smart quotes, dashes, (c)/(r)/(tm), first-letter capitals), cell blocks. First thing
+(smart quotes, dashes, (c)/(r)/(tm), first-letter capitals), cell blocks,
+drag-and-drop of selected text (⌥ copies; a drop caret follows the
+pointer; a press that does not move collapses the selection, as Word). First thing
 once the screen is unlocked: run the driver and look at every picture.
 
 **M5, step one done:** platform messages now travel both ways. The

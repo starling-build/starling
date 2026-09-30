@@ -543,6 +543,42 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(c.document.paragraphs[0].text, "")
     }
 
+    func testDragAndDropMovesSelection() {
+        let c = controller("one two three")
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),
+                                    focus: RichPosition(paragraph: 0, offset: 4))
+        // Forward drop past the selection: the text lands where the pointer
+        // was, and stays selected there.
+        c.moveSelection(to: RichPosition(paragraph: 0, offset: 8), copy: false)
+        XCTAssertEqual(c.document.paragraphs[0].text, "two one three")
+        XCTAssertEqual(c.document.text(in: c.selection), "one ")
+        XCTAssertEqual(c.selection.start.offset, 4)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[0].text, "one two three")
+        // ⌥-drag copies.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),
+                                    focus: RichPosition(paragraph: 0, offset: 4))
+        c.moveSelection(to: RichPosition(paragraph: 0, offset: 13), copy: true)
+        XCTAssertEqual(c.document.paragraphs[0].text, "one two threeone ")
+        c.undo()
+        // A drop inside the selection is a no-op; across paragraphs the
+        // paragraph index shifts with the removal.
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 0),
+                                    focus: RichPosition(paragraph: 0, offset: 4))
+        c.moveSelection(to: RichPosition(paragraph: 0, offset: 2), copy: false)
+        XCTAssertEqual(c.document.paragraphs[0].text, "one two three")
+        c.moveTo(RichPosition(paragraph: 0, offset: 13), extend: false)
+        c.insertParagraphBreak()
+        c.insertText("four")
+        c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 4),
+                                    focus: RichPosition(paragraph: 1, offset: 0))
+        c.moveSelection(to: RichPosition(paragraph: 1, offset: 4), copy: false)
+        // The fragment ends with a paragraph break, so the break lands too.
+        XCTAssertEqual(c.document.paragraphs.map(\.text), ["one fourtwo three", ""])
+        XCTAssertEqual(c.document.text(in: c.selection), "two three\n")
+        XCTAssertTrue(c.document.isValid)
+    }
+
     func testCellBlockSelection() {
         let c = controller("")
         c.insertTable(rows: 3, columns: 3)

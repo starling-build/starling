@@ -463,6 +463,32 @@ public final class RichDocumentController: ChangeNotifier {
         }
     }
 
+    /// Drag-and-drop: move the selected text to `drop` (or, with `copy`,
+    /// put a copy there) and select it in its new place, as Word does. A
+    /// drop inside the selection does nothing. Cell blocks do not drag.
+    public func moveSelection(to drop: RichPosition, copy: Bool) {
+        guard hasSelection, selection.block == nil else { return }
+        let a = document.clamped(selection.start), b = document.clamped(selection.end)
+        let drop = document.clamped(drop)
+        guard drop < a || drop > b else { return }
+        let fragment = document.fragment(selection)
+        edit {
+            var target = drop
+            if !copy {
+                _deleteSelectionOps()
+                if drop > b {
+                    // What followed the removed range moved up to its start.
+                    target = drop.paragraph == b.paragraph
+                        ? RichPosition(paragraph: a.paragraph, offset: a.offset + drop.offset - b.offset)
+                        : RichPosition(paragraph: drop.paragraph - (b.paragraph - a.paragraph), offset: drop.offset)
+                }
+            }
+            _setCaret(target)
+            insertFragment(fragment)
+            selection = RichSelection(anchor: target, focus: selection.focus)
+        }
+    }
+
     // MARK: Deletion
 
     public func deleteBackward() {
