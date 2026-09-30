@@ -46,9 +46,30 @@ public enum SelawikFont {
         // The semibold cut goes in under both names: its own, for a style
         // that asks for it by name, and the regular's, so that weight 600
         // inside "Selawik" is this cut rather than a synthesized bold.
+        #if os(iOS)
+        // Regular only on iOS, and the weight-600 styles synthesized from
+        // it (FluentTheme passes no strong family there). Measured on the
+        // simulator, engine c2eba62: with both cuts loaded — in one family
+        // or two, the semibold once or twice — every run that landed on
+        // the Semibold face was shaped with one set of advances and drawn
+        // with another ("Document 1" came out "Do cument 1" with its m
+        // over its e), and the same bytes registered under two names made
+        // even a Regular placeholder draw as accented capitals. Carlito's
+        // four cuts in one family are perfect on the same build. The
+        // difference is Selawik-Semibold's name table — family "Selawik
+        // Semibold", subfamily "Regular", typographic family "Selawik" —
+        // which CoreText resolves back to the Regular face when it makes
+        // the sized CTFont Impeller draws with, while the tables the shaper
+        // read were the Semibold's. Skia on macOS and skwasm do not go
+        // through CoreText for the drawing font and are fine. Renaming the
+        // cut inside the file would fix it and needs the OFL's reserved-name
+        // question answered first; until then, one face.
+        let ok = load("Selawik-Regular", as: family)
+        #else
         let ok = load("Selawik-Regular", as: family)
             && load("Selawik-Semibold", as: semibold)
             && load("Selawik-Semibold", as: family)
+        #endif
         if ok { _registered = true }
         return ok
     }

@@ -935,6 +935,11 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
     /// see TerminalReport.swift for what goes in and why the pair of files is
     /// the whole idea.
     private func _writeReport() {
+        #if os(iOS)
+        // TerminalReport writes files under $HOME for a maintainer to be
+        // sent; a phone has neither, and the report is not built there.
+        setState { _showHud("reports are written on the desktop, not here", seconds: 5) }
+        #else
         _lock.lock()
         let viewOffset = min(_viewOffset, emulator.scrollbackCount)
         let grid = emulator.visibleLines(offset: viewOffset)
@@ -982,6 +987,7 @@ final class _TerminalViewState: State<StatefulWidget>, @unchecked Sendable {
             ?? "could not write a report — is $HOME writable?"
         FileHandle.standardError.write(Data(("[terminal] " + said + "\n").utf8))
         setState { _showHud(said, seconds: 5) }
+        #endif
     }
 
     // MARK: - Geometry
