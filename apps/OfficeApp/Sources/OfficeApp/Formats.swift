@@ -253,6 +253,12 @@ enum RtfFormat {
         var colorEntry = (r: 0, g: 0, b: 0, any: false)
         var fontEntry = (index: -1, name: "")
         var pendingUnicodeSkip = 0
+        // List membership lives outside the group stack: Word writes it in a
+        // {\*\pn …} group that closes before the paragraph's text, and
+        // \pard resets it.
+        var currentList: ListKind? = nil
+        var currentLevel = 0
+        var highSurrogate: Int? = nil
 
         func flushRun() {
             guard !buf.isEmpty else { return }
@@ -262,7 +268,12 @@ enum RtfFormat {
         }
         func endParagraph() {
             flushRun()
-            var p = RichParagraph(text: paraText, runs: runs.isEmpty ? nil : runs, style: state.para)
+            var style = state.para
+            if let list = currentList {
+                style.list = list
+                style.listLevel = currentLevel
+            }
+            var p = RichParagraph(text: paraText, runs: runs.isEmpty ? nil : runs, style: style)
             p.normalize()
             paragraphs.append(p)
             paraText = ""
@@ -275,7 +286,16 @@ enum RtfFormat {
             if pendingUnicodeSkip > 0 { pendingUnicodeSkip -= 1; return }
             if destination != nil {
                 if destination == "fonttbl" { fontEntry.name += s }
-                return
+                if destination == "colortbl" {
+                    // Each ';' closes one entry; a bare ';' is "auto".
+                    for ch in s where ch == ";" {
+                        colors.append(colorEntry.any
+                            ? Color(0xFF000000 | (colorEntry.r << 16) | (colorEntry.g << 8) | colorEntry.b)
+                            : Color(0xFF000000))
+                        colorEntry = (0, 0, 0, false)
+                    }
+                }
+                return   // pn, colortbl, and the skipped ones carry no body text
             }
             buf += s
         }
@@ -293,17 +313,20 @@ enum RtfFormat {
                     if j < chars.count && chars[j] == UInt8(ascii: "\\") { j += 1 }
                     var name = ""
                     while j < chars.count, (chars[j] >= 97 && chars[j] <= 122) { name.append(Character(UnicodeScalar(chars[j]))); j += 1 }
-                    if skipGroupUntil == nil { skipGroupUntil = groupDepth }
+                    if name == "pn" {
+                        // Word's list definition: read it, its keywords set the
+                        // paragraph's list kind (handled below).
+                        currentList = currentList ?? .bullet
+                        destination = "pn"
+                        destDepth = groupDepth
+                    } else if skipGroupUntil == nil {
+                        skipGroupUntil = groupDepth
+                    }
                     i = j
                 }
                 continue
             }
             if c == UInt8(ascii: "}") {
-                if destination == "colortbl" {
-                    // A missing entry means "auto"; keep the table aligned.
-                    colors.append(colorEntry.any ? Color(0xFF000000 | (colorEntry.r << 16) | (colorEntry.g << 8) | colorEntry.b) : Color(0xFF000000))
-                    colorEntry = (0, 0, 0, false)
-                }
                 if destination == "fonttbl", fontEntry.index >= 0 {
                     fonts[fontEntry.index] = fontEntry.name.trimmingCharacters(in: CharacterSet(charactersIn: "; "))
                     fontEntry = (-1, "")
@@ -354,6 +377,9 @@ enum RtfFormat {
                 if i < chars.count && chars[i] == UInt8(ascii: " ") { i += 1 }  // the delimiting space
 
                 if skipGroupUntil != nil { continue }
+                // A keyword may change the character style: close the run
+                // typed so far under the style it was typed with.
+                flushRun()
                 switch word {
                 case "fonttbl", "colortbl", "stylesheet", "info", "pict", "header", "footer", "listtable",
                      "listoverridetable", "themedata", "colorschememapping", "latentstyles", "datastore",
@@ -376,7 +402,7 @@ enum RtfFormat {
                 case "par": endParagraph()
                 case "line": append("\n")
                 case "tab": append("\t")
-                case "pard": state.para = .body; state.inList = false
+                case "pard": state.para = .body; state.inList = false; currentList = nil; currentLevel = 0
                 case "plain": state.char = CharStyle()
                 case "b": state.char.bold = param != 0
                 case "i": state.char.italic = param != 0
@@ -402,11 +428,11 @@ enum RtfFormat {
                 case "sa": state.para.spaceAfter = Double(param ?? 0) / 20
                 case "sl":
                     if let p = param, p > 0 { state.para.lineSpacing = max(0.5, Double(p) / 240) }
-                case "ls", "pn", "pnlvlblt", "pnlvlbody", "pnlvl":
-                    state.para.list = word == "pnlvlblt" ? .bullet : (state.para.list ?? .bullet)
-                    if word == "pnlvlbody" { state.para.list = .numbered }
-                    state.inList = true
-                case "ilvl": state.para.listLevel = max(0, min(8, param ?? 0))
+                case "ls", "pn", "pnlvl":
+                    if currentList == nil { currentList = .bullet }
+                case "pnlvlblt": currentList = .bullet
+                case "pnlvlbody", "pndec": currentList = .numbered
+                case "ilvl": currentLevel = max(0, min(8, param ?? 0))
                 case "pnlvlcont": break
                 case "page", "pagebb": state.para.pageBreakBefore = true
                 case "s":
@@ -416,7 +442,15 @@ enum RtfFormat {
                 case "u":
                     if let p = param {
                         let v = p < 0 ? p + 65536 : p
-                        if let scalar = UnicodeScalar(UInt32(v)) { append(String(Character(scalar))) }
+                        if v >= 0xD800 && v <= 0xDBFF {
+                            highSurrogate = v
+                        } else if v >= 0xDC00 && v <= 0xDFFF, let hi = highSurrogate {
+                            let code = 0x10000 + ((hi - 0xD800) << 10) + (v - 0xDC00)
+                            highSurrogate = nil
+                            if let scalar = UnicodeScalar(UInt32(code)) { append(String(Character(scalar))) }
+                        } else if let scalar = UnicodeScalar(UInt32(v)) {
+                            append(String(Character(scalar)))
+                        }
                         pendingUnicodeSkip = state.skip
                     }
                 default: break
@@ -480,6 +514,7 @@ enum RtfFormat {
             if let list = p.style.list {
                 li += 720 * (p.style.listLevel + 1)
                 fi = -360
+                head += "\\ilvl\(p.style.listLevel)"
                 listPrefix = list == .bullet ? "{\\pntext\\'b7\\tab}" : "{\\pntext 1.\\tab}"
                 head += list == .bullet
                     ? "{\\*\\pn\\pnlvlblt\\pnf1\\pnindent360{\\pntxtb\\'b7}}"

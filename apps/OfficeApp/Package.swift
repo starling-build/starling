@@ -178,6 +178,15 @@ let package = Package(
         .package(name: "FlutterSwift",
                  path: sdkBundle.isEmpty ? "../../sdk" : sdkBundle),
     ],
-    targets: [appTarget],
+    targets: [
+        appTarget,
+        // Round-trip tests for the file formats. `swift test --package-path
+        // apps/OfficeApp` — pure Swift over the document model, no window.
+        .testTarget(
+            name: "OfficeAppTests",
+            dependencies: ["OfficeApp"],
+            swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)]
+        ),
+    ],
     cxxLanguageStandard: .cxx20
 )
