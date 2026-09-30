@@ -35,10 +35,85 @@ final class Icon: StatelessWidget {
     }
 }
 
+/// Word's flat ribbon command: nothing until the pointer is over it, a
+/// subtle fill on hover, a tint while checked, and a menu below when it
+/// has one. Every ribbon control is one of these so the rows line up.
+final class FlatButton: StatefulWidget {
+    let child: Widget
+    let tip: String?
+    let checked: Bool
+    let enabled: Bool
+    let width: Double?
+    let height: Double
+    let alignLeft: Bool
+    let action: (() -> Void)?
+    let menu: [MenuFlyoutItemBase]?
+
+    init(child: Widget, tip: String? = nil, checked: Bool = false, enabled: Bool = true,
+         width: Double? = 28, height: Double = 28, alignLeft: Bool = false,
+         action: (() -> Void)? = nil, menu: [MenuFlyoutItemBase]? = nil) {
+        self.child = child
+        self.tip = tip
+        self.checked = checked
+        self.enabled = enabled
+        self.width = width
+        self.height = height
+        self.alignLeft = alignLeft
+        self.action = action
+        self.menu = menu
+        super.init(key: nil)
+    }
+
+    override func createState() -> State<StatefulWidget> { _FlatButtonState() }
+}
+
+private final class _FlatButtonState: State<StatefulWidget> {
+    private var _hover = false
+    private let _flyout = FlyoutController()
+
+    override func build(_ context: any BuildContext) -> Widget {
+        let w = widget as! FlatButton
+        let fluent = FluentTheme.of(context)
+        let accent = fluent.accentColor.defaultBrushFor(fluent.brightness)
+        var fill: Color? = nil
+        var stroke: Color? = nil
+        if w.enabled {
+            if w.checked { fill = accent.withOpacity(_hover ? 0.28 : 0.18); stroke = accent.withOpacity(0.35) }
+            else if _hover { fill = fluent.resources.subtleFillColorSecondary }
+        }
+        let inner: Widget = w.alignLeft
+            ? Padding(padding: EdgeInsets(left: 6, top: 0, right: 8, bottom: 0), child: Align(alignment: Alignment.centerLeft, child: w.child))
+            : Center(child: w.child)
+        var box: Widget = DecoratedBox(
+            decoration: BoxDecoration(color: fill ?? Color(0x00000000),
+                                      border: stroke.map { Border.all(color: $0, width: 1) },
+                                      borderRadius: BorderRadius.all(Radius(circular: 3))),
+            child: SizedBox(width: w.width, height: w.height, child: inner))
+        let items = w.menu
+        box = GestureDetector(
+            onTap: w.enabled ? { [weak self] in
+                if let items {
+                    self?._flyout.showFlyout(builder: { _ in MenuFlyout(items: items) }, placement: .bottom)
+                } else {
+                    w.action?()
+                }
+            } : nil,
+            behavior: .opaque,
+            child: MouseRegion(
+                onEnter: { [weak self] _ in self?.setState { self?._hover = true } },
+                onExit: { [weak self] _ in self?.setState { self?._hover = false } },
+                child: box))
+        if items != nil { box = FlyoutTarget(controller: _flyout, child: box) }
+        if let tip = w.tip { box = Tooltip(message: tip, child: box) }
+        return box
+    }
+}
+
 enum Chrome {
-    static let ribbonHeight = 110.0
+    static let ribbonHeight = 96.0
     static let iconSize = 16.0
     static let bigIconSize = 28.0
+    static let rowHeight = 28.0
 
     // MARK: Groups
 
@@ -54,15 +129,18 @@ enum Chrome {
             ]
         )
         return Row(crossAxisAlignment: .stretch, children: [
-            Padding(padding: EdgeInsets(left: 8, top: 4, right: 8, bottom: 4), child: body),
-            Padding(padding: EdgeInsets(left: 0, top: 6, right: 0, bottom: 6),
+            Padding(padding: EdgeInsets(left: 6, top: 4, right: 6, bottom: 2), child: body),
+            Padding(padding: EdgeInsets(left: 0, top: 10, right: 0, bottom: 10),
                     child: Divider(direction: .vertical)),
         ])
     }
 
-    /// A column of small rows inside a group.
+    /// A column of small rows inside a group; the rows stretch to the
+    /// widest so labelled buttons under each other share one edge.
     static func rows(_ rows: [Widget]) -> Widget {
-        Column(mainAxisAlignment: .start, crossAxisAlignment: .start, children: rows)
+        // The ribbon row is unbounded, so a stretching column needs its
+        // own width first: the widest row's.
+        IntrinsicWidth(child: Column(mainAxisAlignment: .start, crossAxisAlignment: .stretch, children: rows))
     }
 
     static func row(_ items: [Widget]) -> Widget {
@@ -72,67 +150,101 @@ enum Chrome {
     static func gap(_ w: Double = 4) -> Widget { SizedBox(width: w, height: 0, child: nil) }
     static func vgap(_ h: Double = 4) -> Widget { SizedBox(width: 0, height: h, child: nil) }
 
+    /// The small chevron of every menu and split button.
+    static func chevron(_ fluent: FluentThemeData) -> Widget {
+        Icon(FluentSystemIcons.chevronDown, size: 9, color: fluent.resources.textFillColorSecondary)
+    }
+
+    /// Word's Grow/Shrink Font glyph: an A with a small arrow, since the
+    /// icon font has no such pair.
+    static func sizeArrowIcon(up: Bool, _ fluent: FluentThemeData) -> Widget {
+        let ink = fluent.resources.textFillColorPrimary
+        return Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
+            Text("A", style: Flutter.TextStyle(color: ink, fontSize: 15, fontWeight: .w500, height: 1.0)),
+            SizedBox(width: 1, height: 0, child: nil),
+            Text(up ? "\u{25B2}" : "\u{25BC}", style: Flutter.TextStyle(color: ink, fontSize: 7, height: 1.0)),
+        ])
+    }
+
     // MARK: Buttons
 
     /// Icon-only command, 28×28.
     static func icon(_ icon: IconData, _ tip: String, _ fluent: FluentThemeData,
                      enabled: Bool = true, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
-        return Tooltip(message: tip, child: IconButton(
-            icon: Icon(icon, size: iconSize, color: color),
-            onPressed: enabled ? action : nil))
+        return FlatButton(child: Icon(icon, size: iconSize, color: color), tip: tip, enabled: enabled, action: action)
     }
 
-    /// Icon toggle, checked state drawn by ToggleButton.
+    /// Icon toggle: tinted while on.
     static func toggle(_ icon: IconData, _ tip: String, _ on: Bool, _ fluent: FluentThemeData,
                        action: @escaping () -> Void) -> Widget {
-        let color = on ? fluent.resources.textOnAccentFillColorPrimary : fluent.resources.textFillColorPrimary
-        return Tooltip(message: tip, child: ToggleButton(
-            checked: on, onChanged: { _ in action() },
-            child: Icon(icon, size: iconSize, color: color)))
+        FlatButton(child: Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary),
+                   tip: tip, checked: on, action: action)
     }
 
-    /// Text toggle (the style gallery, view switches).
+    /// Text toggle (the view switches).
     static func textToggle(_ label: String, _ on: Bool, _ fluent: FluentThemeData,
                            style: Flutter.TextStyle? = nil, action: @escaping () -> Void) -> Widget {
-        ToggleButton(checked: on, onChanged: { _ in action() }, child: Text(label, style: style))
+        FlatButton(child: Padding(padding: EdgeInsets(left: 8, top: 0, right: 8, bottom: 0), child: Text(label, style: style)),
+                   checked: on, width: nil, action: action)
     }
 
-    /// Big button: icon over label, the Paste-shaped one.
+    /// Big button: icon over label, the Paste-shaped one, both rows tall.
     static func big(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
                     enabled: Bool = true, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
-        return Button(onPressed: enabled ? action : nil, child: Padding(
-            padding: EdgeInsets(left: 4, top: 2, right: 4, bottom: 2),
+        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
             child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
                 Icon(icon, size: bigIconSize, color: color),
                 vgap(4),
                 Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-            ])))
+            ])), tip: nil, enabled: enabled, width: nil, height: rowHeight * 2 + 6, action: action)
     }
 
-    /// Big toggle: the big button's shape, lit while on (Spelling).
+    /// Big toggle: the big button's shape, tinted while on (Spelling).
     static func bigToggle(_ icon: IconData, _ label: String, _ on: Bool, _ fluent: FluentThemeData,
                           action: @escaping () -> Void) -> Widget {
-        let color = on ? fluent.resources.textOnAccentFillColorPrimary : fluent.resources.textFillColorPrimary
-        return ToggleButton(checked: on, onChanged: { _ in action() }, child: Padding(
-            padding: EdgeInsets(left: 4, top: 2, right: 4, bottom: 2),
+        let color = fluent.resources.textFillColorPrimary
+        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 2, right: 6, bottom: 2),
             child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
                 Icon(icon, size: bigIconSize, color: color),
                 vgap(4),
                 Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-            ])))
+            ])), checked: on, width: nil, height: rowHeight * 2 + 6, action: action)
     }
 
     /// Small button: icon beside label, stacked three to a column.
     static func small(_ icon: IconData, _ label: String, _ fluent: FluentThemeData,
                       enabled: Bool = true, action: @escaping () -> Void) -> Widget {
         let color = enabled ? fluent.resources.textFillColorPrimary : fluent.resources.textFillColorDisabled
-        return Button(onPressed: enabled ? action : nil, child: Row(crossAxisAlignment: .center, children: [
+        return FlatButton(child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: [
             Icon(icon, size: iconSize, color: color),
             gap(6),
             Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-        ]))
+        ]), enabled: enabled, width: nil, height: 21, alignLeft: true, action: action)
+    }
+
+    /// A menu button: optional icon, optional title, a chevron; the menu
+    /// opens below.
+    static func menuButton(_ icon: IconData?, _ title: String?, _ tip: String?, _ fluent: FluentThemeData,
+                           items: [MenuFlyoutItemBase]) -> Widget {
+        var parts: [Widget] = []
+        if let icon { parts.append(Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary)) }
+        if let title {
+            if icon != nil { parts.append(gap(6)) }
+            parts.append(Text(title, style: fluent.typography.body))
+        }
+        parts.append(gap(4))
+        parts.append(chevron(fluent))
+        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0),
+                                         child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: parts)),
+                          tip: tip, width: nil, menu: items)
+    }
+
+    /// The narrow half of a split button: a chevron that opens `items`,
+    /// beside a command that acts on its own.
+    static func splitChevron(_ tip: String, _ fluent: FluentThemeData, items: [MenuFlyoutItemBase]) -> Widget {
+        FlatButton(child: chevron(fluent), tip: tip, width: 14, menu: items)
     }
 
     /// A drop-down of named colours with a swatch each.
@@ -154,9 +266,7 @@ enum Chrome {
             items.append(MenuFlyoutSeparator())
             items.append(MenuFlyoutItem(text: Text("More Colors…"), onPressed: more))
         }
-        return Tooltip(message: tip, child: DropDownButton(
-            leading: Icon(icon, size: iconSize, color: fluent.resources.textFillColorPrimary),
-            items: items))
+        return menuButton(icon, nil, tip, fluent, items: items)
     }
 
     static func swatch(_ color: Color, _ fluent: FluentThemeData) -> Widget {
@@ -181,10 +291,15 @@ enum Chrome {
     /// A drop-down of plain choices.
     static func menu(_ title: Widget?, _ leading: Widget?, _ fluent: FluentThemeData,
                      _ choices: [(String, () -> Void)]) -> Widget {
-        DropDownButton(title: title, leading: leading,
-                       items: choices.map { name, action in
-                           MenuFlyoutItem(text: Text(name), onPressed: action) as MenuFlyoutItemBase
-                       })
+        let items = choices.map { name, action in MenuFlyoutItem(text: Text(name), onPressed: action) as MenuFlyoutItemBase }
+        var parts: [Widget] = []
+        if let leading { parts.append(leading) }
+        if let title { if leading != nil { parts.append(gap(6)) }; parts.append(title) }
+        parts.append(gap(4))
+        parts.append(chevron(fluent))
+        return FlatButton(child: Padding(padding: EdgeInsets(left: 6, top: 0, right: 5, bottom: 0),
+                                         child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: parts)),
+                          width: nil, menu: items)
     }
 }
 

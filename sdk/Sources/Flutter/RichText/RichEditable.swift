@@ -623,8 +623,8 @@ public final class RichEditableState: State<StatefulWidget> {
                     _controller.moveTo(pos, extend: false)
                 }
             }
-            let global = (context?.findRenderObject() as? RenderBox)?.localToGlobal(event.localPosition) ?? event.position
-            _w.onContextMenu?(global)
+            // The event's position is already the view's: the menu goes there.
+            _w.onContextMenu?(event.position)
             return
         }
         if _chords.primary, let link = _link(at: event.localPosition) {

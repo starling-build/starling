@@ -179,7 +179,7 @@ final class Ribbon: StatelessWidget {
         let sizes: [Double] = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72]
         let currentSize = session.effectiveFontSize
         let fontRow1 = Chrome.row([
-            SizedBox(width: 152, height: nil, child: ComboBox<String>(
+            SizedBox(width: 140, height: nil, child: ComboBox<String>(
                 value: session.effectiveFontFamily,
                 items: OfficeFonts.families.map { f in
                     ComboBoxItem<String>(value: f, child: Text(f, style: fluent.typography.body?.copyWith(color: nil)))
@@ -191,9 +191,10 @@ final class Ribbon: StatelessWidget {
                 items: sizes.map { n in ComboBoxItem<Double>(value: n, child: Text(Self._fmt(n))) },
                 onChanged: { n in if let n { c.setFontSize(n) } },
                 placeholder: Text(Self._fmt(currentSize)))),
-            Chrome.gap(),
-            Chrome.icon(FluentSystemIcons.textFontSize, "Grow Font", fluent) { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
-            Chrome.icon(FluentSystemIcons.textFont, "Shrink Font", fluent) { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
+            Chrome.gap(6),
+            FlatButton(child: Chrome.sizeArrowIcon(up: true, fluent), tip: "Grow Font (⌘])") { [session] in c.stepFontSize(1, base: session.effectiveFontSize) },
+            FlatButton(child: Chrome.sizeArrowIcon(up: false, fluent), tip: "Shrink Font (⌘[)") { [session] in c.stepFontSize(-1, base: session.effectiveFontSize) },
+            Chrome.gap(2),
             Chrome.menu(nil, Icon(FluentSystemIcons.textChangeCase, size: Chrome.iconSize,
                                   color: fluent.resources.textFillColorPrimary), fluent, [
                 ("Sentence case.", { c.changeCase(.sentence) }),
@@ -268,10 +269,16 @@ final class Ribbon: StatelessWidget {
             more.append(MenuFlyoutItem(text: Text("Modify \(current.name)…"),
                                        onPressed: { [session] in session.onModifyStyle?(current.id) }))
         }
-        tiles.append(Tooltip(message: "All styles", child: DropDownButton(
-            leading: Icon(FluentSystemIcons.paintBrush, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-            items: more)))
-        let styles = Chrome.group("Styles", fluent, tiles)
+        // The gallery sits in one bordered box, as Word's does.
+        let gallery = DecoratedBox(
+            decoration: BoxDecoration(border: Border.all(color: fluent.resources.controlStrokeColorDefault, width: 1),
+                                      borderRadius: BorderRadius.all(Radius(circular: 4))),
+            child: Padding(padding: EdgeInsets(left: 2, top: 2, right: 2, bottom: 2),
+                           child: Row(mainAxisSize: .min, crossAxisAlignment: .center, children: tiles)))
+        let styles = Chrome.group("Styles", fluent, [
+            gallery, Chrome.gap(2),
+            FlatButton(child: Chrome.chevron(fluent), tip: "All styles", width: 16, height: 58, menu: more),
+        ])
 
         let editing = Chrome.group("Editing", fluent, [Chrome.rows([
             Chrome.small(FluentSystemIcons.search, "Find", fluent) { [session] in session.onFind?(false) },
@@ -286,16 +293,11 @@ final class Ribbon: StatelessWidget {
     private func _styleTile(_ entry: RichNamedStyle, _ on: Bool, _ fluent: FluentThemeData,
                             action: @escaping () -> Void) -> Widget {
         let look = _preview(entry, fluent, cap: 18, onAccent: on)
-        return Padding(padding: EdgeInsets(left: 0, top: 0, right: 4, bottom: 0),
-                child: SizedBox(width: 73, height: 56, child: ToggleButton(
-                    checked: on, onChanged: { _ in action() },
-                    child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
+        return FlatButton(child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
                         Text("AaBb", style: look),
                         Chrome.vgap(2),
-                        Text(entry.name, style: fluent.typography.caption?.copyWith(
-                            color: on ? fluent.resources.textOnAccentFillColorPrimary : nil),
-                             softWrap: false),
-                    ]))))
+                        Text(entry.name, style: fluent.typography.caption, softWrap: false),
+                    ]), checked: on, width: 74, height: 54, action: action)
     }
 
     /// The style's character look, sized to fit chrome.
@@ -367,7 +369,7 @@ final class Ribbon: StatelessWidget {
             let preview = f.format == .bullet ? "\(f.text)  \(f.text)  \(f.text)" : "\(f.sample(1))  \(f.sample(2))  \(f.sample(3))"
             return MenuFlyoutItem(text: Text(preview), onPressed: { c.setListFormat(f) }, selected: f == current)
         }
-        return Tooltip(message: tip, child: _SplitChevron(items: items))
+        return Chrome.splitChevron(tip, fluent, items: items)
     }
 
     private func _tableMenu(_ fluent: FluentThemeData) -> Widget {
@@ -387,10 +389,7 @@ final class Ribbon: StatelessWidget {
         items.append(MenuFlyoutItem(text: Text("Delete Row"), onPressed: inCell ? { c.deleteRow() } : nil))
         items.append(MenuFlyoutSeparator())
         items.append(MenuFlyoutItem(text: Text("Delete Table"), onPressed: inCell ? { c.deleteTable() } : nil))
-        return DropDownButton(
-            title: Text("Table"),
-            leading: Icon(FluentSystemIcons.table, size: Chrome.iconSize, color: fluent.resources.textFillColorPrimary),
-            items: items)
+        return Chrome.menuButton(FluentSystemIcons.table, "Table", nil, fluent, items: items)
     }
 
     // MARK: Table Layout
@@ -564,41 +563,6 @@ final class Ribbon: StatelessWidget {
 
     private func _viewTile(_ icon: IconData, _ label: String, _ on: Bool, _ fluent: FluentThemeData,
                            action: @escaping () -> Void) -> Widget {
-        let color = on ? fluent.resources.textOnAccentFillColorPrimary : fluent.resources.textFillColorPrimary
-        return Padding(padding: EdgeInsets(left: 0, top: 0, right: 4, bottom: 0), child: ToggleButton(
-            checked: on, onChanged: { _ in action() },
-            child: Column(mainAxisAlignment: .center, crossAxisAlignment: .center, children: [
-                Icon(icon, size: Chrome.bigIconSize, color: color),
-                Chrome.vgap(4),
-                Text(label, style: fluent.typography.caption?.copyWith(color: color)),
-            ])))
-    }
-}
-
-/// The narrow half of a split button: a 13px strip with a chevron that
-/// opens a menu, so a library sits beside its toggle without the width
-/// of a whole DropDownButton.
-private final class _SplitChevron: StatefulWidget {
-    let items: [MenuFlyoutItemBase]
-    init(items: [MenuFlyoutItemBase]) { self.items = items; super.init(key: nil) }
-    override func createState() -> State<StatefulWidget> { _SplitChevronState() }
-}
-
-private final class _SplitChevronState: State<StatefulWidget> {
-    private let _flyout = FlyoutController()
-
-    override func build(_ context: any BuildContext) -> Widget {
-        let w = widget as! _SplitChevron
-        let fluent = FluentTheme.of(context)
-        // The whole strip takes the click (a GestureDetector defers to its
-        // child by default, and a SizedBox has no box of its own).
-        return FlyoutTarget(controller: _flyout, child: GestureDetector(
-            onTap: { [weak self] in
-                guard let self else { return }
-                self._flyout.showFlyout(builder: { _ in MenuFlyout(items: w.items) }, placement: .bottom)
-            },
-            behavior: .opaque,
-            child: SizedBox(width: 13, height: 30, child: Center(child: Text(
-                "\u{25BC}", style: TextStyle(color: fluent.resources.textFillColorSecondary, fontSize: 8))))))
+        Chrome.bigToggle(icon, label, on, fluent, action: action)
     }
 }

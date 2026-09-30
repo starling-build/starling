@@ -199,7 +199,10 @@ public class Text: StatelessWidget {
 
         let span: InlineSpan
         if let textSpan = textSpan {
-            span = textSpan
+            // As in Dart: the widget's (merged default) style is the root,
+            // the given span its child, so an unstyled span still gets the
+            // colour and size — a Tooltip's message drew as nothing before.
+            span = TextSpan(children: [textSpan], style: effectiveTextStyle)
         } else {
             span = TextSpan(text: data ?? "", style: effectiveTextStyle)
         }

@@ -638,6 +638,13 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(ListLevelFormat.plain(1).asLibraryEntry(atLevel: 1), .plain(0))
     }
 
+    func testSmartPadNeverInsideAWord() {
+        let c = controller("navigation pane")
+        c.moveTo(RichPosition(paragraph: 0, offset: 13), extend: false)   // "pa|ne"
+        c.insertFragment([RichParagraph(text: "Home")], smart: true)
+        XCTAssertEqual(c.document.paragraphs[0].text, "navigation paHomene")
+    }
+
     func testSmartCutKeepsSpaceBeforeOpeners() {
         let c = controller("foo bar (baz)")
         c.selection = RichSelection(anchor: RichPosition(paragraph: 0, offset: 4), focus: RichPosition(paragraph: 0, offset: 8))

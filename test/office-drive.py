@@ -29,11 +29,24 @@ func post(_ t: CGEventType, _ pt: CGPoint, _ b: CGMouseButton = .left, clicks: I
 }
 let mode = a.count > 3 ? a[3] : "click"
 var flags: CGEventFlags = []
-if a.contains("shift") { flags.insert(.maskShift) }
-if a.contains("cmd") { flags.insert(.maskCommand) }
+// Modifiers are held with real key events around the click: the app's
+// chord tracker follows key events, not the flags on a mouse event.
+var held: [CGKeyCode] = []
+if a.contains("shift") { flags.insert(.maskShift); held.append(56) }
+if a.contains("cmd") { flags.insert(.maskCommand); held.append(55) }
+if a.contains("option") { flags.insert(.maskAlternate); held.append(58) }
+func keyEvent(_ code: CGKeyCode, down: Bool, _ f: CGEventFlags) {
+    let e = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
+    e.flags = f
+    e.post(tap: .cghidEventTap); usleep(30_000)
+}
+for k in held { keyEvent(k, down: true, flags) }
+defer { for k in held.reversed() { keyEvent(k, down: false, []) } }
 post(.mouseMoved, p, flags: flags)
 switch mode {
 case "move": break
+case "right":
+    post(.rightMouseDown, p, .right, flags: flags); post(.rightMouseUp, p, .right, flags: flags)
 case "double":
     post(.leftMouseDown, p, flags: flags); post(.leftMouseUp, p, flags: flags)
     post(.leftMouseDown, p, clicks: 2, flags: flags); post(.leftMouseUp, p, clicks: 2, flags: flags)
@@ -161,13 +174,14 @@ def run(d, only):
         d.key(key=KEY["pagedown"]); d.shot("pagedown", "Caret and view moved a screenful down")
 
     if step("editing"):
-        d.click(560, 405); d.key(key=KEY["end"])
+        d.key(key=KEY["up"], mods=("command",))   # PageDown left the view scrolled
+        d.click(560, 441); d.key(key=KEY["end"])
         d.key(" typed here"); d.shot("typing", "' typed here' appended to the first intro line's end")
         d.key(key=KEY["backspace"], mods=("command",)); d.shot("cmd-backspace", "The line before the caret deleted")
         d.key("z", mods=("command",)); d.shot("undo", "The line is back")
         d.key(key=KEY["enter"], mods=("shift",)); d.key("after a line break"); d.shot("shift-enter", "A line break inside the paragraph, text on the next line")
         d.key("z", mods=("command",)); d.key("z", mods=("command",))
-        d.click(560, 405); d.click(700, 405, "click", "shift"); d.key("b", mods=("command",)); d.shot("cmd-b", "Selection bold")
+        d.click(560, 441); d.click(700, 441, "click", "shift"); d.key("b", mods=("command",)); d.shot("cmd-b", "Selection bold")
         d.key("e", mods=("command",)); d.shot("cmd-e", "Intro paragraph centred")
         d.key("l", mods=("command",))
         d.key("]", mods=("command",)); d.shot("cmd-bracket", "Selection one size larger; the Font size box shows it")
@@ -175,13 +189,15 @@ def run(d, only):
 
     if step("list"):
         # The list: click the end of the second bullet, Enter twice ends the list.
-        d.click(1000, 640); d.key(key=KEY["end"]); d.key(key=KEY["enter"]); d.shot("list-enter", "A new empty bullet under item 2")
+        d.key(key=KEY["up"], mods=("command",))
+        d.click(600, 710); d.key(key=KEY["end"]); d.key(key=KEY["enter"]); d.shot("list-enter", "A new empty bullet under item 2")
         d.key(key=KEY["enter"]); d.shot("list-end", "The empty bullet became a plain paragraph")
         d.key("z", mods=("command",)); d.key("z", mods=("command",))
 
     if step("table"):
-        d.click(560, 760); d.shot("table-click", "Caret in the table; the Table Layout tab is in the strip")
-        d.click(560, 760, "move"); d.shot("cursor-table", "I-beam inside a cell", cursor=True)
+        d.key(key=KEY["up"], mods=("command",))   # back to the top: the table is at a known y there
+        d.click(560, 870); d.shot("table-click", "Caret in the table; the Table Layout tab is in the strip")
+        d.click(560, 870, "move"); d.shot("cursor-table", "I-beam inside a cell", cursor=True)
         d.key(key=KEY["tab"]); d.key(key=KEY["tab"]); d.shot("table-tab", "Two Tabs: the third cell is selected")
 
     if step("picture"):
@@ -193,10 +209,10 @@ def run(d, only):
     if step("chrome"):
         d.click(159, 90); d.shot("insert-tab", "Insert tab with Table menu, Pictures, Link enabled")
         d.click(97, 90); d.shot("home-tab", "Home tab; Change Case is a menu, Show/Hide ¶ a toggle")
-        d.click(802, 126); d.shot("marks-on", "Formatting marks: a pilcrow at every paragraph end")
-        d.click(802, 126)
-        d.click(1253, 123); d.shot("styles-menu", "The all-styles menu with Update … to Match Selection at the bottom")
-        d.key(key=KEY["escape"])
+        d.click(826, 126); d.shot("marks-on", "Formatting marks: a pilcrow at every paragraph end")
+        d.click(826, 126)
+        d.click(1215, 123); d.shot("styles-menu", "The all-styles menu with Update … to Match Selection at the bottom")
+        d.click(720, 650)   # a click outside closes a flyout (Esc does not)
         d.click(514, 90); d.shot("view-tab", "View tab: Navigation Pane toggle")
         d.click(423, 126); d.shot("nav-pane", "Navigation pane with the welcome headings")
         d.click(423, 126)

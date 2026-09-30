@@ -521,8 +521,13 @@ public final class RichDocumentController: ChangeNotifier {
         guard smartSpacing, let f = text.utf16.first, let l = text.utf16.last,
               !document.paragraphs[pos.paragraph].isImage else { return (false, false) }
         let units = Array(document.paragraphs[pos.paragraph].text.utf16)
-        let before = pos.offset > 0 && RichParagraph.classify(units[pos.offset - 1]) == .word && RichParagraph.classify(f) == .word
-        let after = pos.offset < units.count && RichParagraph.classify(units[pos.offset]) == .word && RichParagraph.classify(l) == .word
+        let prevIsWord = pos.offset > 0 && RichParagraph.classify(units[pos.offset - 1]) == .word
+        let nextIsWord = pos.offset < units.count && RichParagraph.classify(units[pos.offset]) == .word
+        // Between words only: inside a word (letters on both sides) Word
+        // pads nothing, and neither do we.
+        if prevIsWord && nextIsWord { return (false, false) }
+        let before = prevIsWord && RichParagraph.classify(f) == .word
+        let after = nextIsWord && RichParagraph.classify(l) == .word
         return (before, after)
     }
 
