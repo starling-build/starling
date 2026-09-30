@@ -150,3 +150,18 @@ final class FormatsTests: XCTestCase {
         XCTAssertTrue(p.runs(in: 29 ..< 31)[0].style.italic)
     }
 }
+
+final class WelcomeDocumentTests: XCTestCase {
+    func testWelcomeDocumentIsValidAndRoundTrips() throws {
+        let doc = WelcomeDocument.make()
+        XCTAssertTrue(doc.isValid)
+        XCTAssertEqual(doc.styles.id(of: doc.paragraphs[0].style), "Title")
+        XCTAssertEqual(Set(doc.paragraphs.compactMap { $0.cell?.table }).count, 1)
+        XCTAssertTrue(doc.paragraphs.contains { $0.runs.contains { $0.style.link != nil } })
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter))
+        XCTAssertEqual(back.document.paragraphs.map(\.text), doc.paragraphs.map(\.text))
+        // Markdown drops the trailing empty paragraph; everything else survives.
+        XCTAssertEqual(MarkdownFormat.parse(MarkdownFormat.render(doc)).paragraphs.map(\.text),
+                       Array(doc.paragraphs.map(\.text).dropLast()))
+    }
+}

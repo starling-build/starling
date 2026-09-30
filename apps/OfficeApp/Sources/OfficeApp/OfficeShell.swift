@@ -60,6 +60,8 @@ final class OfficeShellState: State<StatefulWidget> {
             controller.load(DemoDocument.make(pages: pages))
         } else if let path = (widget as! OfficeShell).initialPath {
             _open(path)
+        } else {
+            controller.load(WelcomeDocument.make())
         }
         _savedRevision = controller.revision
         session.summary = session.summarize()
